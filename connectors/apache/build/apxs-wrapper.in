@@ -40,7 +40,7 @@ if test -n "$MSCONNECTOR_COMMON_SRC"; then
         response_mapper_contract.c headers.c event.c event_jsonl.c \
         json_escape.c rule_id.c log_sanitize.c redaction.c \
         resource_limits.c dos_guard.c error.c status.c body_policy.c \
-        block_statuses.c http_status.c transaction_state.c limits.c crs.c
+        block_statuses.c http_status.c transaction_state.c late_intervention.c limits.c crs.c
     do
         cp "$MSCONNECTOR_COMMON_SOURCE_ROOT/$common_source" \
             "$MSCONNECTOR_COMMON_BUILD_SRC/$common_source"
@@ -70,6 +70,7 @@ $MSCONNECTOR_COMMON_SRC/body_policy.c
 $MSCONNECTOR_COMMON_SRC/block_statuses.c
 $MSCONNECTOR_COMMON_SRC/http_status.c
 $MSCONNECTOR_COMMON_SRC/transaction_state.c
+$MSCONNECTOR_COMMON_SRC/late_intervention.c
 $MSCONNECTOR_COMMON_SRC/limits.c
 $MSCONNECTOR_COMMON_SRC/crs.c"
 fi

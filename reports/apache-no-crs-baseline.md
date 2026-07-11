@@ -32,6 +32,30 @@ Buffered request and response paths are implemented; streaming paths and drop ar
 
 Phase-4 intervention timing depends on whether Apache has committed the response.
 
+## Canonical Phase-4 facets
+
+The response-body path and every response-phase facet below are
+`implemented_not_asserted`. This is a source-and-wiring declaration, not a
+Phase-4 `PASS`: no current canonical real-host run has observed rule `1100301`,
+a pre-commit denial, or either late-intervention action.
+
+| Facet | Capability state | Required runtime evidence before it can be asserted |
+|---|---|---|
+| Response body availability (`response_body_buffered`) | `implemented_not_asserted` | A bounded Apache output-filter path is wired; no current canonical real-host evidence proves that it processed a response body. |
+| Phase-4 invocation (`phase4`) | `implemented_not_asserted` | The response-body Phase-4 call is wired; no current canonical real-host evidence proves its invocation. |
+| Rule evaluation (`phase4_rule_evaluation`) | `implemented_not_asserted` | The output-filter Phase-4 path is present; no current canonical real-host evidence proves that it evaluated rule `1100301`. |
+| Pre-commit denial (`phase4_pre_commit_deny`) | `implemented_not_asserted` | A pre-commit denial branch is present; no current canonical real-host evidence proves `requested_action=deny`, `actual_action=deny`, unsent headers, and visible `403`. |
+| Late intervention (`late_intervention`) | `implemented_not_asserted` | Late-intervention policy branches are wired; no current canonical real-host evidence proves a disruptive decision after commitment. |
+| Safe late intervention (`late_intervention_log_only`) | `implemented_not_asserted` | A safe log-only branch is wired; no current canonical real-host evidence proves `actual_action=log_only` with an unchanged visible status. |
+| Strict late intervention (`late_intervention_abort`) | `implemented_not_asserted` | A strict abort branch is wired; no current canonical real-host evidence proves `actual_action=abort_connection` and `connection_aborted=true`. |
+| Status metadata (`late_intervention_status_metadata`) | `implemented_not_asserted` | Phase-4 metadata wiring exists; no current canonical event proves separate requested WAF, original host, and visible client statuses or requested and actual actions. |
+
+The shared catalog keeps rule observation separate from transport behavior:
+`phase4_rule_observed` does not require a visible `403`; a pre-commit denial
+does. After commitment, a `log_only` result may correctly leave a `200` visible,
+and an abort does not imply that a client can observe `403`. No body payload or
+match value belongs in the event or this report.
+
 Expected evidence root:
 
 ```text

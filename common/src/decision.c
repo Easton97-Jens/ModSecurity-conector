@@ -11,7 +11,7 @@ static const char *kind_action(msconnector_decision_kind kind) {
     case MSCONNECTOR_DECISION_KIND_DENY: return "deny";
     case MSCONNECTOR_DECISION_KIND_REDIRECT: return "redirect";
     case MSCONNECTOR_DECISION_KIND_DROP: return "drop";
-    case MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT: return "connection_abort";
+    case MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT: return "abort_connection";
     case MSCONNECTOR_DECISION_KIND_ERROR: return "error";
     case MSCONNECTOR_DECISION_KIND_UNSUPPORTED: return "unsupported";
     default: return "unknown";

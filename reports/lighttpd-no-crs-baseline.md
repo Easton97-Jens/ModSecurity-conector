@@ -32,6 +32,29 @@ Request and response bodies are deliberately not implemented.
 
 The response-header hook exists, but no real Phase-3 rule has behaviorally asserted it.
 
+## Canonical Phase-4 facets
+
+Every response-body and response-phase facet below is `not_implemented` in the
+current native module. The absence of a native response-body hook is an
+implementation gap, not a proven lighttpd host-model impossibility.
+
+| Facet | Capability state | Consequence for the canonical catalog |
+|---|---|---|
+| Response body availability (`response_body_buffered`) | `not_implemented` | The native module supplies no response body to ModSecurity. |
+| Phase-4 invocation (`phase4`) | `not_implemented` | No real response-body Phase-4 call exists. |
+| Rule evaluation (`phase4_rule_evaluation`) | `not_implemented` | Rule `1100301` cannot run against a native response body. |
+| Pre-commit denial (`phase4_pre_commit_deny`) | `not_implemented` | No response-body decision point is implemented before commitment. |
+| Late intervention (`late_intervention`) | `not_implemented` | No post-commit response-body policy point is implemented. |
+| Safe late intervention (`late_intervention_log_only`) | `not_implemented` | No committed response-body denial can be recorded as log-only. |
+| Strict late intervention (`late_intervention_abort`) | `not_implemented` | No committed response-body abort action is implemented. |
+| Status metadata (`late_intervention_status_metadata`) | `not_implemented` | No Phase-4 event source distinguishes WAF, original, and visible response statuses. |
+
+Phase-4 cases remain `NOT EXECUTED` (or are not selectable) until a real native
+response-body implementation exists. They must not be labelled `UNSUPPORTED`
+without evidence that lighttpd's host model cannot provide a suitable hook.
+Events and reports remain metadata-only; they must not contain a body payload
+or match value.
+
 Expected evidence root:
 
 ```text

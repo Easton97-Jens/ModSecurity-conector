@@ -98,3 +98,25 @@ Global gate definitions:
 - [ ] `make no-crs-baseline-haproxy` produces current canonical evidence.
 - [ ] `make evidence-check-haproxy` validates the joined HAProxy/agent manifest,
       schema, claims, layout, event safety, and capability consistency.
+
+## Canonical Phase-4 evidence
+
+Only the bounded SPOA/SPOP response-body path, `phase4`, and
+`phase4_rule_evaluation` are `implemented_not_asserted`. The agent's
+pre-commit/status fields are policy-derived, not host-observed, so
+`phase4_pre_commit_deny` and `late_intervention_status_metadata` are
+`not_implemented`. The current path also has no post-commit point, safe
+`log_only`, or strict `abort_connection`; all late-intervention facets are
+`not_implemented`.
+
+- [ ] Prove `phase4_rule_observed` for rule `1100301` through the real joined
+      HAProxy/agent response path.
+- [ ] Implement a real host path that observes client-visible response status
+      and commitment timing before declaring `phase4_pre_commit_deny` or
+      status metadata.
+- [ ] Implement a real post-commit host point before adding safe `log_only` or
+      strict `abort_connection`; timeout, agent failure, and generic disconnect
+      are not late-intervention evidence.
+- [x] Keep those semantic cases `NOT EXECUTED` and unselected while their
+      capabilities are `not_implemented`; never infer a 403 `PASS` from a
+      response-body rule ID or policy-derived fields.

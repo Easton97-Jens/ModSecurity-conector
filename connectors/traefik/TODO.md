@@ -87,3 +87,19 @@ Global gate definitions:
 - [ ] eligible for `crs-verified`
 - [ ] eligible for promotion beyond targeted `minimal_runtime_smoke`
 - [ ] current-commit runtime evidence promotes service source beyond `connector-gap`
+
+## Canonical Phase-4 architecture boundary
+
+The selected `forwardAuth` integration executes before upstream handling.  The
+following facets are therefore `unsupported_by_host_model`:
+`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`phase4_pre_commit_deny`, `late_intervention`, `late_intervention_log_only`,
+`late_intervention_abort`, and `late_intervention_status_metadata`.
+
+- [x] Keep selected Phase-4 cases `UNSUPPORTED`, not `NOT EXECUTED`, because
+      the chosen host model cannot receive the later upstream response.
+- [ ] Do not use request-side 200/403, `forwardBody`, or any decision-service
+      self-test as response-body, late-action, original-status, visible-status,
+      or connection-abort evidence.
+- [ ] Reassess only if a separate Traefik integration gains upstream-response
+      visibility; it needs independent configuration and host-path evidence.

@@ -25,3 +25,19 @@ Connector metadata: `minimal_runtime_smoke` / `connector-gap`
 Runtime evidence remains scoped to the targeted local smoke until root CI,
 Framework evidence layout, and repository reports consume the new connector
 binary. It does not justify broader metadata promotion.
+
+## Canonical Phase-4 decision
+
+The selected Envoy HTTP `ext_authz` model runs before the upstream response.
+The response-body and late-intervention facets are therefore architecture
+boundaries, not pending runtime work.
+
+| Facet | Declared state | Coverage decision |
+| --- | --- | --- |
+| `response_body_buffered`, `phase4`, and `phase4_rule_evaluation` | `unsupported_by_host_model` | `UNSUPPORTED`: ext_authz receives no upstream response body |
+| `phase4_pre_commit_deny` | `unsupported_by_host_model` | no response-phase commitment point is exposed |
+| `late_intervention`, `late_intervention_log_only`, and `late_intervention_abort` | `unsupported_by_host_model` | no later upstream response reaches the authorization service |
+| `late_intervention_status_metadata` | `unsupported_by_host_model` | no original/visible upstream-response status or late action exists in this host path |
+
+Request-side 200/403 evidence is deliberately excluded from these rows.
+`UNSUPPORTED` never counts as `PASS`, and events contain metadata only.

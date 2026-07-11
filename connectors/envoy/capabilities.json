@@ -63,9 +63,29 @@
       "state": "unsupported_by_host_model",
       "reason": "The pre-upstream ext_authz call cannot inspect upstream response bodies."
     },
+    "phase4_rule_evaluation": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected Envoy ext_authz integration executes before the upstream response and does not expose upstream response-body data for Phase-4 rule evaluation."
+    },
+    "phase4_pre_commit_deny": {
+      "state": "unsupported_by_host_model",
+      "reason": "Because ext_authz never sees the later upstream response, it has no Phase-4 response point at which to deny before the response commits."
+    },
     "late_intervention": {
       "state": "unsupported_by_host_model",
       "reason": "The authorization decision completes before the upstream response starts, so there is no response-phase late intervention point."
+    },
+    "late_intervention_log_only": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected pre-upstream ext_authz host model has no committed upstream response on which to apply a late log-only intervention."
+    },
+    "late_intervention_abort": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected pre-upstream ext_authz host model has no upstream response-phase point from which the authorization service can perform a late connection abort."
+    },
+    "late_intervention_status_metadata": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected ext_authz integration does not observe an upstream response, so it cannot produce Phase-4 metadata that distinguishes original and visible upstream-response status or late actions."
     },
     "deny": {
       "state": "implemented_not_asserted",

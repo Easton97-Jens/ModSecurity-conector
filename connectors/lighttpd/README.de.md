@@ -17,8 +17,8 @@ Gegen das gepinnte lighttpd 1.4.84 und libmodsecurity lokal belegt sind:
 - JSONL-Metadaten mit Connector und Regel-ID, ohne Body-Payload.
 
 Dies ist bewusst ein enger, partieller Runtime-Pfad. Request- und
-Response-Bodies werden als nicht unterstützt ausgewiesen und niemals an die
-Runtime übergeben. Es gibt keine Behauptung zu CRS, Produktionsreife,
+Response-Bodies sind in diesem nativen Modul nicht implementiert und werden
+niemals an die Runtime übergeben. Es gibt keine Behauptung zu CRS, Produktionsreife,
 Security-Verifikation, Response-Body-Verarbeitung oder Full Matrix.
 
 ## Implementierter Pfad
@@ -76,3 +76,25 @@ Belegt ist ausschließlich `minimal_runtime_smoke` beziehungsweise ein
 `partial_runtime_path` für Header und Phase-1-Deny. Nicht belegt sind Bodies,
 Late Intervention, CRS, Produktionshärtung, Security-Verifikation und die
 vollständige Testmatrix.
+
+## Kanonische Grenze für Phase 4
+
+Das aktuelle native Modul besitzt einen Response-Start-Header-Hook, aber keinen
+nativen Response-Body-Hook. Es übergibt ModSecurity bewusst keine
+Response-Body-Daten. `response_body_buffered`, `phase4`,
+`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort` und
+`late_intervention_status_metadata` sind deshalb in diesem Modul
+`not_implemented`.
+
+Dies ist eine Implementierungsgrenze und keine Aussage, dass lighttpd
+Response-Body-Verarbeitung grundsätzlich nie unterstützen kann. Phase-4-Fälle
+bleiben `NOT_EXECUTED` (oder werden durch die Capability-Auswahl nicht gewählt),
+bis ein nativer Response-Body-Pfad implementiert ist. Ohne Architekturbeleg
+dürfen sie nicht `UNSUPPORTED` heißen. Folglich gibt es noch keinen
+Phase-4-Nachweis für getrennte ursprüngliche, angeforderte und sichtbare
+Statuswerte, späte Aktionen oder Verbindungsabbruch.
+
+Der vorhandene Phase-1-Header-Deny ist ein getrenntes Nachweisergebnis.
+Ereignisse und Berichte bleiben metadatenbasiert und enthalten niemals
+Response-Body-Payloads.

@@ -75,6 +75,34 @@ IMPLEMENTED`.
 
 `common/` definiert connector-neutrale C/C++-Verträge und Helfer. `connectors/<name>/` bildet Server-APIs auf diese Verträge ab. Generierte Reports liegen unter `reports/`; CI- und Governance-Skripte liegen in `ci/`; wiederverwendbare Tests werden unter `modules/ModSecurity-test-Framework` erwartet.
 
+### Kanonisches Phase-4- und Late-Intervention-Modell
+
+Alle sechs Connectoren verwenden ein gemeinsames, capability-gesteuertes
+Phase-4-Case- und Evidence-Modell, behaupten jedoch nicht dieselben
+Host-Fähigkeiten. Ein Response-Body-Regelmatch (`1100301`) ist von einer
+angeforderten WAF-Sperre, einem sichtbaren Deny vor dem Commit, einem sicheren
+Post-Commit-Ergebnis `log_only` und einem strikten Ergebnis
+`abort_connection` getrennt. Kanonische Events halten `http_status`
+(angeforderter WAF-Status), `original_http_status` und
+`visible_http_status` getrennt und bewahren außerdem `requested_action`,
+`actual_action`, Commit-Flags und Transportmetadaten auf, ohne Body-Payloads
+zu kopieren.
+
+Die gemeinsame Late-Intervention-Policy ist vor dem Commit
+`DENY_IF_POSSIBLE`, nach dem Commit im normalen/sicheren Modus `LOG_ONLY` und
+nach dem Commit im strikten Modus `ABORT_CONNECTION`. Envoy `ext_authz` und
+Traefik `forwardAuth` sind für Response-Phasen
+`unsupported_by_host_model`; Phase 4 von lighttpd ist im aktuellen nativen
+Modul `not_implemented`. Diese Zustände zählen niemals als PASS.
+
+HAProxy besitzt einen begrenzten experimentellen Quellpfad für Response-Bodies,
+doch sein aktueller SPOE/SPOP-Runner beobachtet weder ein beim Client sichtbares
+Ergebnis noch den tatsächlichen Antwort-Commit-Zeitpunkt und hat keinen
+Hostpunkt nach dem Commit. Deshalb sind nur seine Facetten für Response-Body,
+Phase 4 und Regelbeobachtung `implemented_not_asserted`; Vor-Commit-Deny,
+Late Intervention und semantische späte Statusmetadaten sind
+`not_implemented`, ihre Fälle bleiben `NOT_EXECUTED`.
+
 ## Repository-Struktur
 
 | Pfad | Bedeutung | Evidenzstatus |
@@ -272,6 +300,64 @@ Request-Mapping besitzt Methode, URI, Protokoll, Endpunkte, Header, Body-Metadat
 ## Decision-, Intervention-, Status- und Event-Modell
 
 Gemeinsame Decision-/Action-Helfer beschreiben allow-/block-/error-/unsupported-artige Ergebnisse. Intervention-Helfer normalisieren Blocking-Ergebnisse. Status-Helfer bilden Ergebnisse auf gemeinsame Statusnamen ab. Event- und JSONL-Helfer serialisieren per-run Evidence. Diese Ausgaben sind nicht append-only und nicht kryptografisch signiert, sofern zukünftiger Code dies nicht ausdrücklich implementiert und belegt.
+
+### Kanonisches Phase-4-Fähigkeits- und Fallmodell
+
+Eine Fähigkeitsdeklaration ist kein Fallergebnis. Das kanonische
+Fähigkeitsvokabular lautet `verified`, `implemented_not_asserted`,
+`configured_not_exercised`, `not_implemented`,
+`unsupported_by_host_model` und `not_applicable`. `verified` erfordert einen
+Laufzeitbeleg über einen realen Hostpfad. `implemented_not_asserted` und
+`configured_not_exercised` bedeuten niemals PASS. `not_implemented` ist eine
+Connector-Lücke; `unsupported_by_host_model` ist eine belegte Grenze der
+gewählten Integration; `not_applicable` bedeutet, dass ein Fall nicht
+anwendbar ist.
+
+Alle Connectoren verwenden dieselben Antwortphasen-Facetten:
+`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort` und
+`late_intervention_status_metadata`. Es sind voneinander unabhängige Aussagen.
+Insbesondere beweist ein beobachteter Phase-4-Regelmatch keinen sichtbaren
+HTTP-`403`, und ein Antwortkörper-Mapper oder gemeinsamer Typ beweist keine
+Fähigkeit eines realen Hostpfads.
+
+Das Framework wählt Fälle ausschließlich anhand der benötigten Facetten und
+ihrer Zustände aus. Eine `implemented_not_asserted`-Facette kann einen Fall
+`SELECTED` machen, ein fehlender Lauf lässt sein Ergebnis jedoch `NOT EXECUTED`;
+er darf nicht zu PASS werden. Eine `unsupported_by_host_model`-Facette macht
+den Antwortphasen-Fall `UNSUPPORTED`. Eine `not_implemented`-Facette lässt
+ihn `NOT EXECUTED`, statt eine Implementierungslücke als Hostmodellgrenze zu
+bezeichnen. Eine `not_applicable`-Facette ergibt `NOT_APPLICABLE`.
+
+| Kanonischer Fall | Ein PASS belegt | Er belegt nicht |
+|---|---|---|
+| `phase4_rule_observed` | Regel `1100301` wurde in Phase 4 mit einem kanonischen Ereignis live beobachtet. | Einen sichtbaren `403`. |
+| `phase4_deny_before_commit` | `requested_action=deny`, `actual_action=deny`, `headers_sent=false` und sichtbaren `403`. | Eine Aktion nach dem Commit. |
+| `phase4_deny_after_commit_log_only` | Ein Deny nach dem Commit wurde mit `actual_action=log_only` und `late_intervention=true` erfasst. | Dass sich der sichtbare Status änderte; ein sichtbarer `200` kann korrekt sein. |
+| `phase4_deny_after_commit_abort` | Ein Deny nach dem Commit wurde mit `actual_action=abort_connection` und `connection_aborted=true` erfasst. | Einen sichtbaren `403` oder einen bestimmten Client-Exitcode. |
+| `phase4_event_contains_original_status` | Von der WAF angeforderter, ursprünglicher und sichtbarer Status sind vorhanden und konsistent. | Dass alle drei Statuswerte gleich sind. |
+| `phase4_event_contains_late_intervention_action` | Angeforderte Aktion, tatsächliche Aktion und Zustand der späten Intervention stammen aus Laufzeitbelegen. | Dass ein Fähigkeitsmanifest fehlende Laufzeitwerte liefern darf. |
+
+`deny_response_body_marker_403` ist ein veralteter Alias. Er darf nur
+PASS werden, wenn `phase4_deny_before_commit` PASS wird; ein Ergebnis mit
+`actual_action=log_only` oder ein Abbruch darf daraus keinen `403`-PASS machen.
+
+Für Antwortphasen-Ereignisse ist `http_status` der von ModSecurity angeforderte
+Status, `original_http_status` der Host-/Upstream-Status vor der Intervention
+und `visible_http_status` der für den Client sichtbare Status.
+`requested_action` und `actual_action` sind getrennt.
+`headers_sent`, `body_started`, `response_committed`, `late_intervention`,
+`connection_aborted` und, soweit vorhanden, `transport_result` machen Zeitpunkt
+und Transportergebnis ausdrücklich. Ereignisse, Ergebnisse, Manifeste und
+Berichte sind metadatenbasiert: Sie dürfen keinen Anfrage-/Antwortkörper,
+Trefferwert, keine Regelmeldung und kein Interventionsprotokoll enthalten.
+
+Die gemeinsame Richtlinie für späte Interventionen lautet vor dem Commit
+`DENY_IF_POSSIBLE`, nach dem Commit im normalen oder sicheren Modus `LOG_ONLY`
+und nach dem Commit im strikten Modus `ABORT_CONNECTION`. Connectoren dürfen
+die Hostaktion anpassen, aber diese semantischen Zweige nicht durch eine
+widersprüchliche Richtlinie ersetzen.
 
 ## Ressourcenlimits, DoS-Schutz, Flow-Guard und Integrität
 
@@ -1007,14 +1093,14 @@ lighttpd-Plugin-/Proxy-/Runtime-API und FastCGI-/SCGI-/native Modul-Integration 
 
 ## Connector-Statusmatrix
 
-| Connector | Aktueller Status | Common-Adoption | Runtime-Evidence | Verbotene Schlussfolgerung |
-|---|---|---|---|---|
-| Apache | Connector-Quellen vorhanden | vorhanden | benötigt aktuelle Reports/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
-| NGINX | Connector-Quellen vorhanden | vorhanden | benötigt aktuelle Reports/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
-| HAProxy | SPOA-/Starter- sowie Mapper-/Binding-Quellen vorhanden | vorhanden/partial | benötigt aktuelle Reports/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
-| Envoy | HTTP-`ext_authz`-Service | adoptiert | gezielter Request-Header-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | Upstream-Response-Phasen sind `UNSUPPORTED`; kein breiterer Claim |
-| Traefik | HTTP-`forwardAuth`-Service | adoptiert | gezielter Request-Header-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | nativer Request-Body `NOT IMPLEMENTED`; Upstream-Response `UNSUPPORTED` |
-| lighttpd | natives Plugin | adoptiert | gezielter Phase-1-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | Bodies `NOT IMPLEMENTED`; Phase 3 `IMPLEMENTED, NOT ASSERTED` |
+| Connector | Aktueller Status | Common-Nutzung | Antwortphasen-Klassifikation | Laufzeitbeleg | Verbotene Schlussfolgerung |
+|---|---|---|---|---|---|
+| Apache | Connector-Quellen vorhanden | vorhanden | Antwortkörper und alle Phase-4-Facetten sind `implemented_not_asserted`; es gibt keinen Phase-4-PASS. | benötigt aktuelle Berichte/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
+| NGINX | Connector-Quellen vorhanden | vorhanden | Antwortkörper und alle Phase-4-Facetten sind `implemented_not_asserted`; es gibt keinen Phase-4-PASS. | benötigt aktuelle Berichte/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
+| HAProxy | SPOA-/Starter- sowie Mapper-/Binding-Quellen vorhanden | vorhanden/partial | Begrenzter Pfad für Antwortkörper, Phase 4 und Regelbeobachtung ist `implemented_not_asserted`; Vor-Commit-Deny, alle späten Aktionen und semantische Statusmetadaten sind `not_implemented`. | benötigt aktuelle Berichte/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
+| Envoy | HTTP-`ext_authz`-Dienst | genutzt | Alle Antwortphasen-Facetten sind `unsupported_by_host_model`; Phase-4-Fälle sind `UNSUPPORTED`. | gezielter Request-Header-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | Upstream-Antwortphasen dürfen nicht aus einem `ext_authz`-Selbsttest abgeleitet werden |
+| Traefik | HTTP-`forwardAuth`-Dienst | genutzt | Alle Antwortphasen-Facetten sind `unsupported_by_host_model`; Phase-4-Fälle sind `UNSUPPORTED`. | gezielter Request-Header-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | Upstream-Antwortphasen dürfen nicht aus einem `forwardAuth`-Selbsttest abgeleitet werden |
+| lighttpd | natives Plugin | genutzt | Alle Antwortphasen-Facetten sind `not_implemented`; Phase-4-Fälle bleiben `NOT EXECUTED`. | gezielter Phase-1-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | Ein nicht implementierter Antwortkörper darf nicht als Hostmodell-`UNSUPPORTED` bezeichnet werden |
 
 ## Test-Framework-Bezug
 

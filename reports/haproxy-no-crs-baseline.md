@@ -32,6 +32,33 @@ Bounded request and experimental response-body paths exist; streaming, drop, and
 
 Host and agent are separate processes and require distinct logs in one manifest.
 
+## Canonical Phase-4 facets
+
+The bounded, experimental response-body path, `phase4`, and
+`phase4_rule_evaluation` are `implemented_not_asserted` source paths. An agent
+or mapper path is not Phase-4 runtime evidence: no current canonical HAProxy
+host run has observed rule `1100301`. The semantic pre-commit, late-action, and
+status-metadata facets are `not_implemented` because the runner observes no
+client-visible response outcome, actual commitment timing, or post-commit host
+point.
+
+| Facet | Capability state | Required runtime evidence before it can be asserted |
+|---|---|---|
+| Response body availability (`response_body_buffered`) | `implemented_not_asserted` | A bounded experimental HAProxy/SPOP response-body path is present; no current canonical real-host evidence proves that it inspected a response sample. |
+| Phase-4 invocation (`phase4`) | `implemented_not_asserted` | The experimental HAProxy/SPOA response-body call is wired; no current canonical host evidence proves its invocation. |
+| Rule evaluation (`phase4_rule_evaluation`) | `implemented_not_asserted` | The bounded SPOA/SPOP Phase-4 path is present; no current canonical HAProxy host evidence proves that it evaluated rule `1100301`. |
+| Pre-commit denial (`phase4_pre_commit_deny`) | `not_implemented` | The agent emits policy-derived fields, but no host runner observes visible client status and actual commitment timing. |
+| Late intervention (`late_intervention`) | `not_implemented` | The current response-decision path is modeled before commitment and has no post-commit host point. |
+| Safe late intervention (`late_intervention_log_only`) | `not_implemented` | No post-commit safe `log_only` action or host-observed unchanged-visible-status result exists. |
+| Strict late intervention (`late_intervention_abort`) | `not_implemented` | No controlled post-commit `abort_connection` action or host-observed connection-abort result exists. |
+| Status metadata (`late_intervention_status_metadata`) | `not_implemented` | Policy-derived diagnostics do not supply host-observed original/visible status and timing. |
+
+The shared catalog keeps rule observation separate from transport behavior:
+`phase4_rule_observed` does not require a visible `403`. HAProxy does not yet
+implement the semantic pre-commit, post-commit `log_only`, post-commit abort,
+or status-metadata cases, so they remain `NOT_EXECUTED`. No body payload or
+match value belongs in the event or this report.
+
 Expected evidence root:
 
 ```text

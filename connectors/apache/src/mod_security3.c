@@ -1,5 +1,6 @@
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "mod_security3.h"
 #include "msc_utils.h"
@@ -207,6 +208,12 @@ static msc_t *create_tx_context(request_rec *r) {
     } else {
         msr->t = msc_new_transaction(msc_apache->modsec,
             z->rules_set, (void *)r);
+    }
+    if (transaction_id != NULL && transaction_id[0] != '\0') {
+        msr->event_transaction_id = apr_pstrdup(r->pool, transaction_id);
+    } else {
+        msr->event_transaction_id = apr_psprintf(r->pool, "%ld-%ld",
+            (long)r->request_time, (long)r->connection->id);
     }
 
     store_tx_context(msr, r);

@@ -512,6 +512,8 @@ int main(void) {
     assert(msconnector_capability_from_name("request-headers") == MSCONNECTOR_CAPABILITY_REQUEST_HEADERS);
     assert(strcmp(msconnector_capability_name(MSCONNECTOR_CAPABILITY_PHASE4_HARD_ABORT), "phase4-hard-abort") == 0);
     assert(msconnector_capability_from_name("phase4-hard-abort") == MSCONNECTOR_CAPABILITY_PHASE4_HARD_ABORT);
+    assert(strcmp(msconnector_capability_name(MSCONNECTOR_CAPABILITY_PHASE4_RULE_EVALUATION), "phase4-rule-evaluation") == 0);
+    assert(msconnector_capability_from_name("phase4-rule-evaluation") == MSCONNECTOR_CAPABILITY_PHASE4_RULE_EVALUATION);
     assert(msconnector_capability_from_name("does-not-exist") == MSCONNECTOR_CAPABILITY_NONE);
     assert(rule_stats.inline_rules == 1);
     assert(rule_stats.file_rules == 2);
@@ -867,7 +869,7 @@ int main(void) {
         assert(msconnector_decision_action_from_decision(&model_decision) == MSCONNECTOR_DECISION_ACTION_DROP);
         msconnector_decision_set_connection_abort(&model_decision, "4", "abort");
         assert(msconnector_decision_to_event(&model_decision, &event, "common", "tx-decision"));
-        assert(strcmp(event.decision.action, "connection_abort") == 0);
+        assert(strcmp(event.decision.action, "abort_connection") == 0);
         assert(msconnector_decision_action_from_decision(&model_decision) == MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION);
         msconnector_decision_set_log_only(&model_decision, "observe");
         assert(msconnector_decision_action_from_decision(&model_decision) == MSCONNECTOR_DECISION_ACTION_LOG_ONLY);
@@ -1114,7 +1116,7 @@ int main(void) {
             "phase4 rule matched");
         assert(strcmp(event.meta.message_id, MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200) == 0);
         assert(strcmp(event.meta.message, "Response already started with HTTP 200; Phase 4 requested a block; connection was aborted.") == 0);
-        assert(event.http.http_status == 200);
+        assert(event.http.http_status == 403);
         assert(event.http.original_http_status == 200);
         assert(event.http.visible_http_status == 200);
         assert(event.flags.late_intervention == 1);
@@ -1123,10 +1125,11 @@ int main(void) {
         assert(event.flags.body_started == 1);
         assert(event.flags.connection_aborted == 1);
         assert(strcmp(event.decision.requested_action, "deny") == 0);
-        assert(strcmp(event.decision.actual_action, "connection_abort") == 0);
-        assert(strcmp(event.decision.action, "connection_abort") == 0);
-        assert(strcmp(msconnector_http_status_reason_phrase(200), "OK") == 0);
-        assert(strcmp(msconnector_http_status_default_message(200), "Request succeeded") == 0);
+        assert(strcmp(event.decision.actual_action, "abort_connection") == 0);
+        assert(strcmp(event.decision.action, "abort_connection") == 0);
+        assert(strcmp(event.http.transport_result, "connection_aborted") == 0);
+        assert(strcmp(msconnector_http_status_reason_phrase(403), "Forbidden") == 0);
+        assert(strcmp(msconnector_http_status_default_message(403), "Request blocked") == 0);
         assert(!msconnector_http_status_is_block_response(200));
         assert(strcmp(msconnector_http_status_reason_phrase(302), "Found") == 0);
         assert(strcmp(msconnector_http_status_default_message(302), "Redirect response") == 0);
@@ -1136,10 +1139,14 @@ int main(void) {
         assert(!truncated);
         assert(strstr(json, "\"message_id\":\"MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200\"") != 0);
         assert(strstr(json, "Response already started with HTTP 200; Phase 4 requested a block; connection was aborted.") != 0);
-        assert(strstr(json, "\"http_reason_phrase\":\"OK\"") != 0);
-        assert(strstr(json, "\"http_default_message\":\"Request succeeded\"") != 0);
+        assert(strstr(json, "\"http_status\":403") != 0);
+        assert(strstr(json, "\"original_http_status\":200") != 0);
+        assert(strstr(json, "\"visible_http_status\":200") != 0);
+        assert(strstr(json, "\"http_reason_phrase\":\"Forbidden\"") != 0);
+        assert(strstr(json, "\"http_default_message\":\"Request blocked\"") != 0);
         assert(strstr(json, "\"requested_action\":\"deny\"") != 0);
-        assert(strstr(json, "\"actual_action\":\"connection_abort\"") != 0);
+        assert(strstr(json, "\"actual_action\":\"abort_connection\"") != 0);
+        assert(strstr(json, "\"transport_result\":\"connection_aborted\"") != 0);
         assert(strstr(json, "\"late_intervention\":true") != 0);
         assert(strstr(json, "\"connection_aborted\":true") != 0);
         assert(strstr(json, "body_payload") == 0);
@@ -1185,6 +1192,7 @@ int main(void) {
     }
     {
         assert(msconnector_capability_has_required_test(MSCONNECTOR_CAPABILITY_PHASE4_HARD_ABORT));
+        assert(msconnector_capability_has_required_test(MSCONNECTOR_CAPABILITY_PHASE4_RULE_EVALUATION));
         assert(strcmp(msconnector_capability_required_test(MSCONNECTOR_CAPABILITY_REQUEST_HEADERS), "phase1 request header rule test") == 0);
         assert(msconnector_capability_required_test(MSCONNECTOR_CAPABILITY_NONE) == 0);
     }

@@ -43,3 +43,23 @@ promoted to `verified` until a current canonical result exists under
 - [ ] `make no-crs-baseline-apache` produces current canonical evidence.
 - [ ] `make evidence-check-apache` validates schema, claims, layout, events, and
       capability consistency for that same run.
+
+## Canonical Phase-4 evidence
+
+The source contract declares the response-body and late-intervention facets as
+`implemented_not_asserted`, not `verified`.  A historical status-only smoke or
+a source inspection cannot promote them.
+
+- [ ] Record `phase4_rule_observed` with rule `1100301` through the real
+      Apache output-filter path; a visible 200 is valid for this observation.
+- [ ] Record `phase4_deny_before_commit` only when headers were not committed
+      and the client receives the requested deny status.
+- [ ] Record the safe late case only with requested `deny`, actual `log_only`,
+      unchanged visible status, and late-intervention metadata.
+- [ ] Record the strict late case only with actual `abort_connection` and
+      `connection_aborted=true`.
+- [ ] Verify separate original host status, requested WAF status, visible
+      client status, requested action, and actual action in a metadata-only
+      event.
+- [ ] Keep an unavailable current run as `NOT EXECUTED`; never convert a rule
+      match, log-only result, or abort into a synthetic 403 `PASS`.

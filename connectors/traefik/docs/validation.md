@@ -47,7 +47,8 @@ make smoke-traefik
 - Secondary CRS smoke: conditional via `make smoke-traefik-crs-secondary`; PASS
   only with local CRS and secondary CRS-backed 403 evidence.
 - CRS complete: not claimed.
-- RESPONSE_BODY: not verified.
+- RESPONSE_BODY: `unsupported_by_host_model` for the selected `forwardAuth`
+  integration.
 - Negative/pass-through: proven only by local runtime smoke when allowed request
   returns 200.
 - Audit/log: not verified.
@@ -101,7 +102,8 @@ request through Traefik and records the observed HTTP statuses. If no local
 binary is found, it exits 77 with BLOCKED evidence.
 
 This entrypoint does not run decision-service starter self-tests as runtime
-evidence. RESPONSE_BODY remains not verified.
+evidence. RESPONSE_BODY is `unsupported_by_host_model` for the selected
+`forwardAuth` integration.
 
 The optional targeted ModSecurity backend uses the same runtime entrypoint with
 an explicit backend selector:
@@ -278,3 +280,19 @@ No global installation is attempted. To run against a prepared local binary:
 ```sh
 TRAEFIK_BIN=/lokaler/pfad/traefik make smoke-traefik
 ```
+
+## Canonical Phase-4 validation
+
+Traefik `forwardAuth` executes before upstream handling and cannot inspect the
+later upstream response body.  Therefore `response_body_buffered`, `phase4`,
+`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort`, and
+`late_intervention_status_metadata` are `unsupported_by_host_model` for this
+integration.
+
+All shared Phase-4 cases must be emitted as `UNSUPPORTED` with the explicit
+forwardAuth boundary.  Request-side 200/403 results, `forwardBody` probes, and
+decision-service self-tests do not establish response-body inspection,
+pre-commit response deny, late log-only, late abort, or original/visible
+response-status metadata.  `UNSUPPORTED` never counts as `PASS`, and events
+and reports remain metadata-only.

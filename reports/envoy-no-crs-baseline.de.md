@@ -32,6 +32,30 @@ Request-Body-Pufferung ist konfiguriert, aber nicht ausgeübt; Phase 2 ist nicht
 
 Das vorgelagerte ext_authz-Modell kann Upstream-Response-Header oder -Bodies nicht beobachten.
 
+## Kanonische Phase-4-Facetten
+
+Jede untenstehende Antwortphasen-Facette ist
+`unsupported_by_host_model`. Die gewählte Envoy-`ext_authz`-Integration läuft
+vor der Upstream-Antwort und stellt keine Upstream-Antwortkörperdaten bereit.
+Das ist eine Architekturgrenze dieser Integration, kein fehlender Laufzeitbeleg.
+
+| Facette | Capability-Zustand | Folge für den kanonischen Katalog |
+|---|---|---|
+| Antwortkörper-Verfügbarkeit (`response_body_buffered`) | `unsupported_by_host_model` | Der Autorisierungsaufruf hat keinen späteren Upstream-Antwortkörper zur Inspektion. |
+| Phase-4-Aufruf (`phase4`) | `unsupported_by_host_model` | Über diesen Pfad kann kein Antwortkörper-Phase-4-Aufruf erfolgen. |
+| Regelauswertung (`phase4_rule_evaluation`) | `unsupported_by_host_model` | Regel `1100301` kann nicht in einer späteren Upstream-Antwort beobachtet werden. |
+| Deny vor dem Commit (`phase4_pre_commit_deny`) | `unsupported_by_host_model` | Dieser Pfad hat keinen Antwortphasen-Punkt, an dem eine Upstream-Antwort verändert werden kann. |
+| Späte Intervention (`late_intervention`) | `unsupported_by_host_model` | Die Autorisierungsentscheidung endet, bevor die Upstream-Antwort beginnt. |
+| Sichere späte Intervention (`late_intervention_log_only`) | `unsupported_by_host_model` | Es steht keine bereits festgeschriebene Upstream-Antwort für eine reine Protokollierung bereit. |
+| Strikte späte Intervention (`late_intervention_abort`) | `unsupported_by_host_model` | Der Dienst kann Envoys spätere clientseitige Antwort nicht als Phase-4-Aktion abbrechen. |
+| Statusmetadaten (`late_intervention_status_metadata`) | `unsupported_by_host_model` | Es gibt kein Antwortphasen-Ereignis, das WAF-, ursprünglichen und sichtbaren Antwortstatus trennt. |
+
+Alle Phase-4-Fälle müssen deshalb als `UNSUPPORTED` erscheinen, niemals als
+`PASS` oder `NOT EXECUTED`. Ein direkter Dienst-Selbsttest oder eine künstlich
+erzeugte Antwort ist kein Beleg für diesen gewählten Envoy-Hostpfad. Ereignisse
+und Berichte bleiben metadatenbasiert; sie enthalten weder Body-Inhalte noch
+Trefferwerte.
+
 Erwarteter Evidence-Root:
 
 ```text

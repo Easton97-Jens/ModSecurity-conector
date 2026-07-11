@@ -21,7 +21,7 @@ promotion gates are defined in
 | Harness | targeted-pass-local | real Traefik -> forwardAuth -> service 200/403 path |
 | No-CRS | not-run | No Traefik runtime command was run |
 | With-CRS | not-run | No Traefik runtime command was run |
-| RESPONSE_BODY | not-verified | No blocking runtime evidence exists |
+| RESPONSE_BODY | `unsupported_by_host_model` | forwardAuth does not receive the later upstream response body |
 | Promotion | not allowed | Runtime gates are open |
 
 ## Gate Checklist
@@ -57,3 +57,19 @@ promotion gates are defined in
 | Negative/pass-through | pass-local | targeted local evidence only |
 | Audit/log evidence | not-verified | no audit/log claim |
 | Promotion | not allowed | remains not_verified / connector-gap pending retained CI evidence |
+
+## Canonical Phase-4 decision
+
+The selected Traefik `forwardAuth` model runs before the upstream response.
+Its response-body and late-intervention facets are architecture boundaries, not
+pending runtime work.
+
+| Facet | Declared state | Coverage decision |
+| --- | --- | --- |
+| `response_body_buffered`, `phase4`, and `phase4_rule_evaluation` | `unsupported_by_host_model` | `UNSUPPORTED`: forwardAuth receives no later upstream response body |
+| `phase4_pre_commit_deny` | `unsupported_by_host_model` | no response-phase commitment point is exposed |
+| `late_intervention`, `late_intervention_log_only`, and `late_intervention_abort` | `unsupported_by_host_model` | no later upstream response reaches forwardAuth |
+| `late_intervention_status_metadata` | `unsupported_by_host_model` | no original/visible upstream-response status or late action exists in this host path |
+
+Request-side 200/403 and `forwardBody` evidence are deliberately excluded.
+`UNSUPPORTED` never counts as `PASS`; events and reports remain metadata-only.

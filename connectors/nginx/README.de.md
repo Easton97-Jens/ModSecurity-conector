@@ -18,3 +18,31 @@ NGINX-Common-SDK-Modul-Builds mit kopiertem Connector-Quellbaum müssen `MSCONNE
 
 
 NGINX registriert `modsecurity_transaction_id` für NGINX-Variablen/Complex-Values, aber nicht die Apache-Ausdrucksdirektive `modsecurity_transaction_id_expr`. `modsecurity_phase4_body_limit` ist ein begrenzender Phase-4-Inspektionswert; überschrittene Bytes werden nicht an ModSecurity übergeben und nur als Metadaten markiert.
+
+## Kanonische Grenze für Phase 4
+
+NGINX verwendet einen begrenzten nativen Response-Body-Filter. Sein Vorhanden-
+sein beweist weder eine echte Phase-4-Regelauswertung noch einen zum Zeitpunkt
+der Intervention noch änderbaren Antwortstatus. Deshalb stehen
+`phase4_pre_commit_deny` auf `not_implemented`: Die native Phase-4-
+Entscheidung fällt im Body-Filter nach dem Response-Header-Pfad.
+`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`late_intervention`, `late_intervention_log_only`, `late_intervention_abort`
+und `late_intervention_status_metadata` bleiben `implemented_not_asserted`,
+bis ein aktueller kanonischer Lauf über den echten Host das jeweilige Verhalten
+belegt.
+
+Ein Regeltreffer wird getrennt von einem sichtbaren 403 gemeldet. Kanonische
+Ereignisse bewahren den ursprünglichen Host-Status, angeforderten WAF-Status,
+sichtbaren Client-Status, angeforderte und tatsächliche Aktion sowie Header-
+und Commit-Zeitpunkt und das Abbruchergebnis. Für eine Sperre vor dem Commit
+gibt es in diesem NGINX-Body-Filter-Pfad keinen Anspruch. Nach dem Commit ist
+das sichere Ergebnis `log_only` bei unverändertem sichtbaren Status; das
+strikte Ergebnis ist `abort_connection` bei bereits sichtbarem Status und
+bestätigtem Verbindungsabbruch. Keines davon ist ein umbenannter erfolgreicher
+403-Fall.
+
+Die kanonischen Phase-4-Fälle für Regelbeobachtung, Sperre vor dem Commit,
+sicheres Protokollieren, strikten Abbruch und Status-/Aktionsmetadaten bleiben
+nachweisgebunden. Weder Ereignisse noch Berichte enthalten Response-Body-
+Payloads.

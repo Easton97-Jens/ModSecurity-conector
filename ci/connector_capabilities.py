@@ -45,7 +45,12 @@ CAPABILITY_NAMES = (
     "phase2",
     "phase3",
     "phase4",
+    "phase4_rule_evaluation",
+    "phase4_pre_commit_deny",
     "late_intervention",
+    "late_intervention_log_only",
+    "late_intervention_abort",
+    "late_intervention_status_metadata",
     "deny",
     "redirect",
     "drop",
@@ -94,6 +99,11 @@ FLAG_TO_CAPABILITY = {
     "MSCONNECTOR_CAPABILITY_RESPONSE_BODY_BUFFERED": "response_body_buffered",
     "MSCONNECTOR_CAPABILITY_RESPONSE_BODY_STREAMING": "response_body_streaming",
     "MSCONNECTOR_CAPABILITY_CUSTOM_TRANSACTION_ID": "transaction_id",
+    "MSCONNECTOR_CAPABILITY_PHASE4_RULE_EVALUATION": "phase4_rule_evaluation",
+    "MSCONNECTOR_CAPABILITY_PHASE4_PRE_COMMIT_DENY": "phase4_pre_commit_deny",
+    "MSCONNECTOR_CAPABILITY_LATE_INTERVENTION_LOG_ONLY": "late_intervention_log_only",
+    "MSCONNECTOR_CAPABILITY_LATE_INTERVENTION_ABORT": "late_intervention_abort",
+    "MSCONNECTOR_CAPABILITY_LATE_INTERVENTION_STATUS_METADATA": "late_intervention_status_metadata",
 }
 NEGATIVE_CAPABILITY_STATES = {
     "unsupported_by_host_model",
@@ -374,6 +384,23 @@ def _validate_relationships(
                 f"{connector}: {phase}=verified requires {capability}=verified"
             )
 
+    if (_state(data, "phase4_rule_evaluation") == "verified" and
+            _state(data, "phase4") != "verified"):
+        errors.append(
+            f"{connector}: phase4_rule_evaluation=verified requires phase4=verified"
+        )
+    if (_state(data, "phase4_pre_commit_deny") == "verified" and
+            _state(data, "phase4_rule_evaluation") != "verified"):
+        errors.append(
+            f"{connector}: phase4_pre_commit_deny=verified requires phase4_rule_evaluation=verified"
+        )
+    for capability in ("late_intervention_log_only", "late_intervention_abort"):
+        if (_state(data, capability) == "verified" and
+                _state(data, "late_intervention") != "verified"):
+            errors.append(
+                f"{connector}: {capability}=verified requires late_intervention=verified"
+            )
+
     required_states: dict[str, dict[str, str]] = {
         "envoy": {
             "request_body_buffered": "configured_not_exercised",
@@ -383,7 +410,12 @@ def _validate_relationships(
             "response_body_streaming": "unsupported_by_host_model",
             "phase3": "unsupported_by_host_model",
             "phase4": "unsupported_by_host_model",
+            "phase4_rule_evaluation": "unsupported_by_host_model",
+            "phase4_pre_commit_deny": "unsupported_by_host_model",
             "late_intervention": "unsupported_by_host_model",
+            "late_intervention_log_only": "unsupported_by_host_model",
+            "late_intervention_abort": "unsupported_by_host_model",
+            "late_intervention_status_metadata": "unsupported_by_host_model",
         },
         "traefik": {
             "request_body_buffered": "not_implemented",
@@ -394,7 +426,12 @@ def _validate_relationships(
             "response_body_streaming": "unsupported_by_host_model",
             "phase3": "unsupported_by_host_model",
             "phase4": "unsupported_by_host_model",
+            "phase4_rule_evaluation": "unsupported_by_host_model",
+            "phase4_pre_commit_deny": "unsupported_by_host_model",
             "late_intervention": "unsupported_by_host_model",
+            "late_intervention_log_only": "unsupported_by_host_model",
+            "late_intervention_abort": "unsupported_by_host_model",
+            "late_intervention_status_metadata": "unsupported_by_host_model",
         },
         "lighttpd": {
             "request_body_buffered": "not_implemented",
@@ -403,6 +440,12 @@ def _validate_relationships(
             "response_body_streaming": "not_implemented",
             "phase2": "not_implemented",
             "phase4": "not_implemented",
+            "phase4_rule_evaluation": "not_implemented",
+            "phase4_pre_commit_deny": "not_implemented",
+            "late_intervention": "not_implemented",
+            "late_intervention_log_only": "not_implemented",
+            "late_intervention_abort": "not_implemented",
+            "late_intervention_status_metadata": "not_implemented",
         },
     }
     for capability, expected in required_states.get(connector, {}).items():

@@ -19,9 +19,9 @@ connector policy.
 | Config/module load | PASS | real `lighttpd -tt` |
 | Start smoke | PASS | real process, clean stop, zero requests |
 | Request metadata/headers | PASS, narrow | real baseline 200 and rule-backed 403 |
-| Request body | unsupported / unverified | mapper advertises no body and passes no payload |
+| Request body | not implemented / unverified | mapper advertises no body and passes no payload |
 | Response metadata/headers | IMPLEMENTED, NOT ASSERTED | response-start hook exists; no real Phase-3 behavioral assertion yet |
-| Response body | unsupported / unverified | no body hook or payload mapping |
+| Response body | not implemented / unverified | no body hook or payload mapping |
 | Decision/block status | PASS, Phase 1 | canonical rule `1100001`, HTTP 403 via `http_status_set_err()` |
 | Events | PASS, narrow | JSONL connector/rule metadata; no body payload field |
 | Transaction cleanup | implemented | finish/destroy and mapper storage cleanup at reset |
@@ -51,3 +51,19 @@ connector policy.
 The connector may claim only `minimal_runtime_smoke` for the narrow native
 header path. It must not claim response-body verification, CRS verification,
 security verification, production readiness, or full-matrix readiness.
+
+## Canonical Phase-4 decision
+
+The native module deliberately has no response-body hook. These are current
+module implementation gaps, not host-model impossibility claims.
+
+| Facet | Declared state | Coverage decision |
+| --- | --- | --- |
+| `response_body_buffered`, `phase4`, and `phase4_rule_evaluation` | `not_implemented` | no response-body data reaches ModSecurity |
+| `phase4_pre_commit_deny` | `not_implemented` | no Phase-4 timing point exists in the module |
+| `late_intervention`, `late_intervention_log_only`, and `late_intervention_abort` | `not_implemented` | no post-commit response-body policy exists |
+| `late_intervention_status_metadata` | `not_implemented` | no Phase-4 event can yet separate original/requested/visible status and actions |
+
+Phase-4 rows are `NOT_EXECUTED` (or omitted by capability selection), not
+`UNSUPPORTED`. The existing header hook and Phase-1 deny are separate;
+evidence remains metadata-only.

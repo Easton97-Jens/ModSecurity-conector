@@ -62,9 +62,29 @@
       "state": "implemented_not_asserted",
       "reason": "The bounded experimental response-body branch invokes response-body processing; canonical host evidence is pending."
     },
-    "late_intervention": {
+    "phase4_rule_evaluation": {
       "state": "implemented_not_asserted",
-      "reason": "HAProxy response rules consume agent decision variables before forwarding the response; response-phase behavioral evidence is pending."
+      "reason": "The bounded SPOA/SPOP response-body branch is present, but no current canonical HAProxy host run proves that Phase-4 rule 1100301 was evaluated."
+    },
+    "phase4_pre_commit_deny": {
+      "state": "not_implemented",
+      "reason": "The current agent emits policy-derived pre-commit fields but the HAProxy host runner does not capture a client-visible Phase-4 deny and actual commitment timing, so this semantic capability is not implemented."
+    },
+    "late_intervention": {
+      "state": "not_implemented",
+      "reason": "The current SPOE/SPOP response decision path is modeled before response commitment and implements no post-commit late-intervention point."
+    },
+    "late_intervention_log_only": {
+      "state": "not_implemented",
+      "reason": "The current HAProxy/SPOA path has no post-commit log-only action or host-observed unchanged-visible-status result."
+    },
+    "late_intervention_abort": {
+      "state": "not_implemented",
+      "reason": "The current HAProxy/SPOA path implements no controlled post-commit abort_connection action and no host-observed connection-abort result."
+    },
+    "late_intervention_status_metadata": {
+      "state": "not_implemented",
+      "reason": "Current diagnostics are policy-derived and the host runner does not capture original and visible client statuses plus actual commitment timing, so semantic late-intervention status metadata is not implemented."
     },
     "deny": {
       "state": "implemented_not_asserted",

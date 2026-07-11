@@ -72,3 +72,26 @@ Prozesse werden bei Erfolg und Fehler beendet.
   getrennt und darf nicht als Evidence dafür gelten.
 - Keine Production-, Security-, CRS-Complete-, Full-Matrix-, Response-Header-
   oder Response-Body-Verifikation wird behauptet.
+
+## Kanonische Grenze für Phase 4
+
+Das gewählte Host-Modell ist Envoy HTTP `ext_authz`. Es fragt den
+Autorisierungsdienst vor der Upstream-Verarbeitung und stellt diesem Dienst die
+spätere Upstream-Antwort niemals bereit. Deshalb sind
+`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort` und
+`late_intervention_status_metadata` als `unsupported_by_host_model` und nicht
+lediglich als unbelegt deklariert.
+
+Jeder gemeinsame Phase-4-Fall für diese Integration muss `UNSUPPORTED` sein:
+Die ausgewählte ext_authz-Integration wird vor der Upstream-Antwort ausgeführt
+und stellt keine Upstream-Response-Body-Daten bereit. Eine Request-Phase-
+Freigabe oder -Sperre, auch ein echter requestseitiger Status 200 oder 403, ist
+kein Response-Phase-Nachweis. Der Dienst kann weder ursprünglichen
+Upstream-Status noch sichtbaren Client-Status nach einer späten Intervention
+oder eine Aktion nach dem Commit liefern, weil ihn kein solches Host-Ereignis
+erreicht.
+
+`UNSUPPORTED` beschreibt diese gewählte Architektur und zählt nie als `PASS`.
+Response-Body-Payloads werden nicht in Ereignisse oder Berichte geschrieben.

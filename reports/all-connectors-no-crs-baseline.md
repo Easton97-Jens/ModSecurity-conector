@@ -31,6 +31,67 @@ canonical result exists.
 - lighttpd request and response bodies are not implemented.
 - Legacy smoke, body, CRS, bridge, sidecar, and self-test results are excluded.
 
+## Canonical Phase-4 facets and case outcomes
+
+The following are capability states, not results from the absent canonical run.
+They separate response-body availability, rule evaluation, pre-commit denial,
+late intervention, and status metadata instead of treating every Phase-4 match
+as a visible HTTP `403`.
+
+| Connector | `response_body_buffered` | `phase4` | `phase4_rule_evaluation` | `phase4_pre_commit_deny` |
+|---|---|---|---|---|
+| Apache | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
+| NGINX | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
+| HAProxy | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` |
+| Envoy | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
+| Traefik | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
+| lighttpd | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+
+| Connector | `late_intervention` | `late_intervention_log_only` | `late_intervention_abort` | `late_intervention_status_metadata` |
+|---|---|---|---|---|
+| Apache | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
+| NGINX | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
+| HAProxy | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| Envoy | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
+| Traefik | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
+| lighttpd | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+
+`implemented_not_asserted` makes a capability eligible for capability-driven
+case selection; it does not make it PASS. With no current run, Apache, NGINX,
+and HAProxy have no Phase-4 PASS result in this snapshot. HAProxy retains only
+the source-level response-body/Phase-4/rule-observation facets; its pre-commit,
+late-intervention, and semantic status-metadata cases are `NOT_EXECUTED`
+because the runner has no host-observed client outcome, commitment timing, or
+post-commit point. Envoy and Traefik must report response-phase cases as
+`UNSUPPORTED`: their selected `ext_authz` and `forwardAuth` integrations execute
+before the upstream response and cannot inspect its body. lighttpd
+response-phase cases are `NOT EXECUTED`, not `UNSUPPORTED`, because the current
+native module lacks the implementation but there is no demonstrated host-model
+impossibility.
+
+The shared cases are `phase4_rule_observed`, `phase4_deny_before_commit`,
+`phase4_deny_after_commit_log_only`, `phase4_deny_after_commit_abort`,
+`phase4_event_contains_original_status`, and
+`phase4_event_contains_late_intervention_action`. The deprecated
+`deny_response_body_marker_403` alias may PASS only through the pre-commit
+denial case; it must not turn a log-only or abort outcome into a `403` PASS.
+
+For a real Phase-4 result, `http_status` is the WAF-requested status,
+`original_http_status` is the status before intervention, and
+`visible_http_status` is what the client can observe. `requested_action` and
+`actual_action` must likewise remain distinct. `headers_sent`, `body_started`,
+`response_committed`, `late_intervention`, `connection_aborted`, and (when
+available) `transport_result` describe timing and transport without inventing
+an HTTP status. A safe late intervention can therefore PASS with a visible
+`200` and `actual_action=log_only`; a strict abort does not require a visible
+`403`.
+
+The common late-intervention policy is: before commitment,
+`DENY_IF_POSSIBLE`; after commitment in normal or safe mode, `LOG_ONLY`; after
+commitment in strict mode, `ABORT_CONNECTION`. Events, case results, manifests,
+and reports may contain only metadata, never request/response-body payloads,
+match values, rule messages, or intervention logs.
+
 ## Expected canonical evidence
 
 Each connector run writes to

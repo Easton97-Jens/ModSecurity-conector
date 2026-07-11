@@ -61,9 +61,29 @@
       "state": "not_implemented",
       "reason": "Response bodies are explicitly disabled in the native plugin, so a real Phase-4 body rule cannot run."
     },
+    "phase4_rule_evaluation": {
+      "state": "not_implemented",
+      "reason": "The current native module does not supply response-body data to ModSecurity, so it cannot yet evaluate Phase-4 rule 1100301."
+    },
+    "phase4_pre_commit_deny": {
+      "state": "not_implemented",
+      "reason": "The current native module has no response-body hook or Phase-4 intervention timing implementation from which to deny before response commitment."
+    },
     "late_intervention": {
       "state": "not_implemented",
       "reason": "The module has no response-body or post-commit intervention policy; the response-start hook is not late-intervention evidence."
+    },
+    "late_intervention_log_only": {
+      "state": "not_implemented",
+      "reason": "The current native module implements no post-commit response-body intervention policy or log-only late-intervention action."
+    },
+    "late_intervention_abort": {
+      "state": "not_implemented",
+      "reason": "The current native module implements no response-body late-intervention path that can abort a committed connection."
+    },
+    "late_intervention_status_metadata": {
+      "state": "not_implemented",
+      "reason": "Without a native response-body Phase-4 path, the module does not yet emit late-intervention metadata separating requested WAF status, original host status, visible client status, requested action, and actual action."
     },
     "deny": {
       "state": "implemented_not_asserted",

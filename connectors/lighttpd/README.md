@@ -1,5 +1,7 @@
 # lighttpd Connector
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: `minimal_runtime_smoke` for the native Phase-1 header path
 
 The primary integration is now a repository-owned native lighttpd module. It
@@ -16,10 +18,10 @@ Verified locally against pinned lighttpd 1.4.84 and libmodsecurity:
   `X-Modsec-Smoke: block` is denied with 403 by rule `1000001`;
 - JSONL decision metadata contains the connector and rule ID, not body payloads.
 
-This is a narrow, partial runtime path. Request and response bodies are
-advertised as unsupported and are never passed to the runtime. CRS, production
-hardening, security verification, response-body handling, and full-matrix
-verification are not claimed.
+This is a narrow, partial runtime path. Request and response bodies are not
+implemented in this native module and are never passed to the runtime. CRS,
+production hardening, security verification, response-body handling, and
+full-matrix verification are not claimed.
 
 ## Implemented path
 
@@ -94,3 +96,23 @@ It does not establish:
 - response-body blocking or late-intervention behavior;
 - CRS completeness or any CRS claim;
 - production readiness, security verification, or full-matrix verification.
+
+## Canonical Phase-4 boundary
+
+The current native module has a response-start header hook but no native
+response-body hook.  It deliberately supplies no response-body data to
+ModSecurity.  `response_body_buffered`, `phase4`,
+`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort`, and
+`late_intervention_status_metadata` are therefore `not_implemented` in this
+module.
+
+This is an implementation boundary, not a statement that lighttpd can never
+support response-body processing.  Phase-4 cases must remain `NOT_EXECUTED`
+(or be omitted by capability selection) until a native response-body path is
+implemented; they must not be called `UNSUPPORTED` without an architecture
+proof.  There is consequently no Phase-4 original/requested/visible status
+split, late action, or connection-abort evidence to report yet.
+
+The existing Phase-1 header deny is separate evidence.  Events and reports
+remain metadata-only and never include a response-body payload.

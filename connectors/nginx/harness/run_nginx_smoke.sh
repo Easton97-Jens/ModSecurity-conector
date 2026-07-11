@@ -53,6 +53,7 @@ PORT_RETRY_LIMIT="${PORT_RETRY_LIMIT:-1}"
 TEMPLATE="$SCRIPT_DIR/nginx_smoke.conf"
 TEST_CASE="${TEST_CASE:-}"
 SMOKE_CASES="${SMOKE_CASES:-}"
+NO_CRS_SELECTED_CASE_IDS="${NO_CRS_SELECTED_CASE_IDS:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
@@ -346,6 +347,48 @@ list_case_files() {
         --scope "$CASE_SCOPE"
 }
 
+append_smoke_case() {
+    fixture=$1
+    case " $SMOKE_CASES " in
+        *" $fixture "*|*" $fixture.yaml "*) return 0 ;;
+    esac
+    SMOKE_CASES="${SMOKE_CASES}${SMOKE_CASES:+ }$fixture"
+}
+
+append_selected_phase4_fixtures() {
+    # The canonical catalog remains connector-neutral.  NGINX maps only its
+    # real, post-header safe/strict host paths to dedicated fixtures, whose
+    # YAML names are the canonical case IDs.  Never synthesize a pre-commit
+    # result from this body-filter path.
+    case "${NO_CRS_BASELINE:-}" in
+        1|true|TRUE|yes|YES|on|ON) ;;
+        *) return 0 ;;
+    esac
+    [ "$RUN_ONE_CASE" != "1" ] || return 0
+    [ -n "$NO_CRS_SELECTED_CASE_IDS" ] || return 0
+
+    set -f
+    for case_id in $NO_CRS_SELECTED_CASE_IDS; do
+        case "$case_id" in
+            phase4_deny_after_commit_log_only)
+                append_smoke_case nginx_phase4_deny_after_commit_log_only
+                ;;
+            phase4_deny_after_commit_abort)
+                append_smoke_case nginx_phase4_deny_after_commit_abort
+                ;;
+            *[!A-Za-z0-9_]*|"")
+                set +f
+                blocked "unsafe canonical case id: $case_id"
+                ;;
+            *)
+                # Other canonical IDs either have a catalog-owned runner
+                # fixture or are derived from the real safe/strict events.
+                ;;
+        esac
+    done
+    set +f
+}
+
 write_case_result() {
     case_path=$1
     case_status=$2
@@ -398,6 +441,7 @@ run_all_cases() {
     : > "$summary_file"
     : > "$results_jsonl"
 
+    append_selected_phase4_fixtures
     cases=$(list_case_files) || exit 1
     if [ -z "$cases" ]; then
         echo "nginx_smoke: fail no shared smoke cases found" >&2
@@ -506,6 +550,16 @@ escape_sed() {
 }
 
 render_config() {
+    NGINX_PHASE4_MODE_DIRECTIVE=""
+    case "${NGINX_PHASE4_MODE:-}" in
+        "") ;;
+        minimal|safe|strict)
+            NGINX_PHASE4_MODE_DIRECTIVE="modsecurity_phase4_mode $NGINX_PHASE4_MODE;"
+            ;;
+        *)
+            fail "unsupported generated NGINX_PHASE4_MODE=$NGINX_PHASE4_MODE"
+            ;;
+    esac
     sed \
         -e "s|@@RUNTIME_ROOT@@|$(escape_sed "$RUNTIME_ROOT")|g" \
         -e "s|@@LOG_DIR@@|$(escape_sed "$LOG_DIR")|g" \
@@ -514,6 +568,7 @@ render_config() {
         -e "s|@@DOCROOT@@|$(escape_sed "$DOCROOT")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@NGINX_PHASE4_LOG@@|$(escape_sed "$NGINX_PHASE4_LOG_FILE")|g" \
+        -e "s|@@NGINX_PHASE4_MODE_DIRECTIVE@@|$(escape_sed "$NGINX_PHASE4_MODE_DIRECTIVE")|g" \
         -e "s|@@NGINX_LOCATION_DIRECTIVES@@|$(escape_sed "$NGINX_LOCATION_DIRECTIVES_FILE")|g" \
         -e "s|@@NGINX_LOCATION_HANDLER_DIRECTIVES@@|$(escape_sed "$NGINX_LOCATION_HANDLER_DIRECTIVES_FILE")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"

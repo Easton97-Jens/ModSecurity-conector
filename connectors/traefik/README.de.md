@@ -1,4 +1,6 @@
-# Traefik Connector
+# Traefik-Connector
+
+**Sprache:** [English](README.md) | Deutsch
 
 Status: `minimal_runtime_smoke` ausschließlich für den `forwardAuth`-Request-Pfad.
 Der Connector besitzt einen eigenen C17-Entry-Point und bleibt für Request-Body,
@@ -14,3 +16,25 @@ Upstream-Response, CRS, Security, Produktion und Full Matrix bewusst
   forwardAuth-File-Provider-Config, sendet aber keine Requests.
 - Response-Header/-Body des Upstreams sind für `forwardAuth` nicht verfügbar.
 - Es gibt keine Produktions-, CRS-, Full-Matrix-, Runtime- oder RESPONSE_BODY-Verifikationsbehauptung.
+
+## Kanonische Grenze für Phase 4
+
+Das gewählte Host-Modell ist Traefik `forwardAuth`. Es wird vor der
+Upstream-Verarbeitung ausgeführt und kann den späteren Upstream-Response-Body
+nicht inspizieren. Daher sind `response_body_buffered`, `phase4`,
+`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort` und
+`late_intervention_status_metadata` als `unsupported_by_host_model` und nicht
+nur als in einem lokalen Lauf fehlend deklariert.
+
+Die gemeinsamen Phase-4-Fälle müssen deshalb mit der eindeutigen
+forwardAuth-Architekturbegründung `UNSUPPORTED` ergeben. Ein requestseitiges
+200 oder 403 belegt ausschließlich den Autorisierungspfad vor dem Upstream;
+es belegt weder Response-Body-Inspektion noch ursprünglichen Upstream-Status,
+sichtbaren Status nach dem Commit oder eine späte Aktion. `UNSUPPORTED` zählt
+nie als `PASS` und darf nicht allein wegen eines fehlenden Response-Tests in
+`NOT_EXECUTED` umgewandelt werden.
+
+Response-Body-Payloads gehören weder in Ereignisse noch in Berichte. Ein
+zukünftiger Traefik-Integrationspfad mit Upstream-Response-Sicht wäre ein
+anderes Host-Modell und benötigt eigenständige Nachweise.

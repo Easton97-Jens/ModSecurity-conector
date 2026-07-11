@@ -13,7 +13,7 @@ const char *msconnector_decision_action_name(msconnector_decision_action action)
     case MSCONNECTOR_DECISION_ACTION_LOG_ONLY:
         return "log_only";
     case MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION:
-        return "connection_abort";
+        return "abort_connection";
     case MSCONNECTOR_DECISION_ACTION_ERROR:
         return "error";
     case MSCONNECTOR_DECISION_ACTION_UNSUPPORTED:

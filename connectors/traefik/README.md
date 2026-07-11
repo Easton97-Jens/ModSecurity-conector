@@ -1,5 +1,7 @@
 # Traefik Connector
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: minimal_runtime_smoke for the forwardAuth request path only
 Runtime status: targeted local Traefik/Common-runtime allow 200/block 403
 Verification status: not_verified / connector-gap
@@ -72,7 +74,8 @@ See:
 - Harness: conditional local Traefik forwardAuth smoke when a local binary is available
 - Targeted No-CRS runtime: pass-local; full No-CRS matrix not run
 - With-CRS runtime: not run
-- RESPONSE_BODY blocking: not verified
+- RESPONSE_BODY blocking: `unsupported_by_host_model` for the selected
+  `forwardAuth` integration
 
 ## Build and Self-Test
 
@@ -253,3 +256,24 @@ This connector is prepared for the Common SDK but remains `not_verified` / `conn
 - Connector-specific code remains responsible for the host profile, build glue, example configuration, and process entry point.
 - Response mapping is linked for contract checking only; upstream response inspection is unsupported by `forwardAuth`.
 - No production, CRS-complete, full-matrix, broad runtime, or RESPONSE_BODY verification is claimed.
+
+## Canonical Phase-4 boundary
+
+The selected host model is Traefik `forwardAuth`.  It executes before upstream
+handling and cannot inspect the later upstream response body.  Consequently,
+`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort`, and
+`late_intervention_status_metadata` are
+`unsupported_by_host_model`, not merely absent from a local run.
+
+The shared Phase-4 cases must therefore be `UNSUPPORTED` with the explicit
+forwardAuth architecture reason.  A request-side 200 or 403 proves only the
+pre-upstream authorization path; it neither proves response-body inspection
+nor supplies original upstream status, post-commit visible status, or a late
+action.  `UNSUPPORTED` is never a `PASS` and must not be changed to
+`NOT_EXECUTED` merely because no response test was run.
+
+No response-body payload belongs in an event or report.  A future Traefik
+integration that observes upstream responses would be a different host model
+and needs independent evidence.

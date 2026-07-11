@@ -53,6 +53,15 @@ for field in [
 check('safe_decision_reason_code' in decision_log_writer and
       'json_write_string(file, reason_code)' in decision_log_writer,
       'HAProxy decision JSONL emits a bounded safe reason code')
+check('msconnector_late_intervention_policy_init' in spop_runtime and
+      'msconnector_late_intervention_resolve' in spop_runtime and
+      'msconnector_late_intervention_action_name' in spop_runtime,
+      'HAProxy response decision metadata uses the Common late-intervention policy')
+check('phase4_common_event_write' in spop_runtime and
+      'msconnector_event_write_jsonl_line' in spop_runtime and
+      'event.meta.event = "phase4_intervention"' in spop_runtime and
+      'event.meta.message_id' in spop_runtime,
+      'HAProxy Phase4 diagnostics also emit the Common metadata-only event model')
 check('decision->log_message' not in decision_log_writer and
       'reason != 0 ? reason' not in decision_log_writer,
       'HAProxy decision JSONL does not serialize intervention log text')

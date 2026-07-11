@@ -15,8 +15,10 @@ Tracked in `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`.
 ## Coverage / Runtime Decision Matrix
 
 The checked-in `capabilities.json` is the source contract for the new baseline.
-It records the native Phase 1-4 paths as `implemented_not_asserted`; no value is
-promoted to `verified` until a current canonical result exists under
+It records the native Phase 1-4 paths as `implemented_not_asserted`, except
+for `phase4_pre_commit_deny`, which is `not_implemented` because the body
+filter runs after the response-header path. No value is promoted to `verified`
+until a current canonical result exists under
 `$EVIDENCE_ROOT/nginx/<run-id>/`.
 
 - [x] Coverage decision matrix reviewed.
@@ -41,3 +43,24 @@ promoted to `verified` until a current canonical result exists under
 - [ ] `make no-crs-baseline-nginx` produces current canonical evidence.
 - [ ] `make evidence-check-nginx` validates schema, claims, layout, events, and
       capability consistency for that same run.
+
+## Canonical Phase-4 evidence
+
+The source contract keeps the executable response-body and late-intervention
+facets at `implemented_not_asserted` until one current canonical NGINX host
+run proves each behavior separately. `phase4_pre_commit_deny` is explicitly
+`not_implemented`: the native body filter has no pre-header response-body
+decision point.
+
+- [ ] Record `phase4_rule_observed` with rule `1100301`; a rule observation
+      must not be rewritten as a visible 403 requirement.
+- [x] Keep `phase4_deny_before_commit` out of the NGINX runner selection: the
+      Phase-4 body-filter timing cannot establish an uncommitted response.
+- [ ] Verify safe post-commit behavior as requested `deny`, actual `log_only`,
+      unchanged visible status, and `late_intervention=true`.
+- [ ] Verify strict post-commit behavior as actual `abort_connection` with
+      `connection_aborted=true`; a prior client status may remain visible.
+- [ ] Verify metadata-only events with original host status, requested WAF
+      status, visible client status, requested action, and actual action.
+- [ ] Preserve `NOT EXECUTED` when a current canonical run is absent; do not
+      infer `PASS` from filter wiring or from a Phase-4 rule ID.

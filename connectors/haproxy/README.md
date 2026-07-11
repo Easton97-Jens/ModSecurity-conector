@@ -1,11 +1,13 @@
 # HAProxy Connector
 
-Status: production-spoa-runtime (partial)
-Runtime status: live YAML execution through HAProxy, SPOA/SPOP, and a
-repo-built `haproxy-modsecurity-spoa` agent. Request phases, audit-log
-assertions, response headers, fixed disruptive statuses, and bounded
-experimental response body probes execute through the same production binary.
-`RESPONSE_BODY` remains non-promoted.
+**Language:** English | [Deutsch](README.de.md)
+
+Status: partial; historical SPOA runtime records do not promote canonical
+Phase-4 capabilities.
+Runtime status: the repository contains live YAML execution wiring through
+HAProxy, SPOA/SPOP, and a repo-built `haproxy-modsecurity-spoa` agent.
+Request-side evidence is separate from response-body and late-intervention
+evidence. `RESPONSE_BODY` remains non-promoted.
 Template alignment: scaffold-aligned plus local SPOA agent starter/runtime.
 
 This connector contains repository-owned metadata, a local HAProxy SPOA agent
@@ -28,10 +30,10 @@ The proven request-side variables are `REQUEST_URI`, `REQUEST_HEADERS`,
 `REQUEST_COOKIES_NAMES`, `REQUEST_BODY`, `FILES`, and `XML`. URL-encoded,
 JSON, XML, multipart, and CRS SQLi anomaly request-body coverage is live
 evidence, limited by HAProxy request buffering, SPOE frame size, and configured
-request-body limits. Response-header and audit-log evidence now uses live
-SPOE response messages. Bounded Phase 4 response-body execution is available
-for experimental strict-abort probes only and is not promotion evidence for
-full `RESPONSE_BODY` support.
+request-body limits. Response-header and audit-log paths use SPOE response
+messages. The bounded Phase-4 response-body branch is source-level wiring and
+is not canonical evidence for rule observation, strict abort, or full
+`RESPONSE_BODY` support.
 
 ## Global Contract
 
@@ -66,7 +68,7 @@ Shared connector-neutral data shapes used by the starter:
   libmodsecurity enforcement for shared framework YAML cases.
 - Decision evidence: per-case `decision.jsonl`, HAProxy logs, SPOA logs, audit
   logs, observed status, and normalized `result.json`.
-- RESPONSE_BODY blocking: bounded experimental evidence only; not promoted.
+- RESPONSE_BODY blocking: bounded experimental source path only; not promoted.
 
 ## Build Starter
 
@@ -123,11 +125,36 @@ Framework-owned paths and targets to use for future evidence:
 Unsupported or currently unmaterializable rows are documented as
 `NOT_EXECUTABLE`. Harness, dependency, build, and runtime failures are
 documented as `BLOCKED`. `RESPONSE_BODY` rows stay non-promoted unless a future
-implementation proves full-body guarantees beyond the current bounded
-experimental path.
+canonical host run proves the individual response-body and late-intervention
+facets beyond the current bounded experimental path.
 
 ## Common SDK adoption boundary
 
 The HAProxy adoption layer embeds/maps `msconnector_config` and uses Common directive specs/adapters, parser primitives, mapper contracts, header helpers, event JSONL helpers, rule-id/log-sanitizing primitives, and global guard structures where implemented. HAProxy-specific SPOE/SPOP protocol handling, cfg glue, process lifecycle, socket/runtime handling, frame parsing, return/action encoding, logging transport, and build glue remain local.
 
 C17 compile evidence is available through `make check-haproxy-c17`; optional C23/future-C checks depend on compiler support. Missing HAProxy/libmodsecurity headers are reported as `BLOCKED` with exit 77. This is not a production, CRS, full-matrix, or runtime-verification claim.
+
+## Canonical Phase-4 boundary
+
+HAProxy uses the repository SPOE/SPOP agent path, including a bounded
+experimental response-body branch.  Source wiring alone does not establish
+that the agent sees a complete upstream response, that HAProxy can still
+change its status, or that a disconnect is a Phase-4 action rather than an
+agent failure.  Only `response_body_buffered`, `phase4`, and
+`phase4_rule_evaluation` remain `implemented_not_asserted` as source-level
+paths. `phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort`, and
+`late_intervention_status_metadata` are `not_implemented`.
+
+The agent currently serializes policy-derived pre-commit fields, but the host
+runner does not observe a client-visible Phase-4 deny, actual commitment timing,
+or a post-commit response point.  It therefore implements neither safe
+`log_only` nor strict `abort_connection`, and cannot claim semantic
+original/requested/visible-status metadata.  An agent timeout, agent failure,
+or generic HAProxy disconnect is not evidence of a late-intervention abort.
+
+The shared Phase-4 case set remains evidence-gated. Rule observation is
+separate from a client-visible 403; the semantic pre-commit, late-action, and
+status-metadata cases remain `NOT_EXECUTED` until their missing host behavior
+is implemented. Response-body payloads must never be written to events or
+reports.

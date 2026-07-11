@@ -107,6 +107,104 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertTrue(evidence["event_metadata_verified"])
         self.assertEqual([], evidence["forbidden_event_keys"])
 
+    def test_phase4_aliases_are_projected_without_status_conflation(self) -> None:
+        event = collector.sanitized_event(
+            {
+                "connector": "nginx",
+                "transaction_id": "tx-phase4",
+                "rule_id": 1100301,
+                "phase": "response_body",
+                "waf_status": 403,
+                "upstream_status": 200,
+                "client_status": 200,
+                "wanted_action": "deny",
+                "actual_action": "connection_abort",
+                "intervention": True,
+                "header_sent": True,
+                "response_body_seen": True,
+                "strict_abort": True,
+                "response_committed": True,
+                "observed_transport_result": "connection_aborted",
+            }
+        )
+        self.assertEqual(4, event["phase"])
+        self.assertEqual(403, event["http_status"])
+        self.assertEqual(200, event["original_http_status"])
+        self.assertEqual(200, event["visible_http_status"])
+        self.assertEqual("deny", event["requested_action"])
+        self.assertEqual("abort_connection", event["actual_action"])
+        self.assertTrue(event["late_intervention"])
+        self.assertTrue(event["headers_sent"])
+        self.assertTrue(event["body_started"])
+        self.assertTrue(event["connection_aborted"])
+        self.assertEqual("connection_aborted", event["transport_result"])
+
+    def test_response_status_is_not_dual_mapped_to_original_and_visible(self) -> None:
+        event = collector.sanitized_event({"response_status": 200})
+        self.assertNotIn("original_http_status", event)
+        self.assertNotIn("visible_http_status", event)
+        self.assertNotIn("http_status", event)
+
+    def test_phase4_case_keeps_runtime_semantics_from_event(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-phase4-") as temporary:
+            root = Path(temporary)
+            phase4_path = root / "phase4.jsonl"
+            phase4_path.write_text(
+                json.dumps(
+                    {
+                        "connector": "nginx",
+                        "transaction_id": "tx-phase4",
+                        "event": "phase4_intervention",
+                        "message_id": "MSCONN_EVENT_PHASE4_LATE_INTERVENTION",
+                        "phase": "response_body",
+                        "status": "blocked",
+                        "rule_id": 1100301,
+                        "http_status": 403,
+                        "original_http_status": 200,
+                        "visible_http_status": 200,
+                        "requested_action": "deny",
+                        "actual_action": "log_only",
+                        "late_intervention": True,
+                        "headers_sent": True,
+                        "body_started": True,
+                        "connection_aborted": False,
+                        "response_committed": True,
+                        "transport_result": "log_only",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            results_path = root / "results.jsonl"
+            results_path.write_text(
+                json.dumps(
+                    {
+                        "case_id": "phase4_deny_after_commit_log_only",
+                        "status": "PASS",
+                        "live_executed": True,
+                        "actual_status": 200,
+                        "connector_phase4_log_path": str(phase4_path),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            cases, _ = collector.case_observations(
+                [results_path],
+                "nginx",
+                "1100001",
+                {"phase4_deny_after_commit_log_only": (None, "1100301")},
+                allowed_source_root=root,
+            )
+            self.assertEqual(1, len(cases))
+            case = cases[0]
+            self.assertEqual("PASS", case["status"])
+            self.assertTrue(case["event_metadata_verified"])
+            self.assertEqual("deny", case["requested_action"])
+            self.assertEqual("log_only", case["actual_action"])
+            self.assertEqual(403, case["http_status"])
+            self.assertEqual(200, case["visible_http_status"])
+
     def test_traefik_runtime_output_rejects_symlink_before_cleanup(self) -> None:
         with tempfile.TemporaryDirectory(prefix="traefik-output-") as temporary:
             root = Path(temporary)

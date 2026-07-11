@@ -32,6 +32,29 @@ Request- und Response-Bodies sind bewusst nicht implementiert.
 
 Der Response-Header-Hook existiert, wurde aber noch nicht mit einer echten Phase-3-Regel verhaltensseitig belegt.
 
+## Kanonische Phase-4-Facetten
+
+Jede Antwortkörper- und Antwortphasen-Facette unten ist im aktuellen nativen
+Modul `not_implemented`. Das Fehlen eines nativen Antwortkörper-Hooks ist eine
+Implementierungslücke, keine belegte Unmöglichkeit des lighttpd-Hostmodells.
+
+| Facette | Capability-Zustand | Folge für den kanonischen Katalog |
+|---|---|---|
+| Antwortkörper-Verfügbarkeit (`response_body_buffered`) | `not_implemented` | Das native Modul liefert ModSecurity keinen Antwortkörper. |
+| Phase-4-Aufruf (`phase4`) | `not_implemented` | Es gibt keinen echten Antwortkörper-Phase-4-Aufruf. |
+| Regelauswertung (`phase4_rule_evaluation`) | `not_implemented` | Regel `1100301` kann nicht gegen einen nativen Antwortkörper laufen. |
+| Deny vor dem Commit (`phase4_pre_commit_deny`) | `not_implemented` | Vor dem Commit ist kein Antwortkörper-Entscheidungspunkt implementiert. |
+| Späte Intervention (`late_intervention`) | `not_implemented` | Es ist kein Antwortkörper-Richtlinienpunkt nach dem Commit implementiert. |
+| Sichere späte Intervention (`late_intervention_log_only`) | `not_implemented` | Kein Deny eines bereits festgeschriebenen Antwortkörpers kann als reine Protokollierung erfasst werden. |
+| Strikte späte Intervention (`late_intervention_abort`) | `not_implemented` | Keine Abbruchaktion für einen bereits festgeschriebenen Antwortkörper ist implementiert. |
+| Statusmetadaten (`late_intervention_status_metadata`) | `not_implemented` | Keine Phase-4-Ereignisquelle trennt WAF-, ursprünglichen und sichtbaren Antwortstatus. |
+
+Phase-4-Fälle bleiben `NOT EXECUTED` (oder sind nicht auswählbar), bis eine
+echte native Antwortkörper-Implementierung existiert. Sie dürfen nicht als
+`UNSUPPORTED` bezeichnet werden, solange nicht belegt ist, dass lighttpds
+Hostmodell keinen geeigneten Hook bereitstellen kann. Ereignisse und Berichte
+bleiben metadatenbasiert; sie enthalten weder Body-Inhalte noch Trefferwerte.
+
 Erwarteter Evidence-Root:
 
 ```text

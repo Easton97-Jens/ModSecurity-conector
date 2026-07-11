@@ -2,6 +2,8 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: `minimal_runtime_smoke` / `connector-gap`
 
 The implemented host model is an external HTTP authorization service for
@@ -99,3 +101,24 @@ limits, and writes metadata-only JSONL outside the checkout.
   this connector binary and must not be used as evidence for this implementation.
 - No production, security, CRS-complete, full-matrix, response-header, or
   response-body verification claim is made.
+
+## Canonical Phase-4 boundary
+
+The selected host model is Envoy HTTP `ext_authz`.  It asks the authorization
+service before upstream handling and never exposes the later upstream response
+to that service.  `response_body_buffered`, `phase4`,
+`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort`, and
+`late_intervention_status_metadata` are therefore
+`unsupported_by_host_model`, not merely unverified.
+
+Every shared Phase-4 case for this integration must be `UNSUPPORTED`, with the
+reason that the selected ext_authz integration executes before the upstream
+response and does not expose upstream response-body data.  A request-phase
+allow or deny, including a real request-side 200 or 403, is not response-phase
+evidence.  The service cannot supply original upstream status, visible client
+status after a late intervention, or a post-commit action because no such host
+event reaches it.
+
+`UNSUPPORTED` describes this chosen architecture; it never counts as `PASS`.
+No response-body payload is written to events or reports.

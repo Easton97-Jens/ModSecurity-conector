@@ -32,6 +32,71 @@ vorliegt.
 - lighttpd-Request- und -Response-Bodies sind nicht implementiert.
 - Ältere Smoke-, Body-, CRS-, Bridge-, Sidecar- und Self-Test-Ergebnisse sind ausgeschlossen.
 
+## Kanonische Phase-4-Facetten und Fallergebnisse
+
+Die folgenden Werte sind Fähigkeitszustände und keine Ergebnisse des
+fehlenden kanonischen Laufs. Sie trennen Antwortkörper-Verfügbarkeit,
+Regelauswertung, Deny vor dem Commit, späte Intervention und Statusmetadaten,
+anstatt jeden Phase-4-Treffer als sichtbaren HTTP-`403` zu behandeln.
+
+| Connector | `response_body_buffered` | `phase4` | `phase4_rule_evaluation` | `phase4_pre_commit_deny` |
+|---|---|---|---|---|
+| Apache | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
+| NGINX | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
+| HAProxy | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` |
+| Envoy | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
+| Traefik | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
+| lighttpd | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+
+| Connector | `late_intervention` | `late_intervention_log_only` | `late_intervention_abort` | `late_intervention_status_metadata` |
+|---|---|---|---|---|
+| Apache | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
+| NGINX | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
+| HAProxy | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| Envoy | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
+| Traefik | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
+| lighttpd | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+
+`implemented_not_asserted` macht eine Fähigkeit für die fähigkeitsgesteuerte
+Fallauswahl zulässig; daraus wird kein PASS. Ohne aktuellen Lauf besitzen
+Apache, NGINX und HAProxy in dieser Übersicht kein Phase-4-PASS-Ergebnis.
+HAProxy behält nur die Quellfacetten für Response-Body, Phase 4 und
+Regelbeobachtung; seine Fälle für Vor-Commit-Deny, Late Intervention und
+semantische Statusmetadaten sind `NOT_EXECUTED`, weil der Runner kein
+hostbeobachtetes Client-Ergebnis, keinen Commit-Zeitpunkt und keinen
+Hostpunkt nach dem Commit besitzt. Envoy und Traefik müssen
+Antwortphasen-Fälle als `UNSUPPORTED` ausweisen: Ihre gewählten `ext_authz`-
+und `forwardAuth`-Integrationen laufen vor der Upstream-Antwort und können
+deren Körper nicht inspizieren. lighttpd-Antwortphasen-Fälle sind
+`NOT EXECUTED` und nicht `UNSUPPORTED`, weil dem aktuellen nativen Modul die
+Implementierung fehlt, ohne dass eine Unmöglichkeit durch das Hostmodell
+belegt ist.
+
+Die gemeinsamen Fälle sind `phase4_rule_observed`,
+`phase4_deny_before_commit`, `phase4_deny_after_commit_log_only`,
+`phase4_deny_after_commit_abort`, `phase4_event_contains_original_status` und
+`phase4_event_contains_late_intervention_action`. Der veraltete Alias
+`deny_response_body_marker_403` darf nur über den Deny-vor-dem-Commit-Fall PASS
+werden; er darf kein Ergebnis reiner Protokollierung oder eines Abbruchs zu
+einem `403`-PASS machen.
+
+In einem echten Phase-4-Ergebnis ist `http_status` der von der WAF angeforderte
+Status, `original_http_status` der Status vor der Intervention und
+`visible_http_status` der für den Client sichtbare Status. Auch
+`requested_action` und `actual_action` müssen getrennt bleiben.
+`headers_sent`, `body_started`, `response_committed`, `late_intervention`,
+`connection_aborted` und, soweit vorhanden, `transport_result` beschreiben
+Zeitpunkt und Transport, ohne einen HTTP-Status zu erfinden. Eine sichere späte
+Intervention kann daher mit sichtbarem `200` und `actual_action=log_only` PASS
+sein; ein strikter Abbruch verlangt keinen sichtbaren `403`.
+
+Die gemeinsame Richtlinie für späte Interventionen lautet: Vor dem Commit
+`DENY_IF_POSSIBLE`; nach dem Commit im normalen oder sicheren Modus `LOG_ONLY`;
+nach dem Commit im strikten Modus `ABORT_CONNECTION`. Ereignisse,
+Fallergebnisse, Manifeste und Berichte dürfen nur Metadaten enthalten, niemals
+Anfrage- oder Antwortkörperinhalte, Trefferwerte, Regelmeldungen oder
+Interventionsprotokolle.
+
 ## Erwartete kanonische Evidence
 
 Jeder Connector-Lauf schreibt nach

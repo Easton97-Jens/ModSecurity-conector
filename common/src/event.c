@@ -28,6 +28,7 @@ enum msconnector_event_json_text_index {
     EVENT_JSON_ACTION,
     EVENT_JSON_REQUESTED_ACTION,
     EVENT_JSON_ACTUAL_ACTION,
+    EVENT_JSON_TRANSPORT_RESULT,
     EVENT_JSON_HTTP_REASON_PHRASE,
     EVENT_JSON_HTTP_DEFAULT_MESSAGE,
     EVENT_JSON_RULE_ID,
@@ -48,6 +49,7 @@ enum msconnector_event_json_status_index {
 enum msconnector_event_json_flag_index {
     EVENT_JSON_LATE_INTERVENTION = 0,
     EVENT_JSON_RESPONSE_STARTED,
+    EVENT_JSON_RESPONSE_COMMITTED,
     EVENT_JSON_HEADERS_SENT,
     EVENT_JSON_BODY_STARTED,
     EVENT_JSON_BODY_TRUNCATED,
@@ -73,7 +75,7 @@ static int format_event_json(
     return snprintf(
         dst,
         dst_size,
-        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"late_intervention\":%s,\"response_started\":%s,\"headers_sent\":%s,\"body_started\":%s,\"body_truncated\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s,\"sequence\":%lu,\"previous_event_hash\":%" PRIu64 ",\"event_hash\":%" PRIu64 "}",
+        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"transport_result\":\"%s\",\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"late_intervention\":%s,\"response_started\":%s,\"response_committed\":%s,\"headers_sent\":%s,\"body_started\":%s,\"body_truncated\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s,\"sequence\":%lu,\"previous_event_hash\":%" PRIu64 ",\"event_hash\":%" PRIu64 "}",
         parts->text[EVENT_JSON_TIMESTAMP],
         parts->text[EVENT_JSON_LEVEL],
         parts->text[EVENT_JSON_MESSAGE_ID],
@@ -89,6 +91,7 @@ static int format_event_json(
         parts->statuses[EVENT_JSON_HTTP_STATUS],
         parts->statuses[EVENT_JSON_ORIGINAL_HTTP_STATUS],
         parts->statuses[EVENT_JSON_VISIBLE_HTTP_STATUS],
+        parts->text[EVENT_JSON_TRANSPORT_RESULT],
         parts->text[EVENT_JSON_HTTP_REASON_PHRASE],
         parts->text[EVENT_JSON_HTTP_DEFAULT_MESSAGE],
         parts->text[EVENT_JSON_RULE_ID],
@@ -98,6 +101,7 @@ static int format_event_json(
         parts->text[EVENT_JSON_CLIENT_IP],
         parts->flags[EVENT_JSON_LATE_INTERVENTION],
         parts->flags[EVENT_JSON_RESPONSE_STARTED],
+        parts->flags[EVENT_JSON_RESPONSE_COMMITTED],
         parts->flags[EVENT_JSON_HEADERS_SENT],
         parts->flags[EVENT_JSON_BODY_STARTED],
         parts->flags[EVENT_JSON_BODY_TRUNCATED],
@@ -187,6 +191,7 @@ void msconnector_event_init(msconnector_event *event) {
     event->http.http_status = 0;
     event->http.original_http_status = 0;
     event->http.visible_http_status = 0;
+    event->http.transport_result = 0;
     event->http.http_reason_phrase = 0;
     event->http.http_default_message = 0;
     event->decision.rule_id = 0;
@@ -196,6 +201,7 @@ void msconnector_event_init(msconnector_event *event) {
     event->request.client_ip = 0;
     event->flags.late_intervention = 0;
     event->flags.response_started = 0;
+    event->flags.response_committed = 0;
     event->flags.headers_sent = 0;
     event->flags.body_started = 0;
     event->flags.body_truncated = 0;
@@ -230,6 +236,7 @@ int msconnector_event_write_json_ex(
     char action[64];
     char requested_action[64];
     char actual_action[64];
+    char transport_result[64];
     char http_reason_phrase[EVENT_TEXT_SIZE];
     char http_default_message[EVENT_TEXT_SIZE];
     char rule_id[EVENT_TEXT_SIZE];
@@ -262,6 +269,7 @@ int msconnector_event_write_json_ex(
     escape_field(event->decision.action, action, sizeof(action), &was_truncated);
     escape_field(event->decision.requested_action, requested_action, sizeof(requested_action), &was_truncated);
     escape_field(event->decision.actual_action, actual_action, sizeof(actual_action), &was_truncated);
+    escape_field(event->http.transport_result, transport_result, sizeof(transport_result), &was_truncated);
     escape_field(event->http.http_reason_phrase, http_reason_phrase, sizeof(http_reason_phrase), &was_truncated);
     escape_field(event->http.http_default_message, http_default_message, sizeof(http_default_message), &was_truncated);
     escape_field(event->decision.rule_id, rule_id, sizeof(rule_id), &was_truncated);
@@ -282,6 +290,7 @@ int msconnector_event_write_json_ex(
     parts.text[EVENT_JSON_ACTION] = action;
     parts.text[EVENT_JSON_REQUESTED_ACTION] = requested_action;
     parts.text[EVENT_JSON_ACTUAL_ACTION] = actual_action;
+    parts.text[EVENT_JSON_TRANSPORT_RESULT] = transport_result;
     parts.statuses[EVENT_JSON_HTTP_STATUS] = event->http.http_status;
     parts.statuses[EVENT_JSON_ORIGINAL_HTTP_STATUS] = event->http.original_http_status;
     parts.statuses[EVENT_JSON_VISIBLE_HTTP_STATUS] = event->http.visible_http_status;
@@ -294,6 +303,7 @@ int msconnector_event_write_json_ex(
     parts.text[EVENT_JSON_CLIENT_IP] = client_ip;
     parts.flags[EVENT_JSON_LATE_INTERVENTION] = json_bool(event->flags.late_intervention);
     parts.flags[EVENT_JSON_RESPONSE_STARTED] = json_bool(event->flags.response_started);
+    parts.flags[EVENT_JSON_RESPONSE_COMMITTED] = json_bool(event->flags.response_committed);
     parts.flags[EVENT_JSON_HEADERS_SENT] = json_bool(event->flags.headers_sent);
     parts.flags[EVENT_JSON_BODY_STARTED] = json_bool(event->flags.body_started);
     parts.flags[EVENT_JSON_BODY_TRUNCATED] = json_bool(event->flags.body_truncated);
@@ -346,18 +356,20 @@ void msconnector_event_set_phase4_hard_abort_after_200(
     event->meta.transaction_id = transaction_id;
     event->decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
     event->decision.status = MSCONNECTOR_STATUS_BLOCKED;
-    event->decision.action = "connection_abort";
+    event->decision.action = "abort_connection";
     event->decision.requested_action = "deny";
-    event->decision.actual_action = "connection_abort";
-    event->http.http_status = 200;
+    event->decision.actual_action = "abort_connection";
+    event->http.http_status = 403;
     event->http.original_http_status = 200;
     event->http.visible_http_status = 200;
-    event->http.http_reason_phrase = msconnector_http_status_reason_phrase(200);
-    event->http.http_default_message = msconnector_http_status_default_message(200);
+    event->http.transport_result = "connection_aborted";
+    event->http.http_reason_phrase = msconnector_http_status_reason_phrase(403);
+    event->http.http_default_message = msconnector_http_status_default_message(403);
     event->decision.rule_id = rule_id;
     event->decision.reason = reason;
     event->flags.late_intervention = 1;
     event->flags.response_started = 1;
+    event->flags.response_committed = 1;
     event->flags.headers_sent = 1;
     event->flags.body_started = 1;
     event->flags.connection_aborted = 1;

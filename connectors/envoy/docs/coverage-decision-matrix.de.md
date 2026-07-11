@@ -4,24 +4,40 @@
 
 Connector-Metadaten: `minimal_runtime_smoke` / `connector-gap`
 
-| Gate | Aktuelle Evidence-Grenze |
+| Prüfstufe | Aktuelle Nachweisgrenze |
 |---|---|
 | Hostintegration | Connector-eigenes HTTP-`ext_authz`-Serviceprofil |
-| Common SDK | Echte dünne Mapper-Callbacks plus Common-Runtime-Lifecycle |
-| Config | key=value-Vorlage, konkrete Pfadersetzung, echter Config-/Rule-Load |
+| Gemeinsames SDK | Echte dünne Mapper-Rückrufe plus Common-Runtime-Lebenszyklus |
+| Konfiguration | `key=value`-Vorlage, konkrete Pfadersetzung, echtes Laden von Konfiguration und Regeln |
 | Request-Header | Im echten Envoy-Hostpfad-Smoke begrenzt und gemappt |
-| Request-Body | Gepufferter/begrenzter Pfad implementiert; kein promoteter Body-Case |
+| Request-Body | Gepufferter/begrenzter Pfad implementiert; kein hochgestufter Body-Fall |
 | Response-Header | Vom gewählten HTTP-Autorisierungsprotokoll nicht unterstützt |
-| Response-Body | Nicht unterstützt; `response_body_verified=false` |
-| Decision | Common-Decision auf ext_authz Allow/Deny gemappt; gezielter 403 beobachtet |
-| Events | Metadata-only Common-JSONL beobachtet; keine Body-Payload |
-| Build | C17-Compile/Link mit Warnings-as-Errors verifiziert |
-| Config-Check | Mit lokaler libmodsecurity und gezielter Regel verifiziert |
-| Start | Request-freier Service-Start/-Stop lokal verifiziert |
-| Minimale Runtime | Lokaler Envoy-200/403-Hostpfad-Smoke beobachtet |
-| CRS/Full Matrix | Nicht verifiziert |
+| Response-Body | Im gewählten Host-Modell nicht unterstützt; `response_body_verified=false` |
+| Entscheidung | Common-Entscheidung auf ext_authz-Zulassen/Sperren gemappt; gezieltes 403 beobachtet |
+| Ereignisse | Common-JSONL nur mit Metadaten beobachtet; keine Body-Payload |
+| Kompilierung | C17-Kompilierung und Linken mit Warnungen als Fehler verifiziert |
+| Konfigurationsprüfung | Mit lokaler libmodsecurity und gezielter Regel verifiziert |
+| Start | Lokaler Start und Stopp des Dienstes ohne Request verifiziert |
+| Minimale Laufzeit | Lokaler Envoy-200/403-Hostpfad-Smoke beobachtet |
+| CRS/vollständige Matrix | Nicht verifiziert |
 | Produktion/Sicherheit | Nicht verifiziert |
 
-Runtime-Evidence bleibt auf den gezielten lokalen Smoke begrenzt, bis Root-CI,
-Framework-Evidence-Layout und Repository-Reports das neue Connector-Binary
-verwenden. Daraus folgt keine breitere Metadata-Promotion.
+Der Laufzeitnachweis bleibt auf den gezielten lokalen Smoke begrenzt, bis
+Root-CI, Framework-Nachweislayout und Repository-Berichte das neue
+Connector-Binary verwenden. Daraus folgt keine breitere Metadaten-Hochstufung.
+
+## Kanonische Entscheidung für Phase 4
+
+Das ausgewählte Envoy-HTTP-`ext_authz`-Modell wird vor der Upstream-Antwort
+ausgeführt. Die Response-Body- und Late-Intervention-Facetten sind deshalb
+Architekturgrenzen und keine noch ausstehenden Laufzeitaufgaben.
+
+| Facette | Zustand im Manifest | Abdeckungsentscheidung |
+| --- | --- | --- |
+| `response_body_buffered`, `phase4` und `phase4_rule_evaluation` | `unsupported_by_host_model` | `UNSUPPORTED`: ext_authz erhält keinen Upstream-Response-Body. |
+| `phase4_pre_commit_deny` | `unsupported_by_host_model` | Es ist kein Commit-Zeitpunkt der Response-Phase verfügbar. |
+| `late_intervention`, `late_intervention_log_only` und `late_intervention_abort` | `unsupported_by_host_model` | Keine spätere Upstream-Antwort erreicht den Autorisierungsdienst. |
+| `late_intervention_status_metadata` | `unsupported_by_host_model` | In diesem Hostpfad gibt es keinen ursprünglichen/sichtbaren Upstream-Status und keine späte Aktion. |
+
+Request-seitige 200/403-Nachweise sind für diese Zeilen bewusst ausgeschlossen.
+`UNSUPPORTED` zählt nie als `PASS`; Ereignisse enthalten nur Metadaten.

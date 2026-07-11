@@ -146,6 +146,14 @@ print(" ".join(
     if item.get("selection_status") == "SELECTED" and item.get("runner_case")
 ))
 ' "$PLAN")
+NO_CRS_SELECTED_CASE_IDS=$("$PYTHON" -c '
+import json, sys
+plan = json.load(open(sys.argv[1], encoding="utf-8"))
+print(" ".join(
+    str(item["case_id"]) for item in plan.get("cases", [])
+    if item.get("selection_status") == "SELECTED" and item.get("case_id")
+))
+' "$PLAN")
 case " $NO_CRS_SELECTED_CASES " in
     *" allow_without_marker.yaml "*) ;;
     *) echo "FAIL: canonical plan does not select mandatory allow runner case" >&2; exit 1 ;;
@@ -188,6 +196,7 @@ RULES_FILE="$NO_CRS_RULES_FILE" \
 MSCONNECTOR_RULES_FILE="$NO_CRS_RULES_FILE" \
 NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
 NO_CRS_SELECTED_CASES="$NO_CRS_SELECTED_CASES" \
+NO_CRS_SELECTED_CASE_IDS="$NO_CRS_SELECTED_CASE_IDS" \
 MSCONNECTOR_EXPECTED_RULE_ID="$EXPECTED_RULE_ID" \
 NO_CRS_RUN_ID="$NO_CRS_RUN_ID" \
 sh "$CONNECTOR_ROOT/ci/run-connector-stage.sh" "$connector" "$evidence_stage" \

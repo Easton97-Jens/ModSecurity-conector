@@ -11,7 +11,12 @@
     "phase2",
     "phase3",
     "phase4",
+    "phase4_rule_evaluation",
+    "phase4_pre_commit_deny",
     "late_intervention",
+    "late_intervention_log_only",
+    "late_intervention_abort",
+    "late_intervention_status_metadata",
     "deny",
     "redirect",
     "drop",
@@ -62,6 +67,18 @@
           "reason": "Phase-4 minimal, safe, and strict policy branches distinguish log-only, status denial, and post-commit connection abort; behavioral evidence is pending.",
           "state": "implemented_not_asserted"
         },
+        "late_intervention_abort": {
+          "reason": "The configured strict late-intervention branch has a controlled connection-abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true.",
+          "state": "implemented_not_asserted"
+        },
+        "late_intervention_log_only": {
+          "reason": "The configured safe late-intervention branch is intended to preserve the committed response and record a log-only result, but no canonical event proves requested deny, actual log_only, and an unchanged visible status.",
+          "state": "implemented_not_asserted"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "Phase-4 metadata wiring exists, but no canonical event yet proves separate requested WAF status, original host status, visible client status, requested action, and actual action.",
+          "state": "implemented_not_asserted"
+        },
         "log_only": {
           "reason": "Non-disruptive rules remain allowed and Phase-4 policy can record log-only outcomes; canonical evidence is pending.",
           "state": "implemented_not_asserted"
@@ -80,6 +97,14 @@
         },
         "phase4": {
           "reason": "The bounded output filter invokes response-body processing and records late decisions; canonical Phase-4 evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "The output-filter intervention path has a denial branch, but no current canonical evidence proves a Phase-4 deny before response commitment with a changed visible client status.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "The bounded native output-filter path is wired to invoke response-body processing, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated.",
           "state": "implemented_not_asserted"
         },
         "redirect": {
@@ -208,6 +233,18 @@
           "reason": "The authorization decision completes before the upstream response starts, so there is no response-phase late intervention point.",
           "state": "unsupported_by_host_model"
         },
+        "late_intervention_abort": {
+          "reason": "The selected pre-upstream ext_authz host model has no upstream response-phase point from which the authorization service can perform a late connection abort.",
+          "state": "unsupported_by_host_model"
+        },
+        "late_intervention_log_only": {
+          "reason": "The selected pre-upstream ext_authz host model has no committed upstream response on which to apply a late log-only intervention.",
+          "state": "unsupported_by_host_model"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "The selected ext_authz integration does not observe an upstream response, so it cannot produce Phase-4 metadata that distinguishes original and visible upstream-response status or late actions.",
+          "state": "unsupported_by_host_model"
+        },
         "log_only": {
           "reason": "A non-disruptive rule leaves the authorization response successful; explicit canonical log-only evidence is pending.",
           "state": "implemented_not_asserted"
@@ -226,6 +263,14 @@
         },
         "phase4": {
           "reason": "The pre-upstream ext_authz call cannot inspect upstream response bodies.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "Because ext_authz never sees the later upstream response, it has no Phase-4 response point at which to deny before the response commits.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "The selected Envoy ext_authz integration executes before the upstream response and does not expose upstream response-body data for Phase-4 rule evaluation.",
           "state": "unsupported_by_host_model"
         },
         "redirect": {
@@ -353,8 +398,20 @@
           "state": "implemented_not_asserted"
         },
         "late_intervention": {
-          "reason": "HAProxy response rules consume agent decision variables before forwarding the response; response-phase behavioral evidence is pending.",
-          "state": "implemented_not_asserted"
+          "reason": "The current SPOE/SPOP response decision path is modeled before response commitment and implements no post-commit late-intervention point.",
+          "state": "not_implemented"
+        },
+        "late_intervention_abort": {
+          "reason": "The current HAProxy/SPOA path implements no controlled post-commit abort_connection action and no host-observed connection-abort result.",
+          "state": "not_implemented"
+        },
+        "late_intervention_log_only": {
+          "reason": "The current HAProxy/SPOA path has no post-commit log-only action or host-observed unchanged-visible-status result.",
+          "state": "not_implemented"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "Current diagnostics are policy-derived and the host runner does not capture original and visible client statuses plus actual commitment timing, so semantic late-intervention status metadata is not implemented.",
+          "state": "not_implemented"
         },
         "log_only": {
           "reason": "Non-disruptive ModSecurity decisions leave the HAProxy request allowed; explicit log-only behavioral evidence is pending.",
@@ -374,6 +431,14 @@
         },
         "phase4": {
           "reason": "The bounded experimental response-body branch invokes response-body processing; canonical host evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "The current agent emits policy-derived pre-commit fields but the HAProxy host runner does not capture a client-visible Phase-4 deny and actual commitment timing, so this semantic capability is not implemented.",
+          "state": "not_implemented"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "The bounded SPOA/SPOP response-body branch is present, but no current canonical HAProxy host run proves that Phase-4 rule 1100301 was evaluated.",
           "state": "implemented_not_asserted"
         },
         "redirect": {
@@ -503,6 +568,18 @@
           "reason": "The module has no response-body or post-commit intervention policy; the response-start hook is not late-intervention evidence.",
           "state": "not_implemented"
         },
+        "late_intervention_abort": {
+          "reason": "The current native module implements no response-body late-intervention path that can abort a committed connection.",
+          "state": "not_implemented"
+        },
+        "late_intervention_log_only": {
+          "reason": "The current native module implements no post-commit response-body intervention policy or log-only late-intervention action.",
+          "state": "not_implemented"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "Without a native response-body Phase-4 path, the module does not yet emit late-intervention metadata separating requested WAF status, original host status, visible client status, requested action, and actual action.",
+          "state": "not_implemented"
+        },
         "log_only": {
           "reason": "Non-disruptive rules leave the lighttpd request or response allowed; explicit canonical log-only evidence is pending.",
           "state": "implemented_not_asserted"
@@ -521,6 +598,14 @@
         },
         "phase4": {
           "reason": "Response bodies are explicitly disabled in the native plugin, so a real Phase-4 body rule cannot run.",
+          "state": "not_implemented"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "The current native module has no response-body hook or Phase-4 intervention timing implementation from which to deny before response commitment.",
+          "state": "not_implemented"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "The current native module does not supply response-body data to ModSecurity, so it cannot yet evaluate Phase-4 rule 1100301.",
           "state": "not_implemented"
         },
         "redirect": {
@@ -649,6 +734,18 @@
           "reason": "The body filter distinguishes pre-header denial from post-header log-only or connection-abort policy outcomes; canonical evidence is pending.",
           "state": "implemented_not_asserted"
         },
+        "late_intervention_abort": {
+          "reason": "The strict post-commit policy has an abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true.",
+          "state": "implemented_not_asserted"
+        },
+        "late_intervention_log_only": {
+          "reason": "The safe post-commit policy is wired to record a log-only outcome, but no canonical event proves requested deny, actual log_only, late_intervention=true, and an unchanged visible status.",
+          "state": "implemented_not_asserted"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "The Phase-4 path can emit intervention metadata, but no canonical event yet proves separate requested WAF status, original host status, visible client status, requested action, and actual action.",
+          "state": "implemented_not_asserted"
+        },
         "log_only": {
           "reason": "Non-disruptive rules pass and late Phase-4 policy records log-only outcomes; canonical evidence is pending.",
           "state": "implemented_not_asserted"
@@ -667,6 +764,14 @@
         },
         "phase4": {
           "reason": "The response body filter invokes bounded ModSecurity Phase 4; canonical behavioral evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "The native Phase-4 decision runs in the NGINX body filter after the response-header path; this connector has no demonstrated pre-commit response-body decision point, so a visible Phase-4 HTTP 403 must not be claimed.",
+          "state": "not_implemented"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "The bounded native response-body filter is wired to invoke Phase 4, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated.",
           "state": "implemented_not_asserted"
         },
         "redirect": {
@@ -796,6 +901,18 @@
           "reason": "The authorization decision completes before the upstream response starts, so the chosen path has no response-phase late intervention point.",
           "state": "unsupported_by_host_model"
         },
+        "late_intervention_abort": {
+          "reason": "The selected pre-upstream forwardAuth host model has no upstream response-phase point from which the authorization service can perform a late connection abort.",
+          "state": "unsupported_by_host_model"
+        },
+        "late_intervention_log_only": {
+          "reason": "The selected pre-upstream forwardAuth host model has no committed upstream response on which to apply a late log-only intervention.",
+          "state": "unsupported_by_host_model"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "The selected forwardAuth integration does not observe an upstream response, so it cannot produce Phase-4 metadata that distinguishes original and visible upstream-response status or late actions.",
+          "state": "unsupported_by_host_model"
+        },
         "log_only": {
           "reason": "A non-disruptive rule leaves the forwardAuth response successful; explicit canonical log-only evidence is pending.",
           "state": "implemented_not_asserted"
@@ -814,6 +931,14 @@
         },
         "phase4": {
           "reason": "The pre-upstream forwardAuth call cannot inspect upstream response bodies.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "Because forwardAuth never sees the later upstream response, it has no Phase-4 response point at which to deny before the response commits.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "The selected Traefik forwardAuth integration runs before upstream handling and cannot inspect the later upstream response body for Phase-4 rule evaluation.",
           "state": "unsupported_by_host_model"
         },
         "redirect": {
@@ -925,7 +1050,7 @@
     "crs_smoke",
     "extended_matrix"
   ],
-  "generated_at": "2026-07-10T21:44:15Z",
+  "generated_at": "2026-07-11T08:47:58Z",
   "generated_from": [
     "connectors/apache/capabilities.json",
     "connectors/nginx/capabilities.json",
@@ -938,14 +1063,14 @@
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "029b722c346adf93a13340e2ac2c829e07957d67",
+    "connector_sha": "4e004f821d0d91a3a9f63ffe9d27e541cab95d65",
     "data_kind": "capability-catalog",
     "data_origin": "repository",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "e4f7db2233185e3a84bceed4b148ef6e9e97ee6e",
-    "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-07-10T21:44:15Z",
+    "framework_sha": "de0fc5dc0751d3b0e8cb1bd5187e4e3ff558f41f",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-07-11T08:47:58Z",
     "generated_by": "ci/connector_capabilities.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -953,43 +1078,43 @@
       {
         "notes": "input file available",
         "path": "connectors/apache/capabilities.json",
-        "sha256": "01842f82a6c3432f47ffd4502bca13f1068a42b5e7862278ac5bcb89505ac21a",
-        "source_hash": "01842f82a6c3432f47ffd4502bca13f1068a42b5e7862278ac5bcb89505ac21a",
+        "sha256": "ce13177afa0686f9357ae4945b42fc11073e17de661fcc3196514020287a507b",
+        "source_hash": "ce13177afa0686f9357ae4945b42fc11073e17de661fcc3196514020287a507b",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/nginx/capabilities.json",
-        "sha256": "e7caaeb2507e92301a543e939f2d45e2e639fc63a6cd9849cefca2c6290a3fd7",
-        "source_hash": "e7caaeb2507e92301a543e939f2d45e2e639fc63a6cd9849cefca2c6290a3fd7",
+        "sha256": "93c20b58628a286abe7bc3810546a52509828709fef723f39b1cf8f9ea6c9698",
+        "source_hash": "93c20b58628a286abe7bc3810546a52509828709fef723f39b1cf8f9ea6c9698",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/haproxy/capabilities.json",
-        "sha256": "64fc69c41b8c6441ae1f295b1b01b5d9ee24d446448f291e92c72496af8af1de",
-        "source_hash": "64fc69c41b8c6441ae1f295b1b01b5d9ee24d446448f291e92c72496af8af1de",
+        "sha256": "39517a94d913562641c973c9844ff3439ffbdc4c1ff79f6c7cd64f831a5b8fa8",
+        "source_hash": "39517a94d913562641c973c9844ff3439ffbdc4c1ff79f6c7cd64f831a5b8fa8",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/envoy/capabilities.json",
-        "sha256": "9c03fa206cf6235ae3e9376ee8af7167aff6fa3443ea2ee14e7f3402ceba74aa",
-        "source_hash": "9c03fa206cf6235ae3e9376ee8af7167aff6fa3443ea2ee14e7f3402ceba74aa",
+        "sha256": "ae7f73116a211e15114ea484313a72aea99adec5a7fe318821d821d707af2a81",
+        "source_hash": "ae7f73116a211e15114ea484313a72aea99adec5a7fe318821d821d707af2a81",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/traefik/capabilities.json",
-        "sha256": "574b1eeaa6e755fda5ffbc5aa5df7b0d92cd870cb482201bf24e6e3db6aede9f",
-        "source_hash": "574b1eeaa6e755fda5ffbc5aa5df7b0d92cd870cb482201bf24e6e3db6aede9f",
+        "sha256": "2bdcf75907d869e6b33b41f801abe764897abaef63551e198674c972037d21bd",
+        "source_hash": "2bdcf75907d869e6b33b41f801abe764897abaef63551e198674c972037d21bd",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/lighttpd/capabilities.json",
-        "sha256": "0548b5c3efb210d2cfbe1d8646c35a01f527b300246a30ab69b86b043b3a33d8",
-        "source_hash": "0548b5c3efb210d2cfbe1d8646c35a01f527b300246a30ab69b86b043b3a33d8",
+        "sha256": "5e5d114428c30316fe26097ccff5e2ecfd59bf5e37d4c323d95d9e5eba012710",
+        "source_hash": "5e5d114428c30316fe26097ccff5e2ecfd59bf5e37d4c323d95d9e5eba012710",
         "status": "present"
       }
     ],

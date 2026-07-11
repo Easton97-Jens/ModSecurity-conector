@@ -75,3 +75,19 @@ The current evidence does not verify:
 
 Therefore connector metadata uses `minimal_runtime_smoke` and
 `partial_runtime_path`, not a broader verified or production status.
+
+## Canonical Phase-4 validation
+
+The native module does not implement a response-body hook.  Consequently,
+`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort`, and
+`late_intervention_status_metadata` are `not_implemented`.
+
+Phase-4 cases must remain `NOT_EXECUTED` (or be omitted by capability
+selection) until a native response-body path and honest intervention timing are
+implemented.  They are not `UNSUPPORTED`: the current statement concerns this
+module, not an impossibility in lighttpd.  The existing response-start header
+hook and Phase-1 403 smoke neither prove a Phase-4 rule nor original/requested/
+visible response status, a late action, or an abort.  Events and reports remain
+metadata-only.

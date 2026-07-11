@@ -64,6 +64,7 @@ typedef struct msconnector_event_http {
     int http_status;
     int original_http_status;
     int visible_http_status;
+    const char *transport_result;
     const char *http_reason_phrase;
     const char *http_default_message;
 } msconnector_event_http;
@@ -97,6 +98,7 @@ typedef struct msconnector_event_integrity {
 typedef struct msconnector_event_flags {
     int late_intervention;
     int response_started;
+    int response_committed;
     int headers_sent;
     int body_started;
     int body_truncated;

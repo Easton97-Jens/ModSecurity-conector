@@ -104,6 +104,7 @@ common/src/body_policy.c
 common/src/block_statuses.c
 common/src/http_status.c
 common/src/transaction_state.c
+common/src/late_intervention.c
 common/src/limits.c
 common/src/crs.c
 "

@@ -184,7 +184,9 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (mcf->phase4_log_file != NULL && r->header_sent && intervention.log != NULL) {
+    /* Keep the raw intervention only in request-pool memory so the Phase-4
+     * event writer can extract the rule ID.  It is never serialized. */
+    if (mcf->phase4_log_file != NULL && intervention.log != NULL) {
         size_t l = ngx_strlen(intervention.log);
         u_char *cp = ngx_pnalloc(r->pool, l + 1);
         if (cp != NULL) {
@@ -300,6 +302,8 @@ ngx_http_modsecurity_ctx_t *
 ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
 {
     ngx_str_t                          s;
+    u_char                            *transaction_id;
+    u_char                            *transaction_id_end;
     ngx_pool_cleanup_t                *cln;
     ngx_http_modsecurity_ctx_t        *ctx;
     ngx_http_modsecurity_conf_t       *mcf;
@@ -321,8 +325,37 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
         if (ngx_http_complex_value(r, mcf->transaction_id, &s) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
-        ctx->modsec_transaction = msc_new_transaction_with_id(mmcf->modsec, mcf->rules_set, (char *) s.data, r->connection->log);
+    } else {
+        s.len = 0;
+        s.data = NULL;
+    }
 
+    if (s.len > 0U && s.data != NULL) {
+        transaction_id = ngx_pnalloc(r->pool, s.len + 1U);
+        if (transaction_id == NULL) {
+            return NGX_CONF_ERROR;
+        }
+        ngx_memcpy(transaction_id, s.data, s.len);
+        transaction_id[s.len] = '\0';
+        ctx->event_transaction_id.data = transaction_id;
+        ctx->event_transaction_id.len = s.len;
+    } else {
+        transaction_id = ngx_pnalloc(r->pool, 64U);
+        if (transaction_id == NULL) {
+            return NGX_CONF_ERROR;
+        }
+        transaction_id_end = ngx_snprintf(transaction_id, 64U, "%ui-%ui",
+            (ngx_uint_t) r->connection->number,
+            (ngx_uint_t) r->connection->requests);
+        *transaction_id_end = '\0';
+        ctx->event_transaction_id.data = transaction_id;
+        ctx->event_transaction_id.len = (size_t) (transaction_id_end - transaction_id);
+    }
+
+    if (ctx->event_transaction_id.len > 0U) {
+        ctx->modsec_transaction = msc_new_transaction_with_id(mmcf->modsec,
+            mcf->rules_set, (char *) ctx->event_transaction_id.data,
+            r->connection->log);
     } else {
         ctx->modsec_transaction = msc_new_transaction(mmcf->modsec, mcf->rules_set, r->connection->log);
     }

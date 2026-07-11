@@ -2,27 +2,27 @@
 
 **Sprache:** [English](coverage-decision-matrix.md) | Deutsch
 
-Status: minimal_runtime_smoke (nur forwardAuth-Request-Pfad)
-Laufzeitstatus: breiteres Connector-Verhalten nicht verifiziert
+Status: `minimal_runtime_smoke` (nur der forwardAuth-Request-Pfad)
+Laufzeitstatus: breiteres Connector-Verhalten ist nicht verifiziert
 
-Diese Datei zeichnet nur den Traefik-spezifischen Status auf. Globale Matrixregeln und
-Promotion-Gates sind in definiert
+Diese Datei beschreibt nur den Traefik-spezifischen Status. Globale
+Matrixregeln und Hochstufungsbedingungen stehen in
 `connectors/_template/docs/coverage-decision-matrix.md` und
 `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`.
 
 ## Aktueller Traefik-Status
 
-| Gate | Status | Evidence |
+| Prüfstufe | Status | Nachweis |
 | --- | --- | --- |
-| Scaffold | OK | `connectors/traefik/README.md`, `connectors/traefik/TODO.md` |
-| Origin/Metadata | starter-present | `ORIGIN.md`, `SOURCE_MAP.json`, `metadata.c`, `metadata.h` |
-| Build | link-verified-local | C17-Service mit Common Runtime lokal kompiliert und gelinkt |
-| Self-test | pass-local | `make -C connectors/traefik self-test-decision-service` |
-| Harness | targeted-pass-local | realer Traefik -> forwardAuth -> Service 200/403-Pfad |
-| No-CRS | not-run | No Traefik runtime command was run |
-| With-CRS | not-run | No Traefik runtime command was run |
-| RESPONSE_BODY | not-verified | No blocking runtime evidence exists |
-| Promotion | not allowed | Runtime gates are open |
+| Gerüst | OK | `connectors/traefik/README.md`, `connectors/traefik/TODO.md` |
+| Herkunft/Metadaten | starter-present | `ORIGIN.md`, `SOURCE_MAP.json`, `metadata.c`, `metadata.h` |
+| Kompilierung | link-verified-local | C17-Dienst mit Common Runtime lokal kompiliert und gelinkt |
+| Selbsttest | pass-local | `make -C connectors/traefik self-test-decision-service` |
+| Testumgebung | targeted-pass-local | echter Pfad Traefik -> forwardAuth -> Dienst mit 200/403 |
+| No-CRS | not-run | Es wurde kein Traefik-Laufzeitbefehl ausgeführt. |
+| Mit CRS | not-run | Es wurde kein Traefik-Laufzeitbefehl ausgeführt. |
+| RESPONSE_BODY | not-verified | Es gibt keinen Laufzeitnachweis für eine Sperre. |
+| Hochstufung | not allowed | Die Laufzeitbedingungen sind offen. |
 
 ## Gate-Checkliste
 
@@ -31,29 +31,46 @@ Promotion-Gates sind in definiert
 - [x] Herkunft des Repo-eigenen Starters dokumentiert
 - [x] Repo-eigene Starter-Metadaten dokumentiert
 - [x] Metadaten-Build-Starter-Nachweise dokumentiert
-- [x] Decision-Service-Starter-Build dokumentiert
-- [x] Lokaler Selbsttest des Decision-Service-Starters dokumentiert
-- [ ] Produktionstraefik origin/license Nachweis dokumentiert
+- [x] Build des Starters für den Entscheidungsdienst dokumentiert
+- [x] Lokaler Selbsttest des Starters für den Entscheidungsdienst dokumentiert
+- [ ] Herkunfts-/Lizenznachweis für produktives Traefik dokumentiert
 - [ ] Produktions-Traefik-Baunachweise dokumentiert
 - [x] Connector-eigener Harness implementiert und dokumentiert
 - [ ] Kein CRS-Laufzeitbeweis dokumentiert
-- [ ] With-CRS-Laufzeitnachweis dokumentiert
+- [ ] Laufzeitnachweis mit CRS dokumentiert
 - [ ] RESPONSE_BODY Sperrbeweise dokumentiert
-- [x] Lokale gezielte Negative-/Pass-through-Evidence erzeugt
-- [ ] Audit/log Nachweise dokumentiert
+- [x] Lokale gezielte Nachweise für negative und durchgelassene Fälle erzeugt
+- [ ] Audit-/Protokollnachweise dokumentiert
 
 ## Phasenmatrix
 
-| Phase / Gate | Traefik status | Decision |
+| Phase / Prüfstufe | Traefik-Status | Entscheidung |
 | --- | --- | --- |
-| Phase 0 / Scaffold | OK | scaffold-aligned |
-| Phase 1 / Origin and metadata | starter-present | production origin remains open |
-| Phase 2 / Build | link-verified-local | echtes Service-Artefakt gegen Common Runtime/libmodsecurity gelinkt |
-| Phase 3 / Harness | targeted-pass-local | realer Traefik-200/403-Pfad; persistierte CI-Evidence noch offen |
-| Phase 4 / No-CRS | not-run | no runtime claim |
-| Phase 5 / With-CRS | not-run | no CRS claim |
-| Phase 6 / Coverage matrix | starter-documented | keep runtime statuses separate |
-| RESPONSE_BODY blocking | not-verified | no blocking claim |
-| Negative/pass-through | pass-local | nur gezielte lokale Evidence |
-| Audit/log evidence | not-verified | no audit/log claim |
-| Promotion | not allowed | bleibt not_verified / connector-gap bis zu persistierter CI-Evidence |
+| Phase 0 / Gerüst | OK | dem Gerüst entsprechend |
+| Phase 1 / Herkunft und Metadaten | starter-present | produktive Herkunft ist weiter offen |
+| Phase 2 / Kompilierung | link-verified-local | echtes Dienst-Artefakt gegen Common Runtime/libmodsecurity gelinkt |
+| Phase 3 / Testumgebung | targeted-pass-local | echter Traefik-200/403-Pfad; persistierter CI-Nachweis steht noch aus |
+| Phase 4 / No-CRS | not-run | keine Laufzeitbehauptung |
+| Phase 5 / Mit CRS | not-run | keine CRS-Behauptung |
+| Phase 6 / Abdeckungsmatrix | starter-documented | Laufzeitstatus getrennt halten |
+| RESPONSE_BODY-Sperre | not-verified | keine Behauptung über eine Sperre |
+| Negative/durchgelassene Fälle | pass-local | nur gezielter lokaler Nachweis |
+| Audit-/Protokollnachweis | not-verified | keine Audit-/Protokollbehauptung |
+| Hochstufung | not allowed | bleibt `not_verified` / `connector-gap` bis zu einem persistierten CI-Nachweis |
+
+## Kanonische Entscheidung für Phase 4
+
+Das gewählte Traefik-`forwardAuth`-Modell wird vor der Upstream-Antwort
+ausgeführt. Seine Response-Body- und Late-Intervention-Facetten sind
+Architekturgrenzen und keine ausstehenden Laufzeitaufgaben.
+
+| Facette | Zustand im Manifest | Abdeckungsentscheidung |
+| --- | --- | --- |
+| `response_body_buffered`, `phase4` und `phase4_rule_evaluation` | `unsupported_by_host_model` | `UNSUPPORTED`: forwardAuth erhält keinen späteren Upstream-Response-Body. |
+| `phase4_pre_commit_deny` | `unsupported_by_host_model` | Es ist kein Commit-Zeitpunkt der Response-Phase verfügbar. |
+| `late_intervention`, `late_intervention_log_only` und `late_intervention_abort` | `unsupported_by_host_model` | Keine spätere Upstream-Antwort erreicht forwardAuth. |
+| `late_intervention_status_metadata` | `unsupported_by_host_model` | In diesem Hostpfad gibt es keinen ursprünglichen/sichtbaren Upstream-Status und keine späte Aktion. |
+
+Request-seitige 200/403- und `forwardBody`-Nachweise sind bewusst
+ausgeschlossen. `UNSUPPORTED` zählt nie als `PASS`; Ereignisse und Berichte
+bleiben metadatenbasiert.

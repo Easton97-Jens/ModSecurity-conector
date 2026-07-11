@@ -19,6 +19,9 @@
 #include <unistd.h>
 
 #include "haproxy_modsecurity_binding.h"
+#include "msconnector/event.h"
+#include "msconnector/event_jsonl.h"
+#include "msconnector/late_intervention.h"
 
 #define SPOP_FRAME_MAX 65536U
 #define SPOP_MIN_FRAME_SIZE 256U
@@ -1756,6 +1759,87 @@ static const char *safe_decision_name(
     return "pass";
 }
 
+static const char *phase4_requested_action(
+        const haproxy_modsecurity_decision *decision,
+        const char *decision_text) {
+    const char *name = safe_decision_name(decision_text, decision);
+
+    return strcmp(name, "redirect") == 0 ? "redirect" : "deny";
+}
+
+static const char *phase4_actual_action(void) {
+    msconnector_late_intervention_policy policy;
+    msconnector_late_intervention_action action;
+    const char *name;
+
+    /* SPOE response rules run before HAProxy commits the response.  This is a
+     * host-model property, not a runtime-verification claim. */
+    msconnector_late_intervention_policy_init(&policy);
+    action = msconnector_late_intervention_resolve(&policy, 0, 0, 0);
+    name = msconnector_late_intervention_action_name(action);
+    return strcmp(name, "deny_if_possible") == 0 ? "deny" : name;
+}
+
+static void phase4_common_event_write(
+        FILE *file,
+        const notify_request *request,
+        const haproxy_modsecurity_decision *decision,
+        const char *requested_action,
+        const char *actual_action,
+        int original_status,
+        const char *reason_code) {
+    msconnector_event event;
+    char line[4096];
+    char rule_id[32];
+    int json_truncated = 0;
+
+    if (file == 0 || request == 0 || decision == 0 ||
+            requested_action == 0 || actual_action == 0) {
+        return;
+    }
+
+    (void)snprintf(rule_id, sizeof(rule_id), "%u", decision->rule_id);
+    msconnector_event_init(&event);
+    event.meta.message_id = strcmp(actual_action, "abort_connection") == 0
+        ? MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200
+        : (strcmp(actual_action, "log_only") == 0
+            ? MSCONN_EVENT_PHASE4_LATE_INTERVENTION
+            : MSCONN_EVENT_RESPONSE_BLOCKED);
+    event.meta.level = msconnector_event_default_level(event.meta.message_id);
+    event.meta.message = msconnector_event_default_message(event.meta.message_id);
+    event.meta.event = "phase4_intervention";
+    event.meta.connector = "haproxy";
+    event.meta.transaction_id = request->request_id;
+    event.decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    event.decision.status = MSCONNECTOR_STATUS_BLOCKED;
+    event.decision.action = actual_action;
+    event.decision.requested_action = requested_action;
+    event.decision.actual_action = actual_action;
+    event.decision.rule_id = rule_id;
+    event.decision.reason = reason_code;
+    event.http.http_status = decision->status;
+    event.http.original_http_status = original_status;
+    event.http.visible_http_status = strcmp(actual_action, "deny") == 0
+        ? decision->status : original_status;
+    event.http.transport_result = strcmp(actual_action, "abort_connection") == 0
+        ? "connection_aborted" : (strcmp(actual_action, "log_only") == 0
+            ? "log_only" : "http_status");
+    /* The SPOE response rules execute before HAProxy forwards this response.
+     * This is source-level host-model metadata only; capability promotion still
+     * requires the harness to independently observe the client outcome. */
+    event.flags.late_intervention = 0;
+    event.flags.response_started = 0;
+    event.flags.response_committed = 0;
+    event.flags.headers_sent = 0;
+    event.flags.body_started = 0;
+    event.flags.connection_aborted = 0;
+
+    if (msconnector_event_write_jsonl_line(&event, line, sizeof(line),
+            &json_truncated)) {
+        fputs(line, file);
+    }
+}
+
 static const char *safe_decision_reason_code(
         const haproxy_modsecurity_decision *decision,
         int modsecurity_processed,
@@ -1796,6 +1880,10 @@ static void decision_log_write(
     FILE *file;
     const char *reason_code;
     const char *decision_name;
+    const char *requested_action = 0;
+    const char *actual_action = 0;
+    int phase4_disruptive;
+    int original_status;
     time_t now;
 
     if (state == 0 || state->decision_log == 0 || request == 0 || decision == 0) {
@@ -1805,6 +1893,14 @@ static void decision_log_write(
     decision_name = safe_decision_name(decision_text, decision);
     reason_code = safe_decision_reason_code(
         decision, modsecurity_processed, decision_name);
+    phase4_disruptive = request->is_response_body && decision->phase == 4 &&
+        decision->disruptive != 0;
+    original_status = request->has_response_status ?
+        (int)request->response_status : 200;
+    if (phase4_disruptive) {
+        requested_action = phase4_requested_action(decision, decision_text);
+        actual_action = phase4_actual_action();
+    }
     now = time(0);
     fputc('{', file);
 #define JSON_FIELD_STRING(name, value) \
@@ -1838,6 +1934,20 @@ static void decision_log_write(
     JSON_FIELD_STRING("decision", decision_name);
     JSON_FIELD_BOOL("disruptive", decision->disruptive != 0);
     JSON_FIELD_INT("intervention_status", decision->status);
+    JSON_FIELD_INT("http_status", decision->status);
+    if (phase4_disruptive) {
+        JSON_FIELD_STRING("requested_action", requested_action);
+        JSON_FIELD_STRING("actual_action", actual_action);
+        JSON_FIELD_INT("original_http_status", original_status);
+        JSON_FIELD_INT("visible_http_status", strcmp(actual_action, "deny") == 0 ?
+            decision->status : original_status);
+        JSON_FIELD_BOOL("late_intervention", 0);
+        JSON_FIELD_BOOL("headers_sent", 0);
+        JSON_FIELD_BOOL("body_started", 0);
+        JSON_FIELD_BOOL("response_committed", 0);
+        JSON_FIELD_BOOL("connection_aborted", 0);
+        JSON_FIELD_STRING("transport_result", "http_status");
+    }
     JSON_FIELD_BOOL("redirect_present", decision->redirect_url[0] != '\0');
     JSON_FIELD_INT("rule_id", decision->rule_id);
     JSON_FIELD_INT("anomaly_score", decision->anomaly_score);
@@ -1848,6 +1958,10 @@ static void decision_log_write(
     fputs("\"reason\":", file);
     json_write_string(file, reason_code);
     fputs("}\n", file);
+    if (phase4_disruptive) {
+        phase4_common_event_write(file, request, decision, requested_action,
+            actual_action, original_status, reason_code);
+    }
 #undef JSON_FIELD_STRING
 #undef JSON_FIELD_UINT
 #undef JSON_FIELD_INT

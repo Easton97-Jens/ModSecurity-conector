@@ -32,6 +32,29 @@ Traefik can buffer forwardAuth bodies, but the selected native configuration doe
 
 The pre-upstream forwardAuth model cannot observe the later upstream response.
 
+## Canonical Phase-4 facets
+
+Every response-phase facet below is `unsupported_by_host_model`. The selected
+Traefik `forwardAuth` integration runs before upstream handling and cannot
+inspect the later upstream response body. This is an architectural boundary of
+this integration, not missing run evidence.
+
+| Facet | Capability state | Consequence for the canonical catalog |
+|---|---|---|
+| Response body availability (`response_body_buffered`) | `unsupported_by_host_model` | The authorization call has no later upstream response body to inspect. |
+| Phase-4 invocation (`phase4`) | `unsupported_by_host_model` | A response-body Phase-4 call cannot occur through this path. |
+| Rule evaluation (`phase4_rule_evaluation`) | `unsupported_by_host_model` | Rule `1100301` cannot be observed in a later upstream response. |
+| Pre-commit denial (`phase4_pre_commit_deny`) | `unsupported_by_host_model` | This path has no response-phase point at which to alter an upstream response. |
+| Late intervention (`late_intervention`) | `unsupported_by_host_model` | The authorization decision finishes before the upstream response begins. |
+| Safe late intervention (`late_intervention_log_only`) | `unsupported_by_host_model` | No committed upstream response is available to record as log-only. |
+| Strict late intervention (`late_intervention_abort`) | `unsupported_by_host_model` | The service cannot abort Traefik's later downstream response as a Phase-4 action. |
+| Status metadata (`late_intervention_status_metadata`) | `unsupported_by_host_model` | There is no response-phase event from which to distinguish WAF, original, and visible response statuses. |
+
+All Phase-4 cases must therefore be reported as `UNSUPPORTED`, never as `PASS`
+or `NOT EXECUTED`. A different future Traefik integration is outside this
+evidence scope. Events and reports remain metadata-only; they must not contain
+a body payload or match value.
+
 Expected evidence root:
 
 ```text

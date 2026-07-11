@@ -32,6 +32,35 @@ Begrenzte Request- und experimentelle Response-Body-Pfade existieren; Streaming-
 
 Host und Agent sind getrennte Prozesse und benötigen getrennte Logs in einem gemeinsamen Manifest.
 
+## Kanonische Phase-4-Facetten
+
+Der begrenzte, experimentelle Antwortkörperpfad, `phase4` und
+`phase4_rule_evaluation` sind Quellpfade mit `implemented_not_asserted`. Ein
+Agent- oder Mapperpfad ist kein Phase-4-Laufzeitbeleg: Kein aktueller
+kanonischer HAProxy-Lauf auf einem realen Host hat Regel `1100301` beobachtet.
+Die semantischen Facetten für Vor-Commit-Deny, späte Aktionen und
+Statusmetadaten sind `not_implemented`, weil der Runner kein beim Client
+sichtbares Antwortergebnis, keinen tatsächlichen Commit-Zeitpunkt und keinen
+Hostpunkt nach dem Commit beobachtet.
+
+| Facette | Capability-Zustand | Erforderlicher Laufzeitbeleg vor einer Bestätigung |
+|---|---|---|
+| Antwortkörper-Verfügbarkeit (`response_body_buffered`) | `implemented_not_asserted` | Ein begrenzter experimenteller HAProxy-/SPOP-Antwortkörperpfad ist vorhanden; kein aktueller kanonischer Laufzeitbeleg auf einem realen Host belegt die Inspektion eines Antwortausschnitts. |
+| Phase-4-Aufruf (`phase4`) | `implemented_not_asserted` | Der experimentelle HAProxy-/SPOA-Antwortkörperaufruf ist verdrahtet; kein aktueller kanonischer Hostlaufzeitbeleg belegt seinen Aufruf. |
+| Regelauswertung (`phase4_rule_evaluation`) | `implemented_not_asserted` | Der begrenzte SPOA-/SPOP-Phase-4-Pfad ist vorhanden; kein aktueller kanonischer HAProxy-Hostlaufzeitbeleg belegt die Auswertung von Regel `1100301`. |
+| Deny vor dem Commit (`phase4_pre_commit_deny`) | `not_implemented` | Der Agent schreibt policy-abgeleitete Felder, doch kein Host-Runner beobachtet sichtbaren Client-Status und tatsächlichen Commit-Zeitpunkt. |
+| Späte Intervention (`late_intervention`) | `not_implemented` | Der aktuelle Pfad für Antwortentscheidungen ist vor dem Commit modelliert und besitzt keinen Hostpunkt nach dem Commit. |
+| Sichere späte Intervention (`late_intervention_log_only`) | `not_implemented` | Es gibt keine sichere Aktion `log_only` nach dem Commit und kein hostbeobachtetes Ergebnis mit unverändert sichtbarem Status. |
+| Strikte späte Intervention (`late_intervention_abort`) | `not_implemented` | Es gibt keine kontrollierte Aktion `abort_connection` nach dem Commit und kein hostbeobachtetes Abbruchergebnis. |
+| Statusmetadaten (`late_intervention_status_metadata`) | `not_implemented` | Policy-abgeleitete Diagnosen liefern keinen hostbeobachteten ursprünglichen/sichtbaren Status und keinen Zeitpunkt. |
+
+Der gemeinsame Katalog trennt Regelauswertung von Transportverhalten:
+`phase4_rule_observed` benötigt keinen sichtbaren `403`. HAProxy implementiert
+die semantischen Fälle für Vor-Commit-Deny, `log_only` nach dem Commit,
+Abbruch nach dem Commit und Statusmetadaten noch nicht; sie bleiben
+`NOT_EXECUTED`. Ereignisse und dieser Bericht enthalten weder Body-Inhalte noch
+Trefferwerte.
+
 Erwarteter Evidence-Root:
 
 ```text

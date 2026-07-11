@@ -61,9 +61,29 @@
       "state": "implemented_not_asserted",
       "reason": "The bounded output filter invokes response-body processing and records late decisions; canonical Phase-4 evidence is pending."
     },
+    "phase4_rule_evaluation": {
+      "state": "implemented_not_asserted",
+      "reason": "The bounded native output-filter path is wired to invoke response-body processing, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated."
+    },
+    "phase4_pre_commit_deny": {
+      "state": "implemented_not_asserted",
+      "reason": "The output-filter intervention path has a denial branch, but no current canonical evidence proves a Phase-4 deny before response commitment with a changed visible client status."
+    },
     "late_intervention": {
       "state": "implemented_not_asserted",
       "reason": "Phase-4 minimal, safe, and strict policy branches distinguish log-only, status denial, and post-commit connection abort; behavioral evidence is pending."
+    },
+    "late_intervention_log_only": {
+      "state": "implemented_not_asserted",
+      "reason": "The configured safe late-intervention branch is intended to preserve the committed response and record a log-only result, but no canonical event proves requested deny, actual log_only, and an unchanged visible status."
+    },
+    "late_intervention_abort": {
+      "state": "implemented_not_asserted",
+      "reason": "The configured strict late-intervention branch has a controlled connection-abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true."
+    },
+    "late_intervention_status_metadata": {
+      "state": "implemented_not_asserted",
+      "reason": "Phase-4 metadata wiring exists, but no canonical event yet proves separate requested WAF status, original host status, visible client status, requested action, and actual action."
     },
     "deny": {
       "state": "implemented_not_asserted",

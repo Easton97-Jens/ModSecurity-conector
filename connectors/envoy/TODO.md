@@ -88,3 +88,20 @@ Global gate definitions:
 - [ ] eligible for `runtime-smoke-verified`
 - [ ] eligible for `crs-verified`
 - [ ] eligible for more than `partial`
+
+## Canonical Phase-4 architecture boundary
+
+The selected HTTP `ext_authz` integration runs before upstream handling.  The
+following source-contract facets are therefore
+`unsupported_by_host_model`: `response_body_buffered`, `phase4`,
+`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort`, and
+`late_intervention_status_metadata`.
+
+- [x] Classify selected Phase-4 cases as `UNSUPPORTED` with the ext_authz
+      upstream-response boundary, rather than `NOT EXECUTED`.
+- [ ] Do not treat request-side 200/403 evidence as response-body, late-action,
+      original-status, visible-status, or connection-abort evidence.
+- [ ] Reassess these states only for a different Envoy integration that actually
+      receives the upstream response; that integration requires new host-path
+      evidence and must not reuse ext_authz results.

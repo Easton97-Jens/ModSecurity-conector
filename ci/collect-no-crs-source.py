@@ -28,6 +28,7 @@ FORBIDDEN_EVENT_KEYS = {
     "matched_value_snippet",
     "request_body",
     "response_body",
+    "intervention_log",
     "rule_message",
     "secret",
 }
@@ -37,6 +38,9 @@ APPROVED_RAW_EVENT_KEYS = {
     "anomaly_score",
     "audit_log_path",
     "body_started",
+    "body_bytes_seen",
+    "body_bytes_inspected",
+    "response_body_size",
     "body_truncated",
     "client_ip",
     "connection_aborted",
@@ -49,11 +53,13 @@ APPROVED_RAW_EVENT_KEYS = {
     "event_truncated",
     "expected_status",
     "headers_sent",
+    "header_sent",
     "http_default_message",
     "http_reason_phrase",
     "http_status",
     "haproxy_log_path",
     "intervention_status",
+    "intervention",
     "late_intervention",
     "level",
     "live_executed",
@@ -75,7 +81,12 @@ APPROVED_RAW_EVENT_KEYS = {
     "request_body_seen",
     "request_headers_seen",
     "requested_action",
+    "wanted_action",
+    "upstream_status",
+    "client_status",
     "response_body_seen",
+    "response_committed",
+    "strict_abort",
     "response_headers_seen",
     "response_started",
     "result",
@@ -90,6 +101,9 @@ APPROVED_RAW_EVENT_KEYS = {
     "uri",
     "variant",
     "visible_http_status",
+    "waf_status",
+    "transport_result",
+    "observed_transport_result",
     "runtime_mode",
     "case",
 }
@@ -103,6 +117,9 @@ MAX_METADATA_LENGTH = {
     "status": 64,
     "content_type": 256,
 }
+REQUESTED_ACTIONS = {"deny", "redirect", "drop", "log_only", "abort_connection"}
+ACTUAL_ACTIONS = {"deny", "redirect", "log_only", "abort_connection"}
+TRANSPORT_RESULTS = {"http_status", "log_only", "connection_aborted", "not_observable"}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -151,6 +168,20 @@ def scalar_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def scalar_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in {0, 1}:
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in {"true", "1"}:
+            return True
+        if normalized in {"false", "0"}:
+            return False
+    return None
 
 
 def parse_key_value_text(path: Path) -> dict[str, Any]:
@@ -231,17 +262,55 @@ def nested_forbidden_value(value: Any) -> str | None:
 
 
 def safe_metadata_value(target: str, value: Any) -> Any | None:
-    if target in {"rule_id", "http_status"}:
+    if target in {
+        "rule_id",
+        "http_status",
+        "original_http_status",
+        "visible_http_status",
+    }:
         return scalar_int(value)
     if target == "phase":
         numeric = scalar_int(value)
         if numeric is not None:
             return numeric
+        if isinstance(value, str):
+            phase_aliases = {
+                "connection": 0,
+                "request_headers": 1,
+                "request_body": 2,
+                "response_headers": 3,
+                "response_body": 4,
+                "phase1": 1,
+                "phase2": 2,
+                "phase3": 3,
+                "phase4": 4,
+            }
+            normalized = value.strip().casefold().replace("-", "_")
+            if normalized in phase_aliases:
+                return phase_aliases[normalized]
         if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,32}", value):
             return value
         return None
-    if target == "truncated":
-        return value if isinstance(value, bool) else None
+    if target in {
+        "truncated",
+        "late_intervention",
+        "headers_sent",
+        "body_started",
+        "connection_aborted",
+        "response_committed",
+    }:
+        return scalar_bool(value)
+    if target in {"requested_action", "actual_action"}:
+        normalized = str(value).strip().casefold().replace("-", "_")
+        if normalized == "connection_abort":
+            normalized = "abort_connection"
+        allowed = REQUESTED_ACTIONS if target == "requested_action" else ACTUAL_ACTIONS
+        return normalized if normalized in allowed else None
+    if target == "transport_result":
+        normalized = str(value).strip().casefold().replace("-", "_")
+        if normalized == "connection_abort":
+            normalized = "connection_aborted"
+        return normalized if normalized in TRANSPORT_RESULTS else None
     if not isinstance(value, (str, int)) or isinstance(value, bool):
         return None
     text = "".join(character for character in str(value) if character >= " " and character != "\x7f")
@@ -253,11 +322,23 @@ def sanitized_event(record: dict[str, Any]) -> dict[str, Any]:
     output: dict[str, Any] = {}
     aliases = {
         "connector": ("connector",),
+        "event": ("event",),
+        "message_id": ("message_id",),
         "transaction_id": ("transaction_id", "request_id", "tx_id"),
         "rule_id": ("rule_id", "modsecurity_rule_id"),
         "phase": ("phase",),
         "status": ("status", "decision", "result"),
-        "http_status": ("http_status", "intervention_status", "observed_status"),
+        "http_status": ("http_status", "waf_status", "intervention_status"),
+        "original_http_status": ("original_http_status", "upstream_status"),
+        "visible_http_status": ("visible_http_status", "client_status"),
+        "requested_action": ("requested_action", "wanted_action"),
+        "actual_action": ("actual_action",),
+        "late_intervention": ("late_intervention", "intervention"),
+        "headers_sent": ("headers_sent", "header_sent"),
+        "body_started": ("body_started", "response_body_seen"),
+        "connection_aborted": ("connection_aborted", "strict_abort"),
+        "response_committed": ("response_committed",),
+        "transport_result": ("transport_result", "observed_transport_result"),
         "truncated": ("truncated", "event_truncated"),
         "content_type": ("content_type",),
     }
@@ -351,6 +432,54 @@ def audit_event(path: Path, connector: str, http_status: int | None) -> dict[str
     if http_status is not None:
         event["http_status"] = http_status
     return event
+
+
+def runtime_event_records(
+    path_value: Any,
+    allowed_source_root: Path | None,
+    consumed_event_paths: list[Path] | None,
+) -> list[dict[str, Any]]:
+    """Read an explicitly referenced runtime event stream without widening scope."""
+    text = str(path_value or "")
+    if not text:
+        return []
+    path = Path(text)
+    if allowed_source_root is not None:
+        path = contained_source_event_path(path, allowed_source_root)
+    if not path.is_file():
+        return []
+    if consumed_event_paths is not None:
+        consumed_event_paths.append(path)
+    return load_jsonl(path)
+
+
+def canonical_semantics(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Project only producer-observed Phase-4 metadata.
+
+    This intentionally does not fill defaults.  A missing runtime value must
+    remain missing so the framework can fail a claimed semantic case instead
+    of manufacturing evidence from its catalog or capability manifest.
+    """
+    fields = {
+        "http_status",
+        "original_http_status",
+        "visible_http_status",
+        "requested_action",
+        "actual_action",
+        "late_intervention",
+        "headers_sent",
+        "body_started",
+        "connection_aborted",
+        "response_committed",
+        "transport_result",
+    }
+    output: dict[str, Any] = {}
+    for record in records:
+        normalized = sanitized_event(record)
+        for field in fields:
+            if field in normalized:
+                output[field] = normalized[field]
+    return output
 
 
 def event_evidence(
@@ -479,19 +608,44 @@ def case_observations(
         for key in ("rule_id", "modsecurity_rule_id"):
             if row.get(key) not in (None, ""):
                 observed_rule_ids.add(str(row[key]))
+        runtime_records: list[dict[str, Any]] = []
         if decision_path.is_file():
-            for record in load_jsonl(decision_path):
-                event = sanitized_event(record)
-                derived_events.append(record)
-                if event.get("rule_id") not in (None, ""):
-                    observed_rule_ids.add(str(event["rule_id"]))
+            runtime_records.extend(load_jsonl(decision_path))
+        for key in ("connector_phase4_log_path", "phase4_log_path"):
+            runtime_records.extend(runtime_event_records(
+                row.get(key), allowed_source_root, consumed_event_paths))
+        for record in runtime_records:
+            event = sanitized_event(record)
+            derived_events.append(record)
+            if event.get("rule_id") not in (None, ""):
+                observed_rule_ids.add(str(event["rule_id"]))
         event = audit_event(audit_path, connector, actual)
         if event:
             derived_events.append(event)
             observed_rule_ids.add(str(event["rule_id"]))
-        passed = status == "PASS" and live and actual == expected_status
+        phase4_case = case_id.startswith("phase4_")
+        passed = status == "PASS" and live
+        if not phase4_case and expected_status is not None:
+            passed = passed and actual == expected_status
         if case_expected_rule_id is not None:
             passed = passed and case_expected_rule_id in observed_rule_ids
+        canonical_records = [sanitized_event(record) for record in runtime_records]
+        semantic = canonical_semantics([row, *runtime_records])
+        transaction_ids = {
+            str(record["transaction_id"])
+            for record in canonical_records
+            if record.get("transaction_id") not in (None, "")
+        }
+        observed_event_fields = sorted({
+            field for record in canonical_records for field in record
+        })
+        event_metadata_verified = bool(
+            canonical_records
+            and transaction_ids
+            and case_expected_rule_id is not None
+            and case_expected_rule_id in observed_rule_ids
+            and (not phase4_case or any(record.get("phase") == 4 for record in canonical_records))
+        )
         observations.append(
             {
                 "case_id": case_id,
@@ -499,7 +653,12 @@ def case_observations(
                 "expected_status": expected_status,
                 "live_executed": live,
                 "observed_rule_ids": sorted(observed_rule_ids),
+                "transaction_ids": sorted(transaction_ids),
+                "observed_event_fields": observed_event_fields,
+                "event_metadata_verified": event_metadata_verified,
+                "source_status": status,
                 "status": "PASS" if passed else "FAIL",
+                **semantic,
             }
         )
     return observations, derived_events

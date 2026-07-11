@@ -66,3 +66,19 @@ the selected `BUILD_ROOT`. It records `response_body_verified=false` and
   protocol and remain unsupported.
 - The targeted 200/403 smoke is not CRS-complete, full-matrix, security, or
   production evidence.
+
+## Canonical Phase-4 validation
+
+Envoy HTTP `ext_authz` is invoked before upstream handling.  The chosen host
+path cannot observe upstream response headers or body, so
+`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`phase4_pre_commit_deny`, `late_intervention`, `late_intervention_log_only`,
+`late_intervention_abort`, and `late_intervention_status_metadata` are
+`unsupported_by_host_model`.
+
+The canonical Phase-4 cases must consequently be `UNSUPPORTED`, with this
+exact host-model boundary as their reason.  The request-side allow/deny smoke
+cannot prove a response-body rule, pre-commit response deny, post-commit
+log-only result, abort, original upstream status, or visible post-intervention
+status.  `UNSUPPORTED` is not `PASS`, and no response-body payload is allowed
+in an event or report.

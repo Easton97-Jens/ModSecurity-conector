@@ -114,6 +114,7 @@ typedef struct {
     unsigned common_response_validated:1;
     size_t response_body_bytes_seen;
     size_t response_body_bytes_inspected;
+    ngx_str_t event_transaction_id;
     ngx_str_t last_intervention_log;
     ngx_int_t last_intervention_status;
 } ngx_http_modsecurity_ctx_t;

@@ -67,6 +67,7 @@ typedef struct
     int phase4_strict_abort;
     int last_intervention_status;
     const char *last_intervention_log;
+    const char *event_transaction_id;
 } msc_t;
 
 

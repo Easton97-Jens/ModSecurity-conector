@@ -62,9 +62,29 @@
       "state": "implemented_not_asserted",
       "reason": "The response body filter invokes bounded ModSecurity Phase 4; canonical behavioral evidence is pending."
     },
+    "phase4_rule_evaluation": {
+      "state": "implemented_not_asserted",
+      "reason": "The bounded native response-body filter is wired to invoke Phase 4, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated."
+    },
+    "phase4_pre_commit_deny": {
+      "state": "not_implemented",
+      "reason": "The native Phase-4 decision runs in the NGINX body filter after the response-header path; this connector has no demonstrated pre-commit response-body decision point, so a visible Phase-4 HTTP 403 must not be claimed."
+    },
     "late_intervention": {
       "state": "implemented_not_asserted",
       "reason": "The body filter distinguishes pre-header denial from post-header log-only or connection-abort policy outcomes; canonical evidence is pending."
+    },
+    "late_intervention_log_only": {
+      "state": "implemented_not_asserted",
+      "reason": "The safe post-commit policy is wired to record a log-only outcome, but no canonical event proves requested deny, actual log_only, late_intervention=true, and an unchanged visible status."
+    },
+    "late_intervention_abort": {
+      "state": "implemented_not_asserted",
+      "reason": "The strict post-commit policy has an abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true."
+    },
+    "late_intervention_status_metadata": {
+      "state": "implemented_not_asserted",
+      "reason": "The Phase-4 path can emit intervention metadata, but no canonical event yet proves separate requested WAF status, original host status, visible client status, requested action, and actual action."
     },
     "deny": {
       "state": "implemented_not_asserted",

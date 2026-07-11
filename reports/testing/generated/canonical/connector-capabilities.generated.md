@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-10T21:44:15Z`
+> Generated at: `2026-07-11T08:47:58Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/connector_capabilities.py`
 > Make target: `capabilities-all-connectors`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `029b722c346adf93a13340e2ac2c829e07957d67`
-> Framework SHA: `e4f7db2233185e3a84bceed4b148ef6e9e97ee6e`
+> Connector SHA: `4e004f821d0d91a3a9f63ffe9d27e541cab95d65`
+> Framework SHA: `de0fc5dc0751d3b0e8cb1bd5187e4e3ff558f41f`
 > Input status: `complete`
 
 # Canonical connector capabilities
@@ -32,7 +32,12 @@ This file is rendered deterministically from the six connector-local manifests. 
 | `phase2` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `configured_not_exercised` | `not_implemented` | `not_implemented` |
 | `phase3` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `unsupported_by_host_model` | `unsupported_by_host_model` | `implemented_not_asserted` |
 | `phase4` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
-| `late_intervention` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
+| `phase4_rule_evaluation` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
+| `phase4_pre_commit_deny` | `implemented_not_asserted` | `not_implemented` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
+| `late_intervention` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
+| `late_intervention_log_only` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
+| `late_intervention_abort` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
+| `late_intervention_status_metadata` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `deny` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
 | `redirect` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `not_implemented` | `not_implemented` |
 | `drop` | `not_implemented` | `not_implemented` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
@@ -86,7 +91,12 @@ Host-model constraints:
 | `phase2` | `implemented_not_asserted` | The late request hook and input filter complete request-body processing; canonical Phase-2 evidence is pending. |
 | `phase3` | `implemented_not_asserted` | The output filter invokes response-header processing before body processing; canonical Phase-3 evidence is pending. |
 | `phase4` | `implemented_not_asserted` | The bounded output filter invokes response-body processing and records late decisions; canonical Phase-4 evidence is pending. |
+| `phase4_rule_evaluation` | `implemented_not_asserted` | The bounded native output-filter path is wired to invoke response-body processing, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated. |
+| `phase4_pre_commit_deny` | `implemented_not_asserted` | The output-filter intervention path has a denial branch, but no current canonical evidence proves a Phase-4 deny before response commitment with a changed visible client status. |
 | `late_intervention` | `implemented_not_asserted` | Phase-4 minimal, safe, and strict policy branches distinguish log-only, status denial, and post-commit connection abort; behavioral evidence is pending. |
+| `late_intervention_log_only` | `implemented_not_asserted` | The configured safe late-intervention branch is intended to preserve the committed response and record a log-only result, but no canonical event proves requested deny, actual log_only, and an unchanged visible status. |
+| `late_intervention_abort` | `implemented_not_asserted` | The configured strict late-intervention branch has a controlled connection-abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true. |
+| `late_intervention_status_metadata` | `implemented_not_asserted` | Phase-4 metadata wiring exists, but no canonical event yet proves separate requested WAF status, original host status, visible client status, requested action, and actual action. |
 | `deny` | `implemented_not_asserted` | Disruptive ModSecurity statuses are returned through the Apache hook/filter path; canonical deny evidence is pending. |
 | `redirect` | `implemented_not_asserted` | The intervention mapper sets Apache Location output and returns supported redirect statuses; canonical redirect evidence is pending. |
 | `drop` | `not_implemented` | The Apache intervention mapper does not preserve a distinct ModSecurity drop action. |
@@ -124,7 +134,12 @@ Host-model constraints:
 | `phase2` | `implemented_not_asserted` | The request-body callback completes ModSecurity request-body processing; canonical Phase-2 evidence is pending. |
 | `phase3` | `implemented_not_asserted` | The response header filter invokes ModSecurity Phase 3; canonical behavioral evidence is pending. |
 | `phase4` | `implemented_not_asserted` | The response body filter invokes bounded ModSecurity Phase 4; canonical behavioral evidence is pending. |
+| `phase4_rule_evaluation` | `implemented_not_asserted` | The bounded native response-body filter is wired to invoke Phase 4, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated. |
+| `phase4_pre_commit_deny` | `not_implemented` | The native Phase-4 decision runs in the NGINX body filter after the response-header path; this connector has no demonstrated pre-commit response-body decision point, so a visible Phase-4 HTTP 403 must not be claimed. |
 | `late_intervention` | `implemented_not_asserted` | The body filter distinguishes pre-header denial from post-header log-only or connection-abort policy outcomes; canonical evidence is pending. |
+| `late_intervention_log_only` | `implemented_not_asserted` | The safe post-commit policy is wired to record a log-only outcome, but no canonical event proves requested deny, actual log_only, late_intervention=true, and an unchanged visible status. |
+| `late_intervention_abort` | `implemented_not_asserted` | The strict post-commit policy has an abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true. |
+| `late_intervention_status_metadata` | `implemented_not_asserted` | The Phase-4 path can emit intervention metadata, but no canonical event yet proves separate requested WAF status, original host status, visible client status, requested action, and actual action. |
 | `deny` | `implemented_not_asserted` | Disruptive statuses are returned from access and filter phases; canonical deny evidence is pending. |
 | `redirect` | `implemented_not_asserted` | The intervention mapper creates an NGINX Location header and returns redirect status before headers are sent; canonical evidence is pending. |
 | `drop` | `not_implemented` | The NGINX intervention mapper does not preserve a distinct ModSecurity drop action. |
@@ -163,7 +178,12 @@ Host-model constraints:
 | `phase2` | `implemented_not_asserted` | The agent appends the bounded request body and invokes request-body processing; canonical evidence is pending. |
 | `phase3` | `implemented_not_asserted` | The optional response-check group invokes response-header processing; canonical host evidence is pending. |
 | `phase4` | `implemented_not_asserted` | The bounded experimental response-body branch invokes response-body processing; canonical host evidence is pending. |
-| `late_intervention` | `implemented_not_asserted` | HAProxy response rules consume agent decision variables before forwarding the response; response-phase behavioral evidence is pending. |
+| `phase4_rule_evaluation` | `implemented_not_asserted` | The bounded SPOA/SPOP response-body branch is present, but no current canonical HAProxy host run proves that Phase-4 rule 1100301 was evaluated. |
+| `phase4_pre_commit_deny` | `not_implemented` | The current agent emits policy-derived pre-commit fields but the HAProxy host runner does not capture a client-visible Phase-4 deny and actual commitment timing, so this semantic capability is not implemented. |
+| `late_intervention` | `not_implemented` | The current SPOE/SPOP response decision path is modeled before response commitment and implements no post-commit late-intervention point. |
+| `late_intervention_log_only` | `not_implemented` | The current HAProxy/SPOA path has no post-commit log-only action or host-observed unchanged-visible-status result. |
+| `late_intervention_abort` | `not_implemented` | The current HAProxy/SPOA path implements no controlled post-commit abort_connection action and no host-observed connection-abort result. |
+| `late_intervention_status_metadata` | `not_implemented` | Current diagnostics are policy-derived and the host runner does not capture original and visible client statuses plus actual commitment timing, so semantic late-intervention status metadata is not implemented. |
 | `deny` | `implemented_not_asserted` | The agent exports blocked/status variables and HAProxy maps them to explicit deny rules; canonical evidence is pending. |
 | `redirect` | `implemented_not_asserted` | The agent exports redirect URL/action variables and HAProxy has an explicit request redirect rule; canonical evidence is pending. |
 | `drop` | `not_implemented` | Although the harness contains a silent-drop host rule, the libmodsecurity binding does not currently preserve a distinct drop action into agent variables. |
@@ -202,7 +222,12 @@ Host-model constraints:
 | `phase2` | `configured_not_exercised` | Buffered request-body forwarding and Common Runtime Phase 2 are configured, but no existing host smoke proves that Envoy delivered the body. |
 | `phase3` | `unsupported_by_host_model` | The pre-upstream ext_authz call cannot inspect upstream response headers. |
 | `phase4` | `unsupported_by_host_model` | The pre-upstream ext_authz call cannot inspect upstream response bodies. |
+| `phase4_rule_evaluation` | `unsupported_by_host_model` | The selected Envoy ext_authz integration executes before the upstream response and does not expose upstream response-body data for Phase-4 rule evaluation. |
+| `phase4_pre_commit_deny` | `unsupported_by_host_model` | Because ext_authz never sees the later upstream response, it has no Phase-4 response point at which to deny before the response commits. |
 | `late_intervention` | `unsupported_by_host_model` | The authorization decision completes before the upstream response starts, so there is no response-phase late intervention point. |
+| `late_intervention_log_only` | `unsupported_by_host_model` | The selected pre-upstream ext_authz host model has no committed upstream response on which to apply a late log-only intervention. |
+| `late_intervention_abort` | `unsupported_by_host_model` | The selected pre-upstream ext_authz host model has no upstream response-phase point from which the authorization service can perform a late connection abort. |
+| `late_intervention_status_metadata` | `unsupported_by_host_model` | The selected ext_authz integration does not observe an upstream response, so it cannot produce Phase-4 metadata that distinguishes original and visible upstream-response status or late actions. |
 | `deny` | `implemented_not_asserted` | A disruptive Common Runtime decision is returned as a non-2xx ext_authz response; a fresh canonical deny result is pending. |
 | `redirect` | `not_implemented` | The Common Runtime preserves redirect status and URL, but the repository HTTP authorization response does not emit the Location header. |
 | `drop` | `unsupported_by_host_model` | The HTTP authorization contract returns an authorization response and cannot directly silent-drop the downstream connection. |
@@ -241,7 +266,12 @@ Host-model constraints:
 | `phase2` | `not_implemented` | The checked-in host middleware does not set forwardBody and the connector config disables request-body processing. |
 | `phase3` | `unsupported_by_host_model` | The pre-upstream forwardAuth call cannot inspect upstream response headers. |
 | `phase4` | `unsupported_by_host_model` | The pre-upstream forwardAuth call cannot inspect upstream response bodies. |
+| `phase4_rule_evaluation` | `unsupported_by_host_model` | The selected Traefik forwardAuth integration runs before upstream handling and cannot inspect the later upstream response body for Phase-4 rule evaluation. |
+| `phase4_pre_commit_deny` | `unsupported_by_host_model` | Because forwardAuth never sees the later upstream response, it has no Phase-4 response point at which to deny before the response commits. |
 | `late_intervention` | `unsupported_by_host_model` | The authorization decision completes before the upstream response starts, so the chosen path has no response-phase late intervention point. |
+| `late_intervention_log_only` | `unsupported_by_host_model` | The selected pre-upstream forwardAuth host model has no committed upstream response on which to apply a late log-only intervention. |
+| `late_intervention_abort` | `unsupported_by_host_model` | The selected pre-upstream forwardAuth host model has no upstream response-phase point from which the authorization service can perform a late connection abort. |
+| `late_intervention_status_metadata` | `unsupported_by_host_model` | The selected forwardAuth integration does not observe an upstream response, so it cannot produce Phase-4 metadata that distinguishes original and visible upstream-response status or late actions. |
 | `deny` | `implemented_not_asserted` | A disruptive Common Runtime decision is returned as a non-2xx forwardAuth response; a fresh canonical deny result is pending. |
 | `redirect` | `not_implemented` | The Common Runtime preserves redirect status and URL, but the repository HTTP authorization response does not emit the Location header for Traefik to propagate. |
 | `drop` | `unsupported_by_host_model` | The external HTTP authorization contract returns a response and cannot directly silent-drop Traefik's client connection. |
@@ -279,7 +309,12 @@ Host-model constraints:
 | `phase2` | `not_implemented` | Request bodies are explicitly disabled in the native plugin, so a real Phase-2 body rule cannot run. |
 | `phase3` | `implemented_not_asserted` | The response-start hook invokes Common Runtime response processing with mapped headers; real Phase-3 behavioral evidence is pending. |
 | `phase4` | `not_implemented` | Response bodies are explicitly disabled in the native plugin, so a real Phase-4 body rule cannot run. |
+| `phase4_rule_evaluation` | `not_implemented` | The current native module does not supply response-body data to ModSecurity, so it cannot yet evaluate Phase-4 rule 1100301. |
+| `phase4_pre_commit_deny` | `not_implemented` | The current native module has no response-body hook or Phase-4 intervention timing implementation from which to deny before response commitment. |
 | `late_intervention` | `not_implemented` | The module has no response-body or post-commit intervention policy; the response-start hook is not late-intervention evidence. |
+| `late_intervention_log_only` | `not_implemented` | The current native module implements no post-commit response-body intervention policy or log-only late-intervention action. |
+| `late_intervention_abort` | `not_implemented` | The current native module implements no response-body late-intervention path that can abort a committed connection. |
+| `late_intervention_status_metadata` | `not_implemented` | Without a native response-body Phase-4 path, the module does not yet emit late-intervention metadata separating requested WAF status, original host status, visible client status, requested action, and actual action. |
 | `deny` | `implemented_not_asserted` | A disruptive Common Runtime decision is mapped to a lighttpd error status in request and response-start hooks; canonical evidence is pending. |
 | `redirect` | `not_implemented` | The native decision mapper accepts only error statuses and normalizes redirect statuses to a denial without a Location header. |
 | `drop` | `not_implemented` | The native lighttpd decision mapper has no distinct drop action. |
@@ -295,12 +330,12 @@ Host-model constraints:
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `connectors/apache/capabilities.json` | `01842f82a6c3432f47ffd4502bca13f1068a42b5e7862278ac5bcb89505ac21a` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/nginx/capabilities.json` | `e7caaeb2507e92301a543e939f2d45e2e639fc63a6cd9849cefca2c6290a3fd7` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/haproxy/capabilities.json` | `64fc69c41b8c6441ae1f295b1b01b5d9ee24d446448f291e92c72496af8af1de` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/envoy/capabilities.json` | `9c03fa206cf6235ae3e9376ee8af7167aff6fa3443ea2ee14e7f3402ceba74aa` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/traefik/capabilities.json` | `574b1eeaa6e755fda5ffbc5aa5df7b0d92cd870cb482201bf24e6e3db6aede9f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/lighttpd/capabilities.json` | `0548b5c3efb210d2cfbe1d8646c35a01f527b300246a30ab69b86b043b3a33d8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/apache/capabilities.json` | `ce13177afa0686f9357ae4945b42fc11073e17de661fcc3196514020287a507b` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/nginx/capabilities.json` | `93c20b58628a286abe7bc3810546a52509828709fef723f39b1cf8f9ea6c9698` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/haproxy/capabilities.json` | `39517a94d913562641c973c9844ff3439ffbdc4c1ff79f6c7cd64f831a5b8fa8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/envoy/capabilities.json` | `ae7f73116a211e15114ea484313a72aea99adec5a7fe318821d821d707af2a81` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/traefik/capabilities.json` | `2bdcf75907d869e6b33b41f801abe764897abaef63551e198674c972037d21bd` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/lighttpd/capabilities.json` | `5e5d114428c30316fe26097ccff5e2ecfd59bf5e37d4c323d95d9e5eba012710` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

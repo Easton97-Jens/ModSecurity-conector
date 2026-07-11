@@ -3,6 +3,7 @@
 #include "msc_utils.h"
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
+#include "msconnector/late_intervention.h"
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
 
@@ -179,6 +180,18 @@ static int apache_phase4_in_scope(msc_conf_t *conf, request_rec *r)
     return 0;
 }
 
+static const char *apache_phase4_actual_action(
+    msconnector_late_intervention_action action)
+{
+    const char *name = msconnector_late_intervention_action_name(action);
+
+    if (strcmp(name, "deny_if_possible") == 0)
+    {
+        return "deny";
+    }
+    return name;
+}
+
 
 static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     const char *wanted, const char *actual, const char *reason)
@@ -218,8 +231,16 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
         rule_id, sizeof(rule_id));
 
     msconnector_event_init(&event);
+    event.meta.message_id = strcmp(actual, "abort_connection") == 0
+        ? MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200
+        : (strcmp(actual, "log_only") == 0
+            ? MSCONN_EVENT_PHASE4_LATE_INTERVENTION
+            : MSCONN_EVENT_RESPONSE_BLOCKED);
+    event.meta.level = msconnector_event_default_level(event.meta.message_id);
+    event.meta.message = msconnector_event_default_message(event.meta.message_id);
     event.meta.event = "phase4_intervention";
-    event.meta.connector = MSC_APACHE_CONNECTOR;
+    event.meta.connector = "apache";
+    event.meta.transaction_id = msr->event_transaction_id;
     event.decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
     event.decision.status = MSCONNECTOR_STATUS_BLOCKED;
     event.decision.action = actual;
@@ -229,18 +250,26 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     event.decision.reason = reason;
     event.http.http_status = msr->last_intervention_status;
     event.http.original_http_status = r->status;
-    if (strcmp(reason, "buffered_before_commit") == 0)
+    if (strcmp(actual, "deny") == 0)
     {
         event.http.visible_http_status = msr->last_intervention_status;
+        event.http.transport_result = "http_status";
+    }
+    else if (strcmp(actual, "abort_connection") == 0)
+    {
+        event.http.visible_http_status = r->status;
+        event.http.transport_result = "connection_aborted";
     }
     else
     {
         event.http.visible_http_status = r->status;
+        event.http.transport_result = "log_only";
     }
     event.request.method = r->method;
     event.request.uri = r->unparsed_uri;
     event.flags.late_intervention = msr->response_committed;
     event.flags.response_started = msr->response_committed;
+    event.flags.response_committed = msr->response_committed;
     event.flags.headers_sent = msr->response_committed;
     event.flags.body_started = msr->response_committed;
     event.flags.connection_aborted = msr->phase4_strict_abort;
@@ -448,6 +477,10 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
+            msconnector_late_intervention_policy policy;
+            msconnector_late_intervention_action action;
+            const char *actual;
+
             msr->phase4_intervention = 1;
             msr->response_committed = r->sent_bodyct > 0 ? 1 : 0;
             if (!apache_phase4_in_scope(conf, r))
@@ -457,26 +490,31 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
                 msr->response_committed = 1;
                 return ap_pass_brigade(f->next, msr->response_brigade);
             }
-            if (conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_MINIMAL)
+            msconnector_late_intervention_policy_init(&policy);
+            action = msconnector_late_intervention_resolve(&policy,
+                msr->response_committed, msr->response_committed,
+                conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);
+            actual = apache_phase4_actual_action(action);
+            if (action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY)
             {
-                apache_phase4_log_event(msr, r, "deny", "log_only",
-                    "phase4_mode_minimal");
+                apache_phase4_log_event(msr, r, "deny", actual,
+                    "response_committed_safe");
                 msr->response_committed = 1;
                 return ap_pass_brigade(f->next, msr->response_brigade);
             }
-            if (msr->response_committed)
+            if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION)
             {
                 msr->phase4_strict_abort = 1;
                 msr->response_committed = 1;
-                apache_phase4_log_event(msr, r, "deny",
-                    "connection_abort", "headers_or_body_already_sent");
+                apache_phase4_log_event(msr, r, "deny", actual,
+                    "response_committed_strict");
                 ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
                     "ModSecurity: phase4 intervention after response commit, action=connection_abort");
                 ap_remove_output_filter(f);
                 return APR_ECONNABORTED;
             }
-            apache_phase4_log_event(msr, r, "deny", "deny_status",
-                "buffered_before_commit");
+            apache_phase4_log_event(msr, r, "deny", actual,
+                "response_not_committed");
             apr_brigade_cleanup(msr->response_brigade);
             ap_remove_output_filter(f);
             return send_error_bucket(msr, f, it);

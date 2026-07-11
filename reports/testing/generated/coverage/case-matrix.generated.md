@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-06T16:46:14Z`
+> Generated at: `2026-07-11T08:49:11Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `4afa499f6719e802c5091c43742e99ba39d6d42a`
-> Framework SHA: `3817acec9f2fb483b275b5a9a747542ec40e3b45`
+> Connector SHA: `4e004f821d0d91a3a9f63ffe9d27e541cab95d65`
+> Framework SHA: `de0fc5dc0751d3b0e8cb1bd5187e4e3ff558f41f`
 > Input status: `complete`
 
 # Generated Case Matrix
@@ -58,6 +58,8 @@
 | xml_request_body_block | `tests/cases/body/xml/xml_request_body_block.yaml` | common | 1,2 | XML:/* | @contains | lowercase, none | imported | - | active | - | unknown | no | - |
 | xml_request_body_malformed_connector_gap | `tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | common | 1,2 | REQUEST_HEADERS:Content-Type, XML | @contains, @rx | lowercase, none | imported | - | active | - | unknown | no | - |
 | nginx_phase4_content_type_out_of_scope | `tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
+| phase4_deny_after_commit_abort | `tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_abort.yaml` | nginx | - | - | - | - | pending | - | active | - | false | yes | - |
+| phase4_deny_after_commit_log_only | `tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_log_only.yaml` | nginx | - | - | - | - | pending | - | active | - | false | yes | - |
 | nginx_phase4_minimal_log_only | `tests/cases/connector-specific/nginx/nginx_phase4_minimal_log_only.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | nginx_phase4_safe_log_only | `tests/cases/connector-specific/nginx/nginx_phase4_safe_log_only.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | nginx_phase4_strict_connection_abort | `tests/cases/connector-specific/nginx/nginx_phase4_strict_connection_abort.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
