@@ -1735,20 +1735,76 @@ static void json_write_string(FILE *file, const char *value) {
     fputc('"', file);
 }
 
+static const char *safe_decision_name(
+        const char *decision_text,
+        const haproxy_modsecurity_decision *decision) {
+    static const char *const allowed[] = {
+        "pass", "deny", "redirect", "drop", "fail-closed", "fail-open"
+    };
+    size_t index;
+
+    if (decision_text != 0) {
+        for (index = 0U; index < sizeof(allowed) / sizeof(allowed[0]); ++index) {
+            if (strcmp(decision_text, allowed[index]) == 0) {
+                return allowed[index];
+            }
+        }
+    }
+    if (decision != 0 && decision->disruptive != 0) {
+        return decision->redirect_url[0] != '\0' ? "redirect" : "deny";
+    }
+    return "pass";
+}
+
+static const char *safe_decision_reason_code(
+        const haproxy_modsecurity_decision *decision,
+        int modsecurity_processed,
+        const char *decision_text) {
+    const char *safe_decision = safe_decision_name(decision_text, decision);
+
+    if (strcmp(safe_decision, "fail-closed") == 0) {
+        return "modsecurity_processing_failed_closed";
+    }
+    if (strcmp(safe_decision, "fail-open") == 0) {
+        return "modsecurity_processing_failed_open";
+    }
+    if (!modsecurity_processed) {
+        return "modsecurity_not_processed";
+    }
+    if (decision != 0 && decision->disruptive != 0) {
+        return strcmp(safe_decision, "redirect") == 0
+            ? "modsecurity_redirect_intervention"
+            : "modsecurity_disruptive_intervention";
+    }
+    if (decision != 0 && decision->rule_id > 0) {
+        return "modsecurity_rule_observed";
+    }
+    return "modsecurity_allow";
+}
+
 static void decision_log_write(
         agent_state *state,
         const notify_request *request,
         const haproxy_modsecurity_decision *decision,
         int modsecurity_processed,
-        const char *decision_text,
-        const char *reason) {
+        const char *decision_text) {
+    /*
+     * Canonical evidence is metadata-only.  Do not serialize request values,
+     * redirect targets, matched data, or libmodsecurity intervention messages:
+     * those strings can contain bodies, credentials, cookies, or other input.
+     */
     FILE *file;
+    const char *reason_code;
+    const char *decision_name;
     time_t now;
 
     if (state == 0 || state->decision_log == 0 || request == 0 || decision == 0) {
         return;
     }
     file = state->decision_log;
+    decision_name = safe_decision_name(decision_text, decision);
+    reason_code = safe_decision_reason_code(
+        decision, modsecurity_processed, decision_name);
     now = time(0);
     fputc('{', file);
 #define JSON_FIELD_STRING(name, value) \
@@ -1769,10 +1825,6 @@ static void decision_log_write(
     JSON_FIELD_STRING("case", state->config.case_name);
     JSON_FIELD_STRING("request_id", request->request_id);
     JSON_FIELD_STRING("transaction_id", request->request_id);
-    JSON_FIELD_STRING("client_ip", request->client_ip);
-    JSON_FIELD_STRING("method", request->method);
-    JSON_FIELD_STRING("uri", request->uri[0] != '\0' ? request->uri : request->path);
-    JSON_FIELD_STRING("host", request->host);
     JSON_FIELD_INT("phase", decision->phase);
     JSON_FIELD_BOOL("live_executed", 1);
     JSON_FIELD_BOOL("modsecurity_processed", modsecurity_processed);
@@ -1783,20 +1835,18 @@ static void decision_log_write(
     JSON_FIELD_UINT("expected_status", state->config.expected_status);
     JSON_FIELD_STRING("observed_status", "");
     JSON_FIELD_STRING("result", "");
-    JSON_FIELD_STRING("decision", decision_text != 0 ? decision_text : decision->action);
+    JSON_FIELD_STRING("decision", decision_name);
     JSON_FIELD_BOOL("disruptive", decision->disruptive != 0);
     JSON_FIELD_INT("intervention_status", decision->status);
-    JSON_FIELD_STRING("redirect_url", decision->redirect_url);
+    JSON_FIELD_BOOL("redirect_present", decision->redirect_url[0] != '\0');
     JSON_FIELD_INT("rule_id", decision->rule_id);
-    JSON_FIELD_STRING("rule_message", decision->rule_message);
-    JSON_FIELD_STRING("matched_variable", decision->matched_variable);
-    JSON_FIELD_STRING("matched_value_snippet", decision->matched_value_snippet);
     JSON_FIELD_INT("anomaly_score", decision->anomaly_score);
     JSON_FIELD_STRING("audit_log_path", state->config.audit_log);
     JSON_FIELD_STRING("haproxy_log_path", "");
     JSON_FIELD_STRING("spoa_log_path", state->config.log_file);
+    JSON_FIELD_STRING("reason_code", reason_code);
     fputs("\"reason\":", file);
-    json_write_string(file, reason != 0 ? reason : decision->log_message);
+    json_write_string(file, reason_code);
     fputs("}\n", file);
 #undef JSON_FIELD_STRING
 #undef JSON_FIELD_UINT
@@ -1967,24 +2017,10 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                 continue;
             }
             log_line(log,
-                "NOTIFY request args extracted method_present=%d path_present=%d uri_present=%d host_present=%d test_header_present=%d headers=%u body_len=%lu method=%s path=%s uri=%s host=%s test_header=%s",
+                "NOTIFY request metadata method_present=%d path_present=%d uri_present=%d host_present=%d test_header_present=%d headers=%u body_len=%lu",
                 request.has_method, request.has_path, request.has_uri,
                 request.has_host, request.has_test_header,
-                request.header_count, (unsigned long)request.body_len,
-                request.has_method ? request.method : "",
-                request.has_path ? request.path : "",
-                request.has_uri ? request.uri : "",
-                request.has_host ? request.host : "",
-                request.has_test_header ? request.test_header : "");
-            {
-                unsigned int header_index;
-                for (header_index = 0; header_index < request.header_count; ++header_index) {
-                    log_line(log, "NOTIFY header[%u] name=%s value=%s",
-                        header_index,
-                        request.headers[header_index].name != 0 ? request.headers[header_index].name : "",
-                        request.headers[header_index].value != 0 ? request.headers[header_index].value : "");
-                }
-            }
+                request.header_count, (unsigned long)request.body_len);
             if (state != 0 && state->engine != 0) {
                 const char *decision_text = "pass";
                 const char *reason = "";
@@ -2021,7 +2057,7 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                         runtime_init_decision(&decision, request.is_response_body ? 4 : 3,
                             "pass", 200, "transaction_resumed=false");
                         decision_log_write(state, &request, &decision, 0,
-                            "pass", "transaction_resumed=false");
+                            "pass");
                     } else {
                         if (request.is_response_body) {
                             modsec_rc = haproxy_modsecurity_transaction_process_response_body(
@@ -2059,7 +2095,7 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                             haproxy_modsecurity_transaction_finish(transaction);
                         }
                         decision_log_write(state, &request, &decision,
-                            modsec_processed, decision_text, reason);
+                            modsec_processed, decision_text);
                     }
                 } else {
                     haproxy_modsecurity_transaction *transaction = 0;
@@ -2131,24 +2167,27 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                         }
                     }
                     decision_log_write(state, &request, &decision,
-                        modsec_processed, decision_text, reason);
+                        modsec_processed, decision_text);
                 }
                 if (build_decision_ack_payload(&ack_payload, &decision,
-                        reason, enforce) != 0) {
+                        safe_decision_reason_code(
+                            &decision, modsec_processed, decision_text),
+                        enforce) != 0) {
                     log_line(log, "ACK decision variable encoding failed");
                     free_notify_request(&request);
                     return -1;
                 }
                 log_line(log,
-                    "MODSECURITY production decision message=%s request_id=%s phase=%d disruptive=%d status=%d action=%s enforce=%d reason=%s",
+                    "MODSECURITY production decision message=%s request_id=%s phase=%d disruptive=%d status=%d action=%s enforce=%d reason_code=%s",
                     request.message_name,
                     request.request_id,
                     decision.phase,
                     decision.disruptive,
                     decision.status,
-                    decision.action,
+                    safe_decision_name(decision_text, &decision),
                     enforce,
-                    reason);
+                    safe_decision_reason_code(
+                        &decision, modsec_processed, decision_text));
                 if (send_frame(fd, SPOP_FRM_ACK, frame.stream_id, frame.frame_id, &ack_payload) != 0) {
                     free_notify_request(&request);
                     return -1;
@@ -2181,10 +2220,8 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                     crs_preamble_file,
                     &decision);
                 if (modsec_rc == 0) {
-                    log_line(log, "CRS live decision disruptive=%d status=%d uri=%s",
-                        decision.disruptive, decision.status,
-                        request.has_uri ? request.uri :
-                            (request.has_path ? request.path : "/"));
+                    log_line(log, "CRS live decision disruptive=%d status=%d rule_id=%d",
+                        decision.disruptive, decision.status, decision.rule_id);
                 }
             } else {
                 modsec_rc = haproxy_modsecurity_phase1_header_eval(
@@ -2194,8 +2231,8 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                     &decision);
             }
             if (modsec_rc != 0) {
-                log_line(log, "MODSECURITY live binding failed reason=%s",
-                    decision.log_message[0] != '\0' ? decision.log_message : "unknown");
+                log_line(log, "MODSECURITY live binding failed status=%d rule_id=%d",
+                    decision.status, decision.rule_id);
                 if (send_frame(fd, SPOP_FRM_ACK, frame.stream_id, frame.frame_id, &ack_payload) != 0) {
                     free_notify_request(&request);
                     return -1;
@@ -2227,8 +2264,8 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
             char message[256];
             parse_disconnect_payload(frame.payload, frame.payload_len,
                 &status_code, message, sizeof(message));
-            log_line(log, "DISCONNECT received status=%u message=%s",
-                status_code, message);
+            log_line(log, "DISCONNECT received status=%u message_present=%d",
+                status_code, message[0] != '\0');
             send_agent_disconnect(fd, 0, "normal");
             return 0;
         }

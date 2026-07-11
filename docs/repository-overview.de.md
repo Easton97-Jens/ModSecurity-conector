@@ -53,11 +53,23 @@ Beispiele für connector-spezifische Teile sind Apache `request_rec`, `command_r
 
 ## Kurzfassung für Menschen
 
-Apache, NGINX und HAProxy besitzen in diesem Repository Connector-Code und Common-Adoption-Checks. Envoy, Traefik und lighttpd sind als Starter-/structure-only-/compile-only-Connectorbereiche vorbereitet und bleiben `not_verified / connector-gap`. Compile-, Lint-, Contract- und generierte Report-Checks sind wertvolle Evidence für ihren genauen Prüfbereich, aber keine Production-, CRS-, Full-Matrix-, Response-Body- oder Runtime-Verifikations-Claims.
+Alle sechs Connector-Bereiche enthalten echte Hostpfad-Implementierungen.
+Envoy, Traefik und lighttpd besitzen enge `minimal_runtime_smoke`-Evidence für
+ihre gewählten Hostmodelle und werden nicht mehr als bloße Starter beschrieben.
+Die kanonischen Capability-Manifeste liegen vor, die kanonische No-CRS-Baseline
+wurde auf diesem Branch jedoch noch nicht ausgeführt. Nicht unterstützte, nicht
+implementierte und nicht ausgeführte Fähigkeiten bleiben von verifiziertem
+Verhalten getrennt.
 
 ## Kurzfassung für KI-Systeme
 
-Nutze aktuellen Repository-Code, CI-Skripte, Metadaten und generierte Reports als Source of Truth. Leite keine Runtime-Garantien aus Dateinamen, Makefile-Zielen, Starter-Smokes oder lokalen `result.json`-Dateien ab. Unterscheide Connector-Metadaten von per-run Result-JSON. Wenn Evidence fehlt, verwende `unknown`, `partial`, `structure-only`, `compile-only`, `not_verified`, `connector-gap` oder `requires runtime evidence`.
+Nutze aktuellen Repository-Code, Capability-Manifeste, CI-Skripte, Metadaten
+und generierte Reports als Source of Truth. Leite keine Runtime-Garantien aus
+Dateinamen, Makefile-Zielen, Legacy-Smokes oder lokalen `result.json`-Dateien
+ab. Unterscheide Implementierungsstatus von kanonischer Evidence pro Lauf.
+Wenn Evidence fehlt, verwende passend zu Manifest und Result-Vertrag
+`NOT EXECUTED`, `IMPLEMENTED, NOT ASSERTED`, `UNSUPPORTED` oder `NOT
+IMPLEMENTED`.
 
 ## Architekturprinzip
 
@@ -72,9 +84,9 @@ Nutze aktuellen Repository-Code, CI-Skripte, Metadaten und generierte Reports al
 | `connectors/apache/` | Apache-Adapter-Quellen, Doku, Harness und Metadaten. | Common-Adoption; Runtime-Claims benötigen aktuelle Evidence. |
 | `connectors/nginx/` | NGINX-Adapter-Quellen, Doku, Harness und Metadaten. | Common-Adoption; Runtime-Claims benötigen aktuelle Evidence. |
 | `connectors/haproxy/` | HAProxy-/SPOA-Quellen, Doku, Harness und Metadaten. | Common-Adoption; Runtime-Claims benötigen aktuelle Evidence. |
-| `connectors/envoy/` | Envoy-Bridge-Starter. | `not_verified / connector-gap`. |
-| `connectors/traefik/` | Traefik-Decision-Service-Starter. | `not_verified / connector-gap`. |
-| `connectors/lighttpd/` | lighttpd-Bridge-/Build-Starter. | `not_verified / connector-gap`. |
+| `connectors/envoy/` | Echter HTTP-`ext_authz`-Servicepfad. | Gezielter `minimal_runtime_smoke`; kanonisches No-CRS `NOT EXECUTED`. |
+| `connectors/traefik/` | Echter HTTP-`forwardAuth`-Servicepfad. | Gezielter `minimal_runtime_smoke`; kanonisches No-CRS `NOT EXECUTED`. |
+| `connectors/lighttpd/` | Nativer `mod_msconnector.so`-Pluginpfad. | Gezielter `minimal_runtime_smoke`; kanonisches No-CRS `NOT EXECUTED`. |
 | `ci/` | Lint-, Contract-, Governance-, C-Standard- und Report-Skripte. | Check-Definitionen, für sich allein keine Runtime-Evidence. |
 | `docs/`, `docs/architecture/`, `docs/connectors/` | Repository-, Architektur- und Connector-Dokumentation. | Dokumentation; muss mit Quellcode und Reports synchron bleiben. |
 | `reports/` | Generierte Reports, Evidence und Matrizen. | Nur aktuellen Statuslabels und Evidenzumfang vertrauen. |
@@ -237,7 +249,7 @@ Parser-Helfer verwenden `1 = success` und `0 = failure`: `msconnector_parse_bool
 
 | Config / Directive | Common Macro | Typ | Erlaubte Werte | Default | Parser / Validator | Betroffene Connectoren | Hinweise |
 |---|---|---|---|---|---|---|---|
-| `modsecurity` | `MSCONNECTOR_DIRECTIVE_MODSECURITY` | bool | Spezifikation: `on|off`; Parser akzeptiert auch `true|false|1|0|yes|no` | `off` | `msconnector_parse_bool`, `msconnector_config_validate` | Apache/NGINX/HAProxy, soweit adoptiert; Envoy/Traefik/lighttpd structure-only | Aktiviert nur semantische Verarbeitung; kein Production-Claim. |
+| `modsecurity` | `MSCONNECTOR_DIRECTIVE_MODSECURITY` | bool | Spezifikation: `on|off`; Parser akzeptiert auch `true|false|1|0|yes|no` | `off` | `msconnector_parse_bool`, `msconnector_config_validate` | Connector-spezifisches Mapping; maßgeblich ist das jeweilige Capability-Manifest | Aktiviert nur semantische Verarbeitung; kein Production-Claim. |
 | `modsecurity_rules` | `MSCONNECTOR_DIRECTIVE_RULES` | string/raw | Inline-Regeltext | keiner | Direktivenadapter und connector-spezifisches Rule Loading | connector-abhängig | Regeltext beweist keine CRS-/Runtime-Ausführung. |
 | `modsecurity_rules_file` | `MSCONNECTOR_DIRECTIVE_RULES_FILE` | path | Runtime-Pfad | keiner | Direktivenadapter, Path Policy soweit genutzt | connector-abhängig | Pfadgültigkeit ist umgebungsabhängig. |
 | `modsecurity_rules_remote` | `MSCONNECTOR_DIRECTIVE_RULES_REMOTE` | string pair | `key url` | keiner | Config verlangt Key und URL gemeinsam | connector-abhängig | Unvollständiges Remote-Paar ist ungültig. |
@@ -275,7 +287,7 @@ Das Common SDK ist auf C17 ausgelegt. C17 ist der harte Pflichtstandard, wenn Co
 | Apache | hart, wenn APXS/APR/libmodsecurity-Header vorhanden sind | optional | optional | APXS/APR/libmodsecurity | fehlende Header dürfen blockieren; Compile-Fehler müssen fehlschlagen |
 | NGINX | hart, wenn NGINX-/libmodsecurity-Header vorhanden sind | optional | optional | NGINX-Source-/Include-Roots, libmodsecurity | fehlende Roots/Header dürfen blockieren |
 | HAProxy | hart, wenn HAProxy-/libmodsecurity-Kontext vorhanden ist | optional | optional | HAProxy-/SPOE-/SPOP-Kontext und Common-Includes | fehlende Header dürfen blockieren |
-| Remaining Connectors | nur compile-/structure-level | optional | optional | Starter-/Common-Header | not_verified / connector-gap bleibt bestehen |
+| Envoy, Traefik, lighttpd | C17-Native-/Servicepfade | optional | optional | Connector- und Common-Header | gezielter Runtime-Pfad; kanonische Baseline ausstehend |
 
 ## CI-, Contract- und Governance-Checks
 
@@ -301,7 +313,8 @@ Das Makefile ist der operative Index für Setup, Linting, Common-SDK-Checks, Con
 - Allgemeine Ziele: Setup, Dependency-Fetch, Doctor, Lint und Quick-/Codex-Checks.
 - Common-SDK-Ziele: Helfer-Compilation, SDK-/Security-/Memory-/Flow-Verträge, Adapter-Verträge und Direktivenparität.
 - Apache-, NGINX- und HAProxy-Ziele: Common-Adoption, C-Standard-Wiring und C17/C23/future-C-Checks sowie Smoke-/Test-Wrapper.
-- Remaining-Connector-Ziele: Envoy-, Traefik- und lighttpd-Starter-/Adoption-/C-Standard-Checks. Diese bleiben `not_verified / connector-gap`.
+- Envoy-, Traefik- und lighttpd-Ziele: getrennte Build-, Config-Load-,
+  request-freie Start-, gezielte Runtime-, Capability- und Evidence-Checks.
 - Framework-/Test-Framework-Ziele: Matrix-, Verified-Report-, MRTS- und Smoke-/Test-Workflows. Diese können blockieren, wenn `modules/ModSecurity-test-Framework` oder Runtime-Komponenten fehlen.
 - Report-/Generator-Ziele: Reports und Matrizen generieren oder prüfen. Daraus folgt nicht automatisch verifiziertes Runtime-Verhalten.
 
@@ -567,7 +580,7 @@ C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 un
 Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
+Maßgeblich sind die aktuellen Capability-Manifeste und kanonischen Ergebnisse. Die gezielten Hostpfade besitzen `minimal_runtime_smoke`-Evidence; breitere Fähigkeiten bleiben bis zu einem aktuellen kanonischen Ergebnis unverifiziert.
 
 ### Umgesetzt
 Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
@@ -647,7 +660,7 @@ C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 un
 Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
+Maßgeblich sind die aktuellen Capability-Manifeste und kanonischen Ergebnisse. Die gezielten Hostpfade besitzen `minimal_runtime_smoke`-Evidence; breitere Fähigkeiten bleiben bis zu einem aktuellen kanonischen Ergebnis unverifiziert.
 
 ### Umgesetzt
 Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
@@ -720,7 +733,7 @@ C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 un
 Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
+Maßgeblich sind die aktuellen Capability-Manifeste und kanonischen Ergebnisse. Die gezielten Hostpfade besitzen `minimal_runtime_smoke`-Evidence; breitere Fähigkeiten bleiben bis zu einem aktuellen kanonischen Ergebnis unverifiziert.
 
 ### Umgesetzt
 Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
@@ -785,7 +798,7 @@ SPOE/SPOP, Frame-Parsing, Runtime-Loop, Socket-Handling, HAProxy-Konfigurationsa
 Der Envoy-Connector belässt die Host-/Server-API-Integration in `connectors/envoy/` und nutzt Common-SDK-Verträge, soweit dies umgesetzt ist.
 
 ### Aktueller Status
-not_verified / connector-gap; Starter / structure-only / compile-only; kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim.
+minimal_runtime_smoke / connector-gap; gezielter echter Host-Laufzeitpfad; kanonisches No-CRS nicht ausgefuehrt; kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim.
 
 ### Common-SDK-Adoption
 Der Connector kann `msconnector_config`, das Direktiven-Vokabular, Mapper-Verträge, Request-/Response-Modelle, Entscheidungs-/Status-/Ereignis-Helfer und Common-Quellen nutzen. Adoption-Checks sind statische, Contract- oder Compile-Evidence und keine automatische Runtime-Evidence.
@@ -812,7 +825,7 @@ C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 un
 Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
+Maßgeblich sind die aktuellen Capability-Manifeste und kanonischen Ergebnisse. Die gezielten Hostpfade besitzen `minimal_runtime_smoke`-Evidence; breitere Fähigkeiten bleiben bis zu einem aktuellen kanonischen Ergebnis unverifiziert.
 
 ### Umgesetzt
 Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
@@ -826,28 +839,28 @@ Envoy-Filter-/Runtime-API, Besitz nativer Envoy-SDK-Integration und ausgerollte 
 ### Wichtige Connector-Dateien
 | Datei | Zweck | Common-Bezug | Connector-spezifisch? | Status |
 |---|---|---|---|---|
-| `connectors/envoy/Makefile` | Implementiert bzw. baut `Makefile` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/envoy/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/build/build_metadata.sh` | Implementiert bzw. baut `build metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/envoy/harness/run_envoy_smoke.sh` | Implementiert bzw. baut `run envoy smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/envoy/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/envoy/src/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_bridge.c` | Implementiert bzw. baut `envoy bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_bridge.h` | Implementiert bzw. baut `envoy bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_bridge_main.c` | Implementiert bzw. baut `envoy bridge main` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_modsecurity_mapper.h` | Implementiert bzw. baut `envoy modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/envoy/Makefile` | Implementiert bzw. baut `Makefile` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/build/build_metadata.sh` | Implementiert bzw. baut `build metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/harness/run_envoy_smoke.sh` | Implementiert bzw. baut `run envoy smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/src/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/src/envoy_bridge.c` | Implementiert bzw. baut `envoy bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/src/envoy_bridge.h` | Implementiert bzw. baut `envoy bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/src/envoy_bridge_main.c` | Implementiert bzw. baut `envoy bridge main` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/src/envoy_modsecurity_mapper.h` | Implementiert bzw. baut `envoy modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
 
 ## Traefik-Connector
 
@@ -855,7 +868,7 @@ Envoy-Filter-/Runtime-API, Besitz nativer Envoy-SDK-Integration und ausgerollte 
 Der Traefik-Connector belässt die Host-/Server-API-Integration in `connectors/traefik/` und nutzt Common-SDK-Verträge, soweit dies umgesetzt ist.
 
 ### Aktueller Status
-not_verified / connector-gap; Starter / structure-only / compile-only; kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim.
+minimal_runtime_smoke / connector-gap; gezielter echter Host-Laufzeitpfad; kanonisches No-CRS nicht ausgefuehrt; kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim.
 
 ### Common-SDK-Adoption
 Der Connector kann `msconnector_config`, das Direktiven-Vokabular, Mapper-Verträge, Request-/Response-Modelle, Entscheidungs-/Status-/Ereignis-Helfer und Common-Quellen nutzen. Adoption-Checks sind statische, Contract- oder Compile-Evidence und keine automatische Runtime-Evidence.
@@ -882,7 +895,7 @@ C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 un
 Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
+Maßgeblich sind die aktuellen Capability-Manifeste und kanonischen Ergebnisse. Die gezielten Hostpfade besitzen `minimal_runtime_smoke`-Evidence; breitere Fähigkeiten bleiben bis zu einem aktuellen kanonischen Ergebnis unverifiziert.
 
 ### Umgesetzt
 Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
@@ -896,29 +909,29 @@ Traefik-Middleware-/Proxy-/Runtime-API und echte Traffic-Path-Integration bleibe
 ### Wichtige Connector-Dateien
 | Datei | Zweck | Common-Bezug | Connector-spezifisch? | Status |
 |---|---|---|---|---|
-| `connectors/traefik/Makefile` | Implementiert bzw. baut `Makefile` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/traefik/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/build/build-starter.sh` | Implementiert bzw. baut `build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/traefik/harness/run_traefik_smoke.sh` | Implementiert bzw. baut `run traefik smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/traefik/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/traefik/src/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_build_starter.c` | Implementiert bzw. baut `traefik build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_decision_service.c` | Implementiert bzw. baut `traefik decision service` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_decision_service.h` | Implementiert bzw. baut `traefik decision service` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_decision_service_main.c` | Implementiert bzw. baut `traefik decision service main` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_modsecurity_mapper.h` | Implementiert bzw. baut `traefik modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/traefik/Makefile` | Implementiert bzw. baut `Makefile` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/build/build-starter.sh` | Implementiert bzw. baut `build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/harness/run_traefik_smoke.sh` | Implementiert bzw. baut `run traefik smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/traefik_build_starter.c` | Implementiert bzw. baut `traefik build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/traefik_decision_service.c` | Implementiert bzw. baut `traefik decision service` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/traefik_decision_service.h` | Implementiert bzw. baut `traefik decision service` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/traefik_decision_service_main.c` | Implementiert bzw. baut `traefik decision service main` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/traefik_modsecurity_mapper.h` | Implementiert bzw. baut `traefik modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / connector-gap |
 
 ## lighttpd-Connector
 
@@ -926,7 +939,7 @@ Traefik-Middleware-/Proxy-/Runtime-API und echte Traffic-Path-Integration bleibe
 Der lighttpd-Connector belässt die Host-/Server-API-Integration in `connectors/lighttpd/` und nutzt Common-SDK-Verträge, soweit dies umgesetzt ist.
 
 ### Aktueller Status
-not_verified / connector-gap; Starter / structure-only / compile-only; kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim.
+minimal_runtime_smoke / partial_runtime_path; gezielter echter Host-Laufzeitpfad; kanonisches No-CRS nicht ausgeführt; kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim.
 
 ### Common-SDK-Adoption
 Der Connector kann `msconnector_config`, das Direktiven-Vokabular, Mapper-Verträge, Request-/Response-Modelle, Entscheidungs-/Status-/Ereignis-Helfer und Common-Quellen nutzen. Adoption-Checks sind statische, Contract- oder Compile-Evidence und keine automatische Runtime-Evidence.
@@ -953,7 +966,7 @@ C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 un
 Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
+Maßgeblich sind die aktuellen Capability-Manifeste und kanonischen Ergebnisse. Die gezielten Hostpfade besitzen `minimal_runtime_smoke`-Evidence; breitere Fähigkeiten bleiben bis zu einem aktuellen kanonischen Ergebnis unverifiziert.
 
 ### Umgesetzt
 Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
@@ -967,30 +980,30 @@ lighttpd-Plugin-/Proxy-/Runtime-API und FastCGI-/SCGI-/native Modul-Integration 
 ### Wichtige Connector-Dateien
 | Datei | Zweck | Common-Bezug | Connector-spezifisch? | Status |
 |---|---|---|---|---|
-| `connectors/lighttpd/Makefile` | Implementiert bzw. baut `Makefile` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/lighttpd/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/build/bridge_starter.sh` | Implementiert bzw. baut `bridge starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/build/build_starter.sh` | Implementiert bzw. baut `build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/lighttpd/harness/run_lighttpd_smoke.sh` | Implementiert bzw. baut `run lighttpd smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/lighttpd/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
-| `connectors/lighttpd/src/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_bridge.c` | Implementiert bzw. baut `lighttpd bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_bridge.h` | Implementiert bzw. baut `lighttpd bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_bridge_main.c` | Implementiert bzw. baut `lighttpd bridge main` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_build_starter.c` | Implementiert bzw. baut `lighttpd build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_modsecurity_mapper.h` | Implementiert bzw. baut `lighttpd modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/lighttpd/Makefile` | Implementiert bzw. baut `Makefile` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/build/bridge_starter.sh` | Implementiert bzw. baut `bridge starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/build/build_starter.sh` | Implementiert bzw. baut `build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/harness/run_lighttpd_smoke.sh` | Implementiert bzw. baut `run lighttpd smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/lighttpd_bridge.c` | Implementiert bzw. baut `lighttpd bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/lighttpd_bridge.h` | Implementiert bzw. baut `lighttpd bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/lighttpd_bridge_main.c` | Implementiert bzw. baut `lighttpd bridge main` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/lighttpd_build_starter.c` | Implementiert bzw. baut `lighttpd build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/lighttpd_modsecurity_mapper.h` | Implementiert bzw. baut `lighttpd modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | minimal_runtime_smoke / partial_runtime_path |
 
 ## Connector-Statusmatrix
 
@@ -999,9 +1012,9 @@ lighttpd-Plugin-/Proxy-/Runtime-API und FastCGI-/SCGI-/native Modul-Integration 
 | Apache | Connector-Quellen vorhanden | vorhanden | benötigt aktuelle Reports/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
 | NGINX | Connector-Quellen vorhanden | vorhanden | benötigt aktuelle Reports/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
 | HAProxy | SPOA-/Starter- sowie Mapper-/Binding-Quellen vorhanden | vorhanden/partial | benötigt aktuelle Reports/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
-| Envoy | Starter/structure-only/compile-only | vorbereitet | fehlt | kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim |
-| Traefik | Starter/structure-only/compile-only | vorbereitet | fehlt; per-run Ergebnis nur bei Lauf | kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim |
-| lighttpd | Starter/structure-only/compile-only | vorbereitet | fehlt | kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim |
+| Envoy | HTTP-`ext_authz`-Service | adoptiert | gezielter Request-Header-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | Upstream-Response-Phasen sind `UNSUPPORTED`; kein breiterer Claim |
+| Traefik | HTTP-`forwardAuth`-Service | adoptiert | gezielter Request-Header-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | nativer Request-Body `NOT IMPLEMENTED`; Upstream-Response `UNSUPPORTED` |
+| lighttpd | natives Plugin | adoptiert | gezielter Phase-1-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | Bodies `NOT IMPLEMENTED`; Phase 3 `IMPLEMENTED, NOT ASSERTED` |
 
 ## Test-Framework-Bezug
 
@@ -1009,19 +1022,34 @@ Das wiederverwendbare Test-Framework wird unter `modules/ModSecurity-test-Framew
 
 ## Runtime-Evidence und Verifikationsrichtlinie
 
-Connector-Metadatenfelder wie `runtime_status`, `verification_status`, `not_verified` und `connector-gap` beschreiben den repository-weiten Connector-Status. Per-run `result.json`-Felder wie `status: PASS/BLOCKED/FAIL`, `runtime_verified: true/false` und `runtime_status: verified/blocked/...` beschreiben nur diesen Lauf. Ein Starter-Smoke kann lokal bestehen, ändert aber Connector-Metadaten nicht automatisch von `not_verified / connector-gap`.
+Connector-Metadaten beschreiben den repository-weiten Connector-Status. Ein
+kanonisches `result.json` beschreibt nur einen Lauf und muss zu Connector-Commit,
+Framework-Commit, Capability-Manifest und Evidence-Layout passen. Ältere
+Starter-, Self-Test-, Sidecar-, CRS- und gezielte Smoke-Ergebnisse werden nicht
+in ein kanonisches No-CRS-Ergebnis übernommen.
 
 ## Umgesetzt
 
-Umgesetzte Repository-Fakten umfassen das Common SDK, das Common-Config-/Direktiven-/Parser-Modell, Request-/Response-Mapper-Verträge, Common-Guard-/Flow-Helfer, Apache-/NGINX-/HAProxy-Common-Adoption-Strukturen, Envoy-/Traefik-/lighttpd-Starter-Vorbereitung, C17/C23/future-C-Check-Wiring, CI-/Governance-Skripte sowie Dokumentations- und Report-Bereiche. Alles ist als statische, Compile- oder Governance-Evidence zu behandeln, sofern aktuelle Runtime-Evidence nicht darüber hinausgeht.
+Umgesetzte Repository-Fakten umfassen das Common SDK, connector-spezifische
+Hostadapter für alle sechs Connectoren, kanonische Capability-Manifeste,
+getrennte Evidence-Stufen, C17/C23/future-C-Check-Wiring, CI-/Governance-Skripte
+sowie Dokumentations- und Report-Bereiche. Implementierung gilt als
+`IMPLEMENTED, NOT ASSERTED`, bis aktuelle kanonische Evidence das Verhalten
+belegt.
 
 ## Fehlend / Nächste Schritte
 
-Fehlende oder zukünftige Arbeit umfasst echte Runtime-Evidence für Envoy, Traefik und lighttpd; CRS-Matrix-Evidence; RESPONSE_BODY-Runtime-Evidence; Full-Matrix-Verifikation; Production Hardening; signierte/HMAC-Event-Chains, falls gewünscht; append-only Evidence Storage, falls gewünscht; und zusätzliche Runtime-Harnesses.
+Offene oder spätere Arbeiten umfassen die Ausführung der kanonischen
+No-CRS-Baseline, connector-spezifische Capability-Lücken, spätere CRS- oder
+Extended-Matrix-Arbeit, Production-Härtung und nur jene Response-Phasen, die das
+jeweilige Hostmodell unterstützt.
 
 ## Bekannte Grenzen
 
-Bekannte Grenzen sind connector-spezifische Host-APIs, umgebungsabhängige Header/Toolchains, Framework-/Submodule-Blocker, Starter-only-Connectoren, partial/unknown Runtime-Coverage und Dokumentation, die mit Metadaten und Reports synchron bleiben muss.
+Bekannte Grenzen sind connector-spezifische Host-APIs, umgebungsabhängige
+Header/Toolchains, Framework-/Submodule-Blocker, partielle Runtime-Coverage und
+Dokumentation, die mit Capability-Manifesten und kanonischen Ergebnissen
+synchron bleiben muss.
 
 ## Bewusst connector-spezifisch
 
@@ -1035,12 +1063,13 @@ purpose: Gemeinsame Common-SDK-Schicht für ModSecurity-Connectoren
 common_sdk: true
 production_ready: false
 runtime_verified_all_connectors: false
+canonical_no_crs_executed: false
 apache_common_adopted: true
 nginx_common_adopted: true
 haproxy_common_adopted: true
-envoy_status: not_verified / connector-gap
-traefik_status: not_verified / connector-gap
-lighttpd_status: not_verified / connector-gap
+envoy_status: minimal_runtime_smoke / connector-gap
+traefik_status: minimal_runtime_smoke / connector-gap
+lighttpd_status: minimal_runtime_smoke / partial_runtime_path
 c_standard_required: C17
 c_standard_optional:
   - C23
@@ -1056,7 +1085,13 @@ forbidden_claims:
 
 ## Erlaubte und verbotene Claims
 
-Erlaubte Claims sind connector-neutrale Common-SDK-Semantik, C17-Pflichtchecks bei vorhandener Umgebung, optionale C23-/future-C-Checks, compile-only/static/governance Evidence, Starter-/structure-only-Status und per-run Evidence mit Gültigkeit nur für diesen Lauf. Ohne aktuelle explizite Evidence dürfen nicht behauptet werden: production-ready, runtime secure, security verified, CRS verified, full matrix verified, response body verified, runtime verified, production hardened, tamper-proof oder cryptographic integrity.
+Erlaubte Claims sind connector-neutrale Common-SDK-Semantik, C17-Pflichtchecks
+bei vorhandener Umgebung, optionale C23-/future-C-Checks, Capability-Zustände
+aus `connectors/<name>/capabilities.json` und per-run Evidence mit Gültigkeit nur
+für diesen Lauf. Ohne aktuelle explizite Evidence dürfen nicht behauptet
+werden: production-ready, runtime secure, security verified, CRS verified, full
+matrix verified, über alle Connectoren verifizierter Response Body, production
+hardened, tamper-proof oder cryptographic integrity.
 
 ## Glossar
 

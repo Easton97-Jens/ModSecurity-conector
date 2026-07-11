@@ -19,12 +19,12 @@ Die globalen Promotion- und Response-Body-Gates gelten weiterhin.
 | Start-Smoke | PASS | echter Prozess, sauberer Stop, null Requests |
 | Request-Metadaten/Header | enger PASS | echte 200-Baseline und regelbasierte 403 |
 | Request-Body | nicht unterstützt / nicht verifiziert | kein Body wird gemappt |
-| Response-Metadaten/Header | im Smoke ausgeführt | Response-Start-Hook und Common-Verarbeitung |
+| Response-Metadaten/Header | IMPLEMENTED, NOT ASSERTED | Response-Start-Hook vorhanden; noch keine echte verhaltensseitige Phase-3-Assertion |
 | Response-Body | nicht unterstützt / nicht verifiziert | kein Body-Hook und keine Payload |
-| Decision/Blockstatus | Phase-1-PASS | Regel `1000001`, HTTP 403 über `http_status_set_err()` |
+| Decision/Blockstatus | Phase-1-PASS | kanonische Regel `1100001`, HTTP 403 über `http_status_set_err()` |
 | Events | enger PASS | JSONL mit Connector/Regel-ID, ohne Body-Payload-Feld |
 | Transaction-Cleanup | implementiert | Finish/Destroy und Mapper-Cleanup beim Reset |
-| Targeted No-CRS-Smoke | PASS | nur gezielte Repo-Regel, kein CRS |
+| Targeted No-CRS-Smoke | NOT EXECUTED | der minimale 200/403-Runtime-Kern ist von der 53-Fall-Baseline getrennt |
 | CRS | nicht ausgeführt / nicht behauptet | kein nativer CRS-Nachweis |
 | Produktion/Security/Full Matrix | nicht behauptet | Härtung und breite Nachweise fehlen |
 

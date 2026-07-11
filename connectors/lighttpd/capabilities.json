@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "connector": "lighttpd",
+  "host_name": "lighttpd",
+  "integration_mode": "native-lighttpd-plugin",
+  "metadata_source": "connectors/lighttpd/metadata.c",
+  "source_contract": [
+    "connectors/lighttpd/metadata.c",
+    "connectors/lighttpd/config/lighttpd-native.conf",
+    "connectors/lighttpd/module/mod_msconnector.c",
+    "connectors/lighttpd/src/lighttpd_modsecurity_mapper.c",
+    "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh"
+  ],
+  "host_model_constraints": [
+    "The native plugin deliberately rejects non-none request and response body modes until safe lighttpd body hooks, limits, buffering, and intervention timing are implemented.",
+    "The response-header mapper is called from handle_response_start, but source wiring alone is not Phase-3 behavioral verification.",
+    "The legacy bridge and starter self-tests are separate from native mod_msconnector.so host-runtime evidence."
+  ],
+  "capabilities": {
+    "connection_metadata": {
+      "state": "implemented_not_asserted",
+      "reason": "The native mapper reads lighttpd client and server socket endpoints into Common Runtime; canonical evidence is pending."
+    },
+    "request_headers": {
+      "state": "implemented_not_asserted",
+      "reason": "The native URI-clean hook maps lighttpd request headers into Common Runtime; canonical header evidence is pending."
+    },
+    "request_body_buffered": {
+      "state": "not_implemented",
+      "reason": "The native module requires request_body_mode=none and supplies no request body to the mapper."
+    },
+    "request_body_streaming": {
+      "state": "not_implemented",
+      "reason": "No native lighttpd request-body hook or streaming transaction contract is implemented."
+    },
+    "response_headers": {
+      "state": "implemented_not_asserted",
+      "reason": "handle_response_start maps response headers into Common Runtime, but a real Phase-3 rule result has not yet been attached."
+    },
+    "response_body_buffered": {
+      "state": "not_implemented",
+      "reason": "The native module requires response_body_mode=none and supplies no response body to the mapper."
+    },
+    "response_body_streaming": {
+      "state": "not_implemented",
+      "reason": "No native lighttpd response-body hook or streaming transaction contract is implemented."
+    },
+    "phase1": {
+      "state": "implemented_not_asserted",
+      "reason": "The URI-clean hook starts the transaction and processes request headers; a fresh canonical Phase-1 result is pending."
+    },
+    "phase2": {
+      "state": "not_implemented",
+      "reason": "Request bodies are explicitly disabled in the native plugin, so a real Phase-2 body rule cannot run."
+    },
+    "phase3": {
+      "state": "implemented_not_asserted",
+      "reason": "The response-start hook invokes Common Runtime response processing with mapped headers; real Phase-3 behavioral evidence is pending."
+    },
+    "phase4": {
+      "state": "not_implemented",
+      "reason": "Response bodies are explicitly disabled in the native plugin, so a real Phase-4 body rule cannot run."
+    },
+    "late_intervention": {
+      "state": "not_implemented",
+      "reason": "The module has no response-body or post-commit intervention policy; the response-start hook is not late-intervention evidence."
+    },
+    "deny": {
+      "state": "implemented_not_asserted",
+      "reason": "A disruptive Common Runtime decision is mapped to a lighttpd error status in request and response-start hooks; canonical evidence is pending."
+    },
+    "redirect": {
+      "state": "not_implemented",
+      "reason": "The native decision mapper accepts only error statuses and normalizes redirect statuses to a denial without a Location header."
+    },
+    "drop": {
+      "state": "not_implemented",
+      "reason": "The native lighttpd decision mapper has no distinct drop action."
+    },
+    "abort_connection": {
+      "state": "not_implemented",
+      "reason": "The native lighttpd decision mapper has no connection-abort action."
+    },
+    "log_only": {
+      "state": "implemented_not_asserted",
+      "reason": "Non-disruptive rules leave the lighttpd request or response allowed; explicit canonical log-only evidence is pending."
+    },
+    "transaction_id": {
+      "state": "implemented_not_asserted",
+      "reason": "The module supplies a host request ID and Common Runtime resolves configured header or fallback transaction IDs; canonical correlation evidence is pending."
+    },
+    "event_jsonl": {
+      "state": "implemented_not_asserted",
+      "reason": "Common Runtime writes bounded metadata-only disruptive-decision JSONL from the native path; canonical event evidence is pending."
+    },
+    "config_inline_rules": {
+      "state": "implemented_not_asserted",
+      "reason": "The native plugin uses the Common Runtime config parser, which supports inline rules; canonical config evidence is pending."
+    },
+    "config_rules_file": {
+      "state": "implemented_not_asserted",
+      "reason": "The native plugin uses the Common Runtime local rules-file path; canonical positive and negative evidence is pending."
+    },
+    "config_remote_rules": {
+      "state": "implemented_not_asserted",
+      "reason": "The native plugin uses Common Runtime remote rule configuration, but the no-CRS baseline does not exercise external networking."
+    }
+  },
+  "evidence_stages": {
+    "source_contract": {
+      "status": "implemented_not_asserted",
+      "reason": "Native module, mapper, metadata, configuration, and harness sources are present; no canonical source-contract result is attached."
+    },
+    "compile": {
+      "status": "implemented_not_asserted",
+      "reason": "A native lighttpd module compile path exists; no current canonical compile result is attached."
+    },
+    "link": {
+      "status": "implemented_not_asserted",
+      "reason": "The module link path includes Common Runtime and libmodsecurity; no current canonical link result is attached."
+    },
+    "config_load": {
+      "status": "implemented_not_asserted",
+      "reason": "A real lighttpd configuration-test path exists; no current canonical result is attached."
+    },
+    "start_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "A request-free native lighttpd start path exists; no current canonical result is attached."
+    },
+    "minimal_runtime_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "A real native-module 200/403 harness exists; no current canonical minimal-runtime result is attached."
+    },
+    "no_crs_baseline": {
+      "status": "supported_not_verified",
+      "reason": "Capability-selected request and response-header cases can use the native path, but no canonical baseline result is attached."
+    },
+    "crs_smoke": {
+      "status": "supported_not_verified",
+      "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence."
+    },
+    "extended_matrix": {
+      "status": "not_implemented",
+      "reason": "Extended-matrix verification is outside this canonical no-CRS declaration."
+    }
+  }
+}

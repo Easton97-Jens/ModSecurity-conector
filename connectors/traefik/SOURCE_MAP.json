@@ -11,6 +11,10 @@
   "imported_upstream_files": [],
   "repo_owned_files": [
     {
+      "path": "connectors/traefik/capabilities.json",
+      "purpose": "canonical host-model and per-capability state declaration; runtime promotion requires separate evidence"
+    },
+    {
       "path": "connectors/traefik/metadata.c",
       "purpose": "compile-time metadata starter"
     },

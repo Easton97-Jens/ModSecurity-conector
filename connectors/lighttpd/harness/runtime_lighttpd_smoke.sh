@@ -5,6 +5,7 @@ SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 MODULE_PATH=${LIGHTTPD_CONNECTOR_MODULE:-${LIGHTTPD_MODULE_DIR:-$BUILD_ROOT/lighttpd-connector/modules}/mod_msconnector.so}
 SMOKE_PORT=${LIGHTTPD_SMOKE_PORT:-18084}
+EXPECTED_RULE_ID=${MSCONNECTOR_EXPECTED_RULE_ID:-1000001}
 
 blocked() {
     printf 'lighttpd_runtime_smoke: BLOCKED: %s\n' "$1"
@@ -79,7 +80,7 @@ grep -F '"connector":"lighttpd"' "$EVENT_PATH" >/dev/null || {
     printf 'lighttpd_runtime_smoke: FAIL event connector metadata is missing\n' >&2
     exit 1
 }
-grep -F '"rule_id":"1000001"' "$EVENT_PATH" >/dev/null || {
+grep -F "\"rule_id\":\"$EXPECTED_RULE_ID\"" "$EVENT_PATH" >/dev/null || {
     printf 'lighttpd_runtime_smoke: FAIL event rule metadata is missing\n' >&2
     exit 1
 }

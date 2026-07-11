@@ -10,6 +10,7 @@ implemented here.
 
 - https://doc.traefik.io/traefik/extend/extend-traefik/
 - https://doc.traefik.io/traefik/master/reference/install-configuration/experimental/plugins/
+- https://doc.traefik.io/traefik/v3.7/reference/routing-configuration/http/middlewares/forwardauth/
 - https://plugins.traefik.io/create
 
 The current implemented Traefik path is only the repo-owned local decision-service

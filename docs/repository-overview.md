@@ -53,11 +53,21 @@ Connector-specific examples are Apache `request_rec`, `command_rec`, APR pools a
 
 ## Short summary for humans
 
-Apache, NGINX and HAProxy have connector code and common-adoption checks in this repository. Envoy, Traefik and lighttpd are prepared as starter / structure-only / compile-only connector areas and remain `not_verified / connector-gap`. Compile, lint, contract and generated-report checks are useful evidence for their exact scope, but they are not production, CRS, full-matrix, response-body or runtime verification claims.
+All six connector areas contain real host-path implementations. Envoy, Traefik
+and lighttpd have narrow `minimal_runtime_smoke` evidence for their selected
+host models; they are no longer described as starter-only connectors. The
+canonical capability manifests are present, but the canonical No-CRS baseline
+has not been executed on this branch. Unsupported, not implemented, and not
+executed capabilities remain distinct from verified behavior.
 
 ## Short summary for AI systems
 
-Use the current repository code, CI scripts, metadata and generated reports as source of truth. Do not infer runtime guarantees from a file name, Makefile target, starter smoke, or local `result.json`. Distinguish connector metadata from per-run result JSON. If evidence is missing, use `unknown`, `partial`, `structure-only`, `compile-only`, `not_verified`, `connector-gap` or `requires runtime evidence`.
+Use the current repository code, capability manifests, CI scripts, metadata,
+and generated reports as source of truth. Do not infer runtime guarantees from
+a file name, Makefile target, legacy smoke, or local `result.json`. Distinguish
+implementation state from canonical per-run evidence. If evidence is missing,
+use the canonical `NOT EXECUTED`, `IMPLEMENTED, NOT ASSERTED`, `UNSUPPORTED`, or
+`NOT IMPLEMENTED` state that matches the manifest and result contract.
 
 ## Architecture principle
 
@@ -72,9 +82,9 @@ Use the current repository code, CI scripts, metadata and generated reports as s
 | `connectors/apache/` | Apache adapter source, docs, harness and metadata. | Common adoption; runtime claims require current evidence. |
 | `connectors/nginx/` | NGINX adapter source, docs, harness and metadata. | Common adoption; runtime claims require current evidence. |
 | `connectors/haproxy/` | HAProxy/SPOA source, docs, harness and metadata. | Common adoption; runtime claims require current evidence. |
-| `connectors/envoy/` | Envoy bridge starter. | `not_verified / connector-gap`. |
-| `connectors/traefik/` | Traefik decision-service starter. | `not_verified / connector-gap`. |
-| `connectors/lighttpd/` | lighttpd bridge/build starter. | `not_verified / connector-gap`. |
+| `connectors/envoy/` | Real HTTP `ext_authz` service path. | Targeted `minimal_runtime_smoke`; canonical No-CRS `NOT EXECUTED`. |
+| `connectors/traefik/` | Real HTTP `forwardAuth` service path. | Targeted `minimal_runtime_smoke`; canonical No-CRS `NOT EXECUTED`. |
+| `connectors/lighttpd/` | Native `mod_msconnector.so` plugin path. | Targeted `minimal_runtime_smoke`; canonical No-CRS `NOT EXECUTED`. |
 | `ci/` | Lint, contract, governance, C-standard and report scripts. | Check definitions, not runtime evidence by themselves. |
 | `docs/`, `docs/architecture/`, `docs/connectors/` | Repository, architecture and connector documentation. | Documentation; must stay synchronized with source and reports. |
 | `reports/` | Generated reports/evidence/matrices. | Trust only current status labels and evidence scope. |
@@ -237,7 +247,7 @@ Parser helpers use `1 = success` and `0 = failure`: `msconnector_parse_bool`, `m
 
 | Config / Directive | Common macro | Type | Allowed values | Default | Parser / validator | Affected connectors | Notes |
 |---|---|---|---|---|---|---|---|
-| `modsecurity` | `MSCONNECTOR_DIRECTIVE_MODSECURITY` | bool | spec: `on|off`; parser also accepts `true|false|1|0|yes|no` | `off` | `msconnector_parse_bool`, `msconnector_config_validate` | Apache/NGINX/HAProxy where adopted; Envoy/Traefik/lighttpd structure-only | Enables semantic processing only; no production claim. |
+| `modsecurity` | `MSCONNECTOR_DIRECTIVE_MODSECURITY` | bool | spec: `on|off`; parser also accepts `true|false|1|0|yes|no` | `off` | `msconnector_parse_bool`, `msconnector_config_validate` | Connector-specific mapping; consult each capability manifest | Enables semantic processing only; no production claim. |
 | `modsecurity_rules` | `MSCONNECTOR_DIRECTIVE_RULES` | string/raw | inline rules text | none | directive adapter and connector rule loading | connector-dependent | Rule text does not prove CRS/runtime execution. |
 | `modsecurity_rules_file` | `MSCONNECTOR_DIRECTIVE_RULES_FILE` | path | runtime path | none | directive adapter, path policy where used | connector-dependent | Path validity is environment-specific. |
 | `modsecurity_rules_remote` | `MSCONNECTOR_DIRECTIVE_RULES_REMOTE` | string pair | `key url` | none | config requires key and URL together | connector-dependent | Incomplete remote pair is invalid. |
@@ -275,7 +285,7 @@ The Common SDK is designed for C17. C17 is the hard required standard when the c
 | Apache | hard when APXS/APR/libmodsecurity headers exist | optional | optional | APXS/APR/libmodsecurity | missing headers may block; compile errors fail |
 | NGINX | hard when NGINX/libmodsecurity headers exist | optional | optional | NGINX source/include roots, libmodsecurity | missing roots/headers may block |
 | HAProxy | hard when HAProxy/libmodsecurity context exists | optional | optional | HAProxy/SPOE/SPOP context and common includes | missing headers may block |
-| Remaining connectors | compile/structure-level only | optional | optional | starter/common headers | not_verified / connector-gap remains |
+| Envoy, Traefik, lighttpd | C17 native/service paths | optional | optional | connector and Common headers | targeted runtime path; canonical baseline pending |
 
 ## CI, contract and governance checks
 
@@ -301,7 +311,8 @@ The Makefile is the operational index for setup, linting, Common SDK checks, con
 - General targets: setup, dependency fetch, doctor, lint and quick/codex checks.
 - Common SDK targets: helper compilation, SDK/security/memory/flow contracts, adapter contracts and directive parity.
 - Apache, NGINX and HAProxy targets: common adoption, C-standard wiring and C17/C23/future-C checks, plus smoke/test wrappers.
-- Remaining connector targets: Envoy, Traefik and lighttpd starter/adoption/C-standard checks. These remain `not_verified / connector-gap`.
+- Envoy, Traefik, and lighttpd targets: separate build, config-load,
+  request-free start, targeted runtime, capability, and evidence checks.
 - Framework/test-framework targets: matrix, verified report, MRTS and smoke/test workflows. These may block if `modules/ModSecurity-test-Framework` or runtime components are missing.
 - Report/generator targets: generate or check reports and matrices. They do not automatically imply verified runtime behavior.
 
@@ -567,7 +578,9 @@ C17 is required when compiler and required headers are present. C23 and future-C
 Use connector-specific adoption/C-standard targets and the shared contract targets. Compile and contract checks do not create production, CRS, full-matrix or runtime claims.
 
 ### Runtime evidence status
-Trust current metadata and generated reports. Envoy, Traefik and lighttpd remain `not_verified / connector-gap` until real runtime evidence exists.
+Trust current capability manifests and canonical results. The targeted host
+paths have `minimal_runtime_smoke` evidence; broader capabilities remain
+unverified until a current canonical result asserts them.
 
 ### Implemented
 Connector files, metadata, docs, harness stubs or source files listed below exist in the repository.
@@ -647,7 +660,7 @@ C17 is required when compiler and required headers are present. C23 and future-C
 Use connector-specific adoption/C-standard targets and the shared contract targets. Compile and contract checks do not create production, CRS, full-matrix or runtime claims.
 
 ### Runtime evidence status
-Trust current metadata and generated reports. Envoy, Traefik and lighttpd remain `not_verified / connector-gap` until real runtime evidence exists.
+Trust current capability manifests and canonical results. The targeted host paths have `minimal_runtime_smoke` evidence; broader capabilities remain unverified until a current canonical result asserts them.
 
 ### Implemented
 Connector files, metadata, docs, harness stubs or source files listed below exist in the repository.
@@ -720,7 +733,7 @@ C17 is required when compiler and required headers are present. C23 and future-C
 Use connector-specific adoption/C-standard targets and the shared contract targets. Compile and contract checks do not create production, CRS, full-matrix or runtime claims.
 
 ### Runtime evidence status
-Trust current metadata and generated reports. Envoy, Traefik and lighttpd remain `not_verified / connector-gap` until real runtime evidence exists.
+Trust current capability manifests and canonical results. The targeted host paths have `minimal_runtime_smoke` evidence; broader capabilities remain unverified until a current canonical result asserts them.
 
 ### Implemented
 Connector files, metadata, docs, harness stubs or source files listed below exist in the repository.
@@ -785,7 +798,7 @@ SPOE/SPOP, frame parsing, runtime loop, socket handling, HAProxy cfg snippets, p
 The Envoy connector keeps host/server API integration in `connectors/envoy/` and uses Common SDK contracts where implemented.
 
 ### Current status
-not_verified / connector-gap; starter / structure-only / compile-only; no production, CRS, full-matrix or RESPONSE_BODY claim.
+minimal_runtime_smoke / connector-gap; targeted real-host runtime path; canonical No-CRS not executed; no production, CRS, full-matrix or RESPONSE_BODY claim.
 
 ### Common-SDK adoption
 The connector may use `msconnector_config`, directive vocabulary, mapper contracts, request/response models, decision/status/event helpers and common source linking. Adoption checks are static, contract or compile evidence, not automatic runtime evidence.
@@ -812,7 +825,7 @@ C17 is required when compiler and required headers are present. C23 and future-C
 Use connector-specific adoption/C-standard targets and the shared contract targets. Compile and contract checks do not create production, CRS, full-matrix or runtime claims.
 
 ### Runtime evidence status
-Trust current metadata and generated reports. Envoy, Traefik and lighttpd remain `not_verified / connector-gap` until real runtime evidence exists.
+Trust current capability manifests and canonical results. The targeted host paths have `minimal_runtime_smoke` evidence; broader capabilities remain unverified until a current canonical result asserts them.
 
 ### Implemented
 Connector files, metadata, docs, harness stubs or source files listed below exist in the repository.
@@ -826,28 +839,28 @@ Envoy filter/runtime API, native Envoy SDK ownership and deployed proxy integrat
 ### Important connector files
 | File | Purpose | Common relation | Connector-specific? | Status |
 |---|---|---|---|---|
-| `connectors/envoy/Makefile` | Implements or builds `Makefile` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/envoy/ORIGIN.md` | Documents or implements `ORIGIN` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/README.de.md` | Documents or implements `README.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/SOURCE_MAP.json` | Documents or implements `SOURCE MAP` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/TODO.md` | Documents or implements `TODO` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/build/build_metadata.sh` | Implements or builds `build metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/architecture.md` | Documents or implements `architecture` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/build.md` | Documents or implements `build` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/coverage-decision-matrix.de.md` | Documents or implements `coverage decision matrix.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/coverage-decision-matrix.md` | Documents or implements `coverage decision matrix` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/public-sources.md` | Documents or implements `public sources` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/validation.md` | Documents or implements `validation` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/harness/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/envoy/harness/run_envoy_smoke.sh` | Implements or builds `run envoy smoke` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/envoy/metadata.c` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/metadata.h` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/src/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_bridge.c` | Implements or builds `envoy bridge` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_bridge.h` | Implements or builds `envoy bridge` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_bridge_main.c` | Implements or builds `envoy bridge main` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_modsecurity_mapper.h` | Implements or builds `envoy modsecurity mapper` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
+| `connectors/envoy/Makefile` | Implements or builds `Makefile` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/ORIGIN.md` | Documents or implements `ORIGIN` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/README.de.md` | Documents or implements `README.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/SOURCE_MAP.json` | Documents or implements `SOURCE MAP` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/TODO.md` | Documents or implements `TODO` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/build/build_metadata.sh` | Implements or builds `build metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/architecture.md` | Documents or implements `architecture` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/build.md` | Documents or implements `build` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/coverage-decision-matrix.de.md` | Documents or implements `coverage decision matrix.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/coverage-decision-matrix.md` | Documents or implements `coverage decision matrix` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/public-sources.md` | Documents or implements `public sources` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/docs/validation.md` | Documents or implements `validation` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/harness/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/harness/run_envoy_smoke.sh` | Implements or builds `run envoy smoke` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/metadata.c` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/metadata.h` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/src/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/src/envoy_bridge.c` | Implements or builds `envoy bridge` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/src/envoy_bridge.h` | Implements or builds `envoy bridge` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/src/envoy_bridge_main.c` | Implements or builds `envoy bridge main` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/envoy/src/envoy_modsecurity_mapper.h` | Implements or builds `envoy modsecurity mapper` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
 
 ## Traefik Connector
 
@@ -855,7 +868,7 @@ Envoy filter/runtime API, native Envoy SDK ownership and deployed proxy integrat
 The Traefik connector keeps host/server API integration in `connectors/traefik/` and uses Common SDK contracts where implemented.
 
 ### Current status
-not_verified / connector-gap; starter / structure-only / compile-only; no production, CRS, full-matrix or RESPONSE_BODY claim.
+minimal_runtime_smoke / connector-gap; targeted real-host runtime path; canonical No-CRS not executed; no production, CRS, full-matrix or RESPONSE_BODY claim.
 
 ### Common-SDK adoption
 The connector may use `msconnector_config`, directive vocabulary, mapper contracts, request/response models, decision/status/event helpers and common source linking. Adoption checks are static, contract or compile evidence, not automatic runtime evidence.
@@ -882,7 +895,7 @@ C17 is required when compiler and required headers are present. C23 and future-C
 Use connector-specific adoption/C-standard targets and the shared contract targets. Compile and contract checks do not create production, CRS, full-matrix or runtime claims.
 
 ### Runtime evidence status
-Trust current metadata and generated reports. Envoy, Traefik and lighttpd remain `not_verified / connector-gap` until real runtime evidence exists.
+Trust current capability manifests and canonical results. The targeted host paths have `minimal_runtime_smoke` evidence; broader capabilities remain unverified until a current canonical result asserts them.
 
 ### Implemented
 Connector files, metadata, docs, harness stubs or source files listed below exist in the repository.
@@ -896,29 +909,29 @@ Traefik middleware/proxy/runtime API and real traffic path integration remain co
 ### Important connector files
 | File | Purpose | Common relation | Connector-specific? | Status |
 |---|---|---|---|---|
-| `connectors/traefik/Makefile` | Implements or builds `Makefile` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/traefik/ORIGIN.md` | Documents or implements `ORIGIN` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/README.de.md` | Documents or implements `README.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/SOURCE_MAP.json` | Documents or implements `SOURCE MAP` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/TODO.md` | Documents or implements `TODO` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/build/build-starter.sh` | Implements or builds `build starter` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/architecture.md` | Documents or implements `architecture` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/build.md` | Documents or implements `build` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/coverage-decision-matrix.de.md` | Documents or implements `coverage decision matrix.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/coverage-decision-matrix.md` | Documents or implements `coverage decision matrix` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/public-sources.md` | Documents or implements `public sources` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/validation.md` | Documents or implements `validation` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/harness/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/traefik/harness/run_traefik_smoke.sh` | Implements or builds `run traefik smoke` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/traefik/metadata.c` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/metadata.h` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/src/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_build_starter.c` | Implements or builds `traefik build starter` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_decision_service.c` | Implements or builds `traefik decision service` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_decision_service.h` | Implements or builds `traefik decision service` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_decision_service_main.c` | Implements or builds `traefik decision service main` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_modsecurity_mapper.h` | Implements or builds `traefik modsecurity mapper` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
+| `connectors/traefik/Makefile` | Implements or builds `Makefile` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/ORIGIN.md` | Documents or implements `ORIGIN` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/README.de.md` | Documents or implements `README.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/SOURCE_MAP.json` | Documents or implements `SOURCE MAP` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/TODO.md` | Documents or implements `TODO` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/build/build-starter.sh` | Implements or builds `build starter` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/architecture.md` | Documents or implements `architecture` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/build.md` | Documents or implements `build` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/coverage-decision-matrix.de.md` | Documents or implements `coverage decision matrix.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/coverage-decision-matrix.md` | Documents or implements `coverage decision matrix` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/public-sources.md` | Documents or implements `public sources` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/docs/validation.md` | Documents or implements `validation` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/harness/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/harness/run_traefik_smoke.sh` | Implements or builds `run traefik smoke` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/metadata.c` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/metadata.h` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/traefik_build_starter.c` | Implements or builds `traefik build starter` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/traefik_decision_service.c` | Implements or builds `traefik decision service` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/traefik_decision_service.h` | Implements or builds `traefik decision service` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/traefik_decision_service_main.c` | Implements or builds `traefik decision service main` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
+| `connectors/traefik/src/traefik_modsecurity_mapper.h` | Implements or builds `traefik modsecurity mapper` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / connector-gap |
 
 ## lighttpd Connector
 
@@ -926,7 +939,7 @@ Traefik middleware/proxy/runtime API and real traffic path integration remain co
 The lighttpd connector keeps host/server API integration in `connectors/lighttpd/` and uses Common SDK contracts where implemented.
 
 ### Current status
-not_verified / connector-gap; starter / structure-only / compile-only; no production, CRS, full-matrix or RESPONSE_BODY claim.
+minimal_runtime_smoke / partial_runtime_path; targeted real-host runtime path; canonical No-CRS not executed; no production, CRS, full-matrix or RESPONSE_BODY claim.
 
 ### Common-SDK adoption
 The connector may use `msconnector_config`, directive vocabulary, mapper contracts, request/response models, decision/status/event helpers and common source linking. Adoption checks are static, contract or compile evidence, not automatic runtime evidence.
@@ -953,7 +966,7 @@ C17 is required when compiler and required headers are present. C23 and future-C
 Use connector-specific adoption/C-standard targets and the shared contract targets. Compile and contract checks do not create production, CRS, full-matrix or runtime claims.
 
 ### Runtime evidence status
-Trust current metadata and generated reports. Envoy, Traefik and lighttpd remain `not_verified / connector-gap` until real runtime evidence exists.
+Trust current capability manifests and canonical results. The targeted host paths have `minimal_runtime_smoke` evidence; broader capabilities remain unverified until a current canonical result asserts them.
 
 ### Implemented
 Connector files, metadata, docs, harness stubs or source files listed below exist in the repository.
@@ -967,30 +980,30 @@ lighttpd plugin/proxy/runtime API and FastCGI/SCGI/native module integration rem
 ### Important connector files
 | File | Purpose | Common relation | Connector-specific? | Status |
 |---|---|---|---|---|
-| `connectors/lighttpd/Makefile` | Implements or builds `Makefile` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/lighttpd/ORIGIN.md` | Documents or implements `ORIGIN` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/README.de.md` | Documents or implements `README.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/SOURCE_MAP.json` | Documents or implements `SOURCE MAP` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/TODO.md` | Documents or implements `TODO` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/build/bridge_starter.sh` | Implements or builds `bridge starter` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/build/build_starter.sh` | Implements or builds `build starter` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/architecture.md` | Documents or implements `architecture` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/build.md` | Documents or implements `build` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/coverage-decision-matrix.de.md` | Documents or implements `coverage decision matrix.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/coverage-decision-matrix.md` | Documents or implements `coverage decision matrix` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/public-sources.md` | Documents or implements `public sources` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/validation.md` | Documents or implements `validation` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/harness/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/lighttpd/harness/run_lighttpd_smoke.sh` | Implements or builds `run lighttpd smoke` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/lighttpd/metadata.c` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/metadata.h` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/src/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_bridge.c` | Implements or builds `lighttpd bridge` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_bridge.h` | Implements or builds `lighttpd bridge` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_bridge_main.c` | Implements or builds `lighttpd bridge main` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_build_starter.c` | Implements or builds `lighttpd build starter` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_modsecurity_mapper.h` | Implements or builds `lighttpd modsecurity mapper` in the connector area | uses common contracts where included; host API remains connector-specific | yes | not_verified / connector-gap |
+| `connectors/lighttpd/Makefile` | Implements or builds `Makefile` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/ORIGIN.md` | Documents or implements `ORIGIN` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/README.de.md` | Documents or implements `README.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/SOURCE_MAP.json` | Documents or implements `SOURCE MAP` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/TODO.md` | Documents or implements `TODO` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/build/bridge_starter.sh` | Implements or builds `bridge starter` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/build/build_starter.sh` | Implements or builds `build starter` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/architecture.md` | Documents or implements `architecture` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/build.md` | Documents or implements `build` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/coverage-decision-matrix.de.md` | Documents or implements `coverage decision matrix.de` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/coverage-decision-matrix.md` | Documents or implements `coverage decision matrix` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/public-sources.md` | Documents or implements `public sources` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/docs/validation.md` | Documents or implements `validation` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/harness/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/harness/run_lighttpd_smoke.sh` | Implements or builds `run lighttpd smoke` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/metadata.c` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/metadata.h` | Implements or builds `metadata` in the connector area | uses common contracts where included; host API remains connector-specific | metadata/docs | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/README.md` | Documents or implements `README` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/lighttpd_bridge.c` | Implements or builds `lighttpd bridge` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/lighttpd_bridge.h` | Implements or builds `lighttpd bridge` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/lighttpd_bridge_main.c` | Implements or builds `lighttpd bridge main` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/lighttpd_build_starter.c` | Implements or builds `lighttpd build starter` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / partial_runtime_path |
+| `connectors/lighttpd/src/lighttpd_modsecurity_mapper.h` | Implements or builds `lighttpd modsecurity mapper` in the connector area | uses common contracts where included; host API remains connector-specific | yes | minimal_runtime_smoke / partial_runtime_path |
 
 ## Connector status matrix
 
@@ -999,9 +1012,9 @@ lighttpd plugin/proxy/runtime API and FastCGI/SCGI/native module integration rem
 | Apache | connector source present | present | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
 | NGINX | connector source present | present | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
 | HAProxy | SPOA/starter plus mapper/binding source present | present/partial | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
-| Envoy | starter/structure-only/compile-only | prepared | missing | no production, CRS, full-matrix or RESPONSE_BODY claim |
-| Traefik | starter/structure-only/compile-only | prepared | missing; per-run result only if run | no production, CRS, full-matrix or RESPONSE_BODY claim |
-| lighttpd | starter/structure-only/compile-only | prepared | missing | no production, CRS, full-matrix or RESPONSE_BODY claim |
+| Envoy | HTTP `ext_authz` service | adopted | targeted request-header 200/403 path; canonical No-CRS `NOT EXECUTED` | upstream response phases are `UNSUPPORTED`; no broader claim |
+| Traefik | HTTP `forwardAuth` service | adopted | targeted request-header 200/403 path; canonical No-CRS `NOT EXECUTED` | native request body `NOT IMPLEMENTED`; upstream response `UNSUPPORTED` |
+| lighttpd | native plugin | adopted | targeted Phase-1 200/403 path; canonical No-CRS `NOT EXECUTED` | bodies `NOT IMPLEMENTED`; Phase 3 `IMPLEMENTED, NOT ASSERTED` |
 
 ## Test framework relation
 
@@ -1009,19 +1022,33 @@ The reusable test framework is expected under `modules/ModSecurity-test-Framewor
 
 ## Runtime evidence and verification policy
 
-Connector metadata fields such as `runtime_status`, `verification_status`, `not_verified` and `connector-gap` describe repository-level connector state. Per-run `result.json` fields such as `status: PASS/BLOCKED/FAIL`, `runtime_verified: true/false` and `runtime_status: verified/blocked/...` describe only that run. A starter smoke may pass for a local run, but it does not automatically change connector metadata from `not_verified / connector-gap`.
+Connector metadata describes repository-level connector state. A canonical
+`result.json` describes only one run and must match the connector commit,
+framework commit, capability manifest, and evidence layout. Legacy starter,
+self-test, sidecar, CRS, and targeted-smoke results are not imported into a
+canonical No-CRS result.
 
 ## Implemented work
 
-Implemented repository facts include the Common SDK, Common config/directive/parser model, request/response mapper contracts, common guard/flow helpers, Apache/NGINX/HAProxy common-adoption structures, Envoy/Traefik/lighttpd starter preparation, C17/C23/future-C check wiring, CI/governance scripts and documentation/report areas. Treat each as static, compile or governance evidence unless current runtime evidence proves more.
+Implemented repository facts include the Common SDK, connector-specific host
+adapters for all six connectors, canonical capability manifests, separated
+evidence stages, C17/C23/future-C check wiring, CI/governance scripts, and
+documentation/report areas. Treat implementation as `IMPLEMENTED, NOT
+ASSERTED` until current canonical evidence proves the behavior.
 
 ## Missing/future work
 
-Missing or future work includes real runtime evidence for Envoy, Traefik and lighttpd; CRS matrix evidence; RESPONSE_BODY runtime evidence; full-matrix verification; production hardening; signed/HMAC event chains if desired; append-only evidence storage if desired; and additional runtime harnesses.
+Missing or future work includes executing the canonical No-CRS baseline,
+closing connector-specific capability gaps, any later CRS or extended-matrix
+work, production hardening, and only those response-phase features supported by
+each selected host model.
 
 ## Known limitations
 
-Known limitations are connector-specific host APIs, environment-dependent headers/toolchains, framework/submodule blockers, starter-only connectors, partial/unknown runtime coverage and documentation that must stay synchronized with metadata and reports.
+Known limitations are connector-specific host APIs, environment-dependent
+headers/toolchains, framework/submodule blockers, partial runtime coverage, and
+documentation that must stay synchronized with capability manifests and
+canonical results.
 
 ## Intentionally connector-specific
 
@@ -1035,12 +1062,13 @@ purpose: Shared Common SDK layer for ModSecurity connectors
 common_sdk: true
 production_ready: false
 runtime_verified_all_connectors: false
+canonical_no_crs_executed: false
 apache_common_adopted: true
 nginx_common_adopted: true
 haproxy_common_adopted: true
-envoy_status: not_verified / connector-gap
-traefik_status: not_verified / connector-gap
-lighttpd_status: not_verified / connector-gap
+envoy_status: minimal_runtime_smoke / connector-gap
+traefik_status: minimal_runtime_smoke / connector-gap
+lighttpd_status: minimal_runtime_smoke / partial_runtime_path
 c_standard_required: C17
 c_standard_optional:
   - C23
@@ -1056,7 +1084,13 @@ forbidden_claims:
 
 ## Allowed and forbidden claims
 
-Allowed claims include connector-neutral Common SDK semantics, C17 required checks when the environment exists, optional C23/future-C checks, compile-only/static/governance evidence, starter/structure-only status and per-run evidence scoped to that run. Without current explicit evidence, do not claim: production-ready, runtime secure, security verified, CRS verified, full matrix verified, response body verified, runtime verified, production hardened, tamper-proof or cryptographic integrity.
+Allowed claims include connector-neutral Common SDK semantics, C17 required
+checks when the environment exists, optional C23/future-C checks, capability
+states sourced from `connectors/<name>/capabilities.json`, and per-run evidence
+scoped to that run. Without current explicit evidence, do not claim:
+production-ready, runtime secure, security verified, CRS verified, full matrix
+verified, response body verified across all connectors, production hardened,
+tamper-proof, or cryptographic integrity.
 
 ## Glossary
 

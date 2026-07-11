@@ -8,6 +8,7 @@ BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecuri
 SERVICE_BIN=${SERVICE_BIN:-$BUILD_ROOT/envoy-connector/msconnector_envoy_ext_authz}
 CONFIG_FILE=${CONFIG_FILE:-$CONNECTOR_DIR/config/envoy-ext-authz.conf}
 RULES_FILE=${RULES_FILE:-$REPO_ROOT/common/rules/modsecurity_targeted_smoke.conf}
+EXPECTED_RULE_ID=${MSCONNECTOR_EXPECTED_RULE_ID:-1000001}
 RUNTIME_ROOT=${RUNTIME_ROOT:-$BUILD_ROOT/envoy-connector/runtime-smoke}
 EVENT_LOG_PATH=${EVENT_LOG_PATH:-$RUNTIME_ROOT/events.jsonl}
 PYTHON_BIN=${PYTHON:-python3}
@@ -160,7 +161,7 @@ if [ ! -s "$EVENT_LOG_PATH" ]; then
     echo "envoy_runtime_smoke: FAIL - metadata event log was not produced: $EVENT_LOG_PATH" >&2
     exit 1
 fi
-if ! grep -q '"rule_id":"1000001"' "$EVENT_LOG_PATH" ||
+if ! grep -q "\"rule_id\":\"$EXPECTED_RULE_ID\"" "$EVENT_LOG_PATH" ||
     ! grep -q '"transaction_id":"envoy-block-1"' "$EVENT_LOG_PATH"; then
     echo "envoy_runtime_smoke: FAIL - event log lacks rule/transaction evidence" >&2
     exit 1
@@ -179,7 +180,7 @@ done
     printf 'integration_mode=ext_authz\n'
     printf 'allowed_request_status=%s\n' "$allowed_status"
     printf 'blocked_request_status=%s\n' "$blocked_status"
-    printf 'rule_id=1000001\n'
+    printf 'rule_id=%s\n' "$EXPECTED_RULE_ID"
     printf 'event_log=%s\n' "$EVENT_LOG_PATH"
     printf 'envoy_config=%s\n' "$ENVOY_CONFIG"
     printf 'response_body_verified=false\n'

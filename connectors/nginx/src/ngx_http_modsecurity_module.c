@@ -59,7 +59,7 @@ static char *ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, v
  * https://github.com/openresty/lua-nginx-module/blob/master/src/ngx_http_lua_pcrefix.c
  */
 
-#if !(NGX_PCRE2)
+#if (NGX_PCRE) && !(NGX_PCRE2)
 static void *(*old_pcre_malloc)(size_t);
 static void (*old_pcre_free)(void *ptr);
 static ngx_pool_t *ngx_http_modsec_pcre_pool = NULL;

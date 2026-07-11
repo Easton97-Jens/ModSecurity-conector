@@ -35,6 +35,7 @@ SMOKE_CASES="${SMOKE_CASES:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
+MSCONNECTOR_SMOKE_STAGE="${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}"
 STATUS_FILE="$LOG_DIR/status.txt"
 IFMODULE_END="</IfModule>"
 CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-}"
@@ -523,8 +524,20 @@ start_server() {
             fail "Apache configtest failed; see $LOG_DIR/configtest.log"
         fi
 
+        if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
+            return 0
+        fi
+
         "$APACHE_HTTPD_BIN" -X -f "$CONFIG_FILE" > "$LOG_DIR/httpd.log" 2>&1 &
         HTTPD_PID=$!
+
+        if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
+            sleep 1
+            if kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
+                return 0
+            fi
+            fail "Apache exited during request-free start smoke; see $LOG_DIR/httpd.log"
+        fi
 
         ready=0
         i=0
@@ -646,6 +659,7 @@ echo "apache_smoke: APACHE_MODULE=$APACHE_MODULE"
 echo "apache_smoke: TEST_CASE=$TEST_CASE"
 echo "apache_smoke: CASE_SCOPE=$CASE_SCOPE"
 echo "apache_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+echo "apache_smoke: MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE"
 if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
     echo "apache_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
 fi
@@ -675,12 +689,23 @@ rm -f "$LOG_DIR/audit/"*
 
 APACHE_HTTPD_BIN=$(find_apache)
 APXS_BIN=$(find_apxs)
-CURL_BIN=$(find_curl)
+case "$MSCONNECTOR_SMOKE_STAGE" in
+    config_load|start_smoke|minimal_runtime_smoke) ;;
+    *) fail "unsupported MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE" ;;
+esac
+
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+    CURL_BIN=$(find_curl)
+else
+    CURL_BIN=
+fi
 
 [ -n "$APACHE_HTTPD_BIN" ] || blocked "missing Apache httpd executable; set APACHE_HTTPD=/path/to/apache2-or-httpd"
 [ -x "$APACHE_HTTPD_BIN" ] || blocked "Apache executable is not executable: $APACHE_HTTPD_BIN"
-[ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
-[ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+    [ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
+    [ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+fi
 [ -f "$APACHE_MODULE" ] || blocked "missing Apache connector module: $APACHE_MODULE"
 
 if [ ! -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ]; then
@@ -744,6 +769,15 @@ export LD_LIBRARY_PATH
 
 trap cleanup EXIT INT TERM
 start_server
+
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
+    echo "apache_smoke: pass config_load (no process started, no request sent)"
+    exit 0
+fi
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
+    echo "apache_smoke: pass start_smoke (request-free host liveness verified)"
+    exit 0
+fi
 
 set +e
 http_status=$(send_case_request)

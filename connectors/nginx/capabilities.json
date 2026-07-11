@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "connector": "nginx",
+  "host_name": "nginx",
+  "integration_mode": "native-nginx-http-module",
+  "metadata_source": "connectors/nginx/metadata.c",
+  "source_contract": [
+    "connectors/nginx/metadata.c",
+    "connectors/nginx/src/ngx_http_modsecurity_access.c",
+    "connectors/nginx/src/ngx_http_modsecurity_header_filter.c",
+    "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+    "connectors/nginx/src/ngx_http_modsecurity_module.c",
+    "connectors/nginx/harness/run_nginx_smoke.sh"
+  ],
+  "host_model_constraints": [
+    "NGINX request and response body filters feed bounded body data into a completed ModSecurity phase; they do not provide streaming phase semantics.",
+    "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
+    "A Phase-4 decision can be observed after NGINX has sent response headers and is then governed by the late-intervention policy."
+  ],
+  "capabilities": {
+    "connection_metadata": {
+      "state": "implemented_not_asserted",
+      "reason": "The native request path maps NGINX connection endpoints into the ModSecurity transaction; canonical evidence is pending."
+    },
+    "request_headers": {
+      "state": "implemented_not_asserted",
+      "reason": "The access handler maps NGINX request headers and invokes request-header processing; canonical evidence is pending."
+    },
+    "request_body_buffered": {
+      "state": "implemented_not_asserted",
+      "reason": "The request-body callback appends buffered NGINX body buffers and completes Phase 2; canonical body evidence is pending."
+    },
+    "request_body_streaming": {
+      "state": "not_implemented",
+      "reason": "Body buffers are accumulated for a completed request-body phase rather than exposed as streaming ModSecurity phase execution."
+    },
+    "response_headers": {
+      "state": "implemented_not_asserted",
+      "reason": "The NGINX header filter invokes response-header processing; canonical Phase-3 evidence is pending."
+    },
+    "response_body_buffered": {
+      "state": "implemented_not_asserted",
+      "reason": "The bounded body filter invokes response-body processing and applies the configured Phase-4 policy; canonical evidence is pending."
+    },
+    "response_body_streaming": {
+      "state": "not_implemented",
+      "reason": "Response chains are inspected through bounded buffering and do not expose streaming Phase-4 semantics."
+    },
+    "phase1": {
+      "state": "implemented_not_asserted",
+      "reason": "The access handler processes URI and request headers before upstream handling; canonical Phase-1 evidence is pending."
+    },
+    "phase2": {
+      "state": "implemented_not_asserted",
+      "reason": "The request-body callback completes ModSecurity request-body processing; canonical Phase-2 evidence is pending."
+    },
+    "phase3": {
+      "state": "implemented_not_asserted",
+      "reason": "The response header filter invokes ModSecurity Phase 3; canonical behavioral evidence is pending."
+    },
+    "phase4": {
+      "state": "implemented_not_asserted",
+      "reason": "The response body filter invokes bounded ModSecurity Phase 4; canonical behavioral evidence is pending."
+    },
+    "late_intervention": {
+      "state": "implemented_not_asserted",
+      "reason": "The body filter distinguishes pre-header denial from post-header log-only or connection-abort policy outcomes; canonical evidence is pending."
+    },
+    "deny": {
+      "state": "implemented_not_asserted",
+      "reason": "Disruptive statuses are returned from access and filter phases; canonical deny evidence is pending."
+    },
+    "redirect": {
+      "state": "implemented_not_asserted",
+      "reason": "The intervention mapper creates an NGINX Location header and returns redirect status before headers are sent; canonical evidence is pending."
+    },
+    "drop": {
+      "state": "not_implemented",
+      "reason": "The NGINX intervention mapper does not preserve a distinct ModSecurity drop action."
+    },
+    "abort_connection": {
+      "state": "implemented_not_asserted",
+      "reason": "The strict Phase-4 branch has an explicit connection-abort outcome after headers are sent; transport evidence is pending."
+    },
+    "log_only": {
+      "state": "implemented_not_asserted",
+      "reason": "Non-disruptive rules pass and late Phase-4 policy records log-only outcomes; canonical evidence is pending."
+    },
+    "transaction_id": {
+      "state": "implemented_not_asserted",
+      "reason": "NGINX complex-value transaction IDs are used when creating transactions; canonical event correlation evidence is pending."
+    },
+    "event_jsonl": {
+      "state": "implemented_not_asserted",
+      "reason": "The Phase-4 filter serializes bounded common JSONL events, but request-phase canonical event coverage is not yet asserted."
+    },
+    "config_inline_rules": {
+      "state": "implemented_not_asserted",
+      "reason": "The modsecurity_rules directive loads inline rules through libmodsecurity; canonical config evidence is pending."
+    },
+    "config_rules_file": {
+      "state": "implemented_not_asserted",
+      "reason": "The modsecurity_rules_file directive loads local rules files; canonical positive and negative evidence is pending."
+    },
+    "config_remote_rules": {
+      "state": "implemented_not_asserted",
+      "reason": "The modsecurity_rules_remote directive is wired to libmodsecurity; the no-CRS baseline does not exercise external networking."
+    }
+  },
+  "evidence_stages": {
+    "source_contract": {
+      "status": "implemented_not_asserted",
+      "reason": "Native source, metadata, filter wiring, and harness wiring are present; no canonical source-contract result is attached."
+    },
+    "compile": {
+      "status": "implemented_not_asserted",
+      "reason": "A source-built NGINX module path exists; no current canonical compile result is attached."
+    },
+    "link": {
+      "status": "implemented_not_asserted",
+      "reason": "The build path links NGINX with the module, libmodsecurity, and common sources; no canonical link result is attached."
+    },
+    "config_load": {
+      "status": "implemented_not_asserted",
+      "reason": "The harness has a real nginx -t path; no current canonical result is attached."
+    },
+    "start_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "The harness can start NGINX without a request; no current canonical result is attached."
+    },
+    "minimal_runtime_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "A real-host request harness exists; no current canonical minimal-runtime result is attached."
+    },
+    "no_crs_baseline": {
+      "status": "supported_not_verified",
+      "reason": "The native host path can consume the shared no-CRS rules and cases, but no canonical baseline result is attached."
+    },
+    "crs_smoke": {
+      "status": "supported_not_verified",
+      "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence."
+    },
+    "extended_matrix": {
+      "status": "not_implemented",
+      "reason": "Extended-matrix verification is outside this canonical no-CRS declaration."
+    }
+  }
+}

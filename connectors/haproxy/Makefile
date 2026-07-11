@@ -91,25 +91,25 @@ $(SPOA_RUNTIME_BIN): FORCE src/haproxy_spop_diagnostic_runtime.c src/haproxy_mod
 	mkdir -p "$(HAPROXY_SPOA_RUNTIME_DIR)"; \
 	. "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"; \
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I"$$MODSECURITY_INCLUDE_DIR" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding.c -o "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_modsecurity_binding.o" || { \
-		echo "BLOCKED: HAProxy ModSecurity binding source did not compile for diagnostic SPOP runtime" >&2; \
-		exit 77; \
+		echo "FAIL: HAProxy ModSecurity binding source did not compile for diagnostic SPOP runtime" >&2; \
+		exit 1; \
 	}; \
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I"$$MODSECURITY_INCLUDE_DIR" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_spop_diagnostic_runtime.c -o "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_spop_diagnostic_runtime.o" || { \
-		echo "BLOCKED: HAProxy ModSecurity SPOA runtime source did not compile" >&2; \
-		exit 77; \
+		echo "FAIL: HAProxy ModSecurity SPOA runtime source did not compile" >&2; \
+		exit 1; \
 	}; \
 	common_objects=""; \
 	for src in src/haproxy_modsecurity_mapper.c $(COMMON_SDK_SRCS); do \
 		obj="$(HAPROXY_SPOA_RUNTIME_DIR)/$$(printf '%s' "$$src" | tr '/.' '__').o"; \
 		$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) -Isrc -c "$$src" -o "$$obj" || { \
-			echo "BLOCKED: HAProxy Common SDK source did not compile: $$src" >&2; \
-			exit 77; \
+			echo "FAIL: HAProxy Common SDK source did not compile: $$src" >&2; \
+			exit 1; \
 		}; \
 		common_objects="$$common_objects $$obj"; \
 	done; \
 	$(CXX) $(LDFLAGS) "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_spop_diagnostic_runtime.o" "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_modsecurity_binding.o" $$common_objects -L"$$MODSECURITY_LIB_DIR" -Wl,-rpath,"$$MODSECURITY_LIB_DIR" -lmodsecurity $(LDLIBS) -o "$@" || { \
-		echo "BLOCKED: HAProxy ModSecurity SPOA runtime did not link with libmodsecurity" >&2; \
-		exit 77; \
+		echo "FAIL: HAProxy ModSecurity SPOA runtime did not link with libmodsecurity" >&2; \
+		exit 1; \
 	}
 
 $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_modsecurity_binding.h src/haproxy_modsecurity_mapper.c src/haproxy_modsecurity_mapper.h src/haproxy_modsecurity_binding_self_test.c $(COMMON_SDK_SRCS)
@@ -175,29 +175,29 @@ $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_
 		'    return fn_msc_init == 0 || fn_msc_cleanup == 0 || fn_msc_set_connector_info == 0 || fn_msc_create_rules_set == 0 || fn_msc_rules_add == 0 || fn_msc_rules_add_file == 0 || fn_msc_rules_error_cleanup == 0 || fn_msc_rules_cleanup == 0 || fn_msc_new_transaction == 0 || fn_msc_new_transaction_with_id == 0 || fn_msc_process_connection == 0 || fn_msc_process_uri == 0 || fn_msc_add_request_header == 0 || fn_msc_process_request_headers == 0 || fn_msc_append_request_body == 0 || fn_msc_process_request_body == 0 || fn_msc_add_response_header == 0 || fn_msc_process_response_headers == 0 || fn_msc_append_response_body == 0 || fn_msc_process_response_body == 0 || fn_msc_intervention == 0 || fn_msc_intervention_cleanup == 0 || fn_msc_process_logging == 0 || fn_msc_transaction_cleanup == 0 || fn_msc_get_rules_messages_rule_ids == 0;' \
 		'}' > "$$probe"; \
 	$(CC) $(CPPFLAGS) -I"$$include_dir" -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -c "$$probe" -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_api.o" || { \
-		echo "BLOCKED: local libmodsecurity C API signatures do not match binding requirements" >&2; \
-		exit 77; \
+		echo "FAIL: local libmodsecurity C API signatures do not match binding requirements" >&2; \
+		exit 1; \
 	}; \
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I"$$include_dir" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding.c -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding.o" || { \
-		echo "BLOCKED: HAProxy ModSecurity binding source did not compile" >&2; \
-		exit 77; \
+		echo "FAIL: HAProxy ModSecurity binding source did not compile" >&2; \
+		exit 1; \
 	}; \
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I"$$include_dir" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding_self_test.c -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding_self_test.o" || { \
-		echo "BLOCKED: HAProxy ModSecurity binding self-test source did not compile" >&2; \
-		exit 77; \
+		echo "FAIL: HAProxy ModSecurity binding self-test source did not compile" >&2; \
+		exit 1; \
 	}; \
 	common_objects=""; \
 	for src in src/haproxy_modsecurity_mapper.c $(COMMON_SDK_SRCS); do \
 		obj="$(HAPROXY_MODSECURITY_BINDING_DIR)/$$(printf '%s' "$$src" | tr '/.' '__').o"; \
 		$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) -Isrc -c "$$src" -o "$$obj" || { \
-			echo "BLOCKED: HAProxy Common SDK source did not compile: $$src" >&2; \
-			exit 77; \
+			echo "FAIL: HAProxy Common SDK source did not compile: $$src" >&2; \
+			exit 1; \
 		}; \
 		common_objects="$$common_objects $$obj"; \
 	done; \
 	$(CXX) $(LDFLAGS) "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding.o" "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding_self_test.o" $$common_objects -L"$$lib_dir" -Wl,-rpath,"$$lib_dir" -lmodsecurity $(LDLIBS) -o "$@" || { \
-		echo "BLOCKED: HAProxy ModSecurity binding self-test did not link" >&2; \
-		exit 77; \
+		echo "FAIL: HAProxy ModSecurity binding self-test did not link" >&2; \
+		exit 1; \
 	}; \
 	printf '%s\n' "MODSECURITY_INCLUDE_DIR=$$include_dir" "MODSECURITY_LIB_DIR=$$lib_dir" "MODSECURITY_BINDING_BIN=$@" > "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"
 

@@ -17,13 +17,13 @@ static const msconnector_lighttpd_adapter_metadata lighttpd_metadata = {
         "lighttpd",
         "minimal-runtime-smoke",
         "lighttpd",
-        "Native request/response header mapping and a Phase-1 request-header deny are verified; request and response bodies remain unsupported."
+        "The native Phase-1 request-header path has a real-host smoke producer. Response-header Phase 3 is implemented but not asserted; request and response bodies are not implemented."
     },
     "lighttpd",
     "lighttpd",
     "repository-local-native-module",
     "connectors/lighttpd",
-    "native lighttpd plugin with request/response header mapping and Phase-1 deny; request and response bodies unsupported",
+    "native lighttpd plugin with request/response header mapping and Phase-1 deny; request and response bodies not implemented",
     "link_verified",
     "minimal_runtime_smoke",
     "partial_runtime_path"

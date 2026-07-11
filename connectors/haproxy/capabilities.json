@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "connector": "haproxy",
+  "host_name": "haproxy",
+  "integration_mode": "spoe-spop-agent",
+  "metadata_source": "connectors/haproxy/metadata.c",
+  "source_contract": [
+    "connectors/haproxy/metadata.c",
+    "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+    "connectors/haproxy/src/haproxy_modsecurity_binding.c",
+    "connectors/haproxy/src/haproxy_modsecurity_mapper.c",
+    "connectors/haproxy/harness/run_haproxy_smoke.sh"
+  ],
+  "host_model_constraints": [
+    "HAProxy and the repository-owned SPOP agent are separate processes; host and agent liveness and logs are distinct evidence.",
+    "Response phases run only when the HAProxy configuration sends the corresponding response notification to the agent.",
+    "Response-body notification and inspection are bounded and experimental; a mapper or agent code path alone is not runtime verification.",
+    "Starter and binding self-tests are not HAProxy host-runtime evidence."
+  ],
+  "capabilities": {
+    "connection_metadata": {
+      "state": "implemented_not_asserted",
+      "reason": "The SPOP request message carries client and server endpoints into the libmodsecurity binding; canonical evidence is pending."
+    },
+    "request_headers": {
+      "state": "implemented_not_asserted",
+      "reason": "HAProxy request headers are encoded in the SPOP message and mapped into the transaction; canonical evidence is pending."
+    },
+    "request_body_buffered": {
+      "state": "implemented_not_asserted",
+      "reason": "The HAProxy configuration buffers the request and passes a bounded req.body sample to the agent; canonical Phase-2 evidence is pending."
+    },
+    "request_body_streaming": {
+      "state": "not_implemented",
+      "reason": "The current SPOP message carries one bounded body sample rather than a streaming body protocol."
+    },
+    "response_headers": {
+      "state": "implemented_not_asserted",
+      "reason": "An optional HAProxy response-check message maps response headers and the agent invokes Phase 3; canonical host evidence is pending."
+    },
+    "response_body_buffered": {
+      "state": "implemented_not_asserted",
+      "reason": "The optional response-check message and agent implement bounded experimental response-body inspection; canonical Phase-4 evidence is pending."
+    },
+    "response_body_streaming": {
+      "state": "not_implemented",
+      "reason": "The response path uses one bounded HAProxy response sample and does not implement a streaming transaction protocol."
+    },
+    "phase1": {
+      "state": "implemented_not_asserted",
+      "reason": "The request-check group executes connection, URI, and request-header processing in the agent; canonical evidence is pending."
+    },
+    "phase2": {
+      "state": "implemented_not_asserted",
+      "reason": "The agent appends the bounded request body and invokes request-body processing; canonical evidence is pending."
+    },
+    "phase3": {
+      "state": "implemented_not_asserted",
+      "reason": "The optional response-check group invokes response-header processing; canonical host evidence is pending."
+    },
+    "phase4": {
+      "state": "implemented_not_asserted",
+      "reason": "The bounded experimental response-body branch invokes response-body processing; canonical host evidence is pending."
+    },
+    "late_intervention": {
+      "state": "implemented_not_asserted",
+      "reason": "HAProxy response rules consume agent decision variables before forwarding the response; response-phase behavioral evidence is pending."
+    },
+    "deny": {
+      "state": "implemented_not_asserted",
+      "reason": "The agent exports blocked/status variables and HAProxy maps them to explicit deny rules; canonical evidence is pending."
+    },
+    "redirect": {
+      "state": "implemented_not_asserted",
+      "reason": "The agent exports redirect URL/action variables and HAProxy has an explicit request redirect rule; canonical evidence is pending."
+    },
+    "drop": {
+      "state": "not_implemented",
+      "reason": "Although the harness contains a silent-drop host rule, the libmodsecurity binding does not currently preserve a distinct drop action into agent variables."
+    },
+    "abort_connection": {
+      "state": "not_implemented",
+      "reason": "The production binding does not expose a distinct abort-connection decision across SPOP."
+    },
+    "log_only": {
+      "state": "implemented_not_asserted",
+      "reason": "Non-disruptive ModSecurity decisions leave the HAProxy request allowed; explicit log-only behavioral evidence is pending."
+    },
+    "transaction_id": {
+      "state": "implemented_not_asserted",
+      "reason": "HAProxy unique IDs are carried as request IDs into the transaction and decision log; canonical correlation evidence is pending."
+    },
+    "event_jsonl": {
+      "state": "implemented_not_asserted",
+      "reason": "The production SPOP agent writes bounded metadata-only decision JSONL; canonical event-field and payload-absence evidence is pending."
+    },
+    "config_inline_rules": {
+      "state": "not_implemented",
+      "reason": "Inline rules are used only by binding self-tests and are not exposed by the production HAProxy/SPOP configuration path."
+    },
+    "config_rules_file": {
+      "state": "implemented_not_asserted",
+      "reason": "The production agent accepts a startup rules file and loads it into libmodsecurity; canonical config evidence is pending."
+    },
+    "config_remote_rules": {
+      "state": "not_implemented",
+      "reason": "The production HAProxy/SPOP configuration has no remote-rules option."
+    }
+  },
+  "evidence_stages": {
+    "source_contract": {
+      "status": "implemented_not_asserted",
+      "reason": "Agent, binding, mapper, metadata, and real-host harness sources are present; no canonical source-contract result is attached."
+    },
+    "compile": {
+      "status": "implemented_not_asserted",
+      "reason": "The production SPOP agent and binding have compile targets; no current canonical compile result is attached."
+    },
+    "link": {
+      "status": "implemented_not_asserted",
+      "reason": "The agent link path includes libmodsecurity and common sources; no current canonical link result is attached."
+    },
+    "config_load": {
+      "status": "implemented_not_asserted",
+      "reason": "The harness runs a real HAProxy configuration check; no current canonical result is attached."
+    },
+    "start_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "The harness can start HAProxy, agent, and backend without traffic; no current canonical result is attached."
+    },
+    "minimal_runtime_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "A real HAProxy-to-agent request path exists; no current canonical minimal-runtime result is attached."
+    },
+    "no_crs_baseline": {
+      "status": "supported_not_verified",
+      "reason": "The host and agent can consume shared no-CRS rules and cases, but no canonical baseline result is attached."
+    },
+    "crs_smoke": {
+      "status": "supported_not_verified",
+      "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence."
+    },
+    "extended_matrix": {
+      "status": "not_implemented",
+      "reason": "Extended-matrix verification is outside this canonical no-CRS declaration."
+    }
+  }
+}

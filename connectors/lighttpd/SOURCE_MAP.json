@@ -13,6 +13,10 @@
   },
   "repo_owned_files": [
     {
+      "path": "connectors/lighttpd/capabilities.json",
+      "role": "canonical host-model and per-capability state declaration; response-header Phase 3 remains implemented but not asserted"
+    },
+    {
       "path": "connectors/lighttpd/module/mod_msconnector.c",
       "role": "native lighttpd plugin lifecycle, config, request/response hooks, decisions and cleanup"
     },

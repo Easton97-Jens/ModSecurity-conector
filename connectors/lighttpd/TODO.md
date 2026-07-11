@@ -1,6 +1,9 @@
 # lighttpd Connector TODO
 
 Status: native `minimal_runtime_smoke` for Phase-1 headers
+Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
+
+Canonical capability source: `connectors/lighttpd/capabilities.json`.
 
 ## Completed
 
@@ -28,6 +31,9 @@ Status: native `minimal_runtime_smoke` for Phase-1 headers
 - [ ] Evaluate safe response-body hooks and output timing.
 - [ ] Implement response-body buffering only if intervention timing is honest.
 - [ ] Test Phase 4 and late-intervention behavior.
+- [ ] Exercise the implemented response-header hook with a real Phase-3 rule;
+      until then `response_headers` and `phase3` remain
+      `implemented_not_asserted`, not verified.
 - [ ] Verify redirects, drops, connection aborts, and non-403 decisions.
 - [ ] Add multi-worker, concurrency, keep-alive, HTTP/2, and abort-path tests.
 - [ ] Run native No-CRS negative/pass-through and expanded rule cases.
@@ -35,6 +41,9 @@ Status: native `minimal_runtime_smoke` for Phase-1 headers
 - [ ] Add long-running, memory, cleanup, and fault-injection evidence.
 - [ ] Complete security review and production hardening.
 - [ ] Run the relevant full matrix.
+- [ ] `make no-crs-baseline-lighttpd` produces current canonical evidence.
+- [ ] `make evidence-check-lighttpd` validates native-module evidence and never
+      substitutes the legacy bridge/sidecar self-test.
 
 Until those items are evidenced, keep status at `minimal_runtime_smoke` /
 `partial_runtime_path` and keep all body, CRS, security, production, and full

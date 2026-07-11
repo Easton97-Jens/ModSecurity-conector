@@ -7,11 +7,15 @@
   "repo_authored_files": [
     {
       "path": "connectors/haproxy/metadata.c",
-      "purpose": "metadata for the HAProxy starter; no HAProxy API or runtime adapter logic"
+      "purpose": "Common adapter metadata for the repository-owned HAProxy/SPOP implementation; no host-runtime claim by itself"
     },
     {
       "path": "connectors/haproxy/metadata.h",
-      "purpose": "metadata declarations for the HAProxy starter"
+      "purpose": "Common adapter metadata declarations for the HAProxy/SPOP implementation"
+    },
+    {
+      "path": "connectors/haproxy/capabilities.json",
+      "purpose": "canonical host-model and per-capability state declaration; runtime promotion requires separate evidence"
     },
     {
       "path": "connectors/haproxy/Makefile",
@@ -31,7 +35,7 @@
     },
     {
       "path": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
-      "purpose": "request-side SPOP runtime that parses live HAProxy method, uri, req.hdrs_bin/req.hdrs, and req.body SPOE arguments, then returns set-var ACK enforcement for 403 disruptive decisions; not a full SPOA agent implementation"
+      "purpose": "SPOP runtime that parses live HAProxy request and optional response notifications, returns typed decision variables, and writes metadata-only decision JSONL with fixed reason codes; not a full SPOA protocol implementation"
     },
     {
       "path": "connectors/haproxy/src/haproxy_modsecurity_binding.c",

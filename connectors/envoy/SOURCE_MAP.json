@@ -12,6 +12,11 @@
   "imported_upstream_files": [],
   "local_files": [
     {
+      "path": "connectors/envoy/capabilities.json",
+      "kind": "repository-local canonical host-model and per-capability state declaration",
+      "upstream_origin": "none"
+    },
+    {
       "path": "connectors/envoy/metadata.c",
       "kind": "repository-local bridge-starter metadata",
       "upstream_origin": "none"

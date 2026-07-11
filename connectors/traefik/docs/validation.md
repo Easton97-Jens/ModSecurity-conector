@@ -38,8 +38,10 @@ make smoke-traefik
   process lifecycles, and cleans up without sending requests.
 - Connector runtime: `make -C connectors/traefik runtime-smoke` requires a real
   Traefik -> forwardAuth -> Common runtime path with allowed 200 and blocked 403.
-- Request-body smoke: conditional via `make smoke-traefik-request-body`; PASS
-  only with local body-forwarding evidence and rule `1000002`.
+- Request-body compatibility probe: conditional via
+  `make smoke-traefik-request-body`; it uses a separate generated middleware
+  configuration with `forwardBody` enabled. It is not canonical No-CRS
+  evidence for the checked-in `request_body_mode=none` path.
 - Minimal CRS smoke: conditional via `make smoke-traefik-crs`; PASS only with
   local CRS and CRS-backed 403 evidence.
 - Secondary CRS smoke: conditional via `make smoke-traefik-crs-secondary`; PASS
@@ -117,8 +119,9 @@ request with `X-Modsec-Smoke: block` must return 403 from rule `1000001`.
 `intervention_status`, and `decision_log_path`. Missing local libmodsecurity
 headers/libraries are reported as Exit 77/BLOCKED, not as failure or success.
 
-The request-body ModSecurity smoke uses the same Traefik `forwardAuth` path,
-but enables body forwarding for the generated local middleware and selects the
+The legacy request-body capability probe uses the same Traefik `forwardAuth`
+architecture, but not the canonical checked-in configuration: it creates a
+separate local middleware with `forwardBody` enabled and selects the
 request-body smoke case:
 
 ```sh
@@ -134,8 +137,9 @@ the blocked body marker `modsec-request-body-block` to return 403 from rule
 `$TRAEFIK_RESULT_ROOT/request-body-result.json`,
 `$TRAEFIK_LOG_ROOT/request-body-decision.log`, and
 `$TRAEFIK_LOG_ROOT/request-body-request-transcript.jsonl`. It may set
-`request_body_smoke_verified` for that run; `response_body_verified` remains
-false.
+`request_body_smoke_verified` for that isolated compatibility run; the
+canonical No-CRS writer does not import that flag and keeps
+`request_body_verified=false`. `response_body_verified` remains false.
 
 The minimal CRS smoke uses the same runtime entrypoint with CRS selected:
 
@@ -224,7 +228,8 @@ libmodsecurity:
   `response_body_verified` remain false.
 - This local starter PASS status is not production, CRS, RESPONSE_BODY, or full-matrix verification.
 
-Expected request-body PASS result with local Traefik and local libmodsecurity:
+Expected legacy request-body capability-probe PASS result with local Traefik
+and local libmodsecurity (not canonical No-CRS evidence):
 
 - Decision backend: `libmodsecurity`
 - ModSecurity smoke case: `request_body`

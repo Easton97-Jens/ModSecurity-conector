@@ -14,6 +14,7 @@ nginx_config = (ROOT/'connectors/nginx/config').read_text()
 all_nginx = '\n'.join(p.read_text(errors='ignore') for p in nginx.glob('*.c')) + common_h + mapper_h
 checks = [
 ('msconnector_config common_config' in common_h or 'msconnector_config        common_config' in common_h, 'NGINX config embeds msconnector_config common_config'),
+('#if (NGX_PCRE) && !(NGX_PCRE2)' in module_c and '#if !(NGX_PCRE) || (NGX_PCRE2)' in common_h, 'NGINX PCRE allocation shim is disabled for PCRE2 and no-PCRE builds'),
 ('msconnector_config_init' in module_c and 'msconnector_config_merge' in module_c and 'msconnector_config_validate' in module_c, 'NGINX config init/merge/validate uses Common'),
 ('msconnector_parse_bool' in module_c, 'NGINX bool parsing uses Common parser'),
 ('msconnector_parse_phase4_mode' in module_c, 'NGINX phase4 parsing uses Common parser'),

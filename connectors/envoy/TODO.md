@@ -1,7 +1,9 @@
 # Envoy Connector TODO
 
-Status: `compile_verified` ext_authz connector service
-Runtime metadata: `minimal_runtime_smoke` / `connector-gap`
+Status: targeted `minimal_runtime_smoke` for the real HTTP `ext_authz` request path
+Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
+
+Canonical capability source: `connectors/envoy/capabilities.json`.
 
 Global gate definitions:
 
@@ -50,7 +52,9 @@ Global gate definitions:
 - [x] connector-local `runtime-smoke-envoy` entrypoint implemented
 - [x] harness command documented
 - [x] missing dependencies are BLOCKED while real runtime errors fail
-- [ ] root evidence writer consumes the connector-local summary/event artifacts
+- [ ] canonical Framework evidence normalization consumes the connector-local
+      summary/event artifacts and writes the shared `result.json` and manifest;
+      keep this open until a current canonical run passes validation
 - [x] real Envoy ext_authz runtime harness implemented
 - [x] allowed request returns HTTP 200 in the local targeted smoke
 - [x] blocked request returns rule-backed HTTP 403 through Envoy ext_authz
@@ -59,6 +63,11 @@ Global gate definitions:
 
 - [ ] `make test-no-crs` executed for Envoy scope
 - [ ] PASS/FAIL/BLOCKED counts documented
+- [ ] Request-body delivery is exercised before Phase 2 is promoted beyond
+      `configured_not_exercised`.
+- [ ] `make no-crs-baseline-envoy` produces current canonical evidence.
+- [ ] `make evidence-check-envoy` validates the result without treating the
+      unsupported upstream response phases as failures or PASS.
 
 ## Phase 6: With-CRS Runtime
 

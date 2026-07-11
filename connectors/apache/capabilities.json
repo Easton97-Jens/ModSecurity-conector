@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "connector": "apache",
+  "host_name": "apache",
+  "integration_mode": "native-httpd-module",
+  "metadata_source": "connectors/apache/metadata.c",
+  "source_contract": [
+    "connectors/apache/metadata.c",
+    "connectors/apache/src/mod_security3.c",
+    "connectors/apache/src/msc_filters.c",
+    "connectors/apache/src/msc_config.c",
+    "connectors/apache/harness/run_apache_smoke.sh"
+  ],
+  "host_model_constraints": [
+    "Request and response bodies are accumulated through Apache filters before the corresponding ModSecurity phase is completed; this is not streaming phase execution.",
+    "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
+    "A Phase-4 disruptive result can occur after response commitment and is handled by the configured late-intervention policy."
+  ],
+  "capabilities": {
+    "connection_metadata": {
+      "state": "implemented_not_asserted",
+      "reason": "The native request hooks pass Apache client and server addresses and ports to libmodsecurity; no current canonical capability result is attached."
+    },
+    "request_headers": {
+      "state": "implemented_not_asserted",
+      "reason": "The native module maps Apache request headers and calls the ModSecurity request-header phase; canonical baseline evidence is pending."
+    },
+    "request_body_buffered": {
+      "state": "implemented_not_asserted",
+      "reason": "The Apache input filter appends request-body buckets and completes request-body processing; canonical body evidence is pending."
+    },
+    "request_body_streaming": {
+      "state": "not_implemented",
+      "reason": "The connector appends body chunks but completes the ModSecurity body phase as a buffered phase rather than exposing streaming phase semantics."
+    },
+    "response_headers": {
+      "state": "implemented_not_asserted",
+      "reason": "The Apache output filter maps response headers and invokes the response-header phase; canonical Phase-3 evidence is pending."
+    },
+    "response_body_buffered": {
+      "state": "implemented_not_asserted",
+      "reason": "The output filter buffers bounded response data and invokes response-body processing; canonical Phase-4 evidence is pending."
+    },
+    "response_body_streaming": {
+      "state": "not_implemented",
+      "reason": "Response buckets are accumulated for a bounded Phase-4 decision and are not processed as a streaming ModSecurity phase."
+    },
+    "phase1": {
+      "state": "implemented_not_asserted",
+      "reason": "The early request hook processes URI and request headers before request handling; the canonical Phase-1 baseline has not been run here."
+    },
+    "phase2": {
+      "state": "implemented_not_asserted",
+      "reason": "The late request hook and input filter complete request-body processing; canonical Phase-2 evidence is pending."
+    },
+    "phase3": {
+      "state": "implemented_not_asserted",
+      "reason": "The output filter invokes response-header processing before body processing; canonical Phase-3 evidence is pending."
+    },
+    "phase4": {
+      "state": "implemented_not_asserted",
+      "reason": "The bounded output filter invokes response-body processing and records late decisions; canonical Phase-4 evidence is pending."
+    },
+    "late_intervention": {
+      "state": "implemented_not_asserted",
+      "reason": "Phase-4 minimal, safe, and strict policy branches distinguish log-only, status denial, and post-commit connection abort; behavioral evidence is pending."
+    },
+    "deny": {
+      "state": "implemented_not_asserted",
+      "reason": "Disruptive ModSecurity statuses are returned through the Apache hook/filter path; canonical deny evidence is pending."
+    },
+    "redirect": {
+      "state": "implemented_not_asserted",
+      "reason": "The intervention mapper sets Apache Location output and returns supported redirect statuses; canonical redirect evidence is pending."
+    },
+    "drop": {
+      "state": "not_implemented",
+      "reason": "The Apache intervention mapper does not preserve a distinct ModSecurity drop action."
+    },
+    "abort_connection": {
+      "state": "implemented_not_asserted",
+      "reason": "Strict Phase-4 policy has an explicit post-commit connection-abort path; transport-level canonical evidence is pending."
+    },
+    "log_only": {
+      "state": "implemented_not_asserted",
+      "reason": "Non-disruptive rules remain allowed and Phase-4 policy can record log-only outcomes; canonical evidence is pending."
+    },
+    "transaction_id": {
+      "state": "implemented_not_asserted",
+      "reason": "Static and Apache-expression transaction IDs are wired into transaction creation; canonical event correlation evidence is pending."
+    },
+    "event_jsonl": {
+      "state": "implemented_not_asserted",
+      "reason": "A bounded common JSONL event serializer is used for Phase-4 interventions, but request-phase event coverage must still be exercised."
+    },
+    "config_inline_rules": {
+      "state": "implemented_not_asserted",
+      "reason": "The modsecurity_rules directive loads inline rules through libmodsecurity; canonical config-load evidence is pending."
+    },
+    "config_rules_file": {
+      "state": "implemented_not_asserted",
+      "reason": "The modsecurity_rules_file directive loads local rules files; canonical positive and negative config evidence is pending."
+    },
+    "config_remote_rules": {
+      "state": "implemented_not_asserted",
+      "reason": "The modsecurity_rules_remote directive is wired to libmodsecurity; no remote-network capability is asserted by the no-CRS baseline."
+    }
+  },
+  "evidence_stages": {
+    "source_contract": {
+      "status": "implemented_not_asserted",
+      "reason": "Native source, metadata, configuration, and harness wiring are present; the canonical source-contract check has not yet produced run evidence."
+    },
+    "compile": {
+      "status": "implemented_not_asserted",
+      "reason": "An APXS module build path exists; no current canonical compile result is attached."
+    },
+    "link": {
+      "status": "implemented_not_asserted",
+      "reason": "The APXS path links the module with libmodsecurity and common sources; no current canonical link result is attached."
+    },
+    "config_load": {
+      "status": "implemented_not_asserted",
+      "reason": "The harness has a real httpd configuration-test path; no current canonical result is attached."
+    },
+    "start_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "The harness can start httpd without a request; no current canonical result is attached."
+    },
+    "minimal_runtime_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "A real-host request harness exists; no current canonical minimal-runtime result is attached."
+    },
+    "no_crs_baseline": {
+      "status": "supported_not_verified",
+      "reason": "The native host path can consume the shared no-CRS rules and cases, but no canonical baseline result is attached."
+    },
+    "crs_smoke": {
+      "status": "supported_not_verified",
+      "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence."
+    },
+    "extended_matrix": {
+      "status": "not_implemented",
+      "reason": "Extended-matrix verification is outside this canonical no-CRS declaration."
+    }
+  }
+}

@@ -19,6 +19,12 @@ LOG_ROOT ?= $(VERIFIED_LOG_ROOT)
 MATRIX_ROOT ?= $(BUILD_ROOT)/full-matrix
 FRAMEWORK_ROOT ?= $(CURDIR)/modules/ModSecurity-test-Framework
 CONNECTOR_ROOT := $(CURDIR)
+NO_CRS_CONNECTORS := apache nginx haproxy envoy traefik lighttpd
+EVIDENCE_ROOT ?= $(BUILD_ROOT)/no-crs-evidence
+RUNTIME_EVIDENCE_ROOT ?= $(BUILD_ROOT)/runtime-evidence
+CAPABILITY_PLAN_ROOT ?= $(BUILD_ROOT)/no-crs-capability-plans
+NO_CRS_RUN_ID ?=
+NO_CRS_RULES_FILE ?= $(FRAMEWORK_ROOT)/tests/rules/no-crs-baseline.conf
 REQUESTED_VERIFIED_RUN_ID := $(VERIFIED_RUN_ID)
 DEFAULT_VERIFIED_RUN_ID := $(shell date -u +%Y-%m-%dT%H-%M-%SZ)-$(shell git rev-parse --short=8 HEAD 2>/dev/null || printf unknown)
 EXISTING_VERIFIED_RUN_ID := $(shell "$(PYTHON)" -c 'import json,pathlib; p=pathlib.Path("reports/testing/generated/manifest/verified-run-manifest.generated.json"); d=json.loads(p.read_text()) if p.is_file() else {}; print(d.get("verified_run_id") or d.get("metadata", {}).get("verified_run_id") or "")' 2>/dev/null)
@@ -70,6 +76,11 @@ export VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS
 export RESULTS_DIR
 export FRAMEWORK_ROOT
 export CONNECTOR_ROOT
+export EVIDENCE_ROOT
+export RUNTIME_EVIDENCE_ROOT
+export CAPABILITY_PLAN_ROOT
+export NO_CRS_RUN_ID
+export NO_CRS_RULES_FILE
 export NGINX_HARNESS_PARENT
 export PYTHON
 export PYTHONDONTWRITEBYTECODE
@@ -186,6 +197,14 @@ export LIGHTTPD_DECISION_BACKEND
 
 .PHONY: check-framework prepare-runtime-components prepare-envoy-runtime prepare-traefik-runtime prepare-lighttpd-runtime prepare-lighttpd-runtime-build prepare-open-connector-runtimes runtime-components-inventory runtime-components-sources check-framework-fixture-syntax check-runtime-producer-readiness check-runtime-path-policy check-bilingual-docs refresh-connector-reports refresh-all-reports check-generated-report-layout report-governance verified-report-evidence-gate generate-system-environment-proof prove-generated-reports verified-runtime-producers verified-report-refresh verified-report-producers verified-report-consumers verified-report-checks verified-report-run verified-report-run-soft verified-report-run-smoke verified-full-matrix-job verified-case verified-native-case verified-apache-case verified-nginx-case verified-haproxy-case verified-full-matrix-resume full-matrix-single-job-runtime full-matrix-resume-runtime smoke-common smoke-apache smoke-nginx smoke-envoy smoke-envoy-modsecurity smoke-envoy-crs smoke-envoy-crs-secondary smoke-haproxy smoke-lighttpd smoke-lighttpd-modsecurity smoke-lighttpd-crs smoke-lighttpd-crs-secondary smoke-traefik smoke-traefik-modsecurity smoke-traefik-crs smoke-traefik-crs-secondary smoke-open-connectors-crs smoke-open-connectors-crs-secondary smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-all-runtime runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel full-matrix-parallel-runtime generate-full-runtime-matrix generate-full-matrix-job-completeness generate-nginx-mrts-http500-cluster-analysis generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-native-semantics-comparison generate-remaining-critical-batch-analysis generate-remaining-failure-analysis mrts-native-full-run mrts-native-full-run-runtime mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 .PHONY: smoke-envoy-request-body smoke-traefik-request-body smoke-lighttpd-request-body smoke-open-connectors-request-body
+.PHONY: build-apache build-nginx build-haproxy build-envoy build-traefik build-lighttpd build-all-connectors
+.PHONY: check-config-apache check-config-nginx check-config-haproxy check-config-envoy check-config-traefik check-config-lighttpd check-config-all-connectors
+.PHONY: start-smoke-apache start-smoke-nginx start-smoke-haproxy start-smoke-all-connectors
+.PHONY: runtime-smoke-apache runtime-smoke-nginx runtime-smoke-haproxy runtime-smoke-all-connectors
+.PHONY: no-crs-baseline-apache no-crs-baseline-nginx no-crs-baseline-haproxy no-crs-baseline-envoy no-crs-baseline-traefik no-crs-baseline-lighttpd no-crs-baseline-all-connectors
+.PHONY: capabilities-apache capabilities-nginx capabilities-haproxy capabilities-envoy capabilities-traefik capabilities-lighttpd capabilities-all-connectors
+.PHONY: evidence-check-apache evidence-check-nginx evidence-check-haproxy evidence-check-envoy evidence-check-traefik evidence-check-lighttpd evidence-check-all-connectors
+.PHONY: check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-doc-consistency check-no-crs-source-normalization
 
 define RUN_WITH_REFRESH_ALL
 	@set +e; \
@@ -629,6 +648,150 @@ probe-response-body: check-framework prepare-runtime-components
 connector-starter-checks: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
+# Canonical connector stages. These targets deliberately keep build,
+# configuration loading, request-free startup, runtime traffic, and the
+# capability-driven no-CRS baseline as separate invocations.
+build-apache build-nginx build-haproxy build-envoy build-traefik build-lighttpd: build-%: check-framework
+	sh ci/run-connector-stage.sh "$*" build
+
+check-config-apache check-config-nginx check-config-haproxy check-config-envoy check-config-traefik check-config-lighttpd: check-config-%: check-framework
+	sh ci/run-connector-stage.sh "$*" config_load
+
+start-smoke-apache start-smoke-nginx start-smoke-haproxy: start-smoke-%: check-framework
+	sh ci/run-connector-stage.sh "$*" start_smoke
+
+runtime-smoke-apache runtime-smoke-nginx runtime-smoke-haproxy: runtime-smoke-%: check-framework
+	EVIDENCE_ROOT="$(RUNTIME_EVIDENCE_ROOT)" sh ci/run-no-crs-baseline.sh "$*" minimal_runtime_smoke
+
+capabilities-apache capabilities-nginx capabilities-haproxy capabilities-envoy capabilities-traefik capabilities-lighttpd: capabilities-%: check-framework
+	@run_id="$${NO_CRS_RUN_ID:-$(DEFAULT_VERIFIED_RUN_ID)}"; \
+	case "$$run_id" in [A-Za-z0-9]*) ;; *) echo "FAIL: unsafe capability-plan run id: $$run_id" >&2; exit 1 ;; esac; \
+	case "$$run_id" in *[!A-Za-z0-9._-]*) echo "FAIL: unsafe capability-plan run id: $$run_id" >&2; exit 1 ;; esac; \
+	[ "$${#run_id}" -le 128 ] || { echo "FAIL: capability-plan run id is too long" >&2; exit 1; }; \
+	run_dir="$(CAPABILITY_PLAN_ROOT)/$*/$$run_id"; \
+	mkdir -p "$$run_dir"; \
+	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/no_crs_baseline.py" select \
+		--connector "$*" \
+		--capabilities "connectors/$*/capabilities.json" \
+		--output "$$run_dir/plan.json"
+
+no-crs-baseline-apache no-crs-baseline-nginx no-crs-baseline-haproxy no-crs-baseline-envoy no-crs-baseline-traefik no-crs-baseline-lighttpd: no-crs-baseline-%: check-framework
+	sh ci/run-no-crs-baseline.sh "$*"
+
+evidence-check-apache evidence-check-nginx evidence-check-haproxy evidence-check-envoy evidence-check-traefik evidence-check-lighttpd: evidence-check-%: check-framework
+	@run_id="$(NO_CRS_RUN_ID)"; \
+	if [ -z "$$run_id" ]; then \
+		latest="$(EVIDENCE_ROOT)/$*/latest-run-id"; \
+		[ -f "$$latest" ] || { echo "FAIL: no latest canonical run for $*: $$latest" >&2; exit 1; }; \
+		IFS= read -r run_id < "$$latest"; \
+	fi; \
+	[ -n "$$run_id" ] || { echo "FAIL: empty canonical run id for $*" >&2; exit 1; }; \
+	case "$$run_id" in [A-Za-z0-9]*) ;; *) echo "FAIL: unsafe canonical run id for $*: $$run_id" >&2; exit 1 ;; esac; \
+	case "$$run_id" in *[!A-Za-z0-9._-]*) echo "FAIL: unsafe canonical run id for $*: $$run_id" >&2; exit 1 ;; esac; \
+	[ "$${#run_id}" -le 128 ] || { echo "FAIL: canonical run id is too long for $*" >&2; exit 1; }; \
+	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/no_crs_baseline.py" validate \
+		--evidence-root "$(EVIDENCE_ROOT)/$*/$$run_id" \
+		--connector "$*" \
+		--check all
+
+build-all-connectors: check-framework
+	@status=0; blocked=0; \
+	for connector in $(NO_CRS_CONNECTORS); do \
+		sh ci/run-connector-stage.sh "$$connector" build || { rc=$$?; if [ "$$rc" -eq 77 ]; then blocked=1; else status=1; fi; }; \
+	done; \
+	[ "$$status" -eq 0 ] || exit 1; \
+	[ "$$blocked" -eq 0 ] || exit 77
+
+check-config-all-connectors: check-framework
+	@status=0; blocked=0; \
+	for connector in $(NO_CRS_CONNECTORS); do \
+		sh ci/run-connector-stage.sh "$$connector" config_load || { rc=$$?; if [ "$$rc" -eq 77 ]; then blocked=1; else status=1; fi; }; \
+	done; \
+	[ "$$status" -eq 0 ] || exit 1; \
+	[ "$$blocked" -eq 0 ] || exit 77
+
+start-smoke-all-connectors: check-framework
+	@status=0; blocked=0; \
+	for connector in $(NO_CRS_CONNECTORS); do \
+		sh ci/run-connector-stage.sh "$$connector" start_smoke || { rc=$$?; if [ "$$rc" -eq 77 ]; then blocked=1; else status=1; fi; }; \
+	done; \
+	[ "$$status" -eq 0 ] || exit 1; \
+	[ "$$blocked" -eq 0 ] || exit 77
+
+runtime-smoke-all-connectors: check-framework
+	@status=0; blocked=0; run_id="$(NO_CRS_RUN_ID)"; \
+	if [ -z "$$run_id" ]; then run_id="$$(date -u +%Y-%m-%dT%H-%M-%SZ)-$$(git rev-parse --short=8 HEAD 2>/dev/null || printf unknown)"; fi; \
+	for connector in $(NO_CRS_CONNECTORS); do \
+		NO_CRS_RUN_ID="$$run_id" EVIDENCE_ROOT="$(RUNTIME_EVIDENCE_ROOT)" sh ci/run-no-crs-baseline.sh "$$connector" minimal_runtime_smoke || { rc=$$?; if [ "$$rc" -eq 77 ]; then blocked=1; else status=1; fi; }; \
+	done; \
+	[ "$$status" -eq 0 ] || exit 1; \
+	[ "$$blocked" -eq 0 ] || exit 77
+
+no-crs-baseline-all-connectors: check-framework
+	@status=0; blocked=0; run_id="$(NO_CRS_RUN_ID)"; \
+	if [ -z "$$run_id" ]; then run_id="$$(date -u +%Y-%m-%dT%H-%M-%SZ)-$$(git rev-parse --short=8 HEAD 2>/dev/null || printf unknown)"; fi; \
+	for connector in $(NO_CRS_CONNECTORS); do \
+		NO_CRS_RUN_ID="$$run_id" sh ci/run-no-crs-baseline.sh "$$connector" || { rc=$$?; if [ "$$rc" -eq 77 ]; then blocked=1; else status=1; fi; }; \
+	done; \
+	[ "$$status" -eq 0 ] || exit 1; \
+	[ "$$blocked" -eq 0 ] || exit 77
+
+capabilities-all-connectors: capabilities-apache capabilities-nginx capabilities-haproxy capabilities-envoy capabilities-traefik capabilities-lighttpd
+	"$(PYTHON)" ci/connector_capabilities.py check
+	"$(PYTHON)" ci/connector_capabilities.py generate \
+		--output-dir "$(CURDIR)/reports/testing/generated/canonical"
+
+evidence-check-all-connectors: evidence-check-apache evidence-check-nginx evidence-check-haproxy evidence-check-envoy evidence-check-traefik evidence-check-lighttpd
+
+define RUN_NO_CRS_EVIDENCE_CHECK
+	@set -eu; \
+	for connector in $(NO_CRS_CONNECTORS); do \
+		run_id="$(NO_CRS_RUN_ID)"; \
+		if [ -z "$$run_id" ]; then \
+			latest="$(EVIDENCE_ROOT)/$$connector/latest-run-id"; \
+			[ -f "$$latest" ] || { echo "FAIL: no latest canonical run for $$connector: $$latest" >&2; exit 1; }; \
+			IFS= read -r run_id < "$$latest"; \
+		fi; \
+		[ -n "$$run_id" ] || { echo "FAIL: empty canonical run id for $$connector" >&2; exit 1; }; \
+		case "$$run_id" in [A-Za-z0-9]*) ;; *) echo "FAIL: unsafe canonical run id for $$connector: $$run_id" >&2; exit 1 ;; esac; \
+		case "$$run_id" in *[!A-Za-z0-9._-]*) echo "FAIL: unsafe canonical run id for $$connector: $$run_id" >&2; exit 1 ;; esac; \
+		[ "$${#run_id}" -le 128 ] || { echo "FAIL: canonical run id is too long for $$connector" >&2; exit 1; }; \
+		"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/no_crs_baseline.py" validate \
+			--evidence-root "$(EVIDENCE_ROOT)/$$connector/$$run_id" \
+			--connector "$$connector" --check $(1); \
+	done
+endef
+
+check-no-crs-result-schema: check-framework
+	$(call RUN_NO_CRS_EVIDENCE_CHECK,schema)
+
+check-no-crs-evidence-completeness: check-framework
+	$(call RUN_NO_CRS_EVIDENCE_CHECK,completeness)
+
+check-no-crs-capability-consistency: check-framework
+	$(call RUN_NO_CRS_EVIDENCE_CHECK,capability)
+
+check-no-crs-claim-policy: check-framework
+	$(call RUN_NO_CRS_EVIDENCE_CHECK,claim-policy)
+
+check-no-crs-artifact-layout: check-framework
+	$(call RUN_NO_CRS_EVIDENCE_CHECK,layout)
+
+check-no-crs-body-payload-absence: check-framework
+	$(call RUN_NO_CRS_EVIDENCE_CHECK,body-payload)
+
+check-no-crs-status-consistency: check-framework
+	$(call RUN_NO_CRS_EVIDENCE_CHECK,status)
+
+check-no-crs-doc-consistency:
+	"$(PYTHON)" ci/check-no-crs-doc-consistency.py
+
+check-no-crs-source-normalization:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v \
+		tests.test_collect_no_crs_source \
+		tests.test_prepare_runtime_components \
+		tests.test_runtime_component_cache_identity
+
 .PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-remaining-connectors-common-adoption check-envoy-common-adoption check-traefik-common-adoption check-lighttpd-common-adoption check-remaining-connectors-host-integration check-remaining-connectors-build-wiring check-remaining-connectors-start-wiring check-remaining-connectors-claim-policy check-remaining-connectors-c-standard-wiring check-remaining-connectors-c-standards check-remaining-connectors-c17 check-remaining-connectors-c17-lint check-remaining-connectors-c23 check-remaining-connectors-future-c check-block-status-generator build-envoy-connector check-envoy-config start-smoke-envoy runtime-smoke-envoy build-traefik-connector check-traefik-config start-smoke-traefik runtime-smoke-traefik build-lighttpd-connector build-lighttpd-bridge self-test-lighttpd-bridge check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd build-remaining-connectors start-smoke-remaining-connectors runtime-smoke-remaining-connectors readiness-remaining-connectors
 
 build-envoy-connector:
@@ -637,11 +800,11 @@ build-envoy-connector:
 check-envoy-config: build-envoy-connector
 	sh ci/run-remaining-connector-target.sh envoy check-envoy-config
 
-start-smoke-envoy: check-envoy-config
-	sh ci/run-remaining-connector-target.sh envoy start-smoke-envoy
+start-smoke-envoy: check-framework
+	sh ci/run-connector-stage.sh envoy start_smoke
 
-runtime-smoke-envoy: build-envoy-connector
-	sh ci/run-remaining-connector-target.sh envoy runtime-smoke-envoy
+runtime-smoke-envoy: check-framework
+	EVIDENCE_ROOT="$(RUNTIME_EVIDENCE_ROOT)" sh ci/run-no-crs-baseline.sh envoy minimal_runtime_smoke
 
 build-traefik-connector:
 	sh ci/run-remaining-connector-target.sh traefik build-traefik-connector
@@ -649,11 +812,11 @@ build-traefik-connector:
 check-traefik-config: build-traefik-connector
 	sh ci/run-remaining-connector-target.sh traefik check-traefik-config
 
-start-smoke-traefik: check-traefik-config
-	sh ci/run-remaining-connector-target.sh traefik start-smoke-traefik
+start-smoke-traefik: check-framework
+	sh ci/run-connector-stage.sh traefik start_smoke
 
-runtime-smoke-traefik: build-traefik-connector
-	sh ci/run-remaining-connector-target.sh traefik runtime-smoke-traefik
+runtime-smoke-traefik: check-framework
+	EVIDENCE_ROOT="$(RUNTIME_EVIDENCE_ROOT)" sh ci/run-no-crs-baseline.sh traefik minimal_runtime_smoke
 
 build-lighttpd-connector:
 	sh ci/run-remaining-connector-target.sh lighttpd build-lighttpd-connector
@@ -667,11 +830,11 @@ self-test-lighttpd-bridge: build-lighttpd-bridge
 check-lighttpd-config: build-lighttpd-connector
 	sh ci/run-remaining-connector-target.sh lighttpd check-lighttpd-config
 
-start-smoke-lighttpd: check-lighttpd-config
-	sh ci/run-remaining-connector-target.sh lighttpd start-smoke-lighttpd
+start-smoke-lighttpd: check-framework
+	sh ci/run-connector-stage.sh lighttpd start_smoke
 
-runtime-smoke-lighttpd: build-lighttpd-connector
-	sh ci/run-remaining-connector-target.sh lighttpd runtime-smoke-lighttpd
+runtime-smoke-lighttpd: check-framework
+	EVIDENCE_ROOT="$(RUNTIME_EVIDENCE_ROOT)" sh ci/run-no-crs-baseline.sh lighttpd minimal_runtime_smoke
 
 build-remaining-connectors: build-envoy-connector build-traefik-connector build-lighttpd-connector
 
@@ -851,6 +1014,7 @@ lint: check-framework
 	find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec sh -n {} +
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh; find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec bash -n {} +; else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile ci/*.py
+	$(MAKE) check-no-crs-source-normalization
 	$(MAKE) check-apache-common-adoption
 	$(MAKE) check-apache-c-standard-wiring
 	$(MAKE) check-apache-c17-lint
@@ -865,6 +1029,9 @@ lint: check-framework
 	$(MAKE) check-remaining-connectors-build-wiring
 	$(MAKE) check-remaining-connectors-start-wiring
 	$(MAKE) check-remaining-connectors-claim-policy
+	"$(PYTHON)" ci/connector_capabilities.py check
+	"$(PYTHON)" ci/check-no-crs-doc-consistency.py
+	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/no_crs_baseline.py" catalog-check
 	$(MAKE) check-remaining-connectors-c-standard-wiring
 	$(MAKE) check-remaining-connectors-c17-lint
 	$(MAKE) check-common-sdk-contract

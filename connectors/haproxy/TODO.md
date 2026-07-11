@@ -1,10 +1,13 @@
 # HAProxy Connector TODO
 
-Status: live-yaml-spoa-runtime (partial)
-Runtime status: live request-side YAML execution through HAProxy, SPOA/SPOP,
-and libmodsecurity. Current evidence:
-No-CRS `46 PASS / 0 FAIL / 8 BLOCKED`; With-CRS
-`48 PASS / 0 FAIL / 7 BLOCKED`.
+Status: HAProxy/SPOA/SPOP host path (partial); canonical capability manifest present
+Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
+
+Canonical capability source: `connectors/haproxy/capabilities.json`.
+
+Earlier YAML matrix counts remain legacy evidence only. They are not reused as
+the canonical No-CRS result for this branch, and no current PASS count is
+asserted without a new run under `$EVIDENCE_ROOT/haproxy/<run-id>/`.
 
 Global gate definitions:
 
@@ -89,5 +92,9 @@ Global gate definitions:
 
 - [ ] eligible for `adapter-owned`
 - [x] eligible for live request-side runtime evidence on shared YAML cases
-- [x] eligible for `crs-verified` for `crs_sqli_anomaly_block`
+- [x] A limited legacy `crs_sqli_anomaly_block` case was documented; this is not
+      a broad CRS claim and is not part of the canonical No-CRS baseline.
 - [ ] eligible for more than `partial`
+- [ ] `make no-crs-baseline-haproxy` produces current canonical evidence.
+- [ ] `make evidence-check-haproxy` validates the joined HAProxy/agent manifest,
+      schema, claims, layout, event safety, and capability consistency.

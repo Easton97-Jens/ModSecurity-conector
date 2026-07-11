@@ -1,0 +1,249 @@
+name: All Connector No-CRS Baseline
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 3 * * 3'
+
+permissions:
+  contents: read
+
+jobs:
+  no-crs:
+    name: No-CRS / ${{ matrix.connector }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        connector:
+          - apache
+          - nginx
+          - haproxy
+          - envoy
+          - traefik
+          - lighttpd
+    env:
+      ALLOW_RUNTIME_BUILDS: "1"
+      ALLOW_RUNTIME_DOWNLOADS: "1"
+      NO_CRS_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up toolchain
+        uses: actions/setup-python@v6.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Initialize canonical evidence paths
+        run: |
+          set -eu
+          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
+          build_root="$verified_root/build"
+          evidence_root="$build_root/no-crs-evidence"
+          {
+            echo "VERIFIED_RUN_ROOT=$verified_root"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+            echo "SOURCE_ROOT=$verified_root/src"
+            echo "BUILD_ROOT=$build_root"
+            echo "TMP_ROOT=$verified_root/tmp"
+            echo "LOG_ROOT=$verified_root/logs"
+            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
+            echo "EVIDENCE_ROOT=$evidence_root"
+            echo "NO_CRS_EVIDENCE_ROOT=$evidence_root"
+            echo "RUNTIME_REPORT_OUTPUT_ROOT=$verified_root/runtime-component-reports"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
+          mkdir -p "$evidence_root"
+
+      - name: Prepare framework dependencies
+        run: |
+          set -eu
+          make setup-dev
+
+      - name: Provision host component
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -eu
+          case "$CONNECTOR" in
+            apache|nginx|haproxy)
+              RUNTIME_COMPONENT_TARGET="$CONNECTOR" make prepare-runtime-components
+              ;;
+            envoy)
+              make prepare-envoy-runtime
+              ;;
+            traefik)
+              make prepare-traefik-runtime
+              ;;
+            lighttpd)
+              make prepare-lighttpd-runtime-build
+              ;;
+            *)
+              echo "Unknown connector: $CONNECTOR" >&2
+              exit 2
+              ;;
+          esac
+
+      - name: Build connector
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -eu
+          make "build-$CONNECTOR"
+
+      - name: Validate configuration load
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -eu
+          make "check-config-$CONNECTOR"
+
+      - name: Run request-free start smoke
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -eu
+          make "start-smoke-$CONNECTOR"
+
+      - name: Run canonical No-CRS baseline
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -eu
+          make "no-crs-baseline-$CONNECTOR"
+
+      - name: Validate canonical evidence
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -eu
+          make "evidence-check-$CONNECTOR"
+          python3 modules/ModSecurity-test-Framework/ci/no_crs_baseline.py validate \
+            --evidence-root "$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID" \
+            --connector "$CONNECTOR" \
+            --capabilities "connectors/$CONNECTOR/capabilities.json" \
+            --check all
+
+      - name: Publish canonical status
+        if: always()
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -eu
+          result="$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID/result.json"
+          if [ ! -f "$result" ]; then
+            echo "::error::Canonical result.json is missing for $CONNECTOR"
+            exit 1
+          fi
+          status=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["status"])' "$result")
+          {
+            echo "### $CONNECTOR canonical No-CRS status"
+            echo
+            echo "\`$status\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" != PASS ]; then
+            echo "::warning::Canonical No-CRS status for $CONNECTOR is $status; this is not PASS evidence"
+          fi
+
+      - name: Check process cleanup
+        if: always()
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -eu
+          cleanup_log="$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID/logs/process_cleanup.log"
+          test -f "$cleanup_log"
+          test "$(cat "$cleanup_log")" = none
+
+      - name: Upload canonical connector evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: no-crs-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 10
+          if-no-files-found: warn
+          path: ${{ env.EVIDENCE_ROOT }}/${{ matrix.connector }}/${{ env.NO_CRS_RUN_ID }}/
+
+  aggregate:
+    name: No-CRS / aggregate canonical results
+    if: always()
+    needs:
+      - no-crs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout summary generator
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Initialize aggregate paths
+        run: |
+          set -eu
+          evidence_root="$RUNNER_TEMP/no-crs-evidence"
+          {
+            echo "EVIDENCE_ROOT=$evidence_root"
+            echo "NO_CRS_RUN_ID=${{ github.run_id }}-${{ github.run_attempt }}"
+          } >> "$GITHUB_ENV"
+          mkdir -p "$evidence_root"
+
+      - name: Download connector evidence
+        uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: no-crs-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: downloaded
+
+      - name: Restore canonical evidence layout
+        if: always()
+        run: |
+          set -eu
+          status=0
+          for connector in apache nginx haproxy envoy traefik lighttpd; do
+            artifact_dir="downloaded/no-crs-$connector-${{ github.run_id }}-${{ github.run_attempt }}"
+            destination="$EVIDENCE_ROOT/$connector/$NO_CRS_RUN_ID"
+            mkdir -p "$destination"
+            if [ -d "$artifact_dir" ]; then
+              cp -a "$artifact_dir/." "$destination/"
+            fi
+            if ! python3 modules/ModSecurity-test-Framework/ci/no_crs_baseline.py validate \
+              --evidence-root "$destination" \
+              --connector "$connector" \
+              --capabilities "connectors/$connector/capabilities.json" \
+              --check all; then
+              rm -rf "$destination"
+              status=1
+            fi
+          done
+          exit "$status"
+
+      - name: Build result-only aggregate
+        if: always()
+        run: |
+          set -eu
+          python3 modules/ModSecurity-test-Framework/ci/no_crs_baseline.py summarize \
+            --evidence-root "$EVIDENCE_ROOT" \
+            --run-id "$NO_CRS_RUN_ID" \
+            --output-json "$EVIDENCE_ROOT/all-connectors-no-crs-summary.json" \
+            --output-md "$EVIDENCE_ROOT/all-connectors-no-crs-summary.md" \
+            --output-md-de "$EVIDENCE_ROOT/all-connectors-no-crs-summary.de.md"
+
+      - name: Upload aggregate summary
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: all-connectors-no-crs-summary-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            ${{ env.EVIDENCE_ROOT }}/all-connectors-no-crs-summary.json
+            ${{ env.EVIDENCE_ROOT }}/all-connectors-no-crs-summary.md
+            ${{ env.EVIDENCE_ROOT }}/all-connectors-no-crs-summary.de.md

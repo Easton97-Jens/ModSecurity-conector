@@ -369,6 +369,13 @@ def prepare_git_component(
             submodule_status_clean=clean,
             tree=tree_manifest(path),
         )
+        if status_short:
+            record.update(
+                status="blocked",
+                blocker_reason="dirty_source_checkout",
+                details=status_short,
+            )
+            return record
         if not clean:
             record.update(status="blocked", blocker_reason=reason)
             return record
@@ -827,6 +834,16 @@ def prepare_expat(
         "status": "unknown",
         "blocker_reason": "",
     }
+    build_inputs = {
+        "actual_head": record["actual_head"],
+        "compiler": compiler_identity(env),
+        "build_flags": {
+            key: env.get(key, "")
+            for key in ("CC", "CXX", "CPPFLAGS", "CFLAGS", "CXXFLAGS", "LDFLAGS", "LIBS")
+        },
+    }
+    record["build_id"] = stable_hash(build_inputs)
+    record["build_inputs"] = build_inputs
     if git_record.get("status") != "present":
         record.update(status="blocked", blocker_reason=git_record.get("blocker_reason") or "expat_source_unavailable")
         return record
@@ -837,11 +854,12 @@ def prepare_expat(
         record.update(status="blocked", blocker_reason="expat_paths_must_be_under_connector_component_cache")
         return record
     previous = read_json(marker_path)
-    if expat_artifacts_ready(prefix) and previous.get("actual_head") == record["actual_head"]:
+    if expat_artifacts_ready(prefix) and previous.get("build_id") == record["build_id"]:
         record.update(
             status="present",
             libraries=[str(path) for path in expat_libs(lib_dir)],
             build_system=previous.get("build_system", ""),
+            tree=tree_manifest(prefix),
         )
         return record
 
@@ -908,21 +926,21 @@ def prepare_expat(
                 append_command_log(log_parts, "expat-buildconf", proc)
                 if proc.returncode != 0:
                     write_component_log(log_path, log_parts)
-                    record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                    record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
                     return record
             elif not (source_dir / "configure").is_file():
                 proc = run_env(["autoreconf", "-fi"], cwd=source_dir, env=build_env_vars)
                 append_command_log(log_parts, "expat-autoreconf", proc)
                 if proc.returncode != 0:
                     write_component_log(log_path, log_parts)
-                    record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                    record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
                     return record
             configure = source_dir / "configure"
             proc = run_env([str(configure), f"--prefix={prefix}"], cwd=build_dir, env=build_env_vars)
             append_command_log(log_parts, "expat-configure", proc)
             if proc.returncode != 0:
                 write_component_log(log_path, log_parts)
-                record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
                 return record
             jobs = env.get("MAKE_JOBS") or str(os.cpu_count() or 2)
             for label, cmd in (
@@ -933,7 +951,7 @@ def prepare_expat(
                 append_command_log(log_parts, label, proc)
                 if proc.returncode != 0:
                     write_component_log(log_path, log_parts)
-                    record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                    record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
                     return record
         else:
             proc = run_env(
@@ -953,7 +971,7 @@ def prepare_expat(
             append_command_log(log_parts, "expat-cmake-configure", proc)
             if proc.returncode != 0:
                 write_component_log(log_path, log_parts)
-                record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
                 return record
             for label, cmd in (
                 ("expat-cmake-build", ["cmake", "--build", str(build_dir), "--parallel", env.get("MAKE_JOBS") or str(os.cpu_count() or 2)]),
@@ -963,21 +981,23 @@ def prepare_expat(
                 append_command_log(log_parts, label, proc)
                 if proc.returncode != 0:
                     write_component_log(log_path, log_parts)
-                    record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                    record.update(status="failed", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
                     return record
         write_component_log(log_path, log_parts)
     except Exception as exc:
         write_component_log(log_path, log_parts + [str(exc)])
-        record.update(status="blocked", blocker_reason=str(exc))
+        record.update(status="failed", blocker_reason=str(exc), build_exit_code=1)
         return record
 
     if not expat_artifacts_ready(prefix):
-        record.update(status="blocked", blocker_reason="expat_artifacts_missing")
+        record.update(status="failed", blocker_reason="expat_artifacts_missing", build_exit_code=0)
         return record
     marker = {
         "source": record["source"],
         "release_tag": record["release_tag"],
         "actual_head": record["actual_head"],
+        "build_id": record["build_id"],
+        "build_inputs": record["build_inputs"],
         "prefix": str(prefix),
         "build_system": build_system,
         "generated_at": utc_now(),
@@ -1225,13 +1245,13 @@ def prepare_shared_modsecurity(
                 append_command_log(log_parts, label, proc)
                 if proc.returncode != 0:
                     write_component_log(log_path, log_parts)
-                    record.update(status="blocked", blocker_reason="modsecurity_build_failed", build_exit_code=proc.returncode, build_log=str(log_path))
+                    record.update(status="failed", blocker_reason="modsecurity_build_failed", build_exit_code=proc.returncode, build_log=str(log_path))
                     write_json(manifest_path, record)
                     return record
             copy_modsecurity_outputs(build_source, prefix)
             write_component_log(log_path, log_parts)
             if not modsecurity_ready(prefix):
-                record.update(status="blocked", blocker_reason="modsecurity_build_failed", build_log=str(log_path))
+                record.update(status="failed", blocker_reason="modsecurity_build_failed", build_exit_code=0, build_log=str(log_path))
                 write_json(manifest_path, record)
                 return record
             record.update(status="built", build_log=str(log_path), tree=tree_manifest(prefix), generated_at=utc_now())
@@ -1239,15 +1259,13 @@ def prepare_shared_modsecurity(
             return record
     except Exception as exc:
         write_component_log(log_path, [str(exc)])
-        record.update(status="blocked", blocker_reason="modsecurity_build_failed", details=str(exc), build_log=str(log_path))
+        record.update(status="failed", blocker_reason="modsecurity_build_failed", details=str(exc), build_exit_code=1, build_log=str(log_path))
         write_json(manifest_path, record)
         return record
 
 
 def connector_input_paths(connector_root: Path, framework_root: Path, connector: str) -> list[Path]:
-    common_paths = [connector_root / "common/include"]
-    if connector == "haproxy":
-        common_paths.append(connector_root / "common/src")
+    common_paths = [connector_root / "common/include", connector_root / "common/src"]
     framework_script = {
         "apache": framework_root / "ci/prepare-apache-build.sh",
         "nginx": framework_root / "ci/prepare-nginx-build.sh",
@@ -1267,6 +1285,7 @@ def connector_plan(
     connector: str,
     modsecurity: dict[str, Any],
     expat: dict[str, Any],
+    archives: list[dict[str, Any]],
 ) -> dict[str, Any]:
     source_paths = connector_input_paths(connector_root, framework_root, connector)
     source_hash = hash_input_paths(source_paths)
@@ -1279,19 +1298,50 @@ def connector_plan(
             "LDFLAGS",
             "LIBS",
             "HTTPD_VERSION",
+            "HTTPD_SOURCE_URL",
+            "HTTPD_SHA256",
+            "APR_VERSION",
+            "APR_SOURCE_URL",
+            "APR_SHA256",
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "PCRE2_VERSION",
+            "PCRE2_SOURCE_URL",
+            "PCRE2_SHA256",
             "NGINX_RELEASE_TAG",
             "NGINX_SOURCE_GIT_REF",
+            "NGINX_SOURCE_REPO_URL",
+            "NGINX_SHA256",
             "HAPROXY_VERSION",
+            "HAPROXY_SOURCE_URL",
+            "HAPROXY_SHA256",
         )
+    }
+    archive_names = {
+        "apache": {"httpd", "apr", "apr-util", "pcre2"},
+        "nginx": {"nginx"},
+        "haproxy": {"haproxy"},
+    }[connector]
+    archive_inputs = {
+        str(item.get("name")): {
+            key: item.get(key, "")
+            for key in ("url", "sha256", "expected_sha256", "resolved_tag", "checksum_status")
+        }
+        for item in archives
+        if isinstance(item, dict) and item.get("name") in archive_names
     }
     payload = {
         "connector": connector,
         "source_hash": source_hash,
         "build_flags": build_flags,
+        "compiler": compiler_identity(env),
+        "archives": archive_inputs,
         "modsecurity_build_id": modsecurity.get("build_id", ""),
         "dependency_prefixes": {
             "modsecurity_prefix": modsecurity.get("prefix", ""),
             "expat_prefix": expat.get("prefix", ""),
+            "expat_build_id": expat.get("build_id", ""),
         },
     }
     build_id = stable_hash(payload)
@@ -1303,6 +1353,8 @@ def connector_plan(
         "source_hash": source_hash,
         "source_inputs": [str(path) for path in source_paths],
         "build_flags": json.dumps(build_flags, sort_keys=True),
+        "compiler": payload["compiler"],
+        "archive_inputs": archive_inputs,
         "root": str(root),
         "manifest": str(root / "manifest.json"),
         "status": "unknown",
@@ -1813,7 +1865,7 @@ def prepare_apache_httpd(
                     "dependency_searched_paths": [env.get("LIBS") or "<configure default libraries>"],
                 }
             record.update(
-                status="blocked",
+                status="failed",
                 blocker_reason=blocker,
                 missing_files=missing,
                 **blocker_details,
@@ -1932,6 +1984,11 @@ def prepare_nginx_runtime(
         write_connector_manifest(plan, record)
         return record
     if not effective_ready and not local_ready:
+        common_source_root = connector_root / "common/src"
+        common_build_source_root = Path(str(plan["root"])) / "common-src"
+        common_build_source_root.mkdir(parents=True, exist_ok=True)
+        for common_source in sorted(common_source_root.glob("*.c")):
+            shutil.copy2(common_source, common_build_source_root / common_source.name)
         log_path = build_root / "logs/runtime-components/nginx-build.log"
         proc = run_build(
             framework_root / "ci/prepare-nginx-build.sh",
@@ -1952,6 +2009,7 @@ def prepare_nginx_runtime(
                 NGINX_BINARY=str(local_nginx_bin),
                 NGINX_MODULE=str(local_module),
                 NGINX_DOWNLOAD_DIR=str(archives_root / "nginx"),
+                MSCONNECTOR_COMMON_SRC=str(common_build_source_root),
                 MODSECURITY_SHARED_PREFIX=str(modsecurity.get("prefix", "")),
                 MODSECURITY_BUILD_ID=str(modsecurity.get("build_id", "")),
                 BUILD_NGINX_FROM_SOURCE="1",
@@ -1980,7 +2038,7 @@ def prepare_nginx_runtime(
             elif blocker == "missing_local_nginx_build":
                 blocker_details["build_component"] = "nginx_source_build"
             record.update(
-                status="blocked",
+                status="failed",
                 blocker_reason=blocker,
                 missing_files=local_missing,
                 **blocker_details,
@@ -2098,7 +2156,23 @@ def prepare_haproxy_runtime(
     record["build_log"] = str(log_path)
     record["haproxy_prepare_exit_code"] = prep.returncode
     if prep.returncode != 0 or not executable(haproxy_bin):
-        record.update(status="blocked", blocker_reason="missing_haproxy_runtime_build")
+        prepare_reached_execution = any(
+            marker in prep.stdout
+            for marker in (
+                "haproxy_prepare: running haproxy-source-extract",
+                "haproxy_prepare: running haproxy-source-copy",
+                "haproxy_prepare: running haproxy-build",
+                "haproxy_prepare: running haproxy-binary-stage",
+            )
+        )
+        if prep.returncode == 0 or prep.returncode != 77 or prepare_reached_execution:
+            record.update(
+                status="failed",
+                blocker_reason="haproxy_runtime_prepare_failed",
+                build_exit_code=prep.returncode,
+            )
+        else:
+            record.update(status="blocked", blocker_reason="missing_haproxy_runtime_build")
         write_connector_manifest(plan, record)
         return record
 
@@ -2121,7 +2195,7 @@ def prepare_haproxy_runtime(
         handle.write(proc.stdout)
         handle.write(proc.stderr)
     if proc.returncode != 0 or not (executable(spoa_bin) and paths_env.is_file()):
-        record.update(status="blocked", blocker_reason="haproxy_connector_build_failed", build_exit_code=proc.returncode)
+        record.update(status="failed", blocker_reason="haproxy_connector_build_failed", build_exit_code=proc.returncode)
         write_connector_manifest(plan, record)
         return record
     record.update(status="built", invalidation_reason="missing_or_stale_connector_build", tree=tree_manifest(root))
@@ -2289,11 +2363,13 @@ def runtime_build_cache_payload(modsecurity: dict[str, Any], connectors: list[di
     rebuilt = sum(1 for item in connectors if item.get("status") == "built")
     reused = sum(1 for item in connectors if item.get("status") == "reused")
     blocked = sum(1 for item in connectors if item.get("status") == "blocked")
+    failed = sum(1 for item in connectors if item.get("status") == "failed")
     shared_id = modsecurity.get("build_id", "")
     mismatches = [
         item.get("connector", "")
         for item in connectors
-        if item.get("status") != "blocked" and item.get("modsecurity_build_id") != shared_id
+        if item.get("status") in {"built", "reused", "present"}
+        and item.get("modsecurity_build_id") != shared_id
     ]
     return {
         "generated_at": utc_now(),
@@ -2303,6 +2379,7 @@ def runtime_build_cache_payload(modsecurity: dict[str, Any], connectors: list[di
             "rebuilt_count": rebuilt,
             "reused_count": reused,
             "blocked_count": blocked,
+            "failed_count": failed,
             "saved_rebuilds_estimate": reused,
             "modsecurity_build_status": modsecurity.get("status", ""),
             "modsecurity_build_id_mismatches": mismatches,
@@ -2548,7 +2625,14 @@ def main() -> int:
     parser.add_argument("--output-root", required=True)
     parser.add_argument("--build-root", default=None)
     parser.add_argument("--native-root", default=None)
+    parser.add_argument(
+        "--target-connector",
+        choices=("all", "shared", "apache", "nginx", "haproxy"),
+        default=os.environ.get("RUNTIME_COMPONENT_TARGET", "all"),
+        help="Prepare shared dependencies, one native connector, or all native connectors.",
+    )
     args = parser.parse_args()
+    target_connector = args.target_connector
 
     initial_env = dict(os.environ)
     connector_root = Path(args.connector_root).resolve()
@@ -2632,32 +2716,6 @@ def main() -> int:
             previous_git,
             strict,
         ),
-        prepare_git_component(
-            "coreruleset",
-            env.get("CRS_REPO_URL", ""),
-            env.get("CRS_GIT_REF", ""),
-            crs_path,
-            previous_git,
-            strict,
-        ),
-        prepare_release_git_component(
-            "go-ftw",
-            go_ftw_source_url,
-            go_ftw_expected_latest,
-            git_root / "go-ftw",
-            previous_git,
-            strict,
-            optional=True,
-        ),
-        prepare_release_git_component(
-            "albedo",
-            albedo_source_url,
-            albedo_expected_latest,
-            git_root / "albedo",
-            previous_git,
-            strict,
-            optional=True,
-        ),
         prepare_release_git_component(
             "expat",
             env.get("EXPAT_GIT_URL") or expat_source_url,
@@ -2667,6 +2725,37 @@ def main() -> int:
             strict,
         ),
     ]
+    if target_connector == "all":
+        git_components.extend(
+            [
+                prepare_git_component(
+                    "coreruleset",
+                    env.get("CRS_REPO_URL", ""),
+                    env.get("CRS_GIT_REF", ""),
+                    crs_path,
+                    previous_git,
+                    strict,
+                ),
+                prepare_release_git_component(
+                    "go-ftw",
+                    go_ftw_source_url,
+                    go_ftw_expected_latest,
+                    git_root / "go-ftw",
+                    previous_git,
+                    strict,
+                    optional=True,
+                ),
+                prepare_release_git_component(
+                    "albedo",
+                    albedo_source_url,
+                    albedo_expected_latest,
+                    git_root / "albedo",
+                    previous_git,
+                    strict,
+                    optional=True,
+                ),
+            ]
+        )
     if env.get("ALLOW_EXTERNAL_CONNECTOR_REPOS") == "1":
         for name, url_key, ref_key in (
             ("modsecurity-apache", "MODSECURITY_APACHE_GIT_URL", "MODSECURITY_APACHE_GIT_REF"),
@@ -2688,65 +2777,98 @@ def main() -> int:
             else:
                 git_components.append(prepare_git_component(name, url, ref, sources_root / name, previous_git, strict))
 
-    archives = [
-        prepare_archive("httpd", env.get("HTTPD_SOURCE_URL", ""), env.get("HTTPD_SHA256", ""), env.get("HTTPD_SHA256_URL", ""), archives_root / "apache"),
-        prepare_archive("apr", env.get("APR_SOURCE_URL", ""), env.get("APR_SHA256", ""), env.get("APR_SHA256_URL", ""), archives_root / "apache"),
-        prepare_archive("apr-util", env.get("APR_UTIL_SOURCE_URL", ""), env.get("APR_UTIL_SHA256", ""), env.get("APR_UTIL_SHA256_URL", ""), archives_root / "apache"),
-        prepare_archive("pcre2", env.get("PCRE2_SOURCE_URL", ""), env.get("PCRE2_SHA256", ""), env.get("PCRE2_SHA256_URL", ""), archives_root / "apache"),
-        prepare_archive("haproxy", env.get("HAPROXY_SOURCE_URL", ""), env.get("HAPROXY_SHA256", ""), env.get("HAPROXY_SHA256_URL", ""), archives_root / "haproxy"),
-    ]
-    try:
-        nginx_tag, nginx_url, nginx_lookup_status = resolve_nginx_archive(env, archives_root / "nginx/nginx-latest-release.json")
-        nginx_record = prepare_archive("nginx", nginx_url, env.get("NGINX_SHA256", ""), "", archives_root / "nginx")
-        nginx_record["resolved_tag"] = nginx_tag
-        nginx_record["release_lookup_status"] = nginx_lookup_status
-        archives.append(nginx_record)
-    except Exception as exc:
-        archives.append({"name": "nginx", "status": "blocked", "blocker_reason": network_blocker_reason(exc), "checksum_status": "unknown"})
+    archives: list[dict[str, Any]] = []
+    if target_connector in {"all", "apache"}:
+        archives.extend(
+            [
+                prepare_archive("httpd", env.get("HTTPD_SOURCE_URL", ""), env.get("HTTPD_SHA256", ""), env.get("HTTPD_SHA256_URL", ""), archives_root / "apache"),
+                prepare_archive("apr", env.get("APR_SOURCE_URL", ""), env.get("APR_SHA256", ""), env.get("APR_SHA256_URL", ""), archives_root / "apache"),
+                prepare_archive("apr-util", env.get("APR_UTIL_SOURCE_URL", ""), env.get("APR_UTIL_SHA256", ""), env.get("APR_UTIL_SHA256_URL", ""), archives_root / "apache"),
+                prepare_archive("pcre2", env.get("PCRE2_SOURCE_URL", ""), env.get("PCRE2_SHA256", ""), env.get("PCRE2_SHA256_URL", ""), archives_root / "apache"),
+            ]
+        )
+    if target_connector in {"all", "haproxy"}:
+        archives.append(
+            prepare_archive("haproxy", env.get("HAPROXY_SOURCE_URL", ""), env.get("HAPROXY_SHA256", ""), env.get("HAPROXY_SHA256_URL", ""), archives_root / "haproxy")
+        )
+    if target_connector in {"all", "nginx"}:
+        try:
+            nginx_tag, nginx_url, nginx_lookup_status = resolve_nginx_archive(env, archives_root / "nginx/nginx-latest-release.json")
+            nginx_record = prepare_archive("nginx", nginx_url, env.get("NGINX_SHA256", ""), "", archives_root / "nginx")
+            nginx_record["resolved_tag"] = nginx_tag
+            nginx_record["release_lookup_status"] = nginx_lookup_status
+            archives.append(nginx_record)
+        except Exception as exc:
+            archives.append({"name": "nginx", "status": "blocked", "blocker_reason": network_blocker_reason(exc), "checksum_status": "unknown"})
 
     git_by_name = {str(item.get("name")): item for item in git_components if isinstance(item, dict)}
     expat = prepare_expat(env, cache_root, build_root, git_by_name.get("expat", {}))
     modsecurity = prepare_shared_modsecurity(env, cache_root, build_root, git_by_name.get("modsecurity-v3", {}), expat)
     connector_plans = {
-        name: connector_plan(connector_root, framework_root, cache_root, env, name, modsecurity, expat)
+        name: connector_plan(connector_root, framework_root, cache_root, env, name, modsecurity, expat, archives)
         for name in ("apache", "nginx", "haproxy")
     }
-    apache_httpd = prepare_apache_httpd(
-        env,
-        connector_root,
-        framework_root,
-        cache_root,
-        build_root,
-        sources_root,
-        archives_root,
-        expat,
-        modsecurity,
-        connector_plans["apache"],
+    def not_selected(name: str) -> dict[str, Any]:
+        return {
+            "connector": name,
+            "name": name,
+            "status": "not_selected",
+            "blocker_reason": "",
+            "modsecurity_build_id": modsecurity.get("build_id", ""),
+        }
+
+    apache_httpd = (
+        prepare_apache_httpd(
+            env,
+            connector_root,
+            framework_root,
+            cache_root,
+            build_root,
+            sources_root,
+            archives_root,
+            expat,
+            modsecurity,
+            connector_plans["apache"],
+        )
+        if target_connector in {"all", "apache"}
+        else not_selected("apache")
     )
-    nginx = prepare_nginx_runtime(
-        env,
-        connector_root,
-        framework_root,
-        cache_root,
-        build_root,
-        sources_root,
-        archives_root,
-        modsecurity,
-        connector_plans["nginx"],
+    nginx = (
+        prepare_nginx_runtime(
+            env,
+            connector_root,
+            framework_root,
+            cache_root,
+            build_root,
+            sources_root,
+            archives_root,
+            modsecurity,
+            connector_plans["nginx"],
+        )
+        if target_connector in {"all", "nginx"}
+        else not_selected("nginx")
     )
-    haproxy = prepare_haproxy_runtime(
-        env,
-        connector_root,
-        framework_root,
-        cache_root,
-        build_root,
-        sources_root,
-        archives_root,
-        modsecurity,
-        connector_plans["haproxy"],
+    haproxy = (
+        prepare_haproxy_runtime(
+            env,
+            connector_root,
+            framework_root,
+            cache_root,
+            build_root,
+            sources_root,
+            archives_root,
+            modsecurity,
+            connector_plans["haproxy"],
+        )
+        if target_connector in {"all", "haproxy"}
+        else not_selected("haproxy")
     )
-    go_ftw = prepare_go_tool("go-ftw", "GO_FTW_BIN", cache_root, build_root, git_by_name.get("go-ftw", {}), optional=True)
-    albedo = prepare_go_tool("albedo", "ALBEDO_BIN", cache_root, build_root, git_by_name.get("albedo", {}), optional=True)
+    if target_connector == "all":
+        go_ftw = prepare_go_tool("go-ftw", "GO_FTW_BIN", cache_root, build_root, git_by_name.get("go-ftw", {}), optional=True)
+        albedo = prepare_go_tool("albedo", "ALBEDO_BIN", cache_root, build_root, git_by_name.get("albedo", {}), optional=True)
+    else:
+        go_ftw = {"dependency": "go-ftw", "name": "go-ftw", "status": "not_selected", "blocker_reason": ""}
+        albedo = {"dependency": "albedo", "name": "albedo", "status": "not_selected", "blocker_reason": ""}
 
     runtime_env = {
         "CONNECTOR_COMPONENT_CACHE": str(cache_root),
@@ -2848,6 +2970,7 @@ def main() -> int:
         "build_root": str(build_root),
         "native_root": str(native_root),
         "strict_verify": strict,
+        "target_connector": target_connector,
         "prepare_phases": prepare_phases,
         "framework_runtime_config": {key: env.get(key, "") for key in COMMON_SH_CONFIG_VARS},
         "runtime_env": runtime_env,
@@ -2912,8 +3035,14 @@ def main() -> int:
     nginx_blocked = [item for item in archives if item.get("name") == "nginx" and item.get("status") in {"blocked", "corrupt"}]
     if nginx.get("status") not in {"present", "built", "reused"}:
         blocked.extend(nginx_blocked)
-    for component_name, component in (("modsecurity", modsecurity), ("apache_httpd", apache_httpd), ("nginx", nginx), ("haproxy", haproxy)):
-        if component.get("status") in {"blocked", "corrupt"}:
+    native_components = (("apache_httpd", apache_httpd), ("nginx", nginx), ("haproxy", haproxy))
+    selected_components = (
+        native_components
+        if target_connector == "all"
+        else tuple(item for item in native_components if item[1].get("connector") == target_connector)
+    )
+    for component_name, component in (("modsecurity", modsecurity), *selected_components):
+        if component.get("status") in {"blocked", "corrupt", "failed"}:
             blocked.append({"name": component_name, **component})
     if build_cache.get("build_reuse_summary", {}).get("status") == "blocked":
         blocked.append(
@@ -2923,11 +3052,17 @@ def main() -> int:
             }
         )
     for component_name, component in (("expat", expat), ("go-ftw", go_ftw), ("albedo", albedo)):
-        if component.get("status") in {"blocked", "corrupt"}:
+        if component.get("status") in {"blocked", "corrupt", "failed"}:
             blocked.append({"name": component_name, **component})
     if blocked:
         for item in blocked:
-            print(f"prepare-runtime-components: BLOCKED {item.get('name')}: {item.get('blocker_reason')}")
+            label = "FAILED" if item.get("status") == "failed" else "BLOCKED"
+            print(f"prepare-runtime-components: {label} {item.get('name')}: {item.get('blocker_reason')}")
+        # Once a build command ran, a non-zero exit or a missing expected
+        # artifact is an execution failure.  Exit 77 remains reserved for a
+        # prerequisite that prevented the build from starting.
+        if any("build_exit_code" in item for item in blocked):
+            return 1
         return 77
     print(f"prepare-runtime-components: cache={cache_root}")
     print(f"prepare-runtime-components: report={component_md}")

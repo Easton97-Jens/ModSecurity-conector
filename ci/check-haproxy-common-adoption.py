@@ -7,6 +7,10 @@ text = '\n'.join(p.read_text(errors='ignore') for p in paths)
 binding = (ROOT/'connectors/haproxy/src/haproxy_modsecurity_binding.c').read_text()
 mapper = (ROOT/'connectors/haproxy/src/haproxy_modsecurity_mapper.c').read_text()
 runtime_text = '\n'.join(p.read_text(errors='ignore') for p in (ROOT/'connectors/haproxy').rglob('*.c') if p.name != 'haproxy_modsecurity_mapper.c')
+spop_runtime = (ROOT/'connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c').read_text()
+decision_log_start = spop_runtime.index('static void decision_log_write(')
+decision_log_end = spop_runtime.index('static int transaction_cache_init(', decision_log_start)
+decision_log_writer = spop_runtime[decision_log_start:decision_log_end]
 ok = True
 def check(cond,msg):
     global ok
@@ -40,6 +44,23 @@ check('msconnector_headers_find_first' in text, 'HAProxy uses Common header look
 check('msconnector_event_write_jsonl_line' in text or 'msconnector_rule_id_extract_from_message' in text or 'msconnector_json_escape' in text or 'msconnector_sanitize_log_message' in text, 'HAProxy uses Common event/rule/json/log primitives or documents gap')
 check("common_rule_id[0] = '\\0';" in binding, 'rule-id buffer is initialized before extraction')
 check('rule_id_result > 0' in binding and 'strtol(common_rule_id' in binding, 'rule-id extraction only uses positive results')
+for field in [
+    'rule_message', 'matched_variable', 'matched_value_snippet', 'redirect_url',
+    'client_ip', 'method', 'uri', 'host',
+]:
+    check(f'JSON_FIELD_STRING("{field}"' not in decision_log_writer,
+          f'HAProxy decision JSONL omits payload-bearing field {field}')
+check('safe_decision_reason_code' in decision_log_writer and
+      'json_write_string(file, reason_code)' in decision_log_writer,
+      'HAProxy decision JSONL emits a bounded safe reason code')
+check('decision->log_message' not in decision_log_writer and
+      'reason != 0 ? reason' not in decision_log_writer,
+      'HAProxy decision JSONL does not serialize intervention log text')
+check('NOTIFY header[%u] name=%s value=%s' not in spop_runtime and
+      'method=%s path=%s uri=%s host=%s test_header=%s' not in spop_runtime,
+      'HAProxy agent log does not serialize raw request header or URI values')
+check('build_decision_ack_payload(&ack_payload, &decision,\n                        safe_decision_reason_code(' in spop_runtime,
+      'HAProxy ACK error variable uses a safe classification instead of intervention text')
 for bad in ['haproxy_parse_bool(', 'haproxy_parse_phase4(', 'haproxy_parse_size(', 'haproxy_json_escape(', 'haproxy_rule_id_extract(']:
     check(bad not in text, f'no duplicate helper {bad}')
 for forbidden in ['production verified claim', 'runtime verified claim', 'full-matrix verified claim', 'crs verified claim']:

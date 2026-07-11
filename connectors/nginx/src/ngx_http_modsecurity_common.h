@@ -185,7 +185,7 @@ int ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_htt
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_create_ctx(ngx_http_request_t *r);
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r);
 char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p);
-#if (NGX_PCRE2)
+#if !(NGX_PCRE) || (NGX_PCRE2)
 #define ngx_http_modsecurity_pcre_malloc_init(x) NULL
 #define ngx_http_modsecurity_pcre_malloc_done(x) (void)x
 #else

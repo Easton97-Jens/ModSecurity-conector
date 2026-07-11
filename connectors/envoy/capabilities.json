@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "connector": "envoy",
+  "host_name": "envoy",
+  "integration_mode": "http-ext-authz-service",
+  "metadata_source": "connectors/envoy/metadata.c",
+  "source_contract": [
+    "connectors/envoy/metadata.c",
+    "connectors/envoy/config/envoy-ext-authz-smoke.yaml.in",
+    "connectors/envoy/config/envoy-ext-authz.conf",
+    "connectors/envoy/src/envoy_ext_authz_service_main.c",
+    "connectors/envoy/src/envoy_modsecurity_mapper.c",
+    "connectors/envoy/harness/run_envoy_connector_runtime.sh"
+  ],
+  "host_model_constraints": [
+    "The selected Envoy HTTP ext_authz service observes a pre-upstream authorization request and cannot inspect the later upstream response headers or body.",
+    "The checked-in ext_authz configuration buffers at most 4096 request-body bytes with partial messages disabled; the existing minimal smoke sends no request body.",
+    "Only the headers allowed by the ext_authz authorization_request configuration are forwarded to the authorization service.",
+    "The authorization service currently sees the Envoy-to-service socket endpoints and does not map original downstream connection endpoints into Common connection metadata."
+  ],
+  "capabilities": {
+    "connection_metadata": {
+      "state": "not_implemented",
+      "reason": "The HTTP authorization service maps its local Envoy peer socket rather than the original downstream connection metadata."
+    },
+    "request_headers": {
+      "state": "implemented_not_asserted",
+      "reason": "The ext_authz HTTP request forwards an allowlisted header set into the Common Runtime mapper; canonical header coverage is pending."
+    },
+    "request_body_buffered": {
+      "state": "configured_not_exercised",
+      "reason": "Envoy with_request_body and the connector buffered body mode are both configured at 4096 bytes, but the existing host smoke sends no body."
+    },
+    "request_body_streaming": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected ext_authz integration deliberately uses the with_request_body buffered authorization request, not a streaming body protocol."
+    },
+    "response_headers": {
+      "state": "unsupported_by_host_model",
+      "reason": "HTTP ext_authz runs before the upstream request and does not receive the later upstream response headers."
+    },
+    "response_body_buffered": {
+      "state": "unsupported_by_host_model",
+      "reason": "HTTP ext_authz does not receive the later upstream response body."
+    },
+    "response_body_streaming": {
+      "state": "unsupported_by_host_model",
+      "reason": "HTTP ext_authz does not receive an upstream response body stream."
+    },
+    "phase1": {
+      "state": "implemented_not_asserted",
+      "reason": "The authorization service maps request headers into the Common Runtime Phase-1 path; a canonical baseline result is pending."
+    },
+    "phase2": {
+      "state": "configured_not_exercised",
+      "reason": "Buffered request-body forwarding and Common Runtime Phase 2 are configured, but no existing host smoke proves that Envoy delivered the body."
+    },
+    "phase3": {
+      "state": "unsupported_by_host_model",
+      "reason": "The pre-upstream ext_authz call cannot inspect upstream response headers."
+    },
+    "phase4": {
+      "state": "unsupported_by_host_model",
+      "reason": "The pre-upstream ext_authz call cannot inspect upstream response bodies."
+    },
+    "late_intervention": {
+      "state": "unsupported_by_host_model",
+      "reason": "The authorization decision completes before the upstream response starts, so there is no response-phase late intervention point."
+    },
+    "deny": {
+      "state": "implemented_not_asserted",
+      "reason": "A disruptive Common Runtime decision is returned as a non-2xx ext_authz response; a fresh canonical deny result is pending."
+    },
+    "redirect": {
+      "state": "not_implemented",
+      "reason": "The Common Runtime preserves redirect status and URL, but the repository HTTP authorization response does not emit the Location header."
+    },
+    "drop": {
+      "state": "unsupported_by_host_model",
+      "reason": "The HTTP authorization contract returns an authorization response and cannot directly silent-drop the downstream connection."
+    },
+    "abort_connection": {
+      "state": "unsupported_by_host_model",
+      "reason": "The external authorization service cannot directly abort Envoy's downstream connection as a ModSecurity action."
+    },
+    "log_only": {
+      "state": "implemented_not_asserted",
+      "reason": "A non-disruptive rule leaves the authorization response successful; explicit canonical log-only evidence is pending."
+    },
+    "transaction_id": {
+      "state": "implemented_not_asserted",
+      "reason": "The configured x-request-id header is resolved by Common Runtime and included in decision events; canonical correlation evidence is pending."
+    },
+    "event_jsonl": {
+      "state": "implemented_not_asserted",
+      "reason": "Common Runtime writes bounded metadata-only disruptive-decision JSONL; canonical field and payload-absence evidence is pending."
+    },
+    "config_inline_rules": {
+      "state": "implemented_not_asserted",
+      "reason": "The repository HTTP authorization service configuration parser and Common Runtime support inline rules; canonical config evidence is pending."
+    },
+    "config_rules_file": {
+      "state": "implemented_not_asserted",
+      "reason": "The checked-in service path loads a local rules file through Common Runtime; canonical config evidence is pending."
+    },
+    "config_remote_rules": {
+      "state": "implemented_not_asserted",
+      "reason": "Common Runtime exposes remote rule key and URL configuration, but the no-CRS baseline does not exercise external networking."
+    }
+  },
+  "evidence_stages": {
+    "source_contract": {
+      "status": "implemented_not_asserted",
+      "reason": "Service, mapper, metadata, Envoy configuration, and harness sources are present; no canonical source-contract result is attached."
+    },
+    "compile": {
+      "status": "implemented_not_asserted",
+      "reason": "A repository authorization-service build path exists; no current canonical compile result is attached."
+    },
+    "link": {
+      "status": "implemented_not_asserted",
+      "reason": "The service links Common Runtime and libmodsecurity; no current canonical link result is attached."
+    },
+    "config_load": {
+      "status": "implemented_not_asserted",
+      "reason": "Connector config check and real Envoy validation paths exist; no current canonical result is attached."
+    },
+    "start_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "Envoy and authorization-service start wiring exists; no current canonical request-free result is attached."
+    },
+    "minimal_runtime_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "A real Envoy ext_authz 200/403 harness exists; no current canonical minimal-runtime result is attached."
+    },
+    "no_crs_baseline": {
+      "status": "supported_not_verified",
+      "reason": "Capability-selected pre-upstream cases can run through the host path, but no canonical baseline result is attached."
+    },
+    "crs_smoke": {
+      "status": "supported_not_verified",
+      "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence."
+    },
+    "extended_matrix": {
+      "status": "not_implemented",
+      "reason": "Extended-matrix verification is outside this canonical no-CRS declaration."
+    }
+  }
+}

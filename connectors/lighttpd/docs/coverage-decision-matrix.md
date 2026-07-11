@@ -20,12 +20,12 @@ connector policy.
 | Start smoke | PASS | real process, clean stop, zero requests |
 | Request metadata/headers | PASS, narrow | real baseline 200 and rule-backed 403 |
 | Request body | unsupported / unverified | mapper advertises no body and passes no payload |
-| Response metadata/headers | executed in smoke | response-start hook and Common response processing |
+| Response metadata/headers | IMPLEMENTED, NOT ASSERTED | response-start hook exists; no real Phase-3 behavioral assertion yet |
 | Response body | unsupported / unverified | no body hook or payload mapping |
-| Decision/block status | PASS, Phase 1 | rule `1000001`, HTTP 403 via `http_status_set_err()` |
+| Decision/block status | PASS, Phase 1 | canonical rule `1100001`, HTTP 403 via `http_status_set_err()` |
 | Events | PASS, narrow | JSONL connector/rule metadata; no body payload field |
 | Transaction cleanup | implemented | finish/destroy and mapper storage cleanup at reset |
-| No-CRS targeted smoke | PASS | only the repository targeted rule, not CRS |
+| No-CRS targeted smoke | NOT EXECUTED | the minimal 200/403 runtime core is separate from the 53-case baseline |
 | CRS | not run / not claimed | no native CRS evidence |
 | Production/security/full matrix | not claimed | broader hardening and evidence absent |
 

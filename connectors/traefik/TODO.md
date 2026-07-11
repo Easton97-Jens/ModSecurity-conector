@@ -2,6 +2,7 @@
 
 Status: minimal_runtime_smoke (forwardAuth request path only)
 Runtime status: connector-gap outside the targeted request-header proof
+Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 
 Global gate definitions:
 
@@ -48,14 +49,23 @@ Global gate definitions:
 - [x] BLOCKED evidence path documented
 - [x] common smoke result writer used instead of connector-local JSON writer
 - [x] connector-local real Traefik -> forwardAuth -> service harness implemented
-- [ ] allowed request returns expected runtime status
-- [ ] blocked request returns HTTP 403 through forwardAuth
+- [x] allowed request returns HTTP 200 in the targeted native runtime smoke
+- [x] blocked request returns rule-backed HTTP 403 through forwardAuth
 - [ ] Go plugin remains excluded from Phase 1
 
 ## Phase 4: No-CRS Runtime
 
 - [ ] `make test-no-crs` executed for Traefik scope
 - [ ] PASS/FAIL/BLOCKED counts documented
+- [x] Architecture boundary recorded in `capabilities.json`: Traefik 3.7 can
+      buffer a forwardAuth body, but the checked-in native path does not enable
+      `forwardBody` and uses `request_body_mode=none`; Phase 2 is therefore
+      `not_implemented` for the selected path.
+- [x] Upstream response headers and bodies are recorded as
+      `unsupported_by_host_model` for `forwardAuth`.
+- [ ] `make no-crs-baseline-traefik` produces current canonical evidence.
+- [ ] `make evidence-check-traefik` validates the result and does not use the
+      legacy Python/evaluator body probe as native service evidence.
 
 ## Phase 5: With-CRS Runtime
 

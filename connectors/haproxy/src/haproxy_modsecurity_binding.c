@@ -213,8 +213,6 @@ static void capture_intervention(
             intervention.log);
         msconnector_sanitize_log_message(intervention.log, intervention.log != 0 ? strlen(intervention.log) : 0U,
             decision->log_message, sizeof(decision->log_message), &truncated);
-        copy_message(decision->rule_message, sizeof(decision->rule_message),
-            intervention.log);
         rule_id_result = msconnector_rule_id_extract_from_message(intervention.log, common_rule_id,
             sizeof(common_rule_id));
         if (rule_id_result > 0) {

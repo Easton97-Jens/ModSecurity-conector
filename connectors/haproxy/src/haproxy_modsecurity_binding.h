@@ -16,9 +16,6 @@ typedef struct haproxy_modsecurity_decision {
     int anomaly_score;
     char action[32];
     char redirect_url[1024];
-    char rule_message[512];
-    char matched_variable[256];
-    char matched_value_snippet[256];
     char log_message[512];
 } haproxy_modsecurity_decision;
 

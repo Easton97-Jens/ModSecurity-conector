@@ -38,6 +38,7 @@ TEST_CASE="${TEST_CASE:-}"
 SMOKE_CASES="${SMOKE_CASES:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
+MSCONNECTOR_SMOKE_STAGE="${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}"
 STATUS_FILE="$LOG_DIR/status.txt"
 MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-no-crs}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
@@ -631,15 +632,15 @@ ensure_local_haproxy() {
         CONNECTOR_ROOT="$REPO_ROOT" \
         FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
         sh "$PREPARE_HAPROXY_RUNTIME" >"$LOG_DIR/prepare-haproxy-runtime.log" 2>&1 || \
-        blocked "prepare-haproxy-runtime failed; see $LOG_DIR/prepare-haproxy-runtime.log"
-    [ -x "$HAPROXY_BIN" ] || blocked "local HAProxy binary missing after prepare: $HAPROXY_BIN"
+        fail "prepare-haproxy-runtime failed; see $LOG_DIR/prepare-haproxy-runtime.log"
+    [ -x "$HAPROXY_BIN" ] || fail "local HAProxy binary missing after prepare: $HAPROXY_BIN"
 }
 
 ensure_spoa_runtime() {
     if [ -x "$SPOA_RUNTIME_BIN" ] && [ -f "$MODSECURITY_BINDING_DIR/paths.env" ]; then
         . "$MODSECURITY_BINDING_DIR/paths.env"
         export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR
-        [ -n "${MODSECURITY_LIB_DIR:-}" ] || blocked "ModSecurity library directory missing from paths.env"
+        [ -n "${MODSECURITY_LIB_DIR:-}" ] || fail "ModSecurity library directory missing from paths.env"
         return 0
     fi
     if [ "${RUNTIME_COMPONENTS_PREPARED_ONLY:-0}" = "1" ]; then
@@ -650,12 +651,12 @@ ensure_spoa_runtime() {
         LOG_ROOT="$LOG_ROOT" \
         REPO_ROOT="$REPO_ROOT" \
         make -C "$REPO_ROOT/connectors/haproxy" build-modsecurity-binding build-spoa-runtime >"$LOG_DIR/haproxy-build.log" 2>&1 || \
-        blocked "HAProxy ModSecurity binding/SPOA runtime build failed; see $LOG_DIR/haproxy-build.log"
-    [ -x "$SPOA_RUNTIME_BIN" ] || blocked "SPOA runtime missing after build: $SPOA_RUNTIME_BIN"
-    [ -f "$MODSECURITY_BINDING_DIR/paths.env" ] || blocked "ModSecurity binding paths missing: $MODSECURITY_BINDING_DIR/paths.env"
+        fail "HAProxy ModSecurity binding/SPOA runtime build failed; see $LOG_DIR/haproxy-build.log"
+    [ -x "$SPOA_RUNTIME_BIN" ] || fail "SPOA runtime missing after build: $SPOA_RUNTIME_BIN"
+    [ -f "$MODSECURITY_BINDING_DIR/paths.env" ] || fail "ModSecurity binding paths missing: $MODSECURITY_BINDING_DIR/paths.env"
     . "$MODSECURITY_BINDING_DIR/paths.env"
     export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR
-    [ -n "${MODSECURITY_LIB_DIR:-}" ] || blocked "ModSecurity library directory missing from paths.env"
+    [ -n "${MODSECURITY_LIB_DIR:-}" ] || fail "ModSecurity library directory missing from paths.env"
 }
 
 cleanup() {
@@ -823,7 +824,7 @@ class Handler(BaseHTTPRequestHandler):
 ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
 PY
     BACKEND_PID=$!
-    wait_tcp_port "$BACKEND_PORT" || blocked "backend failed to start on 127.0.0.1:$BACKEND_PORT"
+    wait_tcp_port "$BACKEND_PORT" || fail "backend failed to start on 127.0.0.1:$BACKEND_PORT"
 }
 
 start_agent() {
@@ -872,18 +873,18 @@ start_agent() {
     if rule_parse_startup_is_not_executable; then
         mark_not_executable "ModSecurity rule parse failed for generated case; see $LOG_DIR/spoa-runtime.stderr.log"
     fi
-    blocked "SPOA runtime failed to start; see $LOG_DIR/spoa-runtime.stderr.log"
+    fail "SPOA runtime failed to start; see $LOG_DIR/spoa-runtime.stderr.log"
 }
 
 start_haproxy() {
     write_haproxy_config
     if ! "$HAPROXY_BIN" -c -f "$HAPROXY_CFG" >"$LOG_DIR/haproxy-configtest.log" 2>&1; then
-        blocked "HAProxy configtest failed; see $LOG_DIR/haproxy-configtest.log"
+        fail "HAProxy configtest failed; see $LOG_DIR/haproxy-configtest.log"
     fi
     "$HAPROXY_BIN" -db -f "$HAPROXY_CFG" >"$LOG_DIR/haproxy.stdout.log" 2>"$LOG_DIR/haproxy.stderr.log" &
     HAPROXY_PID=$!
     sleep 0.2
-    kill -0 "$HAPROXY_PID" >/dev/null 2>&1 || blocked "HAProxy exited before request; see $LOG_DIR/haproxy.stderr.log"
+    kill -0 "$HAPROXY_PID" >/dev/null 2>&1 || fail "HAProxy exited before request; see $LOG_DIR/haproxy.stderr.log"
 }
 
 send_case_request() {
@@ -935,6 +936,7 @@ echo "haproxy_smoke: LOG_DIR=$LOG_DIR"
 echo "haproxy_smoke: TEST_CASE=$TEST_CASE"
 echo "haproxy_smoke: CASE_SCOPE=$CASE_SCOPE"
 echo "haproxy_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+echo "haproxy_smoke: MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE"
 if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
     echo "haproxy_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
 fi
@@ -958,9 +960,17 @@ rm -f "$LOG_DIR/"*.log \
     "$RUNTIME_ROOT/"*.port 2>/dev/null || true
 rm -f "$LOG_DIR/audit/"* 2>/dev/null || true
 
-CURL_BIN=$(find_curl)
-[ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
-[ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+case "$MSCONNECTOR_SMOKE_STAGE" in
+    config_load|start_smoke|minimal_runtime_smoke) ;;
+    *) fail "unsupported MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE" ;;
+esac
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+    CURL_BIN=$(find_curl)
+    [ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
+    [ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+else
+    CURL_BIN=
+fi
 
 ensure_local_haproxy
 ensure_spoa_runtime
@@ -990,7 +1000,7 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --audit-log-file "$AUDIT_LOG_FILE" \
     --audit-log-dir "$AUDIT_LOG_DIR" \
     --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
-    blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
+    fail "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
 
@@ -1003,9 +1013,26 @@ PORT=$(select_free_port "$PORT" "$PORT_SEARCH_LIMIT") || blocked "no free localh
 SPOA_PORT=$(select_offset_port "$PORT" "$HAPROXY_SPOA_PORT_OFFSET" "$PORT_SEARCH_LIMIT") || blocked "no free local SPOA port found from $((PORT + HAPROXY_SPOA_PORT_OFFSET)) within $PORT_SEARCH_LIMIT attempts"
 BACKEND_PORT=$(select_offset_port "$PORT" "$HAPROXY_BACKEND_PORT_OFFSET" "$PORT_SEARCH_LIMIT") || blocked "no free local backend port found from $((PORT + HAPROXY_BACKEND_PORT_OFFSET)) within $PORT_SEARCH_LIMIT attempts"
 trap cleanup EXIT INT TERM
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
+    write_haproxy_config
+    if ! "$HAPROXY_BIN" -c -f "$HAPROXY_CFG" >"$LOG_DIR/haproxy-configtest.log" 2>&1; then
+        fail "HAProxy configtest failed; see $LOG_DIR/haproxy-configtest.log"
+    fi
+    echo "haproxy_smoke: pass config_load (no process started, no request sent)"
+    exit 0
+fi
 start_backend
 start_agent
 start_haproxy
+
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
+    sleep 1
+    kill -0 "$BACKEND_PID" >/dev/null 2>&1 || fail "backend exited during request-free start smoke"
+    kill -0 "$AGENT_PID" >/dev/null 2>&1 || fail "SPOA agent exited during request-free start smoke"
+    kill -0 "$HAPROXY_PID" >/dev/null 2>&1 || fail "HAProxy exited during request-free start smoke"
+    echo "haproxy_smoke: pass start_smoke (request-free host and agent liveness verified)"
+    exit 0
+fi
 
 set +e
 http_status=$(send_case_request)

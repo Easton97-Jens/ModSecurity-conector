@@ -56,6 +56,7 @@ SMOKE_CASES="${SMOKE_CASES:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
+MSCONNECTOR_SMOKE_STAGE="${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}"
 STATUS_FILE="$LOG_DIR/status.txt"
 CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-}"
 CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-}"
@@ -659,8 +660,20 @@ start_server() {
             fail "NGINX configtest failed; see $LOG_DIR/configtest.log"
         fi
 
+        if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
+            return 0
+        fi
+
         "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" > "$LOG_DIR/nginx-stdout.log" 2>&1 &
         NGINX_PID=$!
+
+        if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
+            sleep 1
+            if kill -0 "$NGINX_PID" >/dev/null 2>&1; then
+                return 0
+            fi
+            fail "NGINX exited during request-free start smoke; see $LOG_DIR/nginx-stdout.log and $LOG_DIR/error.log"
+        fi
 
         ready=0
         i=0
@@ -785,6 +798,7 @@ echo "nginx_smoke: LOG_DIR=$LOG_DIR"
 echo "nginx_smoke: TEST_CASE=$TEST_CASE"
 echo "nginx_smoke: CASE_SCOPE=$CASE_SCOPE"
 echo "nginx_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+echo "nginx_smoke: MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE"
 if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
     echo "nginx_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
 fi
@@ -814,12 +828,23 @@ rm -f "$LOG_DIR/configtest.log" \
 	    "$RUNTIME_ROOT/nginx.pid"
 rm -f "$LOG_DIR/audit/"*
 
-CURL_BIN=$(find_curl)
+case "$MSCONNECTOR_SMOKE_STAGE" in
+    config_load|start_smoke|minimal_runtime_smoke) ;;
+    *) fail "unsupported MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE" ;;
+esac
+
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+    CURL_BIN=$(find_curl)
+else
+    CURL_BIN=
+fi
 
 [ -x "$NGINX_BINARY" ] || blocked "missing executable NGINX binary: $NGINX_BINARY"
 [ -f "$NGINX_MODULE" ] || blocked "missing NGINX ModSecurity dynamic module: $NGINX_MODULE"
-[ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
-[ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+    [ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
+    [ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+fi
 [ -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ] || blocked "missing staged libmodsecurity.so: $MODSECURITY_LIB_DIR/libmodsecurity.so"
 
 CONFIG_FILE="$RUNTIME_ROOT/conf/nginx.conf"
@@ -862,6 +887,15 @@ export LD_LIBRARY_PATH
 
 trap cleanup EXIT INT TERM
 start_server
+
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
+    echo "nginx_smoke: pass config_load (no process started, no request sent)"
+    exit 0
+fi
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
+    echo "nginx_smoke: pass start_smoke (request-free host liveness verified)"
+    exit 0
+fi
 
 set +e
 http_status=$(send_case_request)

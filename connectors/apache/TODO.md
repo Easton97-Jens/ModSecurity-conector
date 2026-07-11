@@ -1,6 +1,7 @@
 # Apache Planning
 
-Status: scaffolded
+Status: native Apache module; canonical capability manifest present
+Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 
 Tracked in `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`.
 
@@ -16,11 +17,17 @@ Tracked in `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`.
 
 ## Coverage / Runtime Decision Matrix
 
+The checked-in `capabilities.json` is the source contract for the new baseline.
+It records the native Phase 1-4 paths as `implemented_not_asserted`; no value is
+promoted to `verified` until a current canonical result exists under
+`$EVIDENCE_ROOT/apache/<run-id>/`.
+
 - [x] Coverage decision matrix reviewed.
 - [x] No local tests folder.
 - [x] External framework test paths referenced.
-- [x] `phase1_header_block` runtime smoke PASS documented.
-- [x] Current `/src` `make test-no-crs` PASS documented.
+- [x] Legacy `phase1_header_block` runtime smoke evidence documented.
+- [x] Legacy `/src` `make test-no-crs` result documented; it is not the
+      canonical No-CRS baseline introduced by this branch.
 - [ ] Current `/src` `make test-with-crs` PASS documented; current result is
       FAIL because `action_status_401_phase1_block` expected 401 and observed
       403.
@@ -33,3 +40,6 @@ Tracked in `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`.
 - [ ] Audit/log evidence documented.
 - [ ] Negative/pass-through case documented.
 - [x] Connector status remains `partial` until matrix is complete.
+- [ ] `make no-crs-baseline-apache` produces current canonical evidence.
+- [ ] `make evidence-check-apache` validates schema, claims, layout, events, and
+      capability consistency for that same run.

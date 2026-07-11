@@ -64,12 +64,25 @@ def assert_output_root(path: Path, repo_root: Path) -> None:
     raise MissingDependency(f"runtime smoke output must be outside the checkout: {path}")
 
 
+def assert_no_symlink_components(path: Path) -> None:
+    absolute = Path(os.path.abspath(path))
+    current = Path(absolute.anchor)
+    for component in absolute.parts[1:]:
+        current /= component
+        if current.is_symlink():
+            raise MissingDependency(
+                f"runtime smoke output path must not contain symlinks: {current}"
+            )
+        if not current.exists():
+            break
+
+
 def write_json(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def verify_block_event(path: Path) -> dict[str, object]:
+def verify_block_event(path: Path, expected_rule_id: str) -> dict[str, object]:
     if not path.is_file():
         raise RuntimeError(f"Common event JSONL is missing: {path}")
     records: list[dict[str, object]] = []
@@ -83,7 +96,7 @@ def verify_block_event(path: Path) -> dict[str, object]:
         if (
             record.get("connector") == "traefik"
             and record.get("transaction_id") == "traefik-forwardauth-block"
-            and record.get("rule_id") == "1000001"
+            and record.get("rule_id") == expected_rule_id
             and record.get("status") == "blocked"
             and record.get("http_status") == 403
         ):
@@ -91,7 +104,9 @@ def verify_block_event(path: Path) -> dict[str, object]:
             if forbidden.intersection(record):
                 raise RuntimeError("Common event JSONL contains a forbidden body payload field")
             return record
-    raise RuntimeError("Common event JSONL lacks the expected rule 1000001 blocked event")
+    raise RuntimeError(
+        f"Common event JSONL lacks the expected rule {expected_rule_id} blocked event"
+    )
 
 
 def concrete_service_config(template: Path, destination: Path, rules_file: Path, event_path: Path) -> None:
@@ -229,20 +244,25 @@ def parse_args() -> argparse.Namespace:
 
 def run(args: argparse.Namespace) -> int:
     repo_root = Path(__file__).resolve().parents[3]
-    result_root = args.result_root.resolve(strict=False)
+    result_root = Path(os.path.abspath(args.result_root))
+    assert_no_symlink_components(result_root)
     assert_output_root(result_root, repo_root)
     result_path = result_root / "result.json"
+    expected_rule_id = os.environ.get("MSCONNECTOR_EXPECTED_RULE_ID", "1000001")
     connector_binary = require_local_executable(args.connector_binary, "Traefik connector binary")
     traefik_binary = require_local_executable(args.traefik_binary, "Traefik binary")
     template = args.config_template.resolve()
-    rules_file = (repo_root / "common/rules/modsecurity_targeted_smoke.conf").resolve()
+    rules_file = Path(
+        os.environ.get(
+            "MSCONNECTOR_RULES_FILE",
+            str(repo_root / "common/rules/modsecurity_targeted_smoke.conf"),
+        )
+    ).resolve()
     if not template.is_file():
         raise MissingDependency(f"connector config template is missing: {template}")
     if not rules_file.is_file():
         raise MissingDependency(f"targeted smoke rule is missing: {rules_file}")
 
-    if result_root.is_symlink():
-        raise MissingDependency(f"runtime smoke output root must not be a symlink: {result_root}")
     if result_root.exists():
         shutil.rmtree(result_root)
     result_root.mkdir(parents=True, exist_ok=True)
@@ -344,7 +364,7 @@ def run(args: argparse.Namespace) -> int:
             raise RuntimeError(f"forwardAuth service exited with code {service_process.returncode}")
         if traefik_process.poll() is not None:
             raise RuntimeError(f"Traefik exited with code {traefik_process.returncode}")
-        blocked_event = verify_block_event(event_path)
+        blocked_event = verify_block_event(event_path, expected_rule_id)
 
         write_json(
             result_path,
