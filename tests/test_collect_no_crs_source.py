@@ -604,7 +604,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             'BUILD_ROOT="$STAGE_BUILD_ROOT"',
             'LOG_ROOT="$STAGE_LOG_ROOT"',
             'RESULTS_DIR="$STAGE_RESULTS_DIR"',
-            'RUNTIME_BASE="$HOST_RUNTIME_ROOT"',
+            'RUNTIME_BASE="$STAGE_RUNTIME_ROOT"',
             'APACHE_RUNTIME_LOG_DIR="$HOST_RUNTIME_ROOT/apache-runtime"',
             'NGINX_HARNESS_WORK_ROOT="$NGINX_RUN_ROOT"',
             '--allowed-source-root "$RAW_DIR"',
