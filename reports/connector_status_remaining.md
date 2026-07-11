@@ -1,6 +1,23 @@
-# Stand der weiteren Connectoren
+# Archived pre-canonical remaining-connector snapshot
 
 **Language:** English | [Deutsch](connector_status_remaining.de.md)
+
+> **Historical archive — superseded by the canonical No-CRS model.**
+>
+> The analysis below is retained only as a pre-host-integration snapshot. It
+> is not a current status, capability declaration, runtime-evidence result, or
+> implementation plan. In particular, its starter-only and no-runtime claims
+> for Envoy, Traefik, and lighttpd are obsolete.
+>
+> Use the generated [all-connector No-CRS snapshot](all-connectors-no-crs-baseline.md)
+> and [canonical capability matrix](testing/generated/canonical/connector-capabilities.generated.md)
+> for the current branch state. They distinguish implementation boundaries from
+> verified evidence and are the only source for canonical No-CRS status.
+>
+> The current host paths are Envoy HTTP `ext_authz`, Traefik HTTP `forwardAuth`,
+> and the native lighttpd plugin. Their presence is not a canonical PASS: until
+> a canonical `result.json` is available, the generated No-CRS snapshot remains
+> `NOT EXECUTED` and must not be promoted from a starter or local self-test.
 
 ## Zusammenfassung
 

@@ -14,6 +14,7 @@ EVENT_LOG_PATH=${EVENT_LOG_PATH:-$RUNTIME_ROOT/events.jsonl}
 PYTHON_BIN=${PYTHON:-python3}
 HELPER="$SCRIPT_DIR/envoy_smoke_helper.py"
 YAML_TEMPLATE="$CONNECTOR_DIR/config/envoy-ext-authz-smoke.yaml.in"
+NO_CRS_SELECTION_CONSUMER="$REPO_ROOT/ci/consume-no-crs-selected-cases.sh"
 ENVOY_CONFIG="$RUNTIME_ROOT/envoy.yaml"
 SUMMARY="$RUNTIME_ROOT/runtime-summary.txt"
 ENVOY_STDOUT="$RUNTIME_ROOT/envoy.stdout.log"
@@ -54,6 +55,11 @@ trap cleanup EXIT HUP INT TERM
 [ -f "$YAML_TEMPLATE" ] || missing_dependency "Envoy config template is missing: $YAML_TEMPLATE"
 [ -f "$HELPER" ] || missing_dependency "smoke helper is missing: $HELPER"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || missing_dependency "Python interpreter is missing: $PYTHON_BIN"
+
+if [ "${MSCONNECTOR_NO_CRS_BASELINE:-0}" = "1" ]; then
+    [ -x "$NO_CRS_SELECTION_CONSUMER" ] || missing_dependency "No-CRS selected-case consumer is missing: $NO_CRS_SELECTION_CONSUMER"
+    "$NO_CRS_SELECTION_CONSUMER" envoy
+fi
 
 case "$RUNTIME_ROOT" in
     /*) ;;

@@ -52,6 +52,33 @@ def require_local_executable(path: Path, label: str) -> Path:
     return path
 
 
+def consume_no_crs_selected_cases(repo_root: Path) -> None:
+    """Require the canonical plan before using the narrow host smoke.
+
+    The shell helper intentionally records no PASS result: evidence finalization
+    will retain selected catalog entries with no live case result as
+    ``NOT_EXECUTED``.
+    """
+    if os.environ.get("MSCONNECTOR_NO_CRS_BASELINE", "") != "1":
+        return
+    consumer = repo_root / "ci" / "consume-no-crs-selected-cases.sh"
+    if not consumer.is_file() or not os.access(consumer, os.X_OK):
+        raise MissingDependency(f"No-CRS selected-case consumer is missing: {consumer}")
+    completed = subprocess.run(
+        [str(consumer), "traefik"],
+        cwd=repo_root,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.stdout:
+        print(completed.stdout, end="")
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or "selected-case consumer failed"
+        raise RuntimeError(detail)
+
+
 def assert_output_root(path: Path, repo_root: Path) -> None:
     if not path.is_absolute():
         raise MissingDependency(f"runtime smoke output root must be absolute: {path}")
@@ -244,6 +271,7 @@ def parse_args() -> argparse.Namespace:
 
 def run(args: argparse.Namespace) -> int:
     repo_root = Path(__file__).resolve().parents[3]
+    consume_no_crs_selected_cases(repo_root)
     result_root = Path(os.path.abspath(args.result_root))
     assert_no_symlink_components(result_root)
     assert_output_root(result_root, repo_root)

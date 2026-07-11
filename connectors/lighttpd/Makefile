@@ -2,7 +2,8 @@ BUILD_ROOT ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)/Mod
 
 .PHONY: build-starter self-test build-lighttpd-bridge build-bridge-starter \
 	self-test-lighttpd-bridge self-test-bridge build-lighttpd-connector \
-	check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd clean
+	check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd \
+	no-crs-baseline-lighttpd clean
 
 build-starter:
 	BUILD_ROOT="$(BUILD_ROOT)" sh build/build_starter.sh
@@ -31,6 +32,9 @@ start-smoke-lighttpd: build-lighttpd-connector
 
 runtime-smoke-lighttpd: build-lighttpd-connector
 	BUILD_ROOT="$(BUILD_ROOT)" sh harness/runtime_lighttpd_smoke.sh
+
+no-crs-baseline-lighttpd: export MSCONNECTOR_NO_CRS_BASELINE := 1
+no-crs-baseline-lighttpd: runtime-smoke-lighttpd
 
 clean:
 	rm -rf "$(BUILD_ROOT)/lighttpd-build-starter" \

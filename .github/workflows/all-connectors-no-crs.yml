@@ -225,6 +225,27 @@ jobs:
           done
           exit "$status"
 
+      - name: Render evidence-merged capability catalog
+        if: success()
+        run: |
+          set -eu
+          make capabilities-all-connectors-evidence \
+            CAPABILITY_REPORT_EVIDENCE_ROOT="$EVIDENCE_ROOT" \
+            CAPABILITY_REPORT_RUN_ID="$NO_CRS_RUN_ID" \
+            CAPABILITY_REPORT_OUTPUT_DIR="$EVIDENCE_ROOT/connector-capabilities"
+
+      - name: Upload evidence-merged capability catalog
+        if: success()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: connector-capabilities-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            ${{ env.EVIDENCE_ROOT }}/connector-capabilities/connector-capabilities.generated.json
+            ${{ env.EVIDENCE_ROOT }}/connector-capabilities/connector-capabilities.generated.md
+            ${{ env.EVIDENCE_ROOT }}/connector-capabilities/connector-capabilities.generated.de.md
+
       - name: Build result-only aggregate
         if: always()
         run: |

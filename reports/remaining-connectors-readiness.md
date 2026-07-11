@@ -2,6 +2,14 @@
 
 **Language:** English | [Deutsch](remaining-connectors-readiness.de.md)
 
+> **Evidence-scope note.** This is a historical local evidence snapshot, not a
+> canonical No-CRS result or a current aggregate capability status. The
+> `minimal_runtime_smoke` labels below refer only to the recorded 2026-07-10
+> runs. The generated [all-connector No-CRS snapshot](all-connectors-no-crs-baseline.md)
+> and [canonical capability matrix](testing/generated/canonical/connector-capabilities.generated.md)
+> are authoritative for current status; only canonical `result.json` files can
+> promote a No-CRS result.
+
 Evidence snapshot: 2026-07-10
 
 ## Outcome

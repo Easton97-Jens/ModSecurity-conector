@@ -10,7 +10,8 @@ LISTEN_PORT ?= 18082
 
 .PHONY: build-starter self-test self-test-envoy-bridge build-envoy-connector \
 	build-modsecurity-bridge check-envoy-config start-smoke-envoy \
-	serve-envoy-connector runtime-smoke-envoy self-test-modsecurity clean
+	serve-envoy-connector runtime-smoke-envoy no-crs-baseline-envoy \
+	self-test-modsecurity clean
 
 build-starter:
 	BUILD_ROOT="$(BUILD_ROOT)" sh build/build_metadata.sh
@@ -50,6 +51,9 @@ runtime-smoke-envoy: build-envoy-connector
 	SERVICE_BIN="$(SERVICE_BIN)" BUILD_ROOT="$(BUILD_ROOT)" CONFIG_FILE="$(CONFIG_FILE)" \
 	RULES_FILE="$(RULES_FILE)" EVENT_LOG_PATH="$(RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
 	PYTHON="$(PYTHON)" sh harness/run_envoy_connector_runtime.sh
+
+no-crs-baseline-envoy: export MSCONNECTOR_NO_CRS_BASELINE := 1
+no-crs-baseline-envoy: runtime-smoke-envoy
 
 self-test-modsecurity: check-envoy-config
 

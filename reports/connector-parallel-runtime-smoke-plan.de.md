@@ -1,6 +1,15 @@
-# Connector Parallel Runtime Smoke Plan
+# Historischer Plan für parallele Connector-Runtime-Smokes
 
 **Sprache:** [English](connector-parallel-runtime-smoke-plan.md) | Deutsch
+
+> **Historischer Planungsstand — durch das kanonische No-CRS-Modell abgelöst.**
+>
+> Dieser Plan stammt vor den aktuell ausgewählten Host-Pfaden und darf nicht als
+> aktuelle Architektur- oder Statusquelle verwendet werden. Insbesondere seine
+> lighttpd-Auswahl `sidecar_proxy` sowie Aussagen zu Starter/blocked Runtime
+> sind überholt. Für aktuelle Host-Grenzen, Evidence-Stufen und Ergebnisstatus
+> gelten der generierte [No-CRS-Gesamtsnapshot](all-connectors-no-crs-baseline.de.md)
+> und die [kanonische Capability-Matrix](testing/generated/canonical/connector-capabilities.generated.de.md).
 
 Status: Parallelphase für Envoy, Traefik und lighttpd gestartet; lighttpd
 Phase 1 wählt nun `sidecar_proxy` aus.

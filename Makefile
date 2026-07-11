@@ -23,6 +23,9 @@ NO_CRS_CONNECTORS := apache nginx haproxy envoy traefik lighttpd
 EVIDENCE_ROOT ?= $(BUILD_ROOT)/no-crs-evidence
 RUNTIME_EVIDENCE_ROOT ?= $(BUILD_ROOT)/runtime-evidence
 CAPABILITY_PLAN_ROOT ?= $(BUILD_ROOT)/no-crs-capability-plans
+CAPABILITY_REPORT_EVIDENCE_ROOT ?= $(EVIDENCE_ROOT)
+CAPABILITY_REPORT_RUN_ID ?= $(NO_CRS_RUN_ID)
+CAPABILITY_REPORT_OUTPUT_DIR ?= $(EVIDENCE_ROOT)/connector-capabilities
 NO_CRS_RUN_ID ?=
 NO_CRS_RULES_FILE ?= $(FRAMEWORK_ROOT)/tests/rules/no-crs-baseline.conf
 REQUESTED_VERIFIED_RUN_ID := $(VERIFIED_RUN_ID)
@@ -202,7 +205,7 @@ export LIGHTTPD_DECISION_BACKEND
 .PHONY: start-smoke-apache start-smoke-nginx start-smoke-haproxy start-smoke-all-connectors
 .PHONY: runtime-smoke-apache runtime-smoke-nginx runtime-smoke-haproxy runtime-smoke-all-connectors
 .PHONY: no-crs-baseline-apache no-crs-baseline-nginx no-crs-baseline-haproxy no-crs-baseline-envoy no-crs-baseline-traefik no-crs-baseline-lighttpd no-crs-baseline-all-connectors
-.PHONY: capabilities-apache capabilities-nginx capabilities-haproxy capabilities-envoy capabilities-traefik capabilities-lighttpd capabilities-all-connectors
+.PHONY: capabilities-apache capabilities-nginx capabilities-haproxy capabilities-envoy capabilities-traefik capabilities-lighttpd capabilities-all-connectors capabilities-all-connectors-evidence
 .PHONY: evidence-check-apache evidence-check-nginx evidence-check-haproxy evidence-check-envoy evidence-check-traefik evidence-check-lighttpd evidence-check-all-connectors
 .PHONY: check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-doc-consistency check-no-crs-source-normalization
 
@@ -740,6 +743,18 @@ capabilities-all-connectors: capabilities-apache capabilities-nginx capabilities
 	"$(PYTHON)" ci/connector_capabilities.py check
 	"$(PYTHON)" ci/connector_capabilities.py generate \
 		--output-dir "$(CURDIR)/reports/testing/generated/canonical"
+
+# Keep the checked-in catalog source-contract-only.  This separate target
+# renders a disposable report view from one explicit, fully validated current
+# canonical No-CRS run, so local/stale latest-run-id files are never selected.
+capabilities-all-connectors-evidence: check-framework
+	@run_id="$(CAPABILITY_REPORT_RUN_ID)"; \
+	[ -n "$$run_id" ] || { echo "FAIL: CAPABILITY_REPORT_RUN_ID (or NO_CRS_RUN_ID) is required" >&2; exit 1; }; \
+	"$(PYTHON)" ci/connector_capabilities.py check; \
+	"$(PYTHON)" ci/connector_capabilities.py generate \
+		--evidence-root "$(CAPABILITY_REPORT_EVIDENCE_ROOT)" \
+		--run-id "$$run_id" \
+		--output-dir "$(CAPABILITY_REPORT_OUTPUT_DIR)"
 
 evidence-check-all-connectors: evidence-check-apache evidence-check-nginx evidence-check-haproxy evidence-check-envoy evidence-check-traefik evidence-check-lighttpd
 

@@ -1,37 +1,56 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-22T07:41:47Z`
-> Verified run id: `2026-06-22T07-41-47Z-f6bc1ebe`
+> Generated at: `2026-07-11T05:59:47Z`
+> Verified run id: `2026-07-11T05-59-47Z-e64adac0`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-connector-roadmap.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `informational`
-> Connector SHA: `f6bc1ebeb7cd85d71ac2b758a8a2ff21c2a64e62`
-> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
+> Connector SHA: `e64adac087abaa8c1bb7e220d16c7f34a0e9bd79`
+> Framework SHA: `de0fc5dc0751d3b0e8cb1bd5187e4e3ff558f41f`
 > Input status: `complete`
 
-# Connector Roadmap
+# Archived pre-canonical Connector Roadmap
 
 **Language:** English | [Deutsch](connector-roadmap.generated.de.md)
 
-## Roadmap Scope
+## Archive boundary and authoritative current status
 
-This report is `roadmap_only`. It evaluates repository structure, existing skeletons, technical feasibility, and first proof steps.
-It does not replace runtime evidence, does not generate full-matrix results, does not fabricate PASS/FAIL values, and must not influence Merge Readiness.
+This report is `roadmap_only` and is retained as a historical pre-canonical planning record.
+For current status use `reports/all-connectors-no-crs-baseline.*` and `reports/testing/generated/canonical/connector-capabilities.generated.*`; only canonical `result.json` evidence may promote a result.
 
 | Field | Value |
 |---|---|
 | report_scope | roadmap_only |
-| evaluates | repository structure, existing skeletons, technical feasibility, first proof steps, and evidence gates |
-| does_not_replace | runtime evidence, verified-case result.json evidence, or full-matrix evidence |
+| snapshot_kind | historical_precanonical_roadmap |
+| evaluates | historical repository structure, skeletons, technical feasibility, first proof steps, and evidence gates |
+| does_not_replace | the canonical capability catalog, canonical No-CRS result evidence, or full-matrix evidence |
+| current_status_authority | reports/all-connectors-no-crs-baseline.* and reports/testing/generated/canonical/connector-capabilities.generated.* |
 | full_matrix_results_created | False |
 | runtime_pass_fail_values_created | False |
 | merge_readiness_impact | none |
 
-## Connector Status Matrix
+## Current canonical host paths
 
-| Connector | Directory | Current Status | Why | Next Step | Runtime Evidence? | Full-Matrix? |
+This table is read on every generation from the six `connectors/<name>/capabilities.json` manifests. Its states are source/capability declarations, not PASS results.
+
+| Connector | Host | Integration | Minimal-runtime declaration | No-CRS declaration |
+|---|---|---|---|---|
+| apache | apache | native-httpd-module | implemented_not_asserted | supported_not_verified |
+| nginx | nginx | native-nginx-http-module | implemented_not_asserted | supported_not_verified |
+| haproxy | haproxy | spoe-spop-agent | implemented_not_asserted | supported_not_verified |
+| envoy | envoy | http-ext-authz-service | implemented_not_asserted | supported_not_verified |
+| traefik | traefik | http-forwardauth-service | implemented_not_asserted | supported_not_verified |
+| lighttpd | lighttpd | native-lighttpd-plugin | implemented_not_asserted | supported_not_verified |
+
+## Archived pre-canonical planning material
+
+> The status, ranking, feasibility, and proof statements below are retained only as historical planning. They must not support current capability, runtime, CRS, or result claims.
+
+## Archived Connector Status Matrix
+
+| Connector | Directory | Historical Snapshot Status | Why | Next Step | Runtime Evidence? | Full-Matrix? |
 |---|---|---|---|---|---|---|
 | apache | yes | production_verified | Existing production connector with verified runtime and full-matrix coverage. | Keep in verified runtime/full-matrix maintenance. | yes | yes |
 | nginx | yes | production_verified | Existing production connector with verified runtime and full-matrix coverage; OpenResty is NGINX-based. | Keep production coverage and optionally add OpenResty compatibility smoke under nginx later. | yes | yes |
@@ -42,7 +61,7 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | litespeed | no | planned | No repository directory exists; LiteSpeed/OpenLiteSpeed is only a candidate until install/licensing proof exists. | Run OpenLiteSpeed install/start proof with one CRS/request-blocking smoke if automation allows it. | no | no |
 | openresty | no | covered_by_existing_connector | OpenResty is based on the NGINX runtime stack and should not fork connector ownership now. | Treat as nginx runtime variant or compatibility smoke only; no separate reports or full matrix. | no | no |
 
-## Connector Candidate Ranking
+## Archived Connector Candidate Ranking
 
 | Rank | Connector | Difficulty | Risk | Expected Value | Recommendation |
 |---|---|---|---|---|---|
@@ -51,7 +70,7 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | 3 | traefik | medium-high | high | medium | Prototype forwardAuth/decision-service feasibility before any Go plugin work. |
 | 4 | lighttpd | high | high | medium | Perform hook/proxy architecture spike before implementation. |
 
-## Why Envoy Is Recommended Next
+## Archived Rationale for Recommending Envoy Next
 
 | Reason | Detail | Evidence Boundary |
 |---|---|---|
@@ -74,7 +93,7 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | covered-by-existing-connector | Runtime is intentionally covered as a variant of an existing connector rather than a separate connector. | Decision record that names owning connector and allowed future compatibility-smoke path. | No separate full matrix, generated reports, or production connector identity. |
 | blocked | Implementation cannot proceed until an external, licensing, architecture, or evidence blocker is resolved. | Blocker description, owner/next proof, and what evidence would unblock it. | No forward status promotion until the blocker is removed and evidenced. |
 
-## New Connector Work Phases
+## Archived New-Connector Work Phases
 
 | Phase | Name | Entry Condition | Work | Exit Evidence | Promotion Gate |
 |---|---|---|---|---|---|
@@ -117,7 +136,7 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | reports/testing/generated/manifest/full-matrix-job-completeness.generated.* | full-matrix-candidate | Record which jobs exist, completed, failed, or are missing. | Do not fabricate job rows for connectors that are not integrated. |
 | reports/testing/generated/manifest/merge-readiness-dashboard.generated.* | production-verified | Expose final readiness only after critical generated evidence is complete. | Roadmap-only reports must not influence readiness. |
 
-## Envoy Architecture Options
+## Archived Envoy Architecture Options
 
 | Option | Description | Pros | Cons | Proof Difficulty | Recommendation |
 |---|---|---|---|---|---|
@@ -128,7 +147,7 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | reverse-proxy chain with existing connector | Envoy fronts an existing verified connector such as nginx or apache. | Fast compatibility smoke and infrastructure proof. | Does not prove an Envoy connector; ModSecurity decision belongs to downstream connector. | low-medium | allowed only as infrastructure smoke, not as Envoy connector evidence |
 | external ModSecurity decision service | Standalone service owns ModSecurity transaction evaluation; Envoy calls it through ext_proc/ext_authz or another control point. | Clear separation of Envoy harness and ModSecurity lifecycle; reusable for Traefik/lighttpd sidecar studies. | Protocol mapping and body buffering still must be proven; not a connector by itself. | medium-high | use as shared service behind ext_proc/ext_authz proof |
 
-### Envoy Option Capability Checks
+### Archived Envoy Option Capability Checks
 
 | Option | Request Blocking | Request Body | Response Body | Intervention Status | Evidence | CI Testability | Risk |
 |---|---|---|---|---|---|---|---|
@@ -139,7 +158,7 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | reverse-proxy chain with existing connector | yes, but by the existing connector rather than Envoy | covered by existing connector only | covered by existing connector only | downstream connector returns status; Envoy only forwards it | Envoy forwarding logs plus existing connector logs | good | low for smoke, high if misrepresented |
 | external ModSecurity decision service | yes through caller integration | depends on caller body delivery | depends on caller response delivery | service returns intervention_status and decision fields consumed by Envoy adapter layer | service decision log, ModSecurity audit/decision log, Envoy logs, result.json | good if implemented as deterministic local process | medium |
 
-## Recommended Envoy Proof
+## Archived Recommended Envoy Proof
 
 | Field | Value |
 |---|---|
@@ -150,7 +169,7 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | artifacts | connectors/envoy/README.md<br>connectors/envoy/config/envoy.yaml<br>connectors/envoy/harness/<br>connectors/envoy/scripts/run-smoke.sh<br>connectors/envoy/examples/ |
 | evidence | result.json<br>envoy access log<br>envoy error log<br>decision-service log<br>modsecurity decision log, if present<br>case-run.md<br>case-run.json |
 
-### Envoy Proof Exit Criteria
+### Archived Envoy Proof Exit Criteria
 
 | Criterion | Required Evidence | Failure Mode |
 |---|---|---|
@@ -161,7 +180,7 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | Runtime evidence package | result.json, case-run.md, case-run.json, Envoy logs, and decision logs under $VERIFIED_RUN_ROOT/envoy-smoke/. | If artifacts live only in the checkout or are incomplete, do not promote the proof. |
 | Scope guard | result.json declares evidence_scope=targeted and full_matrix_ready=false. | Any Full-Matrix or production claim invalidates the first-proof boundary. |
 
-### Envoy Minimal Result Schema
+### Archived Envoy Minimal Result Schema
 
 ```json
 {
@@ -200,9 +219,9 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | evidence_required | install log, start log, minimal config, request/response transcript, result.json, access/error/audit logs if available. |
 | not_allowed_claims | No production status, no full matrix, no CRS compatibility claim, and no phase coverage claim before evidence exists. |
 
-## Lighttpd and Traefik Feasibility
+## Archived Lighttpd and Traefik Feasibility
 
-| Connector | Current State | Blocker | First Proof Step | Risk |
+| Connector | Historical State | Blocker | First Proof Step | Risk |
 |---|---|---|---|---|
 | lighttpd | partial_skeleton | No selected native ModSecurity integration, FastCGI/SCGI bridge, or runtime harness. | Request-blocking feasibility proof that selects native module versus proxy/sidecar architecture. | high |
 | traefik | partial_skeleton | No Go plugin/middleware, no forwardAuth runtime harness, and no libmodsecurity lifecycle proof. | forwardAuth/decision-service returns 403 for a known malicious request with logs and result.json. | high |
@@ -218,7 +237,7 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | full_matrix | no separate full matrix |
 | reports | no separate generated reports |
 
-## New Connector Work Items
+## Archived New-Connector Work Items
 
 | Priority | Work Item | Connector | Output | Acceptance Criteria |
 |---|---|---|---|---|
@@ -241,7 +260,7 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 - phase coverage parity with apache/nginx/haproxy
 - runtime capability claims without result.json and logs
 
-## Recommended Next Connector
+## Archived Recommended Next Connector
 
 | Field | Value |
 |---|---|
@@ -254,12 +273,12 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `connectors` | `1627bb92c5756d6f37fe7f678a30211b2ad2a694b3bf2c269f32f6d7523a44cd` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
-| Declared input | `Makefile` | `22368c84b5502b69ed3ea9c6ecaac7e3f82bb6a3ea661a78c0f8bee7f6015d20` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
-| Declared input | `ci` | `649d5a50a24701a870abb756d1a258253a57162c61a0f74591c365d0b3237ae9` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
-| Declared input | `config` | `ae2f671756d889c00872b67962e0112910de7a0a00bb8cf6ebe9d490723cccbb` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
-| Declared input | `docs` | `ccc2849a1070649ec1e2f1dac775eb0f6f2c61162318e475ace7fffe7547d52a` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
-| Declared input | `reports/testing/generated` | `c9e1781a97f4f82743dc0a6e5a09b22deb559d2b4e55404109d80f2eebfe8826` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
+| Declared input | `connectors` | `7718dd37b45e90a90f4c57fd6a495f1c84b6d56a89a3fef9b3114c17925f0966` | `2026-07-11T05-59-47Z-e64adac0` | present |
+| Declared input | `Makefile` | `ab39c7c7584d499a66cf0700273f0d51336c0a1e9e24954c3485027652a0b640` | `2026-07-11T05-59-47Z-e64adac0` | present |
+| Declared input | `ci` | `6aab3274a0b20f63f0e72af48f0e92ee2281b1a4fc796692f5f580131d31d63a` | `2026-07-11T05-59-47Z-e64adac0` | present |
+| Declared input | `config` | `b290b708415c6ee91cdbdf69c16f360a0a4c7311494b9ffdef8c5cafebf4cd03` | `2026-07-11T05-59-47Z-e64adac0` | present |
+| Declared input | `docs` | `de53518df73f2fa90b47f5cdb2d11c0da608536389b1617ccb37dcb172b5bd7c` | `2026-07-11T05-59-47Z-e64adac0` | present |
+| Declared input | `reports/testing/generated` | `93fcfe119a10479f7cec5a24cc7c08e244a432ab984d57f30347ce351dffcd34` | `2026-07-11T05-59-47Z-e64adac0` | present |
 
 ## Data Availability / Missing Information
 

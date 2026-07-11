@@ -2,6 +2,16 @@
 
 **Sprache:** [English](remaining-connectors-readiness.md) | Deutsch
 
+> **Hinweis zum Evidence-Umfang.** Dies ist ein historischer lokaler
+> Evidence-Snapshot, kein kanonisches No-CRS-Ergebnis und kein aktueller
+> aggregierter Capability-Status. Die nachfolgenden
+> `minimal_runtime_smoke`-Bezeichnungen beziehen sich nur auf die aufgezeichneten
+> Läufe vom 10.07.2026. Der generierte
+> [No-CRS-Gesamtsnapshot](all-connectors-no-crs-baseline.de.md) und die
+> [kanonische Capability-Matrix](testing/generated/canonical/connector-capabilities.generated.de.md)
+> sind maßgeblich für den aktuellen Status; nur kanonische `result.json`-Dateien
+> können ein No-CRS-Ergebnis heraufstufen.
+
 Belegstand: 10.07.2026
 
 ## Ergebnis

@@ -1,6 +1,14 @@
-# Local Build and Start Audit
+# Historical local build and start audit
 
 **Language:** English | [Deutsch](local-build-start-audit.de.md)
+
+> **Historical evidence snapshot.** This 2026-07-06 audit intentionally
+> predates the current Envoy, Traefik, and native-lighttpd host paths. Its
+> starter-only rows are retained for audit history and are not a current
+> capability or runtime status. Use the generated
+> [all-connector No-CRS snapshot](all-connectors-no-crs-baseline.md) and
+> [canonical capability matrix](testing/generated/canonical/connector-capabilities.generated.md)
+> for the current branch state.
 
 Generated: 2026-07-06
 Updated: 2026-07-06

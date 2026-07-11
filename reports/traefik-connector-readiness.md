@@ -2,6 +2,14 @@
 
 **Language:** English | [Deutsch](traefik-connector-readiness.de.md)
 
+> **Evidence-scope note.** This is a historical local
+> `minimal_runtime_smoke` snapshot from 2026-07-10, not a canonical No-CRS
+> result. It must not override the current generated
+> [Traefik No-CRS snapshot](traefik-no-crs-baseline.md) or the
+> [canonical capability matrix](testing/generated/canonical/connector-capabilities.generated.md).
+> Only a canonical `result.json` can promote the current No-CRS status; local
+> smoke evidence below remains deliberately narrower.
+
 Evidence snapshot: 2026-07-10
 
 ## Outcome

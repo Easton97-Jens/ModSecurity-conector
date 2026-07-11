@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 """Validate and render canonical connector capability declarations.
 
-The connector-local JSON files are static source-contract declarations.  This
-tool never promotes a capability from runtime results; runtime evidence belongs
-in the canonical result/evidence writer.
+Connector-local JSON files remain immutable source-contract declarations.  A
+generated catalog can optionally overlay one explicitly selected, fully
+validated canonical No-CRS run for every connector.  The overlay is a report
+view only: it never writes back to a connector manifest and it promotes a
+capability only when the canonical result's checked ``capabilities_verified``
+list says that a live case verified it.
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
+import hashlib
 import json
 import os
+import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -93,6 +100,24 @@ NEGATIVE_CAPABILITY_STATES = {
     "not_implemented",
     "not_applicable",
 }
+RESULT_STATUSES = {
+    "PASS",
+    "FAIL",
+    "BLOCKED",
+    "UNSUPPORTED",
+    "NOT_APPLICABLE",
+    "NOT_EXECUTED",
+}
+NO_CRS_STAGE_STATES = {
+    "PASS": "supported_and_verified",
+    "FAIL": "failed",
+    "BLOCKED": "blocked_before_execution",
+    "UNSUPPORTED": "unsupported_by_host_model",
+    "NOT_APPLICABLE": "unsupported_by_host_model",
+    "NOT_EXECUTED": "supported_not_verified",
+}
+RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+FRAMEWORK_NO_CRS_TOOL = ROOT / "modules/ModSecurity-test-Framework/ci/no_crs_baseline.py"
 
 
 class DuplicateKeyError(ValueError):
@@ -453,6 +478,316 @@ def load_manifests() -> tuple[dict[str, dict[str, Any]], list[str]]:
     return manifests, errors
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_run_id(run_id: str) -> str | None:
+    if not RUN_ID_PATTERN.fullmatch(run_id):
+        return (
+            "run id must start with an alphanumeric character, contain only "
+            "[A-Za-z0-9._-], and be at most 128 characters"
+        )
+    return None
+
+
+def _validator_output(process: subprocess.CompletedProcess[str]) -> str:
+    output = "\n".join(
+        item.strip()
+        for item in (process.stdout, process.stderr)
+        if isinstance(item, str) and item.strip()
+    )
+    if len(output) > 4000:
+        return output[:4000] + "\n... validator output truncated"
+    return output or f"validator exited {process.returncode} without diagnostic output"
+
+
+def _validate_evidence_run(
+    connector: str,
+    run_dir: Path,
+    manifest_path: Path,
+) -> list[str]:
+    """Validate the complete canonical run before trusting its result.json.
+
+    Calling the Framework validator rather than treating a standalone JSON
+    object as evidence protects the report from stale commits, mismatched
+    manifest inventories, fabricated capability lists, and incomplete artifact
+    trees.  ``--connector-root`` deliberately makes this a current-checkout
+    validation, not a historical-result renderer.
+    """
+    if not FRAMEWORK_NO_CRS_TOOL.is_file():
+        return [
+            f"{connector}: canonical evidence validator is missing: "
+            f"{FRAMEWORK_NO_CRS_TOOL.relative_to(ROOT)}"
+        ]
+    command = [
+        sys.executable,
+        str(FRAMEWORK_NO_CRS_TOOL),
+        "validate",
+        "--evidence-root",
+        str(run_dir),
+        "--connector",
+        connector,
+        "--run-id",
+        run_dir.name,
+        "--connector-root",
+        str(ROOT),
+        "--capabilities",
+        str(manifest_path),
+        "--check",
+        "all",
+    ]
+    try:
+        process = subprocess.run(
+            command,
+            cwd=ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return [f"{connector}: could not validate canonical evidence: {exc}"]
+    if process.returncode != 0:
+        return [
+            f"{connector}: canonical evidence validation failed for "
+            f"{run_dir}: {_validator_output(process)}"
+        ]
+    return []
+
+
+def _validated_result_shape_errors(
+    connector: str,
+    run_id: str,
+    result: dict[str, Any],
+    manifest: dict[str, Any],
+) -> list[str]:
+    """Apply report-specific fail-closed checks after Framework validation."""
+    errors: list[str] = []
+    if result.get("connector") != connector:
+        errors.append(
+            f"{connector}: result.json connector is {result.get('connector')!r}, not {connector!r}"
+        )
+    if result.get("run_id") != run_id:
+        errors.append(
+            f"{connector}: result.json run_id is {result.get('run_id')!r}, not {run_id!r}"
+        )
+    if result.get("evidence_stage") != "no_crs_baseline":
+        errors.append(
+            f"{connector}: result.json evidence_stage must be 'no_crs_baseline', got "
+            f"{result.get('evidence_stage')!r}"
+        )
+    if result.get("ruleset") != "no-crs-baseline":
+        errors.append(
+            f"{connector}: result.json ruleset must be 'no-crs-baseline', got "
+            f"{result.get('ruleset')!r}"
+        )
+    if result.get("status") not in RESULT_STATUSES:
+        errors.append(f"{connector}: result.json has invalid status {result.get('status')!r}")
+    if not isinstance(result.get("source_failure"), bool):
+        errors.append(f"{connector}: result.json source_failure must be Boolean")
+    for field in ("cases_failed", "cases_blocked"):
+        value = result.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            errors.append(f"{connector}: result.json {field} must be a non-negative integer")
+
+    declared = manifest.get("capabilities")
+    expected_states = {
+        name: entry.get("state")
+        for name, entry in declared.items()
+        if isinstance(entry, dict)
+    } if isinstance(declared, dict) else {}
+    if result.get("capability_states") != expected_states:
+        errors.append(
+            f"{connector}: result.json capability_states do not match the current source manifest"
+        )
+
+    verified = result.get("capabilities_verified")
+    if not isinstance(verified, list) or not all(isinstance(item, str) for item in verified):
+        errors.append(f"{connector}: result.json capabilities_verified must be a string list")
+        return errors
+    if len(verified) != len(set(verified)):
+        errors.append(f"{connector}: result.json capabilities_verified contains duplicates")
+    for capability in verified:
+        if capability not in CAPABILITY_NAMES:
+            errors.append(
+                f"{connector}: result.json verifies unknown capability {capability!r}"
+            )
+            continue
+        source_state = expected_states.get(capability)
+        if source_state in NEGATIVE_CAPABILITY_STATES:
+            errors.append(
+                f"{connector}: result.json verifies {capability} although the source "
+                f"manifest declares {source_state}"
+            )
+    return errors
+
+
+def load_validated_runtime_results(
+    manifests: dict[str, dict[str, Any]],
+    evidence_root: Path,
+    run_id: str,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Load exactly six validated canonical No-CRS result files.
+
+    Evidence merge is intentionally all-or-nothing.  A report which silently
+    promotes only the available connectors would make absent or invalid
+    evidence look like a static assertion, which is precisely what this view
+    is intended to avoid.
+    """
+    errors: list[str] = []
+    validated: dict[str, dict[str, Any]] = {}
+    run_id_error = _validate_run_id(run_id)
+    if run_id_error:
+        return {}, [f"canonical evidence: {run_id_error}"]
+    if not evidence_root.is_dir():
+        return {}, [f"canonical evidence root is not a directory: {evidence_root}"]
+    if evidence_root.is_symlink():
+        return {}, [f"canonical evidence root must not be a symlink: {evidence_root}"]
+
+    for connector in CONNECTORS:
+        connector_dir = evidence_root / connector
+        run_dir = evidence_root / connector / run_id
+        result_path = run_dir / "result.json"
+        if connector_dir.is_symlink() or run_dir.is_symlink():
+            errors.append(
+                f"{connector}: canonical evidence directories must not be symlinks"
+            )
+            continue
+        if not run_dir.is_dir():
+            errors.append(
+                f"{connector}: canonical evidence run directory is missing: "
+                f"{connector}/{run_id}"
+            )
+            continue
+        if not result_path.is_file():
+            errors.append(
+                f"{connector}: canonical result.json is missing: "
+                f"{connector}/{run_id}/result.json"
+            )
+            continue
+        if result_path.is_symlink():
+            errors.append(f"{connector}: canonical result.json must not be a symlink")
+            continue
+        try:
+            result = _read_json(result_path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            errors.append(f"{connector}: cannot parse canonical result.json: {exc}")
+            continue
+        shape_errors = _validated_result_shape_errors(
+            connector, run_id, result, manifests[connector]
+        )
+        if shape_errors:
+            errors.extend(shape_errors)
+            continue
+        validation_errors = _validate_evidence_run(
+            connector,
+            run_dir,
+            ROOT / f"connectors/{connector}/capabilities.json",
+        )
+        if validation_errors:
+            errors.extend(validation_errors)
+            continue
+        validated[connector] = {
+            "result": result,
+            "path": f"{connector}/{run_id}/result.json",
+            "sha256": _sha256_file(result_path),
+        }
+    return validated, errors
+
+
+def _result_allows_capability_promotion(result: dict[str, Any]) -> bool:
+    """Whether individual PASS cases are trustworthy promotion evidence."""
+    # A NOT_EXECUTED baseline can still contain valid core-case evidence while
+    # unrelated selected cases have no host runner.  Failed, blocked, or
+    # source-failed runs must never promote a partial observation.
+    return (
+        result.get("status") in {"PASS", "NOT_EXECUTED"}
+        and result.get("source_failure") is False
+        and result.get("cases_failed") == 0
+        and result.get("cases_blocked") == 0
+    )
+
+
+def merge_runtime_results(
+    manifests: dict[str, dict[str, Any]],
+    results: dict[str, dict[str, Any]],
+    run_id: str,
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Return a report-only capability view overlaid with validated evidence."""
+    merged = copy.deepcopy(manifests)
+    evidence_connectors: dict[str, dict[str, Any]] = {}
+    for connector in CONNECTORS:
+        record = results[connector]
+        result = record["result"]
+        if not isinstance(result, dict):
+            raise ValueError(f"{connector}: validated result record is not an object")
+        result_path = str(record["path"])
+        result_sha256 = str(record["sha256"])
+        result_status = str(result["status"])
+        reported_verified = sorted(set(result["capabilities_verified"]))
+        promotion_eligible = _result_allows_capability_promotion(result)
+        verified = reported_verified if promotion_eligible else []
+        provenance = {
+            "run_id": run_id,
+            "result": result_path,
+            "result_sha256": result_sha256,
+            "result_status": result_status,
+        }
+
+        capabilities = merged[connector]["capabilities"]
+        for capability in verified:
+            entry = capabilities[capability]
+            source_state = entry["state"]
+            if source_state in NEGATIVE_CAPABILITY_STATES:
+                # This should be unreachable after the Framework validation and
+                # _validated_result_shape_errors, but retain the guard at the
+                # trust boundary in case this helper is reused directly.
+                raise ValueError(
+                    f"{connector}: refusing to promote {capability} from "
+                    f"source state {source_state}"
+                )
+            entry["state"] = "verified"
+            entry["declared_state"] = source_state
+            entry["evidence_state"] = "verified_in_current_run"
+            entry["reason"] = (
+                f"Validated canonical No-CRS result {run_id!r} verified this "
+                f"capability through live case evidence; the source declaration "
+                f"remains {source_state!r}."
+            )
+            entry["runtime_evidence"] = dict(provenance)
+
+        stage = merged[connector]["evidence_stages"]["no_crs_baseline"]
+        source_status = stage["status"]
+        stage["status"] = NO_CRS_STAGE_STATES[result_status]
+        stage["declared_status"] = source_status
+        stage["reason"] = (
+            f"Validated canonical No-CRS result {run_id!r} reported "
+            f"{result_status}; this current stage view does not infer a PASS "
+            "from unsupported or unexecuted cases."
+        )
+        stage["runtime_evidence"] = dict(provenance)
+
+        evidence_connectors[connector] = {
+            **provenance,
+            "promotion_eligible": promotion_eligible,
+            "reported_capabilities_verified": reported_verified,
+            "capabilities_verified": verified,
+            "no_crs_baseline_state": stage["status"],
+        }
+    return merged, {
+        "run_id": run_id,
+        "evidence_stage": "no_crs_baseline",
+        "validation": "framework-validate-all-current-provenance",
+        "connectors": evidence_connectors,
+    }
+
+
 def _normalized_manifest(data: dict[str, Any]) -> dict[str, Any]:
     normalized: dict[str, Any] = {
         "connector": data["connector"],
@@ -473,11 +808,15 @@ def _normalized_manifest(data: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def aggregate_payload(manifests: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    return {
+def aggregate_payload(
+    manifests: dict[str, dict[str, Any]],
+    *,
+    runtime_evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "schema_version": 1,
         "kind": "connector-capability-catalog",
-        "runtime_promotion": False,
+        "runtime_promotion": runtime_evidence is not None,
         "generated_from": [f"connectors/{name}/capabilities.json" for name in CONNECTORS],
         "capability_names": list(CAPABILITY_NAMES),
         "evidence_stage_names": list(EVIDENCE_STAGES),
@@ -485,6 +824,9 @@ def aggregate_payload(manifests: dict[str, dict[str, Any]]) -> dict[str, Any]:
             name: _normalized_manifest(manifests[name]) for name in CONNECTORS
         },
     }
+    if runtime_evidence is not None:
+        payload["runtime_evidence"] = runtime_evidence
+    return payload
 
 
 def _markdown_cell(value: object) -> str:
@@ -492,38 +834,64 @@ def _markdown_cell(value: object) -> str:
 
 
 def render_markdown(
-    manifests: dict[str, dict[str, Any]], *, german: bool
+    manifests: dict[str, dict[str, Any]],
+    *,
+    german: bool,
+    runtime_evidence: dict[str, Any] | None = None,
 ) -> str:
     if german:
         title = "# Kanonische Connector-Capabilities"
-        intro = (
-            "Diese Datei wird deterministisch aus den sechs connector-lokalen Manifesten "
-            "erzeugt. Sie beschreibt Host-Grenzen und Implementierungszustände; sie "
-            "befördert keine Capability ohne kanonische Lauf-Evidence zu `verified`."
-        )
+        if runtime_evidence is None:
+            intro = (
+                "Diese Datei wird deterministisch aus den sechs connector-lokalen Manifesten "
+                "erzeugt. Sie beschreibt Host-Grenzen und Implementierungszustände; sie "
+                "befördert keine Capability ohne kanonische Lauf-Evidence zu `verified`."
+            )
+        else:
+            intro = (
+                "Diese Datei verbindet unveränderte connector-lokale Source-Contracts mit "
+                "vollständig validierter kanonischer No-CRS-Evidence. Nur die in den "
+                "Resultaten belegten Capabilities werden in dieser Report-Ansicht zu "
+                "`verified` befördert."
+            )
         capability_heading = "## Capability-Matrix"
         stage_heading = "## Evidence-Stufen"
         detail_heading = "## Connector-Details"
         capability_label = "Capability"
         stage_label = "Stufe"
         state_label = "Zustand"
-        reason_label = "Kanonischer Grund (aus dem Manifest)"
+        reason_label = (
+            "Kanonischer Grund (aus dem Manifest)"
+            if runtime_evidence is None
+            else "Kanonischer Grund"
+        )
         constraints_label = "Host-Modell-Grenzen"
         sources_label = "Source-Contract"
     else:
         title = "# Canonical connector capabilities"
-        intro = (
-            "This file is rendered deterministically from the six connector-local "
-            "manifests. It describes host boundaries and implementation states; it "
-            "does not promote any capability to `verified` without canonical run evidence."
-        )
+        if runtime_evidence is None:
+            intro = (
+                "This file is rendered deterministically from the six connector-local "
+                "manifests. It describes host boundaries and implementation states; it "
+                "does not promote any capability to `verified` without canonical run evidence."
+            )
+        else:
+            intro = (
+                "This file merges unchanged connector-local source contracts with fully "
+                "validated canonical No-CRS evidence. Only capabilities evidenced by the "
+                "canonical results are promoted to `verified` in this report view."
+            )
         capability_heading = "## Capability matrix"
         stage_heading = "## Evidence stages"
         detail_heading = "## Connector details"
         capability_label = "Capability"
         stage_label = "Stage"
         state_label = "State"
-        reason_label = "Canonical reason (from manifest)"
+        reason_label = (
+            "Canonical reason (from manifest)"
+            if runtime_evidence is None
+            else "Canonical reason"
+        )
         constraints_label = "Host-model constraints"
         sources_label = "Source contract"
 
@@ -549,8 +917,6 @@ def render_markdown(
             "",
             intro,
             "",
-            capability_heading,
-            "",
         ]
     else:
         lines = [
@@ -563,9 +929,46 @@ def render_markdown(
             "",
             intro,
             "",
-            capability_heading,
-            "",
         ]
+    if runtime_evidence is not None:
+        evidence_heading = (
+            "## Aktuelle kanonische No-CRS-Evidence"
+            if german
+            else "## Current canonical No-CRS evidence"
+        )
+        connector_label = "Connector"
+        result_label = "Ergebnis" if german else "Result"
+        status_label = "Status"
+        verified_label = "Verifizierte Capabilities" if german else "Verified capabilities"
+        evidence_connectors = runtime_evidence.get("connectors", {})
+        lines.extend([evidence_heading, ""])
+        lines.append(
+            "| " + " | ".join(
+                [connector_label, result_label, status_label, verified_label]
+            ) + " |"
+        )
+        lines.append("|---|---|---|---|")
+        for connector in CONNECTORS:
+            evidence = (
+                evidence_connectors.get(connector, {})
+                if isinstance(evidence_connectors, dict)
+                else {}
+            )
+            verified = evidence.get("capabilities_verified", []) if isinstance(evidence, dict) else []
+            displayed = ", ".join(f"`{_markdown_cell(item)}`" for item in verified) or "-"
+            lines.append(
+                "| " + " | ".join(
+                    [
+                        display_names[connector],
+                        f"`{_markdown_cell(evidence.get('result', '-'))}`" if isinstance(evidence, dict) else "-",
+                        f"`{_markdown_cell(evidence.get('result_status', '-'))}`" if isinstance(evidence, dict) else "-",
+                        displayed,
+                    ]
+                ) + " |"
+            )
+        lines.extend(["", capability_heading, ""])
+    else:
+        lines.extend([capability_heading, ""])
     connector_headers = [display_names[name] for name in CONNECTORS]
     lines.append(
         "| " + " | ".join([capability_label, *connector_headers]) + " |"
@@ -652,8 +1055,13 @@ def _atomic_write(path: Path, content: str) -> None:
             temporary.unlink()
 
 
-def generate(manifests: dict[str, dict[str, Any]], output_dir: Path) -> list[Path]:
-    payload = aggregate_payload(manifests)
+def generate(
+    manifests: dict[str, dict[str, Any]],
+    output_dir: Path,
+    *,
+    runtime_evidence: dict[str, Any] | None = None,
+) -> list[Path]:
+    payload = aggregate_payload(manifests, runtime_evidence=runtime_evidence)
     json_name = report_filename("connector_capabilities", "json")
     markdown_name = report_filename("connector_capabilities", "md")
     outputs = [
@@ -664,21 +1072,48 @@ def generate(manifests: dict[str, dict[str, Any]], output_dir: Path) -> list[Pat
     inputs = [f"connectors/{name}/capabilities.json" for name in CONNECTORS]
     metadata = build_metadata(
         generated_by="ci/connector_capabilities.py",
-        make_target="capabilities-all-connectors",
+        make_target=(
+            "capabilities-all-connectors-evidence"
+            if runtime_evidence is not None
+            else "capabilities-all-connectors"
+        ),
         connector_root=ROOT,
         inputs=inputs,
         report_key="connector_capabilities",
+        extra=(
+            {
+                "runtime_promotion": True,
+                "canonical_evidence_run_id": runtime_evidence["run_id"],
+                "canonical_evidence_stage": runtime_evidence["evidence_stage"],
+            }
+            if runtime_evidence is not None
+            else None
+        ),
     )
     _atomic_write(outputs[0], generated_json_text(payload, metadata))
     english_metadata = dict(metadata, output_name=outputs[1].name)
     german_metadata = dict(metadata, output_name=outputs[2].name)
     _atomic_write(
         outputs[1],
-        generated_markdown_text(render_markdown(manifests, german=False), english_metadata),
+        generated_markdown_text(
+            render_markdown(
+                manifests,
+                german=False,
+                runtime_evidence=runtime_evidence,
+            ),
+            english_metadata,
+        ),
     )
     _atomic_write(
         outputs[2],
-        generated_markdown_text(render_markdown(manifests, german=True), german_metadata),
+        generated_markdown_text(
+            render_markdown(
+                manifests,
+                german=True,
+                runtime_evidence=runtime_evidence,
+            ),
+            german_metadata,
+        ),
     )
     return outputs
 
@@ -694,6 +1129,21 @@ def _parser() -> argparse.ArgumentParser:
         "--output-dir",
         type=Path,
         default=ROOT / "reports/testing/generated/canonical",
+    )
+    generate_parser.add_argument(
+        "--evidence-root",
+        type=Path,
+        help=(
+            "aggregate canonical evidence root containing "
+            "<connector>/<run-id>/result.json for all six connectors"
+        ),
+    )
+    generate_parser.add_argument(
+        "--run-id",
+        help=(
+            "explicit canonical No-CRS run id to merge; required with "
+            "--evidence-root and never inferred from latest-run-id"
+        ),
     )
     return parser
 
@@ -712,8 +1162,39 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     if args.command == "generate":
+        if (args.evidence_root is None) != (args.run_id is None):
+            print(
+                "connector_capabilities: --evidence-root and --run-id must be supplied together",
+                file=sys.stderr,
+            )
+            return 2
+        report_manifests = manifests
+        runtime_evidence: dict[str, Any] | None = None
+        if args.evidence_root is not None and args.run_id is not None:
+            results, evidence_errors = load_validated_runtime_results(
+                manifests,
+                args.evidence_root.expanduser(),
+                args.run_id,
+            )
+            if evidence_errors:
+                for error in evidence_errors:
+                    print(f"connector_capabilities: {error}", file=sys.stderr)
+                return 1
+            try:
+                report_manifests, runtime_evidence = merge_runtime_results(
+                    manifests,
+                    results,
+                    args.run_id,
+                )
+            except ValueError as exc:
+                print(f"connector_capabilities: {exc}", file=sys.stderr)
+                return 1
         output_dir = args.output_dir.resolve(strict=False)
-        outputs = generate(manifests, output_dir)
+        outputs = generate(
+            report_manifests,
+            output_dir,
+            runtime_evidence=runtime_evidence,
+        )
         for output in outputs:
             print(f"connector_capabilities: wrote {output}")
         return 0

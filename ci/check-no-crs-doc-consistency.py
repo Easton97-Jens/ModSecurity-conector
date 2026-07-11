@@ -147,8 +147,23 @@ def main() -> int:
     except (OSError, json.JSONDecodeError) as exc:
         fail(errors, f"invalid generated capability aggregate: {exc}")
     else:
-        if aggregate.get("runtime_promotion") is not False:
-            fail(errors, "generated capability aggregate must set runtime_promotion=false")
+        runtime_promotion = aggregate.get("runtime_promotion")
+        if not isinstance(runtime_promotion, bool):
+            fail(errors, "generated capability aggregate runtime_promotion must be Boolean")
+        if runtime_promotion is True:
+            runtime_evidence = aggregate.get("runtime_evidence")
+            if not isinstance(runtime_evidence, dict):
+                fail(errors, "runtime-promoted capability aggregate is missing runtime_evidence")
+            else:
+                if not isinstance(runtime_evidence.get("run_id"), str) or not runtime_evidence["run_id"]:
+                    fail(errors, "runtime-promoted capability aggregate is missing its run_id")
+                if runtime_evidence.get("evidence_stage") != "no_crs_baseline":
+                    fail(errors, "runtime-promoted capability aggregate must use no_crs_baseline evidence")
+                evidence_connectors = runtime_evidence.get("connectors")
+                if not isinstance(evidence_connectors, dict) or set(evidence_connectors) != set(CONNECTORS):
+                    fail(errors, "runtime-promoted capability aggregate lacks one or more connector results")
+        elif runtime_promotion is not False:
+            fail(errors, "generated capability aggregate has an invalid runtime_promotion value")
         generated_connectors = aggregate.get("connectors")
         if not isinstance(generated_connectors, dict) or set(generated_connectors) != set(CONNECTORS):
             fail(errors, "generated capability aggregate does not contain exactly six connectors")

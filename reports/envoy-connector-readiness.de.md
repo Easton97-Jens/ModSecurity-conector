@@ -2,6 +2,15 @@
 
 **Sprache:** [English](envoy-connector-readiness.md) | Deutsch
 
+> **Hinweis zum Evidence-Umfang.** Dies ist ein historischer lokaler Snapshot
+> eines `minimal_runtime_smoke` vom 10.07.2026, kein kanonisches
+> No-CRS-Ergebnis. Er darf weder den aktuellen generierten
+> [Envoy-No-CRS-Snapshot](envoy-no-crs-baseline.de.md) noch die
+> [kanonische Capability-Matrix](testing/generated/canonical/connector-capabilities.generated.de.md)
+> übersteuern. Nur ein kanonisches `result.json` kann den aktuellen
+> No-CRS-Status heraufstufen; die lokale Smoke-Evidence unten bleibt bewusst
+> enger.
+
 Belegstand: 10.07.2026
 
 ## Ergebnis

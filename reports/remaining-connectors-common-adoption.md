@@ -1,6 +1,19 @@
-# Remaining connectors Common SDK adoption report
+# Archived pre-host-integration Common SDK adoption report
 
 **Language:** English | [Deutsch](remaining-connectors-common-adoption.de.md)
+
+> **Historical archive — not a current capability or runtime report.**
+>
+> This document describes the earlier starter-only adoption work. Its statements
+> that Envoy, Traefik, and lighttpd lack host integration, Common Runtime
+> lifecycle calls, or event paths are superseded. Do not use the text below to
+> classify current connector support or evidence.
+>
+> Current host boundaries and evidence states are generated from
+> `connectors/<name>/capabilities.json` in the
+> [canonical capability matrix](testing/generated/canonical/connector-capabilities.generated.md).
+> The corresponding [No-CRS aggregate](all-connectors-no-crs-baseline.md)
+> remains the authoritative result-status view; source presence is not a PASS.
 
 This report covers Envoy, Traefik, lighttpd, and the repository template starter. The status is intentionally **not_verified** / **connector-gap**: the work prepares Common SDK contracts, the generic mapper helper, and C standard checks but does not claim runtime, CRS, production, full-matrix, or response-body verification.
 

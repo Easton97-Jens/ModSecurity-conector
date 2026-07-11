@@ -148,13 +148,15 @@ case "$connector:$stage" in
     lighttpd:minimal_runtime_smoke)
         run_remaining_connector runtime-smoke-lighttpd
         ;;
-    envoy:no_crs_baseline)
-        run_remaining_connector runtime-smoke-envoy
-        ;;
-    traefik:no_crs_baseline)
-        run_remaining_connector runtime-smoke-traefik
-        ;;
-    lighttpd:no_crs_baseline)
-        run_remaining_connector runtime-smoke-lighttpd
+    envoy:no_crs_baseline|traefik:no_crs_baseline|lighttpd:no_crs_baseline)
+        [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
+            echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
+            exit 1
+        }
+        # These targets consume the plan before delegating to their narrow
+        # real-host probes.  They are deliberately distinct from the legacy
+        # minimal-runtime targets: remaining selected cases stay explicit in
+        # canonical evidence instead of being implied by a 200/403 smoke.
+        run_remaining_connector "no-crs-baseline-$connector"
         ;;
 esac

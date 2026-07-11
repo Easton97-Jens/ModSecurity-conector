@@ -1,6 +1,21 @@
-# Common-SDK-Adoptionsbericht für verbleibende Connectoren
+# Archivierter Common-SDK-Adoptionsbericht vor der Host-Integration
 
 **Sprache:** [English](remaining-connectors-common-adoption.md) | Deutsch
+
+> **Historisches Archiv — kein aktueller Capability- oder Runtime-Bericht.**
+>
+> Dieses Dokument beschreibt die frühere Starter-only-Adoption. Seine Aussagen,
+> dass Envoy, Traefik und lighttpd keine Host-Integration, keinen Common-Runtime-
+> Lifecycle oder keine Event-Pfade hätten, sind abgelöst. Der nachfolgende Text
+> darf nicht zur Klassifizierung aktueller Connector-Unterstützung oder Evidence
+> verwendet werden.
+>
+> Die aktuellen Host-Grenzen und Evidence-Zustände werden aus
+> `connectors/<name>/capabilities.json` in der
+> [kanonischen Capability-Matrix](testing/generated/canonical/connector-capabilities.generated.de.md)
+> erzeugt. Der zugehörige [No-CRS-Gesamtsnapshot](all-connectors-no-crs-baseline.de.md)
+> ist die maßgebliche Sicht auf Ergebnisstatus; vorhandener Quellcode ist kein
+> PASS.
 
 Dieser Bericht erfasst Envoy, Traefik, lighttpd und den Repository-Template-Starter. Der Status bleibt bewusst **not_verified** / **connector-gap**: Die Änderung bereitet Common-SDK-Contracts und C-Standardprüfungen vor, behauptet aber keine Runtime-, CRS-, Produktions-, Full-Matrix- oder RESPONSE_BODY-Verifikation.
 

@@ -2,6 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH='' cd "$SCRIPT_DIR/../.." && pwd)
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 MODULE_PATH=${LIGHTTPD_CONNECTOR_MODULE:-${LIGHTTPD_MODULE_DIR:-$BUILD_ROOT/lighttpd-connector/modules}/mod_msconnector.so}
 SMOKE_PORT=${LIGHTTPD_SMOKE_PORT:-18084}
@@ -21,6 +22,12 @@ else
 fi
 command -v curl >/dev/null 2>&1 || blocked "curl is required for the runtime request path"
 [ -f "$MODULE_PATH" ] || blocked "connector module is missing: $MODULE_PATH"
+
+if [ "${MSCONNECTOR_NO_CRS_BASELINE:-0}" = "1" ]; then
+    NO_CRS_SELECTION_CONSUMER=$REPO_ROOT/ci/consume-no-crs-selected-cases.sh
+    [ -x "$NO_CRS_SELECTION_CONSUMER" ] || blocked "No-CRS selected-case consumer is missing: $NO_CRS_SELECTION_CONSUMER"
+    "$NO_CRS_SELECTION_CONSUMER" lighttpd
+fi
 
 LIGHTTPD_CONFIG=$(BUILD_ROOT="$BUILD_ROOT" LIGHTTPD_SMOKE_PORT="$SMOKE_PORT" \
     sh "$SCRIPT_DIR/prepare_native_smoke.sh")

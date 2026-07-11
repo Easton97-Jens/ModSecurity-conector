@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 from typing import Any
 
@@ -13,13 +14,16 @@ MAKE_TARGET = "refresh-connector-reports"
 INPUTS = ("connectors", "Makefile", "ci", "config", "docs", "reports/testing/generated")
 
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "lighttpd", "traefik", "litespeed", "openresty")
+CANONICAL_CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 PRODUCTION = {"apache", "nginx", "haproxy"}
 PARTIAL = {"envoy", "lighttpd", "traefik"}
 
 ROADMAP_SCOPE = {
     "report_scope": "roadmap_only",
-    "evaluates": "repository structure, existing skeletons, technical feasibility, first proof steps, and evidence gates",
-    "does_not_replace": "runtime evidence, verified-case result.json evidence, or full-matrix evidence",
+    "snapshot_kind": "historical_precanonical_roadmap",
+    "evaluates": "historical repository structure, skeletons, technical feasibility, first proof steps, and evidence gates",
+    "does_not_replace": "the canonical capability catalog, canonical No-CRS result evidence, or full-matrix evidence",
+    "current_status_authority": "reports/all-connectors-no-crs-baseline.* and reports/testing/generated/canonical/connector-capabilities.generated.*",
     "full_matrix_results_created": False,
     "runtime_pass_fail_values_created": False,
     "merge_readiness_impact": "none",
@@ -289,14 +293,14 @@ LITESPEED_CANDIDATE = {
 OTHER_CONNECTOR_FEASIBILITY = [
     {
         "connector": "lighttpd",
-        "current_state": "partial_skeleton",
+        "historical_state": "partial_skeleton",
         "blocker": "No selected native ModSecurity integration, FastCGI/SCGI bridge, or runtime harness.",
         "first_proof_step": "Request-blocking feasibility proof that selects native module versus proxy/sidecar architecture.",
         "risk": "high",
     },
     {
         "connector": "traefik",
-        "current_state": "partial_skeleton",
+        "historical_state": "partial_skeleton",
         "blocker": "No Go plugin/middleware, no forwardAuth runtime harness, and no libmodsecurity lifecycle proof.",
         "first_proof_step": "forwardAuth/decision-service returns 403 for a known malicious request with logs and result.json.",
         "risk": "high",
@@ -555,6 +559,50 @@ def has_files(root: Path, rel: str, patterns: tuple[str, ...]) -> bool:
     return base.exists() and any(base.glob(pattern) for pattern in patterns)
 
 
+def canonical_host_paths(root: Path) -> list[dict[str, str]]:
+    """Expose current host-path declarations without promoting runtime evidence.
+
+    The roadmap's feasibility material predates the canonical No-CRS branch.
+    Read the connector-local manifests here so the generated archive points at
+    the actual selected host paths instead of repeating its old starter-only
+    classification.
+    """
+
+    rows: list[dict[str, str]] = []
+    for name in CANONICAL_CONNECTORS:
+        manifest_path = root / "connectors" / name / "capabilities.json"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            rows.append(
+                {
+                    "connector": name,
+                    "host_name": "unknown",
+                    "integration_mode": "manifest unavailable",
+                    "minimal_runtime_declaration": "unknown",
+                    "no_crs_declaration": "unknown",
+                }
+            )
+            continue
+        stages = manifest.get("evidence_stages")
+        stages = stages if isinstance(stages, dict) else {}
+
+        def declaration(stage: str) -> str:
+            value = stages.get(stage)
+            return str(value.get("status", "unknown")) if isinstance(value, dict) else "unknown"
+
+        rows.append(
+            {
+                "connector": str(manifest.get("connector") or name),
+                "host_name": str(manifest.get("host_name") or "unknown"),
+                "integration_mode": str(manifest.get("integration_mode") or "unknown"),
+                "minimal_runtime_declaration": declaration("minimal_runtime_smoke"),
+                "no_crs_declaration": declaration("no_crs_baseline"),
+            }
+        )
+    return rows
+
+
 def connector_status(name: str, directory: bool) -> str:
     if name in PRODUCTION:
         return "production_verified"
@@ -583,7 +631,7 @@ def connector_row(root: Path, name: str) -> dict[str, Any]:
     return {
         "connector": name,
         "directory": "yes" if directory else "no",
-        "current_status": status,
+        "historical_status": status,
         "why": details["why"],
         "next_step": details["next_step"],
         "runtime_evidence": runtime_evidence,
@@ -646,41 +694,116 @@ def render_table(headers: list[str], rows: list[list[Any]]) -> list[str]:
     return lines
 
 
-def render_markdown(payload: dict[str, Any]) -> str:
-    lines: list[str] = ["# Connector Roadmap", ""]
+def render_markdown(payload: dict[str, Any], *, german: bool = False) -> str:
     scope = payload["roadmap_scope"]
+    if german:
+        title = "# Archivierte Connector-Roadmap vor dem kanonischen No-CRS-Modell"
+        scope_heading = "## Archivgrenze und maßgeblicher aktueller Status"
+        host_heading = "## Aktuelle kanonische Host-Pfade"
+        archive_heading = "## Archiviertes Planungsmaterial vor dem kanonischen Modell"
+        archive_note = (
+            "Die nachfolgenden Status-, Ranking-, Machbarkeits- und Proof-Aussagen "
+            "sind ausschließlich historische Planung. Sie dürfen keine aktuellen "
+            "Capability-, Runtime-, CRS- oder Ergebnisclaims begründen."
+        )
+        canonical_intro = (
+            "Diese Tabelle wird bei jeder Erzeugung aus den sechs "
+            "`connectors/<name>/capabilities.json`-Manifesten gelesen. Die Zustände "
+            "sind Source-/Capability-Deklarationen und keine PASS-Ergebnisse."
+        )
+        scope_intro = "Dieser Bericht ist `roadmap_only` und bleibt ein historischer Planungsstand vor dem kanonischen Modell."
+        authority_intro = (
+            "Für den aktuellen Status gelten `reports/all-connectors-no-crs-baseline.*` und "
+            "`reports/testing/generated/canonical/connector-capabilities.generated.*`; nur "
+            "kanonische `result.json`-Evidence darf ein Ergebnis heraufstufen."
+        )
+        field_headers = ["Feld", "Wert"]
+        host_headers = ["Connector", "Host", "Integration", "Minimal-Runtime-Deklaration", "No-CRS-Deklaration"]
+        archived_matrix_heading = "## Archivierte Connector-Statusmatrix"
+        archived_matrix_headers = ["Connector", "Verzeichnis", "Historischer Snapshot-Status", "Warum", "Nächster Schritt", "Runtime-Evidence?", "Full-Matrix?"]
+    else:
+        title = "# Archived pre-canonical Connector Roadmap"
+        scope_heading = "## Archive boundary and authoritative current status"
+        host_heading = "## Current canonical host paths"
+        archive_heading = "## Archived pre-canonical planning material"
+        archive_note = (
+            "The status, ranking, feasibility, and proof statements below are retained "
+            "only as historical planning. They must not support current capability, runtime, "
+            "CRS, or result claims."
+        )
+        canonical_intro = (
+            "This table is read on every generation from the six "
+            "`connectors/<name>/capabilities.json` manifests. Its states are source/capability "
+            "declarations, not PASS results."
+        )
+        scope_intro = "This report is `roadmap_only` and is retained as a historical pre-canonical planning record."
+        authority_intro = (
+            "For current status use `reports/all-connectors-no-crs-baseline.*` and "
+            "`reports/testing/generated/canonical/connector-capabilities.generated.*`; "
+            "only canonical `result.json` evidence may promote a result."
+        )
+        field_headers = ["Field", "Value"]
+        host_headers = ["Connector", "Host", "Integration", "Minimal-runtime declaration", "No-CRS declaration"]
+        archived_matrix_heading = "## Archived Connector Status Matrix"
+        archived_matrix_headers = ["Connector", "Directory", "Historical Snapshot Status", "Why", "Next Step", "Runtime Evidence?", "Full-Matrix?"]
+
+    lines: list[str] = [title, ""]
+    if german:
+        lines += [
+            "> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur "
+            "generierten englischen Quelle. Maschinenlesbare Werte, Statusnamen, "
+            "Pfade und Tabellen bleiben absichtlich unverändert.",
+            "",
+        ]
     lines += [
-        "## Roadmap Scope",
+        scope_heading,
         "",
-        "This report is `roadmap_only`. It evaluates repository structure, existing skeletons, technical feasibility, and first proof steps.",
-        "It does not replace runtime evidence, does not generate full-matrix results, does not fabricate PASS/FAIL values, and must not influence Merge Readiness.",
+        scope_intro,
+        authority_intro,
         "",
     ]
     lines += render_table(
-        ["Field", "Value"],
+        field_headers,
         [
             ["report_scope", scope["report_scope"]],
+            ["snapshot_kind", scope["snapshot_kind"]],
             ["evaluates", scope["evaluates"]],
             ["does_not_replace", scope["does_not_replace"]],
+            ["current_status_authority", scope["current_status_authority"]],
             ["full_matrix_results_created", scope["full_matrix_results_created"]],
             ["runtime_pass_fail_values_created", scope["runtime_pass_fail_values_created"]],
             ["merge_readiness_impact", scope["merge_readiness_impact"]],
         ],
     )
-    lines += ["", "## Connector Status Matrix", ""]
+    lines += ["", host_heading, "", canonical_intro, ""]
     lines += render_table(
-        ["Connector", "Directory", "Current Status", "Why", "Next Step", "Runtime Evidence?", "Full-Matrix?"],
+        host_headers,
         [
-            [row["connector"], row["directory"], row["current_status"], row["why"], row["next_step"], row["runtime_evidence"], row["full_matrix"]]
+            [
+                row["connector"],
+                row["host_name"],
+                row["integration_mode"],
+                row["minimal_runtime_declaration"],
+                row["no_crs_declaration"],
+            ]
+            for row in payload["canonical_host_paths"]
+        ],
+    )
+    lines += ["", archive_heading, "", f"> {archive_note}", ""]
+    lines += [archived_matrix_heading, ""]
+    lines += render_table(
+        archived_matrix_headers,
+        [
+            [row["connector"], row["directory"], row["historical_status"], row["why"], row["next_step"], row["runtime_evidence"], row["full_matrix"]]
             for row in payload["connector_status_matrix"]
         ],
     )
-    lines += ["", "## Connector Candidate Ranking", ""]
+    lines += ["", "## Archived Connector Candidate Ranking", ""]
     lines += render_table(
         ["Rank", "Connector", "Difficulty", "Risk", "Expected Value", "Recommendation"],
         [[item["rank"], item["connector"], item["difficulty"], item["risk"], item["expected_value"], item["recommendation"]] for item in payload["connector_candidate_ranking"]],
     )
-    lines += ["", "## Why Envoy Is Recommended Next", ""]
+    lines += ["", "## Archived Rationale for Recommending Envoy Next", ""]
     lines += render_table(
         ["Reason", "Detail", "Evidence Boundary"],
         [[item["reason"], item["detail"], item["evidence_boundary"]] for item in payload["why_envoy_next"]],
@@ -690,7 +813,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
         ["Stage", "Meaning", "Required Evidence", "Not Allowed Claims"],
         [[item["stage"], item["meaning"], item["required_evidence"], item["not_allowed_claims"]] for item in payload["connector_lifecycle"]],
     )
-    lines += ["", "## New Connector Work Phases", ""]
+    lines += ["", "## Archived New-Connector Work Phases", ""]
     lines += render_table(
         ["Phase", "Name", "Entry Condition", "Work", "Exit Evidence", "Promotion Gate"],
         [
@@ -715,12 +838,12 @@ def render_markdown(payload: dict[str, Any]) -> str:
         ["Item", "Stage", "Purpose", "Evidence Rule"],
         [[item["item"], item["stage"], item["purpose"], item["evidence_rule"]] for item in payload["future_connector_deliverables"]],
     )
-    lines += ["", "## Envoy Architecture Options", ""]
+    lines += ["", "## Archived Envoy Architecture Options", ""]
     lines += render_table(
         ["Option", "Description", "Pros", "Cons", "Proof Difficulty", "Recommendation"],
         [[item["option"], item["description"], item["pros"], item["cons"], item["proof_difficulty"], item["recommendation"]] for item in payload["envoy_architecture_options"]],
     )
-    lines += ["", "### Envoy Option Capability Checks", ""]
+    lines += ["", "### Archived Envoy Option Capability Checks", ""]
     lines += render_table(
         ["Option", "Request Blocking", "Request Body", "Response Body", "Intervention Status", "Evidence", "CI Testability", "Risk"],
         [
@@ -729,7 +852,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
         ],
     )
     proof = payload["recommended_envoy_proof"]
-    lines += ["", "## Recommended Envoy Proof", ""]
+    lines += ["", "## Archived Recommended Envoy Proof", ""]
     lines += render_table(
         ["Field", "Value"],
         [
@@ -741,12 +864,12 @@ def render_markdown(payload: dict[str, Any]) -> str:
             ["evidence", "<br>".join(proof["evidence"])],
         ],
     )
-    lines += ["", "### Envoy Proof Exit Criteria", ""]
+    lines += ["", "### Archived Envoy Proof Exit Criteria", ""]
     lines += render_table(
         ["Criterion", "Required Evidence", "Failure Mode"],
         [[item["criterion"], item["required_evidence"], item["failure_mode"]] for item in payload["envoy_proof_exit_criteria"]],
     )
-    lines += ["", "### Envoy Minimal Result Schema", "", "```json"]
+    lines += ["", "### Archived Envoy Minimal Result Schema", "", "```json"]
     lines += [
         "{",
         '  "connector": "envoy",',
@@ -768,24 +891,24 @@ def render_markdown(payload: dict[str, Any]) -> str:
         ["Field", "Value"],
         [[key, value] for key, value in litespeed.items()],
     )
-    lines += ["", "## Lighttpd and Traefik Feasibility", ""]
+    lines += ["", "## Archived Lighttpd and Traefik Feasibility", ""]
     lines += render_table(
-        ["Connector", "Current State", "Blocker", "First Proof Step", "Risk"],
-        [[item["connector"], item["current_state"], item["blocker"], item["first_proof_step"], item["risk"]] for item in payload["lighttpd_traefik_feasibility"]],
+        ["Connector", "Historical State", "Blocker", "First Proof Step", "Risk"],
+        [[item["connector"], item["historical_state"], item["blocker"], item["first_proof_step"], item["risk"]] for item in payload["lighttpd_traefik_feasibility"]],
     )
     lines += ["", "## OpenResty Decision", ""]
     lines += render_table(
         ["Field", "Value"],
         [[key, value] for key, value in payload["openresty_decision"].items()],
     )
-    lines += ["", "## New Connector Work Items", ""]
+    lines += ["", "## Archived New-Connector Work Items", ""]
     lines += render_table(
         ["Priority", "Work Item", "Connector", "Output", "Acceptance Criteria"],
         [[item["priority"], item["work_item"], item["connector"], item["output"], item["acceptance_criteria"]] for item in payload["new_connector_work_items"]],
     )
     lines += ["", "## Claims Not Allowed Before Full-Matrix Evidence", ""]
     lines += [f"- {item}" for item in payload["not_allowed_before_full_matrix"]]
-    lines += ["", "## Recommended Next Connector", ""]
+    lines += ["", "## Archived Recommended Next Connector", ""]
     lines += render_table(
         ["Field", "Value"],
         [
@@ -803,9 +926,12 @@ def build_payload(root: Path) -> dict[str, Any]:
     return {
         "roadmap_scope": ROADMAP_SCOPE,
         "report_scope": ROADMAP_SCOPE["report_scope"],
+        "snapshot_kind": ROADMAP_SCOPE["snapshot_kind"],
+        "current_status_authority": ROADMAP_SCOPE["current_status_authority"],
         "runtime_values_invented": False,
         "full_matrix_rows_added": False,
         "merge_readiness_impact": "none",
+        "canonical_host_paths": canonical_host_paths(root),
         "connector_status_matrix": rows,
         "connector_candidate_ranking": candidate_ranking(),
         "why_envoy_next": WHY_ENVOY_NEXT,
@@ -842,13 +968,32 @@ def main() -> int:
         framework_root=args.framework_root,
         inputs=INPUTS,
         report_key=REPORT_KEY,
-        extra={"report_scope": ROADMAP_SCOPE["report_scope"], "merge_readiness_impact": "none"},
+        extra={
+            "report_scope": ROADMAP_SCOPE["report_scope"],
+            "snapshot_kind": ROADMAP_SCOPE["snapshot_kind"],
+            "current_status_authority": ROADMAP_SCOPE["current_status_authority"],
+            "merge_readiness_impact": "none",
+        },
     )
     json_path = output_dir / GENERATED_REPORTS[REPORT_KEY].filename("json")
     md_path = output_dir / GENERATED_REPORTS[REPORT_KEY].filename("md")
+    de_path = output_dir / (md_path.name.removesuffix(".md") + ".de.md")
     json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
-    md_path.write_text(generated_markdown_text(render_markdown(payload), metadata), encoding="utf-8")
-    print("connector-roadmap: wrote roadmap_only report")
+    md_path.write_text(
+        generated_markdown_text(
+            render_markdown(payload, german=False),
+            dict(metadata, output_name=md_path.name),
+        ),
+        encoding="utf-8",
+    )
+    de_path.write_text(
+        generated_markdown_text(
+            render_markdown(payload, german=True),
+            dict(metadata, output_name=de_path.name),
+        ),
+        encoding="utf-8",
+    )
+    print("connector-roadmap: wrote archived roadmap report")
     return 0
 
 

@@ -1,6 +1,15 @@
-# Connector Parallel Runtime Smoke Plan
+# Historical connector parallel-runtime-smoke plan
 
 **Language:** English | [Deutsch](connector-parallel-runtime-smoke-plan.de.md)
+
+> **Historical planning record — superseded by the canonical No-CRS model.**
+>
+> This plan predates the selected current host paths and must not be used as a
+> current architecture or status source. In particular, its lighttpd
+> `sidecar_proxy` selection and starter/blocked-runtime descriptions are
+> obsolete. Use the generated [all-connector No-CRS snapshot](all-connectors-no-crs-baseline.md)
+> and [canonical capability matrix](testing/generated/canonical/connector-capabilities.generated.md)
+> for current host boundaries, evidence stages, and result status.
 
 Status: parallel phase started for Envoy, Traefik, and lighttpd; lighttpd
 Phase 1 now selects `sidecar_proxy`.

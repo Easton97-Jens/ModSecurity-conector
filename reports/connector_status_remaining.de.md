@@ -1,6 +1,26 @@
-# Stand der weiteren Connectoren
+# Archivierter Snapshot der Connectoren vor dem kanonischen Modell
 
 **Sprache:** [English](connector_status_remaining.md) | Deutsch
+
+> **Historisches Archiv — durch das kanonische No-CRS-Modell abgelöst.**
+>
+> Die nachfolgende Analyse bleibt ausschließlich als Snapshot vor der
+> Host-Integration erhalten. Sie ist kein aktueller Status, keine
+> Capability-Deklaration, kein Runtime-Nachweis und kein Umsetzungsplan.
+> Insbesondere die Aussagen, Envoy, Traefik und lighttpd seien nur Starter ohne
+> Runtime, sind überholt.
+>
+> Für den aktuellen Branch-Stand gelten der generierte
+> [No-CRS-Gesamtsnapshot](all-connectors-no-crs-baseline.de.md) und die
+> [kanonische Capability-Matrix](testing/generated/canonical/connector-capabilities.generated.de.md).
+> Sie trennen Implementierungsgrenzen von verifizierter Evidence und sind die
+> alleinige Quelle für den kanonischen No-CRS-Status.
+>
+> Die aktuellen Host-Pfade sind Envoy HTTP `ext_authz`, Traefik HTTP
+> `forwardAuth` und das native lighttpd-Plugin. Ihre Existenz ist kein
+> kanonischer PASS: Bis ein kanonisches `result.json` vorliegt, bleibt der
+> generierte No-CRS-Snapshot `NOT EXECUTED`; ein Starter oder lokaler Self-Test
+> darf ihn nicht heraufstufen.
 
 ## Zusammenfassung
 

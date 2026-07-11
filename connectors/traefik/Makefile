@@ -1,4 +1,4 @@
-.PHONY: build-connector build-traefik-connector build-forwardauth-service check-config check-traefik-config start-smoke start-smoke-traefik runtime-smoke runtime-smoke-traefik build-starter build-decision-service build-forwardauth-starter self-test self-test-decision-service self-test-forwardauth clean
+.PHONY: build-connector build-traefik-connector build-forwardauth-service check-config check-traefik-config start-smoke start-smoke-traefik runtime-smoke runtime-smoke-traefik no-crs-baseline-traefik build-starter build-decision-service build-forwardauth-starter self-test self-test-decision-service self-test-forwardauth clean
 
 build-connector:
 	build/build-connector.sh
@@ -21,6 +21,9 @@ runtime-smoke:
 	scripts/runtime-smoke.sh
 
 runtime-smoke-traefik: runtime-smoke
+
+no-crs-baseline-traefik: export MSCONNECTOR_NO_CRS_BASELINE := 1
+no-crs-baseline-traefik: runtime-smoke-traefik
 
 build-starter:
 	build/build-starter.sh build-starter

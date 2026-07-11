@@ -1,6 +1,13 @@
-# Lokaler Build- und Start-Audit
+# Historischer lokaler Build- und Start-Audit
 
 **Sprache:** [English](local-build-start-audit.md) | Deutsch
+
+> **Historischer Evidence-Snapshot.** Dieser Audit vom 06.07.2026 entstand vor
+> den aktuellen Envoy-, Traefik- und nativen lighttpd-Host-Pfaden. Seine
+> Starter-only-Zeilen bleiben als Audit-Historie erhalten und sind kein aktueller
+> Capability- oder Runtime-Status. Für den aktuellen Branch-Stand gelten der
+> generierte [No-CRS-Gesamtsnapshot](all-connectors-no-crs-baseline.de.md) und
+> die [kanonische Capability-Matrix](testing/generated/canonical/connector-capabilities.generated.de.md).
 
 Erstellt: 2026-07-06
 Aktualisiert: 2026-07-06
