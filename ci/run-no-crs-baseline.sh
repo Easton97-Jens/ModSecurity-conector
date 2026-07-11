@@ -8,6 +8,12 @@ CONNECTOR_ROOT=${CONNECTOR_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}
 PYTHON=${PYTHON:-python3}
 VERIFIED_RUN_ROOT=${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}
+# Keep the invocation-level root distinct from the connector-local raw run.
+# The resolver intentionally places build/, runs/, and run-logs/ beside one
+# another. Framework host checks may need to see all three as safe runtime
+# descendants, so passing only CONNECTOR_RUN_ROOT would incorrectly reject the
+# sibling connector build root.
+CANONICAL_VERIFIED_RUN_ROOT=$VERIFIED_RUN_ROOT
 BUILD_ROOT=${BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}
 VERIFIED_EVIDENCE_ROOT=${VERIFIED_EVIDENCE_ROOT:-$VERIFIED_RUN_ROOT/evidence}
 EVIDENCE_ROOT=${EVIDENCE_ROOT:-$VERIFIED_EVIDENCE_ROOT/no-crs-evidence}
@@ -151,6 +157,23 @@ RESULTS_DIR=$CONNECTOR_RUN_ROOT/results
 HOST_RUNTIME_ROOT=$CONNECTOR_RUN_ROOT/host-runtime
 HOST_LOG_ROOT=$CONNECTOR_LOG_ROOT/host
 HOST_TMP_ROOT=$CONNECTOR_RUN_ROOT/tmp
+STAGE_BUILD_ROOT=$CONNECTOR_BUILD_ROOT
+STAGE_TMP_ROOT=$HOST_TMP_ROOT
+STAGE_LOG_ROOT=$HOST_LOG_ROOT
+STAGE_RESULTS_DIR=$RESULTS_DIR
+# The Framework HAProxy smoke contract requires its build, temporary, log,
+# and result roots to be nested together. This is a disposable *host work*
+# directory inside the already-isolated raw run, not the connector build root
+# resolved above; shared component artifacts still remain under
+# CONNECTOR_BUILD_ROOT and Cache-v2.
+case "$connector" in
+    haproxy)
+        STAGE_BUILD_ROOT=$CONNECTOR_RUN_ROOT/haproxy-host-work
+        STAGE_TMP_ROOT=$STAGE_BUILD_ROOT/tmp
+        STAGE_LOG_ROOT=$STAGE_BUILD_ROOT/logs
+        STAGE_RESULTS_DIR=$STAGE_BUILD_ROOT/results
+        ;;
+esac
 NGINX_RUN_ROOT=$CONNECTOR_RUN_ROOT/nginx-harness
 TRAEFIK_RUNTIME_ROOT=$CONNECTOR_RUN_ROOT/traefik-runtime
 LIGHTTPD_RUNTIME_ROOT=$CONNECTOR_RUN_ROOT/lighttpd-runtime
@@ -339,17 +362,17 @@ started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 set +e
 CONNECTOR_ROOT="$CONNECTOR_ROOT" \
 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
-VERIFIED_RUN_ROOT="$CONNECTOR_RUN_ROOT" \
-VERIFIED_BUILD_ROOT="$CONNECTOR_BUILD_ROOT" \
-VERIFIED_TMP_ROOT="$HOST_TMP_ROOT" \
-VERIFIED_LOG_ROOT="$CONNECTOR_LOG_ROOT" \
+VERIFIED_RUN_ROOT="$CANONICAL_VERIFIED_RUN_ROOT" \
+VERIFIED_BUILD_ROOT="$STAGE_BUILD_ROOT" \
+VERIFIED_TMP_ROOT="$STAGE_TMP_ROOT" \
+VERIFIED_LOG_ROOT="$STAGE_LOG_ROOT" \
 VERIFIED_COMPONENT_CACHE="$SHARED_COMPONENT_CACHE" \
 CACHE_ROOT="$CACHE_ROOT" \
 CONNECTOR_COMPONENT_CACHE="$SHARED_COMPONENT_CACHE" \
-BUILD_ROOT="$BUILD_ROOT" \
-TMP_ROOT="$HOST_TMP_ROOT" \
-LOG_ROOT="$HOST_LOG_ROOT" \
-RESULTS_DIR="$RESULTS_DIR" \
+BUILD_ROOT="$STAGE_BUILD_ROOT" \
+TMP_ROOT="$STAGE_TMP_ROOT" \
+LOG_ROOT="$STAGE_LOG_ROOT" \
+RESULTS_DIR="$STAGE_RESULTS_DIR" \
 RUNTIME_ROOT="$HOST_RUNTIME_ROOT" \
 RUNTIME_BASE="$HOST_RUNTIME_ROOT" \
 RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
@@ -442,11 +465,11 @@ fi
 source_results=
 source_result=
 source_events=
-source_first_byte_results=$RESULTS_DIR/$connector-first-byte-results.jsonl
+source_first_byte_results=$STAGE_RESULTS_DIR/$connector-first-byte-results.jsonl
 case "$connector" in
     apache|nginx|haproxy)
-        source_results=$RESULTS_DIR/$connector-results.jsonl
-        source_result=$RESULTS_DIR/$connector-summary.json
+        source_results=$STAGE_RESULTS_DIR/$connector-results.jsonl
+        source_result=$STAGE_RESULTS_DIR/$connector-summary.json
         ;;
     envoy)
         source_result=$HOST_RUNTIME_ROOT/runtime-summary.txt

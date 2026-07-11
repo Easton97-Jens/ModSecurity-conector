@@ -598,7 +598,12 @@ class CollectNoCrsSourceTest(unittest.TestCase):
     def test_canonical_runner_routes_native_logs_into_raw_run(self) -> None:
         source = (ROOT / "ci/run-no-crs-baseline.sh").read_text(encoding="utf-8")
         for assignment in (
-            'LOG_ROOT="$HOST_LOG_ROOT"',
+            "CANONICAL_VERIFIED_RUN_ROOT=$VERIFIED_RUN_ROOT",
+            "STAGE_BUILD_ROOT=$CONNECTOR_RUN_ROOT/haproxy-host-work",
+            'VERIFIED_RUN_ROOT="$CANONICAL_VERIFIED_RUN_ROOT"',
+            'BUILD_ROOT="$STAGE_BUILD_ROOT"',
+            'LOG_ROOT="$STAGE_LOG_ROOT"',
+            'RESULTS_DIR="$STAGE_RESULTS_DIR"',
             'RUNTIME_BASE="$HOST_RUNTIME_ROOT"',
             'APACHE_RUNTIME_LOG_DIR="$HOST_RUNTIME_ROOT/apache-runtime"',
             'NGINX_HARNESS_WORK_ROOT="$NGINX_RUN_ROOT"',
