@@ -5,6 +5,10 @@ REPO_ROOT ?= ../..
 HAPROXY_BUILD_DIR ?= $(BUILD_ROOT)/haproxy-build-starter
 HAPROXY_SPOA_RUNTIME_DIR ?= $(BUILD_ROOT)/haproxy-spoa-runtime
 HAPROXY_MODSECURITY_BINDING_DIR ?= $(BUILD_ROOT)/haproxy-modsecurity-binding
+HAPROXY_HTX_RUNTIME_ROOT ?= $(BUILD_ROOT)/haproxy-htx-runtime-smoke
+HAPROXY_HTX_BUILD_DIR ?= $(HAPROXY_HTX_RUNTIME_ROOT)/overlay-build
+HAPROXY_HTX_BIN ?= $(HAPROXY_HTX_BUILD_DIR)/worktree/haproxy
+HAPROXY_HTX_EVENT_LOG_PATH ?= $(HAPROXY_HTX_RUNTIME_ROOT)/events.jsonl
 COMMON_INCLUDE := $(REPO_ROOT)/common/include
 COMMON_SRC := $(REPO_ROOT)/common/src
 COMMON_CPPFLAGS := -I$(COMMON_INCLUDE)
@@ -15,7 +19,7 @@ MODSECURITY_BINDING_BIN := $(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy-modsecurit
 MODSECURITY_INCLUDE_CANDIDATES ?= $(MODSECURITY_INCLUDE_DIR) $(MODSECURITY_SHARED_PREFIX)/include $(BUILD_ROOT)/nginx-build/output/modsecurity/include $(BUILD_ROOT)/apache-build/output/modsecurity/include /src/ModSecurity_V3/headers
 MODSECURITY_LIB_CANDIDATES ?= $(MODSECURITY_LIB_DIR) $(MODSECURITY_SHARED_PREFIX)/lib $(BUILD_ROOT)/nginx-build/output/modsecurity/lib $(BUILD_ROOT)/apache-build/output/modsecurity/lib $(BUILD_ROOT)/nginx-build/ModSecurity_V3/src/.libs $(BUILD_ROOT)/apache-build/ModSecurity_V3/src/.libs
 
-.PHONY: build-metadata build-starter build-spoa-starter build-spoa-runtime build-modsecurity-binding build-htx-overlay check-htx-overlay self-test self-test-spoa self-test-spoa-runtime self-test-modsecurity-binding self-test-modsecurity-binding-crs clean FORCE
+.PHONY: build-metadata build-starter build-spoa-starter build-spoa-runtime build-modsecurity-binding build-htx-overlay check-htx-overlay test-htx-overlay runtime-smoke-haproxy-htx self-test self-test-spoa self-test-spoa-runtime self-test-modsecurity-binding self-test-modsecurity-binding-crs clean FORCE
 
 build-metadata: $(HAPROXY_BUILD_DIR)/metadata.o
 	@echo "HAProxy build-starter: metadata object built at $(HAPROXY_BUILD_DIR)/metadata.o"
@@ -50,8 +54,32 @@ build-modsecurity-binding: $(MODSECURITY_BINDING_BIN)
 check-htx-overlay:
 	python3 "$(REPO_ROOT)/ci/check-haproxy-htx-overlay.py"
 
-build-htx-overlay: check-htx-overlay
-	@CONNECTOR_ROOT="$(abspath $(REPO_ROOT))" sh htx-overlay/build-overlay.sh
+test-htx-overlay: check-htx-overlay
+	python3 harness/test_haproxy_htx_smoke_helper.py
+
+build-htx-overlay: check-htx-overlay build-modsecurity-binding
+	@set -eu; \
+	source_dir="$(HAPROXY_HTX_SOURCE_DIR)"; \
+	build_dir="$(HAPROXY_HTX_BUILD_DIR)"; \
+	: "$${source_dir:?set HAPROXY_HTX_SOURCE_DIR to a verified HAProxy 3.2.21 source tree}"; \
+	: "$${build_dir:?set HAPROXY_HTX_BUILD_DIR to an empty path outside the checkout}"; \
+	. "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"; \
+	CONNECTOR_ROOT="$(abspath $(REPO_ROOT))" \
+	HAPROXY_HTX_SOURCE_DIR="$$source_dir" \
+	HAPROXY_HTX_BUILD_DIR="$$build_dir" \
+	MODSECURITY_INCLUDE_DIR="$$MODSECURITY_INCLUDE_DIR" \
+	MODSECURITY_LIB_DIR="$$MODSECURITY_LIB_DIR" \
+	MAKE_JOBS="$${MAKE_JOBS:-2}" \
+	sh htx-overlay/build-overlay.sh
+
+# This target is deliberately independent of runtime-smoke-haproxy and the
+# selected SPOE/SPOP path. It proves only a patched native HTX filter transport
+# path and records observer-mode evidence; it does not promote enforcement.
+runtime-smoke-haproxy-htx: test-htx-overlay build-htx-overlay
+	HAPROXY_BIN="$(HAPROXY_HTX_BIN)" \
+	RUNTIME_ROOT="$(HAPROXY_HTX_RUNTIME_ROOT)" \
+	EVENT_LOG_PATH="$(HAPROXY_HTX_EVENT_LOG_PATH)" \
+	PYTHON="$(PYTHON)" sh harness/run_haproxy_htx_runtime.sh
 
 self-test-modsecurity-binding: $(MODSECURITY_BINDING_BIN)
 	@set -eu; \
@@ -208,6 +236,6 @@ $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_
 	printf '%s\n' "MODSECURITY_INCLUDE_DIR=$$include_dir" "MODSECURITY_LIB_DIR=$$lib_dir" "MODSECURITY_BINDING_BIN=$@" > "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"
 
 clean:
-	rm -rf "$(HAPROXY_BUILD_DIR)" "$(HAPROXY_SPOA_RUNTIME_DIR)" "$(HAPROXY_MODSECURITY_BINDING_DIR)"
+	rm -rf "$(HAPROXY_BUILD_DIR)" "$(HAPROXY_SPOA_RUNTIME_DIR)" "$(HAPROXY_MODSECURITY_BINDING_DIR)" "$(HAPROXY_HTX_RUNTIME_ROOT)"
 
 FORCE:

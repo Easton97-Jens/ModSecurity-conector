@@ -67,7 +67,8 @@ def local_cache_root(explicit: str | None = None) -> Path:
     if os.environ.get("VERIFIED_COMPONENT_CACHE"):
         return Path(os.environ["VERIFIED_COMPONENT_CACHE"]).resolve()
     verified_root = Path(os.environ.get("VERIFIED_RUN_ROOT", "/var/tmp/ModSecurity-conector-verified"))
-    return (verified_root / "component-cache").resolve()
+    cache_root = Path(os.environ.get("CACHE_ROOT", verified_root / "cache-v2"))
+    return (cache_root / "shared").resolve()
 
 
 def file_proof(name: str, path_value: Any) -> dict[str, Any]:

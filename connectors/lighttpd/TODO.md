@@ -27,11 +27,14 @@ Canonical capability source: `connectors/lighttpd/capabilities.json`.
 
 - [x] Versioned 1.4.84 source patch defines bounded HTTP/1.x request-body
       capture and has a compile-only check; no runtime capability is promoted.
+- [x] Dedicated patched-host target copies, patches, configures, builds,
+      installs, stages and ABI-loads a matched 1.4.84 core plus module; its
+      isolated 200/403 smoke remains Phase-1-only and is not No-CRS evidence.
 - [ ] Preserve and test request-body truncation metadata.
 - [ ] Implement and test Phase-2 request-body processing.
 - [x] Versioned 1.4.84 source patch defines a bounded pre-socket-write HTTP/1.x
-      output/EOS hook with short-write deduplication; no response-body runtime
-      claim is made.
+      output/EOS hook with short-write deduplication; it is wire output, not a
+      decoded entity body, and makes no response-body runtime claim.
 - [ ] Implement response-body buffering only if intervention timing is honest.
 - [ ] Test Phase 4 and late-intervention behavior.
 - [ ] Exercise the implemented response-header hook with a real Phase-3 rule;
@@ -54,7 +57,7 @@ matrix claims false.
 
 ## Canonical Phase-4 implementation boundary
 
-The current native module has no response-body hook.  The following facets are
+The current native module has no decoded response-body hook.  The following facets are
 therefore `not_implemented`: `response_body_buffered`, `phase4`,
 `phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
 `late_intervention_log_only`, `late_intervention_abort`, and

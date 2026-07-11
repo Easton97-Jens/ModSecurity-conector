@@ -44,7 +44,6 @@ typedef struct {
     char host_request_id[96];
     int response_processed;
     int request_body_finished;
-    int response_body_finished;
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     off_t request_body_next_offset;
 #endif
@@ -450,47 +449,22 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
         off_t stream_offset,
         int eos,
         void *p_d) {
-    plugin_data *p = p_d;
-    handler_ctx *ctx = r->plugin_ctx[p->id];
-    msconnector_decision decision;
-    msconnector_error runtime_error;
-
+    /*
+     * The local core patch invokes this at the HTTP/1.x socket-write stage.
+     * That queue can contain transfer framing, so it is intentionally not a
+     * Common response-body ingestion path.  Keep the callback registered to
+     * exercise the patched ABI, but never turn wire ranges or EOS into Phase
+     * 4 processing.  The supported `none` mode does not call the runtime
+     * response-body finish API at reset either: no decoded entity was ever
+     * supplied to that lifecycle.
+     */
+    (void)r;
     (void)queue;
     (void)queue_offset;
     (void)length;
     (void)stream_offset;
-    if (!eos || ctx == NULL || ctx->transaction == NULL ||
-        !ctx->response_processed || ctx->response_body_finished) {
-        return PLUGIN_BODY_HOOK_CONTINUE;
-    }
-
-    msconnector_runtime_transaction_set_response_commit_state(
-        ctx->transaction,
-        r->write_queue.bytes_out >= (off_t)r->resp_header_len,
-        r->write_queue.bytes_out > (off_t)r->resp_header_len);
-    msconnector_decision_init(&decision);
-    msconnector_error_init(&runtime_error);
-    if (!msconnector_runtime_transaction_finish_response_body(
-            ctx->transaction,
-            &decision,
-            &runtime_error)) {
-        log_error(
-            r->conf.errh,
-            __FILE__,
-            __LINE__,
-            "msconnector response-body EOS finalization failed: %s",
-            msconnector_error_code_name(runtime_error.code));
-        return PLUGIN_BODY_HOOK_ERROR;
-    }
-    ctx->response_body_finished = 1;
-    if (msconnector_decision_is_disruptive(&decision)) {
-        log_error(
-            r->conf.errh,
-            __FILE__,
-            __LINE__,
-            "msconnector response-body EOS produced a disruptive decision; closing HTTP/1.x connection");
-        return PLUGIN_BODY_HOOK_ABORT;
-    }
+    (void)eos;
+    (void)p_d;
     return PLUGIN_BODY_HOOK_CONTINUE;
 }
 
@@ -673,23 +647,6 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
     }
     if (ctx->transaction != NULL) {
         msconnector_error_init(&runtime_error);
-        if (ctx->response_processed && !ctx->response_body_finished) {
-#ifndef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
-            msconnector_decision decision;
-            msconnector_decision_init(&decision);
-            if (!msconnector_runtime_transaction_finish_response_body(
-                    ctx->transaction, &decision, &runtime_error)) {
-                log_error(
-                    r->conf.errh,
-                    __FILE__,
-                    __LINE__,
-                    "msconnector response-body finalization failed: %s",
-                    msconnector_error_code_name(runtime_error.code));
-            }
-            ctx->response_body_finished = 1;
-            msconnector_error_init(&runtime_error);
-#endif
-        }
         if (!msconnector_runtime_transaction_finish(
                 ctx->transaction,
                 &runtime_error)) {

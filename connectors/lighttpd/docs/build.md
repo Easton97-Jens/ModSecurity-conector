@@ -1,6 +1,7 @@
 # lighttpd Build
 
-Status: native module compile/link verified against pinned lighttpd 1.4.84
+Status: native module compile/link verified; patched-host target builds a
+matched lighttpd 1.4.84 core and module below an isolated build root
 
 ## Inputs
 
@@ -47,7 +48,7 @@ loads the module.
 The build is compile/link only. It never loads or executes the resulting
 module.
 
-## Optional patched 1.4.84 core
+## Patched 1.4.84 core and matched module
 
 Stock mode remains the default and continues to compile only against an
 unmodified lighttpd ABI:
@@ -56,23 +57,34 @@ unmodified lighttpd ABI:
 make -C connectors/lighttpd build-lighttpd-connector
 ```
 
-The repository also carries a source-only, versioned 1.4.84 patch for the
-local streaming-hook ABI. It never edits the supplied source tree; it checks
-or copies it into `BUILD_ROOT/lighttpd-core-patched/lighttpd-1.4.84`.
+The repository carries a versioned 1.4.84 patch for a local streaming-hook
+ABI. It never edits the supplied source tree. `build-lighttpd-patched-core`
+copies the source into `BUILD_ROOT/lighttpd-core-patched/lighttpd-1.4.84`,
+records the patch SHA-256, configures an out-of-source build, runs `make` and
+`make install`, and stages the binary below `stage/bin/lighttpd`.
 
 ```sh
 make -C connectors/lighttpd check-lighttpd-core-patch
 make -C connectors/lighttpd apply-lighttpd-core-patch
-make -C connectors/lighttpd build-lighttpd-patched-connector
+make -C connectors/lighttpd build-lighttpd-patched-core
+make -C connectors/lighttpd build-lighttpd-patched-host
+make -C connectors/lighttpd check-lighttpd-patched-host
 ```
 
-`LIGHTTPD_MSCONNECTOR_CORE_MODE=patched` is required for a module built from
-that copied tree. The ABI tag rejects accidental stock/patched dynamic-module
-mixing. The patch exposes decoded HTTP/1.x request ranges and bounded
-pre-socket-write HTTP/1.x output/EOS ranges; it deliberately excludes HTTP/2,
-whose connection queue is multiplexed and framed. This is patch/application and
-compile evidence only, not a server rebuild, load, request, body, or
-late-intervention runtime claim.
+The matched-host build invokes `build_module.sh` with the generated `config.h`,
+the copied patched headers, and `LIGHTTPD_MSCONNECTOR_CORE_MODE=patched`, then
+stages `mod_msconnector.so` in `stage/modules`. The core and host manifests
+contain the patch SHA-256 and binary/module SHA-256 values. The check target
+requires the staged binary to report 1.4.84, verifies both hook symbols with
+`nm -D`, and performs a real `lighttpd -tt` module load from the isolated
+module directory.
+
+The ABI tag rejects accidental stock/patched dynamic-module mixing. The patch
+exposes HTTP/1.x request ranges and bounded pre-socket-write HTTP/1.x output/EOS
+ranges; the latter are wire output, not decoded response entities. HTTP/2 is
+deliberately excluded because its connection queue is multiplexed and framed.
+Consequently this target is a patched-host build/load path and does not establish
+response-body, Phase-4, or late-intervention evidence.
 
 ## Separate operations
 
@@ -91,6 +103,12 @@ make -C connectors/lighttpd runtime-smoke-lighttpd
 - Config check runs the real `LIGHTTPD_BIN -tt` and loads the real module.
 - Start smoke starts and stops lighttpd without network requests.
 - Runtime smoke alone sends two real host requests.
+
+`runtime-smoke-lighttpd-patched` is a separate, isolated Phase-1 smoke. It
+loads only the staged patched module, enforces `request_body_mode=none` and
+`response_body_mode=none`, and checks baseline 200 plus rule-backed 403. It
+never invokes the generic No-CRS selected-case consumer and its PASS output
+states `phase4=not-executed`.
 
 ## Verified local result
 

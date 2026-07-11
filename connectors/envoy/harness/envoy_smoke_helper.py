@@ -60,14 +60,15 @@ def serve_upstream(port: int) -> int:
     return 0
 
 
-def probe(url: str, header: list[str]) -> int:
+def probe(url: str, header: list[str], method: str, data: str | None) -> int:
     headers: dict[str, str] = {}
     for item in header:
         name, separator, value = item.partition(":")
         if not separator or not name.strip():
             raise ValueError(f"invalid header: {item!r}")
         headers[name.strip()] = value.strip()
-    request = urllib.request.Request(url, headers=headers)
+    body = None if data is None else data.encode("utf-8")
+    request = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=2) as response:
             response.read()
@@ -90,6 +91,8 @@ def parse_args() -> argparse.Namespace:
     request = subparsers.add_parser("probe")
     request.add_argument("--url", required=True)
     request.add_argument("--header", action="append", default=[])
+    request.add_argument("--method", default="GET")
+    request.add_argument("--data")
     return parser.parse_args()
 
 
@@ -106,7 +109,7 @@ def main() -> int:
     if args.command == "serve-upstream":
         return serve_upstream(args.port)
     if args.command == "probe":
-        return probe(args.url, args.header)
+        return probe(args.url, args.header, args.method, args.data)
     return 2
 
 

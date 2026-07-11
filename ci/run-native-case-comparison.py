@@ -78,11 +78,33 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
 
 def load_runtime_env(verified_run_root: Path) -> dict[str, str]:
     env = dict(os.environ)
-    runtime_env = Path(
-        env.get("CONNECTOR_COMPONENT_CACHE")
-        or env.get("VERIFIED_COMPONENT_CACHE")
-        or verified_run_root / "component-cache"
-    ) / "runtime-env.sh"
+    snapshot_value = env.get("RUNTIME_COMPONENT_ENV_SNAPSHOT", "").strip()
+    if snapshot_value:
+        # The with-runtime wrapper already validates and materializes this
+        # file for its exact invocation.  Do not reopen shared/runtime-env.sh
+        # here: another target may republish that compatibility export while
+        # this native comparison is compiling or running a case.
+        runtime_env = Path(snapshot_value)
+        report_root_value = env.get("RUNTIME_REPORT_OUTPUT_ROOT", "").strip()
+        if not report_root_value:
+            return env
+        report_root = Path(report_root_value)
+        try:
+            if not runtime_env.is_absolute() or not report_root.is_absolute():
+                return env
+            if not runtime_env.is_file() or runtime_env.is_symlink():
+                return env
+            runtime_env.resolve().relative_to(report_root.resolve())
+        except (OSError, ValueError):
+            return env
+    else:
+        # Retain the documented shared export only for direct/report-only
+        # callers that are outside a with-runtime invocation.
+        runtime_env = Path(
+            env.get("CONNECTOR_COMPONENT_CACHE")
+            or env.get("VERIFIED_COMPONENT_CACHE")
+            or Path(env.get("CACHE_ROOT", verified_run_root / "cache-v2")) / "shared"
+        ) / "runtime-env.sh"
     if not runtime_env.is_file():
         return env
     command = f". {sh_quote(str(runtime_env))}; env"

@@ -229,8 +229,10 @@ static const char *apache_phase4_actual_action(
 }
 
 
-static void apache_phase4_log_event(msc_t *msr, request_rec *r,
-    const char *wanted, const char *actual, const char *reason)
+static void apache_log_intervention_event(msc_t *msr, request_rec *r,
+    const char *event_name, enum msconnector_phase phase,
+    const char *wanted, const char *actual, const char *reason,
+    int original_status, int response_committed)
 {
     msc_conf_t *conf;
     apr_file_t *file = NULL;
@@ -257,7 +259,7 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     if (rc != APR_SUCCESS)
     {
         ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
-            "ModSecurity: failed to open phase4 log %s",
+            "ModSecurity: failed to open intervention log %s",
             conf->common_config.phase4_log_path);
         return;
     }
@@ -267,17 +269,19 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
         rule_id, sizeof(rule_id));
 
     msconnector_event_init(&event);
-    event.meta.message_id = strcmp(actual, "abort_connection") == 0
-        ? MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200
-        : (strcmp(actual, "log_only") == 0
-            ? MSCONN_EVENT_PHASE4_LATE_INTERVENTION
-            : MSCONN_EVENT_RESPONSE_BLOCKED);
+    event.meta.message_id = phase == MSCONNECTOR_PHASE_RESPONSE_BODY
+        ? (strcmp(actual, "abort_connection") == 0
+            ? MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200
+            : (strcmp(actual, "log_only") == 0
+                ? MSCONN_EVENT_PHASE4_LATE_INTERVENTION
+                : MSCONN_EVENT_RESPONSE_BLOCKED))
+        : MSCONN_EVENT_RESPONSE_BLOCKED;
     event.meta.level = msconnector_event_default_level(event.meta.message_id);
     event.meta.message = msconnector_event_default_message(event.meta.message_id);
-    event.meta.event = "phase4_intervention";
+    event.meta.event = event_name;
     event.meta.connector = "apache";
     event.meta.transaction_id = msr->event_transaction_id;
-    event.decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    event.decision.phase = phase;
     event.decision.status = MSCONNECTOR_STATUS_BLOCKED;
     event.decision.action = actual;
     event.decision.requested_action = wanted;
@@ -285,7 +289,7 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     event.decision.rule_id = rule_id;
     event.decision.reason = reason;
     event.http.http_status = msr->last_intervention_status;
-    event.http.original_http_status = r->status;
+    event.http.original_http_status = original_status;
     if (strcmp(actual, "deny") == 0 || strcmp(actual, "redirect") == 0)
     {
         event.http.visible_http_status = msr->last_intervention_status;
@@ -304,15 +308,20 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     event.request.method = r->method;
     event.request.uri = r->unparsed_uri;
     event.body.content_type = apache_response_content_type(r);
-    event.body.bytes_seen = msr->response_body_bytes_seen;
-    event.body.bytes_inspected = msr->response_body_bytes_inspected;
-    event.flags.late_intervention = msr->response_committed;
-    event.flags.response_started = msr->response_committed;
-    event.flags.response_committed = msr->response_committed;
-    event.flags.headers_sent = msr->response_committed;
-    event.flags.body_started = msr->response_committed;
-    event.flags.connection_aborted = msr->phase4_strict_abort;
-    event.flags.body_truncated = msr->response_body_truncated;
+    event.body.bytes_seen = phase == MSCONNECTOR_PHASE_RESPONSE_BODY
+        ? msr->response_body_bytes_seen : 0U;
+    event.body.bytes_inspected = phase == MSCONNECTOR_PHASE_RESPONSE_BODY
+        ? msr->response_body_bytes_inspected : 0U;
+    event.flags.late_intervention = response_committed;
+    event.flags.response_started = response_committed;
+    event.flags.response_committed = response_committed;
+    event.flags.headers_sent = response_committed;
+    event.flags.body_started = phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        response_committed;
+    event.flags.connection_aborted = phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        msr->phase4_strict_abort;
+    event.flags.body_truncated = phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        msr->response_body_truncated;
 
     if (msconnector_event_write_jsonl_line(&event, line, sizeof(line),
         &json_truncated))
@@ -321,47 +330,67 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
         if (rc != APR_SUCCESS)
         {
             ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
-                "ModSecurity: failed to write phase4 log %s",
+            "ModSecurity: failed to write intervention log %s",
                 conf->common_config.phase4_log_path);
         }
     }
     else if (json_truncated)
     {
-        rc = apr_file_puts(
-            "{\"event\":\"phase4_intervention\",\"phase\":\"response_body\","
+        rc = apr_file_puts(apr_psprintf(r->pool,
+            "{\"event\":\"%s\",\"phase\":\"%s\","
             "\"status\":\"blocked\",\"reason\":\"event serialization truncated\","
-            "\"truncated\":true}\n",
-            file);
+            "\"truncated\":true}\n", event_name,
+            phase == MSCONNECTOR_PHASE_RESPONSE_HEADERS
+                ? "response_headers" : "response_body"), file);
         if (rc != APR_SUCCESS)
         {
             ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
-                "ModSecurity: failed to write truncated phase4 log %s",
+                "ModSecurity: failed to write truncated intervention log %s",
                 conf->common_config.phase4_log_path);
         }
     }
     else
     {
-        rc = apr_file_puts(
-            "{\"event\":\"phase4_intervention\",\"phase\":\"response_body\","
+        rc = apr_file_puts(apr_psprintf(r->pool,
+            "{\"event\":\"%s\",\"phase\":\"%s\","
             "\"status\":\"error\",\"reason\":\"event serialization failed\"}\n",
-            file);
+            event_name, phase == MSCONNECTOR_PHASE_RESPONSE_HEADERS
+                ? "response_headers" : "response_body"), file);
         if (rc != APR_SUCCESS)
         {
             ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
-                "ModSecurity: failed to write failed phase4 log %s",
+                "ModSecurity: failed to write failed intervention log %s",
                 conf->common_config.phase4_log_path);
         }
         ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ModSecurity: failed to serialize common phase4 event");
+            "ModSecurity: failed to serialize common intervention event");
     }
 
     rc = apr_file_close(file);
     if (rc != APR_SUCCESS)
     {
         ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
-            "ModSecurity: failed to close phase4 log %s",
+            "ModSecurity: failed to close intervention log %s",
             conf->common_config.phase4_log_path);
     }
+}
+
+
+static void apache_phase4_log_event(msc_t *msr, request_rec *r,
+    const char *wanted, const char *actual, const char *reason)
+{
+    apache_log_intervention_event(msr, r, "phase4_intervention",
+        MSCONNECTOR_PHASE_RESPONSE_BODY, wanted, actual, reason, r->status,
+        msr != NULL ? msr->response_committed : 0);
+}
+
+
+static void apache_phase3_log_event(msc_t *msr, request_rec *r,
+    const char *wanted, const char *actual, int original_status)
+{
+    apache_log_intervention_event(msr, r, "phase3_intervention",
+        MSCONNECTOR_PHASE_RESPONSE_HEADERS, wanted, actual,
+        "response_headers_before_commit", original_status, 0);
 }
 
 
@@ -519,7 +548,9 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
         const apr_array_header_t *arr = NULL;
         const apr_table_entry_t *te = NULL;
         const char *content_type;
+        const char *wanted;
         int i;
+        int original_status;
 
         arr = apr_table_elts(r->err_headers_out);
         te = (apr_table_entry_t *)arr->elts;
@@ -548,7 +579,8 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
                 (const unsigned char *)"Content-Type",
                 (const unsigned char *)content_type);
         }
-        if (msc_process_response_headers(msr->t, r->status, "HTTP 1.1") < 0)
+        original_status = r->status;
+        if (msc_process_response_headers(msr->t, original_status, "HTTP 1.1") < 0)
         {
             ap_remove_output_filter(f);
             return send_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
@@ -559,6 +591,12 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
+            wanted = msr->last_intervention_status >= 300 &&
+                msr->last_intervention_status < 400 ? "redirect" : "deny";
+            /* Header filtering runs before this output filter passes the
+             * brigade downstream.  Record the exact status transition before
+             * send_error_bucket can commit the visible response. */
+            apache_phase3_log_event(msr, r, wanted, wanted, original_status);
             ap_remove_output_filter(f);
             return send_error_bucket(msr, f, it);
         }

@@ -30,11 +30,17 @@ Bucket nur leiht, die aktuelle Brigade vor EOS weitergibt und Phase 4 bei EOS
 finalisiert. Das ist inkrementelles Ingest mit End-of-Stream-Auswertung, keine
 Regelauswertung pro Chunk. Das eingecheckte Manifest deklariert
 `response_body_buffered`, `phase4`,
-`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
+`phase4_rule_evaluation`, `late_intervention`,
 `late_intervention_log_only`, `late_intervention_abort` und
 `late_intervention_status_metadata` jedoch bewusst als
 `implemented_not_asserted`. Kein aktueller kanonischer Lauf über den echten
 Host erhöht einen dieser Zustände.
+
+`phase4_pre_commit_deny` ist bewusst `not_implemented`: Die Body-Entscheidung
+fällt bei EOS nach dem Response-Header-Pfad, daher besitzt der native Host
+keinen deterministischen, noch nicht festgeschriebenen Entscheidungspunkt für
+den Antwortkörper. Ein Deny-Zweig im Quelltext rechtfertigt keinen behaupteten
+sichtbaren Phase-4-HTTP-Statuswechsel.
 
 Ein Phase-4-Regeltreffer ist kein Nachweis für ein beim Client sichtbares 403.
 Ein kanonisches Ereignis muss `original_http_status`, den angeforderten
@@ -45,7 +51,8 @@ Policy im sicheren Modus nur `log_only` protokollieren oder im strikten Modus
 `abort_connection` auslösen. Keines dieser Ergebnisse darf ohne passenden
 Host-Nachweis als erfolgreiche Sperre vor dem Commit gemeldet werden.
 
-Die Fälle `phase4_rule_observed`, `phase4_deny_before_commit`,
+Die anwendbaren Fälle `phase4_rule_observed`,
 `phase4_deny_after_commit_log_only`, `phase4_deny_after_commit_abort` sowie
-die beiden Metadatenfälle bleiben nachweisgebunden. Ereignisse enthalten nur
-Metadaten und niemals Response-Body-Payloads.
+die beiden Metadatenfälle bleiben nachweisgebunden.
+`phase4_deny_before_commit` wird für dieses Hostmodell nicht ausgewählt.
+Ereignisse enthalten nur Metadaten und niemals Response-Body-Payloads.

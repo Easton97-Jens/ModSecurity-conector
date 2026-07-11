@@ -40,7 +40,7 @@ as a visible HTTP `403`.
 
 | Connector | `response_body_buffered` | `phase4` | `phase4_rule_evaluation` | `phase4_pre_commit_deny` |
 |---|---|---|---|---|
-| Apache | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
+| Apache | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` |
 | NGINX | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
 | HAProxy | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
 | Envoy | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |

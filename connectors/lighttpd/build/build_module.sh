@@ -5,7 +5,7 @@ SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 CONNECTOR_DIR=$(CDPATH='' cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(CDPATH='' cd "$CONNECTOR_DIR/../.." && pwd)
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
-OUT_DIR=$BUILD_ROOT/lighttpd-connector
+OUT_DIR=${LIGHTTPD_CONNECTOR_OUT_DIR:-$BUILD_ROOT/lighttpd-connector}
 OBJ_DIR=$OUT_DIR/objects
 MODULE_DIR=${LIGHTTPD_MODULE_DIR:-$OUT_DIR/modules}
 CC_BIN=${CC:-cc}
@@ -25,6 +25,10 @@ case "$MODULE_DIR" in
     /*) ;;
     *) blocked "LIGHTTPD_MODULE_DIR must be absolute: $MODULE_DIR" ;;
 esac
+case "$OUT_DIR" in
+    /*) ;;
+    *) blocked "LIGHTTPD_CONNECTOR_OUT_DIR must be absolute: $OUT_DIR" ;;
+esac
 
 case "$(CDPATH='' cd "$BUILD_ROOT" 2>/dev/null && pwd 2>/dev/null || printf '%s' "$BUILD_ROOT")" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
@@ -35,6 +39,12 @@ esac
 case "$(CDPATH='' cd "$MODULE_DIR" 2>/dev/null && pwd 2>/dev/null || printf '%s' "$MODULE_DIR")" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
         blocked "LIGHTTPD_MODULE_DIR must not be inside the checkout: $MODULE_DIR"
+        ;;
+    *) ;;
+esac
+case "$(CDPATH='' cd "$OUT_DIR" 2>/dev/null && pwd 2>/dev/null || printf '%s' "$OUT_DIR")" in
+    "$REPO_ROOT"|"$REPO_ROOT"/*)
+        blocked "LIGHTTPD_CONNECTOR_OUT_DIR must not be inside the checkout: $OUT_DIR"
         ;;
     *) ;;
 esac
@@ -188,6 +198,7 @@ compile_common "$REPO_ROOT/common/runtime/msconnector_runtime.c" "$RUNTIME_OBJEC
 
 {
     printf 'c_standard=%s\n' "$MSCONNECTOR_C_STD"
+    printf 'connector_out_dir=%s\n' "$OUT_DIR"
     printf 'lighttpd_core_mode=%s\n' "$LIGHTTPD_MSCONNECTOR_CORE_MODE"
     printf 'lighttpd_source_dir=%s\n' "$LIGHTTPD_SOURCE_DIR"
     printf 'lighttpd_header_dir=%s\n' "$LIGHTTPD_HEADER_DIR"

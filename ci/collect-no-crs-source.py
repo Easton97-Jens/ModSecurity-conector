@@ -137,22 +137,100 @@ def load_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def catalog_expectations(path: Path) -> dict[str, tuple[int | None, str | None]]:
+def catalog_runner_case_path(catalog_root: Path, runner_case: object) -> Path:
+    """Resolve one catalog-owned runner case without accepting path aliases."""
+    if not isinstance(runner_case, str) or not runner_case:
+        raise ValueError("catalog runner_case must be a non-empty string")
+    if "\\" in runner_case:
+        raise ValueError(f"catalog runner_case must use POSIX separators: {runner_case!r}")
+    parts = runner_case.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise ValueError(f"catalog runner_case contains an unsafe path component: {runner_case!r}")
+    candidate = (catalog_root / runner_case).resolve(strict=True)
+    try:
+        candidate.relative_to(catalog_root)
+    except ValueError as exc:
+        raise ValueError(f"catalog runner_case escapes its catalog root: {runner_case!r}") from exc
+    if not candidate.is_file():
+        raise ValueError(f"catalog runner_case is not a regular file: {runner_case!r}")
+    return candidate
+
+
+def catalog_contract(
+    path: Path,
+) -> tuple[
+    dict[str, tuple[int | None, str | None, int | None]],
+    dict[Path, str],
+]:
     catalog = load_json(path)
     cases = catalog.get("cases")
     if not isinstance(cases, list):
         raise ValueError(f"catalog cases are missing: {path}")
-    expectations: dict[str, tuple[int | None, str | None]] = {}
+    catalog_root = path.resolve(strict=True).parent
+    expectations: dict[str, tuple[int | None, str | None, int | None]] = {}
+    runner_case_index: dict[Path, str] = {}
     for case in cases:
         if not isinstance(case, dict) or not case.get("case_id"):
             continue
+        case_id = str(case["case_id"])
         expected_status = scalar_int(case.get("expected_status"))
         expected_rule_id = case.get("expected_rule_id")
-        expectations[str(case["case_id"])] = (
+        expectations[case_id] = (
             expected_status,
             str(expected_rule_id) if expected_rule_id not in (None, "") else None,
+            scalar_int(case.get("phase")),
         )
-    return expectations
+        runner_case = case.get("runner_case")
+        if runner_case in (None, ""):
+            continue
+        runner_path = catalog_runner_case_path(catalog_root, runner_case)
+        existing = runner_case_index.get(runner_path)
+        if existing is not None:
+            raise ValueError(
+                f"catalog runner_case is not unique: {runner_case!r} maps to "
+                f"both {existing!r} and {case_id!r}"
+            )
+        runner_case_index[runner_path] = case_id
+    return expectations, runner_case_index
+
+
+def catalog_expectations(path: Path) -> dict[str, tuple[int | None, str | None, int | None]]:
+    return catalog_contract(path)[0]
+
+
+def catalog_case_id_from_row(
+    row: dict[str, Any], runner_case_index: dict[Path, str] | None
+) -> str | None:
+    """Match a host result to one catalog runner_case by exact resolved path."""
+    if not runner_case_index:
+        return None
+    raw_path = row.get("path")
+    if not isinstance(raw_path, str) or not raw_path:
+        return None
+    try:
+        candidate = Path(raw_path).resolve(strict=True)
+    except OSError:
+        return None
+    return runner_case_index.get(candidate)
+
+
+def observed_case_id(
+    row: dict[str, Any],
+    expectations: dict[str, tuple[Any, ...]],
+    runner_case_index: dict[Path, str] | None,
+) -> str:
+    explicit = str(row.get("case_id") or "")
+    from_runner_case = catalog_case_id_from_row(row, runner_case_index)
+    if explicit and from_runner_case and explicit != from_runner_case:
+        raise ValueError(
+            f"source result case_id {explicit!r} conflicts with catalog runner_case "
+            f"mapping {from_runner_case!r}"
+        )
+    if explicit in expectations:
+        return explicit
+    if from_runner_case is not None:
+        return from_runner_case
+    return str(row.get("name") or row.get("case") or "")
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -707,9 +785,10 @@ def case_observations(
     paths: list[Path],
     connector: str,
     expected_rule_id: str,
-    expectations: dict[str, tuple[int | None, str | None]] | None = None,
+    expectations: dict[str, tuple[Any, ...]] | None = None,
     allowed_source_root: Path | None = None,
     consumed_event_paths: list[Path] | None = None,
+    runner_case_index: dict[Path, str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     expectations = expectations or {
         case_id: (status, expected_rule_id if case_id == "deny_header_marker_403" else None)
@@ -734,10 +813,15 @@ def case_observations(
         if audit_path.is_file() and consumed_event_paths is not None:
             consumed_event_paths.append(audit_path)
 
-        case_id = str(row.get("case_id") or row.get("name") or row.get("case") or "")
+        case_id = observed_case_id(row, expectations, runner_case_index)
         if case_id not in expectations:
             continue
-        expected_status, case_expected_rule_id = expectations[case_id]
+        expectation = expectations[case_id]
+        expected_status = scalar_int(expectation[0]) if expectation else None
+        case_expected_rule_id = (
+            str(expectation[1]) if len(expectation) > 1 and expectation[1] not in (None, "") else None
+        )
+        expected_phase = scalar_int(expectation[2]) if len(expectation) > 2 else None
         actual = scalar_int(row.get("actual_status", row.get("observed_status")))
         status = str(row.get("status") or row.get("result") or "").upper()
         live = row.get("live_executed", True) is not False
@@ -765,7 +849,8 @@ def case_observations(
             derived_events.append(record)
             if event.get("rule_id") not in (None, ""):
                 observed_rule_ids.add(str(event["rule_id"]))
-        phase4_case = case_id.startswith("phase4_")
+        phase4_case = expected_phase == 4 or case_id.startswith("phase4_")
+        structured_runtime_case = expected_phase in {3, 4}
         # An audit log can corroborate the older request-path cases, but it
         # is not a Phase-4 producer event.  In particular it lacks the
         # canonical event/message identity that the Framework requires for a
@@ -783,6 +868,10 @@ def case_observations(
         if case_expected_rule_id is not None:
             passed = passed and case_expected_rule_id in observed_rule_ids
         canonical_records = [sanitized_event(record) for record in runtime_records]
+        if structured_runtime_case:
+            passed = passed and any(
+                record.get("phase") == expected_phase for record in canonical_records
+            )
         semantic = canonical_semantics([row, *runtime_records])
         transaction_ids = {
             str(record["transaction_id"])
@@ -797,7 +886,10 @@ def case_observations(
             and transaction_ids
             and case_expected_rule_id is not None
             and case_expected_rule_id in observed_rule_ids
-            and (not phase4_case or any(record.get("phase") == 4 for record in canonical_records))
+            and (
+                not structured_runtime_case
+                or any(record.get("phase") == expected_phase for record in canonical_records)
+            )
         )
         observations.append(
             {
@@ -870,13 +962,15 @@ def main() -> int:
             contained_source_event_path(path, args.allowed_source_root)
             for path in source_events
         ]
+    expectations, runner_case_index = catalog_contract(args.catalog)
     cases, derived_events = case_observations(
         args.source_results_jsonl,
         args.connector,
         args.expected_rule_id,
-        catalog_expectations(args.catalog),
+        expectations,
         args.allowed_source_root,
         consumed_event_paths,
+        runner_case_index,
     )
     events = event_evidence(source_events, args.expected_rule_id, derived_events)
 

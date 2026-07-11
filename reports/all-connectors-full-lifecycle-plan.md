@@ -2,6 +2,42 @@
 
 **Language:** English | [Deutsch](all-connectors-full-lifecycle-plan.de.md)
 
+## 2026-07-11 implementation-status update
+
+This plan retains the pre-implementation source-audit baseline below, with the following bounded
+implementation update.  None of these items promotes a connector to verified
+full-lifecycle, low-latency, or production status; the older absence claims
+are superseded only as described here.
+
+- `ci/resolve-runtime-paths.py` centralizes validated per-connector evidence,
+  build, run, and log roots below `VERIFIED_RUN_ROOT`, with a shared
+  `cache-v2/shared` component cache.  It prevents cross-connector root/cache
+  inheritance but is not connector runtime evidence.
+- Apache and NGINX now implement metadata-only P3 response-header
+  intervention/event paths.  Fresh native-host verification of that behavior
+  has not yet occurred.
+- The HAProxy 3.2.21 HTX overlay has a real native observer exercise: P1--P4
+  rule paths are observed while client-visible status remains `200`.  The
+  observer is deliberately nonpromoted and makes no enforcement, late-action,
+  first-byte, or no-full-buffer claim.
+- Envoy now has a real streamed `ext_proc` listener/service exercise.  It is
+  passthrough and nonpromoted, with no Common runtime bridge or rule
+  evaluation, so it is not P1--P4 evidence.
+- Traefik's compatibility `forwardAuth` binary/config/start path is repaired;
+  a native middleware host is still neither selected nor runtime-verified.
+- lighttpd now builds a pinned patched core with the matching module and has a
+  P1 smoke exercise.  Its harness uses `response_body_mode=none`; P4 was not
+  executed and no response-body-related capability is promoted.
+
+Compatibility profiles remain separate from native-host evidence and cannot
+complete this plan on their own.
+
+The source-audit matrices and connector-finding sections below preserve the
+historical snapshot. Their absence statements are retained for design
+provenance and are not current claims about the HTX observer, the separate
+Envoy `ext_proc` transport path, or the patched lighttpd host; the bounded
+current status for those paths is above.
+
 ## Technical summary
 
 This is a source-audit plan, not runtime evidence.  The six checked-in
@@ -56,10 +92,11 @@ is promoted.
 `UNSUPPORTED` is not a passing result, and a mapper, self-test, configuration
 field, or direct Common call is not runtime evidence.
 
-## Required architecture matrix
+## Historical source-audit architecture matrix
 
 The matrix distinguishes the existing path from the route that must be built
-or completed.  Values describe the current audit state, not a delivery claim.
+or completed. Values describe the historical pre-update audit state, not a
+delivery claim or a current implementation assertion.
 
 | Connector | Current path | New full-lifecycle path | P1 | P2 | P3 | P4 | No full response buffer | Safe | Strict | Required host patch |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -70,7 +107,7 @@ or completed.  Values describe the current audit state, not a delivery claim.
 | Traefik | External HTTP `forwardAuth` service before upstream. | Native Go middleware in a reproducible custom build, or another implementation that demonstrably preserves streaming interfaces. | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` in `forwardAuth`; target is `not_implemented` | `unsupported_by_host_model` in `forwardAuth`; target is `not_implemented` | `unsupported_by_host_model` in request-only mode; target proof is `not_implemented` | `unsupported_by_host_model` in `forwardAuth` | `unsupported_by_host_model` in `forwardAuth` | No middleware/`ResponseWriter` implementation exists. A custom hook is only required if the pinned public middleware API cannot perform the tested late action. |
 | lighttpd | Native module runs URI-clean and response-start hooks and rejects body modes. | Native request-body path plus a pre-socket-write output hook. | `implemented_not_asserted` | `not_implemented` | `implemented_not_asserted` | `not_implemented` | `not_implemented` (no output body path to assess) | `not_implemented` | `not_implemented` | The pinned 1.4.84 public plugin ABI has no output-body/EOS hook; a versioned core/ABI patch covering the write paths is required. |
 
-## Cross-connector source findings
+## Historical cross-connector source findings
 
 ### Common lifecycle contract
 
@@ -143,7 +180,7 @@ millisecond adapter budget only: Common has no host timer or cancellation
 primitive. Each connector still needs a real host mapping before directive
 parity or timeout enforcement can be asserted.
 
-## Connector plans and exact blockers
+## Historical connector plans and exact blockers
 
 ### Apache
 
@@ -281,9 +318,10 @@ contains no output-body/chunk/EOS callback: `handle_response_start` is before
 header write, while the core writes the response queue directly afterwards.
 This is a concrete public-ABI boundary, not an assumption about the module.
 
-The reset hook now calls the Common response-body finish operation after a
-header-only response path, so transaction flow can close cleanly. With no body
-chunk ever supplied, that is not Phase-4 body-rule or output-hook evidence.
+The current reset path deliberately does not call `finish_response_body` while
+`response_body_mode=none`; the patched-host smoke fails if that finalization is
+attempted. With no body chunk ever supplied, this is not Phase-4 body-rule or
+output-hook evidence.
 
 Plan:
 
@@ -363,7 +401,8 @@ capabilities.
 ## Runtime provisioning status
 
 The cache contract is now `implemented_not_asserted` with unit/contract
-evidence: complete Python test discovery passes 69 tests. A fresh managed
+evidence: current Framework Python test discovery passes 54 tests.
+Superproject test results are tracked separately and are not counted here. A fresh managed
 shared-component provision also completed after recovery of a deliberately
 interrupted cache root: Expat `R_2_8_2` and libmodsecurity from `v3/master`
 were rebuilt and published with `status=complete`. Apache, NGINX, and HAProxy

@@ -22,6 +22,13 @@ libmodsecurity installation.
 | Native output | `mod_msconnector.so` |
 | Runtime status | `minimal_runtime_smoke` for the Phase-1 header path |
 
+The optional patched-host target creates a separate copied 1.4.84 source tree,
+out-of-source core build, staged binary and staged ABI-matched module below the
+managed build root. It records the local patch SHA-256 and binary/module hashes
+before a real `lighttpd -tt` load. This is still only a narrow Phase-1
+build/load/runtime path: the patch's response callback observes HTTP/1.x wire
+output and is not a decoded response-body integration.
+
 The committed connector source does not copy lighttpd implementation code or
 headers. Public host API references are listed in `docs/public-sources.md`.
 Any future source import must update this file, `SOURCE_MAP.json`, and the

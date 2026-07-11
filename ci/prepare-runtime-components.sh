@@ -8,7 +8,8 @@ VERIFIED_RUN_ROOT="${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModS
 VERIFIED_BUILD_ROOT="${VERIFIED_BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}"
 VERIFIED_TMP_ROOT="${VERIFIED_TMP_ROOT:-$VERIFIED_RUN_ROOT/tmp}"
 VERIFIED_LOG_ROOT="${VERIFIED_LOG_ROOT:-$VERIFIED_RUN_ROOT/logs}"
-VERIFIED_COMPONENT_CACHE="${VERIFIED_COMPONENT_CACHE:-$VERIFIED_RUN_ROOT/component-cache}"
+CACHE_ROOT="${CACHE_ROOT:-$VERIFIED_RUN_ROOT/cache-v2}"
+VERIFIED_COMPONENT_CACHE="${VERIFIED_COMPONENT_CACHE:-$CACHE_ROOT/shared}"
 RUNTIME_REPORT_OUTPUT_ROOT="${RUNTIME_REPORT_OUTPUT_ROOT:-$VERIFIED_BUILD_ROOT/runtime-component-reports}"
 BUILD_ROOT="${BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
 TMP_ROOT="${TMP_ROOT:-$VERIFIED_TMP_ROOT}"
@@ -19,7 +20,7 @@ if [ -z "${CONNECTOR_COMPONENT_CACHE:-}" ]; then
     CONNECTOR_COMPONENT_CACHE="$VERIFIED_COMPONENT_CACHE"
 fi
 
-export CONNECTOR_ROOT FRAMEWORK_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT MRTS_NATIVE_ROOT CONNECTOR_COMPONENT_CACHE RUNTIME_REPORT_OUTPUT_ROOT
+export CONNECTOR_ROOT FRAMEWORK_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT MRTS_NATIVE_ROOT CACHE_ROOT VERIFIED_COMPONENT_CACHE CONNECTOR_COMPONENT_CACHE RUNTIME_REPORT_OUTPUT_ROOT
 
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$FRAMEWORK_ROOT/ci/common.sh"
@@ -43,10 +44,20 @@ assert_safe_runtime_path "$TMP_ROOT" TMP_ROOT || exit 77
 assert_safe_runtime_path "$LOG_ROOT" LOG_ROOT || exit 77
 assert_safe_runtime_path "$MRTS_NATIVE_ROOT" MRTS_NATIVE_ROOT || exit 77
 assert_safe_runtime_path "$CONNECTOR_COMPONENT_CACHE" CONNECTOR_COMPONENT_CACHE || exit 77
+assert_safe_runtime_path "$RUNTIME_REPORT_OUTPUT_ROOT" RUNTIME_REPORT_OUTPUT_ROOT || exit 77
 assert_not_system_path_for_write "$RUNTIME_REPORT_OUTPUT_ROOT/reports/testing/generated" runtime_component_report_dir || exit 77
 
 mkdir -p "$CONNECTOR_COMPONENT_CACHE" "$MRTS_NATIVE_ROOT" "$RUNTIME_REPORT_OUTPUT_ROOT/reports/testing/generated"
 
+snapshot_reserved_here=0
+if [ -z "${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" ]; then
+    RUNTIME_COMPONENT_ENV_SNAPSHOT=$(sh "$CONNECTOR_ROOT/ci/reserve-runtime-env-snapshot.sh" "$RUNTIME_REPORT_OUTPUT_ROOT") || exit $?
+    snapshot_reserved_here=1
+fi
+assert_not_system_path_for_write "$RUNTIME_COMPONENT_ENV_SNAPSHOT" runtime_component_env_snapshot || exit 77
+export RUNTIME_COMPONENT_ENV_SNAPSHOT
+
+set +e
 "$PYTHON" "$CONNECTOR_ROOT/ci/prepare-runtime-components.py" \
     --connector-root "$CONNECTOR_ROOT" \
     --framework-root "$FRAMEWORK_ROOT" \
@@ -54,4 +65,13 @@ mkdir -p "$CONNECTOR_COMPONENT_CACHE" "$MRTS_NATIVE_ROOT" "$RUNTIME_REPORT_OUTPU
     --output-root "$RUNTIME_REPORT_OUTPUT_ROOT" \
     --build-root "$BUILD_ROOT" \
     --native-root "$MRTS_NATIVE_ROOT" \
+    --runtime-env-snapshot "$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
     --target-connector "${RUNTIME_COMPONENT_TARGET:-all}"
+prepare_rc=$?
+set -e
+if [ "$prepare_rc" -ne 0 ]; then
+    if [ "$snapshot_reserved_here" -eq 1 ]; then
+        rm -f "$RUNTIME_COMPONENT_ENV_SNAPSHOT"
+    fi
+    exit "$prepare_rc"
+fi

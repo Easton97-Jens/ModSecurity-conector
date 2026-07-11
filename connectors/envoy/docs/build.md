@@ -49,10 +49,12 @@ make -C connectors/envoy build-envoy-ext-proc
 make -C connectors/envoy test-envoy-ext-proc
 make -C connectors/envoy check-envoy-ext-proc-config
 make -C connectors/envoy prepare-envoy-ext-proc-config
+make -C connectors/envoy runtime-smoke-envoy-ext-proc ENVOY_BIN=/absolute/path/to/envoy
 ```
 
 `go.mod`/`go.sum` pin Envoy's official generated Go API and gRPC dependencies.
 `config/envoy-ext-proc-versions.env` pins the intended Envoy release. The build
 uses `go mod verify` and `go build -mod=readonly`; the config materializer only
-writes to `BUILD_ROOT`. These commands do not start Envoy, call Common or
-libmodsecurity, or validate runtime interoperability.
+writes to `BUILD_ROOT`. The runtime smoke validates the materialized YAML and
+exercises real Envoy-to-ext_proc callback delivery, but neither calls Common or
+libmodsecurity nor promotes rule-evaluation interoperability.

@@ -21,6 +21,14 @@ Response-Bodies sind in diesem nativen Modul nicht implementiert und werden
 niemals an die Runtime übergeben. Es gibt keine Behauptung zu CRS, Produktionsreife,
 Security-Verifikation, Response-Body-Verarbeitung oder Full Matrix.
 
+Ein optionales Ziel für einen gepatchten Host kopiert, patcht, konfiguriert,
+baut, installiert und staged einen passenden lighttpd-1.4.84-Core zusammen mit
+dem Modul. `runtime-smoke-lighttpd-patched` prüft das Laden dieses isolierten
+Core/Modul-Paars und denselben engen Phase-1-200/403-Smoke. Es ist kein
+generisches No-CRS-Ziel und promoted keine Capability. Die Response-Hooks des
+Patches sehen jedoch HTTP/1.x-Wire-Bytes inklusive möglichem Framing, keine
+dekodierten Entity-Bytes; HTTP/2 bleibt ausgeschlossen.
+
 ## Implementierter Pfad
 
 `module/mod_msconnector.c` implementiert Plugin-Initialisierung, Cleanup,
@@ -57,6 +65,13 @@ make -C connectors/lighttpd build-lighttpd-connector
 make -C connectors/lighttpd check-lighttpd-config
 make -C connectors/lighttpd start-smoke-lighttpd
 make -C connectors/lighttpd runtime-smoke-lighttpd
+
+# Benötigt LIGHTTPD_SOURCE_DIR, MODSECURITY_INCLUDE_DIR und
+# MODSECURITY_LIB_DIR. Der gepatchte Core und das passende Modul landen unter
+# BUILD_ROOT/lighttpd-core-patched.
+make -C connectors/lighttpd build-lighttpd-patched-host
+make -C connectors/lighttpd check-lighttpd-patched-host
+make -C connectors/lighttpd runtime-smoke-lighttpd-patched
 ```
 
 Der native Build benötigt absolute Pfade in `LIGHTTPD_SOURCE_DIR`,
@@ -66,7 +81,9 @@ Der native Build benötigt absolute Pfade in `LIGHTTPD_SOURCE_DIR`,
 `LIGHTTPD_BIN` erforderlich.
 
 `start-smoke-lighttpd` sendet ausdrücklich keine Requests. Nur der separate
-`runtime-smoke-lighttpd` führt den 200/403-Requestpfad aus. Der ältere
+`runtime-smoke-lighttpd` führt den 200/403-Requestpfad aus. Der gepatchte
+Pfad schreibt Core- und Host-Manifeste mit Patch-SHA-256, Binary-/Modulpfaden
+und Artefakt-Hashes und verweigert ein Mischen mit einem Stock-Host. Der ältere
 Bridge-Starter und der Framework-Sidecarpfad bleiben getrennte Alternativen;
 deren Self-Tests sind kein Nachweis für den nativen Hostpfad.
 
@@ -80,8 +97,10 @@ vollständige Testmatrix.
 ## Kanonische Grenze für Phase 4
 
 Das aktuelle native Modul besitzt einen Response-Start-Header-Hook, aber keinen
-nativen Response-Body-Hook. Es übergibt ModSecurity bewusst keine
-Response-Body-Daten. `response_body_buffered`, `phase4`,
+verifizierten nativen Response-Entity-Body-Hook. Es übergibt ModSecurity bewusst
+keine Response-Body-Daten. Der optionale Output/EOS-Hook des Patches bleibt für
+Response-Bodies absichtlich ein No-op, weil er HTTP/1.x-Wire-Bytes und kein
+dekodiertes Entity sieht. `response_body_buffered`, `phase4`,
 `phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
 `late_intervention_log_only`, `late_intervention_abort` und
 `late_intervention_status_metadata` sind deshalb in diesem Modul

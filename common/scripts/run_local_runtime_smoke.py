@@ -183,13 +183,13 @@ def crs_source_candidate_roots(args: argparse.Namespace) -> list[Path]:
         add(root / "src/coreruleset")
         add(root / "coreruleset")
         add(root / "sources/coreruleset")
-        add(root / "component-cache/sources/coreruleset")
+        add(root / "cache-v2/shared/sources/coreruleset")
     for base_text in (os.environ.get("RUNNER_TEMP", ""), os.environ.get("TMPDIR", ""), "/tmp", "/var/tmp"):
         if not base_text:
             continue
         verified = Path(base_text) / "ModSecurity-conector-verified"
         add(verified / "src/coreruleset")
-        add(verified / "component-cache/sources/coreruleset")
+        add(verified / "cache-v2/shared/sources/coreruleset")
     return roots
 
 
@@ -665,7 +665,7 @@ def local_library_env(base_env: dict[str, str], lib_dir: Path, runtime_lookup_ro
         root = Path(root_text)
         for candidate in (
             root / "prefix/expat/lib",
-            root / "component-cache/prefix/expat/lib",
+            root / "cache-v2/shared/prefix/expat/lib",
             root / "expat/lib",
         ):
             if candidate.is_dir():

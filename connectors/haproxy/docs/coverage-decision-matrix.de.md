@@ -49,8 +49,8 @@ Der frühere begrenzte SPOA/SPOP-Response-Zweig ist deaktiviert, weil er
 nativen Response-Body-Callback; Response-Body-Verfügbarkeit, `phase4` und
 `phase4_rule_evaluation` sind daher `not_implemented`. Auch die semantischen
 Durchsetzungs- und Late-Intervention-Facetten sind `not_implemented`. Die
-optionale HAProxy-3.2.21-HTX-Observer-Quelle ist ein separater Overlay nur für
-bodylose Requests. Sie nutzt geliehene Chunks/EOS, wird aber nicht durch diesen
+optionale HAProxy-3.2.21-HTX-Observer-Quelle ist ein separater Overlay im
+Beobachtermodus mit isolierter P1–P4-Transport-Evidence. Sie nutzt geliehene Chunks/EOS, wird aber nicht durch diesen
 SPOP-Pfad konfiguriert und stuft diese Zustände nicht hoch.
 
 | Facette | Zustand im Manifest | Abdeckungsentscheidung |

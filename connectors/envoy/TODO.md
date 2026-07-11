@@ -52,9 +52,11 @@ Global gate definitions:
       and the conservative late-action result.
 - [ ] Replace `PassthroughEngine` with a separately reviewed Common/
       libmodsecurity transaction bridge; do not promote the ext_proc path before
-      its real Envoy evidence exists.
-- [ ] Validate the pinned Envoy release against the materialized config and run
-      real HTTP/1.1/HTTP/2, timeout, reset, cleanup, and first-byte cases.
+      real Envoy rule-evaluation evidence exists.
+- [x] Validate the pinned Envoy release against the materialized config and run
+      a real local HTTP/1.1 GET/POST transport smoke with cleanup evidence.
+- [ ] Run HTTP/2, timeout, reset, and first-byte cases after a rule-evaluation
+      bridge exists.
 
 ## Phase 3: ModSecurity Bridge
 

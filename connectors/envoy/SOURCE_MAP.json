@@ -107,6 +107,16 @@
       "upstream_origin": "none"
     },
     {
+      "path": "connectors/envoy/harness/run_envoy_ext_proc_runtime.sh",
+      "kind": "repository-local real Envoy ext_proc transport smoke with metadata-only evidence",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/harness/serve_envoy_ext_proc.sh",
+      "kind": "repository-local foreground ext_proc service launcher",
+      "upstream_origin": "none"
+    },
+    {
       "path": "connectors/envoy/harness/run_envoy_smoke.sh",
       "kind": "repository-local Framework compatibility entrypoint for the connector host-path smoke",
       "upstream_origin": "none"
@@ -137,6 +147,11 @@
       "upstream_origin": "none"
     },
     {
+      "path": "connectors/envoy/ext_proc/internal/processor/jsonl.go",
+      "kind": "repository-local metadata-only ext_proc stream completion evidence writer",
+      "upstream_origin": "none"
+    },
+    {
       "path": "connectors/envoy/ext_proc/internal/processor/config.go",
       "kind": "repository-local ext_proc service configuration parser and limit validation",
       "upstream_origin": "none"
@@ -144,6 +159,11 @@
     {
       "path": "connectors/envoy/ext_proc/internal/processor/processor_test.go",
       "kind": "repository-local source/build unit coverage for streamed ext_proc lifecycle behavior",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/processor/jsonl_test.go",
+      "kind": "repository-local unit coverage for metadata-only ext_proc evidence output",
       "upstream_origin": "none"
     },
     {
@@ -197,6 +217,7 @@
     "ext_proc_source_build_groundwork_implemented": true,
     "ext_proc_common_libmodsecurity_adapter_implemented": false,
     "ext_proc_runtime_verified": false,
+    "ext_proc_transport_runtime_verified": true,
     "libmodsecurity_adapter_implemented": true,
     "response_body_blocking_verified": false,
     "runtime_status": "minimal_runtime_smoke",

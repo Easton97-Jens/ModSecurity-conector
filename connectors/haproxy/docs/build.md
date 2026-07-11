@@ -48,3 +48,24 @@ Evidence is summarized in:
 Phase 4 / RESPONSE_BODY is `not_implemented` in the selected SPOE/SPOP path.
 The former `wait-for-body` strict-abort sample is disabled, legacy, and
 noncanonical; it is not current runtime evidence.
+
+## Optional native HTX transport build
+
+The separate observer-mode path builds a disposable, patched HAProxy 3.2.21
+worktree and does not replace the SPOE/SPOP binary:
+
+```sh
+HAPROXY_HTX_SOURCE_DIR=/absolute/path/to/haproxy-3.2.21 \
+  MODSECURITY_INCLUDE_DIR=/absolute/path/to/include \
+  MODSECURITY_LIB_DIR=/absolute/path/to/lib \
+  BUILD_ROOT=/var/tmp/haproxy-htx-smoke \
+  make -C connectors/haproxy runtime-smoke-haproxy-htx
+```
+
+The target checks the source version, applies the patch only in the disposable
+worktree, writes overlay/binary SHA-256 provenance, validates a generated
+`filter modsecurity-htx` configuration, and starts HAProxy against a local
+upstream. It records real P1–P4 libmodsecurity observations without buffering
+bodies, but is explicitly `observer_nonpromoted`: no client-visible deny,
+redirect, abort, Common-runtime bridge, or selected-path capability is claimed.
+Use a fresh `BUILD_ROOT`; the overlay builder refuses to reuse a worktree.

@@ -232,7 +232,7 @@ def parse_args() -> argparse.Namespace:
     component_cache = Path(
         os.environ.get(
             "CONNECTOR_COMPONENT_CACHE",
-            "/var/tmp/ModSecurity-conector-verified/component-cache",
+            "/var/tmp/ModSecurity-conector-verified/cache-v2/shared",
         )
     )
     parser = argparse.ArgumentParser(description=__doc__)

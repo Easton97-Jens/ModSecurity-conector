@@ -16,6 +16,7 @@ Die globalen Promotion- und Response-Body-Gates gelten weiterhin.
 | Nativer Modul-Lebenszyklus | implementiert | Initialisierung, Vorgaben, Hooks, Reset und Aufräumen |
 | C17-Kompilierung/Linken | PASS | lighttpd 1.4.84, PIC, gemeinsames Objekt, `-Werror` |
 | Konfigurations-/Modulladen | PASS | echtes `lighttpd -tt` |
+| Gepatchtes Core/Modul-Paar | Build-/Ladepfad vorhanden | kopierter 1.4.84-Core, ABI-getaggtes passendes Modul, Patch-/Artefakt-Manifeste; keine Capability-Promotion |
 | Start-Smoke | PASS | echter Prozess, sauberer Stop, null Requests |
 | Request-Metadaten/Header | enger PASS | echte 200-Baseline und regelbasierte 403 |
 | Request-Body | nicht implementiert / nicht verifiziert | kein Body wird gemappt |
@@ -53,8 +54,10 @@ Produktionsreife oder vollständiger Matrix.
 
 ## Kanonische Entscheidung für Phase 4
 
-Das native Modul besitzt bewusst keinen Response-Body-Hook. Diese Zustände
-sind aktuelle Implementierungslücken des Moduls und keine Aussage über eine
+Das native Modul besitzt bewusst keinen dekodierten Response-Body-Hook. Der
+optionale Callback des Patches sieht HTTP/1.x-Wire-Output vor dem Socket-Write
+und bleibt deshalb für Response-Body-Inspektion ein No-op. Diese Zustände sind
+aktuelle Implementierungslücken des Moduls und keine Aussage über eine
 grundsätzliche Unmöglichkeit im Host-Modell.
 
 | Facette | Zustand im Manifest | Abdeckungsentscheidung |

@@ -83,20 +83,22 @@ log-only result, abort, original upstream status, or visible post-intervention
 status.  `UNSUPPORTED` is not `PASS`, and no response-body payload is allowed
 in an event or report.
 
-## Separate ext_proc source checks
+## Separate ext_proc checks
 
-The Go ext_proc groundwork has only the following local source checks:
+The Go ext_proc groundwork has the following connector-local checks:
 
 ```sh
 make -C connectors/envoy test-envoy-ext-proc
 make -C connectors/envoy check-envoy-ext-proc-config
 make -C connectors/envoy prepare-envoy-ext-proc-config
+make -C connectors/envoy runtime-smoke-envoy-ext-proc ENVOY_BIN=/absolute/path/to/envoy
 ```
 
-The test covers protobuf service compilation plus bounded streamed callbacks,
+The unit test covers protobuf service compilation plus bounded streamed callbacks,
 EOS cleanup, cancellation cleanup, a pre-response `ImmediateResponse`, and the
 fact that a late strict action is recorded as `strict_abort_not_attempted` rather
 than as an abort. The template has `STREAMED` body modes and no `BUFFERED` mode.
-None of these checks invokes an Envoy binary, invokes Common/libmodsecurity,
-proves a timeout/reset/client-abort/upstream-abort, or promotes an ext_proc
-capability or runtime result.
+The runtime smoke invokes real Envoy, selects only `ext_proc`, and records
+payload-free request/response body counters. It does not invoke
+Common/libmodsecurity, prove a rule action, timeout/reset/client-abort/upstream-
+abort/first-byte behavior, or promote an ext_proc capability or runtime result.

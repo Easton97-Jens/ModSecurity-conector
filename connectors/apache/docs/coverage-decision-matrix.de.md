@@ -45,7 +45,7 @@ Quellzustände bleiben deshalb bewusst `implemented_not_asserted`.
 | --- | --- | --- |
 | `response_body_buffered` und `phase4` | `implemented_not_asserted` | Die begrenzte Filterverdrahtung ist kein Laufzeitnachweis. |
 | `phase4_rule_evaluation` | `implemented_not_asserted` | Regel `1100301` beobachten; kein 403 verlangen. |
-| `phase4_pre_commit_deny` | `implemented_not_asserted` | Nicht festgeschriebene Header und passenden sichtbaren Sperrstatus belegen. |
+| `phase4_pre_commit_deny` | `not_implemented` | Die EOS-Entscheidung für den Antwortkörper liegt nach dem Header-Pfad; es gibt keinen deterministischen, noch nicht festgeschriebenen Body-Entscheidungspunkt. |
 | `late_intervention` und `late_intervention_log_only` | `implemented_not_asserted` | Angefordertes `deny`, tatsächliches `log_only` und unveränderten sichtbaren Status belegen. |
 | `late_intervention_abort` | `implemented_not_asserted` | Tatsächliches `abort_connection` und `connection_aborted=true` belegen. |
 | `late_intervention_status_metadata` | `implemented_not_asserted` | Ursprünglichen Host-, angeforderten WAF-, sichtbaren Client-Status sowie angeforderte und tatsächliche Aktion belegen. |

@@ -10,18 +10,30 @@ VERIFIED_BUILD_ROOT ?= $(VERIFIED_RUN_ROOT)/build
 VERIFIED_SOURCE_ROOT ?= $(VERIFIED_RUN_ROOT)/src
 VERIFIED_TMP_ROOT ?= $(VERIFIED_RUN_ROOT)/tmp
 VERIFIED_LOG_ROOT ?= $(VERIFIED_RUN_ROOT)/logs
-VERIFIED_COMPONENT_CACHE ?= $(VERIFIED_RUN_ROOT)/component-cache
+# Cache-v2 is deliberately separate from ephemeral connector build/run trees.
+# The shared child is the only reusable component cache passed to all targets.
+CACHE_ROOT ?= $(VERIFIED_RUN_ROOT)/cache-v2
+VERIFIED_COMPONENT_CACHE ?= $(CACHE_ROOT)/shared
+VERIFIED_EVIDENCE_ROOT ?= $(VERIFIED_RUN_ROOT)/evidence
+RUNTIME_RUN_ROOT ?= $(VERIFIED_RUN_ROOT)/runs
+RUNTIME_LOG_ROOT ?= $(VERIFIED_RUN_ROOT)/run-logs
 STATE_HOME ?= $(VERIFIED_STATE_ROOT)
 SOURCE_ROOT ?= $(VERIFIED_SOURCE_ROOT)
 BUILD_ROOT ?= $(VERIFIED_BUILD_ROOT)
-TMP_ROOT ?= $(VERIFIED_TMP_ROOT)
-LOG_ROOT ?= $(VERIFIED_LOG_ROOT)
+# Host harnesses may create connector-local transient files and require their
+# temporary root to remain below BUILD_ROOT.  Keep the legacy verified tmp
+# root available for callers that need it, but make the standard target
+# default build-contained so no inherited run-root tmp path can block HAProxy.
+TMP_ROOT ?= $(BUILD_ROOT)/tmp
+LOG_ROOT ?= $(BUILD_ROOT)/logs
 MATRIX_ROOT ?= $(BUILD_ROOT)/full-matrix
 FRAMEWORK_ROOT ?= $(CURDIR)/modules/ModSecurity-test-Framework
 CONNECTOR_ROOT := $(CURDIR)
-NO_CRS_CONNECTORS := apache nginx haproxy envoy traefik lighttpd
-EVIDENCE_ROOT ?= $(BUILD_ROOT)/no-crs-evidence
-RUNTIME_EVIDENCE_ROOT ?= $(BUILD_ROOT)/runtime-evidence
+# Keep the six native profiles as the default, while allowing a bounded
+# connector subset for isolated diagnostics without editing the Makefile.
+NO_CRS_CONNECTORS ?= apache nginx haproxy envoy traefik lighttpd
+EVIDENCE_ROOT ?= $(VERIFIED_EVIDENCE_ROOT)/no-crs-evidence
+RUNTIME_EVIDENCE_ROOT ?= $(VERIFIED_EVIDENCE_ROOT)/runtime-evidence
 CAPABILITY_PLAN_ROOT ?= $(BUILD_ROOT)/no-crs-capability-plans
 CAPABILITY_REPORT_EVIDENCE_ROOT ?= $(EVIDENCE_ROOT)
 CAPABILITY_REPORT_RUN_ID ?= $(NO_CRS_RUN_ID)
@@ -68,6 +80,10 @@ export VERIFIED_SOURCE_ROOT
 export VERIFIED_TMP_ROOT
 export VERIFIED_LOG_ROOT
 export VERIFIED_COMPONENT_CACHE
+export CACHE_ROOT
+export VERIFIED_EVIDENCE_ROOT
+export RUNTIME_RUN_ROOT
+export RUNTIME_LOG_ROOT
 export VERIFIED_RUN_ID
 export VERIFIED_RUN_RUNTIME_MATRIX_TIMEOUT_SECONDS
 export VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS
@@ -209,6 +225,7 @@ export LIGHTTPD_DECISION_BACKEND
 .PHONY: evidence-check-apache evidence-check-nginx evidence-check-haproxy evidence-check-envoy evidence-check-traefik evidence-check-lighttpd evidence-check-all-connectors
 .PHONY: check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-doc-consistency check-no-crs-source-normalization
 .PHONY: full-lifecycle-apache full-lifecycle-nginx full-lifecycle-haproxy full-lifecycle-envoy full-lifecycle-traefik full-lifecycle-lighttpd full-lifecycle-all-connectors
+.PHONY: full-lifecycle-haproxy-htx full-lifecycle-envoy-ext-proc full-lifecycle-traefik-native full-lifecycle-lighttpd-patched
 .PHONY: check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion
 
 define RUN_WITH_REFRESH_ALL
@@ -684,10 +701,35 @@ no-crs-baseline-apache no-crs-baseline-nginx no-crs-baseline-haproxy no-crs-base
 	sh ci/run-no-crs-baseline.sh "$*"
 
 # The strict profile requires the complete canonical artifact set, including
-# sanitized host logs.  It deliberately does not change a capability manifest:
-# a later promotion check only accepts real host PASS records from this run.
-full-lifecycle-apache full-lifecycle-nginx full-lifecycle-haproxy full-lifecycle-envoy full-lifecycle-traefik full-lifecycle-lighttpd: full-lifecycle-%: check-framework
-	NO_CRS_ARTIFACT_PROFILE=full_lifecycle sh ci/run-no-crs-baseline.sh "$*" no_crs_baseline
+# sanitized host logs.  Every target carries an explicit selected host profile
+# and target identity into the run manifest.  In particular, the four legacy
+# compatibility routes below can no longer be mislabeled as full-lifecycle
+# evidence merely because they share a connector name.
+full-lifecycle-apache: check-framework
+	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=native-httpd-module FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-apache sh ci/run-no-crs-baseline.sh apache no_crs_baseline
+
+full-lifecycle-nginx: check-framework
+	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=native-nginx-http-module FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-nginx sh ci/run-no-crs-baseline.sh nginx no_crs_baseline
+
+full-lifecycle-haproxy-htx: check-framework
+	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=native-htx-filter FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-haproxy-htx sh ci/run-no-crs-baseline.sh haproxy no_crs_baseline
+
+full-lifecycle-envoy-ext-proc: check-framework
+	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=ext_proc FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-envoy-ext-proc sh ci/run-no-crs-baseline.sh envoy no_crs_baseline
+
+full-lifecycle-traefik-native: check-framework
+	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=native-middleware FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-traefik-native sh ci/run-no-crs-baseline.sh traefik no_crs_baseline
+
+full-lifecycle-lighttpd-patched: check-framework
+	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=patched-native FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-lighttpd-patched sh ci/run-no-crs-baseline.sh lighttpd no_crs_baseline
+
+# Preserve the historical user-facing names, but route them only to their
+# selected native profile.  Compatibility smoke remains under runtime-smoke-*
+# and no-crs-baseline-* and is never full-lifecycle evidence.
+full-lifecycle-haproxy: full-lifecycle-haproxy-htx
+full-lifecycle-envoy: full-lifecycle-envoy-ext-proc
+full-lifecycle-traefik: full-lifecycle-traefik-native
+full-lifecycle-lighttpd: full-lifecycle-lighttpd-patched
 
 full-lifecycle-all-connectors: check-framework
 	NO_CRS_ARTIFACT_PROFILE=full_lifecycle sh ci/run-full-lifecycle-all-connectors.sh
@@ -809,21 +851,32 @@ check-no-crs-body-payload-absence: check-framework
 check-no-crs-status-consistency: check-framework
 	$(call RUN_NO_CRS_EVIDENCE_CHECK,status)
 
+define RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK
+	@set -eu; \
+	for connector in $(NO_CRS_CONNECTORS); do \
+		"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/check_full_lifecycle_evidence.py" \
+			--run-dir "$(EVIDENCE_ROOT)/$$connector/$(NO_CRS_RUN_ID)" --check $(1); \
+	done; \
+	"$(PYTHON)" ci/check-full-lifecycle-evidence.py \
+		--connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" \
+		--run-id "$(NO_CRS_RUN_ID)" --check profile --connectors $(NO_CRS_CONNECTORS)
+endef
+
 check-first-byte-before-response-end: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
-	"$(PYTHON)" ci/check-full-lifecycle-evidence.py --connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" --run-id "$(NO_CRS_RUN_ID)" --check first-byte
+	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,first-byte)
 
 check-no-full-response-buffering: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
-	"$(PYTHON)" ci/check-full-lifecycle-evidence.py --connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" --run-id "$(NO_CRS_RUN_ID)" --check no-full-buffer
+	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,no-full-response-buffering)
 
 check-full-lifecycle-event-privacy: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
-	$(call RUN_NO_CRS_EVIDENCE_CHECK,body-payload)
+	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,event-privacy)
 
 check-full-lifecycle-promotion: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
-	"$(PYTHON)" ci/check-full-lifecycle-evidence.py --connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" --run-id "$(NO_CRS_RUN_ID)" --check promotion
+	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,promotion)
 
 check-no-crs-doc-consistency:
 	"$(PYTHON)" ci/check-no-crs-doc-consistency.py

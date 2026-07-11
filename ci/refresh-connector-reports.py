@@ -295,7 +295,7 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
     component_cache_root = Path(
         os.environ.get("CONNECTOR_COMPONENT_CACHE")
         or os.environ.get("VERIFIED_COMPONENT_CACHE")
-        or verified_run_root / "component-cache"
+        or Path(os.environ.get("CACHE_ROOT", verified_run_root / "cache-v2")) / "shared"
     ).resolve()
     existing_full_matrix = read_json(report_path(connector_root, "full_runtime_matrix", "json"))
     if not existing_full_matrix:

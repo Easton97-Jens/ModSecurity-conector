@@ -34,7 +34,15 @@
     },
     {
       "path": "connectors/lighttpd/build/apply_core_patch.sh",
-      "role": "non-mutating check and managed-copy application path for the pinned lighttpd 1.4.84 core patch"
+      "role": "managed-copy application path with 1.4.84 and patch-SHA identity checks for the local core patch"
+    },
+    {
+      "path": "connectors/lighttpd/build/build_patched_core.sh",
+      "role": "isolated configure/make/install/stage path for the patched lighttpd 1.4.84 core with ABI-symbol and artifact-manifest checks"
+    },
+    {
+      "path": "connectors/lighttpd/build/build_patched_host.sh",
+      "role": "builds and stages mod_msconnector.so against the exact patched source/config.h and writes a matched-host manifest"
     },
     {
       "path": "connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch",
@@ -59,6 +67,14 @@
     {
       "path": "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
       "role": "separate real-host baseline 200 and Phase-1 rule 403 smoke"
+    },
+    {
+      "path": "connectors/lighttpd/harness/check_patched_lifecycle_host.sh",
+      "role": "checks the staged patched binary/module identity, hook exports and real lighttpd -tt load"
+    },
+    {
+      "path": "connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh",
+      "role": "isolated patched-host Phase-1 smoke; explicitly not generic No-CRS or Phase-4 evidence"
     },
     {
       "path": "connectors/lighttpd/metadata.c",

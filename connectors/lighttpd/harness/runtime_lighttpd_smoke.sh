@@ -29,11 +29,16 @@ if [ "${MSCONNECTOR_NO_CRS_BASELINE:-0}" = "1" ]; then
     "$NO_CRS_SELECTION_CONSUMER" lighttpd
 fi
 
-LIGHTTPD_CONFIG=$(BUILD_ROOT="$BUILD_ROOT" LIGHTTPD_SMOKE_PORT="$SMOKE_PORT" \
-    sh "$SCRIPT_DIR/prepare_native_smoke.sh")
+SMOKE_PREPARER=${LIGHTTPD_SMOKE_PREPARER:-$SCRIPT_DIR/prepare_native_smoke.sh}
+[ -f "$SMOKE_PREPARER" ] || blocked "smoke preparer is missing: $SMOKE_PREPARER"
+LIGHTTPD_CONFIG=$(BUILD_ROOT="$BUILD_ROOT" \
+    LIGHTTPD_SMOKE_PORT="$SMOKE_PORT" \
+    LIGHTTPD_SMOKE_DIR="${LIGHTTPD_SMOKE_DIR:-}" \
+    sh "$SMOKE_PREPARER")
 MODULE_DIR=$(dirname "$MODULE_PATH")
 SMOKE_DIR=$(dirname "$LIGHTTPD_CONFIG")
 EVENT_PATH=$SMOKE_DIR/events.jsonl
+ERROR_LOG=$SMOKE_DIR/lighttpd-error.log
 SERVER_STDOUT=$SMOKE_DIR/runtime-smoke.stdout
 SERVER_STDERR=$SMOKE_DIR/runtime-smoke.stderr
 SERVER_PID=
@@ -52,6 +57,15 @@ if ! "$LIGHTTPD_COMMAND" -m "$MODULE_DIR" -tt -f "$LIGHTTPD_CONFIG" \
     printf 'lighttpd_runtime_smoke: FAIL config-load\n' >&2
     exit 1
 fi
+
+# The error log belongs to this disposable smoke directory.  Reset it after
+# the config check so a diagnostic from an earlier run cannot masquerade as a
+# Phase-4 failure in this run.
+[ ! -L "$ERROR_LOG" ] || {
+    printf 'lighttpd_runtime_smoke: FAIL error log must not be a symlink\n' >&2
+    exit 1
+}
+: > "$ERROR_LOG"
 
 "$LIGHTTPD_COMMAND" -D -m "$MODULE_DIR" -f "$LIGHTTPD_CONFIG" \
     >"$SERVER_STDOUT" 2>"$SERVER_STDERR" &
@@ -102,6 +116,10 @@ wait "$SERVER_PID" 2>/dev/null || status=$?
 if [ "$status" -ne 0 ] && [ "$status" -ne 143 ]; then
     sed -n '1,200p' "$SERVER_STDERR" >&2
     printf 'lighttpd_runtime_smoke: FAIL shutdown status=%s\n' "$status" >&2
+    exit 1
+fi
+if grep -Fq 'msconnector response-body finalization failed' "$ERROR_LOG"; then
+    printf 'lighttpd_runtime_smoke: FAIL response-body finalization ran although response_body_mode=none\n' >&2
     exit 1
 fi
 SERVER_PID=

@@ -78,6 +78,34 @@ CACHE_SCHEMA_VERSION = 2
 CACHE_ROOT_MARKER = ".msconnector-runtime-cache-root.json"
 CACHE_ENTRY_MARKER_DIRECTORY = ".msconnector-runtime-cache-entries"
 CACHE_MANIFEST_STATUS_COMPLETE = "complete"
+RUNTIME_ENV_SNAPSHOT_SCHEMA_VERSION = 1
+
+# Apache httpd generates several installed helper/configuration files with the
+# configured absolute prefix.  Connector cache entries are built below an
+# atomic staging directory and then renamed, so those text files must be
+# rebased before publication.  Keep this an explicit allowlist: native
+# executables are deliberately never rewritten after they are linked.
+APACHE_INSTALL_TEXT_PATHS = (
+    "bin/apachectl",
+    "bin/apachectl-mrts",
+    "bin/apr-1-config",
+    "bin/apu-1-config",
+    "bin/apxs",
+    "bin/envvars",
+    "bin/envvars-std",
+    "build/apr_rules.mk",
+    "build/config.nice",
+    "build/config_vars.mk",
+    "build/config_vars.sh",
+    "build/instdso.sh",
+    "build/libtool",
+    "include/ap_config_auto.h",
+    "include/ap_config_layout.h",
+    "lib/libapr-1.la",
+    "lib/libaprutil-1.la",
+    "lib/pkgconfig/apr-1.pc",
+    "lib/pkgconfig/apr-util-1.pc",
+)
 
 
 def cache_root_marker_path(cache_root: Path) -> Path:
@@ -272,6 +300,78 @@ def atomic_write_text(path: Path, text: str) -> None:
         except FileNotFoundError:
             pass
         raise
+
+
+def runtime_env_shell_text(values: dict[str, str]) -> str:
+    """Render the deliberately small, sourceable runtime environment format."""
+    return "\n".join(
+        f"export {key}={sh_quote(value)}" for key, value in sorted(values.items())
+    ) + "\n"
+
+
+def snapshot_path_within_output_root(snapshot_path: Path, output_root: Path) -> Path:
+    """Resolve and validate a caller-selected invocation-local snapshot path.
+
+    A shared Cache-v2 runtime-env file remains a compatibility artifact, but
+    it cannot be used as a later runner input: concurrent target preparation
+    may legitimately republish it.  Snapshot files therefore belong to the
+    invocation's report root, never to the shared cache.
+    """
+    if not snapshot_path.is_absolute():
+        raise RuntimeError(f"runtime_env_snapshot_must_be_absolute:{snapshot_path}")
+    resolved_root = output_root.resolve()
+    resolved_snapshot = snapshot_path.resolve()
+    try:
+        resolved_snapshot.relative_to(resolved_root)
+    except ValueError as exc:
+        raise RuntimeError(
+            "runtime_env_snapshot_outside_output_root:"
+            f"snapshot={resolved_snapshot} output_root={resolved_root}"
+        ) from exc
+    if resolved_snapshot == resolved_root:
+        raise RuntimeError("runtime_env_snapshot_must_be_a_file")
+    return resolved_snapshot
+
+
+def allocate_runtime_env_snapshot(output_root: Path) -> Path:
+    """Reserve one unique local destination for a direct Python invocation."""
+    output_root.mkdir(parents=True, exist_ok=True)
+    descriptor, name = tempfile.mkstemp(
+        prefix="runtime-env-snapshot.", suffix=".sh", dir=str(output_root)
+    )
+    os.close(descriptor)
+    return Path(name)
+
+
+def write_runtime_env_snapshot(
+    runtime_env: dict[str, str],
+    *,
+    snapshot_path: Path,
+    output_root: Path,
+    target_connector: str,
+    cache_root: Path,
+) -> Path:
+    """Atomically publish an invocation-local environment snapshot.
+
+    The additional metadata intentionally lives only in this snapshot.  The
+    shared ``runtime-env.sh`` keeps its long-standing export contract for
+    reports and legacy consumers, while central runners can verify that the
+    local file belongs to their selected target and Cache-v2 root.
+    """
+    destination = snapshot_path_within_output_root(snapshot_path, output_root)
+    values = dict(runtime_env)
+    values.update(
+        {
+            "RUNTIME_COMPONENT_ENV_SNAPSHOT": str(destination),
+            "RUNTIME_COMPONENT_ENV_SNAPSHOT_CACHE": str(cache_root),
+            "RUNTIME_COMPONENT_ENV_SNAPSHOT_SCHEMA": str(
+                RUNTIME_ENV_SNAPSHOT_SCHEMA_VERSION
+            ),
+            "RUNTIME_COMPONENT_ENV_SNAPSHOT_TARGET": target_connector,
+        }
+    )
+    atomic_write_text(destination, runtime_env_shell_text(values))
+    return destination
 
 
 def atomic_write_bytes(path: Path, data: bytes) -> None:
@@ -850,6 +950,43 @@ def git_revision(path: Path) -> str:
     return proc.stdout.strip() if proc.returncode == 0 else ""
 
 
+def resolved_remote_git_ref(url: str, expected_ref: str) -> str:
+    """Resolve a requested Git ref without mutating a published checkout.
+
+    Cache reuse for a moving branch must still notice that origin advanced.
+    ``git ls-remote`` supplies that freshness check without cloning or
+    fetching the immutable published source tree.
+    """
+    if re.fullmatch(r"[0-9a-fA-F]{40,64}", expected_ref):
+        return expected_ref
+    requested = expected_ref.removeprefix("origin/")
+    if requested.startswith("refs/heads/"):
+        candidates = (requested,)
+    elif requested.startswith("refs/tags/"):
+        candidates = (f"{requested}^{{}}", requested)
+    elif requested.startswith("refs/"):
+        candidates = (requested,)
+    else:
+        candidates = (
+            f"refs/heads/{requested}",
+            f"refs/tags/{requested}^{{}}",
+            f"refs/tags/{requested}",
+            requested,
+        )
+    proc = run(["git", "ls-remote", url, *candidates])
+    if proc.returncode != 0:
+        return ""
+    resolved: dict[str, str] = {}
+    for line in proc.stdout.splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and re.fullmatch(r"[0-9a-fA-F]{40,64}", fields[0]):
+            resolved.setdefault(fields[1], fields[0])
+    for candidate in candidates:
+        if candidate in resolved:
+            return resolved[candidate]
+    return ""
+
+
 def submodule_status_clean(status_text: str) -> tuple[bool, str]:
     for line in status_text.splitlines():
         if not line:
@@ -973,6 +1110,67 @@ def git_checkout_is_reusable(
     return status.returncode == 0 and not status.stdout.strip()
 
 
+def reusable_git_source_record(
+    checkout_path: Path,
+    cache_root: Path,
+    *,
+    name: str,
+    expected_url: str,
+    expected_ref: str,
+    previous: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Return current provenance for a clean, complete published checkout.
+
+    Target-specific preparation calls share one Cache-v2 source root.  The
+    first call has already resolved a moving ref in a fresh clone and stored
+    its immutable commit in the root manifest.  A later target can safely
+    reuse that exact completed checkout after local provenance/cleanliness
+    checks; it must not create another clone merely to rediscover the same
+    commit.  Missing, dirty, stale, or incomplete records deliberately fall
+    through to the normal fresh-clone recovery path.
+    """
+    actual_head = previous.get("actual_head")
+    if not (
+        previous.get("status") in {"present", "built", "reused"}
+        and previous.get("url") == expected_url
+        and previous.get("expected_ref") == expected_ref
+        and isinstance(actual_head, str)
+        and actual_head
+        and previous.get("git_fsck") == "PASS"
+    ):
+        return None
+    remote_head = resolved_remote_git_ref(expected_url, expected_ref)
+    if not remote_head or remote_head.lower() != actual_head.lower():
+        return None
+    identity = source_cache_identity(name, expected_url, expected_ref, actual_head)
+    component = f"source:{name}"
+    if not git_checkout_is_reusable(
+        checkout_path,
+        cache_root,
+        component=component,
+        cache_identity=identity,
+        expected_url=expected_url,
+        actual_head=actual_head,
+    ):
+        return None
+    submodules = git_output(checkout_path, "submodule", "status", "--recursive")
+    clean, _ = submodule_status_clean(submodules)
+    if not clean:
+        return None
+    return {
+        "actual_head": actual_head,
+        "status_short": "",
+        "submodule_status": submodules,
+        "submodule_count": len([line for line in submodules.splitlines() if line.strip()]),
+        "submodule_status_clean": True,
+        "git_fsck": "PASS",
+        "tree": tree_manifest(checkout_path),
+        "cache_schema_version": CACHE_SCHEMA_VERSION,
+        "cache_identity": identity,
+        "cache_key": identity["cache_key"],
+    }
+
+
 def prepare_git_component(
     name: str,
     url: str,
@@ -1045,9 +1243,27 @@ def prepare_git_component(
             record.update(status="blocked", blocker_reason="unmanaged_source_checkout_requires_cache_root")
             return record
         if managed_root is not None:
+            previous = previous_records.get(name, {})
+            if isinstance(previous, dict):
+                reusable = reusable_git_source_record(
+                    checkout_path,
+                    managed_root,
+                    name=name,
+                    expected_url=url,
+                    expected_ref=expected_ref,
+                    previous=previous,
+                )
+                if reusable is not None:
+                    record.update(
+                        reusable,
+                        path=str(checkout_path),
+                        manifest=str(cache_entry_marker_path(checkout_path, managed_root)),
+                        status="present",
+                    )
+                    return record
             # Always resolve and verify in a new entry.  A completed final
-            # checkout is never fetched, checked out, reset, or otherwise
-            # mutated in place.
+            # checkout that did not pass the prior-record reuse check is never
+            # fetched, checked out, reset, or otherwise mutated in place.
             staging_path = temporary_cache_dir(
                 checkout_path,
                 managed_root,
@@ -2409,12 +2625,34 @@ def modsecurity_build_inputs(
 ) -> dict[str, Any]:
     expat_prefix = str(expat.get("prefix", ""))
     expat_lib_dir = str(expat.get("lib_dir", ""))
-    dependency_payload = {
-        "expat": {
+    # Expat publishes a component-manifest below its prefix.  Its contents
+    # contain timestamps and its own tree summary, so using a freshly walked
+    # prefix tree here would make the ModSecurity cache key depend on cache
+    # publication order.  Bind the dependency to Expat's immutable cache
+    # identity instead.  This keeps standard and full-lifecycle invocations
+    # on the same shared key while still invalidating ModSecurity whenever the
+    # Expat source, patchset, toolchain, or build flags change.
+    expat_cache_identity = expat.get("cache_identity")
+    if isinstance(expat_cache_identity, dict) and expat_cache_identity:
+        expat_dependency: dict[str, Any] = {
+            "cache_identity": expat_cache_identity,
+            "cache_key": str(
+                expat.get("cache_key", expat_cache_identity.get("cache_key", ""))
+            ),
+            "prefix": expat_prefix,
+        }
+    else:
+        # Keep the legacy fallback for callers which provide an external
+        # dependency record without a Cache-v2 identity.  Such a record is not
+        # used as a managed-cache hit, but its declared tree remains the best
+        # available invalidation input.
+        expat_dependency = {
             "actual_head": expat.get("actual_head", ""),
             "prefix": expat_prefix,
             "tree": expat.get("tree", {}),
-        },
+        }
+    dependency_payload = {
+        "expat": expat_dependency,
         "pkg_config_path": env.get("PKG_CONFIG_PATH", ""),
         "ld_library_path": env.get("LD_LIBRARY_PATH", ""),
     }
@@ -3290,6 +3528,97 @@ def map_nginx_blocker(text: str, missing: list[str]) -> str:
     return "missing_local_nginx_build"
 
 
+def apache_apxs_includedir_usable(httpd_prefix: Path) -> bool:
+    """Return whether an installed Apache ``apxs`` resolves its include dir.
+
+    Merely checking that the generated Perl script is executable is not
+    enough: it can still point at the vanished atomic staging directory.  The
+    query is deliberately narrow, side-effect free, and also verifies that
+    the reported directory belongs to the published prefix.
+    """
+    prefix = httpd_prefix.resolve(strict=False)
+    apxs_bin = prefix / "bin/apxs"
+    expected_include = prefix / "include"
+    if not executable(apxs_bin) or not expected_include.is_dir():
+        return False
+    try:
+        proc = subprocess.run(
+            [str(apxs_bin), "-q", "INCLUDEDIR"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return proc.returncode == 0 and proc.stdout.strip() == str(expected_include)
+
+
+def apache_install_text_paths(httpd_prefix: Path) -> list[Path]:
+    """Return the installed Apache text files allowed to carry its prefix."""
+    paths = [httpd_prefix / relative for relative in APACHE_INSTALL_TEXT_PATHS]
+    config_root = httpd_prefix / "conf"
+    if config_root.is_dir() and not config_root.is_symlink():
+        paths.extend(sorted(config_root.rglob("*.conf")))
+    return paths
+
+
+def rebase_apache_install_text_paths_for_publish(
+    staged_plan: dict[str, Any],
+    final_root: Path,
+) -> None:
+    """Rebase known Apache install text files before atomically publishing.
+
+    httpd's installed ``apxs`` and its configuration helpers contain absolute
+    paths to the configured prefix.  Cache-v2 builds that prefix below a
+    temporary sibling directory, then renames the complete tree.  Rewrite
+    only the allowlisted text artifacts here; linked executables and modules
+    are intentionally left byte-for-byte untouched.
+    """
+    root_value = staged_plan.get("root")
+    prefix_value = staged_plan.get("httpd_prefix")
+    if (
+        not isinstance(root_value, str)
+        or not root_value
+        or not isinstance(prefix_value, str)
+        or not prefix_value
+    ):
+        raise RuntimeError("apache_publication_paths_missing")
+    staging_root = Path(root_value).resolve()
+    staging_prefix = Path(prefix_value).resolve()
+    published_root = final_root.resolve(strict=False)
+    if not is_within(staging_prefix, staging_root):
+        raise RuntimeError(f"apache_publication_prefix_outside_staging_root: {staging_prefix}")
+    if not staging_prefix.is_dir() or staging_prefix.is_symlink():
+        raise RuntimeError(f"apache_publication_prefix_missing: {staging_prefix}")
+
+    staging_bytes = os.fsencode(str(staging_root))
+    published_bytes = os.fsencode(str(published_root))
+    for path in apache_install_text_paths(staging_prefix):
+        if not path.exists():
+            continue
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError(f"apache_publication_text_path_invalid: {path}")
+        content = path.read_bytes()
+        if staging_bytes not in content:
+            continue
+        if b"\0" in content:
+            raise RuntimeError(f"apache_publication_text_path_contains_nul: {path}")
+        mode = path.stat().st_mode & 0o777
+        atomic_write_bytes(path, content.replace(staging_bytes, published_bytes))
+        path.chmod(mode)
+
+    # These are the two files required for `apxs -q INCLUDEDIR`; ensure a
+    # staging reference can never reach the final cache entry unnoticed.
+    for relative in ("bin/apxs", "build/config_vars.mk"):
+        path = staging_prefix / relative
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError(f"apache_publication_required_text_path_missing: {path}")
+        if staging_bytes in path.read_bytes():
+            raise RuntimeError(f"apache_publication_staging_reference_remaining: {path}")
+
+
 def connector_cache_entry_complete(plan: dict[str, Any]) -> bool:
     """A connector entry is a hit only with its manifest and declared outputs."""
     if not connector_manifest_ready(plan):
@@ -3305,6 +3634,14 @@ def connector_cache_entry_complete(plan: dict[str, Any]) -> bool:
             if not executable(path):
                 return False
         elif not path.is_file():
+            return False
+    if plan.get("connector") == "apache":
+        httpd_prefix = plan.get("httpd_prefix")
+        if (
+            not isinstance(httpd_prefix, str)
+            or not httpd_prefix
+            or not apache_apxs_includedir_usable(Path(httpd_prefix))
+        ):
             return False
     return True
 
@@ -3346,8 +3683,25 @@ def rebase_cache_record(value: Any, source_root: Path, destination_root: Path) -
         try:
             path = Path(value)
             if path.is_absolute():
-                return str(rebase_cache_path(path, source_root, destination_root))
-        except OSError:
+                # Records contain both entry-local artifact paths and stable
+                # identity inputs such as /usr/bin/cc.  Only a path already
+                # lexically under the staging tree is eligible for resolving
+                # and rebasing.  External strings must remain byte-for-byte
+                # unchanged: normalizing a compiler symlink after cache_key
+                # calculation makes the published manifest disagree with its
+                # registry marker and turns every later invocation into a
+                # cache miss.
+                source = source_root.resolve(strict=False)
+                try:
+                    path.relative_to(source)
+                except ValueError:
+                    # Do not even canonicalize a foreign spelling such as
+                    # /usr/bin/cc; it is an identity value, not an artifact.
+                    return value
+                resolved = path.resolve(strict=False)
+                relative = resolved.relative_to(source)
+                return str(destination_root / relative)
+        except (OSError, RuntimeError, ValueError):
             pass
     return value
 
@@ -3391,6 +3745,17 @@ def prepare_connector_transactionally(
                 record = prepare(staged_plan, True)
                 if record.get("status") != "built" or not connector_manifest_contract_ready(staged_plan):
                     return rebase_cache_record(record, staging_root, final_root)
+                if connector == "apache":
+                    try:
+                        rebase_apache_install_text_paths_for_publish(staged_plan, final_root)
+                    except RuntimeError as exc:
+                        failed_record = rebase_cache_record(record, staging_root, final_root)
+                        failed_record.update(
+                            status="failed",
+                            blocker_reason="apache_publication_relocation_failed",
+                            details=str(exc),
+                        )
+                        return failed_record
                 write_cache_entry_completion(
                     staging_root,
                     managed_root,
@@ -3399,9 +3764,26 @@ def prepare_connector_transactionally(
                     cache_identity=staged_plan["cache_identity"],
                 )
                 atomic_publish_dir(staging_root, final_root, managed_root, require_complete=True)
-                record = rebase_cache_record(record, staging_root, final_root)
-                write_connector_manifest(plan, record)
-                return record
+                published_record = rebase_cache_record(record, staging_root, final_root)
+                if connector == "apache" and not apache_apxs_includedir_usable(
+                    Path(str(plan.get("httpd_prefix", "")))
+                ):
+                    try:
+                        safe_remove_dir(final_root, managed_root)
+                    except RuntimeError as exc:
+                        published_record.update(
+                            status="failed",
+                            blocker_reason="apache_apxs_publish_validation_failed",
+                            details=str(exc),
+                        )
+                    else:
+                        published_record.update(
+                            status="failed",
+                            blocker_reason="apache_apxs_publish_validation_failed",
+                        )
+                    return published_record
+                write_connector_manifest(plan, published_record)
+                return published_record
             finally:
                 if staging_root.exists():
                     try:
@@ -3692,7 +4074,12 @@ def prepare_apache_httpd(
             record.update(status="blocked", blocker_reason="connector_manifest_missing_for_external_artifacts")
             write_connector_manifest(plan, record)
             return record
-    if ready and plan and connector_manifest_ready(plan):
+    if (
+        ready
+        and plan
+        and connector_manifest_ready(plan)
+        and apache_apxs_includedir_usable(httpd_prefix)
+    ):
         record.update(status="reused", tree=tree_manifest(apache_build_root), apachectl_bin=str(effective_apachectl))
         write_connector_manifest(plan, record)
         return record
@@ -4650,6 +5037,14 @@ def main() -> int:
     parser.add_argument("--framework-root", required=True)
     parser.add_argument("--cache-root", required=True)
     parser.add_argument("--output-root", required=True)
+    parser.add_argument(
+        "--runtime-env-snapshot",
+        default=os.environ.get("RUNTIME_COMPONENT_ENV_SNAPSHOT", ""),
+        help=(
+            "Invocation-local runtime environment export file.  When omitted, "
+            "a unique file is allocated below --output-root."
+        ),
+    )
     parser.add_argument("--build-root", default=None)
     parser.add_argument("--native-root", default=None)
     parser.add_argument(
@@ -4670,6 +5065,15 @@ def main() -> int:
         return 77
     cache_root = Path(args.cache_root).resolve()
     output_root = Path(args.output_root).resolve()
+    requested_runtime_env_snapshot: Path | None = None
+    if args.runtime_env_snapshot:
+        try:
+            requested_runtime_env_snapshot = snapshot_path_within_output_root(
+                Path(args.runtime_env_snapshot), output_root
+            )
+        except RuntimeError as exc:
+            print(f"prepare-runtime-components: BLOCKED runtime env snapshot: {exc}")
+            return 77
     build_root = Path(args.build_root or env.get("BUILD_ROOT", str(default_state_home() / "ModSecurity-conector-build"))).resolve()
     native_root = Path(args.native_root or env.get("MRTS_NATIVE_ROOT", str(build_root / "mrts-native"))).resolve()
     env.update(
@@ -5004,11 +5408,34 @@ def main() -> int:
         runtime_env["GO_FTW_BIN"] = str(go_ftw["path"])
     if albedo.get("path"):
         runtime_env["ALBEDO_BIN"] = str(albedo["path"])
+    # Preserve the shared file as a backwards-compatible cache/report input.
+    # It is atomically published but deliberately not a runner input: a
+    # concurrent target-specific invocation may replace it after this one
+    # returns.  Every invocation gets a separate local snapshot below its
+    # RUNTIME_REPORT_OUTPUT_ROOT instead.
     env_path = cache_root / "runtime-env.sh"
-    atomic_write_text(
-        env_path,
-        "\n".join(f"export {key}={sh_quote(value)}" for key, value in sorted(runtime_env.items())) + "\n",
-    )
+    atomic_write_text(env_path, runtime_env_shell_text(runtime_env))
+    snapshot_reserved_here = False
+    if requested_runtime_env_snapshot is not None:
+        runtime_env_snapshot = requested_runtime_env_snapshot
+    else:
+        runtime_env_snapshot = allocate_runtime_env_snapshot(output_root)
+        snapshot_reserved_here = True
+    try:
+        runtime_env_snapshot = write_runtime_env_snapshot(
+            runtime_env,
+            snapshot_path=runtime_env_snapshot,
+            output_root=output_root,
+            target_connector=target_connector,
+            cache_root=cache_root,
+        )
+    except Exception:
+        if snapshot_reserved_here:
+            try:
+                runtime_env_snapshot.unlink()
+            except FileNotFoundError:
+                pass
+        raise
     connector_builds = [apache_httpd, nginx, haproxy]
     build_cache = runtime_build_cache_payload(modsecurity, connector_builds)
     cache_records = [*git_components, *archives, modsecurity, apache_httpd, nginx, haproxy, go_ftw, albedo, expat]
@@ -5124,6 +5551,7 @@ def main() -> int:
         return 77
     print(f"prepare-runtime-components: cache={cache_root}")
     print(f"prepare-runtime-components: report={component_md}")
+    print(f"prepare-runtime-components: runtime-env-snapshot={runtime_env_snapshot}")
     return 0
 
 

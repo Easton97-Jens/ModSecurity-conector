@@ -47,10 +47,10 @@ SPOE/SPOP-Runtime eingebunden:
 ```sh
 make -C connectors/haproxy check-htx-overlay
 HAPROXY_HTX_SOURCE_DIR=/pfad/zu/haproxy-3.2.21 \
-HAPROXY_HTX_BUILD_DIR=/var/tmp/haproxy-htx-overlay \
 MODSECURITY_INCLUDE_DIR=/pfad/zu/include \
 MODSECURITY_LIB_DIR=/pfad/zu/lib \
-make -C connectors/haproxy build-htx-overlay
+BUILD_ROOT=/var/tmp/haproxy-htx-smoke \
+make -C connectors/haproxy runtime-smoke-haproxy-htx
 ```
 
 Der Overlay übergibt nur aktuelle geliehene `HTX_BLK_DATA`-Slices an das
@@ -58,8 +58,16 @@ Binding und finalisiert Phase 4 einmal bei Response-EOS. Er verwendet weder
 `wait-for-body`/`res.body` noch einen Connector-eigenen Response-Buffer.
 Nach dem Response-Commit bleibt er absichtlich observer-only: Eine späte Regel
 wird geloggt, aber nicht als erfundener Deny, Redirect oder Abort umgesetzt.
-Wegen der noch atomischen Request-Body-Phase des Bindings ist dieser
-experimentelle Pfad zudem auf bodylose Requests beschränkt.
+Der dedizierte HTX-Smoke baut einen gepatchten, disposable HAProxy-3.2.21-
+Worktree, validiert die generierte `filter modsecurity-htx`-Konfiguration und
+beobachtet libmodsecurity-Interventionen in P1, P2, P3 und P4 mit inkrementellen
+Request-/Response-Chunks.
+
+Der Smoke beweist absichtlich nur Beobachterverhalten: P1/P2/P3-Interventionen
+liefern weiter den Upstream-Status 200, und das P4-Safe-Policy-Ergebnis wird als
+`host_action=not_attempted` aufgezeichnet. Er beansprucht keinen beim Client
+sichtbaren Deny, Redirect, Abort, First-Byte-Nachweis, keine Common-Runtime-
+Brücke und keine Capability-Promotion.
 
 Der optionale Overlay ist nicht in der eingecheckten SPOP-Harness-Konfiguration
 aktiv und keine kanonische No-CRS-Evidence. Er stuft daher die ausgewählten

@@ -118,6 +118,17 @@ type Transaction interface {
 	Close(context.Context, Summary)
 }
 
+// Observer receives metadata-only stream completion records. It must never
+// receive headers or body content: those values are intentionally borrowed by
+// the stream adapter and are not retained in Summary.
+type Observer interface {
+	Record(Summary) error
+}
+
+type discardObserver struct{}
+
+func (discardObserver) Record(Summary) error { return nil }
+
 // PassthroughEngine is intentionally the production default until the separate
 // Common/libmodsecurity adapter is implemented and independently verified.
 type PassthroughEngine struct{}
@@ -142,31 +153,45 @@ func (passthroughTransaction) Close(context.Context, Summary) {}
 type Service struct {
 	extprocv3.UnimplementedExternalProcessorServer
 
-	config Config
-	engine Engine
-	active sync.WaitGroup
+	config   Config
+	engine   Engine
+	observer Observer
+	active   sync.WaitGroup
 }
 
 func NewService(config Config, engine Engine) (*Service, error) {
+	return NewServiceWithObserver(config, engine, discardObserver{})
+}
+
+// NewServiceWithObserver constructs a service with an optional completion
+// observer. A nil observer is equivalent to a discard observer, which keeps
+// the existing unit-test and library API safe for callers that do not need
+// runtime evidence.
+func NewServiceWithObserver(config Config, engine Engine, observer Observer) (*Service, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	if engine == nil {
 		return nil, fmt.Errorf("ext_proc engine is required")
 	}
-	return &Service{config: config, engine: engine}, nil
+	if observer == nil {
+		observer = discardObserver{}
+	}
+	return &Service{config: config, engine: engine, observer: observer}, nil
 }
 
 // Process owns one Envoy ext_proc gRPC stream and therefore one independent
 // transaction state. No state is shared across parallel streams.
-func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer) error {
+func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer) (processErr error) {
 	service.active.Add(1)
 	defer service.active.Done()
 
-	state := newStreamState(service.config, service.engine)
+	state := newStreamState(service.config, service.engine, service.observer)
 	closeReason := ClosePeerEOF
 	defer func() {
-		state.close(closeReason)
+		if err := state.close(closeReason); err != nil && processErr == nil {
+			processErr = status.Errorf(codes.Internal, "ext_proc metadata evidence: %v", err)
+		}
 	}()
 
 	for {
@@ -207,8 +232,9 @@ func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer
 }
 
 type streamState struct {
-	config Config
-	engine Engine
+	config   Config
+	engine   Engine
+	observer Observer
 
 	transaction   Transaction
 	transactionID string
@@ -223,8 +249,8 @@ type streamState struct {
 	summary Summary
 }
 
-func newStreamState(config Config, engine Engine) *streamState {
-	return &streamState{config: config, engine: engine, summary: Summary{LateAction: LateActionNone}}
+func newStreamState(config Config, engine Engine, observer Observer) *streamState {
+	return &streamState{config: config, engine: engine, observer: observer, summary: Summary{LateAction: LateActionNone}}
 }
 
 func (state *streamState) handle(ctx context.Context, request *extprocv3.ProcessingRequest) (*extprocv3.ProcessingResponse, bool, error) {
@@ -573,17 +599,17 @@ func (state *streamState) completionReason() CloseReason {
 	return ClosePeerEOF
 }
 
-func (state *streamState) close(reason CloseReason) {
+func (state *streamState) close(reason CloseReason) error {
 	if state.closed {
-		return
+		return nil
 	}
 	state.closed = true
-	if state.transaction == nil {
-		return
-	}
 	state.summary.TransactionID = state.transactionID
 	state.summary.CloseReason = reason
-	cleanupContext, cancel := context.WithTimeout(context.Background(), state.config.cleanupTimeout())
-	defer cancel()
-	state.transaction.Close(cleanupContext, state.summary)
+	if state.transaction != nil {
+		cleanupContext, cancel := context.WithTimeout(context.Background(), state.config.cleanupTimeout())
+		defer cancel()
+		state.transaction.Close(cleanupContext, state.summary)
+	}
+	return state.observer.Record(state.summary)
 }

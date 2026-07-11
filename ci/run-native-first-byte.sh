@@ -11,7 +11,6 @@ PYTHON=${PYTHON:-python3}
 BUILD_ROOT=${BUILD_ROOT:?BUILD_ROOT is required}
 RESULTS_DIR=${RESULTS_DIR:?RESULTS_DIR is required}
 HOST_RUNTIME_ROOT=${HOST_RUNTIME_ROOT:?HOST_RUNTIME_ROOT is required}
-HOST_LOG_ROOT=${HOST_LOG_ROOT:?HOST_LOG_ROOT is required}
 NO_CRS_RULES_FILE=${NO_CRS_RULES_FILE:?NO_CRS_RULES_FILE is required}
 FULL_LIFECYCLE_EVIDENCE_OUTPUT=${FULL_LIFECYCLE_EVIDENCE_OUTPUT:?FULL_LIFECYCLE_EVIDENCE_OUTPUT is required}
 
@@ -34,9 +33,13 @@ esac
 }
 
 runtime_root=$HOST_RUNTIME_ROOT/first-byte-$connector
-log_root=$HOST_LOG_ROOT/$connector-first-byte
+# First-byte result records retain the Phase-4 event path.  Keep that raw
+# source beneath the connector run root so the canonical collector can verify
+# containment and scrub it after normalization.  The parent canonical runner
+# emits sanitized diagnostics separately after collection.
+log_root=$runtime_root/logs
 results_output=$RESULTS_DIR/$connector-first-byte-results.jsonl
-mkdir -p "$RESULTS_DIR" "$HOST_RUNTIME_ROOT" "$HOST_LOG_ROOT"
+mkdir -p "$RESULTS_DIR" "$runtime_root"
 
 set +e
 RUNTIME_COMPONENT_TARGET=$connector \

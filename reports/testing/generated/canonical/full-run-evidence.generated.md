@@ -44,3 +44,23 @@ _No rows available. Reason: producer command was not run or verified input is un
 | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | present | input file available |
 | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | present | input file available |
 | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | present | input file available |
+
+## MRTS Native Summary
+- Report generated at: `-`
+- Native MRTS evidence is separate from connector runtime matrix evidence.
+
+| Target | Status | Exit code | Attempted | PASS | FAIL | BLOCKED | Reason | Run log | Summary |
+|---|---|---:|---:|---:|---:|---:|---|---|---|
+| apache2_ubuntu | NOT_RUN | - | 0 | 0 | 0 | 0 | - | `-` | `-` |
+| nginx-pr24 | NOT_RUN | - | 0 | 0 | 0 | 0 | - | `-` | `-` |
+
+<!-- mrts-native-infrastructure-evidence:start -->
+## MRTS Native Infrastructure Evidence
+
+- Apache native: `reports/testing/generated/mrts-native/mrts-native-apache.generated.md`
+- NGINX PR24 native: `reports/testing/generated/mrts-native/mrts-native-nginx.generated.md`
+- Native summary: `reports/testing/generated/mrts-native/mrts-native-summary.generated.md`
+- Combined native report: `reports/testing/generated/mrts-native/mrts-native-full.generated.md`
+
+These native MRTS reports are separate from connector full-matrix evidence.
+<!-- mrts-native-infrastructure-evidence:end -->

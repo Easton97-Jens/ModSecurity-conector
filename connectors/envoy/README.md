@@ -2,8 +2,6 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-**Language:** English | [Deutsch](README.de.md)
-
 Status: `minimal_runtime_smoke` / `connector-gap`
 
 The implemented host model is an external HTTP authorization service for
@@ -26,9 +24,13 @@ delivery; it never selects `BUFFERED` processing. The pinned module and Envoy
 release record are in `ext_proc/go.mod`, `ext_proc/go.sum`, and
 `config/envoy-ext-proc-versions.env`.
 
-This path is source/build-ready only. Its current `PassthroughEngine` is an
-explicit seam for a later Common/libmodsecurity bridge, not such a bridge. It
-does not change the canonical `ext_authz` capabilities or runtime status.
+`runtime-smoke-envoy-ext-proc` now provides a separate real-Envoy transport
+smoke: it validates the materialized YAML, starts Envoy, the gRPC service, and
+an upstream, then records payload-free request/response stream counters. Its
+current `PassthroughEngine` remains an explicit seam for a later
+Common/libmodsecurity bridge, not such a bridge. This smoke proves ext_proc
+filter selection and callback delivery only; it does not change the canonical
+`ext_authz` capabilities or runtime status.
 After response headers are observed, `minimal`/`safe` record a log-only adapter
 outcome and `strict` records `strict_abort_not_attempted`; it never claims a
 late status change, deterministic reset, client reset, or upstream reset.
@@ -117,25 +119,30 @@ make -C connectors/envoy build-envoy-ext-proc
 make -C connectors/envoy test-envoy-ext-proc
 make -C connectors/envoy check-envoy-ext-proc-config
 make -C connectors/envoy prepare-envoy-ext-proc-config
+make -C connectors/envoy runtime-smoke-envoy-ext-proc ENVOY_BIN=/absolute/path/to/envoy
 ```
 
-They compile/test the pinned Go source, validate its service JSON, and
-materialize YAML outside the checkout. They do not start Envoy or prove an
-Envoy/libmodsecurity path.
+The first four commands compile/test the pinned Go source, validate its service
+JSON, and materialize YAML outside the checkout. The runtime target additionally
+proves local Envoy-to-ext_proc stream delivery but does not prove
+Common/libmodsecurity rule evaluation.
 
 ## Current evidence boundary
 
 - The service is C17 compile/link verified and the targeted real Envoy request
   path has `minimal_runtime_smoke` evidence. Verification remains
   `connector-gap` outside that narrow scope.
-- A service build or request-free start does not prove an Envoy runtime request;
-  only `runtime-smoke-envoy` exercises that host path.
+- A service build or request-free start does not prove an Envoy runtime request.
+  `runtime-smoke-envoy` exercises the selected `ext_authz` host path, while
+  `runtime-smoke-envoy-ext-proc` separately exercises the nonpromoted `ext_proc`
+  transport path.
 - The Framework's older Python `ext_authz` decision service is separate from
   this connector binary and must not be used as evidence for this implementation.
 - No production, security, CRS-complete, full-matrix, response-header, or
   response-body verification claim is made.
-- The ext_proc service has only source/build tests. In particular it has no
-  Envoy runtime, Common/libmodsecurity, timeout, reset, or first-byte evidence.
+- The ext_proc service has an isolated real-Envoy transport smoke with
+  metadata-only stream evidence. It has no Common/libmodsecurity, rule-action,
+  timeout, reset, first-byte, HTTP/2, or capability-promotion evidence.
 
 ## Canonical Phase-4 boundary
 

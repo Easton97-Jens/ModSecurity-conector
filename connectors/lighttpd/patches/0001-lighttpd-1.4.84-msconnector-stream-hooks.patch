@@ -103,7 +103,7 @@
  	PLUGIN_FUNC_HANDLE_REQUEST_DONE,
  	PLUGIN_FUNC_HANDLE_REQUEST_RESET,
  	PLUGIN_FUNC_HANDLE_REQUEST_ENV,
-@@ -301,10 +303,25 @@
+@@ -301,10 +303,27 @@
  } plugin_fn_srv_data;
  
  typedef struct {
@@ -125,13 +125,15 @@
 +	plugin_data_base *data;
 +} plugin_fn_response_body_data;
 +
-+ck_static_assert(sizeof(plugin_fn_request_body_data) == sizeof(plugin_fn_data));
-+ck_static_assert(sizeof(plugin_fn_response_body_data) == sizeof(plugin_fn_data));
++typedef char plugin_fn_request_body_data_must_match_plugin_fn_data[
++  sizeof(plugin_fn_request_body_data) == sizeof(plugin_fn_data) ? 1 : -1];
++typedef char plugin_fn_response_body_data_must_match_plugin_fn_data[
++  sizeof(plugin_fn_response_body_data) == sizeof(plugin_fn_data) ? 1 : -1];
 +
  __attribute_hot__
  static handler_t plugins_call_fn_req_data(request_st * const r, const int e) {
      const void * const plugin_slots = r->con->plugin_slots;
-@@ -374,6 +391,50 @@
+@@ -374,6 +393,50 @@
  PLUGIN_CALL_FN_REQ_DATA(PLUGIN_FUNC_HANDLE_REQUEST_RESET, handle_request_reset)
  PLUGIN_CALL_FN_REQ_DATA(PLUGIN_FUNC_HANDLE_REQUEST_ENV, handle_request_env)
  
@@ -182,7 +184,7 @@
  /**
   * plugins that use
   *
-@@ -462,6 +523,38 @@
+@@ -462,6 +525,38 @@
      }
  }
  
@@ -221,7 +223,7 @@
  handler_t plugins_call_init(server *srv) {
  	/* note: p->init() is called during plugins_load() -> plugin_data_init()
  	 * but the historical name of this function remains */
-@@ -501,6 +594,10 @@
+@@ -501,6 +596,10 @@
  			++offsets[PLUGIN_FUNC_HANDLE_SUBREQUEST_START];
  		if (p->handle_response_start)
  			++offsets[PLUGIN_FUNC_HANDLE_RESPONSE_START];
@@ -232,7 +234,7 @@
  		if (p->handle_docroot)
  			++offsets[PLUGIN_FUNC_HANDLE_DOCROOT];
  		if (p->handle_physical)
-@@ -577,6 +674,10 @@
+@@ -577,6 +676,10 @@
  					offsets[PLUGIN_FUNC_HANDLE_SUBREQUEST_START]);
  		plugins_call_init_slot(srv, (pl_cb_t)p->handle_response_start, pd,
  					offsets[PLUGIN_FUNC_HANDLE_RESPONSE_START]);

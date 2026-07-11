@@ -17,6 +17,7 @@ connector policy.
 | Native module lifecycle | implemented | init/defaults/hooks/reset/cleanup in `module/mod_msconnector.c` |
 | C17 compile/link | PASS | pinned lighttpd 1.4.84, PIC, shared object, `-Werror` |
 | Config/module load | PASS | real `lighttpd -tt` |
+| Patched core/module pair | build/load path available | copied 1.4.84 core, matching ABI-tagged module, patch/artifact manifests; no capability promotion |
 | Start smoke | PASS | real process, clean stop, zero requests |
 | Request metadata/headers | PASS, narrow | real baseline 200 and rule-backed 403 |
 | Request body | not implemented / unverified | mapper advertises no body and passes no payload |
@@ -54,8 +55,10 @@ security verification, production readiness, or full-matrix readiness.
 
 ## Canonical Phase-4 decision
 
-The native module deliberately has no response-body hook. These are current
-module implementation gaps, not host-model impossibility claims.
+The native module deliberately has no decoded response-body hook. The optional
+patched callback sees pre-socket-write HTTP/1.x wire output, so it is a no-op
+for response-body inspection. These are current module implementation gaps,
+not host-model impossibility claims.
 
 | Facet | Declared state | Coverage decision |
 | --- | --- | --- |

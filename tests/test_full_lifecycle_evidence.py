@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 from pathlib import Path
 import tempfile
 import unittest
@@ -70,6 +72,63 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
                 ],
                 errors,
             )
+
+    def test_profile_contract_rejects_generic_compatibility_evidence(self) -> None:
+        compatibility_result = {
+            "artifact_profile": "generic",
+            "host_profile": "ext_authz",
+            "integration_mode": "ext_authz",
+            "executed_targets": ["no-crs-baseline-envoy"],
+        }
+        errors = checker.profile_errors(compatibility_result, "envoy")
+        self.assertIn(
+            "canonical full-lifecycle evidence requires artifact_profile=full_lifecycle",
+            errors,
+        )
+        self.assertIn(
+            "canonical full-lifecycle evidence requires host_profile='ext_proc'",
+            errors,
+        )
+        self.assertIn(
+            "canonical full-lifecycle evidence requires integration_mode='ext_proc'",
+            errors,
+        )
+        self.assertIn(
+            "canonical full-lifecycle evidence requires executed_targets=['full-lifecycle-envoy-ext-proc']",
+            errors,
+        )
+
+    def test_profile_contract_accepts_only_each_connector_native_identity(self) -> None:
+        for connector, identity in checker.FULL_LIFECYCLE_IDENTITIES.items():
+            result = {
+                "artifact_profile": "full_lifecycle",
+                "host_profile": identity["host_profile"],
+                "integration_mode": identity["integration_mode"],
+                "executed_targets": [identity["target"]],
+            }
+            with self.subTest(connector=connector):
+                self.assertEqual([], checker.profile_errors(result, connector))
+
+    def test_profile_checker_fails_before_capability_claims_for_generic_evidence(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="full-lifecycle-profile-") as temporary:
+            evidence_root = Path(temporary) / "evidence"
+            run_dir = evidence_root / "envoy" / "compatibility-run"
+            run_dir.mkdir(parents=True)
+            (run_dir / "result.json").write_text(
+                '{"artifact_profile":"generic","capabilities_verified":[]}',
+                encoding="utf-8",
+            )
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(
+                    1,
+                    checker.main([
+                        "--connector-root", str(ROOT),
+                        "--evidence-root", str(evidence_root),
+                        "--run-id", "compatibility-run",
+                        "--check", "profile",
+                        "--connectors", "envoy",
+                    ]),
+                )
 
 
 if __name__ == "__main__":

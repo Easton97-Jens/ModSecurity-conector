@@ -266,6 +266,126 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertEqual(403, case["http_status"])
             self.assertEqual(200, case["visible_http_status"])
 
+    def test_phase3_precommit_case_keeps_header_status_metadata(self) -> None:
+        catalog = (
+            ROOT
+            / "modules/ModSecurity-test-Framework/tests/cases/no-crs-baseline/catalog.json"
+        )
+        expectations, runner_case_index = collector.catalog_contract(catalog)
+        with tempfile.TemporaryDirectory(prefix="no-crs-phase3-") as temporary:
+            root = Path(temporary)
+            phase3_path = root / "phase3.jsonl"
+            phase3_path.write_text(
+                json.dumps(
+                    {
+                        "connector": "apache",
+                        "transaction_id": "tx-phase3",
+                        "event": "phase3_intervention",
+                        "message_id": "MSCONN_EVENT_RESPONSE_BLOCKED",
+                        "phase": "response_headers",
+                        "status": "blocked",
+                        "rule_id": 1100201,
+                        "http_status": 403,
+                        "original_http_status": 200,
+                        "visible_http_status": 403,
+                        "requested_action": "deny",
+                        "actual_action": "deny",
+                        "late_intervention": False,
+                        "headers_sent": False,
+                        "connection_aborted": False,
+                        "response_committed": False,
+                        "transport_result": "http_status",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            results_path = root / "results.jsonl"
+            results_path.write_text(
+                json.dumps(
+                    {
+                        "name": "phase3_deny_before_commit_fixture",
+                        "path": str(
+                            catalog.parent
+                            / "full-lifecycle/phase3_deny_before_commit.yaml"
+                        ),
+                        "status": "PASS",
+                        "live_executed": True,
+                        "actual_status": 403,
+                        "connector_phase4_log_path": str(phase3_path),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            cases, _ = collector.case_observations(
+                [results_path],
+                "apache",
+                "1100001",
+                expectations,
+                allowed_source_root=root,
+                runner_case_index=runner_case_index,
+            )
+            self.assertEqual(1, len(cases))
+            case = cases[0]
+            self.assertEqual("phase3_deny_before_commit", case["case_id"])
+            self.assertEqual("PASS", case["status"])
+            self.assertTrue(case["event_metadata_verified"])
+            self.assertEqual("deny", case["requested_action"])
+            self.assertEqual("deny", case["actual_action"])
+            self.assertFalse(case["headers_sent"])
+            self.assertEqual(403, case["visible_http_status"])
+
+    def test_catalog_runner_case_mapping_does_not_guess_from_fixture_name(self) -> None:
+        catalog = (
+            ROOT
+            / "modules/ModSecurity-test-Framework/tests/cases/no-crs-baseline/catalog.json"
+        )
+        expectations, runner_case_index = collector.catalog_contract(catalog)
+        with tempfile.TemporaryDirectory(prefix="no-crs-runner-name-") as temporary:
+            root = Path(temporary)
+            results_path = root / "results.jsonl"
+            results_path.write_text(
+                json.dumps(
+                    {
+                        "name": "phase3_deny_before_commit_fixture",
+                        "status": "PASS",
+                        "live_executed": True,
+                        "actual_status": 403,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            cases, _ = collector.case_observations(
+                [results_path],
+                "nginx",
+                "1100001",
+                expectations,
+                allowed_source_root=root,
+                runner_case_index=runner_case_index,
+            )
+            self.assertEqual([], cases)
+
+    def test_catalog_runner_case_mapping_rejects_duplicate_paths(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-catalog-") as temporary:
+            root = Path(temporary)
+            (root / "runner.yaml").write_text("name: runner\n", encoding="utf-8")
+            catalog = root / "catalog.json"
+            catalog.write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {"case_id": "first", "runner_case": "runner.yaml"},
+                            {"case_id": "second", "runner_case": "runner.yaml"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "runner_case is not unique"):
+                collector.catalog_contract(catalog)
+
     def test_phase4_case_rejects_audit_log_as_event_fallback(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-phase4-audit-") as temporary:
             root = Path(temporary)
@@ -480,12 +600,18 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         for assignment in (
             'LOG_ROOT="$HOST_LOG_ROOT"',
             'RUNTIME_BASE="$HOST_RUNTIME_ROOT"',
-            'APACHE_RUNTIME_LOG_DIR="$HOST_LOG_ROOT/apache-runtime"',
+            'APACHE_RUNTIME_LOG_DIR="$HOST_RUNTIME_ROOT/apache-runtime"',
             'NGINX_HARNESS_WORK_ROOT="$NGINX_RUN_ROOT"',
             '--allowed-source-root "$RAW_DIR"',
             '--scrub-source-events',
         ):
             self.assertIn(assignment, source)
+
+    def test_native_first_byte_log_stays_under_connector_run_root(self) -> None:
+        source = (ROOT / "ci/run-native-first-byte.sh").read_text(encoding="utf-8")
+        self.assertIn("runtime_root=$HOST_RUNTIME_ROOT/first-byte-$connector", source)
+        self.assertIn("log_root=$runtime_root/logs", source)
+        self.assertNotIn("log_root=$HOST_LOG_ROOT/$connector-first-byte", source)
 
 
 if __name__ == "__main__":

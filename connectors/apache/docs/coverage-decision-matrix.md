@@ -44,7 +44,7 @@ states intentionally remain `implemented_not_asserted`.
 | --- | --- | --- |
 | `response_body_buffered` and `phase4` | `implemented_not_asserted` | bounded filter wiring is not runtime proof |
 | `phase4_rule_evaluation` | `implemented_not_asserted` | require observed rule `1100301`; do not require 403 |
-| `phase4_pre_commit_deny` | `implemented_not_asserted` | require uncommitted headers and matching visible deny status |
+| `phase4_pre_commit_deny` | `not_implemented` | EOS response-body timing is after the header path; no deterministic uncommitted body decision point exists |
 | `late_intervention` and `late_intervention_log_only` | `implemented_not_asserted` | require requested `deny`, actual `log_only`, and unchanged visible status |
 | `late_intervention_abort` | `implemented_not_asserted` | require actual `abort_connection` and `connection_aborted=true` |
 | `late_intervention_status_metadata` | `implemented_not_asserted` | require original host, requested WAF, visible client, requested-action, and actual-action fields |

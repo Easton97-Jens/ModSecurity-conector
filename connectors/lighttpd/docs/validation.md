@@ -12,6 +12,9 @@ Status: `minimal_runtime_smoke` for the native Phase-1 header path
 | Config load | `check-lighttpd-config` | real lighttpd 1.4.84 loads module, validates Common config and rules |
 | Start smoke | `start-smoke-lighttpd` | real process starts, remains alive, and stops cleanly; zero requests |
 | Runtime smoke | `runtime-smoke-lighttpd` | real host path returns baseline 200 and Phase-1 rule 403 |
+| Patched core + module build | `build-lighttpd-patched-host` | copied/patched/configured/installed 1.4.84 core and module staged with matching ABI markers and hashes |
+| Patched host load | `check-lighttpd-patched-host` | staged patched binary exports hook symbols and loads staged module through real `lighttpd -tt` |
+| Patched lifecycle smoke | `runtime-smoke-lighttpd-patched` | isolated patched host baseline 200 and Phase-1 rule 403; response body explicitly disabled |
 | Decision event | runtime smoke | JSONL contains `connector=lighttpd` and `rule_id=1000001`; no body payload field |
 
 ## Native config-load check
@@ -51,6 +54,24 @@ It verifies:
 The block is produced from `common/rules/modsecurity_targeted_smoke.conf` and
 mapped by the module with `http_status_set_err()`.
 
+## Patched-host boundary
+
+The patched target is intentionally separate from the stock compatibility path
+and the generic No-CRS runner. It copies and patches only lighttpd 1.4.84,
+builds and stages the core and module together, validates the matching plugin
+ABI through `lighttpd -tt`, then runs only the narrow Phase-1 smoke. Its
+generated runtime file requires both body modes to be `none` and its manifest
+records `phase4_runtime_evidence=not_executed`.
+
+The response callback introduced by the patch is immediately before
+`network_write()` and views `r->write_queue`. For HTTP/1.x that can include
+transfer framing and the terminal chunk, so it cannot be passed to
+`msc_append_response_body()` as a decoded entity. The module deliberately
+leaves that callback as a no-op for response bodies. A valid P4 implementation
+needs a decoded entity-body stage before transfer framing, P3-before-P4
+ordering for initial data, all static/file/proxy/CGI/FastCGI/splice/compression
+paths, real EOS, and an explicit precommit/safe/strict disposition policy.
+
 ## Resource and ownership checks
 
 Both mappers enforce header count and total-header byte limits before runtime
@@ -78,7 +99,7 @@ Therefore connector metadata uses `minimal_runtime_smoke` and
 
 ## Canonical Phase-4 validation
 
-The native module does not implement a response-body hook.  Consequently,
+The native module does not implement a decoded response-body hook.  Consequently,
 `response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
 `phase4_pre_commit_deny`, `late_intervention`,
 `late_intervention_log_only`, `late_intervention_abort`, and

@@ -1090,7 +1090,7 @@ lighttpd plugin/proxy/runtime API and FastCGI/SCGI/native module integration rem
 
 | Connector | Current status | Common adoption | Response-phase classification | Runtime evidence | Forbidden inference |
 |---|---|---|---|---|---|
-| Apache | connector source present | present | Response-body ingestion/EOS and the source-level Phase-4 facets are `implemented_not_asserted`; no Phase-4 PASS exists. | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
+| Apache | connector source present | present | Response-body ingestion/EOS and late-action source branches are `implemented_not_asserted`; `phase4_pre_commit_deny` is `not_implemented` because EOS follows the header path; no Phase-4 PASS exists. | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
 | NGINX | connector source present | present | Response-body ingestion/EOS and late-action source branches are `implemented_not_asserted`; `phase4_pre_commit_deny` is `not_implemented`; no Phase-4 PASS exists. | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
 | HAProxy | SPOA/starter plus mapper/binding source present | present/partial | The selected SPOE/SPOP path has no response-body/Phase-4 route: those facets, late actions, no-full-buffer, and first-byte proof are `not_implemented`. | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
 | Envoy | HTTP `ext_authz` service | adopted | All response-phase facets are `unsupported_by_host_model`; Phase-4 cases are `UNSUPPORTED`. | targeted request-header 200/403 path; canonical No-CRS `NOT EXECUTED` | upstream response phases cannot be inferred from an `ext_authz` self-test |

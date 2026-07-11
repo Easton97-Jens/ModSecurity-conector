@@ -23,6 +23,40 @@ mapper_c = read(SRC / "msc_apache_mapper.c") if (SRC / "msc_apache_mapper.c").ex
 apache_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in SRC.glob("*.c")) + "\n" + "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in SRC.glob("*.h"))
 docs_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in [APACHE / "README.md", APACHE / "README.de.md", APACHE / "docs/architecture.md", ROOT / "reports/apache-common-adoption.md"] if p.exists())
 
+
+def source_section(text: str, start: str, end: str) -> str:
+    """Return one intentional C source region, or an empty string if absent.
+
+    The Apache event writer is shared by the phase-3 and phase-4 wrappers.
+    Keeping these checks scoped to their respective functions prevents a
+    similarly named token elsewhere in the file from satisfying the adoption
+    contract accidentally.
+    """
+    begin = text.find(start)
+    if begin < 0:
+        return ""
+    finish = text.find(end, begin + len(start))
+    if finish < 0:
+        return ""
+    return text[begin:finish]
+
+
+intervention_event_helper = source_section(
+    filters_c,
+    "static void apache_log_intervention_event",
+    "static void apache_phase4_log_event",
+)
+phase4_event_wrapper = source_section(
+    filters_c,
+    "static void apache_phase4_log_event",
+    "static void apache_phase3_log_event",
+)
+phase3_event_wrapper = source_section(
+    filters_c,
+    "static void apache_phase3_log_event",
+    "static apr_status_t apache_phase4_append_bucket",
+)
+
 checks.append(("msconnector_config common_config" in config_h, "Apache config embeds msconnector_config common_config"))
 checks.append(("msconnector_config_init(&cnf->common_config)" in config_c, "Apache config init uses msconnector_config_init"))
 checks.append(("msconnector_config_merge(&cnf_new->common_config" in config_c, "Apache config merge uses msconnector_config_merge"))
@@ -38,12 +72,44 @@ checks.append(("msconnector_response_mapper_validate_output" in mapper_c, "Respo
 checks.append(("copy_apr_response_headers" in mapper_c and "err_headers_out" in mapper_c and "r->content_type" in mapper_c, "Response mapper includes err_headers_out and synthesized Content-Type"))
 checks.append(("msconnector_headers_host" in mapper_c, "Apache mapper uses Common header helper"))
 checks.append(("msconnector_event_write_jsonl_line" in filters_c and "msconnector_event_init" in filters_c, "Apache event JSONL uses Common event primitives"))
-checks.append(("event.decision.status = MSCONNECTOR_STATUS_BLOCKED" in filters_c, "Phase4 intervention events set a non-OK status"))
-checks.append(("event.meta.event = \"phase4_intervention\"" in filters_c, "Phase4 event key remains report-compatible"))
-checks.append(("event.meta.message_id = strcmp(actual" in filters_c and "msconnector_event_default_message(event.meta.message_id)" in filters_c, "Apache Phase4 events include a canonical message ID and safe default message"))
-checks.append(("event serialization truncated" in filters_c and "event serialization failed" in filters_c and "apr_file_puts" in filters_c, "Truncated Phase4 events use a bounded fallback line"))
+checks.append(("event.decision.status = MSCONNECTOR_STATUS_BLOCKED" in intervention_event_helper, "Apache P3/P4 intervention events set a non-OK status"))
+checks.append((
+    "event.meta.event = event_name" in intervention_event_helper
+    and "\"phase4_intervention\"" in phase4_event_wrapper
+    and "MSCONNECTOR_PHASE_RESPONSE_BODY" in phase4_event_wrapper
+    and "\"phase3_intervention\"" in phase3_event_wrapper
+    and "MSCONNECTOR_PHASE_RESPONSE_HEADERS" in phase3_event_wrapper
+    and "\"response_headers_before_commit\"" in phase3_event_wrapper
+    and "original_status, 0" in phase3_event_wrapper,
+    "Apache P3 and P4 wrappers retain distinct event names, phases, and pre-commit P3 status context",
+))
+checks.append((
+    "phase == MSCONNECTOR_PHASE_RESPONSE_BODY" in intervention_event_helper
+    and "MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200" in intervention_event_helper
+    and "MSCONN_EVENT_PHASE4_LATE_INTERVENTION" in intervention_event_helper
+    and "MSCONN_EVENT_RESPONSE_BLOCKED" in intervention_event_helper
+    and "msconnector_event_default_level(event.meta.message_id)" in intervention_event_helper
+    and "msconnector_event_default_message(event.meta.message_id)" in intervention_event_helper,
+    "Apache P3/P4 events select canonical message IDs and safe default messages by phase and action",
+))
+checks.append((
+    "event serialization truncated" in intervention_event_helper
+    and "event serialization failed" in intervention_event_helper
+    and "apr_file_puts" in intervention_event_helper,
+    "Apache P3/P4 events use bounded serialization fallback lines",
+))
 checks.append(("body_truncated" in filters_c and "json_truncated" in filters_c and "event.flags.truncated = msr->body_truncated" not in filters_c, "Response body truncation is separate from JSON serialization truncation"))
-checks.append(("event.flags.headers_sent = msr->response_committed" in filters_c and "event.flags.body_started = msr->response_committed" in filters_c and "event.flags.late_intervention = msr->response_committed" in filters_c, "Streaming Phase4 denials are not marked sent before commit"))
+checks.append((
+    "event.http.original_http_status = original_status" in intervention_event_helper
+    and "event.http.visible_http_status = msr->last_intervention_status" in intervention_event_helper
+    and "event.flags.late_intervention = response_committed" in intervention_event_helper
+    and "event.flags.headers_sent = response_committed" in intervention_event_helper
+    and "event.flags.body_started = phase == MSCONNECTOR_PHASE_RESPONSE_BODY" in intervention_event_helper
+    and "response_committed;" in intervention_event_helper
+    and "msr != NULL ? msr->response_committed : 0" in phase4_event_wrapper
+    and "original_status, 0" in phase3_event_wrapper,
+    "Apache P3/P4 events preserve original and visible status while deriving commit flags from the actual phase",
+))
 checks.append(("msconnector_late_intervention_policy_init" in filters_c and "msconnector_late_intervention_resolve" in filters_c and "msconnector_late_intervention_action_name" in filters_c, "Apache Phase4 handling uses the Common late-intervention policy"))
 checks.append(("strcmp(actual, \"deny\")" in filters_c and "event.http.visible_http_status = msr->last_intervention_status" in filters_c and "response_not_committed" in filters_c, "Pre-commit deny events report the deny status as visible"))
 checks.append(("response_brigade" not in filters_c and "apache_phase4_append_bucket" in filters_c and "ap_pass_brigade(f->next, bb_in)" in filters_c, "Apache Phase4 passes each host brigade onward without connector-owned full-response buffering"))
@@ -55,7 +121,16 @@ checks.append(("msc_process_request_body(msr->t)" not in module_c, "Apache does 
 checks.append(("ap_request_has_body(r)" in module_c and "msc_finalize_request_body(msr, r)" in module_c, "Apache completes Phase 2 for a known empty request body"))
 checks.append(("ap_discard_request_body(r)" in filters_c and "apache_finish_unread_request_body" in filters_c and "return APR_ECONNABORTED" in filters_c, "Apache drains an unread request body through the streaming input filter or aborts before Phase 3 when EOS is unavailable"))
 checks.append(("wanted = msr->last_intervention_status" in filters_c and "\"redirect\" : \"deny\"" in filters_c, "Apache retains redirect as requested action"))
-checks.append(("failed to write phase4 log" in filters_c and "apr_file_puts" in filters_c, "Apache detects Phase4 log write failures"))
+checks.append((
+    "failed to open intervention log" in intervention_event_helper
+    and "failed to write intervention log" in intervention_event_helper
+    and "failed to write truncated intervention log" in intervention_event_helper
+    and "failed to write failed intervention log" in intervention_event_helper
+    and "failed to close intervention log" in intervention_event_helper
+    and "apr_file_puts" in intervention_event_helper
+    and "apr_file_close" in intervention_event_helper,
+    "Apache reports open, write, fallback-write, and close failures for shared P3/P4 event logging",
+))
 checks.append(("msconnector_rule_id_extract_from_message" in filters_c, "Apache rule-id extraction uses Common helper"))
 checks.append(("apache_json_escape" not in apache_text, "Duplicate Apache JSON escape helper is removed"))
 checks.append(("apache_phase4_rule_id" not in apache_text, "Duplicate Apache rule-id helper is removed"))

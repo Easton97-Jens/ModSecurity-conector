@@ -58,6 +58,7 @@ require_dir "$MODSECURITY_INCLUDE_DIR/modsecurity" "libmodsecurity headers"
 require_dir "$MODSECURITY_LIB_DIR" "libmodsecurity library directory"
 require_file "$SCRIPT_DIR/haproxy_modsecurity_htx_filter.c" "HTX filter source"
 require_file "$SCRIPT_DIR/haproxy-3.2.21-makefile.patch" "HAProxy Makefile overlay"
+command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required for overlay build provenance"
 
 version=$(tr -d '[:space:]' < "$SOURCE_DIR/VERSION")
 [ "$version" = "3.2.21" ] || die "expected HAProxy 3.2.21, found '$version'"
@@ -102,4 +103,14 @@ make -C "$WORKTREE" TARGET=linux-glibc -j "$MAKE_JOBS" \
     haproxy
 
 [ -x "$WORKTREE/haproxy" ] || die "HAProxy build did not produce $WORKTREE/haproxy"
+{
+    printf 'haproxy_version=%s\n' "$version"
+    printf 'source_dir=%s\n' "$SOURCE_DIR"
+    printf 'source_makefile_sha256=%s\n' "$(sha256sum "$SOURCE_DIR/Makefile" | awk '{print $1}')"
+    printf 'overlay_filter_sha256=%s\n' "$(sha256sum "$SCRIPT_DIR/haproxy_modsecurity_htx_filter.c" | awk '{print $1}')"
+    printf 'overlay_patch_sha256=%s\n' "$(sha256sum "$SCRIPT_DIR/haproxy-3.2.21-makefile.patch" | awk '{print $1}')"
+    printf 'binding_sha256=%s\n' "$(sha256sum "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_binding.c" | awk '{print $1}')"
+    printf 'haproxy_binary=%s\n' "$WORKTREE/haproxy"
+    printf 'haproxy_binary_sha256=%s\n' "$(sha256sum "$WORKTREE/haproxy" | awk '{print $1}')"
+} > "$BUILD_DIR/overlay-build.env"
 printf '%s\n' "$WORKTREE/haproxy"

@@ -18,6 +18,43 @@ from typing import Any
 
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 
+# A result is not full-lifecycle evidence merely because it is stored under a
+# full-lifecycle-looking directory.  The selected native host path has to be
+# carried by the canonical result itself, so compatibility evidence cannot be
+# rendered or checked as native evidence by mistake.
+FULL_LIFECYCLE_IDENTITIES = {
+    "apache": {
+        "host_profile": "native-httpd-module",
+        "integration_mode": "native-httpd-module",
+        "target": "full-lifecycle-apache",
+    },
+    "nginx": {
+        "host_profile": "native-nginx-http-module",
+        "integration_mode": "native-nginx-http-module",
+        "target": "full-lifecycle-nginx",
+    },
+    "haproxy": {
+        "host_profile": "native-htx-filter",
+        "integration_mode": "native-htx-filter",
+        "target": "full-lifecycle-haproxy-htx",
+    },
+    "envoy": {
+        "host_profile": "ext_proc",
+        "integration_mode": "ext_proc",
+        "target": "full-lifecycle-envoy-ext-proc",
+    },
+    "traefik": {
+        "host_profile": "native-middleware",
+        "integration_mode": "native-traefik-middleware",
+        "target": "full-lifecycle-traefik-native",
+    },
+    "lighttpd": {
+        "host_profile": "patched-native",
+        "integration_mode": "patched-native-lighttpd",
+        "target": "full-lifecycle-lighttpd-patched",
+    },
+}
+
 
 def load_json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
@@ -43,6 +80,32 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
 def capability_state(manifest: dict[str, Any], name: str) -> str:
     entry = manifest.get("capabilities", {}).get(name, {})
     return str(entry.get("state") or "") if isinstance(entry, dict) else ""
+
+
+def profile_errors(result: dict[str, Any], connector: str) -> list[str]:
+    """Reject generic or compatibility evidence before any promotion check."""
+
+    expected = FULL_LIFECYCLE_IDENTITIES[connector]
+    errors: list[str] = []
+    if result.get("artifact_profile") != "full_lifecycle":
+        errors.append("canonical full-lifecycle evidence requires artifact_profile=full_lifecycle")
+    if result.get("host_profile") != expected["host_profile"]:
+        errors.append(
+            "canonical full-lifecycle evidence requires host_profile="
+            f"{expected['host_profile']!r}"
+        )
+    if result.get("integration_mode") != expected["integration_mode"]:
+        errors.append(
+            "canonical full-lifecycle evidence requires integration_mode="
+            f"{expected['integration_mode']!r}"
+        )
+    targets = result.get("executed_targets")
+    if targets != [expected["target"]]:
+        errors.append(
+            "canonical full-lifecycle evidence requires executed_targets="
+            f"[{expected['target']!r}]"
+        )
+    return errors
 
 
 def matching_events(events: list[dict[str, Any]], rule_id: object) -> list[dict[str, Any]]:
@@ -119,16 +182,27 @@ def promotion_errors(run_dir: Path, manifest: dict[str, Any], result: dict[str, 
     return []
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--connector-root", required=True, type=Path)
     parser.add_argument("--evidence-root", required=True, type=Path)
     parser.add_argument("--run-id", required=True)
-    parser.add_argument("--check", required=True, choices=("first-byte", "no-full-buffer", "promotion"))
-    args = parser.parse_args()
+    parser.add_argument(
+        "--check",
+        required=True,
+        choices=("profile", "first-byte", "no-full-buffer", "promotion"),
+    )
+    parser.add_argument(
+        "--connectors",
+        nargs="+",
+        choices=CONNECTORS,
+        default=list(CONNECTORS),
+        help="connectors whose concrete native full-lifecycle evidence is required",
+    )
+    args = parser.parse_args(argv)
 
     errors: list[str] = []
-    for connector in CONNECTORS:
+    for connector in args.connectors:
         run_dir = args.evidence_root / connector / args.run_id
         if not run_dir.is_dir():
             errors.append(f"{connector}: missing canonical run: {run_dir}")
@@ -136,12 +210,15 @@ def main() -> int:
         try:
             manifest = load_json(args.connector_root / "connectors" / connector / "capabilities.json")
             result = load_json(run_dir / "result.json")
-            if args.check == "first-byte":
-                connector_errors = first_byte_errors(run_dir, manifest, result)
+            connector_errors = profile_errors(result, connector)
+            if args.check == "profile":
+                pass
+            elif args.check == "first-byte":
+                connector_errors += first_byte_errors(run_dir, manifest, result)
             elif args.check == "no-full-buffer":
-                connector_errors = no_buffer_errors(run_dir, manifest, result)
+                connector_errors += no_buffer_errors(run_dir, manifest, result)
             else:
-                connector_errors = promotion_errors(run_dir, manifest, result)
+                connector_errors += promotion_errors(run_dir, manifest, result)
                 connector_errors += first_byte_errors(run_dir, manifest, result)
                 connector_errors += no_buffer_errors(run_dir, manifest, result)
             errors.extend(f"{connector}: {error}" for error in connector_errors)

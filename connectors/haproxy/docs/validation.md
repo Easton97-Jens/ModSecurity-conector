@@ -18,6 +18,11 @@ synthetic matrix rows.
 git submodule update --init --recursive
 make -C connectors/haproxy build-modsecurity-binding
 make -C connectors/haproxy build-spoa-runtime
+HAPROXY_HTX_SOURCE_DIR=/absolute/path/to/haproxy-3.2.21 \
+  MODSECURITY_INCLUDE_DIR=/absolute/path/to/include \
+  MODSECURITY_LIB_DIR=/absolute/path/to/lib \
+  BUILD_ROOT=/var/tmp/haproxy-htx-smoke \
+  make -C connectors/haproxy runtime-smoke-haproxy-htx
 make smoke-haproxy
 make runtime-matrix-haproxy
 FORCE_ALL_CASES=1 make runtime-matrix-haproxy
@@ -57,8 +62,10 @@ real host-side response stream or strict-abort proof.
 
 The selected SPOA/SPOP configuration has no response-body path: the former
 bounded branch is disabled. An optional HAProxy 3.2.21 HTX observer source
-exists, but it is nonselected, bodyless-request-only, and observer-only after
-forwarding; it is not a canonical SPOP response path.
+exists and has a separate real-host P1–P4 transport smoke, but it is
+nonselected and observer-only after forwarding; it is not a canonical SPOP
+response path. Its observer evidence explicitly records upstream 200 for
+precommit decisions and `host_action=not_attempted` for the P4 safe policy.
 `response_body_buffered`, `phase4`, and `phase4_rule_evaluation` are
 `not_implemented`. The current runner has no host-observed client status or
 commitment timing and no post-commit response point. Therefore pre-commit

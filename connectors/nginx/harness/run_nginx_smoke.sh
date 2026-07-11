@@ -885,7 +885,7 @@ PY
 
 response_header_backend_needed() {
     [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] && return 0
-    grep -Eq "RESPONSE_HEADERS:([Cc]ontent-[Tt]ype|[Ll]ocation|[Ss]et-[Cc]ookie)" "$RULES_FILE"
+    grep -Eqi '(^|[^[:alnum:]_])RESPONSE_HEADERS([[:space:]:]|$)' "$RULES_FILE"
 }
 
 start_response_header_backend() {
@@ -900,6 +900,7 @@ start_response_header_backend() {
         --port "$RESPONSE_HEADER_BACKEND_PORT" \
         --body-file "$DOCROOT/index.html" \
         --safe-root "$RUNTIME_ROOT" \
+        --fixture-file "$RESPONSE_HEADER_FIXTURE_FILE" \
         >"$LOG_DIR/response-header-backend.stdout.log" \
         2>"$LOG_DIR/response-header-backend.stderr.log" &
     RESPONSE_HEADER_BACKEND_PID=$!
@@ -1024,6 +1025,7 @@ AUDIT_LOG_DIR="$LOG_DIR/audit"
 NGINX_LOCATION_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-directives.conf"
 NGINX_LOCATION_HANDLER_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-handler-directives.conf"
 NGINX_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
+RESPONSE_HEADER_FIXTURE_FILE="$RUNTIME_ROOT/conf/response-header-fixture.json"
 
 ensure_worker_runtime_permissions
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
@@ -1042,6 +1044,12 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
+if ! "$PYTHON_BIN" "$REPO_ROOT/ci/harness-case-metadata.py" response-header-fixture \
+    --case "$TEST_CASE" \
+    --framework-root "$FRAMEWORK_ROOT" \
+    --output "$RESPONSE_HEADER_FIXTURE_FILE" > "$LOG_DIR/response-header-fixture.log" 2>&1; then
+    not_executable "failed to materialize response-header backend fixture; see $LOG_DIR/response-header-fixture.log"
+fi
 start_response_header_backend
 write_location_handler_directives "$NGINX_LOCATION_HANDLER_DIRECTIVES_FILE"
 ensure_worker_runtime_permissions

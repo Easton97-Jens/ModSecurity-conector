@@ -2,6 +2,52 @@
 
 **Language:** English | [Deutsch](all-connectors-full-lifecycle-readiness.de.md)
 
+## 2026-07-11 implementation-status update
+
+This update records work added after the pre-implementation source-audit baseline below.  It does
+not promote any connector to a verified full-lifecycle, low-latency, or
+production state.  Where the older audit says a path was absent, the entries
+below supersede that point only to the evidence boundary stated here.
+
+- **Isolated runtime roots and cache:** `ci/resolve-runtime-paths.py` now
+  derives and validates per-connector evidence, build, run, and log roots
+  beneath one caller-selected `VERIFIED_RUN_ROOT`.  The shared component cache
+  is `cache-v2/shared`; callers no longer implicitly inherit another
+  connector's build or evidence root.  This is resolver/cache plumbing, not
+  runtime proof for any connector.
+- **Apache and NGINX:** both native adapters now have a metadata-only Phase-3
+  response-header intervention/event code path.  The code path is implemented,
+  but no fresh real-host run has verified P3 behavior, client-visible status,
+  or the associated lifecycle claims.
+- **HAProxy:** an isolated real HAProxy 3.2.21 HTX overlay can be built and
+  exercised as a native HTX observer.  Its four P1--P4 rule paths were
+  observed in observer mode, while the client-visible result stayed `200`.
+  This is deliberately nonpromoted observation: it proves neither
+  pre-commit enforcement nor safe/strict late action, first-byte behavior, or
+  no-full-buffering evidence.
+- **Envoy:** a real `ext_proc` listener/service path now uses streamed request
+  and response processing modes.  The current service is explicitly a
+  passthrough, nonpromoted transport exercise with no Common runtime bridge or
+  rule evaluation; it is not P1--P4 or enforcement evidence.
+- **Traefik:** the `forwardAuth` binary build/config/start dependency path was
+  repaired.  It remains the compatibility profile.  A native Traefik
+  middleware host has not been selected or runtime-verified.
+- **lighttpd:** a version-pinned patched core and matching module now build as
+  a real host pair, and a P1 smoke path has been exercised.  That harness
+  forces `response_body_mode=none`; Phase 4 was not executed.  It therefore
+  supplies no response-body, EOS, late-action, first-byte, or no-full-buffer
+  promotion.
+
+The native/compatibility distinction remains intentional: compatibility
+profiles may be useful diagnostics, but they are not evidence substitutes for
+the requested native full-lifecycle routes.
+
+The source-audit matrices and connector-finding sections below preserve the
+historical snapshot. Their absence statements are retained for design
+provenance and are not current claims about the HTX observer, the separate
+Envoy `ext_proc` transport path, or the patched lighttpd host; the bounded
+current status for those paths is above.
+
 ## Technical summary
 
 No connector is currently runtime-verified as a low-latency full-lifecycle
@@ -30,14 +76,16 @@ means code exists and **not** that a run passed.  `not_implemented` means the
 needed behavior/evidence route is absent.  `unsupported_by_host_model` applies
 only to the named selected host mode.
 
-## Evidence boundary
+## Historical audit evidence boundary
 
-This document is based on repository source, checked-in capability declarations,
-harnesses, and Framework catalog logic on
-`feature/all-connectors-no-crs-baseline`.  No new full-lifecycle runtime was
-executed while preparing it.  Therefore every requested runtime proof below is
-either `NOT EXECUTED`, `UNSUPPORTED` for a selected request-only mode, or a
-source-only `implemented_not_asserted` state.
+The historical audit snapshot is based on repository source, checked-in
+capability declarations, harnesses, and Framework catalog logic on
+`feature/all-connectors-no-crs-baseline`. No new canonical full-lifecycle
+runtime was executed while preparing that snapshot. Later bounded exercises
+are described in the update above and do not themselves promote a canonical
+full-lifecycle result. Therefore every requested proof in the historical
+matrix below is either `NOT EXECUTED`, `UNSUPPORTED` for a selected request-only
+mode, or a source-only `implemented_not_asserted` state.
 
 The canonical runtime artifacts required before promotion are:
 
@@ -52,7 +100,7 @@ stderr.log
 host.log
 ```
 
-## Readiness matrix
+## Historical source-audit readiness matrix
 
 | Connector | Activated integration | P1 | P2 | P3 | P4 | Late `minimal`/`safe` | Late `strict` | No-full-buffer source state | First-byte evidence | Current blocker |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -63,7 +111,7 @@ host.log
 | Traefik | HTTP `forwardAuth` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` for this request-only mode | `unsupported_by_host_model` | No native middleware/`ResponseWriter` path or custom build evidence. |
 | lighttpd | Native `mod_msconnector.so` | `implemented_not_asserted` | `not_implemented` | `implemented_not_asserted` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `NOT EXECUTED` | Module rejects body modes; public lighttpd 1.4.84 plugin ABI has no output-body/EOS hook, so a versioned core/ABI patch is required. |
 
-## What the source actually establishes
+## What the historical source audit established
 
 ### Common SDK: `implemented_not_asserted`
 
@@ -130,7 +178,7 @@ request-only Envoy `ext_authz` and Traefik `forwardAuth` modes. No report or
 future result may call compressed response bytes clear-text inspection until a
 host path records Content-Encoding and filter/decompression ordering.
 
-## Per-connector findings
+## Historical per-connector findings
 
 ### Apache
 
@@ -265,9 +313,10 @@ callback; `handle_response_start` precedes header write and the core later
 writes the queue directly. Therefore P2/P4/safe/strict and first-byte proof are
 `not_implemented`, rather than falsely `unsupported_by_host_model`.
 
-The reset path now performs a Common response-body finish after the header-only
-path so transaction flow can close. Because no response chunk reaches the
-runtime, this is not Phase-4 body-rule or output-hook evidence.
+The current reset path deliberately does not call `finish_response_body` while
+`response_body_mode=none`; the patched-host smoke fails if that finalization is
+attempted. Because no response chunk reaches the runtime, this is not Phase-4
+body-rule or output-hook evidence.
 
 **Required route:** implement native borrowed request chunks and cleanup, then
 add a narrowly versioned core/ABI output-filter hook covering current chunks,
@@ -296,8 +345,9 @@ schema:
 ## Cache and provisioning readiness
 
 Runtime cache integrity is a prerequisite for evidence, not a substitute for
-it. The cache upgrade is `implemented_not_asserted`: complete Python test
-discovery passes 69 tests. A fresh, managed shared-component provisioning run
+it. The cache upgrade is `implemented_not_asserted`: current Framework Python
+test discovery passes 54 tests. Superproject test results are tracked
+separately and are not counted here. A fresh, managed shared-component provisioning run
 also recovered an interrupted cache root and atomically built Expat `R_2_8_2`
 and libmodsecurity from `v3/master`, each with a complete manifest and
 expected artifacts. Apache, NGINX, and HAProxy were deliberately

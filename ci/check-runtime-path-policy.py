@@ -6,12 +6,30 @@ import subprocess
 import sys
 from pathlib import Path
 
-from runtime_path_utils import is_allowed_runtime_path, is_system_write_path
+from runtime_path_utils import is_allowed_runtime_path, is_system_write_path, verified_runtime_paths
 
 
 CONNECTOR_ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK_ROOT = CONNECTOR_ROOT / "modules/ModSecurity-test-Framework"
 VERIFIED_ROOT = Path("/var/tmp/ModSecurity-conector-verified")
+RUNTIME_PATH_OVERRIDES = (
+    "VERIFIED_RUN_ROOT",
+    "VERIFIED_STATE_ROOT",
+    "VERIFIED_BUILD_ROOT",
+    "VERIFIED_SOURCE_ROOT",
+    "VERIFIED_TMP_ROOT",
+    "VERIFIED_LOG_ROOT",
+    "CACHE_ROOT",
+    "VERIFIED_COMPONENT_CACHE",
+    "CONNECTOR_COMPONENT_CACHE",
+    "SOURCE_ROOT",
+    "BUILD_ROOT",
+    "TMP_ROOT",
+    "LOG_ROOT",
+    "NGINX_HARNESS_PARENT",
+    "RUNTIME_RUN_ROOT",
+    "RUNTIME_LOG_ROOT",
+)
 
 
 def fail(message: str) -> None:
@@ -19,19 +37,36 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
+def policy_environment() -> dict[str, str]:
+    """Return a deterministic environment for default-path policy self-tests.
+
+    This checker deliberately verifies *defaults*.  A caller may legitimately
+    invoke it beneath a custom Cache-v2 run root, so inherited path overrides
+    must not leak into the self-test and make its fixed expected defaults look
+    incorrect.
+    """
+    env = dict(os.environ)
+    for name in RUNTIME_PATH_OVERRIDES:
+        env.pop(name, None)
+    env.update(
+        {
+            "CONNECTOR_ROOT": str(CONNECTOR_ROOT),
+            "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
+            "REPO_ROOT": str(CONNECTOR_ROOT),
+            "VERIFIED_RUN_ROOT": str(VERIFIED_ROOT),
+            "RUNNER_TEMP": "/tmp/runner-temp",
+            "TMPDIR": "/tmp",
+        }
+    )
+    return env
+
+
 def check_python_policy() -> None:
-    env = {
-        **os.environ,
-        "CONNECTOR_ROOT": str(CONNECTOR_ROOT),
-        "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
-        "REPO_ROOT": str(CONNECTOR_ROOT),
-        "VERIFIED_RUN_ROOT": str(VERIFIED_ROOT),
-        "RUNNER_TEMP": "/tmp/runner-temp",
-        "TMPDIR": "/tmp",
-    }
+    env = policy_environment()
     allowed = (
         VERIFIED_ROOT,
-        VERIFIED_ROOT / "component-cache",
+        VERIFIED_ROOT / "cache-v2",
+        VERIFIED_ROOT / "cache-v2" / "shared",
         Path("/tmp/ModSecurity-conector-verified"),
         Path("/tmp/runner-temp/ModSecurity-conector-verified"),
         Path("/src"),
@@ -56,16 +91,15 @@ def check_python_policy() -> None:
     for path in blocked:
         if not is_system_write_path(path):
             fail(f"python did not block system/runtime path: {path}")
+    paths = verified_runtime_paths(env)
+    if paths["CACHE_ROOT"] != str(VERIFIED_ROOT / "cache-v2"):
+        fail(f"unexpected default cache root: {paths['CACHE_ROOT']}")
+    if paths["VERIFIED_COMPONENT_CACHE"] != str(VERIFIED_ROOT / "cache-v2" / "shared"):
+        fail(f"unexpected default shared cache: {paths['VERIFIED_COMPONENT_CACHE']}")
 
 
 def shell_status(script: str) -> int:
-    env = {
-        **os.environ,
-        "CONNECTOR_ROOT": str(CONNECTOR_ROOT),
-        "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
-        "REPO_ROOT": str(CONNECTOR_ROOT),
-        "VERIFIED_RUN_ROOT": str(VERIFIED_ROOT),
-    }
+    env = policy_environment()
     result = subprocess.run(
         ["bash", "-lc", script],
         cwd=str(CONNECTOR_ROOT),
@@ -93,7 +127,8 @@ def check_shell_policy() -> None:
     )
     expected_not_system = (
         str(VERIFIED_ROOT),
-        str(VERIFIED_ROOT / "component-cache"),
+        str(VERIFIED_ROOT / "cache-v2"),
+        str(VERIFIED_ROOT / "cache-v2" / "shared"),
         "/tmp/ModSecurity-conector-verified",
         "/src",
         "/src/ModSecurity-conector-build",
@@ -109,9 +144,9 @@ def check_shell_policy() -> None:
         if rc == 0:
             fail(f"shell classified allowed runtime path as system path: {path}")
 
-    rc = shell_status(common + f"assert_safe_runtime_path {sh_quote(str(VERIFIED_ROOT / 'component-cache'))} test_path")
+    rc = shell_status(common + f"assert_safe_runtime_path {sh_quote(str(VERIFIED_ROOT / 'cache-v2' / 'shared'))} test_path")
     if rc != 0:
-        fail(f"shell rejected allowed safe runtime path: {VERIFIED_ROOT / 'component-cache'}")
+        fail(f"shell rejected allowed safe runtime path: {VERIFIED_ROOT / 'cache-v2' / 'shared'}")
     for allowed_path in ("/src", "/src/ModSecurity-conector-build", str(CONNECTOR_ROOT), str(CONNECTOR_ROOT / "build")):
         rc = shell_status(common + f"assert_safe_runtime_path {sh_quote(allowed_path)} test_path")
         if rc != 0:
@@ -120,10 +155,10 @@ def check_shell_policy() -> None:
     if rc == 0:
         fail("shell accepted old /root runtime path")
 
-    haproxy_allowed = haproxy_policy_selftest(str(VERIFIED_ROOT / "component-cache" / "sources"))
+    haproxy_allowed = haproxy_policy_selftest(str(VERIFIED_ROOT / "cache-v2" / "shared" / "sources"))
     rc = shell_status(haproxy_allowed)
     if rc != 0:
-        fail(f"HAProxy smoke policy rejected verified component-cache SOURCE_ROOT: {VERIFIED_ROOT / 'component-cache' / 'sources'}")
+        fail(f"HAProxy smoke policy rejected verified component-cache SOURCE_ROOT: {VERIFIED_ROOT / 'cache-v2' / 'shared' / 'sources'}")
 
     for blocked_path in ("/var/lib/foo", "/var/log/foo", "/usr/local/foo", "/etc/foo"):
         rc = shell_status(haproxy_policy_selftest(blocked_path))
@@ -142,7 +177,7 @@ def haproxy_policy_selftest(source_root: str) -> str:
         [
             "set -eu;",
             f"VERIFIED_RUN_ROOT={sh_quote(str(VERIFIED_ROOT))}",
-            f"CONNECTOR_COMPONENT_CACHE={sh_quote(str(VERIFIED_ROOT / 'component-cache'))}",
+            f"CONNECTOR_COMPONENT_CACHE={sh_quote(str(VERIFIED_ROOT / 'cache-v2' / 'shared'))}",
             f"SOURCE_ROOT={sh_quote(source_root)}",
             f"BUILD_ROOT={sh_quote(str(build_root))}",
             f"RESULTS_DIR={sh_quote(str(build_root / 'results'))}",

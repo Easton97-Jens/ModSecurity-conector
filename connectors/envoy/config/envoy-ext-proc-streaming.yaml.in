@@ -1,8 +1,8 @@
-# Envoy @ENVOY_RELEASE@ ext_proc source/build configuration template.
+# Envoy @ENVOY_RELEASE@ ext_proc streaming configuration template.
 #
-# This intentionally uses STREAMED (not BUFFERED) body modes. It is not a
-# runtime-validated config or evidence artifact. Materialize its port
-# placeholders outside the checkout before handing it to Envoy.
+# This intentionally uses STREAMED (not BUFFERED) body modes. The template is
+# not itself evidence; runtime-smoke-envoy-ext-proc materializes it outside the
+# checkout and validates that generated configuration with Envoy.
 static_resources:
   listeners:
   - name: msconnector_ext_proc_listener

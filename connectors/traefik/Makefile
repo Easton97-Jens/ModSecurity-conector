@@ -7,17 +7,17 @@ build-traefik-connector: build-connector build-native-middleware
 
 build-forwardauth-service: build-connector
 
-check-config:
+check-config: build-connector
 	scripts/check-config.sh
 
 check-traefik-config: check-config
 
-start-smoke:
+start-smoke: build-connector
 	scripts/start-smoke.sh
 
 start-smoke-traefik: start-smoke
 
-runtime-smoke:
+runtime-smoke: build-connector
 	scripts/runtime-smoke.sh
 
 runtime-smoke-traefik: runtime-smoke

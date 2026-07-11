@@ -48,6 +48,30 @@
     {
       "path": "connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c",
       "purpose": "CLI entry point for the local ModSecurity binding self-tests"
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "purpose": "repository-owned HAProxy 3.2.21 native HTX observer filter with borrowed chunk callbacks"
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy-3.2.21-makefile.patch",
+      "purpose": "repository-owned narrow Makefile overlay for the isolated HAProxy 3.2.21 worktree"
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/build-overlay.sh",
+      "purpose": "version-pinned isolated HAProxy overlay build and provenance writer"
+    },
+    {
+      "path": "connectors/haproxy/harness/run_haproxy_htx_runtime.sh",
+      "purpose": "repository-owned real HAProxy HTX observer-mode P1-P4 transport smoke"
+    },
+    {
+      "path": "connectors/haproxy/harness/haproxy_htx_smoke_helper.py",
+      "purpose": "repository-owned local upstream/config/metadata helper for the HTX transport smoke"
+    },
+    {
+      "path": "connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py",
+      "purpose": "focused connector-local tests for HTX configuration and metadata-only evidence generation"
     }
   ],
   "shared_inputs": [
@@ -84,7 +108,7 @@
   ],
   "blocked_dependencies": [
     "full production SPOA/SPOP implementation beyond the request-side runtime subset",
-    "response header/body phase runtime evidence",
+    "canonical selected-path response header/body phase runtime evidence",
     "audit/log assertion runtime evidence",
     "non-403 disruptive status and redirect mapping evidence",
     "RESPONSE_BODY runtime evidence"

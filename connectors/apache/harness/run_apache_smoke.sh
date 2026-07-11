@@ -379,6 +379,10 @@ escape_sed() {
 }
 
 render_config() {
+    case "${APACHE_PHASE4_MODE:-}" in
+        minimal|safe|strict) ;;
+        *) fail "unsupported resolved APACHE_PHASE4_MODE=${APACHE_PHASE4_MODE:-}" ;;
+    esac
     sed \
         -e "s|@@RUNTIME_ROOT@@|$(escape_sed "$RUNTIME_ROOT")|g" \
         -e "s|@@LOG_DIR@@|$(escape_sed "$LOG_DIR")|g" \
@@ -389,6 +393,7 @@ render_config() {
         -e "s|@@APACHE_BACKEND_PROXY_FILE@@|$(escape_sed "$APACHE_BACKEND_PROXY_FILE")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@APACHE_PHASE4_LOG@@|$(escape_sed "$APACHE_PHASE4_LOG_FILE")|g" \
+        -e "s|@@APACHE_PHASE4_MODE@@|$(escape_sed "$APACHE_PHASE4_MODE")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
@@ -701,7 +706,7 @@ PY
 
 response_header_backend_needed() {
     [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] && return 0
-    grep -Eq "RESPONSE_HEADERS:([Cc]ontent-[Tt]ype|[Ll]ocation|[Ss]et-[Cc]ookie)" "$RULES_FILE"
+    grep -Eqi '(^|[^[:alnum:]_])RESPONSE_HEADERS([[:space:]:]|$)' "$RULES_FILE"
 }
 
 start_response_header_backend() {
@@ -716,6 +721,7 @@ start_response_header_backend() {
         --port "$RESPONSE_HEADER_BACKEND_PORT" \
         --body-file "$DOCROOT/index.html" \
         --safe-root "$RUNTIME_ROOT" \
+        --fixture-file "$RESPONSE_HEADER_FIXTURE_FILE" \
         >"$LOG_DIR/response-header-backend.stdout.log" \
         2>"$LOG_DIR/response-header-backend.stderr.log" &
     RESPONSE_HEADER_BACKEND_PID=$!
@@ -742,6 +748,26 @@ require_crs_preamble_if_needed() {
     if [ "$MODSECURITY_TEST_VARIANT" = "with-crs" ] && [ -z "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
         blocked "MODSECURITY_RULE_PREAMBLE_FILE is required for MODSECURITY_TEST_VARIANT=with-crs; run make test-with-crs or make prepare-crs"
     fi
+}
+
+resolve_apache_phase4_mode() {
+    inherited_mode=${APACHE_PHASE4_MODE:-}
+    resolved_mode=$("$PYTHON_BIN" "$REPO_ROOT/ci/harness-case-metadata.py" apache-phase4-mode \
+        --case "$TEST_CASE" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --default safe \
+        2>"$LOG_DIR/apache-phase4-mode.log") || \
+        not_executable "failed to resolve Apache Phase-4 mode from case metadata; see $LOG_DIR/apache-phase4-mode.log"
+    printf '%s\n' "$resolved_mode" >> "$LOG_DIR/apache-phase4-mode.log"
+    case "$resolved_mode" in
+        minimal|safe|strict) ;;
+        *) not_executable "case metadata returned unsupported Apache Phase-4 mode: $resolved_mode" ;;
+    esac
+    if [ -n "$inherited_mode" ] && [ "$inherited_mode" != "$resolved_mode" ]; then
+        fail "APACHE_PHASE4_MODE=$inherited_mode conflicts with case-resolved mode=$resolved_mode"
+    fi
+    APACHE_PHASE4_MODE=$resolved_mode
+    export APACHE_PHASE4_MODE
 }
 
 require_crs_preamble_if_needed
@@ -839,6 +865,7 @@ REQUEST_BODY_FILE="$RUNTIME_ROOT/conf/request-body.bin"
 AUDIT_LOG_FILE="$LOG_DIR/audit.log"
 AUDIT_LOG_DIR="$LOG_DIR/audit"
 APACHE_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
+RESPONSE_HEADER_FIXTURE_FILE="$RUNTIME_ROOT/conf/response-header-fixture.json"
 
 if [ -f "$HTTPD_PREFIX/conf/mime.types" ]; then
     cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_FILE"
@@ -858,6 +885,14 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
+if ! "$PYTHON_BIN" "$REPO_ROOT/ci/harness-case-metadata.py" response-header-fixture \
+    --case "$TEST_CASE" \
+    --framework-root "$FRAMEWORK_ROOT" \
+    --output "$RESPONSE_HEADER_FIXTURE_FILE" > "$LOG_DIR/response-header-fixture.log" 2>&1; then
+    not_executable "failed to materialize response-header backend fixture; see $LOG_DIR/response-header-fixture.log"
+fi
+resolve_apache_phase4_mode
+echo "apache_smoke: APACHE_PHASE4_MODE=$APACHE_PHASE4_MODE"
 start_response_header_backend
 write_backend_proxy_directives "$APACHE_BACKEND_PROXY_FILE"
 

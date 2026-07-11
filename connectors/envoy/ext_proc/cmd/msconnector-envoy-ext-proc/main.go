@@ -18,13 +18,15 @@ import (
 func main() {
 	var configPath string
 	var listenOverride string
+	var eventLogPath string
 	var checkConfig bool
 	flag.StringVar(&configPath, "config", "", "path to ext_proc JSON config")
 	flag.StringVar(&listenOverride, "listen", "", "optional host:port override")
+	flag.StringVar(&eventLogPath, "event-log", "", "optional absolute metadata-only JSONL evidence path")
 	flag.BoolVar(&checkConfig, "check-config", false, "validate config and exit")
 	flag.Parse()
 	if configPath == "" {
-		fmt.Fprintln(os.Stderr, "usage: msconnector_envoy_ext_proc --config PATH [--listen HOST:PORT] [--check-config]")
+		fmt.Fprintln(os.Stderr, "usage: msconnector_envoy_ext_proc --config PATH [--listen HOST:PORT] [--event-log PATH] [--check-config]")
 		os.Exit(2)
 	}
 
@@ -52,7 +54,18 @@ func main() {
 	}
 	defer listener.Close()
 
-	service, err := processor.NewService(config, processor.PassthroughEngine{})
+	var observer processor.Observer
+	var jsonlObserver *processor.JSONLObserver
+	if eventLogPath != "" {
+		jsonlObserver, err = processor.NewJSONLObserver(eventLogPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "envoy_ext_proc: event log: %v\n", err)
+			os.Exit(2)
+		}
+		defer jsonlObserver.Close()
+		observer = jsonlObserver
+	}
+	service, err := processor.NewServiceWithObserver(config, processor.PassthroughEngine{}, observer)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "envoy_ext_proc: service setup: %v\n", err)
 		os.Exit(1)
@@ -62,6 +75,7 @@ func main() {
 		grpc.MaxSendMsgSize(config.MaxGRPCMessageBytes),
 	)
 	extprocv3.RegisterExternalProcessorServer(grpcServer, service)
+	fmt.Printf("envoy_ext_proc: serving integration_mode=ext_proc evaluation_mode=passthrough_nonpromoted rule_evaluation=not_wired listen=%s\n", config.ListenAddress)
 
 	serveResult := make(chan error, 1)
 	go func() {

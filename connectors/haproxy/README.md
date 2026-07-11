@@ -32,10 +32,10 @@ The proven request-side variables are `REQUEST_URI`, `REQUEST_HEADERS`,
 JSON, XML, multipart, and CRS SQLi anomaly request-body coverage is live
 evidence, limited by HAProxy request buffering, SPOE frame size, and configured
 request-body limits. Response-header and audit-log paths use SPOE response
-messages. A separate optional HTX observer overlay has source-level
-response-body wiring for bodyless requests only; it is not the active SPOP
-path and is not canonical evidence for rule observation, strict abort, or full
-`RESPONSE_BODY` support.
+messages. A separate optional HTX observer overlay has a dedicated real-host
+transport smoke for incremental request and response chunks; it is not the
+active SPOP path and is not canonical evidence for enforcement, strict abort,
+or full `RESPONSE_BODY` support.
 
 ## Global Contract
 
@@ -72,7 +72,7 @@ Shared connector-neutral data shapes used by the starter:
   logs, observed status, and normalized `result.json`.
 - RESPONSE_BODY blocking: not implemented in the active harness; the former
   `wait-for-body` sample is disabled. The optional native HTX observer is
-  nonselected, bodyless-request-only, and does not promote this capability.
+  nonselected, observer-only, and does not promote this capability.
 
 ## Build Starter
 
@@ -174,19 +174,26 @@ disposable upstream worktree, not into the selected SPOE/SPOP runtime:
 ```sh
 make -C connectors/haproxy check-htx-overlay
 HAPROXY_HTX_SOURCE_DIR=/path/to/haproxy-3.2.21 \
-HAPROXY_HTX_BUILD_DIR=/var/tmp/haproxy-htx-overlay \
 MODSECURITY_INCLUDE_DIR=/path/to/include \
 MODSECURITY_LIB_DIR=/path/to/lib \
-make -C connectors/haproxy build-htx-overlay
+BUILD_ROOT=/var/tmp/haproxy-htx-smoke \
+make -C connectors/haproxy runtime-smoke-haproxy-htx
 ```
 
-The overlay forwards only the current borrowed `HTX_BLK_DATA` slices to the
-binding and finishes Phase 4 once at response EOS. It neither uses
-`wait-for-body`/`res.body` nor keeps a connector-owned response buffer.
-It is intentionally observer-only after response commitment: a late rule is
-logged without a fabricated deny, redirect, or abort. The current binding also
-limits this experimental path to bodyless requests, because its request-body
-phase is still atomic.
+The dedicated smoke builds a patched disposable HAProxy 3.2.21 worktree,
+validates generated `filter modsecurity-htx` configuration, and observes
+libmodsecurity interventions in P1, P2, P3, and P4. The overlay forwards only
+the current borrowed `HTX_BLK_DATA` slices to the binding and finishes Phase 4
+once at response EOS. It neither uses `wait-for-body`/`res.body` nor keeps a
+connector-owned response buffer. Evidence contains only HAProxy stream IDs,
+phase, rule ID, requested action, observed client status, and host-action
+metadata.
+
+The smoke deliberately proves observer behavior, not enforcement: P1/P2/P3
+interventions still return the upstream 200, and the P4 safe-policy result is
+recorded as `host_action=not_attempted`. It does not claim a client-visible
+deny, redirect, abort, first-byte proof, Common runtime bridge, or any
+capability promotion.
 
 This optional overlay is not configured by the checked-in SPOP harness and is
 not canonical No-CRS evidence. Therefore it does **not** promote the selected

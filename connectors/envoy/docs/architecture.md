@@ -1,8 +1,8 @@
 # Envoy Connector Architecture
 
 Status: the targeted ext_authz request path is `minimal_runtime_smoke` /
-`connector-gap`. The separate ext_proc source is build-tested only and has no
-runtime or capability promotion.
+`connector-gap`. The separate ext_proc path has a connector-local real-Envoy
+transport smoke but no Common/libmodsecurity or capability promotion.
 
 ## Selected host model
 
@@ -64,8 +64,11 @@ the matching continue response. `minimal`/`safe` record `log_only`; `strict`
 records `strict_abort_not_attempted`. A gRPC error is not represented as a
 stream reset, and cancellation is not attributed to client versus upstream.
 
-Thus no ext_proc runtime, HTTP/1.1/HTTP/2, timeout, reset, first-byte,
-libmodsecurity, or response-body capability has been verified.
+`runtime-smoke-envoy-ext-proc` validates the generated YAML with real Envoy and
+performs local HTTP/1.1 GET/POST traffic. Its metadata-only event proves that
+Envoy delivered request and response body bytes to the ext_proc service. It
+does not prove rule evaluation, an action, timeout/reset semantics, first-byte
+behavior, HTTP/2 behavior, or a response-body capability.
 
 ## Lifecycle and evidence
 
@@ -76,5 +79,7 @@ libmodsecurity, or response-body capability has been verified.
 - `runtime-smoke-envoy`: real Envoy 200/403 request path with clean shutdown.
 - `build-envoy-ext-proc`, `test-envoy-ext-proc`, and
   `check-envoy-ext-proc-config`: isolated Go source/build/config gates only.
+- `runtime-smoke-envoy-ext-proc`: real Envoy ext_proc transport smoke, explicitly
+  marked `passthrough_nonpromoted` / `rule_evaluation=not_wired`.
 
 The legacy `envoy_bridge` remains self-test-only and is not part of this flow.

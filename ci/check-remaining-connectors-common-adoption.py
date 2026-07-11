@@ -148,10 +148,28 @@ def connector_checks(connector: str, errors: list[str]) -> None:
             "config_plugin_values_init",
             "msconnector_runtime_transaction_begin",
             "msconnector_runtime_transaction_process_response_headers",
-            "msconnector_runtime_transaction_finish_response_body",
             "msconnector_runtime_transaction_finish",
         ):
             require(errors, token in module, f"lighttpd: native module missing {token}")
+        # The patched 1.4.84 output hook observes HTTP/1.x socket-write
+        # ranges, which can include transfer framing rather than a decoded
+        # response entity.  It must remain registered for ABI coverage but
+        # must not feed those bytes (or EOS) into Common Phase 4 APIs.
+        require(
+            errors,
+            "mod_msconnector_handle_response_body" in module,
+            "lighttpd: patched response-body hook is not registered",
+        )
+        require(
+            errors,
+            "contract.response_body = MSCONNECTOR_MAPPER_UNSUPPORTED" in module,
+            "lighttpd: response wire-byte input is not explicitly unsupported",
+        )
+        require(
+            errors,
+            "msconnector_runtime_transaction_finish_response_body" not in module,
+            "lighttpd: wire-byte hook must not finalize an unobserved response body",
+        )
 
 
 def shared_runtime_checks(errors: list[str]) -> None:

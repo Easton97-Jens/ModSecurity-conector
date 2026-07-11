@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -80,6 +83,147 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         )
         self.assertEqual("blocked", record["status"])
         self.assertNotIn("build_exit_code", record)
+
+    def managed_haproxy_cache_environment(self, root: Path, *, managed: bool) -> dict[str, str]:
+        cache_root = root / "cache-v2" / "shared"
+        cache_root.mkdir(parents=True)
+        identity = {
+            "cache_schema_version": 2,
+            "component": "haproxy",
+            "configuration_flags": {},
+        }
+        cache_key = hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        identity["cache_key"] = cache_key
+        entry = cache_root / "builds" / "connectors" / "haproxy" / cache_key
+        runtime_build = entry / "haproxy-runtime-build"
+        runtime_worktree = runtime_build / "worktree"
+        runtime_dir = entry / "haproxy-runtime" / "haproxy"
+        binary = runtime_dir / "sbin" / "haproxy"
+        runtime_worktree.mkdir(parents=True)
+        binary.parent.mkdir(parents=True)
+        binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        binary.chmod(0o755)
+        (runtime_dir / "haproxy.provenance").write_text(
+            "\n".join(
+                (
+                    "haproxy_version=3.2.21",
+                    "haproxy_source_url=https://www.haproxy.org/download/3.2/src/haproxy-3.2.21.tar.gz",
+                    "haproxy_sha256=0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339",
+                    "",
+                )
+            ),
+            encoding="utf-8",
+        )
+        (entry / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "status": "complete",
+                    "cache_schema_version": 2,
+                    "connector": "haproxy",
+                    "build_root": str(entry),
+                    "connector_build_id": cache_key,
+                    "cache_key": cache_key,
+                    "cache_identity": identity,
+                },
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+
+        if managed:
+            (cache_root / ".msconnector-runtime-cache-root.json").write_text(
+                json.dumps(
+                    {
+                        "kind": "msconnector-runtime-cache-root",
+                        "schema_version": 2,
+                        "cache_root": str(cache_root),
+                    },
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            marker_key = hashlib.sha256(
+                json.dumps({"entry_path": str(entry)}, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+            marker_dir = cache_root / ".msconnector-runtime-cache-entries"
+            marker_dir.mkdir()
+            (marker_dir / f"{marker_key}.json").write_text(
+                json.dumps(
+                    {
+                        "kind": "msconnector-runtime-cache-entry",
+                        "schema_version": 2,
+                        "cache_root": str(cache_root),
+                        "entry_path": str(entry),
+                        "component": "connector:haproxy",
+                        "cache_key": cache_key,
+                        "cache_identity": identity,
+                        "status": "complete",
+                    },
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+
+        build_root = root / "connector-run" / "build"
+        return {
+            "CONNECTOR_ROOT": str(ROOT),
+            "FRAMEWORK_ROOT": str(ROOT / "modules/ModSecurity-test-Framework"),
+            "VERIFIED_RUN_ROOT": str(root / "connector-run"),
+            "CACHE_ROOT": str(cache_root.parent),
+            "VERIFIED_COMPONENT_CACHE": str(cache_root),
+            "CONNECTOR_COMPONENT_CACHE": str(cache_root),
+            "SOURCE_ROOT": str(cache_root / "sources"),
+            "BUILD_ROOT": str(build_root),
+            "TMP_ROOT": str(build_root / "tmp"),
+            "LOG_ROOT": str(build_root / "logs"),
+            "LOG_DIR": str(build_root / "logs" / "haproxy-prepare"),
+            "HAPROXY_SOURCE_ROOT": str(cache_root / "sources" / "haproxy"),
+            "HAPROXY_DOWNLOAD_DIR": str(cache_root / "archives" / "haproxy"),
+            "HAPROXY_SOURCE_DIR": str(cache_root / "sources" / "haproxy" / "haproxy-3.2.21"),
+            "HAPROXY_RUNTIME_BUILD_DIR": str(runtime_build),
+            "HAPROXY_RUNTIME_BUILD_WORKTREE": str(runtime_worktree),
+            "HAPROXY_RUNTIME_DIR": str(runtime_dir),
+            "HAPROXY_BIN": str(binary),
+            "PYTHON": sys.executable,
+        }
+
+    def run_haproxy_prepare_with_shared_cache(self, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["sh", str(ROOT / "modules/ModSecurity-test-Framework/ci/prepare-haproxy-runtime.sh")],
+            cwd=ROOT,
+            env={**os.environ, **env},
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+
+    def test_haproxy_prepare_reuses_complete_managed_shared_cache_entry(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-managed-cache-") as temporary:
+            result = self.run_haproxy_prepare_with_shared_cache(
+                self.managed_haproxy_cache_environment(Path(temporary), managed=True)
+            )
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("ready existing provenance-verified binary", result.stdout)
+
+    def test_haproxy_prepare_rejects_unmanaged_shared_cache_entry(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-unmanaged-cache-") as temporary:
+            result = self.run_haproxy_prepare_with_shared_cache(
+                self.managed_haproxy_cache_environment(Path(temporary), managed=False)
+            )
+        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+        self.assertIn("complete managed HAProxy cache entry", result.stdout + result.stderr)
+
+    def test_haproxy_prepare_refuses_to_rebuild_an_incomplete_managed_shared_entry(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-stale-managed-cache-") as temporary:
+            env = self.managed_haproxy_cache_environment(Path(temporary), managed=True)
+            Path(env["HAPROXY_BIN"]).unlink()
+            result = self.run_haproxy_prepare_with_shared_cache(env)
+            self.assertFalse((Path(env["HAPROXY_RUNTIME_BUILD_WORKTREE"]) / "Makefile").exists())
+        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+        self.assertIn("refuse to modify immutable cache entry", result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

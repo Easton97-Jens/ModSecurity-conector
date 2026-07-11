@@ -93,6 +93,61 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
                 )
             self.assertNotEqual("present", result["status"])
 
+    def test_modsecurity_identity_uses_immutable_expat_identity_not_mutable_manifest_tree(self) -> None:
+        """A completed Expat prefix must not churn the shared ModSecurity key.
+
+        Expat stores its own component manifest under the installed prefix.
+        That manifest is updated at publication time, so its byte count is
+        deliberately not a ModSecurity dependency.  The Cache-v2 identity is
+        the immutable invalidation boundary instead.
+        """
+        git_record = {
+            "url": "https://example.invalid/modsecurity.git",
+            "expected_ref": "v3",
+            "actual_head": "modsecurity-source",
+            "submodule_status": "clean-submodules",
+        }
+        expat = {
+            "actual_head": "expat-source",
+            "cache_key": "expat-cache-key",
+            "prefix": "/cache/builds/expat/expat-cache-key/prefix",
+            "tree": {"exists": True, "file_count": 17, "total_size": 100},
+            "cache_identity": {
+                "cache_schema_version": 2,
+                "component": "expat",
+                "source_sha256": "expat-source",
+                "cache_key": "expat-cache-key",
+            },
+        }
+        later_expat = dict(expat)
+        later_expat["tree"] = {
+            "exists": True,
+            "file_count": 18,
+            "total_size": 4096,
+            "sha256_manifest": "component-manifest-was-written",
+        }
+        toolchain = {"cc": "cc", "cc_version": "cc test", "cxx": "c++", "cxx_version": "c++ test"}
+        with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
+            components, "patchset_identity", return_value={"sha256": "patchset", "files": []}
+        ):
+            first = components.modsecurity_build_inputs({}, git_record, expat, ROOT)
+            second = components.modsecurity_build_inputs({}, git_record, later_expat, ROOT)
+
+        self.assertEqual(first["dependency_hash"], second["dependency_hash"])
+        self.assertEqual(first["cache_key"], second["cache_key"])
+
+        changed_expat = dict(expat)
+        changed_expat["cache_identity"] = {
+            **expat["cache_identity"],
+            "source_sha256": "changed-expat-source",
+            "cache_key": "changed-expat-cache-key",
+        }
+        with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
+            components, "patchset_identity", return_value={"sha256": "patchset", "files": []}
+        ):
+            changed = components.modsecurity_build_inputs({}, git_record, changed_expat, ROOT)
+        self.assertNotEqual(first["cache_key"], changed["cache_key"])
+
 
 if __name__ == "__main__":
     unittest.main()

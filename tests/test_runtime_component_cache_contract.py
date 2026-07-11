@@ -536,6 +536,106 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 )
             )
 
+    def test_expat_compiler_symlink_identity_survives_rebase_and_hits_cache(self) -> None:
+        """A staging rebase must not canonicalize external toolchain paths.
+
+        ``cc`` is commonly a symlink.  The cache key is calculated with the
+        configured spelling, so rebasing the staged record must retain that
+        spelling in the published manifest or the next target rejects it as a
+        different identity and rebuilds Expat.
+        """
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            source = root / "expat-source"
+            source.mkdir()
+            (source / "configure").write_text("#!/bin/sh\n", encoding="utf-8")
+            toolchain_root = root / "toolchain"
+            toolchain_root.mkdir()
+            compiler_target = toolchain_root / "compiler-15"
+            compiler_target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            compiler_target.chmod(0o755)
+            compiler_link = toolchain_root / "cc"
+            compiler_link.symlink_to(compiler_target)
+            self.assertNotEqual(str(compiler_link), str(compiler_link.resolve()))
+
+            git_record = {
+                "status": "present",
+                "path": str(source),
+                "url": "https://github.com/example/expat",
+                "expected_ref": "v2",
+                "release_tag": "v2",
+                "actual_head": "deadbeef",
+                "submodule_status": "",
+                "submodule_status_clean": True,
+            }
+            toolchain = {
+                "cc": str(compiler_link),
+                "cc_version": "compiler symlink test",
+                "cxx": "",
+                "cxx_version": "",
+            }
+            configured_prefix: Path | None = None
+            make_install_calls = 0
+
+            def fake_run_env(
+                command: list[str],
+                cwd: Path | None = None,
+                env: dict[str, str] | None = None,
+            ) -> subprocess.CompletedProcess[str]:
+                nonlocal configured_prefix, make_install_calls
+                if command and str(command[0]).endswith("configure"):
+                    configured_prefix = Path(
+                        next(item.split("=", 1)[1] for item in command if item.startswith("--prefix="))
+                    )
+                if command[:2] == ["make", "install"]:
+                    make_install_calls += 1
+                    assert configured_prefix is not None
+                    include = configured_prefix / "include"
+                    lib = configured_prefix / "lib"
+                    include.mkdir(parents=True, exist_ok=True)
+                    lib.mkdir(parents=True, exist_ok=True)
+                    (include / "expat.h").write_text("header\n", encoding="utf-8")
+                    (lib / "libexpat.so").write_text("library\n", encoding="utf-8")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            patches = (
+                mock.patch.object(components, "toolchain_identity", return_value=toolchain),
+                mock.patch.object(
+                    components.shutil,
+                    "which",
+                    side_effect=lambda _name: "/usr/bin/tool",
+                ),
+                mock.patch.object(components, "run_env", side_effect=fake_run_env),
+            )
+            with patches[0], patches[1], patches[2]:
+                first = components.prepare_expat(
+                    {"CC": str(compiler_link)}, cache_root, root / "work", git_record
+                )
+                second = components.prepare_expat(
+                    {"CC": str(compiler_link)}, cache_root, root / "work", git_record
+                )
+
+            entry = cache_root / "builds" / "expat" / first["cache_key"]
+            manifest = components.read_json(entry / "manifest.json")
+            self.assertEqual("built", first["status"])
+            self.assertEqual("present", second["status"])
+            self.assertEqual(1, make_install_calls)
+            self.assertEqual(str(compiler_link), first["cache_identity"]["toolchain"]["cc"])
+            self.assertEqual(first["cache_identity"], manifest["cache_identity"])
+            self.assertTrue(
+                components.cache_manifest_complete(entry / "manifest.json", first["cache_identity"])
+            )
+            self.assertTrue(
+                components.cache_entry_complete(
+                    entry,
+                    cache_root,
+                    component="expat",
+                    cache_key=first["cache_key"],
+                    cache_identity=first["cache_identity"],
+                )
+            )
+
     def test_managed_expat_overrides_publish_from_staging_and_external_paths_are_blocked(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
@@ -609,7 +709,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertEqual("expat_paths_must_be_under_connector_component_cache", blocked["blocker_reason"])
             self.assertFalse(external_prefix.exists())
 
-    def test_apache_discards_marker_owned_partial_root_before_build(self) -> None:
+    def test_apache_rebuilds_complete_cache_with_broken_apxs(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
             cache_root = components.ensure_managed_cache_root(root / "cache")
@@ -649,29 +749,73 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             }
             components.mark_managed_cache_entry(entry, cache_root, component="connector:apache", cache_key=cache_key)
             entry.mkdir(parents=True)
-            partial = entry / "partial-artifact"
-            partial.write_text("partial\n", encoding="utf-8")
+            stale_httpd = httpd_prefix / "bin/httpd"
+            stale_httpd.parent.mkdir(parents=True)
+            stale_httpd.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            stale_httpd.chmod(0o755)
+            stale_apxs = httpd_prefix / "bin/apxs"
+            stale_apxs.write_text("#!/bin/sh\nexit 2\n", encoding="utf-8")
+            stale_apxs.chmod(0o755)
+            stale_module = build_path / "output/apache/mod_security3.so"
+            stale_module.parent.mkdir(parents=True)
+            stale_module.write_text("module\n", encoding="utf-8")
+            stale_config = httpd_prefix / "conf/httpd.conf"
+            stale_config.parent.mkdir(parents=True)
+            stale_config.write_text("ServerRoot .\n", encoding="utf-8")
+            components.write_connector_manifest(plan, {"status": "built", "output_paths": plan["output_paths"]})
+            components.write_cache_entry_completion(
+                entry,
+                cache_root,
+                component="connector:apache",
+                cache_key=cache_key,
+                cache_identity=identity,
+            )
+            self.assertTrue(components.connector_manifest_contract_ready(plan))
+            self.assertFalse(components.connector_cache_entry_complete(plan))
             connector_root = root / "connector"
             framework_root = root / "framework"
             connector_root.mkdir()
             framework_root.mkdir()
+            staging_prefixes: list[Path] = []
 
             def build_apache(*args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
-                self.assertFalse(partial.exists())
+                self.assertFalse(stale_apxs.exists())
                 build_env = args[1]
                 assert isinstance(build_env, dict)
                 active_build_path = Path(build_env["APACHE_BUILD_ROOT"])
                 active_httpd_prefix = Path(build_env["HTTPD_PREFIX"])
-                for binary in (active_httpd_prefix / "bin/httpd", active_httpd_prefix / "bin/apxs"):
-                    binary.parent.mkdir(parents=True, exist_ok=True)
-                    binary.write_text("#!/bin/sh\n", encoding="utf-8")
-                    binary.chmod(0o755)
+                staging_prefixes.append(active_httpd_prefix)
+                httpd = active_httpd_prefix / "bin/httpd"
+                httpd.parent.mkdir(parents=True, exist_ok=True)
+                httpd.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+                httpd.chmod(0o755)
+                apxs = active_httpd_prefix / "bin/apxs"
+                apxs.write_text(
+                    "#!/bin/sh\n"
+                    "set -eu\n"
+                    "[ \"$#\" = 2 ] && [ \"$1\" = \"-q\" ] && [ \"$2\" = \"INCLUDEDIR\" ] || exit 2\n"
+                    f"prefix=$(sed -n 's/^prefix = //p' '{active_httpd_prefix}/build/config_vars.mk')\n"
+                    "printf '%s/include\\n' \"$prefix\"\n",
+                    encoding="utf-8",
+                )
+                apxs.chmod(0o755)
+                for name in ("apr-1-config", "apu-1-config"):
+                    config_script = active_httpd_prefix / "bin" / name
+                    config_script.write_text(
+                        f"#!/bin/sh\nprefix='{active_httpd_prefix}'\n",
+                        encoding="utf-8",
+                    )
+                    config_script.chmod(0o755)
+                config_vars = active_httpd_prefix / "build/config_vars.mk"
+                config_vars.parent.mkdir(parents=True, exist_ok=True)
+                config_vars.write_text(f"prefix = {active_httpd_prefix}\n", encoding="utf-8")
+                (active_httpd_prefix / "include").mkdir(parents=True, exist_ok=True)
                 module = active_build_path / "output/apache/mod_security3.so"
                 module.parent.mkdir(parents=True, exist_ok=True)
                 module.write_text("module\n", encoding="utf-8")
                 config = active_httpd_prefix / "conf/httpd.conf"
                 config.parent.mkdir(parents=True, exist_ok=True)
-                config.write_text("ServerRoot .\n", encoding="utf-8")
+                config.write_text(f"ServerRoot \"{active_httpd_prefix}\"\n", encoding="utf-8")
                 return subprocess.CompletedProcess(["apache-build"], 0, "", "")
 
             with mock.patch.object(components, "crypt_diagnostics", return_value={"crypt_link_arg": ""}), mock.patch.object(
@@ -690,9 +834,21 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 )
             self.assertEqual("built", record["status"])
             self.assertTrue(run_build.called)
-            self.assertFalse(partial.exists())
             self.assertTrue(components.executable(entry / "httpd/bin/httpd"))
+            self.assertTrue(components.executable(entry / "httpd/bin/apxs"))
             self.assertTrue(components.connector_manifest_ready(plan))
+            apxs_result = subprocess.run(
+                [str(entry / "httpd/bin/apxs"), "-q", "INCLUDEDIR"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(0, apxs_result.returncode, apxs_result.stderr)
+            self.assertEqual(str(entry / "httpd/include"), apxs_result.stdout.strip())
+            staging_prefix = staging_prefixes[0]
+            for relative in ("bin/apxs", "build/config_vars.mk", "bin/apr-1-config", "bin/apu-1-config", "bin/apachectl-mrts", "conf/httpd.conf"):
+                self.assertNotIn(str(staging_prefix.parent), (entry / "httpd" / relative).read_text(encoding="utf-8"))
             self.assertFalse(any(path.name.startswith(f".{entry.name}.tmp-") for path in entry.parent.iterdir()))
 
     def test_nginx_discards_marker_owned_partial_root_before_build(self) -> None:
@@ -908,6 +1064,106 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
     def git(command: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
 
+    def test_clean_managed_git_checkout_is_reused_across_target_preparations(self) -> None:
+        """The second target reuses a published ModSecurity source checkout.
+
+        This mirrors two prepare-runtime-components target invocations: the
+        first record is persisted in the shared root manifest and becomes the
+        second invocation's ``previous_records`` input.  A clean, complete
+        checkout must not require another staging clone just to rediscover its
+        already-pinned commit.
+        """
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            upstream = root / "upstream"
+            upstream.mkdir()
+            self.git(["git", "init"], upstream)
+            self.git(["git", "config", "user.email", "cache-test@example.invalid"], upstream)
+            self.git(["git", "config", "user.name", "Cache Test"], upstream)
+            (upstream / "tracked.txt").write_text("pristine\n", encoding="utf-8")
+            self.git(["git", "add", "tracked.txt"], upstream)
+            self.git(["git", "commit", "-m", "initial"], upstream)
+            commit = self.git(["git", "rev-parse", "HEAD"], upstream).stdout.strip()
+            branch = self.git(["git", "branch", "--show-current"], upstream).stdout.strip()
+
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            checkout = cache_root / "sources" / "ModSecurity_V3"
+            expected_url = "https://github.com/owasp-modsecurity/ModSecurity.git"
+            clone_count = 0
+            original_run = components.run
+
+            def local_clone_run(
+                command: list[str],
+                cwd: Path | None = None,
+                check: bool = False,
+            ) -> subprocess.CompletedProcess[str]:
+                nonlocal clone_count
+                if command[:2] == ["git", "ls-remote"]:
+                    return subprocess.CompletedProcess(
+                        command,
+                        0,
+                        f"{commit}\trefs/heads/{branch}\n",
+                        "",
+                    )
+                if command[:3] == ["git", "clone", "--recursive"]:
+                    clone_count += 1
+                    clone = subprocess.run(
+                        ["git", "clone", "--recursive", str(upstream), command[-1]],
+                        text=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    if clone.returncode == 0:
+                        subprocess.run(
+                            ["git", "-C", command[-1], "remote", "set-url", "origin", expected_url],
+                            text=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            check=True,
+                        )
+                    if check and clone.returncode != 0:
+                        raise RuntimeError(clone.stderr)
+                    return clone
+                if len(command) >= 5 and command[:2] == ["git", "-C"] and command[3:5] == ["fetch", "--tags"]:
+                    return subprocess.CompletedProcess(command, 0, "", "")
+                return original_run(command, cwd=cwd, check=check)
+
+            with mock.patch.object(components, "run", side_effect=local_clone_run):
+                apache_source = components.prepare_git_component(
+                    "modsecurity-v3",
+                    expected_url,
+                    branch,
+                    checkout,
+                    {},
+                    strict=True,
+                    cache_root=cache_root,
+                )
+                nginx_source = components.prepare_git_component(
+                    "modsecurity-v3",
+                    expected_url,
+                    branch,
+                    checkout,
+                    {"modsecurity-v3": apache_source},
+                    strict=True,
+                    cache_root=cache_root,
+                )
+
+            self.assertEqual("present", apache_source["status"])
+            self.assertEqual("present", nginx_source["status"])
+            self.assertEqual(1, clone_count)
+            self.assertEqual(commit, nginx_source["actual_head"])
+            self.assertEqual(apache_source["cache_identity"], nginx_source["cache_identity"])
+            self.assertTrue(
+                components.git_checkout_is_reusable(
+                    checkout,
+                    cache_root,
+                    component="source:modsecurity-v3",
+                    cache_identity=nginx_source["cache_identity"],
+                    expected_url=expected_url,
+                    actual_head=commit,
+                )
+            )
+
     def test_dirty_managed_git_checkout_is_replaced_and_atomically_republished(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
@@ -932,6 +1188,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 cache_key=source_identity["cache_key"],
             )
             self.git(["git", "clone", str(upstream), str(checkout)])
+            self.git(["git", "remote", "set-url", "origin", expected_url], checkout)
             components.write_cache_entry_completion(
                 checkout,
                 cache_root,
@@ -971,7 +1228,15 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     expected_url,
                     commit,
                     checkout,
-                    {},
+                    {
+                        "component": {
+                            "status": "present",
+                            "url": expected_url,
+                            "expected_ref": commit,
+                            "actual_head": commit,
+                            "git_fsck": "PASS",
+                        }
+                    },
                     strict=True,
                     cache_root=cache_root,
                 )
@@ -1109,6 +1374,13 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             final_mutations: list[list[str]] = []
 
             def local_clone_run(command: list[str], cwd: Path | None = None, check: bool = False) -> subprocess.CompletedProcess[str]:
+                if command[:2] == ["git", "ls-remote"]:
+                    return subprocess.CompletedProcess(
+                        command,
+                        0,
+                        f"{second_commit}\trefs/heads/{branch}\n",
+                        "",
+                    )
                 if command[:3] == ["git", "clone", "--recursive"]:
                     clone = subprocess.run(
                         ["git", "clone", "--recursive", str(upstream), command[-1]],
@@ -1142,7 +1414,15 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     expected_url,
                     branch,
                     checkout,
-                    {},
+                    {
+                        "component": {
+                            "status": "present",
+                            "url": expected_url,
+                            "expected_ref": branch,
+                            "actual_head": first_commit,
+                            "git_fsck": "PASS",
+                        }
+                    },
                     strict=True,
                     cache_root=cache_root,
                 )

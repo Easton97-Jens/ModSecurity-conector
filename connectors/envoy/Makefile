@@ -4,6 +4,8 @@ SERVICE_BIN := $(BUILD_ROOT)/envoy-connector/msconnector_envoy_ext_authz
 EXT_PROC_BIN := $(BUILD_ROOT)/envoy-ext-proc/msconnector_envoy_ext_proc
 EXT_PROC_CONFIG ?= $(CURDIR)/config/envoy-ext-proc-service.json
 EXT_PROC_ENVOY_CONFIG ?= $(BUILD_ROOT)/envoy-ext-proc/config/envoy-ext-proc.streaming.yaml
+EXT_PROC_RUNTIME_ROOT ?= $(BUILD_ROOT)/envoy-ext-proc/runtime-smoke
+EXT_PROC_RUNTIME_EVENT_LOG_PATH ?= $(EXT_PROC_RUNTIME_ROOT)/events.jsonl
 EXT_PROC_LISTEN_PORT ?= 18080
 EXT_PROC_UPSTREAM_PORT ?= 18081
 EXT_PROC_LISTEN_SERVICE_PORT ?= 18083
@@ -20,6 +22,7 @@ LISTEN_PORT ?= 18082
 	prepare-envoy-ext-proc-config \
 	build-modsecurity-bridge check-envoy-config start-smoke-envoy \
 	serve-envoy-connector runtime-smoke-envoy no-crs-baseline-envoy \
+	serve-envoy-ext-proc runtime-smoke-envoy-ext-proc \
 	self-test-modsecurity clean
 
 build-starter:
@@ -40,8 +43,8 @@ build-envoy-connector: build-envoy-ext-proc
 	sh build/build_connector.sh
 
 # The ext_proc service is intentionally independent of the ext_authz C service.
-# It is source/build groundwork only: it does not claim a Common/libmodsecurity
-# bridge or any runtime/evidence promotion.
+# It has a non-promoted real-host transport smoke, but does not claim a
+# Common/libmodsecurity bridge or any rule-evaluation/capability promotion.
 build-envoy-ext-proc:
 	BUILD_ROOT="$(BUILD_ROOT)" \
 	sh build/build_ext_proc.sh
@@ -58,6 +61,21 @@ prepare-envoy-ext-proc-config:
 	LISTEN_PORT="$(EXT_PROC_LISTEN_PORT)" UPSTREAM_PORT="$(EXT_PROC_UPSTREAM_PORT)" \
 	EXT_PROC_PORT="$(EXT_PROC_LISTEN_SERVICE_PORT)" ADMIN_PORT="$(EXT_PROC_ADMIN_PORT)" \
 	sh config/prepare_envoy_ext_proc_config.sh
+
+serve-envoy-ext-proc: build-envoy-ext-proc
+	EXT_PROC_BIN="$(EXT_PROC_BIN)" EXT_PROC_CONFIG="$(EXT_PROC_CONFIG)" \
+	EVENT_LOG_PATH="$(EXT_PROC_RUNTIME_EVENT_LOG_PATH)" LISTEN_ADDRESS="$(LISTEN_ADDRESS)" \
+	LISTEN_PORT="$(EXT_PROC_LISTEN_SERVICE_PORT)" \
+	sh harness/serve_envoy_ext_proc.sh
+
+# This is deliberately separate from runtime-smoke-envoy: it exercises the
+# native Envoy ext_proc gRPC filter but remains non-promoted while its service
+# uses the metadata-only PassthroughEngine rather than Common/libmodsecurity.
+runtime-smoke-envoy-ext-proc: build-envoy-ext-proc
+	EXT_PROC_BIN="$(EXT_PROC_BIN)" EXT_PROC_CONFIG="$(EXT_PROC_CONFIG)" \
+	BUILD_ROOT="$(BUILD_ROOT)" RUNTIME_ROOT="$(EXT_PROC_RUNTIME_ROOT)" \
+	EVENT_LOG_PATH="$(EXT_PROC_RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
+	PYTHON="$(PYTHON)" sh harness/run_envoy_ext_proc_runtime.sh
 
 build-modsecurity-bridge: build-envoy-connector
 

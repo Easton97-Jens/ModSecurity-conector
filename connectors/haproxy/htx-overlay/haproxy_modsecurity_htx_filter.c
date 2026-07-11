@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include <haproxy/api.h>
 #include <haproxy/channel-t.h>
@@ -64,6 +65,7 @@ struct haproxy_modsecurity_htx_owned_headers {
 
 struct haproxy_modsecurity_htx_filter_context {
     haproxy_modsecurity_transaction *transaction;
+    char transaction_id[128];
     struct haproxy_modsecurity_htx_owned_headers request_headers;
     char *request_method;
     char *request_uri;
@@ -124,6 +126,52 @@ static void haproxy_modsecurity_htx_request_snapshot_free(
     ctx->request_uri = NULL;
 }
 
+static int haproxy_modsecurity_htx_transaction_id_is_safe(const char *value)
+{
+    size_t index;
+    size_t length;
+
+    if (!value) {
+        return 0;
+    }
+    length = strlen(value);
+    if (length == 0U || length >= sizeof(((struct haproxy_modsecurity_htx_filter_context *)0)->transaction_id)) {
+        return 0;
+    }
+    for (index = 0U; index < length; ++index) {
+        unsigned char character = (unsigned char)value[index];
+
+        if (!(character >= 'a' && character <= 'z') &&
+            !(character >= 'A' && character <= 'Z') &&
+            !(character >= '0' && character <= '9') &&
+            character != '.' && character != '_' && character != '-') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static void haproxy_modsecurity_htx_set_transaction_id(
+    struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx)
+{
+    unsigned int index;
+
+    if (!ctx) {
+        return;
+    }
+    snprintf(ctx->transaction_id, sizeof(ctx->transaction_id), "%u", s ? s->uniq_id : 0U);
+    for (index = 0U; index < ctx->request_headers.count; ++index) {
+        const haproxy_modsecurity_header *header = &ctx->request_headers.items[index];
+
+        if (!header->name || !header->value || strcasecmp(header->name, "x-request-id") != 0 ||
+            !haproxy_modsecurity_htx_transaction_id_is_safe(header->value)) {
+            continue;
+        }
+        snprintf(ctx->transaction_id, sizeof(ctx->transaction_id), "%s", header->value);
+        break;
+    }
+}
+
 static int haproxy_modsecurity_htx_copy_headers(
     const struct htx *htx,
     struct haproxy_modsecurity_htx_owned_headers *headers)
@@ -182,14 +230,16 @@ static int haproxy_modsecurity_htx_copy_headers(
 }
 
 static void haproxy_modsecurity_htx_report_decision(
-    const char *stage, const haproxy_modsecurity_decision *decision)
+    const char *stage, const struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision)
 {
     if (!decision || !decision->disruptive) {
         return;
     }
     /* Do not include decision->log_message, URI, headers, or body bytes. */
-    ha_warning("modsecurity-htx: %s intervention observed; phase=%d status=%d rule_id=%d action=%s\n",
-        stage, decision->phase, decision->status, decision->rule_id,
+    ha_warning("modsecurity-htx: %s intervention observed; transaction_id=%s phase=%d status=%d rule_id=%d action=%s\n",
+        stage, ctx && ctx->transaction_id[0] ? ctx->transaction_id : "unavailable",
+        decision->phase, decision->status, decision->rule_id,
         decision->action[0] ? decision->action : "deny");
 }
 
@@ -217,7 +267,8 @@ static void haproxy_modsecurity_htx_report_late_decision(
     resolved_action = msconnector_late_intervention_action_name(action);
     /* Do not claim that the policy action was executed until a host runtime
      * proves the exact HAProxy stream-abort primitive and client outcome. */
-    ha_warning("modsecurity-htx: response-body late intervention observed; phase=%d status=%d rule_id=%d requested_action=%s resolved_policy_action=%s host_action=not_attempted\n",
+    ha_warning("modsecurity-htx: response-body late intervention observed; transaction_id=%s phase=%d status=%d rule_id=%d requested_action=%s resolved_policy_action=%s host_action=not_attempted\n",
+        ctx && ctx->transaction_id[0] ? ctx->transaction_id : "unavailable",
         decision->phase, decision->status, decision->rule_id, requested_action,
         resolved_action);
 }
@@ -284,7 +335,6 @@ static int haproxy_modsecurity_htx_begin_request(
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
     struct haproxy_modsecurity_htx_filter_config *config = FLT_CONF(filter);
-    char request_id[32];
     haproxy_modsecurity_request request;
     haproxy_modsecurity_decision decision;
     int rc;
@@ -293,9 +343,9 @@ static int haproxy_modsecurity_htx_begin_request(
         !ctx->request_uri) {
         return -1;
     }
-    snprintf(request_id, sizeof(request_id), "%u", s->uniq_id);
+    haproxy_modsecurity_htx_set_transaction_id(s, ctx);
     memset(&request, 0, sizeof(request));
-    request.request_id = request_id;
+    request.request_id = ctx->transaction_id;
     request.method = ctx->request_method;
     request.uri = ctx->request_uri;
     request.headers = ctx->request_headers.items;
@@ -306,7 +356,7 @@ static int haproxy_modsecurity_htx_begin_request(
     if (rc != 0) {
         return -1;
     }
-    haproxy_modsecurity_htx_report_decision("request", &decision);
+    haproxy_modsecurity_htx_report_decision("request", ctx, &decision);
     if (decision.disruptive) {
         haproxy_modsecurity_htx_finish_context(ctx);
         ctx->disabled = 1;
@@ -408,7 +458,7 @@ static int haproxy_modsecurity_htx_process_response_headers(
         return -1;
     }
     ctx->response_headers_seen = 1;
-    haproxy_modsecurity_htx_report_decision("response-header", &decision);
+    haproxy_modsecurity_htx_report_decision("response-header", ctx, &decision);
     if (decision.disruptive) {
         haproxy_modsecurity_htx_finish_context(ctx);
         ctx->disabled = 1;
@@ -616,7 +666,7 @@ static int haproxy_modsecurity_htx_filter_http_end(
                         ctx->transaction, &decision) != 0) {
                     haproxy_modsecurity_htx_abort_context(ctx);
                 } else {
-                    haproxy_modsecurity_htx_report_decision("request-body", &decision);
+                    haproxy_modsecurity_htx_report_decision("request-body", ctx, &decision);
                     if (decision.disruptive) {
                         haproxy_modsecurity_htx_finish_context(ctx);
                         ctx->disabled = 1;

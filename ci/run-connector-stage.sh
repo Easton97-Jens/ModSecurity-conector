@@ -9,11 +9,17 @@ CONNECTOR_ROOT=${CONNECTOR_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}
 VERIFIED_RUN_ROOT=${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}
 BUILD_ROOT=${BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}
+CACHE_ROOT=${CACHE_ROOT:-$VERIFIED_RUN_ROOT/cache-v2}
+VERIFIED_COMPONENT_CACHE=${VERIFIED_COMPONENT_CACHE:-$CACHE_ROOT/shared}
+CONNECTOR_COMPONENT_CACHE=${CONNECTOR_COMPONENT_CACHE:-$VERIFIED_COMPONENT_CACHE}
 TMP_ROOT=${TMP_ROOT:-$BUILD_ROOT/tmp}
 LOG_ROOT=${LOG_ROOT:-$BUILD_ROOT/logs}
 RESULTS_DIR=${RESULTS_DIR:-$BUILD_ROOT/stages/$connector/$stage/results}
 RUNTIME_REPORT_OUTPUT_ROOT=${RUNTIME_REPORT_OUTPUT_ROOT:-$BUILD_ROOT/runtime-component-reports}
 PYTHON=${PYTHON:-python3}
+NO_CRS_ARTIFACT_PROFILE=${NO_CRS_ARTIFACT_PROFILE:-generic}
+FULL_LIFECYCLE_HOST_PROFILE=${FULL_LIFECYCLE_HOST_PROFILE:-}
+FULL_LIFECYCLE_EXECUTED_TARGET=${FULL_LIFECYCLE_EXECUTED_TARGET:-}
 
 case "$connector" in
     apache|nginx|haproxy|envoy|traefik|lighttpd) ;;
@@ -23,6 +29,61 @@ case "$stage" in
     build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline) ;;
     *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline" >&2; exit 2 ;;
 esac
+
+expected_full_lifecycle_profile() {
+    case "$1" in
+        apache) printf '%s\n' native-httpd-module ;;
+        nginx) printf '%s\n' native-nginx-http-module ;;
+        haproxy) printf '%s\n' native-htx-filter ;;
+        envoy) printf '%s\n' ext_proc ;;
+        traefik) printf '%s\n' native-middleware ;;
+        lighttpd) printf '%s\n' patched-native ;;
+    esac
+}
+
+expected_full_lifecycle_target() {
+    case "$1" in
+        apache) printf '%s\n' full-lifecycle-apache ;;
+        nginx) printf '%s\n' full-lifecycle-nginx ;;
+        haproxy) printf '%s\n' full-lifecycle-haproxy-htx ;;
+        envoy) printf '%s\n' full-lifecycle-envoy-ext-proc ;;
+        traefik) printf '%s\n' full-lifecycle-traefik-native ;;
+        lighttpd) printf '%s\n' full-lifecycle-lighttpd-patched ;;
+    esac
+}
+
+# Full-lifecycle evidence may never fall through to a request-only or stock
+# compatibility runner.  Apache and NGINX already have their selected native
+# canonical drivers; the other native profiles remain explicitly BLOCKED until
+# their own capability-selected canonical drivers exist.
+if [ "$stage" = no_crs_baseline ] && [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+    expected_profile=$(expected_full_lifecycle_profile "$connector")
+    expected_target=$(expected_full_lifecycle_target "$connector")
+    if [ "$FULL_LIFECYCLE_HOST_PROFILE" != "$expected_profile" ] || \
+       [ "$FULL_LIFECYCLE_EXECUTED_TARGET" != "$expected_target" ]; then
+        echo "FAIL: full-lifecycle stage profile/target mismatch for $connector" >&2
+        exit 1
+    fi
+    case "$connector" in
+        apache|nginx) ;;
+        haproxy)
+            echo "BLOCKED: native HTX is observer-only; the compatibility SPOE/SPOP runner is forbidden for full-lifecycle evidence" >&2
+            exit 77
+            ;;
+        envoy)
+            echo "BLOCKED: ext_proc has no Common/libmodsecurity canonical driver; ext_authz compatibility is forbidden for full-lifecycle evidence" >&2
+            exit 77
+            ;;
+        traefik)
+            echo "BLOCKED: native Traefik middleware is not registered in a pinned host run; forwardAuth compatibility is forbidden for full-lifecycle evidence" >&2
+            exit 77
+            ;;
+        lighttpd)
+            echo "BLOCKED: patched lighttpd has no body-capable canonical lifecycle driver; stock compatibility is forbidden for full-lifecycle evidence" >&2
+            exit 77
+            ;;
+    esac
+fi
 
 [ -f "$FRAMEWORK_ROOT/ci/common.sh" ] || {
     echo "BLOCKED: framework common.sh is missing: $FRAMEWORK_ROOT/ci/common.sh" >&2
@@ -40,8 +101,8 @@ case "$BUILD_ROOT" in
         ;;
 esac
 
-export CONNECTOR_ROOT FRAMEWORK_ROOT VERIFIED_RUN_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT RESULTS_DIR
-export RUNTIME_REPORT_OUTPUT_ROOT PYTHON
+export CONNECTOR_ROOT FRAMEWORK_ROOT VERIFIED_RUN_ROOT BUILD_ROOT CACHE_ROOT VERIFIED_COMPONENT_CACHE CONNECTOR_COMPONENT_CACHE TMP_ROOT LOG_ROOT RESULTS_DIR
+export RUNTIME_REPORT_OUTPUT_ROOT RUNTIME_ROOT RUNTIME_BASE PYTHON RUNTIME_COMPONENT_ENV_SNAPSHOT
 case "$connector" in
     apache|nginx|haproxy) RUNTIME_COMPONENT_TARGET=$connector ;;
     envoy|traefik|lighttpd) RUNTIME_COMPONENT_TARGET=shared ;;
@@ -55,11 +116,17 @@ run_framework_host() {
     exec "$CONNECTOR_ROOT/ci/with-runtime-components.sh" env \
         CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+        VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
+        VERIFIED_COMPONENT_CACHE="$VERIFIED_COMPONENT_CACHE" \
+        CACHE_ROOT="$CACHE_ROOT" \
+        CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
         BUILD_ROOT="$BUILD_ROOT" \
         TMP_ROOT="$TMP_ROOT" \
         LOG_ROOT="$LOG_ROOT" \
         RESULTS_DIR="$RESULTS_DIR" \
         RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
+        RUNTIME_COMPONENT_TARGET="$RUNTIME_COMPONENT_TARGET" \
+        RUNTIME_COMPONENT_ENV_SNAPSHOT="${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" \
         NO_CRS_BASELINE=1 \
         NO_CRS_SELECTED_CASE_IDS="${NO_CRS_SELECTED_CASE_IDS:-}" \
         MODSECURITY_TEST_VARIANT=no-crs \
@@ -74,8 +141,19 @@ run_remaining_connector() {
     exec env \
         CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+        VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
+        VERIFIED_COMPONENT_CACHE="$VERIFIED_COMPONENT_CACHE" \
+        CACHE_ROOT="$CACHE_ROOT" \
+        CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
         BUILD_ROOT="$BUILD_ROOT" \
+        TMP_ROOT="$TMP_ROOT" \
+        LOG_ROOT="$LOG_ROOT" \
+        RESULTS_DIR="$RESULTS_DIR" \
+        RUNTIME_ROOT="${RUNTIME_ROOT:-$BUILD_ROOT/runtime}" \
+        RUNTIME_BASE="${RUNTIME_BASE:-$BUILD_ROOT/runtime}" \
         RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
+        RUNTIME_COMPONENT_TARGET="$RUNTIME_COMPONENT_TARGET" \
+        RUNTIME_COMPONENT_ENV_SNAPSHOT="${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" \
         sh "$CONNECTOR_ROOT/ci/run-remaining-connector-target.sh" "$connector" "$target"
 }
 

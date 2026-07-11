@@ -35,12 +35,26 @@ VERIFIED_BUILD_ROOT=$VERIFIED_RUN_ROOT/build
 VERIFIED_SOURCE_ROOT=$VERIFIED_RUN_ROOT/src
 VERIFIED_TMP_ROOT=$VERIFIED_RUN_ROOT/tmp
 VERIFIED_LOG_ROOT=$VERIFIED_RUN_ROOT/logs
-VERIFIED_COMPONENT_CACHE=$VERIFIED_RUN_ROOT/component-cache
+CACHE_ROOT=$VERIFIED_RUN_ROOT/cache-v2
+VERIFIED_COMPONENT_CACHE=$CACHE_ROOT/shared
+VERIFIED_EVIDENCE_ROOT=$VERIFIED_RUN_ROOT/evidence
+RUNTIME_RUN_ROOT=$VERIFIED_RUN_ROOT/runs
+RUNTIME_LOG_ROOT=$VERIFIED_RUN_ROOT/run-logs
 NGINX_HARNESS_PARENT=$VERIFIED_RUN_ROOT/nginx-harness
 ```
 
-Die Kompatibilitätsvariablen `BUILD_ROOT`, `SOURCE_ROOT`, `TMP_ROOT`,
-`LOG_ROOT` und `CONNECTOR_COMPONENT_CACHE` verwenden standardmäßig diese überprüften Pfade.
+Die Kompatibilitätsvariablen `BUILD_ROOT` und `SOURCE_ROOT` verwenden
+standardmäßig die entsprechenden überprüften Pfade. `TMP_ROOT` und `LOG_ROOT`
+verwenden dagegen `$BUILD_ROOT/tmp` beziehungsweise `$BUILD_ROOT/logs`, damit
+Host-Harnesses mit der Anforderung von temporären Dateien und Logs unter dem
+Build-Root (einschließlich HAProxy) ohne targetspezifische Überschreibung
+funktionieren. `CONNECTOR_COMPONENT_CACHE` verwendet standardmäßig
+`$VERIFIED_COMPONENT_CACHE`.
+Der Resolver für kanonische Full-Lifecycle-Läufe trennt Evidence,
+Connector-Builds, Host-Läufe und Logs als `<basis>/<connector>/<run-id>`.
+Nur `$CACHE_ROOT/shared` ist zwischen Connectoren wiederverwendbar; der
+Legacy-Baum `$VERIFIED_RUN_ROOT/component-cache` wird nicht als verwalteter
+Cache übernommen.
 Runtimepfade dürfen sich nicht in `/root`, im Quell-Checkout oder an Systemstandorten befinden
 wie `/usr`, `/etc`, `/var/lib`, `/bin` oder `/sbin`. `/var/tmp/...` und
 `${RUNNER_TEMP}/...` sind gültige Runtime-Eltern.

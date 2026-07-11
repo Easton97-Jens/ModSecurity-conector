@@ -110,7 +110,8 @@ def verified_runtime_paths(
     verified_source_root = Path(_env_value(values, "VERIFIED_SOURCE_ROOT") or run_root / "src").resolve()
     verified_tmp_root = Path(_env_value(values, "VERIFIED_TMP_ROOT") or run_root / "tmp").resolve()
     verified_log_root = Path(_env_value(values, "VERIFIED_LOG_ROOT") or run_root / "logs").resolve()
-    verified_component_cache = Path(_env_value(values, "VERIFIED_COMPONENT_CACHE") or run_root / "component-cache").resolve()
+    cache_root = Path(_env_value(values, "CACHE_ROOT") or run_root / "cache-v2").resolve()
+    verified_component_cache = Path(_env_value(values, "VERIFIED_COMPONENT_CACHE") or cache_root / "shared").resolve()
 
     build_root = Path(
         build_root_override
@@ -133,6 +134,7 @@ def verified_runtime_paths(
         "VERIFIED_SOURCE_ROOT": str(verified_source_root),
         "VERIFIED_TMP_ROOT": str(verified_tmp_root),
         "VERIFIED_LOG_ROOT": str(verified_log_root),
+        "CACHE_ROOT": str(cache_root),
         "VERIFIED_COMPONENT_CACHE": str(verified_component_cache),
         "NGINX_HARNESS_PARENT": str(nginx_harness_parent),
         "BUILD_ROOT": str(build_root),
@@ -205,6 +207,7 @@ def runtime_path_rows(
         "VERIFIED_SOURCE_ROOT",
         "VERIFIED_TMP_ROOT",
         "VERIFIED_LOG_ROOT",
+        "CACHE_ROOT",
         "VERIFIED_COMPONENT_CACHE",
         "NGINX_HARNESS_PARENT",
         "BUILD_ROOT",

@@ -37,7 +37,7 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
         self.assertIn('"visible_http_status":200', phase4_log["contains"])
         self.assertIn('"connection_aborted":false', phase4_log["contains"])
         self.assertIn("no-crs-response-body-marker", phase4_log["not_contains"])
-        self.assertIn('"intervention_log"', phase4_log["not_contains"])
+        self.assertIn('"intervention_log":', phase4_log["not_contains"])
 
     def test_strict_fixture_asserts_abort_transport_not_a_rewritten_403(self) -> None:
         case = self.load_fixture("nginx_phase4_deny_after_commit_abort.yaml")
@@ -90,6 +90,16 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
         declaration = manifest["capabilities"]["phase4_pre_commit_deny"]
         self.assertEqual("not_implemented", declaration["state"])
         self.assertIn("body filter", declaration["reason"])
+
+    def test_apache_does_not_declare_a_deterministic_precommit_phase4_deny(self) -> None:
+        import json
+
+        manifest = json.loads(
+            (ROOT / "connectors" / "apache" / "capabilities.json").read_text(encoding="utf-8")
+        )
+        declaration = manifest["capabilities"]["phase4_pre_commit_deny"]
+        self.assertEqual("not_implemented", declaration["state"])
+        self.assertIn("EOS", declaration["reason"])
 
 
 if __name__ == "__main__":

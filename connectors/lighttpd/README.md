@@ -23,11 +23,13 @@ response bodies are not implemented and are never passed to the runtime. CRS,
 production hardening, security verification, response-body handling, and
 full-matrix verification are not claimed.
 
-An optional versioned lighttpd 1.4.84 source patch exists for compile-only
-HTTP/1.x request streaming and pre-write output/EOS hooks. It has no runtime
-verification or capability promotion. Its native binding rejects response-body
-inspection because an HTTP/1.x socket-stage queue can contain transfer framing;
-HTTP/2 is deliberately excluded.
+An optional, versioned lighttpd 1.4.84 patched-host target now copies, patches,
+configures, builds, installs, and stages a matching core and module together.
+`runtime-smoke-lighttpd-patched` performs an isolated patched-core/module load
+and the same narrow Phase-1 200/403 smoke; it is not the generic No-CRS target
+and does not promote any capability. The patched binding still rejects
+response-body inspection because its HTTP/1.x socket-stage queue can contain
+transfer framing; HTTP/2 is deliberately excluded.
 
 ## Implemented path
 
@@ -78,6 +80,13 @@ make -C connectors/lighttpd build-lighttpd-connector
 make -C connectors/lighttpd check-lighttpd-config
 make -C connectors/lighttpd start-smoke-lighttpd
 make -C connectors/lighttpd runtime-smoke-lighttpd
+
+# Requires LIGHTTPD_SOURCE_DIR, MODSECURITY_INCLUDE_DIR and
+# MODSECURITY_LIB_DIR.  This builds a copied 1.4.84 core and its module
+# together below BUILD_ROOT/lighttpd-core-patched.
+make -C connectors/lighttpd build-lighttpd-patched-host
+make -C connectors/lighttpd check-lighttpd-patched-host
+make -C connectors/lighttpd runtime-smoke-lighttpd-patched
 ```
 
 The native build requires absolute `LIGHTTPD_SOURCE_DIR`,
@@ -89,9 +98,11 @@ lighttpd `config.h` through `LIGHTTPD_BUILD_ROOT`, `LIGHTTPD_BUILD_DIR`, or
 `runtime-smoke-lighttpd` sends the baseline and blocking requests, so build,
 self-test, process-start, and runtime evidence cannot be confused.
 
-The older bridge starter and framework sidecar smoke remain available as
-separate historical/alternative paths. Their self-tests are not native-host
-runtime evidence.
+The patched target writes core and host manifests with the patch SHA-256,
+binary/module paths, and artifact hashes. It refuses a stock binary/module
+mix. The older bridge starter and framework sidecar smoke remain separate
+historical/alternative paths. Their self-tests are not native-host runtime
+evidence.
 
 ## Claim boundaries
 
@@ -109,7 +120,8 @@ It does not establish:
 The asserted native path has a response-start header hook but no verified
 native response-body data path. It deliberately supplies no response-body data
 to ModSecurity. The optional patch's output/EOS hook is raw HTTP/1.x wire
-output and is not used for response-body inspection. `response_body_buffered`, `phase4`,
+output and is deliberately a no-op for response-body inspection; it is not a
+decoded entity-body filter. `response_body_buffered`, `phase4`,
 `phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
 `late_intervention_log_only`, `late_intervention_abort`, and
 `late_intervention_status_metadata` are therefore `not_implemented` in this

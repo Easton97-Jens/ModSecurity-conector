@@ -2,6 +2,46 @@
 
 **Sprache:** [English](all-connectors-full-lifecycle-plan.md) | Deutsch
 
+## Implementierungsstatus vom 11.07.2026
+
+Dieser Plan behält den darunterstehenden Source-Audit-Stand vor der Implementierung bei und ergänzt
+ihn um die folgende abgegrenzte Implementierungsaktualisierung. Keiner dieser
+Punkte stuft einen Connector zu verifiziertem Full-Lifecycle-, Low-Latency-
+oder Production-Status hoch; frühere Aussagen über fehlende Pfade werden nur
+im hier beschriebenen Umfang ersetzt.
+
+- `ci/resolve-runtime-paths.py` zentralisiert validierte Evidence-, Build-,
+  Run- und Log-Roots je Connector unter `VERIFIED_RUN_ROOT`, mit gemeinsamem
+  Komponenten-Cache `cache-v2/shared`. Das verhindert Root-/Cache-Vererbung
+  zwischen Connectors, ist aber keine Connector-Runtime-Evidence.
+- Apache und NGINX implementieren jetzt metadata-only-P3-Response-Header-
+  Intervention/Event-Pfade. Eine frische Verifikation auf nativen Hosts steht
+  noch aus.
+- Das HAProxy-3.2.21-HTX-Overlay besitzt einen echten nativen Observer-Lauf:
+  P1--P4-Regelpfade werden beobachtet, während der für Clients sichtbare
+  Status `200` bleibt. Der Observer ist absichtlich nicht promoted und
+  behauptet weder Enforcement noch Late Action, First Byte oder No Full
+  Buffer.
+- Envoy besitzt jetzt einen echten gestreamten `ext_proc`-Listener/-Service-
+  Lauf. Er ist Passthrough und nicht promoted, ohne Common-Runtime-Bridge oder
+  Regelauswertung, also keine P1--P4-Evidence.
+- Traefiks Kompatibilitäts-`forwardAuth`-Binary-/Config-/Start-Pfad ist
+  repariert; ein nativer Middleware-Host ist weiterhin weder ausgewählt noch
+  zur Runtime verifiziert.
+- lighttpd baut jetzt einen gepinnten gepatchten Core mit passendem Modul und
+  hat einen P1-Smoke-Lauf. Der Harness verwendet `response_body_mode=none`;
+  P4 wurde nicht ausgeführt und keine Response-Body-bezogene Capability wird
+  hochgestuft.
+
+Kompatibilitätsprofile bleiben von nativer Host-Evidence getrennt und können
+diesen Plan nicht eigenständig abschließen.
+
+Die Source-Audit-Matrizen und Connector-Erkenntnisse unterhalb dieses Updates
+bewahren den historischen Snapshot. Ihre Aussagen über fehlende Pfade dienen
+der Design-Provenance und sind keine aktuellen Aussagen über den HTX-Observer,
+den separaten Envoy-`ext_proc`-Transportpfad oder den gepatchten
+lighttpd-Host; deren begrenzter aktueller Stand steht oben.
+
 ## Technische Zusammenfassung
 
 Dies ist ein Plan aus einem Quellcode-Audit, kein Runtime-Nachweis. Die sechs
@@ -60,10 +100,11 @@ Capability hochgestuft werden darf.
 `UNSUPPORTED` zählt niemals als PASS. Mapper, Self-Tests, Direktiven oder
 direkte Common-Aufrufe sind keine Runtime-Evidence.
 
-## Verbindliche Architekturmatrix
+## Historische Source-Audit-Architekturmatrix
 
 Die Matrix trennt den vorhandenen vom zu bauenden bzw. zu vervollständigenden
-Pfad. Die Werte sind Ist-Stand des Audits und keine Lieferzusage.
+Pfad. Die Werte sind historischer Audit-Stand vor dem Update, keine
+Lieferzusage und keine aktuelle Implementierungsaussage.
 
 | Connector | Aktueller Pfad | Neuer Full-Lifecycle-Pfad | P1 | P2 | P3 | P4 | Kein Full Response Buffer | Safe | Strict | Benötigter Host-Patch |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -74,7 +115,7 @@ Pfad. Die Werte sind Ist-Stand des Audits und keine Lieferzusage.
 | Traefik | Externer HTTP-`forwardAuth`-Service vor dem Upstream. | Native Go-Middleware in reproduzierbarem Custom-Build oder eine nachweislich streamingfähige Alternative. | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` in `forwardAuth`; Ziel `not_implemented` | `unsupported_by_host_model` in `forwardAuth`; Ziel `not_implemented` | `unsupported_by_host_model` im Request-only-Modus; Zielnachweis `not_implemented` | `unsupported_by_host_model` in `forwardAuth` | `unsupported_by_host_model` in `forwardAuth` | Keine Middleware-/`ResponseWriter`-Implementierung; Custom-Hook nur, wenn die getestete öffentliche API Late Action nicht leisten kann. |
 | lighttpd | Natives Modul mit URI-clean- und Response-start-Hook, das Body-Modi ablehnt. | Nativer Request-Body-Pfad und Output-Hook vor Socket-Write. | `implemented_not_asserted` | `not_implemented` | `implemented_not_asserted` | `not_implemented` | `not_implemented` (kein Output-Body-Pfad zu bewerten) | `not_implemented` | `not_implemented` | Der öffentliche Plugin-ABI des gepinnten 1.4.84 besitzt keinen Output-Body-/EOS-Hook; ein versionierter Core-/ABI-Patch über die Write-Pfade ist erforderlich. |
 
-## Gemeinsame Source-Erkenntnisse
+## Historische gemeinsame Source-Erkenntnisse
 
 ### Common-Lifecycle-Vertrag
 
@@ -148,7 +189,7 @@ Millisekunden-Adapterbudget: Common besitzt keinen Host-Timer und keine
 Cancel-Primitive. Erst ein reales Connector-Host-Mapping kann Direktivenparität
 oder eine Timeout-Durchsetzung belegen.
 
-## Connector-Pläne und genaue Blocker
+## Historische Connector-Pläne und genaue Blocker
 
 ### Apache
 
@@ -288,10 +329,10 @@ keinen Output-Body-/Chunk-/EOS-Callback: `handle_response_start` läuft vor dem
 Header-Write, danach schreibt der Core die Response-Queue direkt. Das ist eine
 konkrete Grenze des öffentlichen ABI, keine Annahme über das Modul.
 
-Der Reset-Hook ruft nach einem Header-only-Response jetzt Common
-response-body finish auf, damit der Transaktionsfluss sauber schließen kann.
-Da kein Body-Chunk geliefert wird, ist das keine Evidence für Phase-4-
-Body-Regeln oder einen Output-Hook.
+Der aktuelle Reset-Pfad ruft bei `response_body_mode=none` absichtlich kein
+`finish_response_body` auf; der Patched-Host-Smoke schlägt fehl, falls diese
+Finalisierung erfolgt. Da kein Body-Chunk geliefert wird, ist dies keine
+Evidence für Phase-4-Body-Regeln oder einen Output-Hook.
 
 Plan:
 
@@ -373,7 +414,8 @@ beziehungsweise als Evidence-Capabilities nicht implementiert.
 ## Status der Runtime-Provisionierung
 
 Der Cache-Vertrag ist `implemented_not_asserted` mit Unit-/Contract-Evidence:
-Die vollständige Python-Test-Discovery besteht mit 69 Tests. Ein frischer
+Die aktuelle Python-Test-Discovery des Frameworks besteht mit 54 Tests.
+Superprojekt-Testergebnisse werden separat geführt und sind hier nicht enthalten. Ein frischer
 verwalteter Shared-Component-Lauf hat nach Recovery eines absichtlich
 abgebrochenen Cache-Roots Expat `R_2_8_2` und libmodsecurity aus `v3/master`
 neu gebaut und mit `status=complete` veröffentlicht. Apache, NGINX und HAProxy

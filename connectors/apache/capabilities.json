@@ -66,8 +66,8 @@
       "reason": "The native output-filter path is wired for incremental ingestion and EOS response-body processing, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated."
     },
     "phase4_pre_commit_deny": {
-      "state": "implemented_not_asserted",
-      "reason": "The output-filter intervention path has a denial branch, but no current canonical evidence proves a Phase-4 deny before response commitment with a changed visible client status."
+      "state": "not_implemented",
+      "reason": "The native response-body decision is finalized at EOS after the response-header path. The real host run reaches the safe late log_only path after commitment, so this connector has no deterministic pre-commit Phase-4 decision point and must not claim a visible Phase-4 HTTP status rewrite."
     },
     "late_intervention": {
       "state": "implemented_not_asserted",
