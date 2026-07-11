@@ -3217,7 +3217,7 @@ def connector_plan(
             "module": str(root / "haproxy-spoa-runtime/haproxy-modsecurity-spoa"),
             "config": str(root / "haproxy-modsecurity-binding/paths.env"),
         }
-    return plan
+    return reuse_connector_cache_entry_if_only_commit_changed(plan)
 
 
 def connector_manifest_contract_ready(plan: dict[str, Any]) -> bool:
@@ -3644,6 +3644,129 @@ def connector_cache_entry_complete(plan: dict[str, Any]) -> bool:
         ):
             return False
     return True
+
+
+def cache_identity_is_self_consistent(identity: Any) -> bool:
+    """Return whether a cache identity still hashes to its declared key."""
+    if not isinstance(identity, dict):
+        return False
+    cache_key = identity.get("cache_key")
+    if not isinstance(cache_key, str) or not cache_key:
+        return False
+    if identity.get("cache_schema_version") != CACHE_SCHEMA_VERSION:
+        return False
+    payload = dict(identity)
+    payload.pop("cache_key", None)
+    return stable_hash(payload) == cache_key
+
+
+def connector_cache_identity_equivalent_ignoring_connector_commit(
+    candidate: Any,
+    requested: Any,
+) -> bool:
+    """Compare all connector build inputs except a differing root revision.
+
+    ``connector_commit`` is deliberately a broad provenance input.  A
+    top-level runner-only change should not force a source download and host
+    rebuild when every connector build input below remains byte-for-byte the
+    same.  This compatibility comparison is intentionally narrow: both
+    identities must validate their own keys, both commits must be present and
+    different, and every other field stays part of the equality check.
+    """
+    if not cache_identity_is_self_consistent(candidate) or not cache_identity_is_self_consistent(requested):
+        return False
+    try:
+        candidate_payload = json.loads(json.dumps(candidate, sort_keys=True))
+        requested_payload = json.loads(json.dumps(requested, sort_keys=True))
+    except (TypeError, ValueError):
+        return False
+    candidate_payload.pop("cache_key", None)
+    requested_payload.pop("cache_key", None)
+    candidate_inputs = candidate_payload.get("extra_inputs")
+    requested_inputs = requested_payload.get("extra_inputs")
+    if not isinstance(candidate_inputs, dict) or not isinstance(requested_inputs, dict):
+        return False
+    candidate_commit = candidate_inputs.pop("connector_commit", "")
+    requested_commit = requested_inputs.pop("connector_commit", "")
+    return (
+        isinstance(candidate_commit, str)
+        and bool(candidate_commit)
+        and isinstance(requested_commit, str)
+        and bool(requested_commit)
+        and candidate_commit != requested_commit
+        and candidate_payload == requested_payload
+    )
+
+
+def reuse_connector_cache_entry_if_only_commit_changed(plan: dict[str, Any]) -> dict[str, Any]:
+    """Adopt one complete managed connector entry with matching scoped inputs.
+
+    This is read-only cache discovery.  It never marks, repairs, removes, or
+    trusts an entry solely because its directory exists.  The adopted plan
+    uses the current canonical layout rebased to the candidate root instead
+    of accepting output paths embedded in a cache manifest.
+    """
+    connector = plan.get("connector")
+    cache_root_value = plan.get("cache_root")
+    requested_identity = plan.get("cache_identity")
+    requested_key = plan.get("cache_key")
+    if (
+        not isinstance(connector, str)
+        or not connector
+        or not isinstance(cache_root_value, str)
+        or not cache_root_value
+        or not isinstance(requested_key, str)
+        or not requested_key
+        or not cache_identity_is_self_consistent(requested_identity)
+    ):
+        return plan
+    cache_root = Path(cache_root_value)
+    if not cache_root_marker_valid(cache_root):
+        return plan
+    candidate_parent = cache_root / "builds" / "connectors" / connector
+    try:
+        candidates = sorted(candidate_parent.iterdir(), key=lambda path: path.name)
+    except OSError:
+        return plan
+    requested_inputs = requested_identity.get("extra_inputs")
+    requested_commit = (
+        str(requested_inputs.get("connector_commit", "")) if isinstance(requested_inputs, dict) else ""
+    )
+    for candidate_root in candidates:
+        if candidate_root.is_symlink() or not candidate_root.is_dir():
+            continue
+        try:
+            resolved_candidate, _ = validate_managed_cache_child(candidate_root, cache_root)
+        except RuntimeError:
+            continue
+        if resolved_candidate.parent != candidate_parent.resolve(strict=False):
+            continue
+        manifest = read_json(resolved_candidate / "manifest.json")
+        candidate_identity = manifest.get("cache_identity")
+        candidate_key = manifest.get("cache_key")
+        if (
+            manifest.get("connector") != connector
+            or not isinstance(candidate_key, str)
+            or candidate_key != resolved_candidate.name
+            or not connector_cache_identity_equivalent_ignoring_connector_commit(
+                candidate_identity, requested_identity
+            )
+        ):
+            continue
+        candidate_plan = staged_connector_plan(plan, resolved_candidate)
+        candidate_plan.update(
+            connector_build_id=candidate_key,
+            cache_identity=candidate_identity,
+            cache_key=candidate_key,
+            requested_cache_identity=requested_identity,
+            requested_cache_key=requested_key,
+            requested_connector_commit=requested_commit,
+            reused_from_connector_commit=str(candidate_identity["extra_inputs"]["connector_commit"]),
+            cache_reuse_reason="connector_commit_only",
+        )
+        if connector_cache_entry_complete(candidate_plan):
+            return candidate_plan
+    return plan
 
 
 def rebase_cache_path(path: Path, source_root: Path, destination_root: Path) -> Path:

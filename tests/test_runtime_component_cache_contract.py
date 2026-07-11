@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -149,6 +150,132 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             manifest["status"] = "incomplete"
             components.write_json(Path(plan["manifest"]), manifest)
             self.assertFalse(components.connector_manifest_ready(plan))
+
+    def test_connector_plan_reuses_complete_entry_when_only_root_commit_changes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            connector_root = root / "connector"
+            framework_root = root / "framework"
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            (connector_root / "connectors/nginx").mkdir(parents=True)
+            (connector_root / "common/include").mkdir(parents=True)
+            (connector_root / "common/src").mkdir(parents=True)
+            (framework_root / "ci").mkdir(parents=True)
+            (connector_root / "connectors/nginx/input.c").write_text("int x;\n", encoding="utf-8")
+            (framework_root / "ci/prepare-nginx-build.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            compiler = mock.patch.object(
+                components,
+                "compiler_identity",
+                return_value={"cc": "/usr/bin/cc", "cc_version": "cc test", "cxx": "", "cxx_version": ""},
+            )
+            source_hash = mock.patch.object(components, "hash_input_paths", return_value="source-hash")
+            revisions = mock.patch.object(
+                components,
+                "git_revision",
+                side_effect=lambda path: "current-root" if path == connector_root else "framework-root",
+            )
+            with compiler, source_hash, revisions:
+                requested_plan = components.connector_plan(
+                    connector_root,
+                    framework_root,
+                    cache_root,
+                    {"NGINX_RELEASE_TAG": "v1.31.2"},
+                    "nginx",
+                    {"build_id": "modsecurity-build", "prefix": "/cache/modsecurity"},
+                    {"build_id": "expat-build", "prefix": "/cache/expat"},
+                    [],
+                )
+
+            candidate_identity = json.loads(json.dumps(requested_plan["cache_identity"]))
+            candidate_identity["extra_inputs"]["connector_commit"] = "previous-root"
+            candidate_payload = dict(candidate_identity)
+            candidate_payload.pop("cache_key", None)
+            candidate_identity["cache_key"] = components.stable_hash(candidate_payload)
+            candidate_root = cache_root / "builds/connectors/nginx" / candidate_identity["cache_key"]
+            candidate_plan = components.staged_connector_plan(requested_plan, candidate_root)
+            candidate_plan.update(
+                connector_build_id=candidate_identity["cache_key"],
+                cache_identity=candidate_identity,
+                cache_key=candidate_identity["cache_key"],
+            )
+            components.mark_managed_cache_entry(
+                candidate_root,
+                cache_root,
+                component="connector:nginx",
+                cache_key=candidate_plan["cache_key"],
+            )
+            binary = Path(candidate_plan["output_paths"]["binary"])
+            module = Path(candidate_plan["output_paths"]["module"])
+            config = Path(candidate_plan["output_paths"]["config"])
+            binary.parent.mkdir(parents=True)
+            binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            binary.chmod(0o755)
+            module.parent.mkdir(parents=True)
+            module.write_text("module\n", encoding="utf-8")
+            config.parent.mkdir(parents=True)
+            config.write_text("events {}\n", encoding="utf-8")
+            components.write_connector_manifest(
+                candidate_plan,
+                {"status": "built", "output_paths": candidate_plan["output_paths"]},
+            )
+            components.write_cache_entry_completion(
+                candidate_root,
+                cache_root,
+                component="connector:nginx",
+                cache_key=candidate_plan["cache_key"],
+                cache_identity=candidate_identity,
+            )
+
+            with compiler, source_hash, revisions:
+                reused_plan = components.connector_plan(
+                    connector_root,
+                    framework_root,
+                    cache_root,
+                    {"NGINX_RELEASE_TAG": "v1.31.2"},
+                    "nginx",
+                    {"build_id": "modsecurity-build", "prefix": "/cache/modsecurity"},
+                    {"build_id": "expat-build", "prefix": "/cache/expat"},
+                    [],
+                )
+            self.assertEqual(str(candidate_root), reused_plan["root"])
+            self.assertEqual(candidate_identity["cache_key"], reused_plan["cache_key"])
+            self.assertEqual("previous-root", reused_plan["reused_from_connector_commit"])
+            self.assertEqual("connector_commit_only", reused_plan["cache_reuse_reason"])
+            self.assertTrue(components.connector_cache_entry_complete(reused_plan))
+
+            components.remove_managed_cache_entry_marker(candidate_root, cache_root)
+            with compiler, source_hash, revisions:
+                rejected_plan = components.connector_plan(
+                    connector_root,
+                    framework_root,
+                    cache_root,
+                    {"NGINX_RELEASE_TAG": "v1.31.2"},
+                    "nginx",
+                    {"build_id": "modsecurity-build", "prefix": "/cache/modsecurity"},
+                    {"build_id": "expat-build", "prefix": "/cache/expat"},
+                    [],
+                )
+            self.assertEqual(requested_plan["root"], rejected_plan["root"])
+
+            changed_identity = json.loads(json.dumps(candidate_identity))
+            changed_identity["extra_inputs"]["connector_source_hash"] = "different-source-hash"
+            changed_payload = dict(changed_identity)
+            changed_payload.pop("cache_key", None)
+            changed_identity["cache_key"] = components.stable_hash(changed_payload)
+            self.assertFalse(
+                components.connector_cache_identity_equivalent_ignoring_connector_commit(
+                    changed_identity,
+                    requested_plan["cache_identity"],
+                )
+            )
+            tampered_identity = json.loads(json.dumps(candidate_identity))
+            tampered_identity["cache_key"] = "not-the-derived-key"
+            self.assertFalse(
+                components.connector_cache_identity_equivalent_ignoring_connector_commit(
+                    tampered_identity,
+                    requested_plan["cache_identity"],
+                )
+            )
 
     def test_safe_remove_refuses_root_outside_and_protected_paths(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
