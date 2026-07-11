@@ -37,7 +37,7 @@ runtime_root=$HOST_RUNTIME_ROOT/first-byte-$connector
 # source beneath the connector run root so the canonical collector can verify
 # containment and scrub it after normalization.  The parent canonical runner
 # emits sanitized diagnostics separately after collection.
-log_root=$runtime_root/logs
+log_root=$HOST_RUNTIME_ROOT/$connector-first-byte-logs
 results_output=$RESULTS_DIR/$connector-first-byte-results.jsonl
 mkdir -p "$RESULTS_DIR" "$runtime_root"
 
@@ -50,7 +50,7 @@ FULL_LIFECYCLE_EVIDENCE_OUTPUT="$FULL_LIFECYCLE_EVIDENCE_OUTPUT" \
 NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
 "$CONNECTOR_ROOT/ci/with-runtime-components.sh" env \
     RUN_ONE_CASE=1 \
-    TEST_CASE="$FRAMEWORK_ROOT/tests/cases/no-crs-baseline/allow_without_marker.yaml" \
+    TEST_CASE="$FRAMEWORK_ROOT/tests/cases/no-crs-baseline/full-lifecycle/phase4_first_byte_before_response_end.yaml" \
     CASE_SCOPE=all \
     MSCONNECTOR_SMOKE_STAGE=minimal_runtime_smoke \
     MSCONNECTOR_FULL_LIFECYCLE_SYNC=1 \

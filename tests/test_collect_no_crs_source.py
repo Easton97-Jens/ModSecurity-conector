@@ -615,7 +615,16 @@ class CollectNoCrsSourceTest(unittest.TestCase):
     def test_native_first_byte_log_stays_under_connector_run_root(self) -> None:
         source = (ROOT / "ci/run-native-first-byte.sh").read_text(encoding="utf-8")
         self.assertIn("runtime_root=$HOST_RUNTIME_ROOT/first-byte-$connector", source)
-        self.assertIn("log_root=$runtime_root/logs", source)
+        self.assertIn("log_root=$HOST_RUNTIME_ROOT/$connector-first-byte-logs", source)
+        self.assertIn(
+            'TEST_CASE="$FRAMEWORK_ROOT/tests/cases/no-crs-baseline/full-lifecycle/phase4_first_byte_before_response_end.yaml"',
+            source,
+        )
+        self.assertNotIn(
+            'TEST_CASE="$FRAMEWORK_ROOT/tests/cases/no-crs-baseline/allow_without_marker.yaml"',
+            source,
+        )
+        self.assertNotIn("log_root=$runtime_root/logs", source)
         self.assertNotIn("log_root=$HOST_LOG_ROOT/$connector-first-byte", source)
 
 
