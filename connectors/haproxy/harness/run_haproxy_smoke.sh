@@ -701,10 +701,11 @@ write_haproxy_config() {
         echo "    http-request redirect location %[var(txn.modsec.redirect_url)] code 302 if { var(txn.modsec.action) -m str redirect } { var(txn.modsec.redirect_url) -m found }"
         echo "    http-request silent-drop if { var(txn.modsec.action) -m str drop }"
         echo "    http-request deny status 401 if { var(txn.modsec.status) -m int 401 }"
-        echo "    http-request deny status 403 if { var(txn.modsec.blocked) -m bool }"
         echo "    http-request deny status 406 if { var(txn.modsec.status) -m int 406 }"
         echo "    http-request deny status 429 if { var(txn.modsec.status) -m int 429 }"
         echo "    http-request deny status 503 if { var(txn.modsec.status) -m int 503 }"
+        # Preserve an explicit disruptive status before falling back to 403.
+        echo "    http-request deny status 403 if { var(txn.modsec.blocked) -m bool }"
         if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
             echo "    http-response set-header Last-Modified \"Wed, 21 Oct 2015 07:28:00 GMT\""
             echo "    http-response set-header Content-Type \"text/html; charset=utf-8\""
@@ -714,10 +715,11 @@ write_haproxy_config() {
             echo "    http-response send-spoe-group modsecurity response-check"
             echo "    http-response silent-drop if { var(txn.modsec.action) -m str drop }"
             echo "    http-response deny status 401 if { var(txn.modsec.status) -m int 401 }"
-            echo "    http-response deny status 403 if { var(txn.modsec.blocked) -m bool }"
             echo "    http-response deny status 406 if { var(txn.modsec.status) -m int 406 }"
             echo "    http-response deny status 429 if { var(txn.modsec.status) -m int 429 }"
             echo "    http-response deny status 503 if { var(txn.modsec.status) -m int 503 }"
+            # Preserve an explicit disruptive status before falling back to 403.
+            echo "    http-response deny status 403 if { var(txn.modsec.blocked) -m bool }"
         fi
         echo "    default_backend be_haproxy_smoke_app"
         echo

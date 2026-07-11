@@ -86,6 +86,24 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                 self.assertIn(f"{target}: export MSCONNECTOR_NO_CRS_BASELINE := 1", make_text)
                 self.assertIn("consume-no-crs-selected-cases.sh", harness_text)
 
+    def test_lighttpd_runner_uses_the_checkout_root_and_haproxy_preserves_status(self) -> None:
+        lighttpd_harness = (
+            ROOT / "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn('cd "$SCRIPT_DIR/../../.."', lighttpd_harness)
+
+        haproxy_harness = (
+            ROOT / "connectors/haproxy/harness/run_haproxy_smoke.sh"
+        ).read_text(encoding="utf-8")
+        for scope in ("http-request", "http-response"):
+            status_429 = haproxy_harness.index(
+                f"{scope} deny status 429 if {{ var(txn.modsec.status) -m int 429 }}"
+            )
+            fallback_403 = haproxy_harness.index(
+                f"{scope} deny status 403 if {{ var(txn.modsec.blocked) -m bool }}"
+            )
+            self.assertLess(status_429, fallback_403)
+
 
 if __name__ == "__main__":
     unittest.main()

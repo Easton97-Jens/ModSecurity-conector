@@ -2,7 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH='' cd "$SCRIPT_DIR/../.." && pwd)
+REPO_ROOT=$(CDPATH='' cd "$SCRIPT_DIR/../../.." && pwd)
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 MODULE_PATH=${LIGHTTPD_CONNECTOR_MODULE:-${LIGHTTPD_MODULE_DIR:-$BUILD_ROOT/lighttpd-connector/modules}/mod_msconnector.so}
 SMOKE_PORT=${LIGHTTPD_SMOKE_PORT:-18084}
