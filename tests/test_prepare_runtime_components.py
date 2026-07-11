@@ -24,6 +24,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="haproxy-prepare-") as temporary:
             base = Path(temporary)
             cache = base / "cache"
+            components.ensure_managed_cache_root(cache)
             build = base / "build"
             sources = cache / "sources"
             archives = cache / "archives"
@@ -31,6 +32,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             plan = {
                 "connector": "haproxy",
                 "connector_build_id": "test-build",
+                "cache_key": "test-build",
+                "cache_root": str(cache),
+                "root": str(connector_build),
                 "modsecurity_build_id": "modsecurity-build",
                 "source_hash": "source-hash",
                 "build_flags": "{}",
@@ -45,7 +49,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 stderr="",
             )
             with mock.patch.object(components, "run_build", return_value=completed):
-                return components.prepare_haproxy_runtime(
+                record = components.prepare_haproxy_runtime(
                     {},
                     ROOT,
                     ROOT / "modules/ModSecurity-test-Framework",
@@ -56,6 +60,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     {"status": "built", "build_id": "modsecurity-build"},
                     plan,
                 )
+            self.assertFalse(connector_build.exists())
+            self.assertFalse(any(path.name.startswith(".test-build.tmp-") for path in connector_build.parent.iterdir()))
+            return record
 
     def test_haproxy_build_failure_returning_77_is_execution_failure(self) -> None:
         record = self.prepare_haproxy_with(

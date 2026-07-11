@@ -94,9 +94,11 @@ Durchsetzungsregeln, die `txn.modsec.*`-Variablen lesen.
 `mode`, `fail-mode`, `request-body-limit`, `response-body-limit` und
 `response-body-timeout`.
 
-Der HAProxy-Runtimenachweis umfasst die Requestsphasen 1/2, implementierte Phase 3
-Antwortheader, decision/audit-Protokolle und begrenzter strikter Abbruch der Phase 4
-Evidence. Es gibt keinen Schreiber für synthetische Matrizen.
+Der HAProxy-Runtimenachweis umfasst Request-Phasen 1/2, Response-Header-
+Verdrahtung sowie Decision-/Audit-Protokolle. Das frühere Phase-4-Response-
+Body-Sample ist deaktiviert, weil es `http-response wait-for-body` benötigte;
+es ist keine Evidence für einen latenzarmen Response-Pfad. Es gibt keinen
+Schreiber für synthetische Matrizen.
 
 ## Aufgeschobene und riskante Bereiche
 
@@ -105,8 +107,8 @@ Pfade, hook/filter-Reihenfolge, Transaktionseigentum und request/response
 Das Lebenszyklusverhalten bleibt konnektorspezifisch. Sie dürfen nicht eingezogen werden
 `common/` ohne separaten Design- und Runtimenachweis.
 
-Phase 4 / RESPONSE_BODY bleibt nicht beworben; begrenzte strikte AbbruchEvidence sind
-documented/reported nur als RuntimeEvidence.
+Phase 4 / RESPONSE_BODY ist im gewählten SPOE/SPOP-Pfad `not_implemented`;
+das deaktivierte `wait-for-body`-Sample ist keine Runtime-Evidence.
 
 ## Gemeinsame Metadaten
 

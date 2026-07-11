@@ -197,15 +197,16 @@ Der HAProxy-Connector verwendet einen produktiven SPOA/SPOP-Pfad unter
 - Audit-Log-Plumbing
 - Request-Phasen 1/2
 - implementierte Phase-3-Response-Header-Evidence
-- begrenzte Phase-4-Strict-Abort-Evidence
+- nur Response-Header-Verarbeitung; das frühere Response-Body-Phase-4-Sample ist deaktiviert
 
 HAProxy wird über HAProxy-, SPOE- und SPOA-Agent-Konfigurationsdateien
 konfiguriert, nicht über Apache-/NGINX-artige `modsecurity_*`-Direktiven. Es
 gibt keinen synthetischen Matrix-Writer; generierte HAProxy-Reports verwenden
 Live-Runtime-Zusammenfassungen und den Runtime-Validation-Snapshot.
 
-Phase 4 / RESPONSE_BODY bleibt nicht promoted; begrenzte Strict-Abort-Evidence
-wird nur als Runtime-Evidence dokumentiert und berichtet.
+Phase 4 / RESPONSE_BODY ist im gewählten SPOE/SPOP-Pfad
+`not_implemented`: Das frühere `wait-for-body`-Sample ist deaktiviert und
+keine Runtime-Evidence.
 
 ### Bekannte Unterschiede und zurückgestellte Bereiche
 
@@ -214,7 +215,7 @@ wird nur als Runtime-Evidence dokumentiert und berichtet.
 | Transaction-ID-Mapping | Apache unterstützt statische Strings plus opt-in Apache-String-Expressions über `modsecurity_transaction_id_expr`; NGINX unterstützt Complex Values über `modsecurity_transaction_id`. |
 | Phase-4-Direktiven | Apache und NGINX implementieren begrenzte Phase-4-Controls; vollständiges RESPONSE_BODY-Verhalten bleibt nicht promoted. |
 | HAProxy-Direktivenmodell | HAProxy verwendet HAProxy-Konfiguration, SPOE-Konfiguration und `haproxy-modsecurity-spoa`-Agent-Konfiguration statt `modsecurity_*`-Serverdirektiven. |
-| RESPONSE_BODY-Verhalten | Phase 4 / RESPONSE_BODY bleibt nicht promoted; begrenzte Strict-Abort-Evidence wird nur als Runtime-Evidence dokumentiert/berichtet. |
+| RESPONSE_BODY-Verhalten | Apache-/NGINX-Source-Pfade bleiben evidence-begrenzt; HAProxy Phase 4 ist im gewählten SPOE/SPOP-Pfad `not_implemented`, weil das frühere `wait-for-body`-Sample deaktiviert ist. |
 | Apache-Bucket-/Filter-/Intervention-Pfade | In dieser Common-Metadata-Arbeit bewusst nicht refaktoriert. |
 | Common Layer | Enthält nur connector-neutrale Metadaten und Datenformen; besitzt keine Apache- oder NGINX-Runtime-APIs. |
 | Rule-Load-Stats-Reporting | NGINX berichtet über sein bestehendes Startup-Log; Apache behält Stats als interne Metadaten, bis Anzeigeaggregation und Merge-Semantik explizit designt sind. |
@@ -499,6 +500,6 @@ make check-test-matrix
 Runtime- und Coverage-Evidence darf nicht allein aus generierten Metadaten
 abgeleitet werden. XFAIL-, pending-, future-, connector-gap- und
 runtime-difference-Cases bleiben Evidence-Klassen, bis sie explizit durch
-dokumentierten Runtime-Nachweis promoted werden. Phase 4 / RESPONSE_BODY bleibt
-nicht promoted; begrenzte Strict-Abort-Evidence wird nur als Runtime-Evidence
-dokumentiert/berichtet.
+dokumentierten Runtime-Nachweis promoted werden. Phase 4 / RESPONSE_BODY ist
+im gewählten HAProxy-SPOE/SPOP-Pfad `not_implemented`; das deaktivierte
+`wait-for-body`-Sample ist keine Runtime-Evidence.

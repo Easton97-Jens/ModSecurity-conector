@@ -35,9 +35,9 @@ static ngx_int_t ngx_http_modsecurity_phase4_in_scope(ngx_http_request_t *r);
 static ngx_int_t ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, const char *wanted, const char *actual, const char *reason);
 static ngx_int_t ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf);
 static ngx_int_t ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx);
-static void ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len);
+static ngx_int_t ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len, ngx_int_t in_scope);
 static void ngx_http_modsecurity_common_rule(ngx_pool_t *pool, ngx_str_t *intervention, ngx_str_t *rule_id);
-static const char *ngx_http_modsecurity_phase4_actual_action(msconnector_late_intervention_action action);
+static const char *ngx_http_modsecurity_phase4_actual_action(msconnector_late_intervention_action action, const char *requested_action);
 
 /* XXX: check behaviour on few body filters installed */
 ngx_int_t
@@ -71,16 +71,16 @@ ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_ht
     return NGX_OK;
 }
 
-static void
+static ngx_int_t
 ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx,
-    ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len)
+    ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len, ngx_int_t in_scope)
 {
     size_t limit;
     size_t allowed;
     size_t remaining;
 
     if (len == 0U) {
-        return;
+        return NGX_OK;
     }
 
     limit = mcf ? mcf->common_config.phase4_body_limit : 0U;
@@ -89,9 +89,13 @@ ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ct
     ctx->response_body_seen = 1;
     ctx->response_body_bytes_seen += len;
 
+    if (in_scope == 0) {
+        return NGX_OK;
+    }
+
     if (limit > 0U && ctx->response_body_bytes_inspected >= limit) {
         ctx->response_body_truncated = 1;
-        return;
+        return NGX_OK;
     }
 
     if (limit > 0U) {
@@ -102,13 +106,15 @@ ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ct
     }
 
     if (allowed > 0U) {
-        msc_append_response_body(ctx->modsec_transaction, data, allowed);
+        if (msc_append_response_body(ctx->modsec_transaction, data, allowed) < 0) {
+            return NGX_ERROR;
+        }
         ctx->response_body_bytes_inspected += allowed;
     }
-
     if (allowed < len) {
         ctx->response_body_truncated = 1;
     }
+    return NGX_OK;
 }
 
 ngx_int_t
@@ -231,10 +237,13 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             : 0;
         int ret;
 
-        ngx_http_modsecurity_append_limited_response_body(ctx, mcf, data, len);
+        if (ngx_http_modsecurity_append_limited_response_body(ctx, mcf, data,
+                len, ngx_http_modsecurity_phase4_in_scope(r)) != NGX_OK) {
+            return NGX_ERROR;
+        }
 
-/* XXX: chain->buf->last_buf || chain->buf->last_in_chain */
-        is_request_processed = chain->buf->last_buf;
+        is_request_processed = chain->buf->last_buf ||
+            chain->buf->last_in_chain;
 
         if (!is_request_processed) {
             continue;
@@ -250,7 +259,10 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             ngx_pool_t *old_pool;
 
             old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
-            msc_process_response_body(ctx->modsec_transaction);
+            if (msc_process_response_body(ctx->modsec_transaction) < 0) {
+                ngx_http_modsecurity_pcre_malloc_done(old_pool);
+                return NGX_ERROR;
+            }
             ngx_http_modsecurity_pcre_malloc_done(old_pool);
 
 /* XXX: I don't get how body from modsec being transferred to nginx's buffer.  If so - after adjusting of nginx's
@@ -305,7 +317,7 @@ ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_
         r->header_sent ? 1 : 0,
         r->header_sent ? 1 : 0,
         mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);
-    actual = ngx_http_modsecurity_phase4_actual_action(action);
+    actual = ngx_http_modsecurity_phase4_actual_action(action, wanted);
 
     if (action == MSCONNECTOR_LATE_INTERVENTION_DENY_IF_POSSIBLE) {
         ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, actual,
@@ -330,11 +342,17 @@ ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_
 }
 
 static const char *
-ngx_http_modsecurity_phase4_actual_action(msconnector_late_intervention_action action)
+ngx_http_modsecurity_phase4_actual_action(msconnector_late_intervention_action action,
+    const char *requested_action)
 {
     const char *name = msconnector_late_intervention_action_name(action);
 
-    return ngx_strcmp(name, "deny_if_possible") == 0 ? "deny" : name;
+    if (ngx_strcmp(name, "deny_if_possible") == 0) {
+        return requested_action != NULL &&
+            ngx_strcmp(requested_action, "redirect") == 0
+            ? "redirect" : "deny";
+    }
+    return name;
 }
 
 static ngx_int_t
@@ -362,10 +380,12 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     msconnector_event event;
     char line[4096];
     char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
+    char content_type[256];
     ngx_str_t raw_log;
     ngx_str_t extracted_rule;
     int original_status;
     int json_truncated = 0;
+    size_t content_type_length = 0U;
     size_t line_length;
     ssize_t written;
     ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
@@ -377,6 +397,15 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
 
     original_status = r->err_status != 0 ? (int)r->err_status :
         (r->headers_out.status != 0 ? (int)r->headers_out.status : (int)NGX_HTTP_OK);
+    content_type[0] = '\0';
+    if (r->headers_out.content_type.data != NULL &&
+        r->headers_out.content_type.len > 0U &&
+        r->headers_out.content_type.len < sizeof(content_type)) {
+        content_type_length = r->headers_out.content_type.len;
+        ngx_memcpy(content_type, r->headers_out.content_type.data,
+            content_type_length);
+        content_type[content_type_length] = '\0';
+    }
     rule_id[0] = '\0';
     if (ctx) {
         raw_log = ctx->last_intervention_log;
@@ -414,16 +443,22 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     event.http.http_status = ctx != NULL && ctx->last_intervention_status > 0
         ? (int)ctx->last_intervention_status : NGX_HTTP_FORBIDDEN;
     event.http.original_http_status = original_status;
-    event.http.visible_http_status = strcmp(actual, "deny") == 0
+    event.http.visible_http_status = (strcmp(actual, "deny") == 0 ||
+        strcmp(actual, "redirect") == 0)
         ? event.http.http_status : original_status;
     event.http.transport_result = strcmp(actual, "abort_connection") == 0
         ? "connection_aborted" : (strcmp(actual, "log_only") == 0
             ? "log_only" : "http_status");
     event.flags.late_intervention = ctx != NULL && ctx->response_committed;
-    event.flags.response_started = ctx != NULL && ctx->response_committed;
+    event.body.content_type = content_type;
+    event.body.bytes_seen = ctx != NULL ? ctx->response_body_bytes_seen : 0U;
+    event.body.bytes_inspected = ctx != NULL
+        ? ctx->response_body_bytes_inspected : 0U;
+    event.flags.response_started = r->header_sent ? 1 :
+        (ctx != NULL && ctx->response_body_seen);
     event.flags.response_committed = ctx != NULL && ctx->response_committed;
     event.flags.headers_sent = r->header_sent ? 1 : 0;
-    event.flags.body_started = ctx != NULL && ctx->response_committed;
+    event.flags.body_started = ctx != NULL && ctx->response_body_seen;
     event.flags.body_truncated = ctx != NULL && ctx->response_body_truncated;
     event.flags.connection_aborted = ctx != NULL && ctx->phase4_strict_abort;
 

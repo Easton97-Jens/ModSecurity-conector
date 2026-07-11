@@ -147,7 +147,8 @@ def connector_checks(connector: str, errors: list[str]) -> None:
             "handle_request_reset",
             "config_plugin_values_init",
             "msconnector_runtime_transaction_begin",
-            "msconnector_runtime_transaction_process_response",
+            "msconnector_runtime_transaction_process_response_headers",
+            "msconnector_runtime_transaction_finish_response_body",
             "msconnector_runtime_transaction_finish",
         ):
             require(errors, token in module, f"lighttpd: native module missing {token}")

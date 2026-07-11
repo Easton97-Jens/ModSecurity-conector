@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#include "msconnector/body_policy.h"
 #include "msconnector/decision.h"
 #include "msconnector/error.h"
 #include "msconnector/request.h"
@@ -18,10 +19,25 @@ extern "C" {
  * Connector-neutral, libmodsecurity-backed runtime used by external-service
  * and native-module adapters. Host API types deliberately do not cross this
  * boundary. The runtime owns its engine, rules and configuration strings;
- * request and response objects remain borrowed for a transaction lifetime.
+ * request/response objects and body chunks are borrowed only for their
+ * corresponding call. A transaction retains bounded metadata, never a host
+ * request, response, or body pointer.
  */
 typedef struct msconnector_runtime msconnector_runtime;
 typedef struct msconnector_runtime_transaction msconnector_runtime_transaction;
+
+/*
+ * Body chunks are borrowed from the host.  The runtime never retains a chunk
+ * pointer after append_*_body_chunk() returns.  Counters describe metadata
+ * only and are safe to place in events or result records.
+ */
+typedef struct msconnector_runtime_body_progress {
+    size_t bytes_seen;
+    size_t bytes_inspected;
+    int truncated;
+    int finished;
+    msconnector_body_limit_outcome limit_outcome;
+} msconnector_runtime_body_progress;
 
 int msconnector_runtime_config_check(
     const char *connector_name,
@@ -51,6 +67,13 @@ size_t msconnector_runtime_response_body_limit(const msconnector_runtime *runtim
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *runtime);
 size_t msconnector_runtime_header_count_limit(const msconnector_runtime *runtime);
 
+/* The parsed budget is in milliseconds. A zero value disables it. Common
+ * stores this adapter-facing value but does not own a host timer or a
+ * cancellation primitive, so callers must not treat the getter as proof that
+ * their transport enforces a deadline. */
+size_t msconnector_runtime_late_intervention_timeout_ms(
+    const msconnector_runtime *runtime);
+
 /*
  * Maps a concrete runtime error to the configured HTTP error policy while
  * preserving protocol-specific statuses such as body-limit and timeout
@@ -68,6 +91,60 @@ int msconnector_runtime_transaction_begin(
     msconnector_decision *decision,
     msconnector_error *error);
 
+/*
+ * Explicit low-latency lifecycle operations.  Request/response headers are
+ * processed once.  Body chunks are ingested incrementally and phase 2/4 is
+ * finalized exactly once at end of stream.  libmodsecurity may evaluate body
+ * rules during the finish call rather than on an individual chunk.
+ */
+int msconnector_runtime_transaction_append_request_body_chunk(
+    msconnector_runtime_transaction *transaction,
+    const unsigned char *data,
+    size_t size,
+    msconnector_error *error);
+
+int msconnector_runtime_transaction_finish_request_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_decision *decision,
+    msconnector_error *error);
+
+int msconnector_runtime_transaction_process_response_headers(
+    msconnector_runtime_transaction *transaction,
+    const msconnector_response *response,
+    msconnector_decision *decision,
+    msconnector_error *error);
+
+int msconnector_runtime_transaction_append_response_body_chunk(
+    msconnector_runtime_transaction *transaction,
+    const unsigned char *data,
+    size_t size,
+    msconnector_error *error);
+
+int msconnector_runtime_transaction_finish_response_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_decision *decision,
+    msconnector_error *error);
+
+/*
+ * Hosts call this immediately before or after handing bytes to their next
+ * filter.  It records only commit metadata; it cannot retroactively change a
+ * response and does not retain any host buffer.
+ */
+void msconnector_runtime_transaction_set_response_commit_state(
+    msconnector_runtime_transaction *transaction,
+    int headers_sent,
+    int body_started);
+
+void msconnector_runtime_transaction_request_body_progress(
+    const msconnector_runtime_transaction *transaction,
+    msconnector_runtime_body_progress *progress);
+
+void msconnector_runtime_transaction_response_body_progress(
+    const msconnector_runtime_transaction *transaction,
+    msconnector_runtime_body_progress *progress);
+
+/* Buffered compatibility helper. Prefer the explicit header/chunk/finish API
+ * for full-lifecycle paths. */
 int msconnector_runtime_transaction_process_response(
     msconnector_runtime_transaction *transaction,
     const msconnector_response *response,

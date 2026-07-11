@@ -25,10 +25,12 @@ HTTP client -> HAProxy -> SPOE/SPOP -> haproxy-modsecurity-spoa -> libmodsecurit
 
 - Request phases 1/2: live runtime evidence.
 - Phase 3 response headers: implemented and live evidenced.
-- Phase 4 / RESPONSE_BODY: bounded strict-abort evidence only.
+- Phase 4 / RESPONSE_BODY: `not_implemented` in the selected SPOE/SPOP path.
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+The former bounded strict-abort sample is disabled and retained only as a
+legacy, noncanonical artifact. It must not be used or reported as current
+runtime evidence. The optional HAProxy 3.2.21 HTX observer is nonselected,
+bodyless-request-only, and observer-only after forwarding.
 
 ## Current Evidence
 

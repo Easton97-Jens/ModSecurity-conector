@@ -39,6 +39,7 @@ typedef struct {
     msconnector_response response;
     char host_request_id[96];
     int response_processed;
+    int response_body_finished;
 } handler_ctx;
 
 INIT_FUNC(mod_msconnector_init);
@@ -372,10 +373,9 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
             MSCONNECTOR_ERROR_HOST_API_FAILURE);
     }
 
-    ctx->response_processed = 1;
     msconnector_error_init(&runtime_error);
     msconnector_decision_init(&decision);
-    if (!msconnector_runtime_transaction_process_response(
+    if (!msconnector_runtime_transaction_process_response_headers(
             ctx->transaction,
             &ctx->response,
             &decision,
@@ -389,6 +389,7 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
         return mod_msconnector_error_response(
             r, p->runtime, runtime_error.code);
     }
+    ctx->response_processed = 1;
     return mod_msconnector_apply_decision(r, &decision);
 }
 
@@ -403,6 +404,21 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
     }
     if (ctx->transaction != NULL) {
         msconnector_error_init(&runtime_error);
+        if (ctx->response_processed && !ctx->response_body_finished) {
+            msconnector_decision decision;
+            msconnector_decision_init(&decision);
+            if (!msconnector_runtime_transaction_finish_response_body(
+                    ctx->transaction, &decision, &runtime_error)) {
+                log_error(
+                    r->conf.errh,
+                    __FILE__,
+                    __LINE__,
+                    "msconnector response-body finalization failed: %s",
+                    msconnector_error_code_name(runtime_error.code));
+            }
+            ctx->response_body_finished = 1;
+            msconnector_error_init(&runtime_error);
+        }
         if (!msconnector_runtime_transaction_finish(
                 ctx->transaction,
                 &runtime_error)) {

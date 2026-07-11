@@ -21,7 +21,7 @@ Apache owns server-specific behavior:
 - log transaction hook
 - per-directory configuration and merge
 - intervention mapping
-- bounded Phase 4 response buffering and strict-abort evidence
+- incremental Phase 4 bucket ingestion, EOS finalization, and strict-abort source wiring
 
 These surfaces are not connector-neutral and must remain under
 `connectors/apache/`.
@@ -35,8 +35,10 @@ These surfaces are not connector-neutral and must remain under
 - Generated detail report:
   `reports/testing/generated/apache-runtime-results.generated.md`.
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY remains non-promoted. The output filter forwards each
+current brigade before EOS and has no connector-owned cross-call response
+buffer; safe/strict behavior remains source-only until a real host run proves
+the client-visible transport outcome.
 
 ## Boundaries
 

@@ -96,6 +96,60 @@ phase wrapper around caller-provided backend callbacks. It does not include or
 link libmodsecurity by itself. Actual libmodsecurity bindings remain future
 connector-specific or optional adapter work.
 
+## Incremental body lifecycle
+
+The runtime and engine facade expose an explicit borrowed-buffer lifecycle for
+host adapters that can stream bodies:
+
+```text
+transaction_begin
+process request headers
+append request body chunk* → finish request body (EOS)
+process response headers
+append response body chunk* → finish response body (EOS)
+transaction_finish → transaction_destroy
+```
+
+`msconnector_runtime_transaction_append_request_body_chunk()` and
+`msconnector_runtime_transaction_append_response_body_chunk()` borrow a
+pointer and length only for the duration of the call. Neither Common nor an
+event record retains a body pointer or payload. `finish_*_body()` is the
+single phase boundary at which the backend may call libmodsecurity's
+`process_*_body`; adapters must describe this honestly as incremental
+ingestion with end-of-stream evaluation unless their backend proves something
+stronger.
+
+The buffered `transaction_process_response()` helper remains for request-only
+or compatibility adapters. Full-lifecycle adapters should use the explicit
+header/chunk/EOS calls and record host commit state with
+`msconnector_runtime_transaction_set_response_commit_state()`. Common only
+resolves the neutral late-intervention policy; a connector must still map
+log-only or connection-abort behavior to a real host API before advertising it
+as verified.
+
+Body progress exposes only `bytes_seen`, `bytes_inspected`, `truncated`,
+`finished`, and the canonical metadata-only limit outcome. `bytes_seen` is
+updated for every observed chunk, including a rejected over-limit chunk;
+`bytes_inspected` advances only after Common has handed bounded bytes to the
+engine. `body_limit_action=reject` accepts no bytes from the offending chunk;
+`body_limit_action=process_partial` appends only the remaining limit and sets
+body truncation. The event model can emit the optional, payload-free
+`body_limit_outcome` (`at_limit`, `over_limit`, `process_partial`, or
+`reject`) along with `content_type`, `body_bytes_seen`, and
+`body_bytes_inspected` metadata. These interfaces do not themselves assert
+that any particular connector has a streaming host hook, a no-full-buffer
+guarantee, or a first-byte runtime proof.
+
+The neutral configuration contract carries `request_body_limit`,
+`response_body_limit`, `body_limit_action`, and
+`late_intervention_timeout`. The timeout is a millisecond adapter budget;
+zero disables it. Common parses, validates, merges, and exposes that budget,
+but does not run a host timer or cancel I/O. A connector must implement a real
+host deadline/cancellation path before treating the setting as enforced or
+advertising timeout behavior as verified.
+The runtime's flat configuration format accepts `phase4_event_log` as the
+neutral alias of the existing `event_path` key.
+
 ## Transaction ID policy
 
 The transaction ID resolver checks sources in this order: static config ID,

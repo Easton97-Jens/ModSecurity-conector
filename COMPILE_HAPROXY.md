@@ -23,7 +23,11 @@ This guide is for using the HAProxy SPOE/SPOP ModSecurity path outside this repo
 
 ## Status and Limits
 
-HAProxy itself may be distro-provided or locally built. This repository builds the `haproxy-modsecurity-spoa` process and libmodsecurity binding checks. RESPONSE_BODY remains bounded runtime evidence only.
+HAProxy itself may be distro-provided or locally built. This repository builds
+the `haproxy-modsecurity-spoa` process and libmodsecurity binding checks. The
+selected SPOE/SPOP path supports requests and response headers only;
+RESPONSE_BODY / Phase 4 is `not_implemented`, and the retired sample is not
+runtime evidence.
 
 ## Overview: Three Paths
 

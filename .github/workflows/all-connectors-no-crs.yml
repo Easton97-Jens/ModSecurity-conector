@@ -10,22 +10,70 @@ permissions:
 
 jobs:
   no-crs:
-    name: No-CRS / ${{ matrix.connector }}
+    # A row is a supported current execution target, not a Cartesian claim that
+    # every connector supports every protocol or Phase-4 mode. In particular,
+    # the full-lifecycle profile below is a source-wiring/baseline profile until
+    # its canonical real-host evidence proves the advertised capabilities.
+    name: No-CRS / ${{ matrix.connector }} / ${{ matrix.profile }} / ${{ matrix.protocol }} / ${{ matrix.phase4_mode }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        connector:
-          - apache
-          - nginx
-          - haproxy
-          - envoy
-          - traefik
-          - lighttpd
+        include:
+          # These two native adapters have P1--P4 source wiring, but no job is
+          # allowed to call that wiring verified before the canonical host
+          # artifacts prove it. The smoke harnesses currently load `safe`.
+          - connector: apache
+            integration_mode: native-httpd-module
+            protocol: http1
+            phase4_mode: safe
+            profile: full-lifecycle-low-latency
+            evidence_scope: source-wiring-and-baseline-only
+          - connector: nginx
+            integration_mode: native-nginx-http-module
+            protocol: http1
+            phase4_mode: safe
+            profile: full-lifecycle-low-latency
+            evidence_scope: source-wiring-and-baseline-only
+          # HAProxy's selected SPOE/SPOP path currently stops at response
+          # headers. Envoy and Traefik use pre-upstream authorization paths;
+          # lighttpd has no native body hook. None has a Phase-4 host path.
+          - connector: haproxy
+            integration_mode: spoe-spop-agent
+            protocol: http1
+            phase4_mode: not_applicable
+            profile: header-compatibility
+            evidence_scope: no-response-body-host-path
+          - connector: envoy
+            integration_mode: http-ext-authz-service
+            protocol: http1
+            phase4_mode: not_applicable
+            profile: request-only-compatibility
+            evidence_scope: no-response-host-path
+          - connector: traefik
+            integration_mode: http-forwardauth-service
+            protocol: http1
+            phase4_mode: not_applicable
+            profile: request-only-compatibility
+            evidence_scope: no-response-host-path
+          - connector: lighttpd
+            integration_mode: native-lighttpd-plugin
+            protocol: http1
+            phase4_mode: not_applicable
+            profile: header-compatibility
+            evidence_scope: no-native-body-host-path
+        # HTTP/2 and minimal/strict are intentionally not expanded here: no
+        # current canonical real-host artifact proves those combinations. Add
+        # a row only with its matching host-produced evidence contract.
     env:
       ALLOW_RUNTIME_BUILDS: "1"
       ALLOW_RUNTIME_DOWNLOADS: "1"
+      CI_PROFILE: ${{ matrix.profile }}
+      CI_INTEGRATION_MODE: ${{ matrix.integration_mode }}
+      CI_PROTOCOL: ${{ matrix.protocol }}
+      CI_PHASE4_MODE: ${{ matrix.phase4_mode }}
+      CI_EVIDENCE_SCOPE: ${{ matrix.evidence_scope }}
       NO_CRS_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       PYTHONDONTWRITEBYTECODE: "1"
 
@@ -40,6 +88,86 @@ jobs:
         uses: actions/setup-python@v6.3.0
         with:
           python-version: '3.13'
+
+      - name: Declare selected CI profile and evidence scope
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -eu
+          case "$CI_PROTOCOL" in
+            http1) ;;
+            *) echo "unsupported declared protocol: $CI_PROTOCOL" >&2; exit 2 ;;
+          esac
+          case "$CI_PHASE4_MODE" in
+            safe|not_applicable) ;;
+            *) echo "unsupported declared Phase-4 mode: $CI_PHASE4_MODE" >&2; exit 2 ;;
+          esac
+          {
+            echo "### $CONNECTOR CI profile"
+            echo
+            echo "| Matrix axis | Selected value |"
+            echo "| --- | --- |"
+            echo "| integration_mode | \`$CI_INTEGRATION_MODE\` |"
+            echo "| protocol | \`$CI_PROTOCOL\` |"
+            echo "| phase4_mode | \`$CI_PHASE4_MODE\` |"
+            echo "| profile | \`$CI_PROFILE\` |"
+            echo "| evidence scope | \`$CI_EVIDENCE_SCOPE\` |"
+            echo
+            echo "This job runs the existing canonical No-CRS baseline only. A matrix row does not assert a P1--P4 host path, first-byte behavior, or a late-intervention outcome; those require canonical real-host evidence."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify declared profile against capabilities
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -eu
+          python3 - "$CONNECTOR" "$CI_INTEGRATION_MODE" "$CI_PROTOCOL" "$CI_PHASE4_MODE" <<'PY'
+          import json
+          import sys
+
+          connector, integration_mode, protocol, phase4_mode = sys.argv[1:]
+          path = f"connectors/{connector}/capabilities.json"
+          with open(path, encoding="utf-8") as source:
+              manifest = json.load(source)
+
+          actual_integration_mode = manifest.get("integration_mode")
+          if actual_integration_mode != integration_mode:
+              raise SystemExit(
+                  f"{connector}: CI integration_mode={integration_mode!r} does not match "
+                  f"capability manifest {actual_integration_mode!r}"
+              )
+
+          capabilities = manifest.get("capabilities") or {}
+          phase4_state = (capabilities.get("phase4") or {}).get("state")
+          http1_state = (capabilities.get("http1_content_length") or {}).get("state")
+          if protocol != "http1" or http1_state == "unsupported_by_host_model":
+              raise SystemExit(
+                  f"{connector}: declared protocol {protocol!r} is not a supported current "
+                  f"HTTP/1 baseline target (manifest state: {http1_state!r})"
+              )
+          if phase4_mode == "safe" and phase4_state in {
+              "not_implemented", "unsupported_by_host_model"
+          }:
+              raise SystemExit(
+                  f"{connector}: safe Phase-4 profile requires a wired Phase-4 path; "
+                  f"manifest state is {phase4_state!r}"
+              )
+          if phase4_mode == "not_applicable" and phase4_state not in {
+              "not_implemented", "unsupported_by_host_model"
+          }:
+              raise SystemExit(
+                  f"{connector}: not_applicable Phase-4 profile is stale; "
+                  f"manifest state is {phase4_state!r}"
+              )
+          print(f"ok {connector}: {integration_mode}, {protocol}, {phase4_mode}")
+          PY
+
+      - name: Configure supported NGINX Phase-4 mode
+        if: matrix.connector == 'nginx'
+        run: |
+          set -eu
+          test "$CI_PHASE4_MODE" = safe
+          echo "NGINX_PHASE4_MODE=$CI_PHASE4_MODE" >> "$GITHUB_ENV"
 
       - name: Initialize canonical evidence paths
         run: |
@@ -168,6 +296,7 @@ jobs:
         uses: actions/upload-artifact@v7.0.1
         with:
           name: no-crs-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          # Keep canonical evidence within the requested 10--14 day window.
           retention-days: 10
           if-no-files-found: warn
           path: ${{ env.EVIDENCE_ROOT }}/${{ matrix.connector }}/${{ env.NO_CRS_RUN_ID }}/
@@ -239,6 +368,7 @@ jobs:
         uses: actions/upload-artifact@v7.0.1
         with:
           name: connector-capabilities-${{ github.run_id }}-${{ github.run_attempt }}
+          # Keep canonical evidence within the requested 10--14 day window.
           retention-days: 10
           if-no-files-found: error
           path: |
@@ -262,6 +392,7 @@ jobs:
         uses: actions/upload-artifact@v7.0.1
         with:
           name: all-connectors-no-crs-summary-${{ github.run_id }}-${{ github.run_attempt }}
+          # Keep canonical evidence within the requested 10--14 day window.
           retention-days: 10
           if-no-files-found: error
           path: |

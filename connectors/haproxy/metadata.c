@@ -14,14 +14,13 @@ static const msconnector_haproxy_adapter_metadata haproxy_metadata = {
             MSCONNECTOR_CAPABILITY_REQUEST_HEADERS |
             MSCONNECTOR_CAPABILITY_REQUEST_BODY_BUFFERED |
             MSCONNECTOR_CAPABILITY_RESPONSE_HEADERS |
-            MSCONNECTOR_CAPABILITY_RESPONSE_BODY_BUFFERED |
             MSCONNECTOR_CAPABILITY_AUDIT_LOG_ARTIFACTS |
             MSCONNECTOR_CAPABILITY_ERROR_LOG_ARTIFACTS |
             MSCONNECTOR_CAPABILITY_CUSTOM_TRANSACTION_ID,
         "haproxy",
         "repository-spop-agent",
         "HAProxy",
-        "The real HAProxy/SPOP request path is implemented. Buffered request body, response notifications, and bounded experimental response body paths remain unasserted by the canonical no-CRS baseline."
+        "The selected HAProxy/SPOP path implements requests and optional response headers. The former wait-for-body response sample is disabled; an optional native HTX observer source exists but is not wired into this SPOP path."
     },
     "haproxy",
     "HAProxy",

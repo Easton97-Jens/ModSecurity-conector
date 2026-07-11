@@ -14,7 +14,7 @@
   "host_model_constraints": [
     "HAProxy and the repository-owned SPOP agent are separate processes; host and agent liveness and logs are distinct evidence.",
     "Response phases run only when the HAProxy configuration sends the corresponding response notification to the agent.",
-    "Response-body notification and inspection are bounded and experimental; a mapper or agent code path alone is not runtime verification.",
+    "The selected SPOE/SPOP configuration sends response headers only; the prior wait-for-body response sample is deliberately disabled because it is not a low-latency response stream.",
     "Starter and binding self-tests are not HAProxy host-runtime evidence."
   ],
   "capabilities": {
@@ -39,12 +39,12 @@
       "reason": "An optional HAProxy response-check message maps response headers and the agent invokes Phase 3; canonical host evidence is pending."
     },
     "response_body_buffered": {
-      "state": "implemented_not_asserted",
-      "reason": "The optional response-check message and agent implement bounded experimental response-body inspection; canonical Phase-4 evidence is pending."
+      "state": "not_implemented",
+      "reason": "The selected SPOE/SPOP host configuration deliberately does not send response bodies; the former wait-for-body sample was disabled because it violates the low-latency contract."
     },
     "response_body_streaming": {
       "state": "not_implemented",
-      "reason": "The response path uses one bounded HAProxy response sample and does not implement a streaming transaction protocol."
+      "reason": "The selected SPOE/SPOP configuration has no wired native response-chunk callback or streaming transaction protocol; the optional HTX observer source is nonselected and bodyless-request-only."
     },
     "phase1": {
       "state": "implemented_not_asserted",
@@ -59,12 +59,12 @@
       "reason": "The optional response-check group invokes response-header processing; canonical host evidence is pending."
     },
     "phase4": {
-      "state": "implemented_not_asserted",
-      "reason": "The bounded experimental response-body branch invokes response-body processing; canonical host evidence is pending."
+      "state": "not_implemented",
+      "reason": "No native HAProxy response-body callback is wired into the selected SPOE/SPOP host configuration; the optional HTX observer source is not selected or canonical evidence."
     },
     "phase4_rule_evaluation": {
-      "state": "implemented_not_asserted",
-      "reason": "The bounded SPOA/SPOP response-body branch is present, but no current canonical HAProxy host run proves that Phase-4 rule 1100301 was evaluated."
+      "state": "not_implemented",
+      "reason": "Without a native HAProxy response-body stream, Phase-4 rule evaluation must not be claimed from the disabled response sample."
     },
     "phase4_pre_commit_deny": {
       "state": "not_implemented",
@@ -125,6 +125,78 @@
     "config_remote_rules": {
       "state": "not_implemented",
       "reason": "The production HAProxy/SPOP configuration has no remote-rules option."
+    },
+    "transport_metadata": {
+      "state": "not_implemented",
+      "reason": "SPOP decision messages do not expose client-visible response commitment, stream lifecycle, or transport-outcome metadata."
+    },
+    "request_body_incremental_ingest": {
+      "state": "not_implemented",
+      "reason": "The current SPOP request message carries one bounded req.body sample rather than incrementally ingested request chunks."
+    },
+    "response_body_incremental_ingest": {
+      "state": "not_implemented",
+      "reason": "No native HAProxy response-chunk callback is wired into the selected SPOP path; an optional source-only HTX observer exists but explicitly bypasses body-bearing requests."
+    },
+    "phase4_end_of_stream_evaluation": {
+      "state": "not_implemented",
+      "reason": "The selected host configuration has no response-body stream or end-of-stream signal for Phase-4 completion."
+    },
+    "content_type_scope": {
+      "state": "not_implemented",
+      "reason": "The experimental bounded response-sample branch does not implement a canonical Content-Type scope gate."
+    },
+    "header_limits": {
+      "state": "not_implemented",
+      "reason": "No connector-local HAProxy/SPOP header-limit enforcement contract is implemented."
+    },
+    "request_body_limits": {
+      "state": "configured_not_exercised",
+      "reason": "The SPOP request-body sample is bounded by configuration, but no canonical host limit case has exercised its behavior."
+    },
+    "response_body_limits": {
+      "state": "not_implemented",
+      "reason": "No selected HAProxy response-body path exists on which to enforce a response-body limit."
+    },
+    "no_full_response_buffering": {
+      "state": "not_implemented",
+      "reason": "No native HAProxy response-body path exists yet to prove the required no-full-response-buffering contract."
+    },
+    "first_byte_before_response_end": {
+      "state": "not_implemented",
+      "reason": "No native HAProxy response-body path exists yet to observe a client first byte before upstream end of stream."
+    },
+    "http1_content_length": {
+      "state": "configured_not_exercised",
+      "reason": "HAProxy can proxy HTTP/1.1 responses, but no canonical SPOP host transport case covers Content-Length handling."
+    },
+    "http1_chunked": {
+      "state": "configured_not_exercised",
+      "reason": "HAProxy can proxy chunked HTTP/1.1 responses, but no canonical SPOP host transport case covers them."
+    },
+    "keep_alive": {
+      "state": "configured_not_exercised",
+      "reason": "No canonical sequential-request keep-alive run is attached to the HAProxy/SPOP path."
+    },
+    "parallel_requests": {
+      "state": "not_implemented",
+      "reason": "The HAProxy/SPOP full-lifecycle catalog has no parallel-request evidence path."
+    },
+    "http2": {
+      "state": "configured_not_exercised",
+      "reason": "HAProxy HTTP/2 transport behavior is not exercised by a canonical SPOP full-lifecycle case."
+    },
+    "client_abort": {
+      "state": "not_implemented",
+      "reason": "No HAProxy/SPOP client-abort lifecycle case or host-observed outcome is implemented."
+    },
+    "upstream_abort": {
+      "state": "not_implemented",
+      "reason": "No HAProxy/SPOP upstream-abort lifecycle case or host-observed outcome is implemented."
+    },
+    "response_body_decompression": {
+      "state": "not_implemented",
+      "reason": "The selected SPOE/SPOP configuration has no response-body decompression contract."
     }
   },
   "evidence_stages": {

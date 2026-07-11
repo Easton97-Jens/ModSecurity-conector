@@ -15,7 +15,7 @@ Status: current runtime evidence
 | Phase 3 response headers | implemented, live evidenced | response SPOE group and decision logs |
 | Decision log | implemented | `decision.jsonl` |
 | Audit-log plumbing | implemented | `audit.log` paths and live artifacts |
-| Phase 4 / RESPONSE_BODY | bounded strict-abort evidence only | phase4 HAProxy example and runtime evidence |
+| Phase 4 / RESPONSE_BODY | `not_implemented` in selected SPOP | former strict-abort sample is disabled and noncanonical |
 | Synthetic matrix writer | not used | generated reports consume runtime summaries and snapshots |
 
 ## Current Counts
@@ -32,11 +32,11 @@ runtime that loads libmodsecurity and returns HAProxy transaction variables.
 
 ## Remaining Findings
 
-- Full-body RESPONSE_BODY support is not proven.
+- RESPONSE_BODY is `not_implemented` in the selected SPOP path.
 - Multi-worker, long-running cache pressure, and packaging remain production
   hardening tasks.
 - Dynamic disruptive status mapping beyond the current HAProxy rules remains
   limited.
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+The former `wait-for-body` strict-abort sample is disabled, legacy, and
+noncanonical; it must not be reported as current runtime evidence.

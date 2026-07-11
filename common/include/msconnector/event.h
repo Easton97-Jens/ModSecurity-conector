@@ -108,6 +108,21 @@ typedef struct msconnector_event_flags {
 } msconnector_event_flags;
 
 /*
+ * Body observations are bounded, payload-free metadata.  ``content_type`` is
+ * borrowed and must be a header value, never a body-derived string.  The
+ * counters describe bytes observed by the host and bytes supplied to the
+ * engine; they do not retain body memory.
+ */
+typedef struct msconnector_event_body {
+    const char *content_type;
+    /* Optional canonical limit result (`at_limit`, `over_limit`,
+     * `process_partial`, or `reject`); never body data. */
+    const char *limit_outcome;
+    uint64_t bytes_seen;
+    uint64_t bytes_inspected;
+} msconnector_event_body;
+
+/*
  * Connector-neutral event model for metadata-only log records.
  *
  * Pointer fields in nested structures are borrowed. The caller owns their
@@ -120,6 +135,7 @@ typedef struct msconnector_event {
     msconnector_event_http http;
     msconnector_event_request request;
     msconnector_event_flags flags;
+    msconnector_event_body body;
     msconnector_event_integrity integrity;
 } msconnector_event;
 

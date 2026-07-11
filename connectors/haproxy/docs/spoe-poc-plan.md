@@ -25,5 +25,6 @@ and production hardening.
 - Keep generated root summaries connector-neutral and row-level HAProxy detail
   in generated HAProxy detail reports.
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY is `not_implemented` in the selected SPOE/SPOP path.
+The former `wait-for-body` strict-abort sample is disabled, legacy, and
+noncanonical; it is not current runtime evidence.

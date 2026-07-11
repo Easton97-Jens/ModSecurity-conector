@@ -49,17 +49,21 @@ Evidence is recorded in:
 - A build self-test alone is not runtime verification.
 - There is no synthetic matrix writer.
 
-Phase 4 / RESPONSE_BODY remains non-promoted. The bounded branch is not proof
-of a real host-side strict abort.
+Phase 4 / RESPONSE_BODY remains non-promoted. The old bounded sample branch
+is disabled because it required `http-response wait-for-body`; it is not a
+real host-side response stream or strict-abort proof.
 
 ## Canonical Phase-4 validation
 
-The bounded SPOA/SPOP response-body branch, `phase4`, and
-`phase4_rule_evaluation` are `implemented_not_asserted` source paths. The
-current runner has no host-observed client status or commitment timing and no
-post-commit response point. Therefore pre-commit deny, all late-intervention
-actions, and semantic status metadata are `not_implemented`, not pending PASS
-assertions.
+The selected SPOA/SPOP configuration has no response-body path: the former
+bounded branch is disabled. An optional HAProxy 3.2.21 HTX observer source
+exists, but it is nonselected, bodyless-request-only, and observer-only after
+forwarding; it is not a canonical SPOP response path.
+`response_body_buffered`, `phase4`, and `phase4_rule_evaluation` are
+`not_implemented`. The current runner has no host-observed client status or
+commitment timing and no post-commit response point. Therefore pre-commit
+deny, all late-intervention actions, and semantic status metadata are
+`not_implemented`, not pending PASS assertions.
 
 | Case | Required evidence | Excluded substitute |
 | --- | --- | --- |

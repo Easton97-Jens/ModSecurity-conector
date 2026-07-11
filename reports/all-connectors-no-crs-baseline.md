@@ -42,7 +42,7 @@ as a visible HTTP `403`.
 |---|---|---|---|---|
 | Apache | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
 | NGINX | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
-| HAProxy | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` |
+| HAProxy | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
 | Envoy | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
 | Traefik | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
 | lighttpd | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
@@ -58,9 +58,10 @@ as a visible HTTP `403`.
 
 `implemented_not_asserted` makes a capability eligible for capability-driven
 case selection; it does not make it PASS. With no current run, Apache, NGINX,
-and HAProxy have no Phase-4 PASS result in this snapshot. HAProxy retains only
-the source-level response-body/Phase-4/rule-observation facets; its pre-commit,
-late-intervention, and semantic status-metadata cases are `NOT_EXECUTED`
+and HAProxy have no Phase-4 PASS result in this snapshot. HAProxy's selected
+SPOP path has no response-body/Phase-4/rule-observation facets. Its optional
+HTX observer source is nonselected, bodyless-request-only, and does not promote
+the capability table; the Phase-4 and semantic cases are `NOT_EXECUTED`
 because the runner has no host-observed client outcome, commitment timing, or
 post-commit point. Envoy and Traefik must report response-phase cases as
 `UNSUPPORTED`: their selected `ext_authz` and `forwardAuth` integrations execute

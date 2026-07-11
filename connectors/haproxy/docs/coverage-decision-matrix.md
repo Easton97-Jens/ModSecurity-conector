@@ -25,7 +25,7 @@ not promoted into the default smoke summary.
 | Phase 3 response headers | implemented, historically evidenced | response SPOE group and decision logs |
 | Audit/log | historically evidenced | audit-log plumbing and case artifacts |
 | CRS SQLi anomaly block | historically evidenced | with-CRS runtime summary |
-| Phase 4 / RESPONSE_BODY | `implemented_not_asserted` | `wait-for-body`, response-body limits, and decision logs are not canonical facet evidence |
+| Phase 4 / RESPONSE_BODY | `not_implemented` | the former `wait-for-body` sample is disabled; the selected SPOP path has no wired native response-chunk route |
 | Full-body RESPONSE_BODY | not promoted | requires separate proof |
 
 ## Promotion Rules
@@ -38,21 +38,24 @@ not promoted into the default smoke summary.
 - Root summaries remain connector-neutral.
 - There is no synthetic matrix writer.
 
-Phase 4 / RESPONSE_BODY remains non-promoted. The bounded branch is not proof
-of a real host-side strict abort.
+Phase 4 / RESPONSE_BODY remains non-promoted. The former bounded sample is
+disabled because it used `wait-for-body`, not a real host-side response stream.
 
 ## Canonical Phase-4 decision
 
-The bounded SPOA/SPOP response branch is a source-level capability only. It
-does not prove response timing or transport behavior. Only response-body
-availability, `phase4`, and `phase4_rule_evaluation` remain
-`implemented_not_asserted`; the semantic enforcement and late-intervention
-facets are `not_implemented`.
+The former bounded SPOA/SPOP response branch is disabled because it required
+`wait-for-body`. The selected host path has no wired native response-body
+callback, so response-body availability, `phase4`, and
+`phase4_rule_evaluation` are `not_implemented`; the semantic enforcement and
+late-intervention facets are also `not_implemented`. The optional HAProxy
+3.2.21 HTX observer source is a separate, bodyless-request-only overlay. It
+uses borrowed chunks/EOS but is not configured by this SPOP path and does not
+promote these states.
 
 | Facet | Declared state | Coverage decision |
 | --- | --- | --- |
-| `response_body_buffered` and `phase4` | `implemented_not_asserted` | require a joined HAProxy/agent host run |
-| `phase4_rule_evaluation` | `implemented_not_asserted` | require observed rule `1100301`, independent of a 403 |
+| `response_body_buffered` and `phase4` | `not_implemented` | wire a complete native HAProxy response-chunk transaction into the selected path; do not use `wait-for-body` |
+| `phase4_rule_evaluation` | `not_implemented` | requires a real selected end-of-stream path and observed rule `1100301` |
 | `phase4_pre_commit_deny` | `not_implemented` | current fields are policy-derived; no host runner captures visible client status and commitment timing |
 | `late_intervention`, `late_intervention_log_only`, and `late_intervention_abort` | `not_implemented` | no post-commit HAProxy host point or safe/strict late action exists |
 | `late_intervention_status_metadata` | `not_implemented` | no host-observed original/visible status plus timing exists; policy-derived values are insufficient |

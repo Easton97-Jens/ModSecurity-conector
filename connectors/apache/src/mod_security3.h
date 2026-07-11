@@ -54,9 +54,13 @@ typedef struct
 {
     request_rec *r;
     Transaction *t;
-    apr_bucket_brigade *response_brigade;
+    apr_size_t request_body_bytes_seen;
+    apr_size_t request_body_bytes_inspected;
     apr_size_t response_body_bytes_seen;
     apr_size_t response_body_bytes_inspected;
+    int request_body_truncated;
+    int request_body_processed;
+    int request_body_intervention_sent;
     int response_headers_seen;
     int response_body_seen;
     int response_body_truncated;
@@ -92,6 +96,7 @@ extern const command_rec module_directives[];
 
 
 int process_intervention (Transaction *t, request_rec *r);
+int msc_finalize_request_body(msc_t *msr, request_rec *r);
 
 int msc_apache_init(apr_pool_t *pool);
 int msc_apache_cleanup();

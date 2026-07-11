@@ -133,6 +133,78 @@
     "config_remote_rules": {
       "state": "implemented_not_asserted",
       "reason": "Common Runtime exposes remote rule key and URL configuration, but the no-CRS baseline does not exercise external networking."
+    },
+    "transport_metadata": {
+      "state": "not_implemented",
+      "reason": "The pre-upstream forwardAuth service does not observe client-visible upstream-response commitment or transport outcomes."
+    },
+    "request_body_incremental_ingest": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected forwardAuth path disables request bodies, and Traefik forwardBody is buffered rather than incremental when enabled."
+    },
+    "response_body_incremental_ingest": {
+      "state": "unsupported_by_host_model",
+      "reason": "The pre-upstream forwardAuth service never receives an upstream response-body stream."
+    },
+    "phase4_end_of_stream_evaluation": {
+      "state": "unsupported_by_host_model",
+      "reason": "forwardAuth never receives the later upstream response stream or its end-of-stream event."
+    },
+    "content_type_scope": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected forwardAuth path does not receive an upstream response Content-Type or response body to scope."
+    },
+    "header_limits": {
+      "state": "not_implemented",
+      "reason": "Forwarded request headers have no connector-local canonical header-limit enforcement contract."
+    },
+    "request_body_limits": {
+      "state": "not_implemented",
+      "reason": "The checked-in forwardAuth middleware disables request-body forwarding and defines no active request-body limit behavior."
+    },
+    "response_body_limits": {
+      "state": "unsupported_by_host_model",
+      "reason": "forwardAuth does not receive an upstream response body on which to enforce a response-body limit."
+    },
+    "no_full_response_buffering": {
+      "state": "unsupported_by_host_model",
+      "reason": "The request-only forwardAuth host model has no upstream response stream for this property to describe."
+    },
+    "first_byte_before_response_end": {
+      "state": "unsupported_by_host_model",
+      "reason": "The request-only forwardAuth service cannot observe a Traefik client first byte or upstream response end."
+    },
+    "http1_content_length": {
+      "state": "configured_not_exercised",
+      "reason": "Traefik can proxy HTTP/1.1 responses, but no canonical forwardAuth transport case covers Content-Length handling."
+    },
+    "http1_chunked": {
+      "state": "configured_not_exercised",
+      "reason": "Traefik can proxy chunked HTTP/1.1 responses, but no canonical forwardAuth transport case covers them."
+    },
+    "keep_alive": {
+      "state": "configured_not_exercised",
+      "reason": "No canonical sequential-request keep-alive run is attached to the Traefik forwardAuth path."
+    },
+    "parallel_requests": {
+      "state": "not_implemented",
+      "reason": "The Traefik forwardAuth full-lifecycle catalog has no parallel-request evidence path."
+    },
+    "http2": {
+      "state": "configured_not_exercised",
+      "reason": "Traefik HTTP/2 transport behavior is not exercised by a canonical forwardAuth full-lifecycle case."
+    },
+    "client_abort": {
+      "state": "unsupported_by_host_model",
+      "reason": "The external authorization service cannot observe or directly control a Traefik client-abort lifecycle."
+    },
+    "upstream_abort": {
+      "state": "unsupported_by_host_model",
+      "reason": "The pre-upstream authorization service cannot observe or control an upstream response-abort lifecycle."
+    },
+    "response_body_decompression": {
+      "state": "unsupported_by_host_model",
+      "reason": "forwardAuth does not receive an upstream response body to decompress."
     }
   },
   "evidence_stages": {

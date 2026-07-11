@@ -15,7 +15,7 @@ Status: aktuelle Runtime-Nachweise
 | Phase 3 response headers | implemented, live evidenced | response SPOE group and decision logs |
 | Decision log | implemented | `decision.jsonl` |
 | Audit-log plumbing | implemented | `audit.log` paths and live artifacts |
-| Phase 4 / RESPONSE_BODY | bounded strict-abort evidence only | phase4 HAProxy example and runtime evidence |
+| Phase 4 / RESPONSE_BODY | `not_implemented` im gewählten SPOP | früheres Strict-Abort-Sample ist deaktiviert und nicht kanonisch |
 | Synthetic matrix writer | not used | generated reports consume runtime summaries and snapshots |
 
 ## Aktuelle Zählungen
@@ -32,11 +32,12 @@ Laufzeit, die libmodsecurity lädt und HAProxy-Transaktionsvariablen zurückgibt
 
 ## Verbleibende Erkenntnisse
 
-- Ganzkörper-RESPONSE_BODY-Unterstützung ist nicht nachgewiesen.
+- RESPONSE_BODY ist im gewählten SPOP-Pfad `not_implemented`.
 - Multi-Worker, Langzeit-Cache-Druck und Paketierung bleiben in Produktion
   Härteaufgaben.
 - Die dynamische Statuszuordnung für Störungen, die über die aktuellen HAProxy-Regeln hinausgeht, bleibt bestehen
   begrenzt.
 
-Phase 4 / RESPONSE_BODY bleibt nicht promoted; begrenzte strikte Abbruchbeweise sind
-documented/reported nur als Laufzeitbeweis.
+Das frühere `wait-for-body`-Strict-Abort-Sample ist deaktiviert, historisch
+und nicht kanonisch; es darf nicht als aktueller Laufzeitnachweis berichtet
+werden.

@@ -807,7 +807,7 @@ check-no-crs-source-normalization:
 		tests.test_prepare_runtime_components \
 		tests.test_runtime_component_cache_identity
 
-.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-remaining-connectors-common-adoption check-envoy-common-adoption check-traefik-common-adoption check-lighttpd-common-adoption check-remaining-connectors-host-integration check-remaining-connectors-build-wiring check-remaining-connectors-start-wiring check-remaining-connectors-claim-policy check-remaining-connectors-c-standard-wiring check-remaining-connectors-c-standards check-remaining-connectors-c17 check-remaining-connectors-c17-lint check-remaining-connectors-c23 check-remaining-connectors-future-c check-block-status-generator build-envoy-connector check-envoy-config start-smoke-envoy runtime-smoke-envoy build-traefik-connector check-traefik-config start-smoke-traefik runtime-smoke-traefik build-lighttpd-connector build-lighttpd-bridge self-test-lighttpd-bridge check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd build-remaining-connectors start-smoke-remaining-connectors runtime-smoke-remaining-connectors readiness-remaining-connectors
+.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-haproxy-htx-overlay check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-remaining-connectors-common-adoption check-envoy-common-adoption check-traefik-common-adoption check-lighttpd-common-adoption check-remaining-connectors-host-integration check-remaining-connectors-build-wiring check-remaining-connectors-start-wiring check-remaining-connectors-claim-policy check-remaining-connectors-c-standard-wiring check-remaining-connectors-c-standards check-remaining-connectors-c17 check-remaining-connectors-c17-lint check-remaining-connectors-c23 check-remaining-connectors-future-c check-block-status-generator build-envoy-connector check-envoy-config start-smoke-envoy runtime-smoke-envoy build-traefik-connector check-traefik-config start-smoke-traefik runtime-smoke-traefik build-lighttpd-connector build-lighttpd-bridge self-test-lighttpd-bridge check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd build-remaining-connectors start-smoke-remaining-connectors runtime-smoke-remaining-connectors readiness-remaining-connectors
 
 build-envoy-connector:
 	sh ci/run-remaining-connector-target.sh envoy build-envoy-connector
@@ -968,6 +968,9 @@ check-haproxy-c-standard-wiring:
 check-haproxy-c-standards:
 	sh ci/check-haproxy-c-standards.sh
 
+check-haproxy-htx-overlay:
+	$(MAKE) -C connectors/haproxy check-htx-overlay
+
 check-haproxy-c17:
 	HAPROXY_C_STD_PROFILE=c17 sh ci/check-haproxy-c-standards.sh
 
@@ -1039,6 +1042,7 @@ lint: check-framework
 	$(MAKE) check-haproxy-common-adoption
 	$(MAKE) check-haproxy-c-standard-wiring
 	$(MAKE) check-haproxy-c17-lint
+	$(MAKE) check-haproxy-htx-overlay
 	$(MAKE) check-remaining-connectors-common-adoption
 	$(MAKE) check-remaining-connectors-host-integration
 	$(MAKE) check-remaining-connectors-build-wiring

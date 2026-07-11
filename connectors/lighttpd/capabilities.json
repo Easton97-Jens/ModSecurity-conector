@@ -124,6 +124,78 @@
     "config_remote_rules": {
       "state": "implemented_not_asserted",
       "reason": "The native plugin uses Common Runtime remote rule configuration, but the no-CRS baseline does not exercise external networking."
+    },
+    "transport_metadata": {
+      "state": "implemented_not_asserted",
+      "reason": "The native mapper supplies host endpoint and response-status metadata, but a canonical transport run is pending."
+    },
+    "request_body_incremental_ingest": {
+      "state": "not_implemented",
+      "reason": "The native module explicitly disables request-body modes until a safe lighttpd request-body hook exists."
+    },
+    "response_body_incremental_ingest": {
+      "state": "not_implemented",
+      "reason": "The native module explicitly disables response-body modes until a safe lighttpd output hook exists."
+    },
+    "phase4_end_of_stream_evaluation": {
+      "state": "not_implemented",
+      "reason": "Without a native response-body hook there is no Phase-4 end-of-stream evaluation path."
+    },
+    "content_type_scope": {
+      "state": "not_implemented",
+      "reason": "Content-Type scoping for response-body inspection cannot run while the native response-body path is disabled."
+    },
+    "header_limits": {
+      "state": "implemented_not_asserted",
+      "reason": "The native request and response mappers apply configured header count and total-size limits, but real-host limit evidence is pending."
+    },
+    "request_body_limits": {
+      "state": "not_implemented",
+      "reason": "Request bodies are disabled in the native module, so no request-body limit outcome can be enforced."
+    },
+    "response_body_limits": {
+      "state": "not_implemented",
+      "reason": "Response bodies are disabled in the native module, so no response-body limit outcome can be enforced."
+    },
+    "no_full_response_buffering": {
+      "state": "not_implemented",
+      "reason": "The module has no response-body path; it must not claim a streaming no-buffer proof before an output hook exists."
+    },
+    "first_byte_before_response_end": {
+      "state": "not_implemented",
+      "reason": "No native response-body pass-through path exists from which to demonstrate first-byte delivery before end of stream."
+    },
+    "http1_content_length": {
+      "state": "configured_not_exercised",
+      "reason": "The native plugin can load in a lighttpd HTTP/1.1 host, but the canonical Content-Length transport case has not run."
+    },
+    "http1_chunked": {
+      "state": "configured_not_exercised",
+      "reason": "The native plugin can load in a lighttpd HTTP/1.1 host, but no canonical chunked transport evidence is attached."
+    },
+    "keep_alive": {
+      "state": "configured_not_exercised",
+      "reason": "No canonical sequential-request keep-alive run is attached to the native plugin."
+    },
+    "parallel_requests": {
+      "state": "not_implemented",
+      "reason": "The canonical parallel full-lifecycle isolation evidence path is not implemented for lighttpd."
+    },
+    "http2": {
+      "state": "unsupported_by_host_model",
+      "reason": "The pinned native lighttpd integration has no asserted HTTP/2 full-lifecycle transport path."
+    },
+    "client_abort": {
+      "state": "not_implemented",
+      "reason": "No native client-abort cleanup case records canonical transport metadata."
+    },
+    "upstream_abort": {
+      "state": "not_implemented",
+      "reason": "No native upstream-abort cleanup case records canonical transport metadata."
+    },
+    "response_body_decompression": {
+      "state": "not_implemented",
+      "reason": "The native plugin has no response-body decompression contract."
     }
   },
   "evidence_stages": {

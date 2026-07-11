@@ -113,6 +113,10 @@ typedef struct fake_backend_state {
     int new_transaction_calls;
     int request_headers_calls;
     int response_body_calls;
+    int request_body_append_calls;
+    int request_body_finish_calls;
+    int response_body_append_calls;
+    int response_body_finish_calls;
     int logging_calls;
     int fail_next;
 } fake_backend_state;
@@ -205,6 +209,44 @@ static int fake_process_response_body(void *userdata, void *transaction, const m
     (void)error;
     ++state->response_body_calls;
     if (decision != 0) { msconnector_decision_set_connection_abort(decision, "900", "phase4"); }
+    return 1;
+}
+
+static int fake_append_request_body(void *userdata, void *transaction, const unsigned char *data, size_t size, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)transaction;
+    (void)data;
+    (void)size;
+    (void)error;
+    ++state->request_body_append_calls;
+    return 1;
+}
+
+static int fake_finish_request_body(void *userdata, void *transaction, msconnector_decision *decision, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)transaction;
+    (void)error;
+    ++state->request_body_finish_calls;
+    if (decision != 0) { msconnector_decision_set_allow(decision); }
+    return 1;
+}
+
+static int fake_append_response_body(void *userdata, void *transaction, const unsigned char *data, size_t size, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)transaction;
+    (void)data;
+    (void)size;
+    (void)error;
+    ++state->response_body_append_calls;
+    return 1;
+}
+
+static int fake_finish_response_body(void *userdata, void *transaction, msconnector_decision *decision, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)transaction;
+    (void)error;
+    ++state->response_body_finish_calls;
+    if (decision != 0) { msconnector_decision_set_allow(decision); }
     return 1;
 }
 
@@ -542,10 +584,21 @@ int main(void) {
         msconnector_config_init(&parent_config);
         msconnector_config_init(&child_config);
         parent_config.enable = MSCONNECTOR_BOOL_OFF;
+        parent_config.request_body_limit = 32U;
+        parent_config.response_body_limit = 64U;
+        parent_config.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL;
+        parent_config.late_intervention_timeout_ms = 250U;
         child_config.enable = MSCONNECTOR_BOOL_ON;
+        child_config.request_body_limit = 48U;
+        child_config.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
+        child_config.late_intervention_timeout_ms = 0U;
         assert(msconnector_config_merge(&merged_config, &parent_config, &child_config));
         assert(merged_config.enable == MSCONNECTOR_BOOL_ON);
         assert(merged_config.default_block_status == MSCONNECTOR_DEFAULT_BLOCK_STATUS);
+        assert(merged_config.request_body_limit == 48U);
+        assert(merged_config.response_body_limit == 64U);
+        assert(merged_config.body_limit_action == MSCONNECTOR_BODY_LIMIT_ACTION_REJECT);
+        assert(merged_config.late_intervention_timeout_ms == 0U);
         assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
 
         merged_config.default_block_status = 403;
@@ -577,6 +630,9 @@ int main(void) {
         merged_config.unsupported_status = 302;
         assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
         merged_config.unsupported_status = 501;
+        merged_config.body_limit_action = (msconnector_body_limit_action)42;
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
         merged_config.rules_remote_key = "";
         merged_config.rules_remote_url = "";
         assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
@@ -621,6 +677,8 @@ int main(void) {
         assert(merged_config.transaction_id_expr == 0);
     }
     assert(msconnector_directive_spec_find(MSCONNECTOR_DIRECTIVE_MODSECURITY) != 0);
+    assert(msconnector_directive_spec_find(MSCONNECTOR_DIRECTIVE_BODY_LIMIT_ACTION) != 0);
+    assert(msconnector_directive_spec_find(MSCONNECTOR_DIRECTIVE_LATE_INTERVENTION_TIMEOUT) != 0);
     assert(msconnector_directive_spec_count() > 0);
     assert(msconnector_directive_adapter_count() > 0);
     assert(msconnector_directive_adapter_find(MSCONNECTOR_DIRECTIVE_MODSECURITY) != 0);
@@ -675,9 +733,34 @@ int main(void) {
     }
     {
         msconnector_body_policy policy;
+        msconnector_body_limit_plan plan;
+        msconnector_body_limit_action action;
         msconnector_body_policy_init(&policy);
         assert(strcmp(msconnector_body_mode_name(MSCONNECTOR_BODY_MODE_BUFFERED), "buffered") == 0);
         assert(msconnector_body_mode_is_supported(policy.request_body_mode));
+        assert(policy.body_limit_action == MSCONNECTOR_BODY_LIMIT_ACTION_REJECT);
+        assert(msconnector_body_limit_action_parse("Reject", &action));
+        assert(action == MSCONNECTOR_BODY_LIMIT_ACTION_REJECT);
+        assert(msconnector_body_limit_action_parse("ProcessPartial", &action));
+        assert(action == MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL);
+        assert(!msconnector_body_limit_action_parse("discard", &action));
+        assert(msconnector_body_limit_plan_chunk(0U, 0U, 4U,
+            MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, 4U, &plan));
+        assert(plan.bytes_seen == 4U && plan.append_size == 4U);
+        assert(!plan.truncated);
+        assert(plan.outcome == MSCONNECTOR_BODY_LIMIT_OUTCOME_AT_LIMIT);
+        assert(!msconnector_body_limit_plan_chunk(4U, 4U, 4U,
+            MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, 1U, &plan));
+        assert(plan.bytes_seen == 5U && plan.append_size == 0U);
+        assert(!plan.truncated);
+        assert(plan.outcome == MSCONNECTOR_BODY_LIMIT_OUTCOME_REJECT);
+        assert(msconnector_body_limit_plan_chunk(3U, 3U, 4U,
+            MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL, 3U, &plan));
+        assert(plan.bytes_seen == 6U && plan.append_size == 1U);
+        assert(plan.truncated);
+        assert(plan.outcome == MSCONNECTOR_BODY_LIMIT_OUTCOME_PROCESS_PARTIAL);
+        assert(strcmp(msconnector_body_limit_outcome_name(plan.outcome),
+            "process_partial") == 0);
     }
     {
         msconnector_transaction_state state;
@@ -991,6 +1074,10 @@ int main(void) {
         ops.free_transaction = fake_free_transaction;
         ops.process_request_headers = fake_process_request_headers;
         ops.process_response_body = fake_process_response_body;
+        ops.append_request_body = fake_append_request_body;
+        ops.finish_request_body = fake_finish_request_body;
+        ops.append_response_body = fake_append_response_body;
+        ops.finish_response_body = fake_finish_response_body;
         ops.process_logging = fake_process_logging;
         msconnector_modsecurity_engine_init(&engine, &ops);
         assert(msconnector_modsecurity_engine_start(&engine, &error));
@@ -1014,6 +1101,20 @@ int main(void) {
         assert(msconnector_transaction_state_phase_processed(&tx.state, MSCONNECTOR_PHASE_REQUEST_HEADERS));
         assert(msconnector_modsecurity_process_response_body(&tx, 0, &engine_decision, &error));
         assert(msconnector_decision_is_connection_abort(&engine_decision));
+        {
+            const unsigned char chunk[] = {'o', 'k'};
+            assert(msconnector_modsecurity_append_request_body(&tx, chunk, sizeof(chunk), &error));
+            assert(msconnector_modsecurity_finish_request_body(&tx, &engine_decision, &error));
+            assert(state.request_body_append_calls == 1);
+            assert(state.request_body_finish_calls == 1);
+            assert(msconnector_transaction_state_phase_processed(&tx.state, MSCONNECTOR_PHASE_REQUEST_BODY));
+            assert(!msconnector_modsecurity_append_request_body(&tx, 0, 1U, &error));
+            assert(msconnector_modsecurity_append_response_body(&tx, chunk, sizeof(chunk), &error));
+            assert(msconnector_modsecurity_finish_response_body(&tx, &engine_decision, &error));
+            assert(state.response_body_append_calls == 1);
+            assert(state.response_body_finish_calls == 1);
+            assert(msconnector_transaction_state_phase_processed(&tx.state, MSCONNECTOR_PHASE_RESPONSE_BODY));
+        }
         assert(msconnector_modsecurity_process_logging(&tx, &error));
         assert(msconnector_transaction_state_phase_processed(&tx.state, MSCONNECTOR_PHASE_LOGGING));
         msconnector_modsecurity_transaction_cleanup(&tx);
@@ -1107,6 +1208,16 @@ int main(void) {
         event.meta.event = "smoke";
         assert(strcmp(msconnector_event_status_name(&event), "ok") == 0);
         assert(msconnector_event_write_json(&event, json, sizeof(json)));
+        assert(strstr(json, "\"body_limit_outcome\"") == 0);
+        event.body.limit_outcome = "process_partial";
+        event.body.bytes_seen = 17U;
+        event.body.bytes_inspected = 16U;
+        event.flags.body_truncated = 1;
+        assert(msconnector_event_write_json(&event, json, sizeof(json)));
+        assert(strstr(json, "\"body_limit_outcome\":\"process_partial\"") != 0);
+        assert(strstr(json, "\"body_bytes_seen\":17") != 0);
+        assert(strstr(json, "\"body_bytes_inspected\":16") != 0);
+        assert(strstr(json, "body_payload") == 0);
 
         msconnector_event_set_phase4_hard_abort_after_200(
             &event,
@@ -1235,6 +1346,9 @@ int main(void) {
         assert(!msconnector_parse_phase4_mode("unsafe", &mode_value));
         assert(msconnector_parse_size("128", &parsed_size) && parsed_size == 128U);
         assert(!msconnector_parse_size("0", &parsed_size));
+        assert(msconnector_parse_nonnegative_size("0", &parsed_size) && parsed_size == 0U);
+        assert(msconnector_parse_nonnegative_size("128", &parsed_size) && parsed_size == 128U);
+        assert(!msconnector_parse_nonnegative_size("-1", &parsed_size));
         assert(!msconnector_parse_size("1.5", &parsed_size));
         assert(msconnector_parse_http_status("403", &parsed_status) && parsed_status == 403);
         assert(!msconnector_parse_http_status("99", &parsed_status));

@@ -91,12 +91,11 @@ response-phase `unsupported_by_host_model`; lighttpd Phase 4 is
 `not_implemented` in the current native module. These statuses never count as
 PASS.
 
-HAProxy has a bounded experimental response-body source path, but its current
-SPOE/SPOP runner observes neither a client-visible outcome nor actual response
-commitment timing and has no post-commit host point. Therefore only its
-response-body/Phase-4/rule-observation facets are
-`implemented_not_asserted`; pre-commit deny, late intervention, and semantic
-late status metadata are `not_implemented` and their cases remain
+HAProxy's former bounded response-body sample is deliberately disabled because
+it required `http-response wait-for-body`, which violates the low-latency
+contract. The selected SPOE/SPOP path has no response-body chunks or Phase-4
+route. Its response-body, Phase-4, late-intervention, no-full-buffer, and
+first-byte facets are therefore `not_implemented`; their cases remain
 `NOT_EXECUTED`.
 
 ## Repository structure
@@ -1091,9 +1090,9 @@ lighttpd plugin/proxy/runtime API and FastCGI/SCGI/native module integration rem
 
 | Connector | Current status | Common adoption | Response-phase classification | Runtime evidence | Forbidden inference |
 |---|---|---|---|---|---|
-| Apache | connector source present | present | Response body and all Phase-4 facets are `implemented_not_asserted`; no Phase-4 PASS exists. | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
-| NGINX | connector source present | present | Response body and all Phase-4 facets are `implemented_not_asserted`; no Phase-4 PASS exists. | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
-| HAProxy | SPOA/starter plus mapper/binding source present | present/partial | Bounded response-body/Phase-4/rule-observation path is `implemented_not_asserted`; pre-commit deny, all late actions, and semantic status metadata are `not_implemented`. | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
+| Apache | connector source present | present | Response-body ingestion/EOS and the source-level Phase-4 facets are `implemented_not_asserted`; no Phase-4 PASS exists. | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
+| NGINX | connector source present | present | Response-body ingestion/EOS and late-action source branches are `implemented_not_asserted`; `phase4_pre_commit_deny` is `not_implemented`; no Phase-4 PASS exists. | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
+| HAProxy | SPOA/starter plus mapper/binding source present | present/partial | The selected SPOE/SPOP path has no response-body/Phase-4 route: those facets, late actions, no-full-buffer, and first-byte proof are `not_implemented`. | requires current reports/harness output | no production/runtime/CRS/full-matrix claim |
 | Envoy | HTTP `ext_authz` service | adopted | All response-phase facets are `unsupported_by_host_model`; Phase-4 cases are `UNSUPPORTED`. | targeted request-header 200/403 path; canonical No-CRS `NOT EXECUTED` | upstream response phases cannot be inferred from an `ext_authz` self-test |
 | Traefik | HTTP `forwardAuth` service | adopted | All response-phase facets are `unsupported_by_host_model`; Phase-4 cases are `UNSUPPORTED`. | targeted request-header 200/403 path; canonical No-CRS `NOT EXECUTED` | upstream response phases cannot be inferred from a `forwardAuth` self-test |
 | lighttpd | native plugin | adopted | All response-phase facets are `not_implemented`; Phase-4 cases remain `NOT EXECUTED`. | targeted Phase-1 200/403 path; canonical No-CRS `NOT EXECUTED` | do not relabel an unimplemented response body as host-model `UNSUPPORTED` |

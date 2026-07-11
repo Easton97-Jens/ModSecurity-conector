@@ -34,6 +34,12 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     hash = hash_string_continue(hash, event->request.method);
     hash = hash_string_continue(hash, event->request.uri);
     hash = hash_string_continue(hash, event->request.client_ip);
+    hash = hash_string_continue(hash, event->body.content_type);
+    hash = hash_string_continue(hash, event->body.limit_outcome);
+    hash = hash_bytes_continue(hash, (const unsigned char *)&event->body.bytes_seen,
+        sizeof(event->body.bytes_seen));
+    hash = hash_bytes_continue(hash, (const unsigned char *)&event->body.bytes_inspected,
+        sizeof(event->body.bytes_inspected));
     return hash;
 }
 

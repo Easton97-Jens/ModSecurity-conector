@@ -1,8 +1,8 @@
 Generated file - do not edit manually.
 
-# ModSecurity Connector Test Coverage Overview
-
 **Language:** English | [Deutsch](test-coverage-overview.de.md)
+
+# ModSecurity Connector Test Coverage Overview
 
 ## Summary
 - Total cases: **158**
@@ -356,4 +356,4 @@ GitHub/Codex checks are intentionally lightweight.
 Pending, future, and gap topics need local runtime validation before promotion.
 `make smoke-all` is authoritative only if it was actually executed successfully.
 No PASS numbers are inferred from this file when `make smoke-all` was not run successfully.
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY remains non-promoted; historic bounded strict-abort samples are noncanonical and not current runtime evidence.

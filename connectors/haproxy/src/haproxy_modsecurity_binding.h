@@ -80,6 +80,16 @@ int haproxy_modsecurity_transaction_process_response_body(
     haproxy_modsecurity_transaction *transaction,
     const haproxy_modsecurity_response *response,
     haproxy_modsecurity_decision *decision);
+/* Borrowed response chunks are never retained by the binding.  Phase 4 is
+ * evaluated only by finish_response_body() at the host stream EOS. */
+int haproxy_modsecurity_transaction_append_response_body_chunk(
+    haproxy_modsecurity_transaction *transaction,
+    const unsigned char *body,
+    unsigned int body_len,
+    haproxy_modsecurity_decision *decision);
+int haproxy_modsecurity_transaction_finish_response_body(
+    haproxy_modsecurity_transaction *transaction,
+    haproxy_modsecurity_decision *decision);
 void haproxy_modsecurity_transaction_finish(
     haproxy_modsecurity_transaction *transaction);
 void haproxy_modsecurity_transaction_abort(

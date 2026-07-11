@@ -7,6 +7,8 @@
 #include "msconnector/response.h"
 #include "msconnector/transaction_state.h"
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -22,8 +24,21 @@ typedef struct msconnector_modsecurity_engine_ops {
     int (*process_connection)(void *userdata, void *transaction, const msconnector_request *request, msconnector_decision *decision, msconnector_error *error);
     int (*process_request_headers)(void *userdata, void *transaction, const msconnector_request *request, msconnector_decision *decision, msconnector_error *error);
     int (*process_request_body)(void *userdata, void *transaction, const msconnector_request *request, msconnector_decision *decision, msconnector_error *error);
+    /*
+     * Streaming body operations borrow ``data`` only for the duration of the
+     * callback.  ``finish_*_body`` is the explicit end-of-stream boundary at
+     * which libmodsecurity may perform phase-2/phase-4 evaluation.
+     *
+     * The older process_*_body callbacks are retained for buffered adapters.
+     * A streaming adapter must provide the append/finish pair instead of
+     * retaining a host-owned body buffer.
+     */
+    int (*append_request_body)(void *userdata, void *transaction, const unsigned char *data, size_t size, msconnector_error *error);
+    int (*finish_request_body)(void *userdata, void *transaction, msconnector_decision *decision, msconnector_error *error);
     int (*process_response_headers)(void *userdata, void *transaction, const msconnector_response *response, msconnector_decision *decision, msconnector_error *error);
     int (*process_response_body)(void *userdata, void *transaction, const msconnector_response *response, msconnector_decision *decision, msconnector_error *error);
+    int (*append_response_body)(void *userdata, void *transaction, const unsigned char *data, size_t size, msconnector_error *error);
+    int (*finish_response_body)(void *userdata, void *transaction, msconnector_decision *decision, msconnector_error *error);
     int (*process_logging)(void *userdata, void *transaction, msconnector_error *error);
 } msconnector_modsecurity_engine_ops;
 
@@ -40,8 +55,12 @@ void msconnector_modsecurity_transaction_cleanup(msconnector_modsecurity_transac
 int msconnector_modsecurity_process_connection(msconnector_modsecurity_transaction *tx, const msconnector_request *request, msconnector_decision *decision, msconnector_error *error);
 int msconnector_modsecurity_process_request_headers(msconnector_modsecurity_transaction *tx, const msconnector_request *request, msconnector_decision *decision, msconnector_error *error);
 int msconnector_modsecurity_process_request_body(msconnector_modsecurity_transaction *tx, const msconnector_request *request, msconnector_decision *decision, msconnector_error *error);
+int msconnector_modsecurity_append_request_body(msconnector_modsecurity_transaction *tx, const unsigned char *data, size_t size, msconnector_error *error);
+int msconnector_modsecurity_finish_request_body(msconnector_modsecurity_transaction *tx, msconnector_decision *decision, msconnector_error *error);
 int msconnector_modsecurity_process_response_headers(msconnector_modsecurity_transaction *tx, const msconnector_response *response, msconnector_decision *decision, msconnector_error *error);
 int msconnector_modsecurity_process_response_body(msconnector_modsecurity_transaction *tx, const msconnector_response *response, msconnector_decision *decision, msconnector_error *error);
+int msconnector_modsecurity_append_response_body(msconnector_modsecurity_transaction *tx, const unsigned char *data, size_t size, msconnector_error *error);
+int msconnector_modsecurity_finish_response_body(msconnector_modsecurity_transaction *tx, msconnector_decision *decision, msconnector_error *error);
 int msconnector_modsecurity_process_logging(msconnector_modsecurity_transaction *tx, msconnector_error *error);
 
 #ifdef __cplusplus

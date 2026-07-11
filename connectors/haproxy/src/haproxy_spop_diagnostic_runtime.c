@@ -2744,7 +2744,7 @@ static void print_usage(const char *program) {
 int main(int argc, char **argv) {
     if (argc == 2 && strcmp(argv[1], "--describe") == 0) {
         printf("HAProxy ModSecurity SPOA production agent\n");
-        printf("features: startup-loaded libmodsecurity rules, request phases, response headers, audit/decision logs, and bounded experimental response body inspection\n");
+        printf("features: startup-loaded libmodsecurity rules, request phases, response headers, audit/decision logs; selected SPOP response-body inspection disabled\n");
         printf("compatibility: --runtime-self-test exercises only SPOP handshake and typed set-var ACK behavior\n");
         return 0;
     }

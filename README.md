@@ -191,15 +191,15 @@ The HAProxy connector uses a production SPOA/SPOP path under
 - audit-log plumbing
 - request phases 1/2
 - implemented phase 3 response-header evidence
-- bounded Phase 4 strict-abort evidence
+- response-header handling only; the former response-body Phase-4 sample is disabled
 
 HAProxy is configured through HAProxy, SPOE, and SPOA-agent configuration files,
 not Apache/NGINX-style `modsecurity_*` directives. There is no synthetic matrix
 writer; generated HAProxy reports consume live runtime summaries and the runtime
 validation snapshot.
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY is `not_implemented` for the selected SPOE/SPOP path:
+the former `wait-for-body` sample is disabled and is not runtime evidence.
 
 ### Known Differences And Deferred Areas
 
@@ -208,7 +208,7 @@ documented/reported as runtime evidence only.
 | Transaction ID mapping | Apache supports static strings plus opt-in Apache string expressions through `modsecurity_transaction_id_expr`; NGINX supports complex values through `modsecurity_transaction_id`. |
 | Phase-4 directives | Apache and NGINX implement bounded phase-4 controls; full RESPONSE_BODY behavior remains non-promoted. |
 | HAProxy directive model | HAProxy uses HAProxy config, SPOE config, and `haproxy-modsecurity-spoa` agent config rather than `modsecurity_*` server directives. |
-| RESPONSE_BODY behavior | Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is documented/reported as runtime evidence only. |
+| RESPONSE_BODY behavior | Apache/NGINX source paths remain evidence-scoped; HAProxy Phase 4 is `not_implemented` in the selected SPOE/SPOP path because the former `wait-for-body` sample is disabled. |
 | Apache bucket/filter/intervention paths | Intentionally not refactored in this common-metadata work. |
 | Common layer | Contains connector-neutral metadata and data shapes only; it does not own Apache or NGINX runtime APIs. |
 | Rule-load stats reporting | NGINX reports via its existing startup log; Apache keeps stats as internal metadata until display aggregation and merge semantics are explicitly designed. |
@@ -485,5 +485,5 @@ make check-test-matrix
 Runtime and coverage evidence must not be inferred from generated metadata
 alone. XFAIL, pending, future, connector-gap, and runtime-difference cases stay
 evidence classes until explicitly promoted by documented runtime proof.
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY is `not_implemented` for the selected HAProxy
+SPOE/SPOP path; the disabled `wait-for-body` sample is not runtime evidence.

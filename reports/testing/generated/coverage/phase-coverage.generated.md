@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-06T16:46:14Z`
-> Verified run id: `2026-06-16T19-12-00Z-614c8049`
+> Generated at: `2026-07-11T12:42:40Z`
+> Verified run id: `2026-06-16-614c804`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `4afa499f6719e802c5091c43742e99ba39d6d42a`
-> Framework SHA: `3817acec9f2fb483b275b5a9a747542ec40e3b45`
+> Connector SHA: `062e5ef84bcb3e385ac7b5335129eb578fe30833`
+> Framework SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
 > Input status: `complete`
 
 # Generated Phase Coverage
@@ -26,8 +26,8 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/runtime-validation-snapshot.json` | `c8e7113e2b7d4982ad6817e9f3fd4387370db33224a0f14ec265126ec685f5f9` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16-614c804` | present |
+| Declared input | `reports/testing/runtime-validation-snapshot.json` | `d3017f038a44a5f5596e36e3482f92cd93ce6f2173bb958da98cddc05884cd8f` | `2026-06-16-614c804` | present |
 
 ## Data Availability / Missing Information
 

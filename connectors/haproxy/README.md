@@ -13,7 +13,8 @@ Template alignment: scaffold-aligned plus local SPOA agent starter/runtime.
 This connector contains repository-owned metadata, a local HAProxy SPOA agent
 starter, a production SPOP runtime, and a local libmodsecurity binding. The
 production agent loads ModSecurity rules once, creates transactions with the
-HAProxy `unique-id`, keeps bounded transactions for response phases, emits
+HAProxy `unique-id`, keeps bounded transaction state for its request and
+optional response-header phases, emits
 decision JSONL, and returns typed SPOE ACK variables for HAProxy enforcement.
 `make smoke-haproxy` lists shared framework YAML cases with `case_cli.py`,
 materializes each case, starts HAProxy plus the production SPOA agent plus a
@@ -31,8 +32,9 @@ The proven request-side variables are `REQUEST_URI`, `REQUEST_HEADERS`,
 JSON, XML, multipart, and CRS SQLi anomaly request-body coverage is live
 evidence, limited by HAProxy request buffering, SPOE frame size, and configured
 request-body limits. Response-header and audit-log paths use SPOE response
-messages. The bounded Phase-4 response-body branch is source-level wiring and
-is not canonical evidence for rule observation, strict abort, or full
+messages. A separate optional HTX observer overlay has source-level
+response-body wiring for bodyless requests only; it is not the active SPOP
+path and is not canonical evidence for rule observation, strict abort, or full
 `RESPONSE_BODY` support.
 
 ## Global Contract
@@ -68,7 +70,9 @@ Shared connector-neutral data shapes used by the starter:
   libmodsecurity enforcement for shared framework YAML cases.
 - Decision evidence: per-case `decision.jsonl`, HAProxy logs, SPOA logs, audit
   logs, observed status, and normalized `result.json`.
-- RESPONSE_BODY blocking: bounded experimental source path only; not promoted.
+- RESPONSE_BODY blocking: not implemented in the active harness; the former
+  `wait-for-body` sample is disabled. The optional native HTX observer is
+  nonselected, bodyless-request-only, and does not promote this capability.
 
 ## Build Starter
 
@@ -124,9 +128,9 @@ Framework-owned paths and targets to use for future evidence:
 
 Unsupported or currently unmaterializable rows are documented as
 `NOT_EXECUTABLE`. Harness, dependency, build, and runtime failures are
-documented as `BLOCKED`. `RESPONSE_BODY` rows stay non-promoted unless a future
-canonical host run proves the individual response-body and late-intervention
-facets beyond the current bounded experimental path.
+documented as `BLOCKED`. `RESPONSE_BODY` rows stay unselected/not implemented
+until a future native host response-chunk path proves the individual
+response-body and late-intervention facets without `wait-for-body`.
 
 ## Common SDK adoption boundary
 
@@ -136,15 +140,17 @@ C17 compile evidence is available through `make check-haproxy-c17`; optional C23
 
 ## Canonical Phase-4 boundary
 
-HAProxy uses the repository SPOE/SPOP agent path, including a bounded
-experimental response-body branch.  Source wiring alone does not establish
-that the agent sees a complete upstream response, that HAProxy can still
-change its status, or that a disconnect is a Phase-4 action rather than an
-agent failure.  Only `response_body_buffered`, `phase4`, and
-`phase4_rule_evaluation` remain `implemented_not_asserted` as source-level
-paths. `phase4_pre_commit_deny`, `late_intervention`,
-`late_intervention_log_only`, `late_intervention_abort`, and
-`late_intervention_status_metadata` are `not_implemented`.
+HAProxy uses the repository SPOE/SPOP agent path for request and optional
+response-header handling.  Its old bounded response-body sample depended on
+`http-response wait-for-body`; it is deliberately disabled because a sample
+wait is not a genuine response-chunk API and would violate the low-latency
+contract.  `response_body_buffered`, `phase4`, and
+`phase4_rule_evaluation` are therefore `not_implemented` in the selected
+SPOE/SPOP path until that path uses a native HTX/filter adapter with borrowed
+response chunks and an explicit end of stream. `phase4_pre_commit_deny`,
+`late_intervention`, `late_intervention_log_only`,
+`late_intervention_abort`, and `late_intervention_status_metadata` are also
+`not_implemented`.
 
 The agent currently serializes policy-derived pre-commit fields, but the host
 runner does not observe a client-visible Phase-4 deny, actual commitment timing,
@@ -158,3 +164,30 @@ separate from a client-visible 403; the semantic pre-commit, late-action, and
 status-metadata cases remain `NOT_EXECUTED` until their missing host behavior
 is implemented. Response-body payloads must never be written to events or
 reports.
+
+## Optional native HTX observer overlay
+
+`htx-overlay/` contains a source-linked HAProxy **3.2.21** observer filter for
+the native HTX `http_payload` and `http_end` callbacks. It is built into a
+disposable upstream worktree, not into the selected SPOE/SPOP runtime:
+
+```sh
+make -C connectors/haproxy check-htx-overlay
+HAPROXY_HTX_SOURCE_DIR=/path/to/haproxy-3.2.21 \
+HAPROXY_HTX_BUILD_DIR=/var/tmp/haproxy-htx-overlay \
+MODSECURITY_INCLUDE_DIR=/path/to/include \
+MODSECURITY_LIB_DIR=/path/to/lib \
+make -C connectors/haproxy build-htx-overlay
+```
+
+The overlay forwards only the current borrowed `HTX_BLK_DATA` slices to the
+binding and finishes Phase 4 once at response EOS. It neither uses
+`wait-for-body`/`res.body` nor keeps a connector-owned response buffer.
+It is intentionally observer-only after response commitment: a late rule is
+logged without a fabricated deny, redirect, or abort. The current binding also
+limits this experimental path to bodyless requests, because its request-body
+phase is still atomic.
+
+This optional overlay is not configured by the checked-in SPOP harness and is
+not canonical No-CRS evidence. Therefore it does **not** promote the selected
+SPOE/SPOP Phase-4, late-intervention, no-buffer, or first-byte capabilities.

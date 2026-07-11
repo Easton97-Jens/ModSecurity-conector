@@ -36,6 +36,8 @@ enum msconnector_event_json_text_index {
     EVENT_JSON_METHOD,
     EVENT_JSON_URI,
     EVENT_JSON_CLIENT_IP,
+    EVENT_JSON_CONTENT_TYPE,
+    EVENT_JSON_BODY_LIMIT_OUTCOME,
     EVENT_JSON_TEXT_COUNT
 };
 
@@ -63,7 +65,10 @@ typedef struct msconnector_event_json_parts {
     const char *text[EVENT_JSON_TEXT_COUNT];
     int statuses[EVENT_JSON_STATUS_COUNT];
     const char *flags[EVENT_JSON_FLAG_COUNT];
+    const char *body_limit_outcome_json;
     unsigned long sequence;
+    uint64_t body_bytes_seen;
+    uint64_t body_bytes_inspected;
     uint64_t previous_hash;
     uint64_t event_hash;
 } msconnector_event_json_parts;
@@ -75,7 +80,7 @@ static int format_event_json(
     return snprintf(
         dst,
         dst_size,
-        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"transport_result\":\"%s\",\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"late_intervention\":%s,\"response_started\":%s,\"response_committed\":%s,\"headers_sent\":%s,\"body_started\":%s,\"body_truncated\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s,\"sequence\":%lu,\"previous_event_hash\":%" PRIu64 ",\"event_hash\":%" PRIu64 "}",
+        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"transport_result\":\"%s\",\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"content_type\":\"%s\",\"body_bytes_seen\":%" PRIu64 ",\"body_bytes_inspected\":%" PRIu64 "%s,\"late_intervention\":%s,\"response_started\":%s,\"response_committed\":%s,\"headers_sent\":%s,\"body_started\":%s,\"body_truncated\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s,\"sequence\":%lu,\"previous_event_hash\":%" PRIu64 ",\"event_hash\":%" PRIu64 "}",
         parts->text[EVENT_JSON_TIMESTAMP],
         parts->text[EVENT_JSON_LEVEL],
         parts->text[EVENT_JSON_MESSAGE_ID],
@@ -99,6 +104,10 @@ static int format_event_json(
         parts->text[EVENT_JSON_METHOD],
         parts->text[EVENT_JSON_URI],
         parts->text[EVENT_JSON_CLIENT_IP],
+        parts->text[EVENT_JSON_CONTENT_TYPE],
+        parts->body_bytes_seen,
+        parts->body_bytes_inspected,
+        parts->body_limit_outcome_json,
         parts->flags[EVENT_JSON_LATE_INTERVENTION],
         parts->flags[EVENT_JSON_RESPONSE_STARTED],
         parts->flags[EVENT_JSON_RESPONSE_COMMITTED],
@@ -208,6 +217,10 @@ void msconnector_event_init(msconnector_event *event) {
     event->flags.connection_aborted = 0;
     event->flags.redacted = 0;
     event->flags.truncated = 0;
+    event->body.content_type = 0;
+    event->body.limit_outcome = 0;
+    event->body.bytes_seen = 0U;
+    event->body.bytes_inspected = 0U;
     event->integrity.sequence = 0UL;
     event->integrity.previous_hash = 0U;
     event->integrity.event_hash = 0U;
@@ -244,6 +257,9 @@ int msconnector_event_write_json_ex(
     char method[64];
     char uri[EVENT_TEXT_SIZE];
     char client_ip[64];
+    char content_type[EVENT_TEXT_SIZE];
+    char body_limit_outcome[EVENT_TEXT_SIZE];
+    char body_limit_outcome_json[EVENT_TEXT_SIZE * 2U];
     msconnector_event_json_parts parts;
     int was_truncated;
     int written;
@@ -277,6 +293,9 @@ int msconnector_event_write_json_ex(
     escape_field(event->request.method, method, sizeof(method), &was_truncated);
     escape_field(event->request.uri, uri, sizeof(uri), &was_truncated);
     escape_field(event->request.client_ip, client_ip, sizeof(client_ip), &was_truncated);
+    escape_field(event->body.content_type, content_type, sizeof(content_type), &was_truncated);
+    escape_field(event->body.limit_outcome, body_limit_outcome,
+        sizeof(body_limit_outcome), &was_truncated);
 
     parts.text[EVENT_JSON_TIMESTAMP] = timestamp;
     parts.text[EVENT_JSON_LEVEL] = level;
@@ -301,6 +320,22 @@ int msconnector_event_write_json_ex(
     parts.text[EVENT_JSON_METHOD] = method;
     parts.text[EVENT_JSON_URI] = uri;
     parts.text[EVENT_JSON_CLIENT_IP] = client_ip;
+    parts.text[EVENT_JSON_CONTENT_TYPE] = content_type;
+    parts.text[EVENT_JSON_BODY_LIMIT_OUTCOME] = body_limit_outcome;
+    parts.body_bytes_seen = event->body.bytes_seen;
+    parts.body_bytes_inspected = event->body.bytes_inspected;
+    body_limit_outcome_json[0] = '\0';
+    if (body_limit_outcome[0] != '\0') {
+        int outcome_written = snprintf(body_limit_outcome_json,
+            sizeof(body_limit_outcome_json),
+            ",\"body_limit_outcome\":\"%s\"", body_limit_outcome);
+        if (outcome_written < 0 || (size_t)outcome_written >=
+            sizeof(body_limit_outcome_json)) {
+            body_limit_outcome_json[0] = '\0';
+            was_truncated = 1;
+        }
+    }
+    parts.body_limit_outcome_json = body_limit_outcome_json;
     parts.flags[EVENT_JSON_LATE_INTERVENTION] = json_bool(event->flags.late_intervention);
     parts.flags[EVENT_JSON_RESPONSE_STARTED] = json_bool(event->flags.response_started);
     parts.flags[EVENT_JSON_RESPONSE_COMMITTED] = json_bool(event->flags.response_committed);

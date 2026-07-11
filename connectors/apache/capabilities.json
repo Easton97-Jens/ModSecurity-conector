@@ -12,7 +12,7 @@
     "connectors/apache/harness/run_apache_smoke.sh"
   ],
   "host_model_constraints": [
-    "Request and response bodies are accumulated through Apache filters before the corresponding ModSecurity phase is completed; this is not streaming phase execution.",
+    "Apache filters borrow the current request/response buckets and pass them onward; libmodsecurity body-rule evaluation may still complete only at EOS, so this is incremental ingestion rather than per-chunk rule execution.",
     "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
     "A Phase-4 disruptive result can occur after response commitment and is handled by the configured late-intervention policy."
   ],
@@ -27,7 +27,7 @@
     },
     "request_body_buffered": {
       "state": "implemented_not_asserted",
-      "reason": "The Apache input filter appends request-body buckets and completes request-body processing; canonical body evidence is pending."
+      "reason": "The Apache input filter borrows each current request bucket and completes request-body processing at EOS; canonical body evidence is pending."
     },
     "request_body_streaming": {
       "state": "not_implemented",
@@ -39,11 +39,11 @@
     },
     "response_body_buffered": {
       "state": "implemented_not_asserted",
-      "reason": "The output filter buffers bounded response data and invokes response-body processing; canonical Phase-4 evidence is pending."
+      "reason": "The output filter appends bounded current response bytes and invokes response-body processing at EOS without retaining a cross-call brigade; canonical Phase-4 evidence is pending."
     },
     "response_body_streaming": {
       "state": "not_implemented",
-      "reason": "Response buckets are accumulated for a bounded Phase-4 decision and are not processed as a streaming ModSecurity phase."
+      "reason": "The connector does not claim per-chunk Phase-4 rule evaluation: libmodsecurity may evaluate when the EOS finish call occurs."
     },
     "phase1": {
       "state": "implemented_not_asserted",
@@ -59,11 +59,11 @@
     },
     "phase4": {
       "state": "implemented_not_asserted",
-      "reason": "The bounded output filter invokes response-body processing and records late decisions; canonical Phase-4 evidence is pending."
+      "reason": "The output filter incrementally ingests current body buckets and invokes response-body processing once at EOS; canonical Phase-4 evidence is pending."
     },
     "phase4_rule_evaluation": {
       "state": "implemented_not_asserted",
-      "reason": "The bounded native output-filter path is wired to invoke response-body processing, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated."
+      "reason": "The native output-filter path is wired for incremental ingestion and EOS response-body processing, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated."
     },
     "phase4_pre_commit_deny": {
       "state": "implemented_not_asserted",
@@ -124,6 +124,78 @@
     "config_remote_rules": {
       "state": "implemented_not_asserted",
       "reason": "The modsecurity_rules_remote directive is wired to libmodsecurity; no remote-network capability is asserted by the no-CRS baseline."
+    },
+    "transport_metadata": {
+      "state": "implemented_not_asserted",
+      "reason": "The native filters retain status and commit metadata, but canonical transport evidence is pending."
+    },
+    "request_body_incremental_ingest": {
+      "state": "implemented_not_asserted",
+      "reason": "The input filter borrows and appends each Apache bucket and finalizes Phase 2 only at EOS; a real-host capability run is pending."
+    },
+    "response_body_incremental_ingest": {
+      "state": "implemented_not_asserted",
+      "reason": "The output filter inspects only the current bucket and passes each brigade onward without retaining a response body; runtime evidence is pending."
+    },
+    "phase4_end_of_stream_evaluation": {
+      "state": "implemented_not_asserted",
+      "reason": "The output filter invokes response-body processing once after its EOS bucket; canonical Phase-4 evidence is pending."
+    },
+    "content_type_scope": {
+      "state": "implemented_not_asserted",
+      "reason": "The native Phase-4 path checks configured response Content-Type scope before it appends body bytes; evidence is pending."
+    },
+    "header_limits": {
+      "state": "not_implemented",
+      "reason": "No canonical Apache host-header-limit enforcement case is implemented in the full-lifecycle catalog."
+    },
+    "request_body_limits": {
+      "state": "not_implemented",
+      "reason": "No connector-local configurable request-body limit action is implemented for the Apache streaming filter."
+    },
+    "response_body_limits": {
+      "state": "implemented_not_asserted",
+      "reason": "The Phase-4 body limit bounds bytes passed to libmodsecurity, but no canonical limit evidence is attached."
+    },
+    "no_full_response_buffering": {
+      "state": "implemented_not_asserted",
+      "reason": "The output filter no longer keeps a connector-owned brigade across calls, but a synchronized host runtime proof is pending."
+    },
+    "first_byte_before_response_end": {
+      "state": "implemented_not_asserted",
+      "reason": "Pass-through source wiring exists, but the canonical synchronized first-byte proof has not run."
+    },
+    "http1_content_length": {
+      "state": "configured_not_exercised",
+      "reason": "Apache can serve HTTP/1.1 responses; this transport case has not been exercised by the canonical catalog."
+    },
+    "http1_chunked": {
+      "state": "configured_not_exercised",
+      "reason": "Apache filter wiring can receive chunked output, but no canonical transport result is attached."
+    },
+    "keep_alive": {
+      "state": "configured_not_exercised",
+      "reason": "No canonical sequential-request keep-alive run is attached."
+    },
+    "parallel_requests": {
+      "state": "not_implemented",
+      "reason": "The full-lifecycle parallel-request evidence path is not implemented."
+    },
+    "http2": {
+      "state": "configured_not_exercised",
+      "reason": "No Apache HTTP/2 full-lifecycle run is attached."
+    },
+    "client_abort": {
+      "state": "not_implemented",
+      "reason": "No canonical Apache client-abort lifecycle case is implemented."
+    },
+    "upstream_abort": {
+      "state": "not_implemented",
+      "reason": "No canonical Apache upstream-abort lifecycle case is implemented."
+    },
+    "response_body_decompression": {
+      "state": "not_implemented",
+      "reason": "The connector has no verified response-body decompression contract."
     }
   },
   "evidence_stages": {

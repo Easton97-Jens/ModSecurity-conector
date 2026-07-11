@@ -11,7 +11,7 @@ build targets, and a live harness.
 | --- | --- | --- |
 | `examples/haproxy/haproxy-request-only.cfg` | implemented | Request phases 1/2 enforcement example. |
 | `examples/haproxy/haproxy-response-headers.cfg` | implemented | Phase 3 response-header example. |
-| `examples/haproxy/haproxy-phase4-strict-abort.cfg` | implemented | Bounded Phase 4 strict-abort example. |
+| `examples/haproxy/haproxy-phase4-strict-abort.cfg` | legacy_disabled | Retired `wait-for-body` sample; not current runtime evidence. |
 | `examples/haproxy/spoe-modsecurity.conf` | implemented | SPOE groups and message argument mapping. |
 | `examples/haproxy/modsecurity-agent.conf` | implemented | SPOA runtime configuration. |
 | `haproxy-modsecurity-spoa` | implemented | Production SPOA/SPOP runtime binary. |
@@ -24,5 +24,6 @@ build targets, and a live harness.
 - HAProxy force-all: `133 attempted / 104 PASS / 23 FAIL / 0 BLOCKED /
   6 NOT_EXECUTABLE`.
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY is `not_implemented` in the selected SPOE/SPOP path.
+The former `wait-for-body` strict-abort sample is disabled, legacy, and
+noncanonical; it is not current runtime evidence.

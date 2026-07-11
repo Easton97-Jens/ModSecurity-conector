@@ -15,7 +15,7 @@ MODSECURITY_BINDING_BIN := $(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy-modsecurit
 MODSECURITY_INCLUDE_CANDIDATES ?= $(MODSECURITY_INCLUDE_DIR) $(MODSECURITY_SHARED_PREFIX)/include $(BUILD_ROOT)/nginx-build/output/modsecurity/include $(BUILD_ROOT)/apache-build/output/modsecurity/include /src/ModSecurity_V3/headers
 MODSECURITY_LIB_CANDIDATES ?= $(MODSECURITY_LIB_DIR) $(MODSECURITY_SHARED_PREFIX)/lib $(BUILD_ROOT)/nginx-build/output/modsecurity/lib $(BUILD_ROOT)/apache-build/output/modsecurity/lib $(BUILD_ROOT)/nginx-build/ModSecurity_V3/src/.libs $(BUILD_ROOT)/apache-build/ModSecurity_V3/src/.libs
 
-.PHONY: build-metadata build-starter build-spoa-starter build-spoa-runtime build-modsecurity-binding self-test self-test-spoa self-test-spoa-runtime self-test-modsecurity-binding self-test-modsecurity-binding-crs clean FORCE
+.PHONY: build-metadata build-starter build-spoa-starter build-spoa-runtime build-modsecurity-binding build-htx-overlay check-htx-overlay self-test self-test-spoa self-test-spoa-runtime self-test-modsecurity-binding self-test-modsecurity-binding-crs clean FORCE
 
 build-metadata: $(HAPROXY_BUILD_DIR)/metadata.o
 	@echo "HAProxy build-starter: metadata object built at $(HAPROXY_BUILD_DIR)/metadata.o"
@@ -36,7 +36,7 @@ self-test-spoa: $(SPOA_STARTER_BIN)
 
 build-spoa-runtime: $(SPOA_RUNTIME_BIN)
 	@echo "HAProxy ModSecurity SPOA production agent built at $(SPOA_RUNTIME_BIN)"
-	@echo "Scope: production SPOP agent path with request phases, response headers, bounded experimental response body, audit/decision logging."
+	@echo "Scope: selected SPOP agent path with request phases, response headers, and audit/decision logging; response-body Phase 4 is disabled."
 
 self-test-spoa-runtime: $(SPOA_RUNTIME_BIN)
 	@set -eu; \
@@ -46,6 +46,12 @@ self-test-spoa-runtime: $(SPOA_RUNTIME_BIN)
 build-modsecurity-binding: $(MODSECURITY_BINDING_BIN)
 	@echo "HAProxy ModSecurity binding self-test built at $(MODSECURITY_BINDING_BIN)"
 	@echo "Scope: libmodsecurity binding self-tests only; no HAProxy runtime enforcement or RESPONSE_BODY verification is claimed."
+
+check-htx-overlay:
+	python3 "$(REPO_ROOT)/ci/check-haproxy-htx-overlay.py"
+
+build-htx-overlay: check-htx-overlay
+	@CONNECTOR_ROOT="$(abspath $(REPO_ROOT))" sh htx-overlay/build-overlay.sh
 
 self-test-modsecurity-binding: $(MODSECURITY_BINDING_BIN)
 	@set -eu; \

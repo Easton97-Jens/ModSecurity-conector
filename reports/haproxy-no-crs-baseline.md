@@ -4,7 +4,7 @@
 
 **Language:** English | [Deutsch](haproxy-no-crs-baseline.de.md)
 
-Generated on `2026-07-10` from the checked-in `connectors/<name>/capabilities.json` manifests. No canonical No-CRS `result.json` was used because no canonical run had been executed.
+Generated on `2026-07-11` from the checked-in `connectors/<name>/capabilities.json` manifests. No canonical No-CRS `result.json` was used because no canonical run had been executed.
 
 Overall canonical status: `NOT EXECUTED`
 
@@ -21,32 +21,36 @@ Host model: `HAProxy SPOE/SPOP agent`
 | Phase 1 | IMPLEMENTED, NOT ASSERTED | Capability manifest |
 | Phase 2 | IMPLEMENTED, NOT ASSERTED | Capability manifest |
 | Phase 3 | IMPLEMENTED, NOT ASSERTED | Capability manifest |
-| Phase 4 | IMPLEMENTED, NOT ASSERTED | Capability manifest |
+| Phase 4 | NOT IMPLEMENTED | Selected SPOP path has no response-body route |
 | Events | IMPLEMENTED, NOT ASSERTED | Metadata-only JSONL must be asserted by a canonical run |
 | Lifecycle | IMPLEMENTED, NOT ASSERTED | Cleanup and failure cases require canonical case results |
 | Status | NOT EXECUTED | Missing evidence is never inferred as PASS |
 
 ## Architecture boundary
 
-Bounded request and experimental response-body paths exist; streaming, drop, and abort decisions are not implemented.
+The selected SPOP path has a bounded request sample but no response-body route;
+streaming, drop, and abort decisions are not implemented. An optional HAProxy
+3.2.21 HTX observer source exists separately, but it is nonselected,
+bodyless-request-only, and not canonical evidence.
 
 Host and agent are separate processes and require distinct logs in one manifest.
 
 ## Canonical Phase-4 facets
 
-The bounded, experimental response-body path, `phase4`, and
-`phase4_rule_evaluation` are `implemented_not_asserted` source paths. An agent
-or mapper path is not Phase-4 runtime evidence: no current canonical HAProxy
-host run has observed rule `1100301`. The semantic pre-commit, late-action, and
+The selected SPOP response-body path, `phase4`, and
+`phase4_rule_evaluation` are `not_implemented`. The optional HTX observer
+source is not selected by this host model, bypasses body-bearing requests, and
+is not canonical Phase-4 runtime evidence. No current canonical HAProxy host
+run has observed rule `1100301`. The semantic pre-commit, late-action, and
 status-metadata facets are `not_implemented` because the runner observes no
 client-visible response outcome, actual commitment timing, or post-commit host
 point.
 
 | Facet | Capability state | Required runtime evidence before it can be asserted |
 |---|---|---|
-| Response body availability (`response_body_buffered`) | `implemented_not_asserted` | A bounded experimental HAProxy/SPOP response-body path is present; no current canonical real-host evidence proves that it inspected a response sample. |
-| Phase-4 invocation (`phase4`) | `implemented_not_asserted` | The experimental HAProxy/SPOA response-body call is wired; no current canonical host evidence proves its invocation. |
-| Rule evaluation (`phase4_rule_evaluation`) | `implemented_not_asserted` | The bounded SPOA/SPOP Phase-4 path is present; no current canonical HAProxy host evidence proves that it evaluated rule `1100301`. |
+| Response body availability (`response_body_buffered`) | `not_implemented` | The selected SPOP path has no response-body delivery; the optional HTX observer is nonselected and bodyless-request-only. |
+| Phase-4 invocation (`phase4`) | `not_implemented` | No selected SPOP response-body/EOS path exists; the optional HTX observer does not promote this state. |
+| Rule evaluation (`phase4_rule_evaluation`) | `not_implemented` | No selected SPOP response-body path exists; no canonical HAProxy host evidence proves rule `1100301`. |
 | Pre-commit denial (`phase4_pre_commit_deny`) | `not_implemented` | The agent emits policy-derived fields, but no host runner observes visible client status and actual commitment timing. |
 | Late intervention (`late_intervention`) | `not_implemented` | The current response-decision path is modeled before commitment and has no post-commit host point. |
 | Safe late intervention (`late_intervention_log_only`) | `not_implemented` | No post-commit safe `log_only` action or host-observed unchanged-visible-status result exists. |

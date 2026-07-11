@@ -22,14 +22,16 @@
 
 ## Status
 
-HAProxy SPOE/SPOP production-style examples for `haproxy-modsecurity-spoa`. They do not promote RESPONSE_BODY or force-all FAIL rows as production support.
+HAProxy SPOE/SPOP production-style examples for `haproxy-modsecurity-spoa`.
+The selected path supports request phases and response headers; RESPONSE_BODY
+is not implemented and is not represented as production support.
 
 ## Purpose
 
 These examples show the production SPOA path for HAProxy:
 `haproxy-modsecurity-spoa`, HAProxy + SPOE/SPOP + libmodsecurity, decision
-logging, audit-log plumbing, request phases 1/2, implemented phase 3 response
-headers, and bounded Phase 4 strict-abort evidence.
+logging, audit-log plumbing, request phases 1/2, and implemented phase 3
+response headers. They do not provide a selected response-body/Phase-4 path.
 
 ## Needed Components
 
@@ -39,7 +41,8 @@ HAProxy, `haproxy-modsecurity-spoa`, libmodsecurity v3, SPOE config, ModSecurity
 
 - `haproxy-request-only.cfg`: HAProxy request-phase enforcement through SPOE.
 - `haproxy-response-headers.cfg`: HAProxy request plus response-header checks.
-- `haproxy-phase4-strict-abort.cfg`: bounded Phase 4 strict-abort example.
+- `haproxy-phase4-strict-abort.cfg`: retired, disabled historical sample; not
+  a runnable Phase-4 example.
 - `spoe-modsecurity.conf`: SPOE message and variable mapping.
 - `modsecurity-agent.conf`: `haproxy-modsecurity-spoa` configuration.
 
@@ -71,12 +74,10 @@ returned variables with `http-response` rules.
 
 ## Phase 4 / RESPONSE_BODY Strict-Abort
 
-`haproxy-phase4-strict-abort.cfg` adds `http-response wait-for-body` and sends
-bounded response bytes to the SPOA service. The runtime can record bounded
-strict-abort evidence, including `decision.jsonl` and audit-log output.
-
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented as runtime evidence only.
+`haproxy-phase4-strict-abort.cfg` is a retired, disabled historical artifact.
+The selected SPOE/SPOP configuration sends response headers only; it has no
+response-body route, so Phase 4 / RESPONSE_BODY is `not_implemented`. Do not
+use or report the retired sample as current runtime evidence.
 
 ## Variable And Placeholder Reference
 
@@ -84,9 +85,8 @@ documented as runtime evidence only.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `haproxy-modsecurity-spoa` | binary path | Yes | `/usr/local/sbin/haproxy-modsecurity-spoa` | service unit or process supervisor | Production SPOA/SPOP process that loads libmodsecurity. | restart SPOA | Built by `make -C connectors/haproxy build-spoa-runtime`. |
 | `filter spoe engine modsecurity` | HAProxy directive | Yes | `config /etc/haproxy/spoe-modsecurity.conf` | `haproxy-*.cfg` | Attaches the ModSecurity SPOE engine. | reload HAProxy | Config path must be readable by HAProxy. |
-| `http-request send-spoe-group` | HAProxy directive | Yes | `modsecurity request-check` | request and phase4 HAProxy configs | Sends request data to the SPOA service. | reload HAProxy | Required for phases 1/2. |
-| `http-response send-spoe-group` | HAProxy directive | Response modes | `modsecurity response-check` | response-header and phase4 HAProxy configs | Sends response data to the SPOA service. | reload HAProxy | Required for phase 3 and bounded phase 4 evidence. |
-| `http-response wait-for-body` | HAProxy directive | Phase 4 only | `time 50ms at-least 1` | `haproxy-phase4-strict-abort.cfg` | Allows bounded response bytes to be available to SPOE. | reload HAProxy | Keep timeout and byte expectations bounded. |
+| `http-request send-spoe-group` | HAProxy directive | Yes | `modsecurity request-check` | request HAProxy configs | Sends request data to the SPOA service. | reload HAProxy | Required for phases 1/2. |
+| `http-response send-spoe-group` | HAProxy directive | Response modes | `modsecurity response-check` | response-header HAProxy configs | Sends response data to the SPOA service. | reload HAProxy | Required for phase 3 only; no response body is sent. |
 | `be_spoa_modsecurity` | HAProxy backend | Yes | `127.0.0.1:12345` | `haproxy-*.cfg` | SPOP backend for the SPOA process. | reload HAProxy | Address must match agent `listen`. |
 | `spoe-agent modsecurity-agent` | SPOE section | Yes | `use-backend be_spoa_modsecurity` | `spoe-modsecurity.conf` | Defines the SPOE agent and backend. | reload HAProxy | Uses HAProxy `mode spop`. |
 | `groups` | SPOE option | Yes | `request-check response-check` | `spoe-modsecurity.conf` | Declares available SPOE groups. | reload HAProxy | Request-only deployments can still leave response group defined. |
@@ -97,7 +97,6 @@ documented as runtime evidence only.
 | `body` | SPOE message arg | Request checks | `req.body` | `spoe-modsecurity.conf` | Sends bounded request body bytes. | reload HAProxy | Requires `option http-buffer-request`. |
 | `response_headers_bin` | SPOE message arg | Response checks | `res.hdrs_bin` | `spoe-modsecurity.conf` | Sends response headers in binary form, preserving repeated values such as `Set-Cookie`. | reload HAProxy | Preferred for phase 3 response-header evidence. |
 | `response_headers` | SPOE message arg | Response checks | `res.hdrs` | `spoe-modsecurity.conf` | Sends response headers for phase 3. | reload HAProxy | Supported by response-header evidence. |
-| `response_body` | SPOE message arg | Phase 4 only | `res.body` | `spoe-modsecurity.conf` | Sends bounded response body bytes. | reload HAProxy | Non-promoted runtime evidence only. |
 | `listen` | agent config key | Yes | `127.0.0.1:12345` | `modsecurity-agent.conf` | Address where `haproxy-modsecurity-spoa` listens. | restart SPOA | Must match HAProxy SPOP backend. |
 | `rules-file` | agent config key | Yes | `/etc/modsecurity/haproxy-rules.conf` | `modsecurity-agent.conf` | ModSecurity rules loaded by the SPOA process. | restart SPOA | Include CRS from this file when needed. |
 | `decision-log` | agent config key | Yes | `/var/log/haproxy-modsecurity/decision.jsonl` | `modsecurity-agent.conf` | JSONL runtime decision log. | restart SPOA | Preserve for evidence and debugging. |
@@ -106,8 +105,8 @@ documented as runtime evidence only.
 | `mode` | agent config key | Yes | `block` | `modsecurity-agent.conf` | Enables disruptive enforcement. | restart SPOA | Use detection mode only if implemented in the deployed binary. |
 | `fail-mode` | agent config key | Yes | `closed` | `modsecurity-agent.conf` | Behavior when processing fails. | restart SPOA | Choose according to service risk tolerance. |
 | `request-body-limit` | agent config key | No | `65532` | `modsecurity-agent.conf` | Bounds request body bytes processed. | restart SPOA | Keep within SPOE frame limits. |
-| `response-body-limit` | agent config key | Phase 4 only | `65532` | `modsecurity-agent.conf` | Bounds response body bytes processed. | restart SPOA | `0` disables response-body processing. |
-| `response-body-timeout` | agent config key | Phase 4 only | `50` | `modsecurity-agent.conf` | Bounded wait for response body evidence. | restart SPOA | Keep small to avoid response latency. |
+| `response-body-limit` | agent config key | Disabled | `0` | `modsecurity-agent.conf` | Disables response-body processing. | restart SPOA | No selected response-body route exists. |
+| `response-body-timeout` | agent config key | Disabled | `0` | `modsecurity-agent.conf` | Disables response-body waiting. | restart SPOA | No selected response-body route exists. |
 | `spoe-timeout` | agent config key | No | `2000` | `modsecurity-agent.conf` | Agent-side SPOE timeout in milliseconds. | restart SPOA | Keep aligned with HAProxy processing timeout. |
 | `worker-count` | agent config key | No | `1` | `modsecurity-agent.conf` | SPOA worker count. | restart SPOA | Size for production traffic after testing. |
 | `max-transactions` | agent config key | No | `4096` | `modsecurity-agent.conf` | Agent transaction capacity. | restart SPOA | Tune with memory and concurrency. |
@@ -150,7 +149,8 @@ Service context: HAProxy plus SPOA process. After adapting the files, haproxy -c
 
 - These examples are not a blanket production-readiness certification.
 - They do not prove every package/version/layout.
-- Phase 4 / RESPONSE_BODY examples are bounded runtime evidence only, not promoted full support.
+- Phase 4 / RESPONSE_BODY is `not_implemented` in the selected SPOP path; the
+  retired sample is disabled and not current runtime evidence.
 
 ## Related Docs
 

@@ -30,8 +30,9 @@ Config-Check oder Start ausführen.
 
 HAProxy selbst kann von der Distribution bereitgestellt oder lokal gebaut
 werden. Dieses Repository baut den Prozess `haproxy-modsecurity-spoa` und
-libmodsecurity-Binding-Checks. RESPONSE_BODY bleibt nur begrenzte
-Runtime-Evidence.
+libmodsecurity-Binding-Checks. Der ausgewählte SPOE/SPOP-Pfad unterstützt nur
+Requests und Response-Header; RESPONSE_BODY / Phase 4 ist
+`not_implemented`, und das ausgemusterte Sample ist kein Laufzeitnachweis.
 
 ## Überblick: Drei Pfade
 

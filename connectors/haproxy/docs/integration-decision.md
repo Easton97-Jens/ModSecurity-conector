@@ -25,7 +25,7 @@ HAProxy -> SPOE/SPOP -> haproxy-modsecurity-spoa -> libmodsecurity
 
 | Alternative | Current decision |
 | --- | --- |
-| Native HAProxy filter or extension | Deferred. No current runtime evidence. |
+| Native HAProxy filter or extension | Optional HAProxy 3.2.21 HTX observer source exists and builds, but is nonselected, bodyless-request-only, observer-only after forwarding, and has no canonical runtime evidence. |
 | Lua integration | Deferred. Not proven for full ModSecurity lifecycle. |
 | External HTTP sidecar | Deferred. The implemented path uses SPOE/SPOP instead. |
 
@@ -37,5 +37,6 @@ HAProxy -> SPOE/SPOP -> haproxy-modsecurity-spoa -> libmodsecurity
 - Details: `reports/testing/generated/haproxy-runtime-results.generated.md`.
 - PoC report: `reports/testing/haproxy-poc.md`.
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY is `not_implemented` in the selected SPOE/SPOP path.
+The former `wait-for-body` strict-abort sample is disabled, legacy, and
+noncanonical; it is not current runtime evidence.

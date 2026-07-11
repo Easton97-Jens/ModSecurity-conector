@@ -8,6 +8,7 @@ binding = (ROOT/'connectors/haproxy/src/haproxy_modsecurity_binding.c').read_tex
 mapper = (ROOT/'connectors/haproxy/src/haproxy_modsecurity_mapper.c').read_text()
 runtime_text = '\n'.join(p.read_text(errors='ignore') for p in (ROOT/'connectors/haproxy').rglob('*.c') if p.name != 'haproxy_modsecurity_mapper.c')
 spop_runtime = (ROOT/'connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c').read_text()
+haproxy_harness = (ROOT/'connectors/haproxy/harness/run_haproxy_smoke.sh').read_text()
 decision_log_start = spop_runtime.index('static void decision_log_write(')
 decision_log_end = spop_runtime.index('static int transaction_cache_init(', decision_log_start)
 decision_log_writer = spop_runtime[decision_log_start:decision_log_end]
@@ -62,6 +63,8 @@ check('phase4_common_event_write' in spop_runtime and
       'event.meta.event = "phase4_intervention"' in spop_runtime and
       'event.meta.message_id' in spop_runtime,
       'HAProxy Phase4 diagnostics also emit the Common metadata-only event model')
+check('http-response wait-for-body' not in haproxy_harness,
+      'HAProxy host harness does not delay output with a response-body wait-for-body sample')
 check('decision->log_message' not in decision_log_writer and
       'reason != 0 ? reason' not in decision_log_writer,
       'HAProxy decision JSONL does not serialize intervention log text')

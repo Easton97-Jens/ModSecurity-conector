@@ -1,0 +1,29 @@
+--- a/Makefile
++++ b/Makefile
+@@ -999,6 +999,26 @@ OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/log.o		\
+         src/hpack-huff.o src/hpack-enc.o src/ebtree.o src/hash.o	\
+         src/version.o src/ncbmbuf.o
+ 
++# Repository-owned HAProxy 3.2.21 ModSecurity HTX observer overlay.  The
++# build-overlay script places only generated worktree copies under src/.
++OBJS += src/haproxy_modsecurity_htx_filter.o \
++        src/haproxy_modsecurity_binding.o src/haproxy_modsecurity_mapper.o \
++        src/msconnector_config.o src/msconnector_config_parser.o \
++        src/msconnector_directive_spec.o src/msconnector_directive_adapter.o \
++        src/msconnector_request_helpers.o src/msconnector_response_helpers.o \
++        src/msconnector_request_mapper_contract.o src/msconnector_response_mapper_contract.o \
++        src/msconnector_headers.o src/msconnector_event.o src/msconnector_event_jsonl.o \
++        src/msconnector_json_escape.o src/msconnector_rule_id.o src/msconnector_log_sanitize.o \
++        src/msconnector_redaction.o src/msconnector_resource_limits.o src/msconnector_dos_guard.o \
++        src/msconnector_error.o src/msconnector_status.o src/msconnector_body_policy.o \
++        src/msconnector_crs.o src/msconnector_transaction_state.o src/msconnector_decision.o \
++        src/msconnector_decision_action.o src/msconnector_late_intervention.o \
++        src/msconnector_flow_guard.o src/msconnector_integrity_event.o src/msconnector_rule_loader.o \
++        src/msconnector_rule_merge.o src/msconnector_http_status.o src/msconnector_block_statuses.o \
++        src/msconnector_path_policy.o src/msconnector_intervention.o src/msconnector_rule_error.o \
++        src/msconnector_rule_event.o src/msconnector_artifacts.o src/msconnector_artifact_layout.o \
++        src/msconnector_test_result.o src/msconnector_test_result_json.o
++
+ ifneq ($(TRACE),)
+   OBJS += src/calltrace.o
+ endif

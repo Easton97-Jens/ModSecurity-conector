@@ -43,7 +43,7 @@ anstatt jeden Phase-4-Treffer als sichtbaren HTTP-`403` zu behandeln.
 |---|---|---|---|---|
 | Apache | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
 | NGINX | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
-| HAProxy | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` |
+| HAProxy | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
 | Envoy | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
 | Traefik | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` | `unsupported_by_host_model` |
 | lighttpd | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
@@ -59,10 +59,11 @@ anstatt jeden Phase-4-Treffer als sichtbaren HTTP-`403` zu behandeln.
 
 `implemented_not_asserted` macht eine Fähigkeit für die fähigkeitsgesteuerte
 Fallauswahl zulässig; daraus wird kein PASS. Ohne aktuellen Lauf besitzen
-Apache, NGINX und HAProxy in dieser Übersicht kein Phase-4-PASS-Ergebnis.
-HAProxy behält nur die Quellfacetten für Response-Body, Phase 4 und
-Regelbeobachtung; seine Fälle für Vor-Commit-Deny, Late Intervention und
-semantische Statusmetadaten sind `NOT_EXECUTED`, weil der Runner kein
+Apache, NGINX und HAProxy in dieser Übersicht kein Phase-4-PASS-Ergebnis. Der
+ausgewählte SPOP-Pfad von HAProxy besitzt keine Response-Body-/Phase-4-/
+Regelbeobachtungsfacetten. Seine optionale HTX-Observer-Quelle ist nicht
+ausgewählt, nur bodylos und stuft die Capability-Tabelle nicht hoch; die
+Phase-4- und semantischen Fälle sind `NOT_EXECUTED`, weil der Runner kein
 hostbeobachtetes Client-Ergebnis, keinen Commit-Zeitpunkt und keinen
 Hostpunkt nach dem Commit besitzt. Envoy und Traefik müssen
 Antwortphasen-Fälle als `UNSUPPORTED` ausweisen: Ihre gewählten `ext_authz`-

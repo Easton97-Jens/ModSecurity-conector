@@ -23,15 +23,17 @@
 ## Status
 
 Produktionsnahe HAProxy-SPOE/SPOP-Beispiele für `haproxy-modsecurity-spoa`.
-Sie promoten weder RESPONSE_BODY noch Force-all-FAIL-Zeilen als
-Produktionssupport.
+Der gewählte Pfad unterstützt Request-Phasen und Response-Header;
+RESPONSE_BODY ist nicht implementiert und wird nicht als Produktionssupport
+dargestellt.
 
 ## Zweck
 
 Diese Beispiele zeigen den produktiven SPOA-Pfad für HAProxy:
 `haproxy-modsecurity-spoa`, HAProxy + SPOE/SPOP + libmodsecurity,
-Decision-Logging, Audit-Log-Plumbing, Request-Phasen 1/2, implementierte
-Phase-3-Response-Header und begrenzte Phase-4-Strict-Abort-Evidence.
+Decision-Logging, Audit-Log-Plumbing, Request-Phasen 1/2 und implementierte
+Phase-3-Response-Header. Sie bieten keinen ausgewählten
+Response-Body-/Phase-4-Pfad.
 
 ## Benötigte Komponenten
 
@@ -43,8 +45,8 @@ ModSecurity-Log-Orte.
 
 - `haproxy-request-only.cfg`: HAProxy-Request-Phase-Enforcement über SPOE.
 - `haproxy-response-headers.cfg`: HAProxy-Request- plus Response-Header-Checks.
-- `haproxy-phase4-strict-abort.cfg`: Beispiel für begrenzten
-  Phase-4-Strict-Abort.
+- `haproxy-phase4-strict-abort.cfg`: historisches deaktiviertes Sample; kein
+  ausführbares Phase-4-Beispiel.
 - `spoe-modsecurity.conf`: SPOE-Message- und Variablen-Mapping.
 - `modsecurity-agent.conf`: Konfiguration für `haproxy-modsecurity-spoa`.
 
@@ -76,13 +78,11 @@ erzwingt zurückgegebene Variablen mit `http-response`-Regeln.
 
 ## Phase 4 / RESPONSE_BODY Strict-Abort
 
-`haproxy-phase4-strict-abort.cfg` ergänzt `http-response wait-for-body` und
-sendet begrenzte Response-Bytes an den SPOA-Service. Die Runtime kann begrenzte
-Strict-Abort-Evidence aufzeichnen, einschließlich `decision.jsonl` und
-Audit-Log-Ausgabe.
-
-Phase 4 / RESPONSE_BODY bleibt nicht promoted; begrenzte Strict-Abort-Evidence
-wird nur als Runtime-Evidence dokumentiert.
+`haproxy-phase4-strict-abort.cfg` ist ein historisches deaktiviertes Artefakt.
+Die ausgewählte SPOE/SPOP-Konfiguration sendet nur Response-Header; sie besitzt
+keinen Response-Body-Pfad, daher ist Phase 4 / RESPONSE_BODY
+`not_implemented`. Das ausgemusterte Sample darf weder verwendet noch als
+aktueller Laufzeitnachweis berichtet werden.
 
 ## Variablen- und Platzhalterreferenz
 
@@ -90,9 +90,8 @@ wird nur als Runtime-Evidence dokumentiert.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `haproxy-modsecurity-spoa` | Binary-Pfad | Ja | `/usr/local/sbin/haproxy-modsecurity-spoa` | Service Unit oder Process Supervisor | Produktiver SPOA/SPOP-Prozess, der libmodsecurity lädt. | SPOA neu starten | Gebaut durch `make -C connectors/haproxy build-spoa-runtime`. |
 | `filter spoe engine modsecurity` | HAProxy-Direktive | Ja | `config /etc/haproxy/spoe-modsecurity.conf` | `haproxy-*.cfg` | Hängt die ModSecurity-SPOE-Engine ein. | HAProxy reloaden | Config-Pfad muss für HAProxy lesbar sein. |
-| `http-request send-spoe-group` | HAProxy-Direktive | Ja | `modsecurity request-check` | Request- und Phase-4-HAProxy-Konfigurationen | Sendet Request-Daten an den SPOA-Service. | HAProxy reloaden | Für Phasen 1/2 erforderlich. |
-| `http-response send-spoe-group` | HAProxy-Direktive | Response-Modi | `modsecurity response-check` | Response-Header- und Phase-4-HAProxy-Konfigurationen | Sendet Response-Daten an den SPOA-Service. | HAProxy reloaden | Für Phase 3 und begrenzte Phase-4-Evidence erforderlich. |
-| `http-response wait-for-body` | HAProxy-Direktive | Nur Phase 4 | `time 50ms at-least 1` | `haproxy-phase4-strict-abort.cfg` | Macht begrenzte Response-Bytes für SPOE verfügbar. | HAProxy reloaden | Timeout und Byte-Erwartungen begrenzt halten. |
+| `http-request send-spoe-group` | HAProxy-Direktive | Ja | `modsecurity request-check` | Request-HAProxy-Konfigurationen | Sendet Request-Daten an den SPOA-Service. | HAProxy reloaden | Für Phasen 1/2 erforderlich. |
+| `http-response send-spoe-group` | HAProxy-Direktive | Response-Modi | `modsecurity response-check` | Response-Header-HAProxy-Konfigurationen | Sendet Response-Daten an den SPOA-Service. | HAProxy reloaden | Nur für Phase 3; es wird kein Response-Body gesendet. |
 | `be_spoa_modsecurity` | HAProxy-Backend | Ja | `127.0.0.1:12345` | `haproxy-*.cfg` | SPOP-Backend für den SPOA-Prozess. | HAProxy reloaden | Adresse muss zu Agent-`listen` passen. |
 | `spoe-agent modsecurity-agent` | SPOE-Section | Ja | `use-backend be_spoa_modsecurity` | `spoe-modsecurity.conf` | Definiert SPOE-Agent und Backend. | HAProxy reloaden | Verwendet HAProxy `mode spop`. |
 | `groups` | SPOE-Option | Ja | `request-check response-check` | `spoe-modsecurity.conf` | Deklariert verfügbare SPOE-Gruppen. | HAProxy reloaden | Request-only-Deployments können die Response-Gruppe weiterhin definiert lassen. |
@@ -103,7 +102,6 @@ wird nur als Runtime-Evidence dokumentiert.
 | `body` | SPOE-Message-Argument | Request-Checks | `req.body` | `spoe-modsecurity.conf` | Sendet begrenzte Request-Body-Bytes. | HAProxy reloaden | Erfordert `option http-buffer-request`. |
 | `response_headers_bin` | SPOE-Message-Argument | Response-Checks | `res.hdrs_bin` | `spoe-modsecurity.conf` | Sendet Response Header in binärer Form und erhält wiederholte Werte wie `Set-Cookie`. | HAProxy reloaden | Bevorzugt für Phase-3-Response-Header-Evidence. |
 | `response_headers` | SPOE-Message-Argument | Response-Checks | `res.hdrs` | `spoe-modsecurity.conf` | Sendet Response Header für Phase 3. | HAProxy reloaden | Von Response-Header-Evidence unterstützt. |
-| `response_body` | SPOE-Message-Argument | Nur Phase 4 | `res.body` | `spoe-modsecurity.conf` | Sendet begrenzte Response-Body-Bytes. | HAProxy reloaden | Nur nicht-promotete Runtime-Evidence. |
 | `listen` | Agent-Config-Key | Ja | `127.0.0.1:12345` | `modsecurity-agent.conf` | Adresse, auf der `haproxy-modsecurity-spoa` lauscht. | SPOA neu starten | Muss zum HAProxy-SPOP-Backend passen. |
 | `rules-file` | Agent-Config-Key | Ja | `/etc/modsecurity/haproxy-rules.conf` | `modsecurity-agent.conf` | ModSecurity-Regeln, die vom SPOA-Prozess geladen werden. | SPOA neu starten | CRS bei Bedarf aus dieser Datei einbinden. |
 | `decision-log` | Agent-Config-Key | Ja | `/var/log/haproxy-modsecurity/decision.jsonl` | `modsecurity-agent.conf` | JSONL-Runtime-Decision-Log. | SPOA neu starten | Für Evidence und Debugging aufbewahren. |
@@ -112,8 +110,8 @@ wird nur als Runtime-Evidence dokumentiert.
 | `mode` | Agent-Config-Key | Ja | `block` | `modsecurity-agent.conf` | Aktiviert disruptives Enforcement. | SPOA neu starten | Detection Mode nur verwenden, wenn er im bereitgestellten Binary implementiert ist. |
 | `fail-mode` | Agent-Config-Key | Ja | `closed` | `modsecurity-agent.conf` | Verhalten bei Processing-Fehlern. | SPOA neu starten | Entsprechend der Service-Risikotoleranz wählen. |
 | `request-body-limit` | Agent-Config-Key | Nein | `65532` | `modsecurity-agent.conf` | Begrenzt verarbeitete Request-Body-Bytes. | SPOA neu starten | Innerhalb der SPOE-Frame-Limits halten. |
-| `response-body-limit` | Agent-Config-Key | Nur Phase 4 | `65532` | `modsecurity-agent.conf` | Begrenzt verarbeitete Response-Body-Bytes. | SPOA neu starten | `0` deaktiviert Response-Body-Verarbeitung. |
-| `response-body-timeout` | Agent-Config-Key | Nur Phase 4 | `50` | `modsecurity-agent.conf` | Begrenztes Warten auf Response-Body-Evidence. | SPOA neu starten | Klein halten, um Response-Latenz zu vermeiden. |
+| `response-body-limit` | Agent-Config-Key | Deaktiviert | `0` | `modsecurity-agent.conf` | Deaktiviert Response-Body-Verarbeitung. | SPOA neu starten | Es existiert kein ausgewählter Response-Body-Pfad. |
+| `response-body-timeout` | Agent-Config-Key | Deaktiviert | `0` | `modsecurity-agent.conf` | Deaktiviert Response-Body-Warten. | SPOA neu starten | Es existiert kein ausgewählter Response-Body-Pfad. |
 | `spoe-timeout` | Agent-Config-Key | Nein | `2000` | `modsecurity-agent.conf` | Agent-seitiger SPOE-Timeout in Millisekunden. | SPOA neu starten | Mit HAProxy-Processing-Timeout abstimmen. |
 | `worker-count` | Agent-Config-Key | Nein | `1` | `modsecurity-agent.conf` | Anzahl der SPOA-Worker. | SPOA neu starten | Nach Tests für Produktionsverkehr dimensionieren. |
 | `max-transactions` | Agent-Config-Key | Nein | `4096` | `modsecurity-agent.conf` | Agent-Transaction-Kapazität. | SPOA neu starten | Mit Speicher und Nebenläufigkeit abstimmen. |
@@ -166,8 +164,8 @@ SPOA-Diagnose-Logs prüfen.
 
 - Diese Beispiele sind keine pauschale Production-Readiness-Zertifizierung.
 - Sie belegen nicht jedes Paket, jede Version oder jedes Layout.
-- Phase-4- / RESPONSE_BODY-Beispiele sind nur begrenzte Runtime-Evidence, keine
-  promotete vollständige Unterstützung.
+- Phase 4 / RESPONSE_BODY ist im ausgewählten SPOP-Pfad `not_implemented`; das
+  ausgemusterte Sample ist deaktiviert und kein aktueller Laufzeitnachweis.
 
 ## Verwandte Dokumente
 

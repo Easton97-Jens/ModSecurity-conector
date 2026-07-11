@@ -101,16 +101,24 @@ Global gate definitions:
 
 ## Canonical Phase-4 evidence
 
-Only the bounded SPOA/SPOP response-body path, `phase4`, and
-`phase4_rule_evaluation` are `implemented_not_asserted`. The agent's
-pre-commit/status fields are policy-derived, not host-observed, so
-`phase4_pre_commit_deny` and `late_intervention_status_metadata` are
+The prior bounded SPOA/SPOP response-body sample is disabled because it
+required `http-response wait-for-body` and is not a low-latency response
+stream. `response_body_buffered`, `phase4`, and
+`phase4_rule_evaluation` are therefore `not_implemented` in the selected
+SPOE/SPOP path until it wires a native HTX/filter response-chunk adapter. The
+checked-in optional HTX observer source is nonselected, bodyless-request-only,
+and not canonical evidence.
+The agent's pre-commit/status fields are policy-derived, not host-observed, so
+`phase4_pre_commit_deny` and `late_intervention_status_metadata` remain
 `not_implemented`. The current path also has no post-commit point, safe
-`log_only`, or strict `abort_connection`; all late-intervention facets are
+`log_only`, or strict `abort_connection`; all late-intervention facets remain
 `not_implemented`.
 
-- [ ] Prove `phase4_rule_observed` for rule `1100301` through the real joined
-      HAProxy/agent response path.
+- [ ] Wire a native response-chunk adapter that owns/correlates the complete
+      required transaction before attempting to prove `phase4_rule_observed`
+      for rule `1100301` through a joined HAProxy/agent response path. The
+      current optional HTX observer intentionally bypasses body-bearing
+      requests.
 - [ ] Implement a real host path that observes client-visible response status
       and commitment timing before declaring `phase4_pre_commit_deny` or
       status metadata.

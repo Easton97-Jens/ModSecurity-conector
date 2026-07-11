@@ -95,13 +95,12 @@ Traefik `forwardAuth` sind für Response-Phasen
 `unsupported_by_host_model`; Phase 4 von lighttpd ist im aktuellen nativen
 Modul `not_implemented`. Diese Zustände zählen niemals als PASS.
 
-HAProxy besitzt einen begrenzten experimentellen Quellpfad für Response-Bodies,
-doch sein aktueller SPOE/SPOP-Runner beobachtet weder ein beim Client sichtbares
-Ergebnis noch den tatsächlichen Antwort-Commit-Zeitpunkt und hat keinen
-Hostpunkt nach dem Commit. Deshalb sind nur seine Facetten für Response-Body,
-Phase 4 und Regelbeobachtung `implemented_not_asserted`; Vor-Commit-Deny,
-Late Intervention und semantische späte Statusmetadaten sind
-`not_implemented`, ihre Fälle bleiben `NOT_EXECUTED`.
+Das frühere begrenzte HAProxy-Response-Body-Sample ist bewusst deaktiviert,
+weil es `http-response wait-for-body` benötigte und damit den Low-Latency-
+Vertrag verletzt. Der gewählte SPOE/SPOP-Pfad besitzt keine Response-Body-
+Chunks und keine Phase-4-Route. Response-Body-, Phase-4-, Late-Intervention-,
+No-Full-Buffer- und First-Byte-Facetten sind deshalb `not_implemented`; ihre
+Fälle bleiben `NOT_EXECUTED`.
 
 ## Repository-Struktur
 
@@ -1095,9 +1094,9 @@ lighttpd-Plugin-/Proxy-/Runtime-API und FastCGI-/SCGI-/native Modul-Integration 
 
 | Connector | Aktueller Status | Common-Nutzung | Antwortphasen-Klassifikation | Laufzeitbeleg | Verbotene Schlussfolgerung |
 |---|---|---|---|---|---|
-| Apache | Connector-Quellen vorhanden | vorhanden | Antwortkörper und alle Phase-4-Facetten sind `implemented_not_asserted`; es gibt keinen Phase-4-PASS. | benötigt aktuelle Berichte/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
-| NGINX | Connector-Quellen vorhanden | vorhanden | Antwortkörper und alle Phase-4-Facetten sind `implemented_not_asserted`; es gibt keinen Phase-4-PASS. | benötigt aktuelle Berichte/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
-| HAProxy | SPOA-/Starter- sowie Mapper-/Binding-Quellen vorhanden | vorhanden/partial | Begrenzter Pfad für Antwortkörper, Phase 4 und Regelbeobachtung ist `implemented_not_asserted`; Vor-Commit-Deny, alle späten Aktionen und semantische Statusmetadaten sind `not_implemented`. | benötigt aktuelle Berichte/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
+| Apache | Connector-Quellen vorhanden | vorhanden | Response-Body-Ingestion/EOS und die Source-seitigen Phase-4-Facetten sind `implemented_not_asserted`; es gibt keinen Phase-4-PASS. | benötigt aktuelle Berichte/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
+| NGINX | Connector-Quellen vorhanden | vorhanden | Response-Body-Ingestion/EOS und Late-Action-Source-Zweige sind `implemented_not_asserted`; `phase4_pre_commit_deny` ist `not_implemented`; es gibt keinen Phase-4-PASS. | benötigt aktuelle Berichte/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
+| HAProxy | SPOA-/Starter- sowie Mapper-/Binding-Quellen vorhanden | vorhanden/partial | Der gewählte SPOE/SPOP-Pfad besitzt keine Response-Body-/Phase-4-Route: diese Facetten, Late-Aktionen, No-Full-Buffer und First-Byte-Nachweis sind `not_implemented`. | benötigt aktuelle Berichte/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
 | Envoy | HTTP-`ext_authz`-Dienst | genutzt | Alle Antwortphasen-Facetten sind `unsupported_by_host_model`; Phase-4-Fälle sind `UNSUPPORTED`. | gezielter Request-Header-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | Upstream-Antwortphasen dürfen nicht aus einem `ext_authz`-Selbsttest abgeleitet werden |
 | Traefik | HTTP-`forwardAuth`-Dienst | genutzt | Alle Antwortphasen-Facetten sind `unsupported_by_host_model`; Phase-4-Fälle sind `UNSUPPORTED`. | gezielter Request-Header-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | Upstream-Antwortphasen dürfen nicht aus einem `forwardAuth`-Selbsttest abgeleitet werden |
 | lighttpd | natives Plugin | genutzt | Alle Antwortphasen-Facetten sind `not_implemented`; Phase-4-Fälle bleiben `NOT EXECUTED`. | gezielter Phase-1-200/403-Pfad; kanonisches No-CRS `NOT EXECUTED` | Ein nicht implementierter Antwortkörper darf nicht als Hostmodell-`UNSUPPORTED` bezeichnet werden |

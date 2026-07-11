@@ -394,9 +394,13 @@ expect = effective_expect(case)
 intervention = str(expect.get("intervention", ""))
 status = int(expect.get("status", 0))
 response_headers = bool(caps.intersection({"phase3", "phase4", "response-headers", "response-body"}))
-response_body = bool(caps.intersection({"phase4", "response-body"}))
 print(f"HAPROXY_ENABLE_RESPONSE_HEADERS={1 if response_headers else 0}")
-print(f"HAPROXY_ENABLE_RESPONSE_BODY={1 if response_body else 0}")
+# The selected SPOE/SPOP integration has no native response-chunk callback.
+# Do not enable HAProxy's wait-for-body sample path for Phase 4: it delays
+# output for a synthetic agent message and cannot prove the low-latency
+# lifecycle contract.  A future HTX/filter adapter may set this only after it
+# exposes genuine borrowed chunks and end-of-stream semantics.
+print("HAPROXY_ENABLE_RESPONSE_BODY=0")
 print(f"HAPROXY_EXPECT_INTERVENTION={intervention!r}")
 print(f"HAPROXY_EXPECT_STATUS={status}")
 print("HAPROXY_NOT_EXECUTABLE_REASON=''")
@@ -693,9 +697,6 @@ write_haproxy_config() {
         echo "    unique-id-format %[uuid()]"
         echo "    unique-id-header X-Request-ID"
         echo "    option http-buffer-request"
-        if [ "${HAPROXY_ENABLE_RESPONSE_BODY:-0}" = "1" ]; then
-            echo "    http-response wait-for-body time 50ms at-least 1"
-        fi
         echo "    filter spoe engine modsecurity config $SPOE_CFG"
         echo "    http-request send-spoe-group modsecurity request-check"
         echo "    http-request redirect location %[var(txn.modsec.redirect_url)] code 302 if { var(txn.modsec.action) -m str redirect } { var(txn.modsec.redirect_url) -m found }"
@@ -763,11 +764,7 @@ write_haproxy_config() {
             echo "    messages check-response"
             echo
             echo "spoe-message check-response"
-            if [ "${HAPROXY_ENABLE_RESPONSE_BODY:-0}" = "1" ]; then
-                echo "    args request_id=unique-id response_status=txn.status response_headers_bin=res.hdrs_bin response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server) response_body=res.body response_body_len=res.body_len"
-            else
-                echo "    args request_id=unique-id response_status=txn.status response_headers_bin=res.hdrs_bin response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server)"
-            fi
+            echo "    args request_id=unique-id response_status=txn.status response_headers_bin=res.hdrs_bin response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server)"
         fi
     } > "$SPOE_CFG"
 }
@@ -834,12 +831,8 @@ start_agent() {
     pid_file="$RUNTIME_ROOT/spoa.pid"
     port_file="$RUNTIME_ROOT/spoa.port"
     response_header_arg=
-    response_body_limit=0
     if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
         response_header_arg=--enable-response-headers
-    fi
-    if [ "${HAPROXY_ENABLE_RESPONSE_BODY:-0}" = "1" ]; then
-        response_body_limit="${HAPROXY_RESPONSE_BODY_LIMIT:-32768}"
     fi
     LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
         "$SPOA_RUNTIME_BIN" \
@@ -858,8 +851,6 @@ start_agent() {
             --case "$CASE_NAME" \
             --expected-status "$EXPECT_STATUS" \
             --request-body-limit 65532 \
-            --response-body-limit "$response_body_limit" \
-            --response-body-timeout 50 \
             $response_header_arg \
             >"$LOG_DIR/spoa-runtime.stdout.log" \
             2>"$LOG_DIR/spoa-runtime.stderr.log" &

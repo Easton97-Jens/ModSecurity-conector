@@ -25,9 +25,11 @@ Full-Matrix-Abdeckung und keine neue Runtime-Verifikation.
 
 ## Kanonische Grenze für Phase 4
 
-Apache verwendet einen begrenzten nativen httpd-Ausgabefilterpfad. Dieser
-Quellpfad kann Response-Body-Daten an ModSecurity übergeben; das eingecheckte
-Manifest deklariert `response_body_buffered`, `phase4`,
+Apache verwendet einen nativen httpd-Ausgabefilterpfad, der den aktuellen
+Bucket nur leiht, die aktuelle Brigade vor EOS weitergibt und Phase 4 bei EOS
+finalisiert. Das ist inkrementelles Ingest mit End-of-Stream-Auswertung, keine
+Regelauswertung pro Chunk. Das eingecheckte Manifest deklariert
+`response_body_buffered`, `phase4`,
 `phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
 `late_intervention_log_only`, `late_intervention_abort` und
 `late_intervention_status_metadata` jedoch bewusst als

@@ -25,7 +25,7 @@ Status hochgestuft.
 | Phase-3-Response-Header | implementiert, historisch belegt | Response-SPOE-Gruppe und Entscheidungsprotokolle |
 | Audit/Protokoll | für historische Fälle belegt | Audit-Protokollierung und Fallartefakte |
 | CRS-SQLi-Anomaliesperre | historisch belegt | Laufzeitzusammenfassung mit CRS |
-| Phase 4 / RESPONSE_BODY | `implemented_not_asserted` | `wait-for-body`, Response-Body-Limits und Protokolle sind keine kanonische Facetten-Evidence |
+| Phase 4 / RESPONSE_BODY | `not_implemented` | Das frühere `wait-for-body`-Sample ist deaktiviert; der gewählte SPOP-Pfad besitzt keinen verdrahteten nativen Response-Chunk-Pfad |
 | Vollständiger RESPONSE_BODY | nicht hochgestuft | erfordert einen getrennten Nachweis |
 
 ## Promotion-Regeln
@@ -38,21 +38,25 @@ Status hochgestuft.
 - Zusammenfassungen auf Root-Ebene bleiben connector-neutral.
 - Es gibt keinen Generator für synthetische Matrizen.
 
-Phase 4 / RESPONSE_BODY bleibt nicht hochgestuft; begrenzte Nachweise für einen
-strikten Abbruch sind nur Laufzeitnachweise.
+Phase 4 / RESPONSE_BODY bleibt nicht hochgestuft. Das frühere begrenzte
+Sample ist deaktiviert, weil es `wait-for-body` statt eines echten
+Host-Response-Streams verwendete.
 
 ## Kanonische Entscheidung für Phase 4
 
-Der begrenzte SPOA/SPOP-Response-Zweig ist ausschließlich eine Quellfähigkeit.
-Er belegt weder Antwortzeitpunkt noch Transportverhalten. Nur
-Response-Body-Verfügbarkeit, `phase4` und `phase4_rule_evaluation` bleiben
-`implemented_not_asserted`; die semantischen Durchsetzungs- und
-Late-Intervention-Facetten sind `not_implemented`.
+Der frühere begrenzte SPOA/SPOP-Response-Zweig ist deaktiviert, weil er
+`wait-for-body` brauchte. Der gewählte Hostpfad besitzt keinen verdrahteten
+nativen Response-Body-Callback; Response-Body-Verfügbarkeit, `phase4` und
+`phase4_rule_evaluation` sind daher `not_implemented`. Auch die semantischen
+Durchsetzungs- und Late-Intervention-Facetten sind `not_implemented`. Die
+optionale HAProxy-3.2.21-HTX-Observer-Quelle ist ein separater Overlay nur für
+bodylose Requests. Sie nutzt geliehene Chunks/EOS, wird aber nicht durch diesen
+SPOP-Pfad konfiguriert und stuft diese Zustände nicht hoch.
 
 | Facette | Zustand im Manifest | Abdeckungsentscheidung |
 | --- | --- | --- |
-| `response_body_buffered` und `phase4` | `implemented_not_asserted` | Einen gemeinsamen Lauf über HAProxy und Agent belegen. |
-| `phase4_rule_evaluation` | `implemented_not_asserted` | Regel `1100301` beobachten, unabhängig von einem 403. |
+| `response_body_buffered` und `phase4` | `not_implemented` | Vollständige native HAProxy-Response-Chunk-Transaktion in den gewählten Pfad verdrahten; niemals `wait-for-body` verwenden. |
+| `phase4_rule_evaluation` | `not_implemented` | Benötigt einen echten ausgewählten End-of-Stream-Pfad und beobachtete Regel `1100301`. |
 | `phase4_pre_commit_deny` | `not_implemented` | Aktuelle Felder sind policy-abgeleitet; kein Host-Runner erfasst sichtbaren Client-Status und Commit-Zeitpunkt. |
 | `late_intervention`, `late_intervention_log_only` und `late_intervention_abort` | `not_implemented` | Es gibt keinen HAProxy-Hostpunkt nach dem Commit und keine sichere oder strikte späte Aktion. |
 | `late_intervention_status_metadata` | `not_implemented` | Es gibt keinen hostbeobachteten ursprünglichen/sichtbaren Status mit Zeitpunkt; policy-abgeleitete Werte reichen nicht aus. |

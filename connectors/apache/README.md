@@ -128,9 +128,11 @@ full-matrix coverage, or new runtime verification behavior.
 
 ## Canonical Phase-4 boundary
 
-Apache uses a bounded native httpd output-filter path.  That source path can
-make response-body data available to ModSecurity, but the checked-in manifest
-intentionally declares `response_body_buffered`, `phase4`,
+Apache uses a native httpd output-filter path that borrows the current bucket,
+passes the current brigade onward before EOS, and finishes Phase 4 at EOS.
+That is incremental ingestion with end-of-stream evaluation, not per-chunk
+rule evaluation. The checked-in manifest intentionally declares
+`response_body_buffered`, `phase4`,
 `phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
 `late_intervention_log_only`, `late_intervention_abort`, and
 `late_intervention_status_metadata` as `implemented_not_asserted`.  No current

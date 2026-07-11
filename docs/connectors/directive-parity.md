@@ -95,9 +95,10 @@ Supported configuration is split across:
   `mode`, `fail-mode`, `request-body-limit`, `response-body-limit`, and
   `response-body-timeout`.
 
-HAProxy runtime evidence includes request phases 1/2, implemented phase 3
-response headers, decision/audit logs, and bounded Phase 4 strict-abort
-evidence. There is no synthetic matrix writer.
+HAProxy runtime evidence covers request phases 1/2, response-header wiring,
+and decision/audit logs. The former Phase-4 response-body sample is disabled
+because it required `http-response wait-for-body`; it is not evidence for a
+low-latency response route. There is no synthetic matrix writer.
 
 ## Deferred And Risky Areas
 
@@ -106,8 +107,8 @@ paths, hook/filter ordering, transaction ownership, and request/response
 lifecycle behavior remain connector-specific. They must not be moved into
 `common/` without a separate design and runtime evidence.
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY is `not_implemented` for the selected SPOE/SPOP path;
+the disabled `wait-for-body` sample is not runtime evidence.
 
 ## Common Metadata
 

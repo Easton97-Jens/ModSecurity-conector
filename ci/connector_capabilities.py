@@ -35,22 +35,40 @@ ROOT = Path(__file__).resolve().parents[1]
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 CAPABILITY_NAMES = (
     "connection_metadata",
+    "transport_metadata",
     "request_headers",
     "request_body_buffered",
     "request_body_streaming",
+    "request_body_incremental_ingest",
     "response_headers",
     "response_body_buffered",
     "response_body_streaming",
+    "response_body_incremental_ingest",
     "phase1",
     "phase2",
     "phase3",
     "phase4",
     "phase4_rule_evaluation",
+    "phase4_end_of_stream_evaluation",
     "phase4_pre_commit_deny",
     "late_intervention",
     "late_intervention_log_only",
     "late_intervention_abort",
     "late_intervention_status_metadata",
+    "content_type_scope",
+    "header_limits",
+    "request_body_limits",
+    "response_body_limits",
+    "no_full_response_buffering",
+    "first_byte_before_response_end",
+    "http1_content_length",
+    "http1_chunked",
+    "keep_alive",
+    "parallel_requests",
+    "http2",
+    "client_abort",
+    "upstream_abort",
+    "response_body_decompression",
     "deny",
     "redirect",
     "drop",
@@ -388,6 +406,16 @@ def _validate_relationships(
             _state(data, "phase4") != "verified"):
         errors.append(
             f"{connector}: phase4_rule_evaluation=verified requires phase4=verified"
+        )
+    if (_state(data, "phase4_end_of_stream_evaluation") == "verified" and
+            _state(data, "phase4_rule_evaluation") != "verified"):
+        errors.append(
+            f"{connector}: phase4_end_of_stream_evaluation=verified requires phase4_rule_evaluation=verified"
+        )
+    if (_state(data, "first_byte_before_response_end") == "verified" and
+            _state(data, "no_full_response_buffering") != "verified"):
+        errors.append(
+            f"{connector}: first_byte_before_response_end=verified requires no_full_response_buffering=verified"
         )
     if (_state(data, "phase4_pre_commit_deny") == "verified" and
             _state(data, "phase4_rule_evaluation") != "verified"):

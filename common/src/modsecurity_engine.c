@@ -176,6 +176,49 @@ static int call_response(
     return msconnector_transaction_state_mark_phase(&tx->state, phase);
 }
 
+static int call_append(
+    msconnector_modsecurity_transaction *tx,
+    const unsigned char *data,
+    size_t size,
+    msconnector_error *error,
+    int (*fn)(void *, void *, const unsigned char *, size_t, msconnector_error *),
+    const char *unsupported_message)
+{
+    if (!tx_ready(tx, error)) {
+        return 0;
+    }
+    if (size > 0U && data == 0) {
+        return fail_error(error, MSCONNECTOR_ERROR_INTERNAL, "body data is required when size is nonzero");
+    }
+    if (fn == 0) {
+        return fail_error(error, MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY, unsupported_message);
+    }
+    return fn(tx->engine->ops.userdata, tx->native_transaction, data, size, error);
+}
+
+static int call_finish(
+    msconnector_modsecurity_transaction *tx,
+    msconnector_decision *decision,
+    msconnector_error *error,
+    enum msconnector_phase phase,
+    int (*fn)(void *, void *, msconnector_decision *, msconnector_error *),
+    const char *unsupported_message)
+{
+    if (!tx_ready(tx, error)) {
+        return 0;
+    }
+    if (fn == 0) {
+        return fail_error(error, MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY, unsupported_message);
+    }
+    if (decision != 0) {
+        msconnector_decision_set_allow(decision);
+    }
+    if (!fn(tx->engine->ops.userdata, tx->native_transaction, decision, error)) {
+        return 0;
+    }
+    return msconnector_transaction_state_mark_phase(&tx->state, phase);
+}
+
 static int (*request_op(
     const msconnector_modsecurity_transaction *tx,
     enum msconnector_phase phase))(void *, void *, const msconnector_request *, msconnector_decision *, msconnector_error *)
@@ -238,6 +281,27 @@ int msconnector_modsecurity_process_request_body(
     return call_request(tx, request, decision, error, MSCONNECTOR_PHASE_REQUEST_BODY, request_op(tx, MSCONNECTOR_PHASE_REQUEST_BODY));
 }
 
+int msconnector_modsecurity_append_request_body(
+    msconnector_modsecurity_transaction *tx,
+    const unsigned char *data,
+    size_t size,
+    msconnector_error *error)
+{
+    return call_append(tx, data, size, error,
+        tx == 0 || tx->engine == 0 ? 0 : tx->engine->ops.append_request_body,
+        "incremental request body ingestion is unsupported");
+}
+
+int msconnector_modsecurity_finish_request_body(
+    msconnector_modsecurity_transaction *tx,
+    msconnector_decision *decision,
+    msconnector_error *error)
+{
+    return call_finish(tx, decision, error, MSCONNECTOR_PHASE_REQUEST_BODY,
+        tx == 0 || tx->engine == 0 ? 0 : tx->engine->ops.finish_request_body,
+        "request body finalization is unsupported");
+}
+
 int msconnector_modsecurity_process_response_headers(
     msconnector_modsecurity_transaction *tx,
     const msconnector_response *response,
@@ -254,6 +318,27 @@ int msconnector_modsecurity_process_response_body(
     msconnector_error *error)
 {
     return call_response(tx, response, decision, error, MSCONNECTOR_PHASE_RESPONSE_BODY, response_op(tx, MSCONNECTOR_PHASE_RESPONSE_BODY));
+}
+
+int msconnector_modsecurity_append_response_body(
+    msconnector_modsecurity_transaction *tx,
+    const unsigned char *data,
+    size_t size,
+    msconnector_error *error)
+{
+    return call_append(tx, data, size, error,
+        tx == 0 || tx->engine == 0 ? 0 : tx->engine->ops.append_response_body,
+        "incremental response body ingestion is unsupported");
+}
+
+int msconnector_modsecurity_finish_response_body(
+    msconnector_modsecurity_transaction *tx,
+    msconnector_decision *decision,
+    msconnector_error *error)
+{
+    return call_finish(tx, decision, error, MSCONNECTOR_PHASE_RESPONSE_BODY,
+        tx == 0 || tx->engine == 0 ? 0 : tx->engine->ops.finish_response_body,
+        "response body finalization is unsupported");
 }
 
 int msconnector_modsecurity_process_logging(msconnector_modsecurity_transaction *tx, msconnector_error *error)

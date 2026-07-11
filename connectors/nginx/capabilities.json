@@ -125,6 +125,78 @@
     "config_remote_rules": {
       "state": "implemented_not_asserted",
       "reason": "The modsecurity_rules_remote directive is wired to libmodsecurity; the no-CRS baseline does not exercise external networking."
+    },
+    "transport_metadata": {
+      "state": "implemented_not_asserted",
+      "reason": "The native filters retain response status and commitment state, but no canonical transport run has recorded it."
+    },
+    "request_body_incremental_ingest": {
+      "state": "not_implemented",
+      "reason": "The native request-body callback begins after NGINX has collected the host request body; it is not a real incremental host-ingestion path."
+    },
+    "response_body_incremental_ingest": {
+      "state": "implemented_not_asserted",
+      "reason": "The body filter appends each current NGINX buffer without retaining a cross-call response body, but no native-host evidence run is attached."
+    },
+    "phase4_end_of_stream_evaluation": {
+      "state": "implemented_not_asserted",
+      "reason": "The body filter finalizes response-body processing once at last_buf or last_in_chain; canonical host evidence is pending."
+    },
+    "content_type_scope": {
+      "state": "implemented_not_asserted",
+      "reason": "The Phase-4 filter checks its configured response Content-Type scope before appending body bytes; real-host coverage is pending."
+    },
+    "header_limits": {
+      "state": "not_implemented",
+      "reason": "No canonical NGINX connector path asserts the shared header-limit behavior in the full-lifecycle catalog."
+    },
+    "request_body_limits": {
+      "state": "not_implemented",
+      "reason": "The current request-body path is host-buffered and has no connector-level incremental limit outcome contract."
+    },
+    "response_body_limits": {
+      "state": "implemented_not_asserted",
+      "reason": "The response filter bounds bytes supplied to ModSecurity with the configured Phase-4 limit, but limit-mode evidence is pending."
+    },
+    "no_full_response_buffering": {
+      "state": "implemented_not_asserted",
+      "reason": "The response filter processes and forwards current chain buffers rather than accumulating a connector-owned full response; synchronized proof is pending."
+    },
+    "first_byte_before_response_end": {
+      "state": "implemented_not_asserted",
+      "reason": "The pass-through filter wiring permits downstream delivery before end of stream, but the synchronized first-byte test has not run."
+    },
+    "http1_content_length": {
+      "state": "configured_not_exercised",
+      "reason": "The native NGINX module can run behind HTTP/1.1 Content-Length responses, but the canonical transport case has not run."
+    },
+    "http1_chunked": {
+      "state": "configured_not_exercised",
+      "reason": "The body-filter path can receive HTTP/1.1 chunked response buffers, but no canonical transport result is attached."
+    },
+    "keep_alive": {
+      "state": "configured_not_exercised",
+      "reason": "No canonical sequential-request keep-alive run is attached to the native module."
+    },
+    "parallel_requests": {
+      "state": "not_implemented",
+      "reason": "The canonical parallel full-lifecycle isolation evidence path is not implemented for this connector."
+    },
+    "http2": {
+      "state": "configured_not_exercised",
+      "reason": "The module can be built into an HTTP/2-capable NGINX host, but no canonical HTTP/2 lifecycle evidence is attached."
+    },
+    "client_abort": {
+      "state": "not_implemented",
+      "reason": "No native NGINX client-abort cleanup case currently records the canonical transport metadata."
+    },
+    "upstream_abort": {
+      "state": "not_implemented",
+      "reason": "No native NGINX upstream-abort cleanup case currently records the canonical transport metadata."
+    },
+    "response_body_decompression": {
+      "state": "not_implemented",
+      "reason": "The connector has no asserted response-body decompression contract."
     }
   },
   "evidence_stages": {

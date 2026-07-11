@@ -39,6 +39,10 @@ checks = [
 ('MSCONNECTOR_COMMON_SRC' in nginx_config and '$MSCONNECTOR_COMMON_SRC/event.c' in nginx_config and '$MSCONNECTOR_COMMON_SRC/transaction_state.c' in nginx_config and '$MSCONNECTOR_COMMON_SRC/late_intervention.c' in nginx_config, 'NGINX build uses stable Common source root and links event and late-intervention support'),
 ('common_response_validated' in common_h and ('if (!ctx->common_response_validated)' in body_c or 'if (ctx->common_response_validated)' in body_c) and 'ctx->common_response_validated = 1' in body_c, 'NGINX response mapper validation is gated once per response in body path'),
 ('response_body_bytes_inspected' in common_h and 'ngx_http_modsecurity_append_limited_response_body' in body_c and 'common_config.phase4_body_limit' in body_c and 'ctx->response_body_truncated = 1' in body_c and not re.search(r'msc_append_response_body\s*\([^;]*,\s*len\s*\)', body_c), 'NGINX enforces phase4 body limit before appending response bytes to ModSecurity'),
+('chain->buf->last_buf ||' in body_c and 'chain->buf->last_in_chain' in body_c and 'ctx->phase4_processed' in body_c, 'NGINX finalizes Phase4 once at the actual main or subrequest end-of-stream'),
+('ngx_int_t in_scope' in body_c and 'if (in_scope == 0)' in body_c and 'ctx->response_body_bytes_seen += len' in body_c, 'NGINX records seen bytes while only ingesting in-scope response chunks'),
+('ngx_http_modsecurity_phase4_actual_action(action, wanted)' in body_c and '"redirect" : "deny"' in body_c, 'NGINX preserves redirect as the requested pre-commit action'),
+('event.body.content_type' in body_c and 'event.body.bytes_seen' in body_c and 'event.body.bytes_inspected' in body_c, 'NGINX Phase4 events include payload-free content-type and body-byte metadata'),
 ('ngx_str_t event_transaction_id' in common_h and 'ctx->event_transaction_id' in module_c and 'ctx->event_transaction_id' in body_c and 'event.meta.transaction_id = ctx != NULL' in body_c, 'NGINX Phase4 events retain a request-level transaction ID instead of a connection-only identifier'),
 ('MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR' not in module_c, 'NGINX does not register Apache-style transaction_id_expr'),
 ]

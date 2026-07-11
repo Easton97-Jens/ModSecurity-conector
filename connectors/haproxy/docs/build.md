@@ -45,5 +45,6 @@ Evidence is summarized in:
 - `reports/testing/haproxy-poc.md`
 - `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY is `not_implemented` in the selected SPOE/SPOP path.
+The former `wait-for-body` strict-abort sample is disabled, legacy, and
+noncanonical; it is not current runtime evidence.

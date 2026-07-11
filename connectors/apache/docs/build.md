@@ -41,8 +41,9 @@ and summarized in:
 - `reports/testing/test-coverage-overview.md`
 - `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY remains non-promoted. The source now forwards each
+current output brigade before EOS and finalizes at EOS, but safe/strict
+transport behavior still requires current real-host evidence.
 
 ## Common-Adoption C Standard Checks
 

@@ -354,6 +354,9 @@ for required_field in (
     "late_intervention",
     "connection_aborted",
     "truncated",
+    "content_type",
+    "bytes_seen",
+    "bytes_inspected",
 ):
     if required_field not in event_header:
         fail(f"common event model must retain {required_field} metadata")
@@ -365,6 +368,10 @@ if "event->meta.message_id" not in event_source or "event->decision.requested_ac
     fail("common event JSON writer must use nested event metadata")
 if "truncated" not in event_header or "truncated" not in event_source:
     fail("common event JSON writer must expose truncation")
+if ("limit_outcome" not in event_header or
+        "body_limit_outcome" not in event_source or
+        "body_limit_outcome_json" not in event_source):
+    fail("common event JSON writer must expose optional payload-free body-limit outcomes")
 if "msconnector_event_write_json_ex" not in event_source or "return was_truncated ? 0 : 1" not in event_source:
     fail("common event JSON writer must fail success status when truncation is detected")
 if "if ((dst_size == 0 || needed >= dst_size) && truncated != 0)" not in event_source:
@@ -387,6 +394,55 @@ if "validate_n" not in transaction_id_source or "header->value_size" not in tran
     fail("transaction ID header fallback must use bounded header value_size")
 if "new_rules_set" not in engine_source or "old_rules_set" not in engine_source or "engine->rules_set = new_rules_set" not in engine_source:
     fail("modsecurity_engine_create_rules must preserve the old rules set until reload succeeds")
+if ("msconnector_modsecurity_append_request_body" not in engine_source or
+        "msconnector_modsecurity_finish_request_body" not in engine_source or
+        "msconnector_modsecurity_append_response_body" not in engine_source or
+        "msconnector_modsecurity_finish_response_body" not in engine_source):
+    fail("modsecurity engine must expose borrowed chunk append and explicit body finalization APIs")
+runtime_header = (ROOT / "common" / "runtime" / "msconnector_runtime.h").read_text(encoding="utf-8")
+runtime_source = (ROOT / "common" / "runtime" / "msconnector_runtime.c").read_text(encoding="utf-8")
+body_policy_header = (ROOT / "common" / "include" / "msconnector" / "body_policy.h").read_text(encoding="utf-8")
+body_policy_source = (ROOT / "common" / "src" / "body_policy.c").read_text(encoding="utf-8")
+config_header = (ROOT / "common" / "include" / "msconnector" / "config.h").read_text(encoding="utf-8")
+config_source = (ROOT / "common" / "src" / "config.c").read_text(encoding="utf-8")
+for lifecycle_api in (
+    "msconnector_runtime_transaction_append_request_body_chunk",
+    "msconnector_runtime_transaction_finish_request_body",
+    "msconnector_runtime_transaction_process_response_headers",
+    "msconnector_runtime_transaction_append_response_body_chunk",
+    "msconnector_runtime_transaction_finish_response_body",
+):
+    if lifecycle_api not in runtime_header or lifecycle_api not in runtime_source:
+        fail(f"common runtime is missing explicit lifecycle API {lifecycle_api}")
+transaction_match = re.search(
+    r"struct\s+msconnector_runtime_transaction\s*\{(?P<body>.*?)\};",
+    runtime_source,
+    flags=re.S,
+)
+if transaction_match is None:
+    fail("common runtime transaction storage is not parseable")
+transaction_storage = text_without_comments(transaction_match.group("body"))
+if "const msconnector_request *" in transaction_storage or "const msconnector_response *" in transaction_storage:
+    fail("common runtime transaction must not retain host-owned request/response pointers")
+if ("apply_body_limit_plan" not in runtime_source or
+        "request_body_bytes_seen" not in runtime_source or
+        "response_body_bytes_seen" not in runtime_source or
+        "request_body_limit_outcome" not in runtime_source or
+        "response_body_limit_outcome" not in runtime_source or
+        "response_body_finished" not in runtime_source):
+    fail("common runtime must track bounded chunk progress, limit outcomes and explicit EOS state")
+if ("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT" not in body_policy_header or
+        "MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL" not in body_policy_header or
+        "msconnector_body_limit_plan_chunk" not in body_policy_header or
+        "msconnector_body_limit_plan_chunk" not in body_policy_source):
+    fail("common body policy must provide reject/process_partial limit planning")
+if ("body_limit_action" not in runtime_source or
+        "late_intervention_timeout" not in runtime_source or
+        "phase4_event_log" not in runtime_source or
+        "late_intervention_timeout_ms" not in runtime_header or
+        "late_intervention_timeout_ms" not in config_header or
+        "merge_late_intervention_timeout" not in config_source):
+    fail("common runtime must carry neutral body-limit and late-intervention timeout configuration")
 if '".."' not in harness_source or '../*' not in harness_source or '*/..' not in harness_source or '*\\\\..' not in harness_source:
     fail("common-harness must reject terminal parent-directory artifact segments")
 if "validate_phase_callbacks" not in adapter_contract_source or "MSCONNECTOR_CAPABILITY_REQUEST_HEADERS" not in adapter_contract_source or "process_response_body" not in adapter_contract_source:

@@ -15,7 +15,7 @@ runtime evidence establishes the connector behavior.
 | `filter spoe engine modsecurity config <file>` | Attaches the ModSecurity SPOE engine. |
 | Dedicated SPOP backend | Connects HAProxy to `haproxy-modsecurity-spoa`. |
 | SPOE request messages | Send request phases 1/2 data. |
-| SPOE response messages | Send response headers and bounded response-body bytes. |
+| SPOE response messages | The active repository configuration sends response headers only; a response-body stream requires a separate native callback. |
 | Set-var ACK values | Return `txn.modsec.*` variables for HAProxy enforcement. |
 
 ## Repository Evidence
@@ -26,5 +26,6 @@ runtime evidence establishes the connector behavior.
   `reports/testing/generated/haproxy-runtime-results.generated.md`.
 - PoC report: `reports/testing/haproxy-poc.md`.
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented/reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY is not implemented in the active harness. The former
+bounded sample used `http-response wait-for-body` and is disabled; it is not
+strict-abort evidence.

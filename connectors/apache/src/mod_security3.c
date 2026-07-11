@@ -488,12 +488,16 @@ static int hook_request_late(request_rec *r)
     }
 #endif
 
-
-    msc_process_request_body(msr->t);
-    it = process_intervention(msr->t, r);
-    if (it != N_INTERVENTION_STATUS)
+    /* No-body requests have no input EOS to drive the filter.  Complete P2
+     * here; requests that advertise a body remain streaming until
+     * MODSECURITY_IN receives EOS (or Apache drains an unread body). */
+    if (!ap_request_has_body(r))
     {
-        return it;
+        it = msc_finalize_request_body(msr, r);
+        if (it != N_INTERVENTION_STATUS)
+        {
+            return it;
+        }
     }
 
     return DECLINED;

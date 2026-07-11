@@ -2,7 +2,8 @@
 
 **Sprache:** [English](haproxy-poc.md) | Deutsch
 
-Status: Produktion SPOA Laufzeitnachweis
+Status: Produktions-SPOA-Laufzeitnachweis nur für Request-Phasen und
+Response-Header; Phase 4 / RESPONSE_BODY ist kein kanonischer Nachweis
 
 ## Umgesetzt
 
@@ -133,12 +134,13 @@ HAProxy-Variablen für die reaktionsseitige Durchsetzung.
 
 ## Phase 4 / RESPONSE_BODY
 
-Der begrenzte Phase-4-Pfad verwendet HAProxy `http-response wait-for-body` plus SPOE
-`response_body`- und `response_body_len`-Argumente. Der Nachweis ist durch die begrenzt
-HAProxy/SPOE Frame-Limits und durch die SPOA Response-Body-Einstellungen.
-
-Phase 4 / RESPONSE_BODY bleibt nicht promoted; begrenzte strikte Abbruchbeweise sind
-documented/reported nur als Laufzeitbeweis.
+Phase 4 / RESPONSE_BODY ist im gewählten SPOE/SPOP-Pfad `not_implemented`.
+Das frühere `wait-for-body`-Sample mit seinen `response_body`-Argumenten ist
+deaktiviert: Der Harness setzt `HAPROXY_ENABLE_RESPONSE_BODY=0` und emittiert
+keines von beiden. Das ausgemusterte Sample ist historisch/nicht kanonisch und
+darf nicht als aktueller Laufzeitnachweis berichtet werden. Der optionale
+HAProxy-3.2.21-HTX-Observer ist nicht ausgewählt, nur für bodylose Requests
+und observer-only nach dem Weiterleiten.
 
 ## Produktionskonfigurationsform
 
