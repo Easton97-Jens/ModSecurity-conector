@@ -4,9 +4,10 @@ This is a repository-owned Go package shaped for Traefik's Go middleware
 entry points: `CreateConfig`, `New`, and `ServeHTTP`. `New` has the required
 `(http.Handler, error)` signature, and `.traefik.yml` records plugin metadata
 and test data. It uses only the Go standard library; Traefik supplies the next
-`http.Handler` when it loads a plugin. The package is an alternate, unselected
-path. It does not replace the existing C `forwardAuth` service or alter that
-path's capability declaration.
+`http.Handler` when it loads a plugin. The full-lifecycle runner stages this
+package below a pinned Traefik local-plugin workspace; it does not replace the
+existing C `forwardAuth` compatibility service or alter its capability
+declaration.
 
 ## What the source does
 
@@ -24,10 +25,10 @@ path's capability declaration.
   not synthesize a changed status, reset, or client-abort claim.
 
 The optional-engine shape is intentional. `New` installs `PassthroughEngine`,
-which always allows. A future Common/libmodsecurity bridge must implement
-`Engine`/`Transaction` and be independently reviewed, configured, and proven
-against a real Traefik runtime. Source compilation and local unit tests are not
-that proof.
+which always allows. `runtime-smoke-traefik-native` proves only local-plugin
+loading and traffic through the real pinned host; it is non-promoted evidence.
+A future Common/libmodsecurity bridge must implement `Engine`/`Transaction`
+and be independently reviewed, configured, and proven for rule actions.
 
 ## Local source checks
 

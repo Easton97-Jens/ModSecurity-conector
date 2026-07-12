@@ -46,12 +46,11 @@ make -C connectors/traefik self-test-decision-service
 `self-test-forwardauth` remains an explicitly local legacy decision-model test
 and is not runtime evidence.
 
-## Unselected native Go middleware source build
+## Native Go middleware source build and host probe
 
 The repository also contains `connectors/traefik/native_middleware/`, a Go
-module shaped for Traefik's middleware entry points. It is deliberately
-separate from `build-connector`, which continues to build the selected C
-`forwardAuth` service.
+module shaped for Traefik's middleware entry points. It remains separate from
+`build-connector`, which builds the C `forwardAuth` compatibility service.
 
 ```sh
 make -C connectors/traefik test-native-middleware
@@ -62,13 +61,24 @@ The first target runs focused `go test ./...` and `go vet ./...`; the second
 also runs `go build ./...`. Its only retained output is a compile report under
 `$BUILD_ROOT/traefik-native-middleware/build.txt`, outside the checkout. The
 source uses a `PassthroughEngine` seam rather than Common/libmodsecurity FFI,
-so a successful local build is not a rule-evaluation, config-load, Traefik
-runtime, response-body, or capability-verification result.
+so a successful local build alone is not a rule-evaluation or capability-
+verification result.
+
+The separate pinned-host probe stages the module under a disposable
+`plugins-local` workspace, materializes static and File Provider configuration,
+and routes a body-bearing request through Traefik:
+
+```sh
+TRAEFIK_BIN=/absolute/local/traefik \
+TRAEFIK_NATIVE_RUNTIME_ROOT=/absolute/runtime-root \
+make -C connectors/traefik runtime-smoke-traefik-native
+```
 
 `config/traefik-native-middleware-static.yaml` and
-`config/traefik-native-middleware-dynamic.yaml` are unselected local-plugin
-and File Provider shapes for an operator-staged local plugin. Neither is loaded
-by the forwardAuth smokes or changes their compatibility contract.
+`config/traefik-native-middleware-dynamic.yaml` remain reference shapes; the
+runner does not reuse mutable checkout configuration. The probe proves plugin
+loading and routing only. It does not call Common/libmodsecurity or promote a
+response-body, phase, late-action, first-byte, or no-buffer capability.
 
 The metadata starter compiles:
 
@@ -105,11 +115,11 @@ PASS; decision-service self-test PASS.
 
 ## Not Implemented / Not Verified
 
-No Traefik SDK, cgo integration, or Traefik binary is built. The native Go
-middleware module is compile-tested only and is unselected; the repository does
-not build Traefik itself. Response-phase inspection remains unsupported by the
-selected authorization protocol, and no production or current runtime
-verification is claimed by either source path alone.
+No Traefik SDK, cgo integration, or Traefik binary is built by this source
+build. The native Go module has a separate pinned-host probe, but it remains
+passthrough-only and non-promoted. Response-phase inspection remains unsupported
+by the selected authorization protocol, and neither source path claims
+production or full runtime verification.
 
 ## Production Build Blockers
 

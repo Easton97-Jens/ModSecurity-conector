@@ -55,8 +55,9 @@ Produktionsreife oder vollständiger Matrix.
 ## Kanonische Entscheidung für Phase 4
 
 Das native Modul besitzt bewusst keinen dekodierten Response-Body-Hook. Der
-optionale Callback des Patches sieht HTTP/1.x-Wire-Output vor dem Socket-Write
-und bleibt deshalb für Response-Body-Inspektion ein No-op. Diese Zustände sind
+vom separaten Full-Lifecycle-Profil ausgewählte Callback des Patches sieht
+HTTP/1.x-Wire-Output vor dem Socket-Write und bleibt deshalb für
+Response-Body-Inspektion ein No-op. Diese Zustände sind
 aktuelle Implementierungslücken des Moduls und keine Aussage über eine
 grundsätzliche Unmöglichkeit im Host-Modell.
 

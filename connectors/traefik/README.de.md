@@ -2,19 +2,35 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
-Status: `minimal_runtime_smoke` ausschließlich für den `forwardAuth`-Request-Pfad.
+Status: `forwardAuth`-Kompatibilitäts-Smoke plus nicht-promotierter nativer
+Local-Plugin-Hostprobe.
 Der Connector besitzt einen eigenen C17-Entry-Point und bleibt für Request-Body,
 Upstream-Response, CRS, Security, Produktion und Full Matrix bewusst
 `not_verified` / `connector-gap`.
 
-Daneben existiert unter `native_middleware/` ein nicht ausgewähltes,
-repo-eigenes Go-Middleware-Quellmodul. Es verarbeitet begrenzte Request- und
-Response-Chunks über einen expliziten `PassthroughEngine`, puffert keine ganze
-Response und erhält `Flush`, `Hijack`, `Push` sowie `ReadFrom`. Seine lokalen
-Go-Tests/Builds sind über `make -C connectors/traefik test-native-middleware`
-und `build-native-middleware` erreichbar. Das Modul ersetzt den C-
-`forwardAuth`-Pfad nicht, lädt keine Traefik-Plugin-Konfiguration und belegt
-keine Capability oder Laufzeitintegration.
+Daneben existiert unter `native_middleware/` ein repo-eigenes Go-Middleware-
+Quellmodul. Es verarbeitet begrenzte Request- und Response-Chunks über einen
+expliziten `PassthroughEngine`, puffert keine ganze Response und erhält
+`Flush`, `Hijack`, `Push` sowie `ReadFrom`. Der Full-Lifecycle-Runner staged es
+in Traefiks echten `plugins-local`-Workspace, lädt es im gepinnten Host und
+sendet einen body-tragenden Request durch einen Router mit dieser Middleware.
+Das ist ausschließlich eine Host-Auswahlprobe: `PassthroughEngine` ruft weder
+Common noch libmodsecurity auf und promotet keine P1–P4-, Safe-, Strict-,
+First-Byte- oder No-Full-Buffer-Capability. Der C-`forwardAuth`-Pfad bleibt
+der getrennte Kompatibilitätspfad.
+
+Der reale Local-Plugin-Hostprobe ist separat ausführbar:
+
+```sh
+TRAEFIK_BIN=/absoluter/lokaler/traefik \
+TRAEFIK_NATIVE_RUNTIME_ROOT=/absoluter/runtime-root \
+make -C connectors/traefik runtime-smoke-traefik-native
+```
+
+Er schreibt nur Status- und Byte-/Chunk-Metadaten, keine Payloads. Die lokalen
+Go-Tests/Builds bleiben über `make -C connectors/traefik
+test-native-middleware` und `build-native-middleware` verfügbar, sind aber
+allein kein Hostnachweis.
 
 - Common Config wird über `traefik_modsecurity_config_init()` initialisiert.
 - Request- und Response-Mapper sind dünne Funktionen, keine Makro-Aliase.

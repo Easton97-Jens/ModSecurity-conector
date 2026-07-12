@@ -6,8 +6,9 @@ Runtime status: targeted local 200/403; broader verification remains open
 No upstream Traefik connector source has been imported into this repository.
 The repository owns a small standard-library Go module under
 `native_middleware/`; it is not imported Traefik source, a Traefik SDK, or a
-cgo bridge. The selected integration boundary remains Traefik's external HTTP
-`forwardAuth` protocol.
+cgo bridge. The standard compatibility boundary remains Traefik's external
+HTTP `forwardAuth` protocol; the full-lifecycle host probe separately selects
+the native local plugin without a Common/libmodsecurity bridge.
 
 ## Current Source Inventory
 
@@ -30,13 +31,13 @@ cgo bridge. The selected integration boundary remains Traefik's external HTTP
 | `connectors/traefik/scripts/runtime_smoke.py` | repo-owned validation helper | not selected | repository root license not documented | Traefik/forwardAuth/upstream orchestration and evidence |
 | `connectors/traefik/config/traefik-forwardauth.conf` | repo-owned example config | not selected | repository root license not documented | Request-phase configuration; response processing disabled |
 | `connectors/traefik/config/traefik-forwardauth-dynamic.yaml` | repo-owned example config | not selected | repository root license not documented | Start-smoke Traefik File Provider template |
-| `connectors/traefik/native_middleware/middleware.go` | repo-owned Go middleware source | not selected | repository root license not documented | Bounded streaming wrapper and explicit pass-through engine seam; not runtime verified |
-| `connectors/traefik/native_middleware/middleware_test.go` | repo-owned Go unit tests | not selected | repository root license not documented | Focused source-level behavior tests only |
-| `connectors/traefik/native_middleware/go.mod` | repo-owned Go module metadata | not selected | repository root license not documented | No external dependencies |
-| `connectors/traefik/native_middleware/.traefik.yml` | repo-owned plugin manifest | not selected | repository root license not documented | Traefik plugin metadata/test data; no load proof |
-| `connectors/traefik/build/build-native-middleware.sh` | repo-owned build helper | not selected | repository root license not documented | Go source build/test command, outside-checkout report only |
-| `connectors/traefik/config/traefik-native-middleware-dynamic.yaml` | repo-owned example config | not selected | repository root license not documented | Unselected local-plugin File Provider shape |
-| `connectors/traefik/config/traefik-native-middleware-static.yaml` | repo-owned example config | not selected | repository root license not documented | Unselected local-plugin registration shape |
+| `connectors/traefik/native_middleware/middleware.go` | repo-owned Go middleware source | selected only by non-promoted full-lifecycle host probe | repository root license not documented | Bounded streaming wrapper and explicit pass-through engine seam; no rule bridge |
+| `connectors/traefik/native_middleware/middleware_test.go` | repo-owned Go unit tests | selected only by non-promoted full-lifecycle host probe | repository root license not documented | Focused source-level behavior tests only |
+| `connectors/traefik/native_middleware/go.mod` | repo-owned Go module metadata | selected only by non-promoted full-lifecycle host probe | repository root license not documented | No external dependencies |
+| `connectors/traefik/native_middleware/.traefik.yml` | repo-owned plugin manifest | selected only by non-promoted full-lifecycle host probe | repository root license not documented | Traefik plugin metadata/test data; pinned host load probe exists |
+| `connectors/traefik/build/build-native-middleware.sh` | repo-owned build helper | selected only by non-promoted full-lifecycle host probe | repository root license not documented | Go source build/test command, outside-checkout report only |
+| `connectors/traefik/config/traefik-native-middleware-dynamic.yaml` | repo-owned example config | selected only by non-promoted full-lifecycle host probe | repository root license not documented | Reference local-plugin File Provider shape |
+| `connectors/traefik/config/traefik-native-middleware-static.yaml` | repo-owned example config | selected only by non-promoted full-lifecycle host probe | repository root license not documented | Reference local-plugin registration shape |
 
 ## Not Imported
 

@@ -44,8 +44,8 @@ PROFILE_METADATA: dict[str, dict[str, str]] = {
         "host_name": "HAProxy 3.2.21 native HTX filter",
         "integration_mode": "native-htx-filter",
         "reason": (
-            "The selected route is the patched HAProxy 3.2.21 HTX filter; its "
-            "current harness is observer-only and cannot promote enforcement."
+            "The selected route is the patched HAProxy 3.2.21 HTX filter; it "
+            "runs in observer mode and cannot promote enforcement."
         ),
     },
     "envoy": {
@@ -60,8 +60,8 @@ PROFILE_METADATA: dict[str, dict[str, str]] = {
         "host_name": "Traefik native middleware",
         "integration_mode": "native-traefik-middleware",
         "reason": (
-            "The selected route is the native Traefik middleware; no pinned "
-            "Traefik host run currently wires it as canonical evidence."
+            "The selected route is the native Traefik middleware in the pinned "
+            "host; its current Engine is passthrough-only and non-promotable."
         ),
     },
     "lighttpd": {

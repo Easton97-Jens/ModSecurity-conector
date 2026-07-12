@@ -1,7 +1,7 @@
 # Envoy Connector Origin
 
-Status: repository-local ext_authz connector source plus unpromoted Go ext_proc
-transport groundwork
+Status: repository-local ext_authz connector source plus a non-promoted Go
+ext_proc transport path selected by the full-lifecycle profile
 Runtime status: `minimal_runtime_smoke` for the HTTP ext_authz request path
 
 No upstream Envoy connector source has been imported into this repository.
@@ -10,7 +10,7 @@ No upstream Envoy connector source has been imported into this repository.
 
 | Field | Value |
 | --- | --- |
-| Component | ModSecurity Envoy ext_authz connector plus ext_proc groundwork |
+| Component | ModSecurity Envoy ext_authz connector plus full-lifecycle-selected ext_proc transport path |
 | Upstream Envoy source | not selected |
 | Upstream connector source | not selected |
 | Source branch | not selected |

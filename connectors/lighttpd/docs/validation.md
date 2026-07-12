@@ -57,11 +57,12 @@ mapped by the module with `http_status_set_err()`.
 ## Patched-host boundary
 
 The patched target is intentionally separate from the stock compatibility path
-and the generic No-CRS runner. It copies and patches only lighttpd 1.4.84,
-builds and stages the core and module together, validates the matching plugin
-ABI through `lighttpd -tt`, then runs only the narrow Phase-1 smoke. Its
-generated runtime file requires both body modes to be `none` and its manifest
-records `phase4_runtime_evidence=not_executed`.
+and generic stock No-CRS runner. The full-lifecycle profile selects it. It
+copies and patches only lighttpd 1.4.84, builds and stages the core and module
+together, validates the matching plugin ABI through `lighttpd -tt`, then runs
+only the narrow Phase-1 smoke. Its generated runtime file requires both body
+modes to be `none` and its manifest records
+`phase4_runtime_evidence=not_executed`.
 
 The response callback introduced by the patch is immediately before
 `network_write()` and views `r->write_queue`. For HTTP/1.x that can include

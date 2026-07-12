@@ -1,4 +1,4 @@
-// Package modsecuritynative provides a repository-owned Traefik middleware
+// Package native_middleware provides a repository-owned Traefik middleware
 // entry point with a deliberately narrow, streaming engine seam.
 //
 // The public CreateConfig and New functions use Traefik's Go middleware
@@ -8,7 +8,12 @@
 // while making the missing Common/libmodsecurity bridge explicit.  New
 // installs PassthroughEngine, so this source alone is not rule-evaluation or
 // runtime evidence.
-package modsecuritynative
+//
+// Traefik's local-plugin loader resolves the exported constructor through the
+// final module-path component. Keep this package name aligned with the
+// ``native_middleware`` directory/module suffix so the pinned host can load
+// the plugin instead of treating it as an unregistered alternate source.
+package native_middleware
 
 import (
 	"bufio"
@@ -221,10 +226,10 @@ type Middleware struct {
 }
 
 // New is Traefik's Go plugin entry point. Its http.Handler return signature is
-// intentionally the one expected by Traefik's Yaegi middleware contract. It
-// preserves the existing forwardAuth connector by being an unselected alternate
-// source/build path; selecting it in a real Traefik deployment requires
-// independent config-load and runtime evidence.
+// intentionally the one expected by Traefik's Yaegi middleware contract. The
+// full-lifecycle host probe selects this local plugin independently from the
+// existing forwardAuth compatibility connector. Its PassthroughEngine still
+// cannot claim rule evaluation or any promoted capability.
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	return NewWithEngine(next, config, name, PassthroughEngine{})
 }

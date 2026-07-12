@@ -21,11 +21,12 @@ Response-Bodies sind in diesem nativen Modul nicht implementiert und werden
 niemals an die Runtime übergeben. Es gibt keine Behauptung zu CRS, Produktionsreife,
 Security-Verifikation, Response-Body-Verarbeitung oder Full Matrix.
 
-Ein optionales Ziel für einen gepatchten Host kopiert, patcht, konfiguriert,
-baut, installiert und staged einen passenden lighttpd-1.4.84-Core zusammen mit
-dem Modul. `runtime-smoke-lighttpd-patched` prüft das Laden dieses isolierten
-Core/Modul-Paars und denselben engen Phase-1-200/403-Smoke. Es ist kein
-generisches No-CRS-Ziel und promoted keine Capability. Die Response-Hooks des
+Das Full-Lifecycle-Profil wählt ein separates Ziel für einen gepatchten Host,
+das einen passenden lighttpd-1.4.84-Core zusammen mit dem Modul kopiert,
+patcht, konfiguriert, baut, installiert und staged.
+`runtime-smoke-lighttpd-patched` prüft das Laden dieses isolierten
+Core/Modul-Paars und denselben engen Phase-1-200/403-Smoke. Es bleibt vom
+generischen Stock-No-CRS-Ziel getrennt und promotet keine Capability. Die Response-Hooks des
 Patches sehen jedoch HTTP/1.x-Wire-Bytes inklusive möglichem Framing, keine
 dekodierten Entity-Bytes; HTTP/2 bleibt ausgeschlossen.
 
@@ -98,7 +99,7 @@ vollständige Testmatrix.
 
 Das aktuelle native Modul besitzt einen Response-Start-Header-Hook, aber keinen
 verifizierten nativen Response-Entity-Body-Hook. Es übergibt ModSecurity bewusst
-keine Response-Body-Daten. Der optionale Output/EOS-Hook des Patches bleibt für
+keine Response-Body-Daten. Der ausgewählte Output/EOS-Hook des Patches bleibt für
 Response-Bodies absichtlich ein No-op, weil er HTTP/1.x-Wire-Bytes und kein
 dekodiertes Entity sieht. `response_body_buffered`, `phase4`,
 `phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,

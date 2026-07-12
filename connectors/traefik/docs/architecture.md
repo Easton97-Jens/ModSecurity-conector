@@ -1,7 +1,7 @@
 # Traefik Architecture
 
-Status: minimal_runtime_smoke (forwardAuth request path only)
-Runtime status: broader connector behavior not verified
+Status: forwardAuth compatibility smoke plus a non-promoted native local-plugin host probe
+Runtime status: broader rule behavior is not verified
 
 The selected integration architecture is an external HTTP authorization service
 attached to Traefik through `forwardAuth`. The connector owns a C17 host profile,
@@ -40,9 +40,9 @@ proves the built service behind a real Traefik request path.
 
 | Option | Current decision | Reason |
 | --- | --- | --- |
-| Traefik plugin | source/build groundwork | Repo-owned Go middleware API, bounded streaming wrappers, and local unit tests exist; no Traefik config-load or runtime evidence exists |
-| Traefik middleware | source/build groundwork | `native_middleware/` uses standard Go HTTP interfaces and a pass-through engine seam; it is not selected or rule-evaluation evidence |
-| `forwardAuth` / external HTTP decision service | selected | Connector-owned host profile and service binary source; current runtime evidence still required |
+| Traefik plugin | full-lifecycle host probe, non-promoted | The pinned local-plugin host loads `native_middleware/` and routes a body-bearing request through it; its passthrough engine has no rule bridge |
+| Traefik middleware | full-lifecycle host probe, non-promoted | `native_middleware/` uses standard Go HTTP interfaces and a pass-through engine seam; it is not rule-evaluation evidence |
+| `forwardAuth` / external HTTP decision service | selected compatibility path | Connector-owned host profile and service binary source; it remains separate from the native probe |
 | Sidecar / proxy bridge | deferred | No bridge runtime, proxy config, or harness exists |
 | Custom module/build | deferred | No Traefik source/build contract exists |
 
@@ -51,30 +51,29 @@ origin, license, build command, configuration, ModSecurity integration point,
 request/response mapping, intervention mapping, logging behavior, and runtime
 results.
 
-## Unselected native middleware path
+## Native middleware host probe (non-promoted)
 
 The Go package is intentionally separate from the selected `forwardAuth`
-architecture. It wraps a `net/http` request body in bounded reads and wraps the
-response writer with `Flush`, `Hijack`, `Push`, `ReadFrom`, and `Unwrap`
-preservation. Every observed body slice is sent synchronously to an
-`Engine`/`Transaction` seam, while the per-request summary retains counters
-only. It does not collect a full response body.
+compatibility architecture. The full-lifecycle runner stages it beneath
+Traefik's disposable `plugins-local` workspace, starts the pinned host, checks
+the local-plugin load confirmation, and routes a body-bearing request through
+the middleware. It wraps a `net/http` request body in bounded reads and wraps
+the response writer with `Flush`, `Hijack`, `Push`, `ReadFrom`, and `Unwrap`
+preservation. It does not collect a full response body.
 
 Before commitment, a future engine could return a local deny/redirect decision.
 After response commitment, a disruptive prospective decision is recorded only
 as `log_only`; the source does not claim a changed visible status, connection
 reset, client abort, or upstream abort. The checked-in `PassthroughEngine`
 always allows and has no Common/runtime or libmodsecurity FFI. Therefore this
-path is not a replacement for `forwardAuth` and cannot alter the canonical
-capability states until a real selected Traefik configuration and runtime prove
-it independently.
+path is not a replacement for `forwardAuth` and cannot alter canonical
+capability states. The host probe is deliberately non-promoted.
 
 ## Parallel Phase Target
 
-The runtime-smoke target for the open-connector parallel phase is
-`integration_mode=forwardAuth`. Traefik-specific code remains limited to
-forwardAuth wiring, Traefik configuration, and the Traefik smoke harness. No Go
-plugin path is part of Phase 1.
+The standard runtime-smoke target remains `integration_mode=forwardAuth`.
+`runtime-smoke-traefik-native` is a separate full-lifecycle host target and
+does not change the Phase-1 compatibility declaration.
 
 Shared data contracts remain in `common/include/msconnector/`:
 

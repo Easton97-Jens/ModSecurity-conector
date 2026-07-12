@@ -10,15 +10,17 @@ vendored under `connectors/haproxy`. The repo-authored libmodsecurity binding
 source is used by the local SPOP runtime for live request-side framework YAML
 execution; it is not a productive HAProxy runtime adapter.
 
-## Optional native HTX transport smoke
+## Native HTX transport smoke for the full-lifecycle profile
 
 The repository does not vendor HAProxy source. `htx-overlay/` instead copies a
 repo-authored filter, binding sources, and a narrow Makefile patch into an
-isolated, version-checked HAProxy 3.2.21 worktree. Its connector-local smoke
+isolated, version-checked HAProxy 3.2.21 worktree. The separate
+`full-lifecycle-haproxy-htx` profile selects this connector-local smoke. It
 validates `filter modsecurity-htx`, exercises P1–P4 through real HAProxy, and
 records only stream ID, phase, rule ID, action, and status metadata. It remains
 observer-only: no disruptive decision is converted into a HAProxy reply,
-redirect, or post-commit abort, and it does not alter selected SPOE/SPOP claims.
+redirect, or post-commit abort, and it does not alter the SPOP compatibility
+claims or promote a lifecycle capability.
 
 ## Current Source Provenance
 
@@ -34,8 +36,8 @@ redirect, or post-commit abort, and it does not alter selected SPOE/SPOP claims.
 | `connectors/haproxy/src/haproxy_modsecurity_binding.c` | repo-authored ModSecurity binding | not selected | Uses locally verified libmodsecurity C API signatures for materialized rules, URI, headers, request body bytes, and CRS SQLi decisions. |
 | `connectors/haproxy/src/haproxy_modsecurity_binding.h` | repo-authored ModSecurity binding | not selected | Declares the request/evaluation shape used by the binding self-test and SPOP runtime. |
 | `connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c` | repo-authored ModSecurity binding self-test CLI | not selected | Supports `--describe` and `--self-test`; live HAProxy runtime enforcement is handled by the framework smoke harness. |
-| `connectors/haproxy/htx-overlay/` | repo-authored HAProxy 3.2.21 overlay source and build patch | not selected | Copied into a disposable verified HAProxy source worktree; its dedicated transport smoke is observer-only and noncanonical. |
-| `connectors/haproxy/harness/run_haproxy_htx_runtime.sh` | repo-authored native HTX transport smoke | not selected | Builds/starts a patched HAProxy and records metadata-only P1–P4 observations without enforcement promotion. |
+| `connectors/haproxy/htx-overlay/` | repo-authored HAProxy 3.2.21 overlay source and build patch | selected only by the non-promoted full-lifecycle profile | Copied into a disposable verified HAProxy source worktree; its dedicated transport smoke is observer-only. |
+| `connectors/haproxy/harness/run_haproxy_htx_runtime.sh` | repo-authored native HTX transport smoke | selected only by the non-promoted full-lifecycle profile | Builds/starts a patched HAProxy and records metadata-only P1–P4 observations without enforcement promotion. |
 | `connectors/haproxy/docs/` | repo-authored documentation | not selected | Documents open HAProxy integration options and blockers. |
 | `connectors/haproxy/harness/README.md` | repo-authored documentation | not selected | Harness contract only. |
 

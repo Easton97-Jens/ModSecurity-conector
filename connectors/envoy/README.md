@@ -15,10 +15,11 @@ response. `ext_authz` does not expose upstream response headers or response
 bodies to this service, so response inspection remains unsupported and no
 response-body claim is made.
 
-## Separate, unpromoted `ext_proc` groundwork
+## Separate, non-promoted `ext_proc` full-lifecycle host path
 
-`ext_proc/` adds a separate Go service based on Envoy's official generated Go
-protobuf/gRPC API. Its checked-in Envoy template uses `STREAMED` request and
+`ext_proc/` adds a separate Go service selected by the full-lifecycle profile,
+based on Envoy's official generated Go protobuf/gRPC API. Its checked-in Envoy
+template uses `STREAMED` request and
 response body modes, with bounded per-stream counters and incremental callback
 delivery; it never selects `BUFFERED` processing. The pinned module and Envoy
 release record are in `ext_proc/go.mod`, `ext_proc/go.sum`, and

@@ -20,7 +20,7 @@ static const msconnector_haproxy_adapter_metadata haproxy_metadata = {
         "haproxy",
         "repository-spop-agent",
         "HAProxy",
-        "The selected HAProxy/SPOP path implements requests and optional response headers. The former wait-for-body response sample is disabled; an optional native HTX observer source exists but is not wired into this SPOP path."
+        "The selected HAProxy/SPOP compatibility path implements requests and optional response headers. The former wait-for-body response sample is disabled; the separate native HTX observer is selected only by the non-promoted full-lifecycle profile and is not wired into this SPOP path."
     },
     "haproxy",
     "HAProxy",

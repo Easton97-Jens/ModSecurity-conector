@@ -29,9 +29,10 @@ HTTP client -> HAProxy -> SPOE/SPOP -> haproxy-modsecurity-spoa -> libmodsecurit
 
 The former bounded strict-abort sample is disabled and retained only as a
 legacy, noncanonical artifact. It must not be used or reported as current
-runtime evidence. The optional HAProxy 3.2.21 HTX observer is nonselected and
-observer-only after forwarding, but has its own real-host P1–P4 transport smoke
-with incremental request/response chunks.
+runtime evidence. The separate `full-lifecycle-haproxy-htx` profile selects
+the HAProxy 3.2.21 HTX observer. It is observer-only after forwarding, but has
+its own real-host P1–P4 transport smoke with incremental request/response
+chunks.
 
 That smoke proves a patched HTX filter can invoke libmodsecurity in all four
 phases and records metadata-only observations. It deliberately does not turn a

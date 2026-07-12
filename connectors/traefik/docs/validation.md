@@ -79,7 +79,7 @@ temporary concrete service and Traefik File Provider configurations outside the
 checkout and cleans up every process. Missing pre-run local executables are
 BLOCKED/77; resolved config, startup, mapping, or status errors are FAIL.
 
-## Unselected native Go middleware source checks
+## Native Go middleware host check (non-promoted)
 
 The repository-owned `native_middleware/` package has focused unit tests for
 bounded request/response chunks, `io.ReaderFrom` delegation, optional
@@ -91,14 +91,22 @@ make -C connectors/traefik test-native-middleware
 make -C connectors/traefik build-native-middleware
 ```
 
-Those commands run Go source checks only. They do not stage the package under
-a Traefik local-plugin directory, load
-`config/traefik-native-middleware-static.yaml` or
-`config/traefik-native-middleware-dynamic.yaml`, start Traefik, or exercise a
-Common/libmodsecurity engine. The checked-in `PassthroughEngine` always allows.
-Accordingly no native middleware runtime, Phase 2/3/4, first-byte, no-full-
-buffering, late-abort, or capability verification is claimed. The selected C
-`forwardAuth` validation path and its existing status remain unchanged.
+Those commands run Go source checks only. The separate host command below
+stages the package in a disposable local-plugin directory, starts pinned
+Traefik, requires its plugin-load confirmation, and routes a body-bearing
+request through the configured middleware:
+
+```sh
+TRAEFIK_BIN=/absolute/local/traefik \
+TRAEFIK_NATIVE_RUNTIME_ROOT=/absolute/runtime-root \
+make -C connectors/traefik runtime-smoke-traefik-native
+```
+
+The checked-in `PassthroughEngine` always allows and has no Common/libmodsecurity
+bridge. Accordingly the host check is non-promoted: it makes no P1-P4, first-
+byte, no-full-buffering, late-abort, rule-evaluation, or capability-verification
+claim. The C `forwardAuth` validation path and its existing status remain
+unchanged.
 
 ## Framework-Owned Starter Evidence
 

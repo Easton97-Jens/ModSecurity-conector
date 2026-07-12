@@ -15,10 +15,11 @@ Autorisierungsantwort übertragen. `ext_authz` liefert dem Dienst keine
 Upstream-Response-Header oder -Bodies. Response-Inspektion bleibt deshalb
 nicht unterstützt und es wird kein Response-Body-Claim erhoben.
 
-## Separates, nicht hochgestuftes `ext_proc`-Grundgerüst
+## Separater, nicht hochgestufter `ext_proc`-Full-Lifecycle-Hostpfad
 
-`ext_proc/` ergänzt einen separaten Go-Dienst mit Envoys offiziellen generierten
-Go-Protobuf-/gRPC-APIs. Seine Envoy-Vorlage verwendet `STREAMED` für Request-
+`ext_proc/` ergänzt einen vom Full-Lifecycle-Profil ausgewählten separaten
+Go-Dienst mit Envoys offiziellen generierten Go-Protobuf-/gRPC-APIs. Seine
+Envoy-Vorlage verwendet `STREAMED` für Request-
 und Response-Bodies, begrenzte Pro-Stream-Zähler und inkrementelle Callbacks;
 sie verwendet niemals `BUFFERED`. Das gepinnte Modul und der Envoy-Release sind
 in `ext_proc/go.mod`, `ext_proc/go.sum` und

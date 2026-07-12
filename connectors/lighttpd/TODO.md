@@ -28,8 +28,9 @@ Canonical capability source: `connectors/lighttpd/capabilities.json`.
 - [x] Versioned 1.4.84 source patch defines bounded HTTP/1.x request-body
       capture and has a compile-only check; no runtime capability is promoted.
 - [x] Dedicated patched-host target copies, patches, configures, builds,
-      installs, stages and ABI-loads a matched 1.4.84 core plus module; its
-      isolated 200/403 smoke remains Phase-1-only and is not No-CRS evidence.
+      installs, stages and ABI-loads a matched 1.4.84 core plus module. The
+      full-lifecycle profile selects its isolated 200/403 Phase-1 host smoke;
+      it remains non-promoted and does not establish body or Phase-4 evidence.
 - [ ] Preserve and test request-body truncation metadata.
 - [ ] Implement and test Phase-2 request-body processing.
 - [x] Versioned 1.4.84 source patch defines a bounded pre-socket-write HTTP/1.x

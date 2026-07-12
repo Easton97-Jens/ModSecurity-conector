@@ -1,4 +1,4 @@
-package modsecuritynative
+package native_middleware
 
 import (
 	"bufio"

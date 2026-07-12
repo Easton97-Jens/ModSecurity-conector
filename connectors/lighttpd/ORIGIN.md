@@ -1,6 +1,7 @@
 # lighttpd Connector Origin
 
-Status: repository-owned native module; `minimal_runtime_smoke`
+Status: repository-owned native module; stock `minimal_runtime_smoke` plus a
+non-promoted patched-host full-lifecycle probe
 
 No upstream connector implementation is imported into this directory. The
 module, mapper, build scripts, and native harness are repository-owned source.
@@ -20,14 +21,15 @@ libmodsecurity installation.
 | Host commit | release tarball; no Git commit selected |
 | Generated host ABI input | lighttpd build-tree `config.h` |
 | Native output | `mod_msconnector.so` |
-| Runtime status | `minimal_runtime_smoke` for the Phase-1 header path |
+| Runtime status | stock `minimal_runtime_smoke` plus a full-lifecycle-selected patched Phase-1 host probe |
 
-The optional patched-host target creates a separate copied 1.4.84 source tree,
-out-of-source core build, staged binary and staged ABI-matched module below the
-managed build root. It records the local patch SHA-256 and binary/module hashes
-before a real `lighttpd -tt` load. This is still only a narrow Phase-1
-build/load/runtime path: the patch's response callback observes HTTP/1.x wire
-output and is not a decoded response-body integration.
+The full-lifecycle profile selects a separate patched-host target that creates
+a copied 1.4.84 source tree, out-of-source core build, staged binary and staged
+ABI-matched module below the managed build root. It records the local patch
+SHA-256 and binary/module hashes before a real `lighttpd -tt` load. This is
+still only a narrow Phase-1 build/load/runtime path: the patch's response
+callback observes HTTP/1.x wire output and is not a decoded response-body
+integration, so the result is non-promoted.
 
 The committed connector source does not copy lighttpd implementation code or
 headers. Public host API references are listed in `docs/public-sources.md`.

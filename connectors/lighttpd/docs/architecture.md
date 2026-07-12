@@ -78,7 +78,7 @@ The stock mode overrides both mapper contracts to
 `MSCONNECTOR_MAPPER_UNSUPPORTED` and maps a zero-length body. The native smoke
 config sets `request_body_mode=none` and `response_body_mode=none`.
 
-The optional, source-only lighttpd 1.4.84 patch appends a versioned ABI for
+The separate full-lifecycle-selected lighttpd 1.4.84 patch appends a versioned ABI for
 decoded HTTP/1.x request-body ranges and bounded pre-write HTTP/1.x output/EOS
 ranges. Its native binding can incrementally pass request ranges to the Common
 runtime when `request_body_mode=streaming`. It intentionally rejects buffered
@@ -87,9 +87,10 @@ wire bytes (including possible chunk framing), not a decoded response entity.
 It uses the output EOS only to finalize the no-response-body lifecycle. HTTP/2
 is rejected in patched mode because the core output queue is multiplexed.
 
-This is source and compile wiring, not body runtime evidence. Capabilities and
-Phase 2/4, truncation, first-byte, late-intervention, and response-body claims
-remain unchanged until real host verification exists.
+The patched host has a narrow real Phase-1 200/403 smoke, but this is not body
+runtime evidence. Capabilities and Phase 2/4, truncation, first-byte,
+late-intervention, and response-body claims remain non-promoted until matching
+real host verification exists.
 
 ## Alternative paths
 

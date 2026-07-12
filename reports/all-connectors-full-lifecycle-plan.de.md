@@ -14,9 +14,9 @@ im hier beschriebenen Umfang ersetzt.
   Run- und Log-Roots je Connector unter `VERIFIED_RUN_ROOT`, mit gemeinsamem
   Komponenten-Cache `cache-v2/shared`. Das verhindert Root-/Cache-Vererbung
   zwischen Connectors, ist aber keine Connector-Runtime-Evidence.
-- Apache und NGINX implementieren jetzt metadata-only-P3-Response-Header-
-  Intervention/Event-Pfade. Eine frische Verifikation auf nativen Hosts steht
-  noch aus.
+- Apache und NGINX haben echte native Hostläufe für P3-Deny/Redirect (403/302)
+  sowie synchronisierte First-Byte-vor-EOS-Proben. Diese abgegrenzten
+  Ergebnisse verifizieren nicht die vollständigen Lifecycle-Matrizen.
 - Das HAProxy-3.2.21-HTX-Overlay besitzt einen echten nativen Observer-Lauf:
   P1--P4-Regelpfade werden beobachtet, während der für Clients sichtbare
   Status `200` bleibt. Der Observer ist absichtlich nicht promoted und
@@ -26,8 +26,11 @@ im hier beschriebenen Umfang ersetzt.
   Lauf. Er ist Passthrough und nicht promoted, ohne Common-Runtime-Bridge oder
   Regelauswertung, also keine P1--P4-Evidence.
 - Traefiks Kompatibilitäts-`forwardAuth`-Binary-/Config-/Start-Pfad ist
-  repariert; ein nativer Middleware-Host ist weiterhin weder ausgewählt noch
-  zur Runtime verifiziert.
+  repariert. Das Full-Lifecycle-Profil wählt die native Middleware separat in
+  einem gepinnten Local-Plugin-Host: Plugin-Laden und Router-Traffic werden
+  beobachtet, aber `PassthroughEngine` hat keine Common-/libmodsecurity-Bridge
+  und promotet keine P1--P4-, Late-Action-, First-Byte- oder No-Buffer-
+  Capability.
 - lighttpd baut jetzt einen gepinnten gepatchten Core mit passendem Modul und
   hat einen P1-Smoke-Lauf. Der Harness verwendet `response_body_mode=none`;
   P4 wurde nicht ausgeführt und keine Response-Body-bezogene Capability wird
@@ -39,10 +42,11 @@ diesen Plan nicht eigenständig abschließen.
 Die Source-Audit-Matrizen und Connector-Erkenntnisse unterhalb dieses Updates
 bewahren den historischen Snapshot. Ihre Aussagen über fehlende Pfade dienen
 der Design-Provenance und sind keine aktuellen Aussagen über den HTX-Observer,
-den separaten Envoy-`ext_proc`-Transportpfad oder den gepatchten
-lighttpd-Host; deren begrenzter aktueller Stand steht oben.
+den separaten Envoy-`ext_proc`-Transportpfad, den nativen Traefik-Local-
+Plugin-Hostprobe oder den gepatchten lighttpd-Host; deren begrenzter aktueller
+Stand steht oben.
 
-## Technische Zusammenfassung
+## Historische technische Zusammenfassung
 
 Dies ist ein Plan aus einem Quellcode-Audit, kein Runtime-Nachweis. Die sechs
 eingecheckten Integrationen bilden noch keinen einheitlich verifizierten

@@ -1,10 +1,10 @@
-# Unselected source/build template for the repository-owned Go middleware.
+# Reference File Provider template for the repository-owned Go middleware.
 #
 # This is intentionally separate from traefik-forwardauth-dynamic.yaml.  It
-# assumes a Traefik local-plugin registration named "modsecurityNative" whose
-# module source is staged by an operator under Traefik's local plugin path.
-# The repository does not claim that config loading or traffic through this
-# alternate path has been verified.
+# assumes a Traefik local-plugin registration named "modsecurityNative". The
+# full-lifecycle host probe stages the source and materializes an equivalent
+# disposable configuration for pinned Traefik. Its PassthroughEngine has no
+# Common/libmodsecurity bridge and does not promote rule capabilities.
 http:
   middlewares:
     modsecurity-native-streaming:

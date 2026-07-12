@@ -25,7 +25,7 @@ HAProxy -> SPOE/SPOP -> haproxy-modsecurity-spoa -> libmodsecurity
 
 | Alternative | Current decision |
 | --- | --- |
-| Native HAProxy filter or extension | Optional HAProxy 3.2.21 HTX observer builds and has isolated real-host P1–P4 transport evidence, but remains nonselected and observer-only after forwarding; it has no canonical enforcement evidence. |
+| Native HAProxy filter or extension | The separate `full-lifecycle-haproxy-htx` profile selects a HAProxy 3.2.21 HTX observer with isolated real-host P1–P4 transport evidence. It remains observer-only after forwarding and has no enforcement or capability-promotion evidence. |
 | Lua integration | Deferred. Not proven for full ModSecurity lifecycle. |
 | External HTTP sidecar | Deferred. The implemented path uses SPOE/SPOP instead. |
 

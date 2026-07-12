@@ -36,6 +36,9 @@ until a current canonical result exists under
 - [ ] Phase 2 request-body runtime evidence documented.
 - [ ] Phase 3 response-header runtime evidence documented.
 - [ ] Phase 4 response-body runtime evidence documented.
+- [x] Inspect the current pinned host for an applicable HTTP/2 lane: its
+      `nginx -V` configuration has no `--with-http_v2_module`, so no HTTP/2
+      lifecycle case is executed or claimed for that host build.
 - [ ] RESPONSE_BODY blocking verified.
 - [ ] Audit/log evidence documented.
 - [ ] Negative/pass-through case documented.

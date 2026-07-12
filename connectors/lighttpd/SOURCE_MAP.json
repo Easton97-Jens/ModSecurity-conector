@@ -74,7 +74,7 @@
     },
     {
       "path": "connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh",
-      "role": "isolated patched-host Phase-1 smoke; explicitly not generic No-CRS or Phase-4 evidence"
+      "role": "isolated patched-host Phase-1 smoke selected only by the non-promoted full-lifecycle profile; not generic stock No-CRS or Phase-4 evidence"
     },
     {
       "path": "connectors/lighttpd/metadata.c",

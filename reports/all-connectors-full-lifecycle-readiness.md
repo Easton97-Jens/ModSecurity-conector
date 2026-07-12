@@ -15,10 +15,10 @@ below supersede that point only to the evidence boundary stated here.
   is `cache-v2/shared`; callers no longer implicitly inherit another
   connector's build or evidence root.  This is resolver/cache plumbing, not
   runtime proof for any connector.
-- **Apache and NGINX:** both native adapters now have a metadata-only Phase-3
-  response-header intervention/event code path.  The code path is implemented,
-  but no fresh real-host run has verified P3 behavior, client-visible status,
-  or the associated lifecycle claims.
+- **Apache and NGINX:** both native adapters have real-host Phase-3 deny and
+  redirect exercises (403/302) plus synchronized first-byte-before-EOS
+  probes. These bounded results do not verify their complete lifecycle
+  matrices.
 - **HAProxy:** an isolated real HAProxy 3.2.21 HTX overlay can be built and
   exercised as a native HTX observer.  Its four P1--P4 rule paths were
   observed in observer mode, while the client-visible result stayed `200`.
@@ -30,8 +30,10 @@ below supersede that point only to the evidence boundary stated here.
   passthrough, nonpromoted transport exercise with no Common runtime bridge or
   rule evaluation; it is not P1--P4 or enforcement evidence.
 - **Traefik:** the `forwardAuth` binary build/config/start dependency path was
-  repaired.  It remains the compatibility profile.  A native Traefik
-  middleware host has not been selected or runtime-verified.
+  repaired and remains the compatibility profile. The full-lifecycle profile
+  separately selects the native middleware in a pinned local-plugin host;
+  plugin loading and router traffic are observed, but `PassthroughEngine` has
+  no Common/libmodsecurity bridge and promotes no lifecycle capability.
 - **lighttpd:** a version-pinned patched core and matching module now build as
   a real host pair, and a P1 smoke path has been exercised.  That harness
   forces `response_body_mode=none`; Phase 4 was not executed.  It therefore
@@ -45,10 +47,11 @@ the requested native full-lifecycle routes.
 The source-audit matrices and connector-finding sections below preserve the
 historical snapshot. Their absence statements are retained for design
 provenance and are not current claims about the HTX observer, the separate
-Envoy `ext_proc` transport path, or the patched lighttpd host; the bounded
-current status for those paths is above.
+Envoy `ext_proc` transport path, the native Traefik local-plugin host probe,
+or the patched lighttpd host; the bounded current status for those paths is
+above.
 
-## Technical summary
+## Historical technical summary
 
 No connector is currently runtime-verified as a low-latency full-lifecycle
 connector.  This source audit finds usable building blocks, but no fresh

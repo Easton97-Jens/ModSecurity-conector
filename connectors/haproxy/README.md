@@ -32,10 +32,11 @@ The proven request-side variables are `REQUEST_URI`, `REQUEST_HEADERS`,
 JSON, XML, multipart, and CRS SQLi anomaly request-body coverage is live
 evidence, limited by HAProxy request buffering, SPOE frame size, and configured
 request-body limits. Response-header and audit-log paths use SPOE response
-messages. A separate optional HTX observer overlay has a dedicated real-host
-transport smoke for incremental request and response chunks; it is not the
-active SPOP path and is not canonical evidence for enforcement, strict abort,
-or full `RESPONSE_BODY` support.
+messages. A separate HTX observer overlay is selected by the full-lifecycle
+profile and has a dedicated real-host transport smoke for incremental request
+and response chunks. It remains distinct from the active SPOP compatibility
+path and is not canonical evidence for enforcement, strict abort, or full
+`RESPONSE_BODY` support.
 
 ## Global Contract
 
@@ -70,9 +71,10 @@ Shared connector-neutral data shapes used by the starter:
   libmodsecurity enforcement for shared framework YAML cases.
 - Decision evidence: per-case `decision.jsonl`, HAProxy logs, SPOA logs, audit
   logs, observed status, and normalized `result.json`.
-- RESPONSE_BODY blocking: not implemented in the active harness; the former
-  `wait-for-body` sample is disabled. The optional native HTX observer is
-  nonselected, observer-only, and does not promote this capability.
+- RESPONSE_BODY blocking: not implemented in the active SPOP harness; the
+  former `wait-for-body` sample is disabled. The native HTX observer is
+  selected only by the full-lifecycle profile, remains observer-only, and does
+  not promote this capability.
 
 ## Build Starter
 
@@ -165,11 +167,12 @@ status-metadata cases remain `NOT_EXECUTED` until their missing host behavior
 is implemented. Response-body payloads must never be written to events or
 reports.
 
-## Optional native HTX observer overlay
+## Native HTX observer overlay for the full-lifecycle profile
 
 `htx-overlay/` contains a source-linked HAProxy **3.2.21** observer filter for
 the native HTX `http_payload` and `http_end` callbacks. It is built into a
-disposable upstream worktree, not into the selected SPOE/SPOP runtime:
+disposable upstream worktree. `full-lifecycle-haproxy-htx` selects it, while
+the SPOE/SPOP runtime remains the separate compatibility path:
 
 ```sh
 make -C connectors/haproxy check-htx-overlay
@@ -195,6 +198,7 @@ recorded as `host_action=not_attempted`. It does not claim a client-visible
 deny, redirect, abort, first-byte proof, Common runtime bridge, or any
 capability promotion.
 
-This optional overlay is not configured by the checked-in SPOP harness and is
-not canonical No-CRS evidence. Therefore it does **not** promote the selected
-SPOE/SPOP Phase-4, late-intervention, no-buffer, or first-byte capabilities.
+This overlay is not configured by the checked-in SPOP harness and is
+non-promoted canonical host evidence only. Therefore it does **not** promote
+the SPOE/SPOP Phase-4, late-intervention, no-buffer, or first-byte
+capabilities.

@@ -51,9 +51,9 @@ Global gate definitions:
 - [x] connector-local real Traefik -> forwardAuth -> service harness implemented
 - [x] allowed request returns HTTP 200 in the targeted native runtime smoke
 - [x] blocked request returns rule-backed HTTP 403 through forwardAuth
-- [x] unselected native Go middleware source/build groundwork added with focused local tests
+- [x] native Go middleware source/build groundwork added with focused local tests
 - [ ] native Go middleware remains excluded from the selected forwardAuth Phase 1 runtime contract
-- [ ] operator-staged local-plugin config load against a pinned Traefik runtime is evidenced
+- [x] pinned Traefik local-plugin host probe stages the module, confirms loading, and routes a body-bearing request without capability promotion
 - [ ] a separately reviewed Common/libmodsecurity Engine bridge is implemented and runtime-evidenced
 
 ## Phase 4: No-CRS Runtime

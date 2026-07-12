@@ -55,10 +55,10 @@ security verification, production readiness, or full-matrix readiness.
 
 ## Canonical Phase-4 decision
 
-The native module deliberately has no decoded response-body hook. The optional
-patched callback sees pre-socket-write HTTP/1.x wire output, so it is a no-op
-for response-body inspection. These are current module implementation gaps,
-not host-model impossibility claims.
+The native module deliberately has no decoded response-body hook. The patched
+callback selected by the separate full-lifecycle profile sees pre-socket-write
+HTTP/1.x wire output, so it is a no-op for response-body inspection. These are
+current module implementation gaps, not host-model impossibility claims.
 
 | Facet | Declared state | Coverage decision |
 | --- | --- | --- |

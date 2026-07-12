@@ -202,16 +202,16 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     CAPABILITIES_FILE=$EFFECTIVE_CAPABILITIES_FILE
     case "$connector" in
         haproxy)
-            FULL_LIFECYCLE_STAGE_REASON="native HTX transport is observer-only; no capability-selected canonical enforcement driver exists"
+            FULL_LIFECYCLE_STAGE_REASON="native HTX host runs in observer mode; it does not apply pre-commit enforcement or promote lifecycle cases"
             ;;
         envoy)
-            FULL_LIFECYCLE_STAGE_REASON="native ext_proc transport is streamed but has no Common/libmodsecurity rule-evaluation driver"
+            FULL_LIFECYCLE_STAGE_REASON="native ext_proc host is streamed but has no Common/libmodsecurity rule-evaluation driver"
             ;;
         traefik)
-            FULL_LIFECYCLE_STAGE_REASON="native Traefik middleware is not registered in a pinned host runtime"
+            FULL_LIFECYCLE_STAGE_REASON="native Traefik middleware runs in the pinned host with a passthrough-only engine and no Common/libmodsecurity bridge"
             ;;
         lighttpd)
-            FULL_LIFECYCLE_STAGE_REASON="patched lighttpd host has no canonical body-capable lifecycle driver"
+            FULL_LIFECYCLE_STAGE_REASON="patched lighttpd host runs with request and response body inspection disabled because its hook receives HTTP/1 wire output"
             ;;
     esac
 fi
@@ -384,13 +384,18 @@ APACHE_RUNTIME_LOG_DIR="$HOST_RUNTIME_ROOT/apache-runtime" \
 NGINX_HARNESS_PARENT="$RAW_DIR" \
 NGINX_HARNESS_WORK_ROOT="$NGINX_RUN_ROOT" \
 RUNTIME_EVENT_LOG_PATH="$STAGE_RUNTIME_ROOT/events.jsonl" \
+HAPROXY_HTX_RUNTIME_ROOT="$STAGE_RUNTIME_ROOT" \
+HAPROXY_HTX_EVENT_LOG_PATH="$STAGE_RUNTIME_ROOT/events.jsonl" \
 ENVOY_RUNTIME_ROOT="$HOST_RUNTIME_ROOT" \
 ENVOY_CONFIG_ROOT="$HOST_RUNTIME_ROOT/config" \
 ENVOY_LOG_ROOT="$HOST_LOG_ROOT" \
 ENVOY_RESULT_ROOT="$HOST_RUNTIME_ROOT" \
+ENVOY_EXT_PROC_RUNTIME_ROOT="$HOST_RUNTIME_ROOT" \
+ENVOY_EXT_PROC_EVENT_LOG_PATH="$HOST_RUNTIME_ROOT/events.jsonl" \
 TRAEFIK_CONFIG_ROOT="$TRAEFIK_RUNTIME_ROOT/config" \
 TRAEFIK_LOG_ROOT="$HOST_LOG_ROOT/traefik" \
 TRAEFIK_RESULT_ROOT="$TRAEFIK_RUNTIME_ROOT" \
+TRAEFIK_NATIVE_RUNTIME_ROOT="$TRAEFIK_RUNTIME_ROOT" \
 TRAEFIK_BUILD_ROOT="$CONNECTOR_BUILD_ROOT/traefik-connector" \
 TRAEFIK_CONNECTOR_BUILD_DIR="$CONNECTOR_BUILD_ROOT/traefik-connector" \
 TRAEFIK_CONNECTOR_BIN="$CONNECTOR_BUILD_ROOT/traefik-connector/traefik-forwardauth" \
@@ -403,6 +408,8 @@ LIGHTTPD_RESULT_ROOT="$LIGHTTPD_RUNTIME_ROOT" \
 LIGHTTPD_CONNECTOR_BUILD_ROOT="$CONNECTOR_BUILD_ROOT/lighttpd-connector" \
 LIGHTTPD_MODULE_DIR="$CONNECTOR_BUILD_ROOT/lighttpd-connector/modules" \
 LIGHTTPD_SMOKE_DIR="$LIGHTTPD_RUNTIME_ROOT" \
+LIGHTTPD_PATCHED_ROOT="$HOST_RUNTIME_ROOT/lighttpd-patched" \
+LIGHTTPD_PATCHED_SMOKE_DIR="$LIGHTTPD_RUNTIME_ROOT" \
 RULES_FILE="$NO_CRS_RULES_FILE" \
 MSCONNECTOR_RULES_FILE="$NO_CRS_RULES_FILE" \
 NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
@@ -438,11 +445,10 @@ else
     fi
 fi
 
-# Apache and NGINX have native proxy/filter paths.  Run their additional
-# synchronized upstream proof separately from the ordinary case runner so the
-# client can be observed while the upstream is deliberately paused.  Other
-# connectors retain a diagnostic-only synthetic barrier until their selected
-# full-lifecycle host integration exists.
+# Apache and NGINX have native proxy/filter paths with synchronized barrier
+# support. Run their additional proof separately so the client can be observed
+# while the upstream is deliberately paused. Other selected host routes retain
+# a diagnostic-only barrier until they publish equivalent real-host evidence.
 if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     case "$connector" in
         apache|nginx)
@@ -469,9 +475,18 @@ source_result=
 source_events=
 source_first_byte_results=$STAGE_RESULTS_DIR/$connector-first-byte-results.jsonl
 case "$connector" in
-    apache|nginx|haproxy)
+    apache|nginx)
         source_results=$STAGE_RESULTS_DIR/$connector-results.jsonl
         source_result=$STAGE_RESULTS_DIR/$connector-summary.json
+        ;;
+    haproxy)
+        if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+            source_result=$STAGE_RUNTIME_ROOT/runtime-summary.txt
+            source_events=$STAGE_RUNTIME_ROOT/events.jsonl
+        else
+            source_results=$STAGE_RESULTS_DIR/$connector-results.jsonl
+            source_result=$STAGE_RESULTS_DIR/$connector-summary.json
+        fi
         ;;
     envoy)
         source_result=$HOST_RUNTIME_ROOT/runtime-summary.txt
@@ -627,10 +642,22 @@ BUILD_ROOT=$CONNECTOR_BUILD_ROOT
 case "$connector" in
     apache) host_binary=${APACHE_HTTPD:-$BUILD_ROOT/apache-runtime/httpd/bin/httpd} ;;
     nginx) host_binary=${MRTS_NATIVE_NGINX_BIN:-$BUILD_ROOT/nginx-runtime/nginx/sbin/nginx} ;;
-    haproxy) host_binary=${HAPROXY_BIN:-$BUILD_ROOT/haproxy-runtime/haproxy/sbin/haproxy} ;;
+    haproxy)
+        if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+            host_binary=$STAGE_RUNTIME_ROOT/overlay-build/worktree/haproxy
+        else
+            host_binary=${HAPROXY_BIN:-$BUILD_ROOT/haproxy-runtime/haproxy/sbin/haproxy}
+        fi
+        ;;
     envoy) host_binary=$CONNECTOR_COMPONENT_CACHE/envoy/bin/envoy ;;
     traefik) host_binary=$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik ;;
-    lighttpd) host_binary=$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd ;;
+    lighttpd)
+        if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+            host_binary=$HOST_RUNTIME_ROOT/lighttpd-patched/stage/bin/lighttpd
+        else
+            host_binary=$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd
+        fi
+        ;;
 esac
 if [ -x "$host_binary" ]; then
     case "$connector" in

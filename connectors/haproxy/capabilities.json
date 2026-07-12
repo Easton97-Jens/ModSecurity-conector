@@ -44,7 +44,7 @@
     },
     "response_body_streaming": {
       "state": "not_implemented",
-      "reason": "The selected SPOE/SPOP configuration has no wired native response-chunk callback or streaming transaction protocol; the optional HTX observer source is nonselected and bodyless-request-only."
+      "reason": "The selected SPOE/SPOP configuration has no wired native response-chunk callback or streaming transaction protocol. A separate HTX observer is selected only by the non-promoted full-lifecycle profile and does not change this SPOP capability state."
     },
     "phase1": {
       "state": "implemented_not_asserted",
@@ -60,7 +60,7 @@
     },
     "phase4": {
       "state": "not_implemented",
-      "reason": "No native HAProxy response-body callback is wired into the selected SPOE/SPOP host configuration; the optional HTX observer source is not selected or canonical evidence."
+      "reason": "No native HAProxy response-body callback is wired into the selected SPOE/SPOP host configuration. The separate HTX observer is selected only by the non-promoted full-lifecycle profile and does not promote this SPOP capability."
     },
     "phase4_rule_evaluation": {
       "state": "not_implemented",
@@ -136,7 +136,7 @@
     },
     "response_body_incremental_ingest": {
       "state": "not_implemented",
-      "reason": "No native HAProxy response-chunk callback is wired into the selected SPOP path; an optional source-only HTX observer exists but explicitly bypasses body-bearing requests."
+      "reason": "No native HAProxy response-chunk callback is wired into the selected SPOP path. The separate full-lifecycle HTX observer handles borrowed body chunks/EOS in observer mode, but does not change this SPOP capability state."
     },
     "phase4_end_of_stream_evaluation": {
       "state": "not_implemented",

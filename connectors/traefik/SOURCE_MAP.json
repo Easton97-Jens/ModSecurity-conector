@@ -88,7 +88,7 @@
     },
     {
       "path": "connectors/traefik/native_middleware/go.mod",
-      "purpose": "unselected repository-owned Go module with no external dependencies"
+      "purpose": "repository-owned Go module staged by the non-promoted full-lifecycle local-plugin host probe"
     },
     {
       "path": "connectors/traefik/native_middleware/.traefik.yml",
@@ -96,7 +96,7 @@
     },
     {
       "path": "connectors/traefik/native_middleware/middleware.go",
-      "purpose": "unselected Traefik-shaped streaming middleware with bounded HTTP wrappers and an explicit pass-through engine seam"
+      "purpose": "Traefik-shaped bounded streaming middleware selected only by the non-promoted full-lifecycle local-plugin host probe"
     },
     {
       "path": "connectors/traefik/native_middleware/middleware_test.go",
@@ -112,11 +112,11 @@
     },
     {
       "path": "connectors/traefik/config/traefik-native-middleware-dynamic.yaml",
-      "purpose": "unselected local-plugin File Provider configuration shape"
+      "purpose": "reference local-plugin File Provider configuration shape; the host probe materializes a disposable equivalent"
     },
     {
       "path": "connectors/traefik/config/traefik-native-middleware-static.yaml",
-      "purpose": "unselected Traefik local-plugin registration shape"
+      "purpose": "reference Traefik local-plugin registration shape; the host probe materializes a disposable equivalent"
     }
   ],
   "shared_dependencies": [
@@ -133,7 +133,7 @@
     "common/rules/modsecurity_targeted_smoke.conf"
   ],
   "verification_status": "connector-gap",
-  "runtime_evidence_scope": "local Traefik forwardAuth request-header rule 1000001: allow 200, block 403",
+  "runtime_evidence_scope": "local Traefik forwardAuth request-header rule 1000001: allow 200, block 403; separately, the full-lifecycle native local-plugin host probe proves pinned plugin loading and router traffic without rule evaluation",
   "claims_not_verified": [
     "request_body",
     "upstream_response_headers",
@@ -144,5 +144,5 @@
     "full_matrix_ready"
   ],
   "starter_evidence_note": "legacy decision-service self-test remains non-runtime evidence",
-  "unselected_native_middleware_note": "The native Go middleware is source/build groundwork only, installs PassthroughEngine, and does not alter the selected forwardAuth host model or capability state."
+  "native_middleware_full_lifecycle_note": "The full-lifecycle profile selects the native Go middleware in a pinned local-plugin host probe. It installs PassthroughEngine, has no Common/libmodsecurity bridge, and does not alter forwardAuth compatibility capability state or promote P1-P4, late-action, first-byte, or no-buffer claims."
 }

@@ -13,9 +13,9 @@ are superseded only as described here.
   build, run, and log roots below `VERIFIED_RUN_ROOT`, with a shared
   `cache-v2/shared` component cache.  It prevents cross-connector root/cache
   inheritance but is not connector runtime evidence.
-- Apache and NGINX now implement metadata-only P3 response-header
-  intervention/event paths.  Fresh native-host verification of that behavior
-  has not yet occurred.
+- Apache and NGINX have real native-host P3 deny/redirect exercises (403/302)
+  and synchronized first-byte-before-EOS probes. These bounded results do not
+  verify their complete lifecycle matrices.
 - The HAProxy 3.2.21 HTX overlay has a real native observer exercise: P1--P4
   rule paths are observed while client-visible status remains `200`.  The
   observer is deliberately nonpromoted and makes no enforcement, late-action,
@@ -23,8 +23,11 @@ are superseded only as described here.
 - Envoy now has a real streamed `ext_proc` listener/service exercise.  It is
   passthrough and nonpromoted, with no Common runtime bridge or rule
   evaluation, so it is not P1--P4 evidence.
-- Traefik's compatibility `forwardAuth` binary/config/start path is repaired;
-  a native middleware host is still neither selected nor runtime-verified.
+- Traefik's compatibility `forwardAuth` binary/config/start path is repaired.
+  The full-lifecycle profile separately selects the native middleware in a
+  pinned local-plugin host: plugin loading and router traffic are observed,
+  but `PassthroughEngine` has no Common/libmodsecurity bridge and promotes no
+  P1--P4, late-action, first-byte, or no-buffer capability.
 - lighttpd now builds a pinned patched core with the matching module and has a
   P1 smoke exercise.  Its harness uses `response_body_mode=none`; P4 was not
   executed and no response-body-related capability is promoted.
@@ -35,10 +38,11 @@ complete this plan on their own.
 The source-audit matrices and connector-finding sections below preserve the
 historical snapshot. Their absence statements are retained for design
 provenance and are not current claims about the HTX observer, the separate
-Envoy `ext_proc` transport path, or the patched lighttpd host; the bounded
-current status for those paths is above.
+Envoy `ext_proc` transport path, the native Traefik local-plugin host probe,
+or the patched lighttpd host; the bounded current status for those paths is
+above.
 
-## Technical summary
+## Historical technical summary
 
 This is a source-audit plan, not runtime evidence.  The six checked-in
 integrations do not yet provide one verified common full-lifecycle path.  The

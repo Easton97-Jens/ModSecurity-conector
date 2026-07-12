@@ -53,9 +53,9 @@ expected_full_lifecycle_target() {
 }
 
 # Full-lifecycle evidence may never fall through to a request-only or stock
-# compatibility runner.  Apache and NGINX already have their selected native
-# canonical drivers; the other native profiles remain explicitly BLOCKED until
-# their own capability-selected canonical drivers exist.
+# compatibility runner. Every connector below dispatches a profile-specific
+# native host route; a route that lacks rule evaluation remains non-promoted in
+# the resulting canonical record instead of borrowing compatibility evidence.
 if [ "$stage" = no_crs_baseline ] && [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     expected_profile=$(expected_full_lifecycle_profile "$connector")
     expected_target=$(expected_full_lifecycle_target "$connector")
@@ -64,25 +64,6 @@ if [ "$stage" = no_crs_baseline ] && [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecyc
         echo "FAIL: full-lifecycle stage profile/target mismatch for $connector" >&2
         exit 1
     fi
-    case "$connector" in
-        apache|nginx) ;;
-        haproxy)
-            echo "BLOCKED: native HTX is observer-only; the compatibility SPOE/SPOP runner is forbidden for full-lifecycle evidence" >&2
-            exit 77
-            ;;
-        envoy)
-            echo "BLOCKED: ext_proc has no Common/libmodsecurity canonical driver; ext_authz compatibility is forbidden for full-lifecycle evidence" >&2
-            exit 77
-            ;;
-        traefik)
-            echo "BLOCKED: native Traefik middleware is not registered in a pinned host run; forwardAuth compatibility is forbidden for full-lifecycle evidence" >&2
-            exit 77
-            ;;
-        lighttpd)
-            echo "BLOCKED: patched lighttpd has no body-capable canonical lifecycle driver; stock compatibility is forbidden for full-lifecycle evidence" >&2
-            exit 77
-            ;;
-    esac
 fi
 
 [ -f "$FRAMEWORK_ROOT/ci/common.sh" ] || {
@@ -157,6 +138,30 @@ run_remaining_connector() {
         sh "$CONNECTOR_ROOT/ci/run-remaining-connector-target.sh" "$connector" "$target"
 }
 
+run_full_lifecycle_haproxy_htx() {
+    # The overlay build is connector-local while its pinned source and
+    # libmodsecurity prerequisites remain in Cache-v2 shared components.
+    # Its observer result is intentionally non-promoted by the collector.
+    case "$PYTHON" in
+        /*) python_bin=$PYTHON ;;
+        */*) python_bin=$CONNECTOR_ROOT/$PYTHON ;;
+        *) python_bin=$PYTHON ;;
+    esac
+    exec "$CONNECTOR_ROOT/ci/with-runtime-components.sh" env PYTHON="$python_bin" sh -eu -c '
+        : "${HAPROXY_SOURCE_DIR:?HAProxy source was not provisioned}"
+        : "${MODSECURITY_INCLUDE_DIR:?libmodsecurity headers were not provisioned}"
+        : "${MODSECURITY_LIB_DIR:?libmodsecurity library was not provisioned}"
+        make -C "$CONNECTOR_ROOT/connectors/haproxy" runtime-smoke-haproxy-htx \
+            BUILD_ROOT="$BUILD_ROOT" REPO_ROOT="$CONNECTOR_ROOT" \
+            HAPROXY_HTX_SOURCE_DIR="$HAPROXY_SOURCE_DIR" \
+            HAPROXY_HTX_RUNTIME_ROOT="$RUNTIME_ROOT" \
+            HAPROXY_HTX_BUILD_DIR="$RUNTIME_ROOT/overlay-build" \
+            HAPROXY_HTX_BIN="$RUNTIME_ROOT/overlay-build/worktree/haproxy" \
+            HAPROXY_HTX_EVENT_LOG_PATH="$RUNTIME_ROOT/events.jsonl" \
+            PYTHON="$PYTHON"
+    '
+}
+
 case "$connector:$stage" in
     apache:build)
         run_framework_host run-apache-smoke.sh build
@@ -183,7 +188,21 @@ case "$connector:$stage" in
         run_framework_host "run-$connector-smoke.sh" minimal_runtime_smoke \
             RUN_ONE_CASE=0 SMOKE_CASES="allow_without_marker deny_header_marker_403"
         ;;
-    apache:no_crs_baseline|nginx:no_crs_baseline|haproxy:no_crs_baseline)
+    haproxy:no_crs_baseline)
+        if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+            # This helper execs the HTX observer.  Do not continue into the
+            # SPOE/SPOP compatibility runner after a native full profile.
+            run_full_lifecycle_haproxy_htx
+        else
+            [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
+                echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
+                exit 1
+            }
+            run_framework_host "run-$connector-smoke.sh" minimal_runtime_smoke \
+                RUN_ONE_CASE=0 SMOKE_CASES="$NO_CRS_SELECTED_CASES"
+        fi
+        ;;
+    apache:no_crs_baseline|nginx:no_crs_baseline)
         [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
             echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
             exit 1
@@ -227,15 +246,47 @@ case "$connector:$stage" in
     lighttpd:minimal_runtime_smoke)
         run_remaining_connector runtime-smoke-lighttpd
         ;;
-    envoy:no_crs_baseline|traefik:no_crs_baseline|lighttpd:no_crs_baseline)
-        [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
-            echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
-            exit 1
-        }
-        # These targets consume the plan before delegating to their narrow
-        # real-host probes.  They are deliberately distinct from the legacy
-        # minimal-runtime targets: remaining selected cases stay explicit in
-        # canonical evidence instead of being implied by a 200/403 smoke.
-        run_remaining_connector "no-crs-baseline-$connector"
+    envoy:no_crs_baseline)
+        if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+            # run_remaining_connector execs: ext_proc must not fall through
+            # into the ext_authz compatibility target.
+            run_remaining_connector runtime-smoke-envoy-ext-proc
+        else
+            [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
+                echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
+                exit 1
+            }
+            run_remaining_connector no-crs-baseline-envoy
+        fi
+        ;;
+    traefik:no_crs_baseline)
+        if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+            # run_remaining_connector execs: this native local-plugin host
+            # must not inherit forwardAuth compatibility evidence.
+            run_remaining_connector runtime-smoke-traefik-native
+        else
+            [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
+                echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
+                exit 1
+            }
+            run_remaining_connector no-crs-baseline-traefik
+        fi
+        ;;
+    lighttpd:no_crs_baseline)
+        if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+            # run_remaining_connector execs: a patched native host may not
+            # be replaced by the stock compatibility smoke.
+            run_remaining_connector runtime-smoke-lighttpd-patched
+        else
+            [ -n "${NO_CRS_SELECTED_CASES:-}" ] || {
+                echo "FAIL: capability-selected No-CRS runner cases are missing" >&2
+                exit 1
+            }
+            # These targets consume the plan before delegating to their narrow
+            # real-host probes. They are deliberately distinct from the legacy
+            # minimal-runtime targets: selected cases stay explicit in canonical
+            # evidence instead of being implied by a 200/403 smoke.
+            run_remaining_connector no-crs-baseline-lighttpd
+        fi
         ;;
 esac

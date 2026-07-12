@@ -16,10 +16,10 @@ genannten Evidenzgrenze.
   Komponenten-Cache liegt unter `cache-v2/shared`; Aufrufer erben nicht mehr
   implizit den Build- oder Evidence-Root eines anderen Connectors. Das ist
   Resolver-/Cache-Plumbing, kein Runtime-Nachweis für einen Connector.
-- **Apache und NGINX:** Beide nativen Adapter besitzen nun einen
-  metadata-only-Codepfad für Phase-3-Response-Header-Intervention/Event. Der
-  Codepfad ist implementiert, aber kein frischer Real-Host-Lauf hat P3,
-  sichtbaren Client-Status oder die zugehörigen Lifecycle-Claims verifiziert.
+- **Apache und NGINX:** Beide nativen Adapter haben echte Hostläufe für
+  Phase-3-Deny und -Redirect (403/302) sowie synchronisierte First-Byte-vor-
+  EOS-Proben. Diese abgegrenzten Ergebnisse verifizieren nicht die vollständigen
+  Lifecycle-Matrizen.
 - **HAProxy:** Ein isoliertes Overlay für echten HAProxy 3.2.21 HTX kann als
   nativer HTX-Observer gebaut und ausgeführt werden. Seine vier P1--P4-
   Regelpfade wurden im Observer-Modus beobachtet, während der für Clients
@@ -31,9 +31,11 @@ genannten Evidenzgrenze.
   ein Passthrough-Transporttest ohne Promotion, Common-Runtime-Bridge oder
   Regelauswertung; er ist keine P1--P4- oder Enforcement-Evidence.
 - **Traefik:** Der Build-/Config-/Start-Abhängigkeitspfad für das
-  `forwardAuth`-Binary wurde repariert. Er bleibt das Kompatibilitätsprofil.
-  Ein nativer Traefik-Middleware-Host wurde weder ausgewählt noch zur Runtime
-  verifiziert.
+  `forwardAuth`-Binary wurde repariert und bleibt das Kompatibilitätsprofil.
+  Das Full-Lifecycle-Profil wählt die native Middleware separat in einem
+  gepinnten Local-Plugin-Host; Plugin-Laden und Router-Traffic werden
+  beobachtet, aber `PassthroughEngine` hat keine Common-/libmodsecurity-Bridge
+  und promotet keine Lifecycle-Capability.
 - **lighttpd:** Ein versionsgebundener gepatchter Core und das passende Modul
   bauen jetzt als echtes Host-Paar; ein P1-Smoke-Pfad wurde ausgeführt. Dieser
   Harness erzwingt `response_body_mode=none`; Phase 4 wurde nicht ausgeführt.
@@ -47,10 +49,11 @@ Evidence für die geforderten nativen Full-Lifecycle-Routen.
 Die Source-Audit-Matrizen und Connector-Erkenntnisse unterhalb dieses Updates
 bewahren den historischen Snapshot. Ihre Aussagen über fehlende Pfade dienen
 der Design-Provenance und sind keine aktuellen Aussagen über den HTX-Observer,
-den separaten Envoy-`ext_proc`-Transportpfad oder den gepatchten
-lighttpd-Host; deren begrenzter aktueller Stand steht oben.
+den separaten Envoy-`ext_proc`-Transportpfad, den nativen Traefik-Local-
+Plugin-Hostprobe oder den gepatchten lighttpd-Host; deren begrenzter aktueller
+Stand steht oben.
 
-## Technische Zusammenfassung
+## Historische technische Zusammenfassung
 
 Kein Connector ist aktuell als latenzarmer Full-Lifecycle-Connector zur Runtime verifiziert. Dieses Source-Audit findet brauchbare Bausteine, aber kein neues Artefaktset pro Connector, das P1–P4, Safe-/Strict-Late-Intervention, fehlendes vollständiges Response-Buffering und first byte before response end gemeinsam belegt.
 

@@ -1,4 +1,4 @@
-# Envoy `ext_proc` transport groundwork
+# Envoy `ext_proc` non-promoted full-lifecycle transport path
 
 This directory is a pinned Go implementation of Envoy's official
 `envoy.service.ext_proc.v3.ExternalProcessor` gRPC interface. It is separate

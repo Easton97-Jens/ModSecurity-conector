@@ -14,9 +14,10 @@ This directory contains:
 - `traefik_forwardauth_service_main.c`: connector host profile and entry point
   for the shared HTTP authorization service runtime.
 
-The selected adapter path is an external `forwardAuth` service. The separate
-`../native_middleware/` Go module is unselected source/build groundwork with a
-pass-through engine seam, not a cgo bridge or runtime claim. Upstream response
+The selected compatibility adapter path is an external `forwardAuth` service.
+The separate `../native_middleware/` Go module is selected only by the
+non-promoted full-lifecycle local-plugin host probe. It has a pass-through
+engine seam, not a cgo bridge or rule-evaluation claim. Upstream response
 inspection is explicitly unsupported by the selected request-phase protocol,
 even though the response mapper is linked for Common contract checking.
 

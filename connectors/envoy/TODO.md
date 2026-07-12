@@ -40,7 +40,7 @@ Global gate definitions:
 - [x] proxy-wasm/ext_proc dependencies documented as outside the selected path
 - [ ] production adapter build logs documented
 
-## Separate unpromoted ext_proc groundwork
+## Separate non-promoted ext_proc full-lifecycle host path
 
 - [x] Pinned official Go Envoy proto/gRPC module and checksum lock added.
 - [x] Connector-local `ExternalProcessor` stream service added with per-stream

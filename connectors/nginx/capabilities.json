@@ -184,7 +184,7 @@
     },
     "http2": {
       "state": "configured_not_exercised",
-      "reason": "The module can be built into an HTTP/2-capable NGINX host, but no canonical HTTP/2 lifecycle evidence is attached."
+      "reason": "The module can be built into an HTTP/2-capable NGINX host, but the currently pinned canonical host was configured without --with-http_v2_module. No applicable HTTP/2 lifecycle case is attached."
     },
     "client_abort": {
       "state": "not_implemented",

@@ -2,7 +2,7 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-Status: minimal_runtime_smoke for the forwardAuth request path only
+Status: forwardAuth compatibility smoke plus a non-promoted native local-plugin host probe
 Runtime status: targeted local Traefik/Common-runtime allow 200/block 403
 Verification status: not_verified / connector-gap
 
@@ -21,19 +21,19 @@ Common helpers:
 - `connectors/traefik/src/traefik_decision_service.*`
 - `connectors/traefik/src/traefik_modsecurity_mapper.*`
 - `connectors/traefik/src/traefik_forwardauth_service_main.c`
-- `connectors/traefik/native_middleware/` (unselected Go middleware source)
+- `connectors/traefik/native_middleware/` (native local-plugin host source)
 - shared helpers from `common/src/` and `common/include/msconnector/`
 - shared runtime implementation from `common/runtime/`
 
-The selected `forwardAuth` path does not include a Traefik plugin SDK or cgo
-bridge. A separately documented, repository-owned Go middleware module now
-exists under `native_middleware/`, but it is an unselected source/build path
-with a `PassthroughEngine`; it does not change this connector's selected host
-model or verification state. Upstream response headers and bodies are outside
-the selected request-phase `forwardAuth` protocol and remain explicitly
-unsupported there.
+The `forwardAuth` path remains the request-only compatibility path. The
+repository-owned Go middleware under `native_middleware/` is selected by the
+full-lifecycle runner through Traefik's local-plugin workspace, but it still
+uses `PassthroughEngine`. That real host probe proves plugin loading and router
+traffic only; it does not change rule-evaluation, response-intervention, or
+verification state. Upstream response headers and bodies remain unsupported in
+the `forwardAuth` compatibility protocol.
 
-## Unselected native Go streaming groundwork
+## Native Go streaming host probe (non-promoted)
 
 `native_middleware/` implements Traefik-shaped `CreateConfig`, `New`, and
 `ServeHTTP` entry points using the Go `net/http` interfaces. Its response
@@ -49,10 +49,21 @@ make -C connectors/traefik test-native-middleware
 make -C connectors/traefik build-native-middleware
 ```
 
-These commands compile and unit-test repository source. They do not register a
-Traefik local plugin, load its configuration, start Traefik, inspect a real
-upstream response, or promote any capability. The existing C `forwardAuth`
-commands and configuration remain the selected compatibility path.
+These commands compile and unit-test repository source. The separate host
+probe stages that source below a disposable `plugins-local` workspace, starts
+the pinned Traefik binary, requires the plugin load confirmation, and sends a
+body-bearing request through a router selecting the middleware:
+
+```sh
+TRAEFIK_BIN=/absolute/local/traefik \
+TRAEFIK_NATIVE_RUNTIME_ROOT=/absolute/runtime-root \
+make -C connectors/traefik runtime-smoke-traefik-native
+```
+
+It records only status and byte/chunk counters. It does not call Common or
+libmodsecurity, does not evaluate rules, and cannot promote P1–P4, safe,
+strict, first-byte, or no-full-buffer capabilities. The C `forwardAuth`
+commands remain the selected compatibility path.
 
 ## Connector Service Build
 
@@ -140,8 +151,9 @@ runtime result is claimed for Traefik by this starter.
 
 ## Parallel Runtime-Smoke Phase
 
-Phase 1 targets Traefik `forwardAuth`. The Go middleware source is intentionally
-separate from this phase and has no runtime promotion.
+Phase 1 compatibility targets Traefik `forwardAuth`. The native Go middleware
+has a separate pinned-host probe, but its passthrough engine has no runtime
+promotion.
 
 The Traefik connector-specific surface is limited to:
 

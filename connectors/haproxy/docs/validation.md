@@ -61,10 +61,10 @@ real host-side response stream or strict-abort proof.
 ## Canonical Phase-4 validation
 
 The selected SPOA/SPOP configuration has no response-body path: the former
-bounded branch is disabled. An optional HAProxy 3.2.21 HTX observer source
-exists and has a separate real-host P1–P4 transport smoke, but it is
-nonselected and observer-only after forwarding; it is not a canonical SPOP
-response path. Its observer evidence explicitly records upstream 200 for
+bounded branch is disabled. The separate `full-lifecycle-haproxy-htx` profile
+selects a HAProxy 3.2.21 HTX observer with a real-host P1–P4 transport smoke.
+It is observer-only after forwarding and is not an SPOP response path. Its
+observer evidence explicitly records upstream 200 for
 precommit decisions and `host_action=not_attempted` for the P4 safe policy.
 `response_body_buffered`, `phase4`, and `phase4_rule_evaluation` are
 `not_implemented`. The current runner has no host-observed client status or

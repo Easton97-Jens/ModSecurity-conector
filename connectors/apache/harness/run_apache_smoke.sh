@@ -142,6 +142,49 @@ list_case_files() {
     "$PYTHON_BIN" "$CASE_CLI" list-cases $args
 }
 
+append_smoke_case() {
+    fixture=$1
+    case " $SMOKE_CASES " in
+        *" $fixture "*|*" $fixture.yaml "*) return 0 ;;
+    esac
+    SMOKE_CASES="${SMOKE_CASES}${SMOKE_CASES:+ }$fixture"
+}
+
+append_selected_phase4_fixtures() {
+    # The canonical catalog names the late-intervention outcomes while the
+    # Apache harness owns the real post-commit host fixtures.  Add only those
+    # fixtures selected by the current plan; never manufacture a response-body
+    # result from a generic request-phase case.
+    case "${NO_CRS_BASELINE:-}" in
+        1|true|TRUE|yes|YES|on|ON) ;;
+        *) return 0 ;;
+    esac
+    [ "$RUN_ONE_CASE" != "1" ] || return 0
+    [ -n "${NO_CRS_SELECTED_CASE_IDS:-}" ] || return 0
+
+    set -f
+    for case_id in $NO_CRS_SELECTED_CASE_IDS; do
+        case "$case_id" in
+            phase4_deny_after_commit_log_only)
+                append_smoke_case apache_phase4_deny_after_commit_log_only
+                ;;
+            phase4_deny_after_commit_abort)
+                append_smoke_case apache_phase4_deny_after_commit_abort
+                ;;
+            *[!A-Za-z0-9_]*|"")
+                set +f
+                blocked "unsafe canonical case id: $case_id"
+                ;;
+            *)
+                # Other canonical IDs have catalog-owned runner fixtures or
+                # remain explicitly unexecuted until a real Apache driver
+                # exists for their contract.
+                ;;
+        esac
+    done
+    set +f
+}
+
 write_case_result() {
     case_path=$1
     case_status=$2
@@ -194,6 +237,7 @@ run_all_cases() {
     : > "$summary_file"
     : > "$results_jsonl"
 
+    append_selected_phase4_fixtures
     cases=$(list_case_files) || exit 1
     if [ -z "$cases" ]; then
         echo "apache_smoke: fail no shared smoke cases found" >&2

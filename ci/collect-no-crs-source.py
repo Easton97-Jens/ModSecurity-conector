@@ -59,6 +59,7 @@ APPROVED_RAW_EVENT_KEYS = {
     "event",
     "event_hash",
     "event_truncated",
+    "evaluation_mode",
     "expected_status",
     "headers_sent",
     "header_sent",
@@ -67,6 +68,7 @@ APPROVED_RAW_EVENT_KEYS = {
     "http_status",
     "haproxy_log_path",
     "intervention_status",
+    "integration_mode",
     "intervention",
     "late_intervention",
     "level",
@@ -78,8 +80,10 @@ APPROVED_RAW_EVENT_KEYS = {
     "modsecurity_processed",
     "modsecurity_rule_id",
     "observed_status",
+    "observed_client_status",
     "original_http_status",
     "phase",
+    "payload_recorded",
     "previous_event_hash",
     "reason",
     "redacted",
@@ -113,7 +117,9 @@ APPROVED_RAW_EVENT_KEYS = {
     "transport_result",
     "observed_transport_result",
     "runtime_mode",
+    "rule_evaluation",
     "case",
+    "host_action",
 }
 BODY_SENTINELS = (
     "no-crs-request-body-marker",
@@ -929,6 +935,27 @@ def first_status(objects: list[dict[str, Any]], key: str) -> int | None:
     return None
 
 
+def nonpromoted_host_success(objects: list[dict[str, Any]]) -> bool:
+    """Return whether a real host ran without an allowed capability promotion.
+
+    Native profile runners may prove host selection and transport while their
+    Engine deliberately has no canonical rule-evaluation bridge.  Such a run
+    must be recorded as ``NOT_EXECUTED`` rather than reclassified as a source
+    failure merely because it cannot produce the compatibility 200/403 pair.
+    The explicit marker prevents ordinary incomplete smokes from using this
+    path.
+    """
+
+    for value in objects:
+        if (
+            str(value.get("status") or "").strip().upper() == "PASS"
+            and str(value.get("capability_promotion") or "").strip()
+            == "not_permitted"
+        ):
+            return True
+    return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--connector", required=True)
@@ -996,13 +1023,16 @@ def main() -> int:
         if value not in (None, "")
     }
     observed_rule_ids = sorted(object_rule_ids | set(events["observed_rule_ids"]))
-    explicit_runtime = allowed is not None or blocked is not None or bool(cases)
+    nonpromoted_host = nonpromoted_host_success(objects)
+    explicit_runtime = allowed is not None or blocked is not None or bool(cases) or nonpromoted_host
     core_status_ok = allowed == 200 and blocked == 403
 
     if args.stage_rc == 77:
         status = "FAIL" if explicit_runtime else "BLOCKED"
     elif args.stage_rc != 0:
         status = "FAIL"
+    elif nonpromoted_host:
+        status = "NOT_EXECUTED"
     elif (
         core_status_ok
         and args.expected_rule_id in observed_rule_ids
@@ -1013,6 +1043,13 @@ def main() -> int:
     else:
         status = "FAIL"
 
+    # A non-promoted native transport may return a 200 from its pass-through
+    # host probe.  That response is host-selection metadata, not a canonical
+    # Phase-1 allow result, so do not let the Framework derive a case PASS
+    # from it later.
+    reported_allowed = None if nonpromoted_host else allowed
+    reported_blocked = None if nonpromoted_host else blocked
+
     payload = {
         "schema_version": 1,
         "connector": args.connector,
@@ -1020,8 +1057,8 @@ def main() -> int:
         "stage_exit_code": args.stage_rc,
         "started": explicit_runtime,
         "requests_sent": explicit_runtime,
-        "allowed_request_status": allowed,
-        "blocked_request_status": blocked,
+        "allowed_request_status": reported_allowed,
+        "blocked_request_status": reported_blocked,
         "observed_rule_ids": observed_rule_ids,
         "transaction_ids": events["transaction_ids"],
         "request_headers_verified": core_status_ok,

@@ -37,12 +37,12 @@ späte Aktionen und Statusmetadaten bleiben `NOT_EXECUTED`, bis das fehlende
 Host-Verhalten implementiert ist. Response-Body-Payloads dürfen nicht in
 Ereignisse oder Berichte gelangen.
 
-## Optionales natives HTX-Observer-Overlay
+## Natives HTX-Observer-Overlay für das Full-Lifecycle-Profil
 
 `htx-overlay/` enthält einen source-gebundenen **HAProxy-3.2.21**-
 Observer-Filter für die nativen HTX-Callbacks `http_payload` und `http_end`.
-Er wird in einem disposable Upstream-Worktree gebaut und nicht in die gewählte
-SPOE/SPOP-Runtime eingebunden:
+Er wird in einem disposable Upstream-Worktree gebaut. `full-lifecycle-haproxy-htx`
+wählt ihn aus; die SPOE/SPOP-Runtime bleibt der getrennte Kompatibilitätspfad:
 
 ```sh
 make -C connectors/haproxy check-htx-overlay
@@ -69,7 +69,7 @@ liefern weiter den Upstream-Status 200, und das P4-Safe-Policy-Ergebnis wird als
 sichtbaren Deny, Redirect, Abort, First-Byte-Nachweis, keine Common-Runtime-
 Brücke und keine Capability-Promotion.
 
-Der optionale Overlay ist nicht in der eingecheckten SPOP-Harness-Konfiguration
-aktiv und keine kanonische No-CRS-Evidence. Er stuft daher die ausgewählten
+Der Overlay ist nicht in der eingecheckten SPOP-Harness-Konfiguration aktiv und
+liefert nur nicht-promotete kanonische Host-Evidence. Er stuft daher die
 SPOE/SPOP-Capabilities für Phase 4, Late Intervention, No-Buffer oder First
 Byte **nicht** hoch.

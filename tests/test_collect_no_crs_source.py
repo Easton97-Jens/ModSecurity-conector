@@ -24,6 +24,27 @@ TRAEFIK_SPEC.loader.exec_module(traefik_smoke)
 
 
 class CollectNoCrsSourceTest(unittest.TestCase):
+    def test_nonpromoted_native_host_is_not_reclassified_as_source_failure(self) -> None:
+        self.assertTrue(
+            collector.nonpromoted_host_success(
+                [
+                    {
+                        "status": "PASS",
+                        "capability_promotion": "not_permitted",
+                        "integration_mode": "native-traefik-middleware",
+                    }
+                ]
+            )
+        )
+        self.assertFalse(
+            collector.nonpromoted_host_success([{"status": "PASS"}])
+        )
+        self.assertFalse(
+            collector.nonpromoted_host_success(
+                [{"status": "FAIL", "capability_promotion": "not_permitted"}]
+            )
+        )
+
     def test_raw_source_event_payload_field_invalidates_absence_claim(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-collector-") as temporary:
             event_path = Path(temporary) / "events.jsonl"
@@ -105,6 +126,25 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         evidence = collector.event_evidence([], "1100001", [record])
         self.assertTrue(evidence["body_payload_absent_from_events"])
         self.assertTrue(evidence["event_metadata_verified"])
+        self.assertEqual([], evidence["forbidden_event_keys"])
+
+    def test_native_htx_observer_metadata_is_payload_free(self) -> None:
+        record = {
+            "event": "htx_observed_intervention",
+            "integration_mode": "native_htx_filter",
+            "evaluation_mode": "observer_nonpromoted",
+            "rule_evaluation": "libmodsecurity_observed",
+            "transaction_id": "haproxy-htx-phase4",
+            "case": "phase4",
+            "phase": 4,
+            "rule_id": 910004,
+            "requested_action": "deny",
+            "host_action": "not_attempted",
+            "observed_client_status": 200,
+            "payload_recorded": False,
+        }
+        evidence = collector.event_evidence([], "910004", [record])
+        self.assertTrue(evidence["body_payload_absent_from_events"])
         self.assertEqual([], evidence["forbidden_event_keys"])
 
     def test_phase4_aliases_are_projected_without_status_conflation(self) -> None:
@@ -607,6 +647,11 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             'RUNTIME_BASE="$STAGE_RUNTIME_ROOT"',
             'APACHE_RUNTIME_LOG_DIR="$HOST_RUNTIME_ROOT/apache-runtime"',
             'NGINX_HARNESS_WORK_ROOT="$NGINX_RUN_ROOT"',
+            'HAPROXY_HTX_RUNTIME_ROOT="$STAGE_RUNTIME_ROOT"',
+            'ENVOY_EXT_PROC_RUNTIME_ROOT="$HOST_RUNTIME_ROOT"',
+            'TRAEFIK_NATIVE_RUNTIME_ROOT="$TRAEFIK_RUNTIME_ROOT"',
+            'LIGHTTPD_PATCHED_ROOT="$HOST_RUNTIME_ROOT/lighttpd-patched"',
+            'LIGHTTPD_PATCHED_SMOKE_DIR="$LIGHTTPD_RUNTIME_ROOT"',
             '--allowed-source-root "$RAW_DIR"',
             '--scrub-source-events',
         ):
