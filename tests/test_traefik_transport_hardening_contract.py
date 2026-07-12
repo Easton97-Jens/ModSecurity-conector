@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import http.server
 import importlib.util
+import json
 import sys
+import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -11,6 +13,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_SCRIPT = ROOT / "connectors" / "traefik" / "scripts" / "runtime_native_smoke.py"
 STANDALONE_RULES = ROOT / "connectors" / "traefik" / "config" / "traefik-native-engine-rules.conf"
+
+FRAMEWORK_SPEC = importlib.util.spec_from_file_location(
+    "framework_no_crs_baseline_for_traefik_transport",
+    ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "no_crs_baseline.py",
+)
+assert FRAMEWORK_SPEC is not None and FRAMEWORK_SPEC.loader is not None
+framework_baseline = importlib.util.module_from_spec(FRAMEWORK_SPEC)
+FRAMEWORK_SPEC.loader.exec_module(framework_baseline)
 
 
 def load_runtime_module() -> object:
@@ -116,6 +126,155 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
         self.assertIn('"traefik-native-p1-alternative"', source)
         self.assertIn("P1 alternative outcome is not bound to its host transaction", source)
         self.assertIn("id:1000005,phase:1,deny,status:429", rules)
+
+    def test_p1_allow_event_is_payload_free_and_selected_after_the_p4_barrier(self) -> None:
+        runtime = load_runtime_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "events.jsonl"
+            phase4_event = {
+                "connector": "traefik",
+                "integration_mode": "native-traefik-middleware",
+                "transaction_id": "traefik-native-p4-safe",
+                "rule_id": 1100301,
+                "phase": 4,
+                "requested_action": "deny",
+                "actual_action": "log_only",
+                "late_intervention": True,
+                "late_intervention_mode": "safe",
+                "http_status": 403,
+                "visible_http_status": 200,
+                "headers_sent": True,
+                "body_started": True,
+                "response_committed": True,
+                "connection_aborted": False,
+                "transport_result": "log_only",
+            }
+            runtime.append_jsonl(path, phase4_event)
+            runtime.append_allow_host_event(
+                path,
+                200,
+                17,
+                "traefik-native-p1-allow",
+                1,
+                "core-run-1",
+            )
+            events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+        allow_event = events[-1]
+        self.assertEqual("traefik", allow_event["connector"])
+        self.assertEqual("native-traefik-middleware", allow_event["integration_mode"])
+        self.assertEqual("core-run-1", allow_event["run_id"])
+        self.assertEqual("traefik-native-p1-allow", allow_event["transaction_id"])
+        self.assertEqual(1, allow_event["phase"])
+        self.assertEqual(200, allow_event["http_status"])
+        self.assertEqual(200, allow_event["visible_http_status"])
+        self.assertEqual("http_status", allow_event["transport_result"])
+        self.assertNotIn("requested_action", allow_event)
+        self.assertNotIn("actual_action", allow_event)
+        self.assertNotIn("rule_id", allow_event)
+        self.assertNotIn("negotiated_protocol", allow_event)
+        self.assertTrue(allow_event["headers_sent"])
+        self.assertTrue(allow_event["response_committed"])
+        selected = framework_baseline.event_for_case(
+            events,
+            None,
+            {"phase": 1, "expected_status": 200},
+            transaction_ids=(),
+            integration_mode="native-traefik-middleware",
+        )
+        self.assertIsNotNone(selected)
+        assert selected is not None
+        self.assertEqual("traefik-native-p1-allow", selected["transaction_id"])
+        self.assertEqual(1, selected["phase"])
+
+    def test_p1_allow_event_rejects_noncausal_client_or_upstream_observation(self) -> None:
+        runtime = load_runtime_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "events.jsonl"
+            with self.assertRaisesRegex(RuntimeError, "HTTP 200"):
+                runtime.append_allow_host_event(
+                    path, 403, 17, "traefik-native-p1-allow", 1, "core-run-1"
+                )
+            with self.assertRaisesRegex(RuntimeError, "HTTP 200"):
+                runtime.append_allow_host_event(
+                    path, 200, 0, "traefik-native-p1-allow", 1, "core-run-1"
+                )
+            with self.assertRaisesRegex(RuntimeError, "exactly once upstream"):
+                runtime.append_allow_host_event(
+                    path, 200, 17, "traefik-native-p1-allow", 0, "core-run-1"
+                )
+
+    def test_first_byte_host_event_carries_the_exact_canonical_run_id(self) -> None:
+        runtime = load_runtime_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "events.jsonl"
+            phase4_event = {
+                "connector": "traefik",
+                "integration_mode": "native-traefik-middleware",
+                "transaction_id": "traefik-native-p4-safe",
+                "rule_id": 1100301,
+                "phase": 4,
+                "requested_action": "deny",
+                "actual_action": "log_only",
+                "late_intervention": True,
+                "late_intervention_mode": "safe",
+                "http_status": 403,
+                "original_http_status": 200,
+                "visible_http_status": 200,
+                "headers_sent": True,
+                "body_started": True,
+                "response_committed": True,
+                "connection_aborted": False,
+                "transport_result": "log_only",
+            }
+            observation = {
+                "safe_first_byte_received": True,
+                "upstream_paused": True,
+                "upstream_eos_sent_at_first_byte": False,
+                "first_chunk_size": 27,
+            }
+            runtime.append_first_byte_host_event(
+                path,
+                phase4_event,
+                observation,
+                "traefik-native-p4-safe",
+                "1100301",
+                55,
+                "core-run-1",
+            )
+            barrier_event = json.loads(path.read_text(encoding="utf-8").strip())
+
+        self.assertEqual("core-run-1", barrier_event["run_id"])
+        self.assertEqual("traefik-native-p4-safe", barrier_event["transaction_id"])
+        self.assertEqual(1100301, barrier_event["rule_id"])
+        self.assertEqual(4, barrier_event["phase"])
+        self.assertTrue(barrier_event["eos_seen"])
+        self.assertTrue(barrier_event["end_of_stream_evaluation"])
+        self.assertTrue(barrier_event["first_byte_before_response_end"])
+        self.assertTrue(barrier_event["no_full_response_buffering"])
+        self.assertEqual("http1", barrier_event["negotiated_protocol"])
+        self.assertEqual("phase4-first-byte-traefik", barrier_event["transport_case_id"])
+        record = {
+            "connector": "traefik",
+            "phase": 4,
+            "transaction_ids": ["traefik-native-p4-safe"],
+            "expected_rule_id": 1100301,
+            "requested_action": "deny",
+            "actual_action": "log_only",
+            "run_id": "core-run-1",
+            "integration_mode": "native-traefik-middleware",
+            "negotiated_protocol": "http1",
+            "transport_case_id": "phase4-first-byte-traefik",
+        }
+        self.assertEqual(
+            [],
+            framework_baseline.protocol_pass_errors(
+                record,
+                barrier_event,
+                expected_run_id="core-run-1",
+                expected_integration_mode="native-traefik-middleware",
+            ),
+        )
 
 
 if __name__ == "__main__":

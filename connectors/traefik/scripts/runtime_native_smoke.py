@@ -38,6 +38,7 @@ PLUGIN_SOURCE = REPO_ROOT / "connectors/traefik/native_middleware"
 PLUGIN_ID = "modsecurityNative"
 REQUEST_BODY = b"native-traefik-request-body"
 P2_BODY = b"no-crs-request-body-marker"
+P1_ALLOW_TRANSACTION_ID = "traefik-native-p1-allow"
 ENGINE_BUILD_SCRIPT = REPO_ROOT / "connectors/traefik/build/build-engine-service.sh"
 STANDALONE_ENGINE_RULES = REPO_ROOT / "connectors/traefik/config/traefik-native-engine-rules.conf"
 
@@ -61,6 +62,7 @@ ENGINE_SOCKET_DIRECTORY_PREFIX = "msconnector-traefik-uds-"
 # a long canonical run root into an engine-start failure.
 ENGINE_SOCKET_PATH_MAX_BYTES = 100
 TRANSPORT_OBSERVATION_MAX_BODY_BYTES = 64 << 10
+SAFE_RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
 def assert_no_symlink_components(path: Path) -> None:
@@ -311,6 +313,7 @@ class UpstreamState:
     request_count: int = 0
     request_body_bytes: int = 0
     response_chunks: int = 0
+    p1_allow_upstream_requests: int = 0
     p3_requests: int = 0
     p4_requests: int = 0
     barrier_first_chunk_size: int = 0
@@ -342,6 +345,7 @@ def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHa
             p3_requested = self.headers.get("X-Native-Response-Rule") == "block"
             p4_requested = self.headers.get("X-Native-P4-Rule") == "block"
             barrier_requested = self.headers.get("X-Native-P4-Barrier") == "true"
+            p1_allow_requested = self.headers.get("X-Request-Id") == P1_ALLOW_TRANSACTION_ID
             if barrier_requested and not p4_requested:
                 self.send_error(http.HTTPStatus.BAD_REQUEST)
                 return
@@ -353,6 +357,7 @@ def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHa
                 state.request_count += 1
                 state.request_body_bytes += seen
                 state.response_chunks += len(chunks)
+                state.p1_allow_upstream_requests += int(p1_allow_requested)
                 state.p3_requests += int(p3_requested)
                 state.p4_requests += int(p4_requested)
             self.send_response(200)
@@ -780,6 +785,64 @@ def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
         stream.write(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n")
 
 
+def optional_canonical_run_id() -> str | None:
+    """Return the run ID when this host probe is running canonically.
+
+    Direct local host runs predate canonical evidence collection and do not
+    necessarily have a run ID.  A supplied ID, however, is used as evidence
+    metadata and must therefore obey the same bounded token policy as the
+    full-lifecycle dispatcher.
+    """
+    run_id = os.environ.get("NO_CRS_RUN_ID", "").strip()
+    if not run_id:
+        return None
+    if not SAFE_RUN_ID_PATTERN.fullmatch(run_id):
+        raise RuntimeError("NO_CRS_RUN_ID is not a bounded safe canonical run ID")
+    return run_id
+
+
+def append_allow_host_event(
+    event_path: Path,
+    observed_status: int,
+    response_bytes: int,
+    transaction_id: str,
+    upstream_requests: int,
+    run_id: str | None,
+) -> None:
+    """Append one causally checked, payload-free P1 allow outcome.
+
+    The no-rule case is summary-derived, so this event deliberately follows
+    the P4 barrier event.  That makes the final confirmed HTTP 200 belong to
+    the actual P1 request instead of incorrectly borrowing the P4-safe
+    response.  It is a host-forward observation, not a policy action: allow
+    is intentionally absent from the closed action vocabularies.
+    """
+    if transaction_id != P1_ALLOW_TRANSACTION_ID:
+        raise RuntimeError("Traefik P1 allow event has an unexpected transaction ID")
+    if observed_status != http.HTTPStatus.OK or response_bytes < 1:
+        raise RuntimeError("Traefik P1 allow client outcome must preserve HTTP 200 with a body")
+    if upstream_requests != 1:
+        raise RuntimeError("Traefik P1 allow transaction was not observed exactly once upstream")
+    record: dict[str, Any] = {
+        "connector": "traefik",
+        "integration_mode": "native-traefik-middleware",
+        "event": "native_traefik_host_forward",
+        "message_id": "TRAEFIK_NATIVE_P1_ALLOW",
+        "transaction_id": transaction_id,
+        "phase": 1,
+        "status": "allowed",
+        "http_status": http.HTTPStatus.OK,
+        "visible_http_status": http.HTTPStatus.OK,
+        "headers_sent": True,
+        "response_committed": True,
+        "connection_aborted": False,
+        "transport_result": "http_status",
+    }
+    if run_id is not None:
+        record["run_id"] = run_id
+    append_jsonl(event_path, record)
+
+
 def write_first_byte_evidence(
     path: Path, observation: dict[str, int | bool], total_entity_bytes: int,
 ) -> None:
@@ -820,6 +883,7 @@ def append_first_byte_host_event(
     safe_request_id: str,
     rule_id: str,
     total_entity_bytes: int,
+    run_id: str | None,
 ) -> None:
     transaction_id = str(phase4_event.get("transaction_id") or "")
     if transaction_id != safe_request_id:
@@ -867,11 +931,14 @@ def append_first_byte_host_event(
             "cleanup_reason": "normal",
         }
     )
+    if run_id is not None:
+        host_event["run_id"] = run_id
     append_jsonl(event_path, host_event)
 
 
 def run() -> int:
     runtime_root = assert_runtime_root(Path(os.environ.get("TRAEFIK_NATIVE_RUNTIME_ROOT", "")))
+    run_id = optional_canonical_run_id()
     first_byte_output_text = os.environ.get("FULL_LIFECYCLE_EVIDENCE_OUTPUT", "").strip()
     first_byte_output = Path(first_byte_output_text) if first_byte_output_text else None
     if os.environ.get("NO_CRS_ARTIFACT_PROFILE") == "full_lifecycle" and first_byte_output is None:
@@ -939,7 +1006,7 @@ def run() -> int:
                 )
                 wait_for_port(traefik_port, process, "Traefik native local-plugin host")
                 p1_allow_status, p1_allow_bytes = request_through_traefik(
-                    traefik_port, REQUEST_BODY, "traefik-native-p1-allow", http.HTTPStatus.OK
+                    traefik_port, REQUEST_BODY, P1_ALLOW_TRANSACTION_ID, http.HTTPStatus.OK
                 )
                 p1_deny_status, _ = request_through_traefik(
                     traefik_port,
@@ -987,6 +1054,7 @@ def run() -> int:
             upstream_requests = state.request_count
             request_body_bytes = state.request_body_bytes
             response_chunks = state.response_chunks
+            p1_allow_upstream_requests = state.p1_allow_upstream_requests
             p3_requests = state.p3_requests
             p4_requests = state.p4_requests
         if upstream_requests < 3 or request_body_bytes < len(REQUEST_BODY) or response_chunks < 6:
@@ -1025,6 +1093,15 @@ def run() -> int:
             "traefik-native-p4-safe",
             rule_ids["p4"],
             p4_safe_bytes,
+            run_id,
+        )
+        append_allow_host_event(
+            event_path,
+            p1_allow_status,
+            p1_allow_bytes,
+            P1_ALLOW_TRANSACTION_ID,
+            p1_allow_upstream_requests,
+            run_id,
         )
         write_json(
             transport_observations_path,
