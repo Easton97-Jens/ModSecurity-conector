@@ -112,9 +112,10 @@ required `http-response wait-for-body` and is not a low-latency response
 stream. `response_body_buffered`, `phase4`, and
 `phase4_rule_evaluation` are therefore `not_implemented` in the selected
 SPOE/SPOP path until it wires a native HTX/filter response-chunk adapter. The
-checked-in HTX observer has an isolated real-host P1–P4 transport smoke and is
-selected by the separate full-lifecycle profile, but remains observer-only and
-non-promoted for these SPOP capabilities.
+checked-in HTX route has isolated real-host P1–P4 transport evidence, including
+canonical P1/P3 precommit replies, and is selected by the separate
+full-lifecycle profile. P2/P4 remain observer-only and none of these results
+promote the SPOP capabilities.
 The agent's pre-commit/status fields are policy-derived, not host-observed, so
 `phase4_pre_commit_deny` and `late_intervention_status_metadata` remain
 `not_implemented`. The current path also has no post-commit point, safe

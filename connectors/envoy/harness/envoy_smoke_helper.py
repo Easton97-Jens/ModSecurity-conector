@@ -19,9 +19,19 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
         content_length = int(self.headers.get("content-length") or "0")
         if content_length > 0:
             self.rfile.read(content_length)
-        body = b"envoy connector upstream ok\n"
+        response_headers: list[tuple[str, str]] = []
+        if self.path == "/phase3-block":
+            response_headers.append(("X-Modsec-Upstream", "block"))
+        elif self.path == "/phase3-redirect":
+            response_headers.append(("X-Modsec-Upstream", "redirect"))
+        if self.path == "/phase4-marker":
+            body = b"no-crs-response-body-marker\n"
+        else:
+            body = b"envoy connector upstream ok\n"
         self.send_response(200)
         self.send_header("content-type", "text/plain")
+        for name, value in response_headers:
+            self.send_header(name, value)
         self.send_header("content-length", str(len(body)))
         self.end_headers()
         if self.command != "HEAD":
@@ -60,7 +70,21 @@ def serve_upstream(port: int) -> int:
     return 0
 
 
-def probe(url: str, header: list[str], method: str, data: str | None) -> int:
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: object,
+        code: int,
+        msg: str,
+        headers: object,
+        newurl: str,
+    ) -> None:
+        del req, fp, code, msg, headers, newurl
+        return None
+
+
+def probe(url: str, header: list[str], method: str, data: str | None, no_redirect: bool) -> int:
     headers: dict[str, str] = {}
     for item in header:
         name, separator, value = item.partition(":")
@@ -70,7 +94,8 @@ def probe(url: str, header: list[str], method: str, data: str | None) -> int:
     body = None if data is None else data.encode("utf-8")
     request = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=2) as response:
+        opener = urllib.request.build_opener(NoRedirect) if no_redirect else urllib.request.build_opener()
+        with opener.open(request, timeout=2) as response:
             response.read()
             status = int(response.status)
     except urllib.error.HTTPError as exc:
@@ -93,6 +118,7 @@ def parse_args() -> argparse.Namespace:
     request.add_argument("--header", action="append", default=[])
     request.add_argument("--method", default="GET")
     request.add_argument("--data")
+    request.add_argument("--no-redirect", action="store_true")
     return parser.parse_args()
 
 
@@ -109,7 +135,7 @@ def main() -> int:
     if args.command == "serve-upstream":
         return serve_upstream(args.port)
     if args.command == "probe":
-        return probe(args.url, args.header, args.method, args.data)
+        return probe(args.url, args.header, args.method, args.data, args.no_redirect)
     return 2
 
 

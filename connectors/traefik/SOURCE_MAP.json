@@ -59,8 +59,24 @@
       "purpose": "Traefik forwardAuth host profile and service entry point"
     },
     {
+      "path": "connectors/traefik/src/traefik_engine_protocol.h",
+      "purpose": "bounded local Unix-socket framing and host-confirmed outcome contract for the selected Yaegi-compatible native middleware bridge"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_engine_service.c",
+      "purpose": "persistent Common/libmodsecurity Unix-domain-socket engine service with explicit per-transaction EOS, finish, destroy, and post-ResponseWriter host-outcome recording"
+    },
+    {
       "path": "connectors/traefik/build/build-connector.sh",
       "purpose": "C17 compile/link-only forwardAuth service build"
+    },
+    {
+      "path": "connectors/traefik/build/build-engine-service.sh",
+      "purpose": "outside-checkout C17 Common/libmodsecurity persistent engine-service build and self-test helper"
+    },
+    {
+      "path": "connectors/traefik/build/test-engine-service-runtime.sh",
+      "purpose": "focused local Unix-socket protocol and lifecycle test; does not start the Traefik host"
     },
     {
       "path": "connectors/traefik/scripts/check-config.sh",
@@ -83,6 +99,14 @@
       "purpose": "example Common runtime configuration with response processing disabled"
     },
     {
+      "path": "connectors/traefik/config/traefik-engine-service.conf",
+      "purpose": "source-only example explicit streaming Common runtime configuration; the selected host harness adds a private run-local event path"
+    },
+    {
+      "path": "connectors/traefik/config/traefik-native-engine-rules.conf",
+      "purpose": "standalone-only targeted UDS engine rule fallback; canonical full-lifecycle runs instead load MSCONNECTOR_RULES_FILE"
+    },
+    {
       "path": "connectors/traefik/config/traefik-forwardauth-dynamic.yaml",
       "purpose": "temporary Traefik forwardAuth File Provider configuration template"
     },
@@ -96,7 +120,15 @@
     },
     {
       "path": "connectors/traefik/native_middleware/middleware.go",
-      "purpose": "Traefik-shaped bounded streaming middleware selected only by the non-promoted full-lifecycle local-plugin host probe"
+      "purpose": "Traefik-shaped bounded streaming middleware with passthrough source default and selected private UDS Common/libmodsecurity host mode"
+    },
+    {
+      "path": "connectors/traefik/native_middleware/engine_uds.go",
+      "purpose": "one-session-per-ServeHTTP bounded Unix-domain-socket Common/libmodsecurity engine client and host-outcome protocol adapter"
+    },
+    {
+      "path": "connectors/traefik/native_middleware/engine_uds_test.go",
+      "purpose": "focused UDS lifecycle, P1/P2/P3/P4-safe outcome, wire-limit, and failed-ResponseWriter acknowledgement tests"
     },
     {
       "path": "connectors/traefik/native_middleware/middleware_test.go",
@@ -116,7 +148,7 @@
     },
     {
       "path": "connectors/traefik/scripts/runtime_native_smoke.py",
-      "purpose": "starts the pinned Traefik host, requires local-plugin load confirmation, and records metadata-only non-promoted router traffic"
+      "purpose": "starts the pinned Traefik host and persistent local UDS engine, loads canonical MSCONNECTOR_RULES_FILE when supplied, and records metadata-only targeted P1-P4-safe host evidence"
     },
     {
       "path": "connectors/traefik/config/traefik-native-middleware-dynamic.yaml",
@@ -125,6 +157,14 @@
     {
       "path": "connectors/traefik/config/traefik-native-middleware-static.yaml",
       "purpose": "reference Traefik local-plugin registration shape; the host probe materializes a disposable equivalent"
+    },
+    {
+      "path": "connectors/traefik/docs/engine-service.md",
+      "purpose": "English protocol, lifecycle, outcome-boundary, and non-promotion documentation for the local engine service"
+    },
+    {
+      "path": "connectors/traefik/docs/engine-service.de.md",
+      "purpose": "German protocol, lifecycle, outcome-boundary, and non-promotion documentation for the local engine service"
     }
   ],
   "shared_dependencies": [
@@ -141,7 +181,7 @@
     "common/rules/modsecurity_targeted_smoke.conf"
   ],
   "verification_status": "connector-gap",
-  "runtime_evidence_scope": "the standard compatibility path is local Traefik forwardAuth request-header rule 1000001: allow 200, block 403; separately, full-lifecycle-traefik-native selects native-middleware in a pinned local-plugin host and proves plugin loading and router traffic without rule evaluation",
+  "runtime_evidence_scope": "the standard compatibility path is local Traefik forwardAuth request-header allow 200/block 403; separately, full-lifecycle-traefik-native selects native-middleware plus a persistent local UDS Common/libmodsecurity engine in a pinned host. With MSCONNECTOR_RULES_FILE it records targeted host P1 allow/deny, P2 deny, P3 pre-commit deny, and P4 safe log-only evidence without capability promotion",
   "claims_not_verified": [
     "request_body",
     "upstream_response_headers",
@@ -152,5 +192,5 @@
     "full_matrix_ready"
   ],
   "starter_evidence_note": "legacy decision-service self-test remains non-runtime evidence",
-  "native_middleware_full_lifecycle_note": "The full-lifecycle profile selects native-middleware through full-lifecycle-traefik-native in a pinned local-plugin host probe. It installs PassthroughEngine, has no Common/libmodsecurity bridge, and does not alter forwardAuth compatibility capability state or promote P1-P4, late-action, first-byte, or no-buffer claims."
+  "native_middleware_full_lifecycle_note": "The full-lifecycle profile selects native-middleware through full-lifecycle-traefik-native in a pinned local-plugin host and configures its private persistent UDS Common/libmodsecurity engine. It records only host-confirmed metadata after a real ResponseWriter action and does not alter forwardAuth compatibility capability state or promote P1-P4, late-action, first-byte, or no-buffer claims."
 }

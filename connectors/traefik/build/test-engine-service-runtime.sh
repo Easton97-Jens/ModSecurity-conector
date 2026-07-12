@@ -1,0 +1,174 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH='' cd "$SCRIPT_DIR/../../.." && pwd)
+BUILD_ROOT="${BUILD_ROOT:-${TMPDIR:-/var/tmp}/ModSecurity-conector-verified/build}"
+OUT_DIR="${TRAEFIK_ENGINE_SERVICE_BUILD_DIR:-$BUILD_ROOT/traefik-engine-service}"
+ENGINE_BIN="${TRAEFIK_ENGINE_SERVICE_BIN:-$OUT_DIR/traefik-engine-service}"
+PYTHON_BIN="${PYTHON:-python3}"
+SOCKET_DIR=""
+SOCKET_PATH=""
+CONFIG_PATH="$REPO_ROOT/connectors/traefik/config/traefik-engine-service.conf"
+SERVICE_PID=""
+
+case "$ENGINE_BIN" in
+    /*) ;;
+    *) echo "FAIL: TRAEFIK_ENGINE_SERVICE_BIN must be absolute" >&2; exit 1 ;;
+esac
+
+if [ ! -x "$ENGINE_BIN" ]; then
+    echo "FAIL: build-engine-service must produce an executable before runtime test" >&2
+    exit 1
+fi
+if [ ! -f "$CONFIG_PATH" ]; then
+    echo "FAIL: engine-service example configuration is missing" >&2
+    exit 1
+fi
+command -v "$PYTHON_BIN" >/dev/null 2>&1 || {
+    echo "BLOCKED: missing Python interpreter for local Unix-socket protocol test" >&2
+    exit 77
+}
+
+cleanup() {
+    if [ -n "$SERVICE_PID" ]; then
+        kill "$SERVICE_PID" 2>/dev/null || true
+        wait "$SERVICE_PID" 2>/dev/null || true
+    fi
+    if [ -n "$SOCKET_PATH" ]; then
+        rm -f "$SOCKET_PATH"
+    fi
+    if [ -n "$SOCKET_DIR" ] && [ ! -L "$SOCKET_DIR" ]; then
+        rmdir "$SOCKET_DIR" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT HUP INT TERM
+
+# The durable test build root can be far beyond Unix-domain pathname limits.
+# Keep this transient transport socket in a short, private directory instead;
+# it is neither a runtime artifact nor an evidence destination.
+SOCKET_DIR=$(mktemp -d /var/tmp/msconnector-traefik-engine-test.XXXXXX) || {
+    echo "BLOCKED: unable to create private engine-service socket directory" >&2
+    exit 77
+}
+case "$SOCKET_DIR" in
+    /var/tmp/msconnector-traefik-engine-test.*) ;;
+    *)
+        echo "BLOCKED: unexpected private engine-service socket directory: $SOCKET_DIR" >&2
+        exit 77
+        ;;
+esac
+[ ! -L "$SOCKET_DIR" ] || {
+    echo "BLOCKED: private engine-service socket directory is a symlink" >&2
+    exit 77
+}
+SOCKET_PATH="$SOCKET_DIR/engine.sock"
+case "$SOCKET_PATH" in
+    /*) ;;
+    *) echo "FAIL: protocol socket path must be absolute" >&2; exit 1 ;;
+esac
+[ "${#SOCKET_PATH}" -le 100 ] || {
+    echo "BLOCKED: private engine-service socket path is too long" >&2
+    exit 77
+}
+
+(
+    cd "$REPO_ROOT"
+    "$ENGINE_BIN" --check-config --config "$CONFIG_PATH"
+)
+(
+    cd "$REPO_ROOT"
+    "$ENGINE_BIN" --serve --config "$CONFIG_PATH" --socket "$SOCKET_PATH" \
+        --max-connections 2
+) &
+SERVICE_PID=$!
+
+SOCKET_PATH="$SOCKET_PATH" "$PYTHON_BIN" -c '
+import os
+import socket
+import time
+
+path = os.environ["SOCKET_PATH"]
+for _ in range(250):
+    if os.path.exists(path):
+        break
+    time.sleep(0.02)
+else:
+    raise SystemExit("engine service socket did not appear")
+
+def text(value):
+    raw = value.encode("ascii")
+    return len(raw).to_bytes(2, "big") + raw
+
+def exact(connection, count):
+    data = b""
+    while len(data) < count:
+        fragment = connection.recv(count - len(data))
+        if not fragment:
+            raise AssertionError("unexpected engine-service EOF")
+        data += fragment
+    return data
+
+def invoke(connection, opcode, payload, expected_result):
+    frame = b"MSE1" + bytes((1, opcode, 0, 0))
+    connection.sendall(frame + len(payload).to_bytes(4, "big") + payload)
+    header = exact(connection, 12)
+    assert header[:4] == b"MSE1" and header[4] == 1 and header[5] == 128
+    result = exact(connection, int.from_bytes(header[8:12], "big"))
+    assert result[0] == opcode and result[1] == expected_result, result[:2]
+    return result
+
+def begin_payload(uri, request_id, headers):
+    wire_headers = len(headers).to_bytes(2, "big")
+    for name, value in headers:
+        wire_headers += text(name) + text(value)
+    return (
+        text("GET") + text(uri) + text("HTTP/1.1") + text("example.test") +
+        text("127.0.0.1") + (12345).to_bytes(2, "big") +
+        text("127.0.0.1") + (80).to_bytes(2, "big") + text(request_id) +
+        wire_headers
+    )
+
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+    connection.connect(path)
+    invoke(connection, 1, begin_payload("/engine-safe", "engine-runtime-safe", [
+        ("host", "example.test")
+    ]), 0)
+    # A bounded protocol rejection must not consume or retain the oversized
+    # request chunk; the following EOS remains valid.
+    invoke(connection, 2, b"x" * 32769, 2)
+    invoke(connection, 10, b"\x00\x00\x00\x00", 2)
+    invoke(connection, 3, b"", 0)
+    response = (200).to_bytes(2, "big") + text("HTTP/1.1") + (0).to_bytes(2, "big")
+    invoke(connection, 4, response, 0)
+    invoke(connection, 7, b"\x00\x00", 0)
+    invoke(connection, 6, b"", 0)
+    invoke(connection, 8, b"", 0)
+    invoke(connection, 9, b"", 0)
+
+# The second persistent-service connection proves that the Common runtime
+# evaluates the configured targeted request-header rule. It is still not a
+# Traefik host action: OUTCOME is only the service in-memory coordination
+# hook and writes no evidence.
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+    connection.connect(path)
+    denied = invoke(connection, 1, begin_payload("/engine-block", "engine-runtime-block", [
+        ("host", "example.test"), ("x-modsec-smoke", "block")
+    ]), 0)
+    assert denied[2] == 2 and denied[3] == 2 and denied[4:6] == (403).to_bytes(2, "big")
+    invoke(connection, 10, bytes((2, 1)) + (403).to_bytes(2, "big"), 0)
+    invoke(connection, 8, b"", 0)
+    invoke(connection, 9, b"", 0)
+
+print("traefik_engine_service_protocol_runtime_test=pass")
+'
+
+wait "$SERVICE_PID"
+SERVICE_PID=""
+if [ -e "$SOCKET_PATH" ]; then
+    echo "FAIL: engine service did not remove its Unix socket" >&2
+    exit 1
+fi
+rmdir "$SOCKET_DIR"
+SOCKET_DIR=""
+printf 'traefik_engine_service_protocol_negative_test=pass\n'

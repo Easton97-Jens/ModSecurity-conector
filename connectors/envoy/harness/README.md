@@ -30,7 +30,10 @@ remains false.
 The full-lifecycle dispatcher does not reuse the `ext_authz` runtime entrypoint.
 It invokes `runtime-smoke-envoy-ext-proc` through
 `full-lifecycle-envoy-ext-proc`, which starts a real Envoy listener, the Go
-`ext_proc` service, and a local upstream. The selected service uses
-`PassthroughEngine`; its streamed callback evidence is non-promoted and cannot
-be reported as Common/libmodsecurity rule evaluation, enforcement, reset, or
-response-lifecycle evidence.
+`ext_proc` CGo/Common service, and a local upstream. The selected service uses
+one real Common/libmodsecurity transaction per ext_proc stream and writes raw
+Common JSONL under the run root; its completion JSONL remains supplementary.
+The smoke verifies bounded HTTP/1.1 P1/P2/P3/P4 rule/action behavior, including
+host-confirmed deny, redirect, and safe log-only outcomes after successful gRPC
+sends. This connector-local evidence is non-promoted and cannot establish
+reset, timeout, HTTP/2, client-byte, canonical-result, or production claims.

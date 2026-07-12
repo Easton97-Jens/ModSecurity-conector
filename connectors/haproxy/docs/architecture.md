@@ -30,14 +30,15 @@ HTTP client -> HAProxy -> SPOE/SPOP -> haproxy-modsecurity-spoa -> libmodsecurit
 The former bounded strict-abort sample is disabled and retained only as a
 legacy, noncanonical artifact. It must not be used or reported as current
 runtime evidence. The separate `full-lifecycle-haproxy-htx` profile selects
-the HAProxy 3.2.21 HTX observer. It is observer-only after forwarding, but has
-its own real-host P1–P4 transport smoke with incremental request/response
-chunks.
+the HAProxy 3.2.21 HTX precommit route. It has its own real-host P1–P4
+transport smoke with incremental request/response chunks; P1/P3 can issue a
+local precommit reply, whereas P2/P4 remain observer-only.
 
 That smoke proves a patched HTX filter can invoke libmodsecurity in all four
-phases and records metadata-only observations. It deliberately does not turn a
-decision into a HAProxy reply or stream abort: P1/P2/P3 client status remains
-the upstream 200 and P4 reports `host_action=not_attempted`.
+phases. Canonical P1 rules `1100001`/`1100002` produce real 403/429 replies,
+and P3 rule `1100201` produces a real 403 before the received upstream header
+response is forwarded. P2 remains `observed_only` and P4 reports
+`host_action=not_attempted`; neither path is a stream-abort proof.
 
 ## Current Evidence
 

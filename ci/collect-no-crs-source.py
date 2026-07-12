@@ -17,6 +17,37 @@ from typing import Any
 
 
 CORE_CASES = {"allow_without_marker": 200, "deny_header_marker_403": 403}
+
+# These names are intentionally limited to the explicit summaries written by
+# the selected native host runners.  They are *not* generic status aliases:
+# each mapped record still has to bind to a raw Common/host event at
+# finalization, including its canonical rule ID, transaction metadata, and
+# selected integration mode.  This lets a real native host result enter the
+# existing catalog without treating a build-only ``not_permitted`` marker as
+# evidence.
+NATIVE_HOST_SUMMARY_CASES = (
+    ("allowed_request_status", "allow_without_marker", None),
+    ("p1_allow_status", "allow_without_marker", None),
+    ("blocked_request_status", "deny_header_marker_403", 1100001),
+    ("phase1_deny_status", "deny_header_marker_403", 1100001),
+    ("p1_deny_status", "deny_header_marker_403", 1100001),
+    ("phase1_alternative_status_client_status", "deny_with_alternative_status", 1100002),
+    ("phase2_deny_status", "deny_request_body_marker_403", 1100101),
+    ("p2_deny_status", "deny_request_body_marker_403", 1100101),
+    ("phase3_deny_status", "deny_response_header_marker_403", 1100201),
+    ("phase3_deny_client_status", "deny_response_header_marker_403", 1100201),
+    ("p3_precommit_deny_status", "deny_response_header_marker_403", 1100201),
+    ("phase3_redirect_status", "phase3_redirect_before_commit", 1100202),
+    ("phase4_safe_status", "phase4_deny_after_commit_log_only_safe", 1100301),
+    ("p4_safe_log_only_status", "phase4_deny_after_commit_log_only_safe", 1100301),
+)
+
+NATIVE_RULE_ENGINE_EVALUATIONS = {
+    "libmodsecurity",
+    "libmodsecurity_host_runtime",
+    "common_libmodsecurity",
+    "host_runtime_observed_not_promoted",
+}
 FORBIDDEN_EVENT_KEYS = {
     "authorization",
     "body_payload",
@@ -70,6 +101,7 @@ APPROVED_RAW_EVENT_KEYS = {
     "intervention_status",
     "integration_mode",
     "intervention",
+    "late_intervention_mode",
     "late_intervention",
     "level",
     "live_executed",
@@ -127,6 +159,7 @@ BODY_SENTINELS = (
 )
 MAX_METADATA_LENGTH = {
     "connector": 64,
+    "integration_mode": 64,
     "transaction_id": 256,
     "status": 64,
     "content_type": 256,
@@ -276,6 +309,19 @@ def scalar_bool(value: Any) -> bool | None:
     return None
 
 
+def record_transaction_ids(record: dict[str, Any]) -> set[str]:
+    """Return only explicitly supplied, nonempty transaction identifiers."""
+    identifiers: set[str] = set()
+    values = record.get("transaction_ids")
+    if isinstance(values, list):
+        identifiers.update(str(value) for value in values if str(value).strip())
+    for key in ("transaction_id", "request_id", "tx_id"):
+        value = record.get(key)
+        if value not in (None, "") and str(value).strip():
+            identifiers.add(str(value))
+    return identifiers
+
+
 def parse_key_value_text(path: Path) -> dict[str, Any]:
     values: dict[str, Any] = {}
     if not path.is_file():
@@ -412,6 +458,9 @@ def safe_metadata_value(target: str, value: Any) -> Any | None:
         if normalized == "connection_abort":
             normalized = "connection_aborted"
         return normalized if normalized in TRANSPORT_RESULTS else None
+    if target == "late_intervention_mode":
+        normalized = str(value).strip().casefold()
+        return normalized if normalized in {"minimal", "safe", "strict"} else None
     if not isinstance(value, (str, int)) or isinstance(value, bool):
         return None
     text = "".join(character for character in str(value) if character >= " " and character != "\x7f")
@@ -423,6 +472,7 @@ def sanitized_event(record: dict[str, Any]) -> dict[str, Any]:
     output: dict[str, Any] = {}
     aliases = {
         "connector": ("connector",),
+        "integration_mode": ("integration_mode",),
         "event": ("event",),
         "message_id": ("message_id",),
         "transaction_id": ("transaction_id", "request_id", "tx_id"),
@@ -435,6 +485,7 @@ def sanitized_event(record: dict[str, Any]) -> dict[str, Any]:
         "requested_action": ("requested_action", "wanted_action"),
         "actual_action": ("actual_action",),
         "late_intervention": ("late_intervention", "intervention"),
+        "late_intervention_mode": ("late_intervention_mode",),
         "headers_sent": ("headers_sent", "header_sent"),
         "body_started": ("body_started", "response_body_seen"),
         "connection_aborted": ("connection_aborted", "strict_abort"),
@@ -682,6 +733,7 @@ def canonical_semantics(records: list[dict[str, Any]]) -> dict[str, Any]:
         "requested_action",
         "actual_action",
         "late_intervention",
+        "late_intervention_mode",
         "headers_sent",
         "body_started",
         "connection_aborted",
@@ -712,6 +764,16 @@ def event_evidence(
     records: list[dict[str, Any]] = []
     invalid: list[str] = []
     forbidden: list[str] = []
+    seen_records: set[str] = set()
+
+    def add_record(record: dict[str, Any]) -> None:
+        normalized = sanitized_event(record)
+        serialized = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+        if serialized in seen_records:
+            return
+        seen_records.add(serialized)
+        records.append(normalized)
+
     for index, record in enumerate(derived_records):
         forbidden_key = nested_forbidden_key(record)
         unapproved_key = nested_unapproved_event_key(record)
@@ -725,7 +787,7 @@ def event_evidence(
         if forbidden_value:
             forbidden.append(f"derived-event:{index + 1}:payload-sentinel")
             continue
-        records.append(sanitized_event(record))
+        add_record(record)
     for path in paths:
         try:
             for index, record in enumerate(load_jsonl(path)):
@@ -741,7 +803,7 @@ def event_evidence(
                 if forbidden_value:
                     forbidden.append(f"{path}:{index + 1}:payload-sentinel")
                     continue
-                records.append(sanitized_event(record))
+                add_record(record)
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             invalid.append(f"{path}: {exc}")
 
@@ -806,6 +868,7 @@ def case_observations(
     observations: list[dict[str, Any]] = []
     derived_events: list[dict[str, Any]] = []
     for row in rows:
+        supplied_transaction_ids = record_transaction_ids(row)
         decision_text = str(row.get("decision_log_path") or row.get("decision_log") or "")
         decision_path = Path(decision_text)
         if decision_text and allowed_source_root is not None:
@@ -844,6 +907,12 @@ def case_observations(
         for key in ("connector_phase4_log_path", "phase4_log_path"):
             runtime_records.extend(runtime_event_records(
                 row.get(key), allowed_source_root, consumed_event_paths))
+        if supplied_transaction_ids:
+            runtime_records = [
+                record
+                for record in runtime_records
+                if supplied_transaction_ids.intersection(record_transaction_ids(record))
+            ]
         runtime_records = merge_first_byte_evidence(
             runtime_records,
             first_byte_evidence_record(
@@ -855,15 +924,16 @@ def case_observations(
             derived_events.append(record)
             if event.get("rule_id") not in (None, ""):
                 observed_rule_ids.add(str(event["rule_id"]))
+        canonical_records = [sanitized_event(record) for record in runtime_records]
         phase4_case = expected_phase == 4 or case_id.startswith("phase4_")
         structured_runtime_case = expected_phase in {3, 4}
-        # An audit log can corroborate the older request-path cases, but it
-        # is not a Phase-4 producer event.  In particular it lacks the
-        # canonical event/message identity that the Framework requires for a
-        # response-body observation.  Phase-4 cases therefore require the
-        # connector's structured Phase-4 log above; absent that log, leave
-        # the case unverified instead of manufacturing a malformed event.
-        if not phase4_case:
+        # An audit log can corroborate older request-path cases only when the
+        # host supplied no structured event at all.  Once a native writer has
+        # published a raw event, appending an audit-derived duplicate would
+        # lose its selected integration mode and let a weaker record compete
+        # with the causal host evidence.  Phase-4 cases always require their
+        # structured producer event for the same reason.
+        if not phase4_case and not canonical_records:
             event = audit_event(audit_path, connector, actual)
             if event:
                 derived_events.append(event)
@@ -873,7 +943,6 @@ def case_observations(
             passed = passed and actual == expected_status
         if case_expected_rule_id is not None:
             passed = passed and case_expected_rule_id in observed_rule_ids
-        canonical_records = [sanitized_event(record) for record in runtime_records]
         if structured_runtime_case:
             passed = passed and any(
                 record.get("phase") == expected_phase for record in canonical_records
@@ -897,6 +966,11 @@ def case_observations(
                 or any(record.get("phase") == expected_phase for record in canonical_records)
             )
         )
+        preserved_status = (
+            status
+            if status in {"BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"}
+            else None
+        )
         observations.append(
             {
                 "case_id": case_id,
@@ -908,7 +982,7 @@ def case_observations(
                 "observed_event_fields": observed_event_fields,
                 "event_metadata_verified": event_metadata_verified,
                 "source_status": status,
-                "status": "PASS" if passed else "FAIL",
+                "status": preserved_status or ("PASS" if passed else "FAIL"),
                 **semantic,
             }
         )
@@ -935,6 +1009,60 @@ def first_status(objects: list[dict[str, Any]], key: str) -> int | None:
     return None
 
 
+def native_rule_engine_observed(objects: list[dict[str, Any]]) -> bool:
+    """Return whether a native summary declares a real rule-engine path.
+
+    This is only a routing guard for explicit native summary fields.  It does
+    not promote anything on its own: the caller still validates the raw event
+    stream, and the Framework subsequently binds every PASS to the selected
+    integration mode and matching transaction evidence.
+    """
+
+    for value in objects:
+        if str(value.get("status") or "").strip().upper() != "PASS":
+            continue
+        if scalar_bool(value.get("common_runtime_bridge")) is True:
+            return True
+        evaluation = str(value.get("rule_evaluation") or "").strip().casefold()
+        if evaluation in NATIVE_RULE_ENGINE_EVALUATIONS:
+            return True
+    return False
+
+
+def native_host_summary_cases(objects: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Project explicit native-host statuses into their catalog cases.
+
+    A native runner has to name the field above and report a successful real
+    rule-engine host run.  The projection deliberately contains no event
+    fields or integration mode: those must come from the actual raw producer,
+    so this helper cannot manufacture causal evidence from a summary.
+    """
+
+    if not native_rule_engine_observed(objects):
+        return []
+    records: list[dict[str, Any]] = []
+    seen_case_ids: set[str] = set()
+    for value in objects:
+        if str(value.get("status") or "").strip().upper() != "PASS":
+            continue
+        for field, case_id, rule_id in NATIVE_HOST_SUMMARY_CASES:
+            actual_status = scalar_int(value.get(field))
+            if actual_status is None or case_id in seen_case_ids:
+                continue
+            record: dict[str, Any] = {
+                "case_id": case_id,
+                "status": "PASS",
+                "actual_status": actual_status,
+                "live_executed": True,
+                "reason": f"normalized from native host summary {field}",
+            }
+            if rule_id is not None:
+                record["observed_rule_ids"] = [rule_id]
+            records.append(record)
+            seen_case_ids.add(case_id)
+    return records
+
+
 def nonpromoted_host_success(objects: list[dict[str, Any]]) -> bool:
     """Return whether a real host ran without an allowed capability promotion.
 
@@ -946,6 +1074,8 @@ def nonpromoted_host_success(objects: list[dict[str, Any]]) -> bool:
     path.
     """
 
+    if native_rule_engine_observed(objects):
+        return False
     for value in objects:
         if (
             str(value.get("status") or "").strip().upper() == "PASS"
@@ -999,14 +1129,28 @@ def main() -> int:
         consumed_event_paths,
         runner_case_index,
     )
+    observed_case_ids = {
+        str(case.get("case_id") or "") for case in cases if isinstance(case, dict)
+    }
+    cases.extend(
+        record
+        for record in native_host_summary_cases(objects)
+        if record["case_id"] not in observed_case_ids
+    )
     events = event_evidence(source_events, args.expected_rule_id, derived_events)
 
     allowed = first_status(objects, "allowed_request_status")
     blocked = first_status(objects, "blocked_request_status")
     if allowed is None:
         allowed = first_status(objects, "baseline_status")
+    if allowed is None:
+        allowed = first_status(objects, "p1_allow_status")
     if blocked is None:
         blocked = first_status(objects, "block_status")
+    if blocked is None:
+        blocked = first_status(objects, "phase1_deny_status")
+    if blocked is None:
+        blocked = first_status(objects, "p1_deny_status")
     for case in cases:
         if case["case_id"] == "allow_without_marker":
             allowed = scalar_int(case["actual_status"])

@@ -2,8 +2,9 @@
 #
 # The full-lifecycle-traefik-native target stages the module under a disposable
 # local-plugin workspace and materializes an equivalent pinned-host
-# configuration. This checked-in shape remains separate from forwardAuth and
-# does not provide a Common/libmodsecurity bridge or promote any capability.
+# configuration. The isolated host harness pairs it with a private UDS engine
+# service; this reference does not contain a runtime socket path or promote any
+# capability.
 experimental:
   localPlugins:
     modsecurityNative:

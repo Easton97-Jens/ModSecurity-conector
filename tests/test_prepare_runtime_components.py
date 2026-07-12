@@ -23,6 +23,33 @@ SPEC.loader.exec_module(components)
 
 
 class PrepareRuntimeComponentsTest(unittest.TestCase):
+    def test_apache_blocker_does_not_misclassify_expat_include_path(self) -> None:
+        compiler_error = (
+            "gcc -I/cache/builds/expat/cache-key/prefix/include -c src/msc_filters.c\n"
+            "src/msc_filters.c:51:9: error: implicit declaration of function 'helper'\n"
+        )
+
+        self.assertEqual(
+            "apache_connector_build_failed",
+            components.map_apache_blocker(compiler_error, ["module_file:/cache/module.so"]),
+        )
+
+    def test_apache_blocker_detects_a_real_missing_expat_header(self) -> None:
+        compiler_error = "src/parser.c:7:10: fatal error: expat.h: No such file or directory\n"
+
+        self.assertEqual(
+            "missing_expat_headers",
+            components.map_apache_blocker(compiler_error, []),
+        )
+
+    def test_nginx_blocker_reports_connector_compile_error_before_missing_outputs(self) -> None:
+        compiler_error = "src/module.c:123:28: error: field 'phase' has incomplete type\n"
+
+        self.assertEqual(
+            "nginx_connector_build_failed",
+            components.map_nginx_blocker(compiler_error, ["module_file:/cache/module.so"]),
+        )
+
     def prepare_haproxy_with(self, returncode: int, output: str) -> dict[str, object]:
         with tempfile.TemporaryDirectory(prefix="haproxy-prepare-") as temporary:
             base = Path(temporary)

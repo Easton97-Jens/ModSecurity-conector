@@ -48,6 +48,7 @@
 #define RUNTIME_EVENT_URI_SIZE 256U
 #define RUNTIME_EVENT_CLIENT_IP_SIZE 64U
 #define RUNTIME_EVENT_CONTENT_TYPE_SIZE 256U
+#define RUNTIME_INTEGRATION_MODE_SIZE 64U
 
 typedef struct msconnector_runtime_owned_config {
     char rules_inline[RUNTIME_INLINE_RULE_SIZE];
@@ -69,6 +70,7 @@ typedef struct msconnector_native_transaction {
 
 struct msconnector_runtime {
     char connector_name[RUNTIME_NAME_SIZE];
+    char integration_mode[RUNTIME_INTEGRATION_MODE_SIZE];
     msconnector_config config;
     msconnector_runtime_owned_config owned;
     msconnector_body_policy body_policy;
@@ -106,9 +108,17 @@ struct msconnector_runtime_transaction {
     msconnector_body_limit_outcome request_body_limit_outcome;
     msconnector_body_limit_outcome response_body_limit_outcome;
     int event_metadata_truncated;
+    int host_action_event_emitted;
     int finish_attempted;
     int finished;
 };
+
+typedef struct msconnector_runtime_host_action {
+    msconnector_decision_action actual_action;
+    int visible_http_status;
+    const char *transport_result;
+    int connection_aborted;
+} msconnector_runtime_host_action;
 
 static void set_text_error(char *error, size_t error_len, const char *message) {
     if (error != NULL && error_len > 0U) {
@@ -127,6 +137,41 @@ static int runtime_error(
 
 static int string_is_empty(const char *value) {
     return value == NULL || value[0] == '\0';
+}
+
+static int valid_host_action(msconnector_decision_action action) {
+    switch (action) {
+      case MSCONNECTOR_DECISION_ACTION_DENY:
+      case MSCONNECTOR_DECISION_ACTION_REDIRECT:
+      case MSCONNECTOR_DECISION_ACTION_LOG_ONLY:
+      case MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION:
+        return 1;
+      default:
+        return 0;
+    }
+}
+
+static int valid_host_transport_result(const char *value) {
+    return value != NULL && (
+        strcmp(value, "http_status") == 0 ||
+        strcmp(value, "log_only") == 0 ||
+        strcmp(value, "connection_aborted") == 0 ||
+        strcmp(value, "not_observable") == 0
+    );
+}
+
+static const char *phase4_mode_name(enum msconnector_phase4_mode mode) {
+    switch (mode) {
+      case MSCONNECTOR_PHASE4_MODE_MINIMAL:
+        return "minimal";
+      case MSCONNECTOR_PHASE4_MODE_SAFE:
+        return "safe";
+      case MSCONNECTOR_PHASE4_MODE_STRICT:
+        return "strict";
+      case MSCONNECTOR_PHASE4_MODE_UNSET:
+      default:
+        return NULL;
+    }
 }
 
 static int bounded_c_string(
@@ -1018,6 +1063,21 @@ int msconnector_runtime_create(
     return 1;
 }
 
+int msconnector_runtime_set_event_integration_mode(
+    msconnector_runtime *runtime,
+    const char *integration_mode) {
+    size_t size;
+
+    if (runtime == NULL || runtime->transaction_counter != 0U ||
+        !bounded_c_string(integration_mode,
+            RUNTIME_INTEGRATION_MODE_SIZE, 1)) {
+        return 0;
+    }
+    size = strlen(integration_mode);
+    memcpy(runtime->integration_mode, integration_mode, size + 1U);
+    return 1;
+}
+
 int msconnector_runtime_config_check(
     const char *connector_name,
     const char *config_path,
@@ -1259,6 +1319,7 @@ static void record_response_event_metadata(
 static int emit_decision_event(
     msconnector_runtime_transaction *transaction,
     const msconnector_decision *decision,
+    const msconnector_runtime_host_action *host_action,
     msconnector_error *error) {
     msconnector_runtime *runtime;
     msconnector_event event;
@@ -1283,6 +1344,7 @@ static int emit_decision_event(
     timestamp_now(timestamp, sizeof(timestamp));
     event.meta.timestamp = timestamp;
     event.meta.event = event.meta.message_id;
+    event.meta.integration_mode = runtime->integration_mode;
     metadata_truncated = transaction->event_metadata_truncated;
     event.flags.truncated = metadata_truncated;
     event.request.method = transaction->request_method;
@@ -1308,11 +1370,24 @@ static int emit_decision_event(
     event.flags.response_committed = transaction->response_headers_sent;
     event.flags.headers_sent = transaction->response_headers_sent;
     event.flags.body_started = transaction->response_body_started;
+    if (decision->late_intervention) {
+        event.flags.late_intervention_mode = phase4_mode_name(
+            runtime->config.phase4_mode);
+    }
     if (transaction->response_original_status != 0) {
         event.http.original_http_status = transaction->response_original_status;
         if (event.http.visible_http_status == 0) {
             event.http.visible_http_status = transaction->response_original_status;
         }
+    }
+    if (host_action != NULL) {
+        event.decision.actual_action = msconnector_decision_action_name(
+            host_action->actual_action);
+        if (host_action->visible_http_status != 0) {
+            event.http.visible_http_status = host_action->visible_http_status;
+        }
+        event.http.transport_result = host_action->transport_result;
+        event.flags.connection_aborted = host_action->connection_aborted != 0;
     }
     if (msconnector_flow_guard_next_sequence(&transaction->flow, &event.integrity.sequence) !=
         MSCONNECTOR_FLOW_GUARD_OK) {
@@ -1378,7 +1453,7 @@ static int handle_decision(
         return 1;
     }
     transaction->request_blocked = 1;
-    if (!emit_decision_event(transaction, decision, error)) {
+    if (!emit_decision_event(transaction, decision, NULL, error)) {
         return 0;
     }
     *terminal = 1;
@@ -1786,6 +1861,37 @@ int msconnector_runtime_transaction_finish_response_body(
     return handle_decision(transaction, decision, error, &terminal);
 }
 
+int msconnector_runtime_transaction_finish_unobserved_response_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_error *error) {
+    msconnector_runtime *runtime;
+
+    if (error != NULL) {
+        msconnector_error_init(error);
+    }
+    if (transaction == NULL || transaction->runtime == NULL) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "transaction is required", "runtime");
+    }
+    runtime = transaction->runtime;
+    if (transaction->finish_attempted || transaction->response_body_finished) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "unobserved response body may only be finalized once", "runtime");
+    }
+    if (!transaction->response_headers_processed) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "response headers must be processed before unobserved response completion",
+            "runtime");
+    }
+    if (runtime->body_policy.response_body_mode != MSCONNECTOR_BODY_MODE_NONE) {
+        return runtime_error(error, MSCONNECTOR_ERROR_UNSUPPORTED_PHASE,
+            "unobserved response completion requires response_body_mode=none",
+            "runtime");
+    }
+    transaction->response_body_finished = 1;
+    return mark_flow(transaction, MSCONNECTOR_PHASE_RESPONSE_BODY, error);
+}
+
 void msconnector_runtime_transaction_set_response_commit_state(
     msconnector_runtime_transaction *transaction,
     int headers_sent,
@@ -1799,6 +1905,63 @@ void msconnector_runtime_transaction_set_response_commit_state(
         transaction->response_headers_sent;
     transaction->modsecurity.state.response_body_started =
         transaction->response_body_started;
+}
+
+int msconnector_runtime_transaction_record_host_action(
+    msconnector_runtime_transaction *transaction,
+    const msconnector_decision *decision,
+    msconnector_decision_action actual_action,
+    int visible_http_status,
+    const char *transport_result,
+    int connection_aborted,
+    msconnector_error *error) {
+    msconnector_runtime_host_action host_action;
+
+    if (error != NULL) {
+        msconnector_error_init(error);
+    }
+    if (transaction == NULL || transaction->runtime == NULL || decision == NULL) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "transaction and disruptive decision are required", "runtime");
+    }
+    if (!msconnector_decision_is_disruptive(decision)) {
+        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            "a host outcome requires a disruptive engine decision", "runtime");
+    }
+    if (transaction->host_action_event_emitted) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "host action may only be recorded once", "runtime");
+    }
+    if (!valid_host_action(actual_action) ||
+        !bounded_c_string(transport_result, 64U, 1) ||
+        !valid_host_transport_result(transport_result)) {
+        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            "host action metadata is invalid or not bounded", "runtime");
+    }
+    if (visible_http_status != 0 &&
+        !msconnector_http_status_is_valid(visible_http_status)) {
+        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            "visible HTTP status is invalid", "runtime");
+    }
+    if (visible_http_status == 0 && !connection_aborted) {
+        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            "a non-abort host action requires a visible HTTP status", "runtime");
+    }
+    if (connection_aborted &&
+        actual_action != MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION &&
+        actual_action != MSCONNECTOR_DECISION_ACTION_DROP) {
+        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            "a connection abort requires an abort or drop host action", "runtime");
+    }
+    host_action.actual_action = actual_action;
+    host_action.visible_http_status = visible_http_status;
+    host_action.transport_result = transport_result;
+    host_action.connection_aborted = connection_aborted != 0;
+    if (!emit_decision_event(transaction, decision, &host_action, error)) {
+        return 0;
+    }
+    transaction->host_action_event_emitted = 1;
+    return 1;
 }
 
 void msconnector_runtime_transaction_request_body_progress(

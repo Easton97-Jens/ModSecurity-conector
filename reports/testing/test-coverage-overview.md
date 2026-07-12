@@ -6,15 +6,15 @@ Generated file - do not edit manually.
 **Language:** English | [Deutsch](test-coverage-overview.de.md)
 
 ## Summary
-- Total cases: **158**
+- Total cases: **160**
 - Verified/pass count (`runtime_verified=true`): **0**
 - Current XFAIL count: **0**
 - Former XFAIL cases tracked: **95**
-- Pending runtime verification count: **13**
+- Pending runtime verification count: **15**
 - Connector-gap count: **26**
 - Runtime-difference count: **13**
 - Future/experimental count: **17**
-- RESPONSE_BODY cases: **27** (still **not verified/promoted**)
+- RESPONSE_BODY cases: **29** (still **not verified/promoted**)
 - Mapped-only import inventory entries: **10**
 
 ## Coverage By Variable / Collection
@@ -55,19 +55,19 @@ Generated file - do not edit manually.
 | active | 8 |
 | connector-gap | 15 |
 | imported | 133 |
-| pending | 2 |
+| pending | 4 |
 
 ## Coverage By Scope
 | Scope | Count |
 |---|---:|
 | common | 149 |
-| apache | 0 |
+| apache | 2 |
 | nginx | 9 |
 | unknown | 0 |
 
 ## Runtime Matrix Status
 - Default runtime-executable YAML cases: **61**
-- Force-all runtime-executable YAML cases: **158**
+- Force-all runtime-executable YAML cases: **160**
 - Apache attempted YAML cases from default summary: **54**
 - NGINX attempted YAML cases from default summary: **60**
 - HAProxy attempted YAML cases from default summary: **54**
@@ -81,7 +81,7 @@ Generated file - do not edit manually.
 |---|---:|---:|---:|
 | PASS | 10 | 10 | 10 |
 | FAIL | 44 | 50 | 44 |
-| NOT_EXECUTABLE | 104 | 98 | 104 |
+| NOT_EXECUTABLE | 106 | 100 | 106 |
 | MAPPED_ONLY | 10 | 10 | 10 |
 - Details: `reports/testing/generated/runtime/runtime-matrix.generated.md`
 - HAProxy per-case results: `reports/testing/generated/runtime/haproxy-runtime-results.generated.md`

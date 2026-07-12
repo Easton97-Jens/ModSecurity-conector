@@ -8,6 +8,7 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestProcessStreamsChunksAndCleansUpAtResponseEOS(t *testing.T) {
@@ -69,6 +70,100 @@ func TestRequestDenyUsesImmediateResponseBeforeResponseHeaders(t *testing.T) {
 	if transaction.closed[0].CloseReason != CloseImmediateResponse {
 		t.Fatalf("close reason = %q, want %q", transaction.closed[0].CloseReason, CloseImmediateResponse)
 	}
+	if got, want := transaction.hostActions, []HostAction{{
+		Action: AppliedActionDeny, VisibleStatus: 403, TransportResult: "http_status",
+	}}; !sameHostActions(got, want) {
+		t.Fatalf("host actions = %#v, want %#v", got, want)
+	}
+}
+
+func TestResponseHeaderDenyUsesImmediateResponseBeforeCommit(t *testing.T) {
+	transaction := &recordingTransaction{
+		headerDecision: func(direction Direction) Decision {
+			if direction == DirectionResponse {
+				return Decision{Action: ActionDeny, Status: 403}
+			}
+			return allowDecision()
+		},
+	}
+	service := newTestService(t, transaction, LateActionSafe)
+	stream := &fakeProcessStream{context: context.Background(), receive: []receiveResult{
+		{request: requestHeaders(true)},
+		{request: responseHeaders(false)},
+	}}
+
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("Process() error = %v", err)
+	}
+	if got, want := len(stream.sent), 2; got != want {
+		t.Fatalf("sent responses = %d, want %d", got, want)
+	}
+	if stream.sent[0].GetRequestHeaders() == nil {
+		t.Fatalf("request headers did not receive a continue response: %#v", stream.sent[0])
+	}
+	if response := stream.sent[1].GetImmediateResponse(); response == nil || int(response.GetStatus().GetCode()) != 403 {
+		t.Fatalf("expected a response-header immediate 403 response, got %#v", stream.sent[1])
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseImmediateResponse {
+		t.Fatalf("unexpected cleanup after response-header denial: %#v", transaction.closed)
+	}
+	if len(transaction.hostActions) != 1 || transaction.hostActions[0].Action != AppliedActionDeny {
+		t.Fatalf("response-header host action = %#v", transaction.hostActions)
+	}
+}
+
+func TestFailedImmediateResponseDoesNotRecordHostAction(t *testing.T) {
+	transaction := &recordingTransaction{
+		headerDecision: func(direction Direction) Decision {
+			if direction == DirectionRequest {
+				return Decision{Action: ActionDeny, Status: 403}
+			}
+			return allowDecision()
+		},
+	}
+	service := newTestService(t, transaction, LateActionSafe)
+	stream := &fakeProcessStream{
+		context: context.Background(),
+		sendErr: io.ErrClosedPipe,
+		receive: []receiveResult{{request: requestHeaders(false)}},
+	}
+	if err := service.Process(stream); err == nil {
+		t.Fatal("Process() accepted a failed ImmediateResponse send")
+	}
+	if len(transaction.hostActions) != 0 {
+		t.Fatalf("failed send recorded host action: %#v", transaction.hostActions)
+	}
+}
+
+func TestResponseCommitRequiresSuccessfulResponseHeaderContinue(t *testing.T) {
+	transaction := &recordingTransaction{}
+	state := newStreamState(testConfig(LateActionSafe), recordingEngine{transaction: transaction}, discardObserver{})
+
+	requestHeaderResponse, terminal, err := state.handle(context.Background(), requestHeaders(true))
+	if err != nil || terminal || requestHeaderResponse.GetRequestHeaders() == nil {
+		t.Fatalf("request header handling = response=%#v terminal=%t err=%v", requestHeaderResponse, terminal, err)
+	}
+	if err := state.markResponseCommittedAfterSuccessfulContinue(context.Background(), requestHeaders(true), requestHeaderResponse); err != nil {
+		t.Fatalf("mark request response committed: %v", err)
+	}
+	if state.responseCommitted {
+		t.Fatal("request-header continue must not commit the response")
+	}
+
+	upstreamHeaders := responseHeaders(false)
+	responseHeaderResponse, terminal, err := state.handle(context.Background(), upstreamHeaders)
+	if err != nil || terminal || responseHeaderResponse.GetResponseHeaders() == nil {
+		t.Fatalf("response header handling = response=%#v terminal=%t err=%v", responseHeaderResponse, terminal, err)
+	}
+	if state.responseCommitted {
+		t.Fatal("constructing a response-header continue must not commit the response")
+	}
+	if err := state.markResponseCommittedAfterSuccessfulContinue(context.Background(), upstreamHeaders, responseHeaderResponse); err != nil {
+		t.Fatalf("mark response response committed: %v", err)
+	}
+	if !state.responseCommitted {
+		t.Fatal("successful response-header continue must commit the response boundary")
+	}
 }
 
 func TestLateStrictDecisionDoesNotClaimOrSendAbort(t *testing.T) {
@@ -98,6 +193,9 @@ func TestLateStrictDecisionDoesNotClaimOrSendAbort(t *testing.T) {
 	if summary.LateAction != LateActionStrictNotAttempted {
 		t.Fatalf("late action = %q, want %q", summary.LateAction, LateActionStrictNotAttempted)
 	}
+	if len(transaction.hostActions) != 0 {
+		t.Fatalf("strict late decision recorded a fabricated host action: %#v", transaction.hostActions)
+	}
 }
 
 func TestCancellationCleansUpWithoutAttributingTheHTTPReset(t *testing.T) {
@@ -120,9 +218,88 @@ func TestCancellationCleansUpWithoutAttributingTheHTTPReset(t *testing.T) {
 	}
 }
 
+func TestTrailersFinalizeIncrementalBodiesAtEOS(t *testing.T) {
+	transaction := &recordingTransaction{}
+	service := newTestService(t, transaction, LateActionSafe)
+	stream := &fakeProcessStream{context: context.Background(), receive: []receiveResult{
+		{request: requestHeaders(false)},
+		{request: requestTrailers()},
+		{request: responseHeaders(false)},
+		{request: responseTrailers()},
+	}}
+
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("Process() error = %v", err)
+	}
+	if got, want := transaction.requestBodyLengths, []int{0}; !sameInts(got, want) {
+		t.Fatalf("request trailer EOS body lengths = %v, want %v", got, want)
+	}
+	if got, want := transaction.responseBodyLengths, []int{0}; !sameInts(got, want) {
+		t.Fatalf("response trailer EOS body lengths = %v, want %v", got, want)
+	}
+	if got := stream.sent[1].GetRequestTrailers(); got == nil {
+		t.Fatalf("request trailer did not receive trailer response: %#v", stream.sent[1])
+	}
+	if got := stream.sent[3].GetResponseTrailers(); got == nil {
+		t.Fatalf("response trailer did not receive trailer response: %#v", stream.sent[3])
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseResponseEOS {
+		t.Fatalf("trailer cleanup = %#v", transaction.closed)
+	}
+}
+
+func TestRequestMetadataUsesEnvoyAttributesWithoutPeerInference(t *testing.T) {
+	attributes, err := structpb.NewStruct(map[string]any{
+		"request.protocol":    "HTTP/1.1",
+		"source.address":      "192.0.2.10",
+		"source.port":         45678,
+		"destination.address": "198.51.100.7",
+		"destination.port":    443,
+	})
+	if err != nil {
+		t.Fatalf("NewStruct() error = %v", err)
+	}
+	metadata, err := requestMetadataFromEnvoy([]Header{
+		{Name: ":method", Value: []byte("POST")},
+		{Name: ":path", Value: []byte("/metadata")},
+		{Name: ":authority", Value: []byte("example.test")},
+	}, map[string]*structpb.Struct{"envoy.filters.http.ext_proc": attributes})
+	if err != nil {
+		t.Fatalf("requestMetadataFromEnvoy() error = %v", err)
+	}
+	if got, want := metadata, (RequestMetadata{
+		Method: "POST", URI: "/metadata", Protocol: "HTTP/1.1", Hostname: "example.test",
+		ClientAddress: "192.0.2.10", ClientPort: 45678,
+		ServerAddress: "198.51.100.7", ServerPort: 443,
+	}); got != want {
+		t.Fatalf("metadata = %#v, want %#v", got, want)
+	}
+}
+
+func TestEnvoyEndpointAddressKeepsOnlyTheHostComponentOfSocketAttributes(t *testing.T) {
+	for input, want := range map[string]string{
+		"192.0.2.10:45678":  "192.0.2.10",
+		"[2001:db8::1]:443": "2001:db8::1",
+		"2001:db8::1":       "2001:db8::1",
+		"example.test":      "example.test",
+	} {
+		if got := envoyEndpointAddress(input); got != want {
+			t.Errorf("envoyEndpointAddress(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
 func newTestService(t *testing.T, transaction *recordingTransaction, policy LateActionPolicy) *Service {
 	t.Helper()
-	config := Config{
+	service, err := NewService(testConfig(policy), recordingEngine{transaction: transaction})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	return service
+}
+
+func testConfig(policy LateActionPolicy) Config {
+	return Config{
 		ListenAddress:        "127.0.0.1:18083",
 		TransactionIDHeader:  "x-request-id",
 		MaxHeaderCount:       128,
@@ -138,11 +315,6 @@ func newTestService(t *testing.T, transaction *recordingTransaction, policy Late
 		ShutdownTimeoutMS:    100,
 		LateActionPolicy:     policy,
 	}
-	service, err := NewService(config, recordingEngine{transaction: transaction})
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	return service
 }
 
 type recordingEngine struct {
@@ -159,6 +331,7 @@ type recordingTransaction struct {
 	requestBodyLengths  []int
 	responseBodyLengths []int
 	closed              []Summary
+	hostActions         []HostAction
 }
 
 func (transaction *recordingTransaction) ProcessHeaders(_ context.Context, direction Direction, _ []Header, _ bool) (Decision, error) {
@@ -186,6 +359,11 @@ func (transaction *recordingTransaction) Close(_ context.Context, summary Summar
 	transaction.closed = append(transaction.closed, summary)
 }
 
+func (transaction *recordingTransaction) RecordHostAction(_ context.Context, action HostAction) error {
+	transaction.hostActions = append(transaction.hostActions, action)
+	return nil
+}
+
 type receiveResult struct {
 	request *extprocv3.ProcessingRequest
 	err     error
@@ -197,11 +375,15 @@ type fakeProcessStream struct {
 	cancel  context.CancelFunc
 	receive []receiveResult
 	sent    []*extprocv3.ProcessingResponse
+	sendErr error
 	index   int
 }
 
 func (stream *fakeProcessStream) Send(response *extprocv3.ProcessingResponse) error {
 	stream.sent = append(stream.sent, response)
+	if stream.sendErr != nil {
+		return stream.sendErr
+	}
 	return nil
 }
 
@@ -228,6 +410,8 @@ func requestHeaders(eos bool) *extprocv3.ProcessingRequest {
 	return &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_RequestHeaders{RequestHeaders: &extprocv3.HttpHeaders{
 		Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{
 			{Key: ":method", Value: "POST"},
+			{Key: ":path", Value: "/test"},
+			{Key: ":authority", Value: "example.test"},
 			{Key: "x-request-id", Value: "test-id"},
 		}},
 		EndOfStream: eos,
@@ -249,7 +433,31 @@ func responseBody(body []byte, eos bool) *extprocv3.ProcessingRequest {
 	return &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{Body: body, EndOfStream: eos}}}
 }
 
+func requestTrailers() *extprocv3.ProcessingRequest {
+	return &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_RequestTrailers{RequestTrailers: &extprocv3.HttpTrailers{
+		Trailers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: "x-request-trailer", Value: "done"}}},
+	}}}
+}
+
+func responseTrailers() *extprocv3.ProcessingRequest {
+	return &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_ResponseTrailers{ResponseTrailers: &extprocv3.HttpTrailers{
+		Trailers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: "x-response-trailer", Value: "done"}}},
+	}}}
+}
+
 func sameInts(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameHostActions(left, right []HostAction) bool {
 	if len(left) != len(right) {
 		return false
 	}

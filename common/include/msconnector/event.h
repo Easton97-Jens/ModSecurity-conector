@@ -33,6 +33,7 @@ typedef struct msconnector_event_meta {
     const char *message;
     const char *event;
     const char *connector;
+    const char *integration_mode;
     const char *transaction_id;
 } msconnector_event_meta;
 
@@ -97,6 +98,9 @@ typedef struct msconnector_event_integrity {
 
 typedef struct msconnector_event_flags {
     int late_intervention;
+    /* Optional selected late-action policy (`minimal`, `safe`, or `strict`).
+     * It is metadata, never a request or response body fragment. */
+    const char *late_intervention_mode;
     int response_started;
     int response_committed;
     int headers_sent;

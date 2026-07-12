@@ -12,8 +12,10 @@ import (
 // The record is intentionally limited to transport/lifecycle counters and
 // action metadata so it is safe to archive as connector runtime evidence.
 type JSONLObserver struct {
-	mu   sync.Mutex
-	file *os.File
+	mu             sync.Mutex
+	file           *os.File
+	evaluationMode string
+	ruleEvaluation string
 }
 
 type jsonlCompletionRecord struct {
@@ -36,8 +38,18 @@ type jsonlCompletionRecord struct {
 // controls the enclosing runtime directory; this package does not create any
 // evidence inside the checkout.
 func NewJSONLObserver(path string) (*JSONLObserver, error) {
+	return NewJSONLObserverWithMode(path, "passthrough_nonpromoted", "not_wired")
+}
+
+// NewJSONLObserverWithMode writes stream-completion metadata for the concrete
+// engine selected by the executable. It does not create rule decision events;
+// Common Runtime remains the only source of any configured decision event.
+func NewJSONLObserverWithMode(path, evaluationMode, ruleEvaluation string) (*JSONLObserver, error) {
 	if path == "" {
 		return nil, fmt.Errorf("event log path is required")
+	}
+	if evaluationMode == "" || ruleEvaluation == "" {
+		return nil, fmt.Errorf("event evaluation mode is required")
 	}
 	if !filepath.IsAbs(path) {
 		return nil, fmt.Errorf("event log path must be absolute")
@@ -49,7 +61,11 @@ func NewJSONLObserver(path string) (*JSONLObserver, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open event log: %w", err)
 	}
-	return &JSONLObserver{file: file}, nil
+	return &JSONLObserver{
+		file:           file,
+		evaluationMode: evaluationMode,
+		ruleEvaluation: ruleEvaluation,
+	}, nil
 }
 
 func (observer *JSONLObserver) Record(summary Summary) error {
@@ -59,8 +75,8 @@ func (observer *JSONLObserver) Record(summary Summary) error {
 	record := jsonlCompletionRecord{
 		Event:               "ext_proc_stream_complete",
 		IntegrationMode:     "ext_proc",
-		EvaluationMode:      "passthrough_nonpromoted",
-		RuleEvaluation:      "not_wired",
+		EvaluationMode:      observer.evaluationMode,
+		RuleEvaluation:      observer.ruleEvaluation,
 		TransactionID:       summary.TransactionID,
 		RequestHeaderCount:  summary.RequestHeaderCount,
 		ResponseHeaderCount: summary.ResponseHeaderCount,

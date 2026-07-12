@@ -67,9 +67,9 @@ mkdir -p "$OUT_DIR"
 {
     printf 'traefik_native_middleware_%s=pass\n' "$MODE"
     printf 'module=%s\n' "$MODULE_DIR"
-    printf 'engine_mode=passthrough\n'
+    printf 'engine_modes=passthrough,uds\n'
     printf 'artifact=go_package_compile_only\n'
-    printf 'runtime_verified=false\n'
+    printf 'host_runtime_verified=false\n'
 } > "$REPORT"
 
 printf 'traefik_native_middleware_%s=pass\n' "$MODE"

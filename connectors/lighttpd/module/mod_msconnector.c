@@ -30,6 +30,7 @@ typedef struct {
     size_t response_body_limit;
     size_t total_header_limit;
     size_t header_count_limit;
+    unsigned long host_transaction_counter;
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     int request_body_hooks_enabled;
 #endif
@@ -44,6 +45,8 @@ typedef struct {
     char host_request_id[96];
     int response_processed;
     int request_body_finished;
+    int request_intervened;
+    int response_body_finished;
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     off_t request_body_next_offset;
 #endif
@@ -202,6 +205,16 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
             error[0] == '\0' ? "unknown error" : error);
         return HANDLER_ERROR;
     }
+    if (!msconnector_runtime_set_event_integration_mode(
+            p->runtime, "patched-native-lighttpd")) {
+        log_error(
+            srv->errh,
+            __FILE__,
+            __LINE__,
+            "msconnector runtime could not set patched-native-lighttpd event integration mode");
+        msconnector_runtime_destroy(&p->runtime);
+        return HANDLER_ERROR;
+    }
 
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     request_body_mode = msconnector_runtime_request_body_mode(p->runtime);
@@ -245,21 +258,23 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
     return HANDLER_GO_ON;
 }
 
-static handler_ctx *handler_ctx_create(const request_st * const r) {
+static handler_ctx *handler_ctx_create(plugin_data * const p) {
     handler_ctx * const ctx = calloc(1U, sizeof(*ctx));
     if (ctx == NULL) {
         return NULL;
     }
     lighttpd_modsecurity_map_storage_init(&ctx->request_storage);
     lighttpd_modsecurity_map_storage_init(&ctx->response_storage);
+    ++p->host_transaction_counter;
+    if (p->host_transaction_counter == 0U) {
+        ++p->host_transaction_counter;
+    }
     (void)snprintf(
         ctx->host_request_id,
         sizeof(ctx->host_request_id),
-        "lighttpd-%ld-%d-%u-%u",
+        "lighttpd-%ld-%lu",
         (long)getpid(),
-        r->con == NULL ? -1 : r->con->fd,
-        r->con == NULL ? 0U : r->con->request_count,
-        r->x.h2.id);
+        p->host_transaction_counter);
     return ctx;
 }
 
@@ -289,7 +304,11 @@ static handler_t mod_msconnector_error_response(
 
 static handler_t mod_msconnector_apply_decision(
         request_st * const r,
+        plugin_data * const p,
+        handler_ctx * const ctx,
         const msconnector_decision * const decision) {
+    handler_t result;
+    msconnector_error runtime_error;
     int status;
     if (!msconnector_decision_is_disruptive(decision)) {
         return HANDLER_GO_ON;
@@ -298,7 +317,35 @@ static handler_t mod_msconnector_apply_decision(
     if (status < 400 || status > 599) {
         status = 403;
     }
-    return http_status_set_err(r, status);
+    result = http_status_set_err(r, status);
+
+    /*
+     * lighttpd applies every currently supported disruptive intervention as
+     * an error response.  Record that actual host action only after
+     * http_status_set_err() has selected the client-visible status.  This is
+     * deliberately distinct from the Common decision event, which records
+     * the rule engine's requested action before a host can apply it.
+     */
+    if (result != HANDLER_ERROR && ctx != NULL && ctx->transaction != NULL) {
+        msconnector_error_init(&runtime_error);
+        if (!msconnector_runtime_transaction_record_host_action(
+                ctx->transaction,
+                decision,
+                MSCONNECTOR_DECISION_ACTION_DENY,
+                r->http_status,
+                "http_status",
+                0,
+                &runtime_error)) {
+            log_error(
+                r->conf.errh,
+                __FILE__,
+                __LINE__,
+                "msconnector host-action event was not recorded: %s",
+                msconnector_error_code_name(runtime_error.code));
+        }
+    }
+    (void)p;
+    return result;
 }
 
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
@@ -356,7 +403,8 @@ static handler_t mod_msconnector_finish_request_body(
         return mod_msconnector_error_response(r, p->runtime, runtime_error.code);
     }
     ctx->request_body_finished = 1;
-    return mod_msconnector_apply_decision(r, &decision);
+    ctx->request_intervened = msconnector_decision_is_disruptive(&decision);
+    return mod_msconnector_apply_decision(r, p, ctx, &decision);
 }
 
 static handler_t mod_msconnector_prepare_request_body(
@@ -429,7 +477,13 @@ static handler_t mod_msconnector_handle_request_body(
             r->conf.errh,
             __FILE__,
             __LINE__,
-            "msconnector request-body mapping failed: %s",
+            "msconnector request-body mapping failed: offset=%lld length=%lld stream_offset=%lld queue_in=%lld queue_out=%lld runtime_error=%s: %s",
+            (long long)queue_offset,
+            (long long)length,
+            (long long)stream_offset,
+            (long long)queue->bytes_in,
+            (long long)queue->bytes_out,
+            msconnector_error_code_name(append.runtime_error.code),
             mapper_error[0] == '\0' ? "unknown error" : mapper_error);
         return mod_msconnector_error_response(
             r,
@@ -470,6 +524,37 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
 
 #endif
 
+/*
+ * `response_body_mode=none` means no decoded response entity ever reaches
+ * Common Runtime.  At real request reset, after lighttpd has completed or
+ * abandoned the host response stream, close the lifecycle as unobserved. The
+ * dedicated Runtime API never calls libmodsecurity's response-body processing
+ * API and must not be used as Phase-4 evidence.
+ */
+static handler_t mod_msconnector_finish_uninspected_response_body(
+        request_st *r,
+        handler_ctx *ctx) {
+    msconnector_error runtime_error;
+
+    if (ctx->response_body_finished) {
+        return HANDLER_GO_ON;
+    }
+    msconnector_error_init(&runtime_error);
+    if (!msconnector_runtime_transaction_finish_unobserved_response_body(
+            ctx->transaction,
+            &runtime_error)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector unobserved response-body completion failed: %s",
+            msconnector_error_code_name(runtime_error.code));
+        return HANDLER_ERROR;
+    }
+    ctx->response_body_finished = 1;
+    return HANDLER_GO_ON;
+}
+
 REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
     plugin_data * const p = p_d;
     handler_ctx **ctx_slot;
@@ -500,7 +585,7 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
         return HANDLER_GO_ON;
 #endif
     }
-    ctx = handler_ctx_create(r);
+    ctx = handler_ctx_create(p);
     if (ctx == NULL) {
         return mod_msconnector_error_response(
             r, p->runtime, MSCONNECTOR_ERROR_INTERNAL);
@@ -558,7 +643,8 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
             r, p->runtime, runtime_error.code);
     }
     {
-        const handler_t rc = mod_msconnector_apply_decision(r, &decision);
+        const handler_t rc = mod_msconnector_apply_decision(r, p, ctx, &decision);
+        ctx->request_intervened = msconnector_decision_is_disruptive(&decision);
         if (rc != HANDLER_GO_ON) {
             return rc;
         }
@@ -582,7 +668,8 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
         return HANDLER_GO_ON;
     }
     ctx = r->plugin_ctx[p->id];
-    if (ctx == NULL || ctx->transaction == NULL || ctx->response_processed) {
+    if (ctx == NULL || ctx->transaction == NULL || ctx->response_processed ||
+        ctx->request_intervened) {
         return HANDLER_GO_ON;
     }
 
@@ -633,7 +720,7 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
             r, p->runtime, runtime_error.code);
     }
     ctx->response_processed = 1;
-    return mod_msconnector_apply_decision(r, &decision);
+    return mod_msconnector_apply_decision(r, p, ctx, &decision);
 }
 
 REQUEST_FUNC(mod_msconnector_handle_request_reset) {
@@ -646,6 +733,14 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
         return HANDLER_GO_ON;
     }
     if (ctx->transaction != NULL) {
+        if (ctx->response_processed && !ctx->response_body_finished &&
+            mod_msconnector_finish_uninspected_response_body(r, ctx) != HANDLER_GO_ON) {
+            log_error(
+                r->conf.errh,
+                __FILE__,
+                __LINE__,
+                "msconnector could not complete unobserved response lifecycle before reset");
+        }
         msconnector_error_init(&runtime_error);
         if (!msconnector_runtime_transaction_finish(
                 ctx->transaction,

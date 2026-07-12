@@ -360,6 +360,21 @@ ngx_http_modsecurity_phase4_actual_action(msconnector_late_intervention_action a
     return name;
 }
 
+static const char *
+ngx_http_modsecurity_phase4_mode_name(ngx_uint_t mode)
+{
+    switch (mode) {
+    case MSCONNECTOR_PHASE4_MODE_MINIMAL:
+        return "minimal";
+    case MSCONNECTOR_PHASE4_MODE_SAFE:
+        return "safe";
+    case MSCONNECTOR_PHASE4_MODE_STRICT:
+        return "strict";
+    default:
+        return NULL;
+    }
+}
+
 static ngx_int_t
 ngx_http_modsecurity_phase4_in_scope(ngx_http_request_t *r)
 {
@@ -430,6 +445,7 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     event.meta.message = msconnector_event_default_message(event.meta.message_id);
     event.meta.event = "phase4_intervention";
     event.meta.connector = "nginx";
+    event.meta.integration_mode = "native-nginx-http-module";
     event.meta.transaction_id = ctx != NULL && ctx->event_transaction_id.len > 0U
         ? (const char *) ctx->event_transaction_id.data : "";
     event.decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
@@ -449,6 +465,10 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
         ? "connection_aborted" : (strcmp(actual, "log_only") == 0
             ? "log_only" : "http_status");
     event.flags.late_intervention = ctx != NULL && ctx->response_committed;
+    if (event.flags.late_intervention) {
+        event.flags.late_intervention_mode =
+            ngx_http_modsecurity_phase4_mode_name(mcf->phase4_mode);
+    }
     event.body.content_type = content_type;
     event.body.bytes_seen = ctx != NULL ? ctx->response_body_bytes_seen : 0U;
     event.body.bytes_inspected = ctx != NULL

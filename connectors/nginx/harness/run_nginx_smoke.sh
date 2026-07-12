@@ -547,6 +547,44 @@ find_curl() {
     command -v curl 2>/dev/null || true
 }
 
+record_nginx_http2_applicability() {
+    version_log="$LOG_DIR/nginx-version.log"
+    applicability_file="$LOG_DIR/nginx-http2-applicability.json"
+
+    if ! "$NGINX_BINARY" -V > "$version_log" 2>&1; then
+        blocked "NGINX host probe failed: $NGINX_BINARY -V; see $version_log"
+    fi
+
+    "$PYTHON_BIN" - "$version_log" "$applicability_file" "$NGINX_BINARY" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+version_log = Path(sys.argv[1])
+output = Path(sys.argv[2])
+binary = sys.argv[3]
+configure_output = version_log.read_text(encoding="utf-8", errors="replace")
+http2_enabled = "--with-http_v2_module" in configure_output
+
+payload = {
+    "evidence_origin": "real_host_build",
+    "nginx_binary": binary,
+    "nginx_v_log": str(version_log),
+    "http2_configure_flag": http2_enabled,
+    # A build flag alone is not HTTP/2 lifecycle evidence.  The current native
+    # harness has no selected HTTP/2-specific case or TLS/h2c listener setup.
+    "status": "NOT_EXECUTED" if http2_enabled else "NOT_APPLICABLE",
+    "reason": (
+        "host advertises --with-http_v2_module, but this invocation has no "
+        "connector-owned HTTP/2 case or HTTP/2 listener configuration"
+        if http2_enabled
+        else "nginx -V lacks --with-http_v2_module; HTTP/2 cannot be exercised"
+    ),
+}
+output.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+PY
+}
+
 escape_sed() {
     raw_value=$1
     printf '%s' "$raw_value" | sed 's/[&|]/\\&/g'
@@ -984,6 +1022,8 @@ ensure_dir_755 "$NGINX_HARNESS_WORK_ROOT" "$RUNTIME_BASE" "$LOG_DIR" "$LOG_DIR/a
 : > "$STATUS_FILE"
 stop_stale_runtime_pid "$RUNTIME_PID_FILE"
 rm -f "$LOG_DIR/configtest.log" \
+	    "$LOG_DIR/nginx-version.log" \
+	    "$LOG_DIR/nginx-http2-applicability.json" \
     "$LOG_DIR/curl-attack.err" \
 	    "$LOG_DIR/curl-ready.err" \
 	    "$LOG_DIR/nginx.log" \
@@ -1007,6 +1047,7 @@ fi
 
 [ -x "$NGINX_BINARY" ] || blocked "missing executable NGINX binary: $NGINX_BINARY"
 [ -f "$NGINX_MODULE" ] || blocked "missing NGINX ModSecurity dynamic module: $NGINX_MODULE"
+record_nginx_http2_applicability
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
     [ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
     [ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"

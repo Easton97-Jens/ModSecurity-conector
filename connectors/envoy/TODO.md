@@ -48,15 +48,17 @@ Global gate definitions:
       cancellation cleanup.
 - [x] Non-`BUFFERED` `STREAMED` request/response Envoy template and external
       materializer added.
-- [x] Source/unit test covers chunks, EOS, cancellation, pre-response deny,
-      and the conservative late-action result.
-- [ ] Replace `PassthroughEngine` with a separately reviewed Common/
-      libmodsecurity transaction bridge; do not promote the ext_proc path before
-      real Envoy rule-evaluation evidence exists.
+- [x] Source/unit and tagged CGo tests cover chunks, EOS, cancellation,
+      pre-response decisions, response commit ordering, and the conservative
+      late-action result.
+- [x] Replace `PassthroughEngine` in the normal executable with the reviewed
+      Common/libmodsecurity transaction bridge. Source-only protobuf/unit
+      builds retain passthrough only when no runtime config can be accepted.
 - [x] Validate the pinned Envoy release against the materialized config and run
-      a real local HTTP/1.1 GET/POST transport smoke with cleanup evidence.
-- [ ] Run HTTP/2, timeout, reset, and first-byte cases after a rule-evaluation
-      bridge exists.
+      a real local HTTP/1.1 P1/P2/P3/P4 Common/libmodsecurity host smoke with
+      raw Common rule/action evidence and cleanup evidence.
+- [ ] Run HTTP/2, timeout, reset, and first-byte cases; a bridge now exists,
+      but these cases remain unverified and must not be promoted.
 
 ## Phase 3: ModSecurity Bridge
 

@@ -9,6 +9,14 @@ MODULE_PATH=$PATCHED_ROOT/stage/modules/mod_msconnector.so
 HOST_MANIFEST=$PATCHED_ROOT/patched-host-build-info.txt
 SMOKE_DIR=${LIGHTTPD_PATCHED_SMOKE_DIR:-$PATCHED_ROOT/smoke}
 
+# The canonical full-lifecycle route is intentionally separate from the
+# compatibility Phase-1 smoke below.  It runs P1/P2/P3 through the real
+# patched host and emits selected-case metadata; P4 remains unavailable
+# because the current output callback exposes HTTP/1 wire bytes.
+if [ "${NO_CRS_ARTIFACT_PROFILE:-}" = full_lifecycle ]; then
+    exec sh "$SCRIPT_DIR/run_patched_full_lifecycle.sh"
+fi
+
 blocked() {
     printf 'lighttpd_patched_lifecycle_smoke: BLOCKED: %s\n' "$1" >&2
     exit 77

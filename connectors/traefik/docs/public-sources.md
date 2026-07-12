@@ -17,6 +17,6 @@ The standard compatibility path remains the repo-owned local decision-service
 starter plus metadata build starter. The separately repo-owned
 `native_middleware/` package follows the documented Go middleware entry-point
 shape and includes a local `.traefik.yml`. The full-lifecycle host probe stages
-it in a pinned Traefik local-plugin workspace and proves plugin loading and
-router traffic, but its passthrough engine has no Common/libmodsecurity bridge
-or rule-capability promotion.
+it in a pinned Traefik local-plugin workspace, selects a private persistent UDS
+Common/libmodsecurity engine, and records targeted metadata-only P1--P4-safe
+host outcomes. That evidence does not promote any rule capability.

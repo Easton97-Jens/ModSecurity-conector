@@ -53,6 +53,46 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             )
         )
 
+    def test_native_rule_engine_summary_keeps_explicit_case_evidence(self) -> None:
+        summary = {
+            "status": "PASS",
+            "capability_promotion": "not_permitted",
+            "common_runtime_bridge": True,
+            "rule_evaluation": "libmodsecurity",
+            "allowed_request_status": 200,
+            "phase1_deny_status": 403,
+            "phase2_deny_status": 403,
+            "phase3_deny_client_status": 403,
+            "phase3_redirect_status": 302,
+            "phase4_safe_status": 200,
+        }
+        self.assertTrue(collector.native_rule_engine_observed([summary]))
+        self.assertFalse(collector.nonpromoted_host_success([summary]))
+        records = {
+            record["case_id"]: record
+            for record in collector.native_host_summary_cases([summary])
+        }
+        self.assertEqual(200, records["allow_without_marker"]["actual_status"])
+        self.assertEqual([1100001], records["deny_header_marker_403"]["observed_rule_ids"])
+        self.assertEqual([1100101], records["deny_request_body_marker_403"]["observed_rule_ids"])
+        self.assertEqual([1100201], records["deny_response_header_marker_403"]["observed_rule_ids"])
+        self.assertEqual([1100202], records["phase3_redirect_before_commit"]["observed_rule_ids"])
+        self.assertEqual(
+            [1100301],
+            records["phase4_deny_after_commit_log_only_safe"]["observed_rule_ids"],
+        )
+
+    def test_native_summary_without_engine_bridge_stays_nonpromoting(self) -> None:
+        summary = {
+            "status": "PASS",
+            "capability_promotion": "not_permitted",
+            "p1_allow_status": 200,
+            "p1_deny_status": 403,
+        }
+        self.assertFalse(collector.native_rule_engine_observed([summary]))
+        self.assertEqual([], collector.native_host_summary_cases([summary]))
+        self.assertTrue(collector.nonpromoted_host_success([summary]))
+
     def test_raw_source_event_payload_field_invalidates_absence_claim(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-collector-") as temporary:
             event_path = Path(temporary) / "events.jsonl"
@@ -159,6 +199,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertEqual([], evidence["forbidden_event_keys"])
         canonical_event = collector.sanitized_event(record)
         self.assertEqual(canonical_event["connector"], "haproxy")
+        self.assertEqual(canonical_event["integration_mode"], "native_htx_filter")
         self.assertEqual(canonical_event["status"], "not_attempted")
         self.assertEqual(
             [],
@@ -287,6 +328,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                         "requested_action": "deny",
                         "actual_action": "log_only",
                         "late_intervention": True,
+                        "late_intervention_mode": "safe",
                         "headers_sent": True,
                         "body_started": True,
                         "connection_aborted": False,
@@ -324,8 +366,23 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertTrue(case["event_metadata_verified"])
             self.assertEqual("deny", case["requested_action"])
             self.assertEqual("log_only", case["actual_action"])
+            self.assertEqual("safe", case["late_intervention_mode"])
             self.assertEqual(403, case["http_status"])
             self.assertEqual(200, case["visible_http_status"])
+
+    def test_phase4_rejects_an_unknown_late_intervention_mode(self) -> None:
+        event = collector.sanitized_event(
+            {
+                "phase": "response_body",
+                "late_intervention": True,
+                "late_intervention_mode": "late-403",
+            }
+        )
+        self.assertTrue(event["late_intervention"])
+        self.assertNotIn("late_intervention_mode", event)
+        self.assertNotIn(
+            "late_intervention_mode", collector.canonical_semantics([event])
+        )
 
     def test_phase3_precommit_case_keeps_header_status_metadata(self) -> None:
         catalog = (
@@ -396,6 +453,158 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertEqual("deny", case["actual_action"])
             self.assertFalse(case["headers_sent"])
             self.assertEqual(403, case["visible_http_status"])
+
+    def test_case_event_evidence_is_bound_to_its_declared_transaction(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-transaction-binding-") as temporary:
+            root = Path(temporary)
+            decision_path = root / "events.jsonl"
+            decision_path.write_text(
+                "\n".join(
+                    json.dumps(event)
+                    for event in (
+                        {
+                            "connector": "lighttpd",
+                            "transaction_id": "tx-real",
+                            "event": "MSCONN_EVENT_RESPONSE_BLOCKED",
+                            "message_id": "MSCONN_EVENT_RESPONSE_BLOCKED",
+                            "rule_id": 1100201,
+                            "phase": "response_headers",
+                            "status": "blocked",
+                            "http_status": 403,
+                            "original_http_status": 200,
+                            "visible_http_status": 403,
+                            "requested_action": "deny",
+                            "actual_action": "deny",
+                            "headers_sent": False,
+                            "connection_aborted": False,
+                            "transport_result": "http_status",
+                        },
+                        {
+                            "connector": "lighttpd",
+                            "transaction_id": "tx-other",
+                            "event": "MSCONN_EVENT_RESPONSE_BLOCKED",
+                            "message_id": "MSCONN_EVENT_RESPONSE_BLOCKED",
+                            "rule_id": 1100201,
+                            "phase": "response_headers",
+                            "status": "blocked",
+                            "http_status": 403,
+                            "original_http_status": 200,
+                            "visible_http_status": 200,
+                            "requested_action": "deny",
+                            "actual_action": "deny",
+                            "headers_sent": True,
+                            "connection_aborted": False,
+                            "transport_result": "http_status",
+                        },
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            results_path = root / "results.jsonl"
+            results_path.write_text(
+                json.dumps(
+                    {
+                        "case_id": "phase3_deny_before_commit",
+                        "status": "PASS",
+                        "live_executed": True,
+                        "actual_status": 403,
+                        "transaction_ids": ["tx-real"],
+                        "decision_log_path": str(decision_path),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            cases, derived = collector.case_observations(
+                [results_path],
+                "lighttpd",
+                "1100001",
+                {"phase3_deny_before_commit": (403, "1100201", 3)},
+                allowed_source_root=root,
+            )
+            self.assertEqual("PASS", cases[0]["status"])
+            self.assertEqual(["tx-real"], cases[0]["transaction_ids"])
+            self.assertFalse(cases[0]["headers_sent"])
+            self.assertEqual(1, len(derived))
+
+    def test_case_cannot_borrow_another_transaction_event(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-transaction-mismatch-") as temporary:
+            root = Path(temporary)
+            decision_path = root / "events.jsonl"
+            decision_path.write_text(
+                json.dumps(
+                    {
+                        "connector": "lighttpd",
+                        "transaction_id": "tx-other",
+                        "event": "MSCONN_EVENT_RESPONSE_BLOCKED",
+                        "message_id": "MSCONN_EVENT_RESPONSE_BLOCKED",
+                        "rule_id": 1100201,
+                        "phase": "response_headers",
+                        "status": "blocked",
+                        "http_status": 403,
+                        "visible_http_status": 403,
+                        "requested_action": "deny",
+                        "actual_action": "deny",
+                        "headers_sent": False,
+                        "connection_aborted": False,
+                        "transport_result": "http_status",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            results_path = root / "results.jsonl"
+            results_path.write_text(
+                json.dumps(
+                    {
+                        "case_id": "phase3_deny_before_commit",
+                        "status": "PASS",
+                        "live_executed": True,
+                        "actual_status": 403,
+                        "transaction_ids": ["tx-real"],
+                        "decision_log_path": str(decision_path),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            cases, _ = collector.case_observations(
+                [results_path],
+                "lighttpd",
+                "1100001",
+                {"phase3_deny_before_commit": (403, "1100201", 3)},
+                allowed_source_root=root,
+            )
+            self.assertEqual("FAIL", cases[0]["status"])
+            self.assertFalse(cases[0]["event_metadata_verified"])
+            self.assertEqual([], cases[0]["transaction_ids"])
+
+    def test_honest_not_executed_case_stays_not_executed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-not-executed-") as temporary:
+            root = Path(temporary)
+            results_path = root / "results.jsonl"
+            results_path.write_text(
+                json.dumps(
+                    {
+                        "case_id": "phase3_deny_before_commit",
+                        "status": "NOT_EXECUTED",
+                        "live_executed": False,
+                        "reason": "host API has no tested response hook",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            cases, _ = collector.case_observations(
+                [results_path],
+                "lighttpd",
+                "1100001",
+                {"phase3_deny_before_commit": (403, "1100201", 3)},
+                allowed_source_root=root,
+            )
+            self.assertEqual("NOT_EXECUTED", cases[0]["status"])
+            self.assertFalse(cases[0]["event_metadata_verified"])
 
     def test_catalog_runner_case_mapping_does_not_guess_from_fixture_name(self) -> None:
         catalog = (
@@ -481,6 +690,59 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertEqual([], events)
             self.assertEqual("FAIL", cases[0]["status"])
             self.assertFalse(cases[0]["event_metadata_verified"])
+
+    def test_structured_request_event_suppresses_weaker_audit_fallback(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-structured-request-") as temporary:
+            root = Path(temporary)
+            event_path = root / "native-events.jsonl"
+            event_path.write_text(
+                json.dumps(
+                    {
+                        "connector": "apache",
+                        "integration_mode": "native-httpd-module",
+                        "event": "MSCONN_EVENT_REQUEST_BLOCKED",
+                        "message_id": "MSCONN_EVENT_REQUEST_BLOCKED",
+                        "transaction_id": "tx-native-p1",
+                        "rule_id": 1100001,
+                        "phase": 1,
+                        "status": "blocked",
+                        "http_status": 403,
+                        "visible_http_status": 403,
+                        "requested_action": "deny",
+                        "actual_action": "deny",
+                        "transport_result": "http_status",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            audit_path = root / "audit.log"
+            audit_path.write_text(
+                '[id "1100001"] (phase 1) [unique_id "tx-native-p1"]\n',
+                encoding="utf-8",
+            )
+            results_path = root / "results.jsonl"
+            results_path.write_text(
+                json.dumps(
+                    {
+                        "case_id": "deny_header_marker_403",
+                        "status": "PASS",
+                        "live_executed": True,
+                        "actual_status": 403,
+                        "transaction_id": "tx-native-p1",
+                        "decision_log_path": str(event_path),
+                        "audit_log_path": str(audit_path),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            cases, derived = collector.case_observations(
+                [results_path], "apache", "1100001", allowed_source_root=root
+            )
+            self.assertEqual("PASS", cases[0]["status"])
+            self.assertEqual(1, len(derived))
+            self.assertEqual("native-httpd-module", derived[0]["integration_mode"])
 
     def test_traefik_runtime_output_rejects_symlink_before_cleanup(self) -> None:
         with tempfile.TemporaryDirectory(prefix="traefik-output-") as temporary:

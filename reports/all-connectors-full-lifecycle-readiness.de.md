@@ -2,6 +2,38 @@
 
 **Sprache:** [English](all-connectors-full-lifecycle-readiness.md) | Deutsch
 
+## Aktuelle Host-Evidence vom 12.07.2026
+
+Dieses Update ersetzt den nachfolgenden Implementierungsstatus vom 11.07.2026,
+soweit er einen Pfad als rein passthrough- oder observer-basiert beschreibt.
+Es dokumentiert ausgewählte echte Hostläufe mit Common-/libmodsecurity-
+Transaktionen; weder eine vollständige Connector-Matrix noch Production-
+Eigenschaften werden behauptet.
+
+- **Runtime-Roots und Cache-v2:** Jeder ausgewählte Full-Lifecycle-Runner
+  verwendet eigene Build-, Run-, Log- und Evidence-Roots. Gemeinsame native
+  Abhängigkeiten bleiben unveränderliche Schlüssel-Einträge in Cache-v2;
+  Connector- oder Common-Änderungen wählen vor einem Hostlauf einen neuen
+  Connector-Eintrag.
+- **Traefik:** Die gepinnte native Middleware wählt im echten Traefik-Route
+  ihren persistenten lokalen UDS-Common-/libmodsecurity-Dienst. Der
+  ausgewählte Lauf belegt P1/P2/P3-Enforcement und P4-Safe `log_only`.
+  Strict bleibt ohne beim Client sichtbaren Post-Commit-Reset `NOT EXECUTED`.
+- **Envoy:** Der echte `ext_proc`-Listener erreicht pro Stream die CGo-
+  Common-/Runtime-Bridge. Der ausgewählte Lauf belegt P1/P2/P3-Enforcement
+  und P4-Safe `log_only`; ein strikter Downstream-Reset bleibt `NOT EXECUTED`.
+- **HAProxy:** Der native HTX-Filter wendet im ausgewählten Host echte P1-
+  und P3-Pre-Commit-Antworten (403/429/403) an. P2/P4-Host-Enforcement und
+  Late-Action-Claims bleiben nicht promoted.
+- **lighttpd:** Der passende gepatchte Core/das Modul besitzt reale P1/P2/P3-
+  Ergebnisse. Sein verfügbarer Output-Hook sieht HTTP/1-Wire-Bytes statt einer
+  decodierten Entity; Response-Body-Inspektion und P4-Promotion bleiben daher
+  `NOT EXECUTED`.
+- **Apache und NGINX:** Frische native Hostläufe liefern P1/P2/P3-Ergebnisse
+  sowie getrennte P4-Safe-`log_only`- und Strict-Connection-Abort-Records.
+  Dem verwalteten NGINX-Build fehlt `--with-http_v2_module`; HTTP/2 ist für
+  diesen Build deshalb `NOT_APPLICABLE` und wird nicht aus HTTP/1.1 abgeleitet.
+
 ## Implementierungsstatus vom 11.07.2026
 
 Dieses Update dokumentiert Arbeit nach dem darunterstehenden Source-Audit vor der Implementierung. Es

@@ -63,7 +63,7 @@
     },
     {
       "path": "connectors/haproxy/harness/run_haproxy_htx_runtime.sh",
-      "purpose": "repository-owned real HAProxy HTX observer-mode P1-P4 transport smoke; metadata-only and non-promoted rather than SPOP enforcement evidence"
+      "purpose": "repository-owned real HAProxy HTX P1/P3 precommit runtime smoke using canonical No-CRS rules; P2/P4 remain metadata-only and all evidence is non-promoted rather than SPOP enforcement evidence"
     },
     {
       "path": "connectors/haproxy/harness/haproxy_htx_smoke_helper.py",

@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-11T15:34:51Z`
+> Generated at: `2026-07-12T07:59:01Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `2548ba0b61635aa718d23f3ebde4267bbb8cc47b`
-> Framework SHA: `9415da97a6cbac472bec3c3e1343b636a51c267b`
+> Connector SHA: `32249c908820cfcc21432656b0a0442740584e60`
+> Framework SHA: `ec4562aae1f5463d2ce2527d33e7c697f7bb2023`
 > Input status: `complete`
 
 # Generated HAProxy Runtime Results
@@ -40,7 +40,7 @@
 |---|---:|
 | PASS | 10 |
 | FAIL | 44 |
-| NOT_EXECUTABLE | 104 |
+| NOT_EXECUTABLE | 106 |
 
 ## HAProxy PASS Details
 | Case | Variant | Expected | Actual | Evidence |
@@ -225,6 +225,8 @@
 | xml_namespace_edge_connector_gap | tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml | imported | NOT_EXECUTABLE | not promoted | no haproxy runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/haproxy/haproxy-summary.json |
 | xml_request_body_block | tests/cases/body/xml/xml_request_body_block.yaml | imported | FAIL | not promoted | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/results/no-crs/with-mrts/haproxy/haproxy-summary.json; case=xml_request_body_block; status=fail; expected=403; actual=501 |
 | xml_request_body_malformed_connector_gap | tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml | imported | NOT_EXECUTABLE | not promoted | no haproxy runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/haproxy/haproxy-summary.json |
+| phase4_deny_after_commit_abort | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_abort.yaml | pending | NOT_EXECUTABLE | - | apache-specific case is not applicable to haproxy | - |
+| phase4_deny_after_commit_log_only | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_log_only.yaml | pending | NOT_EXECUTABLE | - | apache-specific case is not applicable to haproxy | - |
 | nginx_phase4_content_type_out_of_scope | tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml | imported | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
 | phase4_deny_after_commit_abort | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_abort.yaml | pending | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
 | phase4_deny_after_commit_log_only | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_log_only.yaml | pending | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |

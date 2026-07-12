@@ -48,9 +48,10 @@ The former bounded SPOA/SPOP response branch is disabled because it required
 callback, so response-body availability, `phase4`, and
 `phase4_rule_evaluation` are `not_implemented`; the semantic enforcement and
 late-intervention facets are also `not_implemented`. The separate
-`full-lifecycle-haproxy-htx` profile selects a HAProxy 3.2.21 observer-mode
-overlay with isolated P1–P4 transport evidence. It uses borrowed chunks/EOS,
-is not configured by this SPOP path, and does not promote these states.
+`full-lifecycle-haproxy-htx` profile selects a HAProxy 3.2.21 native HTX
+precommit overlay with isolated P1–P4 transport evidence. It uses borrowed
+chunks/EOS, proves canonical P1/P3 status replies, is not configured by this
+SPOP path, and does not promote these states.
 
 | Facet | Declared state | Coverage decision |
 | --- | --- | --- |

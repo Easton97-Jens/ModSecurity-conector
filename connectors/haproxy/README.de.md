@@ -37,7 +37,7 @@ späte Aktionen und Statusmetadaten bleiben `NOT_EXECUTED`, bis das fehlende
 Host-Verhalten implementiert ist. Response-Body-Payloads dürfen nicht in
 Ereignisse oder Berichte gelangen.
 
-## Natives HTX-Observer-Overlay für das Full-Lifecycle-Profil
+## Natives HTX-Precommit-Overlay für das Full-Lifecycle-Profil
 
 `htx-overlay/` enthält einen source-gebundenen **HAProxy-3.2.21**-
 Observer-Filter für die nativen HTX-Callbacks `http_payload` und `http_end`.
@@ -53,21 +53,27 @@ BUILD_ROOT=/var/tmp/haproxy-htx-smoke \
 make -C connectors/haproxy runtime-smoke-haproxy-htx
 ```
 
+Der dedizierte HTX-Smoke baut einen gepatchten, disposable HAProxy-3.2.21-
+Worktree, lädt die kanonischen No-CRS-Regeln des Frameworks, validiert die
+generierte `filter modsecurity-htx`-Konfiguration und sendet echten lokalen
+Socket-Traffic. Er belegt einen normalen Upstream-200, kanonische P1-Denys mit
+Regel `1100001` (403) und `1100002` (429) sowie einen kanonischen P3-Deny mit
+Regel `1100201` (403). Der P3-Fall belegt zusätzlich, dass genau eine
+Upstream-Response empfangen wurde, bevor die lokale Antwort sie ersetzte.
 Der Overlay übergibt nur aktuelle geliehene `HTX_BLK_DATA`-Slices an das
 Binding und finalisiert Phase 4 einmal bei Response-EOS. Er verwendet weder
 `wait-for-body`/`res.body` noch einen Connector-eigenen Response-Buffer.
-Nach dem Response-Commit bleibt er absichtlich observer-only: Eine späte Regel
-wird geloggt, aber nicht als erfundener Deny, Redirect oder Abort umgesetzt.
-Der dedizierte HTX-Smoke baut einen gepatchten, disposable HAProxy-3.2.21-
-Worktree, validiert die generierte `filter modsecurity-htx`-Konfiguration und
-beobachtet libmodsecurity-Interventionen in P1, P2, P3 und P4 mit inkrementellen
-Request-/Response-Chunks.
+Die Evidence enthält nur begrenzte Metadaten zu Client-Status/-Bytezahl,
+Upstream-Anzahl, Transaction-ID, Phase, Regel-ID und Aktion.
 
-Der Smoke beweist absichtlich nur Beobachterverhalten: P1/P2/P3-Interventionen
-liefern weiter den Upstream-Status 200, und das P4-Safe-Policy-Ergebnis wird als
-`host_action=not_attempted` aufgezeichnet. Er beansprucht keinen beim Client
-sichtbaren Deny, Redirect, Abort, First-Byte-Nachweis, keine Common-Runtime-
-Brücke und keine Capability-Promotion.
+P2 (`1100101`) und P4 (`1100301`) werden nur als echte Host-Beobachtungen
+ausgeführt: Sie liefern weiter Upstream-200, mit P2
+`host_action=observed_only` und dem P4-Safe-Policy-Ergebnis
+`host_action=not_attempted`. Der Smoke beansprucht keinen Redirect,
+Post-Commit-Abort, First-Byte-Nachweis, keine Common-Runtime-Brücke und keine
+Capability-Promotion. Seine Zusammenfassung behält ausdrücklich
+`capability_promotion=not_permitted`; die lokale Host-Evidence kann daher nicht
+als synthetische kanonische Promotion umgedeutet werden.
 
 Der Overlay ist nicht in der eingecheckten SPOP-Harness-Konfiguration aktiv und
 liefert nur nicht-promotete kanonische Host-Evidence. Er stuft daher die

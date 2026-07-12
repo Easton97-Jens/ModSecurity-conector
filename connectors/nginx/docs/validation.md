@@ -45,6 +45,29 @@ Generated evidence is recorded in:
 Phase 4 / RESPONSE_BODY remains non-promoted. Strict-mode source wiring is not
 evidence of a real host-side late abort.
 
+## Native P3/P4 host evidence and HTTP/2 applicability
+
+Use the full-lifecycle NGINX target to exercise the real dynamic module with
+the deterministic response-header upstream:
+
+```bash
+NO_CRS_RUN_ID=nginx-native-$(date -u +%Y%m%dT%H%M%SZ) make full-lifecycle-nginx
+```
+
+The P3 deny and redirect rows are response-header cases. The native harness
+records them before headers are committed, alongside separate P4 safe and
+strict records. A valid P4 record names
+`integration_mode: native-nginx-http-module`; it must still show the actual
+post-commit action instead of treating a rule match as a visible 403.
+
+For every native harness case, inspect `nginx-version.log` and
+`nginx-http2-applicability.json` in that case's host log directory. The latter
+is `NOT_APPLICABLE` when the real `nginx -V` output lacks
+`--with-http_v2_module`. If it is present, the status remains `NOT_EXECUTED`
+until an explicit connector-owned HTTP/2 case and a matching HTTP/2 listener
+are available. This prevents a build flag from being promoted as transport
+runtime evidence.
+
 ## Canonical Phase-4 validation
 
 The bounded NGINX response-body filter is source-declared

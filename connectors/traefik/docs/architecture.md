@@ -22,8 +22,9 @@ Global scaffold gates remain in
   harness logic in adapter-owned connector trees.
 - `native_middleware/` is a repository-owned Go module with Traefik-shaped
   `CreateConfig`, `New`, and `ServeHTTP` entry points. It has no Traefik SDK or
-  cgo dependency and uses a pass-through engine seam until a separate
-  Common/libmodsecurity bridge is reviewed.
+  cgo dependency; its selected `uds` mode reaches the separately built
+  persistent Common/libmodsecurity service over one private UDS session per
+  host request.
 - No Traefik runtime source is present in `connectors/traefik`.
 
 ## Integration Path Decision
@@ -40,8 +41,8 @@ proves the built service behind a real Traefik request path.
 
 | Option | Current decision | Reason |
 | --- | --- | --- |
-| Traefik plugin | full-lifecycle host probe, non-promoted | The pinned local-plugin host loads `native_middleware/` and routes a body-bearing request through it; its passthrough engine has no rule bridge |
-| Traefik middleware | full-lifecycle host probe, non-promoted | `native_middleware/` uses standard Go HTTP interfaces and a pass-through engine seam; it is not rule-evaluation evidence |
+| Traefik plugin | full-lifecycle host probe, non-promoted | The pinned local-plugin host loads `native_middleware/`, selects its private persistent UDS Common/libmodsecurity engine, and records targeted host outcomes without promotion |
+| Traefik middleware | full-lifecycle host probe, non-promoted | `native_middleware/` uses standard Go HTTP interfaces and a bounded UDS engine seam; the targeted evidence is not a capability promotion |
 | `forwardAuth` / external HTTP decision service | selected compatibility path | Connector-owned host profile and service binary source; it remains separate from the native probe |
 | Sidecar / proxy bridge | deferred | No bridge runtime, proxy config, or harness exists |
 | Custom module/build | deferred | No Traefik source/build contract exists |
@@ -53,21 +54,21 @@ results.
 
 ## Native middleware host probe (non-promoted)
 
-The Go package is intentionally separate from the selected `forwardAuth`
-compatibility architecture. The full-lifecycle runner stages it beneath
-Traefik's disposable `plugins-local` workspace, starts the pinned host, checks
-the local-plugin load confirmation, and routes a body-bearing request through
-the middleware. It wraps a `net/http` request body in bounded reads and wraps
-the response writer with `Flush`, `Hijack`, `Push`, `ReadFrom`, and `Unwrap`
-preservation. It does not collect a full response body.
+The Go package is intentionally separate from the `forwardAuth` compatibility
+architecture. The full-lifecycle runner stages it beneath Traefik's disposable
+`plugins-local` workspace, builds one persistent engine service in the same
+isolated root, starts the pinned host, checks plugin loading, and routes
+body-bearing traffic through the middleware. It wraps a `net/http` request body
+in bounded reads and wraps the response writer with `Flush`, `Hijack`, `Push`,
+`ReadFrom`, and `Unwrap` preservation. It does not collect a full response
+body.
 
-Before commitment, a future engine could return a local deny/redirect decision.
+Before commitment, the UDS engine can return a targeted deny/redirect decision
+and receives a host outcome only after the concrete ResponseWriter action.
 After response commitment, a disruptive prospective decision is recorded only
-as `log_only`; the source does not claim a changed visible status, connection
-reset, client abort, or upstream abort. The checked-in `PassthroughEngine`
-always allows and has no Common/runtime or libmodsecurity FFI. Therefore this
-path is not a replacement for `forwardAuth` and cannot alter canonical
-capability states. The host probe is deliberately non-promoted.
+as `log_only`; the probe does not claim a reset, client abort, or upstream
+abort. This path is not a replacement for `forwardAuth` and cannot alter
+canonical capability states. The host probe is deliberately non-promoted.
 
 ## Parallel Phase Target
 

@@ -30,10 +30,30 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             ROOT / "connectors" / "traefik" / "scripts" / "runtime_native_smoke.py"
         ).read_text(encoding="utf-8")
         self.assertIn('"plugins-local/src"', source)
-        self.assertIn('"rule_evaluation": "not_wired"', source)
+        self.assertIn('"rule_evaluation": "host_runtime_observed_not_promoted"', source)
+        self.assertNotIn('"rule_evaluation": "not_wired"', source)
         self.assertIn('"capability_promotion": "not_permitted"', source)
         self.assertIn('"integration_mode": "native-traefik-middleware"', source)
         self.assertIn('rule: "PathPrefix(`/`)"', source)
+
+    def test_native_host_runner_uses_a_short_private_uds_root(self) -> None:
+        source = (
+            ROOT / "connectors" / "traefik" / "scripts" / "runtime_native_smoke.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("tempfile.mkdtemp", source)
+        self.assertIn('dir="/var/tmp"', source)
+        self.assertIn("ENGINE_SOCKET_PATH_MAX_BYTES", source)
+        self.assertIn("engine_socket_dir = create_private_engine_socket_dir()", source)
+        self.assertIn("remove_private_engine_socket_dir(engine_socket_dir)", source)
+
+    def test_engine_service_runtime_test_uses_a_short_private_uds_root(self) -> None:
+        source = (
+            ROOT / "connectors" / "traefik" / "build" / "test-engine-service-runtime.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("mktemp -d /var/tmp/msconnector-traefik-engine-test.XXXXXX", source)
+        self.assertIn('SOCKET_PATH="$SOCKET_DIR/engine.sock"', source)
+        self.assertIn('[ "${#SOCKET_PATH}" -le 100 ]', source)
+        self.assertIn('rmdir "$SOCKET_DIR"', source)
 
 
 if __name__ == "__main__":

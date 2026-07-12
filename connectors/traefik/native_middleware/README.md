@@ -24,11 +24,19 @@ declaration.
 - treats a disruptive result after response commitment as `log_only`; it does
   not synthesize a changed status, reset, or client-abort claim.
 
-The optional-engine shape is intentional. `New` installs `PassthroughEngine`,
-which always allows. `runtime-smoke-traefik-native` proves only local-plugin
-loading and traffic through the real pinned host; it is non-promoted evidence.
-A future Common/libmodsecurity bridge must implement `Engine`/`Transaction`
-and be independently reviewed, configured, and proven for rule actions.
+The optional-engine shape is intentional. `New` defaults to
+`PassthroughEngine` for a source-only configuration, while `engineMode: uds`
+opens one private Unix-domain-socket session per `ServeHTTP` to the persistent
+Common/libmodsecurity engine service. The selected host runner supplies its
+own private socket and run-local event path; it does not reuse a checked-in
+socket path. It proves targeted P1--P4 host behavior without promoting a
+capability, CRS completeness, Safe/Strict, or production readiness.
+
+The UDS protocol rejects unknown engine actions instead of relabelling them as
+an HTTP denial. It reports a disruptive outcome only after the actual
+`ResponseWriter` write succeeds. After response commitment a disruptive Phase
+4 result is deliberately `log_only`; it does not synthesize a changed status,
+reset, or client-abort claim.
 
 ## Local source checks
 
@@ -40,8 +48,8 @@ make -C connectors/traefik build-native-middleware
 The build script runs `go test ./...`, `go vet ./...`, and (for `build`) `go
 build ./...`. It writes only a compile report outside the checkout, defaulting
 to `$BUILD_ROOT/traefik-native-middleware/build.txt`. It does not install a
-Traefik plugin, start Traefik, call Common/libmodsecurity, or write runtime
-evidence.
+Traefik plugin, start the persistent engine, call Common/libmodsecurity, or
+write runtime evidence.
 
 ## Configuration boundary
 
@@ -51,8 +59,8 @@ and File Provider shapes for an operator-created registration named
 `modsecurityNative`. They are deliberately separate from the selected
 `../config/traefik-forwardauth-dynamic.yaml`. The
 `full-lifecycle-traefik-native` host target independently stages an equivalent
-disposable workspace and asserts plugin loading in the pinned host; it does not
-reuse these checked-in reference files. An operator deployment must still stage
-the module under the local-plugin workspace used by its installed Traefik
-release. The probe is not deployment, rule-evaluation, or capability-promotion
-evidence.
+disposable workspace, builds and starts the local engine service, and asserts
+plugin loading in the pinned host. It does not reuse these checked-in reference
+files or a shared engine socket. An operator deployment must still stage the
+module under the local-plugin workspace used by its installed Traefik release.
+The probe is not deployment or capability-promotion evidence.

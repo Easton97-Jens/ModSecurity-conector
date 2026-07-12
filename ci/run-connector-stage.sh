@@ -54,8 +54,8 @@ expected_full_lifecycle_target() {
 
 # Full-lifecycle evidence may never fall through to a request-only or stock
 # compatibility runner. Every connector below dispatches a profile-specific
-# native host route; a route that lacks rule evaluation remains non-promoted in
-# the resulting canonical record instead of borrowing compatibility evidence.
+# native host route; any case without matching raw host evidence remains
+# non-promoted instead of borrowing compatibility evidence.
 if [ "$stage" = no_crs_baseline ] && [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     expected_profile=$(expected_full_lifecycle_profile "$connector")
     expected_target=$(expected_full_lifecycle_target "$connector")
@@ -141,7 +141,7 @@ run_remaining_connector() {
 run_full_lifecycle_haproxy_htx() {
     # The overlay build is connector-local while its pinned source and
     # libmodsecurity prerequisites remain in Cache-v2 shared components.
-    # Its observer result is intentionally non-promoted by the collector.
+    # Its raw native HTX records are collected only from this selected host.
     case "$PYTHON" in
         /*) python_bin=$PYTHON ;;
         */*) python_bin=$CONNECTOR_ROOT/$PYTHON ;;

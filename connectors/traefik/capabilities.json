@@ -30,7 +30,7 @@
     "Traefik v3.7 supports buffered forwardAuth request bodies with forwardBody and maxBodySize, but the checked-in dynamic configuration does not enable them and the service config sets request_body_mode=none.",
     "Traefik documents that forwardBody buffering breaks streaming, so streaming request-body inspection is outside this host path.",
     "The authorization service currently sees the Traefik-to-service socket endpoints and does not map original client connection endpoints into Common connection metadata.",
-    "The full-lifecycle profile separately selects native-middleware through full-lifecycle-traefik-native in a pinned Traefik local-plugin host probe. Its PassthroughEngine proves plugin loading and router traffic only; it has no Common/libmodsecurity bridge and does not alter this forwardAuth compatibility declaration or promote capabilities."
+    "The full-lifecycle profile separately selects native-middleware through full-lifecycle-traefik-native in a pinned Traefik local-plugin host probe. Its selected UDS engine service performs Common/libmodsecurity evaluation, while this forwardAuth compatibility declaration remains separate and unpromoted."
   ],
   "capabilities": {
     "connection_metadata": {

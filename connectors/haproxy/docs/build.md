@@ -51,7 +51,7 @@ noncanonical; it is not current runtime evidence.
 
 ## Full-lifecycle-selected native HTX transport build
 
-The full-lifecycle profile selects this separate observer-mode path through
+The full-lifecycle profile selects this separate native precommit path through
 `full-lifecycle-haproxy-htx`. It builds a disposable, patched HAProxy 3.2.21
 worktree and does not replace the SPOE/SPOP binary:
 
@@ -65,8 +65,10 @@ HAPROXY_HTX_SOURCE_DIR=/absolute/path/to/haproxy-3.2.21 \
 
 The target checks the source version, applies the patch only in the disposable
 worktree, writes overlay/binary SHA-256 provenance, validates a generated
-`filter modsecurity-htx` configuration, and starts HAProxy against a local
-upstream. It records real P1–P4 libmodsecurity observations without buffering
-bodies, but is explicitly `observer_nonpromoted`: no client-visible deny,
-redirect, abort, Common-runtime bridge, or selected-path capability is claimed.
-Use a fresh `BUILD_ROOT`; the overlay builder refuses to reuse a worktree.
+`filter modsecurity-htx` configuration, loads the Framework's canonical No-CRS
+rules, and starts HAProxy against a local upstream. It proves real client 403
+and 429 P1 replies (`1100001`/`1100002`) and a real P3 403 reply (`1100201`)
+without buffering bodies. P2/P4 remain observation-only. The run is still
+explicitly non-promoted: no redirect, post-commit abort, Common-runtime bridge,
+or selected-path capability is claimed. Use a fresh `BUILD_ROOT`; the overlay
+builder refuses to reuse a worktree.

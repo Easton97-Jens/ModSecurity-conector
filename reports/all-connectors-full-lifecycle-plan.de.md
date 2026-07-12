@@ -2,6 +2,22 @@
 
 **Sprache:** [English](all-connectors-full-lifecycle-plan.md) | Deutsch
 
+## Aktueller Implementierungs- und Evidence-Stand vom 12.07.2026
+
+Der darunterstehende Stand ist historisch, soweit er die ausgewählten
+Traefik- und Envoy-Routen als rein passthrough oder HAProxy als reinen
+Observer beschreibt. Die aktuell ausgewählten Pfade sind native Traefik-
+Middleware mit persistentem lokalem UDS-Common-/libmodsecurity-Dienst, Envoy
+`ext_proc` mit CGo-Common-Bridge sowie der native HAProxy-HTX-Filter mit P1-
+und P3-Antworten. Der gepatchte lighttpd-Host besitzt P1/P2/P3-Evidence, aber
+keinen Decoded-Entity-Response-Body-Hook.
+
+Frische native Apache- und NGINX-Hostläufe erfassen P4-Safe `log_only` und
+Strict-Connection-Abort getrennt. NGINX-HTTP/2 ist nicht ausgewählt: Dem
+verwalteten Build fehlt laut `nginx -V` `--with-http_v2_module`. Jedes
+unbeobachtete Verhalten bleibt `NOT EXECUTED`; Source-Route, Build oder
+synthetischer Harness ersetzen keine kausale Host-Evidence.
+
 ## Implementierungsstatus vom 11.07.2026
 
 Dieser Plan behält den darunterstehenden Source-Audit-Stand vor der Implementierung bei und ergänzt

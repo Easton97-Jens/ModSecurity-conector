@@ -24,6 +24,7 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     hash = hash_string_continue(hash, event->meta.message_id);
     hash = hash_string_continue(hash, event->meta.event);
     hash = hash_string_continue(hash, event->meta.connector);
+    hash = hash_string_continue(hash, event->meta.integration_mode);
     hash = hash_string_continue(hash, event->meta.transaction_id);
     hash = hash_int_continue(hash, (int)event->decision.phase);
     hash = hash_int_continue(hash, (int)event->decision.status);
@@ -40,6 +41,8 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
         sizeof(event->body.bytes_seen));
     hash = hash_bytes_continue(hash, (const unsigned char *)&event->body.bytes_inspected,
         sizeof(event->body.bytes_inspected));
+    hash = hash_int_continue(hash, event->flags.late_intervention);
+    hash = hash_string_continue(hash, event->flags.late_intervention_mode);
     return hash;
 }
 

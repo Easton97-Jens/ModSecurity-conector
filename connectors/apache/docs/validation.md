@@ -45,6 +45,26 @@ Generated evidence is recorded in:
 Phase 4 / RESPONSE_BODY remains non-promoted. Strict-mode source wiring is not
 evidence of a real host-side late abort.
 
+## Native P3 and separate P4 host evidence
+
+Use the native full-lifecycle host path for response-header and response-body
+evidence:
+
+```bash
+NO_CRS_RUN_ID=apache-native-$(date -u +%Y%m%dT%H%M%SZ) make full-lifecycle-apache
+```
+
+P3 deny and redirect are executed through the deterministic response-header
+upstream before Apache commits the response. The safe and strict P4 cases are
+separate real-host cases: safe must retain the visible response and record
+`log_only`, while strict must record `connection_aborted`. Their event records
+identify the executed path with `integration_mode: native-httpd-module`.
+
+Inspect the per-case `result.json`, `case-assert.log`, `error.log`, and
+metadata-only `phase4.log` under the generated host runtime directory. A build,
+source inspection, or a single HTTP status is not a substitute for those
+case-specific results.
+
 ## Canonical Phase-4 validation
 
 The native output-filter implementation is declared

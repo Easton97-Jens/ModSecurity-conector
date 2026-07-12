@@ -17,6 +17,7 @@ ModSecurity Envoy connector is implemented here.
 The standard repository-backed runtime path remains the C HTTP `ext_authz`
 service. The full-lifecycle profile separately dispatches `ext_proc` through
 `full-lifecycle-envoy-ext-proc` against the pinned official generated API and a
-real Envoy listener. That host run proves streamed transport/callback delivery
-only: it has no Common/libmodsecurity bridge, rule evaluation, reset, timeout,
+real Envoy listener. Its CGo service links Common Runtime and libmodsecurity,
+and the host run records raw Common P1/P2/P3/P4 rule/action evidence. It remains
+non-promoted and does not establish reset, timeout, HTTP/2, canonical-collector,
 or production compatibility evidence.

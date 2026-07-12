@@ -47,6 +47,29 @@ specific release, set `NGINX_RELEASE_TAG=release-1.31.0` or another exact tag.
 If NGINX, the dynamic module, or `libmodsecurity.so` is missing, the script
 exits `77` and marks the result as `blocked`.
 
+## Native P3/P4 and HTTP/2 applicability evidence
+
+The real-host harness routes cases that use `RESPONSE_HEADERS` through its
+local deterministic upstream. This is the native Phase-3 path; it is not a
+synthetic response header. The canonical full-lifecycle selection also adds the
+connector-specific Phase-4 safe and strict cases. Their results must remain
+separate: safe expects a post-commit `log_only` event, while strict expects a
+post-commit `connection_aborted` event. Both events carry
+`integration_mode: native-nginx-http-module`.
+
+Every host invocation records the selected binary's `nginx -V` output in
+`$LOG_DIR/nginx-version.log` and writes
+`$LOG_DIR/nginx-http2-applicability.json`. The file is deliberately
+conservative:
+
+- no `--with-http_v2_module` means `NOT_APPLICABLE`, so the harness makes no
+  HTTP/2 request;
+- a host with that flag is still `NOT_EXECUTED` until a connector-owned HTTP/2
+  case and matching listener configuration are selected.
+
+Consequently neither a successful build nor the presence of the configure flag
+is an HTTP/2 runtime claim.
+
 ## Shared Cases
 
 By default the harness iterates every `*.yaml` file in:

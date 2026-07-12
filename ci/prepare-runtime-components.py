@@ -3508,23 +3508,30 @@ def map_apache_blocker(text: str, missing: list[str]) -> str:
     lowered = text.lower()
     if "undefined reference to `crypt" in lowered or "undefined reference to 'crypt" in lowered:
         return "missing_crypt_library"
-    if "expat.h" in lowered or "expat" in lowered and "header" in lowered:
+    # Build commands legitimately contain the managed Expat prefix.  Do not
+    # turn an unrelated connector compilation error into a missing-header
+    # diagnosis merely because that prefix appears in the command line.
+    if re.search(r"(?:fatal )?error:.*expat\.h.*(?:no such file|not found)", lowered):
         return "missing_expat_headers"
     if "missing required command" in lowered or "not found" in lowered:
         return "missing_apache_build_dependency"
     if any(item.startswith("modsecurity_lib:") for item in missing) or "libmodsecurity" in lowered:
         return "missing_libmodsecurity_build"
+    if re.search(r"(?m)^.+:\d+(?::\d+)?: (?:fatal )?error:", text) or "apxs:error:" in lowered:
+        return "apache_connector_build_failed"
     return "missing_local_httpd_build"
 
 
 def map_nginx_blocker(text: str, missing: list[str]) -> str:
     lowered = text.lower()
-    if any(item.startswith("module_file:") for item in missing):
-        return "missing_nginx_modsecurity_module"
     if any(item.startswith("modsecurity_lib:") for item in missing) or "libmodsecurity" in lowered:
         return "missing_libmodsecurity_build"
     if "missing required command" in lowered or "not found" in lowered:
         return "missing_nginx_build_dependency"
+    if re.search(r"(?m)^.+:\d+(?::\d+)?: (?:fatal )?error:", text):
+        return "nginx_connector_build_failed"
+    if any(item.startswith("module_file:") for item in missing):
+        return "missing_nginx_modsecurity_module"
     return "missing_local_nginx_build"
 
 
@@ -4517,7 +4524,15 @@ def prepare_nginx_runtime(
         local_ready, local_missing = artifact_status(local_artifacts, {"nginx_bin"})
         effective_ready, effective_missing = artifact_status(effective_artifacts, {"nginx_bin"})
         if proc.returncode != 0 or not local_ready:
-            blocker = map_nginx_blocker(proc.stdout, local_missing)
+            diagnostic_text = "\n".join(
+                [
+                    proc.stdout,
+                    read_text_if_file(log_path),
+                    read_text_if_file(cache_root / "logs/nginx/nginx-configure.log"),
+                    read_text_if_file(cache_root / "logs/nginx/nginx-make.log"),
+                ]
+            )
+            blocker = map_nginx_blocker(diagnostic_text, local_missing)
             blocker_details = {
                 "build_component": "nginx_modsecurity_module_build",
                 "env_variable_can_set": "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",

@@ -6,6 +6,8 @@ EXT_PROC_CONFIG ?= $(CURDIR)/config/envoy-ext-proc-service.json
 EXT_PROC_ENVOY_CONFIG ?= $(BUILD_ROOT)/envoy-ext-proc/config/envoy-ext-proc.streaming.yaml
 EXT_PROC_RUNTIME_ROOT ?= $(BUILD_ROOT)/envoy-ext-proc/runtime-smoke
 EXT_PROC_RUNTIME_EVENT_LOG_PATH ?= $(EXT_PROC_RUNTIME_ROOT)/events.jsonl
+EXT_PROC_RUNTIME_CONFIG ?= $(EXT_PROC_RUNTIME_ROOT)/envoy-ext-proc-runtime.conf
+EXT_PROC_RULES_FILE ?= $(if $(MSCONNECTOR_RULES_FILE),$(MSCONNECTOR_RULES_FILE),$(if $(NO_CRS_RULES_FILE),$(NO_CRS_RULES_FILE),$(abspath $(CURDIR)/../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf)))
 EXT_PROC_LISTEN_PORT ?= 18080
 EXT_PROC_UPSTREAM_PORT ?= 18081
 EXT_PROC_LISTEN_SERVICE_PORT ?= 18083
@@ -19,7 +21,7 @@ LISTEN_PORT ?= 18082
 
 .PHONY: build-starter self-test self-test-envoy-bridge build-envoy-connector \
 	build-envoy-ext-proc test-envoy-ext-proc check-envoy-ext-proc-config \
-	prepare-envoy-ext-proc-config \
+	prepare-envoy-ext-proc-config prepare-envoy-ext-proc-runtime-config \
 	build-modsecurity-bridge check-envoy-config start-smoke-envoy \
 	serve-envoy-connector runtime-smoke-envoy no-crs-baseline-envoy \
 	serve-envoy-ext-proc runtime-smoke-envoy-ext-proc \
@@ -43,14 +45,24 @@ build-envoy-connector: build-envoy-ext-proc
 	sh build/build_connector.sh
 
 # The ext_proc service is intentionally independent of the ext_authz C service.
-# It has a non-promoted real-host transport smoke, but does not claim a
-# Common/libmodsecurity bridge or any rule-evaluation/capability promotion.
+# Its actual executable links the connector-local CGo bridge to Common Runtime
+# and libmodsecurity, but remains non-promoted until canonical evidence review.
 build-envoy-ext-proc:
 	BUILD_ROOT="$(BUILD_ROOT)" \
+	MODSECURITY_INCLUDE_DIR="$(MODSECURITY_INCLUDE_DIR)" \
+	MODSECURITY_LIB_DIR="$(MODSECURITY_LIB_DIR)" \
+	MODSECURITY_LIB_FILE="$(MODSECURITY_LIB_FILE)" \
+	MODSECURITY_PREFIX="$(MODSECURITY_PREFIX)" \
+	CC="$(CC)" CFLAGS="$(CFLAGS)" AR="$(AR)" \
 	sh build/build_ext_proc.sh
 
 test-envoy-ext-proc:
 	BUILD_ROOT="$(BUILD_ROOT)" \
+	MODSECURITY_INCLUDE_DIR="$(MODSECURITY_INCLUDE_DIR)" \
+	MODSECURITY_LIB_DIR="$(MODSECURITY_LIB_DIR)" \
+	MODSECURITY_LIB_FILE="$(MODSECURITY_LIB_FILE)" \
+	MODSECURITY_PREFIX="$(MODSECURITY_PREFIX)" \
+	CC="$(CC)" CFLAGS="$(CFLAGS)" AR="$(AR)" \
 	sh build/test_ext_proc.sh
 
 check-envoy-ext-proc-config: build-envoy-ext-proc
@@ -62,19 +74,26 @@ prepare-envoy-ext-proc-config:
 	EXT_PROC_PORT="$(EXT_PROC_LISTEN_SERVICE_PORT)" ADMIN_PORT="$(EXT_PROC_ADMIN_PORT)" \
 	sh config/prepare_envoy_ext_proc_config.sh
 
-serve-envoy-ext-proc: build-envoy-ext-proc
+prepare-envoy-ext-proc-runtime-config:
+	OUTPUT_CONFIG="$(EXT_PROC_RUNTIME_CONFIG)" RULES_FILE="$(EXT_PROC_RULES_FILE)" \
+	EVENT_PATH="$(EXT_PROC_RUNTIME_EVENT_LOG_PATH)" \
+	sh config/prepare_envoy_ext_proc_runtime_config.sh
+
+serve-envoy-ext-proc: build-envoy-ext-proc prepare-envoy-ext-proc-runtime-config
 	EXT_PROC_BIN="$(EXT_PROC_BIN)" EXT_PROC_CONFIG="$(EXT_PROC_CONFIG)" \
+	EXT_PROC_RUNTIME_CONFIG="$(EXT_PROC_RUNTIME_CONFIG)" \
 	EVENT_LOG_PATH="$(EXT_PROC_RUNTIME_EVENT_LOG_PATH)" LISTEN_ADDRESS="$(LISTEN_ADDRESS)" \
 	LISTEN_PORT="$(EXT_PROC_LISTEN_SERVICE_PORT)" \
 	sh harness/serve_envoy_ext_proc.sh
 
 # This is deliberately separate from runtime-smoke-envoy: it exercises the
-# native Envoy ext_proc gRPC filter but remains non-promoted while its service
-# uses the metadata-only PassthroughEngine rather than Common/libmodsecurity.
+# native Envoy ext_proc gRPC filter and the real Common/libmodsecurity bridge.
+# It still does not promote connector capabilities by itself.
 runtime-smoke-envoy-ext-proc: build-envoy-ext-proc
 	EXT_PROC_BIN="$(EXT_PROC_BIN)" EXT_PROC_CONFIG="$(EXT_PROC_CONFIG)" \
 	BUILD_ROOT="$(BUILD_ROOT)" RUNTIME_ROOT="$(EXT_PROC_RUNTIME_ROOT)" \
 	EVENT_LOG_PATH="$(EXT_PROC_RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
+	EXT_PROC_RUNTIME_CONFIG="$(EXT_PROC_RUNTIME_CONFIG)" RULES_FILE="$(EXT_PROC_RULES_FILE)" \
 	PYTHON="$(PYTHON)" sh harness/run_envoy_ext_proc_runtime.sh
 
 build-modsecurity-bridge: build-envoy-connector

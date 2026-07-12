@@ -22,6 +22,12 @@
 
 #include "ngx_http_modsecurity_common.h"
 #include "ngx_http_modsecurity_mapper.h"
+#include "msconnector/event.h"
+#include "msconnector/event_jsonl.h"
+
+static void ngx_http_modsecurity_request_intervention_log_event(
+    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    enum msconnector_phase phase, const char *reason);
 
 void
 ngx_http_modsecurity_request_read(ngx_http_request_t *r)
@@ -39,6 +45,98 @@ ngx_http_modsecurity_request_read(ngx_http_request_t *r)
         ctx->waiting_more_body = 0;
         r->write_event_handler = ngx_http_core_run_phases;
         ngx_http_core_run_phases(r);
+    }
+}
+
+
+/* Request-phase interventions happen before NGINX has committed a response.
+ * Keep the source event in this actual access/body path so its integration
+ * mode comes from the selected native module rather than a report collector. */
+static void
+ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
+    ngx_http_modsecurity_conf_t *mcf, enum msconnector_phase phase,
+    const char *reason)
+{
+    msconnector_event event;
+    char line[4096];
+    int json_truncated = 0;
+    size_t line_length;
+    ssize_t written;
+    ngx_http_modsecurity_ctx_t *ctx;
+    const char *wanted;
+    const char *method = "";
+    const char *uri = "";
+    const char *content_type = "";
+
+    if (r == NULL || mcf == NULL || mcf->phase4_log_file == NULL ||
+        mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
+        return;
+    }
+
+    ctx = ngx_http_modsecurity_get_module_ctx(r);
+    wanted = ctx != NULL && ctx->last_intervention_status >= 300 &&
+        ctx->last_intervention_status < 400 ? "redirect" : "deny";
+    if (r->method_name.len > 0U) {
+        const char *value = ngx_str_to_char(r->method_name, r->pool);
+        if (value != (char *)-1 && value != NULL) {
+            method = value;
+        }
+    }
+    if (r->unparsed_uri.len > 0U) {
+        const char *value = ngx_str_to_char(r->unparsed_uri, r->pool);
+        if (value != (char *)-1 && value != NULL) {
+            uri = value;
+        }
+    }
+    if (r->headers_in.content_type != NULL &&
+        r->headers_in.content_type->value.len > 0U) {
+        const char *value = ngx_str_to_char(r->headers_in.content_type->value,
+            r->pool);
+        if (value != (char *)-1 && value != NULL) {
+            content_type = value;
+        }
+    }
+
+    msconnector_event_init(&event);
+    event.meta.message_id = MSCONN_EVENT_REQUEST_BLOCKED;
+    event.meta.level = msconnector_event_default_level(event.meta.message_id);
+    event.meta.message = msconnector_event_default_message(event.meta.message_id);
+    event.meta.event = phase == MSCONNECTOR_PHASE_REQUEST_BODY
+        ? "phase2_intervention" : "phase1_intervention";
+    event.meta.connector = "nginx";
+    event.meta.integration_mode = "native-nginx-http-module";
+    event.meta.transaction_id = ctx != NULL && ctx->event_transaction_id.len > 0U
+        ? (const char *)ctx->event_transaction_id.data : "";
+    event.decision.phase = phase;
+    event.decision.status = MSCONNECTOR_STATUS_BLOCKED;
+    event.decision.action = wanted;
+    event.decision.requested_action = wanted;
+    event.decision.actual_action = wanted;
+    event.decision.rule_id = ctx != NULL ? ctx->last_intervention_rule_id : "";
+    event.decision.reason = reason;
+    event.http.http_status = ctx != NULL && ctx->last_intervention_status > 0
+        ? (int)ctx->last_intervention_status : NGX_HTTP_FORBIDDEN;
+    event.http.visible_http_status = event.http.http_status;
+    event.http.transport_result = "http_status";
+    event.request.method = method;
+    event.request.uri = uri;
+    event.body.content_type = content_type;
+
+    if (!msconnector_event_write_jsonl_line(&event, line, sizeof(line),
+        &json_truncated)) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity request intervention event serialization failed%s",
+            json_truncated ? " (truncated)" : "");
+        return;
+    }
+
+    line_length = ngx_strlen(line);
+    written = ngx_write_fd(mcf->phase4_log_file->fd, (u_char *)line,
+        line_length);
+    if (written < 0 || (size_t)written != line_length) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log,
+            written < 0 ? ngx_errno : 0,
+            "modsecurity request intervention log write failed");
     }
 }
 
@@ -236,12 +334,18 @@ ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
         old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
+        ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+        ctx->native_event_phase_active = 1;
         msc_process_uri(ctx->modsec_transaction, n_uri, n_method, http_version);
+        ctx->native_event_phase_active = 0;
         ngx_http_modsecurity_pcre_malloc_done(old_pool);
 
         dd("Processing intervention with the transaction information filled in (uri, method and version)");
         ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 1);
         if (ret > 0) {
+            ngx_http_modsecurity_request_intervention_log_event(r, mcf,
+                MSCONNECTOR_PHASE_REQUEST_HEADERS,
+                "request_uri_before_request_headers");
             ctx->intervention_triggered = 1;
             return ret;
         }
@@ -286,14 +390,20 @@ ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
          */
 
         old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
+        ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+        ctx->native_event_phase_active = 1;
         msc_process_request_headers(ctx->modsec_transaction);
+        ctx->native_event_phase_active = 0;
         ngx_http_modsecurity_pcre_malloc_done(old_pool);
         dd("Processing intervention with the request headers information filled in");
         ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 1);
         if (r->error_page) {
             return NGX_DECLINED;
-            }
+        }
         if (ret > 0) {
+            ngx_http_modsecurity_request_intervention_log_event(r, mcf,
+                MSCONNECTOR_PHASE_REQUEST_HEADERS,
+                "request_headers_before_handler");
             ctx->intervention_triggered = 1;
             return ret;
         }
@@ -417,7 +527,10 @@ ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
              */
             dd("request body inspection: file -- %s", file_name);
 
+            ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+            ctx->native_event_phase_active = 1;
             msc_request_body_from_file(ctx->modsec_transaction, file_name);
+            ctx->native_event_phase_active = 0;
 
             already_inspected = 1;
         } else {
@@ -428,8 +541,11 @@ ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
         {
             u_char *data = chain->buf->pos;
 
+            ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+            ctx->native_event_phase_active = 1;
             msc_append_request_body(ctx->modsec_transaction, data,
                 chain->buf->last - data);
+            ctx->native_event_phase_active = 0;
 
             if (chain->buf->last_buf) {
                 break;
@@ -445,6 +561,9 @@ ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
              */
             ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 0);
             if (ret > 0) {
+                ngx_http_modsecurity_request_intervention_log_event(r, mcf,
+                    MSCONNECTOR_PHASE_REQUEST_BODY,
+                    "request_body_stream_before_handler");
                 return ret;
             }
         }
@@ -459,15 +578,21 @@ ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
 /* XXX: once more -- is body can be modified ?  content-length need to be adjusted ? */
 
         old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
+        ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+        ctx->native_event_phase_active = 1;
         msc_process_request_body(ctx->modsec_transaction);
+        ctx->native_event_phase_active = 0;
         ctx->request_body_processed = 1;
         ngx_http_modsecurity_pcre_malloc_done(old_pool);
 
         ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 0);
         if (r->error_page) {
             return NGX_DECLINED;
-            }
+        }
         if (ret > 0) {
+            ngx_http_modsecurity_request_intervention_log_event(r, mcf,
+                MSCONNECTOR_PHASE_REQUEST_BODY,
+                "request_body_before_handler");
             return ret;
         }
     }
@@ -476,4 +601,3 @@ ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
 #endif
     return NGX_DECLINED;
 }
-

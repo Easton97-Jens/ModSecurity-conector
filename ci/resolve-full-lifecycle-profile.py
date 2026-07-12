@@ -44,16 +44,18 @@ PROFILE_METADATA: dict[str, dict[str, str]] = {
         "host_name": "HAProxy 3.2.21 native HTX filter",
         "integration_mode": "native-htx-filter",
         "reason": (
-            "The selected route is the patched HAProxy 3.2.21 HTX filter; it "
-            "runs in observer mode and cannot promote enforcement."
+            "The selected route is the patched HAProxy 3.2.21 HTX filter; "
+            "current host evidence covers real libmodsecurity P1/P3 "
+            "pre-commit replies, while unobserved body paths remain unpromoted."
         ),
     },
     "envoy": {
         "host_name": "Envoy ext_proc listener",
         "integration_mode": "ext_proc",
         "reason": (
-            "The selected route is the streamed Envoy ext_proc listener; its "
-            "PassthroughEngine has no Common/libmodsecurity rule-evaluation bridge."
+            "The selected route is the streamed Envoy ext_proc listener with "
+            "a Common/libmodsecurity bridge; strict post-commit reset remains "
+            "unexecuted until a client-visible reset is proven."
         ),
     },
     "traefik": {
@@ -61,7 +63,8 @@ PROFILE_METADATA: dict[str, dict[str, str]] = {
         "integration_mode": "native-traefik-middleware",
         "reason": (
             "The selected route is the native Traefik middleware in the pinned "
-            "host; its current Engine is passthrough-only and non-promotable."
+            "host with a persistent local Common/libmodsecurity UDS service; "
+            "strict post-commit reset remains unexecuted until proven."
         ),
     },
     "lighttpd": {
@@ -69,7 +72,9 @@ PROFILE_METADATA: dict[str, dict[str, str]] = {
         "integration_mode": "patched-native-lighttpd",
         "reason": (
             "The selected route is the patched lighttpd 1.4.84 core and matching "
-            "module; request and response bodies remain deliberately disabled."
+            "module; it has real request-body ingestion and response-header "
+            "hooks, while response-body inspection remains disabled because the "
+            "available output hook exposes HTTP/1 wire bytes."
         ),
     },
 }
@@ -92,6 +97,7 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "phase4",
         "phase4_rule_evaluation",
         "phase4_end_of_stream_evaluation",
+        "deny",
         "no_full_response_buffering",
         "transaction_id",
         "event_jsonl",
@@ -99,20 +105,54 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
     "envoy": (
         "transport_metadata",
         "request_headers",
+        "request_body_buffered",
         "request_body_incremental_ingest",
         "response_headers",
         "response_body_incremental_ingest",
+        "phase1",
+        "phase2",
+        "phase3",
+        "phase4",
+        "phase4_rule_evaluation",
+        "phase4_end_of_stream_evaluation",
+        "deny",
+        "redirect",
+        "log_only",
+        "late_intervention",
+        "late_intervention_log_only",
+        "late_intervention_status_metadata",
         "no_full_response_buffering",
+        "transaction_id",
         "event_jsonl",
     ),
     "traefik": (
         "transport_metadata",
+        "request_headers",
+        "request_body_buffered",
+        "request_body_incremental_ingest",
+        "response_headers",
+        "response_body_incremental_ingest",
+        "phase1",
+        "phase2",
+        "phase3",
+        "phase4",
+        "phase4_rule_evaluation",
+        "phase4_end_of_stream_evaluation",
+        "deny",
+        "log_only",
+        "late_intervention",
+        "late_intervention_log_only",
+        "late_intervention_status_metadata",
         "no_full_response_buffering",
+        "transaction_id",
+        "event_jsonl",
     ),
     "lighttpd": (
         "connection_metadata",
         "transport_metadata",
         "request_headers",
+        "request_body_buffered",
+        "request_body_incremental_ingest",
         # The patched native host has a real P1 200/403 probe.  Keep the
         # capability available to the canonical plan without promoting it;
         # finalization still requires the run-local host event before a case
@@ -120,6 +160,7 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "deny",
         "response_headers",
         "phase1",
+        "phase2",
         "phase3",
         "transaction_id",
         "event_jsonl",

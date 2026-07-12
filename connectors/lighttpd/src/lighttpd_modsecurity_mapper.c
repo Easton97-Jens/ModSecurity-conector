@@ -279,7 +279,7 @@ int lighttpd_modsecurity_visit_body_range(
             take = length;
         }
         if (chunk->type == MEM_CHUNK) {
-            if (take > (off_t)SIZE_MAX ||
+            if ((uintmax_t)take > (uintmax_t)SIZE_MAX ||
                 !consumer(userdata,
                     (const unsigned char *)chunk->mem->ptr + chunk->offset + queue_offset,
                     (size_t)take, error, error_len)) {

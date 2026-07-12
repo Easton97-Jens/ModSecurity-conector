@@ -25,16 +25,22 @@ delivery; it never selects `BUFFERED` processing. The pinned module and Envoy
 release record are in `ext_proc/go.mod`, `ext_proc/go.sum`, and
 `config/envoy-ext-proc-versions.env`.
 
-`runtime-smoke-envoy-ext-proc` now provides a separate real-Envoy transport
-smoke: it validates the materialized YAML, starts Envoy, the gRPC service, and
-an upstream, then records payload-free request/response stream counters. Its
-current `PassthroughEngine` remains an explicit seam for a later
-Common/libmodsecurity bridge, not such a bridge. This smoke proves ext_proc
-filter selection and callback delivery only; it does not change the canonical
-`ext_authz` capabilities or runtime status.
-After response headers are observed, `minimal`/`safe` record a log-only adapter
-outcome and `strict` records `strict_abort_not_attempted`; it never claims a
-late status change, deterministic reset, client reset, or upstream reset.
+The normal `ext_proc` build is a CGo executable that links a connector-local
+ABI to Common Runtime and libmodsecurity. Each real Envoy `Process` stream
+opens one Common transaction from Envoy's request headers, forwards bounded
+incremental request and response data, and closes it at EOS, cancellation, or
+processor failure. Common's run-local raw decision JSONL is the canonical
+event source; the payload-free stream-completion JSONL is supplementary only.
+
+`runtime-smoke-envoy-ext-proc` validates the materialized YAML, starts Envoy,
+the CGo/Common gRPC service, and an upstream, then exercises P1, P2, P3 deny,
+P3 redirect, and P4 safe post-commit log-only behavior. It validates the raw
+Common events and the host-confirmed actions after successful gRPC sends. This
+is real local host evidence, but it remains non-promoted and does not change
+the canonical `ext_authz` capabilities or runtime status. A late P4 decision
+in `minimal`/`safe` is recorded as host-confirmed `log_only`; `strict` remains
+`strict_abort_not_attempted`. It never claims a late status change,
+deterministic reset, client reset, or upstream reset.
 
 ## Source layout
 
@@ -48,9 +54,10 @@ late status change, deterministic reset, client reset, or upstream reset.
 - `build/build_connector.sh` performs a compile/link-only C17 build.
 - `harness/start_envoy_connector.sh` validates Envoy config, starts and observes
   both Envoy and the service, and stops both without sending a request.
-- `ext_proc/` contains the separately buildable Go ext_proc stream service and
-  its focused unit tests; `config/envoy-ext-proc-streaming.yaml.in` is its
-  unpromoted streamed-mode template.
+- `ext_proc/` contains the separately buildable CGo/Common ext_proc stream
+  service and its focused unit/CGo lifecycle tests;
+  `config/envoy-ext-proc-streaming.yaml.in` is its non-promoted streamed-mode
+  template.
 
 The older `envoy_bridge` CLI remains a local decision self-test. It is not used
 by the `ext_authz` service and is not runtime evidence.
@@ -112,21 +119,31 @@ transaction ID header, caps request bodies at 4096 bytes, disables response-body
 processing, uses 403/500 block/error defaults, applies explicit header/event
 limits, and writes metadata-only JSONL outside the checkout.
 
-The independent ext_proc groundwork has its own commands and does not require
-libmodsecurity at build time:
+The independent ext_proc full-lifecycle service has its own commands. Its
+normal executable requires explicit libmodsecurity headers and library paths:
 
 ```sh
-make -C connectors/envoy build-envoy-ext-proc
-make -C connectors/envoy test-envoy-ext-proc
+make -C connectors/envoy build-envoy-ext-proc \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
+make -C connectors/envoy test-envoy-ext-proc \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
 make -C connectors/envoy check-envoy-ext-proc-config
 make -C connectors/envoy prepare-envoy-ext-proc-config
-make -C connectors/envoy runtime-smoke-envoy-ext-proc ENVOY_BIN=/absolute/path/to/envoy
+make -C connectors/envoy prepare-envoy-ext-proc-runtime-config
+make -C connectors/envoy runtime-smoke-envoy-ext-proc \
+  ENVOY_BIN=/absolute/path/to/envoy \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
 ```
 
-The first four commands compile/test the pinned Go source, validate its service
-JSON, and materialize YAML outside the checkout. The runtime target additionally
-proves local Envoy-to-ext_proc stream delivery but does not prove
-Common/libmodsecurity rule evaluation.
+The source-only Go tests remain useful for protobuf and transport behavior; when
+the explicit paths are supplied, the build/test target additionally compiles the
+Common archive, links libmodsecurity, and runs the tagged CGo lifecycle tests.
+The runtime target writes its effective Common config and raw Common events
+under a run-local root. It provides connector-local rule/action evidence but
+does not promote a capability or substitute for canonical collection.
 
 ## Current evidence boundary
 
@@ -135,15 +152,17 @@ Common/libmodsecurity rule evaluation.
   `connector-gap` outside that narrow scope.
 - A service build or request-free start does not prove an Envoy runtime request.
   `runtime-smoke-envoy` exercises the selected `ext_authz` host path, while
-  `runtime-smoke-envoy-ext-proc` separately exercises the nonpromoted `ext_proc`
-  transport path.
+  `runtime-smoke-envoy-ext-proc` separately exercises the non-promoted
+  Common/libmodsecurity `ext_proc` host path.
 - The Framework's older Python `ext_authz` decision service is separate from
   this connector binary and must not be used as evidence for this implementation.
 - No production, security, CRS-complete, full-matrix, response-header, or
   response-body verification claim is made.
-- The ext_proc service has an isolated real-Envoy transport smoke with
-  metadata-only stream evidence. It has no Common/libmodsecurity, rule-action,
-  timeout, reset, first-byte, HTTP/2, or capability-promotion evidence.
+- The ext_proc service has isolated real-Envoy Common/libmodsecurity host
+  evidence for its bounded HTTP/1.1 P1/P2/P3/P4 probes, including raw Common
+  rule decisions and host-confirmed deny/redirect/log-only actions. It has no
+  timeout, reset, first-byte, HTTP/2, client-byte observation, canonical
+  collector, or capability-promotion evidence.
 
 ## Canonical Phase-4 boundary
 

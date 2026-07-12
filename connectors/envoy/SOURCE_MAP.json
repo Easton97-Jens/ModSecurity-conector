@@ -108,7 +108,7 @@
     },
     {
       "path": "connectors/envoy/harness/run_envoy_ext_proc_runtime.sh",
-      "kind": "repository-local real Envoy ext_proc transport smoke with metadata-only evidence",
+      "kind": "repository-local real Envoy ext_proc/Common/libmodsecurity P1/P2/P3/P4 host smoke with raw Common evidence",
       "upstream_origin": "none"
     },
     {
@@ -142,8 +142,38 @@
       "upstream_origin": "none"
     },
     {
+      "path": "connectors/envoy/ext_proc/cmd/msconnector-envoy-ext-proc/engine_common.go",
+      "kind": "repository-local libmodsecurity build selection for the Common ext_proc engine",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/cmd/msconnector-envoy-ext-proc/engine_passthrough.go",
+      "kind": "repository-local source-only protobuf/unit engine selection without Common runtime acceptance",
+      "upstream_origin": "none"
+    },
+    {
       "path": "connectors/envoy/ext_proc/internal/processor/processor.go",
-      "kind": "repository-local bounded Envoy proto stream adapter and future Common bridge seam",
+      "kind": "repository-local bounded Envoy proto stream adapter with Common bridge and host-action ordering",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_bridge.c",
+      "kind": "repository-local C ABI from streamed Envoy callbacks to Common Runtime/libmodsecurity",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_bridge.h",
+      "kind": "repository-local C ABI declaration for the Common ext_proc bridge",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+      "kind": "repository-local CGo Common/libmodsecurity streamed transaction engine",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine_test.go",
+      "kind": "repository-local tagged CGo lifecycle coverage for the Common ext_proc engine",
       "upstream_origin": "none"
     },
     {
@@ -168,12 +198,12 @@
     },
     {
       "path": "connectors/envoy/build/build_ext_proc.sh",
-      "kind": "repository-local pinned Go ext_proc build script",
+      "kind": "repository-local pinned Go/CGo ext_proc build script linking Common Runtime and libmodsecurity",
       "upstream_origin": "none"
     },
     {
       "path": "connectors/envoy/build/test_ext_proc.sh",
-      "kind": "repository-local Go ext_proc source test script",
+      "kind": "repository-local Go/CGo ext_proc source and lifecycle test script",
       "upstream_origin": "none"
     },
     {
@@ -195,6 +225,11 @@
       "path": "connectors/envoy/config/prepare_envoy_ext_proc_config.sh",
       "kind": "repository-local ext_proc YAML materializer outside the checkout",
       "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/config/prepare_envoy_ext_proc_runtime_config.sh",
+      "kind": "repository-local Common Runtime configuration materializer with a run-local raw event path",
+      "upstream_origin": "none"
     }
   ],
   "shared_dependencies": [
@@ -215,9 +250,10 @@
     "bridge_self_test_implemented": true,
     "ext_authz_service_source_implemented": true,
     "ext_proc_source_build_groundwork_implemented": true,
-    "ext_proc_common_libmodsecurity_adapter_implemented": false,
-    "ext_proc_runtime_verified": false,
+    "ext_proc_common_libmodsecurity_adapter_implemented": true,
+    "ext_proc_runtime_verified": true,
     "ext_proc_transport_runtime_verified": true,
+    "ext_proc_runtime_nonpromoted": true,
     "libmodsecurity_adapter_implemented": true,
     "response_body_blocking_verified": false,
     "runtime_status": "minimal_runtime_smoke",

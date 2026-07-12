@@ -22,6 +22,7 @@ enum msconnector_event_json_text_index {
     EVENT_JSON_MESSAGE,
     EVENT_JSON_EVENT_NAME,
     EVENT_JSON_CONNECTOR,
+    EVENT_JSON_INTEGRATION_MODE,
     EVENT_JSON_TRANSACTION_ID,
     EVENT_JSON_PHASE,
     EVENT_JSON_STATUS,
@@ -38,6 +39,7 @@ enum msconnector_event_json_text_index {
     EVENT_JSON_CLIENT_IP,
     EVENT_JSON_CONTENT_TYPE,
     EVENT_JSON_BODY_LIMIT_OUTCOME,
+    EVENT_JSON_LATE_INTERVENTION_MODE,
     EVENT_JSON_TEXT_COUNT
 };
 
@@ -66,6 +68,7 @@ typedef struct msconnector_event_json_parts {
     int statuses[EVENT_JSON_STATUS_COUNT];
     const char *flags[EVENT_JSON_FLAG_COUNT];
     const char *body_limit_outcome_json;
+    const char *late_intervention_mode_json;
     unsigned long sequence;
     uint64_t body_bytes_seen;
     uint64_t body_bytes_inspected;
@@ -80,13 +83,14 @@ static int format_event_json(
     return snprintf(
         dst,
         dst_size,
-        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"transport_result\":\"%s\",\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"content_type\":\"%s\",\"body_bytes_seen\":%" PRIu64 ",\"body_bytes_inspected\":%" PRIu64 "%s,\"late_intervention\":%s,\"response_started\":%s,\"response_committed\":%s,\"headers_sent\":%s,\"body_started\":%s,\"body_truncated\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s,\"sequence\":%lu,\"previous_event_hash\":%" PRIu64 ",\"event_hash\":%" PRIu64 "}",
+        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"integration_mode\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"transport_result\":\"%s\",\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"content_type\":\"%s\",\"body_bytes_seen\":%" PRIu64 ",\"body_bytes_inspected\":%" PRIu64 "%s,\"late_intervention\":%s%s,\"response_started\":%s,\"response_committed\":%s,\"headers_sent\":%s,\"body_started\":%s,\"body_truncated\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s,\"sequence\":%lu,\"previous_event_hash\":%" PRIu64 ",\"event_hash\":%" PRIu64 "}",
         parts->text[EVENT_JSON_TIMESTAMP],
         parts->text[EVENT_JSON_LEVEL],
         parts->text[EVENT_JSON_MESSAGE_ID],
         parts->text[EVENT_JSON_MESSAGE],
         parts->text[EVENT_JSON_EVENT_NAME],
         parts->text[EVENT_JSON_CONNECTOR],
+        parts->text[EVENT_JSON_INTEGRATION_MODE],
         parts->text[EVENT_JSON_TRANSACTION_ID],
         parts->text[EVENT_JSON_PHASE],
         parts->text[EVENT_JSON_STATUS],
@@ -109,6 +113,7 @@ static int format_event_json(
         parts->body_bytes_inspected,
         parts->body_limit_outcome_json,
         parts->flags[EVENT_JSON_LATE_INTERVENTION],
+        parts->late_intervention_mode_json,
         parts->flags[EVENT_JSON_RESPONSE_STARTED],
         parts->flags[EVENT_JSON_RESPONSE_COMMITTED],
         parts->flags[EVENT_JSON_HEADERS_SENT],
@@ -191,6 +196,7 @@ void msconnector_event_init(msconnector_event *event) {
     event->meta.message = 0;
     event->meta.event = 0;
     event->meta.connector = 0;
+    event->meta.integration_mode = 0;
     event->meta.transaction_id = 0;
     event->decision.phase = MSCONNECTOR_PHASE_CONNECTION;
     event->decision.status = MSCONNECTOR_STATUS_OK;
@@ -209,6 +215,7 @@ void msconnector_event_init(msconnector_event *event) {
     event->request.uri = 0;
     event->request.client_ip = 0;
     event->flags.late_intervention = 0;
+    event->flags.late_intervention_mode = 0;
     event->flags.response_started = 0;
     event->flags.response_committed = 0;
     event->flags.headers_sent = 0;
@@ -245,6 +252,7 @@ int msconnector_event_write_json_ex(
     char message[EVENT_TEXT_SIZE];
     char event_name[EVENT_TEXT_SIZE];
     char connector[EVENT_TEXT_SIZE];
+    char integration_mode[EVENT_TEXT_SIZE];
     char transaction_id[EVENT_TEXT_SIZE];
     char action[64];
     char requested_action[64];
@@ -260,6 +268,8 @@ int msconnector_event_write_json_ex(
     char content_type[EVENT_TEXT_SIZE];
     char body_limit_outcome[EVENT_TEXT_SIZE];
     char body_limit_outcome_json[EVENT_TEXT_SIZE * 2U];
+    char late_intervention_mode[32];
+    char late_intervention_mode_json[64];
     msconnector_event_json_parts parts;
     int was_truncated;
     int written;
@@ -281,6 +291,8 @@ int msconnector_event_write_json_ex(
     escape_field(event->meta.message, message, sizeof(message), &was_truncated);
     escape_field(event->meta.event, event_name, sizeof(event_name), &was_truncated);
     escape_field(event->meta.connector, connector, sizeof(connector), &was_truncated);
+    escape_field(event->meta.integration_mode, integration_mode,
+        sizeof(integration_mode), &was_truncated);
     escape_field(event->meta.transaction_id, transaction_id, sizeof(transaction_id), &was_truncated);
     escape_field(event->decision.action, action, sizeof(action), &was_truncated);
     escape_field(event->decision.requested_action, requested_action, sizeof(requested_action), &was_truncated);
@@ -296,6 +308,8 @@ int msconnector_event_write_json_ex(
     escape_field(event->body.content_type, content_type, sizeof(content_type), &was_truncated);
     escape_field(event->body.limit_outcome, body_limit_outcome,
         sizeof(body_limit_outcome), &was_truncated);
+    escape_field(event->flags.late_intervention_mode, late_intervention_mode,
+        sizeof(late_intervention_mode), &was_truncated);
 
     parts.text[EVENT_JSON_TIMESTAMP] = timestamp;
     parts.text[EVENT_JSON_LEVEL] = level;
@@ -303,6 +317,7 @@ int msconnector_event_write_json_ex(
     parts.text[EVENT_JSON_MESSAGE] = message;
     parts.text[EVENT_JSON_EVENT_NAME] = event_name;
     parts.text[EVENT_JSON_CONNECTOR] = connector;
+    parts.text[EVENT_JSON_INTEGRATION_MODE] = integration_mode;
     parts.text[EVENT_JSON_TRANSACTION_ID] = transaction_id;
     parts.text[EVENT_JSON_PHASE] = msconnector_phase_name(event->decision.phase);
     parts.text[EVENT_JSON_STATUS] = msconnector_status_name(event->decision.status);
@@ -322,6 +337,7 @@ int msconnector_event_write_json_ex(
     parts.text[EVENT_JSON_CLIENT_IP] = client_ip;
     parts.text[EVENT_JSON_CONTENT_TYPE] = content_type;
     parts.text[EVENT_JSON_BODY_LIMIT_OUTCOME] = body_limit_outcome;
+    parts.text[EVENT_JSON_LATE_INTERVENTION_MODE] = late_intervention_mode;
     parts.body_bytes_seen = event->body.bytes_seen;
     parts.body_bytes_inspected = event->body.bytes_inspected;
     body_limit_outcome_json[0] = '\0';
@@ -336,6 +352,18 @@ int msconnector_event_write_json_ex(
         }
     }
     parts.body_limit_outcome_json = body_limit_outcome_json;
+    late_intervention_mode_json[0] = '\0';
+    if (late_intervention_mode[0] != '\0') {
+        int mode_written = snprintf(late_intervention_mode_json,
+            sizeof(late_intervention_mode_json),
+            ",\"late_intervention_mode\":\"%s\"", late_intervention_mode);
+        if (mode_written < 0 || (size_t)mode_written >=
+            sizeof(late_intervention_mode_json)) {
+            late_intervention_mode_json[0] = '\0';
+            was_truncated = 1;
+        }
+    }
+    parts.late_intervention_mode_json = late_intervention_mode_json;
     parts.flags[EVENT_JSON_LATE_INTERVENTION] = json_bool(event->flags.late_intervention);
     parts.flags[EVENT_JSON_RESPONSE_STARTED] = json_bool(event->flags.response_started);
     parts.flags[EVENT_JSON_RESPONSE_COMMITTED] = json_bool(event->flags.response_committed);
@@ -403,6 +431,7 @@ void msconnector_event_set_phase4_hard_abort_after_200(
     event->decision.rule_id = rule_id;
     event->decision.reason = reason;
     event->flags.late_intervention = 1;
+    event->flags.late_intervention_mode = "strict";
     event->flags.response_started = 1;
     event->flags.response_committed = 1;
     event->flags.headers_sent = 1;

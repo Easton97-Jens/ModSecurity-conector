@@ -14,6 +14,7 @@ nginx_config = (ROOT/'connectors/nginx/config').read_text()
 all_nginx = '\n'.join(p.read_text(errors='ignore') for p in nginx.glob('*.c')) + common_h + mapper_h
 checks = [
 ('msconnector_config common_config' in common_h or 'msconnector_config        common_config' in common_h, 'NGINX config embeds msconnector_config common_config'),
+('"msconnector/phase.h"' in common_h and 'enum msconnector_phase native_event_phase;' in common_h, 'NGINX native event phase has its complete Common enum declaration'),
 ('#if (NGX_PCRE) && !(NGX_PCRE2)' in module_c and '#if !(NGX_PCRE) || (NGX_PCRE2)' in common_h, 'NGINX PCRE allocation shim is disabled for PCRE2 and no-PCRE builds'),
 ('msconnector_config_init' in module_c and 'msconnector_config_merge' in module_c and 'msconnector_config_validate' in module_c, 'NGINX config init/merge/validate uses Common'),
 ('conf->phase4_log_file = NGX_CONF_UNSET_PTR;' in module_c and 'conf->phase4_content_types = NGX_CONF_UNSET_PTR;' in module_c and 'ngx_conf_merge_ptr_value(c->phase4_log_file, p->phase4_log_file, NULL);' in module_c, 'NGINX inherits server-level Phase4 log and content-type settings into locations'),

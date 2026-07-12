@@ -62,15 +62,16 @@ real host-side response stream or strict-abort proof.
 
 The selected SPOA/SPOP configuration has no response-body path: the former
 bounded branch is disabled. The separate `full-lifecycle-haproxy-htx` profile
-selects a HAProxy 3.2.21 HTX observer with a real-host P1–P4 transport smoke.
-It is observer-only after forwarding and is not an SPOP response path. Its
-observer evidence explicitly records upstream 200 for
-precommit decisions and `host_action=not_attempted` for the P4 safe policy.
-`response_body_buffered`, `phase4`, and `phase4_rule_evaluation` are
-`not_implemented`. The current runner has no host-observed client status or
-commitment timing and no post-commit response point. Therefore pre-commit
-deny, all late-intervention actions, and semantic status metadata are
-`not_implemented`, not pending PASS assertions.
+selects a HAProxy 3.2.21 HTX path with real-host P1–P4 traffic. It proves
+client-visible precommit replies for canonical P1 rules `1100001` (403) and
+`1100002` (429), and for canonical P3 rule `1100201` (403) before the upstream
+header response is forwarded. It is not an SPOP response path. P2 and P4 are
+explicitly observation-only (`observed_only` and `not_attempted` respectively).
+`response_body_buffered`, `phase4`, and `phase4_rule_evaluation` remain
+`not_implemented`; no post-commit response point, redirect, abort, or
+first-byte timing proof exists. The runner deliberately retains
+`capability_promotion=not_permitted`, so these genuine local host results do
+not become selected-path capability assertions.
 
 | Case | Required evidence | Excluded substitute |
 | --- | --- | --- |

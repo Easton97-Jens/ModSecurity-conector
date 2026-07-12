@@ -39,22 +39,35 @@ make -C connectors/envoy runtime-smoke-envoy \
 The older `build-starter` and `self-test` targets remain isolated compatibility
 checks for the local bridge CLI and do not build or verify the connector service.
 
-## Separate ext_proc source/build target
+## Separate ext_proc Common/libmodsecurity build target
 
-The unpromoted Go external-processing service is independently pinned and does
-not link libmodsecurity yet:
+The non-promoted Go external-processing service is independently pinned. Its
+normal executable uses CGo to link the connector-local bridge, Common Runtime,
+and libmodsecurity, so explicit libmodsecurity paths are required:
 
 ```sh
-make -C connectors/envoy build-envoy-ext-proc
-make -C connectors/envoy test-envoy-ext-proc
+make -C connectors/envoy build-envoy-ext-proc \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
+make -C connectors/envoy test-envoy-ext-proc \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
 make -C connectors/envoy check-envoy-ext-proc-config
 make -C connectors/envoy prepare-envoy-ext-proc-config
-make -C connectors/envoy runtime-smoke-envoy-ext-proc ENVOY_BIN=/absolute/path/to/envoy
+make -C connectors/envoy prepare-envoy-ext-proc-runtime-config
+make -C connectors/envoy runtime-smoke-envoy-ext-proc \
+  ENVOY_BIN=/absolute/path/to/envoy \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
 ```
 
 `go.mod`/`go.sum` pin Envoy's official generated Go API and gRPC dependencies.
 `config/envoy-ext-proc-versions.env` pins the intended Envoy release. The build
-uses `go mod verify` and `go build -mod=readonly`; the config materializer only
-writes to `BUILD_ROOT`. The runtime smoke validates the materialized YAML and
-exercises real Envoy-to-ext_proc callback delivery, but neither calls Common or
-libmodsecurity nor promotes rule-evaluation interoperability.
+uses `go mod verify`, compiles a private Common archive, and builds with
+`-tags libmodsecurity`; the config materializers only write outside the
+checkout. The test target runs source-only Go tests and, when the paths are
+available, tagged CGo lifecycle tests. The runtime smoke validates the
+materialized YAML and executes real Envoy-to-ext_proc/Common/libmodsecurity
+rule evaluation with raw Common JSONL. It remains non-promoted: it does not by
+itself establish canonical collection, timeout/reset semantics, HTTP/2, or
+production interoperability.

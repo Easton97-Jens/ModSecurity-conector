@@ -54,6 +54,7 @@ CAPABILITIES_FILE=$CONNECTOR_ROOT/connectors/$connector/capabilities.json
 RUNTIME_PATH_RESOLVER=$CONNECTOR_ROOT/ci/resolve-runtime-paths.py
 PROFILE_RESOLVER=$CONNECTOR_ROOT/ci/resolve-full-lifecycle-profile.py
 LOG_SANITIZER=$CONNECTOR_ROOT/ci/sanitize-full-lifecycle-log.py
+ENGINE_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/write-engine-lifecycle-artifacts.py
 SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 
 [ -f "$FRAMEWORK_ROOT/ci/no_crs_baseline.py" ] || {
@@ -62,6 +63,10 @@ SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 }
 [ -f "$LOG_SANITIZER" ] || {
     echo "FAIL: canonical log sanitizer is missing: $LOG_SANITIZER" >&2
+    exit 1
+}
+[ -f "$ENGINE_ARTIFACT_WRITER" ] || {
+    echo "FAIL: engine lifecycle artifact writer is missing: $ENGINE_ARTIFACT_WRITER" >&2
     exit 1
 }
 [ -f "$SYNCHRONIZED_UPSTREAM" ] || {
@@ -188,6 +193,12 @@ CANONICAL_STDERR_LOG=$CONNECTOR_LOG_ROOT/stderr.canonical.log
 CANONICAL_HOST_LOG=$CONNECTOR_LOG_ROOT/host.canonical.log
 FIRST_BYTE_EVIDENCE=$CONNECTOR_RUN_ROOT/first-byte-evidence.json
 FIRST_BYTE_EVIDENCE_SOURCE=${FIRST_BYTE_EVIDENCE_SOURCE:-}
+ENGINE_ARTIFACT_DIR=$CONNECTOR_RUN_ROOT/engine-artifacts
+ENGINE_VERSION_ARTIFACT=$ENGINE_ARTIFACT_DIR/engine-version.txt
+ENGINE_LIBRARY_SHA256_ARTIFACT=$ENGINE_ARTIFACT_DIR/engine-library-sha256.txt
+RULESET_SHA256_ARTIFACT=$ENGINE_ARTIFACT_DIR/ruleset-sha256.txt
+TRANSACTION_COUNTS_ARTIFACT=$ENGINE_ARTIFACT_DIR/transaction-counts.json
+LIFECYCLE_COUNTERS_ARTIFACT=$ENGINE_ARTIFACT_DIR/lifecycle-counters.json
 EFFECTIVE_CAPABILITIES_FILE=$CAPABILITIES_FILE
 FULL_LIFECYCLE_STAGE_REASON=
 if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
@@ -202,16 +213,16 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     CAPABILITIES_FILE=$EFFECTIVE_CAPABILITIES_FILE
     case "$connector" in
         haproxy)
-            FULL_LIFECYCLE_STAGE_REASON="native HTX host runs in observer mode; it does not apply pre-commit enforcement or promote lifecycle cases"
+            FULL_LIFECYCLE_STAGE_REASON="native HTX host has real libmodsecurity P1/P3 pre-commit replies; unobserved request/response-body outcomes remain unpromoted"
             ;;
         envoy)
-            FULL_LIFECYCLE_STAGE_REASON="native ext_proc host is streamed but has no Common/libmodsecurity rule-evaluation driver"
+            FULL_LIFECYCLE_STAGE_REASON="native ext_proc host streams through Common/libmodsecurity with P1/P2/P3 and safe P4 host outcomes; strict post-commit reset remains not executed"
             ;;
         traefik)
-            FULL_LIFECYCLE_STAGE_REASON="native Traefik middleware runs in the pinned host with a passthrough-only engine and no Common/libmodsecurity bridge"
+            FULL_LIFECYCLE_STAGE_REASON="native Traefik middleware reaches a persistent local Common/libmodsecurity UDS service with P1/P2/P3 and safe P4 host outcomes; strict post-commit reset remains not executed"
             ;;
         lighttpd)
-            FULL_LIFECYCLE_STAGE_REASON="patched lighttpd host runs with request and response body inspection disabled because its hook receives HTTP/1 wire output"
+            FULL_LIFECYCLE_STAGE_REASON="patched lighttpd host uses real request-body ingestion and response-header processing; response-body inspection remains disabled because its output hook receives HTTP/1 wire bytes"
             ;;
     esac
 fi
@@ -497,6 +508,8 @@ case "$connector" in
         source_events=$TRAEFIK_RUNTIME_ROOT/logs/events.jsonl
         ;;
     lighttpd)
+        source_results=$LIGHTTPD_RUNTIME_ROOT/results.jsonl
+        source_result=$LIGHTTPD_RUNTIME_ROOT/runtime-summary.txt
         source_events=$LIGHTTPD_RUNTIME_ROOT/events.jsonl
         ;;
 esac
@@ -694,6 +707,43 @@ PY
     )
 fi
 
+# Full-lifecycle engine sidecars are an inventory of the exact current raw
+# host run.  They do not feed capability selection or promotion: canonical
+# PASS still requires the normal transaction-bound host event evidence.
+if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] && [ "$stage_rc" -eq 0 ]; then
+    libmodsecurity_library=${MODSECURITY_LIB_FILE:-}
+    if [ -z "$libmodsecurity_library" ] || [ ! -f "$libmodsecurity_library" ]; then
+        libmodsecurity_library=${MODSECURITY_LIB_DIR:-}/libmodsecurity.so
+    fi
+    if [ ! -f "$libmodsecurity_library" ]; then
+        echo "FAIL: full-lifecycle engine library is unavailable for provenance: $libmodsecurity_library" >&2
+        exit 1
+    fi
+    "$PYTHON" "$ENGINE_ARTIFACT_WRITER" \
+        --connector "$connector" \
+        --source-result "$SOURCE_RESULT" \
+        --source-events "$NORMALIZED_EVENTS" \
+        --rules-file "$NO_CRS_RULES_FILE" \
+        --libmodsecurity-version "$libmodsecurity_version" \
+        --libmodsecurity-library "$libmodsecurity_library" \
+        --stage-exit-code "$stage_rc" \
+        --output-dir "$ENGINE_ARTIFACT_DIR" || {
+            echo "FAIL: unable to write full-lifecycle engine artifacts" >&2
+            exit 1
+        }
+    for engine_artifact in \
+        "$ENGINE_VERSION_ARTIFACT" \
+        "$ENGINE_LIBRARY_SHA256_ARTIFACT" \
+        "$RULESET_SHA256_ARTIFACT" \
+        "$TRANSACTION_COUNTS_ARTIFACT" \
+        "$LIFECYCLE_COUNTERS_ARTIFACT"; do
+        if [ ! -s "$engine_artifact" ]; then
+            echo "FAIL: required full-lifecycle engine artifact is missing: $engine_artifact" >&2
+            exit 1
+        fi
+    done
+fi
+
 set -- \
     finalize \
     --run-dir "$RUN_DIR" \
@@ -718,6 +768,14 @@ fi
 if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     set -- "$@" --host-log "$CANONICAL_HOST_LOG" \
         --first-byte-evidence "$FIRST_BYTE_EVIDENCE"
+    if [ "$stage_rc" -eq 0 ]; then
+        set -- "$@" \
+            --source-artifact "engine_version=$ENGINE_VERSION_ARTIFACT" \
+            --source-artifact "engine_library_sha256=$ENGINE_LIBRARY_SHA256_ARTIFACT" \
+            --source-artifact "ruleset_sha256=$RULESET_SHA256_ARTIFACT" \
+            --source-artifact "transaction_counts=$TRANSACTION_COUNTS_ARTIFACT" \
+            --source-artifact "lifecycle_counters=$LIFECYCLE_COUNTERS_ARTIFACT"
+    fi
 fi
 
 set +e

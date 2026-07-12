@@ -7,8 +7,9 @@ Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 The standard compatibility path remains `forwardAuth`. The separate
 full-lifecycle profile dispatches `native-middleware` through
 `full-lifecycle-traefik-native`, which stages the Go module in a pinned
-Traefik local-plugin host. Its `PassthroughEngine` is transport-only, so this
-host selection cannot promote rule evaluation or any lifecycle capability.
+Traefik local-plugin host and selects a private persistent UDS
+Common/libmodsecurity engine. Its targeted host evidence remains
+non-promoted and cannot by itself promote a lifecycle capability.
 
 Global gate definitions:
 
@@ -62,7 +63,8 @@ Global gate definitions:
       local-plugin target and remains excluded from the standard forwardAuth
       Phase-1 runtime contract
 - [x] pinned Traefik local-plugin host probe stages the module, confirms loading, and routes a body-bearing request without capability promotion
-- [ ] a separately reviewed Common/libmodsecurity Engine bridge is implemented and runtime-evidenced
+- [x] persistent local Common/libmodsecurity UDS Engine bridge implemented
+      and targeted real-host P1/P2/P3/P4-safe evidenced without promotion
 
 ## Phase 4: No-CRS Runtime
 
@@ -99,18 +101,20 @@ Global gate definitions:
 - [ ] eligible for promotion beyond targeted `minimal_runtime_smoke`
 - [ ] current-commit runtime evidence promotes service source beyond `connector-gap`
 
-## Canonical Phase-4 architecture boundary
+## Compatibility and native Phase-4 boundary
 
-The selected `forwardAuth` integration executes before upstream handling.  The
-following facets are therefore `unsupported_by_host_model`:
+The compatibility `forwardAuth` integration executes before upstream handling.
+The following facets are therefore `unsupported_by_host_model` for that path:
 `response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
 `phase4_pre_commit_deny`, `late_intervention`, `late_intervention_log_only`,
 `late_intervention_abort`, and `late_intervention_status_metadata`.
 
-- [x] Keep selected Phase-4 cases `UNSUPPORTED`, not `NOT EXECUTED`, because
-      the chosen host model cannot receive the later upstream response.
+- [x] Keep compatibility Phase-4 cases `UNSUPPORTED`, not `NOT EXECUTED`,
+      because that host model cannot receive the later upstream response.
+- [x] Native UDS host probe records P4 safe `log_only` after commit with a
+      visible 200; strict late abort is explicitly `NOT EXECUTED`.
 - [ ] Do not use request-side 200/403, `forwardBody`, or any decision-service
       self-test as response-body, late-action, original-status, visible-status,
       or connection-abort evidence.
-- [ ] Reassess only if a separate Traefik integration gains upstream-response
-      visibility; it needs independent configuration and host-path evidence.
+- [ ] Extend the native host path with cancellation/disconnect and strict-abort
+      evidence before any capability promotion.

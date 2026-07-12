@@ -33,6 +33,7 @@ class FullLifecycleProfilesTest(unittest.TestCase):
                     "phase4",
                     "deny",
                     "request_headers",
+                    "request_body_buffered",
                     "request_body_incremental_ingest",
                     "response_headers",
                     "response_body_incremental_ingest",
@@ -43,6 +44,11 @@ class FullLifecycleProfilesTest(unittest.TestCase):
                     "connection_metadata",
                     "phase4_rule_evaluation",
                     "phase4_end_of_stream_evaluation",
+                    "redirect",
+                    "log_only",
+                    "late_intervention",
+                    "late_intervention_log_only",
+                    "late_intervention_status_metadata",
                 )
             },
             "evidence_stages": {},
@@ -60,15 +66,41 @@ class FullLifecycleProfilesTest(unittest.TestCase):
             self.assertNotEqual("compatibility-mode", result["integration_mode"])
 
     def test_non_native_profiles_are_conservatively_downgraded(self) -> None:
-        for connector in ("haproxy", "envoy", "traefik", "lighttpd"):
+        expected_phase4 = {
+            "haproxy": "implemented_not_asserted",
+            "envoy": "implemented_not_asserted",
+            "traefik": "implemented_not_asserted",
+            "lighttpd": "not_implemented",
+        }
+        for connector, phase4_state in expected_phase4.items():
             result = profiles.effective_manifest(
                 self.capability_manifest(connector), profiles.PROFILE_BY_CONNECTOR[connector]
             )
             self.assertEqual(
-                "implemented_not_asserted" if connector == "haproxy" else "not_implemented",
+                phase4_state,
                 result["capabilities"]["phase4"]["state"],
             )
             self.assertNotEqual("verified", result["capabilities"]["phase1"]["state"])
+
+    def test_common_bridge_profiles_select_only_unpromoted_native_capabilities(self) -> None:
+        for connector in ("envoy", "traefik"):
+            result = profiles.effective_manifest(
+                self.capability_manifest(connector), profiles.PROFILE_BY_CONNECTOR[connector]
+            )
+            for capability in (
+                "request_headers", "request_body_incremental_ingest",
+                "response_headers", "response_body_incremental_ingest",
+                "phase1", "phase2", "phase3", "phase4",
+                "late_intervention_log_only", "event_jsonl",
+            ):
+                self.assertEqual(
+                    "implemented_not_asserted",
+                    result["capabilities"][capability]["state"],
+                    f"{connector}/{capability}",
+                )
+            self.assertNotEqual(
+                "verified", result["capabilities"]["phase4"]["state"]
+            )
 
     def test_patched_lighttpd_keeps_observed_phase1_deny_selectable(self) -> None:
         result = profiles.effective_manifest(

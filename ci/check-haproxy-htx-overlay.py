@@ -17,6 +17,8 @@ PATCH = OVERLAY / "haproxy-3.2.21-makefile.patch"
 BUILD = OVERLAY / "build-overlay.sh"
 BINDING = ROOT / "connectors/haproxy/src/haproxy_modsecurity_binding.c"
 BINDING_HEADER = ROOT / "connectors/haproxy/src/haproxy_modsecurity_binding.h"
+HTX_HELPER = ROOT / "connectors/haproxy/harness/haproxy_htx_smoke_helper.py"
+HTX_RUNTIME = ROOT / "connectors/haproxy/harness/run_haproxy_htx_runtime.sh"
 
 
 def function_body(text: str, signature: str) -> str:
@@ -39,6 +41,8 @@ def main() -> int:
     build = BUILD.read_text(encoding="utf-8")
     binding = BINDING.read_text(encoding="utf-8")
     binding_header = BINDING_HEADER.read_text(encoding="utf-8")
+    helper = HTX_HELPER.read_text(encoding="utf-8")
+    runtime = HTX_RUNTIME.read_text(encoding="utf-8")
     headers = function_body(
         source, "static int haproxy_modsecurity_htx_filter_http_headers(")
     request_payload = function_body(
@@ -51,10 +55,41 @@ def main() -> int:
         source, "static int haproxy_modsecurity_htx_append_response_payload(")
     response_end = function_body(
         source, "static int haproxy_modsecurity_htx_filter_http_end(")
+    precommit_deny = function_body(
+        source, "static int haproxy_modsecurity_htx_apply_precommit_deny(")
+    request_begin = function_body(
+        source, "static int haproxy_modsecurity_htx_begin_request(")
+    response_headers = function_body(
+        source, "static int haproxy_modsecurity_htx_process_response_headers(")
     checks: list[tuple[bool, str]] = [
         ("haproxy_modsecurity_htx_filter_http_payload" in source and
          "haproxy_modsecurity_htx_filter_http_end" in source,
          "HAProxy 3.2.21 filter exposes http_payload and http_end hooks"),
+        ("CANONICAL_RULES_PATH" in helper and
+         all(f"id:{rule_id}" in helper for rule_id in (1100001, 1100002, 1100201)) and
+         all(f"id:{rule_id}" not in helper and f"id:{rule_id}" not in runtime
+             for rule_id in (910001, 910002, 910003, 910004)),
+         "HTX runtime selects canonical No-CRS rule IDs instead of temporary 91000x probes"),
+        ("HAPROXY_HTX_CANONICAL_RULES_FILE" in runtime and
+         "phase1_403" in runtime and "phase1_429" in runtime and "phase3_403" in runtime and
+         "enforced_reply" in runtime and "capability_promotion=not_permitted" in runtime,
+         "runtime keeps real P1/P3 host replies explicit while withholding synthetic capability promotion"),
+        ("#include <haproxy/http_ana.h>" in source and
+         "#include \"msconnector/block_statuses.h\"" in source,
+         "overlay imports HAProxy's normal HTTP-reply API and shared block-status policy"),
+        ("strcmp(decision->action, \"deny\")" in precommit_deny and
+         "strcmp(decision->action, \"redirect\")" not in precommit_deny and
+         "msconnector_block_status_is_allowed(decision->status)" in precommit_deny and
+         "msconnector_block_status_normalize(decision->status)" in precommit_deny,
+         "precommit host action accepts only validated deny interventions"),
+        ("s->txn->status = (short)status;" in precommit_deny and
+         "http_set_term_flags(s);" in precommit_deny and
+         "http_reply_and_close(s, (short)status, http_error_message(s));" in precommit_deny and
+         "http_reply_and_close(s, (short)status, NULL)" not in precommit_deny,
+         "precommit deny uses HAProxy's concrete error-reply path, never the NULL-reply truncation path"),
+        ("haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)" in request_begin and
+         "haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)" in response_headers,
+         "both Phase 1 and pre-forward Phase 3 route deny through the native host action"),
         ("HTX_BLK_DATA" in source and "htx_find_offset" in source and
          "htx_get_blk_value" in source,
          "response hook walks current HTX DATA slices instead of materializing a body"),

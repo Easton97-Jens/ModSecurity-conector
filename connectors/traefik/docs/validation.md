@@ -102,11 +102,13 @@ TRAEFIK_NATIVE_RUNTIME_ROOT=/absolute/runtime-root \
 make -C connectors/traefik runtime-smoke-traefik-native
 ```
 
-The checked-in `PassthroughEngine` always allows and has no Common/libmodsecurity
-bridge. Accordingly the host check is non-promoted: it makes no P1-P4, first-
-byte, no-full-buffering, late-abort, rule-evaluation, or capability-verification
-claim. The C `forwardAuth` validation path and its existing status remain
-unchanged.
+`passthrough` remains the source-only default, but the selected native host
+check configures `engineMode: uds` and starts a private persistent
+Common/libmodsecurity service. Its real host run uses the Framework no-CRS
+rules for P1/P2/P3 and the safe post-commit P4 log-only outcome. It still does
+not claim strict late abort, first-byte-before-EOS, no-full-response-buffering,
+or a checked-in capability promotion without the matching canonical artifact.
+The C `forwardAuth` validation path and its existing status remain unchanged.
 
 ## Framework-Owned Starter Evidence
 

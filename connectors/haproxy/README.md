@@ -72,9 +72,9 @@ Shared connector-neutral data shapes used by the starter:
 - Decision evidence: per-case `decision.jsonl`, HAProxy logs, SPOA logs, audit
   logs, observed status, and normalized `result.json`.
 - RESPONSE_BODY blocking: not implemented in the active SPOP harness; the
-  former `wait-for-body` sample is disabled. The native HTX observer is
-  selected only by the full-lifecycle profile, remains observer-only, and does
-  not promote this capability.
+  former `wait-for-body` sample is disabled. The native HTX precommit route is
+  selected only by the full-lifecycle profile, proves P1/P3 host replies, and
+  does not promote the response-body capability.
 
 ## Build Starter
 
@@ -167,7 +167,7 @@ status-metadata cases remain `NOT_EXECUTED` until their missing host behavior
 is implemented. Response-body payloads must never be written to events or
 reports.
 
-## Native HTX observer overlay for the full-lifecycle profile
+## Native HTX precommit overlay for the full-lifecycle profile
 
 `htx-overlay/` contains a source-linked HAProxy **3.2.21** observer filter for
 the native HTX `http_payload` and `http_end` callbacks. It is built into a
@@ -184,19 +184,24 @@ make -C connectors/haproxy runtime-smoke-haproxy-htx
 ```
 
 The dedicated smoke builds a patched disposable HAProxy 3.2.21 worktree,
-validates generated `filter modsecurity-htx` configuration, and observes
-libmodsecurity interventions in P1, P2, P3, and P4. The overlay forwards only
-the current borrowed `HTX_BLK_DATA` slices to the binding and finishes Phase 4
-once at response EOS. It neither uses `wait-for-body`/`res.body` nor keeps a
-connector-owned response buffer. Evidence contains only HAProxy stream IDs,
-phase, rule ID, requested action, observed client status, and host-action
-metadata.
+loads the Framework's canonical No-CRS rules, validates generated
+`filter modsecurity-htx` configuration, and sends real local socket traffic.
+It proves a normal upstream 200, canonical P1 deny replies for rule `1100001`
+(403) and `1100002` (429), and a canonical P3 deny reply for rule `1100201`
+(403). The P3 case also proves one upstream response was received before the
+local reply replaced it. The overlay forwards only the current borrowed
+`HTX_BLK_DATA` slices to the binding and finishes Phase 4 once at response EOS.
+It neither uses `wait-for-body`/`res.body` nor keeps a connector-owned response
+buffer. Evidence retains only bounded client-status/byte-count, upstream-count,
+transaction-ID, phase, rule-ID, and action metadata.
 
-The smoke deliberately proves observer behavior, not enforcement: P1/P2/P3
-interventions still return the upstream 200, and the P4 safe-policy result is
-recorded as `host_action=not_attempted`. It does not claim a client-visible
-deny, redirect, abort, first-byte proof, Common runtime bridge, or any
-capability promotion.
+P2 (`1100101`) and P4 (`1100301`) are exercised only as real host observations:
+they still return the upstream 200, with P2 `host_action=observed_only` and the
+P4 safe-policy result `host_action=not_attempted`. The smoke does not claim a
+redirect, post-commit abort, first-byte proof, Common runtime bridge, or any
+capability promotion. Its summary deliberately retains
+`capability_promotion=not_permitted`, so this local host evidence cannot be
+reclassified as synthetic canonical promotion.
 
 This overlay is not configured by the checked-in SPOP harness and is
 non-promoted canonical host evidence only. Therefore it does **not** promote

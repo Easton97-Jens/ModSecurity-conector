@@ -17,9 +17,13 @@ observed status, writes per-case `result.json`, appends
 The full-lifecycle dispatcher deliberately does not reuse this SPOA/SPOP
 compatibility entrypoint. It invokes `runtime-smoke-haproxy-htx` through
 `full-lifecycle-haproxy-htx`, which builds a disposable patched HAProxy 3.2.21
-worktree and selects only `filter modsecurity-htx`. That observer records
-payload-free P1-P4 transport metadata while returning the upstream response;
-it is not enforcement, safe/strict late-action, first-byte, or capability-
+worktree and selects only `filter modsecurity-htx`. It loads the Framework's
+canonical No-CRS rules and uses real host socket requests: P1 rule `1100001`
+returns 403, P1 rule `1100002` returns 429, and P3 rule `1100201` returns 403
+after one upstream response is observed. P2/P4 remain payload-free host
+observations only. The harness writes raw bounded host evidence separately
+from metadata events and keeps `capability_promotion=not_permitted`; it is not
+safe/strict late-action, first-byte, Common-runtime-bridge, or capability-
 promotion evidence.
 
 The framework can prepare a local HAProxy binary without global installation

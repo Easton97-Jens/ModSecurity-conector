@@ -4,14 +4,14 @@
 // The public CreateConfig and New functions use Traefik's Go middleware
 // shape: Traefik supplies an http.Handler and calls ServeHTTP for each
 // request.  The package imports no Traefik internals, Common runtime code, or
-// libmodsecurity.  That keeps the source buildable as a local plugin package
-// while making the missing Common/libmodsecurity bridge explicit.  New
-// installs PassthroughEngine, so this source alone is not rule-evaluation or
-// runtime evidence.
+// libmodsecurity. That keeps the source buildable as a local plugin package;
+// the selected host probe reaches Common/libmodsecurity through a private
+// persistent Unix-domain socket service instead. Source compilation alone is
+// still not rule-evaluation or runtime evidence.
 //
 // Traefik's local-plugin loader resolves the exported constructor through the
 // final module-path component. Keep this package name aligned with the
-// ``native_middleware`` directory/module suffix so the pinned host can load
+// “native_middleware“ directory/module suffix so the pinned host can load
 // the plugin instead of treating it as an unregistered alternate source.
 package native_middleware
 
@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -53,9 +54,9 @@ var (
 // config object Traefik supplies to CreateConfig/New when this package is used
 // as a Go middleware plugin.
 //
-// EngineMode is currently restricted to "passthrough". A Common or
-// libmodsecurity bridge must be added as a separately reviewed Engine rather
-// than turning this source-only path into an implicit security claim.
+// EngineMode is either "passthrough" or "uds". The latter speaks only to the
+// separately built persistent local engine service; it does not itself promote
+// host-action or capability claims.
 type Config struct {
 	MaxHeaderCount        int    `json:"maxHeaderCount,omitempty"`
 	MaxHeaderBytes        int    `json:"maxHeaderBytes,omitempty"`
@@ -63,6 +64,7 @@ type Config struct {
 	MaxResponseChunkBytes int    `json:"maxResponseChunkBytes,omitempty"`
 	TransactionIDHeader   string `json:"transactionIDHeader,omitempty"`
 	EngineMode            string `json:"engineMode,omitempty"`
+	EngineSocketPath      string `json:"engineSocketPath,omitempty"`
 }
 
 // CreateConfig returns safe bounded defaults. It is the standard Traefik Go
@@ -108,10 +110,32 @@ func normalizedConfig(config *Config) (Config, error) {
 	if strings.TrimSpace(value.TransactionIDHeader) == "" {
 		return Config{}, errors.New("modsecurity native middleware: transactionIDHeader is required")
 	}
-	if value.EngineMode != "passthrough" {
+	if value.EngineMode != "passthrough" && value.EngineMode != "uds" {
 		return Config{}, fmt.Errorf("modsecurity native middleware: unsupported engineMode %q", value.EngineMode)
 	}
+	if value.EngineMode == "uds" && !safeUnixSocketPath(value.EngineSocketPath) {
+		return Config{}, errors.New("modsecurity native middleware: engineSocketPath must be an absolute private path without parent segments")
+	}
+	if value.EngineMode == "uds" &&
+		(value.MaxHeaderCount > udsMaxHeaders ||
+			value.MaxHeaderBytes > udsMaxPayload ||
+			value.MaxRequestChunkBytes > udsMaxChunk ||
+			value.MaxResponseChunkBytes > udsMaxChunk) {
+		return Config{}, errors.New("modsecurity native middleware: uds limits exceed the local engine wire contract")
+	}
 	return value, nil
+}
+
+func safeUnixSocketPath(path string) bool {
+	if !strings.HasPrefix(path, "/") || strings.ContainsRune(path, '\x00') {
+		return false
+	}
+	for _, component := range strings.Split(path, "/") {
+		if component == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // Direction keeps the engine seam independent of Traefik and HTTP plumbing.
@@ -135,6 +159,12 @@ type Metadata struct {
 	TransactionID string
 	Method        string
 	RequestURI    string
+	HTTPVersion   string
+	Hostname      string
+	ClientAddress string
+	ClientPort    int
+	ServerAddress string
+	ServerPort    int
 }
 
 // Action is a prospective engine result. Only a decision discovered before
@@ -180,9 +210,10 @@ type Summary struct {
 	LateAction          string
 }
 
-// Engine is the explicit future bridge to Common/libmodsecurity. The checked-in
-// Traefik entry point installs PassthroughEngine. An Engine receives bounded,
-// incremental callbacks only and must never retain borrowed body slices.
+// Engine is the explicit bridge seam to Common/libmodsecurity. `uds` selects
+// the persistent local service; PassthroughEngine remains the intentional
+// source-only default. An Engine receives bounded, incremental callbacks only
+// and must never retain borrowed body slices.
 type Engine interface {
 	Open(context.Context, Metadata) (Transaction, error)
 }
@@ -195,8 +226,29 @@ type Transaction interface {
 	Close(context.Context, Summary)
 }
 
-// PassthroughEngine is intentionally the only engine New can construct. It
-// proves no Common/libmodsecurity integration and always allows traffic.
+// responseHeaderTransaction carries the real host response status/version to
+// engines that need Common Phase 3 input. Older test engines continue through
+// Transaction.ProcessHeaders without an adapter-visible status.
+type responseHeaderTransaction interface {
+	ProcessResponseHeaders(context.Context, int, string, []Header) (Decision, error)
+}
+
+// responseCommitTransaction receives host commit metadata immediately after
+// the underlying ResponseWriter has accepted headers or body bytes.
+type responseCommitTransaction interface {
+	SetResponseCommit(context.Context, bool, bool) error
+}
+
+// outcomeTransaction is deliberately a coordination seam only. It is called
+// after a concrete host decision is written, or when a committed Phase-4
+// decision is downgraded to log-only. It is not an evidence claim by itself.
+type outcomeTransaction interface {
+	AcknowledgeApplied(context.Context, Decision) error
+	AcknowledgeLateLogOnly(context.Context, int) error
+}
+
+// PassthroughEngine is the intentional source-only default. It proves no
+// Common/libmodsecurity integration and always allows traffic.
 type PassthroughEngine struct{}
 
 func (PassthroughEngine) Open(_ context.Context, _ Metadata) (Transaction, error) {
@@ -216,7 +268,7 @@ func (passthroughTransaction) ProcessBody(_ context.Context, _ Direction, _ []by
 func (passthroughTransaction) Close(_ context.Context, _ Summary) {}
 
 // Middleware is an http.Handler suitable for Traefik's Go middleware API.
-// New creates it with PassthroughEngine. Tests and a future reviewed bridge may
+// New creates either PassthroughEngine or the configured UDS bridge. Tests may
 // use NewWithEngine to supply an explicit engine implementation.
 type Middleware struct {
 	next   http.Handler
@@ -228,26 +280,39 @@ type Middleware struct {
 // New is Traefik's Go plugin entry point. Its http.Handler return signature is
 // intentionally the one expected by Traefik's Yaegi middleware contract. The
 // full-lifecycle host probe selects this local plugin independently from the
-// existing forwardAuth compatibility connector. Its PassthroughEngine still
-// cannot claim rule evaluation or any promoted capability.
+// existing forwardAuth compatibility connector. `uds` selects a separately
+// started persistent local engine-service; that selection alone is not a
+// promoted capability or host-outcome claim.
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	return NewWithEngine(next, config, name, PassthroughEngine{})
+	normalized, err := normalizedConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	var engine Engine = PassthroughEngine{}
+	if normalized.EngineMode == "uds" {
+		engine = newUnixSocketEngine(normalized.EngineSocketPath)
+	}
+	return newMiddleware(next, normalized, name, engine)
 }
 
 // NewWithEngine is an explicit test/future-bridge seam. A nil Engine is never
 // silently replaced because doing so would hide a missing security integration.
 func NewWithEngine(next http.Handler, config *Config, name string, engine Engine) (*Middleware, error) {
+	normalized, err := normalizedConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return newMiddleware(next, normalized, name, engine)
+}
+
+func newMiddleware(next http.Handler, config Config, name string, engine Engine) (*Middleware, error) {
 	if next == nil {
 		return nil, errors.New("modsecurity native middleware: next handler is required")
 	}
 	if engine == nil {
 		return nil, errors.New("modsecurity native middleware: engine is required")
 	}
-	normalized, err := normalizedConfig(config)
-	if err != nil {
-		return nil, err
-	}
-	return &Middleware{next: next, config: normalized, engine: engine, name: name}, nil
+	return &Middleware{next: next, config: config, engine: engine, name: name}, nil
 }
 
 // ServeHTTP evaluates headers and body chunks incrementally. It never collects
@@ -260,6 +325,19 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 		TransactionID: request.Header.Get(middleware.config.TransactionIDHeader),
 		Method:        request.Method,
 		RequestURI:    request.URL.RequestURI(),
+		HTTPVersion:   request.Proto,
+		Hostname:      request.Host,
+	}
+	metadata.ClientAddress, metadata.ClientPort = endpointFromAddress(request.RemoteAddr, 0)
+	defaultServerPort := 80
+	if request.TLS != nil {
+		defaultServerPort = 443
+	}
+	metadata.ServerAddress, metadata.ServerPort = endpointFromAddress(request.Host, defaultServerPort)
+	if metadata.ServerAddress == "" {
+		metadata.ServerAddress = request.Host
+	} else {
+		metadata.Hostname = metadata.ServerAddress
 	}
 	transaction, err := middleware.engine.Open(contextValue, metadata)
 	if err != nil {
@@ -287,8 +365,7 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 		return
 	}
 	if decision.disruptive() {
-		writeDecision(writer, decision)
-		state.markCommitted()
+		state.writeDecision(writer, decision)
 		return
 	}
 	if requestEnd {
@@ -304,6 +381,21 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 
 	middleware.next.ServeHTTP(response, request)
 	response.finish()
+}
+
+func endpointFromAddress(value string, fallbackPort int) (string, int) {
+	if value == "" {
+		return "", fallbackPort
+	}
+	host, portText, err := net.SplitHostPort(value)
+	if err == nil {
+		port := fallbackPort
+		if parsed, parseErr := strconv.Atoi(portText); parseErr == nil && parsed >= 0 && parsed <= 65535 {
+			port = parsed
+		}
+		return host, port
+	}
+	return strings.Trim(value, "[]"), fallbackPort
 }
 
 type streamState struct {
@@ -322,6 +414,7 @@ type streamState struct {
 	requestEOS          bool
 	responseEOS         bool
 	responseCommitted   bool
+	responseStatus      int
 	lateAction          string
 
 	pendingRequestDecision Decision
@@ -338,6 +431,16 @@ func (state *streamState) processHeaders(direction Direction, headers []Header, 
 		state.responseHeaderCount += uint64(len(headers))
 	}
 	return state.engine.ProcessHeaders(state.context, direction, headers, end)
+}
+
+func (state *streamState) processResponseHeaders(status int, headers []Header) (Decision, error) {
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	state.responseHeaderCount += uint64(len(headers))
+	if processor, ok := state.engine.(responseHeaderTransaction); ok {
+		return processor.ProcessResponseHeaders(state.context, status, state.metadata.HTTPVersion, headers)
+	}
+	return state.engine.ProcessHeaders(state.context, DirectionResponse, headers, false)
 }
 
 // processRequestBody returns an error only for a request-side rejection or an
@@ -386,6 +489,9 @@ func (state *streamState) processResponseBody(chunk []byte, end bool, beforeComm
 	}
 	if decision.disruptive() && !beforeCommit {
 		state.lateAction = "log_only"
+		if reporter, ok := state.engine.(outcomeTransaction); ok {
+			_ = reporter.AcknowledgeLateLogOnly(state.context, state.responseStatus)
+		}
 		return allowDecision(), nil
 	}
 	return decision, nil
@@ -397,10 +503,46 @@ func (state *streamState) pendingRequestResult() (Decision, error) {
 	return state.pendingRequestDecision, state.pendingRequestError
 }
 
-func (state *streamState) markCommitted() {
+func (state *streamState) markResponseCommit(status int, headersSent bool, bodyStarted bool) {
 	state.mu.Lock()
-	state.responseCommitted = true
+	if headersSent || bodyStarted {
+		state.responseCommitted = true
+	}
+	if status >= 100 && status <= 999 {
+		state.responseStatus = status
+	}
+	transaction := state.engine
+	contextValue := state.context
 	state.mu.Unlock()
+	if committer, ok := transaction.(responseCommitTransaction); ok {
+		_ = committer.SetResponseCommit(contextValue, headersSent, bodyStarted)
+	}
+}
+
+func (state *streamState) acknowledgeApplied(decision Decision) {
+	state.mu.Lock()
+	transaction := state.engine
+	contextValue := state.context
+	state.mu.Unlock()
+	if reporter, ok := transaction.(outcomeTransaction); ok {
+		_ = reporter.AcknowledgeApplied(contextValue, decision)
+	}
+}
+
+// writeDecision sends the selected pre-commit action to the actual
+// ResponseWriter before reporting it to the engine. WriteHeader has no error
+// result in net/http, so a complete successful body write is the strongest
+// ResponseWriter confirmation available here. The engine receives the outcome
+// while its Common commit state is still pre-action; only then do we publish
+// the actual host commit. A failed or short body write still records only
+// commit metadata and deliberately emits no host outcome.
+func (state *streamState) writeDecision(target http.ResponseWriter, decision Decision) {
+	count, writeErr := writeDecision(target, decision)
+	status, _ := normalizeDecision(decision)
+	if writeErr == nil {
+		state.acknowledgeApplied(decision)
+	}
+	state.markResponseCommit(status, true, count > 0)
 }
 
 func (state *streamState) markRequestEOS() {
@@ -494,7 +636,10 @@ func (writer *responseWriter) WriteHeader(status int) {
 
 func (writer *responseWriter) Write(payload []byte) (int, error) {
 	if writer.rejected {
-		return 0, ErrResponseRejected
+		// A pre-commit decision is already visible to the downstream client.
+		// Consume the proxy's attempted response stream without forwarding it so
+		// its upstream handler does not replace the selected denial with a 5xx.
+		return len(payload), nil
 	}
 	if len(payload) == 0 {
 		writer.WriteHeader(http.StatusOK)
@@ -506,6 +651,9 @@ func (writer *responseWriter) Write(payload []byte) (int, error) {
 
 	firstChunk := !writer.committed
 	if firstChunk && !writer.prepareResponseHeaders(http.StatusOK) {
+		if writer.rejected {
+			return len(payload), nil
+		}
 		return 0, ErrResponseRejected
 	}
 
@@ -525,13 +673,16 @@ func (writer *responseWriter) Write(payload []byte) (int, error) {
 		}
 		if decision.disruptive() {
 			writer.writeDecision(decision)
-			return written, ErrResponseRejected
+			return len(payload) + written, nil
 		}
 		if !writer.committed {
 			writer.commit(http.StatusOK)
 		}
 		count, writeErr := writer.target.Write(chunk)
 		written += count
+		if count > 0 {
+			writer.state.markResponseCommit(0, true, true)
+		}
 		if writeErr != nil {
 			return written, writeErr
 		}
@@ -559,7 +710,7 @@ func (writer *responseWriter) prepareResponseHeaders(status int) bool {
 		writer.writeFailure()
 		return false
 	}
-	decision, err := writer.state.processHeaders(DirectionResponse, headers, false)
+	decision, err := writer.state.processResponseHeaders(status, headers)
 	if err != nil {
 		writer.writeFailure()
 		return false
@@ -578,7 +729,7 @@ func (writer *responseWriter) commit(status int) {
 	}
 	writer.target.WriteHeader(status)
 	writer.committed = true
-	writer.state.markCommitted()
+	writer.state.markResponseCommit(status, true, false)
 }
 
 func (writer *responseWriter) writeFailure() {
@@ -590,18 +741,17 @@ func (writer *responseWriter) writeFailure() {
 	writer.target.WriteHeader(http.StatusInternalServerError)
 	writer.committed = true
 	writer.rejected = true
-	writer.state.markCommitted()
-	_, _ = writer.target.Write([]byte("modsecurity middleware evaluation failed\n"))
+	count, _ := writer.target.Write([]byte("modsecurity middleware evaluation failed\n"))
+	writer.state.markResponseCommit(http.StatusInternalServerError, true, count > 0)
 }
 
 func (writer *responseWriter) writeDecision(decision Decision) {
 	if writer.committed || writer.rejected {
 		return
 	}
-	writeDecision(writer.target, decision)
 	writer.committed = true
 	writer.rejected = true
-	writer.state.markCommitted()
+	writer.state.writeDecision(writer.target, decision)
 }
 
 func (writer *responseWriter) clearHeaders() {
@@ -628,7 +778,7 @@ func normalizeDecision(decision Decision) (int, string) {
 	return status, ""
 }
 
-func writeDecision(target http.ResponseWriter, decision Decision) {
+func writeDecision(target http.ResponseWriter, decision Decision) (int, error) {
 	status, location := normalizeDecision(decision)
 	for name := range target.Header() {
 		target.Header().Del(name)
@@ -638,7 +788,11 @@ func writeDecision(target http.ResponseWriter, decision Decision) {
 	}
 	target.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	target.WriteHeader(status)
-	_, _ = target.Write([]byte("request rejected\n"))
+	count, err := target.Write([]byte("request rejected\n"))
+	if err == nil && count != len("request rejected\n") {
+		err = io.ErrShortWrite
+	}
+	return count, err
 }
 
 // Flush preserves the http.Flusher surface. If the wrapped writer does not
@@ -685,7 +839,7 @@ func (writer *responseWriter) Push(target string, options *http.PushOptions) err
 // all but the bounded first chunk.
 func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
 	if writer.rejected {
-		return 0, ErrResponseRejected
+		return io.Copy(io.Discard, source)
 	}
 
 	var total int64
@@ -708,11 +862,18 @@ func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
 		if readErr != nil {
 			return total, readErr
 		}
+		if writer.rejected {
+			count, err := io.Copy(io.Discard, source)
+			return total + count, err
+		}
 	}
 
 	if readerFrom, ok := writer.target.(io.ReaderFrom); ok {
 		inspected := &responseInspectionReader{source: source, writer: writer}
 		count, err := readerFrom.ReadFrom(inspected)
+		if count > 0 {
+			writer.state.markResponseCommit(0, true, true)
+		}
 		return total + count, err
 	}
 	count, err := copyIntoWriter(writer, source)

@@ -32,6 +32,7 @@
 #include <haproxy/channel-t.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/http_ana-t.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
@@ -40,6 +41,7 @@
 #include <haproxy/tools.h>
 
 #include "haproxy_modsecurity_binding.h"
+#include "msconnector/block_statuses.h"
 #include "msconnector/config.h"
 #include "msconnector/config_parser.h"
 #include "msconnector/late_intervention.h"
@@ -297,6 +299,49 @@ static void haproxy_modsecurity_htx_finish_context(
     ctx->transaction = NULL;
 }
 
+/*
+ * A request Phase-1 or response-header Phase-3 deny is still precommit: the
+ * current HTX headers have not been forwarded by this filter callback.  Use
+ * HAProxy's normal error-reply path so the client receives an actual HTTP
+ * reply, rather than returning an error to the generic filter handler after
+ * setting txn->status (that path supplies a NULL reply and only truncates the
+ * stream).
+ *
+ * Redirects and invalid requested statuses remain observer-only.  They keep
+ * the prior lifecycle behavior below until a separate host-runtime contract
+ * establishes a safe HAProxy implementation for them.
+ */
+static int haproxy_modsecurity_htx_apply_precommit_deny(
+    struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision)
+{
+    int status;
+
+    if (!s || !s->txn || !ctx || !decision || !decision->disruptive ||
+        strcmp(decision->action, "deny") != 0) {
+        return 0;
+    }
+    if (decision->status != 0 &&
+        !msconnector_block_status_is_allowed(decision->status)) {
+        ha_warning("modsecurity-htx: precommit deny host action not attempted; transaction_id=%s phase=%d status=%d reason=unsupported-block-status\n",
+            ctx->transaction_id[0] ? ctx->transaction_id : "unavailable",
+            decision->phase, decision->status);
+        return 0;
+    }
+    status = msconnector_block_status_normalize(decision->status);
+    if (!msconnector_block_status_is_allowed(status)) {
+        return 0;
+    }
+
+    /* Disable before the generated local response can revisit this filter. */
+    haproxy_modsecurity_htx_finish_context(ctx);
+    ctx->disabled = 1;
+    s->txn->status = (short)status;
+    http_set_term_flags(s);
+    http_reply_and_close(s, (short)status, http_error_message(s));
+    return 1;
+}
+
 static int haproxy_modsecurity_htx_capture_request_headers(
     struct filter *filter, struct http_msg *msg)
 {
@@ -358,8 +403,10 @@ static int haproxy_modsecurity_htx_begin_request(
     }
     haproxy_modsecurity_htx_report_decision("request", ctx, &decision);
     if (decision.disruptive) {
-        haproxy_modsecurity_htx_finish_context(ctx);
-        ctx->disabled = 1;
+        if (!haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)) {
+            haproxy_modsecurity_htx_finish_context(ctx);
+            ctx->disabled = 1;
+        }
     }
     return 0;
 }
@@ -460,8 +507,10 @@ static int haproxy_modsecurity_htx_process_response_headers(
     ctx->response_headers_seen = 1;
     haproxy_modsecurity_htx_report_decision("response-header", ctx, &decision);
     if (decision.disruptive) {
-        haproxy_modsecurity_htx_finish_context(ctx);
-        ctx->disabled = 1;
+        if (!haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)) {
+            haproxy_modsecurity_htx_finish_context(ctx);
+            ctx->disabled = 1;
+        }
     }
     return 0;
 }

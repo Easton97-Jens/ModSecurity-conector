@@ -1,7 +1,7 @@
 # Envoy Connector Origin
 
-Status: repository-local ext_authz connector source plus a non-promoted Go
-ext_proc transport path selected by the full-lifecycle profile
+Status: repository-local ext_authz connector source plus a non-promoted Go/CGo
+ext_proc Common/libmodsecurity path selected by the full-lifecycle profile
 Runtime status: `minimal_runtime_smoke` for the HTTP ext_authz request path
 
 No upstream Envoy connector source has been imported into this repository.
@@ -18,7 +18,7 @@ No upstream Envoy connector source has been imported into this repository.
 | Source describe/version | not selected |
 | License for imported upstream code | not selected |
 | Imported upstream files | none |
-| Local source kind | repository-local ext_authz service, bridge self-test, and ext_proc stream adapter |
+| Local source kind | repository-local ext_authz service, bridge self-test, and ext_proc CGo/Common stream adapter |
 
 The C source in `connectors/envoy/metadata.*` and `connectors/envoy/src/`, and
 the Go source in `connectors/envoy/ext_proc/`, are repository-local code. They
@@ -30,9 +30,10 @@ protobuf code is checked into this repository.
 ## Claims Not Made
 
 - No native Envoy HTTP filter implementation is imported or implemented.
-- No Envoy external processing service is imported. A repository-local Go
-  ext_proc service has a narrow real-Envoy transport smoke but no
-  Common/libmodsecurity bridge or rule-evaluation verification.
+- No Envoy external processing service is imported. A repository-local Go/CGo
+  ext_proc service links Common Runtime and libmodsecurity and has a bounded
+  real-Envoy HTTP/1.1 rule/action smoke; that evidence is non-promoted and is
+  not canonical collection or production verification.
 - No proxy-wasm module is imported or implemented.
 - The connector delegates libmodsecurity lifecycle to the connector-neutral
   `common/runtime` API rather than embedding host-specific runtime code.
@@ -55,13 +56,14 @@ types are imported: Envoy communicates with the service through its external
 HTTP `ext_authz` protocol. Compile, start, and real Envoy request evidence remain
 separate promotion gates.
 
-## Local ext_proc transport groundwork
+## Local ext_proc Common-runtime path
 
 `ext_proc/` uses Envoy's official generated Go external-processing API through
 the pinned `github.com/envoyproxy/go-control-plane/envoy` module. It keeps
 protobuf types local to the connector and has per-stream bounded state,
 incremental body callbacks, EOS/cancellation cleanup, and a `STREAMED` Envoy
-template. The checked-in `PassthroughEngine` does not call Common or
-libmodsecurity. `runtime-smoke-envoy-ext-proc` separately validates a generated
-YAML with real Envoy and records payload-free stream counters. It is transport
-evidence only and does not promote a rule-evaluation capability.
+template. The normal CGo executable opens a real Common/libmodsecurity
+transaction for each stream. `runtime-smoke-envoy-ext-proc` separately validates
+generated YAML with real Envoy and records run-local raw Common decision JSONL
+plus payload-free completion metadata. It has bounded HTTP/1.1 P1/P2/P3/P4
+rule/action evidence but does not promote a capability.

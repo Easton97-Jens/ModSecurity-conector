@@ -1,7 +1,7 @@
 displayName: ModSecurity Native Streaming Groundwork
 type: middleware
 import: github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware
-summary: Repository-owned bounded streaming middleware source with an explicit pass-through engine seam.
+summary: Repository-owned bounded streaming middleware with passthrough and private UDS engine modes.
 testData:
   maxHeaderCount: 128
   maxHeaderBytes: 65536

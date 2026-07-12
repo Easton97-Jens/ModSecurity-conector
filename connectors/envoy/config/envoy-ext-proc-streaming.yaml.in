@@ -39,8 +39,20 @@ static_resources:
                 request_body_mode: STREAMED
                 response_header_mode: SEND
                 response_body_mode: STREAMED
-                request_trailer_mode: SKIP
-                response_trailer_mode: SKIP
+                # A trailer is the only EOS signal for some streamed HTTP/1.1
+                # and HTTP/2 messages. The bridge finalizes the matching
+                # Common request/response body when Envoy sends it.
+                request_trailer_mode: SEND
+                response_trailer_mode: SEND
+              # The stream adapter receives these from ProcessingRequest.attributes
+              # and maps the real downstream protocol/endpoints into Common Runtime
+              # without inferring them from the Envoy-to-service gRPC socket.
+              request_attributes:
+              - request.protocol
+              - source.address
+              - source.port
+              - destination.address
+              - destination.port
               send_body_without_waiting_for_header_response: false
               allow_mode_override: false
               failure_mode_allow: false

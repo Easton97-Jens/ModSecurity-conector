@@ -3,8 +3,9 @@
 # This is intentionally separate from traefik-forwardauth-dynamic.yaml.  It
 # assumes a Traefik local-plugin registration named "modsecurityNative". The
 # full-lifecycle-traefik-native target stages the source and materializes an
-# equivalent disposable configuration for pinned Traefik. Its PassthroughEngine
-# has no Common/libmodsecurity bridge and does not promote rule capabilities.
+# equivalent disposable configuration for pinned Traefik. That harness selects
+# `engineMode: uds` with a private run-local socket; this checked-in reference
+# remains passthrough so it cannot contain a stale or shared runtime path.
 http:
   middlewares:
     modsecurity-native-streaming:

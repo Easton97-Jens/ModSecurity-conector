@@ -93,7 +93,73 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn("never turn wire ranges or EOS into Phase", callback)
         self.assertNotIn("msconnector_runtime_transaction_append_response_body_chunk", callback)
         self.assertNotIn("msconnector_runtime_transaction_finish_response_body", callback)
-        self.assertNotIn("msconnector_runtime_transaction_finish_response_body", module)
+        self.assertIn("mod_msconnector_finish_uninspected_response_body", module)
+        self.assertIn("response_body_mode=none", module)
+        self.assertIn("never calls libmodsecurity's", module)
+
+    def test_unobserved_response_lifecycle_closes_only_at_host_reset(self) -> None:
+        module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
+            encoding="utf-8"
+        )
+        response_start = module.split(
+            "REQUEST_FUNC(mod_msconnector_handle_response_start)", 1
+        )[1].split("REQUEST_FUNC(mod_msconnector_handle_request_reset)", 1)[0]
+        request_reset = module.split(
+            "REQUEST_FUNC(mod_msconnector_handle_request_reset)", 1
+        )[1]
+        self.assertNotIn("mod_msconnector_finish_uninspected_response_body", response_start)
+        self.assertIn(
+            "mod_msconnector_finish_uninspected_response_body(r, ctx)", request_reset
+        )
+        self.assertIn(
+            "msconnector_runtime_transaction_finish_unobserved_response_body",
+            module,
+        )
+        self.assertNotIn(
+            "msconnector_runtime_transaction_finish_response_body", module
+        )
+
+    def test_request_body_mapper_uses_an_unsigned_size_bound(self) -> None:
+        mapper = (CONNECTOR / "src" / "lighttpd_modsecurity_mapper.c").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("(uintmax_t)take > (uintmax_t)SIZE_MAX", mapper)
+        self.assertNotIn("take > (off_t)SIZE_MAX", mapper)
+
+    def test_disruptive_host_action_is_recorded_after_status_selection(self) -> None:
+        module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
+            encoding="utf-8"
+        )
+        action = module.split("static handler_t mod_msconnector_apply_decision", 1)[1].split(
+            "#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION", 1
+        )[0]
+        self.assertIn("result = http_status_set_err(r, status);", action)
+        self.assertIn("msconnector_runtime_transaction_record_host_action", action)
+        self.assertLess(
+            action.index("result = http_status_set_err(r, status);"),
+            action.index("msconnector_runtime_transaction_record_host_action"),
+        )
+        self.assertIn("MSCONNECTOR_DECISION_ACTION_DENY", action)
+        self.assertIn('"http_status"', action)
+
+    def test_patched_runtime_labels_raw_events_with_its_selected_host_path(self) -> None:
+        module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("msconnector_runtime_set_event_integration_mode", module)
+        self.assertIn('"patched-native-lighttpd"', module)
+
+    def test_host_transaction_identifier_uses_a_process_local_serial(self) -> None:
+        module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("unsigned long host_transaction_counter;", module)
+        factory = module.split("static handler_ctx *handler_ctx_create", 1)[1].split(
+            "static void handler_ctx_destroy", 1
+        )[0]
+        self.assertIn("++p->host_transaction_counter;", factory)
+        self.assertIn('"lighttpd-%ld-%lu"', factory)
+        self.assertNotIn('"lighttpd-%ld-%d-%u-%u"', factory)
 
 
 if __name__ == "__main__":

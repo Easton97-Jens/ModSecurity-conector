@@ -2,6 +2,35 @@
 
 **Language:** English | [Deutsch](all-connectors-full-lifecycle-readiness.de.md)
 
+## 2026-07-12 current host-evidence update
+
+This update supersedes the 2026-07-11 implementation-status block below where
+it describes a route as passthrough-only or observer-only. It records selected
+real-host runs with Common/libmodsecurity transactions; it does not promote a
+complete connector matrix or make a production claim.
+
+- **Runtime roots and Cache-v2:** every selected full-lifecycle runner uses
+  its connector-specific build, run, log, and evidence roots. Shared native
+  dependencies remain immutable keyed Cache-v2 entries; connector source or
+  Common changes select a new connector entry before a host run.
+- **Traefik:** the pinned native middleware selects its persistent local UDS
+  Common/libmodsecurity service in the real Traefik route. The selected run
+  has P1/P2/P3 enforcement and P4 Safe `log_only` evidence. Strict remains
+  `NOT EXECUTED` without a client-visible post-commit reset.
+- **Envoy:** the real `ext_proc` listener reaches the CGo Common/runtime
+  bridge per stream. The selected run has P1/P2/P3 enforcement and P4 Safe
+  `log_only`; a strict downstream reset remains `NOT EXECUTED`.
+- **HAProxy:** the native HTX filter now applies real P1 and P3 pre-commit
+  replies (403/429/403) in the selected host. P2/P4 host-enforcement and
+  late-action claims remain unpromoted.
+- **lighttpd:** the matched patched core/module has real P1/P2/P3 outcomes.
+  Its available output hook exposes HTTP/1 wire bytes rather than a decoded
+  entity, so response-body inspection and P4 promotion remain `NOT EXECUTED`.
+- **Apache and NGINX:** fresh native-host runs provide P1/P2/P3 outcomes and
+  separate P4 Safe `log_only` and Strict connection-abort records. The
+  managed NGINX build lacks `--with-http_v2_module`, so HTTP/2 is
+  `NOT_APPLICABLE` for that build rather than inferred from HTTP/1.1.
+
 ## 2026-07-11 implementation-status update
 
 This update records work added after the pre-implementation source-audit baseline below.  It does

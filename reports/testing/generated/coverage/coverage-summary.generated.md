@@ -1,41 +1,41 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-11T15:34:50Z`
+> Generated at: `2026-07-12T07:59:01Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `2548ba0b61635aa718d23f3ebde4267bbb8cc47b`
-> Framework SHA: `9415da97a6cbac472bec3c3e1343b636a51c267b`
+> Connector SHA: `32249c908820cfcc21432656b0a0442740584e60`
+> Framework SHA: `ec4562aae1f5463d2ce2527d33e7c697f7bb2023`
 > Input status: `complete`
 
 # Generated Coverage Summary
 
 **Language:** English | [Deutsch](coverage-summary.generated.de.md)
 
-- Total cases: 158
-- RESPONSE_BODY cases: 27
+- Total cases: 160
+- RESPONSE_BODY cases: 29
 - Verified runtime cases: 0
-- Non-verified runtime cases: 158
+- Non-verified runtime cases: 160
 
 ## By scope
 - common: 149
-- apache: 0
+- apache: 2
 - nginx: 9
 - unknown: 0
 
 ## By source
 - ModSecurity-apache PR: 4
 - owasp-modsecurity/ModSecurity-apache#78: 3
-- unknown: 151
+- unknown: 153
 
 ## By status
 - active: 8
 - connector-gap: 15
 - imported: 133
-- pending: 2
+- pending: 4
 
 ## By variable/collection
 - `RESPONSE_BODY`: 20

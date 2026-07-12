@@ -1,7 +1,8 @@
 // Package processor contains the Envoy-specific ext_proc stream adapter.
 //
-// It deliberately has no dependency on common/: Envoy protobuf types stay in
-// this adapter until a separately-reviewed Common/libmodsecurity bridge exists.
+// Envoy protobuf types remain connector-local. The libmodsecurity-tagged CGo
+// build selects the connector-local Common Runtime bridge; source-only tests
+// retain a protobuf/transport seam without accepting a runtime configuration.
 package processor
 
 import (

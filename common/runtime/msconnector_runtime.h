@@ -5,6 +5,7 @@
 
 #include "msconnector/body_policy.h"
 #include "msconnector/decision.h"
+#include "msconnector/decision_action.h"
 #include "msconnector/error.h"
 #include "msconnector/request.h"
 #include "msconnector/request_mapper_contract.h"
@@ -51,6 +52,16 @@ int msconnector_runtime_create(
     msconnector_runtime **out,
     char *error,
     size_t error_len);
+
+/*
+ * Sets the bounded, connector-specific integration mode copied into every
+ * Common decision event produced by this runtime. Call this during adapter
+ * setup, before beginning transactions; the runtime copies the value and
+ * never derives it from request metadata.
+ */
+int msconnector_runtime_set_event_integration_mode(
+    msconnector_runtime *runtime,
+    const char *integration_mode);
 
 void msconnector_runtime_destroy(msconnector_runtime **runtime);
 
@@ -130,6 +141,17 @@ int msconnector_runtime_transaction_finish_response_body(
     msconnector_error *error);
 
 /*
+ * Close a response lifecycle that deliberately has no decoded entity-body
+ * input.  This is only valid with response_body_mode=none and never invokes
+ * libmodsecurity's response-body processing or produces Phase-4 evidence.
+ * A host must call it only after its real response stream has ended or has
+ * been abandoned.
+ */
+int msconnector_runtime_transaction_finish_unobserved_response_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_error *error);
+
+/*
  * Hosts call this immediately before or after handing bytes to their next
  * filter.  It records only commit metadata; it cannot retroactively change a
  * response and does not retain any host buffer.
@@ -138,6 +160,25 @@ void msconnector_runtime_transaction_set_response_commit_state(
     msconnector_runtime_transaction *transaction,
     int headers_sent,
     int body_started);
+
+/*
+ * Records a second, host-confirmed outcome for a disruptive engine decision.
+ * The normal decision event is deliberately retained: it records what the
+ * rule engine requested, while this call records what the host actually did
+ * after applying (or intentionally downgrading) that request.  Call it only
+ * after the host action has succeeded or the host has deliberately selected a
+ * late log-only outcome.  `visible_http_status` is the status observable by
+ * the client; it may be zero only for a transport-only outcome.  The runtime
+ * never retains `transport_result`.
+ */
+int msconnector_runtime_transaction_record_host_action(
+    msconnector_runtime_transaction *transaction,
+    const msconnector_decision *decision,
+    msconnector_decision_action actual_action,
+    int visible_http_status,
+    const char *transport_result,
+    int connection_aborted,
+    msconnector_error *error);
 
 void msconnector_runtime_transaction_request_body_progress(
     const msconnector_runtime_transaction *transaction,

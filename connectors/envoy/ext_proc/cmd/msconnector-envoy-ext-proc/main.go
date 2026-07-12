@@ -15,18 +15,31 @@ import (
 	"google.golang.org/grpc"
 )
 
+type engineRuntime struct {
+	engine         processor.Engine
+	evaluationMode string
+	ruleEvaluation string
+	description    string
+}
+
+type engineCloser interface {
+	Close() error
+}
+
 func main() {
 	var configPath string
 	var listenOverride string
 	var eventLogPath string
+	var runtimeConfigPath string
 	var checkConfig bool
 	flag.StringVar(&configPath, "config", "", "path to ext_proc JSON config")
 	flag.StringVar(&listenOverride, "listen", "", "optional host:port override")
 	flag.StringVar(&eventLogPath, "event-log", "", "optional absolute metadata-only JSONL evidence path")
+	flag.StringVar(&runtimeConfigPath, "runtime-config", "", "path to Common/libmodsecurity runtime config")
 	flag.BoolVar(&checkConfig, "check-config", false, "validate config and exit")
 	flag.Parse()
 	if configPath == "" {
-		fmt.Fprintln(os.Stderr, "usage: msconnector_envoy_ext_proc --config PATH [--listen HOST:PORT] [--event-log PATH] [--check-config]")
+		fmt.Fprintln(os.Stderr, "usage: msconnector_envoy_ext_proc --config PATH [--runtime-config PATH] [--listen HOST:PORT] [--event-log PATH] [--check-config]")
 		os.Exit(2)
 	}
 
@@ -42,8 +55,25 @@ func main() {
 			os.Exit(2)
 		}
 	}
-	if checkConfig {
+	if checkConfig && runtimeConfigPath == "" {
 		fmt.Printf("envoy_ext_proc: config-check-pass config=%s listen=%s\n", configPath, config.ListenAddress)
+		return
+	}
+
+	runtime, err := configuredEngine(runtimeConfigPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "envoy_ext_proc: engine setup: %v\n", err)
+		os.Exit(2)
+	}
+	if closer, ok := runtime.engine.(engineCloser); ok {
+		defer func() {
+			if err := closer.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "envoy_ext_proc: Common runtime cleanup: %v\n", err)
+			}
+		}()
+	}
+	if checkConfig {
+		fmt.Printf("envoy_ext_proc: config-check-pass config=%s runtime_config=%s engine=%s listen=%s\n", configPath, runtimeConfigPath, runtime.description, config.ListenAddress)
 		return
 	}
 
@@ -57,7 +87,7 @@ func main() {
 	var observer processor.Observer
 	var jsonlObserver *processor.JSONLObserver
 	if eventLogPath != "" {
-		jsonlObserver, err = processor.NewJSONLObserver(eventLogPath)
+		jsonlObserver, err = processor.NewJSONLObserverWithMode(eventLogPath, runtime.evaluationMode, runtime.ruleEvaluation)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "envoy_ext_proc: event log: %v\n", err)
 			os.Exit(2)
@@ -65,7 +95,7 @@ func main() {
 		defer jsonlObserver.Close()
 		observer = jsonlObserver
 	}
-	service, err := processor.NewServiceWithObserver(config, processor.PassthroughEngine{}, observer)
+	service, err := processor.NewServiceWithObserver(config, runtime.engine, observer)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "envoy_ext_proc: service setup: %v\n", err)
 		os.Exit(1)
@@ -75,7 +105,7 @@ func main() {
 		grpc.MaxSendMsgSize(config.MaxGRPCMessageBytes),
 	)
 	extprocv3.RegisterExternalProcessorServer(grpcServer, service)
-	fmt.Printf("envoy_ext_proc: serving integration_mode=ext_proc evaluation_mode=passthrough_nonpromoted rule_evaluation=not_wired listen=%s\n", config.ListenAddress)
+	fmt.Printf("envoy_ext_proc: serving integration_mode=ext_proc evaluation_mode=%s rule_evaluation=%s engine=%s listen=%s\n", runtime.evaluationMode, runtime.ruleEvaluation, runtime.description, config.ListenAddress)
 
 	serveResult := make(chan error, 1)
 	go func() {

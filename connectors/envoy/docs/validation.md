@@ -85,20 +85,28 @@ in an event or report.
 
 ## Separate ext_proc checks
 
-The Go ext_proc groundwork has the following connector-local checks:
+The Go/CGo ext_proc path has the following connector-local checks:
 
 ```sh
-make -C connectors/envoy test-envoy-ext-proc
+make -C connectors/envoy test-envoy-ext-proc \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
 make -C connectors/envoy check-envoy-ext-proc-config
 make -C connectors/envoy prepare-envoy-ext-proc-config
-make -C connectors/envoy runtime-smoke-envoy-ext-proc ENVOY_BIN=/absolute/path/to/envoy
+make -C connectors/envoy prepare-envoy-ext-proc-runtime-config
+make -C connectors/envoy runtime-smoke-envoy-ext-proc \
+  ENVOY_BIN=/absolute/path/to/envoy \
+  MODSECURITY_INCLUDE_DIR=/absolute/prefix/include \
+  MODSECURITY_LIB_DIR=/absolute/prefix/lib
 ```
 
-The unit test covers protobuf service compilation plus bounded streamed callbacks,
-EOS cleanup, cancellation cleanup, a pre-response `ImmediateResponse`, and the
-fact that a late strict action is recorded as `strict_abort_not_attempted` rather
-than as an abort. The template has `STREAMED` body modes and no `BUFFERED` mode.
-The runtime smoke invokes real Envoy, selects only `ext_proc`, and records
-payload-free request/response body counters. It does not invoke
-Common/libmodsecurity, prove a rule action, timeout/reset/client-abort/upstream-
-abort/first-byte behavior, or promote an ext_proc capability or runtime result.
+The source-only tests cover protobuf service behavior; with the explicit paths,
+the same target also compiles and tests the CGo Common/libmodsecurity bridge for
+P1/P2/P3/P4, incremental EOS, cancellation, commit ordering, and parallel
+transactions. The template has `STREAMED` request/response body modes,
+trailer EOS delivery, and no `BUFFERED` mode. The runtime smoke invokes real
+Envoy, selects only `ext_proc`, executes the Common/libmodsecurity rules, and
+checks run-local raw Common decision JSONL plus host-confirmed deny, redirect,
+and safe log-only actions. It does not prove timeout/reset/client-abort/upstream-
+abort/first-byte/client-byte or HTTP/2 behavior, and it does not promote an
+ext_proc capability or canonical runtime result.

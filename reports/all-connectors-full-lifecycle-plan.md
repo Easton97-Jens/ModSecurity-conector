@@ -2,6 +2,21 @@
 
 **Language:** English | [Deutsch](all-connectors-full-lifecycle-plan.de.md)
 
+## 2026-07-12 current implementation and evidence update
+
+The implementation state below is historical where it calls the selected
+Traefik and Envoy routes passthrough-only or calls HAProxy observer-only. The
+current selected paths are native Traefik middleware plus a persistent local
+UDS Common/libmodsecurity service, Envoy `ext_proc` plus its CGo Common bridge,
+and the native HAProxy HTX filter with P1/P3 replies. The patched lighttpd
+host has P1/P2/P3 evidence but no decoded-entity response-body hook.
+
+Fresh Apache and NGINX native-host runs separately record P4 Safe `log_only`
+and Strict connection-abort behavior. NGINX HTTP/2 is not selected: the
+managed build's `nginx -V` lacks `--with-http_v2_module`. All unobserved
+behavior remains `NOT EXECUTED`; a source route, build, or synthetic harness
+does not substitute for causal host evidence.
+
 ## 2026-07-11 implementation-status update
 
 This plan retains the pre-implementation source-audit baseline below, with the following bounded

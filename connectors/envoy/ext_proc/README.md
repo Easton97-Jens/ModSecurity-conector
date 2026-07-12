@@ -1,4 +1,4 @@
-# Envoy `ext_proc` non-promoted full-lifecycle transport path
+# Envoy `ext_proc` Common/libmodsecurity full-lifecycle path
 
 This directory is a pinned Go implementation of Envoy's official
 `envoy.service.ext_proc.v3.ExternalProcessor` gRPC interface. It is separate
@@ -7,20 +7,32 @@ runtime-evidenced request-only path.
 
 The canonical full-lifecycle dispatcher selects this service through
 `full-lifecycle-envoy-ext-proc`; it does not fall through to the standard
-`ext_authz` compatibility runner. That target establishes a real listener and
-stream-callback route only, with no rule-action or capability promotion.
+`ext_authz` compatibility runner. The executable links a connector-local CGo
+ABI to Common Runtime and libmodsecurity, while capability promotion remains a
+separate evidence-review decision.
 
 ## What is implemented here
 
 - one independent `streamState` and transaction seam per gRPC `Process` call;
+- one real Common/libmodsecurity transaction per stream, opened from Envoy's
+  actual request headers and destroyed on EOS, cancellation, or processor
+  failure;
 - bounded request/response header mapping and incremental body callbacks;
 - no full request or response body collection; state retains counters only;
+- explicit request/response body finish calls for header EOS, body EOS, and
+  trailer EOS;
+- downstream protocol and endpoints mapped from requested Envoy attributes,
+  never inferred from the Envoy-to-service gRPC socket;
 - matching `HeadersResponse` / `BodyResponse` messages for `STREAMED` mode;
 - EOS cleanup, gRPC-context cancellation cleanup, and bounded graceful stop;
-- request-phase deny/redirect mapped to `ImmediateResponse` before response
-  headers have been observed;
-- a small unit test covering chunks, EOS, cancellation, pre-response deny, and
-  the deliberately conservative late-action result.
+- pre-commit request and response decisions mapped to `ImmediateResponse`,
+  with Common host-action metadata recorded only after the matching gRPC send
+  succeeds;
+- raw Common decision JSONL under the per-run runtime root plus a separate
+  payload-free completion log; the latter is supplementary and never replaces
+  the Common event stream;
+- unit and CGo lifecycle tests covering P1/P2/P3/P4, incremental EOS,
+  cancellation, commit ordering, and parallel transactions.
 
 The pinned dependency is the official generated Envoy Go API module in
 `go.mod`/`go.sum`. `../config/envoy-ext-proc-versions.env` records the intended
@@ -29,17 +41,17 @@ only `STREAMED` body modes, never `BUFFERED`.
 
 ## Explicit non-claims and late-action behavior
 
-The checked-in service installs `PassthroughEngine`. It has a narrow
-incremental `Engine`/`Transaction` seam for a later Common/libmodsecurity
-bridge, but it does **not** call `common/runtime` or libmodsecurity today.
-Consequently it is an unpromoted transport-only runtime path, not a
-full-lifecycle rule-evaluation implementation or capability evidence.
+The shipped build uses `-tags libmodsecurity`; a source-only Go build retains a
+PassthroughEngine only for protobuf/unit development and refuses a runtime
+config. The normal build requires local libmodsecurity headers and library
+paths, then links Common Runtime into the ext_proc executable.
 
-The service uses the conservative response-header boundary: once response
-headers are observed, it never emits a later local status or claims to change a
-visible status. For a disruptive prospective decision found later:
+The service uses the conservative response-commit boundary: only a successful
+response-header `CONTINUE` send marks a response as committed. For a disruptive
+decision found later:
 
-- `minimal` and `safe` record the adapter outcome `log_only` and continue;
+- `minimal` and `safe` record a real Common host outcome `log_only` and
+  continue with the original visible response status;
 - `strict` records `strict_abort_not_attempted` and continues.
 
 `strict` intentionally does not turn into a gRPC error, `ImmediateResponse`, or
@@ -59,19 +71,17 @@ make -C connectors/envoy runtime-smoke-envoy-ext-proc ENVOY_BIN=/absolute/path/t
 ```
 
 `runtime-smoke-envoy-ext-proc` starts a real pinned-compatible Envoy process,
-the Go `ext_proc` gRPC service, and a local upstream. It saves the effective
-Envoy YAML and a metadata-only JSONL stream-completion record outside the
-checkout. The record proves that Envoy delivered request and response body
-bytes to `ext_proc`; it explicitly records
-`evaluation_mode=passthrough_nonpromoted` and `rule_evaluation=not_wired`.
-It is transport evidence only, not a rule-evaluation or capability promotion.
+the CGo/Common gRPC service, and a local upstream. It saves effective Envoy and
+Common configurations, raw Common JSONL, and a separate metadata-only
+completion log outside the checkout. The host smoke exercises P1, P2, P3 deny,
+P3 redirect, and P4 post-commit safe/log-only behavior. It remains
+non-promoted until the canonical collector and capability review accept the
+raw host evidence.
 
-## Promotion blocker
+## Remaining promotion boundary
 
-The executable still instantiates `PassthroughEngine`. A genuine bridge needs a
-connector-local CGo/C ABI around `common/runtime` that maps Envoy pseudo- and
-ordinary headers to `msconnector_request`/`msconnector_response`, explicitly
-calls the request/response body finish APIs at EOS, links libmodsecurity, and
-maps the resulting metadata-only decisions back to the ext_proc stream. Until
-that adapter is built and exercised through this real-host runner, this path
-must remain `passthrough_nonpromoted`.
+The service does not claim a deterministic post-commit reset or a client-byte
+observation. A late P4 rule is deliberately recorded as host-confirmed
+`log_only`; `strict` remains `strict_abort_not_attempted`. Those limits, and
+the canonical collector's independent validation of the raw Common JSONL, are
+the remaining promotion boundary.

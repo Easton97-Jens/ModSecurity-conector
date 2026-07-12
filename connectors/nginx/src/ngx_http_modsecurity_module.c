@@ -351,9 +351,10 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     if (ctx->event_transaction_id.len > 0U) {
         ctx->modsec_transaction = msc_new_transaction_with_id(mmcf->modsec,
             mcf->rules_set, (char *) ctx->event_transaction_id.data,
-            r->connection->log);
+            r);
     } else {
-        ctx->modsec_transaction = msc_new_transaction(mmcf->modsec, mcf->rules_set, r->connection->log);
+        ctx->modsec_transaction = msc_new_transaction(mmcf->modsec,
+            mcf->rules_set, r);
     }
 
     dd("transaction created");

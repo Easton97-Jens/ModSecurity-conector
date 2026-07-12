@@ -440,6 +440,7 @@ ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
     event.meta.message = msconnector_event_default_message(event.meta.message_id);
     event.meta.event = "phase3_intervention";
     event.meta.connector = "nginx";
+    event.meta.integration_mode = "native-nginx-http-module";
     event.meta.transaction_id = ctx != NULL && ctx->event_transaction_id.len > 0U
         ? (const char *)ctx->event_transaction_id.data : "";
     event.decision.phase = MSCONNECTOR_PHASE_RESPONSE_HEADERS;

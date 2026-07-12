@@ -37,6 +37,7 @@
 
 #include "msc_filters.h"
 #include "msconnector/config.h"
+#include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
 
 #ifndef _SRC_APACHE_HTTP_MODSECURITY__
@@ -72,6 +73,11 @@ typedef struct
     int last_intervention_status;
     const char *last_intervention_log;
     const char *event_transaction_id;
+    /* A libmodsecurity log callback is synchronous with the host processing
+     * call.  Keep only the active lifecycle phase so a non-disruptive rule
+     * match can be recorded as native metadata without retaining its text. */
+    enum msconnector_phase native_event_phase;
+    int native_event_phase_active;
 } msc_t;
 
 
@@ -97,6 +103,12 @@ extern const command_rec module_directives[];
 
 int process_intervention (Transaction *t, request_rec *r);
 int msc_finalize_request_body(msc_t *msr, request_rec *r);
+void apache_emit_intervention_event(msc_t *msr, request_rec *r,
+    const char *event_name, enum msconnector_phase phase,
+    const char *wanted, const char *actual, const char *reason,
+    int original_status, int response_committed);
+void apache_log_rule_match_event(msc_t *msr, request_rec *r,
+    enum msconnector_phase phase, const char *rule_id);
 
 int msc_apache_init(apr_pool_t *pool);
 int msc_apache_cleanup();

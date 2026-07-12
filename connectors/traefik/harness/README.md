@@ -43,10 +43,12 @@ BLOCKED/77.
 The full-lifecycle dispatcher does not reuse this `forwardAuth` compatibility
 entrypoint. It invokes `runtime-smoke-traefik-native` through
 `full-lifecycle-traefik-native`, which stages `native_middleware/` in an
-isolated pinned Traefik local-plugin workspace and verifies host loading plus
-body-bearing router traffic. The checked-in engine is `PassthroughEngine`, so
-that evidence remains non-promoted and cannot stand in for rule evaluation,
-enforcement, or response-lifecycle behavior.
+isolated pinned Traefik local-plugin workspace, builds/starts a persistent
+private UDS Common/libmodsecurity engine, and verifies target P1--P4-safe
+host behavior. It loads `MSCONNECTOR_RULES_FILE` when supplied so the real
+events use the Framework rule IDs. This evidence remains non-promoted and
+cannot stand in for capability or production verification; P4 strict remains
+`NOT EXECUTED`.
 
 Future harness work must document:
 

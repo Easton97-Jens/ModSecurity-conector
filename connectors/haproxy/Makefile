@@ -9,6 +9,8 @@ HAPROXY_HTX_RUNTIME_ROOT ?= $(BUILD_ROOT)/haproxy-htx-runtime-smoke
 HAPROXY_HTX_BUILD_DIR ?= $(HAPROXY_HTX_RUNTIME_ROOT)/overlay-build
 HAPROXY_HTX_BIN ?= $(HAPROXY_HTX_BUILD_DIR)/worktree/haproxy
 HAPROXY_HTX_EVENT_LOG_PATH ?= $(HAPROXY_HTX_RUNTIME_ROOT)/events.jsonl
+HAPROXY_HTX_HOST_EVIDENCE_LOG_PATH ?= $(HAPROXY_HTX_RUNTIME_ROOT)/host-runtime-evidence.jsonl
+HAPROXY_HTX_CANONICAL_RULES_FILE ?= $(REPO_ROOT)/modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf
 COMMON_INCLUDE := $(REPO_ROOT)/common/include
 COMMON_SRC := $(REPO_ROOT)/common/src
 COMMON_CPPFLAGS := -I$(COMMON_INCLUDE)
@@ -73,12 +75,16 @@ build-htx-overlay: check-htx-overlay build-modsecurity-binding
 	sh htx-overlay/build-overlay.sh
 
 # This target is deliberately independent of runtime-smoke-haproxy and the
-# selected SPOE/SPOP path. It proves only a patched native HTX filter transport
-# path and records observer-mode evidence; it does not promote enforcement.
+# selected SPOE/SPOP path. It uses the Framework's canonical No-CRS rules for
+# real host requests and proves local P1/P3 native replies (including 429).
+# It remains non-promoted until a Common-runtime bridge and canonical evidence
+# selection approve the path; P2/P4 are recorded only as host observations.
 runtime-smoke-haproxy-htx: test-htx-overlay build-htx-overlay
 	HAPROXY_BIN="$(HAPROXY_HTX_BIN)" \
 	RUNTIME_ROOT="$(HAPROXY_HTX_RUNTIME_ROOT)" \
 	EVENT_LOG_PATH="$(HAPROXY_HTX_EVENT_LOG_PATH)" \
+	HAPROXY_HTX_HOST_EVIDENCE_LOG_PATH="$(HAPROXY_HTX_HOST_EVIDENCE_LOG_PATH)" \
+	HAPROXY_HTX_CANONICAL_RULES_FILE="$(abspath $(HAPROXY_HTX_CANONICAL_RULES_FILE))" \
 	PYTHON="$(PYTHON)" sh harness/run_haproxy_htx_runtime.sh
 
 self-test-modsecurity-binding: $(MODSECURITY_BINDING_BIN)

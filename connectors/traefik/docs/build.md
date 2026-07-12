@@ -60,9 +60,8 @@ make -C connectors/traefik build-native-middleware
 The first target runs focused `go test ./...` and `go vet ./...`; the second
 also runs `go build ./...`. Its only retained output is a compile report under
 `$BUILD_ROOT/traefik-native-middleware/build.txt`, outside the checkout. The
-source uses a `PassthroughEngine` seam rather than Common/libmodsecurity FFI,
-so a successful local build alone is not a rule-evaluation or capability-
-verification result.
+source default uses `PassthroughEngine`; a successful local build alone is not
+a rule-evaluation or capability-verification result.
 
 The separate pinned-host probe stages the module under a disposable
 `plugins-local` workspace, materializes static and File Provider configuration,
@@ -71,13 +70,17 @@ and routes a body-bearing request through Traefik:
 ```sh
 TRAEFIK_BIN=/absolute/local/traefik \
 TRAEFIK_NATIVE_RUNTIME_ROOT=/absolute/runtime-root \
+MODSECURITY_INCLUDE_DIR=/absolute/include \
+MODSECURITY_LIB_DIR=/absolute/lib \
+MSCONNECTOR_RULES_FILE=/absolute/no-crs-baseline.conf \
 make -C connectors/traefik runtime-smoke-traefik-native
 ```
 
 `config/traefik-native-middleware-static.yaml` and
 `config/traefik-native-middleware-dynamic.yaml` remain reference shapes; the
-runner does not reuse mutable checkout configuration. The probe proves plugin
-loading and routing only. It does not call Common/libmodsecurity or promote a
+runner does not reuse mutable checkout configuration. The probe builds and
+starts a private persistent UDS Common/libmodsecurity service, then proves
+plugin loading and targeted P1--P4-safe host behavior. It does not promote a
 response-body, phase, late-action, first-byte, or no-buffer capability.
 
 The metadata starter compiles:
@@ -116,10 +119,11 @@ PASS; decision-service self-test PASS.
 ## Not Implemented / Not Verified
 
 No Traefik SDK, cgo integration, or Traefik binary is built by this source
-build. The native Go module has a separate pinned-host probe, but it remains
-passthrough-only and non-promoted. Response-phase inspection remains unsupported
-by the selected authorization protocol, and neither source path claims
-production or full runtime verification.
+build. The native Go module has a separate pinned-host UDS probe and remains
+non-promoted. Response-phase inspection remains unsupported by the selected
+`forwardAuth` authorization protocol; the native UDS probe has only targeted
+P3/P4-safe evidence. Neither source path claims production or full runtime
+verification.
 
 ## Production Build Blockers
 

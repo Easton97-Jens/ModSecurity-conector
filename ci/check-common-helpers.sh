@@ -1206,17 +1206,22 @@ int main(void) {
         int truncated = 0;
         msconnector_event_init(&event);
         event.meta.event = "smoke";
+        event.meta.integration_mode = "native-smoke";
         assert(strcmp(msconnector_event_status_name(&event), "ok") == 0);
         assert(msconnector_event_write_json(&event, json, sizeof(json)));
+        assert(strstr(json, "\"integration_mode\":\"native-smoke\"") != 0);
         assert(strstr(json, "\"body_limit_outcome\"") == 0);
         event.body.limit_outcome = "process_partial";
         event.body.bytes_seen = 17U;
         event.body.bytes_inspected = 16U;
         event.flags.body_truncated = 1;
+        event.flags.late_intervention = 1;
+        event.flags.late_intervention_mode = "safe";
         assert(msconnector_event_write_json(&event, json, sizeof(json)));
         assert(strstr(json, "\"body_limit_outcome\":\"process_partial\"") != 0);
         assert(strstr(json, "\"body_bytes_seen\":17") != 0);
         assert(strstr(json, "\"body_bytes_inspected\":16") != 0);
+        assert(strstr(json, "\"late_intervention_mode\":\"safe\"") != 0);
         assert(strstr(json, "body_payload") == 0);
 
         msconnector_event_set_phase4_hard_abort_after_200(
