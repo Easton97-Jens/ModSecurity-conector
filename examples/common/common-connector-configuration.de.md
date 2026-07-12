@@ -36,6 +36,7 @@ Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/ru
 
 ## Optionsdetails
 
+<a id="body-limit-action"></a>
 ## `body_limit_action`
 
 ### Kurzbeschreibung
@@ -90,6 +91,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Steuert, ob ein Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird.
 
+<a id="default-block-status"></a>
 ## `default_block_status`
 
 ### Kurzbeschreibung
@@ -144,6 +146,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Fallback-Status für unterstützte Sperraktionen vor dem Commit.
 
+<a id="default-error-status"></a>
 ## `default_error_status`
 
 ### Kurzbeschreibung
@@ -198,6 +201,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Fallback-Status für Runtime-Fehler.
 
+<a id="enabled"></a>
 ## `enabled`
 
 ### Kurzbeschreibung
@@ -252,6 +256,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline-, Datei- oder Remote-Regelquelle.
 
+<a id="event-path"></a>
 ## `event_path`
 
 ### Kurzbeschreibung
@@ -306,6 +311,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Hängt bei Konfiguration JSONL-Ereignisse an, die nur Metadaten enthalten.
 
+<a id="late-intervention-timeout"></a>
 ## `late_intervention_timeout`
 
 ### Kurzbeschreibung
@@ -360,6 +366,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Speichert ein optionales Budget für späte Interventionen; Common besitzt keine Timer-/Abbruchprimitive.
 
+<a id="max-event-json-bytes"></a>
 ## `max_event_json_bytes`
 
 ### Kurzbeschreibung
@@ -414,6 +421,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Begrenzt die Größe serialisierter Metadatenereignisse.
 
+<a id="max-header-count"></a>
 ## `max_header_count`
 
 ### Kurzbeschreibung
@@ -468,6 +476,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Begrenzt die akzeptierte Headeranzahl.
 
+<a id="max-header-name-size"></a>
 ## `max_header_name_size`
 
 ### Kurzbeschreibung
@@ -522,6 +531,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Begrenzt die Größe jedes Headernamens.
 
+<a id="max-header-value-size"></a>
 ## `max_header_value_size`
 
 ### Kurzbeschreibung
@@ -576,6 +586,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Begrenzt die Größe jedes Headerwerts.
 
+<a id="max-total-header-bytes"></a>
 ## `max_total_header_bytes`
 
 ### Kurzbeschreibung
@@ -630,6 +641,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Begrenzt die gesamte Header-Byteanzahl.
 
+<a id="phase4-content-types-file"></a>
 ## `phase4_content_types_file`
 
 ### Kurzbeschreibung
@@ -684,6 +696,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Speichert einen Content-Type-Dateipfad; die Verwendung ist connectorspezifisch.
 
+<a id="phase4-event-log"></a>
 ## `phase4_event_log`
 
 ### Kurzbeschreibung
@@ -738,6 +751,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Alias für event_path.
 
+<a id="phase4-mode"></a>
 ## `phase4_mode`
 
 ### Kurzbeschreibung
@@ -792,6 +806,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Speichert die späte P4-Policy. Common allein besitzt keine Host-Abbruchprimitive.
 
+<a id="request-body-limit"></a>
 ## `request_body_limit`
 
 ### Kurzbeschreibung
@@ -846,6 +861,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Begrenzt die der Engine angebotenen Request-Bytes.
 
+<a id="request-body-mode"></a>
 ## `request_body_mode`
 
 ### Kurzbeschreibung
@@ -900,6 +916,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Wählt den Common-Modus zur Request-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge.
 
+<a id="response-body-limit"></a>
 ## `response_body_limit`
 
 ### Kurzbeschreibung
@@ -954,6 +971,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Begrenzt die der Engine angebotenen Response-Bytes.
 
+<a id="response-body-mode"></a>
 ## `response_body_mode`
 
 ### Kurzbeschreibung
@@ -1008,6 +1026,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Wählt den Common-Modus zur Response-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge.
 
+<a id="rules-file"></a>
 ## `rules_file`
 
 ### Kurzbeschreibung
@@ -1062,6 +1081,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Lädt Regeln aus einer lokalen Datei.
 
+<a id="rules-inline"></a>
 ## `rules_inline`
 
 ### Kurzbeschreibung
@@ -1116,6 +1136,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Fügt eine Inline-Regelkonfiguration hinzu.
 
+<a id="rules-remote-key"></a>
 ## `rules_remote_key`
 
 ### Kurzbeschreibung
@@ -1170,6 +1191,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Liefert eine Hälfte eines Remote-Regelpaares.
 
+<a id="rules-remote-url"></a>
 ## `rules_remote_url`
 
 ### Kurzbeschreibung
@@ -1224,6 +1246,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Liefert den Remote-Regelendpunkt; die ausgewählten Beispiele verwenden ihn nicht.
 
+<a id="transaction-id"></a>
 ## `transaction_id`
 
 ### Kurzbeschreibung
@@ -1278,6 +1301,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Setzt eine statische Runtime-Transaktionskennung.
 
+<a id="transaction-id-header"></a>
 ## `transaction_id_header`
 
 ### Kurzbeschreibung
@@ -1332,6 +1356,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Limits begrenzen den Ressourcenverbrauch. Wählt den Fallback-Namen des Korrelations-Headers.
 
+<a id="use-error-log"></a>
 ## `use_error_log`
 
 ### Kurzbeschreibung

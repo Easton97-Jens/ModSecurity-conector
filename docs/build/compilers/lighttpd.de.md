@@ -32,7 +32,7 @@ make runtime-components-sources
 
 Relevante Variablen: `LIGHTTPD_BIN`, `LIGHTTPD_SOURCE_DIR`, `LIGHTTPD_BUILD_ROOT`, `LIGHTTPD_INCLUDE_DIR`, `LIGHTTPD_MODULE_DIR`, `LIGHTTPD_PATCHED_ROOT` und die dokumentierten `LIGHTTPD_PATCHED_*`-Laufzeitpfade.
 Ihre Formate, Defaults, Scope, Wirkung und Sicherheitsgrenzen stehen in der
-[zentralen Variablenreferenz](../../configuration/variables.de.md). Ein
+[zentralen Variablenreferenz](../../reference/variables.de.md). Ein
 Override ist ein expliziter Eingabewechsel und kein Capability-Upgrade.
 
 ## Toolchain und Cache-v2
@@ -93,14 +93,13 @@ Target mit seinem Artefaktprofil kann kanonische Evidenz produzieren.
 ## Konfiguration, Beispiele und Fehlersuche
 
 - Aktuelle Connector-Dokumentation:
-  [lighttpd](../../connectors/lighttpd/README.de.md)
+  [lighttpd](../../connectors/lighttpd.de.md)
 - Konfigurationsdetails:
-  [Connector-Konfiguration](../../connectors/lighttpd/configuration.de.md)
+  [vollständige Connector-Referenz](../../../examples/lighttpd/configuration-reference.de.md)
 - Repository-Beispiele:
   [examples/lighttpd](../../../examples/lighttpd/README.de.md)
 - Test- und Evidenzgrenzen:
-  [Teststufen](../../testing/README.de.md) ·
-  [Evidenzregeln](../../evidence/README.de.md)
+  [Test- und Evidence-Guide](../../testing-and-evidence.de.md)
 
 Bei Modul-Lade- oder Patch-Fehlern ausgewählte Quelle, Patch und Modul-Build-Roots zusammenhalten und das sanitisierte Host-Log prüfen. Ein Stock-Binary nicht mit einem Modul aus einem anderen Headersatz kombinieren.
 

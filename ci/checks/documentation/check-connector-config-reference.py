@@ -81,12 +81,12 @@ def profile_layout_errors(root: Path) -> list[str]:
     documentation tree from advertising a missing or unclassified profile.
     """
     required = {
-        "apache": ("minimal/httpd.conf", "safe/httpd.conf", "strict/README.md", "detection-only/httpd.conf", "disabled/httpd.conf", "rules/detection-only.conf", "rules/engine-off.conf"),
+        "apache": ("minimal/httpd.conf", "safe/httpd.conf", "README.md", "detection-only/httpd.conf", "disabled/httpd.conf", "rules/detection-only.conf", "rules/engine-off.conf"),
         "nginx": ("minimal/nginx.conf", "safe/nginx.conf", "strict/nginx.conf", "detection-only/nginx.conf", "disabled/nginx.conf", "rules/detection-only.conf", "rules/engine-off.conf"),
-        "haproxy": ("minimal/haproxy-htx.cfg", "safe/haproxy-htx.cfg", "strict/README.md", "detection-only/haproxy-htx.cfg", "disabled/haproxy-htx.cfg", "rules/detection-only.conf", "rules/engine-off.conf"),
-        "envoy": ("minimal/envoy-ext-proc-streaming.yaml.in", "minimal/envoy-ext-proc-service.json", "minimal/msconnector-runtime.conf", "safe/envoy-ext-proc-streaming.yaml.in", "safe/envoy-ext-proc-service.json", "strict/README.md", "detection-only/msconnector-runtime.conf", "disabled/msconnector-runtime.conf", "rules/detection-only.conf", "rules/engine-off.conf"),
-        "traefik": ("minimal/traefik-static.yaml", "minimal/traefik-dynamic.yaml", "minimal/traefik-engine-service.conf", "safe/traefik-dynamic.yaml", "safe/traefik-engine-service.conf", "strict/README.md", "detection-only/traefik-engine-service.conf", "disabled/traefik-engine-service.conf", "rules/detection-only.conf", "rules/engine-off.conf"),
-        "lighttpd": ("minimal/lighttpd.conf", "minimal/msconnector-runtime.conf", "safe/lighttpd-http1-identity.conf", "safe/msconnector-runtime.conf", "strict/README.md", "detection-only/msconnector-runtime.conf", "disabled/lighttpd.conf", "rules/detection-only.conf", "rules/engine-off.conf"),
+        "haproxy": ("minimal/haproxy-htx.cfg", "safe/haproxy-htx.cfg", "README.md", "detection-only/haproxy-htx.cfg", "disabled/haproxy-htx.cfg", "rules/detection-only.conf", "rules/engine-off.conf"),
+        "envoy": ("minimal/envoy-ext-proc-streaming.yaml.in", "minimal/envoy-ext-proc-service.json", "minimal/msconnector-runtime.conf", "safe/envoy-ext-proc-streaming.yaml.in", "safe/envoy-ext-proc-service.json", "README.md", "detection-only/msconnector-runtime.conf", "disabled/msconnector-runtime.conf", "rules/detection-only.conf", "rules/engine-off.conf"),
+        "traefik": ("minimal/traefik-static.yaml", "minimal/traefik-dynamic.yaml", "minimal/traefik-engine-service.conf", "safe/traefik-dynamic.yaml", "safe/traefik-engine-service.conf", "README.md", "detection-only/traefik-engine-service.conf", "disabled/traefik-engine-service.conf", "rules/detection-only.conf", "rules/engine-off.conf"),
+        "lighttpd": ("minimal/lighttpd.conf", "minimal/msconnector-runtime.conf", "safe/lighttpd-http1-identity.conf", "safe/msconnector-runtime.conf", "README.md", "detection-only/msconnector-runtime.conf", "disabled/lighttpd.conf", "rules/detection-only.conf", "rules/engine-off.conf"),
     }
     errors: list[str] = []
     for connector, files in required.items():
@@ -100,6 +100,10 @@ def profile_layout_errors(root: Path) -> list[str]:
             errors.append(f"{detection.relative_to(root)}: missing SecRuleEngine DetectionOnly")
         if disabled.is_file() and "SecRuleEngine Off" not in disabled.read_text(encoding="utf-8"):
             errors.append(f"{disabled.relative_to(root)}: missing SecRuleEngine Off")
+    for connector in ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"):
+        strict_reference = root / "examples" / connector / "README.md"
+        if strict_reference.is_file() and 'id="strict-profile-boundary"' not in strict_reference.read_text(encoding="utf-8"):
+            errors.append(f"{strict_reference.relative_to(root)}: missing consolidated strict-profile-boundary")
     local_path = re.compile(r"/(?:root/(?:git|conecter)|srv/modsecurity-work)(?:/|\b)")
     for path in (root / "examples").rglob("*"):
         if path.is_file() and path.suffix in {".md", ".conf", ".cfg", ".yaml", ".in", ".json"}:

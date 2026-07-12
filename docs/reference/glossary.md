@@ -41,10 +41,10 @@ or evidence guide.
 
 ## Related reference points
 
-- [Variables and placeholders](../configuration/variables.md)
+- [Variables and placeholders](variables.md)
 - [Build documentation](../build/README.md)
-- [Testing documentation](../testing/README.md)
-- [Evidence documentation](../evidence/README.md)
+- [Testing documentation](../testing-and-evidence.md)
+- [Evidence documentation](../testing-and-evidence.md)
 
 The terms above describe the current HTTP/1.1 core documentation boundary. They
 do not make production, CRS, HTTP/2, HTTP/3, extended-matrix, or

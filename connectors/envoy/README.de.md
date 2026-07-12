@@ -44,8 +44,8 @@ in `minimal`/`safe` wird als vom Host bestätigtes `log_only` aufgezeichnet; `st
 deterministischer Reset, Client-Reset oder Upstream-Reset.
 
 Die genaue ext_proc-API-Grenze, Opt-in-Client-Abbruchbeobachtung und
-Nichtförderungsbedingungen sind in dokumentiert
-[docs/transport-hardening.md](docs/transport-hardening.de.md).
+Nichtförderungsbedingungen stehen im
+[kanonischen Envoy-Guide](../../docs/connectors/envoy.de.md).
 
 ## Quelllayout
 

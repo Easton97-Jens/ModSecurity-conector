@@ -120,7 +120,8 @@ duplicates were removed.
 
 ## Pruning Review
 
-Last reviewed in `modules/ModSecurity-test-Framework/docs/imports/upstream-pruning-analysis.md`.
+The Framework's current [connector integration guide](../../modules/ModSecurity-test-Framework/docs/connector-integration.md)
+records the applicable source/catalog boundary.
 
 Apache adapter-owned source may be reduced only after a functional replacement,
 updated origin/license documentation, and passing real-world `smoke-apache` and

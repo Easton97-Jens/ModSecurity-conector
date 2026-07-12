@@ -25,7 +25,7 @@ ist kein Production-, CRS-, Full-Matrix- oder Runtime-Verification-Claim.
 | \`runtime/\` | Wiederverwendbare lokale Decision-Service-/Runtime-Unterstützung | Muss host-neutral bleiben und darf nicht zu einer Server-Hook-Implementierung werden. |
 | \`rules/\` | Eingecheckte targeted smoke rules | Repository-Testinputs, keine Aussage über vollständige Rule-Coverage. |
 | \`scripts/\` | Lokale Test-/Evidence-Helfer | Nur portable Helfer ohne Host-SDK- oder System-Path-Abhängigkeit ergänzen. |
-| \`docs/\` | Detaillierte Design-Notizen | Die [Common-Architektur](../docs/architecture/common/overview.de.md) ist der aktuelle Dokumentationsindex für Grenzen und Ownership. |
+| \`docs/\` | Detaillierte Design-Notizen | Die [Common-Architektur](../docs/architecture.de.md) ist der aktuelle Dokumentationsindex für Grenzen und Ownership. |
 
 Die eingecheckten Header und der Source sind maßgeblich für den Shared-Code-
 Contract. Das Root-[Makefile](../Makefile) ist maßgeblich für
@@ -50,7 +50,7 @@ committen.
 ## Variablen und Platzhalter
 
 Das Root-Makefile besitzt diese Eingaben. Vollständige Definitionen und
-Sicherheitsregeln stehen in der [Variablenreferenz](../docs/configuration/variables.de.md).
+Sicherheitsregeln stehen in der [Variablenreferenz](../docs/reference/variables.de.md).
 Die Begriffe für Ownership, Interventionen und Lifecycle-Phasen stehen im
 [Glossar](../docs/reference/glossary.de.md).
 
@@ -79,6 +79,6 @@ aufnehmen.
 | \`make lint\` | Enthält diese Strukturchecks plus weitere Repository-Checks; erzeugt keine kanonische Runtime-Evidence. |
 
 Vor der Wertung eines Ergebnisses als Implementierungs- oder Runtime-Claim die
-[Common-Architektur](../docs/architecture/common/overview.de.md), den
-[Testing-Guide](../docs/testing/README.de.md) und den
-[Evidence-Guide](../docs/evidence/README.de.md) verwenden.
+[Common-Architektur](../docs/architecture.de.md), den
+[Testing-Guide](../docs/testing-and-evidence.de.md) und den
+[Evidence-Guide](../docs/testing-and-evidence.de.md) verwenden.

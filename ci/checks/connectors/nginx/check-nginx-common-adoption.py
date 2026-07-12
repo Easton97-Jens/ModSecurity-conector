@@ -50,7 +50,7 @@ checks = [
 ('MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR' not in module_c, 'NGINX does not register Apache-style transaction_id_expr'),
 ]
 claims = ['production verified','runtime verified','full-matrix verified','crs verified']
-text = '\n'.join((ROOT/p).read_text(errors='ignore') for p in ['connectors/nginx/README.md','connectors/nginx/docs/architecture.md'] if (ROOT/p).exists()).lower()
+text = '\n'.join((ROOT/p).read_text(errors='ignore') for p in ['connectors/nginx/README.md','docs/connectors/nginx.md'] if (ROOT/p).exists()).lower()
 checks.append((not any(c in text for c in claims), 'NGINX docs avoid production/runtime/CRS/full-matrix claims'))
 ok=True
 for passed,msg in checks:

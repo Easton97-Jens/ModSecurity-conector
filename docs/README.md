@@ -2,94 +2,56 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-This directory is the documentation entry point for the connector repository.
-It describes the current six-connector HTTP/1.1 core lifecycle work without
-claiming production readiness, CRS verification, HTTP/2 verification, HTTP/3
-verification, a complete matrix, or strict behavior for all connectors.
+This directory is the documentation entry point for the selected six-connector
+HTTP/1.1 core. It describes current repository boundaries without claiming
+production readiness, CRS verification, complete HTTP/2/HTTP/3 verification, a
+complete matrix, or strict behavior for every connector.
 
 ## Start here
 
-| Area | Read this when you need | Source of truth |
-|---|---|---|
-| [Configuration](configuration/variables.md) | Variables, path roles, placeholders, target inputs, IDs, statuses, or integration modes | Root Makefile and runtime wrappers |
-| [Glossary](reference/glossary.md) | A definition of EOS, HTX, ext_proc, APXS, UDS, Evidence, or another repository term | This reference plus local explanations |
-| [Build](build/README.md) | Build families, toolchain prerequisites, caches, and safe build paths | Root and connector Makefiles |
-| [Connectors](connectors/README.md) | The selected host route and documentation entry point for one connector | Connector metadata, capabilities, and harnesses |
-| [Testing](testing/README.md) | Target selection, statuses, case IDs, and test boundaries | Root targets and Framework case catalog |
-| [Evidence](evidence/README.md) | Artifact layout, validation, promotion, privacy, and run IDs | Runtime lifecycle wrappers and Framework schemas |
-| [Architecture](architecture/README.md) | Common layer, connector boundaries, and architecture decisions | Checked-in architecture documents |
-| [Development](development/documentation-style-guide.md) | How to write or review documentation safely | This style guide |
-| [Reports](../reports/testing/README.md) | Current generated and manually maintained test/report entry points | Report generators and report metadata |
-| [Framework module](../modules/ModSecurity-test-Framework/README.md) | Framework-owned catalog, schemas, runners, and CI documentation | Framework repository |
+| Need | Canonical document | Source-of-truth boundary |
+| --- | --- | --- |
+| Initialize a checkout | [Getting started](getting-started.md) | Framework setup and the limited first validation path |
+| Repository architecture | [Architecture](architecture.md) | Checked-in source ownership and documented lifecycle boundary |
+| Host, runtime, and engine configuration | [Configuration](configuration.md) | Complete per-connector syntax remains in <code>examples/</code> |
+| Variables and terms | [Variables](reference/variables.md) / [Glossary](reference/glossary.md) | Root Makefile, wrappers, and documented contracts |
+| Build one host | [Build](build/README.md) | Root/connector build inputs and compiler guides |
+| Test or interpret artifacts | [Testing and evidence](testing-and-evidence.md) | Selected run records and Framework schemas |
+| Operate safely | [Operations and security](operations-and-security.md) | Explicit deployment, limit, privacy, and provenance boundary |
+| Choose a connector | [Connector index](connectors/README.md) | Selected integration mode and connector guide |
 
-All relative paths in this table start at the repository root or this
-<code>docs/</code> directory as indicated by the link. Generated reports stay
-under <code>reports/</code>; do not manually alter a file marked generated.
+## Connector guides
 
-## Navigation by task
+| Connector | Selected mode | Canonical guide |
+| --- | --- | --- |
+| Apache | <code>native-httpd-module</code> | [Apache](connectors/apache.md) |
+| NGINX | <code>native-nginx-http-module</code> | [NGINX](connectors/nginx.md) |
+| HAProxy | <code>native-htx-filter</code> | [HAProxy](connectors/haproxy.md) |
+| Envoy | <code>ext_proc</code> | [Envoy](connectors/envoy.md) |
+| Traefik | <code>native-traefik-middleware</code> | [Traefik](connectors/traefik.md) |
+| lighttpd | <code>patched-native-lighttpd</code> | [lighttpd](connectors/lighttpd.md) |
 
-### Run a local structural check
+The selected profile and the recorded integration mode are related but distinct
+identities. The canonical state for a capability begins in each connector's
+<code>capabilities.json</code>; a profile, build, source tree, or generated
+inventory is not a PASS result.
 
-Use the following command after changing repository-owned documentation:
+## Current scope and evidence
 
-~~~sh
-make check-bilingual-docs
-~~~
+The repository records selected lifecycle evidence by run ID. A narrow
+<code>minimal_runtime_smoke</code>, a configuration load, or a source-level
+contract check establishes only its stated layer. Read the current reports
+through [Reports](../reports/README.md) before making a time-sensitive status
+claim.
 
-The target checks English/German companion files and local links. It does not
-run all connectors or create runtime evidence. See
-[Testing](testing/README.md) for status and exit-code meanings.
+## Supporting material
 
-### Prepare or run a selected connector route
+- [Compiler guides](build/compilers/README.md)
+- [License, origin, and operational boundary](operations-and-security.md)
+- [Common source-tree guide](../common/README.md)
+- [Configuration examples](../examples/README.md)
+- [Framework module](../modules/ModSecurity-test-Framework/README.md)
 
-Start with [Build](build/README.md), then the matching entry in
-[Connectors](connectors/README.md). The placeholder
-<code>&lt;connector&gt;</code> accepts only <code>apache</code>,
-<code>nginx</code>, <code>haproxy</code>, <code>envoy</code>,
-<code>traefik</code>, or <code>lighttpd</code>; for example:
-
-~~~sh
-make build-nginx
-~~~
-
-This builds one selected route. It does not by itself prove runtime behavior
-or promote a capability.
-
-### Work with canonical evidence
-
-Choose a safe run ID and evidence directory as described in
-[Configuration](configuration/variables.md#no-crs-and-evidence-variables).
-Then use the exact target family documented in
-[Evidence](evidence/README.md). A run ID is a filesystem-safe token such as
-<code>six-core-20260712T120000Z</code>; it must not contain secrets or
-personal data.
-
-## Documentation ownership
-
-- Repository-owned explanations, navigation, and current guides belong under
-  <code>docs/</code>, connector directories, or reports as appropriate.
-- The Framework owns reusable case schemas, catalog mechanics, and framework
-  runners in <code>modules/ModSecurity-test-Framework/</code>.
-- Generated material belongs at its generator-defined location. Change its
-  generator/source of truth, preserve provenance, and regenerate.
-- Historical reports preserve their original facts and should be marked
-  historical rather than rewritten as current state.
-- [Historical documentation](archive/README.md) contains retained repository
-  inventories and issue snapshots that are not current guidance.
-
-## Current connector status sources
-
-The six selected connector names are Apache, NGINX, HAProxy, Envoy, Traefik,
-and lighttpd. Each connector's checked-in scope declaration is
-`connectors/<connector>/capabilities.json`; its connector guide explains the
-host route and the evidence boundary. A `minimal_runtime_smoke` status denotes
-a narrow, connector-specific runtime path only. It never substitutes for a
-canonical aggregate result or for unexecuted catalog cases.
-
-## Bilingual policy
-
-Every repository-owned English document under <code>docs/</code> has a
-<code>.de.md</code> companion with the same technical names, defaults, paths,
-IDs, statuses, and targets. Read the
-[documentation style guide](development/documentation-style-guide.md) before
-adding a variable, placeholder, command example, or evidence claim.
+Repository-owned English/German documentation is checked with
+<code>make check-bilingual-docs</code>. Generated outputs must be changed
+through their generator and source contract rather than by manual edits.

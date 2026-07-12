@@ -32,7 +32,7 @@ make runtime-components-sources
 
 Relevante Variablen: `BUILD_NGINX_FROM_SOURCE`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_TAG`, `NGINX_BIN`, `NGINX_PREFIX` und `NGINX_MODULE`.
 Ihre Formate, Defaults, Scope, Wirkung und Sicherheitsgrenzen stehen in der
-[zentralen Variablenreferenz](../../configuration/variables.de.md). Ein
+[zentralen Variablenreferenz](../../reference/variables.de.md). Ein
 Override ist ein expliziter Eingabewechsel und kein Capability-Upgrade.
 
 ## Toolchain und Cache-v2
@@ -93,14 +93,13 @@ Target mit seinem Artefaktprofil kann kanonische Evidenz produzieren.
 ## Konfiguration, Beispiele und Fehlersuche
 
 - Aktuelle Connector-Dokumentation:
-  [NGINX](../../connectors/nginx/README.de.md)
+  [NGINX](../../connectors/nginx.de.md)
 - Konfigurationsdetails:
-  [Connector-Konfiguration](../../connectors/nginx/configuration.de.md)
+  [vollständige Connector-Referenz](../../../examples/nginx/configuration-reference.de.md)
 - Repository-Beispiele:
   [examples/nginx](../../../examples/nginx/README.de.md)
 - Test- und Evidenzgrenzen:
-  [Teststufen](../../testing/README.de.md) ·
-  [Evidenzregeln](../../evidence/README.de.md)
+  [Test- und Evidence-Guide](../../testing-and-evidence.de.md)
 
 Bei Modul-Ladefehlern ausgewähltes Binary, Modul-ABI, Prefix und Worker-Access-Preflight prüfen. Ein Protokollprofil ohne passende Evidenz nicht als HTTP/2- oder HTTP/3-Nachweis bezeichnen.
 

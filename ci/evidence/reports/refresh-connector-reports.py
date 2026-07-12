@@ -33,19 +33,27 @@ from generated_report_utils import (
     input_record,
     input_status_summary,
     legacy_report_path,
-    legacy_report_relpath,
     portable_path_reference,
     registry_record,
-    report_outputs,
     report_path,
     report_path_from_root,
     report_relpath,
-    rewrite_generated_relpath,
     resolve_input_reference,
     sanitize_generated_markdown_tree,
 )
 
 REPORT_DIR = GENERATED_ROOT
+RETIRED_REPORT_NAMES = frozenset(
+    {
+        "connector_roadmap",
+        "report_dependency_graph",
+        "report_data_lineage",
+        "report_path_migration",
+        "generator_runtime_summary",
+    }
+)
+RETIRED_REPORT_MARKERS = tuple(name.replace("_", "-") + ".generated" for name in RETIRED_REPORT_NAMES)
+RETIRED_REPORT_TOKENS = RETIRED_REPORT_MARKERS + tuple(RETIRED_REPORT_NAMES)
 
 
 def utc_now() -> str:
@@ -184,6 +192,113 @@ def read_json(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def contains_retired_report_reference(value: object) -> bool:
+    return any(token in str(value) for token in RETIRED_REPORT_TOKENS)
+
+
+def prune_retired_record_fields(record: dict[str, Any]) -> bool:
+    """Remove retired report paths from one retained governance record."""
+
+    changed = False
+    for field in (
+        "inputs",
+        "input_files",
+        "output_files",
+        "missing_inputs",
+        "empty_inputs",
+        "unknown_inputs",
+        "missing_outputs",
+    ):
+        values = record.get(field)
+        if not isinstance(values, list):
+            continue
+        retained = [
+            value
+            for value in values
+            if not contains_retired_report_reference(
+                value.get("path") if isinstance(value, dict) else value
+            )
+        ]
+        if len(retained) != len(values):
+            record[field] = retained
+            changed = True
+    return changed
+
+
+def prune_retired_report_records(payload: dict[str, Any]) -> bool:
+    """Drop records and metadata inputs for outputs no longer in the registry.
+
+    This supports a controlled documentation-output reduction without running
+    runtime-producing report generators merely to rewrite their catalog.
+    """
+
+    changed = False
+    records = payload.get("reports")
+    if isinstance(records, list):
+        retained = []
+        for record in records:
+            if isinstance(record, dict) and str(record.get("report_name") or "") in RETIRED_REPORT_NAMES:
+                changed = True
+                continue
+            if isinstance(record, dict):
+                changed = prune_retired_record_fields(record) or changed
+            retained.append(record)
+        if len(retained) != len(records):
+            payload["reports"] = retained
+            changed = True
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        return changed
+    inputs = metadata.get("inputs")
+    if isinstance(inputs, list):
+        retained_inputs = [
+            item for item in inputs if not contains_retired_report_reference(item.get("path") if isinstance(item, dict) else item)
+        ]
+        if len(retained_inputs) != len(inputs):
+            metadata["inputs"] = retained_inputs
+            for field, status in (("missing_inputs", "missing"), ("empty_inputs", "empty"), ("unknown_inputs", "unknown")):
+                values = metadata.get(field)
+                if isinstance(values, list):
+                    metadata[field] = [
+                        value
+                        for value in values
+                        if not contains_retired_report_reference(value)
+                    ]
+            changed = True
+    return changed
+
+
+def prune_retired_markdown_rows(path: Path) -> bool:
+    """Remove retired generated-output rows from a retained language companion."""
+
+    if not path.is_file():
+        return False
+    text = path.read_text(encoding="utf-8", errors="replace")
+    lines = text.splitlines(keepends=True)
+    retained = [line for line in lines if not contains_retired_report_reference(line)]
+    if len(retained) == len(lines):
+        return False
+    path.write_text("".join(retained), encoding="utf-8")
+    return True
+
+
+def prune_retired_freshness_report(connector_root: Path) -> bool:
+    """Refresh the retained freshness view without invoking runtime producers."""
+
+    json_path = report_path(connector_root, "report_freshness", "json")
+    payload = read_json(json_path)
+    if not payload or not prune_retired_report_records(payload):
+        return False
+    metadata = payload.pop("metadata", {})
+    if not isinstance(metadata, dict):
+        raise ValueError(f"cannot preserve metadata while pruning {json_path}")
+    json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
+    md_path = report_path(connector_root, "report_freshness", "md")
+    md_path.write_text(generated_markdown_text(render_freshness_md(payload), metadata), encoding="utf-8")
+    prune_retired_markdown_rows(md_path.with_name(md_path.name.removesuffix(".md") + ".de.md"))
+    return True
+
+
 def read_verified_commands(env: dict[str, str]) -> list[dict[str, Any]]:
     path_value = env.get("VERIFIED_RUN_COMMANDS_FILE")
     if not path_value:
@@ -294,7 +409,6 @@ BODY_PROCESSOR_OUTPUTS = generated_report_outputs(["body_processor_analysis"])
 RULE_CHAIN_OUTPUTS = generated_report_outputs(["rule_chain_semantics_analysis"])
 FINAL_CONSISTENCY_OUTPUTS = generated_report_outputs(["final_consistency_audit"])
 REMAINING_OUTPUTS = generated_report_outputs(["remaining_failure_analysis", "next_fix_plan"])
-CONNECTOR_ROADMAP_OUTPUTS = generated_report_outputs(["connector_roadmap"])
 
 
 def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, native_root: Path, python: str) -> list[ReportSpec]:
@@ -329,26 +443,6 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
     if os.environ.get("MATRIX_ROOT"):
         full_matrix_log_root = Path(str(os.environ["MATRIX_ROOT"]))
     return [
-        ReportSpec(
-            name="connector_roadmap",
-            owner="manifest",
-            generator="ci/evidence/reports/generate-connector-roadmap.py",
-            make_target="refresh-connector-reports",
-            inputs=("connectors", "Makefile", "ci", "config", "docs", "reports/testing/generated"),
-            outputs=CONNECTOR_ROADMAP_OUTPUTS,
-            command=(
-                python,
-                "ci/evidence/reports/generate-connector-roadmap.py",
-                "--connector-root",
-                str(connector_root),
-                "--framework-root",
-                str(framework_root),
-                "--output-dir",
-                str(report_dir / "manifest"),
-            ),
-            requires_runtime=False,
-            requires_full_matrix=False,
-        ),
         ReportSpec(
             name="connector_coverage_reports",
             owner="connector",
@@ -1435,118 +1529,6 @@ def submodule_report(connector_root: Path, framework_root: Path) -> list[dict[st
     return rows
 
 
-def spec_for_key(key: str, catalog: list[ReportSpec]) -> ReportSpec | None:
-    wanted = set(report_outputs(key))
-    for spec in catalog:
-        if spec.name == key or wanted.intersection(spec.outputs):
-            return spec
-    return None
-
-
-def actual_inputs_for_key(key: str, catalog: list[ReportSpec]) -> tuple[str, ...]:
-    spec = spec_for_key(key, catalog)
-    if spec:
-        return spec.inputs
-    return GENERATED_REPORTS[key].inputs
-
-
-def dependency_payload(catalog: list[ReportSpec]) -> dict[str, Any]:
-    output_to_key: dict[str, str] = {}
-    for key in GENERATED_REPORTS:
-        for output in report_outputs(key):
-            output_to_key[output] = key
-    nodes: list[dict[str, Any]] = []
-    edges: set[tuple[str, str]] = set()
-    root_inputs: set[str] = set()
-    for key in GENERATED_REPORTS:
-        inputs = list(actual_inputs_for_key(key, catalog))
-        outputs = list(report_outputs(key))
-        deps: list[str] = []
-        for raw in inputs:
-            rewritten = rewrite_generated_relpath(raw)
-            dependency = output_to_key.get(rewritten)
-            if dependency and dependency != key:
-                deps.append(dependency)
-                edges.add((dependency, key))
-            else:
-                root_inputs.add(raw)
-        record = registry_record(key)
-        record.update({"inputs": inputs, "outputs": outputs, "dependencies": sorted(set(deps))})
-        nodes.append(record)
-    return {
-        "nodes": nodes,
-        "edges": [{"from": source, "to": target} for source, target in sorted(edges)],
-        "root_inputs": sorted(root_inputs),
-        "final_reports": ["final_consistency_audit", "full_run_evidence", "merge_readiness_dashboard"],
-    }
-
-
-def render_dependency_graph_md(payload: dict[str, Any]) -> str:
-    lines = [
-        "# Report Dependency Graph",
-        "",
-        "## Mermaid",
-        "",
-        "```mermaid",
-        "flowchart TD",
-    ]
-    for node in payload["nodes"]:
-        lines.append(f'  {node["key"]}["{node["stem"]}"]')
-    for edge in payload["edges"]:
-        lines.append(f'  {edge["from"]} --> {edge["to"]}')
-    lines.extend(["```", "", "## Reports", "", "| Report | Inputs | Outputs | Dependencies |", "|---|---|---|---|"])
-    for node in payload["nodes"]:
-        lines.append(
-            f"| `{node['key']}` | "
-            f"{'<br>'.join(f'`{item}`' for item in node.get('inputs', [])) or '-'} | "
-            f"{'<br>'.join(f'`{item}`' for item in node.get('outputs', [])) or '-'} | "
-            f"{', '.join(f'`{item}`' for item in node.get('dependencies', [])) or '-'} |"
-        )
-    lines.extend(["", "## Root Inputs", ""])
-    lines.extend(f"- `{item}`" for item in payload["root_inputs"])
-    lines.extend(["", "## Final Reports", ""])
-    lines.extend(f"- `{item}`" for item in payload["final_reports"])
-    return "\n".join(lines) + "\n"
-
-
-def data_lineage_payload(catalog: list[ReportSpec]) -> dict[str, Any]:
-    reports: list[dict[str, Any]] = []
-    for key in GENERATED_REPORTS:
-        record = registry_record(key)
-        record["inputs"] = list(actual_inputs_for_key(key, catalog))
-        record["outputs"] = list(report_outputs(key))
-        record["notes"] = GENERATED_REPORTS[key].purpose
-        reports.append(record)
-    return {"reports": reports}
-
-
-def render_data_lineage_md(payload: dict[str, Any]) -> str:
-    lines = [
-        "# Report Data Lineage",
-        "",
-        "| Report | Owner | Origin | Kind | Inputs | Outputs | Commit Policy | Notes |",
-        "|---|---|---|---|---|---|---|---|",
-    ]
-    for report in payload["reports"]:
-        lines.append(
-            "| "
-            + " | ".join(
-                [
-                    f"`{report['key']}`",
-                    report["owner"],
-                    report["data_origin"],
-                    report["data_kind"],
-                    "<br>".join(f"`{item}`" for item in report.get("inputs", [])) or "-",
-                    "<br>".join(f"`{item}`" for item in report.get("outputs", [])) or "-",
-                    report["commit_policy"],
-                    md(report.get("notes", "-")),
-                ]
-            )
-            + " |"
-        )
-    return "\n".join(lines) + "\n"
-
-
 def render_freshness_md(payload: dict[str, Any]) -> str:
     lines = [
         "# Report Freshness",
@@ -1561,63 +1543,6 @@ def render_freshness_md(payload: dict[str, Any]) -> str:
             f"| `{report['report_name']}` | {report.get('freshness_status', 'unknown')} | "
             f"{report.get('generated_at', '-')} | {report.get('newest_input_mtime', '-')} | "
             f"{report.get('newest_output_mtime', '-')} | {md(missing)} | {md(notes)} |"
-        )
-    return "\n".join(lines) + "\n"
-
-
-def path_migration_payload(connector_root: Path) -> dict[str, Any]:
-    rows = []
-    for filename, key in sorted(FILENAME_TO_KEY.items()):
-        ext = Path(filename).suffix.removeprefix(".")
-        old_path = legacy_report_relpath(key, ext)
-        new_path = report_relpath(key, ext)
-        flat = connector_root / old_path
-        rows.append(
-            {
-                "old_path": old_path,
-                "new_path": new_path,
-                "category": GENERATED_REPORTS[key].category,
-                "status": "flat-file-present-error" if flat.exists() else "migrated",
-            }
-        )
-    return {"paths": rows}
-
-
-def render_path_migration_md(payload: dict[str, Any]) -> str:
-    lines = [
-        "# Report Path Migration",
-        "",
-        "| Old Path | New Path | Category | Status |",
-        "|---|---|---|---|",
-    ]
-    for row in payload["paths"]:
-        lines.append(f"| `{row['old_path']}` | `{row['new_path']}` | {row['category']} | {row['status']} |")
-    return "\n".join(lines) + "\n"
-
-
-def render_generator_runtime_summary_md(reports: list[dict[str, Any]]) -> str:
-    lines = [
-        "# Generator Runtime Summary",
-        "",
-        "| Report | Generator | Target | Status | Return Code | Duration | Missing Inputs | Missing Outputs |",
-        "|---|---|---|---|---:|---:|---|---|",
-    ]
-    for report in reports:
-        lines.append(
-            "| "
-            + " | ".join(
-                [
-                    f"`{report['report_name']}`",
-                    f"`{report['generator']}`",
-                    f"`{report['make_target']}`",
-                    report.get("status", "unknown"),
-                    str(report.get("return_code", "-")),
-                    str(report.get("duration_seconds", "-")),
-                    md(", ".join(report.get("missing_inputs", [])) or "-"),
-                    md(", ".join(report.get("missing_outputs", [])) or "-"),
-                ]
-            )
-            + " |"
         )
     return "\n".join(lines) + "\n"
 
@@ -2090,7 +2015,11 @@ def main() -> int:
     parser.add_argument("--build-root", default=os.environ.get("BUILD_ROOT"))
     parser.add_argument("--native-root", default=os.environ.get("MRTS_NATIVE_ROOT"))
     parser.add_argument("--strict-inputs", action="store_true")
-    parser.add_argument("--render-index-only", action="store_true", help="Re-render the bilingual index from the existing manifest without running generators.")
+    parser.add_argument(
+        "--render-index-only",
+        action="store_true",
+        help="Re-render the bilingual index and prune retired catalog records without running generators.",
+    )
     args = parser.parse_args()
 
     connector_root = Path(args.connector_root).resolve()
@@ -2107,6 +2036,19 @@ def main() -> int:
         manifest = read_json(manifest_path)
         if not manifest.get("reports"):
             raise SystemExit(f"cannot render report index without manifest reports: {manifest_path}")
+        if prune_retired_report_records(manifest):
+            metadata = manifest.pop("metadata", {})
+            if not isinstance(metadata, dict):
+                raise SystemExit(f"cannot preserve metadata while pruning {manifest_path}")
+            manifest_path.write_text(generated_json_text(manifest, metadata), encoding="utf-8")
+            manifest_md_path = report_path(connector_root, "report_refresh_manifest", "md")
+            manifest_md_path.write_text(
+                generated_markdown_text(render_manifest_md(manifest), metadata), encoding="utf-8"
+            )
+            prune_retired_markdown_rows(
+                manifest_md_path.with_name(manifest_md_path.name.removesuffix(".md") + ".de.md")
+            )
+        prune_retired_freshness_report(connector_root)
         index_root = connector_root / "reports/testing"
         (index_root / "README.md").write_text(
             render_report_index_md(manifest, connector_root=connector_root), encoding="utf-8"
@@ -2175,42 +2117,7 @@ def main() -> int:
             md_path.write_text(generated_markdown_text(markdown, metadata), encoding="utf-8")
         return build_governance_record(key, connector_root, framework_root, build_root, generated_at, inputs)
 
-    dependency = dependency_payload(catalog)
-    data_lineage = data_lineage_payload(catalog)
-    path_migration = path_migration_payload(connector_root)
-    governance_records = [
-        write_governance_json_md(
-            "report_dependency_graph",
-            dependency,
-            render_dependency_graph_md(dependency),
-            tuple(sorted({item for node in dependency["nodes"] for item in node.get("inputs", [])})),
-        ),
-        write_governance_json_md(
-            "report_data_lineage",
-            data_lineage,
-            render_data_lineage_md(data_lineage),
-            tuple(sorted({item for report in data_lineage["reports"] for item in report.get("inputs", [])})),
-        ),
-        write_governance_json_md(
-            "report_path_migration",
-            path_migration,
-            render_path_migration_md(path_migration),
-        ),
-    ]
-    runtime_md = render_generator_runtime_summary_md(reports)
-    runtime_metadata = build_metadata(
-        generated_by=GENERATED_REPORTS["generator_runtime_summary"].generator,
-        make_target=GENERATED_REPORTS["generator_runtime_summary"].make_target,
-        connector_root=connector_root,
-        framework_root=framework_root,
-        inputs=record_outputs(reports),
-        generated_at=generated_at,
-        report_key="generator_runtime_summary",
-    )
-    runtime_path = report_path(connector_root, "generator_runtime_summary", "md")
-    runtime_path.parent.mkdir(parents=True, exist_ok=True)
-    runtime_path.write_text(generated_markdown_text(runtime_md, runtime_metadata), encoding="utf-8")
-    governance_records.append(build_governance_record("generator_runtime_summary", connector_root, framework_root, build_root, generated_at))
+    governance_records: list[dict[str, Any]] = []
 
     manifest_record = build_governance_record("report_refresh_manifest", connector_root, framework_root, build_root, generated_at)
     freshness_record_placeholder = build_governance_record("report_freshness", connector_root, framework_root, build_root, generated_at)

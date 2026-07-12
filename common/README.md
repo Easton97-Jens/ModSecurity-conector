@@ -24,7 +24,7 @@ matrix, or runtime-verification claim.
 | \`runtime/\` | Reusable local decision-service/runtime support | It must remain host-neutral and must not become a server hook implementation. |
 | \`rules/\` | Checked-in targeted smoke rules | These are repository test inputs, not a statement of complete rule coverage. |
 | \`scripts/\` | Local test/evidence helpers | Add portable helper code here only when it has no host SDK or system-path dependency. |
-| \`docs/\` | Detailed design notes | The [Common architecture](../docs/architecture/common/overview.md) is the current documentation index for boundaries and ownership. |
+| \`docs/\` | Detailed design notes | The [Common architecture](../docs/architecture.md) is the current documentation index for boundaries and ownership. |
 
 The checked-in headers and source are authoritative for the shared code
 contract. The root [Makefile](../Makefile) is authoritative for validation
@@ -47,7 +47,7 @@ trees, download artifacts, secrets, or connector-local test cases.
 ## Variables and placeholders
 
 The root Makefile owns these inputs. Their complete definitions and safety
-rules are in the [variables reference](../docs/configuration/variables.md).
+rules are in the [variables reference](../docs/reference/variables.md).
 The terminology for ownership, interventions, and lifecycle phases is in the
 [glossary](../docs/reference/glossary.md).
 
@@ -74,7 +74,7 @@ or user-specific paths into headers, source, test output, or documentation.
 | \`make check-directive-parity\` | Checks shared directive specification parity; connector-specific host parsing remains outside \`common/\`. |
 | \`make lint\` | Includes these structural checks plus broader repository checks; it does not produce canonical runtime evidence. |
 
-Use the [Common architecture](../docs/architecture/common/overview.md),
-[testing guide](../docs/testing/README.md), and
-[evidence guide](../docs/evidence/README.md) before treating any result as an
+Use the [Common architecture](../docs/architecture.md),
+[testing guide](../docs/testing-and-evidence.md), and
+[evidence guide](../docs/testing-and-evidence.md) before treating any result as an
 implementation or runtime claim.

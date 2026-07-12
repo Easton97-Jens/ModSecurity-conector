@@ -13,10 +13,10 @@ allein keine Evidence.
 | --- | --- | --- | --- |
 | [apache/](apache/README.de.md) | natives httpd-Modul | Native HTTP/1.1-P1--P4-Safe-Konfiguration | keine |
 | [nginx/](nginx/README.de.md) | natives NGINX-HTTP-Modul | Native HTTP/1.1-P1--P4-Safe-Konfiguration | keine |
-| [haproxy/](haproxy/README.de.md) | nativer HTX-Filter | Native HTTP/1.1-P1--P4-Safe-Konfiguration | [SPOE/SPOP](haproxy/compatibility-spoe/README.de.md) |
-| [envoy/](envoy/README.de.md) | Envoy ext_proc | Gestreamte HTTP/1.1-P1--P4-Safe-Konfiguration | [ext_authz](envoy/compatibility-ext-authz/README.de.md) |
-| [traefik/](traefik/README.de.md) | native Traefik-Middleware | Local-Plugin-/UDS-HTTP/1.1-P1--P4-Safe-Konfiguration | [forwardAuth](traefik/compatibility-forwardauth/README.de.md) |
-| [lighttpd/](lighttpd/README.de.md) | gepatchtes natives lighttpd-Modul | HTTP/1.1-Identity-Entity-P1--P4-Safe-Referenz | [Sidecar-Proxy](lighttpd/compatibility-sidecar/README.de.md) |
+| [haproxy/](haproxy/README.de.md) | nativer HTX-Filter | Native HTTP/1.1-P1--P4-Safe-Konfiguration | [SPOE/SPOP](haproxy/README.de.md#spoespop-kompatibilität) |
+| [envoy/](envoy/README.de.md) | Envoy ext_proc | Gestreamte HTTP/1.1-P1--P4-Safe-Konfiguration | [ext_authz](envoy/README.de.md#ext_authz-kompatibilität) |
+| [traefik/](traefik/README.de.md) | native Traefik-Middleware | Local-Plugin-/UDS-HTTP/1.1-P1--P4-Safe-Konfiguration | [forwardAuth](traefik/README.de.md#forwardauth-kompatibilität) |
+| [lighttpd/](lighttpd/README.de.md) | gepatchtes natives lighttpd-Modul | HTTP/1.1-Identity-Entity-P1--P4-Safe-Referenz | [Sidecar-Proxy](lighttpd/README.de.md#sidecar-kompatibilität) |
 
 Alle Pfade in der Tabelle sind repository-relativ: Sie werden vom Root dieses
 Repositorys aus aufgelöst. Ein Hostpfad wie
@@ -60,10 +60,10 @@ connector-spezifische Einschränkung.
 
 ## Regeln und erwartete Ergebnisse
 
-Jeder Connector hat ein rules- und ein expected-Verzeichnis. Das
-rules-Verzeichnis benennt die repository-eigene No-CRS-Baseline-Regelquelle,
-ohne eine veränderliche Framework-Datei in diese Beispiele zu kopieren. Das
-expected-Verzeichnis beschreibt nur die Konfigurationsabsicht; es ist kein
+Jedes Connector-Parent-README enthält seine No-CRS-Regelquelle und seine
+P1--P4-Safe-Absicht. Die rules-Verzeichnisse behalten die eingecheckten
+Profildateien, ohne eine veränderliche Framework-Datei in diese Beispiele zu
+kopieren. Die Safe-Absicht bleibt Konfigurationsanleitung und kein
 Testergebnis.
 
 Die No-CRS-Regel-IDs 1100001, 1100101, 1100201 und 1100301 stehen jeweils für

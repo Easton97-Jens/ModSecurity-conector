@@ -27,7 +27,7 @@ HTTP/2-/HTTP/3-Verifikation noch Strict-Verifikation für alle Connectoren ab.
 | `<connector>/harness/` | Connector-lokales Start- und Beobachtungs-Wiring | Der Harness zusammen mit dem aufrufenden Root-Target definiert den ausführbaren Integrationsvertrag. |
 | `<connector>/capabilities.json` und `metadata.*` | Deklarierte Capability und Connector-Metadaten | Diese maschinenlesbaren Dateien sind maßgebliche Deklarationen, aber keine Promotion-Evidence. |
 | `<connector>/ORIGIN.md` und `SOURCE_MAP.json` | Herkunft, Lizenz und Import-Provenance | Bei jeder Änderung importierten oder abgeleiteten Materials aktualisieren. |
-| `<connector>/docs/` | Connector-lokale historische/Design-Details | Source- oder host-spezifische Notizen hier ablegen; aktuelle Nutzer-Guides liegen in [docs/connectors](../docs/connectors/README.de.md). |
+| `<connector>/README.*`, `ORIGIN.md` und `TODO.md` | Code-nahe Source-, Provenance- und Arbeitsverfolgungsnotizen | Leserorientierte Architektur-, Konfigurations-, Lifecycle-, Einschränkungs- und Validierungs-Guides in [docs/connectors](../docs/connectors/README.de.md) halten. |
 
 Das Root-[Makefile](../Makefile) ist maßgeblich für Target-Namen und Defaults.
 Das Framework-Submodule besitzt den wiederverwendbaren Case-Katalog und die
@@ -42,9 +42,9 @@ Beginnen Sie mit `_template/`, erstellen Sie danach
 `<connector>` nur durch einen der sechs oben genannten Namen; der Text ist kein
 literaler Verzeichnisname. Host-spezifischer Source gehört nach `src/`,
 Harness-Code nach `harness/`, Herkunfts- und Metadatenänderungen neben den
-Source. Einen aktuellen Nutzer-Guide legen Sie unter
-`docs/connectors/<connector>/` an; bei einem generierten Guide wird der
-Generator aktualisiert.
+Source. Einen aktuellen Nutzer-Guide unter
+`docs/connectors/<connector>.md` samt deutschem Partner anlegen; bei einem
+generierten Guide wird der Generator aktualisiert.
 
 Legen Sie keine ausführbaren Katalog-Cases unter einem Connector-Baum ab:
 wiederverwendbare Cases, Normalizer und Runner sind Framework-owned. Speichern
@@ -56,7 +56,7 @@ Server-/Proxy-SDK-Code gehört nicht nach `common/`.
 
 Die folgenden Werte sind Eingaben für Root-Targets, keine Werte, die eine
 Connector-Source-Datei stillschweigend liest. Die vollständige Vereinbarung
-steht in der zentralen [Variablen- und Platzhalterreferenz](../docs/configuration/variables.de.md)
+steht in der zentralen [Variablen- und Platzhalterreferenz](../docs/reference/variables.de.md)
 und im [Glossar](../docs/reference/glossary.de.md).
 
 | Name | Lokale Bedeutung | Pflicht, Format und Beispiel |
@@ -87,5 +87,5 @@ genannten erlaubten Werte.
 | `make lint` | Führt Repository-Contracts, Dokumentationschecks und Syntaxchecks aus. Es erzeugt nicht selbst kanonische Runtime-Evidence. |
 
 Details zu Compiler, Konfiguration, Testebene und Evidence stehen unter
-[Build](../docs/build/README.de.md), [Testing](../docs/testing/README.de.md)
-und [Evidence](../docs/evidence/README.de.md).
+[Build](../docs/build/README.de.md), [Testing](../docs/testing-and-evidence.de.md)
+und [Evidence](../docs/testing-and-evidence.de.md).

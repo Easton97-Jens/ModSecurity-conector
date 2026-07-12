@@ -50,7 +50,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 | --- | --- | --- |
 | Minimal | [minimal/httpd.conf](minimal/httpd.conf) | Active starter configuration |
 | Safe full lifecycle | [safe/httpd.conf](safe/httpd.conf) | Selected bounded reference |
-| Strict | [strict/README.md](strict/README.md) | Parser-supported or explicitly optional boundary |
+| Strict | [README.md#strict-profile-boundary](README.md#strict-profile-boundary) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/httpd.conf](detection-only/httpd.conf) | Engine evaluates/logs without disruptive action |
 | Disabled | [disabled/httpd.conf](disabled/httpd.conf) | Connector or engine path disabled |
 
@@ -77,6 +77,7 @@ Repository targets: `make check-config-apache` and `make check-config-all-connec
 
 ## Option details
 
+<a id="customlog"></a>
 ## `CustomLog`
 
 ### Short description
@@ -131,6 +132,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="errorlog"></a>
 ## `ErrorLog`
 
 ### Short description
@@ -185,6 +187,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="loadmodule"></a>
 ## `LoadModule`
 
 ### Short description
@@ -239,6 +242,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="modsecurity"></a>
 ## `modsecurity`
 
 ### Short description
@@ -293,6 +297,7 @@ Source-backed example: [examples/apache/minimal/httpd.conf](../../examples/apach
 
 off bypasses connector P1–P4 processing even if a rule file is configured.
 
+<a id="modsecurity-phase4-body-limit"></a>
 ## `modsecurity_phase4_body_limit`
 
 ### Short description
@@ -347,6 +352,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 A larger limit raises memory/CPU exposure; zero is invalid in the native setters.
 
+<a id="modsecurity-phase4-content-types-file"></a>
 ## `modsecurity_phase4_content_types_file`
 
 ### Short description
@@ -401,6 +407,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 Keep the scope narrow and validate that the host exposes the intended representation of response bytes.
 
+<a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
 
 ### Short description
@@ -455,6 +462,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 Treat JSONL metadata as sensitive operational data and set safe ownership/rotation.
 
+<a id="modsecurity-phase4-mode"></a>
 ## `modsecurity_phase4_mode`
 
 ### Short description
@@ -509,6 +517,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 strict must not be described as a guaranteed later 403; host-specific abort evidence is required.
 
+<a id="modsecurity-rules"></a>
 ## `modsecurity_rules`
 
 ### Short description
@@ -563,6 +572,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 Inline rules are executable policy; restrict who may alter host configuration.
 
+<a id="modsecurity-rules-file"></a>
 ## `modsecurity_rules_file`
 
 ### Short description
@@ -617,6 +627,7 @@ Source-backed example: [examples/apache/minimal/httpd.conf](../../examples/apach
 
 Keep the file and parent directories non-writable by untrusted identities.
 
+<a id="modsecurity-rules-remote"></a>
 ## `modsecurity_rules_remote`
 
 ### Short description
@@ -671,6 +682,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 Remote policy is not exercised by the selected no-CRS examples; do not treat it as a local-file substitute.
 
+<a id="modsecurity-transaction-id"></a>
 ## `modsecurity_transaction_id`
 
 ### Short description
@@ -725,6 +737,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 Do not put credentials or sensitive request data in a correlation identifier.
 
+<a id="modsecurity-transaction-id-expr"></a>
 ## `modsecurity_transaction_id_expr`
 
 ### Short description
@@ -779,6 +792,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 Treat expression inputs as metadata; avoid exposing secrets in logs.
 
+<a id="modsecurity-use-error-log"></a>
 ## `modsecurity_use_error_log`
 
 ### Short description

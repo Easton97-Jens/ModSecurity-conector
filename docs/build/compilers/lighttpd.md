@@ -32,7 +32,7 @@ make runtime-components-sources
 
 Relevant variables: `LIGHTTPD_BIN`, `LIGHTTPD_SOURCE_DIR`, `LIGHTTPD_BUILD_ROOT`, `LIGHTTPD_INCLUDE_DIR`, `LIGHTTPD_MODULE_DIR`, `LIGHTTPD_PATCHED_ROOT`, and the documented `LIGHTTPD_PATCHED_*` runtime paths.
 Their format, defaults, scope, effect, and security boundary are defined in the
-[central variable reference](../../configuration/variables.md). An override is
+[central variable reference](../../reference/variables.md). An override is
 an explicit input change, not a capability upgrade.
 
 ## Toolchain and Cache-v2
@@ -89,12 +89,12 @@ profile can produce canonical evidence.
 
 ## Configuration, examples, and troubleshooting
 
-- Current connector guide: [lighttpd](../../connectors/lighttpd/README.md)
+- Current connector guide: [lighttpd](../../connectors/lighttpd.md)
 - Configuration details:
-  [connector configuration](../../connectors/lighttpd/configuration.md)
+  [complete connector reference](../../../examples/lighttpd/configuration-reference.md)
 - Repository examples: [examples/lighttpd](../../../examples/lighttpd/README.md)
-- Test and evidence boundaries: [test levels](../../testing/README.md) ·
-  [evidence rules](../../evidence/README.md)
+- Test and evidence boundary:
+  [testing and evidence guide](../../testing-and-evidence.md)
 
 For module-load or patch failures, keep the selected source, patch and module build roots together and inspect the sanitized host log. Do not combine a stock binary with a module built against a different header set.
 

@@ -77,7 +77,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 | --- | --- | --- |
 | Minimal | [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Ausgewählte begrenzte Referenz |
-| Strikt | [strict/README.de.md](strict/README.de.md) | Parserunterstützte oder ausdrücklich optionale Grenze |
+| Strikt | [README.de.md#strict-profilgrenze](README.de.md#strict-profilgrenze) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Engine wertet aus/protokolliert ohne disruptive Aktion |
 | Deaktiviert | [disabled/haproxy-htx.cfg](disabled/haproxy-htx.cfg) | Connector- oder Engine-Pfad deaktiviert |
 
@@ -104,6 +104,7 @@ Repository-Ziele: `make check-config-haproxy` und `make check-config-all-connect
 
 ## Optionsdetails
 
+<a id="bind"></a>
 ## `bind`
 
 ### Kurzbeschreibung
@@ -158,6 +159,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="default-backend"></a>
 ## `default_backend`
 
 ### Kurzbeschreibung
@@ -212,6 +214,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="filter-modsecurity-htx"></a>
 ## `filter modsecurity-htx`
 
 ### Kurzbeschreibung
@@ -266,6 +269,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Ein ungepatchtes HAProxy-Binärprogramm bietet dieses Schlüsselwort nicht; SPOE nicht stillschweigend ersetzen.
 
+<a id="log"></a>
 ## `log`
 
 ### Kurzbeschreibung
@@ -320,6 +324,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="mode"></a>
 ## `mode`
 
 ### Kurzbeschreibung
@@ -374,6 +379,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="phase4-mode"></a>
 ## `phase4-mode`
 
 ### Kurzbeschreibung
@@ -428,6 +434,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 strict protokolliert eine Policy-Anforderung zum Abbruch, aber der native HTX-Pfad protokolliert derzeit die Hostaktion not_attempted; dies ist keine Abbruchgarantie.
 
+<a id="rules-file"></a>
 ## `rules-file`
 
 ### Kurzbeschreibung
@@ -482,6 +489,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Eigentümerschaft und Berechtigungen der Policy-Datei schützen.
 
+<a id="server"></a>
 ## `server`
 
 ### Kurzbeschreibung
@@ -536,6 +544,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="timeout-client"></a>
 ## `timeout client`
 
 ### Kurzbeschreibung
@@ -590,6 +599,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="timeout-connect"></a>
 ## `timeout connect`
 
 ### Kurzbeschreibung
@@ -644,6 +654,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="timeout-server"></a>
 ## `timeout server`
 
 ### Kurzbeschreibung
@@ -698,6 +709,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="filter-spoe"></a>
 ## `filter spoe`
 
 ### Kurzbeschreibung
@@ -752,6 +764,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/haproxy-request-
 
 Diesen historischen Pfad nicht als ausgewählten nativen Kern hochstufen.
 
+<a id="legacy-phase4-strict-abort"></a>
 ## `legacy-phase4-strict-abort`
 
 ### Kurzbeschreibung
@@ -806,6 +819,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/legacy-phase4-st
 
 Niemals als Nachweis für P4 oder einen strict-Abbruch verwenden.
 
+<a id="spoe-agent-audit-log"></a>
 ## `spoe-agent:audit-log`
 
 ### Kurzbeschreibung
@@ -860,6 +874,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-case"></a>
 ## `spoe-agent:case`
 
 ### Kurzbeschreibung
@@ -914,6 +929,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-crs-root"></a>
 ## `spoe-agent:crs-root`
 
 ### Kurzbeschreibung
@@ -968,6 +984,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-debug"></a>
 ## `spoe-agent:debug`
 
 ### Kurzbeschreibung
@@ -1022,6 +1039,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-decision-log"></a>
 ## `spoe-agent:decision-log`
 
 ### Kurzbeschreibung
@@ -1076,6 +1094,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-enable-response-headers"></a>
 ## `spoe-agent:enable-response-headers`
 
 ### Kurzbeschreibung
@@ -1130,6 +1149,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-expected-status"></a>
 ## `spoe-agent:expected-status`
 
 ### Kurzbeschreibung
@@ -1184,6 +1204,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-fail-mode"></a>
 ## `spoe-agent:fail-mode`
 
 ### Kurzbeschreibung
@@ -1238,6 +1259,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-host"></a>
 ## `spoe-agent:host`
 
 ### Kurzbeschreibung
@@ -1292,6 +1314,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-listen"></a>
 ## `spoe-agent:listen`
 
 ### Kurzbeschreibung
@@ -1346,6 +1369,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-log-file"></a>
 ## `spoe-agent:log-file`
 
 ### Kurzbeschreibung
@@ -1400,6 +1424,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-max-transactions"></a>
 ## `spoe-agent:max-transactions`
 
 ### Kurzbeschreibung
@@ -1454,6 +1479,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-mode"></a>
 ## `spoe-agent:mode`
 
 ### Kurzbeschreibung
@@ -1508,6 +1534,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-modsecurity-conf"></a>
 ## `spoe-agent:modsecurity-conf`
 
 ### Kurzbeschreibung
@@ -1562,6 +1589,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-pid-file"></a>
 ## `spoe-agent:pid-file`
 
 ### Kurzbeschreibung
@@ -1616,6 +1644,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-port"></a>
 ## `spoe-agent:port`
 
 ### Kurzbeschreibung
@@ -1670,6 +1699,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-port-file"></a>
 ## `spoe-agent:port-file`
 
 ### Kurzbeschreibung
@@ -1724,6 +1754,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-ready-file"></a>
 ## `spoe-agent:ready-file`
 
 ### Kurzbeschreibung
@@ -1778,6 +1809,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-request-body-limit"></a>
 ## `spoe-agent:request-body-limit`
 
 ### Kurzbeschreibung
@@ -1832,6 +1864,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-response-body-limit"></a>
 ## `spoe-agent:response-body-limit`
 
 ### Kurzbeschreibung
@@ -1886,6 +1919,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-response-body-timeout"></a>
 ## `spoe-agent:response-body-timeout`
 
 ### Kurzbeschreibung
@@ -1940,6 +1974,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-response-phases"></a>
 ## `spoe-agent:response-phases`
 
 ### Kurzbeschreibung
@@ -1994,6 +2029,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-rules-dir"></a>
 ## `spoe-agent:rules-dir`
 
 ### Kurzbeschreibung
@@ -2048,6 +2084,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-rules-file"></a>
 ## `spoe-agent:rules-file`
 
 ### Kurzbeschreibung
@@ -2102,6 +2139,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-runtime-mode"></a>
 ## `spoe-agent:runtime-mode`
 
 ### Kurzbeschreibung
@@ -2156,6 +2194,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-spoe-timeout"></a>
 ## `spoe-agent:spoe-timeout`
 
 ### Kurzbeschreibung
@@ -2210,6 +2249,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-variant"></a>
 ## `spoe-agent:variant`
 
 ### Kurzbeschreibung
@@ -2264,6 +2304,7 @@ Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agen
 
 Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberprüfung; diesen Pfad nicht zum ausgewählten nativen Kern hochstufen.
 
+<a id="spoe-agent-worker-count"></a>
 ## `spoe-agent:worker-count`
 
 ### Kurzbeschreibung

@@ -92,9 +92,8 @@ Connector-Host aus und erzeugt keine Full-Lifecycle-Evidence.
 | Finalisierte Evidence validieren | <code>NO_CRS_RUN_ID="six-core-20260712T120000Z" make check-six-connector-core-completion</code> | Read-only-Gate; Exit <code>0</code> ist auf diesen Gate-Vertrag begrenzt |
 
 Die exakten Eingaben, Ausgaben, Target-Bedeutungen, Statuswerte, Exit-Codes und
-Platzhalter stehen unter [Build](docs/build/README.de.md),
-[Testing](docs/testing/README.de.md) und
-[Evidence](docs/evidence/README.de.md).
+Platzhalter stehen unter [Build](docs/build/README.de.md) und
+[Tests und Nachweise](docs/testing-and-evidence.de.md).
 
 ## Evidence-Grenze
 
@@ -115,20 +114,22 @@ Keine Aussage hier behauptet:
 
 Strict Late Intervention, erweiterte Transports, CRS-Verhalten und Extended
 Matrices bleiben getrennte Evidence-gesteuerte Arbeit. Lesen Sie die aktuellen
-[Testing-Reports](reports/testing/README.de.md) und den
-[Evidence-Guide](docs/evidence/README.de.md), bevor Sie einen Ergebnis-Claim
+[Testing-Reports](reports/README.de.md) und den
+[Guide für Tests und Nachweise](docs/testing-and-evidence.de.md), bevor Sie einen Ergebnis-Claim
 erheben.
 
 ## Dokumentation
 
 - [Dokumentationsindex](docs/README.de.md)
-- [Konfiguration und Variablen](docs/configuration/variables.de.md)
+- [Einstieg](docs/getting-started.de.md)
+- [Konfiguration](docs/configuration.de.md)
+- [Variablen](docs/reference/variables.de.md)
 - [Glossar](docs/reference/glossary.de.md)
 - [Build-Guide](docs/build/README.de.md)
 - [Connector-Guide](docs/connectors/README.de.md)
-- [Testing-Guide](docs/testing/README.de.md)
-- [Evidence-Guide](docs/evidence/README.de.md)
-- [Dokumentationsstil-Leitfaden](docs/development/documentation-style-guide.de.md)
+- [Tests und Nachweise](docs/testing-and-evidence.de.md)
+- [Betrieb und Sicherheit](docs/operations-and-security.de.md)
+- [Dokumentationspflege](AGENTS.de.md#dokumentationspflege)
 - [Framework-Modul](modules/ModSecurity-test-Framework/README.de.md)
 
 Repository-eigene English-/German-Dokumentation wird geprüft mit:

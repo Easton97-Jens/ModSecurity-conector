@@ -24,9 +24,7 @@ REFERENCE_LINK_RE = re.compile(r"^\s*\[[^\]]+\]:\s+(\S+)")
 FENCE_PREFIXES = ("```", "~~~")
 GERMAN_GENERATED_NOTE = "Diese deutsche Datei ist eine übersetzte Begleitdatei"
 TRANSLATION_EXEMPT_CONNECTOR_FILENAMES = frozenset({"ORIGIN.md", "TODO.md"})
-SPECIAL_LANGUAGE_INDEXES = (
-    (Path("docs/en/README.md"), Path("docs/de/README.md")),
-)
+SPECIAL_LANGUAGE_INDEXES: tuple[tuple[Path, Path], ...] = ()
 HEADING_RE = re.compile(r"^(#{1,6})\s+\S", re.MULTILINE)
 TABLE_ROW_RE = re.compile(r"^\|.*\|\s*$")
 
@@ -37,7 +35,11 @@ def is_tools_mrts(path: Path) -> bool:
 
 
 def is_ignored(path: Path) -> bool:
-    return any(part in {".git", ".venv", "__pycache__"} for part in path.parts) or is_tools_mrts(path)
+    return (
+        any(part in {".git", ".venv", "__pycache__"} for part in path.parts)
+        or path.name == "actions-update-report.md"
+        or is_tools_mrts(path)
+    )
 
 
 def german_counterpart(path: Path) -> Path:
@@ -79,11 +81,11 @@ def pair_required(path: Path) -> bool:
         return False
     if needs_extended_connector_parity(path):
         return True
-    if text in {"README.md", "actions-update-report.md"}:
+    if text == "README.md":
         return True
     if name.startswith("COMPILE_") and name.endswith(".md"):
         return True
-    if text.startswith("docs/") and not (text.startswith("docs/en/") or text.startswith("docs/de/")):
+    if text.startswith("docs/"):
         return True
     if text.startswith("examples/"):
         return True

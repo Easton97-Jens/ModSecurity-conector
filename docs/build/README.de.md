@@ -24,7 +24,7 @@ wird. Der Beispielwert <code>/srv/modsecurity-work/build</code> ist ein
 absoluter Runtime-Pfad, kein Repository-Default. Verwenden Sie weder
 Repository-Root noch Systemverzeichnis oder einen Pfad mit Secrets. Details zu
 Format, Scope, Auswirkung und Sicherheit stehen unter
-[Konfigurationsvariablen](../configuration/variables.de.md#runtime-und-repository-pfade).
+[Konfigurationsvariablen](../reference/variables.de.md#runtime-und-repository-pfade).
 
 Der Platzhalter <code>&lt;connector&gt;</code> bedeutet genau einen von
 <code>apache</code>, <code>nginx</code>, <code>haproxy</code>,
@@ -50,7 +50,7 @@ seinen technischen Vertrag erfüllte. <code>1</code> ist ein allgemeiner
 Fehler, <code>2</code> ungültige Eingabe/Contract-Validierung und
 <code>77</code> eine fehlende optionale oder erforderliche
 Umgebungsvoraussetzung. Das Statusvokabular steht unter
-[Testing](../testing/README.de.md).
+[Testing](../testing-and-evidence.de.md).
 
 ## Compiler- und Linker-Variablen
 
@@ -70,7 +70,7 @@ Die Schreibweise <code>$(MSCONNECTOR_C_STD)</code> oben ist eine
 Make-Variablenreferenz, kein Shell-Kommando. Das Makefile löst sie vor dem
 Ausführen eines Rezepts auf. Vollständige Formate, Defaults und
 Framework-weitergereichte Source-Variablen stehen unter
-[Konfigurationsvariablen](../configuration/variables.de.md).
+[Konfigurationsvariablen](../reference/variables.de.md).
 
 ## Cache- und Source-Provisionierung
 
@@ -87,9 +87,12 @@ make prepare-runtime-components VERIFIED_RUN_PARENT="/srv/modsecurity-work"
 ~~~
 
 <code>VERIFIED_RUN_PARENT</code> ist optional; der Root wählt
-<code>RUNNER_TEMP</code>, dann <code>TMPDIR</code>, dann <code>/var/tmp</code>,
-wenn die Variable leer ist. Das Beispiel ist ein empfohlener lokaler Wert,
-kein Repository-Default. Setzen Sie
+<code>RUNNER_TEMP</code>, dann <code>TMPDIR</code>, dann den dokumentierten
+Fallback <code>&lt;system-temporary-root&gt;</code>, wenn die Variable leer
+ist. <code>&lt;system-temporary-root&gt;</code> bezeichnet den temporären
+System-Fallback der Runtime; es ist ein Dokumentationsplatzhalter und ändert
+keinen eingecheckten Runtime-Default. Das Beispiel ist ein empfohlener lokaler
+Wert, kein Repository-Default. Setzen Sie
 <code>SKIP_RUNTIME_COMPONENT_PREPARE=1</code> nur, wenn bereits ein gültiger
 invocation-lokaler Snapshot und kompatibler Cache existieren. Dies bedeutet
 nicht „fehlende Dependencies überspringen“.

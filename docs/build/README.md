@@ -22,7 +22,7 @@ make build-nginx BUILD_ROOT="/srv/modsecurity-work/build"
 <code>VERIFIED_RUN_ROOT/build</code> when it is not provided. The example
 value <code>/srv/modsecurity-work/build</code> is an absolute runtime path, not
 a repository default. Do not use the repository root, a system directory, or a
-path containing secrets. See [configuration variables](../configuration/variables.md#runtime-and-repository-paths)
+path containing secrets. See [configuration variables](../reference/variables.md#runtime-and-repository-paths)
 for format, scope, impact, and security details.
 
 The placeholder <code>&lt;connector&gt;</code> means exactly one of
@@ -47,7 +47,7 @@ example, use <code>make build-nginx</code>; do not type
 Process exit code <code>0</code> means only that the invoked target completed
 its technical contract. <code>1</code> is a general failure, <code>2</code>
 is invalid input/contract validation, and <code>77</code> means a missing
-optional or required environment prerequisite. See [Testing](../testing/README.md)
+optional or required environment prerequisite. See [Testing](../testing-and-evidence.md)
 for the status vocabulary.
 
 ## Compiler and linker variables
@@ -67,7 +67,7 @@ requires them. The root defaults are:
 The <code>$(MSCONNECTOR_C_STD)</code> notation above is a Make-variable
 reference, not a shell command. The Makefile resolves it before running a
 recipe. Full formats, defaults, and Framework-forwarded source variables are
-listed in [configuration variables](../configuration/variables.md).
+listed in [configuration variables](../reference/variables.md).
 
 ## Cache and source provisioning
 
@@ -84,9 +84,12 @@ make prepare-runtime-components VERIFIED_RUN_PARENT="/srv/modsecurity-work"
 ~~~
 
 <code>VERIFIED_RUN_PARENT</code> is optional; the root chooses
-<code>RUNNER_TEMP</code>, then <code>TMPDIR</code>, then <code>/var/tmp</code>
-when it is empty. The example is a recommended local value, not a repository
-default. Set <code>SKIP_RUNTIME_COMPONENT_PREPARE=1</code> only when a valid
+<code>RUNNER_TEMP</code>, then <code>TMPDIR</code>, then the documented
+<code>&lt;system-temporary-root&gt;</code> fallback when it is empty.
+<code>&lt;system-temporary-root&gt;</code> denotes the runtime's system
+temporary fallback; it is a documentation placeholder and does not change the
+checked-in runtime default. The example is a recommended local value, not a
+repository default. Set <code>SKIP_RUNTIME_COMPONENT_PREPARE=1</code> only when a valid
 invocation-local snapshot and compatible cache already exist. It does not mean
 “skip missing dependencies.”
 

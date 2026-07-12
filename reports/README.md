@@ -2,22 +2,23 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-Reports are organized by evidence role. They are not a substitute for the
+Reports are organized by current evidence role. They do not replace the
 run-local artifacts from which a claim was validated.
 
-| Area | Contents | Source of truth |
+| Area | Canonical source | Purpose |
 | --- | --- | --- |
-| [`current/`](current/) | Current manually maintained six-connector status and readiness reports | Current selected HTTP/1.1 core and its linked evidence boundary |
-| [`audits/`](audits/) | Contract, runtime-root, promotion, transport, and organization audits | The named audit inputs and date |
-| [`evidence/`](evidence/) | Human-readable summaries of selected No-CRS evidence | Canonical result/event artifacts, not raw local runs |
-| [`archive/`](archive/README.md) | Superseded planning, readiness, and historical analysis | Banner at the beginning of each report |
-| [`testing/`](testing/) | Existing detailed testing index and generated-report layout | Its generator registry and Framework sources |
-| [`connector-configuration-inventory.json`](connector-configuration-inventory.json) | Generated machine-readable connector/host/Common/engine option inventory | Registered parsers, service contracts, and active example extractors |
+| Current core evidence | [current/core-completion.md](current/core-completion.md) | Bounded selected six-connector HTTP/1.1 core evidence. |
+| Current readiness | [current/readiness.md](current/readiness.md) | Current status, boundaries, and deliberately unmade claims. |
+| Architecture and evidence audit | [audits/architecture-and-evidence.md](audits/architecture-and-evidence.md) | Consolidated architecture, runtime-root, transport, and evidence contract. |
+| Configuration inventory | [connector-configuration-inventory.json](connector-configuration-inventory.json) | Generated source-backed connector, Common Runtime, and engine option inventory. |
+| Testing and generated reports | [testing/README.md](testing/README.md) | Generator-managed runtime, coverage, cache, and evidence reports. |
 
 `testing/generated/` remains the established generated-report location because
 the report registry, path-safety checks, and generators use it as their source
 contract. Regenerate it with `make refresh-all-reports`; do not edit generated
-Markdown by hand.
+Markdown by hand. The refresh manifest is the canonical generated-report
+catalog; separate dependency, lineage, path-migration, roadmap, and
+generator-summary views are intentionally not retained.
 
 Regenerate the configuration inventory and its paired example references with
 `make generate-connector-config-reference`; verify source/documentation parity
@@ -40,8 +41,3 @@ names remain the provenance contract.
 | `<temporary-work-root>` | Disposable temporary workspace used during a command or comparison. |
 | `<local-home-root>` | A home-directory-relative location whose concrete user or host path is intentionally omitted. |
 | `<external-source-root>` | An externally supplied source checkout, never a required location in this repository. |
-
-The Phase-1 organization inventory and plan are retained at the report root:
-[inventory](repository-organization-inventory.json) and
-[plan](repository-organization-plan.md). They record the pre-move state and
-are not current runtime evidence.

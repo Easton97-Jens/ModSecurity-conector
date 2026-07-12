@@ -26,7 +26,7 @@ build.
 | `<connector>/harness/` | Connector-local launch and observation wiring | The harness plus the root target that invokes it defines the runnable integration contract. |
 | `<connector>/capabilities.json` and `metadata.*` | Declared capability and connector metadata | These machine-readable files are authoritative declarations, not promotion evidence. |
 | `<connector>/ORIGIN.md` and `SOURCE_MAP.json` | Origin, license, and import provenance | Update them whenever imported or derived material changes. |
-| `<connector>/docs/` | Connector-local historical/design details | Put source- or host-specific notes here; keep current user guides in [docs/connectors](../docs/connectors/README.md). |
+| `<connector>/README.*`, `ORIGIN.md`, and `TODO.md` | Code-adjacent source, provenance, and work-tracking notes | Keep reader-facing architecture, configuration, lifecycle, limitations, and validation guidance in [docs/connectors](../docs/connectors/README.md). |
 
 The root [Makefile](../Makefile) is authoritative for target names and their
 defaults. The Framework submodule owns the reusable case catalog and runner
@@ -39,9 +39,9 @@ support a claim.
 Start with `_template/`, then create `connectors/<connector>/` with the files
 listed there. Replace `<connector>` only with one of the six names above; it
 is not a literal directory name. Add host-specific source under `src/`, harness
-code under `harness/`, and origin/metadata updates beside the source. Add a
-current user-facing guide under `docs/connectors/<connector>/`; update the
-generator when that guide is generated.
+code under `harness/`, and origin/metadata updates beside the source. Add or
+update the current user-facing guide at `docs/connectors/<connector>.md` and
+its German companion; update the generator when that guide is generated.
 
 Do not add executable catalog cases under a connector tree: reusable cases,
 normalizers, and runners are Framework-owned. Do not store build directories,
@@ -53,7 +53,7 @@ evidence here. Do not place connector-specific server/proxy SDK code in
 
 The values below are inputs to root targets, not values that a connector source
 file silently reads. See the central [variables and placeholders
-reference](../docs/configuration/variables.md) and the
+reference](../docs/reference/variables.md) and the
 [glossary](../docs/reference/glossary.md) for the complete contract.
 
 | Name | Local meaning | Requiredness, format, and example |
@@ -84,5 +84,5 @@ values listed above.
 | `make lint` | Runs repository contracts, documentation checks, and syntax checks. It does not itself create canonical runtime evidence. |
 
 For compiler, configuration, test-level, and evidence details, use
-[Build](../docs/build/README.md), [Testing](../docs/testing/README.md), and
-[Evidence](../docs/evidence/README.md).
+[Build](../docs/build/README.md), [Testing](../docs/testing-and-evidence.md), and
+[Evidence](../docs/testing-and-evidence.md).

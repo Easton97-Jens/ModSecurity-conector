@@ -81,7 +81,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 | --- | --- | --- |
 | Minimal | [minimal/lighttpd.conf](minimal/lighttpd.conf) | Active starter configuration |
 | Safe full lifecycle | [safe/lighttpd-http1-identity.conf](safe/lighttpd-http1-identity.conf) | Selected bounded reference |
-| Strict | [strict/README.md](strict/README.md) | Parser-supported or explicitly optional boundary |
+| Strict | [README.md#strict-profile-boundary](README.md#strict-profile-boundary) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine evaluates/logs without disruptive action |
 | Disabled | [disabled/lighttpd.conf](disabled/lighttpd.conf) | Connector or engine path disabled |
 
@@ -108,6 +108,7 @@ Repository targets: `make check-config-lighttpd` and `make check-config-all-conn
 
 ## Option details
 
+<a id="msconnector-config-file"></a>
 ## `msconnector.config-file`
 
 ### Short description
@@ -162,6 +163,7 @@ Source-backed example: [examples/lighttpd/minimal/lighttpd.conf](../../examples/
 
 The runtime file contains executable rule paths and limits; use trusted ownership and permissions.
 
+<a id="msconnector-enabled"></a>
 ## `msconnector.enabled`
 
 ### Short description
@@ -216,6 +218,7 @@ Source-backed example: [examples/lighttpd/minimal/lighttpd.conf](../../examples/
 
 Disabling the module bypasses connector processing even if a rule file exists.
 
+<a id="proxy-server"></a>
 ## `proxy.server`
 
 ### Short description
@@ -270,6 +273,7 @@ Source-backed example: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="server-bind"></a>
 ## `server.bind`
 
 ### Short description
@@ -324,6 +328,7 @@ Source-backed example: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="server-compat-module-load"></a>
 ## `server.compat-module-load`
 
 ### Short description
@@ -378,6 +383,7 @@ Source-backed example: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="server-document-root"></a>
 ## `server.document-root`
 
 ### Short description
@@ -432,6 +438,7 @@ Source-backed example: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="server-errorlog"></a>
 ## `server.errorlog`
 
 ### Short description
@@ -486,6 +493,7 @@ Source-backed example: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="server-modules"></a>
 ## `server.modules`
 
 ### Short description
@@ -540,6 +548,7 @@ Source-backed example: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="server-pid-file"></a>
 ## `server.pid-file`
 
 ### Short description
@@ -594,6 +603,7 @@ Source-backed example: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="server-port"></a>
 ## `server.port`
 
 ### Short description
@@ -648,6 +658,7 @@ Source-backed example: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="server-stream-response-body"></a>
 ## `server.stream-response-body`
 
 ### Short description
@@ -702,6 +713,7 @@ Source-backed example: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="server-upload-dirs"></a>
 ## `server.upload-dirs`
 
 ### Short description
@@ -756,6 +768,7 @@ Source-backed example: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="compatibility-accesslog-filename"></a>
 ## `compatibility.accesslog.filename`
 
 ### Short description
@@ -810,6 +823,7 @@ Source-backed example: [examples/lighttpd/compatibility-sidecar/lighttpd-sidecar
 
 Compatibility-only host routing; do not represent it as native ModSecurity configuration.
 
+<a id="compatibility-proxy-server"></a>
 ## `compatibility.proxy.server`
 
 ### Short description
@@ -864,6 +878,7 @@ Source-backed example: [examples/lighttpd/compatibility-sidecar/lighttpd-sidecar
 
 Compatibility-only host routing; do not represent it as native ModSecurity configuration.
 
+<a id="compatibility-server-document-root"></a>
 ## `compatibility.server.document-root`
 
 ### Short description
@@ -918,6 +933,7 @@ Source-backed example: [examples/lighttpd/compatibility-sidecar/lighttpd-sidecar
 
 Compatibility-only host routing; do not represent it as native ModSecurity configuration.
 
+<a id="compatibility-server-errorlog"></a>
 ## `compatibility.server.errorlog`
 
 ### Short description
@@ -972,6 +988,7 @@ Source-backed example: [examples/lighttpd/compatibility-sidecar/lighttpd-sidecar
 
 Compatibility-only host routing; do not represent it as native ModSecurity configuration.
 
+<a id="compatibility-server-modules"></a>
 ## `compatibility.server.modules`
 
 ### Short description
@@ -1026,6 +1043,7 @@ Source-backed example: [examples/lighttpd/compatibility-sidecar/lighttpd-sidecar
 
 Compatibility-only host routing; do not represent it as native ModSecurity configuration.
 
+<a id="compatibility-server-port"></a>
 ## `compatibility.server.port`
 
 ### Short description
@@ -1080,6 +1098,7 @@ Source-backed example: [examples/lighttpd/compatibility-sidecar/lighttpd-sidecar
 
 Compatibility-only host routing; do not represent it as native ModSecurity configuration.
 
+<a id="sidecar-proxy"></a>
 ## `sidecar proxy`
 
 ### Short description

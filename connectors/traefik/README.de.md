@@ -54,7 +54,7 @@ make -C connectors/traefik test-engine-service
 ```
 
 Der fokussierte Test startet nur den lokalen Motorservice und ist kein Traefik
-Host-Laufzeittest. Siehe [das Engine-Service-Protokoll](docs/engine-service.de.md)
+Host-Laufzeittest. Siehe den [kanonischen Traefik-Guide](../../docs/connectors/traefik.de.md)
 für Lebenszyklus, Konfiguration, kanonische Regelauswahl und Ergebnisgrenzen.
 
 ## Native Go-Streaming-Host-Probe (nicht beworben)
@@ -97,8 +97,8 @@ JSONL-Datensätze verwenden den Integrationsmodus `native-traefik-middleware` un
 Fördern Sie P1–P4, Safe/Strict, First-Byte, No-Full-Buffer, CRS oder Production
 Fähigkeiten. Die C `forwardAuth`-Befehle behalten die ausgewählte Kompatibilität bei
 Pfad. Die genaue native Transport-/API-Grenze, einschließlich der nicht hochstufenden Grenze
-Keep-Alive-Beobachtung und Strict `NOT EXECUTED` Begründung, ist in
-[docs/transport-hardening.md](docs/transport-hardening.de.md).
+Keep-Alive-Beobachtung und Strict `NOT EXECUTED` Begründung stehen im
+[kanonischen Traefik-Guide](../../docs/connectors/traefik.de.md).
 
 ## Connector-Service-Build
 
@@ -132,10 +132,8 @@ Binärdateien geben Exit 77 zurück; Konfigurations-, Start-, Zuordnungs- oder S
 
 ## Globaler Vertrag
 
-Siehe:
-
-- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
-- `connectors/_template/docs/coverage-decision-matrix.md`
+Siehe den kanonischen [Connector-Vertrag](../../docs/connectors/README.de.md)
+und den [Test-/Evidence-Guide](../../docs/testing-and-evidence.de.md).
 
 ## Traefik-spezifischer Staat
 

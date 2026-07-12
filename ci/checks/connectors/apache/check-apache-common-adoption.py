@@ -21,7 +21,7 @@ utils_c = read(SRC / "msc_utils.c")
 mapper_h = read(SRC / "msc_apache_mapper.h") if (SRC / "msc_apache_mapper.h").exists() else ""
 mapper_c = read(SRC / "msc_apache_mapper.c") if (SRC / "msc_apache_mapper.c").exists() else ""
 apache_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in SRC.glob("*.c")) + "\n" + "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in SRC.glob("*.h"))
-docs_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in [APACHE / "README.md", APACHE / "README.de.md", APACHE / "docs/architecture.md", ROOT / "reports/audits/apache-common-adoption.md"] if p.exists())
+docs_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in [APACHE / "README.md", APACHE / "README.de.md", ROOT / "docs/connectors/apache.md", ROOT / "reports/audits/architecture-and-evidence.md"] if p.exists())
 
 
 def source_section(text: str, start: str, end: str) -> str:

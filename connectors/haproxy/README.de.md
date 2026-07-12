@@ -41,10 +41,8 @@ für Durchsetzung, strikten Abbruch oder vollständige `RESPONSE_BODY`-Unterstü
 
 ## Globaler Vertrag
 
-Siehe:
-
-- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
-- `connectors/_template/docs/coverage-decision-matrix.md`
+Siehe den kanonischen [Connector-Vertrag](../../docs/connectors/README.de.md)
+und den [Test-/Evidence-Guide](../../docs/testing-and-evidence.de.md).
 
 Gemeinsam genutzte konnektorneutrale Datenformen, die vom Starter verwendet werden:
 

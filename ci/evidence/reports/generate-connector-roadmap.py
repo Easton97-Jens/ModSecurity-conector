@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 # CI helpers are shared from ci/lib even when this file is executed directly.
@@ -12,9 +13,8 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
-from generated_report_utils import GENERATED_REPORTS, build_metadata, generated_json_text, generated_markdown_text
+from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text
 
-REPORT_KEY = "connector_roadmap"
 GENERATOR = "ci/evidence/reports/generate-connector-roadmap.py"
 MAKE_TARGET = "refresh-connector-reports"
 INPUTS = ("connectors", "Makefile", "ci", "config", "docs", "reports/testing/generated")
@@ -29,7 +29,7 @@ ROADMAP_SCOPE = {
     "snapshot_kind": "historical_precanonical_roadmap",
     "evaluates": "historical repository structure, skeletons, technical feasibility, first proof steps, and evidence gates",
     "does_not_replace": "the canonical capability catalog, canonical No-CRS result evidence, or full-matrix evidence",
-    "current_status_authority": "reports/all-connectors-no-crs-baseline.* and reports/testing/generated/canonical/connector-capabilities.generated.*",
+    "current_status_authority": "reports/current/readiness.* and reports/testing/generated/canonical/connector-capabilities.generated.*",
     "full_matrix_results_created": False,
     "runtime_pass_fail_values_created": False,
     "merge_readiness_impact": "none",
@@ -719,7 +719,7 @@ def render_markdown(payload: dict[str, Any], *, german: bool = False) -> str:
         )
         scope_intro = "Dieser Bericht ist `roadmap_only` und bleibt ein historischer Planungsstand vor dem kanonischen Modell."
         authority_intro = (
-            "Für den aktuellen Status gelten `reports/all-connectors-no-crs-baseline.*` und "
+            "Für den aktuellen Status gelten `reports/current/readiness.*` und "
             "`reports/testing/generated/canonical/connector-capabilities.generated.*`; nur "
             "kanonische `result.json`-Evidence darf ein Ergebnis heraufstufen."
         )
@@ -744,7 +744,7 @@ def render_markdown(payload: dict[str, Any], *, german: bool = False) -> str:
         )
         scope_intro = "This report is `roadmap_only` and is retained as a historical pre-canonical planning record."
         authority_intro = (
-            "For current status use `reports/all-connectors-no-crs-baseline.*` and "
+            "For current status use `reports/current/readiness.*` and "
             "`reports/testing/generated/canonical/connector-capabilities.generated.*`; "
             "only canonical `result.json` evidence may promote a result."
         )
@@ -964,7 +964,10 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=None)
     args = parser.parse_args()
     root = args.connector_root.resolve()
-    output_dir = (args.output_dir or root / "reports/testing/generated/manifest").resolve()
+    output_dir = (
+        args.output_dir
+        or Path(os.environ.get("TMP_ROOT", "/tmp")) / "modsecurity-doc-cleanup" / "connector-roadmap"
+    ).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = build_payload(root)
     metadata = build_metadata(
@@ -973,7 +976,6 @@ def main() -> int:
         connector_root=root,
         framework_root=args.framework_root,
         inputs=INPUTS,
-        report_key=REPORT_KEY,
         extra={
             "report_scope": ROADMAP_SCOPE["report_scope"],
             "snapshot_kind": ROADMAP_SCOPE["snapshot_kind"],
@@ -981,8 +983,8 @@ def main() -> int:
             "merge_readiness_impact": "none",
         },
     )
-    json_path = output_dir / GENERATED_REPORTS[REPORT_KEY].filename("json")
-    md_path = output_dir / GENERATED_REPORTS[REPORT_KEY].filename("md")
+    json_path = output_dir / "connector-roadmap.generated.json"
+    md_path = output_dir / "connector-roadmap.generated.md"
     de_path = output_dir / (md_path.name.removesuffix(".md") + ".de.md")
     json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
     md_path.write_text(
@@ -999,7 +1001,7 @@ def main() -> int:
         ),
         encoding="utf-8",
     )
-    print("connector-roadmap: wrote archived roadmap report")
+    print("connector-roadmap: wrote temporary roadmap report")
     return 0
 
 

@@ -189,6 +189,10 @@ def overview(german: bool) -> str:
             f"| [{item['name_de']}]({item['slug']}.de.md) | `{item['build']}` | `{item['full']}` | `{item['profile']}` |"
             for item in CONNECTORS
         )
+        open_rows = "\n".join(
+            f"| [{item['name_de']}]({item['slug']}.de.md) | `{item['prepare']}` | `{item['full']}` | `{item['profile']}` |"
+            for item in CONNECTORS if item["slug"] in {"envoy", "traefik", "lighttpd"}
+        )
         return f"""{MARKER}
 
 # Compiler- und Build-Wege
@@ -256,7 +260,7 @@ make runtime-components-inventory
 make runtime-components-sources
 ```
 
-Die [Variablenreferenz](../../configuration/variables.de.md) definiert Format,
+Die [Variablenreferenz](../../reference/variables.de.md) definiert Format,
 Standard, Scope, Wirkung und Sicherheitsgrenze aller Build-, Cache-,
 Provenienz- und Hostvariablen. Nur vertrauenswürdige absolute Pfade außerhalb
 des Checkouts für Build, Cache, Log und Evidenz verwenden.
@@ -264,23 +268,37 @@ des Checkouts für Build, Cache, Log und Evidenz verwenden.
 ## Dokumentationsgrenze
 
 Die nachstehenden pro-Connector-Anleitungen verweisen auf die aktuelle
-[Build-Übersicht](../README.de.md), die
-[Teststufen](../../testing/README.de.md), die
-[Evidenzregeln](../../evidence/README.de.md), Connector-Anleitungen und
+[Build-Übersicht](../README.de.md), den
+[Test- und Evidence-Guide](../../testing-and-evidence.de.md), Connector-Anleitungen und
 Beispiele. Ältere Integrationsbeschreibungen bleiben gegebenenfalls als
 historische oder diagnostische Hinweise markiert; sie sind keine aktiven
 Profilselektoren und dürfen keine Capability promoten.
 
+## Vorbereitung offener Connectoren
+
+Envoy, Traefik und lighttpd verwenden repository-eigene Build- und
+Runtime-Komponenten. Die detaillierten Anleitungen bleiben die einzige
+Quelle; die jeweiligen Vorbereitungstargets sind:
+
+| Connector | Vorbereitung | Full Lifecycle | Host-Profil |
+| --- | --- | --- | --- |
+{open_rows}
+
+Kompatibilitätsdiagnosen über ext_authz, ForwardAuth oder eine Bridge ersetzen
+nicht den ausgewählten ext_proc-, native-middleware- oder patched-native-Pfad.
+
 ## Weiterführend
 
-Die kompaktere Übersicht für Envoy, Traefik und lighttpd steht in
-[Open-Connector-Wege](overview.de.md). Die Detailanleitungen beginnen bei
-[Apache](apache.de.md).
+Die Detailanleitungen beginnen bei [Apache](apache.de.md).
 """
 
     rows = "\n".join(
         f"| [{item['name']}]({item['slug']}.md) | `{item['build']}` | `{item['full']}` | `{item['profile']}` |"
         for item in CONNECTORS
+    )
+    open_rows = "\n".join(
+        f"| [{item['name']}]({item['slug']}.md) | `{item['prepare']}` | `{item['full']}` | `{item['profile']}` |"
+        for item in CONNECTORS if item["slug"] in {"envoy", "traefik", "lighttpd"}
     )
     return f"""{MARKER}
 
@@ -345,7 +363,7 @@ make runtime-components-inventory
 make runtime-components-sources
 ```
 
-The [variable reference](../../configuration/variables.md) defines the format,
+The [variable reference](../../reference/variables.md) defines the format,
 default, scope, effect, and security boundary for build, cache, provenance, and
 host variables. Use trusted absolute paths outside the checkout for build,
 cache, logs, and evidence.
@@ -353,17 +371,28 @@ cache, logs, and evidence.
 ## Documentation boundary
 
 The per-connector guides below link to the current
-[build overview](../README.md), [test levels](../../testing/README.md),
-[evidence rules](../../evidence/README.md), connector guides, and examples.
+[build overview](../README.md), [testing and evidence guide](../../testing-and-evidence.md),
+connector guides, and examples.
 Older integration descriptions are explicitly marked historical or diagnostic
 where they remain useful; they are not active profile selectors and cannot
 promote a capability.
 
+## Open connector preparation
+
+Envoy, Traefik, and lighttpd use repository-owned build and runtime
+components. Their detailed guides remain the sole source of truth; their
+preparation targets are:
+
+| Connector | Preparation | Full lifecycle | Host profile |
+| --- | --- | --- | --- |
+{open_rows}
+
+Compatibility diagnostics through ext_authz, forwardAuth, or a bridge do not
+replace the selected ext_proc, native-middleware, or patched-native route.
+
 ## Next
 
-The compact index for Envoy, Traefik, and lighttpd is
-[open-connector paths](overview.md). Start the detailed guides with
-[Apache](apache.md).
+Start the detailed guides with [Apache](apache.md).
 """
 
 
@@ -413,8 +442,8 @@ patched-native-Hostweg.
 zeigen die vorbereitete Cache-v2-Provenienz. Ein erfolgreiches Herunterladen,
 Entpacken, Bauen, Konfigurationsladen oder Starten ist noch kein
 Produktions-, CRS-, HTTP/2-, HTTP/3-, Strict- oder vollständiger
-Capability-Nachweis. Siehe die [Variablenreferenz](../../configuration/variables.de.md)
-und die [Evidenzregeln](../../evidence/README.de.md).
+Capability-Nachweis. Siehe die [Variablenreferenz](../../reference/variables.de.md)
+und den [Test- und Evidence-Guide](../../testing-and-evidence.de.md).
 """
     rows = "\n".join(
         f"| [{item['name']}]({item['slug']}.md) | `{item['prepare']}` | `{item['full']}` | `{item['profile']}` |"
@@ -458,8 +487,8 @@ listed ext_proc, native-middleware, or patched-native host route.
 show the prepared Cache-v2 provenance. A successful download, extraction,
 build, configuration load, or start is not production, CRS, HTTP/2, HTTP/3,
 Strict, or complete-capability evidence. See the
-[variable reference](../../configuration/variables.md) and
-[evidence rules](../../evidence/README.md).
+[variable reference](../../reference/variables.md) and the
+[testing and evidence guide](../../testing-and-evidence.md).
 """
 
 
@@ -500,7 +529,7 @@ make runtime-components-sources
 
 Relevante Variablen: {item['variables_de']}
 Ihre Formate, Defaults, Scope, Wirkung und Sicherheitsgrenzen stehen in der
-[zentralen Variablenreferenz](../../configuration/variables.de.md). Ein
+[zentralen Variablenreferenz](../../reference/variables.de.md). Ein
 Override ist ein expliziter Eingabewechsel und kein Capability-Upgrade.
 
 ## Toolchain und Cache-v2
@@ -561,14 +590,13 @@ Target mit seinem Artefaktprofil kann kanonische Evidenz produzieren.
 ## Konfiguration, Beispiele und Fehlersuche
 
 - Aktuelle Connector-Dokumentation:
-  [{item['name_de']}](../../connectors/{slug}/README.de.md)
+  [{item['name_de']}](../../connectors/{slug}.de.md)
 - Konfigurationsdetails:
-  [Connector-Konfiguration](../../connectors/{slug}/configuration.de.md)
+  [vollständige Connector-Referenz](../../../examples/{slug}/configuration-reference.de.md)
 - Repository-Beispiele:
   [examples/{slug}](../../../examples/{slug}/README.de.md)
 - Test- und Evidenzgrenzen:
-  [Teststufen](../../testing/README.de.md) ·
-  [Evidenzregeln](../../evidence/README.de.md)
+  [Test- und Evidence-Guide](../../testing-and-evidence.de.md)
 
 {item['trouble_de']}
 
@@ -618,7 +646,7 @@ make runtime-components-sources
 
 Relevant variables: {item['variables']}
 Their format, defaults, scope, effect, and security boundary are defined in the
-[central variable reference](../../configuration/variables.md). An override is
+[central variable reference](../../reference/variables.md). An override is
 an explicit input change, not a capability upgrade.
 
 ## Toolchain and Cache-v2
@@ -675,12 +703,12 @@ profile can produce canonical evidence.
 
 ## Configuration, examples, and troubleshooting
 
-- Current connector guide: [{item['name']}](../../connectors/{slug}/README.md)
+- Current connector guide: [{item['name']}](../../connectors/{slug}.md)
 - Configuration details:
-  [connector configuration](../../connectors/{slug}/configuration.md)
+  [complete connector reference](../../../examples/{slug}/configuration-reference.md)
 - Repository examples: [examples/{slug}](../../../examples/{slug}/README.md)
-- Test and evidence boundaries: [test levels](../../testing/README.md) ·
-  [evidence rules](../../evidence/README.md)
+- Test and evidence boundary:
+  [testing and evidence guide](../../testing-and-evidence.md)
 
 {item['trouble']}
 
@@ -705,8 +733,6 @@ def main() -> None:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     write("README.md", overview(False))
     write("README.de.md", overview(True))
-    write("overview.md", open_connector_overview(False))
-    write("overview.de.md", open_connector_overview(True))
     for item in CONNECTORS:
         write(f"{item['slug']}.md", guide(item, False))
         write(f"{item['slug']}.de.md", guide(item, True))

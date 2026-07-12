@@ -9,8 +9,8 @@ from pathlib import Path
 
 ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
 CENTRAL = (
-    ROOT / "docs" / "configuration" / "variables.md",
-    ROOT / "docs" / "configuration" / "variables.de.md",
+    ROOT / "docs" / "reference" / "variables.md",
+    ROOT / "docs" / "reference" / "variables.de.md",
     ROOT / "docs" / "reference" / "glossary.md",
     ROOT / "docs" / "reference" / "glossary.de.md",
 )

@@ -34,6 +34,7 @@ After response commit a connector cannot reliably replace the visible status lin
 
 ## Option details
 
+<a id="includeoptional"></a>
 ## `IncludeOptional`
 
 ### Short description
@@ -88,6 +89,7 @@ Source-backed example: [examples/apache/rules/p1-p4-safe.conf](../../examples/ap
 
 Engine policy can inspect, log, detect, or disrupt traffic; protect rule and audit-log paths.
 
+<a id="secauditengine"></a>
 ## `SecAuditEngine`
 
 ### Short description
@@ -142,6 +144,7 @@ Source-backed example: [examples/apache/rules/p1-p4-safe.conf](../../examples/ap
 
 Engine policy can inspect, log, detect, or disrupt traffic; protect rule and audit-log paths.
 
+<a id="secauditlog"></a>
 ## `SecAuditLog`
 
 ### Short description
@@ -196,6 +199,7 @@ Source-backed example: [examples/apache/rules/p1-p4-safe.conf](../../examples/ap
 
 Engine policy can inspect, log, detect, or disrupt traffic; protect rule and audit-log paths.
 
+<a id="secauditlogparts"></a>
 ## `SecAuditLogParts`
 
 ### Short description
@@ -250,6 +254,7 @@ Source-backed example: [examples/apache/rules/p1-p4-safe.conf](../../examples/ap
 
 Engine policy can inspect, log, detect, or disrupt traffic; protect rule and audit-log paths.
 
+<a id="secauditlogtype"></a>
 ## `SecAuditLogType`
 
 ### Short description
@@ -304,6 +309,7 @@ Source-backed example: [examples/apache/rules/p1-p4-safe.conf](../../examples/ap
 
 Engine policy can inspect, log, detect, or disrupt traffic; protect rule and audit-log paths.
 
+<a id="secrequestbodyaccess"></a>
 ## `SecRequestBodyAccess`
 
 ### Short description
@@ -358,6 +364,7 @@ Source-backed example: [examples/apache/rules/detection-only.conf](../../example
 
 Request bodies may contain credentials or personal data. Use bounded body limits, appropriate MIME/parser policy, and protected audit/debug logs; no performance quantity is inferred here.
 
+<a id="secresponsebodyaccess"></a>
 ## `SecResponseBodyAccess`
 
 ### Short description
@@ -412,6 +419,7 @@ Source-backed example: [examples/apache/rules/detection-only.conf](../../example
 
 Response bodies can be large and sensitive. Keep MIME scope and response limits narrow, protect logs, and do not equate safe post-commit evidence with a client-visible later 403.
 
+<a id="secresponsebodylimit"></a>
 ## `SecResponseBodyLimit`
 
 ### Short description
@@ -466,6 +474,7 @@ Source-backed example: [examples/apache/rules/detection-only.conf](../../example
 
 Engine policy can inspect, log, detect, or disrupt traffic; protect rule and audit-log paths.
 
+<a id="secresponsebodylimitaction"></a>
 ## `SecResponseBodyLimitAction`
 
 ### Short description
@@ -520,6 +529,7 @@ Source-backed example: [examples/apache/rules/detection-only.conf](../../example
 
 Engine policy can inspect, log, detect, or disrupt traffic; protect rule and audit-log paths.
 
+<a id="secresponsebodymimetype"></a>
 ## `SecResponseBodyMimeType`
 
 ### Short description
@@ -574,6 +584,7 @@ Source-backed example: [examples/apache/rules/detection-only.conf](../../example
 
 Engine policy can inspect, log, detect, or disrupt traffic; protect rule and audit-log paths.
 
+<a id="secrule"></a>
 ## `SecRule`
 
 ### Short description
@@ -628,6 +639,7 @@ Source-backed example: [examples/apache/rules/detection-only.conf](../../example
 
 Rules are executable security policy. Give each rule a stable id, keep transformations explicit and minimal, protect rule-file ownership, and verify disruptive/redirect behavior on the selected host before relying on it.
 
+<a id="secruleengine"></a>
 ## `SecRuleEngine`
 
 ### Short description

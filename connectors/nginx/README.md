@@ -112,13 +112,14 @@ Historical generated evidence keeps NGINX `partial`:
 
 ## Coverage / Runtime Decision Matrix
 
-See `docs/coverage-decision-matrix.md`.
+See the [canonical NGINX guide](../../docs/connectors/nginx.md) for the
+evidence boundary and current configuration reference.
 
 NGINX currently remains `partial`: default smoke is clean, force-all evidence
 still records FAIL and NOT_EXECUTABLE rows, generated coverage reporting is not
 automatic runtime promotion, and RESPONSE_BODY remains non-promoted.
 
-See `docs/connectors/directive-parity.md` for the current Apache/NGINX
+See [configuration](../../docs/configuration.md) for the current Apache/NGINX
 directive matrix.
 
 ## Common SDK adoption scope

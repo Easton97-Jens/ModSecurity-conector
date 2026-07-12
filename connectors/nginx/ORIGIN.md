@@ -90,7 +90,8 @@ files relate to the adapter-owned source tree.
 
 ## Pruning Review
 
-Last reviewed in `modules/ModSecurity-test-Framework/docs/imports/upstream-pruning-analysis.md`.
+The Framework's current [connector integration guide](../../modules/ModSecurity-test-Framework/docs/connector-integration.md)
+records the applicable source/catalog boundary.
 
 `connectors/nginx/upstream/` was removed in phase 10. Future NGINX source
 reductions should update `connectors/nginx/SOURCE_MAP.json`,

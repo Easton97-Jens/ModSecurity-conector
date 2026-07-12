@@ -195,7 +195,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 | --- | --- | --- |
 | Minimal | [minimal/envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in) | Active starter configuration |
 | Safe full lifecycle | [safe/envoy-ext-proc-streaming.yaml.in](safe/envoy-ext-proc-streaming.yaml.in) | Selected bounded reference |
-| Strict | [strict/README.md](strict/README.md) | Parser-supported or explicitly optional boundary |
+| Strict | [README.md#strict-profile-boundary](README.md#strict-profile-boundary) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine evaluates/logs without disruptive action |
 | Disabled | [disabled/msconnector-runtime.conf](disabled/msconnector-runtime.conf) | Connector or engine path disabled |
 
@@ -222,6 +222,7 @@ Repository targets: `make check-config-envoy` and `make check-config-all-connect
 
 ## Option details
 
+<a id="check-config"></a>
 ## `--check-config`
 
 ### Short description
@@ -276,6 +277,7 @@ Source-backed example: `connectors/envoy/config/prepare_envoy_ext_proc_config.sh
 
 Use absolute controlled paths for runtime/event files and a private service listener.
 
+<a id="config"></a>
 ## `--config`
 
 ### Short description
@@ -330,6 +332,7 @@ Source-backed example: `connectors/envoy/config/prepare_envoy_ext_proc_config.sh
 
 Use absolute controlled paths for runtime/event files and a private service listener.
 
+<a id="event-log"></a>
 ## `--event-log`
 
 ### Short description
@@ -384,6 +387,7 @@ Source-backed example: `connectors/envoy/config/prepare_envoy_ext_proc_config.sh
 
 Use absolute controlled paths for runtime/event files and a private service listener.
 
+<a id="listen"></a>
 ## `--listen`
 
 ### Short description
@@ -438,6 +442,7 @@ Source-backed example: `connectors/envoy/config/prepare_envoy_ext_proc_config.sh
 
 Use absolute controlled paths for runtime/event files and a private service listener.
 
+<a id="runtime-config"></a>
 ## `--runtime-config`
 
 ### Short description
@@ -492,6 +497,7 @@ Source-backed example: `connectors/envoy/config/prepare_envoy_ext_proc_config.sh
 
 Use absolute controlled paths for runtime/event files and a private service listener.
 
+<a id="admin-port"></a>
 ## `@ADMIN_PORT@`
 
 ### Short description
@@ -546,6 +552,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Use private, non-conflicting ports; never place generated runtime output in the checkout.
 
+<a id="envoy-release"></a>
 ## `@ENVOY_RELEASE@`
 
 ### Short description
@@ -600,6 +607,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Use private, non-conflicting ports; never place generated runtime output in the checkout.
 
+<a id="ext-proc-port"></a>
 ## `@EXT_PROC_PORT@`
 
 ### Short description
@@ -654,6 +662,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Use private, non-conflicting ports; never place generated runtime output in the checkout.
 
+<a id="listen-port"></a>
 ## `@LISTEN_PORT@`
 
 ### Short description
@@ -708,6 +717,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Use private, non-conflicting ports; never place generated runtime output in the checkout.
 
+<a id="upstream-port"></a>
 ## `@UPSTREAM_PORT@`
 
 ### Short description
@@ -762,6 +772,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Use private, non-conflicting ports; never place generated runtime output in the checkout.
 
+<a id="admin"></a>
 ## `admin`
 
 ### Short description
@@ -816,6 +827,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Admin exposure is a separate privileged surface and must remain private in the example.
 
+<a id="admin-access-log-path"></a>
 ## `admin.access_log_path`
 
 ### Short description
@@ -870,6 +882,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Administrative logs can contain operational metadata; /dev/null suppresses them in this example rather than providing an audit design.
 
+<a id="admin-address"></a>
 ## `admin.address`
 
 ### Short description
@@ -924,6 +937,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Admin endpoints are sensitive; keep the selected listener loopback/private.
 
+<a id="admin-address-socket-address"></a>
 ## `admin.address.socket_address`
 
 ### Short description
@@ -978,6 +992,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Do not bind the administration socket publicly without a separate access-control design.
 
+<a id="admin-address-socket-address-address"></a>
 ## `admin.address.socket_address.address`
 
 ### Short description
@@ -1032,6 +1047,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Loopback prevents the example admin interface from being reachable remotely.
 
+<a id="admin-address-socket-address-port-value"></a>
 ## `admin.address.socket_address.port_value`
 
 ### Short description
@@ -1086,6 +1102,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Use a private, non-conflicting port; exposing admin APIs is unrelated to ModSecurity enforcement.
 
+<a id="cleanup-timeout-ms"></a>
 ## `cleanup_timeout_ms`
 
 ### Short description
@@ -1140,6 +1157,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="engine-timeout-ms"></a>
 ## `engine_timeout_ms`
 
 ### Short description
@@ -1194,6 +1212,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="late-action-policy"></a>
 ## `late_action_policy`
 
 ### Short description
@@ -1248,6 +1267,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="listen-address"></a>
 ## `listen_address`
 
 ### Short description
@@ -1302,6 +1322,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="max-body-chunk-bytes"></a>
 ## `max_body_chunk_bytes`
 
 ### Short description
@@ -1356,6 +1377,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="max-grpc-message-bytes"></a>
 ## `max_grpc_message_bytes`
 
 ### Short description
@@ -1410,6 +1432,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="max-header-count"></a>
 ## `max_header_count`
 
 ### Short description
@@ -1464,6 +1487,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="max-header-name-bytes"></a>
 ## `max_header_name_bytes`
 
 ### Short description
@@ -1518,6 +1542,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="max-header-value-bytes"></a>
 ## `max_header_value_bytes`
 
 ### Short description
@@ -1572,6 +1597,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="max-request-body-bytes"></a>
 ## `max_request_body_bytes`
 
 ### Short description
@@ -1626,6 +1652,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="max-response-body-bytes"></a>
 ## `max_response_body_bytes`
 
 ### Short description
@@ -1680,6 +1707,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="max-total-header-bytes"></a>
 ## `max_total_header_bytes`
 
 ### Short description
@@ -1734,6 +1762,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="shutdown-timeout-ms"></a>
 ## `shutdown_timeout_ms`
 
 ### Short description
@@ -1788,6 +1817,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="static-resources"></a>
 ## `static_resources`
 
 ### Short description
@@ -1842,6 +1872,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 All listener and cluster children affect traffic exposure or destination; review as one topology.
 
+<a id="static-resources-clusters"></a>
 ## `static_resources.clusters`
 
 ### Short description
@@ -1896,6 +1927,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Clusters define where application traffic and inspection data can leave the listener.
 
+<a id="static-resources-clusters-connect-timeout"></a>
 ## `static_resources.clusters[].connect_timeout`
 
 ### Short description
@@ -1950,6 +1982,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 A long timeout retains connections; a short timeout can trigger processor failures or upstream unavailability.
 
+<a id="static-resources-clusters-http2-protocol-options"></a>
 ## `static_resources.clusters[].http2_protocol_options`
 
 ### Short description
@@ -2004,6 +2037,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Do not remove HTTP/2 support from the selected gRPC processor cluster.
 
+<a id="static-resources-clusters-load-assignment"></a>
 ## `static_resources.clusters[].load_assignment`
 
 ### Short description
@@ -2058,6 +2092,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Endpoint assignments are egress/control-plane inputs; review every address and port.
 
+<a id="static-resources-clusters-load-assignment-cluster-name"></a>
 ## `static_resources.clusters[].load_assignment.cluster_name`
 
 ### Short description
@@ -2112,6 +2147,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 A mismatch invalidates or misroutes the endpoint configuration.
 
+<a id="static-resources-clusters-load-assignment-endpoints"></a>
 ## `static_resources.clusters[].load_assignment.endpoints`
 
 ### Short description
@@ -2166,6 +2202,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Each endpoint is a traffic destination; preserve the intended private scope.
 
+<a id="static-resources-clusters-load-assignment-endpoints-lb-endpoints"></a>
 ## `static_resources.clusters[].load_assignment.endpoints[].lb_endpoints`
 
 ### Short description
@@ -2220,6 +2257,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 An added endpoint receives copied requests or ext_proc messages; require explicit trust review.
 
+<a id="static-resources-clusters-load-assignment-endpoints-lb-endpoints-endpoint"></a>
 ## `static_resources.clusters[].load_assignment.endpoints[].lb_endpoints[].endpoint`
 
 ### Short description
@@ -2274,6 +2312,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The endpoint is a concrete traffic target and must be constrained to the intended service.
 
+<a id="static-resources-clusters-load-assignment-endpoints-lb-endpoints-endpoint-address"></a>
 ## `static_resources.clusters[].load_assignment.endpoints[].lb_endpoints[].endpoint.address`
 
 ### Short description
@@ -2328,6 +2367,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Changing it changes egress or inspection-service reachability.
 
+<a id="static-resources-clusters-load-assignment-endpoints-lb-endpoints-endpoint-address-socket-address"></a>
 ## `static_resources.clusters[].load_assignment.endpoints[].lb_endpoints[].endpoint.address.socket_address`
 
 ### Short description
@@ -2382,6 +2422,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The selected loopback values keep both upstream and processor endpoint examples local.
 
+<a id="static-resources-clusters-load-assignment-endpoints-lb-endpoints-endpoint-address-socket-address-address"></a>
 ## `static_resources.clusters[].load_assignment.endpoints[].lb_endpoints[].endpoint.address.socket_address.address`
 
 ### Short description
@@ -2436,6 +2477,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Loopback avoids external egress in the example; a remote host needs transport and trust controls.
 
+<a id="static-resources-clusters-load-assignment-endpoints-lb-endpoints-endpoint-address-socket-address-port-value"></a>
 ## `static_resources.clusters[].load_assignment.endpoints[].lb_endpoints[].endpoint.address.socket_address.port_value`
 
 ### Short description
@@ -2490,6 +2532,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Port changes can send traffic to a different local service; retain explicit private service ownership.
 
+<a id="static-resources-clusters-name"></a>
 ## `static_resources.clusters[].name`
 
 ### Short description
@@ -2544,6 +2587,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Cluster names resolve traffic destinations; do not redirect an inspection target to an unreviewed service.
 
+<a id="static-resources-clusters-type"></a>
 ## `static_resources.clusters[].type`
 
 ### Short description
@@ -2598,6 +2642,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 STATIC keeps the selected endpoints explicit; DNS discovery changes endpoint resolution and should be reviewed for egress/identity impact.
 
+<a id="static-resources-listeners"></a>
 ## `static_resources.listeners`
 
 ### Short description
@@ -2652,6 +2697,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 A listener changes the network attack surface before request policy is reached.
 
+<a id="static-resources-listeners-address"></a>
 ## `static_resources.listeners[].address`
 
 ### Short description
@@ -2706,6 +2752,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Changing the child socket address changes network exposure before any ModSecurity processing.
 
+<a id="static-resources-listeners-address-socket-address"></a>
 ## `static_resources.listeners[].address.socket_address`
 
 ### Short description
@@ -2760,6 +2807,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The selected loopback pair keeps the example private; a wildcard bind requires an explicit exposure decision.
 
+<a id="static-resources-listeners-address-socket-address-address"></a>
 ## `static_resources.listeners[].address.socket_address.address`
 
 ### Short description
@@ -2814,6 +2862,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The selected value is loopback-only.
 
+<a id="static-resources-listeners-address-socket-address-port-value"></a>
 ## `static_resources.listeners[].address.socket_address.port_value`
 
 ### Short description
@@ -2868,6 +2917,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Use a private, non-conflicting port; port selection affects reachability before P1.
 
+<a id="static-resources-listeners-filter-chains"></a>
 ## `static_resources.listeners[].filter_chains`
 
 ### Short description
@@ -2922,6 +2972,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Filter ordering determines whether ext_proc sees traffic before routing; do not insert an unreviewed bypass.
 
+<a id="static-resources-listeners-filter-chains-filters"></a>
 ## `static_resources.listeners[].filter_chains[].filters`
 
 ### Short description
@@ -2976,6 +3027,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Removing or replacing HCM removes the selected HTTP/ext_proc lifecycle path.
 
+<a id="static-resources-listeners-filter-chains-filters-name"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].name`
 
 ### Short description
@@ -3030,6 +3082,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 A different network filter can remove HTTP routing and all ext_proc visibility.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config`
 
 ### Short description
@@ -3084,6 +3137,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The payload controls which filters receive downstream traffic; validate the concrete type URL with Envoy.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-type"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.@type`
 
 ### Short description
@@ -3138,6 +3192,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 A mismatched type URL prevents a valid HTTP/ext_proc listener configuration.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters`
 
 ### Short description
@@ -3192,6 +3247,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Moving router ahead of ext_proc bypasses the selected inspection/authorization path.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-name"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].name`
 
 ### Short description
@@ -3246,6 +3302,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Filter order is an enforcement boundary: ext_proc must remain before router for the selected path.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config`
 
 ### Short description
@@ -3300,6 +3357,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 A mismatched Any payload/name pair can invalidate or bypass the intended inspection chain.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-type"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.@type`
 
 ### Short description
@@ -3354,6 +3412,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The type URL must match the neighboring filter factory; otherwise Envoy cannot apply the selected lifecycle policy.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-allow-mode-override"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.allow_mode_override`
 
 ### Short description
@@ -3408,6 +3467,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 false prevents the remote processor from widening/narrowing configured P1–P4 visibility at runtime.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-failure-mode-allow"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.failure_mode_allow`
 
 ### Short description
@@ -3462,6 +3522,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 false avoids silently allowing traffic when the local processor cannot be reached; availability and denial behavior still need runtime evidence.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-grpc-service"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.grpc_service`
 
 ### Short description
@@ -3516,6 +3577,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The processor endpoint must be trusted and private; it receives selected request/response metadata and body chunks.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-grpc-service-envoy-grpc"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.grpc_service.envoy_grpc`
 
 ### Short description
@@ -3570,6 +3632,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The cluster reference must resolve to the reviewed ext_proc service, not an arbitrary remote endpoint.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-grpc-service-envoy-grpc-cluster-name"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.grpc_service.envoy_grpc.cluster_name`
 
 ### Short description
@@ -3624,6 +3687,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Changing it can send inspected headers/bodies to another processor; retain a private trusted target.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-grpc-service-timeout"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.grpc_service.timeout`
 
 ### Short description
@@ -3678,6 +3742,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 A value that is too small creates avoidable processor failures; too large retains request resources longer.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-max-message-timeout"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.max_message_timeout`
 
 ### Short description
@@ -3732,6 +3797,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 A finite cap limits remote processor influence over stream retention; setting a positive cap deliberately enables this API.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-message-timeout"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.message_timeout`
 
 ### Short description
@@ -3786,6 +3852,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Too large a timeout retains stream resources; too small a timeout creates processor failures governed by failure_mode_allow.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-processing-mode"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.processing_mode`
 
 ### Short description
@@ -3840,6 +3907,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Omitting body modes loses body visibility; preserve explicit streaming modes for the selected full-lifecycle bridge.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-processing-mode-request-body-mode"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.processing_mode.request_body_mode`
 
 ### Short description
@@ -3894,6 +3962,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Body delivery exposes payload data and consumes stream resources; the selected Common bridge requires STREAMED with bounded service controls.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-processing-mode-request-header-mode"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.processing_mode.request_header_mode`
 
 ### Short description
@@ -3948,6 +4017,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Headers can include security-sensitive metadata; use the private local ext_proc service and its configured bounds.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-processing-mode-request-trailer-mode"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.processing_mode.request_trailer_mode`
 
 ### Short description
@@ -4002,6 +4072,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Trailer metadata is part of the transaction; do not treat it as a body-size bypass.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-processing-mode-response-body-mode"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.processing_mode.response_body_mode`
 
 ### Short description
@@ -4056,6 +4127,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Body delivery exposes payload data and consumes stream resources; the selected Common bridge requires STREAMED with bounded service controls.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-processing-mode-response-header-mode"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.processing_mode.response_header_mode`
 
 ### Short description
@@ -4110,6 +4182,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Headers can include security-sensitive metadata; use the private local ext_proc service and its configured bounds.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-processing-mode-response-trailer-mode"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.processing_mode.response_trailer_mode`
 
 ### Short description
@@ -4164,6 +4237,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Trailer metadata is part of the transaction; do not treat it as a body-size bypass.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-request-attributes"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.request_attributes`
 
 ### Short description
@@ -4218,6 +4292,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Peer addresses and ports are operationally sensitive; the processor bounds and validates received metadata rather than deriving it from the gRPC peer.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-request-attributes"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.request_attributes[]`
 
 ### Short description
@@ -4272,6 +4347,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Do not add unbounded or sensitive attributes without reviewing processor handling and event logging.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-send-body-without-waiting-for-header-response"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.send_body_without_waiting_for_header_response`
 
 ### Short description
@@ -4326,6 +4402,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Keeping false preserves the selected decision ordering and avoids uncontrolled early body delivery to the processor.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-route-config"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config`
 
 ### Short description
@@ -4380,6 +4457,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Routes control upstream reachability; constrain domains and prefixes in a real deployment.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-route-config-name"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.name`
 
 ### Short description
@@ -4434,6 +4512,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The name is not an authorization boundary; do not encode secrets in it.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts`
 
 ### Short description
@@ -4488,6 +4567,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Over-broad virtual hosts can route unexpected Host values to the upstream.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-domains"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].domains`
 
 ### Short description
@@ -4542,6 +4622,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The selected `*` catches all hosts; replace it with intended domains before exposure.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-domains"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].domains[]`
 
 ### Short description
@@ -4596,6 +4677,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The selected `*` catches all hosts; replace it with intended domains before exposure.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-name"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].name`
 
 ### Short description
@@ -4650,6 +4732,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Use opaque operational names rather than confidential data.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes`
 
 ### Short description
@@ -4704,6 +4787,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Route order and match breadth determine where request traffic can be sent.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes-match"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].match`
 
 ### Short description
@@ -4758,6 +4842,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 An over-broad match or unsafe route action can expose an unintended upstream.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes-match-prefix"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].match.prefix`
 
 ### Short description
@@ -4812,6 +4897,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The catch-all `/` reaches every path in the virtual host; narrow it when policy requires.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes-match-route"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].match.route`
 
 ### Short description
@@ -4866,6 +4952,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 An over-broad match or unsafe route action can expose an unintended upstream.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes-match-route-cluster"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].match.route.cluster`
 
 ### Short description
@@ -4920,6 +5007,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 The target must be a reviewed local/upstream endpoint; an untrusted target creates an egress path.
 
+<a id="static-resources-listeners-filter-chains-filters-typed-config-stat-prefix"></a>
 ## `static_resources.listeners[].filter_chains[].filters[].typed_config.stat_prefix`
 
 ### Short description
@@ -4974,6 +5062,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 Metric names should not embed secrets, user identifiers, or unbounded request data.
 
+<a id="static-resources-listeners-name"></a>
 ## `static_resources.listeners[].name`
 
 ### Short description
@@ -5028,6 +5117,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 
 A name is control-plane metadata, but it should not disclose tenant or secret identifiers.
 
+<a id="transaction-id-header"></a>
 ## `transaction_id_header`
 
 ### Short description
@@ -5082,6 +5172,7 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../e
 
 Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
+<a id="compatibility-ext-authz-static-resources"></a>
 ## `compatibility.ext_authz.static_resources`
 
 ### Short description
@@ -5136,6 +5227,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 All listener and cluster children affect traffic exposure or destination; review as one topology. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters"></a>
 ## `compatibility.ext_authz.static_resources.clusters`
 
 ### Short description
@@ -5190,6 +5282,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Clusters define where application traffic and inspection data can leave the listener. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-connect-timeout"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].connect_timeout`
 
 ### Short description
@@ -5244,6 +5337,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 A long timeout retains connections; a short timeout can trigger processor failures or upstream unavailability. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-load-assignment"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].load_assignment`
 
 ### Short description
@@ -5298,6 +5392,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Endpoint assignments are egress/control-plane inputs; review every address and port. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-load-assignment-cluster-name"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].load_assignment.cluster_name`
 
 ### Short description
@@ -5352,6 +5447,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 A mismatch invalidates or misroutes the endpoint configuration. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-load-assignment-endpoints"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].load_assignment.endpoints`
 
 ### Short description
@@ -5406,6 +5502,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Each endpoint is a traffic destination; preserve the intended private scope. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-load-assignment-endpoints-lb-endpoints"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].load_assignment.endpoints[].lb_endpoints`
 
 ### Short description
@@ -5460,6 +5557,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 An added endpoint receives copied requests or ext_proc messages; require explicit trust review. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-load-assignment-endpoints-lb-endpoints-endpoint"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].load_assignment.endpoints[].lb_endpoints[].endpoint`
 
 ### Short description
@@ -5514,6 +5612,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The endpoint is a concrete traffic target and must be constrained to the intended service. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-load-assignment-endpoints-lb-endpoints-endpoint-address"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].load_assignment.endpoints[].lb_endpoints[].endpoint.address`
 
 ### Short description
@@ -5568,6 +5667,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Changing it changes egress or inspection-service reachability. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-load-assignment-endpoints-lb-endpoints-endpoint-address-socket-address"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].load_assignment.endpoints[].lb_endpoints[].endpoint.address.socket_address`
 
 ### Short description
@@ -5622,6 +5722,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The selected loopback values keep both upstream and processor endpoint examples local. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-load-assignment-endpoints-lb-endpoints-endpoint-address-socket-address-address"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].load_assignment.endpoints[].lb_endpoints[].endpoint.address.socket_address.address`
 
 ### Short description
@@ -5676,6 +5777,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Loopback avoids external egress in the example; a remote host needs transport and trust controls. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-load-assignment-endpoints-lb-endpoints-endpoint-address-socket-address-port-value"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].load_assignment.endpoints[].lb_endpoints[].endpoint.address.socket_address.port_value`
 
 ### Short description
@@ -5730,6 +5832,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Port changes can send traffic to a different local service; retain explicit private service ownership. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-name"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].name`
 
 ### Short description
@@ -5784,6 +5887,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Cluster names resolve traffic destinations; do not redirect an inspection target to an unreviewed service. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-clusters-type"></a>
 ## `compatibility.ext_authz.static_resources.clusters[].type`
 
 ### Short description
@@ -5838,6 +5942,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 STATIC keeps the selected endpoints explicit; DNS discovery changes endpoint resolution and should be reviewed for egress/identity impact. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners"></a>
 ## `compatibility.ext_authz.static_resources.listeners`
 
 ### Short description
@@ -5892,6 +5997,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 A listener changes the network attack surface before request policy is reached. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-address"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].address`
 
 ### Short description
@@ -5946,6 +6052,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Changing the child socket address changes network exposure before any ModSecurity processing. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-address-socket-address"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].address.socket_address`
 
 ### Short description
@@ -6000,6 +6107,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The selected loopback pair keeps the example private; a wildcard bind requires an explicit exposure decision. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-address-socket-address-address"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].address.socket_address.address`
 
 ### Short description
@@ -6054,6 +6162,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 A wildcard or public value exposes the listener before ext_proc policy can run. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-address-socket-address-port-value"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].address.socket_address.port_value`
 
 ### Short description
@@ -6108,6 +6217,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Use a private, non-conflicting port; port selection affects reachability before P1. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains`
 
 ### Short description
@@ -6162,6 +6272,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Filter ordering determines whether ext_authz compatibility sees traffic before routing; do not insert an unreviewed bypass. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters`
 
 ### Short description
@@ -6216,6 +6327,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Removing or replacing HCM removes the selected HTTP/ext_authz compatibility lifecycle path. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-name"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].name`
 
 ### Short description
@@ -6270,6 +6382,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 A different network filter can remove HTTP routing and all ext_authz compatibility visibility. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config`
 
 ### Short description
@@ -6324,6 +6437,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The payload controls which filters receive downstream traffic; validate the concrete type URL with Envoy. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-type"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.@type`
 
 ### Short description
@@ -6378,6 +6492,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 A mismatched type URL prevents a valid HTTP/ext_proc listener configuration. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters`
 
 ### Short description
@@ -6432,6 +6547,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Moving router ahead of ext_authz bypasses the selected inspection/authorization path. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-name"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].name`
 
 ### Short description
@@ -6486,6 +6602,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Filter order is an enforcement boundary: ext_authz must remain before router for the selected path. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config`
 
 ### Short description
@@ -6540,6 +6657,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 A mismatched Any payload/name pair can invalidate or bypass the intended inspection chain. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-type"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.@type`
 
 ### Short description
@@ -6594,6 +6712,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The type URL must match the neighboring filter factory; otherwise Envoy cannot apply the selected lifecycle policy. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-http-service"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.http_service`
 
 ### Short description
@@ -6648,6 +6767,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 HTTP service is compatibility-only and cannot provide the selected body/trailer full-lifecycle path. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-http-service-authorization-request"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.http_service.authorization_request`
 
 ### Short description
@@ -6702,6 +6822,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Only forward the headers the compatibility service needs; extra headers may disclose credentials or user data. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-http-service-authorization-request-allowed-headers"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.http_service.authorization_request.allowed_headers`
 
 ### Short description
@@ -6756,6 +6877,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Header forwarding can expose credentials; keep the matcher list minimal and audit changes. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-http-service-authorization-request-allowed-headers-patterns"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.http_service.authorization_request.allowed_headers.patterns`
 
 ### Short description
@@ -6810,6 +6932,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Header forwarding can expose credentials; keep the matcher list minimal and audit changes. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-http-service-authorization-request-allowed-headers-patterns-exact"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.http_service.authorization_request.allowed_headers.patterns[].exact`
 
 ### Short description
@@ -6864,6 +6987,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The authorization value is sensitive; ensure the compatibility service and its logs are trusted. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-http-service-server-uri"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.http_service.server_uri`
 
 ### Short description
@@ -6918,6 +7042,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Keep the authorization service private and do not embed credentials in a URI. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-http-service-server-uri-cluster"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.http_service.server_uri.cluster`
 
 ### Short description
@@ -6972,6 +7097,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The name must resolve to a reviewed service cluster; do not treat it as the native ext_proc target. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-http-service-server-uri-timeout"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.http_service.server_uri.timeout`
 
 ### Short description
@@ -7026,6 +7152,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Deadline choice changes failure pressure; it is not an ext_proc full-lifecycle timeout guarantee. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-http-filters-typed-config-http-service-server-uri-uri"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.http_service.server_uri.uri`
 
 ### Short description
@@ -7080,6 +7207,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Loopback limits the example exposure; a remote URI needs TLS, identity, and egress review. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-route-config"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.route_config`
 
 ### Short description
@@ -7134,6 +7262,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Routes control upstream reachability; constrain domains and prefixes in a real deployment. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-route-config-name"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.name`
 
 ### Short description
@@ -7188,6 +7317,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The name is not an authorization boundary; do not encode secrets in it. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts`
 
 ### Short description
@@ -7242,6 +7372,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Over-broad virtual hosts can route unexpected Host values to the upstream. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-domains"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].domains`
 
 ### Short description
@@ -7296,6 +7427,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The selected `*` catches all hosts; replace it with intended domains before exposure. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-domains"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].domains[]`
 
 ### Short description
@@ -7350,6 +7482,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The selected `*` catches all hosts; replace it with intended domains before exposure. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-name"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].name`
 
 ### Short description
@@ -7404,6 +7537,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Use opaque operational names rather than confidential data. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes`
 
 ### Short description
@@ -7458,6 +7592,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Route order and match breadth determine where request traffic can be sent. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes-match"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].match`
 
 ### Short description
@@ -7512,6 +7647,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 An over-broad match or unsafe route action can expose an unintended upstream. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes-match-prefix"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].match.prefix`
 
 ### Short description
@@ -7566,6 +7702,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The catch-all `/` reaches every path in the virtual host; narrow it when policy requires. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes-route"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].route`
 
 ### Short description
@@ -7620,6 +7757,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 An over-broad match or unsafe route action can expose an unintended upstream. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes-route-cluster"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].route.cluster`
 
 ### Short description
@@ -7674,6 +7812,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 The target must be a reviewed local/upstream endpoint; an untrusted target creates an egress path. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-filter-chains-filters-typed-config-stat-prefix"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].filter_chains[].filters[].typed_config.stat_prefix`
 
 ### Short description
@@ -7728,6 +7867,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 Metric names should not embed secrets, user identifiers, or unbounded request data. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-ext-authz-static-resources-listeners-name"></a>
 ## `compatibility.ext_authz.static_resources.listeners[].name`
 
 ### Short description
@@ -7782,6 +7922,7 @@ Source-backed example: [examples/envoy/compatibility-ext-authz/envoy-ext-authz.y
 
 A name is control-plane metadata, but it should not disclose tenant or secret identifiers. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="envoy-filters-http-ext-authz"></a>
 ## `envoy.filters.http.ext_authz`
 
 ### Short description

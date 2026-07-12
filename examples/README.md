@@ -12,10 +12,10 @@ deployment manifests and not evidence by themselves.
 | --- | --- | --- | --- |
 | [apache/](apache/README.md) | native httpd module | Native HTTP/1.1 P1--P4 Safe configuration | none |
 | [nginx/](nginx/README.md) | native NGINX HTTP module | Native HTTP/1.1 P1--P4 Safe configuration | none |
-| [haproxy/](haproxy/README.md) | native HTX filter | Native HTTP/1.1 P1--P4 Safe configuration | [SPOE/SPOP](haproxy/compatibility-spoe/README.md) |
-| [envoy/](envoy/README.md) | Envoy ext_proc | Streamed HTTP/1.1 P1--P4 Safe configuration | [ext_authz](envoy/compatibility-ext-authz/README.md) |
-| [traefik/](traefik/README.md) | native Traefik middleware | Local-plugin/UDS HTTP/1.1 P1--P4 Safe configuration | [forwardAuth](traefik/compatibility-forwardauth/README.md) |
-| [lighttpd/](lighttpd/README.md) | patched native lighttpd module | HTTP/1.1 identity-entity P1--P4 Safe reference | [sidecar proxy](lighttpd/compatibility-sidecar/README.md) |
+| [haproxy/](haproxy/README.md) | native HTX filter | Native HTTP/1.1 P1--P4 Safe configuration | [SPOE/SPOP](haproxy/README.md#spoespop-compatibility) |
+| [envoy/](envoy/README.md) | Envoy ext_proc | Streamed HTTP/1.1 P1--P4 Safe configuration | [ext_authz](envoy/README.md#ext_authz-compatibility) |
+| [traefik/](traefik/README.md) | native Traefik middleware | Local-plugin/UDS HTTP/1.1 P1--P4 Safe configuration | [forwardAuth](traefik/README.md#forwardauth-compatibility) |
+| [lighttpd/](lighttpd/README.md) | patched native lighttpd module | HTTP/1.1 identity-entity P1--P4 Safe reference | [sidecar proxy](lighttpd/README.md#sidecar-compatibility) |
 
 All paths in the table are repository-relative: resolve them from the root of
 this repository. A host path such as /etc/modsecurity/no-crs-baseline.conf is
@@ -55,10 +55,10 @@ connector-specific limitation before enabling it.
 
 ## Rules and expected outcomes
 
-Each connector has a rules directory and an expected directory. The rules
-directory identifies the repository-owned No-CRS baseline rule source without
-copying a mutable framework file into these examples. The expected directory
-describes configuration intent only; it is not a test result.
+Each connector parent README embeds its No-CRS rule source and P1--P4 Safe
+intent. The rules directories retain the checked-in profile files without
+copying a mutable framework file into these examples. Safe intent remains
+configuration guidance, not a test result.
 
 The No-CRS rule IDs 1100001, 1100101, 1100201, and 1100301 correspond to P1,
 P2, P3, and P4 respectively. They are repository test-profile IDs, not

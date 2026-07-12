@@ -3,6 +3,7 @@
 Status: minimal_runtime_smoke (forwardAuth request path only)
 Runtime status: connector-gap outside the targeted request-header proof
 Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
+Metadata evidence states: `link_verified`, `minimal_runtime_smoke`, and `connector-gap`.
 
 The standard compatibility path remains `forwardAuth`. The separate
 full-lifecycle profile dispatches `native-middleware` through
@@ -11,10 +12,8 @@ Traefik local-plugin host and selects a private persistent UDS
 Common/libmodsecurity engine. Its targeted host evidence remains
 non-promoted and cannot by itself promote a lifecycle capability.
 
-Global gate definitions:
-
-- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
-- `connectors/_template/docs/coverage-decision-matrix.md`
+Global gate definitions are consolidated in
+`docs/connectors/README.md` and `docs/testing-and-evidence.md`.
 
 ## Phase 0: Scaffold
 

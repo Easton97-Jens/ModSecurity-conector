@@ -35,7 +35,7 @@ Use Make targets rather than nested files from an arbitrary working directory. T
 | `make full-lifecycle-all-connectors` | Runs all six selected profiles | `NO_CRS_RUN_ID`, writable runtime/evidence roots | Six result sets |
 | `make check-six-connector-core-completion` | Validates aggregate evidence | Same run id and evidence root | Aggregate PASS/FAIL |
 
-`NO_CRS_RUN_ID` is a filesystem-safe run identifier, for example `repository-cleanup-core-20260712T164725Z`. Do not use secrets, user names, or ticket text. See the [variables reference](../docs/configuration/variables.md).
+`NO_CRS_RUN_ID` is a filesystem-safe run identifier, for example `repository-cleanup-core-20260712T164725Z`. Do not use secrets, user names, or ticket text. See the [variables reference](../docs/reference/variables.md).
 
 ## Evidence flow
 
@@ -46,7 +46,7 @@ Use Make targets rather than nested files from an arbitrary working directory. T
 5. `checks/evidence/` decides whether it supports the selected claim.
 6. `evidence/reports/` regenerates tracked reports; never edit generated output.
 
-Exit `0` means technical completion, not that every catalog case is `PASS`. `1` is a general error, `2` is commonly a validation/aggregate error, and `77` means a declared missing optional prerequisite. See [test levels](../docs/testing/test-levels.md) for status semantics.
+Exit `0` means technical completion, not that every catalog case is `PASS`. `1` is a general error, `2` is commonly a validation/aggregate error, and `77` means a declared missing optional prerequisite. See [test levels](../docs/testing-and-evidence.md) for status semantics.
 
 ## Adding a file
 

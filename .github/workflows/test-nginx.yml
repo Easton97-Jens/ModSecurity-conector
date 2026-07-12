@@ -42,15 +42,12 @@ jobs:
           test -f connectors/nginx/harness/nginx_smoke.conf
           test -x connectors/nginx/harness/run_nginx_smoke.sh
           test -f connectors/nginx/harness/README.md
-          test -f connectors/nginx/docs/architecture.md
-          test -f connectors/nginx/docs/build.md
-          test -f connectors/nginx/docs/public-sources.md
+          test -f docs/connectors/nginx.md
           test ! -d connectors/nginx/tests
           test -f modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/nginx_tx_scoring_absolute_block.yaml
-          test -f modules/ModSecurity-test-Framework/docs/testing/imports/nginx-regression-map.md
+          test -f modules/ModSecurity-test-Framework/docs/connector-integration.md
           test -f config/testing/import-status.json
-          test -f reports/testing/nginx-poc.md
-          test -f reports/testing/apache-vs-nginx-poc.md
+          test -f docs/testing-and-evidence.md
           grep -q 'Status:' connectors/nginx/TODO.md
       - name: Syntax and dry-run checks
         if: github.event_name != 'pull_request'

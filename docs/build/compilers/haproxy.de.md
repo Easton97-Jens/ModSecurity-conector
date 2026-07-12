@@ -32,7 +32,7 @@ make runtime-components-sources
 
 Relevante Variablen: `HAPROXY_VERSION`, `HAPROXY_SOURCE_URL`, `HAPROXY_SHA256`, `HAPROXY_SOURCE_DIR`, `HAPROXY_BIN` und die erweiterten `HAPROXY_HTX_*`-Pfade.
 Ihre Formate, Defaults, Scope, Wirkung und Sicherheitsgrenzen stehen in der
-[zentralen Variablenreferenz](../../configuration/variables.de.md). Ein
+[zentralen Variablenreferenz](../../reference/variables.de.md). Ein
 Override ist ein expliziter Eingabewechsel und kein Capability-Upgrade.
 
 ## Toolchain und Cache-v2
@@ -93,14 +93,13 @@ Target mit seinem Artefaktprofil kann kanonische Evidenz produzieren.
 ## Konfiguration, Beispiele und Fehlersuche
 
 - Aktuelle Connector-Dokumentation:
-  [HAProxy](../../connectors/haproxy/README.de.md)
+  [HAProxy](../../connectors/haproxy.de.md)
 - Konfigurationsdetails:
-  [Connector-Konfiguration](../../connectors/haproxy/configuration.de.md)
+  [vollständige Connector-Referenz](../../../examples/haproxy/configuration-reference.de.md)
 - Repository-Beispiele:
   [examples/haproxy](../../../examples/haproxy/README.de.md)
 - Test- und Evidenzgrenzen:
-  [Teststufen](../../testing/README.de.md) ·
-  [Evidenzregeln](../../evidence/README.de.md)
+  [Test- und Evidence-Guide](../../testing-and-evidence.de.md)
 
 Ist ein Binding-Build blockiert, die vorbereiteten libmodsecurity-Include-/Library-Pfade prüfen. Schlägt der HTX-Weg fehl, Overlay-Provenienz und sanitisierte Host-Records bewahren, statt ein SPOA-Ergebnis zu ersetzen.
 

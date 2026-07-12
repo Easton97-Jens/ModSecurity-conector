@@ -81,7 +81,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 | --- | --- | --- |
 | Minimal | [minimal/lighttpd.conf](minimal/lighttpd.conf) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [safe/lighttpd-http1-identity.conf](safe/lighttpd-http1-identity.conf) | Ausgewählte begrenzte Referenz |
-| Strikt | [strict/README.de.md](strict/README.de.md) | Parserunterstützte oder ausdrücklich optionale Grenze |
+| Strikt | [README.de.md#strict-profilgrenze](README.de.md#strict-profilgrenze) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
 | Deaktiviert | [disabled/lighttpd.conf](disabled/lighttpd.conf) | Connector- oder Engine-Pfad deaktiviert |
 
@@ -108,6 +108,7 @@ Repository-Ziele: `make check-config-lighttpd` und `make check-config-all-connec
 
 ## Optionsdetails
 
+<a id="msconnector-config-file"></a>
 ## `msconnector.config-file`
 
 ### Kurzbeschreibung
@@ -162,6 +163,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/minimal/lighttpd.conf](../../examp
 
 Die Runtime-Datei enthält ausführbare Regelpfade und Limits; vertrauenswürdige Eigentümerschaft und Berechtigungen verwenden.
 
+<a id="msconnector-enabled"></a>
 ## `msconnector.enabled`
 
 ### Kurzbeschreibung
@@ -216,6 +218,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/minimal/lighttpd.conf](../../examp
 
 Das Deaktivieren des Moduls umgeht die Connector-Verarbeitung, auch wenn eine Regeldatei existiert.
 
+<a id="proxy-server"></a>
 ## `proxy.server`
 
 ### Kurzbeschreibung
@@ -270,6 +273,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/lighttpd-http1-identity.conf]
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="server-bind"></a>
 ## `server.bind`
 
 ### Kurzbeschreibung
@@ -324,6 +328,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/lighttpd-http1-identity.conf]
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="server-compat-module-load"></a>
 ## `server.compat-module-load`
 
 ### Kurzbeschreibung
@@ -378,6 +383,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/lighttpd-http1-identity.conf]
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="server-document-root"></a>
 ## `server.document-root`
 
 ### Kurzbeschreibung
@@ -432,6 +438,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/lighttpd-http1-identity.conf]
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="server-errorlog"></a>
 ## `server.errorlog`
 
 ### Kurzbeschreibung
@@ -486,6 +493,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/lighttpd-http1-identity.conf]
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="server-modules"></a>
 ## `server.modules`
 
 ### Kurzbeschreibung
@@ -540,6 +548,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/lighttpd-http1-identity.conf]
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="server-pid-file"></a>
 ## `server.pid-file`
 
 ### Kurzbeschreibung
@@ -594,6 +603,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/lighttpd-http1-identity.conf]
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="server-port"></a>
 ## `server.port`
 
 ### Kurzbeschreibung
@@ -648,6 +658,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/lighttpd-http1-identity.conf]
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="server-stream-response-body"></a>
 ## `server.stream-response-body`
 
 ### Kurzbeschreibung
@@ -702,6 +713,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/lighttpd-http1-identity.conf]
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="server-upload-dirs"></a>
 ## `server.upload-dirs`
 
 ### Kurzbeschreibung
@@ -756,6 +768,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/lighttpd-http1-identity.conf]
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="compatibility-accesslog-filename"></a>
 ## `compatibility.accesslog.filename`
 
 ### Kurzbeschreibung
@@ -810,6 +823,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/compatibility-sidecar/lighttpd-sid
 
 Host-Routing nur für die Kompatibilität; nicht als native ModSecurity-Konfiguration darstellen.
 
+<a id="compatibility-proxy-server"></a>
 ## `compatibility.proxy.server`
 
 ### Kurzbeschreibung
@@ -864,6 +878,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/compatibility-sidecar/lighttpd-sid
 
 Host-Routing nur für die Kompatibilität; nicht als native ModSecurity-Konfiguration darstellen.
 
+<a id="compatibility-server-document-root"></a>
 ## `compatibility.server.document-root`
 
 ### Kurzbeschreibung
@@ -918,6 +933,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/compatibility-sidecar/lighttpd-sid
 
 Host-Routing nur für die Kompatibilität; nicht als native ModSecurity-Konfiguration darstellen.
 
+<a id="compatibility-server-errorlog"></a>
 ## `compatibility.server.errorlog`
 
 ### Kurzbeschreibung
@@ -972,6 +988,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/compatibility-sidecar/lighttpd-sid
 
 Host-Routing nur für die Kompatibilität; nicht als native ModSecurity-Konfiguration darstellen.
 
+<a id="compatibility-server-modules"></a>
 ## `compatibility.server.modules`
 
 ### Kurzbeschreibung
@@ -1026,6 +1043,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/compatibility-sidecar/lighttpd-sid
 
 Host-Routing nur für die Kompatibilität; nicht als native ModSecurity-Konfiguration darstellen.
 
+<a id="compatibility-server-port"></a>
 ## `compatibility.server.port`
 
 ### Kurzbeschreibung
@@ -1080,6 +1098,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/compatibility-sidecar/lighttpd-sid
 
 Host-Routing nur für die Kompatibilität; nicht als native ModSecurity-Konfiguration darstellen.
 
+<a id="sidecar-proxy"></a>
 ## `sidecar proxy`
 
 ### Kurzbeschreibung

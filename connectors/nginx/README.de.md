@@ -113,14 +113,15 @@ Historisch generierte Beweise halten NGINX `partial` fest:
 
 ## Abdeckungs-/Laufzeit-Entscheidungsmatrix
 
-Siehe `docs/coverage-decision-matrix.md`.
+Siehe den [kanonischen NGINX-Guide](../../docs/connectors/nginx.de.md) für die
+Evidence-Grenze und die aktuelle Konfigurationsreferenz.
 
 NGINX bleibt derzeit `partial`: Standardrauch ist sauber, erzwingt alle Beweise
 Zeichnet weiterhin FAIL- und NOT_EXECUTABLE-Zeilen auf, generierte Abdeckungsberichte jedoch nicht
 automatische Laufzeithochstufung und RESPONSE_BODY bleibt nicht hochgestuft.
 
-Siehe `docs/connectors/directive-parity.md` für den aktuellen Apache/NGINX
-Direktivenmatrix.
+Siehe [Konfiguration](../../docs/configuration.de.md) für die aktuelle
+Apache/NGINX-Direktivenmatrix.
 
 ## Allgemeiner SDK-Einführungsbereich
 

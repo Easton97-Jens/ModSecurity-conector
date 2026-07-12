@@ -101,7 +101,11 @@ integrity_api = (ROOT / "common/include/msconnector/integrity_event.h").read_tex
 if "non_crypto" not in integrity_api:
     errors.append("integrity API must name non-cryptographic hash helpers with non_crypto")
 
-doc_text = "\n".join(path.read_text(errors="ignore") for path in (ROOT / "docs").rglob("common-security-data-flow*.md"))
+doc_text = "\n".join(
+    path.read_text(errors="ignore")
+    for path in (ROOT / "docs" / "architecture.md", ROOT / "docs" / "architecture.de.md")
+    if path.is_file()
+)
 if "non_crypto" not in doc_text or "CI" not in doc_text or "Smoke" not in doc_text and "smoke" not in doc_text:
     errors.append("common security docs must state non_crypto CI/smoke scope")
 for pattern in FORBIDDEN_HASH_PATTERNS:
@@ -110,8 +114,8 @@ for pattern in FORBIDDEN_HASH_PATTERNS:
 
 claim_paths = list((ROOT / "common").rglob("*.[ch]"))
 claim_paths += [
-    ROOT / "docs/architecture/common-security-data-flow.md",
-    ROOT / "docs/architecture/common-security-data-flow.de.md",
+    ROOT / "docs/architecture.md",
+    ROOT / "docs/architecture.de.md",
     ROOT / "ci/checks/common/check-common-flow-integrity.py",
     ROOT / "ci/checks/common/check-common-memory-safety.sh",
     ROOT / "ci/checks/common/check-common-helpers.sh",

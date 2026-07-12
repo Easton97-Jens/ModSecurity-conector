@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that canonical No-CRS metadata, TODOs, and bilingual reports agree."""
+"""Check canonical No-CRS metadata, TODOs, and consolidated readiness reports."""
 
 from __future__ import annotations
 
@@ -10,6 +10,17 @@ from pathlib import Path
 
 ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
+READINESS_REPORTS = (
+    ("reports/current/readiness.md", "**Language:**"),
+    ("reports/current/readiness.de.md", "**Sprache:**"),
+)
+CORE_COMPLETION_REPORTS = (
+    ("reports/current/core-completion.md", "**Language:**"),
+    ("reports/current/core-completion.de.md", "**Sprache:**"),
+)
+CAPABILITY_CATALOG_JSON = "reports/testing/generated/canonical/connector-capabilities.generated.json"
+CAPABILITY_CATALOG_MARKDOWN = "reports/testing/generated/canonical/connector-capabilities.generated.md"
+CORE_CAPABILITIES = ("phase1", "phase2", "phase3", "phase4", "event_jsonl")
 REPORT_STATUSES = {
     "PASS",
     "FAIL",
@@ -32,14 +43,6 @@ def read(path: Path, errors: list[str]) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def expected_report_state(state: str) -> str:
-    if state in {"unsupported_by_host_model", "not_applicable"}:
-        return "UNSUPPORTED"
-    if state == "not_implemented":
-        return "NOT IMPLEMENTED"
-    return "IMPLEMENTED, NOT ASSERTED"
-
-
 def table_statuses(text: str) -> list[str]:
     statuses: list[str] = []
     for line in text.splitlines():
@@ -48,6 +51,22 @@ def table_statuses(text: str) -> list[str]:
         cells = [cell.strip() for cell in line.strip("|").split("|")]
         statuses.extend(cell for cell in cells if cell in REPORT_STATUSES or cell.isupper())
     return statuses
+
+
+def display_name(connector: str) -> str:
+    return {
+        "apache": "Apache",
+        "nginx": "NGINX",
+        "haproxy": "HAProxy",
+        "envoy": "Envoy",
+        "traefik": "Traefik",
+    }.get(connector, connector)
+
+
+def connector_section(text: str, connector: str) -> str:
+    heading = re.escape(display_name(connector))
+    match = re.search(rf"^### {heading}\s*$([\s\S]*?)(?=^### |\Z)", text, flags=re.MULTILINE)
+    return match.group(1) if match else ""
 
 
 def main() -> int:
@@ -60,6 +79,8 @@ def main() -> int:
         except (OSError, json.JSONDecodeError) as exc:
             fail(errors, f"invalid capability manifest {path.relative_to(ROOT)}: {exc}")
             continue
+        if not isinstance(value.get("capabilities"), dict):
+            fail(errors, f"{path.relative_to(ROOT)}: capabilities must be an object")
         manifests[connector] = value
 
         todo = read(ROOT / f"connectors/{connector}/TODO.md", errors)
@@ -72,57 +93,56 @@ def main() -> int:
             if required not in todo:
                 fail(errors, f"connectors/{connector}/TODO.md: missing canonical marker {required!r}")
 
-        for suffix, switch in ((".md", "**Language:**"), (".de.md", "**Sprache:**")):
-            report_path = ROOT / f"reports/evidence/{connector}-no-crs-baseline{suffix}"
-            report = read(report_path, errors)
-            if switch not in report:
-                fail(errors, f"{report_path.relative_to(ROOT)}: missing bilingual language switch")
-            status_match = re.search(
-                r"(?:Overall canonical status|Kanonischer Gesamtstatus):\s*`([^`]+)`",
-                report,
-            )
-            if not status_match or status_match.group(1) not in REPORT_STATUSES:
-                fail(errors, f"{report_path.relative_to(ROOT)}: missing or invalid canonical status")
-            static_snapshot = "No canonical No-CRS `result.json` was used" in report or "Kein kanonisches No-CRS-`result.json`" in report
-            if static_snapshot and status_match and status_match.group(1) != "NOT EXECUTED":
-                fail(errors, f"{report_path.relative_to(ROOT)}: snapshot without result must be NOT EXECUTED")
-            if static_snapshot and re.search(r"\|\s*PASS\s*\|", report):
-                fail(errors, f"{report_path.relative_to(ROOT)}: PASS cell without canonical result")
+    readiness: dict[str, str] = {}
+    for relative, switch in READINESS_REPORTS:
+        text = read(ROOT / relative, errors)
+        readiness[relative] = text
+        if switch not in text:
+            fail(errors, f"{relative}: missing bilingual language switch")
+        if not any(status in table_statuses(text) for status in REPORT_STATUSES):
+            fail(errors, f"{relative}: readiness table contains no canonical status cells")
+        if "Claims deliberately not made" not in text and "Bewusst nicht erhobene Claims" not in text:
+            fail(errors, f"{relative}: claim-boundary section missing")
 
-        capabilities = value.get("capabilities", {})
-        if isinstance(capabilities, dict):
-            english = read(ROOT / f"reports/evidence/{connector}-no-crs-baseline.md", errors)
-            phase_map = {
-                "phase1": "Phase 1",
-                "phase2": "Phase 2",
-                "phase3": "Phase 3",
-                "phase4": "Phase 4",
-                "event_jsonl": "Events",
-            }
-            static_snapshot = "No canonical No-CRS `result.json` was used" in english
-            for capability, label in phase_map.items():
-                entry = capabilities.get(capability, {})
-                state = entry.get("state") if isinstance(entry, dict) else ""
-                expected = expected_report_state(str(state))
-                pattern = rf"\|\s*{re.escape(label)}\s*\|\s*{re.escape(expected)}\s*\|"
-                if static_snapshot and english and not re.search(pattern, english):
-                    fail(errors, f"reports/evidence/{connector}-no-crs-baseline.md: {label} disagrees with {capability}={state}")
+    core_completion: dict[str, str] = {}
+    core_run_ids: set[str] = set()
+    for relative, switch in CORE_COMPLETION_REPORTS:
+        text = read(ROOT / relative, errors)
+        core_completion[relative] = text
+        if switch not in text:
+            fail(errors, f"{relative}: missing bilingual language switch")
+        run_match = re.search(r"(?:Shared run ID|Gemeinsame Run-ID):\s*`([^`]+)`", text)
+        if not run_match:
+            fail(errors, f"{relative}: missing shared canonical run identifier")
+        else:
+            core_run_ids.add(run_match.group(1))
+        if "full-lifecycle-all-connectors" not in text or not re.search(r"exit\s+`0`", text, flags=re.IGNORECASE):
+            fail(errors, f"{relative}: PASS core table lacks aggregate exit-zero boundary")
+        if "make check-six-connector-core-completion" not in text:
+            fail(errors, f"{relative}: missing core checker boundary")
 
-    aggregate_en = read(ROOT / "reports/current/all-connectors-no-crs-baseline.md", errors)
-    aggregate_de = read(ROOT / "reports/current/all-connectors-no-crs-baseline.de.md", errors)
+    if len(core_run_ids) != 1:
+        fail(errors, f"core completion language pair has inconsistent run identifiers: {sorted(core_run_ids)}")
+    core_run_id = next(iter(core_run_ids), "")
+    for relative, text in readiness.items():
+        if core_run_id and core_run_id not in text:
+            fail(errors, f"{relative}: readiness is not bound to core run {core_run_id}")
+
+    english = readiness.get("reports/current/readiness.md", "")
+    core_english = core_completion.get("reports/current/core-completion.md", "")
     for connector in CONNECTORS:
-        display = "Apache" if connector == "apache" else "NGINX" if connector == "nginx" else "HAProxy" if connector == "haproxy" else connector
-        if not re.search(rf"\|\s*{re.escape(display)}\s*\|", aggregate_en, re.IGNORECASE):
-            fail(errors, f"aggregate report is missing {connector}")
-    for path, text in (
-        ("reports/current/all-connectors-no-crs-baseline.md", aggregate_en),
-        ("reports/current/all-connectors-no-crs-baseline.de.md", aggregate_de),
-    ):
-        if not any(status in REPORT_STATUSES for status in table_statuses(text)):
-            fail(errors, f"{path}: aggregate table contains no canonical status cells")
-        static_snapshot = "No canonical No-CRS `result.json` was used" in text or "Kein kanonisches No-CRS-`result.json`" in text
-        if static_snapshot and re.search(r"\|\s*PASS\s*\|", text):
-            fail(errors, f"{path}: PASS cell without canonical result")
+        display = display_name(connector)
+        if not re.search(rf"\|\s*{re.escape(display)}\s*\|", english, re.IGNORECASE):
+            fail(errors, f"reports/current/readiness.md: readiness table is missing {connector}")
+        if not re.search(
+            rf"^\|\s*{re.escape(display)}\s*\|(?:\s*PASS\s*\|){{8}}",
+            core_english,
+            flags=re.IGNORECASE | re.MULTILINE,
+        ):
+            fail(errors, f"reports/current/core-completion.md: compact core row for {connector} is not eight PASS results")
+        readiness_row = re.search(rf"^\|\s*{re.escape(display)}\s*\|.*$", english, flags=re.IGNORECASE | re.MULTILINE)
+        if not readiness_row or "PASS" not in readiness_row.group(0) or "NOT EXECUTED" not in readiness_row.group(0):
+            fail(errors, f"reports/current/readiness.md: {connector} must keep selected core PASS separate from extended NOT EXECUTED")
 
     envoy_todo = read(ROOT / "connectors/envoy/TODO.md", errors)
     if "Status: targeted `minimal_runtime_smoke`" not in envoy_todo:
@@ -141,7 +161,7 @@ def main() -> int:
         if marker not in overview_en or marker not in overview_de:
             fail(errors, f"repository overview pair is missing {marker!r}")
 
-    aggregate_path = ROOT / "reports/testing/generated/canonical/connector-capabilities.generated.json"
+    aggregate_path = ROOT / CAPABILITY_CATALOG_JSON
     try:
         aggregate = json.loads(aggregate_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -167,6 +187,32 @@ def main() -> int:
         generated_connectors = aggregate.get("connectors")
         if not isinstance(generated_connectors, dict) or set(generated_connectors) != set(CONNECTORS):
             fail(errors, "generated capability aggregate does not contain exactly six connectors")
+        catalog_markdown = read(ROOT / CAPABILITY_CATALOG_MARKDOWN, errors)
+        if isinstance(generated_connectors, dict):
+            for connector, manifest in manifests.items():
+                manifest_capabilities = manifest.get("capabilities")
+                generated = generated_connectors.get(connector)
+                generated_capabilities = generated.get("capabilities") if isinstance(generated, dict) else None
+                if not isinstance(manifest_capabilities, dict) or not isinstance(generated_capabilities, dict):
+                    fail(errors, f"{connector}: capability manifest/catalog mapping is invalid")
+                    continue
+                section = connector_section(catalog_markdown, connector)
+                if not section:
+                    fail(errors, f"{CAPABILITY_CATALOG_MARKDOWN}: missing {connector} detail section")
+                    continue
+                for capability in CORE_CAPABILITIES:
+                    entry = manifest_capabilities.get(capability)
+                    expected = entry.get("state") if isinstance(entry, dict) else None
+                    observed_entry = generated_capabilities.get(capability)
+                    observed = observed_entry.get("state") if isinstance(observed_entry, dict) else None
+                    if not isinstance(expected, str) or not expected:
+                        fail(errors, f"connectors/{connector}/capabilities.json: missing {capability} state")
+                        continue
+                    if observed != expected:
+                        fail(errors, f"{connector}: generated capability catalog disagrees on {capability}: {observed!r} != {expected!r}")
+                    row_pattern = rf"\|\s*`{re.escape(capability)}`\s*\|\s*`{re.escape(expected)}`\s*\|"
+                    if not re.search(row_pattern, section):
+                        fail(errors, f"{CAPABILITY_CATALOG_MARKDOWN}: {connector} detail row disagrees with {capability}={expected}")
 
     if errors:
         for error in errors:

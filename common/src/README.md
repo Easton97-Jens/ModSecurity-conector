@@ -21,7 +21,8 @@ Not allowed here:
 - Build glue for a specific runtime.
 - Includes from any connector implementation.
 
-Open work is tracked in `docs/roadmap/todo-inventory.md`:
+Open work is bounded by the repository
+[operations and security guide](../../docs/operations-and-security.md):
 
 - Keep these helpers limited to metadata and datatypes.
 - Do not add server lifecycle, request body, response filter, or libmodsecurity

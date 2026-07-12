@@ -44,7 +44,7 @@ late-action, or full-response-body evidence.
 | `connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c` | repo-authored ModSecurity binding self-test CLI | not selected | Supports `--describe` and `--self-test`; live HAProxy runtime enforcement is handled by the framework smoke harness. |
 | `connectors/haproxy/htx-overlay/` | repo-authored HAProxy 3.2.21 overlay source and build patch | selected only by the non-promoted full-lifecycle profile | Copied into a disposable verified HAProxy source worktree; native P1/P3 deny replies are exercised with real host traffic, while P2/P4 remain observation-only. |
 | `connectors/haproxy/harness/run_haproxy_htx_runtime.sh` | repo-authored native HTX transport smoke | selected only by the non-promoted full-lifecycle profile | Builds/starts a patched HAProxy, loads canonical No-CRS rules, and records real P1/P3 status replies plus payload-free P2/P4 observations without capability promotion. |
-| `connectors/haproxy/docs/` | repo-authored documentation | not selected | Documents open HAProxy integration options and blockers. |
+| `docs/connectors/haproxy.md` | repo-authored canonical documentation | not selected | Documents the selected route, historical compatibility boundary, and blockers. |
 | `connectors/haproxy/harness/README.md` | repo-authored documentation | not selected | Harness contract only. |
 
 ## Upstream Selection

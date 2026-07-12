@@ -81,6 +81,7 @@ Repository-Ziele: `make check-config-nginx` und `make check-config-all-connector
 
 ## Optionsdetails
 
+<a id="access-log"></a>
 ## `access_log`
 
 ### Kurzbeschreibung
@@ -135,6 +136,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="error-log"></a>
 ## `error_log`
 
 ### Kurzbeschreibung
@@ -189,6 +191,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="gzip"></a>
 ## `gzip`
 
 ### Kurzbeschreibung
@@ -243,6 +246,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="listen"></a>
 ## `listen`
 
 ### Kurzbeschreibung
@@ -297,6 +301,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="load-module"></a>
 ## `load_module`
 
 ### Kurzbeschreibung
@@ -351,6 +356,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="modsecurity"></a>
 ## `modsecurity`
 
 ### Kurzbeschreibung
@@ -405,6 +411,7 @@ Quellenbasiertes Beispiel: [examples/nginx/minimal/nginx.conf](../../examples/ng
 
 off umgeht die Connector-Verarbeitung P1–P4, auch wenn eine Regeldatei konfiguriert ist.
 
+<a id="modsecurity-phase4-body-limit"></a>
 ## `modsecurity_phase4_body_limit`
 
 ### Kurzbeschreibung
@@ -459,6 +466,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Ein größeres Limit erhöht die Speicher-/CPU-Exposition; null ist in den nativen Settern ungültig.
 
+<a id="modsecurity-phase4-content-types-file"></a>
 ## `modsecurity_phase4_content_types_file`
 
 ### Kurzbeschreibung
@@ -513,6 +521,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Den Geltungsbereich eng halten und validieren, dass der Host die beabsichtigte Repräsentation der Response-Bytes bereitstellt.
 
+<a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
 
 ### Kurzbeschreibung
@@ -567,6 +576,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 JSONL-Metadaten als sensible Betriebsdaten behandeln und sichere Eigentümerschaft/Rotation festlegen.
 
+<a id="modsecurity-phase4-mode"></a>
 ## `modsecurity_phase4_mode`
 
 ### Kurzbeschreibung
@@ -621,6 +631,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 safe/minimal bewahren Nachweise später Entscheidungen, ohne eine bereits gestartete Antwort zu unterbrechen. strict fordert nach dem Commit einen Verbindungsabbruch an, der Clients einer Teilantwort aussetzen kann; dies ist kein verlässlicher Modus zur Durchsetzung eines HTTP-Status nach dem Commit.
 
+<a id="modsecurity-rules"></a>
 ## `modsecurity_rules`
 
 ### Kurzbeschreibung
@@ -675,6 +686,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Inline-Regeln sind ausführbare Policy; einschränken, wer die Hostkonfiguration ändern darf.
 
+<a id="modsecurity-rules-file"></a>
 ## `modsecurity_rules_file`
 
 ### Kurzbeschreibung
@@ -729,6 +741,7 @@ Quellenbasiertes Beispiel: [examples/nginx/minimal/nginx.conf](../../examples/ng
 
 Die Datei, ihre übergeordneten Verzeichnisse und alle von der Engine eingebundenen Dateien für nicht vertrauenswürdige Identitäten nicht schreibbar halten. Einen absoluten Pfad bevorzugen, damit ein geändertes Arbeitsverzeichnis keine unbeabsichtigte Policy wählen kann.
 
+<a id="modsecurity-rules-remote"></a>
 ## `modsecurity_rules_remote`
 
 ### Kurzbeschreibung
@@ -783,6 +796,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Remote-Policy wird von den ausgewählten no-CRS-Beispielen nicht verwendet; nicht als Ersatz für eine lokale Datei behandeln.
 
+<a id="modsecurity-transaction-id"></a>
 ## `modsecurity_transaction_id`
 
 ### Kurzbeschreibung
@@ -837,6 +851,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Keine Zugangsdaten oder sensiblen Request-Daten in eine Korrelationskennung aufnehmen.
 
+<a id="modsecurity-use-error-log"></a>
 ## `modsecurity_use_error_log`
 
 ### Kurzbeschreibung
@@ -891,6 +906,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Fehlerlogs können Sicherheitsmetadaten enthalten; sie schützen und rotieren.
 
+<a id="proxy-pass"></a>
 ## `proxy_pass`
 
 ### Kurzbeschreibung
@@ -945,6 +961,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="server"></a>
 ## `server`
 
 ### Kurzbeschreibung
@@ -999,6 +1016,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="server-name"></a>
 ## `server_name`
 
 ### Kurzbeschreibung

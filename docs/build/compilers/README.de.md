@@ -70,7 +70,7 @@ make runtime-components-inventory
 make runtime-components-sources
 ```
 
-Die [Variablenreferenz](../../configuration/variables.de.md) definiert Format,
+Die [Variablenreferenz](../../reference/variables.de.md) definiert Format,
 Standard, Scope, Wirkung und Sicherheitsgrenze aller Build-, Cache-,
 Provenienz- und Hostvariablen. Nur vertrauenswürdige absolute Pfade außerhalb
 des Checkouts für Build, Cache, Log und Evidenz verwenden.
@@ -78,15 +78,27 @@ des Checkouts für Build, Cache, Log und Evidenz verwenden.
 ## Dokumentationsgrenze
 
 Die nachstehenden pro-Connector-Anleitungen verweisen auf die aktuelle
-[Build-Übersicht](../README.de.md), die
-[Teststufen](../../testing/README.de.md), die
-[Evidenzregeln](../../evidence/README.de.md), Connector-Anleitungen und
+[Build-Übersicht](../README.de.md), den
+[Test- und Evidence-Guide](../../testing-and-evidence.de.md), Connector-Anleitungen und
 Beispiele. Ältere Integrationsbeschreibungen bleiben gegebenenfalls als
 historische oder diagnostische Hinweise markiert; sie sind keine aktiven
 Profilselektoren und dürfen keine Capability promoten.
 
+## Vorbereitung offener Connectoren
+
+Envoy, Traefik und lighttpd verwenden repository-eigene Build- und
+Runtime-Komponenten. Die detaillierten Anleitungen bleiben die einzige
+Quelle; die jeweiligen Vorbereitungstargets sind:
+
+| Connector | Vorbereitung | Full Lifecycle | Host-Profil |
+| --- | --- | --- | --- |
+| [Envoy](envoy.de.md) | `prepare-envoy-runtime` | `full-lifecycle-envoy-ext-proc` | `ext_proc` |
+| [Traefik](traefik.de.md) | `prepare-traefik-runtime` | `full-lifecycle-traefik-native` | `native-middleware` |
+| [lighttpd](lighttpd.de.md) | `prepare-lighttpd-runtime-build` | `full-lifecycle-lighttpd-patched` | `patched-native` |
+
+Kompatibilitätsdiagnosen über ext_authz, ForwardAuth oder eine Bridge ersetzen
+nicht den ausgewählten ext_proc-, native-middleware- oder patched-native-Pfad.
+
 ## Weiterführend
 
-Die kompaktere Übersicht für Envoy, Traefik und lighttpd steht in
-[Open-Connector-Wege](overview.de.md). Die Detailanleitungen beginnen bei
-[Apache](apache.de.md).
+Die Detailanleitungen beginnen bei [Apache](apache.de.md).

@@ -32,7 +32,7 @@ make runtime-components-sources
 
 Relevante Variablen: `BUILD_HTTPD_FROM_SOURCE`, `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN` sowie die vom Framework weitergereichten Apache-Quell- und Prüfsummenvariablen.
 Ihre Formate, Defaults, Scope, Wirkung und Sicherheitsgrenzen stehen in der
-[zentralen Variablenreferenz](../../configuration/variables.de.md). Ein
+[zentralen Variablenreferenz](../../reference/variables.de.md). Ein
 Override ist ein expliziter Eingabewechsel und kein Capability-Upgrade.
 
 ## Toolchain und Cache-v2
@@ -93,14 +93,13 @@ Target mit seinem Artefaktprofil kann kanonische Evidenz produzieren.
 ## Konfiguration, Beispiele und Fehlersuche
 
 - Aktuelle Connector-Dokumentation:
-  [Apache HTTP Server](../../connectors/apache/README.de.md)
+  [Apache HTTP Server](../../connectors/apache.de.md)
 - Konfigurationsdetails:
-  [Connector-Konfiguration](../../connectors/apache/configuration.de.md)
+  [vollständige Connector-Referenz](../../../examples/apache/configuration-reference.de.md)
 - Repository-Beispiele:
   [examples/apache](../../../examples/apache/README.de.md)
 - Test- und Evidenzgrenzen:
-  [Teststufen](../../testing/README.de.md) ·
-  [Evidenzregeln](../../evidence/README.de.md)
+  [Test- und Evidence-Guide](../../testing-and-evidence.de.md)
 
 Bei nicht zusammenpassendem APXS und httpd gegen den ausgewählten Host neu bauen. Schlägt der Konfigurationsschritt fehl, zuerst generierte Konfiguration und sanitisiertes Host-Log prüfen, bevor Regeln oder Modulpfade geändert werden.
 

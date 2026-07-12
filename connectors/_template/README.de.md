@@ -50,11 +50,6 @@ connectors/<name>/
 |-- ORIGIN.md
 |-- SOURCE_MAP.json
 |-- metadata.c or metadata.*
-|-- docs/
-|   |-- architecture.md
-|   |-- build.md
-|   |-- coverage-decision-matrix.md
-|   `-- validation.md
 |-- harness/
 |   `-- README.md
 `-- src/
@@ -171,8 +166,10 @@ No-CRS-Erwartung, ein With-CRS-Ergebnis zu erfüllen.
 
 ## Deckungsentscheidungsmatrix
 
-Jeder Betonverbinder muss `docs/coverage-decision-matrix.md` beibehalten.
-Die Matrix muss trennen:
+Jeder konkrete Connector muss den kanonischen
+[Neuer-Connector-Vertrag](../../docs/connectors/README.de.md#evidence-vertrag-für-neue-connectoren)
+und seinen flachen Guide unter `docs/connectors/` vervollständigen. Seine
+Prüfungsmatrix muss trennen:
 
 - Verfügbarkeit von Rahmenkoffern
 - Kein CRS-Laufzeitergebnis

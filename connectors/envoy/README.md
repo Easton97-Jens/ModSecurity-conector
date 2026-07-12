@@ -43,8 +43,8 @@ in `minimal`/`safe` is recorded as host-confirmed `log_only`; `strict` remains
 deterministic reset, client reset, or upstream reset.
 
 The exact ext_proc API boundary, opt-in client-cancel observation, and
-non-promotion conditions are documented in
-[docs/transport-hardening.md](docs/transport-hardening.md).
+non-promotion conditions are documented in the
+[canonical Envoy guide](../../docs/connectors/envoy.md).
 
 ## Source layout
 

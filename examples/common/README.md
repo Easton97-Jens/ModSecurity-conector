@@ -9,7 +9,7 @@ This central reference separates four layers: host/connector configuration, Comm
 | [Common Runtime](common-connector-configuration.md) | Common Runtime | Complete current `key=value` parser options. |
 | [ModSecurity Engine](modsecurity-directives.md) | ModSecurity Engine | `Sec*` directives actually used by example rule files. |
 | [Rule examples](rule-examples.md) | ModSecurity Engine | On, DetectionOnly, Off, plus P1/P4 explanation. |
-| [Central variables reference](../../docs/configuration/variables.md) | Environment/runtime | Repository and harness variables. |
+| [Central variables reference](../../docs/reference/variables.md) | Environment/runtime | Repository and harness variables. |
 
 ## Environment and runtime values
 

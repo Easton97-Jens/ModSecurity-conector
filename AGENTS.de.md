@@ -30,3 +30,26 @@ Aktuelle Commits verwenden kurze, kleingeschriebene, zwingende Zusammenfassungen
 ## Sicherheits- und Konfigurationstipps
 
 Behalten Sie die Laufzeit bei und erstellen Sie Artefakte außerhalb des Checkouts. Das Makefile leitet einen aufruflokal verifizierten Stamm vom CI oder dem temporären übergeordneten Laufzeitobjekt ab. Übertragen Sie keine heruntergeladenen Upstream-Quellbäume, Geheimnisse, lokalen Protokolle oder ungeprüften generierten Artefakte. Behalten Sie angeheftete Upstream-Referenzen und Lizenz-/Ursprungsmetadaten bei, wenn Sie Connector-Importe berühren.
+
+## Dokumentationspflege
+
+Repository-eigene Leser-Dokumentation bleibt als English-/German-Paar mit
+genau einer H1 und direkt darunter liegendem Sprachumschalter erhalten. Die
+kanonischen Root-Themen sind `docs/architecture.*`,
+`docs/configuration.*`, `docs/testing-and-evidence.*`,
+`docs/operations-and-security.*` sowie Connector-Index/-Guides unter
+`docs/connectors/`; vollständige Hostdirektiven-Syntax bleibt in der
+zugehörigen `examples/<connector>/`-Konfigurationsreferenz.
+
+Variablen und ausführbare Platzhalter nahe ihrer ersten Verwendung erklären
+und dann auf `docs/reference/variables.*` verlinken. Werte, Pfade, Targets,
+IDs, Statusbegriffe und Integrationsmodusnamen bleiben in beiden Sprachen
+identisch. Beispiele als Beispiele statt Defaults kennzeichnen,
+entwicklerspezifische Pfade und Secrets vermeiden und Build-/Konfigurations-
+Checks von Hostverkehr und Evidence unterscheiden.
+
+Generiertes Markdown nicht manuell bearbeiten. Stattdessen Generator oder
+Source-Vertrag aktualisieren und danach `make check-bilingual-docs` sowie die
+passenden Dokumentationschecks ausführen. Eine Source-, Build-, Konfigurations-
+oder Änderung eines generierten Reports ist allein kein Runtime-, CRS-,
+Protocol-, Security- oder Production-Claim.

@@ -36,6 +36,7 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 
 ## Option details
 
+<a id="body-limit-action"></a>
 ## `body_limit_action`
 
 ### Short description
@@ -90,6 +91,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Controls whether an over-limit chunk is rejected or truncated before engine input.
 
+<a id="default-block-status"></a>
 ## `default_block_status`
 
 ### Short description
@@ -144,6 +146,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Fallback status for supported pre-commit block actions.
 
+<a id="default-error-status"></a>
 ## `default_error_status`
 
 ### Short description
@@ -198,6 +201,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Fallback status for runtime errors.
 
+<a id="enabled"></a>
 ## `enabled`
 
 ### Short description
@@ -252,6 +256,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Enables the Common Runtime; enabled runtime requires an inline, file, or remote rule source.
 
+<a id="event-path"></a>
 ## `event_path`
 
 ### Short description
@@ -306,6 +311,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Appends metadata-only JSONL events when configured.
 
+<a id="late-intervention-timeout"></a>
 ## `late_intervention_timeout`
 
 ### Short description
@@ -360,6 +366,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Stores an optional late-intervention budget; Common owns no timer/cancellation primitive.
 
+<a id="max-event-json-bytes"></a>
 ## `max_event_json_bytes`
 
 ### Short description
@@ -414,6 +421,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Bounds serialized metadata event size.
 
+<a id="max-header-count"></a>
 ## `max_header_count`
 
 ### Short description
@@ -468,6 +476,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Bounds accepted header count.
 
+<a id="max-header-name-size"></a>
 ## `max_header_name_size`
 
 ### Short description
@@ -522,6 +531,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Bounds each header-name size.
 
+<a id="max-header-value-size"></a>
 ## `max_header_value_size`
 
 ### Short description
@@ -576,6 +586,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Bounds each header-value size.
 
+<a id="max-total-header-bytes"></a>
 ## `max_total_header_bytes`
 
 ### Short description
@@ -630,6 +641,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Bounds total header bytes.
 
+<a id="phase4-content-types-file"></a>
 ## `phase4_content_types_file`
 
 ### Short description
@@ -684,6 +696,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Stores a content-type file path; consumption is connector-specific.
 
+<a id="phase4-event-log"></a>
 ## `phase4_event_log`
 
 ### Short description
@@ -738,6 +751,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Alias for event_path.
 
+<a id="phase4-mode"></a>
 ## `phase4_mode`
 
 ### Short description
@@ -792,6 +806,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Stores the late P4 policy. Common alone owns no host abort primitive.
 
+<a id="request-body-limit"></a>
 ## `request_body_limit`
 
 ### Short description
@@ -846,6 +861,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Bounds request bytes offered to the engine.
 
+<a id="request-body-mode"></a>
 ## `request_body_mode`
 
 ### Short description
@@ -900,6 +916,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Selects the Common request-body handling mode; a particular host may support only a subset.
 
+<a id="response-body-limit"></a>
 ## `response_body_limit`
 
 ### Short description
@@ -954,6 +971,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Bounds response bytes offered to the engine.
 
+<a id="response-body-mode"></a>
 ## `response_body_mode`
 
 ### Short description
@@ -1008,6 +1026,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Selects the Common response-body handling mode; a particular host may support only a subset.
 
+<a id="rules-file"></a>
 ## `rules_file`
 
 ### Short description
@@ -1062,6 +1081,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Loads rules from a local file.
 
+<a id="rules-inline"></a>
 ## `rules_inline`
 
 ### Short description
@@ -1116,6 +1136,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Adds inline rule configuration.
 
+<a id="rules-remote-key"></a>
 ## `rules_remote_key`
 
 ### Short description
@@ -1170,6 +1191,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Supplies one half of a remote-rule pair.
 
+<a id="rules-remote-url"></a>
 ## `rules_remote_url`
 
 ### Short description
@@ -1224,6 +1246,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Supplies the remote-rule endpoint; the selected examples do not exercise it.
 
+<a id="transaction-id"></a>
 ## `transaction_id`
 
 ### Short description
@@ -1278,6 +1301,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Sets a static runtime transaction identifier.
 
+<a id="transaction-id-header"></a>
 ## `transaction_id_header`
 
 ### Short description
@@ -1332,6 +1356,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 Limits bound resource use. Selects the fallback correlation-header name.
 
+<a id="use-error-log"></a>
 ## `use_error_log`
 
 ### Short description

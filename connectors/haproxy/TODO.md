@@ -17,9 +17,8 @@ Earlier YAML matrix counts remain legacy evidence only. They are not reused as
 the canonical No-CRS result for this branch, and no current PASS count is
 asserted without a new run under `$EVIDENCE_ROOT/haproxy/<run-id>/`.
 
-Global gate definitions:
-
-- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
+Global gate definitions are consolidated in
+`docs/connectors/README.md` and `docs/testing-and-evidence.md`.
 
 ## Phase 0: Scaffold
 

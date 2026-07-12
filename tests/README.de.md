@@ -27,7 +27,7 @@ Verifikation, vollständige Matrix oder Strict-Verifikation für alle Connectore
 Das Framework-Submodule besitzt wiederverwendbare YAML-Cases, Normalizer und
 Runner-Tests. Root-\`tests/\` besitzt nur Connector-Repository-Contracts. Das
 Root-[Makefile](../Makefile) ist maßgeblich für Target-Namen; der aktuelle
-[Testing-Guide](../docs/testing/README.de.md) erklärt die Testebenen.
+[Testing-Guide](../docs/testing-and-evidence.de.md) erklärt die Testebenen.
 
 ## Tests hinzufügen oder ändern
 
@@ -47,7 +47,7 @@ kopierte Evidence in dieses Verzeichnis committen.
 ## Variablen und Platzhalter
 
 Das Root-Makefile besitzt die relevanten Werte. Zentrale Definitionen außerhalb
-dieses lokalen Test-Scopes stehen in der [Variablen- und Platzhalterreferenz](../docs/configuration/variables.de.md)
+dieses lokalen Test-Scopes stehen in der [Variablen- und Platzhalterreferenz](../docs/reference/variables.de.md)
 und im [Glossar](../docs/reference/glossary.de.md).
 
 | Name | Lokale Bedeutung | Pflicht, Format und Beispiel |
@@ -73,6 +73,6 @@ Testname, Fixture, Kommandoargument oder erwartetes Artefakt aufnehmen.
 | \`make quick-check\` | Führt die fokussierten schnellen Repository-Contract-Checks aus. Erzeugt keine kanonische Runtime-Evidence. |
 | \`make lint\` | Führt breite Syntax-, Contract-, Dokumentations- und Governance-Checks aus, einschließlich Root-Test-bezogener Contracts. |
 
-Für Auswahl der Testebene und korrekte Ergebnisdarstellung [Testebenen](../docs/testing/test-levels.de.md),
-[Core-Lifecycle-Testing](../docs/testing/core-lifecycle.de.md) und den
-[Evidence-Guide](../docs/evidence/README.de.md) verwenden.
+Für Auswahl der Testebene und korrekte Ergebnisdarstellung [Testebenen](../docs/testing-and-evidence.de.md),
+[Core-Lifecycle-Testing](../docs/testing-and-evidence.de.md) und den
+[Evidence-Guide](../docs/testing-and-evidence.de.md) verwenden.

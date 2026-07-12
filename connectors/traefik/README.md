@@ -53,7 +53,7 @@ make -C connectors/traefik test-engine-service
 ```
 
 The focused test starts only the local engine service and is not a Traefik
-host-runtime test. See [the engine-service protocol](docs/engine-service.md)
+host-runtime test. See the [canonical Traefik guide](../../docs/connectors/traefik.md)
 for lifecycle, configuration, canonical-rule selection, and outcome boundaries.
 
 ## Native Go streaming host probe (non-promoted)
@@ -96,8 +96,8 @@ JSONL records use integration mode `native-traefik-middleware` and canonical
 promote P1–P4, Safe/Strict, first-byte, no-full-buffer, CRS, or production
 capabilities. The C `forwardAuth` commands remain the selected compatibility
 path. The exact native transport/API boundary, including the non-promoting
-keep-alive observation and Strict `NOT EXECUTED` rationale, is in
-[docs/transport-hardening.md](docs/transport-hardening.md).
+keep-alive observation and Strict `NOT EXECUTED` rationale, is in the
+[canonical Traefik guide](../../docs/connectors/traefik.md).
 
 ## Connector Service Build
 
@@ -131,10 +131,8 @@ binaries return Exit 77; config, startup, mapping, or status errors return FAIL.
 
 ## Global Contract
 
-See:
-
-- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
-- `connectors/_template/docs/coverage-decision-matrix.md`
+See the canonical [connector contract](../../docs/connectors/README.md) and
+[testing/evidence guide](../../docs/testing-and-evidence.md).
 
 ## Traefik-specific State
 

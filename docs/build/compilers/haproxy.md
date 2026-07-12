@@ -32,7 +32,7 @@ make runtime-components-sources
 
 Relevant variables: `HAPROXY_VERSION`, `HAPROXY_SOURCE_URL`, `HAPROXY_SHA256`, `HAPROXY_SOURCE_DIR`, `HAPROXY_BIN`, and the advanced `HAPROXY_HTX_*` paths.
 Their format, defaults, scope, effect, and security boundary are defined in the
-[central variable reference](../../configuration/variables.md). An override is
+[central variable reference](../../reference/variables.md). An override is
 an explicit input change, not a capability upgrade.
 
 ## Toolchain and Cache-v2
@@ -89,12 +89,12 @@ profile can produce canonical evidence.
 
 ## Configuration, examples, and troubleshooting
 
-- Current connector guide: [HAProxy](../../connectors/haproxy/README.md)
+- Current connector guide: [HAProxy](../../connectors/haproxy.md)
 - Configuration details:
-  [connector configuration](../../connectors/haproxy/configuration.md)
+  [complete connector reference](../../../examples/haproxy/configuration-reference.md)
 - Repository examples: [examples/haproxy](../../../examples/haproxy/README.md)
-- Test and evidence boundaries: [test levels](../../testing/README.md) ·
-  [evidence rules](../../evidence/README.md)
+- Test and evidence boundary:
+  [testing and evidence guide](../../testing-and-evidence.md)
 
 If a binding build is blocked, inspect the prepared libmodsecurity include/library paths. If the HTX route fails, preserve the generated overlay provenance and sanitized host records instead of substituting a SPOA result.
 

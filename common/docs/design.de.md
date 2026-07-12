@@ -21,8 +21,8 @@ Aliase über die C-Strukturen, kein separates Eigentumsmodell.
 Dadurch wird keine vollständige Connector-API implementiert. Es definiert neutrale Datenformen
 dass spätere Connector-Adapter in libmodsecurity v3-Aufrufe übersetzen können.
 
-Das Projekt zeichnet die vollständige Entscheidung zwischen C und C++ auf
-`docs/architecture/c-vs-cpp-decision.md`. Kurz gesagt: Produktsteckerkerne bleiben C-first,
+Die Entscheidung zwischen C und C++ steht im
+[Architektur-Guide](../../docs/architecture.de.md). Kurz gesagt: Produktsteckerkerne bleiben C-first,
 C++ bleibt auf Thin Wrapper, Build-/Test-Dienstprogramme und optionale Hilfsprogramme beschränkt
 Programme und C++-Objekte dürfen Apache, NGINX oder zukünftige Server-ABI nicht überschreiten
 Grenzen.
@@ -182,7 +182,9 @@ Engine-zugewandte Ebene mit expliziten Eigentumsregeln. Sie sind nicht darin ver
 
 ## Offene Arbeit
 
-Verfolgt in `docs/roadmap/todo-inventory.md`:
+Offene Arbeit ist durch den Repository-
+[Betriebs- und Sicherheits-Guide](../../docs/operations-and-security.de.md)
+begrenzt:
 
 - gemeinsame Eigentumsregeln für Header- und Body-Puffer;
 - zukünftige Verwendung neutraler Statuswerte durch die Adapter-API;

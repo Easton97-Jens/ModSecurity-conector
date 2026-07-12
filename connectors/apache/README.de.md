@@ -101,13 +101,14 @@ Historisch generierte Beweise bewahren Apache `partial` auf:
 
 ## Abdeckungs-/Laufzeit-Entscheidungsmatrix
 
-Siehe `docs/coverage-decision-matrix.md`.
+Siehe den [kanonischen Apache-Guide](../../docs/connectors/apache.de.md) für
+die Evidence-Grenze und die aktuelle Konfigurationsreferenz.
 
 Apache bleibt derzeit `partial`: Standardrauch ist sauber, erzwingt alle Beweise
 Zeichnet weiterhin FAIL- und NOT_EXECUTABLE-Zeilen auf, generierte Abdeckungsberichte jedoch nicht
 automatische Laufzeithochstufung und RESPONSE_BODY bleibt nicht hochgestuft.
 
-Siehe `docs/connectors/directive-parity.md` und
+Siehe [Konfiguration](../../docs/configuration.de.md) und
 `connectors/apache/harness/README.md`.
 
 ## Gemeinsame SDK-Einführungsgrenze

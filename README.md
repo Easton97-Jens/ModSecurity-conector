@@ -89,9 +89,8 @@ host or create full-lifecycle evidence.
 | Validate finalized evidence | <code>NO_CRS_RUN_ID="six-core-20260712T120000Z" make check-six-connector-core-completion</code> | Read-only gate; exit <code>0</code> is limited to that gate |
 
 The exact inputs, outputs, target meanings, status values, exit codes, and
-placeholders are documented in [Build](docs/build/README.md),
-[Testing](docs/testing/README.md), and
-[Evidence](docs/evidence/README.md).
+placeholders are documented in [Build](docs/build/README.md) and
+[Testing and evidence](docs/testing-and-evidence.md).
 
 ## Evidence boundary
 
@@ -111,19 +110,21 @@ No statement here claims:
 
 Strict late intervention, advanced transports, CRS behavior, and extended
 matrices remain separate evidence-gated work. Read the current
-[testing reports](reports/testing/README.md) and the
-[evidence guide](docs/evidence/README.md) before making a result claim.
+[testing reports](reports/README.md) and the
+[testing and evidence guide](docs/testing-and-evidence.md) before making a result claim.
 
 ## Documentation
 
 - [Documentation index](docs/README.md)
-- [Configuration and variables](docs/configuration/variables.md)
+- [Getting started](docs/getting-started.md)
+- [Configuration](docs/configuration.md)
+- [Variables](docs/reference/variables.md)
 - [Glossary](docs/reference/glossary.md)
 - [Build guide](docs/build/README.md)
 - [Connector guide](docs/connectors/README.md)
-- [Testing guide](docs/testing/README.md)
-- [Evidence guide](docs/evidence/README.md)
-- [Documentation style guide](docs/development/documentation-style-guide.md)
+- [Testing and evidence](docs/testing-and-evidence.md)
+- [Operations and security](docs/operations-and-security.md)
+- [Documentation maintenance](AGENTS.md#documentation-maintenance)
 - [Framework module](modules/ModSecurity-test-Framework/README.md)
 
 Repository-owned English/German documentation is checked with:

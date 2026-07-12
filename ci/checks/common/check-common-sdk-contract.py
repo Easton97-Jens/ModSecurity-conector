@@ -281,16 +281,16 @@ if "validate_error_status_value" not in config_source or "msconnector_http_statu
 if "format_event_json" not in event_source or "json_bool(was_truncated)" not in event_source:
     fail("event writer must recompute the truncation marker before final JSON output")
 for required_doc in (
-    "docs/architecture/common-sdk.de.md",
-    "docs/connectors/new-connector-contract.md",
-    "docs/connectors/new-connector-contract.de.md",
+    "docs/architecture.md",
+    "docs/architecture.de.md",
+    "docs/connectors/README.md",
+    "docs/connectors/README.de.md",
     "docs/generated/common-sdk.md",
     "docs/generated/common-sdk.de.md",
     "docs/generated/directives.md",
     "docs/generated/directives.de.md",
     "docs/generated/capabilities.md",
     "docs/generated/capabilities.de.md",
-    "reports/archive/sonar/pr27-issue-reduction.de.md",
 ):
     if not (ROOT / required_doc).is_file():
         fail(f"missing bilingual/common generated document {required_doc}")

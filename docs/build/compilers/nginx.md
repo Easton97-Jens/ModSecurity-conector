@@ -32,7 +32,7 @@ make runtime-components-sources
 
 Relevant variables: `BUILD_NGINX_FROM_SOURCE`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_TAG`, `NGINX_BIN`, `NGINX_PREFIX`, and `NGINX_MODULE`.
 Their format, defaults, scope, effect, and security boundary are defined in the
-[central variable reference](../../configuration/variables.md). An override is
+[central variable reference](../../reference/variables.md). An override is
 an explicit input change, not a capability upgrade.
 
 ## Toolchain and Cache-v2
@@ -89,12 +89,12 @@ profile can produce canonical evidence.
 
 ## Configuration, examples, and troubleshooting
 
-- Current connector guide: [NGINX](../../connectors/nginx/README.md)
+- Current connector guide: [NGINX](../../connectors/nginx.md)
 - Configuration details:
-  [connector configuration](../../connectors/nginx/configuration.md)
+  [complete connector reference](../../../examples/nginx/configuration-reference.md)
 - Repository examples: [examples/nginx](../../../examples/nginx/README.md)
-- Test and evidence boundaries: [test levels](../../testing/README.md) ·
-  [evidence rules](../../evidence/README.md)
+- Test and evidence boundary:
+  [testing and evidence guide](../../testing-and-evidence.md)
 
 For module-load failures, verify the selected binary, module ABI, prefix and worker-access preflight. Do not relabel a protocol profile as HTTP/2 or HTTP/3 proof without matching evidence.
 

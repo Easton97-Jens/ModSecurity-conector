@@ -50,7 +50,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 | --- | --- | --- |
 | Minimal | [minimal/httpd.conf](minimal/httpd.conf) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [safe/httpd.conf](safe/httpd.conf) | Ausgewählte begrenzte Referenz |
-| Strikt | [strict/README.de.md](strict/README.de.md) | Parserunterstützte oder ausdrücklich optionale Grenze |
+| Strikt | [README.de.md#strict-profilgrenze](README.de.md#strict-profilgrenze) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/httpd.conf](detection-only/httpd.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
 | Deaktiviert | [disabled/httpd.conf](disabled/httpd.conf) | Connector- oder Engine-Pfad deaktiviert |
 
@@ -77,6 +77,7 @@ Repository-Ziele: `make check-config-apache` und `make check-config-all-connecto
 
 ## Optionsdetails
 
+<a id="customlog"></a>
 ## `CustomLog`
 
 ### Kurzbeschreibung
@@ -131,6 +132,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="errorlog"></a>
 ## `ErrorLog`
 
 ### Kurzbeschreibung
@@ -185,6 +187,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="loadmodule"></a>
 ## `LoadModule`
 
 ### Kurzbeschreibung
@@ -239,6 +242,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="modsecurity"></a>
 ## `modsecurity`
 
 ### Kurzbeschreibung
@@ -293,6 +297,7 @@ Quellenbasiertes Beispiel: [examples/apache/minimal/httpd.conf](../../examples/a
 
 off umgeht die Connector-Verarbeitung P1–P4, auch wenn eine Regeldatei konfiguriert ist.
 
+<a id="modsecurity-phase4-body-limit"></a>
 ## `modsecurity_phase4_body_limit`
 
 ### Kurzbeschreibung
@@ -347,6 +352,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 Ein größeres Limit erhöht die Speicher-/CPU-Exposition; null ist in den nativen Settern ungültig.
 
+<a id="modsecurity-phase4-content-types-file"></a>
 ## `modsecurity_phase4_content_types_file`
 
 ### Kurzbeschreibung
@@ -401,6 +407,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 Den Geltungsbereich eng halten und validieren, dass der Host die beabsichtigte Repräsentation der Response-Bytes bereitstellt.
 
+<a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
 
 ### Kurzbeschreibung
@@ -455,6 +462,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 JSONL-Metadaten als sensible Betriebsdaten behandeln und sichere Eigentümerschaft/Rotation festlegen.
 
+<a id="modsecurity-phase4-mode"></a>
 ## `modsecurity_phase4_mode`
 
 ### Kurzbeschreibung
@@ -509,6 +517,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 strict darf nicht als garantierte spätere 403 beschrieben werden; hostspezifische Nachweise für den Abbruch sind erforderlich.
 
+<a id="modsecurity-rules"></a>
 ## `modsecurity_rules`
 
 ### Kurzbeschreibung
@@ -563,6 +572,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 Inline-Regeln sind ausführbare Policy; einschränken, wer die Hostkonfiguration ändern darf.
 
+<a id="modsecurity-rules-file"></a>
 ## `modsecurity_rules_file`
 
 ### Kurzbeschreibung
@@ -617,6 +627,7 @@ Quellenbasiertes Beispiel: [examples/apache/minimal/httpd.conf](../../examples/a
 
 Die Datei und ihre übergeordneten Verzeichnisse für nicht vertrauenswürdige Identitäten nicht schreibbar halten.
 
+<a id="modsecurity-rules-remote"></a>
 ## `modsecurity_rules_remote`
 
 ### Kurzbeschreibung
@@ -671,6 +682,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 Remote-Policy wird von den ausgewählten no-CRS-Beispielen nicht verwendet; nicht als Ersatz für eine lokale Datei behandeln.
 
+<a id="modsecurity-transaction-id"></a>
 ## `modsecurity_transaction_id`
 
 ### Kurzbeschreibung
@@ -725,6 +737,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 Keine Zugangsdaten oder sensiblen Request-Daten in eine Korrelationskennung aufnehmen.
 
+<a id="modsecurity-transaction-id-expr"></a>
 ## `modsecurity_transaction_id_expr`
 
 ### Kurzbeschreibung
@@ -779,6 +792,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 Ausdruckseingaben als Metadaten behandeln; Geheimnisse nicht in Logs offenlegen.
 
+<a id="modsecurity-use-error-log"></a>
 ## `modsecurity_use_error_log`
 
 ### Kurzbeschreibung

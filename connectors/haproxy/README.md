@@ -40,10 +40,8 @@ for enforcement, strict abort, or full `RESPONSE_BODY` support.
 
 ## Global Contract
 
-See:
-
-- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
-- `connectors/_template/docs/coverage-decision-matrix.md`
+See the canonical [connector contract](../../docs/connectors/README.md) and
+[testing/evidence guide](../../docs/testing-and-evidence.md).
 
 Shared connector-neutral data shapes used by the starter:
 

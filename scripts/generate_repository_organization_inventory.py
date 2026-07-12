@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Create the pre-reorganization inventory and bilingual move plan.
+"""Create a temporary documentation-reorganization inventory and move plan.
 
-This is intentionally a repository-maintenance tool.  It only reads tracked
-files and writes the three Phase-1 reports requested for the documentation
-reorganization; it does not change connector, runtime, or evidence data.
+This repository-maintenance tool reads tracked files only. Its audit outputs
+belong below ``${TMP_ROOT:-/tmp}/modsecurity-doc-cleanup`` so a planning
+snapshot never becomes a competing versioned report.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from collections import Counter, defaultdict
@@ -18,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK = ROOT / "modules" / "ModSecurity-test-Framework"
-REPORTS = ROOT / "reports"
+AUDIT_ROOT = Path(os.environ.get("TMP_ROOT", "/tmp")) / "modsecurity-doc-cleanup"
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 VARIABLE_RE = re.compile(
     r"(?:\$\{?[A-Z][A-Z0-9_]*\}?|\$\([A-Z][A-Z0-9_]*\)|\b[A-Z][A-Z0-9_]{2,}\s*(?:\?|:|\+)?=)"
@@ -126,11 +127,13 @@ def proposed_destination(path: str, is_framework: bool) -> str:
             return f"{prefix}ci/reporting/{name}"
         return f"{prefix}ci/lib/{name}"
     if not is_framework and local.startswith("reports/") and local.count("/") == 1 and name.endswith(".md"):
-        if any(key in name for key in ("six-connector", "all-connectors-full-lifecycle-readiness")):
-            return f"reports/current/{name}"
+        if "six-connector" in name:
+            return "reports/current/core-completion.de.md" if name.endswith(".de.md") else "reports/current/core-completion.md"
+        if "full-lifecycle-readiness" in name:
+            return "reports/current/readiness.de.md" if name.endswith(".de.md") else "reports/current/readiness.md"
         if "audit" in name or "adoption" in name:
-            return f"reports/audits/{name}"
-        return f"reports/archive/{name}"
+            return "reports/audits/architecture-and-evidence.de.md" if name.endswith(".de.md") else "reports/audits/architecture-and-evidence.md"
+        return "remove"
     return prefix + local
 
 
@@ -156,7 +159,7 @@ def inventory_row(path: str, filesystem_path: Path, is_framework: bool, source_t
     placeholders = sorted(set(PLACEHOLDER_RE.findall(text)))
     references = sorted(set(REFERENCE_RE.findall(text)))
     local_docs = bool(re.search(r"(?:variable|placeholder|configuration values|konfigurationsvariablen)", text, re.I))
-    central_docs = ("docs/configuration/variables" in text or "docs/reference/glossary" in text)
+    central_docs = ("docs/reference/variables" in text or "docs/reference/glossary" in text)
     missing: list[str] = []
     if variables and not local_docs:
         missing.append("variable explanations")
@@ -231,9 +234,10 @@ def main() -> None:
         "allowed_actions": ["keep", "move", "merge", "rewrite", "archive", "generate", "remove_duplicate"],
         "files": rows,
     }
-    (REPORTS / "repository-organization-inventory.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    (REPORTS / "repository-organization-plan.md").write_text(plan(rows, german=False), encoding="utf-8")
-    (REPORTS / "repository-organization-plan.de.md").write_text(plan(rows, german=True), encoding="utf-8")
+    AUDIT_ROOT.mkdir(parents=True, exist_ok=True)
+    (AUDIT_ROOT / "repository-organization-inventory.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (AUDIT_ROOT / "repository-organization-plan.md").write_text(plan(rows, german=False), encoding="utf-8")
+    (AUDIT_ROOT / "repository-organization-plan.de.md").write_text(plan(rows, german=True), encoding="utf-8")
 
 
 if __name__ == "__main__":

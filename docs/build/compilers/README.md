@@ -66,7 +66,7 @@ make runtime-components-inventory
 make runtime-components-sources
 ```
 
-The [variable reference](../../configuration/variables.md) defines the format,
+The [variable reference](../../reference/variables.md) defines the format,
 default, scope, effect, and security boundary for build, cache, provenance, and
 host variables. Use trusted absolute paths outside the checkout for build,
 cache, logs, and evidence.
@@ -74,14 +74,27 @@ cache, logs, and evidence.
 ## Documentation boundary
 
 The per-connector guides below link to the current
-[build overview](../README.md), [test levels](../../testing/README.md),
-[evidence rules](../../evidence/README.md), connector guides, and examples.
+[build overview](../README.md), [testing and evidence guide](../../testing-and-evidence.md),
+connector guides, and examples.
 Older integration descriptions are explicitly marked historical or diagnostic
 where they remain useful; they are not active profile selectors and cannot
 promote a capability.
 
+## Open connector preparation
+
+Envoy, Traefik, and lighttpd use repository-owned build and runtime
+components. Their detailed guides remain the sole source of truth; their
+preparation targets are:
+
+| Connector | Preparation | Full lifecycle | Host profile |
+| --- | --- | --- | --- |
+| [Envoy](envoy.md) | `prepare-envoy-runtime` | `full-lifecycle-envoy-ext-proc` | `ext_proc` |
+| [Traefik](traefik.md) | `prepare-traefik-runtime` | `full-lifecycle-traefik-native` | `native-middleware` |
+| [lighttpd](lighttpd.md) | `prepare-lighttpd-runtime-build` | `full-lifecycle-lighttpd-patched` | `patched-native` |
+
+Compatibility diagnostics through ext_authz, forwardAuth, or a bridge do not
+replace the selected ext_proc, native-middleware, or patched-native route.
+
 ## Next
 
-The compact index for Envoy, Traefik, and lighttpd is
-[open-connector paths](overview.md). Start the detailed guides with
-[Apache](apache.md).
+Start the detailed guides with [Apache](apache.md).

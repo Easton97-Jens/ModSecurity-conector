@@ -16,12 +16,12 @@ or strict behavior for all connectors.
 
 | Connector | Selected full-lifecycle profile | Recorded integration mode | Connector entry point | P1–P4 scope and boundary |
 |---|---|---|---|---|
-| Apache | <code>native-httpd-module</code> | <code>native-httpd-module</code> | [connector README](../../connectors/apache/README.md) | Native module route; P1–P4 observations remain run/evidence dependent and response-body processing can finalize at EOS |
-| NGINX | <code>native-nginx-http-module</code> | <code>native-nginx-http-module</code> | [connector README](../../connectors/nginx/README.md) | Native HTTP module route; P1–P4 require the selected host run and artifacts |
-| HAProxy | <code>native-htx-filter</code> | <code>native-htx-filter</code> | [connector README](../../connectors/haproxy/README.md) | Native HTX filter route; body slices are passed incrementally and phase 4 completes at HTX EOS |
-| Envoy | <code>ext_proc</code> | <code>ext_proc</code> | [connector README](../../connectors/envoy/README.md) | Streamed external-processing route; strict post-commit reset remains a separate, evidence-gated question |
-| Traefik | <code>native-middleware</code> | <code>native-traefik-middleware</code> | [connector README](../../connectors/traefik/README.md) | Native middleware with a local UDS service; strict reset remains separate until host evidence proves it |
-| lighttpd | <code>patched-native</code> | <code>patched-native-lighttpd</code> | [connector README](../../connectors/lighttpd/README.md) | Patched native host/module route; entity-body ranges are processed before transfer framing and phase 4 completes at entity EOS |
+| Apache | <code>native-httpd-module</code> | <code>native-httpd-module</code> | [guide](apache.md) / [source](../../connectors/apache/README.md) | Native module route; P1–P4 observations remain run/evidence dependent and response-body processing can finalize at EOS |
+| NGINX | <code>native-nginx-http-module</code> | <code>native-nginx-http-module</code> | [guide](nginx.md) / [source](../../connectors/nginx/README.md) | Native HTTP module route; P1–P4 require the selected host run and artifacts |
+| HAProxy | <code>native-htx-filter</code> | <code>native-htx-filter</code> | [guide](haproxy.md) / [source](../../connectors/haproxy/README.md) | Native HTX filter route; body slices are passed incrementally and phase 4 completes at HTX EOS |
+| Envoy | <code>ext_proc</code> | <code>ext_proc</code> | [guide](envoy.md) / [source](../../connectors/envoy/README.md) | Streamed external-processing route; strict post-commit reset remains a separate, evidence-gated question |
+| Traefik | <code>native-middleware</code> | <code>native-traefik-middleware</code> | [guide](traefik.md) / [source](../../connectors/traefik/README.md) | Native middleware with a local UDS service; strict reset remains separate until host evidence proves it |
+| lighttpd | <code>patched-native</code> | <code>patched-native-lighttpd</code> | [guide](lighttpd.md) / [source](../../connectors/lighttpd/README.md) | Patched native host/module route; entity-body ranges are processed before transfer framing and phase 4 completes at entity EOS |
 
 The profile value is the internal target identity checked by the root lifecycle
 runner. The recorded integration mode is the descriptive value written into
@@ -69,11 +69,11 @@ NO_CRS_RUN_ID="six-core-20260712T120000Z" make full-lifecycle-nginx
 required by explicit evidence gates, has no fixed root default, and must not
 contain secrets, personal data, slashes, or traversal segments. The example
 does not assert the outcome of the command; inspect the generated artifacts
-and validation result. See [configuration variables](../configuration/variables.md#no-crs-and-evidence-variables).
+and validation result. See [configuration variables](../reference/variables.md#no-crs-and-evidence-variables).
 
 ## Configuration variables and placeholders
 
-The central [variable reference](../configuration/variables.md) documents
+The central [variable reference](../reference/variables.md) documents
 format, default, setter, scope, effect, and safety for root variables and
 direct harness controls. The concise connector-specific groups are:
 
@@ -95,11 +95,79 @@ values and should be preferred.
 Use <code>PASS</code>, <code>FAIL</code>, <code>BLOCKED</code>,
 <code>NOT EXECUTED</code>, <code>NOT APPLICABLE</code>, and
 <code>UNSUPPORTED</code> exactly as defined in
-[Testing](../testing/README.md). A capability may be
+[Testing and evidence](../testing-and-evidence.md). A capability may be
 <code>implemented_not_asserted</code> without any particular canonical run
 having passed. Conversely, an evidence run is evaluated against its selected
 profile, rules, case requirements, and artifacts; it does not certify
 unselected protocols or compatibility paths.
 
-Read [Evidence](../evidence/README.md) before using a connector result in a
+Read [Testing and evidence](../testing-and-evidence.md) before using a connector result in a
 report or claim.
+
+## New and future connector contract
+
+A new connector first declares origin, capabilities, configuration mapping,
+request/response mapping, decision/event mapping, and artifact layout. It keeps
+host API types, hooks, filters, protocol framing, build glue, and object
+lifetime in its connector tree. It may use Common request/response/config
+contracts and the generic mapper only when the host data fits those contracts;
+body payloads are never logged through that path.
+
+| Requirement | Before a runtime claim |
+| --- | --- |
+| Configuration | Register host syntax while keeping host-specific parser types local |
+| Mapping | Validate mapped request/response output against Common contracts |
+| Provenance | Maintain origin metadata, capability manifest, and selected mode |
+| Testing | Provide a real host harness and payload-safe run artifacts |
+| Status | Keep starter paths not verified until matching runtime evidence exists |
+
+Future host work follows the same selected-route rule as the six current
+connectors. A source scaffold, generic mapper, compatible API, or build smoke
+does not establish a real-world connector path.
+
+## New connector evidence contract
+
+A new connector keeps host hooks, parser registrations, body/response
+handling, protocol framing, build glue, object lifetime, and host-specific
+diagnostics in its connector tree. Its repository guide is the canonical
+reader-facing explanation; code-adjacent files record provenance and local
+execution details. Do not create a connector-local test tree: reusable
+executable cases, schemas, and runners stay Framework-owned.
+
+| Required artifact | Minimum recorded content | Boundary |
+| --- | --- | --- |
+| <code>README.*</code> | Selected route, local build/harness entry points, and explicit limitations | Source or configuration presence is not runtime evidence |
+| <code>TODO.md</code> | Open integration, coverage, and promotion work | A checked box is not a result record |
+| <code>ORIGIN.md</code> and source map | Upstream choice, license, imported files, local changes, and pins | Never invent source, license, version, or API facts |
+| <code>metadata.*</code> and build glue | Connector identity, owned build inputs, paths, and prerequisite behavior | A compile/link check is not host traffic |
+| Harness and local configuration | Exact selected host/profile inputs and payload-safe output location | A start/config check is not a lifecycle result |
+| Framework case/catalog references | Case scope, ruleset variant, runner, and result/evidence identifiers | Do not copy Framework tests into <code>connectors/&lt;name&gt;/tests</code> |
+
+## Evidence and promotion conditions
+
+Record the command, exit behavior, connector scope, selected profile, ruleset,
+run ID, effective non-secret configuration, result/event artifacts, and
+PASS/FAIL/BLOCKED/NOT EXECUTED outcomes before making a scoped claim. No-CRS
+and With-CRS variants remain separate: one never substitutes for the other.
+The minimum review matrix covers P1, P2, P3, P4, response-body behavior,
+negative/pass-through behavior, audit/log observations, configuration/startup
+behavior, and remaining blocking or failing rows.
+
+| Scope label | Minimum recorded basis | Insufficient basis |
+| --- | --- | --- |
+| <code>template</code> or <code>scaffolded</code> | Structure and documentation requirements only | Any inferred host behavior |
+| <code>adapter-owned</code> | Owned source/build metadata plus provenance | A guessed upstream or copied compatibility description |
+| <code>runtime-smoke-verified</code> | Current selected host smoke with command and result artifacts | Static source, a generated report, or a process-only start |
+| <code>crs-verified</code> | Current selected With-CRS run, effective CRS input, and result artifacts | A No-CRS outcome |
+| <code>partial</code> | Truthfully bounded structure or selected evidence | A claim of complete phase, protocol, or matrix coverage |
+| More than <code>partial</code> | Reviewed matrix and evidence for every claimed capability; gaps stay explicit | Pass-through/log-only output as response-body blocking proof |
+
+Framework cases live under
+<code>modules/ModSecurity-test-Framework/tests/cases/</code>, optional
+connector-specific cases under
+<code>modules/ModSecurity-test-Framework/tests/cases/connector-specific/&lt;connector&gt;/</code>,
+and Framework runners under
+<code>modules/ModSecurity-test-Framework/tests/runners/</code>. Cite only
+targets that exist in the parent Makefile and read the
+[testing/evidence guide](../testing-and-evidence.md) before interpreting a
+result.

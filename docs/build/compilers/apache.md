@@ -32,7 +32,7 @@ make runtime-components-sources
 
 Relevant variables: `BUILD_HTTPD_FROM_SOURCE`, `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, and the Framework-forwarded Apache source/checksum variables.
 Their format, defaults, scope, effect, and security boundary are defined in the
-[central variable reference](../../configuration/variables.md). An override is
+[central variable reference](../../reference/variables.md). An override is
 an explicit input change, not a capability upgrade.
 
 ## Toolchain and Cache-v2
@@ -89,12 +89,12 @@ profile can produce canonical evidence.
 
 ## Configuration, examples, and troubleshooting
 
-- Current connector guide: [Apache HTTP Server](../../connectors/apache/README.md)
+- Current connector guide: [Apache HTTP Server](../../connectors/apache.md)
 - Configuration details:
-  [connector configuration](../../connectors/apache/configuration.md)
+  [complete connector reference](../../../examples/apache/configuration-reference.md)
 - Repository examples: [examples/apache](../../../examples/apache/README.md)
-- Test and evidence boundaries: [test levels](../../testing/README.md) ·
-  [evidence rules](../../evidence/README.md)
+- Test and evidence boundary:
+  [testing and evidence guide](../../testing-and-evidence.md)
 
 If APXS and httpd do not match, rebuild against the selected host. If the config stage fails, inspect the generated config and the sanitized host log before changing rules or module paths.
 

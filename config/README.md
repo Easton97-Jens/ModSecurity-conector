@@ -42,7 +42,7 @@ named capability.
 The tracked JSON in this directory is deliberately literal: it does not expand
 shell variables or documentation placeholders. The commands that consume it may
 receive the following root inputs. Their complete definitions are in the
-[variables and placeholders reference](../docs/configuration/variables.md).
+[variables and placeholders reference](../docs/reference/variables.md).
 
 | Name | Local meaning | Requiredness, format, and example |
 | --- | --- | --- |
@@ -66,6 +66,6 @@ value or add a reviewed consumer contract instead.
 | \`make refresh-all-reports\` | Regenerates report artifacts from their documented sources; review its changes rather than editing generated output by hand. |
 | \`make full-lifecycle-all-connectors\` | Uses lifecycle inputs and writes run-scoped evidence; provide a safe \`NO_CRS_RUN_ID\` when creating an aggregate candidate. |
 
-Read [Testing](../docs/testing/README.md), [Evidence](../docs/evidence/README.md),
+Read [Testing](../docs/testing-and-evidence.md), [Evidence](../docs/testing-and-evidence.md),
 and the [glossary](../docs/reference/glossary.md) before changing a status or
 capability term.

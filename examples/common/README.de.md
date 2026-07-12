@@ -9,7 +9,7 @@ Diese zentrale Referenz trennt vier Ebenen: Host-/Connector-Konfiguration, Commo
 | [Common-Runtime-Konfiguration](common-connector-configuration.de.md) | Common Runtime | Vollständige aktuelle `key=value`-Parseroptionen. |
 | [ModSecurity-Engine-Direktiven](modsecurity-directives.de.md) | ModSecurity Engine | Tatsächlich in Beispielregeldateien verwendete `Sec*`-Direktiven. |
 | [Regelbeispiele](rule-examples.de.md) | ModSecurity Engine | On, DetectionOnly, Off sowie P1/P4-Erklärung. |
-| [Zentrale Variablenreferenz](../../docs/configuration/variables.de.md) | Umgebung/Laufzeit | Repository- und Harness-Variablen. |
+| [Zentrale Variablenreferenz](../../docs/reference/variables.de.md) | Umgebung/Laufzeit | Repository- und Harness-Variablen. |
 
 ## Umgebungs- und Laufzeitwerte
 

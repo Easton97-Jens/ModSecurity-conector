@@ -312,7 +312,7 @@ def check_no_legacy_references(connector_root: Path, errors: list[str]) -> None:
     for path in candidates:
         if not path.is_file():
             continue
-        if path.name.startswith("report-path-migration.generated.") or path.name.startswith("system-environment-proof.generated."):
+        if path.name.startswith("system-environment-proof.generated."):
             continue
         for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), start=1):
             if pattern.search(line):

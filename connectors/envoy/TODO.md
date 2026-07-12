@@ -2,12 +2,12 @@
 
 Status: targeted `minimal_runtime_smoke` for the real HTTP `ext_authz` request path
 Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
+Metadata evidence states: `compile_verified`, `minimal_runtime_smoke`, and `connector-gap`.
 
 Canonical capability source: `connectors/envoy/capabilities.json`.
 
-Global gate definitions:
-
-- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
+Global gate definitions are consolidated in
+`docs/connectors/README.md` and `docs/testing-and-evidence.md`.
 
 ## Phase 0: Scaffold
 

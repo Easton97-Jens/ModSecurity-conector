@@ -77,7 +77,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 | --- | --- | --- |
 | Minimal | [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Active starter configuration |
 | Safe full lifecycle | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Selected bounded reference |
-| Strict | [strict/README.md](strict/README.md) | Parser-supported or explicitly optional boundary |
+| Strict | [README.md#strict-profile-boundary](README.md#strict-profile-boundary) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Engine evaluates/logs without disruptive action |
 | Disabled | [disabled/haproxy-htx.cfg](disabled/haproxy-htx.cfg) | Connector or engine path disabled |
 
@@ -104,6 +104,7 @@ Repository targets: `make check-config-haproxy` and `make check-config-all-conne
 
 ## Option details
 
+<a id="bind"></a>
 ## `bind`
 
 ### Short description
@@ -158,6 +159,7 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="default-backend"></a>
 ## `default_backend`
 
 ### Short description
@@ -212,6 +214,7 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="filter-modsecurity-htx"></a>
 ## `filter modsecurity-htx`
 
 ### Short description
@@ -266,6 +269,7 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 A stock HAProxy binary does not provide this keyword; do not silently substitute SPOE.
 
+<a id="log"></a>
 ## `log`
 
 ### Short description
@@ -320,6 +324,7 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="mode"></a>
 ## `mode`
 
 ### Short description
@@ -374,6 +379,7 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="phase4-mode"></a>
 ## `phase4-mode`
 
 ### Short description
@@ -428,6 +434,7 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 strict records an abort policy request but the native HTX path currently records host action not_attempted; it is not an abort guarantee.
 
+<a id="rules-file"></a>
 ## `rules-file`
 
 ### Short description
@@ -482,6 +489,7 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 Protect policy-file ownership and permissions.
 
+<a id="server"></a>
 ## `server`
 
 ### Short description
@@ -536,6 +544,7 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="timeout-client"></a>
 ## `timeout client`
 
 ### Short description
@@ -590,6 +599,7 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="timeout-connect"></a>
 ## `timeout connect`
 
 ### Short description
@@ -644,6 +654,7 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="timeout-server"></a>
 ## `timeout server`
 
 ### Short description
@@ -698,6 +709,7 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="filter-spoe"></a>
 ## `filter spoe`
 
 ### Short description
@@ -752,6 +764,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/haproxy-request-only
 
 Do not promote this historical path as the selected native core.
 
+<a id="legacy-phase4-strict-abort"></a>
 ## `legacy-phase4-strict-abort`
 
 ### Short description
@@ -806,6 +819,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/legacy-phase4-strict
 
 Never use as P4 or strict-abort evidence.
 
+<a id="spoe-agent-audit-log"></a>
 ## `spoe-agent:audit-log`
 
 ### Short description
@@ -860,6 +874,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-case"></a>
 ## `spoe-agent:case`
 
 ### Short description
@@ -914,6 +929,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-crs-root"></a>
 ## `spoe-agent:crs-root`
 
 ### Short description
@@ -968,6 +984,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-debug"></a>
 ## `spoe-agent:debug`
 
 ### Short description
@@ -1022,6 +1039,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-decision-log"></a>
 ## `spoe-agent:decision-log`
 
 ### Short description
@@ -1076,6 +1094,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-enable-response-headers"></a>
 ## `spoe-agent:enable-response-headers`
 
 ### Short description
@@ -1130,6 +1149,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-expected-status"></a>
 ## `spoe-agent:expected-status`
 
 ### Short description
@@ -1184,6 +1204,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-fail-mode"></a>
 ## `spoe-agent:fail-mode`
 
 ### Short description
@@ -1238,6 +1259,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-host"></a>
 ## `spoe-agent:host`
 
 ### Short description
@@ -1292,6 +1314,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-listen"></a>
 ## `spoe-agent:listen`
 
 ### Short description
@@ -1346,6 +1369,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-log-file"></a>
 ## `spoe-agent:log-file`
 
 ### Short description
@@ -1400,6 +1424,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-max-transactions"></a>
 ## `spoe-agent:max-transactions`
 
 ### Short description
@@ -1454,6 +1479,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-mode"></a>
 ## `spoe-agent:mode`
 
 ### Short description
@@ -1508,6 +1534,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-modsecurity-conf"></a>
 ## `spoe-agent:modsecurity-conf`
 
 ### Short description
@@ -1562,6 +1589,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-pid-file"></a>
 ## `spoe-agent:pid-file`
 
 ### Short description
@@ -1616,6 +1644,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-port"></a>
 ## `spoe-agent:port`
 
 ### Short description
@@ -1670,6 +1699,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-port-file"></a>
 ## `spoe-agent:port-file`
 
 ### Short description
@@ -1724,6 +1754,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-ready-file"></a>
 ## `spoe-agent:ready-file`
 
 ### Short description
@@ -1778,6 +1809,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-request-body-limit"></a>
 ## `spoe-agent:request-body-limit`
 
 ### Short description
@@ -1832,6 +1864,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-response-body-limit"></a>
 ## `spoe-agent:response-body-limit`
 
 ### Short description
@@ -1886,6 +1919,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-response-body-timeout"></a>
 ## `spoe-agent:response-body-timeout`
 
 ### Short description
@@ -1940,6 +1974,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-response-phases"></a>
 ## `spoe-agent:response-phases`
 
 ### Short description
@@ -1994,6 +2029,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-rules-dir"></a>
 ## `spoe-agent:rules-dir`
 
 ### Short description
@@ -2048,6 +2084,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-rules-file"></a>
 ## `spoe-agent:rules-file`
 
 ### Short description
@@ -2102,6 +2139,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-runtime-mode"></a>
 ## `spoe-agent:runtime-mode`
 
 ### Short description
@@ -2156,6 +2194,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-spoe-timeout"></a>
 ## `spoe-agent:spoe-timeout`
 
 ### Short description
@@ -2210,6 +2249,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-variant"></a>
 ## `spoe-agent:variant`
 
 ### Short description
@@ -2264,6 +2304,7 @@ Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.co
 
 Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.
 
+<a id="spoe-agent-worker-count"></a>
 ## `spoe-agent:worker-count`
 
 ### Short description

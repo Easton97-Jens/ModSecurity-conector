@@ -125,7 +125,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 | --- | --- | --- |
 | Minimal | [minimal/traefik-static.yaml](minimal/traefik-static.yaml) | Active starter configuration |
 | Safe full lifecycle | [safe/traefik-dynamic.yaml](safe/traefik-dynamic.yaml) | Selected bounded reference |
-| Strict | [strict/README.md](strict/README.md) | Parser-supported or explicitly optional boundary |
+| Strict | [README.md#strict-profile-boundary](README.md#strict-profile-boundary) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf) | Engine evaluates/logs without disruptive action |
 | Disabled | [disabled/traefik-engine-service.conf](disabled/traefik-engine-service.conf) | Connector or engine path disabled |
 
@@ -152,6 +152,7 @@ Repository targets: `make check-config-traefik` and `make check-config-all-conne
 
 ## Option details
 
+<a id="accesslog"></a>
 ## `accessLog`
 
 ### Short description
@@ -206,6 +207,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 Access logs can contain request metadata; configure safe storage, rotation, and privacy controls for deployment.
 
+<a id="entrypoints"></a>
 ## `entryPoints`
 
 ### Short description
@@ -260,6 +262,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 Entry-point addresses define the pre-policy network exposure of Traefik.
 
+<a id="entrypoints-web"></a>
 ## `entryPoints.web`
 
 ### Short description
@@ -314,6 +317,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 Changing this listener changes client reachability before middleware enforcement.
 
+<a id="entrypoints-web-address"></a>
 ## `entryPoints.web.address`
 
 ### Short description
@@ -368,6 +372,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 The selected :8080 form changes listener exposure according to host networking; use a private bind or explicit edge control as appropriate.
 
+<a id="experimental"></a>
 ## `experimental`
 
 ### Short description
@@ -422,6 +427,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 Local plugin loading executes selected repository code; pin and review the module source before use.
 
+<a id="experimental-localplugins"></a>
 ## `experimental.localPlugins`
 
 ### Short description
@@ -476,6 +482,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 A registry entry selects executable plugin source; do not add unreviewed local modules.
 
+<a id="experimental-localplugins-modsecuritynative"></a>
 ## `experimental.localPlugins.modsecurityNative`
 
 ### Short description
@@ -530,6 +537,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 The declaration controls which local code Traefik loads; protect its configuration and source tree.
 
+<a id="experimental-localplugins-modsecuritynative-modulename"></a>
 ## `experimental.localPlugins.modsecurityNative.moduleName`
 
 ### Short description
@@ -584,6 +592,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 This is code-selection input; use a reviewed, pinned source path and do not substitute an arbitrary module.
 
+<a id="experimental-localplugins-modsecuritynative-settings"></a>
 ## `experimental.localPlugins.modsecurityNative.settings`
 
 ### Short description
@@ -638,6 +647,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 Avoid placing credentials or production-specific secrets in plugin settings.
 
+<a id="experimental-localplugins-modsecuritynative-settings-envs"></a>
 ## `experimental.localPlugins.modsecurityNative.settings.envs`
 
 ### Short description
@@ -692,6 +702,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 An environment setting can carry secrets or change behavior; keep the selected empty list unless an explicit documented input is required.
 
+<a id="http"></a>
 ## `http`
 
 ### Short description
@@ -746,6 +757,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 This topology controls which requests reach the engine and which upstream receives them; protect dynamic configuration writes.
 
+<a id="http-middlewares"></a>
 ## `http.middlewares`
 
 ### Short description
@@ -800,6 +812,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Middleware definitions are policy attachment points; unreviewed changes can remove or replace inspection.
 
+<a id="http-middlewares-modsecurity-native-streaming"></a>
 ## `http.middlewares.modsecurity-native-streaming`
 
 ### Short description
@@ -854,6 +867,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 The router reference must continue to point to this reviewed middleware name to avoid bypass.
 
+<a id="http-middlewares-modsecurity-native-streaming-plugin"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin`
 
 ### Short description
@@ -908,6 +922,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 The plugin reference chooses code that processes requests and responses; preserve the reviewed local plugin name.
 
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative`
 
 ### Short description
@@ -962,6 +977,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 The UDS fields and bounds are enforcement-relevant; passthrough is not rule evaluation.
 
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginemode"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode`
 
 ### Short description
@@ -1016,6 +1032,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Use uds for the selected rule-evaluating path; passthrough is intentionally not enforcement.
 
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`
 
 ### Short description
@@ -1070,6 +1087,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 The socket directory and socket must be private to trusted processes; path traversal and NUL are rejected.
 
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheaderbytes"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderBytes`
 
 ### Short description
@@ -1124,6 +1142,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 The UDS wire contract rejects values above 65536; retain a bounded header budget.
 
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheadercount"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount`
 
 ### Short description
@@ -1178,6 +1197,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 A finite count limits header-flood work before data reaches the UDS engine.
 
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`
 
 ### Short description
@@ -1232,6 +1252,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 The UDS wire contract rejects values above 32768 and prevents one callback from accepting an unbounded chunk.
 
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxresponsechunkbytes"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes`
 
 ### Short description
@@ -1286,6 +1307,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 The UDS wire contract rejects values above 32768; retain the bound for response-stream resource control.
 
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-transactionidheader"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.transactionIDHeader`
 
 ### Short description
@@ -1340,6 +1362,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Do not put credentials or arbitrary sensitive payload into a correlation header; event/log consumers must protect it.
 
+<a id="http-routers"></a>
 ## `http.routers`
 
 ### Short description
@@ -1394,6 +1417,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Router rules and middleware order are enforcement-relevant; avoid unaudited route additions.
 
+<a id="http-routers-app"></a>
 ## `http.routers.app`
 
 ### Short description
@@ -1448,6 +1472,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 The router is the attachment point for the native UDS middleware or compatibility forwardAuth; removing it bypasses that path.
 
+<a id="http-routers-app-entrypoints"></a>
 ## `http.routers.app.entryPoints`
 
 ### Short description
@@ -1502,6 +1527,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Binding a router to a public entry point exposes its middleware/service path to that listener's clients.
 
+<a id="http-routers-app-entrypoints"></a>
 ## `http.routers.app.entryPoints[]`
 
 ### Short description
@@ -1556,6 +1582,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Binding a router to a public entry point exposes its middleware/service path to that listener's clients.
 
+<a id="http-routers-app-middlewares"></a>
 ## `http.routers.app.middlewares`
 
 ### Short description
@@ -1610,6 +1637,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Removing/reordering this reference can bypass inspection or authorization; retain the reviewed middleware before the service.
 
+<a id="http-routers-app-middlewares"></a>
 ## `http.routers.app.middlewares[]`
 
 ### Short description
@@ -1664,6 +1692,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Removing/reordering this reference can bypass inspection or authorization; retain the reviewed middleware before the service.
 
+<a id="http-routers-app-rule"></a>
 ## `http.routers.app.rule`
 
 ### Short description
@@ -1718,6 +1747,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 The selected catch-all rule routes every path on the entry point; narrow it in a real deployment if required.
 
+<a id="http-routers-app-service"></a>
 ## `http.routers.app.service`
 
 ### Short description
@@ -1772,6 +1802,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 The target service URL is an egress destination; review it separately from middleware selection.
 
+<a id="http-services"></a>
 ## `http.services`
 
 ### Short description
@@ -1826,6 +1857,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Services define request destinations after middleware; review their endpoint URLs and credentials.
 
+<a id="http-services-app"></a>
 ## `http.services.app`
 
 ### Short description
@@ -1880,6 +1912,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 This mapping is an upstream routing target; do not confuse it with the ModSecurity engine service.
 
+<a id="http-services-app-loadbalancer"></a>
 ## `http.services.app.loadBalancer`
 
 ### Short description
@@ -1934,6 +1967,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Each server URL is a traffic destination; limit it to the intended upstream.
 
+<a id="http-services-app-loadbalancer-servers"></a>
 ## `http.services.app.loadBalancer.servers`
 
 ### Short description
@@ -1988,6 +2022,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Adding a server adds an upstream destination; review network scope and transport security.
 
+<a id="http-services-app-loadbalancer-servers-url"></a>
 ## `http.services.app.loadBalancer.servers[].url`
 
 ### Short description
@@ -2042,6 +2077,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 Loopback keeps the example local; remote URLs require explicit TLS, identity, and egress controls.
 
+<a id="log"></a>
 ## `log`
 
 ### Short description
@@ -2096,6 +2132,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 Logs can contain request and operational metadata; choose retention and access controls separately.
 
+<a id="log-level"></a>
 ## `log.level`
 
 ### Short description
@@ -2150,6 +2187,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 Debug logging can expose more operational metadata; do not equate host logs with ModSecurity audit output.
 
+<a id="providers"></a>
 ## `providers`
 
 ### Short description
@@ -2204,6 +2242,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 A provider controls live routing configuration; protect its source file and directory.
 
+<a id="providers-file"></a>
 ## `providers.file`
 
 ### Short description
@@ -2258,6 +2297,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 The dynamic file can alter routes and middleware; grant write access only to trusted operators.
 
+<a id="providers-file-filename"></a>
 ## `providers.file.filename`
 
 ### Short description
@@ -2312,6 +2352,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 A relative path resolves from the host configuration context; deploy the matching file together and protect it from untrusted writes.
 
+<a id="providers-file-watch"></a>
 ## `providers.file.watch`
 
 ### Short description
@@ -2366,6 +2407,7 @@ Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../exam
 
 watch=true makes future file writes live configuration changes; selected native file uses false, compatibility example uses true.
 
+<a id="compatibility-forwardauth-dynamic-http"></a>
 ## `compatibility.forwardauth-dynamic.http`
 
 ### Short description
@@ -2420,6 +2462,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 This topology controls which requests reach the engine and which upstream receives them; protect dynamic configuration writes. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-middlewares"></a>
 ## `compatibility.forwardauth-dynamic.http.middlewares`
 
 ### Short description
@@ -2474,6 +2517,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Middleware definitions are policy attachment points; unreviewed changes can remove or replace inspection. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-middlewares-modsecurity-auth"></a>
 ## `compatibility.forwardauth-dynamic.http.middlewares.modsecurity-auth`
 
 ### Short description
@@ -2528,6 +2572,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 The router reference must continue to point to this reviewed middleware name to avoid bypass. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-middlewares-modsecurity-auth-forwardauth"></a>
 ## `compatibility.forwardauth-dynamic.http.middlewares.modsecurity-auth.forwardAuth`
 
 ### Short description
@@ -2582,6 +2627,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Do not present forwardAuth as the native UDS rule-evaluating path; its service receives request authorization data. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-middlewares-modsecurity-auth-forwardauth-address"></a>
 ## `compatibility.forwardauth-dynamic.http.middlewares.modsecurity-auth.forwardAuth.address`
 
 ### Short description
@@ -2636,6 +2682,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Use a trusted, private service and do not embed credentials in the URL; it is distinct from the native UDS engine. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-middlewares-modsecurity-auth-forwardauth-trustforwardheader"></a>
 ## `compatibility.forwardauth-dynamic.http.middlewares.modsecurity-auth.forwardAuth.trustForwardHeader`
 
 ### Short description
@@ -2690,6 +2737,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 false avoids trusting client-supplied forwarded identity/route headers by default; deploy explicit proxy trust boundaries if changing it. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-routers"></a>
 ## `compatibility.forwardauth-dynamic.http.routers`
 
 ### Short description
@@ -2744,6 +2792,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Router rules and middleware order are enforcement-relevant; avoid unaudited route additions. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-routers-app"></a>
 ## `compatibility.forwardauth-dynamic.http.routers.app`
 
 ### Short description
@@ -2798,6 +2847,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 The router is the attachment point for the native UDS middleware or compatibility forwardAuth; removing it bypasses that path. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-routers-app-entrypoints"></a>
 ## `compatibility.forwardauth-dynamic.http.routers.app.entryPoints`
 
 ### Short description
@@ -2852,6 +2902,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Binding a router to a public entry point exposes its middleware/service path to that listener's clients. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-routers-app-entrypoints"></a>
 ## `compatibility.forwardauth-dynamic.http.routers.app.entryPoints[]`
 
 ### Short description
@@ -2906,6 +2957,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Binding a router to a public entry point exposes its middleware/service path to that listener's clients. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-routers-app-middlewares"></a>
 ## `compatibility.forwardauth-dynamic.http.routers.app.middlewares`
 
 ### Short description
@@ -2960,6 +3012,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Removing/reordering this reference can bypass inspection or authorization; retain the reviewed middleware before the service. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-routers-app-middlewares"></a>
 ## `compatibility.forwardauth-dynamic.http.routers.app.middlewares[]`
 
 ### Short description
@@ -3014,6 +3067,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Removing/reordering this reference can bypass inspection or authorization; retain the reviewed middleware before the service. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-routers-app-rule"></a>
 ## `compatibility.forwardauth-dynamic.http.routers.app.rule`
 
 ### Short description
@@ -3068,6 +3122,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 The selected catch-all rule routes every path on the entry point; narrow it in a real deployment if required. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-routers-app-service"></a>
 ## `compatibility.forwardauth-dynamic.http.routers.app.service`
 
 ### Short description
@@ -3122,6 +3177,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 The target service URL is an egress destination; review it separately from middleware selection. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-services"></a>
 ## `compatibility.forwardauth-dynamic.http.services`
 
 ### Short description
@@ -3176,6 +3232,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Services define request destinations after middleware; review their endpoint URLs and credentials. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-services-app"></a>
 ## `compatibility.forwardauth-dynamic.http.services.app`
 
 ### Short description
@@ -3230,6 +3287,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 This mapping is an upstream routing target; do not confuse it with the ModSecurity engine service. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-services-app-loadbalancer"></a>
 ## `compatibility.forwardauth-dynamic.http.services.app.loadBalancer`
 
 ### Short description
@@ -3284,6 +3342,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Each server URL is a traffic destination; limit it to the intended upstream. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-services-app-loadbalancer-servers"></a>
 ## `compatibility.forwardauth-dynamic.http.services.app.loadBalancer.servers`
 
 ### Short description
@@ -3338,6 +3397,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Adding a server adds an upstream destination; review network scope and transport security. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-dynamic-http-services-app-loadbalancer-servers-url"></a>
 ## `compatibility.forwardauth-dynamic.http.services.app.loadBalancer.servers[].url`
 
 ### Short description
@@ -3392,6 +3452,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-dynam
 
 Loopback keeps the example local; remote URLs require explicit TLS, identity, and egress controls. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-static-accesslog"></a>
 ## `compatibility.forwardauth-static.accessLog`
 
 ### Short description
@@ -3446,6 +3507,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-stati
 
 Access logs can contain request metadata; configure safe storage, rotation, and privacy controls for deployment. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-static-entrypoints"></a>
 ## `compatibility.forwardauth-static.entryPoints`
 
 ### Short description
@@ -3500,6 +3562,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-stati
 
 Entry-point addresses define the pre-policy network exposure of Traefik. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-static-entrypoints-web"></a>
 ## `compatibility.forwardauth-static.entryPoints.web`
 
 ### Short description
@@ -3554,6 +3617,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-stati
 
 Changing this listener changes client reachability before middleware enforcement. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-static-entrypoints-web-address"></a>
 ## `compatibility.forwardauth-static.entryPoints.web.address`
 
 ### Short description
@@ -3608,6 +3672,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-stati
 
 The selected :8080 form changes listener exposure according to host networking; use a private bind or explicit edge control as appropriate. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-static-log"></a>
 ## `compatibility.forwardauth-static.log`
 
 ### Short description
@@ -3662,6 +3727,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-stati
 
 Logs can contain request and operational metadata; choose retention and access controls separately. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-static-log-level"></a>
 ## `compatibility.forwardauth-static.log.level`
 
 ### Short description
@@ -3716,6 +3782,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-stati
 
 Debug logging can expose more operational metadata; do not equate host logs with ModSecurity audit output. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-static-providers"></a>
 ## `compatibility.forwardauth-static.providers`
 
 ### Short description
@@ -3770,6 +3837,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-stati
 
 A provider controls live routing configuration; protect its source file and directory. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-static-providers-file"></a>
 ## `compatibility.forwardauth-static.providers.file`
 
 ### Short description
@@ -3824,6 +3892,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-stati
 
 The dynamic file can alter routes and middleware; grant write access only to trusted operators. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-static-providers-file-filename"></a>
 ## `compatibility.forwardauth-static.providers.file.filename`
 
 ### Short description
@@ -3878,6 +3947,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-stati
 
 A relative path resolves from the host configuration context; deploy the matching file together and protect it from untrusted writes. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="compatibility-forwardauth-static-providers-file-watch"></a>
 ## `compatibility.forwardauth-static.providers.file.watch`
 
 ### Short description
@@ -3932,6 +4002,7 @@ Source-backed example: [examples/traefik/compatibility-forwardauth/traefik-stati
 
 watch=true makes future file writes live configuration changes; selected native file uses false, compatibility example uses true. Compatibility-only: do not promote this setting as selected native full-lifecycle configuration.
 
+<a id="forwardauth"></a>
 ## `forwardAuth`
 
 ### Short description

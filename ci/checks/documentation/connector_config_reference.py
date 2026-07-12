@@ -2054,7 +2054,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
                 "Groups the request-only external authorization service settings.",
                 "Do not present forwardAuth as the native UDS rule-evaluating path; its service receives request authorization data.",
                 compatibility_lifecycle,
-                default_source="compatibility template and connectors/traefik/docs/validation.md",
+                default_source="compatibility template and docs/connectors/traefik.md",
             )
         if tail == "address" and ".forwardAuth." in selected_path:
             return _yaml_detail(
@@ -3335,6 +3335,7 @@ def _render_option(option: dict[str, Any], german: bool) -> list[str]:
         else f"Quellenbasiertes Beispiel: `{option['example_file']}`." if german else f"Source-backed example: `{option['example_file']}`."
     )
     lines = [
+        f'<a id="{_slug(option["name"])}"></a>',
         f"## `{option['name']}`",
         "",
         f"### {labels['short']}",
@@ -3475,12 +3476,12 @@ def render_connector_reference(options: list[dict[str, Any]], connector: str, ge
         f"{'Siehe' if german else 'See'} [{ 'Engine reference' if not german else 'Engine-Referenz'}]({engine_reference}).",
     ])
     profile_files = {
-        "apache": ("minimal/httpd.conf", "safe/httpd.conf", "strict/README", "detection-only/httpd.conf", "disabled/httpd.conf"),
+        "apache": ("minimal/httpd.conf", "safe/httpd.conf", "README", "detection-only/httpd.conf", "disabled/httpd.conf"),
         "nginx": ("minimal/nginx.conf", "safe/nginx.conf", "strict/nginx.conf", "detection-only/nginx.conf", "disabled/nginx.conf"),
-        "haproxy": ("minimal/haproxy-htx.cfg", "safe/haproxy-htx.cfg", "strict/README", "detection-only/haproxy-htx.cfg", "disabled/haproxy-htx.cfg"),
-        "envoy": ("minimal/envoy-ext-proc-streaming.yaml.in", "safe/envoy-ext-proc-streaming.yaml.in", "strict/README", "detection-only/msconnector-runtime.conf", "disabled/msconnector-runtime.conf"),
-        "traefik": ("minimal/traefik-static.yaml", "safe/traefik-dynamic.yaml", "strict/README", "detection-only/traefik-engine-service.conf", "disabled/traefik-engine-service.conf"),
-        "lighttpd": ("minimal/lighttpd.conf", "safe/lighttpd-http1-identity.conf", "strict/README", "detection-only/msconnector-runtime.conf", "disabled/lighttpd.conf"),
+        "haproxy": ("minimal/haproxy-htx.cfg", "safe/haproxy-htx.cfg", "README", "detection-only/haproxy-htx.cfg", "disabled/haproxy-htx.cfg"),
+        "envoy": ("minimal/envoy-ext-proc-streaming.yaml.in", "safe/envoy-ext-proc-streaming.yaml.in", "README", "detection-only/msconnector-runtime.conf", "disabled/msconnector-runtime.conf"),
+        "traefik": ("minimal/traefik-static.yaml", "safe/traefik-dynamic.yaml", "README", "detection-only/traefik-engine-service.conf", "disabled/traefik-engine-service.conf"),
+        "lighttpd": ("minimal/lighttpd.conf", "safe/lighttpd-http1-identity.conf", "README", "detection-only/msconnector-runtime.conf", "disabled/lighttpd.conf"),
     }[connector]
     labels = ("Minimal", "Safe full lifecycle", "Strict", "DetectionOnly", "Disabled")
     if german:
@@ -3494,7 +3495,9 @@ def render_connector_reference(options: list[dict[str, Any]], connector: str, ge
             "Aktive Startkonfiguration", "Ausgewählte begrenzte Referenz", "Parserunterstützte oder ausdrücklich optionale Grenze", "Engine wertet aus/protokolliert ohne disruptive Aktion", "Connector- oder Engine-Pfad deaktiviert",
         )
     for label, file_name, status in zip(labels, profile_files, statuses):
-        if file_name.endswith("/README"):
+        if file_name == "README":
+            file_name = "README.de.md#strict-profilgrenze" if german else "README.md#strict-profile-boundary"
+        elif file_name.endswith("/README"):
             file_name += ".de.md" if german else ".md"
         lines.append(f"| {label} | [{file_name}]({file_name}) | {status} |")
     lines.extend(["", "## Configuration combinations" if not german else "## Konfigurationskombinationen", "", "| Connector | Engine | Request body | Response body | Result |" if not german else "| Connector | Engine | Request-Body | Response-Body | Ergebnis |", "| --- | --- | --- | --- | --- |"])
@@ -3590,7 +3593,7 @@ def render_common_readme(german: bool) -> str:
             "| [Common-Runtime-Konfiguration](common-connector-configuration.de.md) | Common Runtime | Vollständige aktuelle `key=value`-Parseroptionen. |",
             "| [ModSecurity-Engine-Direktiven](modsecurity-directives.de.md) | ModSecurity Engine | Tatsächlich in Beispielregeldateien verwendete `Sec*`-Direktiven. |",
             "| [Regelbeispiele](rule-examples.de.md) | ModSecurity Engine | On, DetectionOnly, Off sowie P1/P4-Erklärung. |",
-            "| [Zentrale Variablenreferenz](../../docs/configuration/variables.de.md) | Umgebung/Laufzeit | Repository- und Harness-Variablen. |",
+            "| [Zentrale Variablenreferenz](../../docs/reference/variables.de.md) | Umgebung/Laufzeit | Repository- und Harness-Variablen. |",
             "",
             "## Umgebungs- und Laufzeitwerte",
             "",
@@ -3605,7 +3608,7 @@ def render_common_readme(german: bool) -> str:
             "| [Common Runtime](common-connector-configuration.md) | Common Runtime | Complete current `key=value` parser options. |",
             "| [ModSecurity Engine](modsecurity-directives.md) | ModSecurity Engine | `Sec*` directives actually used by example rule files. |",
             "| [Rule examples](rule-examples.md) | ModSecurity Engine | On, DetectionOnly, Off, plus P1/P4 explanation. |",
-            "| [Central variables reference](../../docs/configuration/variables.md) | Environment/runtime | Repository and harness variables. |",
+            "| [Central variables reference](../../docs/reference/variables.md) | Environment/runtime | Repository and harness variables. |",
             "",
             "## Environment and runtime values",
             "",

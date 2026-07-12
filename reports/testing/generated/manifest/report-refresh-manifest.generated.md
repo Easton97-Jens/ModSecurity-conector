@@ -26,10 +26,10 @@
 - MRTS SHA: `13aa91291adea12d5c607fdd165d010fcfb1da78`
 
 ## Inputs
-- `full_runtime_matrix`: `bfd4cd1681ee900c01ececf06b088b329b6ed20a9d47a2aaffd32ee09f6db5ce`
-- `native_mrts`: `0392532458cc1758c7435f9ec586dd7d6ed04d8600276567ed136d5b75c7dc53`
 - `build_cache`: `4b0712ed7766a60bef42b35427846bbc717d3eced015cc7f78f17cdea75b135f`
 - `component_cache`: `b7f8697b7172b1e5da3f182e3815b6c474ec1253d11df1f72b1090f72ab6a74a`
+- `full_runtime_matrix`: `bfd4cd1681ee900c01ececf06b088b329b6ed20a9d47a2aaffd32ee09f6db5ce`
+- `native_mrts`: `0392532458cc1758c7435f9ec586dd7d6ed04d8600276567ed136d5b75c7dc53`
 
 ## Verified Commands
 
@@ -48,7 +48,6 @@
 ## Reports
 | Category | Owner | Severity | Report | Generator | Target | Status | Return code | Duration | Freshness | Outputs | Input status | Missing inputs | Missing outputs | Generated at |
 |---|---|---|---|---|---|---|---:|---:|---|---|---|---|---|---|
-| manifest | manifest | informational | connector_roadmap | ci/evidence/reports/generate-connector-roadmap.py | refresh-connector-reports | generated | 0 | 1.213 | fresh | `reports/testing/generated/manifest/connector-roadmap.generated.json`<br>`reports/testing/generated/manifest/connector-roadmap.generated.md` | complete | - | - | 2026-07-12T20:12:23Z |
 | mixed | connector | informational | connector_coverage_reports | framework:ci/reporting/generate-case-matrix.py | generate-test-matrix | generated | 0 | 1.96 | fresh | `reports/testing/test-coverage-overview.md`<br>`reports/testing/generated/runtime/apache-runtime-results.generated.md`<br>`reports/testing/generated/coverage/case-matrix.generated.md`<br>`reports/testing/generated/coverage/connector-gap-summary.generated.md`<br>`reports/testing/generated/coverage/coverage-summary.generated.md`<br>`reports/testing/generated/runtime/haproxy-runtime-results.generated.md`<br>`reports/testing/generated/runtime/nginx-runtime-results.generated.md`<br>`reports/testing/generated/coverage/phase-coverage.generated.md`<br>`reports/testing/generated/runtime/runtime-matrix.generated.md`<br>`reports/testing/generated/coverage/xfail-summary.generated.md` | complete | - | - | - |
 | canonical | connector | critical | full_runtime_matrix | ci/evidence/reports/generate-full-runtime-matrix.py | generate-full-runtime-matrix | skipped_missing_input | 0 | 0.006 | skipped | `reports/testing/generated/canonical/full-runtime-matrix.generated.json`<br>`reports/testing/generated/canonical/full-runtime-matrix.generated.md` | missing | BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl | - | 2026-06-19T16:57:56Z |
 | manifest | connector | critical | full_matrix_job_completeness | ci/evidence/reports/generate-full-matrix-job-completeness.py | generate-full-matrix-job-completeness | skipped_missing_input | 0 | 0.009 | skipped | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json`<br>`reports/testing/generated/manifest/full-matrix-job-completeness.generated.md` | missing | BUILD_ROOT:verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json, BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl | - | 2026-06-19T16:57:57Z |
@@ -68,10 +67,6 @@
 | focused-analysis | connector | informational | rule_chain_semantics_analysis | ci/evidence/reports/generate-rule-chain-semantics-analysis.py | generate-rule-chain-semantics-analysis | skipped_stale_input | 0 | 0.384 | stale | `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json`<br>`reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md` | stale | - | - | 2026-06-19T16:59:05Z |
 | canonical | connector | critical | final_consistency_audit | ci/evidence/reports/generate-final-consistency-audit.py | generate-final-consistency-audit | skipped_stale_input | 0 | 0.893 | stale | `reports/testing/generated/canonical/final-consistency-audit.generated.json`<br>`reports/testing/generated/canonical/final-consistency-audit.generated.md` | stale | - | - | 2026-06-19T16:59:06Z |
 | mixed | cache | informational | runtime_cache_reports | ci/evidence/reports/update-runtime-reports.py | prepare-runtime-components | generated | 0 | 1.111 | fresh | `reports/testing/generated/cache/runtime-component-cache.generated.json`<br>`reports/testing/generated/cache/runtime-component-cache.generated.md`<br>`reports/testing/generated/cache/runtime-build-cache.generated.json`<br>`reports/testing/generated/cache/runtime-build-cache.generated.md`<br>`reports/testing/generated/cache/runtime-cache-index.generated.json`<br>`reports/testing/generated/cache/runtime-cache-index.generated.md` | complete | - | - | 2026-07-12T19:36:08Z |
-| manifest | manifest | important | report_dependency_graph | ci/evidence/reports/refresh-connector-reports.py | refresh-connector-reports | generated | 0 | 0.0 | missing-input | `reports/testing/generated/manifest/report-dependency-graph.generated.json`<br>`reports/testing/generated/manifest/report-dependency-graph.generated.md` | stale | BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl, BUILD_ROOT:mrts-native/apache2_ubuntu/job.json, BUILD_ROOT:mrts-native/nginx-pr24/job.json, BUILD_ROOT:verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json | - | 2026-07-12T20:12:32Z |
-| manifest | manifest | important | report_data_lineage | ci/evidence/reports/refresh-connector-reports.py | refresh-connector-reports | generated | 0 | 0.0 | missing-input | `reports/testing/generated/manifest/report-data-lineage.generated.json`<br>`reports/testing/generated/manifest/report-data-lineage.generated.md` | stale | BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl, BUILD_ROOT:mrts-native/apache2_ubuntu/job.json, BUILD_ROOT:mrts-native/nginx-pr24/job.json, BUILD_ROOT:verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json | - | 2026-07-12T20:12:32Z |
-| manifest | manifest | important | report_path_migration | ci/evidence/reports/refresh-connector-reports.py | refresh-connector-reports | generated | 0 | 0.0 | fresh | `reports/testing/generated/manifest/report-path-migration.generated.json`<br>`reports/testing/generated/manifest/report-path-migration.generated.md` | unknown | - | - | 2026-07-12T20:12:32Z |
-| manifest | manifest | informational | generator_runtime_summary | ci/evidence/reports/refresh-connector-reports.py | refresh-connector-reports | generated | 0 | 0.0 | fresh | `reports/testing/generated/manifest/generator-runtime-summary.generated.md` | unknown | - | - | 2026-07-12T20:12:32Z |
 | manifest | manifest | important | report_freshness | ci/evidence/reports/refresh-connector-reports.py | refresh-connector-reports | generated | 0 | 0.0 | fresh | `reports/testing/generated/manifest/report-freshness.generated.json`<br>`reports/testing/generated/manifest/report-freshness.generated.md` | stale | - | - | 2026-07-12T20:12:32Z |
 | manifest | manifest | critical | merge_readiness_dashboard | ci/evidence/reports/refresh-connector-reports.py | refresh-connector-reports | generated | 0 | 0.0 | fresh | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json`<br>`reports/testing/generated/manifest/merge-readiness-dashboard.generated.md` | stale | - | - | 2026-07-12T20:12:32Z |
 | manifest | manifest | critical | report_refresh_manifest | ci/evidence/reports/refresh-connector-reports.py | refresh-connector-reports | generated | 0 | 0.0 | fresh | `reports/testing/generated/manifest/report-refresh-manifest.generated.json`<br>`reports/testing/generated/manifest/report-refresh-manifest.generated.md` | self_generated_no_direct_input | - | - | 2026-07-12T20:12:32Z |
@@ -80,8 +75,6 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/manifest/connector-roadmap.generated.json` | `9c4016e723c87f057816fe83a456f6b9146c947e98dc486859d10a75befd0472` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/connector-roadmap.generated.md` | `3d095d9246dbd665a365166225d9dd40fb8f74b7b695b3d08ea790b786e43493` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/test-coverage-overview.md` | `eb8531f6d83fa7fc29cf775e273b40c46468dbcebf88cac876d10f0e6eb62148` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/generated/runtime/apache-runtime-results.generated.md` | `6a0f4f705b0062709c0f21b73fb0a26b6a2a38a6f52abcc0fb376dde47995eb3` | `2026-06-16T19-12-00Z-614c8049` | stale |
 | Declared input | `reports/testing/generated/coverage/case-matrix.generated.md` | `89f35d5215d00186f03b3017c1839bfbc58b60f8d90b39516f1ce72f9a055571` | `2026-06-16T19-12-00Z-614c8049` | stale |
@@ -148,13 +141,6 @@
 | Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.md` | `481addeceeba6fd3405387e6efaacdb2662e81092d230baf9dc33d678bc67dc3` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/generated/cache/runtime-cache-index.generated.json` | `312b6e1f09927d2c042ee760974d2211ba43a0a06efb7d0c578030aae64f7e4f` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/generated/cache/runtime-cache-index.generated.md` | `cb212b15d611770acb02dc0fd96f9680b243943c04e8d93699bf5dda5d3c9a16` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-dependency-graph.generated.json` | `73a7f6063791b5a60cf229e055d7af96ff1248528dd59af3474fe4c759a5e47d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-dependency-graph.generated.md` | `73bf8bc6b13a0b6beddd08ca2f1bc7984c36e351109eae3d6006fd6095ca1168` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-data-lineage.generated.json` | `7052ea608ad07903b8f4c4b685e6a70cebe48d308f548bae2b02da9025e2859c` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-data-lineage.generated.md` | `3c1f5c99f3bdf7b74e383da89e112a4aa779465392fff27c3c4d2e4a2d802456` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-path-migration.generated.json` | `6d0e406fc217afb9761a3fa7091426c12ac729b7a416972c94f8467da4f35770` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-path-migration.generated.md` | `9ca1a656ae8270671bbd7f444fbacaf8822d9fc796ad5c52c44957159e118089` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/generator-runtime-summary.generated.md` | `a9337683168623d967bc00f4c493b41d8b3ffa3db9713ca66557a4e41e716f4e` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `6da46416596c15b4128953cdcbdbef2198173ad7537f0e48ba4428767437ba47` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/generated/manifest/report-freshness.generated.md` | `40ddba5fb8323c3efaff34063612ec2821528950ec8b3ccc6242529086037516` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `de0c380aed8e3f6dcb96aba7c293d9205319b83adf2c2a3f40f85e5e6d1e2c63` | `2026-06-16T19-12-00Z-614c8049` | present |
@@ -164,8 +150,6 @@
 
 | Input | Status | Notes |
 |---|---|---|
-| `reports/testing/generated/manifest/connector-roadmap.generated.json` | present | input file available |
-| `reports/testing/generated/manifest/connector-roadmap.generated.md` | present | input file available |
 | `reports/testing/test-coverage-overview.md` | present | input file available |
 | `reports/testing/generated/runtime/apache-runtime-results.generated.md` | stale | generated report input is stale: framework_sha differs |
 | `reports/testing/generated/coverage/case-matrix.generated.md` | stale | generated report input is stale: framework_sha differs |
@@ -232,13 +216,6 @@
 | `reports/testing/generated/cache/runtime-build-cache.generated.md` | present | input file available |
 | `reports/testing/generated/cache/runtime-cache-index.generated.json` | present | input file available |
 | `reports/testing/generated/cache/runtime-cache-index.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/report-dependency-graph.generated.json` | present | input file available |
-| `reports/testing/generated/manifest/report-dependency-graph.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/report-data-lineage.generated.json` | present | input file available |
-| `reports/testing/generated/manifest/report-data-lineage.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/report-path-migration.generated.json` | present | input file available |
-| `reports/testing/generated/manifest/report-path-migration.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/generator-runtime-summary.generated.md` | present | input file available |
 | `reports/testing/generated/manifest/report-freshness.generated.json` | present | input file available |
 | `reports/testing/generated/manifest/report-freshness.generated.md` | present | input file available |
 | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | present | input file available |

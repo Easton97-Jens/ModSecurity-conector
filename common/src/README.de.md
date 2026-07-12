@@ -21,7 +21,9 @@ Hier nicht erlaubt:
 - Kleber für eine bestimmte Laufzeit erstellen.
 - Beinhaltet alle Connector-Implementierungen.
 
-Offene Arbeiten werden in `docs/roadmap/todo-inventory.md` verfolgt:
+Offene Arbeiten sind durch den Repository-
+[Betriebs- und Sicherheits-Guide](../../docs/operations-and-security.de.md)
+begrenzt:
 
 - Beschränken Sie diese Helfer auf Metadaten und Datentypen.
 - Fügen Sie keinen Serverlebenszyklus, Anforderungstext, Antwortfilter oder libmodsecurity hinzu

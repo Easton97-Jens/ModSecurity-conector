@@ -14,7 +14,7 @@ Der Filter gibt aktuelle Daten weiter und beendet die Response-Body-Verarbeitung
 bei EOS. Das verspricht weder Regelbewertung pro Chunk noch einen
 Connector-eigenen vollständigen Response-Buffer. Eine späte P4-Entscheidung
 muss als Log-only aufgezeichnet werden, solange passende Host-Evidence nichts
-Weiteres belegt. Das [Strict-Verzeichnis](strict/README.de.md) dokumentiert den
+Weiteres belegt. Die [Strict-Profilgrenze](#strict-profilgrenze) dokumentiert den
 parserunterstützten optionalen Wert, behauptet aber keinen client-sichtbaren
 Abbruch.
 
@@ -24,10 +24,14 @@ Abbruch.
 | --- | --- | --- |
 | [minimal/httpd.conf](minimal/httpd.conf) | Host-Konfiguration | Request-orientierter Ausgangspunkt. |
 | [safe/httpd.conf](safe/httpd.conf) | Host-Konfiguration | Begrenzte native P1--P4-Safe-Referenz. |
+| [detection-only/httpd.conf](detection-only/httpd.conf) | Host-Konfiguration | Nativer Connector mit DetectionOnly-Engine-Regeln; siehe [DetectionOnly-Profil](#detectiononly-profil). |
+| [disabled/httpd.conf](disabled/httpd.conf) | Host-Konfiguration | Auf Apache-Ebene deaktivierter Connector; siehe [Deaktiviertes Profil](#deaktiviertes-profil). |
 | [rules/request-only.conf](rules/request-only.conf) | Regeln | Rule-Engine-Einstellungen nur für Requests. |
 | [rules/p1-p4-safe.conf](rules/p1-p4-safe.conf) | Regeln | Begrenzte Response-Body-Einstellungen und lokale P4-Illustration. |
-| [rules/README.de.md](rules/README.de.md) | Dokumentation | No-CRS-Quelle und Bedeutung der Regel-IDs. |
-| [expected/p1-p4-safe.de.md](expected/p1-p4-safe.de.md) | Dokumentation | Konfigurationsabsicht, kein Testergebnis. |
+| [rules/detection-only.conf](rules/detection-only.conf) | Regeln | DetectionOnly-Engine-Einstellungen. |
+| [rules/engine-off.conf](rules/engine-off.conf) | Regeln | Engine-Off-Einstellungen, getrennt vom Deaktivieren des Connectors. |
+| [No-CRS-Regeln](#no-crs-regeln) | Dokumentation | No-CRS-Quelle und Bedeutung der Regel-IDs. |
+| [P1--P4-Safe-Absicht](#p1-p4-safe-absicht) | Dokumentation | Konfigurationsabsicht, kein Testergebnis. |
 
 Alle Pfade in dieser Tabelle sind ab examples/apache repository-relativ. Pfade
 in der Konfiguration, einschließlich /usr/lib/apache2/modules/mod_security3.so,
@@ -48,7 +52,7 @@ in der Konfiguration, einschließlich /usr/lib/apache2/modules/mod_security3.so,
 | SecAuditLog | Audit-Log-Ziel | Optional; Regeldatei; Rule-Engine-Scope | /var/log/modsecurity/apache-audit.log. Zugriff und Aufbewahrung steuern. |
 
 Regel-ID 9002801 gehört nur zu p1-p4-safe.conf. Sie ist weder eine OWASP-CRS-
-noch eine No-CRS-Baseline-ID; siehe [rules/README.de.md](rules/README.de.md).
+noch eine No-CRS-Baseline-ID; siehe [No-CRS-Regeln](#no-crs-regeln).
 
 ## Konfigurationsreferenz
 
@@ -68,6 +72,60 @@ Hostfelder und ihre Parser-/Default-/Merge-Anker.
 aber die Engine-Regelauswertung ab. `modsecurity off` verhindert eine
 Connector-Transaction auch dann, wenn eine Regeldatei `SecRuleEngine On` setzt.
 
+## Profile
+
+### DetectionOnly-Profil
+
+`detection-only/httpd.conf` lässt `modsecurity on` aktiv und wählt die
+DetectionOnly-Regeldatei. DetectionOnly lädt und bewertet Engine-Regeln und
+zeichnet Treffer auf, führt aber keine disruptiven Engine-Aktionen aus.
+
+Nach dem Anpassen der Hostpfade den untenstehenden Connector-
+Validierungsbefehl verwenden. Dieses Profil ist Konfigurationsanleitung und
+keine Runtime-Evidenz.
+
+### Deaktiviertes Profil
+
+`disabled/httpd.conf` setzt `modsecurity off`; Apache erzeugt keine Connector-
+Transaction. Dies unterscheidet sich von `SecRuleEngine Off`, das bei aktivem
+Hostconnector die Regelauswertung innerhalb der Engine abschaltet.
+
+Nach dem Anpassen der Hostpfade den untenstehenden Connector-
+Validierungsbefehl verwenden. Aus einem deaktivierten Profil kein
+P1--P4-Verhalten ableiten.
+
+## P1--P4-Safe-Absicht
+
+Die Safe-Referenz konfiguriert die Verarbeitung des nativen httpd-Moduls für
+P1 bis P4 und begrenzt den Response-Body-Input auf 1048576 Bytes. Eine
+P4-Entscheidung nach dem Response-Commit soll als Safe-Log-only behandelt
+werden; ohne passende Host-Evidence darf sie nicht als sichtbarer HTTP-403
+dokumentiert werden.
+
+Dieser Abschnitt beschreibt Konfigurationsabsicht, kein Laufergebnis. Der
+native Pfad verspricht weder Regelbewertung pro Chunk noch einen vollständigen
+Connector-Response-Buffer oder einen Strict-Abbruch nach dem Commit. Dafür
+gibt es hier kein Strict-Beispiel.
+
+## No-CRS-Regeln
+
+Die wiederverwendbare No-CRS-Quelle ist
+[modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf).
+Sie ist repository-relativ und soll vom Betreiber als geprüftes Host-Ruleset,
+zum Beispiel /etc/modsecurity/no-crs-baseline.conf, installiert oder kopiert
+werden.
+
+| Regel-ID | Phase | Zweck |
+| ---: | ---: | --- |
+| 1100001 | P1 | Request-Header-Deny |
+| 1100101 | P2 | Request-Body-Deny |
+| 1100201 | P3 | Response-Header-Deny |
+| 1100301 | P4 | Response-Body-Entscheidung für die Safe-Grenze |
+
+Die eingecheckte Datei p1-p4-safe.conf ist eine illustrative Apache-
+Regeldatei. Ihre Regel 9002801 gehört nur zu diesem Beispiel und ist weder
+eine OWASP-CRS- noch eine No-CRS-Baseline-ID.
+
 ## Validierung
 
 Die gewählten Dateien installieren oder einbinden, alle Hostpfade anpassen und
@@ -80,6 +138,17 @@ apachectl -t
 Nach einem beabsichtigten Reload Apache-Error-Log, Decision-Log und Audit-Log
 prüfen. Ein Syntaxcheck beweist weder P1--P4-Verhalten noch einen
 client-sichtbaren P4-Status, CRS-Abdeckung oder Produktionsreife.
+
+## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
+
+`modsecurity_phase4_mode strict` wird vom Parser unterstützt, aber dieses
+Repository besitzt keinen Apache-Hostnachweis für einen client-sichtbaren
+späten Abbruch. Strict ist deshalb optional und enthält hier absichtlich keine
+ausführbare Konfiguration.
+
+Von `safe/httpd.conf` ausgehen, `modsecurity_phase4_mode strict` setzen,
+mit `apachectl -t` validieren und host-spezifische Evidenz erfassen, bevor auf
+eine Post-Commit-Aktion vertraut wird.
 
 ## Verwandtes Material
 

@@ -100,13 +100,14 @@ Historical generated evidence keeps Apache `partial`:
 
 ## Coverage / Runtime Decision Matrix
 
-See `docs/coverage-decision-matrix.md`.
+See the [canonical Apache guide](../../docs/connectors/apache.md) for the
+evidence boundary and current configuration reference.
 
 Apache currently remains `partial`: default smoke is clean, force-all evidence
 still records FAIL and NOT_EXECUTABLE rows, generated coverage reporting is not
 automatic runtime promotion, and RESPONSE_BODY remains non-promoted.
 
-See `docs/connectors/directive-parity.md` and
+See [configuration](../../docs/configuration.md) and
 `connectors/apache/harness/README.md`.
 
 ## Common SDK adoption boundary

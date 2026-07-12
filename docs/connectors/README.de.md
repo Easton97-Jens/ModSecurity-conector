@@ -16,12 +16,12 @@ vollständige Matrix oder Strict-Verhalten für alle Connectoren.
 
 | Connector | Ausgewähltes Full-Lifecycle-Profil | Aufgezeichneter Integrationsmodus | Connector-Einstiegspunkt | P1–P4-Scope und Grenze |
 |---|---|---|---|---|
-| Apache | <code>native-httpd-module</code> | <code>native-httpd-module</code> | [Connector-README](../../connectors/apache/README.de.md) | Native Modulroute; P1–P4-Beobachtungen bleiben Run-/Evidence-abhängig und Response-Body-Verarbeitung kann bei EOS finalisieren |
-| NGINX | <code>native-nginx-http-module</code> | <code>native-nginx-http-module</code> | [Connector-README](../../connectors/nginx/README.de.md) | Native HTTP-Modulroute; P1–P4 benötigen ausgewählten Host-Run und Artefakte |
-| HAProxy | <code>native-htx-filter</code> | <code>native-htx-filter</code> | [Connector-README](../../connectors/haproxy/README.de.md) | Native HTX-Filterroute; Body-Slices werden inkrementell weitergereicht und Phase 4 endet bei HTX-EOS |
-| Envoy | <code>ext_proc</code> | <code>ext_proc</code> | [Connector-README](../../connectors/envoy/README.de.md) | Streamed External-Processing-Route; Strict-Post-Commit-Reset bleibt eine getrennte Evidence-gesteuerte Frage |
-| Traefik | <code>native-middleware</code> | <code>native-traefik-middleware</code> | [Connector-README](../../connectors/traefik/README.de.md) | Native Middleware mit lokalem UDS-Service; Strict-Reset bleibt getrennt, bis Host-Evidence ihn nachweist |
-| lighttpd | <code>patched-native</code> | <code>patched-native-lighttpd</code> | [Connector-README](../../connectors/lighttpd/README.de.md) | Gepatchte Native-Host-/Modulroute; Entity-Body-Ranges werden vor Transfer-Framing verarbeitet und Phase 4 endet bei Entity-EOS |
+| Apache | <code>native-httpd-module</code> | <code>native-httpd-module</code> | [Guide](apache.de.md) / [Quelle](../../connectors/apache/README.de.md) | Native Modulroute; P1–P4-Beobachtungen bleiben Run-/Evidence-abhängig und Response-Body-Verarbeitung kann bei EOS finalisieren |
+| NGINX | <code>native-nginx-http-module</code> | <code>native-nginx-http-module</code> | [Guide](nginx.de.md) / [Quelle](../../connectors/nginx/README.de.md) | Native HTTP-Modulroute; P1–P4 benötigen ausgewählten Host-Run und Artefakte |
+| HAProxy | <code>native-htx-filter</code> | <code>native-htx-filter</code> | [Guide](haproxy.de.md) / [Quelle](../../connectors/haproxy/README.de.md) | Native HTX-Filterroute; Body-Slices werden inkrementell weitergereicht und Phase 4 endet bei HTX-EOS |
+| Envoy | <code>ext_proc</code> | <code>ext_proc</code> | [Guide](envoy.de.md) / [Quelle](../../connectors/envoy/README.de.md) | Streamed External-Processing-Route; Strict-Post-Commit-Reset bleibt eine getrennte Evidence-gesteuerte Frage |
+| Traefik | <code>native-middleware</code> | <code>native-traefik-middleware</code> | [Guide](traefik.de.md) / [Quelle](../../connectors/traefik/README.de.md) | Native Middleware mit lokalem UDS-Service; Strict-Reset bleibt getrennt, bis Host-Evidence ihn nachweist |
+| lighttpd | <code>patched-native</code> | <code>patched-native-lighttpd</code> | [Guide](lighttpd.de.md) / [Quelle](../../connectors/lighttpd/README.de.md) | Gepatchte Native-Host-/Modulroute; Entity-Body-Ranges werden vor Transfer-Framing verarbeitet und Phase 4 endet bei Entity-EOS |
 
 Der Profilwert ist die interne Target-Identität, die der Root-Lifecycle-Runner
 prüft. Der aufgezeichnete Integrationsmodus ist der beschreibende Wert, der in
@@ -72,11 +72,11 @@ Sie ist für explizite Evidence-Gates erforderlich, hat keinen festen
 Root-Default und darf weder Secrets, persönliche Daten, Schrägstriche noch
 Traversal-Segmente enthalten. Das Beispiel behauptet nicht das Ergebnis des
 Kommandos; prüfen Sie die erzeugten Artefakte und das Validierungsergebnis.
-Siehe [Konfigurationsvariablen](../configuration/variables.de.md#no-crs-und-evidence-variablen).
+Siehe [Konfigurationsvariablen](../reference/variables.de.md#no-crs-und-evidence-variablen).
 
 ## Konfigurationsvariablen und Platzhalter
 
-Die zentrale [Variablenreferenz](../configuration/variables.de.md) dokumentiert
+Die zentrale [Variablenreferenz](../reference/variables.de.md) dokumentiert
 Format, Default, Setter, Scope, Auswirkung und Sicherheit für Root-Variablen
 und direkte Harness-Controls. Die kompakten connector-spezifischen Gruppen sind:
 
@@ -98,11 +98,81 @@ invocation-lokale Werte und sind vorzuziehen.
 Verwenden Sie <code>PASS</code>, <code>FAIL</code>, <code>BLOCKED</code>,
 <code>NOT EXECUTED</code>, <code>NOT APPLICABLE</code> und
 <code>UNSUPPORTED</code> genau wie unter
-[Testing](../testing/README.de.md) definiert. Eine Capability kann
+[Tests und Nachweise](../testing-and-evidence.de.md) definiert. Eine Capability kann
 <code>implemented_not_asserted</code> sein, ohne dass ein konkreter
 kanonischer Lauf bestanden hat. Umgekehrt wird ein Evidence-Run gegen sein
 ausgewähltes Profil, Rules, Case-Anforderungen und Artefakte ausgewertet; er
 zertifiziert keine nicht ausgewählten Protocols oder Compatibility-Pfade.
 
-Lesen Sie [Evidence](../evidence/README.de.md), bevor Sie ein Connector-
+Lesen Sie [Tests und Nachweise](../testing-and-evidence.de.md), bevor Sie ein Connector-
 Ergebnis in Report oder Claim verwenden.
+
+## Neuer- und Future-Connector-Vertrag
+
+Ein neuer Connector deklariert zuerst Origin, Fähigkeiten,
+Konfigurations-Mapping, Request-/Response-Mapping, Decision-/Event-Mapping und
+Artefaktlayout. Er behält Host-API-Typen, Hooks, Filter, Protocol-Framing,
+Build-Kleber und Objektlebensdauer im Connector-Tree. Er darf Common-
+Request-/Response-/Config-Verträge und den Generic Mapper nur verwenden, wenn
+die Hostdaten in diese Verträge passen; Body-Payloads werden über diesen Pfad
+nie protokolliert.
+
+| Anforderung | Vor einem Laufzeitclaim |
+| --- | --- |
+| Konfiguration | Hostsyntax registrieren und hostspezifische Parser-Typen lokal halten |
+| Mapping | Gemappten Request-/Response-Output gegen Common-Verträge validieren |
+| Provenienz | Origin-Metadaten, Capability-Manifest und ausgewählten Modus pflegen |
+| Tests | Reales Host-Harness und payload-sichere Laufartefakte bereitstellen |
+| Status | Starterpfade bis zu passender Laufzeit-Evidence nicht verifiziert halten |
+
+Zukünftige Hostarbeit folgt derselben Selected-Route-Regel wie die sechs
+aktuellen Connectoren. Ein Source-Scaffold, Generic Mapper, kompatible API oder
+Buildsmoke etabliert keinen Real-World-Connector-Pfad.
+
+## Evidence-Vertrag für neue Connectoren
+
+Ein neuer Connector hält Host-Hooks, Parserregistrierungen, Body-/Response-
+Verarbeitung, Protocol-Framing, Build-Glue, Objektlebensdauer und
+host-spezifische Diagnostik in seinem Connector-Baum. Sein Repository-Guide ist
+die kanonische leserorientierte Erklärung; code-nahe Dateien zeichnen
+Provenienz und lokale Ausführungsdetails auf. Keinen connector-lokalen
+Testbaum erstellen: wiederverwendbare ausführbare Cases, Schemata und Runner
+bleiben Framework-eigen.
+
+| Erforderliches Artefakt | Mindestens aufgezeichneter Inhalt | Grenze |
+| --- | --- | --- |
+| <code>README.*</code> | Ausgewählte Route, lokale Build-/Harness-Entry-Points und explizite Grenzen | Source- oder Konfigurationspräsenz ist keine Runtime-Evidence |
+| <code>TODO.md</code> | Offene Integrations-, Coverage- und Promotion-Arbeit | Ein abgehakter Punkt ist kein Result-Datensatz |
+| <code>ORIGIN.md</code> und Source-Map | Upstream-Wahl, Lizenz, importierte Dateien, lokale Änderungen und Pins | Source-, Lizenz-, Versions- oder API-Fakten niemals erfinden |
+| <code>metadata.*</code> und Build-Glue | Connector-Identität, eigene Build-Inputs, Pfade und Prerequisite-Verhalten | Ein Compile-/Link-Check ist kein Hostverkehr |
+| Harness und lokale Konfiguration | Exakte ausgewählte Host-/Profile-Inputs und payload-sicherer Ausgabeort | Ein Start-/Config-Check ist kein Lifecycle-Ergebnis |
+| Framework-Case-/Catalog-Referenzen | Case-Scope, Ruleset-Variante, Runner und Result-/Evidence-IDs | Framework-Tests nicht nach <code>connectors/&lt;name&gt;/tests</code> kopieren |
+
+## Evidence- und Promotion-Bedingungen
+
+Vor einem eingegrenzten Claim Befehl, Exit-Verhalten, Connector-Scope,
+ausgewähltes Profil, Ruleset, Run-ID, effektive nicht geheime Konfiguration,
+Result-/Event-Artefakte und PASS/FAIL/BLOCKED/NOT EXECUTED aufzeichnen. No-CRS-
+und With-CRS-Varianten bleiben getrennt: Eine ersetzt niemals die andere. Die
+Mindestprüfungsmatrix umfasst P1, P2, P3, P4, Response-Body-Verhalten,
+Negative-/Pass-Through-Verhalten, Audit-/Log-Beobachtungen,
+Konfigurations-/Startup-Verhalten und verbleibende blockierende oder fehlerhafte
+Zeilen.
+
+| Scope-Label | Mindestens aufgezeichnete Grundlage | Unzureichende Grundlage |
+| --- | --- | --- |
+| <code>template</code> oder <code>scaffolded</code> | Nur Struktur- und Dokumentationsanforderungen | Abgeleitetes Hostverhalten |
+| <code>adapter-owned</code> | Eigene Source-/Build-Metadaten plus Provenienz | Vermuteter Upstream oder kopierte Kompatibilitätsbeschreibung |
+| <code>runtime-smoke-verified</code> | Aktueller ausgewählter Host-Smoke mit Befehl und Result-Artefakten | Statischer Source, generierter Report oder reiner Prozessstart |
+| <code>crs-verified</code> | Aktueller ausgewählter With-CRS-Lauf, effektives CRS-Input und Result-Artefakte | Ein No-CRS-Ergebnis |
+| <code>partial</code> | Wahrheitsgemäß begrenzte Struktur oder ausgewählte Evidence | Claim vollständiger Phasen-, Protocol- oder Matrix-Coverage |
+| Mehr als <code>partial</code> | Geprüfte Matrix und Evidence für jede beanspruchte Fähigkeit; Lücken bleiben explizit | Pass-Through-/Log-Only-Ausgabe als Response-Body-Blocking-Beweis |
+
+Framework-Cases liegen unter
+<code>modules/ModSecurity-test-Framework/tests/cases/</code>, optionale
+connector-spezifische Cases unter
+<code>modules/ModSecurity-test-Framework/tests/cases/connector-specific/&lt;connector&gt;/</code>
+und Framework-Runner unter
+<code>modules/ModSecurity-test-Framework/tests/runners/</code>. Nur Targets
+zitieren, die im Parent-Makefile existieren, und vor der Ergebnisauswertung den
+[Test-/Evidence-Guide](../testing-and-evidence.de.md) lesen.

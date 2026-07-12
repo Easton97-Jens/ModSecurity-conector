@@ -35,7 +35,7 @@ Verwende Make-Targets statt verschachtelte Dateien aus einem beliebigen Arbeitsv
 | `make full-lifecycle-all-connectors` | Führt alle sechs ausgewählten Profile aus | `NO_CRS_RUN_ID`, beschreibbare Runtime-/Evidence-Roots | Sechs Result-Sets |
 | `make check-six-connector-core-completion` | Validiert Aggregate-Evidence | Gleiche Run-ID und Evidence-Root | Aggregate PASS/FAIL |
 
-`NO_CRS_RUN_ID` ist eine dateisystemsichere Laufkennung, beispielsweise `repository-cleanup-core-20260712T164725Z`. Keine Secrets, Benutzernamen oder Tickettexte verwenden. Details stehen in der [Variablenreferenz](../docs/configuration/variables.de.md).
+`NO_CRS_RUN_ID` ist eine dateisystemsichere Laufkennung, beispielsweise `repository-cleanup-core-20260712T164725Z`. Keine Secrets, Benutzernamen oder Tickettexte verwenden. Details stehen in der [Variablenreferenz](../docs/reference/variables.de.md).
 
 ## Evidence-Ablauf
 
@@ -46,7 +46,7 @@ Verwende Make-Targets statt verschachtelte Dateien aus einem beliebigen Arbeitsv
 5. `checks/evidence/` entscheidet, ob sie den gewählten Claim stützen.
 6. `evidence/reports/` erzeugt versionierte Berichte neu; Generated-Ausgabe nie manuell ändern.
 
-Exit `0` bedeutet technische Beendigung, nicht dass jeder Katalogfall `PASS` ist. `1` ist ein allgemeiner Fehler, `2` typischerweise ein Validierungs-/Aggregate-Fehler und `77` eine deklarierte fehlende optionale Voraussetzung. Statussemantik steht unter [Testebenen](../docs/testing/test-levels.de.md).
+Exit `0` bedeutet technische Beendigung, nicht dass jeder Katalogfall `PASS` ist. `1` ist ein allgemeiner Fehler, `2` typischerweise ein Validierungs-/Aggregate-Fehler und `77` eine deklarierte fehlende optionale Voraussetzung. Statussemantik steht unter [Testebenen](../docs/testing-and-evidence.de.md).
 
 ## Neue Datei hinzufügen
 

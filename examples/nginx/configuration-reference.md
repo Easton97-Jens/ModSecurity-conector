@@ -81,6 +81,7 @@ Repository targets: `make check-config-nginx` and `make check-config-all-connect
 
 ## Option details
 
+<a id="access-log"></a>
 ## `access_log`
 
 ### Short description
@@ -135,6 +136,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="error-log"></a>
 ## `error_log`
 
 ### Short description
@@ -189,6 +191,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="gzip"></a>
 ## `gzip`
 
 ### Short description
@@ -243,6 +246,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="listen"></a>
 ## `listen`
 
 ### Short description
@@ -297,6 +301,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="load-module"></a>
 ## `load_module`
 
 ### Short description
@@ -351,6 +356,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="modsecurity"></a>
 ## `modsecurity`
 
 ### Short description
@@ -405,6 +411,7 @@ Source-backed example: [examples/nginx/minimal/nginx.conf](../../examples/nginx/
 
 off bypasses connector P1–P4 processing even if a rule file is configured.
 
+<a id="modsecurity-phase4-body-limit"></a>
 ## `modsecurity_phase4_body_limit`
 
 ### Short description
@@ -459,6 +466,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 A larger limit raises memory/CPU exposure; zero is invalid in the native setters.
 
+<a id="modsecurity-phase4-content-types-file"></a>
 ## `modsecurity_phase4_content_types_file`
 
 ### Short description
@@ -513,6 +521,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Keep the scope narrow and validate that the host exposes the intended representation of response bytes.
 
+<a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
 
 ### Short description
@@ -567,6 +576,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Treat JSONL metadata as sensitive operational data and set safe ownership/rotation.
 
+<a id="modsecurity-phase4-mode"></a>
 ## `modsecurity_phase4_mode`
 
 ### Short description
@@ -621,6 +631,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 safe/minimal retain late-decision evidence without interrupting an already-started response. strict requests a connection abort after commit, which can expose clients to a partial response; it is not a reliable post-commit HTTP-status enforcement mode.
 
+<a id="modsecurity-rules"></a>
 ## `modsecurity_rules`
 
 ### Short description
@@ -675,6 +686,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Inline rules are executable policy; restrict who may alter host configuration.
 
+<a id="modsecurity-rules-file"></a>
 ## `modsecurity_rules_file`
 
 ### Short description
@@ -729,6 +741,7 @@ Source-backed example: [examples/nginx/minimal/nginx.conf](../../examples/nginx/
 
 Keep the file, its parent directories, and any engine-included files non-writable by untrusted identities. Prefer an absolute path so a changed working directory cannot select unintended policy.
 
+<a id="modsecurity-rules-remote"></a>
 ## `modsecurity_rules_remote`
 
 ### Short description
@@ -783,6 +796,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Remote policy is not exercised by the selected no-CRS examples; do not treat it as a local-file substitute.
 
+<a id="modsecurity-transaction-id"></a>
 ## `modsecurity_transaction_id`
 
 ### Short description
@@ -837,6 +851,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Do not put credentials or sensitive request data in a correlation identifier.
 
+<a id="modsecurity-use-error-log"></a>
 ## `modsecurity_use_error_log`
 
 ### Short description
@@ -891,6 +906,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Error logs can contain security metadata; protect and rotate them.
 
+<a id="proxy-pass"></a>
 ## `proxy_pass`
 
 ### Short description
@@ -945,6 +961,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="server"></a>
 ## `server`
 
 ### Short description
@@ -999,6 +1016,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="server-name"></a>
 ## `server_name`
 
 ### Short description

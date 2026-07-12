@@ -34,6 +34,7 @@ entity range before transfer framing rather than socket-wire output, but that
 source/build contract remains non-promoted without a streaming host run.
 
 The committed connector source does not copy lighttpd implementation code or
-headers. Public host API references are listed in `docs/public-sources.md`.
-Any future source import must update this file, `SOURCE_MAP.json`, and the
+headers. Public host API and build boundaries are summarized in the
+[canonical lighttpd guide](../../docs/connectors/lighttpd.md). Any future
+source import must update this file, `SOURCE_MAP.json`, and the
 repository-level attribution before a broader claim is made.

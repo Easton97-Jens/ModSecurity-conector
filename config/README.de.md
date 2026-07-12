@@ -43,7 +43,7 @@ ein anderer Connector eine ähnlich benannte Capability ausweist.
 Das versionierte JSON in diesem Verzeichnis ist absichtlich literal: Es
 expandiert weder Shell-Variablen noch Dokumentationsplatzhalter. Die es
 konsumierenden Kommandos können die folgenden Root-Inputs erhalten. Vollständige
-Definitionen stehen in der [Variablen- und Platzhalterreferenz](../docs/configuration/variables.de.md).
+Definitionen stehen in der [Variablen- und Platzhalterreferenz](../docs/reference/variables.de.md).
 
 | Name | Lokale Bedeutung | Pflicht, Format und Beispiel |
 | --- | --- | --- |
@@ -68,6 +68,6 @@ Consumer-Contract ergänzen.
 | \`make refresh-all-reports\` | Regeneriert Report-Artefakte aus ihren dokumentierten Quellen; Änderungen prüfen, statt generierte Ausgabe manuell zu editieren. |
 | \`make full-lifecycle-all-connectors\` | Nutzt Lifecycle-Inputs und schreibt laufbezogene Evidence; für einen aggregierten Kandidaten eine sichere \`NO_CRS_RUN_ID\` angeben. |
 
-Vor Änderung eines Status- oder Capability-Begriffs [Testing](../docs/testing/README.de.md),
-[Evidence](../docs/evidence/README.de.md) und das
+Vor Änderung eines Status- oder Capability-Begriffs [Testing](../docs/testing-and-evidence.de.md),
+[Evidence](../docs/testing-and-evidence.de.md) und das
 [Glossar](../docs/reference/glossary.de.md) lesen.

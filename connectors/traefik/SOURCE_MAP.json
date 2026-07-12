@@ -159,12 +159,12 @@
       "purpose": "reference Traefik local-plugin registration shape; the host probe materializes a disposable equivalent"
     },
     {
-      "path": "connectors/traefik/docs/engine-service.md",
-      "purpose": "English protocol, lifecycle, outcome-boundary, and non-promotion documentation for the local engine service"
+      "path": "docs/connectors/traefik.md",
+      "purpose": "English canonical protocol, lifecycle, outcome-boundary, and non-promotion documentation for the local engine service"
     },
     {
-      "path": "connectors/traefik/docs/engine-service.de.md",
-      "purpose": "German protocol, lifecycle, outcome-boundary, and non-promotion documentation for the local engine service"
+      "path": "docs/connectors/traefik.de.md",
+      "purpose": "German canonical protocol, lifecycle, outcome-boundary, and non-promotion documentation for the local engine service"
     }
   ],
   "shared_dependencies": [

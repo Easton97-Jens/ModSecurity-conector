@@ -41,10 +41,10 @@ Konfiguration oder einem Evidence-Guide erforderlich ist.
 
 ## Verwandte Referenzpunkte
 
-- [Variablen und Platzhalter](../configuration/variables.de.md)
+- [Variablen und Platzhalter](variables.de.md)
 - [Build-Dokumentation](../build/README.de.md)
-- [Testing-Dokumentation](../testing/README.de.md)
-- [Evidence-Dokumentation](../evidence/README.de.md)
+- [Testing-Dokumentation](../testing-and-evidence.de.md)
+- [Evidence-Dokumentation](../testing-and-evidence.de.md)
 
 Die obigen Begriffe beschreiben die aktuelle HTTP/1.1-Kern-
 Dokumentationsgrenze. Sie erheben keine Production-, CRS-, HTTP/2-, HTTP/3-,

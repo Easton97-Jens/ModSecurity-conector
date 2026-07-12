@@ -1238,8 +1238,8 @@ lint: check-framework
 summary: check-framework
 	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/reporting/summarize-results.py" "$(BUILD_ROOT)/results/connector-summary.json"
 
-case-matrix: check-framework
-	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/reporting/write-case-matrix.py" "$(BUILD_ROOT)/results/connector-summary.json" reports/testing/case-matrix.md
+case-matrix: generate-test-matrix
+	@echo "case matrix: reports/testing/generated/coverage/case-matrix.generated.md"
 
 install-dev-deps: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/tools/bootstrap-python.sh"

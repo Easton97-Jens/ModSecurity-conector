@@ -26,7 +26,7 @@ complete matrix, or strict verification for all connectors.
 The Framework submodule owns reusable YAML cases, normalizers, and runner
 tests. Root \`tests/\` owns only connector-repository contracts. The root
 [Makefile](../Makefile) is authoritative for target names; the current
-[testing guide](../docs/testing/README.md) explains the test levels.
+[testing guide](../docs/testing-and-evidence.md) explains the test levels.
 
 ## Adding or changing tests
 
@@ -45,7 +45,7 @@ downloads, build trees, credentials, or copied evidence to this directory.
 ## Variables and placeholders
 
 The root Makefile owns the relevant values. See the central
-[variables and placeholders reference](../docs/configuration/variables.md)
+[variables and placeholders reference](../docs/reference/variables.md)
 and [glossary](../docs/reference/glossary.md) for definitions beyond this local
 test scope.
 
@@ -72,7 +72,7 @@ argument, or expected artifact.
 | \`make quick-check\` | Runs the repository's focused quick contract checks. It does not create canonical runtime evidence. |
 | \`make lint\` | Runs broad syntax, contract, documentation, and governance checks, including root test-related contracts. |
 
-Use [test levels](../docs/testing/test-levels.md),
-[core lifecycle testing](../docs/testing/core-lifecycle.md), and the
-[evidence guide](../docs/evidence/README.md) to choose a test level and report
+Use [test levels](../docs/testing-and-evidence.md),
+[core lifecycle testing](../docs/testing-and-evidence.md), and the
+[evidence guide](../docs/testing-and-evidence.md) to choose a test level and report
 its result accurately.

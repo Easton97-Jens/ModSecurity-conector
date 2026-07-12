@@ -22,16 +22,15 @@ DOC_ROOTS = (
 )
 CURRENT_DOC_PREFIXES = (
     "docs/README",
+    "docs/architecture",
     "docs/build/",
-    "docs/configuration/",
+    "docs/configuration",
     "docs/reference/",
-    "docs/development/",
-    "docs/architecture/common/",
-    "docs/testing/",
-    "docs/evidence/",
+    "docs/testing-and-evidence",
+    "docs/operations-and-security",
     "docs/connectors/",
 )
-IGNORED_PREFIXES = ("docs/generated/", "reports/testing/generated/", "reports/archive/")
+IGNORED_PREFIXES = ("docs/generated/", "reports/testing/generated/")
 
 
 def markdown_files() -> list[Path]:

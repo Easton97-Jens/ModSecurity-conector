@@ -3,7 +3,9 @@
 Status: native Apache module; canonical capability manifest present
 Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 
-Tracked in `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`.
+Framework catalog and integration guidance is in
+`modules/ModSecurity-test-Framework/docs/catalog-and-cases.md` and
+`modules/ModSecurity-test-Framework/docs/connector-integration.md`.
 
 - Verify license requirements before importing or adapting any code.
 - Validate the PoC Autotools/APXS helper on a host with Apache development

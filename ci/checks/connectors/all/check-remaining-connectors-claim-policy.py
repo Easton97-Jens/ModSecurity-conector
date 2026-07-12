@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep remaining-connector status claims aligned with executable evidence."""
+"""Keep remaining-connector claims aligned with executable evidence paths."""
 
 from pathlib import Path
 import re
@@ -8,15 +8,16 @@ import sys
 
 ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
 CONNECTORS = ("envoy", "traefik", "lighttpd")
-REPORTS = tuple(
-    f"reports/archive/{name}-connector-readiness{suffix}.md"
-    for name in CONNECTORS
-    for suffix in ("", ".de")
-) + (
-    "reports/archive/remaining-connectors-readiness.md",
-    "reports/archive/remaining-connectors-readiness.de.md",
+REPORTS = (
+    "reports/current/readiness.md",
+    "reports/current/readiness.de.md",
 )
-ALLOWED = (
+STATUS_DOCUMENTS = {
+    "envoy": "connectors/envoy/TODO.md",
+    "traefik": "connectors/traefik/TODO.md",
+    "lighttpd": "connectors/lighttpd/TODO.md",
+}
+ALLOWED_METADATA_STATUSES = (
     "compile_verified",
     "link_verified",
     "config_load_verified",
@@ -43,33 +44,38 @@ for relative in REPORTS:
         errors.append(f"readiness report missing: {relative}")
         continue
     content = path.read_text(encoding="utf-8", errors="replace")
-    if not any(status in content for status in ALLOWED):
-        errors.append(f"readiness report has no allowed evidence status: {relative}")
+    if "PASS" not in content or "NOT EXECUTED" not in content:
+        errors.append(f"readiness report does not distinguish selected core from extended scope: {relative}")
     for pattern in POSITIVE_FORBIDDEN:
         if re.search(pattern, content, flags=re.IGNORECASE):
             errors.append(f"forbidden positive claim in {relative}: {pattern}")
     if "Claims deliberately not made" not in content and "Bewusst nicht erhobene Claims" not in content:
         errors.append(f"claim-boundary section missing: {relative}")
 
+runtime_paths = {
+    "envoy": ROOT / "connectors/envoy/harness/run_envoy_connector_runtime.sh",
+    "traefik": ROOT / "connectors/traefik/scripts/runtime-smoke.sh",
+    "lighttpd": ROOT / "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
+}
+readiness_en = (ROOT / "reports/current/readiness.md").read_text(encoding="utf-8", errors="replace") if (ROOT / "reports/current/readiness.md").is_file() else ""
 for connector in CONNECTORS:
     metadata_path = ROOT / "connectors" / connector / "metadata.c"
     metadata = metadata_path.read_text(encoding="utf-8", errors="replace")
-    english_path = ROOT / "reports/archive" / f"{connector}-connector-readiness.md"
-    if not english_path.is_file():
-        continue
-    report = english_path.read_text(encoding="utf-8", errors="replace")
-    metadata_statuses = {status for status in ALLOWED if f'"{status}"' in metadata}
+    metadata_statuses = {status for status in ALLOWED_METADATA_STATUSES if f'"{status}"' in metadata}
     if not metadata_statuses:
         errors.append(f"{connector}: metadata has no allowed status")
-    elif not any(status in report for status in metadata_statuses):
-        errors.append(f"{connector}: report status does not match metadata {sorted(metadata_statuses)}")
-    runtime_paths = {
-        "envoy": ROOT / "connectors/envoy/harness/run_envoy_connector_runtime.sh",
-        "traefik": ROOT / "connectors/traefik/scripts/runtime-smoke.sh",
-        "lighttpd": ROOT / "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
-    }
+    status_document_path = ROOT / STATUS_DOCUMENTS[connector]
+    if not status_document_path.is_file():
+        errors.append(f"{connector}: current status document missing: {STATUS_DOCUMENTS[connector]}")
+    else:
+        status_document = status_document_path.read_text(encoding="utf-8", errors="replace")
+        undocumented = sorted(status for status in metadata_statuses if status not in status_document)
+        if undocumented:
+            errors.append(f"{connector}: status document does not match metadata {undocumented}")
     if "minimal_runtime_smoke" in metadata and not runtime_paths[connector].is_file():
         errors.append(f"{connector}: runtime status promoted without executable evidence producer")
+    if not re.search(rf"\|\s*{re.escape(connector)}\s*\|", readiness_en, re.IGNORECASE):
+        errors.append(f"reports/current/readiness.md: missing current status row for {connector}")
 
 if errors:
     print("\n".join(errors), file=sys.stderr)
