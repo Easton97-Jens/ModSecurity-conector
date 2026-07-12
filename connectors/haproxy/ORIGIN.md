@@ -22,6 +22,11 @@ observer-only: no disruptive decision is converted into a HAProxy reply,
 redirect, or post-commit abort, and it does not alter the SPOP compatibility
 claims or promote a lifecycle capability.
 
+The selected profile records a real-host observer route, not an alternate
+enforcement deployment. The standard SPOP compatibility path remains separate;
+no HTX host record may be reused as SPOP enforcement, safe/strict late-action,
+or full-response-body evidence.
+
 ## Current Source Provenance
 
 | Path | Origin | License status | Notes |

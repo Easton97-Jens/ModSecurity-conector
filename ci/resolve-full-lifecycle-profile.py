@@ -113,6 +113,11 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "connection_metadata",
         "transport_metadata",
         "request_headers",
+        # The patched native host has a real P1 200/403 probe.  Keep the
+        # capability available to the canonical plan without promoting it;
+        # finalization still requires the run-local host event before a case
+        # can become PASS.
+        "deny",
         "response_headers",
         "phase1",
         "phase3",

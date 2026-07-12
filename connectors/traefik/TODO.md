@@ -4,6 +4,12 @@ Status: minimal_runtime_smoke (forwardAuth request path only)
 Runtime status: connector-gap outside the targeted request-header proof
 Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 
+The standard compatibility path remains `forwardAuth`. The separate
+full-lifecycle profile dispatches `native-middleware` through
+`full-lifecycle-traefik-native`, which stages the Go module in a pinned
+Traefik local-plugin host. Its `PassthroughEngine` is transport-only, so this
+host selection cannot promote rule evaluation or any lifecycle capability.
+
 Global gate definitions:
 
 - `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
@@ -52,7 +58,9 @@ Global gate definitions:
 - [x] allowed request returns HTTP 200 in the targeted native runtime smoke
 - [x] blocked request returns rule-backed HTTP 403 through forwardAuth
 - [x] native Go middleware source/build groundwork added with focused local tests
-- [ ] native Go middleware remains excluded from the selected forwardAuth Phase 1 runtime contract
+- [x] native Go middleware is selected only by the separate full-lifecycle
+      local-plugin target and remains excluded from the standard forwardAuth
+      Phase-1 runtime contract
 - [x] pinned Traefik local-plugin host probe stages the module, confirms loading, and routes a body-bearing request without capability promotion
 - [ ] a separately reviewed Common/libmodsecurity Engine bridge is implemented and runtime-evidenced
 
@@ -61,7 +69,7 @@ Global gate definitions:
 - [ ] `make test-no-crs` executed for Traefik scope
 - [ ] PASS/FAIL/BLOCKED counts documented
 - [x] Architecture boundary recorded in `capabilities.json`: Traefik 3.7 can
-      buffer a forwardAuth body, but the checked-in native path does not enable
+      buffer a forwardAuth body, but the checked-in forwardAuth path does not enable
       `forwardBody` and uses `request_body_mode=none`; Phase 2 is therefore
       `not_implemented` for the selected path.
 - [x] Upstream response headers and bodies are recorded as

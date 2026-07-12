@@ -49,7 +49,10 @@ evidence.
 `../config/traefik-native-middleware-dynamic.yaml` are matching local-plugin
 and File Provider shapes for an operator-created registration named
 `modsecurityNative`. They are deliberately separate from the selected
-`../config/traefik-forwardauth-dynamic.yaml`. A deployment must stage the
-module under the local plugin workspace used by its installed Traefik release;
-neither that setup nor config loading is asserted by this repository's current
-runtime contract.
+`../config/traefik-forwardauth-dynamic.yaml`. The
+`full-lifecycle-traefik-native` host target independently stages an equivalent
+disposable workspace and asserts plugin loading in the pinned host; it does not
+reuse these checked-in reference files. An operator deployment must still stage
+the module under the local-plugin workspace used by its installed Traefik
+release. The probe is not deployment, rule-evaluation, or capability-promotion
+evidence.

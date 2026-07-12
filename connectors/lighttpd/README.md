@@ -60,10 +60,11 @@ msconnector.config-file = "/absolute/path/msconnector-runtime.conf"
 
 The referenced Common runtime file uses `key=value` syntax. Supported values
 include rule sources, transaction-ID settings, body policy and limits,
-block/error statuses, event path, and header/resource limits. The native
-The stock Phase-1 module requires both body modes to be `none`. The separate
-patched build is selected by the full-lifecycle profile and still requires
-`response_body_mode=none`; it makes no request-body streaming promotion.
+block/error statuses, event path, and header/resource limits. The stock
+Phase-1 module requires both body modes to be `none`. The separate
+patched build is selected by the full-lifecycle profile; its isolated host
+smoke also uses both body modes as `none`, so it makes no request- or
+response-body streaming promotion.
 
 `config/lighttpd-native.conf` is a documented example; its two absolute
 placeholder paths must be replaced. The native harness generates a runnable

@@ -5,6 +5,13 @@ Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 
 Canonical capability source: `connectors/lighttpd/capabilities.json`.
 
+The standard compatibility target remains the stock native module. The
+full-lifecycle profile dispatches `patched-native` through
+`full-lifecycle-lighttpd-patched`, which stages a matched lighttpd 1.4.84 core
+and module for an isolated Phase-1 smoke. Its runtime uses both body modes as
+`none`, so it is host-selection evidence only and cannot promote body or
+Phase-4 capabilities.
+
 ## Completed
 
 - [x] Repository-owned origin and source map documented.

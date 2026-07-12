@@ -30,5 +30,12 @@ The bridge self-test is separate and is never used as host evidence.
 `sidecar_proxy` path. It is an alternative path and its evidence must not be
 mixed with the native-module evidence.
 
+The full-lifecycle dispatcher does not reuse the generic stock No-CRS runner.
+It invokes `runtime-smoke-lighttpd-patched` through
+`full-lifecycle-lighttpd-patched`, which builds and loads only a matched patched
+lighttpd 1.4.84 core/module pair. The isolated target sends the same narrow
+Phase-1 200/403 requests with both body modes disabled; it is not request-body,
+response-body, Phase-4, or capability-promotion evidence.
+
 Request/response body evidence, CRS, production hardening, security
 verification, and full-matrix evidence are not provided by this harness.

@@ -9,13 +9,17 @@
     "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
     "connectors/haproxy/src/haproxy_modsecurity_binding.c",
     "connectors/haproxy/src/haproxy_modsecurity_mapper.c",
-    "connectors/haproxy/harness/run_haproxy_smoke.sh"
+    "connectors/haproxy/harness/run_haproxy_smoke.sh",
+    "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+    "connectors/haproxy/htx-overlay/haproxy-3.2.21-makefile.patch",
+    "connectors/haproxy/harness/run_haproxy_htx_runtime.sh"
   ],
   "host_model_constraints": [
     "HAProxy and the repository-owned SPOP agent are separate processes; host and agent liveness and logs are distinct evidence.",
     "Response phases run only when the HAProxy configuration sends the corresponding response notification to the agent.",
     "The selected SPOE/SPOP configuration sends response headers only; the prior wait-for-body response sample is deliberately disabled because it is not a low-latency response stream.",
-    "Starter and binding self-tests are not HAProxy host-runtime evidence."
+    "Starter and binding self-tests are not HAProxy host-runtime evidence.",
+    "The full-lifecycle profile separately selects native-htx-filter through full-lifecycle-haproxy-htx: a patched HAProxy 3.2.21 observer that records P1-P4 transport metadata but has no enforcement or capability promotion."
   ],
   "capabilities": {
     "connection_metadata": {

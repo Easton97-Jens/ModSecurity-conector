@@ -33,10 +33,10 @@ JSON, XML, multipart, and CRS SQLi anomaly request-body coverage is live
 evidence, limited by HAProxy request buffering, SPOE frame size, and configured
 request-body limits. Response-header and audit-log paths use SPOE response
 messages. A separate HTX observer overlay is selected by the full-lifecycle
-profile and has a dedicated real-host transport smoke for incremental request
-and response chunks. It remains distinct from the active SPOP compatibility
-path and is not canonical evidence for enforcement, strict abort, or full
-`RESPONSE_BODY` support.
+profile through `full-lifecycle-haproxy-htx` and has a dedicated real-host
+transport smoke for incremental request and response chunks. It remains
+distinct from the active SPOP compatibility path and is not canonical evidence
+for enforcement, strict abort, or full `RESPONSE_BODY` support.
 
 ## Global Contract
 

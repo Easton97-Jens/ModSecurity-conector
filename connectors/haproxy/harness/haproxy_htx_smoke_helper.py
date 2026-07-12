@@ -181,7 +181,13 @@ def write_event(
     if host_action not in {"not_enforced", "not_attempted"}:
         raise ValueError("invalid host action")
     record = {
+        # Keep the host observation self-identifying when it is projected into
+        # the Framework's deliberately narrow canonical event schema.  These
+        # values describe the observer result; they do not claim that HAProxy
+        # enforced the requested ModSecurity intervention.
+        "connector": "haproxy",
         "event": "htx_observed_intervention",
+        "message_id": "HAPROXY_HTX_OBSERVED_INTERVENTION",
         "integration_mode": "native_htx_filter",
         "evaluation_mode": "observer_nonpromoted",
         "rule_evaluation": "libmodsecurity_observed",
@@ -189,6 +195,7 @@ def write_event(
         "case": case,
         "phase": phase,
         "rule_id": rule_id,
+        "status": host_action,
         "requested_action": "deny",
         "host_action": host_action,
         "observed_client_status": observed_status,

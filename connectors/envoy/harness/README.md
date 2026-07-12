@@ -26,3 +26,11 @@ Every started process is stopped on success, error, or signal.
 The smoke records metadata-only decision events and does not log request or
 response bodies. `ext_authz` is request-phase only; response-body verification
 remains false.
+
+The full-lifecycle dispatcher does not reuse the `ext_authz` runtime entrypoint.
+It invokes `runtime-smoke-envoy-ext-proc` through
+`full-lifecycle-envoy-ext-proc`, which starts a real Envoy listener, the Go
+`ext_proc` service, and a local upstream. The selected service uses
+`PassthroughEngine`; its streamed callback evidence is non-promoted and cannot
+be reported as Common/libmodsecurity rule evaluation, enforcement, reset, or
+response-lifecycle evidence.

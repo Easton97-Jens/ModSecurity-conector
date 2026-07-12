@@ -111,6 +111,14 @@
       "purpose": "outside-checkout Go source build and test helper"
     },
     {
+      "path": "connectors/traefik/scripts/runtime-native-middleware.sh",
+      "purpose": "full-lifecycle-only native local-plugin host entrypoint; stages source into an isolated pinned Traefik workspace without reusing forwardAuth evidence"
+    },
+    {
+      "path": "connectors/traefik/scripts/runtime_native_smoke.py",
+      "purpose": "starts the pinned Traefik host, requires local-plugin load confirmation, and records metadata-only non-promoted router traffic"
+    },
+    {
       "path": "connectors/traefik/config/traefik-native-middleware-dynamic.yaml",
       "purpose": "reference local-plugin File Provider configuration shape; the host probe materializes a disposable equivalent"
     },
@@ -133,7 +141,7 @@
     "common/rules/modsecurity_targeted_smoke.conf"
   ],
   "verification_status": "connector-gap",
-  "runtime_evidence_scope": "local Traefik forwardAuth request-header rule 1000001: allow 200, block 403; separately, the full-lifecycle native local-plugin host probe proves pinned plugin loading and router traffic without rule evaluation",
+  "runtime_evidence_scope": "the standard compatibility path is local Traefik forwardAuth request-header rule 1000001: allow 200, block 403; separately, full-lifecycle-traefik-native selects native-middleware in a pinned local-plugin host and proves plugin loading and router traffic without rule evaluation",
   "claims_not_verified": [
     "request_body",
     "upstream_response_headers",
@@ -144,5 +152,5 @@
     "full_matrix_ready"
   ],
   "starter_evidence_note": "legacy decision-service self-test remains non-runtime evidence",
-  "native_middleware_full_lifecycle_note": "The full-lifecycle profile selects the native Go middleware in a pinned local-plugin host probe. It installs PassthroughEngine, has no Common/libmodsecurity bridge, and does not alter forwardAuth compatibility capability state or promote P1-P4, late-action, first-byte, or no-buffer claims."
+  "native_middleware_full_lifecycle_note": "The full-lifecycle profile selects native-middleware through full-lifecycle-traefik-native in a pinned local-plugin host probe. It installs PassthroughEngine, has no Common/libmodsecurity bridge, and does not alter forwardAuth compatibility capability state or promote P1-P4, late-action, first-byte, or no-buffer claims."
 }

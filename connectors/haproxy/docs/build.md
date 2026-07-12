@@ -49,9 +49,10 @@ Phase 4 / RESPONSE_BODY is `not_implemented` in the selected SPOE/SPOP path.
 The former `wait-for-body` strict-abort sample is disabled, legacy, and
 noncanonical; it is not current runtime evidence.
 
-## Optional native HTX transport build
+## Full-lifecycle-selected native HTX transport build
 
-The separate observer-mode path builds a disposable, patched HAProxy 3.2.21
+The full-lifecycle profile selects this separate observer-mode path through
+`full-lifecycle-haproxy-htx`. It builds a disposable, patched HAProxy 3.2.21
 worktree and does not replace the SPOE/SPOP binary:
 
 ```sh

@@ -14,5 +14,8 @@ runtime evidence.
 - HAProxy source: https://github.com/haproxy/haproxy
 
 Repository source pins for clean-clone builds are centralized in
-`modules/ModSecurity-test-Framework/ci/common.sh`. The current compile and
-runtime flow is documented in `COMPILE_HAPROXY.md`.
+`modules/ModSecurity-test-Framework/ci/common.sh`. The standard compile and
+runtime flow is documented in `COMPILE_HAPROXY.md`. The separate
+full-lifecycle HTX observer is pinned to HAProxy 3.2.21 and copied into a
+disposable worktree; that source selection does not turn the observer into an
+enforcement or capability-promotion path.

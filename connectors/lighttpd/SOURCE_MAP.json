@@ -14,7 +14,7 @@
   "repo_owned_files": [
     {
       "path": "connectors/lighttpd/capabilities.json",
-      "role": "canonical host-model and per-capability state declaration; response-header Phase 3 remains implemented but not asserted"
+      "role": "canonical stock host-model and per-capability state declaration; the full-lifecycle profile uses a run-local patched-native overlay without promotion"
     },
     {
       "path": "connectors/lighttpd/module/mod_msconnector.c",
@@ -74,7 +74,7 @@
     },
     {
       "path": "connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh",
-      "role": "isolated patched-host Phase-1 smoke selected only by the non-promoted full-lifecycle profile; not generic stock No-CRS or Phase-4 evidence"
+      "role": "isolated patched-host Phase-1 smoke selected through full-lifecycle-lighttpd-patched; not generic stock No-CRS, body, or Phase-4 evidence"
     },
     {
       "path": "connectors/lighttpd/metadata.c",
@@ -112,7 +112,8 @@
     "real request-free lighttpd start and clean stop",
     "real lighttpd baseline OPTIONS-star HTTP 200",
     "real Phase-1 rule 1000001 HTTP 403 through the native module",
-    "JSONL connector and rule metadata without body payload fields"
+    "JSONL connector and rule metadata without body payload fields",
+    "isolated patched lighttpd 1.4.84 core/module load and the same narrow Phase-1 host route without capability promotion"
   ],
   "unsupported_or_unverified": [
     "request body mapping and Phase 2",
@@ -123,5 +124,5 @@
     "full runtime matrix"
   ],
   "verification_status": "partial_runtime_path",
-  "claim_boundary": "minimal_runtime_smoke applies only to the native request/response header path and Phase-1 deny"
+  "claim_boundary": "minimal_runtime_smoke applies only to the stock native request/response header path and Phase-1 deny; full-lifecycle-lighttpd-patched separately selects a matched patched host but remains non-promoted"
 }

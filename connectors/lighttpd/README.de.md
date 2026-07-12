@@ -51,7 +51,9 @@ msconnector.config-file = "/absoluter/pfad/msconnector-runtime.conf"
 Die referenzierte Common-Runtime-Datei verwendet `key=value`. Sie bildet unter
 anderem Regelquellen, Transaction-ID, Body-Modi und Limits, Block-/Fehlerstatus,
 Event-Pfad und Header-Limits ab. Für den aktuellen nativen Phase-1-Pfad müssen
-beide Body-Modi `none` sein.
+beide Body-Modi `none` sein. Der vom Full-Lifecycle-Profil separat gewählte
+gepatchte Host verwendet im isolierten Smoke ebenfalls beide Modi als `none`;
+er promotet daher weder Request- noch Response-Body-Streaming.
 
 `config/lighttpd-native.conf` ist ein Beispiel; seine beiden absoluten
 Platzhalterpfade müssen ersetzt werden. Der native Harness erzeugt selbst eine

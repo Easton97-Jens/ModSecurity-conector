@@ -40,6 +40,14 @@ The framework-facing entrypoint does not run decision-service starter self-tests
 as runtime evidence. Missing explicitly local runtime dependencies remain
 BLOCKED/77.
 
+The full-lifecycle dispatcher does not reuse this `forwardAuth` compatibility
+entrypoint. It invokes `runtime-smoke-traefik-native` through
+`full-lifecycle-traefik-native`, which stages `native_middleware/` in an
+isolated pinned Traefik local-plugin workspace and verifies host loading plus
+body-bearing router traffic. The checked-in engine is `PassthroughEngine`, so
+that evidence remains non-promoted and cannot stand in for rule evaluation,
+enforcement, or response-lifecycle behavior.
+
 Future harness work must document:
 
 - Traefik binary, container, or source-build used by the harness

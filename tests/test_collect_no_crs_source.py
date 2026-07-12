@@ -15,6 +15,14 @@ assert SPEC is not None and SPEC.loader is not None
 collector = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(collector)
 
+FRAMEWORK_SPEC = importlib.util.spec_from_file_location(
+    "framework_no_crs_baseline",
+    ROOT / "modules/ModSecurity-test-Framework/ci/no_crs_baseline.py",
+)
+assert FRAMEWORK_SPEC is not None and FRAMEWORK_SPEC.loader is not None
+framework_baseline = importlib.util.module_from_spec(FRAMEWORK_SPEC)
+FRAMEWORK_SPEC.loader.exec_module(framework_baseline)
+
 TRAEFIK_SPEC = importlib.util.spec_from_file_location(
     "traefik_runtime_smoke", ROOT / "connectors/traefik/scripts/runtime_smoke.py"
 )
@@ -130,7 +138,9 @@ class CollectNoCrsSourceTest(unittest.TestCase):
 
     def test_native_htx_observer_metadata_is_payload_free(self) -> None:
         record = {
+            "connector": "haproxy",
             "event": "htx_observed_intervention",
+            "message_id": "HAPROXY_HTX_OBSERVED_INTERVENTION",
             "integration_mode": "native_htx_filter",
             "evaluation_mode": "observer_nonpromoted",
             "rule_evaluation": "libmodsecurity_observed",
@@ -138,6 +148,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "case": "phase4",
             "phase": 4,
             "rule_id": 910004,
+            "status": "not_attempted",
             "requested_action": "deny",
             "host_action": "not_attempted",
             "observed_client_status": 200,
@@ -146,6 +157,16 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         evidence = collector.event_evidence([], "910004", [record])
         self.assertTrue(evidence["body_payload_absent_from_events"])
         self.assertEqual([], evidence["forbidden_event_keys"])
+        canonical_event = collector.sanitized_event(record)
+        self.assertEqual(canonical_event["connector"], "haproxy")
+        self.assertEqual(canonical_event["status"], "not_attempted")
+        self.assertEqual(
+            [],
+            framework_baseline.canonical_event_errors(
+                canonical_event,
+                connector="haproxy",
+            ),
+        )
 
     def test_phase4_aliases_are_projected_without_status_conflation(self) -> None:
         event = collector.sanitized_event(

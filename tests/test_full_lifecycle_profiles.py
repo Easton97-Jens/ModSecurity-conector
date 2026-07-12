@@ -31,6 +31,7 @@ class FullLifecycleProfilesTest(unittest.TestCase):
                     "phase2",
                     "phase3",
                     "phase4",
+                    "deny",
                     "request_headers",
                     "request_body_incremental_ingest",
                     "response_headers",
@@ -68,6 +69,15 @@ class FullLifecycleProfilesTest(unittest.TestCase):
                 result["capabilities"]["phase4"]["state"],
             )
             self.assertNotEqual("verified", result["capabilities"]["phase1"]["state"])
+
+    def test_patched_lighttpd_keeps_observed_phase1_deny_selectable(self) -> None:
+        result = profiles.effective_manifest(
+            self.capability_manifest("lighttpd"), profiles.PROFILE_BY_CONNECTOR["lighttpd"]
+        )
+        self.assertEqual(
+            "implemented_not_asserted",
+            result["capabilities"]["deny"]["state"],
+        )
 
     def test_wrong_connector_profile_is_rejected_and_write_is_atomic(self) -> None:
         payload = self.capability_manifest("envoy")

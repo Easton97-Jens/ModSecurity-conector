@@ -1,9 +1,9 @@
 # Reference local-plugin registration for the repository-owned Go middleware.
 #
-# The full-lifecycle host probe stages the module under a disposable local
-# plugin workspace and materializes an equivalent pinned-host configuration.
-# This checked-in shape remains separate from forwardAuth and does not provide
-# a Common/libmodsecurity bridge or promote any capability.
+# The full-lifecycle-traefik-native target stages the module under a disposable
+# local-plugin workspace and materializes an equivalent pinned-host
+# configuration. This checked-in shape remains separate from forwardAuth and
+# does not provide a Common/libmodsecurity bridge or promote any capability.
 experimental:
   localPlugins:
     modsecurityNative:

@@ -2,9 +2,9 @@
 #
 # This is intentionally separate from traefik-forwardauth-dynamic.yaml.  It
 # assumes a Traefik local-plugin registration named "modsecurityNative". The
-# full-lifecycle host probe stages the source and materializes an equivalent
-# disposable configuration for pinned Traefik. Its PassthroughEngine has no
-# Common/libmodsecurity bridge and does not promote rule capabilities.
+# full-lifecycle-traefik-native target stages the source and materializes an
+# equivalent disposable configuration for pinned Traefik. Its PassthroughEngine
+# has no Common/libmodsecurity bridge and does not promote rule capabilities.
 http:
   middlewares:
     modsecurity-native-streaming:

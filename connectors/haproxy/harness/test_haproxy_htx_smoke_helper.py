@@ -47,6 +47,9 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
                 0,
             )
             record = json.loads(events.read_text(encoding="utf-8"))
+            self.assertEqual(record["connector"], "haproxy")
+            self.assertEqual(record["message_id"], "HAPROXY_HTX_OBSERVED_INTERVENTION")
+            self.assertEqual(record["status"], "not_attempted")
             self.assertEqual(record["integration_mode"], "native_htx_filter")
             self.assertEqual(record["evaluation_mode"], "observer_nonpromoted")
             self.assertFalse(record["payload_recorded"])

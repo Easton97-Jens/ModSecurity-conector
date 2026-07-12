@@ -15,8 +15,8 @@ ModSecurity Envoy connector is implemented here.
 - https://github.com/envoyproxy/go-control-plane/tree/main/envoy/service/ext_proc/v3
 
 The standard repository-backed runtime path remains the C HTTP `ext_authz`
-service. The full-lifecycle profile separately selects the Go `ext_proc`
-service against the pinned official generated API and a real Envoy listener.
-That host run proves streamed transport/callback delivery only: it has no
-Common/libmodsecurity bridge, rule evaluation, reset, timeout, or production
-compatibility evidence.
+service. The full-lifecycle profile separately dispatches `ext_proc` through
+`full-lifecycle-envoy-ext-proc` against the pinned official generated API and a
+real Envoy listener. That host run proves streamed transport/callback delivery
+only: it has no Common/libmodsecurity bridge, rule evaluation, reset, timeout,
+or production compatibility evidence.

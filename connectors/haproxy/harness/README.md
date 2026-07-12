@@ -14,6 +14,14 @@ observed status, writes per-case `result.json`, appends
 `haproxy-results.jsonl`, and emits the standard
 `{ "haproxy": { "summary": ..., "cases": ... } }` summary JSON.
 
+The full-lifecycle dispatcher deliberately does not reuse this SPOA/SPOP
+compatibility entrypoint. It invokes `runtime-smoke-haproxy-htx` through
+`full-lifecycle-haproxy-htx`, which builds a disposable patched HAProxy 3.2.21
+worktree and selects only `filter modsecurity-htx`. That observer records
+payload-free P1-P4 transport metadata while returning the upstream response;
+it is not enforcement, safe/strict late-action, first-byte, or capability-
+promotion evidence.
+
 The framework can prepare a local HAProxy binary without global installation
 through `modules/ModSecurity-test-Framework/ci/prepare-haproxy-runtime.sh`.
 HAProxy `3.2.19` is pinned only in framework `ci/common.sh`; its official

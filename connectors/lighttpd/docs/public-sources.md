@@ -11,6 +11,11 @@ copied into this connector directory.
 - https://github.com/lighttpd/lighttpd1.4
 - https://redmine.lighttpd.net/projects/1/wiki/Docs_ModMagnet
 
+The full-lifecycle profile separately selects a copied, patched 1.4.84 host
+through `full-lifecycle-lighttpd-patched`. The patch is repository-owned and
+the disposable source tree is not an imported connector implementation; its
+Phase-1 host route remains non-promoted.
+
 Any future source import must be documented through
 `connectors/lighttpd/ORIGIN.md`, `connectors/lighttpd/SOURCE_MAP.json`, and the
 global connector gates in

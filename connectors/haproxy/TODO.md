@@ -5,6 +5,12 @@ Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 
 Canonical capability source: `connectors/haproxy/capabilities.json`.
 
+The standard compatibility path remains HAProxy/SPOA/SPOP. The separate
+full-lifecycle profile dispatches `native-htx-filter` through
+`full-lifecycle-haproxy-htx` into a patched HAProxy 3.2.21 observer. Its
+P1-P4 metadata observations are intentionally non-promoted and do not change
+the SPOP enforcement or response-body capability declaration.
+
 Earlier YAML matrix counts remain legacy evidence only. They are not reused as
 the canonical No-CRS result for this branch, and no current PASS count is
 asserted without a new run under `$EVIDENCE_ROOT/haproxy/<run-id>/`.

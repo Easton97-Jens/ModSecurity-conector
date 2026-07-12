@@ -5,6 +5,11 @@ This directory is a pinned Go implementation of Envoy's official
 from the existing C `ext_authz` service and does not change that selected,
 runtime-evidenced request-only path.
 
+The canonical full-lifecycle dispatcher selects this service through
+`full-lifecycle-envoy-ext-proc`; it does not fall through to the standard
+`ext_authz` compatibility runner. That target establishes a real listener and
+stream-callback route only, with no rule-action or capability promotion.
+
 ## What is implemented here
 
 - one independent `streamState` and transaction seam per gRPC `Process` call;

@@ -27,11 +27,11 @@ Common helpers:
 
 The `forwardAuth` path remains the request-only compatibility path. The
 repository-owned Go middleware under `native_middleware/` is selected by the
-full-lifecycle runner through Traefik's local-plugin workspace, but it still
-uses `PassthroughEngine`. That real host probe proves plugin loading and router
-traffic only; it does not change rule-evaluation, response-intervention, or
-verification state. Upstream response headers and bodies remain unsupported in
-the `forwardAuth` compatibility protocol.
+`full-lifecycle-traefik-native` target through Traefik's local-plugin
+workspace, but it still uses `PassthroughEngine`. That real host probe proves
+plugin loading and router traffic only; it does not change rule-evaluation,
+response-intervention, or verification state. Upstream response headers and
+bodies remain unsupported in the `forwardAuth` compatibility protocol.
 
 ## Native Go streaming host probe (non-promoted)
 

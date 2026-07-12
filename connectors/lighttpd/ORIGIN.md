@@ -23,13 +23,14 @@ libmodsecurity installation.
 | Native output | `mod_msconnector.so` |
 | Runtime status | stock `minimal_runtime_smoke` plus a full-lifecycle-selected patched Phase-1 host probe |
 
-The full-lifecycle profile selects a separate patched-host target that creates
-a copied 1.4.84 source tree, out-of-source core build, staged binary and staged
-ABI-matched module below the managed build root. It records the local patch
-SHA-256 and binary/module hashes before a real `lighttpd -tt` load. This is
-still only a narrow Phase-1 build/load/runtime path: the patch's response
-callback observes HTTP/1.x wire output and is not a decoded response-body
-integration, so the result is non-promoted.
+The full-lifecycle profile selects `patched-native` through
+`full-lifecycle-lighttpd-patched`. That target creates a copied 1.4.84 source
+tree, out-of-source core build, staged binary and staged ABI-matched module
+below the managed build root. It records the local patch SHA-256 and
+binary/module hashes before a real `lighttpd -tt` load. This is still only a
+narrow Phase-1 build/load/runtime path: the host smoke uses both body modes as
+`none`, and the patch's response callback observes HTTP/1.x wire output rather
+than a decoded response-body integration, so the result is non-promoted.
 
 The committed connector source does not copy lighttpd implementation code or
 headers. Public host API references are listed in `docs/public-sources.md`.

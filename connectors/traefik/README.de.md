@@ -12,8 +12,9 @@ Daneben existiert unter `native_middleware/` ein repo-eigenes Go-Middleware-
 Quellmodul. Es verarbeitet begrenzte Request- und Response-Chunks über einen
 expliziten `PassthroughEngine`, puffert keine ganze Response und erhält
 `Flush`, `Hijack`, `Push` sowie `ReadFrom`. Der Full-Lifecycle-Runner staged es
-in Traefiks echten `plugins-local`-Workspace, lädt es im gepinnten Host und
-sendet einen body-tragenden Request durch einen Router mit dieser Middleware.
+über `full-lifecycle-traefik-native` in Traefiks echten `plugins-local`-
+Workspace, lädt es im gepinnten Host und sendet einen body-tragenden Request
+durch einen Router mit dieser Middleware.
 Das ist ausschließlich eine Host-Auswahlprobe: `PassthroughEngine` ruft weder
 Common noch libmodsecurity auf und promotet keine P1–P4-, Safe-, Strict-,
 First-Byte- oder No-Full-Buffer-Capability. Der C-`forwardAuth`-Pfad bleibt

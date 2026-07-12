@@ -9,12 +9,16 @@
     "connectors/lighttpd/config/lighttpd-native.conf",
     "connectors/lighttpd/module/mod_msconnector.c",
     "connectors/lighttpd/src/lighttpd_modsecurity_mapper.c",
-    "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh"
+    "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
+    "connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch",
+    "connectors/lighttpd/build/build_patched_host.sh",
+    "connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh"
   ],
   "host_model_constraints": [
     "The native plugin deliberately rejects non-none request and response body modes until safe lighttpd body hooks, limits, buffering, and intervention timing are implemented.",
     "The response-header mapper is called from handle_response_start, but source wiring alone is not Phase-3 behavioral verification.",
-    "The legacy bridge and starter self-tests are separate from native mod_msconnector.so host-runtime evidence."
+    "The legacy bridge and starter self-tests are separate from native mod_msconnector.so host-runtime evidence.",
+    "The full-lifecycle profile separately selects patched-native through full-lifecycle-lighttpd-patched: a matched lighttpd 1.4.84 core/module host smoke with both body modes disabled and no capability promotion."
   ],
   "capabilities": {
     "connection_metadata": {
