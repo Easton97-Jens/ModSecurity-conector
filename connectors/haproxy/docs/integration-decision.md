@@ -25,7 +25,7 @@ HAProxy -> SPOE/SPOP -> haproxy-modsecurity-spoa -> libmodsecurity
 
 | Alternative | Current decision |
 | --- | --- |
-| Native HAProxy filter or extension | The separate `full-lifecycle-haproxy-htx` profile selects a HAProxy 3.2.21 HTX precommit route with isolated real-host P1–P4 transport evidence. It proves canonical P1/P3 replies but leaves P2/P4 observer-only and has no capability-promotion evidence. |
+| Native HAProxy filter or extension | The separate `full-lifecycle-haproxy-htx` profile selects a HAProxy 3.2.21 HTX route with isolated P1–P4 transport evidence. It proves canonical P1/P3 replies; its one-block P2 probe returns a client 403 and records zero or one observed upstream requests without proving their ordering or incremental forwarding. P4 Safe records `log_only`. Strict has no client-visible abort proof and the route has no capability-promotion evidence. |
 | Lua integration | Deferred. Not proven for full ModSecurity lifecycle. |
 | External HTTP sidecar | Deferred. The implemented path uses SPOE/SPOP instead. |
 

@@ -16,6 +16,7 @@
 
 #include "common/runtime/msconnector_runtime.h"
 #include "connectors/lighttpd/src/lighttpd_modsecurity_mapper.h"
+#include "msconnector/late_intervention.h"
 
 typedef struct {
     int enabled;
@@ -33,6 +34,7 @@ typedef struct {
     unsigned long host_transaction_counter;
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     int request_body_hooks_enabled;
+    int response_body_hooks_enabled;
 #endif
 } plugin_data;
 
@@ -49,6 +51,7 @@ typedef struct {
     int response_body_finished;
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     off_t request_body_next_offset;
+    off_t response_body_next_offset;
 #endif
 } handler_ctx;
 
@@ -69,9 +72,8 @@ static handler_t mod_msconnector_handle_request_body(
     void *p_d);
 static plugin_body_hook_result mod_msconnector_handle_response_body(
     request_st *r,
-    const chunkqueue *queue,
-    off_t queue_offset,
-    off_t length,
+    const unsigned char *data,
+    size_t length,
     off_t stream_offset,
     int eos,
     void *p_d);
@@ -220,17 +222,20 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
     request_body_mode = msconnector_runtime_request_body_mode(p->runtime);
     response_body_mode = msconnector_runtime_response_body_mode(p->runtime);
     if (request_body_mode == MSCONNECTOR_BODY_MODE_BUFFERED ||
-        response_body_mode != MSCONNECTOR_BODY_MODE_NONE) {
+        (response_body_mode != MSCONNECTOR_BODY_MODE_NONE &&
+         response_body_mode != MSCONNECTOR_BODY_MODE_STREAMING)) {
         log_error(
             srv->errh,
             __FILE__,
             __LINE__,
-            "patched lighttpd module requires request_body_mode=none or streaming and response_body_mode=none (HTTP/1.x output hooks expose wire bytes, not a decoded response entity)");
+            "patched lighttpd module requires request_body_mode=none or streaming and response_body_mode=none or streaming");
         msconnector_runtime_destroy(&p->runtime);
         return HANDLER_ERROR;
     }
     p->request_body_hooks_enabled =
         request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING;
+    p->response_body_hooks_enabled =
+        response_body_mode == MSCONNECTOR_BODY_MODE_STREAMING;
 #else
     msconnector_runtime_request_contract(p->runtime, &request_contract);
     msconnector_runtime_response_contract(p->runtime, &response_contract);
@@ -495,31 +500,146 @@ static handler_t mod_msconnector_handle_request_body(
     return eos ? mod_msconnector_finish_request_body(r, p, ctx) : HANDLER_GO_ON;
 }
 
+static int mod_msconnector_response_headers_committed(
+        const request_st *r) {
+    return r != NULL && r->resp_header_len > 0U &&
+        r->write_queue.bytes_out >= (off_t)r->resp_header_len;
+}
+
+static int mod_msconnector_response_body_committed(
+        const request_st *r) {
+    return r != NULL && r->resp_header_len > 0U &&
+        r->write_queue.bytes_out > (off_t)r->resp_header_len;
+}
+
+static plugin_body_hook_result mod_msconnector_finish_response_body(
+        request_st *r,
+        plugin_data *p,
+        handler_ctx *ctx) {
+    msconnector_decision decision;
+    msconnector_error runtime_error;
+    msconnector_late_intervention_policy policy;
+    msconnector_late_intervention_action action;
+    const int headers_committed = mod_msconnector_response_headers_committed(r);
+    const int body_committed = mod_msconnector_response_body_committed(r);
+    const enum msconnector_phase4_mode phase4_mode =
+        msconnector_runtime_phase4_mode(p->runtime);
+
+    if (ctx->response_body_finished) {
+        return PLUGIN_BODY_HOOK_CONTINUE;
+    }
+    msconnector_runtime_transaction_set_response_commit_state(
+        ctx->transaction, headers_committed, body_committed);
+    msconnector_decision_init(&decision);
+    msconnector_error_init(&runtime_error);
+    if (!msconnector_runtime_transaction_finish_response_body(
+            ctx->transaction,
+            &decision,
+            &runtime_error)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector response-body finalization failed: %s",
+            msconnector_error_code_name(runtime_error.code));
+        return PLUGIN_BODY_HOOK_ERROR;
+    }
+    ctx->response_body_finished = 1;
+    if (!msconnector_decision_is_disruptive(&decision)) {
+        return PLUGIN_BODY_HOOK_CONTINUE;
+    }
+
+    msconnector_late_intervention_policy_init(&policy);
+    action = msconnector_late_intervention_resolve(
+        &policy,
+        headers_committed,
+        body_committed,
+        phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);
+
+    if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION) {
+        /* The 1.4.84 entity hook can identify the policy point, but this
+         * connector does not yet have a client-validated abort primitive.
+         * Do not turn a local callback result into a claimed transport abort.
+         * Strict remains NOT EXECUTED until the dedicated real-client harness
+         * proves a committed first byte, incomplete body, host survival, and
+         * a separate follow-up request. */
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector strict Phase-4 intervention is NOT EXECUTED: lighttpd 1.4.84 entity hook has no client-validated connection-abort evidence");
+        return PLUGIN_BODY_HOOK_CONTINUE;
+    }
+
+    /* `deny_if_possible` has the same evidence boundary here: the body can
+     * already be queued when EOS is delivered.  Preserve the visible response
+     * and record the real safe downgrade instead of fabricating a late 403. */
+    msconnector_error_init(&runtime_error);
+    if (!msconnector_runtime_transaction_record_host_action(
+            ctx->transaction,
+            &decision,
+            MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
+            r->http_status >= 100 && r->http_status <= 599 ? r->http_status : 200,
+            "log_only",
+            0,
+            &runtime_error)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector Phase-4 log-only host action was not recorded: %s",
+            msconnector_error_code_name(runtime_error.code));
+        return PLUGIN_BODY_HOOK_ERROR;
+    }
+    return PLUGIN_BODY_HOOK_CONTINUE;
+}
+
 static plugin_body_hook_result mod_msconnector_handle_response_body(
         request_st *r,
-        const chunkqueue *queue,
-        off_t queue_offset,
-        off_t length,
+        const unsigned char *data,
+        size_t length,
         off_t stream_offset,
         int eos,
         void *p_d) {
-    /*
-     * The local core patch invokes this at the HTTP/1.x socket-write stage.
-     * That queue can contain transfer framing, so it is intentionally not a
-     * Common response-body ingestion path.  Keep the callback registered to
-     * exercise the patched ABI, but never turn wire ranges or EOS into Phase
-     * 4 processing.  The supported `none` mode does not call the runtime
-     * response-body finish API at reset either: no decoded entity was ever
-     * supplied to that lifecycle.
-     */
-    (void)r;
-    (void)queue;
-    (void)queue_offset;
-    (void)length;
-    (void)stream_offset;
-    (void)eos;
-    (void)p_d;
-    return PLUGIN_BODY_HOOK_CONTINUE;
+    plugin_data *p = p_d;
+    handler_ctx *ctx = r->plugin_ctx[p->id];
+    msconnector_error runtime_error;
+
+    if (!p->response_body_hooks_enabled || ctx == NULL ||
+        ctx->transaction == NULL || ctx->request_intervened ||
+        ctx->response_body_finished) {
+        return PLUGIN_BODY_HOOK_CONTINUE;
+    }
+    if (!ctx->response_processed || stream_offset != ctx->response_body_next_offset ||
+        (length > 0U && data == NULL)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector entity-body hook received an invalid or non-contiguous range");
+        return PLUGIN_BODY_HOOK_ERROR;
+    }
+    msconnector_runtime_transaction_set_response_commit_state(
+        ctx->transaction,
+        mod_msconnector_response_headers_committed(r),
+        mod_msconnector_response_body_committed(r));
+    msconnector_error_init(&runtime_error);
+    if (length > 0U && !msconnector_runtime_transaction_append_response_body_chunk(
+            ctx->transaction,
+            data,
+            length,
+            &runtime_error)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector entity-body append failed: %s",
+            msconnector_error_code_name(runtime_error.code));
+        return PLUGIN_BODY_HOOK_ERROR;
+    }
+    ctx->response_body_next_offset += (off_t)length;
+    return eos ? mod_msconnector_finish_response_body(r, p, ctx)
+               : PLUGIN_BODY_HOOK_CONTINUE;
 }
 
 #endif
@@ -733,6 +853,28 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
         return HANDLER_GO_ON;
     }
     if (ctx->transaction != NULL) {
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+        if (!p->response_body_hooks_enabled &&
+            ctx->response_processed && !ctx->response_body_finished &&
+            mod_msconnector_finish_uninspected_response_body(r, ctx) != HANDLER_GO_ON) {
+            log_error(
+                r->conf.errh,
+                __FILE__,
+                __LINE__,
+                "msconnector could not complete unobserved response lifecycle before reset");
+        }
+        else if (p->response_body_hooks_enabled &&
+                 ctx->response_processed && !ctx->response_body_finished) {
+            /* A disconnect/reset did not reach the entity EOS callback.  Do
+             * not synthesize Phase-4 completion from request reset; destroy
+             * the transaction after Common's bounded cleanup attempt. */
+            log_error(
+                r->conf.errh,
+                __FILE__,
+                __LINE__,
+                "msconnector entity-body lifecycle ended without EOS; no synthetic Phase-4 finalization was emitted");
+        }
+#else
         if (ctx->response_processed && !ctx->response_body_finished &&
             mod_msconnector_finish_uninspected_response_body(r, ctx) != HANDLER_GO_ON) {
             log_error(
@@ -741,6 +883,7 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
                 __LINE__,
                 "msconnector could not complete unobserved response lifecycle before reset");
         }
+#endif
         msconnector_error_init(&runtime_error);
         if (!msconnector_runtime_transaction_finish(
                 ctx->transaction,

@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-11T12:50:57Z`
+> Generated at: `2026-07-12T13:40:05Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/connector_capabilities.py`
 > Make target: `capabilities-all-connectors`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `062e5ef84bcb3e385ac7b5335129eb578fe30833`
-> Framework SHA: `2414515b17b7853061009f7e8a15563160ba5946`
+> Connector SHA: `3315963a5616f666e52ebbf9e53f79494f93d9cb`
+> Framework SHA: `088e520052dcdb25ffa2d29bebcdf20ba0e066eb`
 > Input status: `complete`
 
 # Canonical connector capabilities
@@ -37,7 +37,7 @@ This file is rendered deterministically from the six connector-local manifests. 
 | `phase4` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `phase4_rule_evaluation` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `phase4_end_of_stream_evaluation` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
-| `phase4_pre_commit_deny` | `implemented_not_asserted` | `not_implemented` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
+| `phase4_pre_commit_deny` | `not_implemented` | `not_implemented` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `late_intervention` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `late_intervention_log_only` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `late_intervention_abort` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
@@ -53,6 +53,21 @@ This file is rendered deterministically from the six connector-local manifests. 
 | `keep_alive` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` |
 | `parallel_requests` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
 | `http2` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `unsupported_by_host_model` |
+| `http2_downstream` | `not_implemented` | `implemented_not_asserted` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `http2_upstream` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `http2_tls_alpn` | `not_implemented` | `implemented_not_asserted` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `http2_cleartext_h2c` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `http2_multiplexing` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `http2_stream_reset` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `http3_downstream` | `not_implemented` | `implemented_not_asserted` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `http3_upstream` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `http3_quic` | `not_implemented` | `implemented_not_asserted` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `http3_alt_svc` | `not_implemented` | `implemented_not_asserted` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `http3_multiplexing` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `http3_stream_reset` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `protocol_transaction_isolation` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `protocol_first_byte_before_response_end` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
+| `protocol_no_full_response_buffering` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
 | `client_abort` | `not_implemented` | `not_implemented` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `upstream_abort` | `not_implemented` | `not_implemented` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `response_body_decompression` | `not_implemented` | `not_implemented` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
@@ -114,7 +129,7 @@ Host-model constraints:
 | `phase4` | `implemented_not_asserted` | The output filter incrementally ingests current body buckets and invokes response-body processing once at EOS; canonical Phase-4 evidence is pending. |
 | `phase4_rule_evaluation` | `implemented_not_asserted` | The native output-filter path is wired for incremental ingestion and EOS response-body processing, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated. |
 | `phase4_end_of_stream_evaluation` | `implemented_not_asserted` | The output filter invokes response-body processing once after its EOS bucket; canonical Phase-4 evidence is pending. |
-| `phase4_pre_commit_deny` | `implemented_not_asserted` | The output-filter intervention path has a denial branch, but no current canonical evidence proves a Phase-4 deny before response commitment with a changed visible client status. |
+| `phase4_pre_commit_deny` | `not_implemented` | The native response-body decision is finalized at EOS after the response-header path. The real host run reaches the safe late log_only path after commitment, so this connector has no deterministic pre-commit Phase-4 decision point and must not claim a visible Phase-4 HTTP status rewrite. |
 | `late_intervention` | `implemented_not_asserted` | Phase-4 minimal, safe, and strict policy branches distinguish log-only, status denial, and post-commit connection abort; behavioral evidence is pending. |
 | `late_intervention_log_only` | `implemented_not_asserted` | The configured safe late-intervention branch is intended to preserve the committed response and record a log-only result, but no canonical event proves requested deny, actual log_only, and an unchanged visible status. |
 | `late_intervention_abort` | `implemented_not_asserted` | The configured strict late-intervention branch has a controlled connection-abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true. |
@@ -130,6 +145,21 @@ Host-model constraints:
 | `keep_alive` | `configured_not_exercised` | No canonical sequential-request keep-alive run is attached. |
 | `parallel_requests` | `not_implemented` | The full-lifecycle parallel-request evidence path is not implemented. |
 | `http2` | `configured_not_exercised` | No Apache HTTP/2 full-lifecycle run is attached. |
+| `http2_downstream` | `not_implemented` | The pinned Apache native-host profile does not yet build and exercise mod_http2 on the connector path. |
+| `http2_upstream` | `not_implemented` | No Apache native connector upstream HTTP/2 profile is implemented. |
+| `http2_tls_alpn` | `not_implemented` | The pinned Apache harness has no TLS/ALPN h2 listener. |
+| `http2_cleartext_h2c` | `not_implemented` | The pinned Apache harness has no h2c prior-knowledge listener. |
+| `http2_multiplexing` | `not_implemented` | No native Apache HTTP/2 multiplexing isolation evidence path is implemented. |
+| `http2_stream_reset` | `not_implemented` | The Apache strict path only models a connection abort; no request-local HTTP/2 stream-reset API is implemented. |
+| `http3_downstream` | `not_implemented` | The pinned Apache native host has no audited HTTP/3 module, QUIC listener, or H3 stream path. |
+| `http3_upstream` | `not_implemented` | No Apache native connector upstream HTTP/3 profile is implemented. |
+| `http3_quic` | `not_implemented` | The pinned Apache native host has no QUIC runtime path. |
+| `http3_alt_svc` | `not_implemented` | No native Apache HTTP/3 Alt-Svc profile is configured. |
+| `http3_multiplexing` | `not_implemented` | No native Apache HTTP/3 stream-isolation evidence path is implemented. |
+| `http3_stream_reset` | `not_implemented` | No Apache H3 stream-reset API has been audited or wired. |
+| `protocol_transaction_isolation` | `not_implemented` | Protocol-specific multiplexed transaction-isolation evidence is not implemented. |
+| `protocol_first_byte_before_response_end` | `not_implemented` | The existing first-byte proof is HTTP/1.1-only and is not protocol-profile evidence. |
+| `protocol_no_full_response_buffering` | `not_implemented` | The existing no-buffer reasoning is not yet proven separately for a negotiated modern protocol. |
 | `client_abort` | `not_implemented` | No canonical Apache client-abort lifecycle case is implemented. |
 | `upstream_abort` | `not_implemented` | No canonical Apache upstream-abort lifecycle case is implemented. |
 | `response_body_decompression` | `not_implemented` | The connector has no verified response-body decompression contract. |
@@ -190,7 +220,22 @@ Host-model constraints:
 | `http1_chunked` | `configured_not_exercised` | The body-filter path can receive HTTP/1.1 chunked response buffers, but no canonical transport result is attached. |
 | `keep_alive` | `configured_not_exercised` | No canonical sequential-request keep-alive run is attached to the native module. |
 | `parallel_requests` | `not_implemented` | The canonical parallel full-lifecycle isolation evidence path is not implemented for this connector. |
-| `http2` | `configured_not_exercised` | The module can be built into an HTTP/2-capable NGINX host, but no canonical HTTP/2 lifecycle evidence is attached. |
+| `http2` | `configured_not_exercised` | The module can be built into an HTTP/2-capable NGINX host, but the currently pinned canonical host was configured without --with-http_v2_module. No applicable HTTP/2 lifecycle case is attached. |
+| `http2_downstream` | `implemented_not_asserted` | The managed NGINX protocol build profile can enable the native HTTP/2 module, but no forced negotiated connector run is attached. |
+| `http2_upstream` | `not_implemented` | No native NGINX connector upstream HTTP/2 matrix is implemented. |
+| `http2_tls_alpn` | `implemented_not_asserted` | The managed protocol profile can configure TLS and h2 ALPN, but no negotiated client evidence is attached. |
+| `http2_cleartext_h2c` | `not_implemented` | No h2c prior-knowledge listener profile is implemented for the native NGINX harness. |
+| `http2_multiplexing` | `not_implemented` | No HTTP/2 parallel-stream transaction-isolation runner is implemented. |
+| `http2_stream_reset` | `not_implemented` | The current strict filter marks a connection error; it does not prove a stream-local HTTP/2 reset. |
+| `http3_downstream` | `implemented_not_asserted` | The managed NGINX protocol profile has an explicit HTTP/3/QUIC build path, but no forced H3 client evidence is attached. |
+| `http3_upstream` | `not_implemented` | No native NGINX connector upstream HTTP/3 matrix is implemented. |
+| `http3_quic` | `implemented_not_asserted` | The managed profile records a QUIC-capable TLS build input, but it is not runtime QUIC evidence. |
+| `http3_alt_svc` | `implemented_not_asserted` | The managed H3 listener template can advertise Alt-Svc, but no forced H3 observation is attached. |
+| `http3_multiplexing` | `not_implemented` | No HTTP/3 parallel-stream transaction-isolation runner is implemented. |
+| `http3_stream_reset` | `not_implemented` | The current strict path has no proven QUIC stream-reset action. |
+| `protocol_transaction_isolation` | `not_implemented` | No negotiated HTTP/2 or HTTP/3 transaction-isolation evidence is implemented. |
+| `protocol_first_byte_before_response_end` | `not_implemented` | The existing synchronized first-byte proof is HTTP/1.1-only. |
+| `protocol_no_full_response_buffering` | `not_implemented` | No negotiated HTTP/2 or HTTP/3 no-full-buffer proof is implemented. |
 | `client_abort` | `not_implemented` | No native NGINX client-abort cleanup case currently records the canonical transport metadata. |
 | `upstream_abort` | `not_implemented` | No native NGINX upstream-abort cleanup case currently records the canonical transport metadata. |
 | `response_body_decompression` | `not_implemented` | The connector has no asserted response-body decompression contract. |
@@ -210,7 +255,7 @@ Host-model constraints:
 - Host: `haproxy`
 - Integration: `spoe-spop-agent`
 - Metadata: `connectors/haproxy/metadata.c`
-- Source contract: `connectors/haproxy/metadata.c`, `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, `connectors/haproxy/src/haproxy_modsecurity_binding.c`, `connectors/haproxy/src/haproxy_modsecurity_mapper.c`, `connectors/haproxy/harness/run_haproxy_smoke.sh`
+- Source contract: `connectors/haproxy/metadata.c`, `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, `connectors/haproxy/src/haproxy_modsecurity_binding.c`, `connectors/haproxy/src/haproxy_modsecurity_mapper.c`, `connectors/haproxy/harness/run_haproxy_smoke.sh`, `connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c`, `connectors/haproxy/htx-overlay/haproxy-3.2.21-makefile.patch`, `connectors/haproxy/harness/run_haproxy_htx_runtime.sh`
 
 Host-model constraints:
 
@@ -218,6 +263,7 @@ Host-model constraints:
 - Response phases run only when the HAProxy configuration sends the corresponding response notification to the agent.
 - The selected SPOE/SPOP configuration sends response headers only; the prior wait-for-body response sample is deliberately disabled because it is not a low-latency response stream.
 - Starter and binding self-tests are not HAProxy host-runtime evidence.
+- The full-lifecycle profile separately selects native-htx-filter through full-lifecycle-haproxy-htx: a patched HAProxy 3.2.21 non-promoted path with real P1/P2/P3 response outcomes and P4 safe log_only evidence. Its one-block P2 probe returns 403 and records zero or one observed upstream requests without proving their ordering; that does not prove incremental request forwarding or a general host-buffering property. P4 Strict has no client-visible abort evidence and remains NOT EXECUTED.
 
 | Capability | State | Canonical reason (from manifest) |
 |---|---|---|
@@ -229,12 +275,12 @@ Host-model constraints:
 | `request_body_incremental_ingest` | `not_implemented` | The current SPOP request message carries one bounded req.body sample rather than incrementally ingested request chunks. |
 | `response_headers` | `implemented_not_asserted` | An optional HAProxy response-check message maps response headers and the agent invokes Phase 3; canonical host evidence is pending. |
 | `response_body_buffered` | `not_implemented` | The selected SPOE/SPOP host configuration deliberately does not send response bodies; the former wait-for-body sample was disabled because it violates the low-latency contract. |
-| `response_body_streaming` | `not_implemented` | The selected SPOE/SPOP configuration has no wired native response-chunk callback or streaming transaction protocol; the optional HTX observer source is nonselected and bodyless-request-only. |
-| `response_body_incremental_ingest` | `not_implemented` | No native HAProxy response-chunk callback is wired into the selected SPOP path; an optional source-only HTX observer exists but explicitly bypasses body-bearing requests. |
+| `response_body_streaming` | `not_implemented` | The selected SPOE/SPOP configuration has no wired native response-chunk callback or streaming transaction protocol. A separate HTX observer is selected only by the non-promoted full-lifecycle profile and does not change this SPOP capability state. |
+| `response_body_incremental_ingest` | `not_implemented` | No native HAProxy response-chunk callback is wired into the selected SPOP path. The separate full-lifecycle HTX observer handles borrowed body chunks/EOS in observer mode, but does not change this SPOP capability state. |
 | `phase1` | `implemented_not_asserted` | The request-check group executes connection, URI, and request-header processing in the agent; canonical evidence is pending. |
 | `phase2` | `implemented_not_asserted` | The agent appends the bounded request body and invokes request-body processing; canonical evidence is pending. |
 | `phase3` | `implemented_not_asserted` | The optional response-check group invokes response-header processing; canonical host evidence is pending. |
-| `phase4` | `not_implemented` | No native HAProxy response-body callback is wired into the selected SPOE/SPOP host configuration; the optional HTX observer source is not selected or canonical evidence. |
+| `phase4` | `not_implemented` | No native HAProxy response-body callback is wired into the selected SPOE/SPOP host configuration. The separate HTX observer is selected only by the non-promoted full-lifecycle profile and does not promote this SPOP capability. |
 | `phase4_rule_evaluation` | `not_implemented` | Without a native HAProxy response-body stream, Phase-4 rule evaluation must not be claimed from the disabled response sample. |
 | `phase4_end_of_stream_evaluation` | `not_implemented` | The selected host configuration has no response-body stream or end-of-stream signal for Phase-4 completion. |
 | `phase4_pre_commit_deny` | `not_implemented` | The current agent emits policy-derived pre-commit fields but the HAProxy host runner does not capture a client-visible Phase-4 deny and actual commitment timing, so this semantic capability is not implemented. |
@@ -253,6 +299,21 @@ Host-model constraints:
 | `keep_alive` | `configured_not_exercised` | No canonical sequential-request keep-alive run is attached to the HAProxy/SPOP path. |
 | `parallel_requests` | `not_implemented` | The HAProxy/SPOP full-lifecycle catalog has no parallel-request evidence path. |
 | `http2` | `configured_not_exercised` | HAProxy HTTP/2 transport behavior is not exercised by a canonical SPOP full-lifecycle case. |
+| `http2_downstream` | `not_implemented` | The pinned native HTX harness has no TLS/ALPN HTTP/2 frontend profile. |
+| `http2_upstream` | `not_implemented` | No HAProxy native HTX upstream HTTP/2 profile is implemented. |
+| `http2_tls_alpn` | `not_implemented` | The pinned HAProxy build and harness do not configure an h2 ALPN listener. |
+| `http2_cleartext_h2c` | `not_implemented` | No HAProxy h2c native connector profile is implemented. |
+| `http2_multiplexing` | `not_implemented` | No HAProxy HTTP/2 stream-isolation evidence path is implemented. |
+| `http2_stream_reset` | `not_implemented` | The HTX filter has no proven HTTP/2 stream-reset action. |
+| `http3_downstream` | `not_implemented` | The pinned HAProxy native HTX build has no configured QUIC/HTTP/3 frontend. |
+| `http3_upstream` | `not_implemented` | No HAProxy native HTX upstream HTTP/3 profile is implemented. |
+| `http3_quic` | `not_implemented` | No pinned HAProxy QUIC runtime build is provisioned. |
+| `http3_alt_svc` | `not_implemented` | No HAProxy HTTP/3 Alt-Svc profile is configured. |
+| `http3_multiplexing` | `not_implemented` | No HAProxy HTTP/3 stream-isolation evidence path is implemented. |
+| `http3_stream_reset` | `not_implemented` | The HTX filter has no proven QUIC stream-reset action. |
+| `protocol_transaction_isolation` | `not_implemented` | No multiplexed protocol transaction-isolation case is implemented. |
+| `protocol_first_byte_before_response_end` | `not_implemented` | No protocol-specific first-byte barrier is implemented. |
+| `protocol_no_full_response_buffering` | `not_implemented` | No protocol-specific no-full-buffer proof is implemented. |
 | `client_abort` | `not_implemented` | No HAProxy/SPOP client-abort lifecycle case or host-observed outcome is implemented. |
 | `upstream_abort` | `not_implemented` | No HAProxy/SPOP upstream-abort lifecycle case or host-observed outcome is implemented. |
 | `response_body_decompression` | `not_implemented` | The selected SPOE/SPOP configuration has no response-body decompression contract. |
@@ -315,6 +376,21 @@ Host-model constraints:
 | `keep_alive` | `configured_not_exercised` | No canonical sequential-request keep-alive run is attached to the Envoy ext_authz path. |
 | `parallel_requests` | `not_implemented` | The Envoy ext_authz full-lifecycle catalog has no parallel-request evidence path. |
 | `http2` | `configured_not_exercised` | Envoy HTTP/2 transport behavior is not exercised by a canonical ext_authz full-lifecycle case. |
+| `http2_downstream` | `not_implemented` | The selected native ext_proc harness has no TLS/ALPN HTTP/2 listener profile. |
+| `http2_upstream` | `not_implemented` | No ext_proc upstream HTTP/2 evidence profile is implemented. |
+| `http2_tls_alpn` | `not_implemented` | No pinned ext_proc TLS/ALPN listener is configured. |
+| `http2_cleartext_h2c` | `not_implemented` | No ext_proc h2c listener is configured. |
+| `http2_multiplexing` | `not_implemented` | No ext_proc HTTP/2 stream-isolation runner is implemented. |
+| `http2_stream_reset` | `not_implemented` | Closing an ext_proc gRPC stream is not a client-visible HTTP/2 reset and no native reset hook is wired. |
+| `http3_downstream` | `not_implemented` | The selected native ext_proc harness has no QUIC/HTTP/3 downstream listener. |
+| `http3_upstream` | `not_implemented` | No ext_proc upstream HTTP/3 evidence profile is implemented. |
+| `http3_quic` | `not_implemented` | No Envoy QUIC listener is configured in the pinned native harness. |
+| `http3_alt_svc` | `not_implemented` | No Envoy H3 Alt-Svc profile is configured. |
+| `http3_multiplexing` | `not_implemented` | No Envoy H3 stream-isolation runner is implemented. |
+| `http3_stream_reset` | `not_implemented` | No client-visible QUIC stream-reset hook is implemented for ext_proc. |
+| `protocol_transaction_isolation` | `not_implemented` | No multiplexed downstream protocol transaction-isolation evidence is implemented. |
+| `protocol_first_byte_before_response_end` | `not_implemented` | No negotiated-protocol first-byte barrier is implemented. |
+| `protocol_no_full_response_buffering` | `not_implemented` | No negotiated-protocol no-full-buffer proof is implemented. |
 | `client_abort` | `unsupported_by_host_model` | The external authorization service cannot observe or directly control an Envoy downstream client-abort lifecycle. |
 | `upstream_abort` | `unsupported_by_host_model` | The pre-upstream authorization service cannot observe or control an upstream response-abort lifecycle. |
 | `response_body_decompression` | `unsupported_by_host_model` | HTTP ext_authz does not receive an upstream response body to decompress. |
@@ -334,7 +410,7 @@ Host-model constraints:
 - Host: `traefik`
 - Integration: `http-forwardauth-service`
 - Metadata: `connectors/traefik/metadata.c`
-- Source contract: `connectors/traefik/metadata.c`, `connectors/traefik/config/traefik-forwardauth-dynamic.yaml`, `connectors/traefik/config/traefik-forwardauth.conf`, `connectors/traefik/src/traefik_forwardauth_service_main.c`, `connectors/traefik/src/traefik_modsecurity_mapper.c`, `connectors/traefik/scripts/runtime_smoke.py`
+- Source contract: `connectors/traefik/metadata.c`, `connectors/traefik/config/traefik-forwardauth-dynamic.yaml`, `connectors/traefik/config/traefik-forwardauth.conf`, `connectors/traefik/src/traefik_forwardauth_service_main.c`, `connectors/traefik/src/traefik_modsecurity_mapper.c`, `connectors/traefik/scripts/runtime_smoke.py`, `connectors/traefik/native_middleware/middleware.go`, `connectors/traefik/native_middleware/.traefik.yml`, `connectors/traefik/config/traefik-native-middleware-dynamic.yaml`, `connectors/traefik/config/traefik-native-middleware-static.yaml`, `connectors/traefik/scripts/runtime-native-middleware.sh`, `connectors/traefik/scripts/runtime_native_smoke.py`
 
 Host-model constraints:
 
@@ -342,6 +418,7 @@ Host-model constraints:
 - Traefik v3.7 supports buffered forwardAuth request bodies with forwardBody and maxBodySize, but the checked-in dynamic configuration does not enable them and the service config sets request_body_mode=none.
 - Traefik documents that forwardBody buffering breaks streaming, so streaming request-body inspection is outside this host path.
 - The authorization service currently sees the Traefik-to-service socket endpoints and does not map original client connection endpoints into Common connection metadata.
+- The full-lifecycle profile separately selects native-middleware through full-lifecycle-traefik-native in a pinned Traefik local-plugin host probe. Its selected UDS engine service performs Common/libmodsecurity evaluation, while this forwardAuth compatibility declaration remains separate and unpromoted.
 
 | Capability | State | Canonical reason (from manifest) |
 |---|---|---|
@@ -377,6 +454,21 @@ Host-model constraints:
 | `keep_alive` | `configured_not_exercised` | No canonical sequential-request keep-alive run is attached to the Traefik forwardAuth path. |
 | `parallel_requests` | `not_implemented` | The Traefik forwardAuth full-lifecycle catalog has no parallel-request evidence path. |
 | `http2` | `configured_not_exercised` | Traefik HTTP/2 transport behavior is not exercised by a canonical forwardAuth full-lifecycle case. |
+| `http2_downstream` | `not_implemented` | The repository-owned native-middleware harness renders only a cleartext web entry point; it has no TLS HTTP/2 listener or forced H2 client path. |
+| `http2_upstream` | `not_implemented` | No Traefik native middleware upstream HTTP/2 matrix is implemented. |
+| `http2_tls_alpn` | `not_implemented` | The repository-owned native-middleware configuration has no certificate, TLS entry point, or h2 ALPN configuration. |
+| `http2_cleartext_h2c` | `not_implemented` | No native middleware h2c profile is configured. |
+| `http2_multiplexing` | `not_implemented` | No native middleware HTTP/2 stream-isolation runner is implemented. |
+| `http2_stream_reset` | `not_implemented` | HTTP/1 hijack behavior is not HTTP/2 reset evidence and no stream-reset API is wired. |
+| `http3_downstream` | `not_implemented` | The repository-owned native-middleware harness has no HTTP/3 entry point, UDP/QUIC listener, or forced H3 client path. |
+| `http3_upstream` | `not_implemented` | No Traefik native middleware upstream HTTP/3 matrix is implemented. |
+| `http3_quic` | `not_implemented` | No repository-owned Traefik QUIC listener or QUIC traffic observation is configured for the native middleware. |
+| `http3_alt_svc` | `not_implemented` | No repository-owned native-middleware Traefik configuration advertises an HTTP/3 Alt-Svc endpoint. |
+| `http3_multiplexing` | `not_implemented` | No native middleware H3 stream-isolation runner is implemented. |
+| `http3_stream_reset` | `not_implemented` | No client-visible QUIC stream-reset API is wired for the middleware. |
+| `protocol_transaction_isolation` | `not_implemented` | No multiplexed protocol transaction-isolation evidence is implemented. |
+| `protocol_first_byte_before_response_end` | `not_implemented` | No negotiated-protocol first-byte barrier is implemented. |
+| `protocol_no_full_response_buffering` | `not_implemented` | No negotiated-protocol no-full-buffer proof is implemented. |
 | `client_abort` | `unsupported_by_host_model` | The external authorization service cannot observe or directly control a Traefik client-abort lifecycle. |
 | `upstream_abort` | `unsupported_by_host_model` | The pre-upstream authorization service cannot observe or control an upstream response-abort lifecycle. |
 | `response_body_decompression` | `unsupported_by_host_model` | forwardAuth does not receive an upstream response body to decompress. |
@@ -396,13 +488,14 @@ Host-model constraints:
 - Host: `lighttpd`
 - Integration: `native-lighttpd-plugin`
 - Metadata: `connectors/lighttpd/metadata.c`
-- Source contract: `connectors/lighttpd/metadata.c`, `connectors/lighttpd/config/lighttpd-native.conf`, `connectors/lighttpd/module/mod_msconnector.c`, `connectors/lighttpd/src/lighttpd_modsecurity_mapper.c`, `connectors/lighttpd/harness/runtime_lighttpd_smoke.sh`
+- Source contract: `connectors/lighttpd/metadata.c`, `connectors/lighttpd/config/lighttpd-native.conf`, `connectors/lighttpd/module/mod_msconnector.c`, `connectors/lighttpd/src/lighttpd_modsecurity_mapper.c`, `connectors/lighttpd/harness/runtime_lighttpd_smoke.sh`, `connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch`, `connectors/lighttpd/build/build_patched_host.sh`, `connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh`
 
 Host-model constraints:
 
-- The native plugin deliberately rejects non-none request and response body modes until safe lighttpd body hooks, limits, buffering, and intervention timing are implemented.
+- The stock native plugin requires both body modes to be none. The matched patched 1.4.84 core/module pair accepts streaming request ranges and HTTP/1.1 identity response-entity ranges before transfer framing; this source/build contract has no canonical runtime promotion.
 - The response-header mapper is called from handle_response_start, but source wiring alone is not Phase-3 behavioral verification.
 - The legacy bridge and starter self-tests are separate from native mod_msconnector.so host-runtime evidence.
+- The full-lifecycle profile separately selects patched-native through full-lifecycle-lighttpd-patched: its checked-in host smoke uses both body modes as none. Identity streaming configuration is available for contract checks, while gzip/br, HTTP/2, strict abort, first-byte, and no-full-buffer client evidence remain NOT EXECUTED.
 
 | Capability | State | Canonical reason (from manifest) |
 |---|---|---|
@@ -410,37 +503,52 @@ Host-model constraints:
 | `transport_metadata` | `implemented_not_asserted` | The native mapper supplies host endpoint and response-status metadata, but a canonical transport run is pending. |
 | `request_headers` | `implemented_not_asserted` | The native URI-clean hook maps lighttpd request headers into Common Runtime; canonical header evidence is pending. |
 | `request_body_buffered` | `not_implemented` | The native module requires request_body_mode=none and supplies no request body to the mapper. |
-| `request_body_streaming` | `not_implemented` | No native lighttpd request-body hook or streaming transaction contract is implemented. |
-| `request_body_incremental_ingest` | `not_implemented` | The native module explicitly disables request-body modes until a safe lighttpd request-body hook exists. |
+| `request_body_streaming` | `not_implemented` | The checked-in selected evidence profile has no promoted request-stream case. The patched 1.4.84 ABI has a borrowed request-range source contract, but it remains non-promoted until its host artifacts are selected and validated. |
+| `request_body_incremental_ingest` | `not_implemented` | The patched 1.4.84 request callback supplies monotonic borrowed ranges, but the selected capability profile remains unpromoted without a matching canonical host result. |
 | `response_headers` | `implemented_not_asserted` | handle_response_start maps response headers into Common Runtime, but a real Phase-3 rule result has not yet been attached. |
 | `response_body_buffered` | `not_implemented` | The native module requires response_body_mode=none and supplies no response body to the mapper. |
-| `response_body_streaming` | `not_implemented` | No native lighttpd response-body hook or streaming transaction contract is implemented. |
-| `response_body_incremental_ingest` | `not_implemented` | The native module explicitly disables response-body modes until a safe lighttpd output hook exists. |
+| `response_body_streaming` | `not_implemented` | The checked-in selected evidence profile has no promoted response-stream case. The patched 1.4.84 ABI has a borrowed HTTP/1.1 identity entity-body callback before transfer framing, but no canonical streaming host run validates it. |
+| `response_body_incremental_ingest` | `not_implemented` | The patched HTTP/1.1 identity entity callback supplies borrowed ranges before transfer framing and marks EOS once; its source/build contract lacks a canonical streaming host result. |
 | `phase1` | `implemented_not_asserted` | The URI-clean hook starts the transaction and processes request headers; a fresh canonical Phase-1 result is pending. |
-| `phase2` | `not_implemented` | Request bodies are explicitly disabled in the native plugin, so a real Phase-2 body rule cannot run. |
+| `phase2` | `not_implemented` | The stock module disables request bodies, and the selected capability profile has no promoted Phase-2 body result. The patched request-range source path is deliberately kept separate pending matching host evidence. |
 | `phase3` | `implemented_not_asserted` | The response-start hook invokes Common Runtime response processing with mapped headers; real Phase-3 behavioral evidence is pending. |
-| `phase4` | `not_implemented` | Response bodies are explicitly disabled in the native plugin, so a real Phase-4 body rule cannot run. |
-| `phase4_rule_evaluation` | `not_implemented` | The current native module does not supply response-body data to ModSecurity, so it cannot yet evaluate Phase-4 rule 1100301. |
-| `phase4_end_of_stream_evaluation` | `not_implemented` | Without a native response-body hook there is no Phase-4 end-of-stream evaluation path. |
-| `phase4_pre_commit_deny` | `not_implemented` | The current native module has no response-body hook or Phase-4 intervention timing implementation from which to deny before response commitment. |
-| `late_intervention` | `not_implemented` | The module has no response-body or post-commit intervention policy; the response-start hook is not late-intervention evidence. |
-| `late_intervention_log_only` | `not_implemented` | The current native module implements no post-commit response-body intervention policy or log-only late-intervention action. |
-| `late_intervention_abort` | `not_implemented` | The current native module implements no response-body late-intervention path that can abort a committed connection. |
-| `late_intervention_status_metadata` | `not_implemented` | Without a native response-body Phase-4 path, the module does not yet emit late-intervention metadata separating requested WAF status, original host status, visible client status, requested action, and actual action. |
-| `content_type_scope` | `not_implemented` | Content-Type scoping for response-body inspection cannot run while the native response-body path is disabled. |
+| `phase4` | `not_implemented` | The selected capability profile has no canonical Phase-4 host result. The patched identity entity-body source path is not promoted by its current body-disabled smoke. |
+| `phase4_rule_evaluation` | `not_implemented` | The patched identity entity callback can incrementally ingest bytes and finish at EOS, but no real host run has observed rule 1100301 through that path; per-chunk evaluation is not claimed. |
+| `phase4_end_of_stream_evaluation` | `not_implemented` | The patched entity callback invokes the Common finish API once at EOS, but no real host run verifies that Phase-4 result; per-chunk rule evaluation is not claimed. |
+| `phase4_pre_commit_deny` | `not_implemented` | The patched callback has no client-validated precommit disposition. It deliberately does not fabricate a late HTTP status from an EOS decision. |
+| `late_intervention` | `not_implemented` | The patched callback resolves the shared late-intervention policy in source, but no real host run proves a post-commit outcome; the response-start hook is not late-intervention evidence. |
+| `late_intervention_log_only` | `not_implemented` | The patched source records disruptive safe/minimal Phase-4 decisions as actual log_only while preserving the response, but no client-visible canonical evidence has been produced. |
+| `late_intervention_abort` | `not_implemented` | Strict deliberately remains NOT EXECUTED: the patched entity hook has no client-validated lighttpd connection-abort primitive or follow-up-health proof. |
+| `late_intervention_status_metadata` | `not_implemented` | The patched source can record a safe log_only host action, but no canonical client artifact proves original, requested, visible, and actual values at a post-commit point. |
+| `content_type_scope` | `not_implemented` | No canonical response-stream run proves Content-Type behavior for the patched identity-only entity path. |
 | `header_limits` | `implemented_not_asserted` | The native request and response mappers apply configured header count and total-size limits, but real-host limit evidence is pending. |
-| `request_body_limits` | `not_implemented` | Request bodies are disabled in the native module, so no request-body limit outcome can be enforced. |
-| `response_body_limits` | `not_implemented` | Response bodies are disabled in the native module, so no response-body limit outcome can be enforced. |
-| `no_full_response_buffering` | `not_implemented` | The module has no response-body path; it must not claim a streaming no-buffer proof before an output hook exists. |
-| `first_byte_before_response_end` | `not_implemented` | No native response-body pass-through path exists from which to demonstrate first-byte delivery before end of stream. |
+| `request_body_limits` | `not_implemented` | No canonical request-stream run exercises body limits on the patched request-range path. |
+| `response_body_limits` | `not_implemented` | No canonical response-stream run exercises body limits on the patched identity entity path. |
+| `no_full_response_buffering` | `not_implemented` | The patched callback receives only the current borrowed identity entity range and retains no queue copy, but no real first-byte-before-EOS client run proves the no-full-buffer property. |
+| `first_byte_before_response_end` | `not_implemented` | No synchronized real-client run demonstrates a first body byte before upstream EOS on the patched identity entity path. |
 | `http1_content_length` | `configured_not_exercised` | The native plugin can load in a lighttpd HTTP/1.1 host, but the canonical Content-Length transport case has not run. |
 | `http1_chunked` | `configured_not_exercised` | The native plugin can load in a lighttpd HTTP/1.1 host, but no canonical chunked transport evidence is attached. |
 | `keep_alive` | `configured_not_exercised` | No canonical sequential-request keep-alive run is attached to the native plugin. |
 | `parallel_requests` | `not_implemented` | The canonical parallel full-lifecycle isolation evidence path is not implemented for lighttpd. |
 | `http2` | `unsupported_by_host_model` | The pinned native lighttpd integration has no asserted HTTP/2 full-lifecycle transport path. |
+| `http2_downstream` | `not_implemented` | The pinned patched lighttpd module rejects HTTP/2 requests; a decoded H2 stream hook is not implemented. |
+| `http2_upstream` | `not_implemented` | No patched lighttpd upstream HTTP/2 profile is implemented. |
+| `http2_tls_alpn` | `not_implemented` | The managed lighttpd build currently disables TLS backends and has no h2 ALPN listener. |
+| `http2_cleartext_h2c` | `not_implemented` | No patched lighttpd h2c integration profile is implemented. |
+| `http2_multiplexing` | `not_implemented` | The patched module has no H2 stream lifecycle or multiplexing contract. |
+| `http2_stream_reset` | `not_implemented` | No lighttpd HTTP/2 stream-reset hook is implemented. |
+| `http3_downstream` | `not_implemented` | The pinned lighttpd 1.4.84 host has no audited native HTTP/3 listener or codec path. |
+| `http3_upstream` | `not_implemented` | No patched lighttpd upstream HTTP/3 profile is implemented. |
+| `http3_quic` | `not_implemented` | The pinned lighttpd host has no QUIC runtime path. |
+| `http3_alt_svc` | `not_implemented` | No native lighttpd HTTP/3 Alt-Svc profile is configured. |
+| `http3_multiplexing` | `not_implemented` | No native lighttpd H3 stream-isolation path is implemented. |
+| `http3_stream_reset` | `not_implemented` | No lighttpd H3 stream-reset API exists in the pinned host profile. |
+| `protocol_transaction_isolation` | `not_implemented` | No multiplexed protocol transaction-isolation evidence is implemented. |
+| `protocol_first_byte_before_response_end` | `not_implemented` | No decoded modern-protocol response-body hook exists for a first-byte barrier. |
+| `protocol_no_full_response_buffering` | `not_implemented` | No decoded modern-protocol response-body hook exists for a no-full-buffer proof. |
 | `client_abort` | `not_implemented` | No native client-abort cleanup case records canonical transport metadata. |
 | `upstream_abort` | `not_implemented` | No native upstream-abort cleanup case records canonical transport metadata. |
-| `response_body_decompression` | `not_implemented` | The native plugin has no response-body decompression contract. |
+| `response_body_decompression` | `not_implemented` | The patched response contract is identity only. gzip/br remain NOT EXECUTED until filter order and decompression have real host evidence. |
 | `deny` | `implemented_not_asserted` | A disruptive Common Runtime decision is mapped to a lighttpd error status in request and response-start hooks; canonical evidence is pending. |
 | `redirect` | `not_implemented` | The native decision mapper accepts only error statuses and normalizes redirect statuses to a denial without a Location header. |
 | `drop` | `not_implemented` | The native lighttpd decision mapper has no distinct drop action. |
@@ -456,12 +564,12 @@ Host-model constraints:
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `connectors/apache/capabilities.json` | `2ed68f9d9d5b35ac2f1068d53c4e27bb86b3e195e0a4d4aceff68a123c0c12ce` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/nginx/capabilities.json` | `83060ff43bd255140d56f9cc82e617c7baa8d5791bb97208edc099cae2e919b9` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/haproxy/capabilities.json` | `bdf6e91e01324d6cb0798fd4c291192896ab2bfc3f998d9c4ca2a2f04f9c6a1f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/envoy/capabilities.json` | `86933a4afae465af6c6318886e314a2dbc67e142063258e58780bbc3cf9eaaed` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/traefik/capabilities.json` | `093a3af50e32603bc4b5c38f55bfbf5e7b9a63169e8ee1fb03ad487be16b9bae` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/lighttpd/capabilities.json` | `c87452f2d0e6cea75b5fbc646212e821a1d47690253ba4049cb3fe3139b40b4f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/apache/capabilities.json` | `95ba425551d9261bbbf4693c989f55468da78f7a2a6efa6eca8dc0ad69833a59` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/nginx/capabilities.json` | `70fa6bb202c0ac3ea8292fa654a98586852b238e1885e43e7d5235e7daa0a982` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/haproxy/capabilities.json` | `b8e3ca621904e925580604d5b7af1c97cf0a4c01a4c7a42cc7c58fae4c9d599c` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/envoy/capabilities.json` | `b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/traefik/capabilities.json` | `04dbf29b4ed7085f1db172619b0957e6dc740964b9741c736b70e158fe904adc` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/lighttpd/capabilities.json` | `4aac60435527d7a17ddc11deb14ae49f5a48e15c8a357c0ea45627fa4dc82995` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

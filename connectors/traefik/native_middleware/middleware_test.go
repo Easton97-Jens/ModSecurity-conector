@@ -246,6 +246,58 @@ func TestLateResponseDecisionDoesNotReplaceCommittedResponse(t *testing.T) {
 	}
 }
 
+func TestLateResponseDecisionDoesNotHijackTheHostConnection(t *testing.T) {
+	transaction := &recordingTransaction{
+		bodyDecision: func(direction Direction, _ []byte, _ bool) Decision {
+			if direction == DirectionResponse {
+				return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+			}
+			return allowDecision()
+		},
+	}
+	underlying := newAdvancedResponseWriter(t)
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusOK)
+		if _, err := writer.Write([]byte("already committed")); err != nil {
+			t.Errorf("Write() error = %v", err)
+		}
+	}), transaction)
+
+	middleware.ServeHTTP(underlying, httptest.NewRequest(http.MethodGet, "http://example.test/late", nil))
+
+	if got, want := underlying.body.String(), "already committed"; got != want {
+		t.Fatalf("response body = %q, want %q", got, want)
+	}
+	if underlying.hijackCalls != 0 {
+		t.Fatalf("late decision unexpectedly hijacked the host connection %d times", underlying.hijackCalls)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].LateAction != "log_only" {
+		t.Fatalf("late decision did not remain log-only: %#v", transaction.closed)
+	}
+}
+
+func TestIncompleteHostWriteDoesNotInventResponseEOS(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte("response that the client did not receive"))
+	}), transaction)
+	response := &failingResponseWriter{header: make(http.Header)}
+
+	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/disconnect", nil))
+
+	if len(transaction.closed) != 1 {
+		t.Fatalf("Close calls = %d, want 1", len(transaction.closed))
+	}
+	if transaction.closed[0].ResponseEOS {
+		t.Fatalf("incomplete host write fabricated response EOS: %#v", transaction.closed[0])
+	}
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionResponse && call.end {
+			t.Fatalf("incomplete host write invoked a response EOS callback: %#v", transaction.bodyCalls)
+		}
+	}
+}
+
 func assertBoundedBodies(t *testing.T, calls []bodyCall, direction Direction, maximum, wantBytes int) {
 	t.Helper()
 	bytesSeen := 0
@@ -324,9 +376,10 @@ func (writer *readerFromResponseWriter) ReadFrom(source io.Reader) (int64, error
 
 type advancedResponseWriter struct {
 	readerFromResponseWriter
-	flushed    bool
-	pushed     string
-	connection net.Conn
+	flushed     bool
+	pushed      string
+	connection  net.Conn
+	hijackCalls int
 }
 
 func newAdvancedResponseWriter(t *testing.T) *advancedResponseWriter {
@@ -349,5 +402,28 @@ func (writer *advancedResponseWriter) Push(target string, _ *http.PushOptions) e
 }
 
 func (writer *advancedResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	writer.hijackCalls++
 	return writer.connection, bufio.NewReadWriter(bufio.NewReader(writer.connection), bufio.NewWriter(writer.connection)), nil
+}
+
+type failingResponseWriter struct {
+	header http.Header
+	status int
+}
+
+func (writer *failingResponseWriter) Header() http.Header {
+	return writer.header
+}
+
+func (writer *failingResponseWriter) WriteHeader(status int) {
+	if writer.status == 0 {
+		writer.status = status
+	}
+}
+
+func (writer *failingResponseWriter) Write(_ []byte) (int, error) {
+	if writer.status == 0 {
+		writer.status = http.StatusOK
+	}
+	return 0, io.ErrClosedPipe
 }

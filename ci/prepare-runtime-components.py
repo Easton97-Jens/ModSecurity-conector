@@ -38,6 +38,11 @@ COMMON_SH_CONFIG_VARS = (
     "EXPAT_GIT_REF",
     "EXPAT_GIT_URL",
     "EXPAT_PROMPT_EXPECTED_LATEST",
+    "NGINX_PROTOCOL_PROFILE",
+    "NGINX_QUIC_TLS_LIBRARY",
+    "NGINX_QUIC_TLS_VERSION",
+    "NGINX_QUIC_TLS_SOURCE_URL",
+    "NGINX_QUIC_TLS_SOURCE_SHA256",
 )
 
 GITHUB_REPO_URL_KEYS = (
@@ -67,6 +72,18 @@ HTTPS_URL_KEYS = (
     "APR_UTIL_SHA256_URL",
     "PCRE2_SOURCE_URL",
     "PCRE2_SHA256_URL",
+    "NGINX_QUIC_TLS_SOURCE_URL",
+)
+
+
+NGINX_PROTOCOL_PROFILES = ("h1", "h1-h2", "h1-h2-h3-quic")
+DEFAULT_NGINX_QUIC_TLS_LIBRARY = "openssl"
+DEFAULT_NGINX_QUIC_TLS_VERSION = "3.5.1"
+DEFAULT_NGINX_QUIC_TLS_SOURCE_URL = (
+    "https://github.com/openssl/openssl/releases/download/openssl-3.5.1/openssl-3.5.1.tar.gz"
+)
+DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256 = (
+    "529043b15cffa5f36077a4d0af83f3de399807181d607441d734196d889b641f"
 )
 
 PATH_POLICY_ENV = dict(os.environ)
@@ -1753,6 +1770,82 @@ def resolve_nginx_archive(env: dict[str, str], latest_cache_path: Path | None = 
     return tag, f"https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz", lookup_status
 
 
+def nginx_protocol_build_inputs(env: dict[str, str]) -> dict[str, Any]:
+    """Resolve the bounded NGINX protocol build contract.
+
+    H2/H3 runtime traffic is intentionally *not* inferred here: these inputs
+    only select host build capabilities and the immutable cache boundary.  H3
+    requires a pinned TLS source because an ambient system library is neither
+    reproducible nor a safe substitute for the requested QUIC build.
+    """
+    profile = env.get("NGINX_PROTOCOL_PROFILE", "").strip() or "h1"
+    if profile not in NGINX_PROTOCOL_PROFILES:
+        raise RuntimeError(
+            "unsupported NGINX_PROTOCOL_PROFILE="
+            f"{profile}; expected one of {', '.join(NGINX_PROTOCOL_PROFILES)}"
+        )
+
+    if profile == "h1":
+        return {
+            "profile": profile,
+            "http_ssl_enabled": False,
+            "http2_enabled": False,
+            "http3_enabled": False,
+            "quic_enabled": False,
+            "configure_flags": [],
+            "tls_library": "not_used",
+            "tls_version": "",
+            "tls_source_url": "",
+            "tls_source_sha256": "",
+        }
+    if profile == "h1-h2":
+        return {
+            "profile": profile,
+            "http_ssl_enabled": True,
+            "http2_enabled": True,
+            "http3_enabled": False,
+            "quic_enabled": False,
+            "configure_flags": ["--with-http_ssl_module", "--with-http_v2_module"],
+            "tls_library": "system",
+            "tls_version": "",
+            "tls_source_url": "",
+            "tls_source_sha256": "",
+        }
+
+    library = env.get("NGINX_QUIC_TLS_LIBRARY", "").strip() or DEFAULT_NGINX_QUIC_TLS_LIBRARY
+    version = env.get("NGINX_QUIC_TLS_VERSION", "").strip() or DEFAULT_NGINX_QUIC_TLS_VERSION
+    source_url = env.get("NGINX_QUIC_TLS_SOURCE_URL", "").strip() or DEFAULT_NGINX_QUIC_TLS_SOURCE_URL
+    source_sha256 = (
+        env.get("NGINX_QUIC_TLS_SOURCE_SHA256", "").strip() or DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256
+    )
+    if library != "openssl":
+        raise RuntimeError(
+            "H3 profile requires the pinned OpenSSL QUIC/TLS source; "
+            f"unsupported NGINX_QUIC_TLS_LIBRARY={library}"
+        )
+    if not version:
+        raise RuntimeError("H3 profile requires NGINX_QUIC_TLS_VERSION")
+    require_https_url(source_url, "NGINX_QUIC_TLS_SOURCE_URL")
+    if not re.fullmatch(r"[0-9A-Fa-f]{64}", source_sha256):
+        raise RuntimeError("NGINX_QUIC_TLS_SOURCE_SHA256 must be a pinned SHA-256 value")
+    return {
+        "profile": profile,
+        "http_ssl_enabled": True,
+        "http2_enabled": True,
+        "http3_enabled": True,
+        "quic_enabled": True,
+        "configure_flags": [
+            "--with-http_ssl_module",
+            "--with-http_v2_module",
+            "--with-http_v3_module",
+        ],
+        "tls_library": library,
+        "tls_version": version,
+        "tls_source_url": source_url,
+        "tls_source_sha256": source_sha256.lower(),
+    }
+
+
 def default_state_home() -> Path:
     from runtime_path_utils import verified_runtime_paths
 
@@ -3060,6 +3153,10 @@ def connector_input_paths(connector_root: Path, framework_root: Path, connector:
     paths = [connector_root / "connectors" / connector, *common_paths]
     if framework_script:
         paths.append(framework_script)
+    if connector == "nginx":
+        # common.sh owns the protocol profile defaults and pinned TLS source
+        # inputs, so changing it must invalidate an NGINX host build.
+        paths.append(framework_root / "ci/common.sh")
     return paths
 
 
@@ -3076,6 +3173,7 @@ def connector_plan(
     source_paths = connector_input_paths(connector_root, framework_root, connector)
     source_hash = hash_input_paths(source_paths)
     patchset = patchset_identity(component_patchset_roots(connector_root, connector))
+    nginx_protocol_inputs = nginx_protocol_build_inputs(env) if connector == "nginx" else {}
     build_flags = {
         key: env.get(key, "")
         for key in (
@@ -3105,9 +3203,25 @@ def connector_plan(
             "HAPROXY_SHA256",
         )
     }
+    if connector == "nginx":
+        # Store the effective profile fields, not merely raw environment
+        # strings: unused QUIC source overrides must not churn an H1 cache,
+        # while every H3 TLS input is an explicit cache boundary.
+        build_flags.update(
+            {
+                "NGINX_PROTOCOL_PROFILE": str(nginx_protocol_inputs["profile"]),
+                "NGINX_PROTOCOL_CONFIGURE_FLAGS": " ".join(
+                    str(flag) for flag in nginx_protocol_inputs["configure_flags"]
+                ),
+                "NGINX_QUIC_TLS_LIBRARY": str(nginx_protocol_inputs["tls_library"]),
+                "NGINX_QUIC_TLS_VERSION": str(nginx_protocol_inputs["tls_version"]),
+                "NGINX_QUIC_TLS_SOURCE_URL": str(nginx_protocol_inputs["tls_source_url"]),
+                "NGINX_QUIC_TLS_SOURCE_SHA256": str(nginx_protocol_inputs["tls_source_sha256"]),
+            }
+        )
     archive_names = {
         "apache": {"httpd", "apr", "apr-util", "pcre2"},
-        "nginx": {"nginx"},
+        "nginx": {"nginx", "nginx-quic-tls"},
         "haproxy": {"haproxy"},
     }[connector]
     archive_inputs = {
@@ -3151,6 +3265,9 @@ def connector_plan(
             "connector_source_hash": source_hash,
             "modsecurity_build_id": modsecurity.get("build_id", ""),
             "expat_build_id": expat.get("build_id", ""),
+            "common_commit": git_revision(connector_root / "common") if connector == "nginx" else "",
+            "nginx_protocol_build": nginx_protocol_inputs,
+            "nginx_commit": env.get("NGINX_SOURCE_GIT_REF", "") if connector == "nginx" else "",
             "connector_commit": git_revision(connector_root),
             "framework_commit": git_revision(framework_root),
         },
@@ -3168,6 +3285,7 @@ def connector_plan(
             "expat_build_id": expat.get("build_id", ""),
         },
         "patchset": patchset,
+        "nginx_protocol_build": nginx_protocol_inputs,
         "cache_schema_version": CACHE_SCHEMA_VERSION,
         "cache_identity": cache_identity,
     }
@@ -3187,6 +3305,7 @@ def connector_plan(
         "cache_key": cache_identity["cache_key"],
         "patchset_sha256": patchset["sha256"],
         "patchset_files": patchset["files"],
+        "nginx_protocol_build": nginx_protocol_inputs,
         "target_architecture": cache_identity["target_architecture"],
         "cache_root": str(cache_root),
         "root": str(root),
@@ -4366,6 +4485,25 @@ def prepare_nginx_runtime(
         )
     modsecurity = modsecurity or {}
     plan = plan or {}
+    protocol_inputs = plan.get("nginx_protocol_build")
+    if not isinstance(protocol_inputs, dict) or not protocol_inputs:
+        protocol_inputs = nginx_protocol_build_inputs(env)
+    protocol_profile = str(protocol_inputs.get("profile", "h1"))
+    quic_tls_archive = ""
+    if bool(protocol_inputs.get("quic_enabled")):
+        quic_source_url = str(protocol_inputs.get("tls_source_url", ""))
+        quic_archive_name = Path(urlsplit(quic_source_url).path).name
+        if not quic_archive_name:
+            record = {
+                "source": "connector-local-build",
+                "connector": "nginx",
+                "status": "blocked",
+                "blocker_reason": "invalid_nginx_quic_tls_archive_name",
+                "protocol_profile": protocol_profile,
+            }
+            write_connector_manifest(plan, record) if plan else None
+            return record
+        quic_tls_archive = str((archives_root / "nginx" / quic_archive_name).resolve())
     nginx_build_root = Path(env.get("NGINX_BUILD_DIR", str(plan.get("build_root") or build_root / "nginx-build"))).resolve()
     nginx_prefix = Path(env.get("NGINX_PREFIX", str(plan.get("nginx_prefix") or build_root / "nginx-runtime/nginx"))).resolve()
     local_nginx_bin = Path(env.get("NGINX_BINARY", str(nginx_prefix / "sbin/nginx"))).resolve()
@@ -4404,6 +4542,8 @@ def prepare_nginx_runtime(
         "patchset_sha256": plan.get("patchset_sha256", ""),
         "target_architecture": plan.get("target_architecture", ""),
         "expected_ref": env.get("NGINX_RELEASE_TAG") or env.get("NGINX_SOURCE_GIT_REF", ""),
+        "protocol_profile": protocol_profile,
+        "protocol_build_inputs": protocol_inputs,
         "cache_path": str(archives_root / "nginx"),
         "build_path": str(nginx_build_root),
         "nginx_prefix": str(nginx_prefix),
@@ -4504,6 +4644,12 @@ def prepare_nginx_runtime(
                 NGINX_PREFIX=str(nginx_prefix),
                 NGINX_BINARY=str(local_nginx_bin),
                 NGINX_MODULE=str(local_module),
+                NGINX_PROTOCOL_PROFILE=protocol_profile,
+                NGINX_QUIC_TLS_LIBRARY=str(protocol_inputs.get("tls_library", "")),
+                NGINX_QUIC_TLS_VERSION=str(protocol_inputs.get("tls_version", "")),
+                NGINX_QUIC_TLS_SOURCE_URL=str(protocol_inputs.get("tls_source_url", "")),
+                NGINX_QUIC_TLS_SOURCE_SHA256=str(protocol_inputs.get("tls_source_sha256", "")),
+                NGINX_QUIC_TLS_ARCHIVE=quic_tls_archive,
                 NGINX_DOWNLOAD_DIR=str(archives_root / "nginx"),
                 MSCONNECTOR_COMMON_SRC=str(common_build_source_root),
                 MODSECURITY_SHARED_PREFIX=str(modsecurity.get("prefix", "")),
@@ -5233,6 +5379,7 @@ def main() -> int:
         albedo_expected_latest = require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST")
         expat_source_url = require_env_value(env, "EXPAT_SOURCE_URL")
         expat_git_ref = require_env_value(env, "EXPAT_GIT_REF")
+        nginx_protocol_build_inputs(env)
     except RuntimeError as exc:
         print(f"prepare-runtime-components: BLOCKED: {exc}")
         return 77
@@ -5383,6 +5530,18 @@ def main() -> int:
             nginx_record["resolved_tag"] = nginx_tag
             nginx_record["release_lookup_status"] = nginx_lookup_status
             archives.append(nginx_record)
+            nginx_protocol = nginx_protocol_build_inputs(env)
+            if nginx_protocol["quic_enabled"]:
+                archives.append(
+                    prepare_archive(
+                        "nginx-quic-tls",
+                        str(nginx_protocol["tls_source_url"]),
+                        str(nginx_protocol["tls_source_sha256"]),
+                        "",
+                        archives_root / "nginx",
+                        cache_root,
+                    )
+                )
         except Exception as exc:
             archives.append({"name": "nginx", "status": "blocked", "blocker_reason": network_blocker_reason(exc), "checksum_status": "unknown"})
 
@@ -5528,6 +5687,7 @@ def main() -> int:
                 "NGINX_BUILD_DIR": str(nginx.get("build_path", "")),
                 "NGINX_PREFIX": str(nginx.get("nginx_prefix", "")),
                 "NGINX_CONNECTOR_BUILD_ID": str(nginx.get("connector_build_id", "")),
+                "NGINX_PROTOCOL_PROFILE": str(nginx.get("protocol_profile", "h1")),
             }
         )
     if haproxy.get("status") in {"built", "reused", "present"}:
@@ -5653,9 +5813,15 @@ def main() -> int:
     blocked = [
         item
         for item in git_components + archives
-        if item.get("status") in {"blocked", "corrupt"} and item.get("name") not in {"nginx"}
+        if item.get("status") in {"blocked", "corrupt"}
+        and item.get("name") not in {"nginx", "nginx-quic-tls"}
     ]
-    nginx_blocked = [item for item in archives if item.get("name") == "nginx" and item.get("status") in {"blocked", "corrupt"}]
+    nginx_blocked = [
+        item
+        for item in archives
+        if item.get("name") in {"nginx", "nginx-quic-tls"}
+        and item.get("status") in {"blocked", "corrupt"}
+    ]
     if nginx.get("status") not in {"present", "built", "reused"}:
         blocked.extend(nginx_blocked)
     native_components = (("apache_httpd", apache_httpd), ("nginx", nginx), ("haproxy", haproxy))

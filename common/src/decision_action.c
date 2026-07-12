@@ -14,6 +14,8 @@ const char *msconnector_decision_action_name(msconnector_decision_action action)
         return "log_only";
     case MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION:
         return "abort_connection";
+    case MSCONNECTOR_DECISION_ACTION_STREAM_RESET:
+        return "stream_reset";
     case MSCONNECTOR_DECISION_ACTION_ERROR:
         return "error";
     case MSCONNECTOR_DECISION_ACTION_UNSUPPORTED:
@@ -55,5 +57,6 @@ int msconnector_decision_action_is_disruptive(msconnector_decision_action action
         action == MSCONNECTOR_DECISION_ACTION_REDIRECT ||
         action == MSCONNECTOR_DECISION_ACTION_DROP ||
         action == MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION ||
+        action == MSCONNECTOR_DECISION_ACTION_STREAM_RESET ||
         action == MSCONNECTOR_DECISION_ACTION_ERROR;
 }

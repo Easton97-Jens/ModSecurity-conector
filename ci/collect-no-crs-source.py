@@ -83,6 +83,8 @@ APPROVED_RAW_EVENT_KEYS = {
     "body_truncated",
     "client_ip",
     "connection_aborted",
+    "connection_id",
+    "connection_reused",
     "connector",
     "content_type",
     "decision",
@@ -90,6 +92,7 @@ APPROVED_RAW_EVENT_KEYS = {
     "event",
     "event_hash",
     "event_truncated",
+    "eos_seen",
     "evaluation_mode",
     "expected_status",
     "headers_sent",
@@ -148,10 +151,49 @@ APPROVED_RAW_EVENT_KEYS = {
     "waf_status",
     "transport_result",
     "observed_transport_result",
+    "protocol",
+    "requested_protocol",
+    "downstream_protocol",
+    "upstream_protocol",
+    "negotiated_protocol",
+    "transport",
+    "alpn",
+    "stream_id",
+    "quic_connection_id_present",
+    "quic_version",
+    "fallback_used",
+    "stream_reset",
+    "stream_reset_code",
+    "transport_case_id",
+    "case_id",
+    "barrier_id",
+    "client_result",
+    "host_survived",
+    "followup_request_result",
+    "client_disconnected",
+    "upstream_disconnected",
+    "cancelled",
+    "reset_by",
+    "reset_code",
+    "timeout_stage",
+    "write_result",
+    "cleanup_reason",
+    "transaction_started",
+    "transaction_finished",
+    "transaction_destroyed",
+    "request_body_finished",
+    "response_body_finished",
+    "intentional_abort",
+    "client_disconnect",
+    "upstream_disconnect",
+    "timeout",
+    "short_writes",
+    "write_would_block",
     "runtime_mode",
     "rule_evaluation",
     "case",
     "host_action",
+    "run_id",
 }
 BODY_SENTINELS = (
     "no-crs-request-body-marker",
@@ -161,12 +203,34 @@ MAX_METADATA_LENGTH = {
     "connector": 64,
     "integration_mode": 64,
     "transaction_id": 256,
+    "case_id": 128,
+    "transport_case_id": 128,
+    "barrier_id": 128,
+    "connection_id": 128,
+    "stream_reset_code": 64,
+    "reset_code": 64,
+    "reset_by": 64,
+    "timeout_stage": 64,
+    "write_result": 64,
+    "cleanup_reason": 64,
     "status": 64,
     "content_type": 256,
 }
 REQUESTED_ACTIONS = {"deny", "redirect", "drop", "log_only", "abort_connection"}
-ACTUAL_ACTIONS = {"deny", "redirect", "log_only", "abort_connection"}
-TRANSPORT_RESULTS = {"http_status", "log_only", "connection_aborted", "not_observable"}
+ACTUAL_ACTIONS = {"deny", "redirect", "log_only", "abort_connection", "stream_reset"}
+TRANSPORT_RESULTS = {
+    "completed", "http_status", "log_only", "connection_aborted", "stream_reset",
+    "client_cancelled", "client_disconnected", "upstream_reset", "upstream_disconnected",
+    "timeout", "short_write", "write_would_block", "engine_error", "host_error",
+    "not_observable",
+}
+CANONICAL_PROTOCOLS = {"http1", "h2", "h2c", "h3"}
+CANONICAL_TRANSPORTS = {"tcp", "tls_tcp", "quic_udp"}
+TRANSPORT_TOKEN_FIELDS = {
+    "case_id", "transport_case_id", "barrier_id", "connection_id", "reset_by",
+    "reset_code", "stream_reset_code", "timeout_stage", "write_result", "cleanup_reason",
+    "client_result", "followup_request_result", "run_id",
+}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -407,7 +471,7 @@ def safe_metadata_value(target: str, value: Any) -> Any | None:
         "visible_http_status",
     }:
         return scalar_int(value)
-    if target in {"first_chunk_size", "body_bytes_seen", "body_bytes_inspected"}:
+    if target in {"first_chunk_size", "body_bytes_seen", "body_bytes_inspected", "stream_id", "short_writes", "write_would_block"}:
         numeric = scalar_int(value)
         return numeric if numeric is not None and numeric >= 0 else None
     if target == "phase":
@@ -438,6 +502,24 @@ def safe_metadata_value(target: str, value: Any) -> Any | None:
         "headers_sent",
         "body_started",
         "connection_aborted",
+        "connection_reused",
+        "quic_connection_id_present",
+        "fallback_used",
+        "stream_reset",
+        "client_disconnected",
+        "upstream_disconnected",
+        "cancelled",
+        "eos_seen",
+        "host_survived",
+        "transaction_started",
+        "transaction_finished",
+        "transaction_destroyed",
+        "request_body_finished",
+        "response_body_finished",
+        "intentional_abort",
+        "client_disconnect",
+        "upstream_disconnect",
+        "timeout",
         "response_committed",
         "client_first_byte_received",
         "first_byte_before_response_end",
@@ -458,9 +540,24 @@ def safe_metadata_value(target: str, value: Any) -> Any | None:
         if normalized == "connection_abort":
             normalized = "connection_aborted"
         return normalized if normalized in TRANSPORT_RESULTS else None
+    if target in {"protocol", "requested_protocol", "downstream_protocol", "upstream_protocol", "negotiated_protocol"}:
+        normalized = str(value).strip().casefold().replace("http2", "h2")
+        return normalized if normalized in CANONICAL_PROTOCOLS else None
+    if target == "transport":
+        normalized = str(value).strip().casefold().replace("-", "_")
+        return normalized if normalized in CANONICAL_TRANSPORTS else None
     if target == "late_intervention_mode":
         normalized = str(value).strip().casefold()
         return normalized if normalized in {"minimal", "safe", "strict"} else None
+    if target in TRANSPORT_TOKEN_FIELDS:
+        if not isinstance(value, str):
+            return None
+        text = value.strip()
+        if not text or len(text) > MAX_METADATA_LENGTH.get(target, 128):
+            return None
+        if not re.fullmatch(r"[A-Za-z0-9:._-]+", text):
+            return None
+        return text
     if not isinstance(value, (str, int)) or isinstance(value, bool):
         return None
     text = "".join(character for character in str(value) if character >= " " and character != "\x7f")
@@ -491,6 +588,47 @@ def sanitized_event(record: dict[str, Any]) -> dict[str, Any]:
         "connection_aborted": ("connection_aborted", "strict_abort"),
         "response_committed": ("response_committed",),
         "transport_result": ("transport_result", "observed_transport_result"),
+        "transport_case_id": ("transport_case_id",),
+        "barrier_id": ("barrier_id",),
+        "requested_protocol": ("requested_protocol",),
+        "downstream_protocol": ("downstream_protocol",),
+        "upstream_protocol": ("upstream_protocol",),
+        "negotiated_protocol": ("negotiated_protocol",),
+        "transport": ("transport",),
+        "alpn": ("alpn",),
+        "stream_id": ("stream_id",),
+        "connection_id": ("connection_id",),
+        "connection_reused": ("connection_reused",),
+        "quic_connection_id_present": ("quic_connection_id_present",),
+        "quic_version": ("quic_version",),
+        "quic_version": ("quic_version",),
+        "fallback_used": ("fallback_used",),
+        "stream_reset": ("stream_reset",),
+        "stream_reset_code": ("stream_reset_code",),
+        "reset_by": ("reset_by",),
+        "reset_code": ("reset_code",),
+        "client_disconnected": ("client_disconnected",),
+        "upstream_disconnected": ("upstream_disconnected",),
+        "cancelled": ("cancelled",),
+        "timeout_stage": ("timeout_stage",),
+        "write_result": ("write_result",),
+        "cleanup_reason": ("cleanup_reason",),
+        "eos_seen": ("eos_seen",),
+        "client_result": ("client_result",),
+        "host_survived": ("host_survived",),
+        "followup_request_result": ("followup_request_result",),
+        "transaction_started": ("transaction_started",),
+        "transaction_finished": ("transaction_finished",),
+        "transaction_destroyed": ("transaction_destroyed",),
+        "request_body_finished": ("request_body_finished",),
+        "response_body_finished": ("response_body_finished",),
+        "intentional_abort": ("intentional_abort",),
+        "client_disconnect": ("client_disconnect",),
+        "upstream_disconnect": ("upstream_disconnect",),
+        "timeout": ("timeout",),
+        "short_writes": ("short_writes",),
+        "write_would_block": ("write_would_block",),
+        "run_id": ("run_id",),
         "body_bytes_seen": ("body_bytes_seen",),
         "body_bytes_inspected": ("body_bytes_inspected",),
         "client_first_byte_received": ("client_first_byte_received",),
@@ -967,7 +1105,9 @@ def case_observations(
             )
         )
         preserved_status = (
-            status
+            "NOT_EXECUTED"
+            if status in {"NOT_EXECUTABLE", "SKIPPED"}
+            else status
             if status in {"BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"}
             else None
         )
@@ -987,6 +1127,22 @@ def case_observations(
             }
         )
     return observations, derived_events
+
+
+def only_nonexecuted_cases(cases: list[dict[str, Any]]) -> bool:
+    """Return whether a host reported cases but none as a runtime failure.
+
+    Connector harnesses use their historical ``NOT_EXECUTABLE`` spelling for
+    an intentionally unimplemented protocol dispatch. Canonical evidence
+    normalizes it to ``NOT_EXECUTED``: it is not a host crash or a failed
+    request assertion, and therefore must not turn an otherwise clean
+    full-lifecycle run into a synthetic source failure.
+    """
+
+    return bool(cases) and all(
+        case.get("status") in {"NOT_EXECUTED", "UNSUPPORTED", "NOT_APPLICABLE"}
+        for case in cases
+    )
 
 
 def source_objects(paths: list[Path]) -> list[dict[str, Any]]:
@@ -1176,6 +1332,8 @@ def main() -> int:
     elif args.stage_rc != 0:
         status = "FAIL"
     elif nonpromoted_host:
+        status = "NOT_EXECUTED"
+    elif only_nonexecuted_cases(cases):
         status = "NOT_EXECUTED"
     elif (
         core_status_ok

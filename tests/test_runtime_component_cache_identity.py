@@ -19,18 +19,26 @@ SPEC.loader.exec_module(components)
 
 
 class RuntimeComponentCacheIdentityTest(unittest.TestCase):
-    def connector_plan(self, env: dict[str, str], archives: list[dict[str, str]]) -> dict:
+    def connector_plan(
+        self,
+        env: dict[str, str],
+        archives: list[dict[str, str]],
+        *,
+        connector: str = "apache",
+    ) -> dict:
         with tempfile.TemporaryDirectory(prefix="connector-cache-identity-") as temporary:
             root = Path(temporary)
             connector_root = root / "connector"
             framework_root = root / "framework"
             cache_root = root / "cache"
-            (connector_root / "connectors/apache").mkdir(parents=True)
+            (connector_root / f"connectors/{connector}").mkdir(parents=True)
             (connector_root / "common/include").mkdir(parents=True)
             (connector_root / "common/src").mkdir(parents=True)
             (framework_root / "ci").mkdir(parents=True)
-            (connector_root / "connectors/apache/input.c").write_text("int x;\n", encoding="utf-8")
-            (framework_root / "ci/prepare-apache-build.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            (connector_root / f"connectors/{connector}/input.c").write_text("int x;\n", encoding="utf-8")
+            (framework_root / f"ci/prepare-{connector}-build.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            if connector == "nginx":
+                (framework_root / "ci/common.sh").write_text("#!/bin/sh\n", encoding="utf-8")
             compiler = mock.patch.object(
                 components,
                 "compiler_identity",
@@ -43,7 +51,7 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
                     framework_root,
                     cache_root,
                     env,
-                    "apache",
+                    connector,
                     {"build_id": "modsecurity-build", "prefix": "/cache/modsecurity"},
                     {"build_id": "expat-build", "prefix": "/cache/expat"},
                     archives,
@@ -59,6 +67,28 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
         first = self.connector_plan({"APR_VERSION": "1.7.5"}, [])
         second = self.connector_plan({"APR_VERSION": "1.7.6"}, [])
         self.assertNotEqual(first["connector_build_id"], second["connector_build_id"])
+
+    def test_nginx_protocol_profile_and_pinned_quic_tls_inputs_change_cache_identity(self) -> None:
+        h1 = self.connector_plan({"NGINX_PROTOCOL_PROFILE": "h1"}, [], connector="nginx")
+        h2 = self.connector_plan({"NGINX_PROTOCOL_PROFILE": "h1-h2"}, [], connector="nginx")
+        h3 = self.connector_plan({"NGINX_PROTOCOL_PROFILE": "h1-h2-h3-quic"}, [], connector="nginx")
+        changed_tls = self.connector_plan(
+            {
+                "NGINX_PROTOCOL_PROFILE": "h1-h2-h3-quic",
+                "NGINX_QUIC_TLS_SOURCE_SHA256": "f" * 64,
+            },
+            [],
+            connector="nginx",
+        )
+
+        self.assertNotEqual(h1["cache_key"], h2["cache_key"])
+        self.assertNotEqual(h2["cache_key"], h3["cache_key"])
+        self.assertNotEqual(h3["cache_key"], changed_tls["cache_key"])
+        self.assertEqual(
+            "--with-http_ssl_module --with-http_v2_module --with-http_v3_module",
+            h3["cache_identity"]["configuration_flags"]["NGINX_PROTOCOL_CONFIGURE_FLAGS"],
+        )
+        self.assertEqual("openssl", h3["nginx_protocol_build"]["tls_library"])
 
     def test_expat_reuse_requires_full_build_identity(self) -> None:
         with tempfile.TemporaryDirectory(prefix="expat-cache-identity-") as temporary:

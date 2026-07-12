@@ -20,9 +20,9 @@ connector policy.
 | Patched core/module pair | build/load path available | copied 1.4.84 core, matching ABI-tagged module, patch/artifact manifests; no capability promotion |
 | Start smoke | PASS | real process, clean stop, zero requests |
 | Request metadata/headers | PASS, narrow | real baseline 200 and rule-backed 403 |
-| Request body | not implemented / unverified | mapper advertises no body and passes no payload |
+| Request body | patched source contract, unverified | borrowed HTTP/1.1 request ranges exist only in the matched 1.4.84 ABI; no capability promotion |
 | Response metadata/headers | IMPLEMENTED, NOT ASSERTED | response-start hook exists; no real Phase-3 behavioral assertion yet |
-| Response body | not implemented / unverified | no body hook or payload mapping |
+| Response body | patched identity source contract, unverified | borrowed HTTP/1.1 entity ranges before transfer framing; no streaming host result or promotion |
 | Decision/block status | PASS, Phase 1 | canonical rule `1100001`, HTTP 403 via `http_status_set_err()` |
 | Events | PASS, narrow | JSONL connector/rule metadata; no body payload field |
 | Transaction cleanup | implemented | finish/destroy and mapper storage cleanup at reset |
@@ -41,8 +41,9 @@ connector policy.
 - [x] Baseline request is allowed with 200.
 - [x] Phase-1 header rule blocks with 403.
 - [x] Decision event includes connector and rule metadata.
-- [ ] Request-body mapping and Phase 2 evidence.
-- [ ] Response-body mapping, Phase 4, and late-intervention evidence.
+- [x] Patched HTTP/1.1 request/entity callback ABI with borrowed ranges and EOS.
+- [ ] Streaming request-body/Phase-2 host evidence.
+- [ ] Response-body/Phase-4 runtime and late-intervention evidence.
 - [ ] Redirect/drop/abort behavior evidence.
 - [ ] Native CRS evidence.
 - [ ] Stress, resilience, security, and production hardening evidence.
@@ -55,17 +56,21 @@ security verification, production readiness, or full-matrix readiness.
 
 ## Canonical Phase-4 decision
 
-The native module deliberately has no decoded response-body hook. The patched
-callback selected by the separate full-lifecycle profile sees pre-socket-write
-HTTP/1.x wire output, so it is a no-op for response-body inspection. These are
-current module implementation gaps, not host-model impossibility claims.
+The stock module has no response-body hook. The patched callback selected by
+the separate full-lifecycle profile receives the current HTTP/1.1 identity
+entity range in `http_chunk.c` before HTTP/1 transfer framing, not socket-wire
+output. It borrows the bytes synchronously, tracks the offset, and emits EOS at
+most once. It retains no queue copy; socket short writes and `EAGAIN` occur
+after the callback and therefore cannot structurally duplicate an append. This
+is a source/build contract only: no real streaming host run validates it, and
+gzip/br, HTTP/2, and unexamined file/zero-copy routes are excluded.
 
 | Facet | Declared state | Coverage decision |
 | --- | --- | --- |
-| `response_body_buffered`, `phase4`, and `phase4_rule_evaluation` | `not_implemented` | no response-body data reaches ModSecurity |
-| `phase4_pre_commit_deny` | `not_implemented` | no Phase-4 timing point exists in the module |
-| `late_intervention`, `late_intervention_log_only`, and `late_intervention_abort` | `not_implemented` | no post-commit response-body policy exists |
-| `late_intervention_status_metadata` | `not_implemented` | no Phase-4 event can yet separate original/requested/visible status and actions |
+| `response_body_buffered`, `phase4`, and `phase4_rule_evaluation` | `not_implemented` | identity entity source path is not promoted without a real streaming host result; no per-chunk rule-evaluation claim |
+| `phase4_pre_commit_deny` | `not_implemented` | no client-validated precommit disposition exists |
+| `late_intervention`, `late_intervention_log_only`, and `late_intervention_abort` | `not_implemented` | safe source behavior records `log_only`; strict abort lacks client-visible evidence and remains `NOT EXECUTED` |
+| `late_intervention_status_metadata` | `not_implemented` | no client artifact separates original/requested/visible status and actual action after commitment |
 
 Phase-4 rows are `NOT_EXECUTED` (or omitted by capability selection), not
 `UNSUPPORTED`. The existing header hook and Phase-1 deny are separate;

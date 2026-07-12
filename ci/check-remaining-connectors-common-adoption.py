@@ -151,10 +151,11 @@ def connector_checks(connector: str, errors: list[str]) -> None:
             "msconnector_runtime_transaction_finish",
         ):
             require(errors, token in module, f"lighttpd: native module missing {token}")
-        # The patched 1.4.84 output hook observes HTTP/1.x socket-write
-        # ranges, which can include transfer framing rather than a decoded
-        # response entity.  It must remain registered for ABI coverage but
-        # must not feed those bytes (or EOS) into Common Phase 4 APIs.
+        # The patched 1.4.84 core supplies borrowed HTTP/1.x entity ranges at
+        # http_chunk append time, before transfer framing or socket writes.
+        # It is therefore a real incremental-ingest path, but Strict remains
+        # non-promotable until a real client proves the post-commit abort.
+        core_patch = read(base / "patches" / "0001-lighttpd-1.4.84-msconnector-stream-hooks.patch")
         require(
             errors,
             "mod_msconnector_handle_response_body" in module,
@@ -162,13 +163,33 @@ def connector_checks(connector: str, errors: list[str]) -> None:
         )
         require(
             errors,
-            "contract.response_body = MSCONNECTOR_MAPPER_UNSUPPORTED" in module,
-            "lighttpd: response wire-byte input is not explicitly unsupported",
+            "msconnector_runtime_transaction_append_response_body_chunk" in module and
+            "msconnector_runtime_transaction_finish_response_body" in module and
+            "msconnector_runtime_transaction_set_response_commit_state" in module,
+            "lighttpd: entity-body hook does not expose the explicit Common P4 lifecycle",
         )
         require(
             errors,
-            "msconnector_runtime_transaction_finish_response_body" not in module,
-            "lighttpd: wire-byte hook must not finalize an unobserved response body",
+            "http_chunk_msconnector_entity_body" in core_patch and
+            "http_chunk_msconnector_entity_close" in core_patch and
+            "--- a/src/connections.c" not in core_patch and
+            "network_write" not in core_patch,
+            "lighttpd: response callback is not pinned to entity-before-wire rather than socket-write ranges",
+        )
+        require(
+            errors,
+            "resp_body_entity_hook_eos_sent" in core_patch and
+            "response_body_next_offset" in module and
+            "no synthetic Phase-4 finalization" in module,
+            "lighttpd: entity EOS or disconnect cleanup is not once-only",
+        )
+        require(
+            errors,
+            "msconnector_late_intervention_resolve" in module and
+            "msconnector_runtime_phase4_mode" in module and
+            "strict Phase-4 intervention is NOT EXECUTED" in module and
+            "MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION" not in module,
+            "lighttpd: strict P4 must remain non-promoted without a client-visible abort",
         )
 
 

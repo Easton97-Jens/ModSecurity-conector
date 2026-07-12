@@ -478,6 +478,9 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     event.flags.response_committed = ctx != NULL && ctx->response_committed;
     event.flags.headers_sent = r->header_sent ? 1 : 0;
     event.flags.body_started = ctx != NULL && ctx->response_body_seen;
+    /* The Phase-4 event is emitted from the last_buf/last_in_chain finish
+     * path, so this marks engine EOS delivery only. */
+    event.flags.eos_seen = 1;
     event.flags.body_truncated = ctx != NULL && ctx->response_body_truncated;
     event.flags.connection_aborted = ctx != NULL && ctx->phase4_strict_abort;
 

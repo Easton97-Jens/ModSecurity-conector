@@ -185,6 +185,66 @@
       "state": "configured_not_exercised",
       "reason": "No Apache HTTP/2 full-lifecycle run is attached."
     },
+    "http2_downstream": {
+      "state": "not_implemented",
+      "reason": "The pinned Apache native-host profile does not yet build and exercise mod_http2 on the connector path."
+    },
+    "http2_upstream": {
+      "state": "not_implemented",
+      "reason": "No Apache native connector upstream HTTP/2 profile is implemented."
+    },
+    "http2_tls_alpn": {
+      "state": "not_implemented",
+      "reason": "The pinned Apache harness has no TLS/ALPN h2 listener."
+    },
+    "http2_cleartext_h2c": {
+      "state": "not_implemented",
+      "reason": "The pinned Apache harness has no h2c prior-knowledge listener."
+    },
+    "http2_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No native Apache HTTP/2 multiplexing isolation evidence path is implemented."
+    },
+    "http2_stream_reset": {
+      "state": "not_implemented",
+      "reason": "The Apache strict path only models a connection abort; no request-local HTTP/2 stream-reset API is implemented."
+    },
+    "http3_downstream": {
+      "state": "not_implemented",
+      "reason": "The pinned Apache native host has no audited HTTP/3 module, QUIC listener, or H3 stream path."
+    },
+    "http3_upstream": {
+      "state": "not_implemented",
+      "reason": "No Apache native connector upstream HTTP/3 profile is implemented."
+    },
+    "http3_quic": {
+      "state": "not_implemented",
+      "reason": "The pinned Apache native host has no QUIC runtime path."
+    },
+    "http3_alt_svc": {
+      "state": "not_implemented",
+      "reason": "No native Apache HTTP/3 Alt-Svc profile is configured."
+    },
+    "http3_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No native Apache HTTP/3 stream-isolation evidence path is implemented."
+    },
+    "http3_stream_reset": {
+      "state": "not_implemented",
+      "reason": "No Apache H3 stream-reset API has been audited or wired."
+    },
+    "protocol_transaction_isolation": {
+      "state": "not_implemented",
+      "reason": "Protocol-specific multiplexed transaction-isolation evidence is not implemented."
+    },
+    "protocol_first_byte_before_response_end": {
+      "state": "not_implemented",
+      "reason": "The existing first-byte proof is HTTP/1.1-only and is not protocol-profile evidence."
+    },
+    "protocol_no_full_response_buffering": {
+      "state": "not_implemented",
+      "reason": "The existing no-buffer reasoning is not yet proven separately for a negotiated modern protocol."
+    },
     "client_abort": {
       "state": "not_implemented",
       "reason": "No canonical Apache client-abort lifecycle case is implemented."

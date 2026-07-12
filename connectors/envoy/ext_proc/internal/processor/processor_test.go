@@ -218,6 +218,25 @@ func TestCancellationCleansUpWithoutAttributingTheHTTPReset(t *testing.T) {
 	}
 }
 
+func TestPeerEOFCleansUpWithoutAttributingTheHTTPReset(t *testing.T) {
+	transaction := &recordingTransaction{}
+	service := newTestService(t, transaction, LateActionSafe)
+	stream := &fakeProcessStream{context: context.Background(), receive: []receiveResult{
+		{request: requestHeaders(false)},
+		{err: io.EOF},
+	}}
+
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("Process() error = %v", err)
+	}
+	if len(transaction.closed) != 1 {
+		t.Fatalf("close calls = %d, want 1", len(transaction.closed))
+	}
+	if got, want := transaction.closed[0].CloseReason, ClosePeerEOF; got != want {
+		t.Fatalf("close reason = %q, want %q", got, want)
+	}
+}
+
 func TestTrailersFinalizeIncrementalBodiesAtEOS(t *testing.T) {
 	transaction := &recordingTransaction{}
 	service := newTestService(t, transaction, LateActionSafe)

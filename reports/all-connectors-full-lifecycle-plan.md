@@ -265,21 +265,20 @@ path: no active SPOP caller supplies response-body chunks or EOS.
 The pinned 3.2.21 source audit resolves the host-API question: `flt_ops`
 offers `http_payload` and `http_end`, and the response analyzer invokes them
 incrementally while forwarding HTX data. The current SPOE filter has no such
-events. The checked-in `htx-overlay/` is a source-linked observer that builds,
-parses `filter modsecurity-htx`, borrows current response slices, and finishes
-at EOS for bodyless requests. It deliberately bypasses body-bearing requests
-because the current binding closes P2 atomically. It is not selected by the
-SPOP harness and does not establish canonical evidence or enforcement.
+events. The checked-in `htx-overlay/` is a source-linked full-lifecycle path
+that builds, parses `filter modsecurity-htx`, borrows current request/response
+slices, and finishes each body at EOS. Its one-block P2 deny records zero or
+one observed upstream requests without proving their ordering; it therefore does not establish
+incremental request forwarding. It remains separate from the SPOP harness and
+does not promote selected-path capabilities.
 
 Plan:
 
-1. Extend the source-linked HTX filter in the disposable HAProxy 3.2.21
-   worktree from its bodyless observer prototype to safe request-body lifecycle
-   handling while retaining only per-stream state and borrowed data slices.
-2. Correlate request and response phases in that same local transaction; the
-   current isolated bodyless P4 observer is not semantically equivalent to the
-   SPOA path.
-3. Finish exactly once at `http_end`; record a late result as log-only until a
+1. Add split-request-body, limit, and client-cancel probes before claiming
+   anything beyond the observed one-block P2 outcome.
+2. Add a synchronized first-byte-before-response-EOS probe without a complete
+   HTX copy or `wait-for-body`.
+3. Keep one finish at each `http_end`; record a late result as log-only until a
    tested abort semantic exists. HAProxy’s response end is after forwarding,
    so do not manufacture a late HTTP status.
 4. Model agent failure separately from a Phase-4 late abort. Do not derive

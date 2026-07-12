@@ -54,7 +54,7 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn("module_sha256", check)
         self.assertIn("core_binary_sha256", check)
 
-    def test_patched_config_refuses_wire_bytes_as_response_body_input(self) -> None:
+    def test_patched_config_allows_only_identity_entity_body_input(self) -> None:
         preparer = CONNECTOR / "harness" / "prepare_patched_lifecycle_smoke.sh"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -81,23 +81,77 @@ class PatchedHostContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-        self.assertEqual(77, result.returncode)
-        self.assertIn("wire bytes, not decoded entities", result.stderr)
+            self.assertEqual(0, result.returncode, result.stderr)
+            config = Path(result.stdout.strip())
+            self.assertIn(
+                "response_body_mode=streaming",
+                (config.parent / "msconnector-runtime.conf").read_text(encoding="utf-8"),
+            )
 
-    def test_response_callback_is_an_explicit_noop_not_phase4_processing(self) -> None:
+    def test_patched_config_rejects_unproven_content_encoding(self) -> None:
+        preparer = CONNECTOR / "harness" / "prepare_patched_lifecycle_smoke.sh"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "lighttpd-core-patched" / "lighttpd-1.4.84" / "src"
+            source.mkdir(parents=True)
+            (source / "plugin.h").write_text(
+                "#define LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION 1\n",
+                encoding="utf-8",
+            )
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "BUILD_ROOT": str(root),
+                    "LIGHTTPD_PATCHED_ROOT": str(root / "lighttpd-core-patched"),
+                    "LIGHTTPD_PATCHED_RESPONSE_BODY_MODE": "streaming",
+                    "LIGHTTPD_PATCHED_ENTITY_ENCODING": "gzip",
+                }
+            )
+            result = subprocess.run(
+                ["sh", str(preparer)],
+                cwd=REPO_ROOT,
+                env=environment,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        self.assertEqual(77, result.returncode)
+        self.assertIn("identity entity-body input", result.stderr)
+
+    def test_response_callback_ingests_entity_ranges_and_finishes_at_eos(self) -> None:
         module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(encoding="utf-8")
         callback = module.rsplit("static plugin_body_hook_result mod_msconnector_handle_response_body", 1)[1].split(
             "#endif", 1
         )[0]
-        self.assertIn("HTTP/1.x socket-write stage", callback)
-        self.assertIn("never turn wire ranges or EOS into Phase", callback)
-        self.assertNotIn("msconnector_runtime_transaction_append_response_body_chunk", callback)
-        self.assertNotIn("msconnector_runtime_transaction_finish_response_body", callback)
-        self.assertIn("mod_msconnector_finish_uninspected_response_body", module)
-        self.assertIn("response_body_mode=none", module)
-        self.assertIn("never calls libmodsecurity's", module)
+        finish = module.rsplit("static plugin_body_hook_result mod_msconnector_finish_response_body", 1)[1].split(
+            "static plugin_body_hook_result mod_msconnector_handle_response_body", 1
+        )[0]
+        self.assertIn("const unsigned char *data", callback)
+        self.assertIn("msconnector_runtime_transaction_append_response_body_chunk", callback)
+        self.assertIn("msconnector_runtime_transaction_set_response_commit_state", callback)
+        self.assertIn("mod_msconnector_finish_response_body", callback)
+        self.assertNotIn("lighttpd_modsecurity_visit_body_range", callback)
+        self.assertIn("msconnector_runtime_transaction_finish_response_body", finish)
+        self.assertIn("msconnector_late_intervention_resolve", finish)
+        self.assertIn("msconnector_runtime_phase4_mode", finish)
+        self.assertIn("NOT EXECUTED", finish)
 
-    def test_unobserved_response_lifecycle_closes_only_at_host_reset(self) -> None:
+    def test_patch_hooks_entity_bytes_before_transfer_encoding_not_socket_write(self) -> None:
+        patch = PATCH.read_text(encoding="utf-8")
+        self.assertIn("http_chunk_msconnector_entity_body", patch)
+        self.assertIn("http_chunk_msconnector_entity_close", patch)
+        self.assertIn("http1_entity_body_before_transfer_encoding", (
+            CONNECTOR / "build" / "build_patched_core.sh"
+        ).read_text(encoding="utf-8"))
+        self.assertNotIn("--- a/src/connections.c", patch)
+        self.assertNotIn("network_write", patch)
+        self.assertLess(
+            patch.index("http_chunk_msconnector_entity_body(r,"),
+            patch.index("if (http_chunk_uses_tempfile(cq, len))"),
+        )
+
+    def test_unobserved_response_lifecycle_is_not_synthesized_after_entity_disconnect(self) -> None:
         module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
             encoding="utf-8"
         )
@@ -108,15 +162,14 @@ class PatchedHostContractTest(unittest.TestCase):
             "REQUEST_FUNC(mod_msconnector_handle_request_reset)", 1
         )[1]
         self.assertNotIn("mod_msconnector_finish_uninspected_response_body", response_start)
-        self.assertIn(
-            "mod_msconnector_finish_uninspected_response_body(r, ctx)", request_reset
-        )
+        self.assertIn("mod_msconnector_finish_uninspected_response_body(r, ctx)", request_reset)
+        self.assertIn("no synthetic Phase-4 finalization", request_reset)
         self.assertIn(
             "msconnector_runtime_transaction_finish_unobserved_response_body",
             module,
         )
         self.assertNotIn(
-            "msconnector_runtime_transaction_finish_response_body", module
+            "msconnector_runtime_transaction_finish_response_body(r, ctx)", request_reset
         )
 
     def test_request_body_mapper_uses_an_unsigned_size_bound(self) -> None:

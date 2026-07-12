@@ -1,0 +1,110 @@
+name: protocol-contract
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protocol-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-python@v6.3.0
+        with:
+          python-version: '3.13'
+      - name: Validate payload-free protocol contracts
+        run: |
+          set -eu
+          make test-protocol-client
+          python3 -m unittest \
+            tests.test_nginx_protocol_harness_contract \
+            tests.test_runtime_component_cache_identity -v
+
+  nginx-profile-and-client-preflight:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: h1-h2
+            protocol: h2
+          - profile: h1-h2-h3-quic
+            protocol: h3
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-python@v6.3.0
+        with:
+          python-version: '3.13'
+      - name: Initialize isolated runtime paths
+        run: |
+          set -eu
+          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
+          {
+            echo "VERIFIED_RUN_ROOT=$verified_root"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+            echo "SOURCE_ROOT=$verified_root/src"
+            echo "BUILD_ROOT=$verified_root/build"
+            echo "TMP_ROOT=$verified_root/tmp"
+            echo "LOG_ROOT=$verified_root/logs"
+            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
+          } >> "$GITHUB_ENV"
+      - name: Check selected NGINX profile contract
+        env:
+          NGINX_PROTOCOL_PROFILE: ${{ matrix.profile }}
+        run: |
+          set -eu
+          sh -eu -c '. modules/ModSecurity-test-Framework/ci/common.sh; nginx_protocol_profile_valid "$NGINX_PROTOCOL_PROFILE"; nginx_protocol_profile_configure_flags "$NGINX_PROTOCOL_PROFILE"'
+      - name: Build selected NGINX protocol profile
+        env:
+          NGINX_PROTOCOL_PROFILE: ${{ matrix.profile }}
+          RUNTIME_COMPONENT_TARGET: nginx
+        run: make prepare-runtime-components
+      - name: Emit forced client preflight artifact
+        env:
+          PROTOCOL_ARTIFACT_DIR: ${{ runner.temp }}/protocol-client/${{ matrix.protocol }}
+          PROTOCOL_PROFILE: ${{ matrix.protocol }}
+          PROTOCOL_TRANSPORT_CASE_ID: ci-${{ matrix.protocol }}-preflight
+          PROTOCOL_URL: https://127.0.0.1:9/protocol-preflight
+        run: |
+          set +e
+          make protocol-client
+          probe_rc=$?
+          set -e
+          PROBE_RC="$probe_rc" PROTOCOL_ARTIFACT_DIR="$PROTOCOL_ARTIFACT_DIR" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          artifact_dir = Path(os.environ["PROTOCOL_ARTIFACT_DIR"])
+          observation = json.loads((artifact_dir / "client-protocol-observation.json").read_text())
+          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          summary.write_text(
+              "## Forced protocol-client preflight\n\n"
+              f"- profile: `{os.environ['PROTOCOL_PROFILE']}`\n"
+              f"- process exit: `{os.environ['PROBE_RC']}`\n"
+              f"- observation: `{observation.get('status')}` / `{observation.get('reason', '')}`\n"
+              "- This is a no-listener preflight artifact, never connector runtime evidence.\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload payload-free preflight artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: protocol-client-${{ matrix.protocol }}-preflight
+          path: ${{ runner.temp }}/protocol-client/${{ matrix.protocol }}
+          if-no-files-found: error

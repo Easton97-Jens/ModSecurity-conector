@@ -62,6 +62,8 @@ def write_json(path: Path, record: dict[str, object]) -> None:
 
 def upstream_profile(raw_path: str) -> tuple[str, str | None, bytes]:
     path = raw_path.split("?", 1)[0]
+    if path == "/no-crs/request-body":
+        return "phase2", None, UPSTREAM_OK_BODY
     if path == "/no-crs/response-header":
         return "phase3", "block", UPSTREAM_OK_BODY
     if path == "/no-crs/response-body":
@@ -323,8 +325,8 @@ def write_host_evidence(
     if upstream_requests < 0:
         raise ValueError("upstream request count must not be negative")
     probe = read_probe(probe_path)
-    if host_action == "enforced_reply" and int(probe["response_bytes"]) == 0:
-        raise ValueError("enforced host reply has no response bytes")
+    if host_action in {"enforced_reply", "safe_log_only"} and int(probe["response_bytes"]) == 0:
+        raise ValueError(f"{host_action} host outcome has no client response bytes")
     record: dict[str, object] = {
         "evidence_type": "haproxy_native_htx_host_runtime",
         "evidence_origin": "real_host_socket_traffic",
@@ -372,7 +374,7 @@ def parse_args() -> argparse.Namespace:
     config.add_argument("--rules-file", required=True)
     count = subparsers.add_parser("upstream-count")
     count.add_argument("--path", required=True)
-    count.add_argument("--profile", required=True, choices=("ordinary", "phase3", "phase4"))
+    count.add_argument("--profile", required=True, choices=("ordinary", "phase2", "phase3", "phase4"))
     event = subparsers.add_parser("write-event")
     event.add_argument("--path", required=True)
     event.add_argument("--case", required=True)
@@ -390,7 +392,7 @@ def parse_args() -> argparse.Namespace:
     evidence.add_argument("--probe-path", required=True)
     evidence.add_argument("--upstream-requests", required=True, type=int)
     evidence.add_argument("--host-action", required=True,
-                          choices=("forwarded", "enforced_reply", "observed_only", "not_attempted"))
+                          choices=("forwarded", "enforced_reply", "observed_only", "safe_log_only", "not_attempted"))
     evidence.add_argument("--decision-log")
     return parser.parse_args()
 

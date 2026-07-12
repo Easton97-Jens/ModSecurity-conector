@@ -56,9 +56,10 @@ decision found later:
 
 `strict` intentionally does not turn into a gRPC error, `ImmediateResponse`, or
 a claimed reset. Those mechanisms do not independently prove a deterministic
-client-visible abort in Envoy. Likewise a canceled gRPC context is cleaned up
-as `grpc_context_canceled_unattributed`; this service cannot honestly label it
-as a downstream client reset or an upstream reset.
+client-visible abort in Envoy. A canceled gRPC context and an observed gRPC
+peer EOF are recorded respectively as `grpc_context_canceled_unattributed` and
+`grpc_peer_eof`; neither label can honestly be treated as a downstream client
+reset or an upstream reset.
 
 ## Local source/build commands
 

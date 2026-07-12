@@ -610,6 +610,13 @@ type responseWriter struct {
 	finished                 bool
 	rejected                 bool
 	hijacked                 bool
+	// responseIncomplete is set only when the wrapped host writer or a source
+	// stream reports that it could not complete the response.  In particular,
+	// it keeps a downstream disconnect, short write, or upstream ReadFrom error
+	// from being converted into a synthetic response EOS.  The transaction is
+	// still closed exactly once by ServeHTTP's defer, but the engine never gets
+	// a false end-of-stream callback for an incomplete host response.
+	responseIncomplete bool
 }
 
 func newResponseWriter(target http.ResponseWriter, state *streamState) *responseWriter {
@@ -684,9 +691,11 @@ func (writer *responseWriter) Write(payload []byte) (int, error) {
 			writer.state.markResponseCommit(0, true, true)
 		}
 		if writeErr != nil {
+			writer.responseIncomplete = true
 			return written, writeErr
 		}
 		if count != len(chunk) {
+			writer.responseIncomplete = true
 			return written, io.ErrShortWrite
 		}
 		payload = payload[chunkLength:]
@@ -874,9 +883,18 @@ func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
 		if count > 0 {
 			writer.state.markResponseCommit(0, true, true)
 		}
+		if err != nil {
+			// ReaderFrom may surface either an upstream read failure or a
+			// downstream write failure.  Neither is evidence that the response
+			// reached EOS, so do not send a later synthetic EOS callback.
+			writer.responseIncomplete = true
+		}
 		return total + count, err
 	}
 	count, err := copyIntoWriter(writer, source)
+	if err != nil {
+		writer.responseIncomplete = true
+	}
 	return total + count, err
 }
 
@@ -934,6 +952,13 @@ func (writer *responseWriter) finish() {
 		return
 	}
 	writer.finished = true
+	if writer.responseIncomplete {
+		// A real host-side read/write failure is not normal completion.  Do not
+		// claim EOS or turn it into a late intervention result; Close will
+		// release the per-request engine session through its normal idempotent
+		// cleanup path.
+		return
+	}
 	if writer.rejected {
 		return
 	}

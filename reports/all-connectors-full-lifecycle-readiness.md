@@ -276,21 +276,19 @@ log-only, strict abort, and late status metadata are correctly
 
 The binding now exposes borrowed append-response-chunk and EOS-finish
 primitives. This is `implemented_not_asserted` adapter infrastructure only:
-no active SPOP caller supplies response-body chunks or EOS. The optional
-source-linked HTX observer builds and parses against HAProxy 3.2.21, appends
-borrowed response data, and finishes at EOS for bodyless requests, but it is
-nonselected and observer-only after forwarding. It deliberately bypasses
-body-bearing requests because the current binding's request P2 is atomic.
-Incremental, no-buffer, and first-byte capabilities for the selected SPOP path
-therefore remain `not_implemented`.
+no active SPOP caller supplies response-body chunks or EOS. The separate
+source-linked HTX full-lifecycle path builds against HAProxy 3.2.21, appends
+borrowed request/response data, and finishes both bodies at their EOS. Its
+one-block P2 deny records zero or one observed upstream requests without
+proving their ordering, so it is not incremental-forwarding, no-buffer, or first-byte evidence. Those
+capabilities for the selected SPOP path therefore remain `not_implemented`.
 
 **Required route:** HAProxy 3.2.21 already exposes `flt_ops.http_payload` and
-`http_end` through its HTX filter API, so the checked-in bodyless observer must
-be extended to a source-linked filter that owns or explicitly correlates the
-full P1–P4 transaction. It must retain per-stream state only, never enable
-`wait-for-body` for P4 blocking, and separate agent failure from an intentional
-post-commit abort. The EOS callback is after forwarding, so a late HTTP status
-must not be claimed.
+`http_end` through its HTX filter API. The checked-in source-linked filter owns
+the P1–P4 transaction, but still needs real split-body, first-byte, and
+post-commit transport evidence. It must retain per-stream state only, never
+enable `wait-for-body` for P4 blocking, and separate agent failure from an
+intentional post-commit abort. A late HTTP status must not be claimed.
 
 ### Envoy
 

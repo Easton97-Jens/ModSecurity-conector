@@ -155,7 +155,8 @@ MANIFEST_TMP=$CORE_MANIFEST.tmp.$$
     printf 'binary=%s\n' "$CORE_BIN"
     printf 'binary_sha256=%s\n' "$(sha256_file "$CORE_BIN")"
     printf 'plugin_hook_abi=1\n'
-    printf 'response_hook_contract=http1_wire_output_only_not_decoded_entity\n'
+    printf 'response_hook_contract=http1_entity_body_before_transfer_encoding\n'
+    printf 'response_content_encoding_scope=identity_only_until_evidenced\n'
 } > "$MANIFEST_TMP"
 mv "$MANIFEST_TMP" "$CORE_MANIFEST"
 

@@ -29,8 +29,9 @@ tree, out-of-source core build, staged binary and staged ABI-matched module
 below the managed build root. It records the local patch SHA-256 and
 binary/module hashes before a real `lighttpd -tt` load. This is still only a
 narrow Phase-1 build/load/runtime path: the host smoke uses both body modes as
-`none`, and the patch's response callback observes HTTP/1.x wire output rather
-than a decoded response-body integration, so the result is non-promoted.
+`none`. The patch's response callback receives a borrowed HTTP/1.1 identity
+entity range before transfer framing rather than socket-wire output, but that
+source/build contract remains non-promoted without a streaming host run.
 
 The committed connector source does not copy lighttpd implementation code or
 headers. Public host API references are listed in `docs/public-sources.md`.

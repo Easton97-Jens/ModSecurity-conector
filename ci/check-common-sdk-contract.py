@@ -339,6 +339,7 @@ for nested_struct in (
     "msconnector_event_meta",
     "msconnector_event_decision",
     "msconnector_event_http",
+    "msconnector_event_protocol",
     "msconnector_event_request",
     "msconnector_event_flags",
 ):
@@ -347,6 +348,8 @@ for nested_struct in (
 for required_field in (
     "message_id",
     "message",
+    "run_id",
+    "transport_case_id",
     "requested_action",
     "actual_action",
     "http_reason_phrase",
@@ -357,9 +360,28 @@ for required_field in (
     "content_type",
     "bytes_seen",
     "bytes_inspected",
+    "requested_protocol",
+    "downstream_protocol",
+    "upstream_protocol",
+    "negotiated_protocol",
+    "stream_id",
+    "quic_connection_id_present",
+    "fallback_used",
+    "stream_reset",
+    "client_disconnected",
+    "upstream_disconnected",
+    "cancelled",
+    "eos_seen",
+    "reset_by",
+    "reset_code",
+    "timeout_stage",
+    "write_result",
+    "cleanup_reason",
 ):
     if required_field not in event_header:
         fail(f"common event model must retain {required_field} metadata")
+if re.search(r"\bquic_connection_id\s*;", text_without_comments(event_header)):
+    fail("common event model must not retain a raw QUIC connection ID")
 if "msconnector_event_set_phase4_hard_abort_after_200" not in event_header or "MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200" not in event_source:
     fail("common event model must expose the Phase 4 hard-abort-after-200 helper")
 if "body_payload" in event_source or "request_body" in event_source or "response_body" in event_source:
@@ -401,6 +423,15 @@ if ("msconnector_modsecurity_append_request_body" not in engine_source or
     fail("modsecurity engine must expose borrowed chunk append and explicit body finalization APIs")
 runtime_header = (ROOT / "common" / "runtime" / "msconnector_runtime.h").read_text(encoding="utf-8")
 runtime_source = (ROOT / "common" / "runtime" / "msconnector_runtime.c").read_text(encoding="utf-8")
+if "msconnector_runtime_phase4_mode" not in runtime_header or "msconnector_runtime_phase4_mode" not in runtime_source:
+    fail("common runtime must expose the parsed Phase-4 policy mode without connector-local mirrors")
+for transport_result in (
+    "completed", "connection_aborted", "stream_reset", "client_cancelled",
+    "client_disconnected", "upstream_reset", "upstream_disconnected", "timeout",
+    "short_write", "write_would_block", "engine_error", "host_error",
+):
+    if f'"{transport_result}"' not in runtime_source:
+        fail(f"common runtime must retain canonical transport result {transport_result}")
 body_policy_header = (ROOT / "common" / "include" / "msconnector" / "body_policy.h").read_text(encoding="utf-8")
 body_policy_source = (ROOT / "common" / "src" / "body_policy.c").read_text(encoding="utf-8")
 config_header = (ROOT / "common" / "include" / "msconnector" / "config.h").read_text(encoding="utf-8")

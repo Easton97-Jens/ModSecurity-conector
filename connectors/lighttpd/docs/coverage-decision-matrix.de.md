@@ -19,9 +19,9 @@ Die globalen Promotion- und Response-Body-Gates gelten weiterhin.
 | Gepatchtes Core/Modul-Paar | Build-/Ladepfad vorhanden | kopierter 1.4.84-Core, ABI-getaggtes passendes Modul, Patch-/Artefakt-Manifeste; keine Capability-Promotion |
 | Start-Smoke | PASS | echter Prozess, sauberer Stop, null Requests |
 | Request-Metadaten/Header | enger PASS | echte 200-Baseline und regelbasierte 403 |
-| Request-Body | nicht implementiert / nicht verifiziert | kein Body wird gemappt |
+| Request-Body | gepatchter Source-Vertrag, nicht verifiziert | geliehene HTTP/1.1-Request-Ranges gibt es nur im passenden 1.4.84-ABI; keine Capability-Promotion |
 | Response-Metadaten/Header | IMPLEMENTED, NOT ASSERTED | Response-Start-Hook vorhanden; noch keine echte verhaltensseitige Phase-3-Assertion |
-| Response-Body | nicht implementiert / nicht verifiziert | kein Body-Hook und keine Payload |
+| Response-Body | Identity-Source-Vertrag gepatcht, nicht verifiziert | geliehene HTTP/1.1-Entity-Ranges vor Transfer-Framing; kein Streaming-Hostresultat und keine Promotion |
 | Entscheidung/Sperrstatus | Phase-1-PASS | kanonische Regel `1100001`, HTTP 403 über `http_status_set_err()` |
 | Ereignisse | enger PASS | JSONL mit Connector/Regel-ID, ohne Body-Payload-Feld |
 | Transaktions-Aufräumen | implementiert | Abschluss/Zerstörung und Mapper-Aufräumen beim Reset |
@@ -40,8 +40,9 @@ Die globalen Promotion- und Response-Body-Gates gelten weiterhin.
 - [x] Baseline-Request wird mit 200 erlaubt.
 - [x] Phase-1-Headerregel blockiert mit 403.
 - [x] Decision-Event enthält Connector- und Regelmetadaten.
-- [ ] Request-Body-Mapping und Phase-2-Nachweis.
-- [ ] Response-Body-Mapping, Phase 4 und Late Intervention.
+- [x] Gepatchtes HTTP/1.1-Request-/Entity-Callback-ABI mit geliehenen Ranges und EOS.
+- [ ] Streaming-Request-Body-/Phase-2-Hostnachweis.
+- [ ] Response-Body-/Phase-4-Runtime- und Late-Intervention-Nachweis.
 - [ ] Redirect-, Drop- und Abort-Nachweise.
 - [ ] Nativer CRS-Nachweis.
 - [ ] Stress-, Resilienz-, Security- und Produktionshärtungsnachweise.
@@ -54,19 +55,22 @@ Produktionsreife oder vollständiger Matrix.
 
 ## Kanonische Entscheidung für Phase 4
 
-Das native Modul besitzt bewusst keinen dekodierten Response-Body-Hook. Der
-vom separaten Full-Lifecycle-Profil ausgewählte Callback des Patches sieht
-HTTP/1.x-Wire-Output vor dem Socket-Write und bleibt deshalb für
-Response-Body-Inspektion ein No-op. Diese Zustände sind
-aktuelle Implementierungslücken des Moduls und keine Aussage über eine
-grundsätzliche Unmöglichkeit im Host-Modell.
+Das Stock-Modul besitzt keinen Response-Body-Hook. Der vom separaten
+Full-Lifecycle-Profil ausgewählte Callback des Patches erhält in `http_chunk.c`
+den aktuellen HTTP/1.1-Identity-Entity-Range vor HTTP/1-Transfer-Framing, nicht
+Socket-Wire-Output. Er leiht die Bytes synchron aus, verfolgt den Offset und
+sendet EOS höchstens einmal. Er behält keine Queue-Kopie; Socket-Short-Writes
+und `EAGAIN` treten danach auf und können daher strukturell kein Append
+duplizieren. Das ist nur ein Source-/Build-Vertrag: kein echter Streaming-
+Hostlauf validiert ihn, und gzip/br, HTTP/2 sowie nicht untersuchte Datei- und
+Zero-Copy-Routen sind ausgeschlossen.
 
 | Facette | Zustand im Manifest | Abdeckungsentscheidung |
 | --- | --- | --- |
-| `response_body_buffered`, `phase4` und `phase4_rule_evaluation` | `not_implemented` | Keine Response-Body-Daten erreichen ModSecurity. |
-| `phase4_pre_commit_deny` | `not_implemented` | Im Modul gibt es keinen Phase-4-Zeitpunkt vor dem Commit. |
-| `late_intervention`, `late_intervention_log_only` und `late_intervention_abort` | `not_implemented` | Es gibt keine Policy für Response-Bodies nach dem Commit. |
-| `late_intervention_status_metadata` | `not_implemented` | Noch kein Phase-4-Ereignis kann ursprünglichen, angeforderten und sichtbaren Status sowie Aktionen trennen. |
+| `response_body_buffered`, `phase4` und `phase4_rule_evaluation` | `not_implemented` | Identity-Entity-Sourcepfad ist ohne echten Streaming-Hostlauf nicht promotet; keine Behauptung einer Regelauswertung pro Chunk. |
+| `phase4_pre_commit_deny` | `not_implemented` | Kein client-validiertes Precommit-Dispositionsergebnis. |
+| `late_intervention`, `late_intervention_log_only` und `late_intervention_abort` | `not_implemented` | Safe-Sourceverhalten zeichnet `log_only` auf; Strict-Abort hat keine client-sichtbare Evidence und bleibt `NOT EXECUTED`. |
+| `late_intervention_status_metadata` | `not_implemented` | Kein Clientartefakt trennt ursprünglichen, angeforderten, sichtbaren Status und tatsächliche Aktion nach dem Commit. |
 
 Phase-4-Zeilen sind `NOT_EXECUTED` (oder werden durch die Capability-Auswahl
 ausgelassen), nicht `UNSUPPORTED`. Der vorhandene Header-Hook und der

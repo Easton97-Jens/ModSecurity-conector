@@ -276,21 +276,19 @@ Der gepinnte 3.2.21-Source klärt die Host-API-Frage: `flt_ops` bietet
 `http_payload` und `http_end`, und der Response-Analyzer ruft sie beim
 inkrementellen Weiterleiten von HTX-Daten auf. Der aktuelle SPOE-Filter besitzt
 solche Events nicht. Der eingecheckte `htx-overlay/` ist ein source-gebundener
-Observer, der baut, `filter modsecurity-htx` parst, aktuelle Response-Slices
-leiht und bei EOS für bodylose Requests finalisiert. Er umgeht bewusst
-bodytragende Requests, weil das aktuelle Binding P2 atomisch schließt. Er ist
-nicht durch den SPOP-Harness ausgewählt und belegt weder kanonische Evidence
-noch Enforcement.
+Full-Lifecycle-Pfad, der baut, `filter modsecurity-htx` parst, aktuelle
+Request-/Response-Slices leiht und jeden Body bei EOS finalisiert. Sein
+einblockiger P2-Deny protokolliert null oder eine beobachtete Upstream-Anfrage
+ohne deren Reihenfolge zu belegen; er belegt daher kein inkrementelles Request-Forwarding. Er bleibt vom
+SPOP-Harness getrennt und promotet keine Selected-Path-Capabilities.
 
 Plan:
 
-1. Source-gebundenen HTX-Filter im disposable HAProxy-3.2.21-Worktree vom
-   bodylosen Observer-Prototyp zu sicherem Request-Body-Lifecycle erweitern,
-   dabei nur Per-Stream-Zustand und geliehene Slices verwenden.
-2. Request- und Response-Phasen in derselben lokalen Transaktion korrelieren;
-   der aktuelle isolierte bodylose P4-Observer ist nicht semantisch äquivalent
-   zum SPOA-Pfad.
-3. Genau einmal bei `http_end` finalisieren und ein spätes Ergebnis als
+1. Split-Request-Body-, Limit- und Client-Cancel-Probes ergänzen, bevor über
+   das beobachtete einblockige P2-Ergebnis hinaus etwas behauptet wird.
+2. Einen synchronisierten First-Byte-vor-Response-EOS-Probe ohne vollständige
+   HTX-Kopie oder `wait-for-body` ergänzen.
+3. Genau einmal bei jedem `http_end` finalisieren und ein spätes Ergebnis als
    `log_only` erfassen, bis ein Abbruchverhalten getestet ist. Das Response-Ende
    liegt nach dem Weiterleiten; keinen späten HTTP-Status erfinden.
 4. Agent-Ausfall strikt von einem absichtlichen Late-Abbruch trennen;

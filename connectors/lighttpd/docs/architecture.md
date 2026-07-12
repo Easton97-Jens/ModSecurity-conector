@@ -78,19 +78,29 @@ The stock mode overrides both mapper contracts to
 `MSCONNECTOR_MAPPER_UNSUPPORTED` and maps a zero-length body. The native smoke
 config sets `request_body_mode=none` and `response_body_mode=none`.
 
-The separate full-lifecycle-selected lighttpd 1.4.84 patch appends a versioned ABI for
-decoded HTTP/1.x request-body ranges and bounded pre-write HTTP/1.x output/EOS
-ranges. Its native binding can incrementally pass request ranges to the Common
-runtime when `request_body_mode=streaming`. It intentionally rejects buffered
-request mode and every response-body mode: the output callback sees HTTP/1.x
-wire bytes (including possible chunk framing), not a decoded response entity.
-It uses the output EOS only to finalize the no-response-body lifecycle. HTTP/2
-is rejected in patched mode because the core output queue is multiplexed.
+The separate full-lifecycle-selected lighttpd 1.4.84 patch appends a versioned
+ABI for borrowed HTTP/1.x request-body ranges and identity entity-response
+ranges. The response callback is invoked in `http_chunk_append_mem()` and
+`http_chunk_append_buffer()` before this core applies HTTP/1 transfer framing;
+it is not a socket-queue callback. The selected filter order is
+application/backend → selected identity entity range → msconnector callback →
+HTTP/1 transfer framing → socket. The callback receives only a synchronous
+borrowed pointer and length, advances a monotonic entity offset, and signals
+EOS once. It retains no connector-owned body queue.
 
-The patched host has a narrow real Phase-1 200/403 smoke, but this is not body
-runtime evidence. Capabilities and Phase 2/4, truncation, first-byte,
-late-intervention, and response-body claims remain non-promoted until matching
-real host verification exists.
+The patched binding can incrementally pass request and response ranges to
+Common Runtime when the corresponding mode is `streaming`. Buffered request
+mode remains rejected. The selected response scope is identity only: gzip/br,
+HTTP/2, and unexamined file/zero-copy output routes are not asserted as body
+inspection paths. Short writes and `EAGAIN` occur after the one-time append
+callback, so the structural contract cannot duplicate entity ingestion on a
+socket retry; that behavior still lacks a real-host fault-injection run.
+
+The patched host has a narrow real Phase-1 200/403 smoke, but this is not P4
+runtime evidence. It does not yet prove a client-observed Phase-4 rule, safe
+outcome, strict abort, truncation, first byte, or no-full-buffer result.
+Safe/minimal source behavior records `log_only`; strict intentionally remains
+`NOT EXECUTED` because no client-validated lighttpd abort primitive is present.
 
 ## Alternative paths
 

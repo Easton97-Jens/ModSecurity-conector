@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
@@ -52,6 +54,26 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 [{"status": "FAIL", "capability_promotion": "not_permitted"}]
             )
         )
+
+    def test_not_executable_harness_case_is_canonical_not_executed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-collector-") as temporary:
+            source = Path(temporary) / "cases.jsonl"
+            source.write_text(
+                json.dumps({
+                    "case_id": "allow_without_marker",
+                    "status": "not_executable",
+                    "live_executed": False,
+                }) + "\n",
+                encoding="utf-8",
+            )
+            cases, _ = collector.case_observations(
+                [source],
+                "nginx",
+                "1100001",
+                {"allow_without_marker": (200, None)},
+            )
+            self.assertEqual("NOT_EXECUTED", cases[0]["status"])
+            self.assertTrue(collector.only_nonexecuted_cases(cases))
 
     def test_native_rule_engine_summary_keeps_explicit_case_evidence(self) -> None:
         summary = {
@@ -240,6 +262,38 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertTrue(event["body_started"])
         self.assertTrue(event["connection_aborted"])
         self.assertEqual("connection_aborted", event["transport_result"])
+
+    def test_transport_lifecycle_metadata_is_allowlisted_and_bounded(self) -> None:
+        event = collector.sanitized_event(
+            {
+                "connector": "nginx",
+                "transaction_id": "tx-transport-1",
+                "phase": 4,
+                "transport_case_id": "transport-case-1",
+                "requested_protocol": "h2",
+                "downstream_protocol": "h2",
+                "upstream_protocol": "http1",
+                "negotiated_protocol": "h2",
+                "transport": "tls_tcp",
+                "stream_id": 1,
+                "stream_reset": True,
+                "reset_by": "strict_intervention",
+                "reset_code": "CANCEL",
+                "timeout_stage": "after_commit",
+                "write_result": "short_write",
+                "cleanup_reason": "strict_abort",
+                "eos_seen": True,
+                "client_disconnected": False,
+                "upstream_disconnected": False,
+                "cancelled": False,
+            }
+        )
+        self.assertEqual("transport-case-1", event["transport_case_id"])
+        self.assertEqual("h2", event["negotiated_protocol"])
+        self.assertEqual("tls_tcp", event["transport"])
+        self.assertEqual("strict_intervention", event["reset_by"])
+        self.assertEqual("short_write", event["write_result"])
+        self.assertTrue(event["eos_seen"])
 
     def test_synchronized_first_byte_metadata_is_allowlisted_without_payload(self) -> None:
         event = collector.sanitized_event(
@@ -939,6 +993,48 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             '--scrub-source-events',
         ):
             self.assertIn(assignment, source)
+
+    def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:
+        source = (ROOT / "ci/run-no-crs-baseline.sh").read_text(encoding="utf-8")
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        for fragment in (
+            "NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR=${NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR:-}",
+            "NO_CRS_PROTOCOL_CLIENT=${NO_CRS_PROTOCOL_CLIENT:-0}",
+            "NO_CRS_PROTOCOL_CLIENT must be 0 or 1",
+            "requires NO_CRS_ARTIFACT_PROFILE=full_lifecycle",
+            "must remain inside this raw run",
+            "protocol client artifact directory escaped the current raw run",
+            'set -- "$@" --protocol-client-artifact-dir "$protocol_client_artifact_dir"',
+            "skipping H1 native first-byte helper for NGINX downstream",
+        ):
+            self.assertIn(fragment, source)
+        self.assertIn("NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR ?=", makefile)
+        self.assertIn("NO_CRS_PROTOCOL_CLIENT ?= 0", makefile)
+        self.assertIn("export NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR", makefile)
+        self.assertIn("export NO_CRS_PROTOCOL_CLIENT", makefile)
+        transport_checker = makefile.split(
+            "define RUN_TRANSPORT_HARDENING_EVIDENCE_CHECK", 1
+        )[1].split("endef", 1)[0]
+        self.assertIn('PYTHON="$(FRAMEWORK_PYTHON)"', transport_checker)
+
+        completed = subprocess.run(
+            ["sh", str(ROOT / "ci/run-no-crs-baseline.sh"), "envoy", "no_crs_baseline"],
+            cwd=ROOT,
+            env={
+                **os.environ,
+            "NO_CRS_ARTIFACT_PROFILE": "generic",
+            "NO_CRS_PROTOCOL_CLIENT": "1",
+            "NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR": "/tmp/not-a-canonical-bundle",
+            },
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(1, completed.returncode)
+        self.assertIn(
+            "NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR requires NO_CRS_ARTIFACT_PROFILE=full_lifecycle",
+            completed.stderr,
+        )
 
     def test_native_first_byte_log_stays_under_connector_run_root(self) -> None:
         source = (ROOT / "ci/run-native-first-byte.sh").read_text(encoding="utf-8")

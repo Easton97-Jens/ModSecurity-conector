@@ -23,6 +23,8 @@ CACHE_ROOT=${CACHE_ROOT:-$VERIFIED_RUN_ROOT/cache-v2}
 NO_CRS_RUN_ID=${NO_CRS_RUN_ID:-$(date -u +%Y-%m-%dT%H-%M-%SZ)-$(git -C "$CONNECTOR_ROOT" rev-parse --short=8 HEAD 2>/dev/null || printf unknown)}
 NO_CRS_RULES_FILE=${NO_CRS_RULES_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}
 NO_CRS_ARTIFACT_PROFILE=${NO_CRS_ARTIFACT_PROFILE:-generic}
+NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR=${NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR:-}
+NO_CRS_PROTOCOL_CLIENT=${NO_CRS_PROTOCOL_CLIENT:-0}
 FULL_LIFECYCLE_HOST_PROFILE=${FULL_LIFECYCLE_HOST_PROFILE:-}
 FULL_LIFECYCLE_EXECUTED_TARGET=${FULL_LIFECYCLE_EXECUTED_TARGET:-}
 EXPECTED_RULE_ID=1100001
@@ -39,6 +41,17 @@ case "$NO_CRS_ARTIFACT_PROFILE" in
     generic|full_lifecycle) ;;
     *) echo "FAIL: unsupported NO_CRS_ARTIFACT_PROFILE: $NO_CRS_ARTIFACT_PROFILE" >&2; exit 2 ;;
 esac
+case "$NO_CRS_PROTOCOL_CLIENT" in
+    0|false|no|"") NO_CRS_PROTOCOL_CLIENT=0 ;;
+    1|true|yes) NO_CRS_PROTOCOL_CLIENT=1 ;;
+    *) echo "FAIL: NO_CRS_PROTOCOL_CLIENT must be 0 or 1" >&2; exit 1 ;;
+esac
+if { [ -n "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" ] || \
+     [ "$NO_CRS_PROTOCOL_CLIENT" = 1 ]; } && \
+   [ "$NO_CRS_ARTIFACT_PROFILE" != full_lifecycle ]; then
+    echo "FAIL: NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR requires NO_CRS_ARTIFACT_PROFILE=full_lifecycle" >&2
+    exit 1
+fi
 case "$NO_CRS_RUN_ID" in
     [A-Za-z0-9]* ) ;;
     *) echo "FAIL: run id must start with an ASCII letter or digit: $NO_CRS_RUN_ID" >&2; exit 1 ;;
@@ -55,6 +68,7 @@ RUNTIME_PATH_RESOLVER=$CONNECTOR_ROOT/ci/resolve-runtime-paths.py
 PROFILE_RESOLVER=$CONNECTOR_ROOT/ci/resolve-full-lifecycle-profile.py
 LOG_SANITIZER=$CONNECTOR_ROOT/ci/sanitize-full-lifecycle-log.py
 ENGINE_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/write-engine-lifecycle-artifacts.py
+TRANSPORT_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/write-transport-lifecycle-artifacts.py
 SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 
 [ -f "$FRAMEWORK_ROOT/ci/no_crs_baseline.py" ] || {
@@ -67,6 +81,10 @@ SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 }
 [ -f "$ENGINE_ARTIFACT_WRITER" ] || {
     echo "FAIL: engine lifecycle artifact writer is missing: $ENGINE_ARTIFACT_WRITER" >&2
+    exit 1
+}
+[ -f "$TRANSPORT_ARTIFACT_WRITER" ] || {
+    echo "FAIL: transport lifecycle artifact writer is missing: $TRANSPORT_ARTIFACT_WRITER" >&2
     exit 1
 }
 [ -f "$SYNCHRONIZED_UPSTREAM" ] || {
@@ -199,7 +217,25 @@ ENGINE_LIBRARY_SHA256_ARTIFACT=$ENGINE_ARTIFACT_DIR/engine-library-sha256.txt
 RULESET_SHA256_ARTIFACT=$ENGINE_ARTIFACT_DIR/ruleset-sha256.txt
 TRANSACTION_COUNTS_ARTIFACT=$ENGINE_ARTIFACT_DIR/transaction-counts.json
 LIFECYCLE_COUNTERS_ARTIFACT=$ENGINE_ARTIFACT_DIR/lifecycle-counters.json
+TRANSPORT_ARTIFACT_DIR=$CONNECTOR_RUN_ROOT/transport-artifacts
+CLIENT_TRANSPORT_LOG=$TRANSPORT_ARTIFACT_DIR/client.log
+UPSTREAM_TRANSPORT_LOG=$TRANSPORT_ARTIFACT_DIR/upstream.log
+TRANSPORT_LOG=$TRANSPORT_ARTIFACT_DIR/transport.log
+CLEANUP_TRANSPORT_LOG=$TRANSPORT_ARTIFACT_DIR/cleanup.log
+TRANSPORT_OBSERVATIONS_ARTIFACT=$TRANSPORT_ARTIFACT_DIR/transport-observations.json
+CONNECTION_LIFECYCLE_ARTIFACT=$TRANSPORT_ARTIFACT_DIR/connection-lifecycle.json
+BARRIER_EVENTS_ARTIFACT=$TRANSPORT_ARTIFACT_DIR/barrier-events.jsonl
+EFFECTIVE_CONFIG_ARTIFACT_DIR=$CONNECTOR_RUN_ROOT/effective-config
+EFFECTIVE_CONFIG_MANIFEST=$EFFECTIVE_CONFIG_ARTIFACT_DIR/manifest.json
 EFFECTIVE_CAPABILITIES_FILE=$CAPABILITIES_FILE
+protocol_client_artifact_optional=0
+if [ "$NO_CRS_PROTOCOL_CLIENT" = 1 ] && [ -z "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" ]; then
+    # The raw run does not exist yet, so only the canonical runner can choose
+    # this safe location. A host that cannot reach its selected protocol path
+    # may leave the optional bundle absent; that remains non-promoting.
+    NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR=$RAW_DIR/protocol-client
+    protocol_client_artifact_optional=1
+fi
 FULL_LIFECYCLE_STAGE_REASON=
 if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     EFFECTIVE_CAPABILITIES_FILE=$CONNECTOR_BUILD_ROOT/effective-full-lifecycle-capabilities.json
@@ -276,6 +312,20 @@ case "$RAW_DIR" in
 esac
 reject_symlink_components "$RUN_DIR"
 reject_symlink_components "$RAW_DIR"
+if [ -n "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" ]; then
+    case "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" in
+        /*) ;;
+        *) echo "FAIL: NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR must be absolute" >&2; exit 1 ;;
+    esac
+    # The harness is allowed to create the directory later, but it must be
+    # scoped to this invocation's disposable raw run rather than an arbitrary
+    # external tree.  Resolve and re-check it after the stage has finished.
+    case "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" in
+        "$RAW_DIR"/*) ;;
+        *) echo "FAIL: NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR must remain inside this raw run" >&2; exit 1 ;;
+    esac
+    reject_symlink_components "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR"
+fi
 if [ -e "$RUN_DIR" ] || [ -L "$RUN_DIR" ]; then
     echo "FAIL: canonical run directory already exists; choose a fresh run id: $RUN_DIR" >&2
     exit 1
@@ -427,6 +477,7 @@ NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
 NO_CRS_SELECTED_CASES="$NO_CRS_SELECTED_CASES" \
 NO_CRS_SELECTED_CASE_IDS="$NO_CRS_SELECTED_CASE_IDS" \
 NO_CRS_ARTIFACT_PROFILE="$NO_CRS_ARTIFACT_PROFILE" \
+NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR="$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" \
 FULL_LIFECYCLE_HOST_PROFILE="$FULL_LIFECYCLE_HOST_PROFILE" \
 FULL_LIFECYCLE_EXECUTED_TARGET="$FULL_LIFECYCLE_EXECUTED_TARGET" \
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="$FIRST_BYTE_EVIDENCE" \
@@ -463,19 +514,30 @@ fi
 if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     case "$connector" in
         apache|nginx)
-            native_first_byte_rc=0
-            CONNECTOR_ROOT="$CONNECTOR_ROOT" \
-            FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
-            BUILD_ROOT="$BUILD_ROOT" \
-            RESULTS_DIR="$RESULTS_DIR" \
-            HOST_RUNTIME_ROOT="$HOST_RUNTIME_ROOT" \
-            HOST_LOG_ROOT="$HOST_LOG_ROOT" \
-            NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
-            FULL_LIFECYCLE_EVIDENCE_OUTPUT="$FIRST_BYTE_EVIDENCE" \
-            SKIP_RUNTIME_COMPONENT_PREPARE=1 \
-            sh "$CONNECTOR_ROOT/ci/run-native-first-byte.sh" "$connector" || native_first_byte_rc=$?
-            if [ "$native_first_byte_rc" -ne 0 ]; then
-                stage_rc=$native_first_byte_rc
+            run_native_first_byte=1
+            if [ "$connector" = nginx ] && \
+               [ "${NGINX_DOWNSTREAM_PROTOCOL:-http1}" != http1 ]; then
+                # The synchronized helper is an H1-only proof. A selected
+                # H2/H3 listener must not inherit its H1 result or turn its
+                # honest non-execution into a runner failure.
+                run_native_first_byte=0
+                echo "INFO: skipping H1 native first-byte helper for NGINX downstream ${NGINX_DOWNSTREAM_PROTOCOL}" >&2
+            fi
+            if [ "$run_native_first_byte" -eq 1 ]; then
+                native_first_byte_rc=0
+                CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+                FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+                BUILD_ROOT="$BUILD_ROOT" \
+                RESULTS_DIR="$RESULTS_DIR" \
+                HOST_RUNTIME_ROOT="$HOST_RUNTIME_ROOT" \
+                HOST_LOG_ROOT="$HOST_LOG_ROOT" \
+                NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
+                FULL_LIFECYCLE_EVIDENCE_OUTPUT="$FIRST_BYTE_EVIDENCE" \
+                SKIP_RUNTIME_COMPONENT_PREPARE=1 \
+                sh "$CONNECTOR_ROOT/ci/run-native-first-byte.sh" "$connector" || native_first_byte_rc=$?
+                if [ "$native_first_byte_rc" -ne 0 ]; then
+                    stage_rc=$native_first_byte_rc
+                fi
             fi
             ;;
     esac
@@ -570,6 +632,29 @@ if [ ! -f "$NORMALIZED_EVENTS" ]; then
     : > "$NORMALIZED_EVENTS"
 fi
 if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+    "$PYTHON" "$TRANSPORT_ARTIFACT_WRITER" \
+        --connector "$connector" \
+        --run-id "$NO_CRS_RUN_ID" \
+        --events "$NORMALIZED_EVENTS" \
+        --output-dir "$TRANSPORT_ARTIFACT_DIR" || {
+            echo "FAIL: unable to write payload-free transport lifecycle artifacts" >&2
+            exit 1
+        }
+    for transport_artifact in \
+        "$CLIENT_TRANSPORT_LOG" \
+        "$UPSTREAM_TRANSPORT_LOG" \
+        "$TRANSPORT_LOG" \
+        "$CLEANUP_TRANSPORT_LOG" \
+        "$TRANSPORT_OBSERVATIONS_ARTIFACT" \
+        "$CONNECTION_LIFECYCLE_ARTIFACT" \
+        "$BARRIER_EVENTS_ARTIFACT"; do
+        if [ ! -f "$transport_artifact" ] || [ -L "$transport_artifact" ]; then
+            echo "FAIL: required transport artifact is missing or unsafe: $transport_artifact" >&2
+            exit 1
+        fi
+    done
+fi
+if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     if [ -n "$FIRST_BYTE_EVIDENCE_SOURCE" ]; then
         case "$FIRST_BYTE_EVIDENCE_SOURCE" in
             /*) ;;
@@ -649,6 +734,28 @@ fi
 CONNECTOR_COMPONENT_CACHE=$SHARED_COMPONENT_CACHE
 VERIFIED_COMPONENT_CACHE=$SHARED_COMPONENT_CACHE
 RUNTIME_COMPONENT_ENV_SNAPSHOT=$runtime_env
+# Store only an allowlisted hash inventory for effective configuration.  Raw
+# rules and host configuration can contain fixture payloads or credentials and
+# must remain in the disposable run root.
+if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+    set -- \
+        --connector "$connector" \
+        --run-id "$NO_CRS_RUN_ID" \
+        --effective-config-dir "$EFFECTIVE_CONFIG_ARTIFACT_DIR" \
+        --config-file "capabilities.json=$CAPABILITIES_FILE" \
+        --config-file "rules/no-crs-baseline.conf=$NO_CRS_RULES_FILE"
+    if [ -s "$runtime_env" ]; then
+        set -- "$@" --config-file "runtime-components.env=$runtime_env"
+    fi
+    "$PYTHON" "$TRANSPORT_ARTIFACT_WRITER" "$@" || {
+        echo "FAIL: unable to write effective configuration inventory" >&2
+        exit 1
+    }
+    if [ ! -f "$EFFECTIVE_CONFIG_MANIFEST" ] || [ -L "$EFFECTIVE_CONFIG_MANIFEST" ]; then
+        echo "FAIL: effective configuration inventory is missing or unsafe" >&2
+        exit 1
+    fi
+fi
 # Inventory must describe this connector's isolated build root even if a
 # concurrent connector invocation generated another shared compatibility file.
 BUILD_ROOT=$CONNECTOR_BUILD_ROOT
@@ -727,6 +834,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] && [ "$stage_rc" -eq 0 ]; the
         --libmodsecurity-version "$libmodsecurity_version" \
         --libmodsecurity-library "$libmodsecurity_library" \
         --stage-exit-code "$stage_rc" \
+        --transport-lifecycle "$CONNECTION_LIFECYCLE_ARTIFACT" \
         --output-dir "$ENGINE_ARTIFACT_DIR" || {
             echo "FAIL: unable to write full-lifecycle engine artifacts" >&2
             exit 1
@@ -767,7 +875,15 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] || [ -s "$NORMALIZED_EVENTS" 
 fi
 if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     set -- "$@" --host-log "$CANONICAL_HOST_LOG" \
-        --first-byte-evidence "$FIRST_BYTE_EVIDENCE"
+        --first-byte-evidence "$FIRST_BYTE_EVIDENCE" \
+        --source-artifact "client_log=$CLIENT_TRANSPORT_LOG" \
+        --source-artifact "upstream_log=$UPSTREAM_TRANSPORT_LOG" \
+        --source-artifact "transport_log=$TRANSPORT_LOG" \
+        --source-artifact "cleanup_log=$CLEANUP_TRANSPORT_LOG" \
+        --source-artifact "transport_observations=$TRANSPORT_OBSERVATIONS_ARTIFACT" \
+        --source-artifact "connection_lifecycle=$CONNECTION_LIFECYCLE_ARTIFACT" \
+        --source-artifact "barrier_events=$BARRIER_EVENTS_ARTIFACT" \
+        --source-artifact "effective_config=$EFFECTIVE_CONFIG_ARTIFACT_DIR"
     if [ "$stage_rc" -eq 0 ]; then
         set -- "$@" \
             --source-artifact "engine_version=$ENGINE_VERSION_ARTIFACT" \
@@ -776,6 +892,40 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
             --source-artifact "transaction_counts=$TRANSACTION_COUNTS_ARTIFACT" \
             --source-artifact "lifecycle_counters=$LIFECYCLE_COUNTERS_ARTIFACT"
     fi
+fi
+if [ -n "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" ]; then
+    if [ ! -d "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" ] || \
+       [ -L "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" ]; then
+        if [ "$protocol_client_artifact_optional" = 1 ]; then
+            echo "INFO: optional protocol client did not publish a bundle; no protocol capability is promoted" >&2
+            protocol_client_artifact_dir=
+        else
+            echo "FAIL: protocol client artifact directory is missing or unsafe" >&2
+            exit 1
+        fi
+    else
+        reject_symlink_components "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR"
+        protocol_client_artifact_dir=$("$PYTHON" - \
+            "$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR" "$RAW_DIR" <<'PY'
+import sys
+from pathlib import Path
+
+candidate = Path(sys.argv[1]).resolve(strict=True)
+raw_root = Path(sys.argv[2]).resolve(strict=True)
+if candidate == raw_root or raw_root not in candidate.parents:
+    raise SystemExit("protocol client artifact directory escaped the current raw run")
+print(candidate)
+PY
+        ) || {
+            echo "FAIL: protocol client artifact directory escaped the current raw run" >&2
+            exit 1
+        }
+    fi
+else
+    protocol_client_artifact_dir=
+fi
+if [ -n "$protocol_client_artifact_dir" ]; then
+    set -- "$@" --protocol-client-artifact-dir "$protocol_client_artifact_dir"
 fi
 
 set +e

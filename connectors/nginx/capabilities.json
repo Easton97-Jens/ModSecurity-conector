@@ -186,6 +186,66 @@
       "state": "configured_not_exercised",
       "reason": "The module can be built into an HTTP/2-capable NGINX host, but the currently pinned canonical host was configured without --with-http_v2_module. No applicable HTTP/2 lifecycle case is attached."
     },
+    "http2_downstream": {
+      "state": "implemented_not_asserted",
+      "reason": "The managed NGINX protocol build profile can enable the native HTTP/2 module, but no forced negotiated connector run is attached."
+    },
+    "http2_upstream": {
+      "state": "not_implemented",
+      "reason": "No native NGINX connector upstream HTTP/2 matrix is implemented."
+    },
+    "http2_tls_alpn": {
+      "state": "implemented_not_asserted",
+      "reason": "The managed protocol profile can configure TLS and h2 ALPN, but no negotiated client evidence is attached."
+    },
+    "http2_cleartext_h2c": {
+      "state": "not_implemented",
+      "reason": "No h2c prior-knowledge listener profile is implemented for the native NGINX harness."
+    },
+    "http2_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No HTTP/2 parallel-stream transaction-isolation runner is implemented."
+    },
+    "http2_stream_reset": {
+      "state": "not_implemented",
+      "reason": "The current strict filter marks a connection error; it does not prove a stream-local HTTP/2 reset."
+    },
+    "http3_downstream": {
+      "state": "implemented_not_asserted",
+      "reason": "The managed NGINX protocol profile has an explicit HTTP/3/QUIC build path, but no forced H3 client evidence is attached."
+    },
+    "http3_upstream": {
+      "state": "not_implemented",
+      "reason": "No native NGINX connector upstream HTTP/3 matrix is implemented."
+    },
+    "http3_quic": {
+      "state": "implemented_not_asserted",
+      "reason": "The managed profile records a QUIC-capable TLS build input, but it is not runtime QUIC evidence."
+    },
+    "http3_alt_svc": {
+      "state": "implemented_not_asserted",
+      "reason": "The managed H3 listener template can advertise Alt-Svc, but no forced H3 observation is attached."
+    },
+    "http3_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No HTTP/3 parallel-stream transaction-isolation runner is implemented."
+    },
+    "http3_stream_reset": {
+      "state": "not_implemented",
+      "reason": "The current strict path has no proven QUIC stream-reset action."
+    },
+    "protocol_transaction_isolation": {
+      "state": "not_implemented",
+      "reason": "No negotiated HTTP/2 or HTTP/3 transaction-isolation evidence is implemented."
+    },
+    "protocol_first_byte_before_response_end": {
+      "state": "not_implemented",
+      "reason": "The existing synchronized first-byte proof is HTTP/1.1-only."
+    },
+    "protocol_no_full_response_buffering": {
+      "state": "not_implemented",
+      "reason": "No negotiated HTTP/2 or HTTP/3 no-full-buffer proof is implemented."
+    },
     "client_abort": {
       "state": "not_implemented",
       "reason": "No native NGINX client-abort cleanup case currently records the canonical transport metadata."

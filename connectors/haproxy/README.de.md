@@ -40,7 +40,7 @@ Ereignisse oder Berichte gelangen.
 ## Natives HTX-Precommit-Overlay für das Full-Lifecycle-Profil
 
 `htx-overlay/` enthält einen source-gebundenen **HAProxy-3.2.21**-
-Observer-Filter für die nativen HTX-Callbacks `http_payload` und `http_end`.
+nativen HTX-Filter für die Callbacks `http_payload` und `http_end`.
 Er wird in einem disposable Upstream-Worktree gebaut. `full-lifecycle-haproxy-htx`
 wählt ihn aus; die SPOE/SPOP-Runtime bleibt der getrennte Kompatibilitätspfad:
 
@@ -66,14 +66,22 @@ Binding und finalisiert Phase 4 einmal bei Response-EOS. Er verwendet weder
 Die Evidence enthält nur begrenzte Metadaten zu Client-Status/-Bytezahl,
 Upstream-Anzahl, Transaction-ID, Phase, Regel-ID und Aktion.
 
-P2 (`1100101`) und P4 (`1100301`) werden nur als echte Host-Beobachtungen
-ausgeführt: Sie liefern weiter Upstream-200, mit P2
-`host_action=observed_only` und dem P4-Safe-Policy-Ergebnis
-`host_action=not_attempted`. Der Smoke beansprucht keinen Redirect,
-Post-Commit-Abort, First-Byte-Nachweis, keine Common-Runtime-Brücke und keine
-Capability-Promotion. Seine Zusammenfassung behält ausdrücklich
-`capability_promotion=not_permitted`; die lokale Host-Evidence kann daher nicht
-als synthetische kanonische Promotion umgedeutet werden.
+Beim einblockigen P2-Probe (`1100101`) gibt `http_payload` geliehene Daten vor
+der späteren `http_end`-Entscheidung weiter. Der Host-Runner protokolliert, ob
+der Test-Upstream null oder eine Anfrage sah; keiner der Werte belegt die
+Reihenfolge gegenüber dem client-sichtbaren 403. Der Filter verwendet den
+normalen Reply-and-Close-Pfad von HAProxy ohne Connector-eigenen Body-Buffer.
+Das ist kein Nachweis für inkrementelles Request-Forwarding oder eine allgemeine
+Host-Buffering-Garantie. P4 (`1100301`)
+nutzt geliehene Response-DATA und genau ein Response-EOS. Safe/Minimal erhält
+Upstream-200/Body und zeichnet `host_action=log_only` auf; Strict behält
+`host_action=not_attempted`, weil kein client-sichtbares HAProxy-Abort-Primitiv
+belegt ist. Der Smoke beansprucht keinen Redirect, Post-Commit-Abort,
+First-Byte-Nachweis, clientseitigen No-Full-Buffer-Nachweis,
+keine Common-Runtime-Brücke und keine Capability-Promotion. Seine
+Zusammenfassung behält ausdrücklich `capability_promotion=not_permitted`; die
+lokale Host-Evidence kann daher nicht als synthetische kanonische Promotion
+umgedeutet werden.
 
 Der Overlay ist nicht in der eingecheckten SPOP-Harness-Konfiguration aktiv und
 liefert nur nicht-promotete kanonische Host-Evidence. Er stuft daher die

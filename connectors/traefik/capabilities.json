@@ -201,6 +201,66 @@
       "state": "configured_not_exercised",
       "reason": "Traefik HTTP/2 transport behavior is not exercised by a canonical forwardAuth full-lifecycle case."
     },
+    "http2_downstream": {
+      "state": "not_implemented",
+      "reason": "The repository-owned native-middleware harness renders only a cleartext web entry point; it has no TLS HTTP/2 listener or forced H2 client path."
+    },
+    "http2_upstream": {
+      "state": "not_implemented",
+      "reason": "No Traefik native middleware upstream HTTP/2 matrix is implemented."
+    },
+    "http2_tls_alpn": {
+      "state": "not_implemented",
+      "reason": "The repository-owned native-middleware configuration has no certificate, TLS entry point, or h2 ALPN configuration."
+    },
+    "http2_cleartext_h2c": {
+      "state": "not_implemented",
+      "reason": "No native middleware h2c profile is configured."
+    },
+    "http2_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No native middleware HTTP/2 stream-isolation runner is implemented."
+    },
+    "http2_stream_reset": {
+      "state": "not_implemented",
+      "reason": "HTTP/1 hijack behavior is not HTTP/2 reset evidence and no stream-reset API is wired."
+    },
+    "http3_downstream": {
+      "state": "not_implemented",
+      "reason": "The repository-owned native-middleware harness has no HTTP/3 entry point, UDP/QUIC listener, or forced H3 client path."
+    },
+    "http3_upstream": {
+      "state": "not_implemented",
+      "reason": "No Traefik native middleware upstream HTTP/3 matrix is implemented."
+    },
+    "http3_quic": {
+      "state": "not_implemented",
+      "reason": "No repository-owned Traefik QUIC listener or QUIC traffic observation is configured for the native middleware."
+    },
+    "http3_alt_svc": {
+      "state": "not_implemented",
+      "reason": "No repository-owned native-middleware Traefik configuration advertises an HTTP/3 Alt-Svc endpoint."
+    },
+    "http3_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No native middleware H3 stream-isolation runner is implemented."
+    },
+    "http3_stream_reset": {
+      "state": "not_implemented",
+      "reason": "No client-visible QUIC stream-reset API is wired for the middleware."
+    },
+    "protocol_transaction_isolation": {
+      "state": "not_implemented",
+      "reason": "No multiplexed protocol transaction-isolation evidence is implemented."
+    },
+    "protocol_first_byte_before_response_end": {
+      "state": "not_implemented",
+      "reason": "No negotiated-protocol first-byte barrier is implemented."
+    },
+    "protocol_no_full_response_buffering": {
+      "state": "not_implemented",
+      "reason": "No negotiated-protocol no-full-buffer proof is implemented."
+    },
     "client_abort": {
       "state": "unsupported_by_host_model",
       "reason": "The external authorization service cannot observe or directly control a Traefik client-abort lifecycle."

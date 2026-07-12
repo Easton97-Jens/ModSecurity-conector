@@ -130,6 +130,66 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
                     ]),
                 )
 
+    def test_lifecycle_inventory_rejects_unbalanced_or_unattributed_counters(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="full-lifecycle-lifecycle-") as temporary:
+            run = Path(temporary)
+            (run / "events.jsonl").write_text(
+                '{"transaction_id":"tx-one","actual_action":"abort_connection",'
+                '"late_intervention_mode":"strict","transport_result":"connection_aborted"}\n',
+                encoding="utf-8",
+            )
+            (run / "lifecycle-counters.json").write_text(
+                '{"connector":"apache","transactions_started":2,"transactions_finished":1,'
+                '"transactions_destroyed":1,"request_body_finishes":0,'
+                '"response_body_finishes":0,"intentional_aborts":2,'
+                '"client_disconnects":0,"upstream_disconnects":0,"stream_resets":0,'
+                '"timeouts":0,"short_writes":0,"write_would_block":0,'
+                '"cleanup_normal":0,"cleanup_cancel":0,"cleanup_abort":0,'
+                '"unexpected_engine_errors":0,"transport_counters_bound":true}',
+                encoding="utf-8",
+            )
+            inventory = run / "inventory"
+            inventory.mkdir()
+            (inventory / "connection-lifecycle.json").write_text(
+                '{"records":[]}', encoding="utf-8"
+            )
+            errors = checker.lifecycle_errors(run, "apache")
+            self.assertTrue(any("unbalanced" in error for error in errors))
+            self.assertTrue(any("intentional_aborts" in error for error in errors))
+
+    def test_transport_inventory_rejects_unproven_host_survival(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="full-lifecycle-transport-") as temporary:
+            run = Path(temporary)
+            logs = run / "logs"
+            inventory = run / "inventory"
+            logs.mkdir()
+            inventory.mkdir()
+            for name in ("client.log", "upstream.log", "transport.log", "cleanup.log"):
+                (logs / name).write_text("payload-free\n", encoding="utf-8")
+            (inventory / "transport-observations.json").write_text(
+                '{"connector":"apache","run_id":"run-one","observations":['
+                '{"protocol":"http1","case_id":"strict-http1","transport_case_id":"case-one",'
+                '"transaction_id":"tx-one","rule_id":1100301,"phase":4,"event":"phase4",'
+                '"message_id":"MSCONN_EVENT","requested_action":"deny","actual_action":"abort_connection",'
+                '"response_committed":true,"first_byte_received":true,"eos_received":false,'
+                '"client_result":"not_observable","transport_result":"connection_aborted",'
+                '"host_survived":true,"followup_request_result":"not_observed"}]}',
+                encoding="utf-8",
+            )
+            (inventory / "connection-lifecycle.json").write_text(
+                '{"connector":"apache","run_id":"run-one","records":[]}',
+                encoding="utf-8",
+            )
+            (inventory / "barrier-events.jsonl").write_text("", encoding="utf-8")
+            effective = run / "effective-config"
+            effective.mkdir()
+            (effective / "manifest.json").write_text(
+                '{"connector":"apache","run_id":"run-one","files":[]}',
+                encoding="utf-8",
+            )
+            errors = checker.transport_artifact_errors(run, "apache")
+            self.assertIn("host_survived=true requires an independent follow-up observation", errors)
+
 
 if __name__ == "__main__":
     unittest.main()

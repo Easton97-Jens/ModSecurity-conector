@@ -187,6 +187,66 @@
       "state": "configured_not_exercised",
       "reason": "Envoy HTTP/2 transport behavior is not exercised by a canonical ext_authz full-lifecycle case."
     },
+    "http2_downstream": {
+      "state": "not_implemented",
+      "reason": "The selected native ext_proc harness has no TLS/ALPN HTTP/2 listener profile."
+    },
+    "http2_upstream": {
+      "state": "not_implemented",
+      "reason": "No ext_proc upstream HTTP/2 evidence profile is implemented."
+    },
+    "http2_tls_alpn": {
+      "state": "not_implemented",
+      "reason": "No pinned ext_proc TLS/ALPN listener is configured."
+    },
+    "http2_cleartext_h2c": {
+      "state": "not_implemented",
+      "reason": "No ext_proc h2c listener is configured."
+    },
+    "http2_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No ext_proc HTTP/2 stream-isolation runner is implemented."
+    },
+    "http2_stream_reset": {
+      "state": "not_implemented",
+      "reason": "Closing an ext_proc gRPC stream is not a client-visible HTTP/2 reset and no native reset hook is wired."
+    },
+    "http3_downstream": {
+      "state": "not_implemented",
+      "reason": "The selected native ext_proc harness has no QUIC/HTTP/3 downstream listener."
+    },
+    "http3_upstream": {
+      "state": "not_implemented",
+      "reason": "No ext_proc upstream HTTP/3 evidence profile is implemented."
+    },
+    "http3_quic": {
+      "state": "not_implemented",
+      "reason": "No Envoy QUIC listener is configured in the pinned native harness."
+    },
+    "http3_alt_svc": {
+      "state": "not_implemented",
+      "reason": "No Envoy H3 Alt-Svc profile is configured."
+    },
+    "http3_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No Envoy H3 stream-isolation runner is implemented."
+    },
+    "http3_stream_reset": {
+      "state": "not_implemented",
+      "reason": "No client-visible QUIC stream-reset hook is implemented for ext_proc."
+    },
+    "protocol_transaction_isolation": {
+      "state": "not_implemented",
+      "reason": "No multiplexed downstream protocol transaction-isolation evidence is implemented."
+    },
+    "protocol_first_byte_before_response_end": {
+      "state": "not_implemented",
+      "reason": "No negotiated-protocol first-byte barrier is implemented."
+    },
+    "protocol_no_full_response_buffering": {
+      "state": "not_implemented",
+      "reason": "No negotiated-protocol no-full-buffer proof is implemented."
+    },
     "client_abort": {
       "state": "unsupported_by_host_model",
       "reason": "The external authorization service cannot observe or directly control an Envoy downstream client-abort lifecycle."

@@ -169,7 +169,7 @@ reports.
 
 ## Native HTX precommit overlay for the full-lifecycle profile
 
-`htx-overlay/` contains a source-linked HAProxy **3.2.21** observer filter for
+`htx-overlay/` contains a source-linked HAProxy **3.2.21** native HTX filter for
 the native HTX `http_payload` and `http_end` callbacks. It is built into a
 disposable upstream worktree. `full-lifecycle-haproxy-htx` selects it, while
 the SPOE/SPOP runtime remains the separate compatibility path:
@@ -195,12 +195,19 @@ It neither uses `wait-for-body`/`res.body` nor keeps a connector-owned response
 buffer. Evidence retains only bounded client-status/byte-count, upstream-count,
 transaction-ID, phase, rule-ID, and action metadata.
 
-P2 (`1100101`) and P4 (`1100301`) are exercised only as real host observations:
-they still return the upstream 200, with P2 `host_action=observed_only` and the
-P4 safe-policy result `host_action=not_attempted`. The smoke does not claim a
-redirect, post-commit abort, first-byte proof, Common runtime bridge, or any
+For the one-block P2 (`1100101`) probe, `http_payload` returns borrowed data
+before the later `http_end` decision. The host runner records whether the test
+upstream saw zero or one requests; neither value establishes their ordering
+against the client-visible 403. The filter uses HAProxy's normal reply-and-close
+path without a connector-owned body buffer. This is not evidence of incremental
+request forwarding or a general host-buffering guarantee. P4 (`1100301`) uses borrowed
+response DATA and one response EOS. Safe/minimal preserves the upstream
+200/body and records `host_action=log_only`; Strict keeps
+`host_action=not_attempted` because no client-visible HAProxy abort primitive
+has been proven. The smoke does not claim a redirect, post-commit abort,
+first-byte proof, a client no-full-buffer proof, Common runtime bridge, or any
 capability promotion. Its summary deliberately retains
-`capability_promotion=not_permitted`, so this local host evidence cannot be
+`capability_promotion=not_permitted`, so local host evidence cannot be
 reclassified as synthetic canonical promotion.
 
 This overlay is not configured by the checked-in SPOP harness and is

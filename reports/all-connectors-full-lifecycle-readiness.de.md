@@ -176,23 +176,22 @@ Die aktuelle Body-Filter-Zeitlage belegt keinen P4-Pre-Commit-Deny; diese Facett
 Das frühere experimentelle P4-Sample ist bewusst deaktiviert: run_haproxy_smoke.sh setzt HAPROXY_ENABLE_RESPONSE_BODY=0, schreibt keine http-response-wait-for-body-Direktive und übergibt kein res.body in einer check-response-SPOE-Nachricht. Der aktuelle SPOP-Pfad kann daher weder Response-Body-Delivery noch Phase-4-Auswertung, Post-Commit-Intervention oder First Byte belegen. phase4, Late Intervention, log-only, strict abort und Late-Status-Metadaten sind in der aktuellen Capability-Datei korrekt not_implemented.
 
 Das Binding hat nun geliehene Append-Response-Chunk- und EOS-Finish-Primitiven.
-Das ist implemented_not_asserted für Adapter-Infrastruktur, nicht für einen
-inkrementellen Hostpfad: Kein aktiver SPOP-Caller liefert Response-Body-Chunks
-oder EOS. Der optionale Source-gebundene HTX-Observer baut und parst gegen
-HAProxy 3.2.21, appendiert geliehene Response-Daten und finalisiert bei EOS
-für bodylose Requests, ist aber nicht ausgewählt und nach dem Weiterleiten nur
-observer-only. Er umgeht bodytragende Requests bewusst, weil P2 im aktuellen
-Binding atomisch ist. Incremental-/No-Buffer-/First-Byte-Capabilities des
-gewählten SPOP-Pfads bleiben daher not_implemented.
+Das ist implemented_not_asserted für Adapter-Infrastruktur: Kein aktiver
+SPOP-Caller liefert Response-Body-Chunks oder EOS. Der getrennte
+Source-gebundene HTX-Full-Lifecycle-Pfad baut gegen HAProxy 3.2.21, appendiert
+geliehene Request-/Response-Daten und finalisiert beide Bodies bei ihrem EOS.
+Sein einblockiger P2-Deny protokolliert null oder eine beobachtete
+Upstream-Anfrage ohne deren Reihenfolge zu belegen und ist daher kein Nachweis
+für inkrementelles Forwarding, No-Buffer oder First Byte. Diese Capabilities des gewählten SPOP-Pfads bleiben
+daher not_implemented.
 
 HAProxy 3.2.21 bietet bereits `flt_ops.http_payload` und `http_end` über seine
-HTX-Filter-API; der eingecheckte bodylose Observer muss deshalb zu einem
-Source-gebundenen Filter erweitert werden, der die vollständige
-P1–P4-Transaktion besitzt oder explizit korreliert. Er muss nur
-Per-Stream-Zustand halten, für P4 nie `wait-for-body` verwenden und
-Agent-Ausfall von einem absichtlichen Post-Commit-Abbruch trennen. Der
-EOS-Callback liegt nach dem Weiterleiten; ein später HTTP-Status darf nicht
-behauptet werden.
+HTX-Filter-API. Der eingecheckte Source-gebundene Filter besitzt die
+P1–P4-Transaktion, benötigt aber weiterhin reale Split-Body-, First-Byte- und
+Post-Commit-Transport-Evidence. Er darf nur Per-Stream-Zustand halten, für P4
+nie `wait-for-body` verwenden und muss Agent-Ausfall von einem absichtlichen
+Post-Commit-Abbruch trennen. Ein später HTTP-Status darf nicht behauptet
+werden.
 
 ### Envoy
 

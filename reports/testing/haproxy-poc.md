@@ -138,8 +138,9 @@ Phase 4 / RESPONSE_BODY is `not_implemented` in the selected SPOE/SPOP path.
 The former `wait-for-body` sample and its `response_body` arguments are
 disabled: the harness sets `HAPROXY_ENABLE_RESPONSE_BODY=0` and emits neither
 of them. The retired sample is legacy/noncanonical and must not be reported as
-current runtime evidence. The optional HAProxy 3.2.21 HTX observer is
-nonselected, bodyless-request-only, and observer-only after forwarding.
+current runtime evidence. The separate HAProxy 3.2.21 HTX full-lifecycle path
+is non-promoted; its one-block P2 probe records zero or one observed upstream
+requests without proving their ordering and does not prove incremental forwarding.
 
 ## Production Configuration Shape
 

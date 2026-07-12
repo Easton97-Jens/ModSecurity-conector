@@ -61,6 +61,8 @@ def main() -> int:
         source, "static int haproxy_modsecurity_htx_begin_request(")
     response_headers = function_body(
         source, "static int haproxy_modsecurity_htx_process_response_headers(")
+    request_end = function_body(
+        source, "static int haproxy_modsecurity_htx_filter_http_end(")
     checks: list[tuple[bool, str]] = [
         ("haproxy_modsecurity_htx_filter_http_payload" in source and
          "haproxy_modsecurity_htx_filter_http_end" in source,
@@ -74,6 +76,18 @@ def main() -> int:
          "phase1_403" in runtime and "phase1_429" in runtime and "phase3_403" in runtime and
          "enforced_reply" in runtime and "capability_promotion=not_permitted" in runtime,
          "runtime keeps real P1/P3 host replies explicit while withholding synthetic capability promotion"),
+        ("phase2_client_deny" in runtime and
+         "0-or-1" in runtime and
+         "phase2_upstream_request_count=%s" in runtime and
+         "phase2_request_dispatch_observed=%s" in runtime and
+         "phase2_incremental_forwarding_claimed=false" in runtime and
+         "phase2_host_action=enforced_reply" in runtime,
+         "runtime records either observed P2 dispatch outcome without claiming incremental forwarding"),
+        ("phase4_safe_host_action=log_only" in runtime and
+         "resolved_policy_action=log_only host_action=log_only" in runtime and
+         "safe_log_only" in helper and
+         "host_action = action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY" in source,
+         "runtime distinguishes the safe P4 log-only outcome from an unattempted Strict abort"),
         ("#include <haproxy/http_ana.h>" in source and
          "#include \"msconnector/block_statuses.h\"" in source,
          "overlay imports HAProxy's normal HTTP-reply API and shared block-status policy"),
@@ -117,6 +131,14 @@ def main() -> int:
          "request Phase 2 finalization is guarded before the sole request EOS call"),
         (source.count("haproxy_modsecurity_transaction_finish_request_body(") == 1,
          "source has one binding finish_request_body callsite"),
+        ("haproxy_modsecurity_htx_report_decision(\"request-body\"" in request_end and
+         "!ctx->response_headers_seen" in request_end and
+         "haproxy_modsecurity_htx_apply_precommit_deny(" in request_end and
+         "return 1;" in request_end,
+         "request EOS can use the native reply path only before this filter sees response headers"),
+        ("zero-or-one" in source and
+         "incremental-request-forwarding evidence" in source,
+         "P2 source contract records scheduler-dependent dispatch without an incremental-forwarding claim"),
         ("ctx->response_finished = 1;" in response_end and
          "haproxy_modsecurity_transaction_finish_response_body" in response_end and
          response_end.index("ctx->response_finished = 1;") <

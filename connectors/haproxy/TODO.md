@@ -7,9 +7,11 @@ Canonical capability source: `connectors/haproxy/capabilities.json`.
 
 The standard compatibility path remains HAProxy/SPOA/SPOP. The separate
 full-lifecycle profile dispatches `native-htx-filter` through
-`full-lifecycle-haproxy-htx` into a patched HAProxy 3.2.21 observer. Its
-P1-P4 metadata observations are intentionally non-promoted and do not change
-the SPOP enforcement or response-body capability declaration.
+`full-lifecycle-haproxy-htx` into a patched HAProxy 3.2.21 HTX filter. Its
+P1/P3 replies, a P2 client reply with recorded zero-or-one backend dispatch,
+and P4 Safe `log_only` record
+are intentionally non-promoted and do not change the SPOP enforcement or
+response-body capability declaration.
 
 Earlier YAML matrix counts remain legacy evidence only. They are not reused as
 the canonical No-CRS result for this branch, and no current PASS count is
@@ -114,13 +116,16 @@ stream. `response_body_buffered`, `phase4`, and
 SPOE/SPOP path until it wires a native HTX/filter response-chunk adapter. The
 checked-in HTX route has isolated real-host P1–P4 transport evidence, including
 canonical P1/P3 precommit replies, and is selected by the separate
-full-lifecycle profile. P2/P4 remain observer-only and none of these results
-promote the SPOP capabilities.
+full-lifecycle profile. The one-block P2 probe returns a client 403 and records
+zero or one observed upstream requests without proving their ordering; it does
+not establish incremental forwarding. P4 Safe records `log_only`; Strict remains
+`NOT EXECUTED`. None of these results promote the SPOP capabilities.
 The agent's pre-commit/status fields are policy-derived, not host-observed, so
 `phase4_pre_commit_deny` and `late_intervention_status_metadata` remain
 `not_implemented`. The current path also has no post-commit point, safe
-`log_only`, or strict `abort_connection`; all late-intervention facets remain
-`not_implemented`.
+`log_only`, or strict `abort_connection`; the HTX source/harness `log_only`
+record is not a client-validated canonical late-action result, so all
+late-intervention facets remain `not_implemented`.
 
 - [ ] Wire a native response-chunk adapter into the selected path and correlate
       the complete transaction before attempting to prove

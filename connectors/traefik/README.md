@@ -95,7 +95,9 @@ JSONL records use integration mode `native-traefik-middleware` and canonical
 `transport_result` values `http_status` or `log_only`. This evidence does not
 promote P1–P4, Safe/Strict, first-byte, no-full-buffer, CRS, or production
 capabilities. The C `forwardAuth` commands remain the selected compatibility
-path.
+path. The exact native transport/API boundary, including the non-promoting
+keep-alive observation and Strict `NOT EXECUTED` rationale, is in
+[docs/transport-hardening.md](docs/transport-hardening.md).
 
 ## Connector Service Build
 

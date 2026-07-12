@@ -145,6 +145,7 @@ static int valid_host_action(msconnector_decision_action action) {
       case MSCONNECTOR_DECISION_ACTION_REDIRECT:
       case MSCONNECTOR_DECISION_ACTION_LOG_ONLY:
       case MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION:
+      case MSCONNECTOR_DECISION_ACTION_STREAM_RESET:
         return 1;
       default:
         return 0;
@@ -153,9 +154,20 @@ static int valid_host_action(msconnector_decision_action action) {
 
 static int valid_host_transport_result(const char *value) {
     return value != NULL && (
+        strcmp(value, "completed") == 0 ||
         strcmp(value, "http_status") == 0 ||
         strcmp(value, "log_only") == 0 ||
         strcmp(value, "connection_aborted") == 0 ||
+        strcmp(value, "stream_reset") == 0 ||
+        strcmp(value, "client_cancelled") == 0 ||
+        strcmp(value, "client_disconnected") == 0 ||
+        strcmp(value, "upstream_reset") == 0 ||
+        strcmp(value, "upstream_disconnected") == 0 ||
+        strcmp(value, "timeout") == 0 ||
+        strcmp(value, "short_write") == 0 ||
+        strcmp(value, "write_would_block") == 0 ||
+        strcmp(value, "engine_error") == 0 ||
+        strcmp(value, "host_error") == 0 ||
         strcmp(value, "not_observable") == 0
     );
 }
@@ -1156,6 +1168,12 @@ msconnector_body_mode msconnector_runtime_response_body_mode(
         : runtime->body_policy.response_body_mode;
 }
 
+enum msconnector_phase4_mode msconnector_runtime_phase4_mode(
+    const msconnector_runtime *runtime) {
+    return runtime == NULL ? MSCONNECTOR_PHASE4_MODE_UNSET
+        : runtime->config.phase4_mode;
+}
+
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *runtime) {
     return runtime == NULL ? 0U : runtime->limits.max_total_header_bytes;
 }
@@ -1388,6 +1406,8 @@ static int emit_decision_event(
         }
         event.http.transport_result = host_action->transport_result;
         event.flags.connection_aborted = host_action->connection_aborted != 0;
+        event.protocol.stream_reset = host_action->actual_action ==
+            MSCONNECTOR_DECISION_ACTION_STREAM_RESET;
     }
     if (msconnector_flow_guard_next_sequence(&transaction->flow, &event.integrity.sequence) !=
         MSCONNECTOR_FLOW_GUARD_OK) {
@@ -1943,7 +1963,8 @@ int msconnector_runtime_transaction_record_host_action(
         return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
             "visible HTTP status is invalid", "runtime");
     }
-    if (visible_http_status == 0 && !connection_aborted) {
+    if (visible_http_status == 0 && !connection_aborted &&
+        actual_action != MSCONNECTOR_DECISION_ACTION_STREAM_RESET) {
         return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
             "a non-abort host action requires a visible HTTP status", "runtime");
     }
@@ -1952,6 +1973,21 @@ int msconnector_runtime_transaction_record_host_action(
         actual_action != MSCONNECTOR_DECISION_ACTION_DROP) {
         return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
             "a connection abort requires an abort or drop host action", "runtime");
+    }
+    if (actual_action == MSCONNECTOR_DECISION_ACTION_STREAM_RESET &&
+        connection_aborted) {
+        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            "a stream reset must not be reported as a connection abort", "runtime");
+    }
+    if (actual_action == MSCONNECTOR_DECISION_ACTION_STREAM_RESET &&
+        strcmp(transport_result, "stream_reset") != 0) {
+        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            "a stream reset requires transport_result=stream_reset", "runtime");
+    }
+    if (strcmp(transport_result, "stream_reset") == 0 &&
+        actual_action != MSCONNECTOR_DECISION_ACTION_STREAM_RESET) {
+        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            "transport_result=stream_reset requires a stream-reset action", "runtime");
     }
     host_action.actual_action = actual_action;
     host_action.visible_http_status = visible_http_status;

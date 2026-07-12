@@ -49,17 +49,20 @@ Der frühere begrenzte SPOA/SPOP-Response-Zweig ist deaktiviert, weil er
 nativen Response-Body-Callback; Response-Body-Verfügbarkeit, `phase4` und
 `phase4_rule_evaluation` sind daher `not_implemented`. Auch die semantischen
 Durchsetzungs- und Late-Intervention-Facetten sind `not_implemented`. Das
-separate Profil `full-lifecycle-haproxy-htx` wählt einen HAProxy-3.2.21-Overlay
-im Beobachtermodus mit isolierter P1–P4-Transport-Evidence. Er nutzt geliehene
-Chunks/EOS, wird aber nicht durch diesen SPOP-Pfad konfiguriert und stuft diese
-Zustände nicht hoch.
+separate Profil `full-lifecycle-haproxy-htx` wählt einen HAProxy-3.2.21-
+HTX-Overlay mit isolierter P1–P4-Transport-Evidence. Er nutzt geliehene
+Chunks/EOS; sein einblockiger P2-403-Probe protokolliert null oder eine
+beobachtete Upstream-Anfrage ohne deren Reihenfolge zu belegen. Das belegt kein
+inkrementelles Request-Forwarding; P4-Safe wird als `log_only` aufgezeichnet. Er wird nicht
+durch diesen SPOP-Pfad konfiguriert und stuft diese Zustände nicht hoch. Für Strict
+gibt es keinen client-sichtbaren Abort-Nachweis.
 
 | Facette | Zustand im Manifest | Abdeckungsentscheidung |
 | --- | --- | --- |
 | `response_body_buffered` und `phase4` | `not_implemented` | Vollständige native HAProxy-Response-Chunk-Transaktion in den gewählten Pfad verdrahten; niemals `wait-for-body` verwenden. |
 | `phase4_rule_evaluation` | `not_implemented` | Benötigt einen echten ausgewählten End-of-Stream-Pfad und beobachtete Regel `1100301`. |
 | `phase4_pre_commit_deny` | `not_implemented` | Aktuelle Felder sind policy-abgeleitet; kein Host-Runner erfasst sichtbaren Client-Status und Commit-Zeitpunkt. |
-| `late_intervention`, `late_intervention_log_only` und `late_intervention_abort` | `not_implemented` | Es gibt keinen HAProxy-Hostpunkt nach dem Commit und keine sichere oder strikte späte Aktion. |
+| `late_intervention`, `late_intervention_log_only` und `late_intervention_abort` | `not_implemented` | HTX-Safe-Source/Harness zeichnet `log_only` auf, aber es gibt kein client-validiertes spätes Ergebnis und keinen Strict-Abort. |
 | `late_intervention_status_metadata` | `not_implemented` | Es gibt keinen hostbeobachteten ursprünglichen/sichtbaren Status mit Zeitpunkt; policy-abgeleitete Werte reichen nicht aus. |
 
 Fehlt dieser Nachweis, wird `NOT_EXECUTED` und kein künstliches 403-`PASS`

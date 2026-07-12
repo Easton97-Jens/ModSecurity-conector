@@ -42,7 +42,11 @@ case "$REQUEST_BODY_MODE" in
 esac
 case "$RESPONSE_BODY_MODE" in
     none) ;;
-    *) blocked "LIGHTTPD_RESPONSE_BODY_MODE must be none; the patched output hook exposes HTTP/1 wire bytes, not decoded response entities" ;;
+    streaming)
+        [ "${LIGHTTPD_ENTITY_BODY_HOOK:-0}" = 1 ] || blocked \
+            "LIGHTTPD_RESPONSE_BODY_MODE=streaming requires the patched 1.4.84 entity-body hook"
+        ;;
+    *) blocked "LIGHTTPD_RESPONSE_BODY_MODE must be none or streaming" ;;
 esac
 case "$RESPONSE_HEADER_MARKER" in
     ''|block|redirect) ;;

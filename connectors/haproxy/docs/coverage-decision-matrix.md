@@ -49,16 +49,19 @@ callback, so response-body availability, `phase4`, and
 `phase4_rule_evaluation` are `not_implemented`; the semantic enforcement and
 late-intervention facets are also `not_implemented`. The separate
 `full-lifecycle-haproxy-htx` profile selects a HAProxy 3.2.21 native HTX
-precommit overlay with isolated P1–P4 transport evidence. It uses borrowed
-chunks/EOS, proves canonical P1/P3 status replies, is not configured by this
-SPOP path, and does not promote these states.
+HTX overlay with isolated P1–P4 transport evidence. It uses borrowed
+chunks/EOS, proves canonical P1/P3 status replies, and its one-block P2 403
+probe records zero or one observed upstream requests without proving their
+ordering. This does not prove incremental request forwarding; P4 Safe is recorded as `log_only`. It is
+not configured by this SPOP path and does not promote these states. Strict
+has no client-visible abort proof.
 
 | Facet | Declared state | Coverage decision |
 | --- | --- | --- |
 | `response_body_buffered` and `phase4` | `not_implemented` | wire a complete native HAProxy response-chunk transaction into the selected path; do not use `wait-for-body` |
 | `phase4_rule_evaluation` | `not_implemented` | requires a real selected end-of-stream path and observed rule `1100301` |
 | `phase4_pre_commit_deny` | `not_implemented` | current fields are policy-derived; no host runner captures visible client status and commitment timing |
-| `late_intervention`, `late_intervention_log_only`, and `late_intervention_abort` | `not_implemented` | no post-commit HAProxy host point or safe/strict late action exists |
+| `late_intervention`, `late_intervention_log_only`, and `late_intervention_abort` | `not_implemented` | HTX Safe source/harness records `log_only`, but no client-validated late outcome or Strict abort exists |
 | `late_intervention_status_metadata` | `not_implemented` | no host-observed original/visible status plus timing exists; policy-derived values are insufficient |
 
 If that evidence is unavailable, report `NOT_EXECUTED` rather than a synthetic

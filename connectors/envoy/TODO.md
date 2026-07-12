@@ -57,6 +57,11 @@ Global gate definitions:
 - [x] Validate the pinned Envoy release against the materialized config and run
       a real local HTTP/1.1 P1/P2/P3/P4 Common/libmodsecurity host smoke with
       raw Common rule/action evidence and cleanup evidence.
+- [x] Add an opt-in real HTTP/1.1 client-close-after-first-byte probe with an
+      exactly-one unattributed terminal completion record
+      (`grpc_context_canceled_unattributed` or `grpc_peer_eof`) and a healthy
+      follow-up request. Its diagnostic sidecar is intentionally not canonical
+      reset or client-cancel promotion evidence.
 - [ ] Run HTTP/2, timeout, reset, and first-byte cases; a bridge now exists,
       but these cases remain unverified and must not be promoted.
 

@@ -24,20 +24,25 @@ esac
 grep -Fq LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION "$PATCHED_SOURCE_DIR/src/plugin.h" || \
     blocked "patched source does not expose the required hook ABI"
 
-# The current output hook receives HTTP/1 wire bytes, not decoded entity bytes.
-# It can therefore expose P1/P2/P3 from the real host path, but never promotes
-# a response-body/Phase-4 claim.
+# The pinned patch exposes HTTP/1.x entity bytes before transfer framing.  This
+# preparer remains deliberately narrow: only identity content is eligible and
+# caller-side evidence, not configuration, decides whether P4 is promoted.
 case "${LIGHTTPD_PATCHED_REQUEST_BODY_MODE:-none}" in
     none|streaming) ;;
     *) blocked "LIGHTTPD_PATCHED_REQUEST_BODY_MODE must be none or streaming" ;;
 esac
 case "${LIGHTTPD_PATCHED_RESPONSE_BODY_MODE:-none}" in
-    none) ;;
-    *) blocked "patched lifecycle smoke cannot enable response-body inspection: output hook exposes wire bytes, not decoded entities" ;;
+    none|streaming) ;;
+    *) blocked "LIGHTTPD_PATCHED_RESPONSE_BODY_MODE must be none or streaming" ;;
+esac
+case "${LIGHTTPD_PATCHED_ENTITY_ENCODING:-identity}" in
+    identity) ;;
+    *) blocked "patched lifecycle smoke supports only identity entity-body input; gzip/br require a separately evidenced filter order" ;;
 esac
 
 LIGHTTPD_SMOKE_DIR="$SMOKE_DIR" \
 LIGHTTPD_REQUEST_BODY_MODE="${LIGHTTPD_PATCHED_REQUEST_BODY_MODE:-none}" \
-LIGHTTPD_RESPONSE_BODY_MODE=none \
+LIGHTTPD_RESPONSE_BODY_MODE="${LIGHTTPD_PATCHED_RESPONSE_BODY_MODE:-none}" \
+LIGHTTPD_ENTITY_BODY_HOOK=1 \
 LIGHTTPD_RESPONSE_HEADER_MARKER="${LIGHTTPD_PATCHED_RESPONSE_HEADER_MARKER:-}" \
 exec sh "$SCRIPT_DIR/prepare_native_smoke.sh"

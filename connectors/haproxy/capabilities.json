@@ -19,7 +19,7 @@
     "Response phases run only when the HAProxy configuration sends the corresponding response notification to the agent.",
     "The selected SPOE/SPOP configuration sends response headers only; the prior wait-for-body response sample is deliberately disabled because it is not a low-latency response stream.",
     "Starter and binding self-tests are not HAProxy host-runtime evidence.",
-    "The full-lifecycle profile separately selects native-htx-filter through full-lifecycle-haproxy-htx: a patched HAProxy 3.2.21 observer that records P1-P4 transport metadata but has no enforcement or capability promotion."
+    "The full-lifecycle profile separately selects native-htx-filter through full-lifecycle-haproxy-htx: a patched HAProxy 3.2.21 non-promoted path with real P1/P2/P3 response outcomes and P4 safe log_only evidence. Its one-block P2 probe returns 403 and records zero or one observed upstream requests without proving their ordering; that does not prove incremental request forwarding or a general host-buffering property. P4 Strict has no client-visible abort evidence and remains NOT EXECUTED."
   ],
   "capabilities": {
     "connection_metadata": {
@@ -189,6 +189,66 @@
     "http2": {
       "state": "configured_not_exercised",
       "reason": "HAProxy HTTP/2 transport behavior is not exercised by a canonical SPOP full-lifecycle case."
+    },
+    "http2_downstream": {
+      "state": "not_implemented",
+      "reason": "The pinned native HTX harness has no TLS/ALPN HTTP/2 frontend profile."
+    },
+    "http2_upstream": {
+      "state": "not_implemented",
+      "reason": "No HAProxy native HTX upstream HTTP/2 profile is implemented."
+    },
+    "http2_tls_alpn": {
+      "state": "not_implemented",
+      "reason": "The pinned HAProxy build and harness do not configure an h2 ALPN listener."
+    },
+    "http2_cleartext_h2c": {
+      "state": "not_implemented",
+      "reason": "No HAProxy h2c native connector profile is implemented."
+    },
+    "http2_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No HAProxy HTTP/2 stream-isolation evidence path is implemented."
+    },
+    "http2_stream_reset": {
+      "state": "not_implemented",
+      "reason": "The HTX filter has no proven HTTP/2 stream-reset action."
+    },
+    "http3_downstream": {
+      "state": "not_implemented",
+      "reason": "The pinned HAProxy native HTX build has no configured QUIC/HTTP/3 frontend."
+    },
+    "http3_upstream": {
+      "state": "not_implemented",
+      "reason": "No HAProxy native HTX upstream HTTP/3 profile is implemented."
+    },
+    "http3_quic": {
+      "state": "not_implemented",
+      "reason": "No pinned HAProxy QUIC runtime build is provisioned."
+    },
+    "http3_alt_svc": {
+      "state": "not_implemented",
+      "reason": "No HAProxy HTTP/3 Alt-Svc profile is configured."
+    },
+    "http3_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No HAProxy HTTP/3 stream-isolation evidence path is implemented."
+    },
+    "http3_stream_reset": {
+      "state": "not_implemented",
+      "reason": "The HTX filter has no proven QUIC stream-reset action."
+    },
+    "protocol_transaction_isolation": {
+      "state": "not_implemented",
+      "reason": "No multiplexed protocol transaction-isolation case is implemented."
+    },
+    "protocol_first_byte_before_response_end": {
+      "state": "not_implemented",
+      "reason": "No protocol-specific first-byte barrier is implemented."
+    },
+    "protocol_no_full_response_buffering": {
+      "state": "not_implemented",
+      "reason": "No protocol-specific no-full-buffer proof is implemented."
     },
     "client_abort": {
       "state": "not_implemented",

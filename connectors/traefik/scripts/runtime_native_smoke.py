@@ -58,6 +58,7 @@ ENGINE_SOCKET_DIRECTORY_PREFIX = "msconnector-traefik-uds-"
 # margin so a pinned host with a shorter implementation cannot silently turn
 # a long canonical run root into an engine-start failure.
 ENGINE_SOCKET_PATH_MAX_BYTES = 100
+TRANSPORT_OBSERVATION_MAX_BODY_BYTES = 64 << 10
 
 
 def assert_no_symlink_components(path: Path) -> None:
@@ -469,6 +470,108 @@ def request_through_traefik(
     raise RuntimeError(f"native router did not complete expected status {expected_status}: {last_error}")
 
 
+def read_complete_response(response: http.client.HTTPResponse) -> tuple[int, int, bool]:
+    """Read one bounded test response without retaining a payload artifact.
+
+    The native transport sidecar may record whether a client saw headers, a
+    body byte, and a complete Content-Length response.  It must never persist
+    the response itself, including the deliberate Phase-4 marker fixture.
+    """
+    status = int(response.status)
+    declared_length = response.getheader("Content-Length")
+    expected_length: int | None = None
+    if declared_length is not None:
+        try:
+            expected_length = int(declared_length)
+        except ValueError as exc:
+            raise RuntimeError("native router returned an invalid Content-Length") from exc
+        if expected_length < 0 or expected_length > TRANSPORT_OBSERVATION_MAX_BODY_BYTES:
+            raise RuntimeError("native router returned an out-of-range Content-Length")
+    body_bytes = 0
+    first_byte_received = False
+    while True:
+        chunk = response.read(4096)
+        if not chunk:
+            break
+        body_bytes += len(chunk)
+        if body_bytes > TRANSPORT_OBSERVATION_MAX_BODY_BYTES:
+            raise RuntimeError("native router exceeded the transport observation body limit")
+        first_byte_received = True
+    if expected_length is not None and body_bytes != expected_length:
+        raise RuntimeError(
+            f"native router returned incomplete body {body_bytes}, expected {expected_length}"
+        )
+    return status, body_bytes, first_byte_received
+
+
+def keepalive_safe_followup(
+    port: int,
+    body: bytes,
+    safe_request_id: str,
+    followup_request_id: str,
+) -> dict[str, int | bool]:
+    """Exercise a real HTTP/1.1 keep-alive after a late Safe decision.
+
+    This is deliberately a narrow native-host observation.  A reused socket is
+    required; silently reconnecting would only prove two unrelated requests
+    and must not be reported as keep-alive evidence.
+    """
+    deadline = time.monotonic() + 15
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+        try:
+            connection.request(
+                "POST",
+                "/native",
+                body=body,
+                headers={
+                    "Content-Type": "text/plain",
+                    "X-Request-Id": safe_request_id,
+                    "X-Native-P4-Rule": "block",
+                },
+            )
+            safe_response = connection.getresponse()
+            safe_status, safe_bytes, safe_first_byte = read_complete_response(safe_response)
+            first_socket = connection.sock
+            if safe_status != http.HTTPStatus.OK or not safe_first_byte or first_socket is None:
+                raise RuntimeError("native safe request did not complete on a reusable HTTP/1.1 connection")
+            if safe_response.will_close:
+                raise RuntimeError("native safe response closed the HTTP/1.1 connection")
+
+            connection.request(
+                "POST",
+                "/native",
+                body=body,
+                headers={
+                    "Content-Type": "text/plain",
+                    "X-Request-Id": followup_request_id,
+                },
+            )
+            followup_response = connection.getresponse()
+            followup_status, followup_bytes, followup_first_byte = read_complete_response(followup_response)
+            second_socket = connection.sock
+            if followup_status != http.HTTPStatus.OK or not followup_first_byte:
+                raise RuntimeError("native keep-alive follow-up did not complete")
+            if first_socket is not second_socket:
+                raise RuntimeError("native keep-alive follow-up opened a different TCP connection")
+            return {
+                "connection_reused": True,
+                "followup_first_byte_received": followup_first_byte,
+                "followup_response_bytes": followup_bytes,
+                "followup_status": followup_status,
+                "safe_first_byte_received": safe_first_byte,
+                "safe_response_bytes": safe_bytes,
+                "safe_status": safe_status,
+            }
+        except (OSError, http.client.HTTPException, RuntimeError) as exc:
+            last_error = exc
+        finally:
+            connection.close()
+        time.sleep(0.2)
+    raise RuntimeError(f"native keep-alive probe did not complete: {last_error}")
+
+
 def traefik_version(binary: Path) -> str:
     completed = subprocess.run(
         [str(binary), "version"],
@@ -537,6 +640,7 @@ def run() -> int:
     config_dir.mkdir()
     logs_dir.mkdir()
     result_path = runtime_root / "result.json"
+    transport_observations_path = runtime_root / "transport-observations.diagnostic.json"
     static_config = config_dir / "traefik-native-static.yaml"
     dynamic_config = config_dir / "traefik-native-dynamic.yaml"
     engine_config = config_dir / "traefik-native-engine.conf"
@@ -558,6 +662,7 @@ def run() -> int:
     engine_process: subprocess.Popen[bytes] | None = None
     traefik_stopped = False
     engine_stopped = False
+    host_survived = False
     try:
         engine_binary = build_engine_service(runtime_root, logs_dir, include_dir, library_dir)
         with (logs_dir / "engine.stdout.log").open("wb") as engine_stdout, (
@@ -600,13 +705,14 @@ def run() -> int:
                     http.HTTPStatus.FORBIDDEN,
                     {"X-Native-Response-Rule": "block"},
                 )
-                p4_safe_status, p4_safe_bytes = request_through_traefik(
+                keepalive_observation = keepalive_safe_followup(
                     traefik_port,
                     REQUEST_BODY,
                     "traefik-native-p4-safe",
-                    http.HTTPStatus.OK,
-                    {"X-Native-P4-Rule": "block"},
+                    "traefik-native-keepalive-followup",
                 )
+                p4_safe_status = int(keepalive_observation["safe_status"])
+                p4_safe_bytes = int(keepalive_observation["safe_response_bytes"])
                 if process.poll() is not None:
                     raise RuntimeError(f"Traefik exited after native requests with code {process.returncode}")
                 if engine_process.poll() is not None:
@@ -626,6 +732,9 @@ def run() -> int:
             raise RuntimeError("native plugin route did not reach the streaming upstream contract")
         if p3_requests < 1 or p4_requests < 1:
             raise RuntimeError("native host did not reach the P3/P4 upstream fixture branches")
+        host_survived = process is not None and process.poll() is None
+        if not host_survived:
+            raise RuntimeError("Traefik did not survive the keep-alive follow-up")
         traefik_stopped = stop_process(process)
         process = None
         engine_stopped = stop_process(engine_process)
@@ -635,6 +744,32 @@ def run() -> int:
         require_host_outcome(outcomes, "request_body", "deny", http.HTTPStatus.FORBIDDEN, rule_ids["p2"])
         require_host_outcome(outcomes, "response_headers", "deny", http.HTTPStatus.FORBIDDEN, rule_ids["p3"])
         require_host_outcome(outcomes, "response_body", "log_only", http.HTTPStatus.OK, rule_ids["p4"])
+        write_json(
+            transport_observations_path,
+            {
+                "artifact_profile": "native-transport-diagnostic-nonpromoting",
+                "capability_promotion": "not_permitted",
+                "canonical_evidence": False,
+                "connection_reused": bool(keepalive_observation["connection_reused"]),
+                "connector": "traefik",
+                "diagnostic_case": "keepalive_safe_followup",
+                "diagnostic_only": True,
+                "eos_received": True,
+                "first_byte_received": bool(keepalive_observation["safe_first_byte_received"]),
+                "followup_request_result": "completed",
+                "host_survived": host_survived,
+                "integration_mode": "native-traefik-middleware",
+                "protocol": "http1",
+                "response_committed": True,
+                "schema_version": 1,
+                "strict": {
+                    "client_visible_abort": False,
+                    "reason": "The public middleware path has no verified post-commit HTTP/1 abort implementation and no HTTP/2 stream-reset API.",
+                    "state": "NOT_EXECUTED",
+                },
+                "transport_result": "completed",
+            },
+        )
         write_json(
             result_path,
             {
@@ -661,6 +796,8 @@ def run() -> int:
                 "p4_safe_log_only_status": p4_safe_status,
                 "p4_safe_log_only_rule_id": rule_ids["p4"],
                 "p4_strict": "NOT_EXECUTED",
+                "keepalive_connection_reused": bool(keepalive_observation["connection_reused"]),
+                "keepalive_followup_status": int(keepalive_observation["followup_status"]),
                 "processes_stopped": traefik_stopped and engine_stopped,
                 "production_ready": False,
                 "request_body_bytes_observed": request_body_bytes,
@@ -669,6 +806,7 @@ def run() -> int:
                 "rules_profile": rules_profile,
                 "status": "PASS",
                 "traefik_version": traefik_version(binary),
+                "transport_observations_diagnostic": transport_observations_path.name,
                 "upstream_requests": upstream_requests,
             },
         )

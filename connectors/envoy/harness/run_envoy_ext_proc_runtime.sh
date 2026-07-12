@@ -38,6 +38,9 @@ SERVICE_STDOUT="$RUNTIME_ROOT/ext-proc.stdout.log"
 SERVICE_STDERR="$RUNTIME_ROOT/ext-proc.stderr.log"
 UPSTREAM_STDOUT="$RUNTIME_ROOT/upstream.stdout.log"
 UPSTREAM_STDERR="$RUNTIME_ROOT/upstream.stderr.log"
+TRANSPORT_OBSERVATIONS="$RUNTIME_ROOT/transport-observations.diagnostic.json"
+TRANSPORT_CANCEL_PROBE=${ENVOY_TRANSPORT_CANCEL_PROBE:-0}
+TRANSPORT_CANCEL_ID=envoy-ext-proc-client-cancel-1
 envoy_pid=
 service_pid=
 upstream_pid=
@@ -101,8 +104,16 @@ case "$EXT_PROC_RUNTIME_CONFIG" in
     "$RUNTIME_ROOT"/*) ;;
     *) echo "envoy_ext_proc_runtime: FAIL - EXT_PROC_RUNTIME_CONFIG must be under RUNTIME_ROOT" >&2; exit 1 ;;
 esac
+case "$TRANSPORT_OBSERVATIONS" in
+    "$RUNTIME_ROOT"/*) ;;
+    *) echo "envoy_ext_proc_runtime: FAIL - transport observations must be under RUNTIME_ROOT" >&2; exit 1 ;;
+esac
+case "$TRANSPORT_CANCEL_PROBE" in
+    0|1) ;;
+    *) echo "envoy_ext_proc_runtime: FAIL - ENVOY_TRANSPORT_CANCEL_PROBE must be 0 or 1" >&2; exit 1 ;;
+esac
 mkdir -p "$RUNTIME_ROOT"
-rm -f "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" "$SUMMARY" "$EXT_PROC_RUNTIME_CONFIG"
+rm -f "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" "$SUMMARY" "$EXT_PROC_RUNTIME_CONFIG" "$TRANSPORT_OBSERVATIONS"
 
 pinned_envoy_release=$(sed -n 's/^ENVOY_RELEASE=//p' "$VERSION_LOCK")
 [ -n "$pinned_envoy_release" ] || {
@@ -183,6 +194,7 @@ if ! "$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG" \
 fi
 
 "$PYTHON_BIN" "$HELPER" serve-upstream --port "$upstream_port" \
+    --client-cancel-delay "${ENVOY_CLIENT_CANCEL_DELAY_SECONDS:-5}" \
     >"$UPSTREAM_STDOUT" 2>"$UPSTREAM_STDERR" &
 upstream_pid=$!
 
@@ -367,6 +379,143 @@ for process_pair in "envoy:$envoy_pid" "ext_proc:$service_pid" "upstream:$upstre
     fi
 done
 
+# Envoy's ext_proc gRPC cancellation is explicitly opt-in because it is a
+# longer-running transport probe, not a normal PR smoke.  The real client
+# closes only after it receives a response body byte.  The service can prove
+# one cleanup record but must retain its documented inability to attribute the
+# gRPC cancellation to a specific downstream reset cause.
+cancel_client_result=NOT_EXECUTED
+cancel_transport_result=not_executed
+cancel_completion_reason=NOT_EXECUTED
+cancel_first_byte_received=false
+cancel_followup_result=not_executed
+if [ "$TRANSPORT_CANCEL_PROBE" = 1 ]; then
+    if ! cancel_observation=$("$PYTHON_BIN" "$HELPER" client-cancel \
+        --host 127.0.0.1 --port "$listen_port" --path /client-cancel \
+        --header "X-Request-Id: $TRANSPORT_CANCEL_ID"); then
+        echo "envoy_ext_proc_runtime: FAIL - client-cancel probe could not receive the first response byte" >&2
+        exit 1
+    fi
+    cancel_status=$("$PYTHON_BIN" -c 'import json,sys; print(json.loads(sys.argv[1])["http_status"])' "$cancel_observation") || {
+        echo "envoy_ext_proc_runtime: FAIL - client-cancel observation is malformed" >&2
+        exit 1
+    }
+    cancel_first_byte=$("$PYTHON_BIN" -c 'import json,sys; print(str(bool(json.loads(sys.argv[1])["first_body_byte_received"])).lower())' "$cancel_observation") || {
+        echo "envoy_ext_proc_runtime: FAIL - client-cancel observation has no first-byte result" >&2
+        exit 1
+    }
+    if [ "$cancel_status" != 200 ] || [ "$cancel_first_byte" != true ]; then
+        echo "envoy_ext_proc_runtime: FAIL - client-cancel probe did not observe HTTP 200 plus one body byte" >&2
+        exit 1
+    fi
+    cancel_ready=0
+    attempt=0
+    while [ "$attempt" -lt 20 ]; do
+        attempt=$((attempt + 1))
+        cancel_completion_state=$("$PYTHON_BIN" - "$COMPLETION_LOG_PATH" "$TRANSPORT_CANCEL_ID" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+transaction_id = sys.argv[2]
+records = []
+if path.is_file():
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict) and value.get("transaction_id") == transaction_id:
+            records.append(value)
+if len(records) != 1:
+    print(f"count={len(records)}")
+elif records[0].get("close_reason") not in {
+    "grpc_context_canceled_unattributed",
+    "grpc_peer_eof",
+}:
+    print("reason=" + str(records[0].get("close_reason")))
+else:
+    print("valid=" + str(records[0].get("close_reason")))
+PY
+) || cancel_completion_state=invalid
+        case "$cancel_completion_state" in
+            valid=grpc_context_canceled_unattributed|valid=grpc_peer_eof)
+                cancel_completion_reason=${cancel_completion_state#valid=}
+                cancel_ready=1
+                break
+                ;;
+        esac
+        sleep 1
+    done
+    if [ "$cancel_ready" -ne 1 ]; then
+        echo "envoy_ext_proc_runtime: FAIL - expected exactly one unattributed ext_proc terminal completion, got ${cancel_completion_state:-missing}" >&2
+        exit 1
+    fi
+    cancel_client_result=client_closed_after_first_response_chunk
+    cancel_transport_result=client_cancelled
+    cancel_first_byte_received=true
+    if ! cancel_followup_status=$("$PYTHON_BIN" "$HELPER" probe \
+        --url "http://127.0.0.1:$listen_port/allowed" \
+        --header "X-Request-Id: envoy-ext-proc-client-cancel-followup"); then
+        echo "envoy_ext_proc_runtime: FAIL - follow-up request after client cancel could not be completed" >&2
+        exit 1
+    fi
+    if [ "$cancel_followup_status" != 200 ]; then
+        echo "envoy_ext_proc_runtime: FAIL - follow-up request after client cancel returned $cancel_followup_status, expected 200" >&2
+        exit 1
+    fi
+    cancel_followup_result=completed
+fi
+
+host_survived=true
+for process_pair in "envoy:$envoy_pid" "ext_proc:$service_pid" "upstream:$upstream_pid"; do
+    process_name=${process_pair%%:*}
+    process_id=${process_pair##*:}
+    if ! kill -0 "$process_id" 2>/dev/null; then
+        host_survived=false
+        echo "envoy_ext_proc_runtime: FAIL - $process_name was not stable after transport observation" >&2
+        exit 1
+    fi
+done
+"$PYTHON_BIN" - "$TRANSPORT_OBSERVATIONS" "$TRANSPORT_CANCEL_PROBE" \
+    "$cancel_client_result" "$cancel_transport_result" "$cancel_completion_reason" \
+    "$cancel_first_byte_received" "$host_survived" "$cancel_followup_result" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+executed = sys.argv[2] == "1"
+payload = {
+    "artifact_profile": "ext-proc-transport-diagnostic-nonpromoting",
+    "capability_promotion": "not_permitted",
+    "canonical_evidence": False,
+    "causal_attribution": "ext_proc completion is intentionally unattributed; no downstream reset cause is claimed",
+    "client_result": sys.argv[3],
+    "connector": "envoy",
+    "diagnostic_case": "client_disconnect_after_first_response_chunk",
+    "diagnostic_only": True,
+    "eos_received": False,
+    "execution": "EXECUTED" if executed else "NOT_EXECUTED",
+    "first_byte_received": sys.argv[6] == "true",
+    "followup_request_result": sys.argv[8],
+    "host_survived": sys.argv[7] == "true",
+    "integration_mode": "ext_proc",
+    "processor_completion_reason": sys.argv[5],
+    "protocol": "http1",
+    "response_committed": executed,
+    "schema_version": 1,
+    "strict": {
+        "client_visible_abort": False,
+        "reason": "ext_proc has no verified post-commit downstream reset API; gRPC failures are not reset evidence.",
+        "state": "NOT_EXECUTED",
+    },
+    "transport_result": sys.argv[4],
+}
+path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+
 {
     printf 'status=PASS\n'
     printf 'connector=envoy\n'
@@ -385,6 +534,11 @@ done
     printf 'phase4_safe_status=%s\n' "$phase4_safe_status"
     printf 'request_body_stream_observed=true\n'
     printf 'response_body_stream_observed=true\n'
+    printf 'transport_cancel_probe=%s\n' "$TRANSPORT_CANCEL_PROBE"
+    printf 'transport_cancel_client_result=%s\n' "$cancel_client_result"
+    printf 'transport_cancel_completion_reason=%s\n' "$cancel_completion_reason"
+    printf 'transport_cancel_followup_result=%s\n' "$cancel_followup_result"
+    printf 'transport_observations=%s\n' "$TRANSPORT_OBSERVATIONS"
     printf 'event_log=%s\n' "$COMMON_EVENT_LOG_PATH"
     printf 'completion_log=%s\n' "$COMPLETION_LOG_PATH"
     printf 'envoy_config=%s\n' "$ENVOY_CONFIG"

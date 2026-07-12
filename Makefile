@@ -40,6 +40,14 @@ CAPABILITY_REPORT_RUN_ID ?= $(NO_CRS_RUN_ID)
 CAPABILITY_REPORT_OUTPUT_DIR ?= $(EVIDENCE_ROOT)/connector-capabilities
 NO_CRS_RUN_ID ?=
 NO_CRS_RULES_FILE ?= $(FRAMEWORK_ROOT)/tests/rules/no-crs-baseline.conf
+# Optional managed client bundle for a forced modern-protocol run.  The
+# canonical root runner validates that it stays inside the invocation's raw
+# evidence tree before passing it to Framework finalization.
+NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR ?=
+# Opt in to a stage-owned protocol probe without having to pre-create the
+# fresh raw-run directory.  It is non-promoting unless every protocol case,
+# client observation, and host event passes the Framework's causal checks.
+NO_CRS_PROTOCOL_CLIENT ?= 0
 REQUESTED_VERIFIED_RUN_ID := $(VERIFIED_RUN_ID)
 DEFAULT_VERIFIED_RUN_ID := $(shell date -u +%Y-%m-%dT%H-%M-%SZ)-$(shell git rev-parse --short=8 HEAD 2>/dev/null || printf unknown)
 EXISTING_VERIFIED_RUN_ID := $(shell "$(PYTHON)" -c 'import json,pathlib; p=pathlib.Path("reports/testing/generated/manifest/verified-run-manifest.generated.json"); d=json.loads(p.read_text()) if p.is_file() else {}; print(d.get("verified_run_id") or d.get("metadata", {}).get("verified_run_id") or "")' 2>/dev/null)
@@ -100,6 +108,8 @@ export RUNTIME_EVIDENCE_ROOT
 export CAPABILITY_PLAN_ROOT
 export NO_CRS_RUN_ID
 export NO_CRS_RULES_FILE
+export NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR
+export NO_CRS_PROTOCOL_CLIENT
 export NGINX_HARNESS_PARENT
 export PYTHON
 export PYTHONDONTWRITEBYTECODE
@@ -223,10 +233,11 @@ export LIGHTTPD_DECISION_BACKEND
 .PHONY: no-crs-baseline-apache no-crs-baseline-nginx no-crs-baseline-haproxy no-crs-baseline-envoy no-crs-baseline-traefik no-crs-baseline-lighttpd no-crs-baseline-all-connectors
 .PHONY: capabilities-apache capabilities-nginx capabilities-haproxy capabilities-envoy capabilities-traefik capabilities-lighttpd capabilities-all-connectors capabilities-all-connectors-evidence
 .PHONY: evidence-check-apache evidence-check-nginx evidence-check-haproxy evidence-check-envoy evidence-check-traefik evidence-check-lighttpd evidence-check-all-connectors
-.PHONY: check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-doc-consistency check-no-crs-source-normalization
+.PHONY: check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-no-crs-source-normalization
 .PHONY: full-lifecycle-apache full-lifecycle-nginx full-lifecycle-haproxy full-lifecycle-envoy full-lifecycle-traefik full-lifecycle-lighttpd full-lifecycle-all-connectors
 .PHONY: full-lifecycle-haproxy-htx full-lifecycle-envoy-ext-proc full-lifecycle-traefik-native full-lifecycle-lighttpd-patched
-.PHONY: check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion
+.PHONY: check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-transport check-full-lifecycle-lifecycle check-full-lifecycle-transport-hardening check-full-lifecycle-promotion
+.PHONY: protocol-client check-protocol-evidence test-protocol-client
 
 define RUN_WITH_REFRESH_ALL
 	@set +e; \
@@ -245,6 +256,17 @@ check-framework:
 		echo "Hint: run git submodule update --init --recursive or set FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework"; \
 		exit 77; \
 	}
+
+# Forward the opt-in managed protocol client and its evidence gate from the
+# Framework without implying that a host build alone is protocol evidence.
+protocol-client: check-framework
+	$(MAKE) -C "$(FRAMEWORK_ROOT)" protocol-client CONNECTOR_ROOT="$(CURDIR)" BUILD_ROOT="$(BUILD_ROOT)"
+
+check-protocol-evidence: check-framework
+	$(MAKE) -C "$(FRAMEWORK_ROOT)" check-protocol-evidence CONNECTOR_ROOT="$(CURDIR)" BUILD_ROOT="$(BUILD_ROOT)"
+
+test-protocol-client: check-framework
+	$(MAKE) -C "$(FRAMEWORK_ROOT)" test-protocol-client CONNECTOR_ROOT="$(CURDIR)" BUILD_ROOT="$(BUILD_ROOT)"
 
 check-framework-fixture-syntax: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/check-framework-fixture-syntax.py --framework-root "$(FRAMEWORK_ROOT)"
@@ -848,6 +870,9 @@ check-no-crs-artifact-layout: check-framework
 check-no-crs-body-payload-absence: check-framework
 	$(call RUN_NO_CRS_EVIDENCE_CHECK,body-payload)
 
+check-no-crs-protocol-client: check-framework
+	$(call RUN_NO_CRS_EVIDENCE_CHECK,protocol-client)
+
 check-no-crs-status-consistency: check-framework
 	$(call RUN_NO_CRS_EVIDENCE_CHECK,status)
 
@@ -862,6 +887,20 @@ define RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK
 		--run-id "$(NO_CRS_RUN_ID)" --check profile --connectors $(NO_CRS_CONNECTORS)
 endef
 
+# Transport sidecars are inventory only until a case is promoted.  The
+# Framework's dedicated checker is nevertheless always part of the selected
+# full-lifecycle promotion gate, so a future PASS cannot bypass its causal
+# event/observation/lifecycle correlation requirements.
+define RUN_TRANSPORT_HARDENING_EVIDENCE_CHECK
+	@set -eu; \
+	for connector in $(NO_CRS_CONNECTORS); do \
+		$(MAKE) -C "$(FRAMEWORK_ROOT)" check-transport-hardening-evidence \
+			PYTHON="$(FRAMEWORK_PYTHON)" \
+			CONNECTOR="$$connector" \
+			NO_CRS_RUN_DIR="$(EVIDENCE_ROOT)/$$connector/$(NO_CRS_RUN_ID)"; \
+	done
+endef
+
 check-first-byte-before-response-end: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
 	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,first-byte)
@@ -874,9 +913,27 @@ check-full-lifecycle-event-privacy: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
 	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,event-privacy)
 
+check-full-lifecycle-transport: check-framework
+	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
+	$(PYTHON) ci/check-full-lifecycle-evidence.py \
+		--connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" \
+		--run-id "$(NO_CRS_RUN_ID)" --check transport --connectors $(NO_CRS_CONNECTORS)
+	$(call RUN_TRANSPORT_HARDENING_EVIDENCE_CHECK)
+
+check-full-lifecycle-lifecycle: check-framework
+	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
+	$(PYTHON) ci/check-full-lifecycle-evidence.py \
+		--connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" \
+		--run-id "$(NO_CRS_RUN_ID)" --check lifecycle --connectors $(NO_CRS_CONNECTORS)
+
+check-full-lifecycle-transport-hardening: check-framework
+	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
+	$(call RUN_TRANSPORT_HARDENING_EVIDENCE_CHECK)
+
 check-full-lifecycle-promotion: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
 	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,promotion)
+	$(call RUN_TRANSPORT_HARDENING_EVIDENCE_CHECK)
 
 check-no-crs-doc-consistency:
 	"$(PYTHON)" ci/check-no-crs-doc-consistency.py

@@ -44,6 +44,10 @@ host-bestätigtes `log_only` notiert; `strict` bleibt
 `strict_abort_not_attempted`. Es wird kein später Statuswechsel,
 deterministischer Reset, Client-Reset oder Upstream-Reset behauptet.
 
+Die genaue ext_proc-API-Grenze, die Opt-in-Client-Cancel-Beobachtung und die
+Nicht-Promotion-Bedingungen stehen in
+[docs/transport-hardening.de.md](docs/transport-hardening.de.md).
+
 ## Quellstruktur
 
 - `src/envoy_ext_authz_service_main.c` definiert Hostprofil,

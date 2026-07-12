@@ -14,7 +14,7 @@ Status: `minimal_runtime_smoke` for the native Phase-1 header path
 | Runtime smoke | `runtime-smoke-lighttpd` | real host path returns baseline 200 and Phase-1 rule 403 |
 | Patched core + module build | `build-lighttpd-patched-host` | copied/patched/configured/installed 1.4.84 core and module staged with matching ABI markers and hashes |
 | Patched host load | `check-lighttpd-patched-host` | staged patched binary exports hook symbols and loads staged module through real `lighttpd -tt` |
-| Patched lifecycle smoke | `runtime-smoke-lighttpd-patched` | isolated patched host baseline 200 and Phase-1 rule 403; response body explicitly disabled |
+| Patched lifecycle smoke | `runtime-smoke-lighttpd-patched` | isolated patched host baseline 200 and Phase-1 rule 403; checked-in invocation keeps response streaming disabled |
 | Decision event | runtime smoke | JSONL contains `connector=lighttpd` and `rule_id=1000001`; no body payload field |
 
 ## Native config-load check
@@ -60,18 +60,25 @@ The patched target is intentionally separate from the stock compatibility path
 and generic stock No-CRS runner. The full-lifecycle profile selects it. It
 copies and patches only lighttpd 1.4.84, builds and stages the core and module
 together, validates the matching plugin ABI through `lighttpd -tt`, then runs
-only the narrow Phase-1 smoke. Its generated runtime file requires both body
-modes to be `none` and its manifest records
+only the narrow Phase-1 smoke. Its checked-in generated runtime file requires
+both body modes to be `none` and its manifest records
 `phase4_runtime_evidence=not_executed`.
 
-The response callback introduced by the patch is immediately before
-`network_write()` and views `r->write_queue`. For HTTP/1.x that can include
-transfer framing and the terminal chunk, so it cannot be passed to
-`msc_append_response_body()` as a decoded entity. The module deliberately
-leaves that callback as a no-op for response bodies. A valid P4 implementation
-needs a decoded entity-body stage before transfer framing, P3-before-P4
-ordering for initial data, all static/file/proxy/CGI/FastCGI/splice/compression
-paths, real EOS, and an explicit precommit/safe/strict disposition policy.
+The patch invokes its response callback in `http_chunk.c` before HTTP/1
+transfer framing, not at `network_write()` or on `r->write_queue`. In the
+selected scope it receives the current synchronous, borrowed identity entity
+range with a monotonic offset and a single EOS. The module appends the range to
+Common Runtime and invokes the Phase-4 finish API only at EOS. The callback
+happens before socket writes, so a later short write or `EAGAIN` cannot
+duplicate inspection. This is a source/build and static-contract result, not a
+host fault-injection or response-stream runtime result. gzip/br, HTTP/2, and
+unexamined file/zero-copy output routes are outside the selected contract.
+
+At a disruptive EOS decision, safe/minimal source behavior preserves the
+visible response and records `log_only`; strict explicitly logs `NOT EXECUTED`
+and continues. No real client has established commitment, an incomplete body,
+host survival, and a subsequent independent request, so neither outcome is
+canonical P4/late-intervention evidence.
 
 ## Resource and ownership checks
 
@@ -88,8 +95,8 @@ and optional future-C modes. Only C17 is required by the native build.
 
 The current evidence does not verify:
 
-- request-body capture, Phase 2, or body truncation;
-- response-body capture, Phase 4, or late intervention;
+- response-body streaming runtime, Phase 4, or late intervention;
+- short-write/EAGAIN fault injection, response truncation, or body limits;
 - redirect/drop/connection-abort behavior;
 - multi-worker/thread stress, long-running resilience, or production hardening;
 - CRS loading/effectiveness or any full CRS matrix;
@@ -100,16 +107,18 @@ Therefore connector metadata uses `minimal_runtime_smoke` and
 
 ## Canonical Phase-4 validation
 
-The native module does not implement a decoded response-body hook.  Consequently,
-`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
-`phase4_pre_commit_deny`, `late_intervention`,
+The stock module does not implement a response-body hook. The patched 1.4.84
+module has an identity entity-body source path, but no canonical streaming host
+run. Consequently `response_body_buffered`, `phase4`,
+`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
 `late_intervention_log_only`, `late_intervention_abort`, and
-`late_intervention_status_metadata` are `not_implemented`.
+`late_intervention_status_metadata` remain `not_implemented` for the selected
+evidence profile.
 
-Phase-4 cases must remain `NOT_EXECUTED` (or be omitted by capability
-selection) until a native response-body path and honest intervention timing are
-implemented.  They are not `UNSUPPORTED`: the current statement concerns this
-module, not an impossibility in lighttpd.  The existing response-start header
-hook and Phase-1 403 smoke neither prove a Phase-4 rule nor original/requested/
-visible response status, a late action, or an abort.  Events and reports remain
+Phase-4 cases remain `NOT_EXECUTED` (or are omitted by capability selection)
+until real host and client artifacts prove the timing and transport outcome.
+They are not `UNSUPPORTED`: this concerns the selected evidence profile, not an
+impossibility in lighttpd. The response-start hook, static source contract, and
+Phase-1 smoke do not prove a client-visible Phase-4 rule, original/requested/
+visible response status, a late action, or an abort. Events and reports remain
 metadata-only.

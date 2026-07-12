@@ -63,6 +63,7 @@ HOST_MANIFEST_TMP=$HOST_MANIFEST.tmp.$$
     printf 'modsecurity_lib_dir=%s\n' "$MODSECURITY_LIB_DIR"
     printf 'plugin_hook_abi=1\n'
     printf 'response_body_mode=none\n'
+    printf 'response_hook_contract=http1_entity_body_before_transfer_encoding\n'
     printf 'phase4_runtime_evidence=not_executed\n'
 } > "$HOST_MANIFEST_TMP"
 mv "$HOST_MANIFEST_TMP" "$HOST_MANIFEST"

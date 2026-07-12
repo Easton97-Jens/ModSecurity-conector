@@ -61,6 +61,9 @@ hostbestätigten JSONL-Ereignisse verwenden exakt
 oder `log_only`. Die lokalen Go-Tests/Builds bleiben über
 `make -C connectors/traefik test-native-middleware` und
 `build-native-middleware` verfügbar, sind aber allein kein Hostnachweis.
+Die genaue native Transport-/API-Grenze einschließlich der nicht promotenden
+Keep-Alive-Beobachtung und der Strict-Begründung `NOT EXECUTED` steht in
+[docs/transport-hardening.de.md](docs/transport-hardening.de.md).
 
 - Common Config wird über `traefik_modsecurity_config_init()` initialisiert.
 - Request- und Response-Mapper sind dünne Funktionen, keine Makro-Aliase.

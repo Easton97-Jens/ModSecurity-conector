@@ -42,6 +42,10 @@ in `minimal`/`safe` is recorded as host-confirmed `log_only`; `strict` remains
 `strict_abort_not_attempted`. It never claims a late status change,
 deterministic reset, client reset, or upstream reset.
 
+The exact ext_proc API boundary, opt-in client-cancel observation, and
+non-promotion conditions are documented in
+[docs/transport-hardening.md](docs/transport-hardening.md).
+
 ## Source layout
 
 - `src/envoy_ext_authz_service_main.c` defines the Envoy host profile, original

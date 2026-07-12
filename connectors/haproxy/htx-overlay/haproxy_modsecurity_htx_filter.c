@@ -254,6 +254,7 @@ static void haproxy_modsecurity_htx_report_late_decision(
     msconnector_late_intervention_action action;
     const char *requested_action;
     const char *resolved_action;
+    const char *host_action;
     int strict_mode;
 
     if (!decision || !decision->disruptive) {
@@ -267,12 +268,15 @@ static void haproxy_modsecurity_htx_report_late_decision(
         ctx != NULL && ctx->response_body_started, strict_mode);
     requested_action = decision->action[0] ? decision->action : "deny";
     resolved_action = msconnector_late_intervention_action_name(action);
-    /* Do not claim that the policy action was executed until a host runtime
-     * proves the exact HAProxy stream-abort primitive and client outcome. */
-    ha_warning("modsecurity-htx: response-body late intervention observed; transaction_id=%s phase=%d status=%d rule_id=%d requested_action=%s resolved_policy_action=%s host_action=not_attempted\n",
+    /* Safe/minimal deliberately forwards the original response after recording
+     * a real log-only downgrade.  Strict is still only policy intent until a
+     * real client proves HAProxy's exact post-commit abort primitive. */
+    host_action = action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY
+        ? "log_only" : "not_attempted";
+    ha_warning("modsecurity-htx: response-body late intervention observed; transaction_id=%s phase=%d status=%d rule_id=%d requested_action=%s resolved_policy_action=%s host_action=%s\n",
         ctx && ctx->transaction_id[0] ? ctx->transaction_id : "unavailable",
         decision->phase, decision->status, decision->rule_id, requested_action,
-        resolved_action);
+        resolved_action, host_action);
 }
 
 static void haproxy_modsecurity_htx_abort_context(
@@ -717,6 +721,22 @@ static int haproxy_modsecurity_htx_filter_http_end(
                 } else {
                     haproxy_modsecurity_htx_report_decision("request-body", ctx, &decision);
                     if (decision.disruptive) {
+                        /* The payload hook returns borrowed HTX slices to
+                         * HAProxy before this later request http_end callback.
+                         * Its scheduler can therefore dispatch a one-block P2
+                         * request before or after this disruptive decision.
+                         * The host runner records the observed zero-or-one
+                         * backend dispatch count; neither outcome is
+                         * incremental-request-forwarding evidence and both
+                         * must remain non-promoted. When this filter has not
+                         * seen response headers, HAProxy's normal
+                         * reply-and-close API can give the real client a 4xx. */
+                        if (!ctx->response_headers_seen &&
+                            haproxy_modsecurity_htx_apply_precommit_deny(
+                                s, ctx, &decision)) {
+                            unregister_data_filter(s, msg->chn, filter);
+                            return 1;
+                        }
                         haproxy_modsecurity_htx_finish_context(ctx);
                         ctx->disabled = 1;
                     } else if (ctx->response_started_before_request_eos) {

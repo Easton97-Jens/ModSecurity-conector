@@ -25,6 +25,7 @@ LISTEN_PORT ?= 18082
 	build-modsecurity-bridge check-envoy-config start-smoke-envoy \
 	serve-envoy-connector runtime-smoke-envoy no-crs-baseline-envoy \
 	serve-envoy-ext-proc runtime-smoke-envoy-ext-proc \
+	transport-cancel-smoke-envoy-ext-proc \
 	self-test-modsecurity clean
 
 build-starter:
@@ -95,6 +96,12 @@ runtime-smoke-envoy-ext-proc: build-envoy-ext-proc
 	EVENT_LOG_PATH="$(EXT_PROC_RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
 	EXT_PROC_RUNTIME_CONFIG="$(EXT_PROC_RUNTIME_CONFIG)" RULES_FILE="$(EXT_PROC_RULES_FILE)" \
 	PYTHON="$(PYTHON)" sh harness/run_envoy_ext_proc_runtime.sh
+
+# The cancellation probe is deliberately opt-in: it uses a real downstream
+# connection close after the first body byte and remains non-promoting even
+# when its ext_proc completion sidecar is present.
+transport-cancel-smoke-envoy-ext-proc:
+	$(MAKE) ENVOY_TRANSPORT_CANCEL_PROBE=1 runtime-smoke-envoy-ext-proc
 
 build-modsecurity-bridge: build-envoy-connector
 

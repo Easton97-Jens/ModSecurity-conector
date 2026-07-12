@@ -113,6 +113,9 @@ The following facets are therefore `unsupported_by_host_model` for that path:
       because that host model cannot receive the later upstream response.
 - [x] Native UDS host probe records P4 safe `log_only` after commit with a
       visible 200; strict late abort is explicitly `NOT EXECUTED`.
+- [x] Native Safe probe requires an HTTP/1.1 same-connection follow-up and
+      writes only a diagnostic, non-promoting sidecar; incomplete host writes
+      do not synthesize response EOS.
 - [ ] Do not use request-side 200/403, `forwardBody`, or any decision-service
       self-test as response-body, late-action, original-status, visible-status,
       or connection-abort evidence.

@@ -19,6 +19,12 @@ SPEC.loader.exec_module(HELPER)
 
 
 class HAProxyHTXSmokeHelperTest(unittest.TestCase):
+    def test_phase2_upstream_profile_is_isolated_from_ordinary_requests(self) -> None:
+        self.assertEqual(
+            ("phase2", None, HELPER.UPSTREAM_OK_BODY),
+            HELPER.upstream_profile("/no-crs/request-body?trace=ignored"),
+        )
+
     def test_generated_config_selects_only_native_htx_filter(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

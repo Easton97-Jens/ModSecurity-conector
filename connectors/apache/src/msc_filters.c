@@ -405,6 +405,10 @@ static void apache_log_intervention_event(msc_t *msr, request_rec *r,
     event.flags.headers_sent = response_committed;
     event.flags.body_started = phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
         response_committed;
+    /* Phase-2/4 intervention records are emitted only after their explicit
+     * body finish boundary; this is not a claim about client completion. */
+    event.flags.eos_seen = phase == MSCONNECTOR_PHASE_REQUEST_BODY ||
+        phase == MSCONNECTOR_PHASE_RESPONSE_BODY;
     event.flags.connection_aborted = phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
         msr->phase4_strict_abort;
     event.flags.body_truncated = phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&

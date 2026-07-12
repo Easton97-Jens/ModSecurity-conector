@@ -87,6 +87,9 @@ upstream_port=$("$PYTHON_BIN" "$HELPER" free-port)
 "$PYTHON_BIN" "$HELPER" serve-upstream --port "$upstream_port" --request-log "$UPSTREAM_LOG" \
     >"$RUNTIME_ROOT/upstream.stdout.log" 2>"$RUNTIME_ROOT/upstream.stderr.log" &
 upstream_pid=$!
+phase2_upstream_request_count=not_observed
+phase2_request_dispatch_observed=not_observed
+phase2_host_action=enforced_reply
 
 run_case() {
     case_name=$1
@@ -167,7 +170,7 @@ run_case() {
                 --evidence-path "$probe_file")
             expected_log="modsecurity-htx: request intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=1 status=429 rule_id=$rule_id action=deny"
             ;;
-        phase2_observed)
+        phase2_client_deny)
             status=$("$PYTHON_BIN" "$HELPER" probe --url "http://127.0.0.1:$listener_port/no-crs/request-body" \
                 --method POST --data no-crs-request-body-marker --header 'Content-Type: text/plain' \
                 --header 'X-Request-Id: haproxy-htx-phase2' --evidence-path "$probe_file")
@@ -181,7 +184,7 @@ run_case() {
         phase4_observed)
             status=$("$PYTHON_BIN" "$HELPER" probe --url "http://127.0.0.1:$listener_port/no-crs/response-body" \
                 --header 'X-Request-Id: haproxy-htx-phase4' --evidence-path "$probe_file")
-            expected_log="modsecurity-htx: response-body late intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=4 status=403 rule_id=$rule_id requested_action=deny resolved_policy_action=log_only host_action=not_attempted"
+            expected_log="modsecurity-htx: response-body late intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=4 status=403 rule_id=$rule_id requested_action=deny resolved_policy_action=log_only host_action=log_only"
             ;;
         *) echo "haproxy_htx_runtime: FAIL - unknown case: $case_name" >&2; exit 1 ;;
     esac
@@ -192,9 +195,33 @@ run_case() {
     cleanup_haproxy
     after_upstream=$("$PYTHON_BIN" "$HELPER" upstream-count --path "$UPSTREAM_LOG" --profile "$upstream_profile")
     actual_upstream_requests=$((after_upstream - before_upstream))
-    if [ "$actual_upstream_requests" -ne "$expected_upstream_requests" ]; then
-        echo "haproxy_htx_runtime: FAIL - $case_name reached upstream $actual_upstream_requests times, expected $expected_upstream_requests" >&2
-        exit 1
+    case "$expected_upstream_requests" in
+        0-or-1)
+            case "$actual_upstream_requests" in
+                0|1) ;;
+                *)
+                    echo "haproxy_htx_runtime: FAIL - $case_name reached upstream $actual_upstream_requests times, expected zero or one" >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
+        *)
+            if [ "$actual_upstream_requests" -ne "$expected_upstream_requests" ]; then
+                echo "haproxy_htx_runtime: FAIL - $case_name reached upstream $actual_upstream_requests times, expected $expected_upstream_requests" >&2
+                exit 1
+            fi
+            ;;
+    esac
+    if [ "$case_name" = phase2_client_deny ]; then
+        phase2_upstream_request_count=$actual_upstream_requests
+        case "$actual_upstream_requests" in
+            0)
+                phase2_request_dispatch_observed=false
+                ;;
+            1)
+                phase2_request_dispatch_observed=true
+                ;;
+        esac
     fi
     if [ -n "$expected_log" ] && ! grep -Eq "$expected_log" "$log_file"; then
         echo "haproxy_htx_runtime: FAIL - $case_name lacks the expected HAProxy/libmodsecurity observation" >&2
@@ -229,12 +256,12 @@ run_case() {
 run_case allow 1 0 200 ordinary 1 forwarded
 run_case phase1_403 1 1100001 403 ordinary 0 enforced_reply
 run_case phase1_429 1 1100002 429 ordinary 0 enforced_reply
-run_case phase2_observed 2 1100101 200 ordinary 1 observed_only
+run_case phase2_client_deny 2 1100101 403 phase2 0-or-1 enforced_reply
 run_case phase3_403 3 1100201 403 phase3 1 enforced_reply
-run_case phase4_observed 4 1100301 200 phase4 1 not_attempted
+run_case phase4_observed 4 1100301 200 phase4 1 safe_log_only
 
-if [ "$(wc -l < "$EVENT_LOG_PATH")" -ne 3 ]; then
-    echo "haproxy_htx_runtime: FAIL - expected three enforced precommit HTX events" >&2
+if [ "$(wc -l < "$EVENT_LOG_PATH")" -ne 4 ]; then
+    echo "haproxy_htx_runtime: FAIL - expected four enforced HTX decision events" >&2
     exit 1
 fi
 if [ "$(wc -l < "$HOST_EVIDENCE_LOG_PATH")" -ne 6 ]; then
@@ -264,10 +291,13 @@ fi
     printf 'phase1_deny_client_status=403\n'
     printf 'phase1_alternative_status_client_status=429\n'
     printf 'phase3_deny_client_status=403\n'
-    printf 'phase2_observed_client_status=200\n'
+    printf 'phase2_client_status=403\n'
+    printf 'phase2_upstream_request_count=%s\n' "$phase2_upstream_request_count"
+    printf 'phase2_request_dispatch_observed=%s\n' "$phase2_request_dispatch_observed"
+    printf 'phase2_incremental_forwarding_claimed=false\n'
     printf 'phase4_observed_client_status=200\n'
-    printf 'phase2_host_action=observed_only\n'
-    printf 'phase4_safe_host_action=not_attempted\n'
+    printf 'phase2_host_action=%s\n' "$phase2_host_action"
+    printf 'phase4_safe_host_action=log_only\n'
     printf 'response_body_stream_observed=true\n'
     printf 'transaction_id_observed=true\n'
     printf 'payload_recorded=false\n'

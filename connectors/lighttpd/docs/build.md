@@ -80,12 +80,13 @@ requires the staged binary to report 1.4.84, verifies both hook symbols with
 module directory.
 
 The ABI tag rejects accidental stock/patched dynamic-module mixing. The patch
-exposes HTTP/1.x request ranges and bounded pre-socket-write HTTP/1.x output/EOS
-ranges; the latter are wire output, not decoded response entities. HTTP/2 is
-deliberately excluded because its connection queue is multiplexed and framed.
-The full-lifecycle profile selects this patched host for an isolated Phase-1
+exposes borrowed HTTP/1.x request ranges and identity entity-response ranges in
+`http_chunk.c`, before HTTP/1 transfer framing and before a socket write. It
+does not inspect `connections.c` or a connection queue. HTTP/2 is deliberately
+excluded, and gzip/br are outside the selected identity-only contract. The
+full-lifecycle profile selects this patched host for an isolated Phase-1
 runtime probe. It remains a non-promoted build/load path and does not establish
-response-body, Phase-4, or late-intervention evidence.
+client-visible response-body, Phase-4, or late-intervention evidence.
 
 ## Separate operations
 
@@ -106,10 +107,13 @@ make -C connectors/lighttpd runtime-smoke-lighttpd
 - Runtime smoke alone sends two real host requests.
 
 `runtime-smoke-lighttpd-patched` is a separate, isolated Phase-1 smoke selected
-by the full-lifecycle profile. It loads only the staged patched module, enforces
-`request_body_mode=none` and `response_body_mode=none`, and checks baseline
-200 plus rule-backed 403. It never invokes the generic stock No-CRS
-selected-case consumer and its PASS output states `phase4=not-executed`.
+by the full-lifecycle profile. Its checked-in invocation loads only the staged
+patched module, uses `request_body_mode=none` and `response_body_mode=none`,
+and checks baseline 200 plus rule-backed 403. The preparer permits streaming
+only with the patched entity ABI and `LIGHTTPD_PATCHED_ENTITY_ENCODING=identity`;
+that is a contract configuration, not a P4 runtime claim. It never invokes the
+generic stock No-CRS selected-case consumer and its PASS output states
+`phase4=not-executed`.
 
 ## Verified local result
 

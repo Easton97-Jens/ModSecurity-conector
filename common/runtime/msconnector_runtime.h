@@ -7,6 +7,7 @@
 #include "msconnector/decision.h"
 #include "msconnector/decision_action.h"
 #include "msconnector/error.h"
+#include "msconnector/options.h"
 #include "msconnector/request.h"
 #include "msconnector/request_mapper_contract.h"
 #include "msconnector/response.h"
@@ -78,6 +79,10 @@ size_t msconnector_runtime_response_body_limit(const msconnector_runtime *runtim
 msconnector_body_mode msconnector_runtime_request_body_mode(
     const msconnector_runtime *runtime);
 msconnector_body_mode msconnector_runtime_response_body_mode(
+    const msconnector_runtime *runtime);
+/* Returns the parsed common policy mode so a connector does not need a
+ * connector-local copy of Phase-4 configuration. */
+enum msconnector_phase4_mode msconnector_runtime_phase4_mode(
     const msconnector_runtime *runtime);
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *runtime);
 size_t msconnector_runtime_header_count_limit(const msconnector_runtime *runtime);
@@ -168,8 +173,11 @@ void msconnector_runtime_transaction_set_response_commit_state(
  * after applying (or intentionally downgrading) that request.  Call it only
  * after the host action has succeeded or the host has deliberately selected a
  * late log-only outcome.  `visible_http_status` is the status observable by
- * the client; it may be zero only for a transport-only outcome.  The runtime
- * never retains `transport_result`.
+ * the client; it may be zero only for a transport-only connection abort or a
+ * stream-local reset.  A stream reset must use actual action
+ * `MSCONNECTOR_DECISION_ACTION_STREAM_RESET`, `transport_result="stream_reset"`,
+ * and `connection_aborted=0`; it is not a substitute for a connection abort.
+ * The runtime never retains `transport_result`.
  */
 int msconnector_runtime_transaction_record_host_action(
     msconnector_runtime_transaction *transaction,

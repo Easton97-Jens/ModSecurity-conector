@@ -65,11 +65,15 @@ bounded branch is disabled. The separate `full-lifecycle-haproxy-htx` profile
 selects a HAProxy 3.2.21 HTX path with real-host P1–P4 traffic. It proves
 client-visible precommit replies for canonical P1 rules `1100001` (403) and
 `1100002` (429), and for canonical P3 rule `1100201` (403) before the upstream
-header response is forwarded. It is not an SPOP response path. P2 and P4 are
-explicitly observation-only (`observed_only` and `not_attempted` respectively).
+header response is forwarded. It is not an SPOP response path. The one-block
+P2 probe returns a client 403 through HAProxy's reply-and-close API and records
+zero or one observed upstream requests without proving their ordering; it does
+not establish incremental forwarding or a general buffering guarantee. P4 Safe forwards the
+original response with
+`host_action=log_only`; P4 Strict remains `host_action=not_attempted`.
 `response_body_buffered`, `phase4`, and `phase4_rule_evaluation` remain
-`not_implemented`; no post-commit response point, redirect, abort, or
-first-byte timing proof exists. The runner deliberately retains
+`not_implemented` for the selected SPOP capability profile; no post-commit
+abort, first-byte timing, or client no-full-buffer proof exists. The runner deliberately retains
 `capability_promotion=not_permitted`, so these genuine local host results do
 not become selected-path capability assertions.
 
@@ -77,7 +81,7 @@ not become selected-path capability assertions.
 | --- | --- | --- |
 | `phase4_rule_observed` | Rule `1100301` observed through the real response path | a self-test or agent-only log |
 | `phase4_deny_before_commit` | `NOT_EXECUTED`: implement host-observed client status and commitment timing first | policy-derived agent fields |
-| `phase4_deny_after_commit_log_only` | `NOT_EXECUTED`: implement a post-commit host point and safe action first | a bare response status or response-preserving policy value |
+| `phase4_deny_after_commit_log_only` | `NOT_EXECUTED`: a source/harness `log_only` record is not a client-validated canonical outcome | a bare response status or response-preserving policy value |
 | `phase4_deny_after_commit_abort` | `NOT_EXECUTED`: implement controlled post-commit `abort_connection` first | timeout, agent failure, or generic disconnect |
 | status/action metadata | `NOT_EXECUTED`: implement host-observed original/visible status and timing first | one status field, a rule ID, or policy-derived values |
 
