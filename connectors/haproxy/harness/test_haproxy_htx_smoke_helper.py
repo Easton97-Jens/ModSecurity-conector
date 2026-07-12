@@ -133,6 +133,85 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             self.assertEqual(raw_record["client_response_bytes"], 93)
             self.assertNotIn("no-crs-request-body-marker", host_evidence.read_text(encoding="utf-8"))
 
+    def test_allow_event_binds_completed_client_and_upstream_transaction(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            events = root / "events.jsonl"
+            probe = root / "client-probe.json"
+            upstream = root / "upstream-requests.jsonl"
+            probe.write_text(
+                json.dumps({"status": 200, "response_bytes": 24, "content_type": "text/plain"}),
+                encoding="utf-8",
+            )
+            upstream.write_text(
+                json.dumps({
+                    "method": "GET",
+                    "response_status": 200,
+                    "profile": "ordinary",
+                    "request_id": "haproxy-htx-allow",
+                }) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                HELPER.write_allow_event(
+                    str(events), str(probe), str(upstream), "haproxy-htx-allow",
+                ),
+                0,
+            )
+            record = json.loads(events.read_text(encoding="utf-8"))
+            self.assertEqual(record["message_id"], "HAPROXY_HTX_NATIVE_P1_ALLOW")
+            self.assertEqual(record["transaction_id"], "haproxy-htx-allow")
+            self.assertEqual(record["phase"], 1)
+            self.assertEqual(record["status"], "allowed")
+            self.assertEqual(record["visible_http_status"], 200)
+            self.assertNotIn("requested_action", record)
+            self.assertNotIn("actual_action", record)
+            schema = json.loads((
+                HELPER.REPO_ROOT
+                / "modules/ModSecurity-test-Framework/tests/schemas/no-crs-baseline/event.schema.json"
+            ).read_text(encoding="utf-8"))
+            self.assertTrue(set(record).issubset(set(schema["properties"])))
+            self.assertTrue(set(record).issubset(COLLECTOR.APPROVED_RAW_EVENT_KEYS))
+            self.assertNotIn("no-crs-request-body-marker", events.read_text(encoding="utf-8"))
+
+    def test_allow_event_rejects_noncausal_or_nonallow_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            events = root / "events.jsonl"
+            probe = root / "client-probe.json"
+            upstream = root / "upstream-requests.jsonl"
+            probe.write_text(
+                json.dumps({"status": 403, "response_bytes": 24, "content_type": "text/plain"}),
+                encoding="utf-8",
+            )
+            upstream.write_text(
+                json.dumps({
+                    "profile": "ordinary", "request_id": "haproxy-htx-allow",
+                }) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "preserve HTTP 200"):
+                HELPER.write_allow_event(
+                    str(events), str(probe), str(upstream), "haproxy-htx-allow",
+                )
+
+            probe.write_text(
+                json.dumps({"status": 200, "response_bytes": 24, "content_type": "text/plain"}),
+                encoding="utf-8",
+            )
+            upstream.write_text(
+                json.dumps({"profile": "ordinary", "request_id": "wrong-id"}) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "not observed exactly once upstream"):
+                HELPER.write_allow_event(
+                    str(events), str(probe), str(upstream), "haproxy-htx-allow",
+                )
+            with self.assertRaisesRegex(ValueError, "invalid HTX transaction id"):
+                HELPER.write_allow_event(
+                    str(events), str(probe), str(upstream), "haproxy:htx-allow",
+                )
+
     def test_first_byte_evidence_binds_client_byte_to_paused_upstream(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

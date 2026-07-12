@@ -450,9 +450,15 @@ run_case phase1_429 1 1100002 429 ordinary 0 enforced_reply
 run_case phase2_client_deny 2 1100101 403 phase2 0-or-1 enforced_reply
 run_case phase3_403 3 1100201 403 phase3 1 enforced_reply
 run_phase4_safe_barrier
+# Append the no-rule allow event after the Phase-4 evidence.  The canonical
+# selector uses the final matching HTTP 200 event for a no-rule case, so this
+# must remain last to bind P1 to its own real client/upstream transaction.
+"$PYTHON_BIN" "$HELPER" write-allow-event --path "$EVENT_LOG_PATH" \
+    --probe-path "$RUNTIME_ROOT/cases/allow/client-probe.json" \
+    --upstream-log "$UPSTREAM_LOG" --transaction-id haproxy-htx-allow
 
-if [ "$(wc -l < "$EVENT_LOG_PATH")" -ne 5 ]; then
-    echo "haproxy_htx_runtime: FAIL - expected five host-confirmed HTX decision events" >&2
+if [ "$(wc -l < "$EVENT_LOG_PATH")" -ne 6 ]; then
+    echo "haproxy_htx_runtime: FAIL - expected six host-confirmed HTX events" >&2
     exit 1
 fi
 if [ "$(wc -l < "$HOST_EVIDENCE_LOG_PATH")" -ne 6 ]; then

@@ -89,6 +89,15 @@ def safe_token(value: object, label: str, maximum: int = 128) -> str:
     return text
 
 
+def safe_htx_transaction_id(value: object) -> str:
+    """Return the request-ID grammar accepted by the native HTX filter."""
+
+    text = safe_token(value, "HTX transaction id", maximum=256)
+    if re.fullmatch(r"[A-Za-z0-9._-]+", text) is None:
+        raise ValueError("invalid HTX transaction id")
+    return text
+
+
 def upstream_profile(raw_path: str) -> tuple[str, str | None, bytes]:
     path = raw_path.split("?", 1)[0]
     if path == "/no-crs/request-body":
@@ -115,12 +124,22 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
         request_log = getattr(self.server, "request_log", None)
         request_log_lock = getattr(self.server, "request_log_lock", None)
         if isinstance(request_log, Path) and request_log_lock is not None:
+            record: dict[str, object] = {
+                "method": self.command,
+                "response_status": 200,
+                "profile": profile,
+            }
+            # The native HTX overlay accepts this bounded request ID as its
+            # transaction ID.  Retain only that already-safe correlation
+            # token, never arbitrary request-header data.
+            try:
+                request_id = safe_htx_transaction_id(self.headers.get("x-request-id"))
+            except ValueError:
+                request_id = ""
+            if request_id:
+                record["request_id"] = request_id
             with request_log_lock:
-                append_jsonl(request_log, {
-                    "method": self.command,
-                    "response_status": 200,
-                    "profile": profile,
-                })
+                append_jsonl(request_log, record)
         self.send_response(200)
         self.send_header("content-type", "text/plain")
         if response_header is not None:
@@ -462,6 +481,31 @@ def upstream_count(path: str, profile: str) -> int:
     return count
 
 
+def upstream_transaction_observed(path: str, profile: str, transaction_id: str) -> bool:
+    """Return whether exactly one upstream request preserved the HTX ID."""
+
+    expected_transaction_id = safe_htx_transaction_id(transaction_id)
+    target = checked_path(path)
+    if not target.is_file():
+        return False
+    matches = 0
+    for line in target.read_text(encoding="utf-8").splitlines():
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid upstream evidence: {target}") from exc
+        if not isinstance(record, dict):
+            continue
+        if (
+            record.get("profile") == profile
+            and record.get("request_id") == expected_transaction_id
+        ):
+            matches += 1
+    return matches == 1
+
+
 def decision_from_log(path: str, phase: int, rule_id: int) -> dict[str, object]:
     target = checked_path(path)
     if not target.is_file():
@@ -549,6 +593,46 @@ def write_event(
     }
     if original_http_status is not None:
         record["original_http_status"] = original_http_status
+    append_jsonl(checked_path(path), record)
+    return 0
+
+
+def write_allow_event(
+    path: str, probe_path: str, upstream_log: str, transaction_id: str,
+) -> int:
+    """Publish a real, payload-free P1 allow outcome after the full run.
+
+    The event is deliberately appended after the P4 barrier event.  The
+    Framework's generic no-rule case selector chooses the final matching 200
+    response, so this preserves its causal binding to this actual Phase-1
+    request rather than accidentally borrowing the P4 safe response.
+    """
+
+    transaction = safe_htx_transaction_id(transaction_id)
+    probe = read_probe(probe_path)
+    if probe["status"] != 200 or int(probe["response_bytes"]) < 1:
+        raise ValueError("HAProxy allow client outcome must preserve HTTP 200 with a body")
+    if not upstream_transaction_observed(upstream_log, "ordinary", transaction):
+        raise ValueError("HAProxy allow transaction was not observed exactly once upstream")
+    record: dict[str, object] = {
+        # This is a projection of the completed client request and the
+        # matching upstream request-ID, not a policy decision or capability
+        # promotion.  Allow is intentionally absent from the closed action
+        # vocabularies, so no requested/actual action is inferred here.
+        "connector": "haproxy",
+        "event": "native_htx_host_forward",
+        "message_id": "HAPROXY_HTX_NATIVE_P1_ALLOW",
+        "integration_mode": "native-htx-filter",
+        "transaction_id": transaction,
+        "phase": 1,
+        "status": "allowed",
+        "http_status": 200,
+        "visible_http_status": 200,
+        "headers_sent": True,
+        "response_committed": True,
+        "connection_aborted": False,
+        "transport_result": "http_status",
+    }
     append_jsonl(checked_path(path), record)
     return 0
 
@@ -741,6 +825,11 @@ def parse_args() -> argparse.Namespace:
     event.add_argument("--observed-status", required=True, type=int)
     event.add_argument("--host-action", required=True, choices=("enforced_reply",))
     event.add_argument("--original-http-status", type=int)
+    allow_event = subparsers.add_parser("write-allow-event")
+    allow_event.add_argument("--path", required=True)
+    allow_event.add_argument("--probe-path", required=True)
+    allow_event.add_argument("--upstream-log", required=True)
+    allow_event.add_argument("--transaction-id", required=True)
     evidence = subparsers.add_parser("write-host-evidence")
     evidence.add_argument("--path", required=True)
     evidence.add_argument("--case", required=True)
@@ -802,6 +891,10 @@ def main() -> int:
         return write_event(
             args.path, args.case, args.decision_log, args.phase, args.rule_id,
             args.observed_status, args.host_action, args.original_http_status,
+        )
+    if args.command == "write-allow-event":
+        return write_allow_event(
+            args.path, args.probe_path, args.upstream_log, args.transaction_id,
         )
     if args.command == "write-host-evidence":
         return write_host_evidence(
