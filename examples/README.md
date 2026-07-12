@@ -39,6 +39,20 @@ an actual checked-in configuration shape. It is never a claim that a
 post-commit status rewrite, reset, or connection abort was observed. Read the
 connector-specific limitation before enabling it.
 
+## Configuration references
+
+| Reference | Scope |
+| --- | --- |
+| [Common Runtime](common/common-connector-configuration.md) | Complete source-backed `key=value` parser surface. |
+| [ModSecurity Engine](common/modsecurity-directives.md) | Engine directives actually used by checked-in examples. |
+| [Rule examples](common/rule-examples.md) | On, DetectionOnly, and Off engine behavior. |
+| [Apache](apache/configuration-reference.md) | Apache `command_rec` directives and example host fields. |
+| [NGINX](nginx/configuration-reference.md) | NGINX `ngx_command_t` directives and example host fields. |
+| [HAProxy](haproxy/configuration-reference.md) | Native HTX options separated from SPOE/SPOP compatibility. |
+| [Envoy](envoy/configuration-reference.md) | ext_proc YAML/service/CLI contract separated from ext_authz. |
+| [Traefik](traefik/configuration-reference.md) | Native middleware/UDS configuration separated from forwardAuth. |
+| [lighttpd](lighttpd/configuration-reference.md) | Native plugin keys and Common Runtime separated from sidecar proxy. |
+
 ## Rules and expected outcomes
 
 Each connector has a rules directory and an expected directory. The rules

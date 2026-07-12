@@ -12,11 +12,16 @@ run-local artifacts from which a claim was validated.
 | [`evidence/`](evidence/) | Human-readable summaries of selected No-CRS evidence | Canonical result/event artifacts, not raw local runs |
 | [`archive/`](archive/README.md) | Superseded planning, readiness, and historical analysis | Banner at the beginning of each report |
 | [`testing/`](testing/) | Existing detailed testing index and generated-report layout | Its generator registry and Framework sources |
+| [`connector-configuration-inventory.json`](connector-configuration-inventory.json) | Generated machine-readable connector/host/Common/engine option inventory | Registered parsers, service contracts, and active example extractors |
 
 `testing/generated/` remains the established generated-report location because
 the report registry, path-safety checks, and generators use it as their source
 contract. Regenerate it with `make refresh-all-reports`; do not edit generated
 Markdown by hand.
+
+Regenerate the configuration inventory and its paired example references with
+`make generate-connector-config-reference`; verify source/documentation parity
+with `make check-connector-config-reference`.
 
 ## Portable path notation
 

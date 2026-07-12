@@ -2,8 +2,11 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-The selected Envoy core needs one streamed ext_proc configuration to cover all
-four phases, so it has no second request-only native configuration here. Start
-with [the Safe template](../safe/envoy-ext-proc-streaming.yaml.in) and keep its
-Safe policy. The separate ext_authz request-only material is under
+The selected Envoy core needs streamed ext_proc input in both directions. This
+directory therefore supplies a complete minimal transport shape in
+[envoy-ext-proc-streaming.yaml.in](envoy-ext-proc-streaming.yaml.in), its
+validated service contract, and a paired Common Runtime file with
+`phase4_mode=minimal`. It is not a request-only native path: the bridge still
+requires STREAMED request and response body modes. The separate ext_authz
+request-only material remains under
 [compatibility-ext-authz](../compatibility-ext-authz/README.md).

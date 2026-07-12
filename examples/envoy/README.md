@@ -14,7 +14,8 @@ P1 is request headers, P2 request body, P3 response headers, and P4 response
 body. Safe means a late P4 result is recorded as log-only rather than claimed as
 a late HTTP status change or deterministic stream reset. The template does not
 promise a full connector response buffer, a client-observed first byte, or a
-Strict post-commit abort. No Strict file is supplied.
+Strict post-commit abort. The [Strict directory](strict/README.md) documents
+the optional boundary without claiming a strict transport result.
 
 The old [ext_authz compatibility example](compatibility-ext-authz/README.md)
 is explicitly request-phase only. It must not be used to describe P3/P4
@@ -24,7 +25,9 @@ coverage.
 
 | Path | Type | Purpose |
 | --- | --- | --- |
-| [minimal/README.md](minimal/README.md) | Documentation | Why there is no separate native request-only template. |
+| [minimal/envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in) | Template | Minimal streamed ext_proc transport shape. |
+| [minimal/envoy-ext-proc-service.json](minimal/envoy-ext-proc-service.json) | Service configuration | Validated processor limits for the minimal profile. |
+| [minimal/msconnector-runtime.conf](minimal/msconnector-runtime.conf) | Runtime configuration | Common Runtime profile with `phase4_mode=minimal`. |
 | [safe/envoy-ext-proc-streaming.yaml.in](safe/envoy-ext-proc-streaming.yaml.in) | Template | Envoy listener, ext_proc filter, and gRPC/upstream clusters. |
 | [safe/envoy-ext-proc-service.json](safe/envoy-ext-proc-service.json) | Service configuration | Bounds and Safe late-action policy for the processor. |
 | [rules/README.md](rules/README.md) | Documentation | No-CRS rule source and phase IDs. |
@@ -52,6 +55,24 @@ runtime configuration must be written outside the checkout.
 The literal @NAME@ values are template markers, not Envoy fields. The
 repository materializer replaces them and rejects unresolved markers.
 
+## Configuration reference
+
+The generated [configuration reference](configuration-reference.md) documents
+the ext_proc YAML paths, service JSON contract, CLI flags, materializer
+placeholders, and the separate ext_authz compatibility entry.
+
+| Setting | Layer | Task |
+| --- | --- | --- |
+| `envoy.filters.http.ext_proc` | Host / Connector | Sends the selected request/response lifecycle to the processor. |
+| `SecRuleEngine` | ModSecurity Engine | Selects engine enforcement, DetectionOnly, or Off in the runtime rule file. |
+| `request_body_mode` | Common Runtime | Selects required streamed request-body input for the native bridge. |
+| `response_body_mode` | Common Runtime | Selects required streamed response-body input for the native bridge. |
+| `late_action_policy` | Connector service | Records minimal, safe, or strict post-commit policy without fabricating a status. |
+
+Removing `ext_proc` disables the connector path. `SecRuleEngine Off` leaves
+the processor route present but disables engine rule evaluation. ext_authz is
+compatibility-only and is not a P3/P4 substitute.
+
 ## Validation
 
 From this directory, materialize a private generated configuration outside the
@@ -62,11 +83,11 @@ sh ../../connectors/envoy/config/prepare_envoy_ext_proc_config.sh
 ~~~
 
 The script prints the generated configuration path. Validate that generated
-file with the installed Envoy binary; `/srv/modsecurity-work/envoy-ext-proc.yaml` is only an
-example generated path:
+file with the installed Envoy binary; the default is under the documented
+`$BUILD_ROOT` outside the checkout:
 
 ~~~sh
-envoy --mode validate -c /srv/modsecurity-work/envoy-ext-proc.yaml
+envoy --mode validate -c "$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc.streaming.yaml"
 ~~~
 
 Successful materialization and syntax validation do not prove P1--P4 behavior,

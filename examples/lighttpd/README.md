@@ -14,8 +14,9 @@ identity entity data.
 The Safe reference configures the P1--P4 shape with phase4_mode safe. P1 is
 request headers, P2 request body, P3 response headers, and P4 response body.
 It is not a claim of client-observed P4 behavior, full response buffering,
-HTTP/2, HTTP/3, compression, file/zero-copy handling, or Strict abort. No
-Strict file is supplied.
+HTTP/2, HTTP/3, compression, file/zero-copy handling, or Strict abort. The
+[Strict directory](strict/README.md) documents the optional boundary without
+claiming an implemented host abort.
 
 The retained [sidecar proxy](compatibility-sidecar/README.md) is not native
 module configuration and has no native lifecycle claim.
@@ -50,6 +51,24 @@ the configurations are host-installation or host-runtime examples.
 | phase4_mode | P4 policy: minimal, safe, or strict | Required in these runtime files; runtime configuration; engine scope | safe for patched Safe. It does not prove a status rewrite or abort. |
 | server.stream-response-body and proxy.server | Patched delivery setting and local upstream route | Required only for Safe host file; host configuration; server scope | 1 and 127.0.0.1:8081. Identity HTTP/1.1 only; do not infer gzip/br or HTTP/2 behavior. |
 | event_path | Writable JSONL metadata destination | Required in these references; runtime configuration; engine scope | /var/log/lighttpd/msconnector-events.jsonl. Protect and rotate it; do not write bodies or secrets. |
+
+## Configuration reference
+
+The generated [configuration reference](configuration-reference.md) documents
+the two registered `msconnector.*` keys, all current Common Runtime keys, and
+the separately labelled sidecar compatibility configuration.
+
+| Setting | Layer | Task |
+| --- | --- | --- |
+| `msconnector.enabled` | Host / Connector | Enables or disables native plugin startup. |
+| `SecRuleEngine` | ModSecurity Engine | Selects enforcement, DetectionOnly, or Off in the runtime rules file. |
+| `request_body_mode` | Common Runtime | Selects stock-none or patched streaming P2 input. |
+| `response_body_mode` | Common Runtime | Selects stock-none or patched streaming P4 input. |
+| `phase4_mode` | Common Runtime | Selects late-P4 policy; source does not implement a strict host abort. |
+
+`msconnector.enabled = "disable"` prevents Common Runtime startup. With the
+plugin enabled, `SecRuleEngine Off` keeps host callbacks but disables engine
+rule evaluation. The sidecar proxy has no native lifecycle claim.
 
 ## Validation
 

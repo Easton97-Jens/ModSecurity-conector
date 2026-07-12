@@ -8,4 +8,5 @@ phase4_mode safe. A post-commit P4 result is intended to remain Safe log-only;
 it is not a claimed response rewrite or Strict connection abort.
 
 The forwardAuth files are request-only compatibility material. They must not be
-used to describe P3/P4 coverage. No Strict configuration is supplied.
+used to describe P3/P4 coverage. The [Strict directory](../strict/README.md)
+documents the optional boundary; it is not a host-abort claim.

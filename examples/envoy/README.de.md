@@ -15,7 +15,9 @@ Response-Body. Safe bedeutet, dass ein spätes P4-Ergebnis als Log-only
 aufgezeichnet wird und nicht als später HTTP-Statuswechsel oder
 deterministischer Stream-Reset behauptet wird. Das Template verspricht weder
 einen vollständigen Connector-Response-Buffer noch ein clientbeobachtetes First
-Byte oder einen Strict-Abbruch nach dem Commit. Es gibt keine Strict-Datei.
+Byte oder einen Strict-Abbruch nach dem Commit. Das
+[Strict-Verzeichnis](strict/README.de.md) dokumentiert die optionale Grenze,
+ohne ein striktes Transportergebnis zu behaupten.
 
 Das alte [ext_authz-Kompatibilitätsbeispiel](compatibility-ext-authz/README.de.md)
 ist ausdrücklich nur für die Request-Phase. Es darf nicht zur Beschreibung von
@@ -25,7 +27,9 @@ P3/P4-Abdeckung verwendet werden.
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/README.de.md](minimal/README.de.md) | Dokumentation | Warum es kein separates natives Request-only-Template gibt. |
+| [minimal/envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in) | Template | Minimale gestreamte ext_proc-Transportform. |
+| [minimal/envoy-ext-proc-service.json](minimal/envoy-ext-proc-service.json) | Service-Konfiguration | Validierte Prozessorlimits für das Minimalprofil. |
+| [minimal/msconnector-runtime.conf](minimal/msconnector-runtime.conf) | Runtime-Konfiguration | Common-Runtime-Profil mit `phase4_mode=minimal`. |
 | [safe/envoy-ext-proc-streaming.yaml.in](safe/envoy-ext-proc-streaming.yaml.in) | Template | Envoy-Listener, ext_proc-Filter und gRPC-/Upstream-Cluster. |
 | [safe/envoy-ext-proc-service.json](safe/envoy-ext-proc-service.json) | Service-Konfiguration | Grenzen und Safe-Late-Action-Policy des Prozessors. |
 | [rules/README.de.md](rules/README.de.md) | Dokumentation | No-CRS-Regelquelle und Phasen-IDs. |
@@ -53,6 +57,24 @@ Runtime-Konfiguration muss außerhalb des Checkouts geschrieben werden.
 Die literalen @NAME@-Werte sind Template-Marker, keine Envoy-Felder. Der
 Repository-Materializer ersetzt sie und weist ungelöste Marker zurück.
 
+## Konfigurationsreferenz
+
+Die generierte [Konfigurationsreferenz](configuration-reference.de.md)
+dokumentiert ext_proc-YAML-Pfade, den Service-JSON-Vertrag, CLI-Flags,
+Materializer-Platzhalter und den getrennten ext_authz-Kompatibilitätseintrag.
+
+| Einstellung | Ebene | Aufgabe |
+| --- | --- | --- |
+| `envoy.filters.http.ext_proc` | Host / Connector | Sendet den ausgewählten Request-/Response-Lifecycle an den Prozessor. |
+| `SecRuleEngine` | ModSecurity Engine | Wählt Engine-Enforcement, DetectionOnly oder Off in der Runtime-Regeldatei. |
+| `request_body_mode` | Common Runtime | Wählt die erforderliche gestreamte Request-Body-Eingabe für die native Bridge. |
+| `response_body_mode` | Common Runtime | Wählt die erforderliche gestreamte Response-Body-Eingabe für die native Bridge. |
+| `late_action_policy` | Connector-Service | Zeichnet minimale, sichere oder strikte Post-Commit-Policy ohne erfundenen Status auf. |
+
+Das Entfernen von `ext_proc` deaktiviert den Connector-Pfad. `SecRuleEngine Off`
+lässt die Prozessorroute bestehen, deaktiviert aber die Engine-Regelauswertung.
+ext_authz ist nur Kompatibilität und kein P3/P4-Ersatz.
+
 ## Validierung
 
 Aus diesem Verzeichnis eine private erzeugte Konfiguration außerhalb des
@@ -63,11 +85,11 @@ sh ../../connectors/envoy/config/prepare_envoy_ext_proc_config.sh
 ~~~
 
 Das Skript gibt den erzeugten Konfigurationspfad aus. Diese erzeugte Datei mit
-dem installierten Envoy-Binary validieren; `/srv/modsecurity-work/envoy-ext-proc.yaml` ist nur
-ein Beispiel für einen erzeugten Pfad:
+dem installierten Envoy-Binary validieren; der Standard liegt unter dem
+dokumentierten `$BUILD_ROOT` außerhalb des Checkouts:
 
 ~~~sh
-envoy --mode validate -c /srv/modsecurity-work/envoy-ext-proc.yaml
+envoy --mode validate -c "$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc.streaming.yaml"
 ~~~
 
 Erfolgreiche Materialisierung und Syntaxvalidierung beweisen weder P1--P4-

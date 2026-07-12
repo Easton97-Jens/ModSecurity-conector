@@ -7,7 +7,9 @@
 Integrationsmodus: repository-eigenes Traefik-Local-Plugin plus persistenter
 lokaler Unix-Domain-Socket-Engine-Service. Die
 [statische Minimalreferenz](minimal/traefik-static.yaml) registriert Local
-Plugin und File Provider; die [dynamische Safe-Referenz](safe/traefik-dynamic.yaml)
+Plugin und File Provider. Die benachbarten minimalen dynamischen und
+Engine-Service-Dateien wählen dieselbe UDS-Form mit `phase4_mode=minimal`; die
+[dynamische Safe-Referenz](safe/traefik-dynamic.yaml)
 wählt engineMode uds. Die passende
 [Engine-Service-Konfiguration](safe/traefik-engine-service.conf) wählt
 gestreamte Bodies und phase4_mode safe.
@@ -16,7 +18,8 @@ Dies ist die native HTTP/1.1-P1--P4-Safe-Referenz. P1, P2, P3 und P4 sind
 Request-Header, Request-Body, Response-Header und Response-Body. Safe behauptet
 weder einen späten Statuswechsel noch einen Strict-Verbindungsabbruch. Die
 Konfiguration verspricht keinen vollständigen Response-Buffer und keine
-Regelbewertung pro Chunk. Es gibt keine Strict-Datei.
+Regelbewertung pro Chunk. Das Strict-Verzeichnis dokumentiert die optionale
+Grenze, statt einen ausführbaren Host-Abbruch zu behaupten.
 
 [forwardAuth-Kompatibilitätsdateien](compatibility-forwardauth/README.de.md)
 sind nur Request-Authorization und dürfen nicht als P3/P4-Kernpfad gelten.
@@ -26,6 +29,8 @@ sind nur Request-Authorization und dürfen nicht als P3/P4-Kernpfad gelten.
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
 | [minimal/traefik-static.yaml](minimal/traefik-static.yaml) | Statische Host-Konfiguration | Local-Plugin-Registrierung, Web-EntryPoint und File Provider. |
+| [minimal/traefik-dynamic.yaml](minimal/traefik-dynamic.yaml) | Dynamische Host-Konfiguration | Minimale UDS-Middleware-/Router-/Service-Form. |
+| [minimal/traefik-engine-service.conf](minimal/traefik-engine-service.conf) | Engine-Konfiguration | Gestreamte Body-Modi mit minimaler Late-P4-Policy. |
 | [safe/traefik-dynamic.yaml](safe/traefik-dynamic.yaml) | Dynamische Host-Konfiguration | Router, Middleware, UDS-Engine-Auswahl und lokaler Upstream. |
 | [safe/traefik-engine-service.conf](safe/traefik-engine-service.conf) | Engine-Konfiguration | Regeln, Limits, gestreamte Body-Modi und Safe-Policy. |
 | [rules/README.de.md](rules/README.de.md) | Dokumentation | No-CRS-Quelle und Phasen-IDs. |
@@ -51,6 +56,24 @@ angepasst werden.
 | rules_file | Installierter geprüfter Rules-Dateipfad | Pflicht; Engine-Konfiguration; Engine-Scope | /etc/modsecurity/no-crs-baseline.conf. Regeln können Traffic blockieren. |
 | request_body_mode und response_body_mode | Engine-Body-Modi | Für Safe-Referenz Pflicht; Engine-Konfiguration; Engine-Scope | streaming. Beweist weder vollständiges Buffering noch späte Client-Action. |
 | phase4_mode | Name der Late-P4-Policy | Für Safe-Referenz Pflicht; Engine-Konfiguration; Engine-Scope | safe. Erlaubt weder erfundenen Status noch Strict-Abbruch. |
+
+## Konfigurationsreferenz
+
+Die generierte [Konfigurationsreferenz](configuration-reference.de.md)
+dokumentiert statische/dynamische YAML-Felder, native Plugin-Defaults, die
+Common-Runtime-Datei und den getrennt markierten forwardAuth-Kompatibilitätsweg.
+
+| Einstellung | Ebene | Aufgabe |
+| --- | --- | --- |
+| `engineMode: uds` | Host / Connector | Wählt den persistenten nativen UDS-Engine-Service. |
+| `SecRuleEngine` | ModSecurity Engine | Wählt Enforcement, DetectionOnly oder Off in der Engine-Regeldatei. |
+| `request_body_mode` | Common Runtime | Wählt die native Engine-P2-Body-Verarbeitung. |
+| `response_body_mode` | Common Runtime | Wählt die native Engine-P4-Body-Verarbeitung. |
+| `phase4_mode` | Common Runtime | Zeichnet die gewünschte Late-P4-Policy auf; Go-Middleware bleibt nach Commit log-only. |
+
+`engineMode: passthrough` ist eine Source-only-Allow-Engine und kein
+Rule-Enforcement. `SecRuleEngine Off` lässt die UDS-Route bestehen, deaktiviert
+aber Engine-Regeln. forwardAuth ist ein getrennter Request-only-Kompatibilitätsweg.
 
 ## Validierung
 

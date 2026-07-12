@@ -12,11 +12,16 @@ lauflokalen Artefakte, aus denen ein Claim validiert wurde.
 | [`evidence/`](evidence/) | Lesbare Zusammenfassungen ausgewählter No-CRS-Evidence | Kanonische Result-/Event-Artefakte, nicht rohe lokale Läufe |
 | [`archive/`](archive/README.de.md) | Ersetzte Planung, Readiness und historische Analysen | Banner am Beginn jedes Berichts |
 | [`testing/`](testing/) | Bestehender detaillierter Testing-Index und Generated-Report-Layout | Generator-Registry und Framework-Quellen |
+| [`connector-configuration-inventory.json`](connector-configuration-inventory.json) | Generiertes maschinenlesbares Inventar für Connector-/Host-/Common-/Engine-Optionen | Registrierte Parser, Service-Verträge und aktive Beispiel-Extraktoren |
 
 `testing/generated/` bleibt der etablierte Ort für generierte Berichte, weil
 Report-Registry, Pfadsicherheitsprüfungen und Generatoren ihn als Vertrag
 verwenden. Mit `make refresh-all-reports` neu erzeugen; Generated-Markdown nie
 manuell bearbeiten.
+
+Konfigurationsinventar und die zugehörigen Beispielreferenzen mit
+`make generate-connector-config-reference` neu erzeugen; Source-/Dokumentations-
+Parität mit `make check-connector-config-reference` prüfen.
 
 ## Portable Pfadangaben
 

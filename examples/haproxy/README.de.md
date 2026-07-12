@@ -15,8 +15,9 @@ Behauptung, dass Stock-HAProxy ihn lädt. P1, P2, P3 und P4 sind Request-Header,
 Request-Body, Response-Header und Response-Body. An der späten P4-Grenze
 bewahrt Safe die Response, statt einen Statuswechsel zu erfinden. Dieses
 Verzeichnis behauptet weder vollständiges Response-Buffering noch
-Regelbewertung pro Chunk oder einen clientbeobachteten Strict-Abbruch. Es gibt
-keine Strict-Konfiguration.
+Regelbewertung pro Chunk oder einen clientbeobachteten Strict-Abbruch. Das
+[Strict-Verzeichnis](strict/README.de.md) hält die optionale Parsergrenze fest,
+ohne einen nativen Host-Abbruch zu behaupten.
 
 ## Dateien
 
@@ -47,6 +48,24 @@ repository-relativer Pfad.
 No-CRS-Regel-IDs und ihre Phasenbedeutung stehen in
 [rules/README.de.md](rules/README.de.md). Die historischen SPOE-Optionen und
 ihre getrennten Limits bleiben bei den Kompatibilitätsdateien dokumentiert.
+
+## Konfigurationsreferenz
+
+Die generierte [Konfigurationsreferenz](configuration-reference.de.md) trennt
+den nativen HTX-Parser von den SPOE/SPOP-Kompatibilitätsdateien.
+
+| Einstellung | Ebene | Aufgabe |
+| --- | --- | --- |
+| `filter modsecurity-htx` | Host / Connector | Bindet den ausgewählten nativen HTX-Lifecycle-Filter ein. |
+| `SecRuleEngine` | ModSecurity Engine | Wertet Regeln aus, die über `rules-file` geladen werden. |
+| `SecRequestBodyAccess` | ModSecurity Engine | Erlaubt P2-Eingaben, wenn natives HTX sie liefert. |
+| `SecResponseBodyAccess` | ModSecurity Engine | Erlaubt P4-Eingaben, wenn natives HTX sie liefert. |
+| `phase4-mode` | Connector / Common Policy | Fordert die Late-P4-Policy minimal, safe oder strict an. |
+
+Das Entfernen des nativen Filters deaktiviert den Connector-Pfad.
+`SecRuleEngine Off` entfernt den Filter nicht, deaktiviert aber die
+Engine-Regelverarbeitung. `filter spoe` bleibt ein getrennter
+Kompatibilitätsweg und keine native HTX-Einstellung.
 
 ## Validierung
 

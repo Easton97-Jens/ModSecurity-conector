@@ -14,8 +14,9 @@ Der Filter gibt aktuelle Daten weiter und beendet die Response-Body-Verarbeitung
 bei EOS. Das verspricht weder Regelbewertung pro Chunk noch einen
 Connector-eigenen vollständigen Response-Buffer. Eine späte P4-Entscheidung
 muss als Log-only aufgezeichnet werden, solange passende Host-Evidence nichts
-Weiteres belegt. Es gibt keine Strict-Datei: Der Parser akzeptiert strict, aber
-dieses Verzeichnis behauptet keinen client-sichtbaren Abbruch.
+Weiteres belegt. Das [Strict-Verzeichnis](strict/README.de.md) dokumentiert den
+parserunterstützten optionalen Wert, behauptet aber keinen client-sichtbaren
+Abbruch.
 
 ## Dateien
 
@@ -48,6 +49,24 @@ in der Konfiguration, einschließlich /usr/lib/apache2/modules/mod_security3.so,
 
 Regel-ID 9002801 gehört nur zu p1-p4-safe.conf. Sie ist weder eine OWASP-CRS-
 noch eine No-CRS-Baseline-ID; siehe [rules/README.de.md](rules/README.de.md).
+
+## Konfigurationsreferenz
+
+Die generierte [Konfigurationsreferenz](configuration-reference.de.md)
+dokumentiert alle 11 registrierten Apache-Direktiven, die hier verwendeten
+Hostfelder und ihre Parser-/Default-/Merge-Anker.
+
+| Einstellung | Ebene | Aufgabe |
+| --- | --- | --- |
+| `modsecurity on|off` | Host / Connector | Aktiviert oder deaktiviert die Apache-Transaction-Erzeugung. |
+| `SecRuleEngine` | ModSecurity Engine | Wertet geladene Regeln aus und wählt Enforcement, DetectionOnly oder Off. |
+| `SecRequestBodyAccess` | ModSecurity Engine | Stellt dem Engine-P2-Request-Body-Eingaben bereit. |
+| `SecResponseBodyAccess` | ModSecurity Engine | Stellt berechtigte P4-Response-Body-Eingaben bereit. |
+| `modsecurity_phase4_mode` | Connector / Common Policy | Wählt die gewünschte Late-P4-Policy; Safe verspricht keine späte 403. |
+
+`modsecurity on` mit `SecRuleEngine Off` erzeugt den Connector-Pfad, schaltet
+aber die Engine-Regelauswertung ab. `modsecurity off` verhindert eine
+Connector-Transaction auch dann, wenn eine Regeldatei `SecRuleEngine On` setzt.
 
 ## Validierung
 

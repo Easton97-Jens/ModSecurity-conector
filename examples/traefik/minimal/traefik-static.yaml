@@ -12,6 +12,7 @@ entryPoints:
     address: ":8080"
 providers:
   file:
+    # Copy the matching dynamic file beside this static configuration.
     filename: "./traefik-dynamic.yaml"
     watch: false
 log:

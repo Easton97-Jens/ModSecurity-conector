@@ -52,3 +52,33 @@ Evidence enthält begrenzte Transaction- und Rule-IDs, aber keine Body-Payloads.
 Das Ergebnis behauptet keine per-Chunk-Phase-4-Entscheidung: Response-Body-
 Chunks werden inkrementell ingestiert, und die ausgewählte P4-Regel wird dort
 bei End-of-Stream ausgewertet, wo Host/Runtime dies melden.
+
+## Connector-Konfigurationsreferenzen
+
+Dies ist ein Abschlussnachweis für Source-zu-Dokumentation, keine zusätzliche
+Runtime-, Lifecycle-, Sicherheits- oder Production-Evidence. Das generierte
+[Konfigurationsinventar](../connector-configuration-inventory.json) enthält
+aktuell 341 Zeilen. Die sechs lokalen Referenzen sowie die zentralen
+[Common Runtime](../../examples/common/common-connector-configuration.de.md),
+[ModSecurity Engine](../../examples/common/modsecurity-directives.de.md) und
+[Regelbeispiele](../../examples/common/rule-examples.de.md) trennen
+Connector-Schalter von Engine-Direktiven.
+
+| Connector | Quellgestützte Befunde und dokumentierter Umfang | Referenz und verbleibende Lücke |
+| --- | --- | --- |
+| Apache | 11 registrierte Apache-Direktiven; 14 dokumentierte Zeilen einschließlich 3 Host-Beispielfeldern; 12 Engine-Direktiven werden von Beispielregeln verwendet. | [Referenz](../../examples/apache/configuration-reference.de.md); verfügbarer Konfigurationscheck bestanden; 0 nicht dokumentierte registrierte Direktiven. |
+| NGINX | 10 `ngx_command_t`-Direktiven; 18 dokumentierte Zeilen einschließlich 8 Host-Beispielfeldern; 4 Phase-4-Direktiven sind von `SecRuleEngine` getrennt. | [Referenz](../../examples/nginx/configuration-reference.de.md); verfügbarer Konfigurationscheck bestanden; 0 nicht dokumentierte registrierte Direktiven. |
+| HAProxy | 3 native HTX-Filteroptionen; 30 Compatibility-Zeilen sind getrennt (28 SPOP-Parser-Schlüssel plus Compatibility-Filter und ausgemusterte Legacy-Zeile); insgesamt 41 dokumentierte Zeilen. | [Referenz](../../examples/haproxy/configuration-reference.de.md); verfügbarer Konfigurationscheck bestanden; 0 nicht dokumentierte native oder Compatibility-Optionen. |
+| Envoy | 66 ausgewählte `ext_proc`-YAML-Felder, 14 Service-JSON-Felder, 5 Service-CLI-Flags und 5 Materializer-Platzhalter; 51 `ext_authz`-Compatibility-Felder sind getrennt; insgesamt 141 dokumentierte Zeilen. | [Referenz](../../examples/envoy/configuration-reference.de.md); verfügbarer Konfigurationscheck bestanden; 0 nicht dokumentierte extrahierte Felder. |
+| Traefik | 16 statische und 25 dynamische/native Felder, darunter 7 native Middleware-Felder; 30 `forwardAuth`-Compatibility-Felder sind getrennt; insgesamt 71 dokumentierte Zeilen. | [Referenz](../../examples/traefik/configuration-reference.de.md); verfügbarer Konfigurationscheck bestanden; 0 nicht dokumentierte extrahierte Felder. |
+| lighttpd | 2 registrierte Plugin-Schlüssel, 10 ausgewählte gepatchte Hostfelder und 7 Sidecar-Compatibility-Felder; insgesamt 19 dokumentierte Zeilen. | [Referenz](../../examples/lighttpd/configuration-reference.de.md); verfügbarer Konfigurationscheck bestanden; 0 nicht dokumentierte Plugin-Schlüssel. |
+| Common Runtime | 25 aktuelle `key=value`-Parser-Schlüssel, alle 25 mit quellenverifizierten Defaults dokumentiert, sofern Parser-/Konfigurationsquellen einen solchen belegen. | [Referenz](../../examples/common/common-connector-configuration.de.md); 0 nicht dokumentierte Schlüssel. |
+| ModSecurity Engine | 12 von eingecheckten Beispielregeln verwendete Direktiven, alle 12 dokumentiert; der Regel-Walkthrough trennt Variable, Operator, Actions und Host-Commit-Grenzen. | [Referenz](../../examples/common/modsecurity-directives.de.md); Connector-/Engine-Trennung verifiziert; 0 nicht dokumentierte verwendete Direktiven. |
+
+| Validierung | Ergebnis und Grenze |
+| --- | --- |
+| Source-to-Documentation-Checker | `make check-connector-config-reference`: PASS; Parser/Registrierung, Konfigurationsvertrag, Beispiel, generierte Referenz und Inventarparität werden gemeinsam geprüft. |
+| Bilingual-Parität | `make check-bilingual-docs` und der Paritätscheck für Konfigurationsreferenzen: PASS; Direktivnamen, Syntax, Werte, Defaults, Kontexte, Beispiele, Pfade, IDs und Targets bleiben technisch gleich. |
+| Konfigurations-Parse-Checks | `make check-config-all-connectors`: PASS für die verfügbaren ausgewählten Hostchecks; dadurch werden die Dokumentationsprofile nicht zu neuer Lifecycle-Evidence. |
+| Platzhalter-Checker | PASS über den quellenbasierten Envoy-Materializervertrag: alle fünf `@...@`-Platzhalter sind inventarisiert, und nicht aufgelöste Platzhalter bzw. Template-Drift lassen den Check fehlschlagen. |
+| Profil- und lokale-Pfad-Checker | PASS: erforderliches Minimal-, Safe-, Strict-Grenz-, DetectionOnly- und Disabled-Profilmaterial ist vorhanden; DetectionOnly-/Off-Regeln werden geprüft; Beispieldateien enthalten keinen geprüften entwicklerlokalen Pfad. |

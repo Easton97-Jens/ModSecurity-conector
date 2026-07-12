@@ -13,8 +13,9 @@ Safe is a post-commit policy, not a visible-status guarantee. The filter passes
 current data onward and completes response-body processing at EOS. This does
 not promise per-chunk rule evaluation or a connector-owned full response
 buffer. A late P4 decision must be recorded as log-only unless matching host
-evidence establishes something more. No Strict file is supplied: the parser
-accepts strict, but this directory does not claim a client-visible abort.
+evidence establishes something more. The [Strict directory](strict/README.md)
+documents the parser-supported optional value but does not claim a
+client-visible abort.
 
 ## Files
 
@@ -47,6 +48,24 @@ the configuration, including /usr/lib/apache2/modules/mod_security3.so,
 
 Rule ID 9002801 is local to p1-p4-safe.conf. It is not an OWASP CRS or No-CRS
 baseline ID; see [rules/README.md](rules/README.md).
+
+## Configuration reference
+
+The generated [configuration reference](configuration-reference.md) documents
+all 11 registered Apache directives, the host fields used here, and their
+parser/default/merge anchors.
+
+| Setting | Layer | Task |
+| --- | --- | --- |
+| `modsecurity on|off` | Host / Connector | Enables or disables Apache transaction creation. |
+| `SecRuleEngine` | ModSecurity Engine | Evaluates loaded rules and selects enforcement, DetectionOnly, or Off. |
+| `SecRequestBodyAccess` | ModSecurity Engine | Makes P2 request-body input available to the engine. |
+| `SecResponseBodyAccess` | ModSecurity Engine | Makes eligible P4 response-body input available to the engine. |
+| `modsecurity_phase4_mode` | Connector / Common policy | Selects requested late-P4 policy; Safe does not promise a late 403. |
+
+`modsecurity on` with `SecRuleEngine Off` creates the connector path but disables
+engine rule evaluation. `modsecurity off` prevents the engine from receiving a
+connector transaction even when a rules file says `SecRuleEngine On`.
 
 ## Validation
 

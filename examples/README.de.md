@@ -44,6 +44,20 @@ nie, dass ein Statuswechsel nach dem Commit, ein Reset oder ein
 Verbindungsabbruch beobachtet wurde. Lesen Sie vor dem Aktivieren die
 connector-spezifische Einschränkung.
 
+## Konfigurationsreferenzen
+
+| Referenz | Geltungsbereich |
+| --- | --- |
+| [Common Runtime](common/common-connector-configuration.de.md) | Vollständige quellenbasierte `key=value`-Parseroberfläche. |
+| [ModSecurity Engine](common/modsecurity-directives.de.md) | Engine-Direktiven, die tatsächlich in eingecheckten Beispielen verwendet werden. |
+| [Regelbeispiele](common/rule-examples.de.md) | Verhalten der Engine bei On, DetectionOnly und Off. |
+| [Apache](apache/configuration-reference.de.md) | Apache-`command_rec`-Direktiven und Beispiel-Hostfelder. |
+| [NGINX](nginx/configuration-reference.de.md) | NGINX-`ngx_command_t`-Direktiven und Beispiel-Hostfelder. |
+| [HAProxy](haproxy/configuration-reference.de.md) | Native HTX-Optionen getrennt von SPOE/SPOP-Kompatibilität. |
+| [Envoy](envoy/configuration-reference.de.md) | ext_proc-YAML-/Service-/CLI-Vertrag getrennt von ext_authz. |
+| [Traefik](traefik/configuration-reference.de.md) | Native Middleware-/UDS-Konfiguration getrennt von forwardAuth. |
+| [lighttpd](lighttpd/configuration-reference.de.md) | Native Plugin-Schlüssel und Common Runtime getrennt vom Sidecar-Proxy. |
+
 ## Regeln und erwartete Ergebnisse
 
 Jeder Connector hat ein rules- und ein expected-Verzeichnis. Das

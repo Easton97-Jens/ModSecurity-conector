@@ -34,6 +34,7 @@ static_resources:
                   cluster_name: msconnector_ext_proc
                 timeout: 0.2s
               processing_mode:
+                # STREAMED is required by the selected Common Runtime bridge.
                 request_header_mode: SEND
                 request_body_mode: STREAMED
                 response_header_mode: SEND
@@ -41,6 +42,7 @@ static_resources:
                 request_trailer_mode: SEND
                 response_trailer_mode: SEND
               request_attributes:
+              # These attributes supply the request/peer metadata required by the bridge.
               - request.protocol
               - source.address
               - source.port
@@ -48,6 +50,7 @@ static_resources:
               - destination.port
               send_body_without_waiting_for_header_response: false
               allow_mode_override: false
+              # Fail closed if the local processor cannot be reached.
               failure_mode_allow: false
               message_timeout: 0.2s
               max_message_timeout: 0.25s

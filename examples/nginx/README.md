@@ -47,6 +47,24 @@ logs, listener, and upstream values inside them are host examples.
 Rule ID 9001801 is illustrative only, not an OWASP CRS or No-CRS baseline ID;
 see [rules/README.md](rules/README.md).
 
+## Configuration reference
+
+The generated [configuration reference](configuration-reference.md) documents
+all 10 registered `ngx_command_t` directives, their `http → server → location`
+contexts, and the surrounding example host fields.
+
+| Setting | Layer | Task |
+| --- | --- | --- |
+| `modsecurity on|off` | Host / Connector | Enables or disables NGINX connector processing in the merged context. |
+| `SecRuleEngine` | ModSecurity Engine | Evaluates loaded rules and selects enforcement, DetectionOnly, or Off. |
+| `SecRequestBodyAccess` | ModSecurity Engine | Makes P2 request-body input available to the engine. |
+| `SecResponseBodyAccess` | ModSecurity Engine | Makes eligible P4 response-body input available to the engine. |
+| `modsecurity_phase4_mode` | Connector / Common policy | Selects requested late-P4 policy; Safe does not promise a late 403. |
+
+`modsecurity off` stops the NGINX access-handler connector path; configured
+rules can still have been loaded during configuration parsing. `SecRuleEngine`
+is an engine setting and does not load or enable the NGINX module by itself.
+
 ## Validation
 
 Copy or include the selected file in the installed NGINX configuration, adapt

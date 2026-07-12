@@ -16,7 +16,8 @@ Die Safe-Referenz konfiguriert die P1--P4-Form mit phase4_mode safe. P1 sind
 Request-Header, P2 Request-Body, P3 Response-Header und P4 Response-Body. Sie
 behauptet weder clientbeobachtetes P4-Verhalten noch vollständiges
 Response-Buffering, HTTP/2, HTTP/3, Kompression, File-/Zero-Copy-Verarbeitung
-oder Strict-Abbruch. Es gibt keine Strict-Datei.
+oder Strict-Abbruch. Das [Strict-Verzeichnis](strict/README.de.md)
+dokumentiert die optionale Grenze ohne implementierten Host-Abbruch.
 
 Der bewahrte [Sidecar-Proxy](compatibility-sidecar/README.de.md) ist keine
 native Modulkonfiguration und hat keinen nativen Lifecycle-Claim.
@@ -51,6 +52,25 @@ den Konfigurationen sind Beispiele für Hostinstallation oder Hostruntime.
 | phase4_mode | P4-Policy: minimal, safe oder strict | In diesen Runtime-Dateien Pflicht; Runtime-Konfiguration; Engine-Scope | safe für gepatchtes Safe. Beweist weder Statuswechsel noch Abbruch. |
 | server.stream-response-body und proxy.server | Gepatchte Delivery-Einstellung und lokale Upstream-Route | Nur in Safe-Hostdatei Pflicht; Host-Konfiguration; Server-Scope | 1 und 127.0.0.1:8081. Nur Identity-HTTP/1.1; kein gzip/br- oder HTTP/2-Verhalten ableiten. |
 | event_path | Beschreibbares JSONL-Metadatenziel | In diesen Referenzen Pflicht; Runtime-Konfiguration; Engine-Scope | /var/log/lighttpd/msconnector-events.jsonl. Schützen und rotieren; keine Bodies oder Secrets schreiben. |
+
+## Konfigurationsreferenz
+
+Die generierte [Konfigurationsreferenz](configuration-reference.de.md)
+dokumentiert die zwei registrierten `msconnector.*`-Schlüssel, alle aktuellen
+Common-Runtime-Schlüssel und die getrennt markierte Sidecar-Kompatibilitätskonfiguration.
+
+| Einstellung | Ebene | Aufgabe |
+| --- | --- | --- |
+| `msconnector.enabled` | Host / Connector | Aktiviert oder deaktiviert den nativen Plugin-Start. |
+| `SecRuleEngine` | ModSecurity Engine | Wählt Enforcement, DetectionOnly oder Off in der Runtime-Regeldatei. |
+| `request_body_mode` | Common Runtime | Wählt Stock-none oder gepatchte Streaming-P2-Eingabe. |
+| `response_body_mode` | Common Runtime | Wählt Stock-none oder gepatchte Streaming-P4-Eingabe. |
+| `phase4_mode` | Common Runtime | Wählt die Late-P4-Policy; der Source implementiert keinen strikten Host-Abbruch. |
+
+`msconnector.enabled = "disable"` verhindert den Common-Runtime-Start. Bei
+aktivem Plugin lässt `SecRuleEngine Off` Host-Callbacks bestehen, deaktiviert
+aber die Engine-Regelauswertung. Der Sidecar-Proxy hat keinen nativen
+Lifecycle-Anspruch.
 
 ## Validierung
 

@@ -14,7 +14,8 @@ stock HAProxy loads it. P1, P2, P3, and P4 mean request headers, request body,
 response headers, and response body. At the late P4 boundary Safe preserves a
 response instead of fabricating a status change. This directory does not claim
 a complete response buffer, per-chunk rule execution, or a client-observed
-Strict abort. No Strict configuration is supplied.
+Strict abort. The [Strict directory](strict/README.md) records the optional
+parser boundary without claiming a native host abort.
 
 ## Files
 
@@ -44,6 +45,23 @@ upstream 127.0.0.1:8081, and rules file
 The No-CRS rule IDs and their phase meanings are in
 [rules/README.md](rules/README.md). The historical SPOE options and their
 separate limits remain documented beside their compatibility files.
+
+## Configuration reference
+
+The generated [configuration reference](configuration-reference.md) separates
+the native HTX parser from the SPOE/SPOP compatibility files.
+
+| Setting | Layer | Task |
+| --- | --- | --- |
+| `filter modsecurity-htx` | Host / Connector | Attaches the selected native HTX lifecycle filter. |
+| `SecRuleEngine` | ModSecurity Engine | Evaluates rules loaded through `rules-file`. |
+| `SecRequestBodyAccess` | ModSecurity Engine | Allows P2 input when native HTX supplies it. |
+| `SecResponseBodyAccess` | ModSecurity Engine | Allows P4 input when native HTX supplies it. |
+| `phase4-mode` | Connector / Common policy | Requests minimal, safe, or strict late-P4 policy. |
+
+Removing the native filter disables the connector path. `SecRuleEngine Off`
+does not remove the filter, but it disables engine rule processing. `filter
+spoe` remains a separate compatibility route, not a native HTX setting.
 
 ## Validation
 

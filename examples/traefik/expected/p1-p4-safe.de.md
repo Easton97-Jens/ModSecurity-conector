@@ -9,5 +9,6 @@ bleiben; es ist kein behaupteter Response-Wechsel oder Strict-
 Verbindungsabbruch.
 
 Die forwardAuth-Dateien sind Request-only-Kompatibilitätsmaterial. Sie dürfen
-nicht zur Beschreibung von P3/P4-Abdeckung benutzt werden. Es gibt keine
-Strict-Konfiguration.
+nicht zur Beschreibung von P3/P4-Abdeckung benutzt werden. Das
+[Strict-Verzeichnis](../strict/README.de.md) dokumentiert die optionale Grenze;
+es ist kein Host-Abbruch-Anspruch.

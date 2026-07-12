@@ -10,12 +10,15 @@ http:
     modsecurity-native-streaming:
       plugin:
         modsecurityNative:
+          # Keep all middleware input bounds within the UDS wire contract.
           maxHeaderCount: 128
           maxHeaderBytes: 65536
           maxRequestChunkBytes: 32768
           maxResponseChunkBytes: 32768
           transactionIDHeader: X-Request-Id
+          # UDS selects the persistent rule-evaluating service, not passthrough.
           engineMode: uds
+          # This absolute socket path must be private to trusted processes.
           engineSocketPath: /run/traefik-msconnector/engine.sock
   services:
     app:
