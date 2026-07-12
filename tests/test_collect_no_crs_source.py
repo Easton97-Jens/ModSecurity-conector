@@ -87,6 +87,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "phase2_deny_status": 403,
             "phase3_deny_client_status": 403,
             "phase3_redirect_status": 302,
+            "phase4_rule_observed_status": 200,
             "phase4_safe_status": 200,
             "phase4_end_of_stream_evaluation_status": 200,
             "phase4_first_byte_before_response_end_status": 200,
@@ -106,6 +107,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertEqual([1100101], records["deny_request_body_marker_403"]["observed_rule_ids"])
         self.assertEqual([1100201], records["deny_response_header_marker_403"]["observed_rule_ids"])
         self.assertEqual([1100202], records["phase3_redirect_before_commit"]["observed_rule_ids"])
+        self.assertEqual([1100301], records["phase4_rule_observed"]["observed_rule_ids"])
         self.assertEqual(
             [1100301],
             records["phase4_deny_after_commit_log_only_safe"]["observed_rule_ids"],

@@ -39,6 +39,7 @@ NATIVE_HOST_SUMMARY_CASES = (
     ("phase3_deny_client_status", "deny_response_header_marker_403", 1100201),
     ("p3_precommit_deny_status", "deny_response_header_marker_403", 1100201),
     ("phase3_redirect_status", "phase3_redirect_before_commit", 1100202),
+    ("phase4_rule_observed_status", "phase4_rule_observed", 1100301),
     ("phase4_safe_status", "phase4_deny_after_commit_log_only_safe", 1100301),
     ("p4_safe_log_only_status", "phase4_deny_after_commit_log_only_safe", 1100301),
     ("phase4_end_of_stream_evaluation_status", "phase4_end_of_stream_evaluation", 1100301),

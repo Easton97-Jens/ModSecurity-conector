@@ -201,6 +201,129 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             self.assertFalse(repeated["event_appended"])
             self.assertEqual(2, len(event_path.read_text(encoding="utf-8").splitlines()))
 
+    def test_allow_event_binds_client_http200_to_one_normal_ext_proc_completion(self) -> None:
+        helper = load_helper()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            events = root / "events.jsonl"
+            probe = root / "allow-probe.json"
+            completions = root / "completion-events.jsonl"
+            events.write_text(
+                json.dumps({
+                    "connector": "envoy",
+                    "integration_mode": "ext_proc",
+                    "event": "phase4_first_byte_barrier",
+                    "message_id": "MSCONN_EVENT_P4_FIRST_BYTE_BARRIER",
+                    "transaction_id": "envoy-ext-proc-phase4-safe",
+                    "rule_id": "1100301",
+                    "phase": 4,
+                    "status": "observed",
+                    "http_status": 403,
+                    "visible_http_status": 200,
+                    "requested_action": "deny",
+                    "actual_action": "log_only",
+                    "late_intervention": True,
+                    "late_intervention_mode": "safe",
+                    "headers_sent": True,
+                    "body_started": True,
+                    "response_committed": True,
+                    "connection_aborted": False,
+                    "transport_result": "log_only",
+                    "end_of_stream_evaluation": True,
+                    "eos_seen": True,
+                }) + "\n",
+                encoding="utf-8",
+            )
+            helper.write_json_atomic(probe, {
+                "schema_version": 1,
+                "evidence_type": "envoy_http_client_probe",
+                "http_status": 200,
+                "response_bytes": 27,
+                "body_payload_persisted": False,
+            })
+            completions.write_text(
+                json.dumps({
+                    "event": "ext_proc_stream_complete",
+                    "integration_mode": "ext_proc",
+                    "evaluation_mode": "common_libmodsecurity_nonpromoted",
+                    "rule_evaluation": "libmodsecurity",
+                    "transaction_id": "envoy-ext-proc-allow-1",
+                    "response_body_bytes": 27,
+                    "late_action": "none",
+                    "close_reason": "response_end_of_stream",
+                }) + "\n",
+                encoding="utf-8",
+            )
+
+            result = helper.write_allow_event(
+                event_log=str(events),
+                probe_evidence_path=str(probe),
+                completion_log=str(completions),
+                transaction_id="envoy-ext-proc-allow-1",
+            )
+
+            self.assertTrue(result["event_appended"])
+            allow_event = json.loads(events.read_text(encoding="utf-8").splitlines()[-1])
+            self.assertEqual("ENVOY_EXT_PROC_NATIVE_P1_ALLOW", allow_event["message_id"])
+            self.assertEqual("envoy-ext-proc-allow-1", allow_event["transaction_id"])
+            self.assertEqual(1, allow_event["phase"])
+            self.assertEqual(200, allow_event["visible_http_status"])
+            self.assertNotIn("requested_action", allow_event)
+            self.assertNotIn("actual_action", allow_event)
+            self.assertNotIn("no-crs-response-body-marker", json.dumps(allow_event))
+
+    def test_allow_event_rejects_noncausal_client_or_completion_metadata(self) -> None:
+        helper = load_helper()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            events = root / "events.jsonl"
+            probe = root / "allow-probe.json"
+            completions = root / "completion-events.jsonl"
+            events.write_text("{}\n", encoding="utf-8")
+            helper.write_json_atomic(probe, {
+                "schema_version": 1,
+                "evidence_type": "envoy_http_client_probe",
+                "http_status": 403,
+                "response_bytes": 27,
+                "body_payload_persisted": False,
+            })
+            completions.write_text(
+                json.dumps({
+                    "event": "ext_proc_stream_complete",
+                    "integration_mode": "ext_proc",
+                    "evaluation_mode": "common_libmodsecurity_nonpromoted",
+                    "rule_evaluation": "libmodsecurity",
+                    "transaction_id": "envoy-ext-proc-allow-1",
+                    "response_body_bytes": 27,
+                    "late_action": "none",
+                    "close_reason": "response_end_of_stream",
+                }) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "HTTP 200"):
+                helper.write_allow_event(
+                    event_log=str(events),
+                    probe_evidence_path=str(probe),
+                    completion_log=str(completions),
+                    transaction_id="envoy-ext-proc-allow-1",
+                )
+
+            helper.write_json_atomic(probe, {
+                "schema_version": 1,
+                "evidence_type": "envoy_http_client_probe",
+                "http_status": 200,
+                "response_bytes": 27,
+                "body_payload_persisted": False,
+            })
+            completions.write_text("\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "exactly one ext_proc completion"):
+                helper.write_allow_event(
+                    event_log=str(events),
+                    probe_evidence_path=str(probe),
+                    completion_log=str(completions),
+                    transaction_id="envoy-ext-proc-allow-1",
+                )
+
     def test_runtime_probe_keeps_cancellation_unattributed_and_nonpromoting(self) -> None:
         source = RUNTIME_PATH.read_text(encoding="utf-8")
         self.assertIn("ENVOY_TRANSPORT_CANCEL_PROBE", source)
@@ -219,6 +342,8 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn("phase4_first_byte_before_response_end_status", source)
         self.assertIn("phase4_no_full_response_buffering_status", source)
         self.assertIn("phase4_end_of_stream_evaluation_status", source)
+        self.assertIn("phase4_rule_observed_status", source)
+        self.assertIn("write-allow-event", source)
 
 
 if __name__ == "__main__":

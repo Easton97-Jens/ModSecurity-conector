@@ -189,6 +189,26 @@ func TestOptionalResponseWriterInterfacesArePreserved(t *testing.T) {
 	_ = connection.Close()
 }
 
+func TestResponseWriteFlushesForwardedChunk(t *testing.T) {
+	transaction := &recordingTransaction{}
+	underlying := newAdvancedResponseWriter(t)
+	defer underlying.connection.Close()
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		if _, err := writer.Write([]byte("forwarded response")); err != nil {
+			t.Errorf("Write() error = %v", err)
+		}
+	}), transaction)
+
+	middleware.ServeHTTP(underlying, httptest.NewRequest(http.MethodGet, "http://example.test/flush", nil))
+
+	if !underlying.flushed {
+		t.Fatal("forwarded response bytes were not flushed to the underlying host writer")
+	}
+	if got, want := underlying.body.String(), "forwarded response"; got != want {
+		t.Fatalf("response body = %q, want %q", got, want)
+	}
+}
+
 func TestPreCommitResponseDecisionDoesNotBufferOrForwardBody(t *testing.T) {
 	transaction := &recordingTransaction{
 		bodyDecision: func(direction Direction, _ []byte, _ bool) Decision {

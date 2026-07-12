@@ -80,6 +80,11 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
         self.assertIn("phase4_deny_after_commit_abort", harness)
         self.assertNotIn("phase4_deny_before_commit)\n                append_smoke_case", harness)
         self.assertIn("@@NGINX_PHASE4_MODE_DIRECTIVE@@", template)
+        self.assertIn("@@NGINX_TRANSACTION_ID_DIRECTIVE@@", template)
+        self.assertIn(
+            "modsecurity_transaction_id nginx-${case_name}-\\$connection-\\$connection_requests;",
+            harness,
+        )
 
     def test_precommit_phase4_deny_is_not_declared_for_the_body_filter(self) -> None:
         import json

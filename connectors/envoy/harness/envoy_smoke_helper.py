@@ -224,18 +224,36 @@ def parse_headers(header: list[str]) -> dict[str, str]:
     return headers
 
 
-def probe(url: str, header: list[str], method: str, data: str | None, no_redirect: bool) -> int:
+def probe(
+    url: str,
+    header: list[str],
+    method: str,
+    data: str | None,
+    no_redirect: bool,
+    evidence_path: str | None = None,
+) -> int:
     headers = parse_headers(header)
     body = None if data is None else data.encode("utf-8")
     request = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
         opener = urllib.request.build_opener(NoRedirect) if no_redirect else urllib.request.build_opener()
         with opener.open(request, timeout=2) as response:
-            response.read()
+            response_body = response.read()
             status = int(response.status)
     except urllib.error.HTTPError as exc:
-        exc.read()
+        response_body = exc.read()
         status = int(exc.code)
+    if evidence_path:
+        output = Path(evidence_path)
+        if not output.is_absolute() or output.is_symlink():
+            raise ValueError("probe evidence output must be an absolute regular path")
+        write_json_atomic(output, {
+            "schema_version": 1,
+            "evidence_type": "envoy_http_client_probe",
+            "http_status": status,
+            "response_bytes": len(response_body),
+            "body_payload_persisted": False,
+        })
     print(status)
     return 0
 
@@ -572,6 +590,92 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     return records
 
 
+def write_allow_event(
+    *,
+    event_log: str,
+    probe_evidence_path: str,
+    completion_log: str,
+    transaction_id: str,
+) -> dict[str, object]:
+    """Append one real, payload-free P1 allow event for the completed stream.
+
+    The no-rule catalog case is summary-derived, so the event is deliberately
+    written after all P4 evidence.  That preserves the association with this
+    actual client HTTP 200 instead of letting the generic selector borrow a
+    later P4-safe HTTP 200 event.
+    """
+
+    transaction = _bounded_token(transaction_id, field="transaction_id", maximum=256)
+    probe = _load_json_object(Path(probe_evidence_path), label="allow probe evidence")
+    if (
+        probe.get("schema_version") != 1
+        or probe.get("evidence_type") != "envoy_http_client_probe"
+        or probe.get("http_status") != 200
+        or probe.get("body_payload_persisted") is not False
+        or _nonnegative_int(probe.get("response_bytes"), field="allow response_bytes") < 1
+    ):
+        raise ValueError("allow probe evidence is not a payload-free HTTP 200 response")
+
+    completion_records = [
+        record
+        for record in _load_jsonl(Path(completion_log))
+        if record.get("transaction_id") == transaction
+    ]
+    if len(completion_records) != 1:
+        raise ValueError("allow transaction must have exactly one ext_proc completion")
+    completion = completion_records[0]
+    if (
+        completion.get("event") != "ext_proc_stream_complete"
+        or completion.get("integration_mode") != "ext_proc"
+        or completion.get("evaluation_mode") != "common_libmodsecurity_nonpromoted"
+        or completion.get("rule_evaluation") != "libmodsecurity"
+        or completion.get("late_action") != "none"
+        or completion.get("close_reason") != "response_end_of_stream"
+        or _nonnegative_int(completion.get("response_body_bytes"), field="allow response_body_bytes") < 1
+    ):
+        raise ValueError("allow ext_proc completion is not a normal streamed response")
+
+    event_path = Path(event_log)
+    existing = [
+        record
+        for record in _load_jsonl(event_path)
+        if record.get("event") == "native_ext_proc_host_forward"
+        and record.get("transaction_id") == transaction
+    ]
+    record: dict[str, object] = {
+        # The request and normal ext_proc completion above are the causal
+        # evidence.  Do not infer an "allow" action: the canonical action
+        # vocabularies deliberately model interventions only.
+        "connector": "envoy",
+        "integration_mode": "ext_proc",
+        "event": "native_ext_proc_host_forward",
+        "message_id": "ENVOY_EXT_PROC_NATIVE_P1_ALLOW",
+        "transaction_id": transaction,
+        "phase": 1,
+        "status": "allowed",
+        "http_status": 200,
+        "visible_http_status": 200,
+        "headers_sent": True,
+        "response_committed": True,
+        "connection_aborted": False,
+        "transport_result": "http_status",
+    }
+    if existing:
+        if len(existing) != 1 or existing[0] != record:
+            raise ValueError("existing Envoy allow event is not causally bound")
+        appended = False
+    else:
+        with event_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+        appended = True
+    return {
+        "schema_version": 1,
+        "event_appended": appended,
+        "transaction_id": transaction,
+        "body_payload_persisted": False,
+    }
+
+
 def _phase4_observation(path: Path) -> dict[str, Any]:
     observation = _load_json_object(path, label="phase-4 first-byte observation")
     expected = {
@@ -749,6 +853,7 @@ def parse_args() -> argparse.Namespace:
     request.add_argument("--method", default="GET")
     request.add_argument("--data")
     request.add_argument("--no-redirect", action="store_true")
+    request.add_argument("--evidence-path")
     cancel = subparsers.add_parser("client-cancel")
     cancel.add_argument("--host", required=True)
     cancel.add_argument("--port", required=True, type=int)
@@ -768,6 +873,11 @@ def parse_args() -> argparse.Namespace:
     finalize.add_argument("--transaction-id", required=True)
     finalize.add_argument("--evidence-output")
     finalize.add_argument("--run-id")
+    allow_event = subparsers.add_parser("write-allow-event")
+    allow_event.add_argument("--event-log", required=True)
+    allow_event.add_argument("--probe-evidence", required=True)
+    allow_event.add_argument("--completion-log", required=True)
+    allow_event.add_argument("--transaction-id", required=True)
     return parser.parse_args()
 
 
@@ -789,7 +899,10 @@ def main() -> int:
             args.phase4_barrier_timeout,
         )
     if args.command == "probe":
-        return probe(args.url, args.header, args.method, args.data, args.no_redirect)
+        return probe(
+            args.url, args.header, args.method, args.data, args.no_redirect,
+            args.evidence_path,
+        )
     if args.command == "client-cancel":
         print(json.dumps(client_cancel(args.host, args.port, args.path, args.header), sort_keys=True))
         return 0
@@ -816,6 +929,15 @@ def main() -> int:
             transaction_id=args.transaction_id,
             evidence_output=args.evidence_output,
             run_id=args.run_id,
+        )
+        print(json.dumps(result, sort_keys=True))
+        return 0
+    if args.command == "write-allow-event":
+        result = write_allow_event(
+            event_log=args.event_log,
+            probe_evidence_path=args.probe_evidence,
+            completion_log=args.completion_log,
+            transaction_id=args.transaction_id,
         )
         print(json.dumps(result, sort_keys=True))
         return 0

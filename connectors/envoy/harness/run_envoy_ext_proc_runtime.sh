@@ -46,6 +46,8 @@ PHASE4_BARRIER_DIR="$RUNTIME_ROOT/phase4-first-byte-barrier"
 PHASE4_BARRIER_OBSERVATION="$RUNTIME_ROOT/phase4-first-byte-observation.json"
 PHASE4_BARRIER_TIMEOUT=${ENVOY_PHASE4_BARRIER_TIMEOUT_SECONDS:-10}
 PHASE4_BARRIER_TRANSACTION_ID=envoy-ext-proc-phase4-safe
+ALLOW_TRANSACTION_ID=envoy-ext-proc-allow-1
+ALLOW_PROBE_EVIDENCE="$RUNTIME_ROOT/allow-probe.json"
 envoy_pid=
 service_pid=
 upstream_pid=
@@ -121,6 +123,10 @@ case "$PHASE4_BARRIER_OBSERVATION" in
     "$RUNTIME_ROOT"/*) ;;
     *) echo "envoy_ext_proc_runtime: FAIL - phase-4 barrier observation must be under RUNTIME_ROOT" >&2; exit 1 ;;
 esac
+case "$ALLOW_PROBE_EVIDENCE" in
+    "$RUNTIME_ROOT"/*) ;;
+    *) echo "envoy_ext_proc_runtime: FAIL - allow probe evidence must be under RUNTIME_ROOT" >&2; exit 1 ;;
+esac
 case "$TRANSPORT_CANCEL_PROBE" in
     0|1) ;;
     *) echo "envoy_ext_proc_runtime: FAIL - ENVOY_TRANSPORT_CANCEL_PROBE must be 0 or 1" >&2; exit 1 ;;
@@ -144,6 +150,7 @@ fi
 mkdir -p "$RUNTIME_ROOT" "$PHASE4_BARRIER_DIR"
 rm -f "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" "$SUMMARY" "$EXT_PROC_RUNTIME_CONFIG" \
     "$TRANSPORT_OBSERVATIONS" "$PHASE4_BARRIER_OBSERVATION" \
+    "$ALLOW_PROBE_EVIDENCE" \
     "$PHASE4_BARRIER_DIR/upstream-paused.json" "$PHASE4_BARRIER_DIR/release" \
     "$PHASE4_BARRIER_DIR/upstream-completed.json"
 
@@ -260,7 +267,8 @@ while [ "$attempt" -lt 30 ]; do
     set +e
     allowed_status=$("$PYTHON_BIN" "$HELPER" probe \
         --url "http://127.0.0.1:$listen_port/allowed" \
-        --header "X-Request-Id: envoy-ext-proc-allow-1" 2>/dev/null)
+        --header "X-Request-Id: $ALLOW_TRANSACTION_ID" \
+        --evidence-path "$ALLOW_PROBE_EVIDENCE" 2>/dev/null)
     probe_rc=$?
     set -e
     if [ "$probe_rc" -eq 0 ] && [ "$allowed_status" = "200" ]; then
@@ -561,6 +569,14 @@ for process_pair in "envoy:$envoy_pid" "ext_proc:$service_pid" "upstream:$upstre
         exit 1
     fi
 done
+if ! allow_event_binding=$("$PYTHON_BIN" "$HELPER" write-allow-event \
+    --event-log "$COMMON_EVENT_LOG_PATH" \
+    --probe-evidence "$ALLOW_PROBE_EVIDENCE" \
+    --completion-log "$COMPLETION_LOG_PATH" \
+    --transaction-id "$ALLOW_TRANSACTION_ID"); then
+    echo "envoy_ext_proc_runtime: FAIL - could not bind the P1 allow response to its ext_proc completion" >&2
+    exit 1
+fi
 "$PYTHON_BIN" - "$TRANSPORT_OBSERVATIONS" "$TRANSPORT_CANCEL_PROBE" \
     "$cancel_client_result" "$cancel_transport_result" "$cancel_completion_reason" \
     "$cancel_first_byte_received" "$host_survived" "$cancel_followup_result" <<'PY'
@@ -614,6 +630,7 @@ PY
     printf 'phase2_deny_status=%s\n' "$phase2_deny_status"
     printf 'phase3_deny_status=%s\n' "$phase3_deny_status"
     printf 'phase3_redirect_status=%s\n' "$phase3_redirect_status"
+    printf 'phase4_rule_observed_status=%s\n' "$phase4_safe_status"
     printf 'phase4_safe_status=%s\n' "$phase4_safe_status"
     printf 'phase4_end_of_stream_evaluation_status=%s\n' "$phase4_safe_status"
     printf 'phase4_first_byte_before_response_end_status=%s\n' "$phase4_safe_status"

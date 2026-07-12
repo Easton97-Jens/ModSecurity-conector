@@ -788,6 +788,10 @@ write_nginx_protocol_directives() {
 
 render_config() {
     NGINX_PHASE4_MODE_DIRECTIVE=""
+    # Each smoke fixture starts an independent NGINX process.  Scope the
+    # native complex-value transaction ID to that fixture so distinct real
+    # P4 transactions cannot reuse the host's fresh connection counter.
+    NGINX_TRANSACTION_ID_DIRECTIVE="modsecurity_transaction_id nginx-${case_name}-\$connection-\$connection_requests;"
     case "${NGINX_PHASE4_MODE:-}" in
         "") ;;
         minimal|safe|strict)
@@ -805,6 +809,7 @@ render_config() {
         -e "s|@@DOCROOT@@|$(escape_sed "$DOCROOT")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@NGINX_PHASE4_LOG@@|$(escape_sed "$NGINX_PHASE4_LOG_FILE")|g" \
+        -e "s|@@NGINX_TRANSACTION_ID_DIRECTIVE@@|$(escape_sed "$NGINX_TRANSACTION_ID_DIRECTIVE")|g" \
         -e "s|@@NGINX_PHASE4_MODE_DIRECTIVE@@|$(escape_sed "$NGINX_PHASE4_MODE_DIRECTIVE")|g" \
         -e "s|@@NGINX_PROTOCOL_LISTEN_DIRECTIVES@@|$(escape_sed "$NGINX_PROTOCOL_LISTEN_DIRECTIVES_FILE")|g" \
         -e "s|@@NGINX_PROTOCOL_SERVER_DIRECTIVES@@|$(escape_sed "$NGINX_PROTOCOL_SERVER_DIRECTIVES_FILE")|g" \

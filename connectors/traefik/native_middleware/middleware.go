@@ -689,6 +689,13 @@ func (writer *responseWriter) Write(payload []byte) (int, error) {
 		written += count
 		if count > 0 {
 			writer.state.markResponseCommit(0, true, true)
+			// Traefik's native forwarding path may otherwise retain a small
+			// response chunk until upstream EOS. Flush only bytes the host has
+			// actually accepted so a committed streaming response remains
+			// observable before a synchronized upstream releases its final chunk.
+			if flusher, ok := writer.target.(http.Flusher); ok {
+				flusher.Flush()
+			}
 		}
 		if writeErr != nil {
 			writer.responseIncomplete = true
