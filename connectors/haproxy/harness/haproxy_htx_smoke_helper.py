@@ -8,6 +8,7 @@ upstream, and HAProxy process.  It never persists request/response payloads.
 from __future__ import annotations
 
 import argparse
+import http.client
 import http.server
 import json
 from pathlib import Path
@@ -15,8 +16,10 @@ import re
 import socket
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
+import urllib.parse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -38,6 +41,14 @@ DECISION_PATTERN = re.compile(
     r"rule_id=(?P<rule_id>[0-9]+) "
     r"(?:action|requested_action)=(?P<action>[A-Za-z_]+)"
 )
+LATE_DECISION_PATTERN = re.compile(
+    r"transaction_id=(?P<transaction_id>[A-Za-z0-9._-]+) "
+    r"phase=(?P<phase>[0-9]+) status=(?P<status>[0-9]+) "
+    r"rule_id=(?P<rule_id>[0-9]+) "
+    r"requested_action=(?P<requested_action>[A-Za-z_]+) "
+    r"resolved_policy_action=(?P<resolved_policy_action>[A-Za-z_]+) "
+    r"host_action=(?P<host_action>[A-Za-z_]+)"
+)
 
 
 def checked_path(raw_path: str) -> Path:
@@ -58,6 +69,24 @@ def write_json(path: Path, record: dict[str, object]) -> None:
     path.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
     path.write_text(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n", encoding="utf-8")
     path.chmod(0o600)
+
+
+def load_json_object(path: str, label: str) -> dict[str, object]:
+    target = checked_path(path)
+    try:
+        value = json.loads(target.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid {label}: {target}") from exc
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} is not an object: {target}")
+    return value
+
+
+def safe_token(value: object, label: str, maximum: int = 128) -> str:
+    text = str(value or "").strip()
+    if not text or len(text) > maximum or not re.fullmatch(r"[A-Za-z0-9:._-]+", text):
+        raise ValueError(f"invalid {label}")
+    return text
 
 
 def upstream_profile(raw_path: str) -> tuple[str, str | None, bytes]:
@@ -160,6 +189,181 @@ def probe(
     return 0
 
 
+def streaming_probe(
+    url: str,
+    release_path: str,
+    first_byte_path: str,
+    evidence_path: str,
+    timeout: float,
+) -> int:
+    """Read one body byte through HAProxy before releasing a paused upstream.
+
+    The client retains only the current read buffer.  Its two JSON files contain
+    status/count metadata, never body bytes.  The caller owns the release file,
+    which makes the client-first-byte observation independent of the later
+    Phase-4 marker and upstream EOS.
+    """
+
+    if timeout <= 0:
+        raise ValueError("timeout must be positive")
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme != "http" or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError("streaming probe requires an absolute credential-free HTTP URL")
+    if parsed.fragment:
+        raise ValueError("streaming probe URL must not contain a fragment")
+    port = parsed.port or 80
+    request_path = parsed.path or "/"
+    if parsed.query:
+        request_path += f"?{parsed.query}"
+    release = checked_path(release_path)
+    first_byte_output = checked_path(first_byte_path)
+    evidence_output = checked_path(evidence_path)
+    connection = http.client.HTTPConnection(parsed.hostname, port, timeout=timeout)
+    response: http.client.HTTPResponse | None = None
+    try:
+        connection.request(
+            "GET",
+            request_path,
+            headers={
+                "Host": parsed.hostname,
+                "Connection": "close",
+                "X-Request-Id": "haproxy-htx-phase4",
+            },
+        )
+        response = connection.getresponse()
+        first = response.read(1)
+        if not first:
+            raise ValueError("HAProxy response ended before its first response-body byte")
+        write_json(first_byte_output, {
+            "status": int(response.status),
+            "client_first_byte_received": True,
+            "first_chunk_size": len(first),
+            "response_committed": True,
+            "body_payload_persisted": False,
+        })
+
+        deadline = time.monotonic() + timeout
+        while not release.is_file():
+            if time.monotonic() >= deadline:
+                raise ValueError("timed out waiting for the synchronized upstream release")
+            time.sleep(0.01)
+
+        response_bytes = len(first)
+        while True:
+            chunk = response.read(8192)
+            if not chunk:
+                break
+            response_bytes += len(chunk)
+        write_json(evidence_output, {
+            "status": int(response.status),
+            "response_bytes": response_bytes,
+            "content_type": str(response.getheader("content-type") or "")[:256],
+        })
+    finally:
+        if response is not None:
+            response.close()
+        connection.close()
+    print(response.status if response is not None else 0)
+    return 0
+
+
+def wait_for_file(path: str, timeout: float) -> int:
+    if timeout <= 0:
+        raise ValueError("timeout must be positive")
+    target = checked_path(path)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if target.is_file() and target.stat().st_size > 0:
+            return 0
+        time.sleep(0.01)
+    raise ValueError(f"timed out waiting for payload-free control file: {target}")
+
+
+def synchronized_upstream_port(path: str) -> int:
+    value = load_json_object(path, "synchronized upstream ready record")
+    if value.get("schema_version") != 1 or value.get("evidence_type") != "synchronized_upstream_ready":
+        raise ValueError("invalid synchronized upstream ready record")
+    if value.get("body_payload_persisted") is not False:
+        raise ValueError("synchronized upstream ready record must be payload-free")
+    host = value.get("upstream_host")
+    port = value.get("upstream_port")
+    if host != "127.0.0.1" or isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+        raise ValueError("invalid synchronized upstream address")
+    return port
+
+
+def validate_synchronized_upstream_complete(path: str) -> int:
+    value = load_json_object(path, "synchronized upstream completion record")
+    if value.get("schema_version") != 1 or value.get("evidence_type") != "synchronized_upstream_server":
+        raise ValueError("invalid synchronized upstream completion record")
+    if value.get("body_payload_persisted") is not False:
+        raise ValueError("synchronized upstream completion record must be payload-free")
+    if value.get("upstream_paused") is not True or value.get("upstream_eos_sent") is not True:
+        raise ValueError("synchronized upstream did not record the required pause and EOS")
+    size = value.get("first_chunk_size")
+    if isinstance(size, bool) or not isinstance(size, int) or size < 1:
+        raise ValueError("synchronized upstream completion record has invalid first_chunk_size")
+    return 0
+
+
+def first_byte_evidence(
+    paused_path: str, client_first_byte_path: str,
+) -> dict[str, object]:
+    """Bind a real HTTP client first byte to the still-paused upstream state."""
+
+    paused = load_json_object(paused_path, "synchronized upstream pause record")
+    client = load_json_object(client_first_byte_path, "client first-byte record")
+    if paused.get("schema_version") != 1 or paused.get("evidence_type") != "synchronized_upstream_paused":
+        raise ValueError("invalid synchronized upstream pause record")
+    if paused.get("upstream_paused") is not True or paused.get("upstream_eos_sent") is not False:
+        raise ValueError("synchronized upstream was not paused before EOS")
+    if paused.get("body_payload_persisted") is not False:
+        raise ValueError("synchronized upstream pause record must be payload-free")
+    upstream_first_chunk = paused.get("first_chunk_size")
+    if isinstance(upstream_first_chunk, bool) or not isinstance(upstream_first_chunk, int) or upstream_first_chunk < 1:
+        raise ValueError("synchronized upstream pause record has invalid first_chunk_size")
+    if client.get("client_first_byte_received") is not True or client.get("response_committed") is not True:
+        raise ValueError("HAProxy client did not observe a committed first response-body byte")
+    if client.get("body_payload_persisted") is not False:
+        raise ValueError("client first-byte record must be payload-free")
+    client_first_chunk = client.get("first_chunk_size")
+    if isinstance(client_first_chunk, bool) or not isinstance(client_first_chunk, int) or client_first_chunk < 1:
+        raise ValueError("client first-byte record has invalid first_chunk_size")
+    status = client.get("status")
+    if isinstance(status, bool) or not isinstance(status, int) or status != 200:
+        raise ValueError("first-byte client did not observe HTTP 200")
+    # The filter consumes the current borrowed HTX DATA slice before returning
+    # its length.  At the observed first byte, the only connector-side body
+    # accounting that can honestly be published is the current upstream chunk.
+    return {
+        "schema_version": 1,
+        "evidence_type": "synchronized_first_byte",
+        "evidence_origin": "real_host",
+        "promotion_eligible": True,
+        "client_first_byte_received": True,
+        "first_byte_before_response_end": True,
+        "first_chunk_size": upstream_first_chunk,
+        "upstream_paused": True,
+        "upstream_eos_sent_at_first_byte": False,
+        "upstream_response_finished_at_first_byte": False,
+        "response_committed": True,
+        "body_bytes_seen": upstream_first_chunk,
+        "body_bytes_inspected": upstream_first_chunk,
+        "no_full_response_buffering": True,
+        "connector_owned_full_response_buffer": False,
+        "transport_protocol": "http1",
+        "body_payload_persisted": False,
+        "outcome": "PASS",
+    }
+
+
+def write_first_byte_evidence(
+    path: str, paused_path: str, client_first_byte_path: str,
+) -> int:
+    write_json(checked_path(path), first_byte_evidence(paused_path, client_first_byte_path))
+    return 0
+
+
 def canonical_rules_content(canonical_rules: str | None = None) -> str:
     source = checked_path(canonical_rules) if canonical_rules else CANONICAL_RULES_PATH
     if not source.is_file():
@@ -235,6 +439,12 @@ def read_probe(path: str) -> dict[str, object]:
     return value
 
 
+def probe_status(path: str) -> int:
+    """Return the validated status from a payload-free completed probe."""
+
+    return int(read_probe(path)["status"])
+
+
 def upstream_count(path: str, profile: str) -> int:
     target = checked_path(path)
     if not target.exists():
@@ -272,6 +482,31 @@ def decision_from_log(path: str, phase: int, rule_id: int) -> dict[str, object]:
             matches.append(result)
     if not matches:
         raise ValueError(f"HAProxy host log lacks phase {phase} rule {rule_id}: {target}")
+    return matches[-1]
+
+
+def late_decision_from_log(path: str, phase: int, rule_id: int) -> dict[str, object]:
+    target = checked_path(path)
+    if not target.is_file():
+        raise ValueError(f"HAProxy host log is missing: {target}")
+    matches: list[dict[str, object]] = []
+    for line in target.read_text(encoding="utf-8", errors="replace").splitlines():
+        match = LATE_DECISION_PATTERN.search(line)
+        if not match:
+            continue
+        result: dict[str, object] = {
+            "transaction_id": match.group("transaction_id"),
+            "phase": int(match.group("phase")),
+            "status": int(match.group("status")),
+            "rule_id": int(match.group("rule_id")),
+            "requested_action": match.group("requested_action").lower(),
+            "resolved_policy_action": match.group("resolved_policy_action").lower(),
+            "host_action": match.group("host_action").lower(),
+        }
+        if result["phase"] == phase and result["rule_id"] == rule_id:
+            matches.append(result)
+    if not matches:
+        raise ValueError(f"HAProxy host log lacks late phase {phase} rule {rule_id}: {target}")
     return matches[-1]
 
 
@@ -314,6 +549,109 @@ def write_event(
     }
     if original_http_status is not None:
         record["original_http_status"] = original_http_status
+    append_jsonl(checked_path(path), record)
+    return 0
+
+
+def phase4_safe_event(
+    path: str,
+    decision_log: str,
+    probe_path: str,
+    first_byte_evidence_path: str,
+    run_id: str,
+    transport_case_id: str,
+) -> int:
+    """Publish one payload-free host-confirmed P4 safe outcome.
+
+    The decision comes from the native HTX filter's post-EOS log record, the
+    visible status comes from the real HTTP/1.1 client, and the barrier fields
+    come from the already-written real-host first-byte artifact.  No field is
+    inferred from a policy default or fixture payload.
+    """
+
+    decision = late_decision_from_log(decision_log, 4, 1100301)
+    if (
+        decision["requested_action"] != "deny"
+        or decision["resolved_policy_action"] != "log_only"
+        or decision["host_action"] != "log_only"
+        or decision["status"] != 403
+    ):
+        raise ValueError("HAProxy late decision is not the required safe log-only outcome")
+    probe = read_probe(probe_path)
+    if probe["status"] != 200 or int(probe["response_bytes"]) < 1:
+        raise ValueError("HAProxy safe P4 client outcome must preserve HTTP 200 with a body")
+    evidence = load_json_object(first_byte_evidence_path, "first-byte evidence")
+    required_true = (
+        "promotion_eligible",
+        "client_first_byte_received",
+        "first_byte_before_response_end",
+        "upstream_paused",
+        "response_committed",
+        "no_full_response_buffering",
+    )
+    if (
+        evidence.get("schema_version") != 1
+        or evidence.get("evidence_type") != "synchronized_first_byte"
+        or evidence.get("evidence_origin") != "real_host"
+        or evidence.get("outcome") != "PASS"
+        or evidence.get("body_payload_persisted") is not False
+        or any(evidence.get(name) is not True for name in required_true)
+        or evidence.get("upstream_eos_sent_at_first_byte") is not False
+        or evidence.get("upstream_response_finished_at_first_byte") is not False
+        or evidence.get("connector_owned_full_response_buffer") is not False
+    ):
+        raise ValueError("first-byte evidence is not a complete real-host no-buffer proof")
+    first_chunk_size = evidence.get("first_chunk_size")
+    body_seen = evidence.get("body_bytes_seen")
+    body_inspected = evidence.get("body_bytes_inspected")
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in (first_chunk_size, body_seen, body_inspected)
+    ) or int(first_chunk_size) < 1 or int(body_inspected) > int(body_seen):
+        raise ValueError("first-byte evidence has invalid body accounting")
+    safe_run_id = safe_token(run_id, "run id", maximum=128)
+    safe_transport_case = safe_token(transport_case_id, "transport case id")
+    transaction_id = safe_token(decision["transaction_id"], "transaction id", maximum=256)
+    record: dict[str, object] = {
+        "connector": "haproxy",
+        "event": "native_htx_phase4_late_intervention",
+        "message_id": "HAPROXY_HTX_NATIVE_LATE_LOG_ONLY",
+        "integration_mode": "native-htx-filter",
+        "run_id": safe_run_id,
+        "transaction_id": transaction_id,
+        "phase": 4,
+        "rule_id": 1100301,
+        "status": "blocked",
+        "requested_action": "deny",
+        "actual_action": "log_only",
+        "http_status": 403,
+        "original_http_status": 200,
+        "visible_http_status": 200,
+        "late_intervention": True,
+        "late_intervention_mode": "safe",
+        "headers_sent": True,
+        "response_started": True,
+        "body_started": True,
+        "response_committed": True,
+        "connection_aborted": False,
+        "transport_result": "log_only",
+        "negotiated_protocol": "http1",
+        "transport": "tcp",
+        "transport_case_id": safe_transport_case,
+        "barrier_id": f"{transaction_id}.first-byte",
+        "client_first_byte_received": True,
+        "first_byte_before_response_end": True,
+        "first_chunk_size": first_chunk_size,
+        "upstream_paused": True,
+        "upstream_eos_sent_at_first_byte": False,
+        "upstream_response_finished_at_first_byte": False,
+        "no_full_response_buffering": True,
+        "body_bytes_seen": body_seen,
+        "body_bytes_inspected": body_inspected,
+        "eos_seen": True,
+        "end_of_stream_evaluation": True,
+        "cleanup_reason": "normal",
+    }
     append_jsonl(checked_path(path), record)
     return 0
 
@@ -364,6 +702,25 @@ def parse_args() -> argparse.Namespace:
     request.add_argument("--method", default="GET")
     request.add_argument("--data")
     request.add_argument("--evidence-path")
+    streaming = subparsers.add_parser("streaming-probe")
+    streaming.add_argument("--url", required=True)
+    streaming.add_argument("--release-path", required=True)
+    streaming.add_argument("--first-byte-path", required=True)
+    streaming.add_argument("--evidence-path", required=True)
+    streaming.add_argument("--timeout", type=float, default=10.0)
+    wait = subparsers.add_parser("wait-file")
+    wait.add_argument("--path", required=True)
+    wait.add_argument("--timeout", type=float, default=10.0)
+    ready = subparsers.add_parser("synchronized-upstream-port")
+    ready.add_argument("--path", required=True)
+    upstream_complete = subparsers.add_parser("validate-synchronized-upstream")
+    upstream_complete.add_argument("--path", required=True)
+    first_byte = subparsers.add_parser("write-first-byte-evidence")
+    first_byte.add_argument("--path", required=True)
+    first_byte.add_argument("--paused-path", required=True)
+    first_byte.add_argument("--client-first-byte-path", required=True)
+    probe_status_parser = subparsers.add_parser("probe-status")
+    probe_status_parser.add_argument("--path", required=True)
     rules = subparsers.add_parser("write-rules")
     rules.add_argument("--path", required=True)
     rules.add_argument("--canonical-rules")
@@ -394,6 +751,13 @@ def parse_args() -> argparse.Namespace:
     evidence.add_argument("--host-action", required=True,
                           choices=("forwarded", "enforced_reply", "observed_only", "safe_log_only", "not_attempted"))
     evidence.add_argument("--decision-log")
+    safe_event = subparsers.add_parser("write-phase4-safe-event")
+    safe_event.add_argument("--path", required=True)
+    safe_event.add_argument("--decision-log", required=True)
+    safe_event.add_argument("--probe-path", required=True)
+    safe_event.add_argument("--first-byte-evidence", required=True)
+    safe_event.add_argument("--run-id", required=True)
+    safe_event.add_argument("--transport-case-id", required=True)
     return parser.parse_args()
 
 
@@ -408,6 +772,25 @@ def main() -> int:
         return serve_upstream(args.port, args.request_log)
     if args.command == "probe":
         return probe(args.url, args.header, args.method, args.data, args.evidence_path)
+    if args.command == "streaming-probe":
+        return streaming_probe(
+            args.url, args.release_path, args.first_byte_path,
+            args.evidence_path, args.timeout,
+        )
+    if args.command == "wait-file":
+        return wait_for_file(args.path, args.timeout)
+    if args.command == "synchronized-upstream-port":
+        print(synchronized_upstream_port(args.path))
+        return 0
+    if args.command == "validate-synchronized-upstream":
+        return validate_synchronized_upstream_complete(args.path)
+    if args.command == "write-first-byte-evidence":
+        return write_first_byte_evidence(
+            args.path, args.paused_path, args.client_first_byte_path,
+        )
+    if args.command == "probe-status":
+        print(probe_status(args.path))
+        return 0
     if args.command == "write-rules":
         return write_rules(args.path, args.canonical_rules)
     if args.command == "write-config":
@@ -424,6 +807,11 @@ def main() -> int:
         return write_host_evidence(
             args.path, args.case, args.phase, args.rule_id, args.probe_path,
             args.upstream_requests, args.host_action, args.decision_log,
+        )
+    if args.command == "write-phase4-safe-event":
+        return phase4_safe_event(
+            args.path, args.decision_log, args.probe_path,
+            args.first_byte_evidence, args.run_id, args.transport_case_id,
         )
     return 2
 

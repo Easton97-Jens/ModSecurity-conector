@@ -41,6 +41,11 @@ UPSTREAM_STDERR="$RUNTIME_ROOT/upstream.stderr.log"
 TRANSPORT_OBSERVATIONS="$RUNTIME_ROOT/transport-observations.diagnostic.json"
 TRANSPORT_CANCEL_PROBE=${ENVOY_TRANSPORT_CANCEL_PROBE:-0}
 TRANSPORT_CANCEL_ID=envoy-ext-proc-client-cancel-1
+FULL_LIFECYCLE_EVIDENCE_OUTPUT=${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}
+PHASE4_BARRIER_DIR="$RUNTIME_ROOT/phase4-first-byte-barrier"
+PHASE4_BARRIER_OBSERVATION="$RUNTIME_ROOT/phase4-first-byte-observation.json"
+PHASE4_BARRIER_TIMEOUT=${ENVOY_PHASE4_BARRIER_TIMEOUT_SECONDS:-10}
+PHASE4_BARRIER_TRANSACTION_ID=envoy-ext-proc-phase4-safe
 envoy_pid=
 service_pid=
 upstream_pid=
@@ -108,12 +113,39 @@ case "$TRANSPORT_OBSERVATIONS" in
     "$RUNTIME_ROOT"/*) ;;
     *) echo "envoy_ext_proc_runtime: FAIL - transport observations must be under RUNTIME_ROOT" >&2; exit 1 ;;
 esac
+case "$PHASE4_BARRIER_DIR" in
+    "$RUNTIME_ROOT"/*) ;;
+    *) echo "envoy_ext_proc_runtime: FAIL - phase-4 barrier directory must be under RUNTIME_ROOT" >&2; exit 1 ;;
+esac
+case "$PHASE4_BARRIER_OBSERVATION" in
+    "$RUNTIME_ROOT"/*) ;;
+    *) echo "envoy_ext_proc_runtime: FAIL - phase-4 barrier observation must be under RUNTIME_ROOT" >&2; exit 1 ;;
+esac
 case "$TRANSPORT_CANCEL_PROBE" in
     0|1) ;;
     *) echo "envoy_ext_proc_runtime: FAIL - ENVOY_TRANSPORT_CANCEL_PROBE must be 0 or 1" >&2; exit 1 ;;
 esac
-mkdir -p "$RUNTIME_ROOT"
-rm -f "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" "$SUMMARY" "$EXT_PROC_RUNTIME_CONFIG" "$TRANSPORT_OBSERVATIONS"
+if [ "${NO_CRS_ARTIFACT_PROFILE:-}" = full_lifecycle ] && [ -z "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ]; then
+    echo "envoy_ext_proc_runtime: FAIL - full_lifecycle requires FULL_LIFECYCLE_EVIDENCE_OUTPUT" >&2
+    exit 1
+fi
+if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ]; then
+    case "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" in
+        /*) ;;
+        *) echo "envoy_ext_proc_runtime: FAIL - first-byte evidence output must be absolute" >&2; exit 1 ;;
+    esac
+    case "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" in
+        "$REPO_ROOT"|"$REPO_ROOT"/*)
+            echo "envoy_ext_proc_runtime: FAIL - first-byte evidence output must be outside the checkout" >&2
+            exit 1
+            ;;
+    esac
+fi
+mkdir -p "$RUNTIME_ROOT" "$PHASE4_BARRIER_DIR"
+rm -f "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" "$SUMMARY" "$EXT_PROC_RUNTIME_CONFIG" \
+    "$TRANSPORT_OBSERVATIONS" "$PHASE4_BARRIER_OBSERVATION" \
+    "$PHASE4_BARRIER_DIR/upstream-paused.json" "$PHASE4_BARRIER_DIR/release" \
+    "$PHASE4_BARRIER_DIR/upstream-completed.json"
 
 pinned_envoy_release=$(sed -n 's/^ENVOY_RELEASE=//p' "$VERSION_LOCK")
 [ -n "$pinned_envoy_release" ] || {
@@ -195,6 +227,8 @@ fi
 
 "$PYTHON_BIN" "$HELPER" serve-upstream --port "$upstream_port" \
     --client-cancel-delay "${ENVOY_CLIENT_CANCEL_DELAY_SECONDS:-5}" \
+    --phase4-barrier-dir "$PHASE4_BARRIER_DIR" \
+    --phase4-barrier-timeout "$PHASE4_BARRIER_TIMEOUT" \
     >"$UPSTREAM_STDOUT" 2>"$UPSTREAM_STDERR" &
 upstream_pid=$!
 
@@ -298,14 +332,30 @@ if [ "$phase3_redirect_status" != "302" ]; then
     exit 1
 fi
 
-if ! phase4_safe_status=$("$PYTHON_BIN" "$HELPER" probe \
-    --url "http://127.0.0.1:$listen_port/phase4-marker" \
-    --header "X-Request-Id: envoy-ext-proc-phase4-safe"); then
-    echo "envoy_ext_proc_runtime: FAIL - phase-4 safe probe could not be completed" >&2
+if ! phase4_barrier_observation=$("$PYTHON_BIN" "$HELPER" phase4-first-byte \
+    --host 127.0.0.1 --port "$listen_port" --path /phase4-marker \
+    --header "X-Request-Id: $PHASE4_BARRIER_TRANSACTION_ID" \
+    --barrier-dir "$PHASE4_BARRIER_DIR" --timeout "$PHASE4_BARRIER_TIMEOUT" \
+    --output "$PHASE4_BARRIER_OBSERVATION"); then
+    echo "envoy_ext_proc_runtime: FAIL - phase-4 synchronized first-byte probe could not be completed" >&2
     exit 1
 fi
+phase4_safe_status=$("$PYTHON_BIN" -c 'import json,sys; print(json.loads(sys.argv[1])["http_status"])' "$phase4_barrier_observation") || {
+    echo "envoy_ext_proc_runtime: FAIL - phase-4 first-byte observation is malformed" >&2
+    exit 1
+}
 if [ "$phase4_safe_status" != "200" ]; then
     echo "envoy_ext_proc_runtime: FAIL - phase-4 safe mode returned $phase4_safe_status, expected 200" >&2
+    exit 1
+fi
+if ! phase4_followup_status=$("$PYTHON_BIN" "$HELPER" probe \
+    --url "http://127.0.0.1:$listen_port/allowed" \
+    --header "X-Request-Id: envoy-ext-proc-phase4-followup"); then
+    echo "envoy_ext_proc_runtime: FAIL - follow-up request after phase-4 barrier could not be completed" >&2
+    exit 1
+fi
+if [ "$phase4_followup_status" != "200" ]; then
+    echo "envoy_ext_proc_runtime: FAIL - follow-up request after phase-4 barrier returned $phase4_followup_status, expected 200" >&2
     exit 1
 fi
 
@@ -368,6 +418,39 @@ if grep -Fq 'request-body-for-ext-proc' "$COMMON_EVENT_LOG_PATH" || \
     grep -Fq 'no-crs-request-body-marker' "$COMMON_EVENT_LOG_PATH" || \
     grep -Fq 'no-crs-response-body-marker' "$COMMON_EVENT_LOG_PATH"; then
     echo "envoy_ext_proc_runtime: FAIL - Common raw event evidence contains a body payload" >&2
+    exit 1
+fi
+# The helper refuses to write either artifact unless the exact P4 safe
+# Common/libmodsecurity event for this transaction is already present.  It
+# copies only bounded counters/status metadata and adds the client/upstream
+# barrier facts; neither response fixture is ever written into JSONL.
+if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ]; then
+    if ! phase4_barrier_binding=$("$PYTHON_BIN" "$HELPER" write-phase4-first-byte-evidence \
+        --event-log "$COMMON_EVENT_LOG_PATH" \
+        --observation "$PHASE4_BARRIER_OBSERVATION" \
+        --transaction-id "$PHASE4_BARRIER_TRANSACTION_ID" \
+        --evidence-output "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" \
+        --run-id "${NO_CRS_RUN_ID:-}"); then
+        echo "envoy_ext_proc_runtime: FAIL - could not bind phase-4 first-byte evidence to the Common event" >&2
+        exit 1
+    fi
+else
+    if ! phase4_barrier_binding=$("$PYTHON_BIN" "$HELPER" write-phase4-first-byte-evidence \
+        --event-log "$COMMON_EVENT_LOG_PATH" \
+        --observation "$PHASE4_BARRIER_OBSERVATION" \
+        --transaction-id "$PHASE4_BARRIER_TRANSACTION_ID" \
+        --run-id "${NO_CRS_RUN_ID:-}"); then
+        echo "envoy_ext_proc_runtime: FAIL - could not append phase-4 first-byte barrier event" >&2
+        exit 1
+    fi
+fi
+if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ] && [ ! -s "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ]; then
+    echo "envoy_ext_proc_runtime: FAIL - phase-4 first-byte evidence was not written" >&2
+    exit 1
+fi
+if grep -Fq 'no-crs-response-body-marker' "$COMMON_EVENT_LOG_PATH" || \
+    grep -Fq 'no-crs-request-body-marker' "$COMMON_EVENT_LOG_PATH"; then
+    echo "envoy_ext_proc_runtime: FAIL - phase-4 barrier event persisted a body payload" >&2
     exit 1
 fi
 for process_pair in "envoy:$envoy_pid" "ext_proc:$service_pid" "upstream:$upstream_pid"; do
@@ -532,6 +615,12 @@ PY
     printf 'phase3_deny_status=%s\n' "$phase3_deny_status"
     printf 'phase3_redirect_status=%s\n' "$phase3_redirect_status"
     printf 'phase4_safe_status=%s\n' "$phase4_safe_status"
+    printf 'phase4_end_of_stream_evaluation_status=%s\n' "$phase4_safe_status"
+    printf 'phase4_first_byte_before_response_end_status=%s\n' "$phase4_safe_status"
+    printf 'phase4_no_full_response_buffering_status=%s\n' "$phase4_safe_status"
+    printf 'phase4_first_byte_followup_status=%s\n' "$phase4_followup_status"
+    printf 'phase4_first_byte_observation=%s\n' "$PHASE4_BARRIER_OBSERVATION"
+    printf 'phase4_first_byte_evidence=%s\n' "${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-not_written}"
     printf 'request_body_stream_observed=true\n'
     printf 'response_body_stream_observed=true\n'
     printf 'transport_cancel_probe=%s\n' "$TRANSPORT_CANCEL_PROBE"

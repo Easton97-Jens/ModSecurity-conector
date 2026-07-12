@@ -22,7 +22,7 @@
  #endif
 --- a/src/http_chunk.c
 +++ b/src/http_chunk.c
-@@ -12,12 +12,55 @@
+@@ -12,12 +12,56 @@
  #include "http_header.h"
  #include "stat_cache.h"
  #include "log.h"
@@ -49,7 +49,8 @@
 +    plugin_body_hook_result rc;
 +
 +    if (r->http_version > HTTP_VERSION_1_1
-+        || r->resp_body_entity_hook_eos_sent)
++        || r->resp_body_entity_hook_eos_sent
++        || r->resp_body_entity_hook_suppressed)
 +        return 0;
 +    if (0 == len && !eos)
 +        return 0;
@@ -100,6 +101,92 @@
      if (http_chunk_uses_tempfile(cq, len))
          return http_chunk_append_to_tempfile(r, mem, len);
  
+@@ -344,8 +396,11 @@
+ 
+     if (r->resp_send_chunked) {
+         /* send trailers */
++        int rc;
+         r->resp_send_chunked = 0;
+-        int rc = http_chunk_append_mem(r, trailers, tlen);
++        r->resp_body_entity_hook_suppressed = 1;
++        rc = http_chunk_append_mem(r, trailers, tlen);
++        r->resp_body_entity_hook_suppressed = 0;
+         r->resp_send_chunked = 1;
+         if (0 != rc) return -1;
+     } /*(else discard trailers if response not chunked)*/
+@@ -363,6 +418,7 @@
+     off_t te_chunked = r->gw_dechunk->gw_chunked;
+     const char *mem = mb->ptr;
+     uint32_t len = buffer_clen(mb);
++    int eos = 0;
+     while (len) {
+         if (0 == te_chunked) {
+             const char *p;
+@@ -455,9 +511,12 @@
+                 }
+ 
+                 if (r->resp_send_chunked && mem - mb->ptr) {
++                    int rc;
+                     r->resp_send_chunked = 0;
+-                    int rc = http_chunk_append_mem(r, mb->ptr,
+-                                                   (size_t)(mem - mb->ptr));
++                    r->resp_body_entity_hook_suppressed = 1;
++                    rc = http_chunk_append_mem(r, mb->ptr,
++                                                (size_t)(mem - mb->ptr));
++                    r->resp_body_entity_hook_suppressed = 0;
+                     r->resp_send_chunked = 1;
+                     if (0 != rc)
+                         return -1;
+@@ -480,8 +539,12 @@
+             uint32_t clen = te_chunked - 2 <= (off_t)len
+               ? (uint32_t)(te_chunked - 2)
+               : len;
+-            if (!r->resp_send_chunked
+-                && 0 != http_chunk_append_mem(r, mem, clen))
++            if (r->resp_send_chunked) {
++                if (0 != http_chunk_msconnector_entity_body(r,
++                        (const unsigned char *)mem, clen, 0))
++                    return -1;
++            }
++            else if (0 != http_chunk_append_mem(r, mem, clen))
+                 return -1;
+             mem += clen;
+             len -= clen;
+@@ -510,8 +573,10 @@
+             te_chunked = 0;
+         }
+     }
+-    if (r->gw_dechunk->done)
++    if (r->gw_dechunk->done) {
+         r->resp_body_finished = 1;
++        eos = 1;
++    }
+     r->gw_dechunk->gw_chunked = te_chunked;
+ 
+     /* no need to decode chunked to immediately re-encode chunked;
+@@ -523,16 +588,20 @@
+      * which is when Transfer-Encoding: chunked might be chosen */
+     if (r->resp_send_chunked) {
+         r->resp_send_chunked = 0;
++        r->resp_body_entity_hook_suppressed = 1;
+         int rc = mb->size  /* might append to tmpfile; check rc */
+           ? http_chunk_append_buffer(r, mb)
+           : http_chunk_append_mem(r, BUF_PTR_LEN(mb));
++        r->resp_body_entity_hook_suppressed = 0;
+         r->resp_send_chunked = 1;
+-        return rc;
++        if (0 != rc || !eos)
++            return rc;
++        return http_chunk_msconnector_entity_close(r);
+     }
+     /*else if (mb->size)*//*(not worth the conditional)*/
+     buffer_clear(mb);
+ 
+-    return 0;
++    return eos ? http_chunk_msconnector_entity_close(r) : 0;
+ }
+ 
+ int http_chunk_decode_append_buffer(request_st * const r, buffer * const mem)
 --- a/src/plugin.h
 +++ b/src/plugin.h
 @@ -5,6 +5,29 @@
@@ -335,7 +422,7 @@
  		plugins_call_init_slot(srv, (pl_cb_t)p->handle_physical, pd,
 --- a/src/request.h
 +++ b/src/request.h
-@@ -189,11 +189,14 @@
+@@ -189,11 +189,15 @@
      array resp_headers;
      char resp_body_finished;
      char resp_body_started;
@@ -347,6 +434,7 @@
 +	char resp_header_repeated;
 +	char reqbody_hook_eos_sent;
 +	char resp_body_entity_hook_eos_sent;
++	char resp_body_entity_hook_suppressed;
 +	off_t resp_body_entity_hook_next_offset;
  
 -    char loops_per_request;  /* catch endless loops in a single request */
@@ -356,7 +444,7 @@
      buffer *tmp_buf;                    /* shared; same as srv->tmp_buf */
 --- a/src/http-header-glue.c
 +++ b/src/http-header-glue.c
-@@ -320,8 +320,10 @@
+@@ -320,8 +320,11 @@
  void http_response_body_clear (request_st * const r, int preserve_length) {
      r->resp_body_finished = 0;
      r->resp_body_started = 0;
@@ -365,39 +453,70 @@
 +	r->resp_send_chunked = 0;
 +	r->resp_body_scratchpad = -1;
 +	r->resp_body_entity_hook_eos_sent = 0;
++	r->resp_body_entity_hook_suppressed = 0;
 +	r->resp_body_entity_hook_next_offset = 0;
      if (light_btst(r->resp_htags, HTTP_HEADER_TRANSFER_ENCODING)) {
          http_header_response_unset(r, HTTP_HEADER_TRANSFER_ENCODING,
                                     CONST_STR_LEN("Transfer-Encoding"));
-@@ -708,8 +710,14 @@
- 		__attribute_fallthrough__
- 	case CON_STATE_WRITE:
- 		if (!r->resp_body_finished) {
--			if (r->http_version == HTTP_VERSION_1_1)
-+			if (r->http_version == HTTP_VERSION_1_1) {
-+				if (0 != http_chunk_msconnector_entity_close(r)) {
-+					r->keep_alive = 0;
-+					r->resp_body_finished = 2;
-+					break;
-+				}
- 				http_chunk_close(r);
-+			}
-		  #if 0
-			/* This is a lot of work to make it possible for an HTTP/1.0 client
- 			 * to detect that response is truncated (after lighttpd made an
-@@ -751,6 +759,12 @@
- 				r->keep_alive = 0; /*(0 does not affect h2)*/
- 			}
- 		}
-+		else if (r->resp_body_finished == 1
-+		         && r->http_version == HTTP_VERSION_1_1
-+		         && 0 != http_chunk_msconnector_entity_close(r)) {
-+			r->keep_alive = 0;
-+			r->resp_body_finished = 2;
-+		}
- 	default:
- 		break;
- 	}
+@@ -783,6 +786,8 @@
+ static int http_response_append_buffer(request_st * const r, buffer * const mem, const int simple_accum) {
+     /* Note: this routine is separate from http_response_append_mem() to
+      * potentially avoid copying buffer by using http_chunk_append_buffer(). */
++    int eos = 0;
++    int rc;
+ 
+     if (r->resp_decode_chunked)
+         return http_chunk_decode_append_buffer(r, mem);
+@@ -799,6 +804,7 @@
+         }
+         else { /* (r->resp_body_scratchpad <= 0) */
+             r->resp_body_finished = 1;
++            eos = 1;
+             if (__builtin_expect( (r->resp_body_scratchpad < 0), 0)) {
+                 /*(silently truncate if data exceeds Content-Length)*/
+                 len += r->resp_body_scratchpad;
+@@ -816,7 +822,10 @@
+              && http_response_append_buffer_simple_accum(r, buffer_clen(mem))) {
+         return 0; /*(accumulate small reads in buffer)*/
+     }
+-    return http_chunk_append_buffer(r, mem);
++    rc = http_chunk_append_buffer(r, mem);
++    if (0 != rc || !eos)
++        return rc;
++    return http_chunk_msconnector_entity_close(r);
+ }
+ 
+ 
+@@ -857,6 +866,9 @@
+ 
+ 
+ static int http_response_append_mem(request_st * const r, const char * const mem, uint32_t len) {
++    int eos = 0;
++    int rc;
++
+     if (r->resp_decode_chunked)
+         return http_chunk_decode_append_mem(r, mem, len);
+ 
+@@ -864,6 +876,7 @@
+         r->resp_body_scratchpad -= (off_t)len;
+         if (r->resp_body_scratchpad <= 0) {
+             r->resp_body_finished = 1;
++            eos = 1;
+             if (__builtin_expect( (r->resp_body_scratchpad < 0), 0)) {
+                 /*(silently truncate if data exceeds Content-Length)*/
+                 len = (size_t)(r->resp_body_scratchpad + (off_t)len);
+@@ -875,7 +888,10 @@
+         /*(silently truncate if data exceeds Content-Length)*/
+         return 0;
+     }
+-    return http_chunk_append_mem(r, mem, len);
++    rc = http_chunk_append_mem(r, mem, len);
++    if (0 != rc || !eos)
++        return rc;
++    return http_chunk_msconnector_entity_close(r);
+ }
+ 
+ 
 --- a/src/reqpool.c
 +++ b/src/reqpool.c
 @@ -126,8 +126,9 @@
@@ -461,3 +580,7 @@
          /* Content is ready */
          r->conf.stream_request_body &= ~FDEVENT_STREAM_REQUEST_POLLIN;
          if (r->state == CON_STATE_READ_POST) {
+	char reqbody_hook_eos_sent;
+	char resp_body_entity_hook_eos_sent;
+	char resp_body_entity_hook_suppressed;
+	off_t resp_body_entity_hook_next_offset;

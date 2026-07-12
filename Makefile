@@ -236,7 +236,7 @@ export LIGHTTPD_DECISION_BACKEND
 .PHONY: check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-no-crs-source-normalization
 .PHONY: full-lifecycle-apache full-lifecycle-nginx full-lifecycle-haproxy full-lifecycle-envoy full-lifecycle-traefik full-lifecycle-lighttpd full-lifecycle-all-connectors
 .PHONY: full-lifecycle-haproxy-htx full-lifecycle-envoy-ext-proc full-lifecycle-traefik-native full-lifecycle-lighttpd-patched
-.PHONY: check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-transport check-full-lifecycle-lifecycle check-full-lifecycle-transport-hardening check-full-lifecycle-promotion
+.PHONY: check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-transport check-full-lifecycle-lifecycle check-full-lifecycle-transport-hardening check-full-lifecycle-promotion check-six-connector-core-completion
 .PHONY: protocol-client check-protocol-evidence test-protocol-client
 
 define RUN_WITH_REFRESH_ALL
@@ -934,6 +934,14 @@ check-full-lifecycle-promotion: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
 	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,promotion)
 	$(call RUN_TRANSPORT_HARDENING_EVIDENCE_CHECK)
+
+# Read-only compact acceptance gate.  It consumes one already finalized
+# canonical run and cannot change capability manifests or case outcomes.
+check-six-connector-core-completion:
+	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
+	$(PYTHON) ci/check-six-connector-core-completion.py \
+		--connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" \
+		--run-id "$(NO_CRS_RUN_ID)"
 
 check-no-crs-doc-consistency:
 	"$(PYTHON)" ci/check-no-crs-doc-consistency.py

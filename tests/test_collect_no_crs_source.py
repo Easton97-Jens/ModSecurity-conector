@@ -83,10 +83,14 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "rule_evaluation": "libmodsecurity",
             "allowed_request_status": 200,
             "phase1_deny_status": 403,
+            "p1_alternative_status": 429,
             "phase2_deny_status": 403,
             "phase3_deny_client_status": 403,
             "phase3_redirect_status": 302,
             "phase4_safe_status": 200,
+            "phase4_end_of_stream_evaluation_status": 200,
+            "phase4_first_byte_before_response_end_status": 200,
+            "phase4_no_full_response_buffering_status": 200,
         }
         self.assertTrue(collector.native_rule_engine_observed([summary]))
         self.assertFalse(collector.nonpromoted_host_success([summary]))
@@ -96,6 +100,9 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         }
         self.assertEqual(200, records["allow_without_marker"]["actual_status"])
         self.assertEqual([1100001], records["deny_header_marker_403"]["observed_rule_ids"])
+        self.assertEqual(
+            [1100002], records["deny_with_alternative_status"]["observed_rule_ids"]
+        )
         self.assertEqual([1100101], records["deny_request_body_marker_403"]["observed_rule_ids"])
         self.assertEqual([1100201], records["deny_response_header_marker_403"]["observed_rule_ids"])
         self.assertEqual([1100202], records["phase3_redirect_before_commit"]["observed_rule_ids"])
@@ -103,6 +110,13 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             [1100301],
             records["phase4_deny_after_commit_log_only_safe"]["observed_rule_ids"],
         )
+        for case_id in (
+            "phase4_end_of_stream_evaluation",
+            "phase4_first_byte_before_response_end",
+            "phase4_no_full_response_buffering",
+        ):
+            with self.subTest(case_id=case_id):
+                self.assertEqual([1100301], records[case_id]["observed_rule_ids"])
 
     def test_native_summary_without_engine_bridge_stays_nonpromoting(self) -> None:
         summary = {
@@ -375,7 +389,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                         "message_id": "MSCONN_EVENT_PHASE4_LATE_INTERVENTION",
                         "phase": "response_body",
                         "status": "blocked",
-                        "rule_id": 1100301,
+                        "rule_id": "1100301",
                         "http_status": 403,
                         "original_http_status": 200,
                         "visible_http_status": 200,
@@ -411,11 +425,15 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 [results_path],
                 "nginx",
                 "1100001",
-                {"phase4_deny_after_commit_log_only": (None, "1100301")},
+                {
+                    "phase4_deny_after_commit_log_only": (None, "1100301", 4),
+                    "phase4_deny_after_commit_log_only_safe": (None, "1100301", 4),
+                },
                 allowed_source_root=root,
             )
-            self.assertEqual(1, len(cases))
-            case = cases[0]
+            self.assertEqual(2, len(cases))
+            by_id = {case["case_id"]: case for case in cases}
+            case = by_id["phase4_deny_after_commit_log_only"]
             self.assertEqual("PASS", case["status"])
             self.assertTrue(case["event_metadata_verified"])
             self.assertEqual("deny", case["requested_action"])
@@ -423,6 +441,87 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertEqual("safe", case["late_intervention_mode"])
             self.assertEqual(403, case["http_status"])
             self.assertEqual(200, case["visible_http_status"])
+            safe_alias = by_id["phase4_deny_after_commit_log_only_safe"]
+            self.assertEqual("PASS", safe_alias["status"])
+            self.assertEqual(["tx-phase4"], safe_alias["transaction_ids"])
+            self.assertIn("reused native nginx event", safe_alias["reason"])
+
+    def test_native_runner_safe_alias_requires_safe_event_semantics(self) -> None:
+        safe_event = {
+            "phase": 4,
+            "rule_id": 1100301,
+            "requested_action": "deny",
+            "actual_action": "log_only",
+            "late_intervention": True,
+            "late_intervention_mode": "safe",
+            "headers_sent": True,
+            "body_started": True,
+            "response_committed": True,
+            "connection_aborted": False,
+            "http_status": 403,
+            "original_http_status": 200,
+            "visible_http_status": 200,
+            "transport_result": "log_only",
+        }
+        self.assertEqual(
+            "phase4_deny_after_commit_log_only_safe",
+            collector.native_runner_core_case_alias(
+                "apache", "phase4_deny_after_commit_log_only", [safe_event]
+            ),
+        )
+        unsafe_event = dict(safe_event, late_intervention_mode="minimal")
+        self.assertIsNone(
+            collector.native_runner_core_case_alias(
+                "apache", "phase4_deny_after_commit_log_only", [unsafe_event]
+            )
+        )
+
+    def test_native_runner_aliases_normalize_native_string_phase_and_rule_ids(self) -> None:
+        apache_phase3_event = {
+            "phase": "response_headers",
+            "rule_id": "1100201",
+            "requested_action": "deny",
+            "actual_action": "deny",
+            "headers_sent": False,
+            "visible_http_status": 403,
+            "late_intervention": False,
+            "transport_result": "http_status",
+        }
+        nginx_phase4_event = {
+            "phase": "response_body",
+            "rule_id": "1100301",
+            "requested_action": "deny",
+            "actual_action": "log_only",
+            "late_intervention": True,
+            "late_intervention_mode": "safe",
+            "headers_sent": True,
+            "body_started": True,
+            "response_committed": True,
+            "connection_aborted": False,
+            "http_status": 403,
+            "original_http_status": 200,
+            "visible_http_status": 200,
+            "transport_result": "log_only",
+        }
+        self.assertEqual(
+            "deny_response_header_marker_403",
+            collector.native_runner_core_case_alias(
+                "apache", "phase3_deny_before_commit", [apache_phase3_event]
+            ),
+        )
+        self.assertEqual(
+            "phase4_deny_after_commit_log_only_safe",
+            collector.native_runner_core_case_alias(
+                "nginx", "phase4_deny_after_commit_log_only", [nginx_phase4_event]
+            ),
+        )
+        self.assertIsNone(
+            collector.native_runner_core_case_alias(
+                "nginx",
+                "phase4_deny_after_commit_log_only",
+                [dict(nginx_phase4_event, late_intervention_mode="minimal")],
+            )
+        )
 
     def test_phase4_rejects_an_unknown_late_intervention_mode(self) -> None:
         event = collector.sanitized_event(
@@ -456,7 +555,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                         "message_id": "MSCONN_EVENT_RESPONSE_BLOCKED",
                         "phase": "response_headers",
                         "status": "blocked",
-                        "rule_id": 1100201,
+                        "rule_id": "1100201",
                         "http_status": 403,
                         "original_http_status": 200,
                         "visible_http_status": 403,
@@ -498,8 +597,9 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 allowed_source_root=root,
                 runner_case_index=runner_case_index,
             )
-            self.assertEqual(1, len(cases))
-            case = cases[0]
+            self.assertEqual(2, len(cases))
+            by_id = {case["case_id"]: case for case in cases}
+            case = by_id["phase3_deny_before_commit"]
             self.assertEqual("phase3_deny_before_commit", case["case_id"])
             self.assertEqual("PASS", case["status"])
             self.assertTrue(case["event_metadata_verified"])
@@ -507,6 +607,10 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertEqual("deny", case["actual_action"])
             self.assertFalse(case["headers_sent"])
             self.assertEqual(403, case["visible_http_status"])
+            core_alias = by_id["deny_response_header_marker_403"]
+            self.assertEqual("PASS", core_alias["status"])
+            self.assertEqual(["tx-phase3"], core_alias["transaction_ids"])
+            self.assertIn("reused native apache event", core_alias["reason"])
 
     def test_case_event_evidence_is_bound_to_its_declared_transaction(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-transaction-binding-") as temporary:

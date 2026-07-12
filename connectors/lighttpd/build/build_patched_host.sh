@@ -10,6 +10,7 @@ STAGE_ROOT=${LIGHTTPD_PATCHED_STAGE_DIR:-$PATCHED_ROOT/stage}
 CORE_BIN=$STAGE_ROOT/bin/lighttpd
 MODULE_DIR=$STAGE_ROOT/modules
 MODULE_PATH=$MODULE_DIR/mod_msconnector.so
+PROXY_MODULE_PATH=$MODULE_DIR/mod_proxy.so
 CONNECTOR_BUILD_DIR=$PATCHED_ROOT/connector-build
 CORE_MANIFEST=$PATCHED_ROOT/patched-core-build-info.txt
 HOST_MANIFEST=$PATCHED_ROOT/patched-host-build-info.txt
@@ -51,6 +52,22 @@ sh "$SCRIPT_DIR/build_module.sh"
 "$NM_BIN" -D "$MODULE_PATH" | grep -Eq '[[:space:]][Tt][[:space:]]mod_msconnector_plugin_init$' || \
     blocked "staged patched module does not export mod_msconnector_plugin_init"
 
+# The full-lifecycle entity-body proof uses lighttpd's native HTTP/1.1 reverse
+# proxy.  Keep that module next to mod_msconnector so the explicit -m runtime
+# directory loads only the staged patched-host modules, never a system copy.
+PROXY_MODULE_SOURCE=
+for candidate in "$STAGE_ROOT/lib/mod_proxy.so" "$STAGE_ROOT/lib/lighttpd/mod_proxy.so"; do
+    if [ -f "$candidate" ]; then
+        PROXY_MODULE_SOURCE=$candidate
+        break
+    fi
+done
+[ -n "$PROXY_MODULE_SOURCE" ] || blocked "staged patched lighttpd mod_proxy module is missing"
+cp "$PROXY_MODULE_SOURCE" "$PROXY_MODULE_PATH"
+[ -f "$PROXY_MODULE_PATH" ] || blocked "staged proxy module copy is missing: $PROXY_MODULE_PATH"
+"$NM_BIN" -D "$PROXY_MODULE_PATH" | grep -Eq '[[:space:]][Tt][[:space:]]mod_proxy_plugin_init$' || \
+    blocked "staged proxy module does not export mod_proxy_plugin_init"
+
 HOST_MANIFEST_TMP=$HOST_MANIFEST.tmp.$$
 {
     printf 'lighttpd_version=1.4.84\n'
@@ -59,6 +76,8 @@ HOST_MANIFEST_TMP=$HOST_MANIFEST.tmp.$$
     printf 'core_binary_sha256=%s\n' "$(sha256_file "$CORE_BIN")"
     printf 'module=%s\n' "$MODULE_PATH"
     printf 'module_sha256=%s\n' "$(sha256_file "$MODULE_PATH")"
+    printf 'proxy_module=%s\n' "$PROXY_MODULE_PATH"
+    printf 'proxy_module_sha256=%s\n' "$(sha256_file "$PROXY_MODULE_PATH")"
     printf 'module_build_dir=%s\n' "$CONNECTOR_BUILD_DIR"
     printf 'modsecurity_lib_dir=%s\n' "$MODSECURITY_LIB_DIR"
     printf 'plugin_hook_abi=1\n'

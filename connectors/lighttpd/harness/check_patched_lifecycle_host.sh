@@ -6,6 +6,7 @@ BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecuri
 PATCHED_ROOT=${LIGHTTPD_PATCHED_ROOT:-$BUILD_ROOT/lighttpd-core-patched}
 CORE_BIN=$PATCHED_ROOT/stage/bin/lighttpd
 MODULE_PATH=$PATCHED_ROOT/stage/modules/mod_msconnector.so
+PROXY_MODULE_PATH=$PATCHED_ROOT/stage/modules/mod_proxy.so
 HOST_MANIFEST=$PATCHED_ROOT/patched-host-build-info.txt
 SMOKE_DIR=${LIGHTTPD_PATCHED_SMOKE_DIR:-$PATCHED_ROOT/smoke}
 NM_BIN=${NM:-nm}
@@ -27,9 +28,11 @@ sha256_file() {
 [ -f "$HOST_MANIFEST" ] || blocked "patched host manifest is missing; run build-lighttpd-patched-host first"
 [ -x "$CORE_BIN" ] || blocked "patched lighttpd binary is missing: $CORE_BIN"
 [ -f "$MODULE_PATH" ] || blocked "patched module is missing: $MODULE_PATH"
+[ -f "$PROXY_MODULE_PATH" ] || blocked "patched proxy module is missing: $PROXY_MODULE_PATH"
 [ "$(manifest_value lighttpd_version)" = 1.4.84 ] || blocked "patched host manifest has an unexpected version"
 [ "$(manifest_value core_binary)" = "$CORE_BIN" ] || blocked "manifest core binary does not match staged patched binary"
 [ "$(manifest_value module)" = "$MODULE_PATH" ] || blocked "manifest module does not match staged patched module"
+[ "$(manifest_value proxy_module)" = "$PROXY_MODULE_PATH" ] || blocked "manifest proxy module does not match staged proxy module"
 [ "$(manifest_value phase4_runtime_evidence)" = not_executed ] || blocked "patched host manifest has an unsafe Phase-4 claim"
 command -v "$NM_BIN" >/dev/null 2>&1 || blocked "missing nm command: $NM_BIN"
 command -v sha256sum >/dev/null 2>&1 || blocked "missing sha256sum command"
@@ -37,12 +40,16 @@ command -v sha256sum >/dev/null 2>&1 || blocked "missing sha256sum command"
     blocked "staged core binary does not match its host manifest"
 [ "$(manifest_value module_sha256)" = "$(sha256_file "$MODULE_PATH")" ] || \
     blocked "staged module does not match its host manifest"
+[ "$(manifest_value proxy_module_sha256)" = "$(sha256_file "$PROXY_MODULE_PATH")" ] || \
+    blocked "staged proxy module does not match its host manifest"
 
 "$CORE_BIN" -v 2>&1 | grep -Fq 'lighttpd/1.4.84' || blocked "staged binary does not report lighttpd/1.4.84"
 for symbol in plugins_call_handle_request_body plugins_call_handle_response_body; do
     "$NM_BIN" -D "$CORE_BIN" | grep -Eq "[[:space:]][Tt][[:space:]]$symbol$" || \
         blocked "patched binary does not export required hook symbol: $symbol"
 done
+"$NM_BIN" -D "$PROXY_MODULE_PATH" | grep -Eq '[[:space:]][Tt][[:space:]]mod_proxy_plugin_init$' || \
+    blocked "staged proxy module does not export mod_proxy_plugin_init"
 
 MODSECURITY_LIB_DIR=$(manifest_value modsecurity_lib_dir)
 [ -n "$MODSECURITY_LIB_DIR" ] || blocked "patched host manifest has no libmodsecurity directory"

@@ -36,8 +36,10 @@ class FullLifecycleProfilesTest(unittest.TestCase):
                     "request_body_buffered",
                     "request_body_incremental_ingest",
                     "response_headers",
+                    "response_body_buffered",
                     "response_body_incremental_ingest",
                     "no_full_response_buffering",
+                    "first_byte_before_response_end",
                     "transaction_id",
                     "event_jsonl",
                     "transport_metadata",
@@ -70,7 +72,7 @@ class FullLifecycleProfilesTest(unittest.TestCase):
             "haproxy": "implemented_not_asserted",
             "envoy": "implemented_not_asserted",
             "traefik": "implemented_not_asserted",
-            "lighttpd": "not_implemented",
+            "lighttpd": "implemented_not_asserted",
         }
         for connector, phase4_state in expected_phase4.items():
             result = profiles.effective_manifest(
@@ -102,14 +104,17 @@ class FullLifecycleProfilesTest(unittest.TestCase):
                 "verified", result["capabilities"]["phase4"]["state"]
             )
 
-    def test_patched_lighttpd_keeps_observed_phase1_deny_selectable(self) -> None:
+    def test_patched_lighttpd_keeps_entity_body_lifecycle_selectable(self) -> None:
         result = profiles.effective_manifest(
             self.capability_manifest("lighttpd"), profiles.PROFILE_BY_CONNECTOR["lighttpd"]
         )
-        self.assertEqual(
-            "implemented_not_asserted",
-            result["capabilities"]["deny"]["state"],
-        )
+        for capability in (
+            "deny", "response_body_buffered", "response_body_incremental_ingest",
+            "phase4", "phase4_rule_evaluation", "phase4_end_of_stream_evaluation",
+            "late_intervention_log_only", "first_byte_before_response_end",
+        ):
+            with self.subTest(capability=capability):
+                self.assertEqual("implemented_not_asserted", result["capabilities"][capability]["state"])
 
     def test_wrong_connector_profile_is_rejected_and_write_is_atomic(self) -> None:
         payload = self.capability_manifest("envoy")

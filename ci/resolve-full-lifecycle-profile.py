@@ -44,9 +44,11 @@ PROFILE_METADATA: dict[str, dict[str, str]] = {
         "host_name": "HAProxy 3.2.21 native HTX filter",
         "integration_mode": "native-htx-filter",
         "reason": (
-            "The selected route is the patched HAProxy 3.2.21 HTX filter; "
-            "current host evidence covers real libmodsecurity P1/P3 "
-            "pre-commit replies, while unobserved body paths remain unpromoted."
+            "The selected route is the patched HAProxy 3.2.21 HTX filter. "
+            "It passes borrowed HTX body slices incrementally to a real "
+            "libmodsecurity transaction and evaluates Phase 4 at HTX EOS; "
+            "the response-body availability capability never authorizes a "
+            "connector-owned full-response buffer."
         ),
     },
     "envoy": {
@@ -72,9 +74,9 @@ PROFILE_METADATA: dict[str, dict[str, str]] = {
         "integration_mode": "patched-native-lighttpd",
         "reason": (
             "The selected route is the patched lighttpd 1.4.84 core and matching "
-            "module; it has real request-body ingestion and response-header "
-            "hooks, while response-body inspection remains disabled because the "
-            "available output hook exposes HTTP/1 wire bytes."
+            "module. Its Entity-Body hook receives decoded HTTP/1 response entity "
+            "ranges before transfer framing and finalizes Phase 4 exactly once at "
+            "entity EOS."
         ),
     },
 }
@@ -88,8 +90,13 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "connection_metadata",
         "transport_metadata",
         "request_headers",
-        "request_body_incremental_ingest",
+        # P2 is recorded as host-buffered; this must not imply incremental
+        # upstream request forwarding.
+        "request_body_buffered",
         "response_headers",
+        # The legacy catalog spelling means body availability for P4 rule
+        # evaluation, never connector-owned complete response buffering.
+        "response_body_buffered",
         "response_body_incremental_ingest",
         "phase1",
         "phase2",
@@ -98,7 +105,12 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "phase4_rule_evaluation",
         "phase4_end_of_stream_evaluation",
         "deny",
+        "log_only",
+        "late_intervention",
+        "late_intervention_log_only",
+        "late_intervention_status_metadata",
         "no_full_response_buffering",
+        "first_byte_before_response_end",
         "transaction_id",
         "event_jsonl",
     ),
@@ -108,6 +120,7 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "request_body_buffered",
         "request_body_incremental_ingest",
         "response_headers",
+        "response_body_buffered",
         "response_body_incremental_ingest",
         "phase1",
         "phase2",
@@ -122,6 +135,7 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "late_intervention_log_only",
         "late_intervention_status_metadata",
         "no_full_response_buffering",
+        "first_byte_before_response_end",
         "transaction_id",
         "event_jsonl",
     ),
@@ -131,6 +145,7 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "request_body_buffered",
         "request_body_incremental_ingest",
         "response_headers",
+        "response_body_buffered",
         "response_body_incremental_ingest",
         "phase1",
         "phase2",
@@ -144,6 +159,7 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "late_intervention_log_only",
         "late_intervention_status_metadata",
         "no_full_response_buffering",
+        "first_byte_before_response_end",
         "transaction_id",
         "event_jsonl",
     ),
@@ -153,15 +169,22 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "request_headers",
         "request_body_buffered",
         "request_body_incremental_ingest",
-        # The patched native host has a real P1 200/403 probe.  Keep the
-        # capability available to the canonical plan without promoting it;
-        # finalization still requires the run-local host event before a case
-        # can become PASS.
+        "response_body_buffered",
+        "response_body_incremental_ingest",
         "deny",
+        "log_only",
+        "late_intervention",
+        "late_intervention_log_only",
+        "late_intervention_status_metadata",
+        "no_full_response_buffering",
+        "first_byte_before_response_end",
         "response_headers",
         "phase1",
         "phase2",
         "phase3",
+        "phase4",
+        "phase4_rule_evaluation",
+        "phase4_end_of_stream_evaluation",
         "transaction_id",
         "event_jsonl",
     ),

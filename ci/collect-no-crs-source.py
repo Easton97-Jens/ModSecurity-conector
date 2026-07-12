@@ -31,6 +31,7 @@ NATIVE_HOST_SUMMARY_CASES = (
     ("blocked_request_status", "deny_header_marker_403", 1100001),
     ("phase1_deny_status", "deny_header_marker_403", 1100001),
     ("p1_deny_status", "deny_header_marker_403", 1100001),
+    ("p1_alternative_status", "deny_with_alternative_status", 1100002),
     ("phase1_alternative_status_client_status", "deny_with_alternative_status", 1100002),
     ("phase2_deny_status", "deny_request_body_marker_403", 1100101),
     ("p2_deny_status", "deny_request_body_marker_403", 1100101),
@@ -40,7 +41,27 @@ NATIVE_HOST_SUMMARY_CASES = (
     ("phase3_redirect_status", "phase3_redirect_before_commit", 1100202),
     ("phase4_safe_status", "phase4_deny_after_commit_log_only_safe", 1100301),
     ("p4_safe_log_only_status", "phase4_deny_after_commit_log_only_safe", 1100301),
+    ("phase4_end_of_stream_evaluation_status", "phase4_end_of_stream_evaluation", 1100301),
+    ("phase4_first_byte_before_response_end_status", "phase4_first_byte_before_response_end", 1100301),
+    ("phase4_no_full_response_buffering_status", "phase4_no_full_response_buffering", 1100301),
 )
+
+# Apache and NGINX execute their native P3 and post-commit P4 fixtures under
+# the full-lifecycle catalog names below.  The compact gate consumes the
+# existing, connector-neutral core IDs instead.  These are evidence aliases,
+# not status aliases: an alias is emitted only after the same raw host event
+# has the complete semantics required by the target case, and finalization
+# still binds it to the selected integration mode and transaction ID.
+NATIVE_RUNNER_CORE_CASE_ALIASES = {
+    "apache": {
+        "phase3_deny_before_commit": "deny_response_header_marker_403",
+        "phase4_deny_after_commit_log_only": "phase4_deny_after_commit_log_only_safe",
+    },
+    "nginx": {
+        "phase3_deny_before_commit": "deny_response_header_marker_403",
+        "phase4_deny_after_commit_log_only": "phase4_deny_after_commit_log_only_safe",
+    },
+}
 
 NATIVE_RULE_ENGINE_EVALUATIONS = {
     "libmodsecurity",
@@ -93,6 +114,7 @@ APPROVED_RAW_EVENT_KEYS = {
     "event_hash",
     "event_truncated",
     "eos_seen",
+    "end_of_stream_evaluation",
     "evaluation_mode",
     "expected_status",
     "headers_sent",
@@ -510,6 +532,7 @@ def safe_metadata_value(target: str, value: Any) -> Any | None:
         "upstream_disconnected",
         "cancelled",
         "eos_seen",
+        "end_of_stream_evaluation",
         "host_survived",
         "transaction_started",
         "transaction_finished",
@@ -614,6 +637,7 @@ def sanitized_event(record: dict[str, Any]) -> dict[str, Any]:
         "write_result": ("write_result",),
         "cleanup_reason": ("cleanup_reason",),
         "eos_seen": ("eos_seen",),
+        "end_of_stream_evaluation": ("end_of_stream_evaluation",),
         "client_result": ("client_result",),
         "host_survived": ("host_survived",),
         "followup_request_result": ("followup_request_result",),
@@ -896,6 +920,63 @@ def canonical_semantics(records: list[dict[str, Any]]) -> dict[str, Any]:
     return output
 
 
+def native_runner_core_case_alias(
+    connector: str,
+    case_id: str,
+    records: list[dict[str, Any]],
+) -> str | None:
+    """Return a compact core alias only for an evidenced native runner case.
+
+    The Apache/NGINX harnesses deliberately keep their full-lifecycle fixture
+    names.  Reusing an outcome under a core catalog ID is safe only when a
+    single raw host event already proves the stricter target contract.  This
+    keeps the collector from turning a fixture name or a bare HTTP status into
+    lifecycle evidence.
+    """
+    target = NATIVE_RUNNER_CORE_CASE_ALIASES.get(connector, {}).get(case_id)
+    if target is None:
+        return None
+    if case_id == "phase3_deny_before_commit":
+        required = {
+            "phase": 3,
+            "rule_id": 1100201,
+            "requested_action": "deny",
+            "actual_action": "deny",
+            "headers_sent": False,
+            "visible_http_status": 403,
+            "late_intervention": False,
+            "transport_result": "http_status",
+        }
+    elif case_id == "phase4_deny_after_commit_log_only":
+        required = {
+            "phase": 4,
+            "rule_id": 1100301,
+            "requested_action": "deny",
+            "actual_action": "log_only",
+            "late_intervention": True,
+            "late_intervention_mode": "safe",
+            "headers_sent": True,
+            "body_started": True,
+            "response_committed": True,
+            "connection_aborted": False,
+            "http_status": 403,
+            "original_http_status": 200,
+            "visible_http_status": 200,
+            "transport_result": "log_only",
+        }
+    else:
+        return None
+    # Native Apache/NGINX writers publish Common's closed phase names and
+    # decimal rule IDs as JSON strings.  Normalize each producer record here
+    # as well as in the caller, so this narrow alias cannot depend on its
+    # invocation path or weaken a semantic requirement through type coercion.
+    for record in records:
+        normalized = sanitized_event(record)
+        if all(normalized.get(field) == value for field, value in required.items()):
+            return target
+    return None
+
+
 def event_evidence(
     paths: list[Path], expected_rule_id: str, derived_records: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -1111,21 +1192,34 @@ def case_observations(
             if status in {"BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"}
             else None
         )
-        observations.append(
-            {
-                "case_id": case_id,
-                "actual_status": actual,
-                "expected_status": expected_status,
-                "live_executed": live,
-                "observed_rule_ids": sorted(observed_rule_ids),
-                "transaction_ids": sorted(transaction_ids),
-                "observed_event_fields": observed_event_fields,
-                "event_metadata_verified": event_metadata_verified,
-                "source_status": status,
-                "status": preserved_status or ("PASS" if passed else "FAIL"),
-                **semantic,
-            }
+        observation = {
+            "case_id": case_id,
+            "actual_status": actual,
+            "expected_status": expected_status,
+            "live_executed": live,
+            "observed_rule_ids": sorted(observed_rule_ids),
+            "transaction_ids": sorted(transaction_ids),
+            "observed_event_fields": observed_event_fields,
+            "event_metadata_verified": event_metadata_verified,
+            "source_status": status,
+            "status": preserved_status or ("PASS" if passed else "FAIL"),
+            **semantic,
+        }
+        observations.append(observation)
+        alias_case_id = native_runner_core_case_alias(
+            connector, case_id, canonical_records
         )
+        if (
+            alias_case_id is not None
+            and alias_case_id in expectations
+            and observation["status"] == "PASS"
+        ):
+            alias = dict(observation)
+            alias["case_id"] = alias_case_id
+            alias["reason"] = (
+                f"reused native {connector} event from {case_id} for compact core evidence"
+            )
+            observations.append(alias)
     return observations, derived_events
 
 

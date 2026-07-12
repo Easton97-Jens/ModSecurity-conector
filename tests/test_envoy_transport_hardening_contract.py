@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import http.server
 import importlib.util
+import json
 import sys
+import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -54,6 +56,151 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             helper.client_cancel("127.0.0.1", 18080, "/client-cancel", ["X-Test: snowman-☃"])
 
+    def test_phase4_barrier_confirms_first_byte_before_upstream_eos(self) -> None:
+        helper = load_helper()
+        with tempfile.TemporaryDirectory() as temporary:
+            barrier_dir = Path(temporary) / "phase4-barrier"
+            barrier_dir.mkdir()
+
+            class BarrierHandler(helper.UpstreamHandler):
+                phase4_barrier_dir = barrier_dir
+                phase4_barrier_timeout_seconds = 2.0
+
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), BarrierHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                observation = helper.phase4_first_byte(
+                    "127.0.0.1",
+                    server.server_port,
+                    "/phase4-marker",
+                    ["X-Request-Id: phase4-first-byte-test"],
+                    str(barrier_dir),
+                    2.0,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+            self.assertEqual(200, observation["http_status"])
+            self.assertTrue(observation["client_first_byte_received"])
+            self.assertTrue(observation["first_byte_before_response_end"])
+            self.assertGreater(observation["first_chunk_size"], 0)
+            self.assertTrue(observation["upstream_paused"])
+            self.assertFalse(observation["upstream_eos_sent_at_first_byte"])
+            self.assertFalse(observation["upstream_response_finished_at_first_byte"])
+            self.assertTrue(observation["upstream_eos_sent_after_release"])
+            self.assertFalse(observation["body_payload_persisted"])
+
+            paused = json.loads((barrier_dir / "upstream-paused.json").read_text(encoding="utf-8"))
+            completed = json.loads(
+                (barrier_dir / "upstream-completed.json").read_text(encoding="utf-8")
+            )
+            self.assertTrue(paused["upstream_paused"])
+            self.assertFalse(paused["upstream_eos_sent"])
+            self.assertTrue(completed["upstream_eos_sent"])
+            self.assertNotIn("no-crs-response-body-marker", json.dumps(observation))
+            self.assertNotIn("no-crs-response-body-marker", json.dumps(paused))
+            self.assertNotIn("no-crs-response-body-marker", json.dumps(completed))
+
+    def test_phase4_first_byte_evidence_binds_to_the_common_safe_event(self) -> None:
+        helper = load_helper()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            observation_path = root / "observation.json"
+            event_path = root / "events.jsonl"
+            evidence_path = root / "first-byte-evidence.json"
+            helper.write_json_atomic(
+                observation_path,
+                {
+                    "schema_version": 1,
+                    "evidence_type": "envoy_phase4_first_byte_observation",
+                    "http_status": 200,
+                    "client_first_byte_received": True,
+                    "first_byte_before_response_end": True,
+                    "first_chunk_size": 17,
+                    "upstream_paused": True,
+                    "upstream_eos_sent_at_first_byte": False,
+                    "upstream_response_finished_at_first_byte": False,
+                    "upstream_eos_sent_after_release": True,
+                    "body_payload_persisted": False,
+                    "transport_protocol": "http1",
+                    "outcome": "PASS",
+                },
+            )
+            common_safe_event = {
+                "connector": "envoy",
+                "integration_mode": "ext_proc",
+                "event": "MSCONN_EVENT_RULE",
+                "message_id": "MSCONN_EVENT_RULE",
+                "transaction_id": "envoy-ext-proc-phase4-safe",
+                "rule_id": "1100301",
+                "phase": "response_body",
+                "status": "blocked",
+                "http_status": 403,
+                "original_http_status": 200,
+                "visible_http_status": 200,
+                "requested_action": "deny",
+                "actual_action": "log_only",
+                "late_intervention": True,
+                "late_intervention_mode": "safe",
+                "headers_sent": True,
+                "body_started": True,
+                "response_committed": True,
+                "connection_aborted": False,
+                "transport_result": "log_only",
+                "body_bytes_seen": 42,
+                "body_bytes_inspected": 42,
+            }
+            event_path.write_text(json.dumps(common_safe_event) + "\n", encoding="utf-8")
+
+            result = helper.write_phase4_first_byte_evidence(
+                event_log=str(event_path),
+                observation_path=str(observation_path),
+                transaction_id="envoy-ext-proc-phase4-safe",
+                evidence_output=str(evidence_path),
+                run_id="run-phase4-first-byte",
+            )
+
+            self.assertTrue(result["event_appended"])
+            self.assertTrue(result["evidence_written"])
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            self.assertEqual("synchronized_first_byte", evidence["evidence_type"])
+            self.assertEqual("real_host", evidence["evidence_origin"])
+            self.assertTrue(evidence["promotion_eligible"])
+            self.assertTrue(evidence["first_byte_before_response_end"])
+            self.assertTrue(evidence["no_full_response_buffering"])
+            self.assertFalse(evidence["connector_owned_full_response_buffer"])
+            self.assertEqual("http1", evidence["transport_protocol"])
+
+            records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
+            barrier_event = records[-1]
+            self.assertEqual("phase4_first_byte_barrier", barrier_event["event"])
+            self.assertEqual("envoy-ext-proc-phase4-safe", barrier_event["transaction_id"])
+            self.assertEqual("1100301", barrier_event["rule_id"])
+            self.assertEqual(4, barrier_event["phase"])
+            self.assertEqual("safe", barrier_event["late_intervention_mode"])
+            self.assertEqual("log_only", barrier_event["actual_action"])
+            self.assertTrue(barrier_event["end_of_stream_evaluation"])
+            self.assertTrue(barrier_event["eos_seen"])
+            self.assertEqual("normal", barrier_event["cleanup_reason"])
+            self.assertTrue(barrier_event["first_byte_before_response_end"])
+            self.assertFalse(barrier_event["upstream_eos_sent_at_first_byte"])
+            self.assertTrue(barrier_event["no_full_response_buffering"])
+            self.assertNotIn("no-crs-response-body-marker", json.dumps(evidence))
+            self.assertNotIn("no-crs-response-body-marker", json.dumps(barrier_event))
+
+            repeated = helper.write_phase4_first_byte_evidence(
+                event_log=str(event_path),
+                observation_path=str(observation_path),
+                transaction_id="envoy-ext-proc-phase4-safe",
+                evidence_output=str(evidence_path),
+                run_id="run-phase4-first-byte",
+            )
+            self.assertFalse(repeated["event_appended"])
+            self.assertEqual(2, len(event_path.read_text(encoding="utf-8").splitlines()))
+
     def test_runtime_probe_keeps_cancellation_unattributed_and_nonpromoting(self) -> None:
         source = RUNTIME_PATH.read_text(encoding="utf-8")
         self.assertIn("ENVOY_TRANSPORT_CANCEL_PROBE", source)
@@ -67,6 +214,11 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn('"diagnostic_only": True', source)
         self.assertNotIn('"transport_case_id":', source)
         self.assertIn("client-cancel", source)
+        self.assertIn("FULL_LIFECYCLE_EVIDENCE_OUTPUT", source)
+        self.assertIn("phase4-first-byte", source)
+        self.assertIn("phase4_first_byte_before_response_end_status", source)
+        self.assertIn("phase4_no_full_response_buffering_status", source)
+        self.assertIn("phase4_end_of_stream_evaluation_status", source)
 
 
 if __name__ == "__main__":

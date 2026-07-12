@@ -249,7 +249,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     CAPABILITIES_FILE=$EFFECTIVE_CAPABILITIES_FILE
     case "$connector" in
         haproxy)
-            FULL_LIFECYCLE_STAGE_REASON="native HTX host has real libmodsecurity P1/P3 pre-commit replies; unobserved request/response-body outcomes remain unpromoted"
+            FULL_LIFECYCLE_STAGE_REASON="native HTX host runs real libmodsecurity P1--P4 with a host-buffered P2 classification, end-of-stream Phase-4 evaluation, and a safe HTTP/1.1 first-byte barrier"
             ;;
         envoy)
             FULL_LIFECYCLE_STAGE_REASON="native ext_proc host streams through Common/libmodsecurity with P1/P2/P3 and safe P4 host outcomes; strict post-commit reset remains not executed"
@@ -258,7 +258,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
             FULL_LIFECYCLE_STAGE_REASON="native Traefik middleware reaches a persistent local Common/libmodsecurity UDS service with P1/P2/P3 and safe P4 host outcomes; strict post-commit reset remains not executed"
             ;;
         lighttpd)
-            FULL_LIFECYCLE_STAGE_REASON="patched lighttpd host uses real request-body ingestion and response-header processing; response-body inspection remains disabled because its output hook receives HTTP/1 wire bytes"
+            FULL_LIFECYCLE_STAGE_REASON="patched lighttpd host runs real request/response entity-body ingestion before HTTP/1 transfer framing, end-of-stream Phase-4 evaluation, and a safe HTTP/1.1 first-byte barrier"
             ;;
     esac
 fi

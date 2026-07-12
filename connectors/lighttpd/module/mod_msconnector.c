@@ -571,9 +571,18 @@ static plugin_body_hook_result mod_msconnector_finish_response_body(
         return PLUGIN_BODY_HOOK_CONTINUE;
     }
 
-    /* `deny_if_possible` has the same evidence boundary here: the body can
-     * already be queued when EOS is delivered.  Preserve the visible response
-     * and record the real safe downgrade instead of fabricating a late 403. */
+    if (action == MSCONNECTOR_LATE_INTERVENTION_DENY_IF_POSSIBLE) {
+        /* No response byte has committed yet.  Keep the ordinary pre-commit
+         * disposition instead of calling it a late log-only downgrade.  The
+         * entity callback uses its own result enum, so stop the core append
+         * after Lighttpd has accepted the selected error response. */
+        return mod_msconnector_apply_decision(r, p, ctx, &decision) == HANDLER_ERROR
+            ? PLUGIN_BODY_HOOK_ERROR : PLUGIN_BODY_HOOK_ABORT;
+    }
+
+    /* The post-commit path preserves the visible response and records the
+     * real safe downgrade instead of fabricating a late 403. */
+    decision.late_intervention = 1;
     msconnector_error_init(&runtime_error);
     if (!msconnector_runtime_transaction_record_host_action(
             ctx->transaction,
@@ -604,13 +613,32 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
     plugin_data *p = p_d;
     handler_ctx *ctx = r->plugin_ctx[p->id];
     msconnector_error runtime_error;
+    handler_t response_start_result;
 
     if (!p->response_body_hooks_enabled || ctx == NULL ||
         ctx->transaction == NULL || ctx->request_intervened ||
         ctx->response_body_finished) {
         return PLUGIN_BODY_HOOK_CONTINUE;
     }
-    if (!ctx->response_processed || stream_offset != ctx->response_body_next_offset ||
+    /* mod_proxy may append its first borrowed entity range before the normal
+     * response-start dispatch reaches this module.  Map the already-parsed
+     * response headers synchronously here; do not defer or retain the body.
+     * The ordinary response-start hook becomes a no-op once this succeeds. */
+    if (!ctx->response_processed) {
+        response_start_result = mod_msconnector_handle_response_start(r, p);
+        if (response_start_result == HANDLER_ERROR || !ctx->response_processed) {
+            log_error(
+                r->conf.errh,
+                __FILE__,
+                __LINE__,
+                "msconnector response headers were not available before an entity-body range");
+            return PLUGIN_BODY_HOOK_ERROR;
+        }
+        if (response_start_result != HANDLER_GO_ON) {
+            return PLUGIN_BODY_HOOK_ABORT;
+        }
+    }
+    if (stream_offset != ctx->response_body_next_offset ||
         (length > 0U && data == NULL)) {
         log_error(
             r->conf.errh,

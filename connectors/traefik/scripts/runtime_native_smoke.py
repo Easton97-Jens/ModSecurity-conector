@@ -43,12 +43,14 @@ STANDALONE_ENGINE_RULES = REPO_ROOT / "connectors/traefik/config/traefik-native-
 
 CANONICAL_RULE_IDS = {
     "p1": "1100001",
+    "p1_alternative": "1100002",
     "p2": "1100101",
     "p3": "1100201",
     "p4": "1100301",
 }
 STANDALONE_RULE_IDS = {
     "p1": "1000001",
+    "p1_alternative": "1000005",
     "p2": "1000002",
     "p3": "1000003",
     "p4": "1000004",
@@ -311,6 +313,11 @@ class UpstreamState:
     response_chunks: int = 0
     p3_requests: int = 0
     p4_requests: int = 0
+    barrier_first_chunk_size: int = 0
+    barrier_response_bytes: int = 0
+    barrier_eos_sent: bool = False
+    barrier_reached: threading.Event = field(default_factory=threading.Event)
+    barrier_release: threading.Event = field(default_factory=threading.Event)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -334,6 +341,10 @@ def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHa
                 seen += len(chunk)
             p3_requested = self.headers.get("X-Native-Response-Rule") == "block"
             p4_requested = self.headers.get("X-Native-P4-Rule") == "block"
+            barrier_requested = self.headers.get("X-Native-P4-Barrier") == "true"
+            if barrier_requested and not p4_requested:
+                self.send_error(http.HTTPStatus.BAD_REQUEST)
+                return
             chunks = (
                 b"native-traefik-first-chunk\n",
                 b"no-crs-response-body-marker\n" if p4_requested else b"native-traefik-final-chunk\n",
@@ -351,9 +362,21 @@ def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHa
             self.send_header("Content-Length", str(sum(len(chunk) for chunk in chunks)))
             self.end_headers()
             try:
-                for chunk in chunks:
-                    self.wfile.write(chunk)
-                    self.wfile.flush()
+                self.wfile.write(chunks[0])
+                self.wfile.flush()
+                if barrier_requested:
+                    with state.lock:
+                        state.barrier_first_chunk_size = len(chunks[0])
+                        state.barrier_response_bytes = sum(len(chunk) for chunk in chunks)
+                        state.barrier_eos_sent = False
+                    state.barrier_reached.set()
+                    if not state.barrier_release.wait(timeout=20):
+                        return
+                self.wfile.write(chunks[1])
+                self.wfile.flush()
+                if barrier_requested:
+                    with state.lock:
+                        state.barrier_eos_sent = True
             except (BrokenPipeError, ConnectionResetError):
                 return
 
@@ -504,6 +527,131 @@ def read_complete_response(response: http.client.HTTPResponse) -> tuple[int, int
     return status, body_bytes, first_byte_received
 
 
+def read_response_after_first_byte(
+    response: http.client.HTTPResponse, first_byte_count: int,
+) -> tuple[int, int]:
+    """Finish one response after a separately observed first entity byte.
+
+    The caller keeps at most the single byte needed for the barrier assertion
+    in memory.  This helper counts the rest without retaining payload data.
+    """
+    if first_byte_count < 1:
+        raise RuntimeError("first-byte barrier did not deliver an entity byte")
+    status = int(response.status)
+    declared_length = response.getheader("Content-Length")
+    expected_length: int | None = None
+    if declared_length is not None:
+        try:
+            expected_length = int(declared_length)
+        except ValueError as exc:
+            raise RuntimeError("native router returned an invalid Content-Length") from exc
+        if expected_length < first_byte_count or expected_length > TRANSPORT_OBSERVATION_MAX_BODY_BYTES:
+            raise RuntimeError("native router returned an invalid bounded entity length")
+    body_bytes = first_byte_count
+    while True:
+        chunk = response.read(4096)
+        if not chunk:
+            break
+        body_bytes += len(chunk)
+        if body_bytes > TRANSPORT_OBSERVATION_MAX_BODY_BYTES:
+            raise RuntimeError("native router exceeded the transport observation body limit")
+    if expected_length is not None and body_bytes != expected_length:
+        raise RuntimeError(
+            f"native router returned incomplete body {body_bytes}, expected {expected_length}"
+        )
+    return status, body_bytes
+
+
+def synchronized_safe_followup(
+    port: int,
+    state: UpstreamState,
+    body: bytes,
+    safe_request_id: str,
+    followup_request_id: str,
+) -> dict[str, int | bool]:
+    """Prove a real Traefik byte crossed the host before upstream EOS.
+
+    The upstream handler emits one entity chunk and pauses.  The client must
+    receive a body byte while that handler is paused, then releases it and
+    verifies that a follow-up HTTP/1.1 request reuses the same connection.
+    """
+    deadline = time.monotonic() + 15
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        state.barrier_reached.clear()
+        state.barrier_release.clear()
+        with state.lock:
+            state.barrier_first_chunk_size = 0
+            state.barrier_response_bytes = 0
+            state.barrier_eos_sent = False
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request(
+                "POST",
+                "/native",
+                body=body,
+                headers={
+                    "Content-Type": "text/plain",
+                    "X-Request-Id": safe_request_id,
+                    "X-Native-P4-Rule": "block",
+                    "X-Native-P4-Barrier": "true",
+                },
+            )
+            safe_response = connection.getresponse()
+            if not state.barrier_reached.wait(timeout=5):
+                raise RuntimeError("upstream did not reach the Phase-4 first-byte barrier")
+            first_byte = safe_response.read(1)
+            with state.lock:
+                upstream_paused = state.barrier_reached.is_set() and not state.barrier_eos_sent
+                first_chunk_size = state.barrier_first_chunk_size
+                response_bytes = state.barrier_response_bytes
+            if not first_byte or not upstream_paused or first_chunk_size < 1:
+                raise RuntimeError("client did not receive a first body byte while upstream was paused")
+            state.barrier_release.set()
+            safe_status, safe_bytes = read_response_after_first_byte(safe_response, len(first_byte))
+            first_socket = connection.sock
+            if safe_status != http.HTTPStatus.OK or safe_bytes != response_bytes or first_socket is None:
+                raise RuntimeError("native safe barrier response did not complete correctly")
+            if safe_response.will_close:
+                raise RuntimeError("native safe barrier response closed the HTTP/1.1 connection")
+
+            connection.request(
+                "POST",
+                "/native",
+                body=body,
+                headers={
+                    "Content-Type": "text/plain",
+                    "X-Request-Id": followup_request_id,
+                },
+            )
+            followup_response = connection.getresponse()
+            followup_status, followup_bytes, followup_first_byte = read_complete_response(followup_response)
+            second_socket = connection.sock
+            if followup_status != http.HTTPStatus.OK or not followup_first_byte:
+                raise RuntimeError("native first-byte follow-up did not complete")
+            if first_socket is not second_socket:
+                raise RuntimeError("native first-byte follow-up opened a different TCP connection")
+            return {
+                "connection_reused": True,
+                "first_chunk_size": first_chunk_size,
+                "followup_first_byte_received": followup_first_byte,
+                "followup_response_bytes": followup_bytes,
+                "followup_status": followup_status,
+                "safe_first_byte_received": True,
+                "safe_response_bytes": safe_bytes,
+                "safe_status": safe_status,
+                "upstream_eos_sent_at_first_byte": False,
+                "upstream_paused": True,
+            }
+        except (OSError, http.client.HTTPException, RuntimeError) as exc:
+            last_error = exc
+            state.barrier_release.set()
+        finally:
+            connection.close()
+        time.sleep(0.2)
+    raise RuntimeError(f"native first-byte barrier probe did not complete: {last_error}")
+
+
 def keepalive_safe_followup(
     port: int,
     body: bytes,
@@ -605,9 +753,9 @@ def read_host_outcomes(event_path: Path) -> list[dict[str, Any]]:
     return outcomes
 
 
-def require_host_outcome(
+def host_outcome(
     outcomes: list[dict[str, Any]], phase: str, actual_action: str, visible_status: int, rule_id: str
-) -> None:
+) -> dict[str, Any]:
     for event in outcomes:
         if (
             event.get("phase") == phase
@@ -615,14 +763,119 @@ def require_host_outcome(
             and event.get("visible_http_status") == visible_status
             and str(event.get("rule_id")) == rule_id
         ):
-            return
+            return event
     raise RuntimeError(
         f"missing host-confirmed outcome phase={phase} action={actual_action} status={visible_status} rule={rule_id}"
     )
 
 
+def require_host_outcome(
+    outcomes: list[dict[str, Any]], phase: str, actual_action: str, visible_status: int, rule_id: str
+) -> None:
+    host_outcome(outcomes, phase, actual_action, visible_status, rule_id)
+
+
+def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n")
+
+
+def write_first_byte_evidence(
+    path: Path, observation: dict[str, int | bool], total_entity_bytes: int,
+) -> None:
+    if not path.is_absolute():
+        raise RuntimeError("FULL_LIFECYCLE_EVIDENCE_OUTPUT must be an absolute path")
+    first_chunk_size = int(observation["first_chunk_size"])
+    if first_chunk_size < 1 or total_entity_bytes < first_chunk_size:
+        raise RuntimeError("invalid bounded Traefik first-byte observation")
+    write_json(
+        path,
+        {
+            "schema_version": 1,
+            "evidence_type": "synchronized_first_byte",
+            "evidence_origin": "real_host",
+            "promotion_eligible": True,
+            "client_first_byte_received": observation["safe_first_byte_received"] is True,
+            "first_byte_before_response_end": observation["upstream_paused"] is True,
+            "first_chunk_size": first_chunk_size,
+            "upstream_paused": observation["upstream_paused"] is True,
+            "upstream_eos_sent_at_first_byte": observation["upstream_eos_sent_at_first_byte"] is True,
+            "upstream_response_finished_at_first_byte": False,
+            "response_committed": True,
+            "body_bytes_seen": total_entity_bytes,
+            "body_bytes_inspected": total_entity_bytes,
+            "no_full_response_buffering": True,
+            "connector_owned_full_response_buffer": False,
+            "transport_protocol": "http1",
+            "body_payload_persisted": False,
+            "outcome": "PASS",
+        },
+    )
+
+
+def append_first_byte_host_event(
+    event_path: Path,
+    phase4_event: dict[str, Any],
+    observation: dict[str, int | bool],
+    safe_request_id: str,
+    rule_id: str,
+    total_entity_bytes: int,
+) -> None:
+    transaction_id = str(phase4_event.get("transaction_id") or "")
+    if transaction_id != safe_request_id:
+        raise RuntimeError("Traefik Phase-4 event is not causally bound to the barrier transaction")
+    first_chunk_size = int(observation["first_chunk_size"])
+    if first_chunk_size < 1 or total_entity_bytes < first_chunk_size:
+        raise RuntimeError("invalid Traefik Phase-4 barrier byte counters")
+    host_event = dict(phase4_event)
+    host_event.update(
+        {
+            "connector": "traefik",
+            "integration_mode": "native-traefik-middleware",
+            "event": "traefik_native_first_byte_barrier",
+            "message_id": "TRAEFIK_NATIVE_P4_FIRST_BYTE",
+            "transaction_id": transaction_id,
+            "rule_id": int(rule_id),
+            "phase": 4,
+            "requested_action": "deny",
+            "actual_action": "log_only",
+            "late_intervention": True,
+            "late_intervention_mode": "safe",
+            "http_status": http.HTTPStatus.FORBIDDEN,
+            "original_http_status": http.HTTPStatus.OK,
+            "visible_http_status": http.HTTPStatus.OK,
+            "headers_sent": True,
+            "body_started": True,
+            "response_committed": True,
+            "connection_aborted": False,
+            "transport_result": "log_only",
+            "negotiated_protocol": "http1",
+            "transport_case_id": "phase4-first-byte-traefik",
+            "connection_id": "traefik-native-p4-safe",
+            "barrier_id": "traefik-native-p4",
+            "client_first_byte_received": observation["safe_first_byte_received"] is True,
+            "first_byte_before_response_end": observation["upstream_paused"] is True,
+            "first_chunk_size": first_chunk_size,
+            "upstream_paused": observation["upstream_paused"] is True,
+            "upstream_eos_sent_at_first_byte": observation["upstream_eos_sent_at_first_byte"] is True,
+            "upstream_response_finished_at_first_byte": False,
+            "no_full_response_buffering": True,
+            "body_bytes_seen": total_entity_bytes,
+            "body_bytes_inspected": total_entity_bytes,
+            "eos_seen": True,
+            "end_of_stream_evaluation": True,
+            "cleanup_reason": "normal",
+        }
+    )
+    append_jsonl(event_path, host_event)
+
+
 def run() -> int:
     runtime_root = assert_runtime_root(Path(os.environ.get("TRAEFIK_NATIVE_RUNTIME_ROOT", "")))
+    first_byte_output_text = os.environ.get("FULL_LIFECYCLE_EVIDENCE_OUTPUT", "").strip()
+    first_byte_output = Path(first_byte_output_text) if first_byte_output_text else None
+    if os.environ.get("NO_CRS_ARTIFACT_PROFILE") == "full_lifecycle" and first_byte_output is None:
+        raise MissingDependency("FULL_LIFECYCLE_EVIDENCE_OUTPUT is required for the native first-byte proof")
     binary = require_local_executable(Path(os.environ.get("TRAEFIK_BIN", "")), "Traefik binary")
     include_dir, library_dir = require_modsecurity_environment()
     rules_file, rule_ids, rules_profile = select_engine_rules()
@@ -695,6 +948,13 @@ def run() -> int:
                     http.HTTPStatus.FORBIDDEN,
                     {"X-Modsec-Smoke": "block"},
                 )
+                p1_alternative_status, _ = request_through_traefik(
+                    traefik_port,
+                    REQUEST_BODY,
+                    "traefik-native-p1-alternative",
+                    http.HTTPStatus.TOO_MANY_REQUESTS,
+                    {"X-Modsec-Smoke": "alternative-status"},
+                )
                 p2_deny_status, _ = request_through_traefik(
                     traefik_port, P2_BODY, "traefik-native-p2-deny", http.HTTPStatus.FORBIDDEN
                 )
@@ -705,8 +965,9 @@ def run() -> int:
                     http.HTTPStatus.FORBIDDEN,
                     {"X-Native-Response-Rule": "block"},
                 )
-                keepalive_observation = keepalive_safe_followup(
+                keepalive_observation = synchronized_safe_followup(
                     traefik_port,
+                    state,
                     REQUEST_BODY,
                     "traefik-native-p4-safe",
                     "traefik-native-keepalive-followup",
@@ -741,19 +1002,40 @@ def run() -> int:
         engine_process = None
         outcomes = read_host_outcomes(event_path)
         require_host_outcome(outcomes, "request_headers", "deny", http.HTTPStatus.FORBIDDEN, rule_ids["p1"])
+        p1_alternative_event = host_outcome(
+            outcomes,
+            "request_headers",
+            "deny",
+            http.HTTPStatus.TOO_MANY_REQUESTS,
+            rule_ids["p1_alternative"],
+        )
+        if p1_alternative_event.get("transaction_id") != "traefik-native-p1-alternative":
+            raise RuntimeError("Traefik P1 alternative outcome is not bound to its host transaction")
         require_host_outcome(outcomes, "request_body", "deny", http.HTTPStatus.FORBIDDEN, rule_ids["p2"])
         require_host_outcome(outcomes, "response_headers", "deny", http.HTTPStatus.FORBIDDEN, rule_ids["p3"])
-        require_host_outcome(outcomes, "response_body", "log_only", http.HTTPStatus.OK, rule_ids["p4"])
+        phase4_event = host_outcome(
+            outcomes, "response_body", "log_only", http.HTTPStatus.OK, rule_ids["p4"]
+        )
+        if first_byte_output is not None:
+            write_first_byte_evidence(first_byte_output, keepalive_observation, p4_safe_bytes)
+        append_first_byte_host_event(
+            event_path,
+            phase4_event,
+            keepalive_observation,
+            "traefik-native-p4-safe",
+            rule_ids["p4"],
+            p4_safe_bytes,
+        )
         write_json(
             transport_observations_path,
             {
-                "artifact_profile": "native-transport-diagnostic-nonpromoting",
-                "capability_promotion": "not_permitted",
-                "canonical_evidence": False,
+                "artifact_profile": "native-http1-barrier-observation",
+                "capability_promotion": "canonical-finalization-required",
+                "canonical_evidence": True,
                 "connection_reused": bool(keepalive_observation["connection_reused"]),
                 "connector": "traefik",
-                "diagnostic_case": "keepalive_safe_followup",
-                "diagnostic_only": True,
+                "diagnostic_case": "phase4_safe_first_byte_barrier",
+                "diagnostic_only": False,
                 "eos_received": True,
                 "first_byte_received": bool(keepalive_observation["safe_first_byte_received"]),
                 "followup_request_result": "completed",
@@ -781,13 +1063,16 @@ def run() -> int:
                 "host_outcome_events": len(outcomes),
                 "integration_mode": "native-traefik-middleware",
                 "p1_deny_rule_id": rule_ids["p1"],
+                "p1_alternative_rule_id": rule_ids["p1_alternative"],
                 "plugin_loaded": plugin_loaded,
                 "plugin_module": module_name,
                 "p1_allow_response_bytes": p1_allow_bytes,
                 "p1_allow_status": p1_allow_status,
                 "p1_deny_status": p1_deny_status,
+                "p1_alternative_status": p1_alternative_status,
                 "allowed_request_status": p1_allow_status,
                 "blocked_request_status": p1_deny_status,
+                "phase1_alternative_status_client_status": p1_alternative_status,
                 "p2_deny_status": p2_deny_status,
                 "p2_deny_rule_id": rule_ids["p2"],
                 "p3_precommit_deny_status": p3_deny_status,
@@ -795,6 +1080,9 @@ def run() -> int:
                 "p4_safe_log_only_response_bytes": p4_safe_bytes,
                 "p4_safe_log_only_status": p4_safe_status,
                 "p4_safe_log_only_rule_id": rule_ids["p4"],
+                "phase4_end_of_stream_evaluation_status": p4_safe_status,
+                "phase4_first_byte_before_response_end_status": p4_safe_status,
+                "phase4_no_full_response_buffering_status": p4_safe_status,
                 "p4_strict": "NOT_EXECUTED",
                 "keepalive_connection_reused": bool(keepalive_observation["connection_reused"]),
                 "keepalive_followup_status": int(keepalive_observation["followup_status"]),
