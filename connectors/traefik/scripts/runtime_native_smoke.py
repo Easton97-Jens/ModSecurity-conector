@@ -1157,6 +1157,7 @@ def run() -> int:
                 "p4_safe_log_only_response_bytes": p4_safe_bytes,
                 "p4_safe_log_only_status": p4_safe_status,
                 "p4_safe_log_only_rule_id": rule_ids["p4"],
+                "phase4_rule_observed_status": p4_safe_status,
                 "phase4_end_of_stream_evaluation_status": p4_safe_status,
                 "phase4_first_byte_before_response_end_status": p4_safe_status,
                 "phase4_no_full_response_buffering_status": p4_safe_status,

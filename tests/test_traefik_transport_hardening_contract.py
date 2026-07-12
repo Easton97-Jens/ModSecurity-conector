@@ -111,6 +111,7 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
         self.assertIn('"transport_case_id": "phase4-first-byte-traefik"', source)
         self.assertIn('"evidence_origin": "real_host"', source)
         self.assertIn('"connection_reused": bool(keepalive_observation["connection_reused"])', source)
+        self.assertIn('"phase4_rule_observed_status": p4_safe_status', source)
         self.assertIn('"state": "NOT_EXECUTED"', source)
         self.assertIn('"client_visible_abort": False', source)
 
