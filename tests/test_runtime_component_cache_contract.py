@@ -12,9 +12,9 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "ci"))
+sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
-    "prepare_runtime_components", ROOT / "ci/prepare-runtime-components.py"
+    "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
 )
 assert SPEC is not None and SPEC.loader is not None
 components = importlib.util.module_from_spec(SPEC)
@@ -113,7 +113,8 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             (connector_root / "common/src").mkdir(parents=True)
             (framework_root / "ci").mkdir(parents=True)
             (connector_root / "connectors/apache/input.c").write_text("int x;\n", encoding="utf-8")
-            (framework_root / "ci/prepare-apache-build.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            (framework_root / "ci/provisioning").mkdir(parents=True, exist_ok=True)
+            (framework_root / "ci/provisioning/prepare-apache-build.sh").write_text("#!/bin/sh\n", encoding="utf-8")
             with mock.patch.object(
                 components,
                 "compiler_identity",
@@ -162,7 +163,8 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             (connector_root / "common/src").mkdir(parents=True)
             (framework_root / "ci").mkdir(parents=True)
             (connector_root / "connectors/nginx/input.c").write_text("int x;\n", encoding="utf-8")
-            (framework_root / "ci/prepare-nginx-build.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            (framework_root / "ci/provisioning").mkdir(parents=True, exist_ok=True)
+            (framework_root / "ci/provisioning/prepare-nginx-build.sh").write_text("#!/bin/sh\n", encoding="utf-8")
             compiler = mock.patch.object(
                 components,
                 "compiler_identity",

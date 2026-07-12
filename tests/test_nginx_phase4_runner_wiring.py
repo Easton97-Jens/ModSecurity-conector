@@ -71,8 +71,8 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
     def test_runner_maps_only_selected_canonical_late_paths(self) -> None:
         harness = (ROOT / "connectors" / "nginx" / "harness" / "run_nginx_smoke.sh").read_text(encoding="utf-8")
         template = (ROOT / "connectors" / "nginx" / "harness" / "nginx_smoke.conf").read_text(encoding="utf-8")
-        stage = (ROOT / "ci" / "run-connector-stage.sh").read_text(encoding="utf-8")
-        baseline = (ROOT / "ci" / "run-no-crs-baseline.sh").read_text(encoding="utf-8")
+        stage = (ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh").read_text(encoding="utf-8")
+        baseline = (ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-baseline.sh").read_text(encoding="utf-8")
 
         self.assertIn("NO_CRS_SELECTED_CASE_IDS", baseline)
         self.assertIn("NO_CRS_SELECTED_CASE_IDS", stage)

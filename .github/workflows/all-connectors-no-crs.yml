@@ -254,7 +254,7 @@ jobs:
         run: |
           set -eu
           make "evidence-check-$CONNECTOR"
-          python3 modules/ModSecurity-test-Framework/ci/no_crs_baseline.py validate \
+          python3 modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py validate \
             --evidence-root "$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID" \
             --connector "$CONNECTOR" \
             --capabilities "connectors/$CONNECTOR/capabilities.json" \
@@ -343,7 +343,7 @@ jobs:
             if [ -d "$artifact_dir" ]; then
               cp -a "$artifact_dir/." "$destination/"
             fi
-            if ! python3 modules/ModSecurity-test-Framework/ci/no_crs_baseline.py validate \
+            if ! python3 modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py validate \
               --evidence-root "$destination" \
               --connector "$connector" \
               --capabilities "connectors/$connector/capabilities.json" \
@@ -380,7 +380,7 @@ jobs:
         if: always()
         run: |
           set -eu
-          python3 modules/ModSecurity-test-Framework/ci/no_crs_baseline.py summarize \
+          python3 modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py summarize \
             --evidence-root "$EVIDENCE_ROOT" \
             --run-id "$NO_CRS_RUN_ID" \
             --output-json "$EVIDENCE_ROOT/all-connectors-no-crs-summary.json" \

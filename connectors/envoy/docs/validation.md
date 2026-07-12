@@ -1,5 +1,7 @@
 # Envoy Connector Validation
 
+**Language:** English | [Deutsch](validation.de.md)
+
 Status: connector service `compile_verified`; targeted Envoy ext_authz request
 path `minimal_runtime_smoke` / `connector-gap`.
 

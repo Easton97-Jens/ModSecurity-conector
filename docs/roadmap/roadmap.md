@@ -46,7 +46,7 @@ are useful evidence, but they do not by themselves promote connector behavior.
   intervention, origin, and capability metadata.
 - Apache and NGINX metadata files, `ORIGIN.md` files, `SOURCE_MAP.json` files,
   central attribution copies under `licenses/`, and drift checks through
-  `ci/check-adapter-metadata-drift.sh`.
+  `ci/checks/common/check-adapter-metadata-drift.sh`.
 - Adapter-owned Apache build inputs, APXS/Autotools files, harness files, and
   productive source under `connectors/apache/src/`.
 - Adapter-owned NGINX module `config`, harness files, and productive source

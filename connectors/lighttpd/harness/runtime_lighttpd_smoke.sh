@@ -24,7 +24,7 @@ command -v curl >/dev/null 2>&1 || blocked "curl is required for the runtime req
 [ -f "$MODULE_PATH" ] || blocked "connector module is missing: $MODULE_PATH"
 
 if [ "${MSCONNECTOR_NO_CRS_BASELINE:-0}" = "1" ]; then
-    NO_CRS_SELECTION_CONSUMER=$REPO_ROOT/ci/consume-no-crs-selected-cases.sh
+    NO_CRS_SELECTION_CONSUMER=$REPO_ROOT/ci/runtime/lifecycle/consume-no-crs-selected-cases.sh
     [ -x "$NO_CRS_SELECTION_CONSUMER" ] || blocked "No-CRS selected-case consumer is missing: $NO_CRS_SELECTION_CONSUMER"
     "$NO_CRS_SELECTION_CONSUMER" lighttpd
 fi

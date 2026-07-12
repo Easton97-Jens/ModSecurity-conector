@@ -1,5 +1,7 @@
 # NGINX Public Sources
 
+**Language:** English | [Deutsch](public-sources.de.md)
+
 Status: current references
 
 Repository-owned NGINX connector source lives under `connectors/nginx/`.
@@ -12,4 +14,4 @@ read-only rebuilds:
 - NGINX configure documentation: https://nginx.org/en/docs/configure.html
 
 Source pins and generated build roots for clean-clone runtime validation are
-documented in `COMPILE_NGINX.md` and the framework `ci/common.sh` helpers.
+documented in `docs/build/compilers/nginx.md` and the framework `ci/lib/common.sh` helpers.

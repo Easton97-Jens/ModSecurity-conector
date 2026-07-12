@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "six_connector_core_completion",
-    ROOT / "ci" / "check-six-connector-core-completion.py",
+    ROOT / "ci" / "checks" / "evidence" / "check-six-connector-core-completion.py",
 )
 assert SPEC is not None and SPEC.loader is not None
 checker = importlib.util.module_from_spec(SPEC)

@@ -246,76 +246,87 @@
     "full_run_evidence",
     "merge_readiness_dashboard"
   ],
-  "generated_at": "2026-06-19T16:59:10Z",
+  "generated_at": "2026-07-12T20:12:32Z",
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
+    "connector_sha": "9b718cee0523da3e0822754dc4b05f327b6d969d",
     "data_kind": "manifest",
     "data_origin": "manifest",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
+    "framework_sha": "4e9d4ba616235127b6fc0a2ee87107d93d03f40b",
     "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-19T16:59:10Z",
-    "generated_by": "ci/refresh-connector-reports.py",
+    "generated_at": "2026-07-12T20:12:32Z",
+    "generated_by": "ci/evidence/reports/refresh-connector-reports.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "complete",
+    "input_status": "stale",
     "inputs": [
       {
+        "notes": "input file missing",
+        "path": "<verified-run-root>/build/full-matrix/full-runtime-matrix-runs.jsonl",
+        "status": "missing"
+      },
+      {
+        "notes": "input file missing",
+        "path": "<verified-run-root>/build/mrts-native/apache2_ubuntu/job.json",
+        "status": "missing"
+      },
+      {
+        "notes": "input file missing",
+        "path": "<verified-run-root>/build/mrts-native/nginx-pr24/job.json",
+        "status": "missing"
+      },
+      {
+        "notes": "input file missing",
+        "path": "<verified-run-root>/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
+        "status": "missing"
+      },
+      {
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-        "sha256": "bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8",
-        "source_hash": "bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8",
+        "path": "<verified-run-root>/cache-v2/shared/manifest.json",
+        "sha256": "13123f03dbe90f01402a8c2c439e46455a0fa688448e540a5cdab11722022392",
+        "source_hash": "13123f03dbe90f01402a8c2c439e46455a0fa688448e540a5cdab11722022392",
         "status": "present"
       },
       {
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
-        "sha256": "234ac210219fe61948da3815ed6587a21d86497fad6ef1a2a4d67acab12f1eda",
-        "source_hash": "234ac210219fe61948da3815ed6587a21d86497fad6ef1a2a4d67acab12f1eda",
+        "path": "<verified-run-root>/cache-v2/shared/runtime-build-cache.json",
+        "sha256": "04ba882c6feda15868fc9b175f3d3c2875fdbdfa480872a332d8317edea1b017",
+        "source_hash": "04ba882c6feda15868fc9b175f3d3c2875fdbdfa480872a332d8317edea1b017",
         "status": "present"
       },
       {
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json",
-        "sha256": "161d7c17ed090bfe0cb7842c33c98251d8d217b73de5f09e8b886a5cbc0970a7",
-        "source_hash": "161d7c17ed090bfe0cb7842c33c98251d8d217b73de5f09e8b886a5cbc0970a7",
+        "path": "Makefile",
+        "sha256": "e81bc90df73a382f0e4a199f81e39b97335667b73060407a8a145a0803702a01",
+        "source_hash": "e81bc90df73a382f0e4a199f81e39b97335667b73060407a8a145a0803702a01",
+        "status": "present"
+      },
+      {
+        "notes": "input directory available",
+        "path": "ci",
+        "source_hash": "ddf1490014048ffaaf92e1aad9ad3b474486f5cb49ab4b5caa067fa2c44517d7",
         "status": "present"
       },
       {
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
-        "sha256": "dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7",
-        "source_hash": "dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7",
+        "path": "ci/runtime/lifecycle/run-native-case-comparison.py",
+        "sha256": "fb502563cb45d7862033e58aec5e1c37f7084f55af3e85741ce8341c55a91c9c",
+        "source_hash": "fb502563cb45d7862033e58aec5e1c37f7084f55af3e85741ce8341c55a91c9c",
         "status": "present"
       },
       {
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
-        "sha256": "3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec",
-        "source_hash": "3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec",
-        "status": "present"
-      },
-      {
-        "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json",
-        "sha256": "469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789",
-        "source_hash": "469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789",
-        "status": "present"
-      },
-      {
-        "notes": "input file available",
-        "path": "ci/native_modsecurity_oracle.c",
+        "path": "ci/tools/native_modsecurity_oracle.c",
         "sha256": "57bcb4e66611f597b623599680807795296193e156d4bd91c694422f9eb0f9db",
         "source_hash": "57bcb4e66611f597b623599680807795296193e156d4bd91c694422f9eb0f9db",
         "status": "present"
       },
       {
-        "notes": "input file available",
-        "path": "ci/run-native-case-comparison.py",
-        "sha256": "c62686d446b5b50102d78a03509fb6883b7a084d975684fb5e1b809473c726de",
-        "source_hash": "c62686d446b5b50102d78a03509fb6883b7a084d975684fb5e1b809473c726de",
+        "notes": "input directory available",
+        "path": "config",
+        "source_hash": "c72a2c9c7ccf6252032ef6d044e1170edd65cf4b02202d25addc21949eb3bd83",
         "status": "present"
       },
       {
@@ -326,205 +337,271 @@
         "status": "present"
       },
       {
+        "notes": "input directory available",
+        "path": "connectors",
+        "source_hash": "794c7060fe47b86b9f899dc4e39562f0c879bfa68b65e00efb9dd70840584e19",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "connectors/apache/capabilities.json",
+        "sha256": "95ba425551d9261bbbf4693c989f55468da78f7a2a6efa6eca8dc0ad69833a59",
+        "source_hash": "95ba425551d9261bbbf4693c989f55468da78f7a2a6efa6eca8dc0ad69833a59",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "connectors/envoy/capabilities.json",
+        "sha256": "b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216",
+        "source_hash": "b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "connectors/haproxy/capabilities.json",
+        "sha256": "b8e3ca621904e925580604d5b7af1c97cf0a4c01a4c7a42cc7c58fae4c9d599c",
+        "source_hash": "b8e3ca621904e925580604d5b7af1c97cf0a4c01a4c7a42cc7c58fae4c9d599c",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "connectors/lighttpd/capabilities.json",
+        "sha256": "4aac60435527d7a17ddc11deb14ae49f5a48e15c8a357c0ea45627fa4dc82995",
+        "source_hash": "4aac60435527d7a17ddc11deb14ae49f5a48e15c8a357c0ea45627fa4dc82995",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "connectors/nginx/capabilities.json",
+        "sha256": "70fa6bb202c0ac3ea8292fa654a98586852b238e1885e43e7d5235e7daa0a982",
+        "source_hash": "70fa6bb202c0ac3ea8292fa654a98586852b238e1885e43e7d5235e7daa0a982",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "connectors/traefik/capabilities.json",
+        "sha256": "04dbf29b4ed7085f1db172619b0957e6dc740964b9741c736b70e158fe904adc",
+        "source_hash": "04dbf29b4ed7085f1db172619b0957e6dc740964b9741c736b70e158fe904adc",
+        "status": "present"
+      },
+      {
+        "notes": "input directory available",
+        "path": "docs",
+        "source_hash": "791125d2131a185596df3d066193483cb2b49e002bb0c2e0bbda3db68cc3766c",
+        "status": "present"
+      },
+      {
+        "notes": "input directory available",
+        "path": "reports/testing/generated",
+        "source_hash": "ada391ed04c9b86c45926679ee9f8f1fd5a544adb6ca5d6d1c248c2c1657c634",
+        "status": "present"
+      },
+      {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "df4c56d7bd0afa823a2a90b4808120369d1c8281b8a00eed7266f1654369c62a",
-        "source_hash": "df4c56d7bd0afa823a2a90b4808120369d1c8281b8a00eed7266f1654369c62a",
-        "status": "present",
+        "sha256": "486d395cbc4da9e489dcc2f81e0fda69c34e66971e03133f02f797570f9a2400",
+        "source_hash": "486d395cbc4da9e489dcc2f81e0fda69c34e66971e03133f02f797570f9a2400",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
         "sha256": "3f41446a7fb73a361c12e31507673774698ec41d108f2c8e75c8c57b8d2ef007",
         "source_hash": "3f41446a7fb73a361c12e31507673774698ec41d108f2c8e75c8c57b8d2ef007",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
         "sha256": "45c592a17f99671474b5f510d59c5c5f162861bcc74e37f4a7c72e6e4bc6a736",
         "source_hash": "45c592a17f99671474b5f510d59c5c5f162861bcc74e37f4a7c72e6e4bc6a736",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
         "sha256": "c581790d4581ac9cf843e973f127b274784caf286d1661d72b5144f078049165",
         "source_hash": "c581790d4581ac9cf843e973f127b274784caf286d1661d72b5144f078049165",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
-        "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "connector_sha": "9b718cee0523da3e0822754dc4b05f327b6d969d",
+        "framework_sha": "06d09c6173d929911bbf75e79e9ee0bf7ea3f734",
+        "notes": "generated report input is stale: framework_sha differs",
         "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "sha256": "6c36afa87a2f63eaa9ff2df91e08759b8f657ee9a8090112afcc534174e98e70",
-        "source_hash": "6c36afa87a2f63eaa9ff2df91e08759b8f657ee9a8090112afcc534174e98e70",
-        "status": "present",
+        "sha256": "7da89e3821de5ee8fdc4c129dcd766a10eed8eece8c1cd928b58b531fcf30872",
+        "source_hash": "7da89e3821de5ee8fdc4c129dcd766a10eed8eece8c1cd928b58b531fcf30872",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
         "sha256": "4ca4fc4f48a5420c3dc9892faa3d53b1b28b322dc49fcc3adc6e341681465be4",
         "source_hash": "4ca4fc4f48a5420c3dc9892faa3d53b1b28b322dc49fcc3adc6e341681465be4",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
         "sha256": "256bdac6851d1bea706d7ae21377412ce79edb977969ec5774e0b27a6ae56a8e",
         "source_hash": "256bdac6851d1bea706d7ae21377412ce79edb977969ec5774e0b27a6ae56a8e",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
         "sha256": "a163cfa2dd4408fb802138a063f4651c6c930b4799b6089976083e19a45b5082",
         "source_hash": "a163cfa2dd4408fb802138a063f4651c6c930b4799b6089976083e19a45b5082",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
         "sha256": "4cc4b220df8adb4ebdb3e8666a41be8c1e37660ba0baf0a37e489087415dca4c",
         "source_hash": "4cc4b220df8adb4ebdb3e8666a41be8c1e37660ba0baf0a37e489087415dca4c",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
         "sha256": "6e00d5cd2e1239d414915f89feca72d744dcaf27d5c224513dc78ed3db310682",
         "source_hash": "6e00d5cd2e1239d414915f89feca72d744dcaf27d5c224513dc78ed3db310682",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
         "sha256": "7d73f40c3ec211958b2eb5979a0c45f13303b53da032a90f96f00d8d77da5092",
         "source_hash": "7d73f40c3ec211958b2eb5979a0c45f13303b53da032a90f96f00d8d77da5092",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
         "sha256": "97fca3207c05713f8e25bc092e5bf9e9ab65c7f36e5ba1da28cece9ff7637636",
         "source_hash": "97fca3207c05713f8e25bc092e5bf9e9ab65c7f36e5ba1da28cece9ff7637636",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
         "sha256": "a54dc3f43ffc6d2eb4493ad56c58e6eff959cb2ce1380f5eb3d4b4e02003f5c2",
         "source_hash": "a54dc3f43ffc6d2eb4493ad56c58e6eff959cb2ce1380f5eb3d4b4e02003f5c2",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
         "sha256": "340546dbab42432eef255f99fda65c0d4301db589d6ac5c9f2a201a94326420e",
         "source_hash": "340546dbab42432eef255f99fda65c0d4301db589d6ac5c9f2a201a94326420e",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
         "sha256": "a628c7910973dfe3ea2379d1de447632bb7a68bc93945814d7e5922711b01933",
         "source_hash": "a628c7910973dfe3ea2379d1de447632bb7a68bc93945814d7e5922711b01933",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
         "sha256": "dcb7aea74fa53c58425123bf580dbe52ae9898bbc0af29bd38ee98925848c833",
         "source_hash": "dcb7aea74fa53c58425123bf580dbe52ae9898bbc0af29bd38ee98925848c833",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
         "sha256": "8b8298f135b70c6487dcfbae620801fc09fabe03e73c91fe8657a27505216bce",
         "source_hash": "8b8298f135b70c6487dcfbae620801fc09fabe03e73c91fe8657a27505216bce",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
         "sha256": "89f3d29f508ef24e279589f6a3fa791c2f62d5a13ca89f58b10adb4ba4cd3484",
         "source_hash": "89f3d29f508ef24e279589f6a3fa791c2f62d5a13ca89f58b10adb4ba4cd3484",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs; framework_sha differs",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
         "sha256": "de46f52db4aa93f393cf9e7a97ef734435d9e9d7f9af4c99ceed8294867d9a1b",
         "source_hash": "de46f52db4aa93f393cf9e7a97ef734435d9e9d7f9af4c99ceed8294867d9a1b",
-        "status": "present",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "notes": "input file available",
         "path": "reports/testing/runtime-validation-snapshot.json",
-        "sha256": "c8e7113e2b7d4982ad6817e9f3fd4387370db33224a0f14ec265126ec685f5f9",
-        "source_hash": "c8e7113e2b7d4982ad6817e9f3fd4387370db33224a0f14ec265126ec685f5f9",
+        "sha256": "d3017f038a44a5f5596e36e3482f92cd93ce6f2173bb958da98cddc05884cd8f",
+        "source_hash": "d3017f038a44a5f5596e36e3482f92cd93ce6f2173bb958da98cddc05884cd8f",
         "status": "present"
       }
     ],
     "make_target": "refresh-connector-reports",
-    "missing_inputs": [],
+    "missing_inputs": [
+      "<verified-run-root>/build/full-matrix/full-runtime-matrix-runs.jsonl",
+      "<verified-run-root>/build/mrts-native/apache2_ubuntu/job.json",
+      "<verified-run-root>/build/mrts-native/nginx-pr24/job.json",
+      "<verified-run-root>/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json"
+    ],
+    "output_name": "report-dependency-graph.generated.md",
     "owner": "manifest",
     "report_key": "report_dependency_graph",
     "schema_version": 1,
@@ -545,7 +622,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/refresh-connector-reports.py",
+      "generator": "ci/evidence/reports/refresh-connector-reports.py",
       "inputs": [],
       "key": "report_refresh_manifest",
       "kind": "canonical",
@@ -573,7 +650,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/refresh-connector-reports.py",
+      "generator": "ci/evidence/reports/refresh-connector-reports.py",
       "inputs": [],
       "key": "report_dependency_graph",
       "kind": "canonical",
@@ -601,7 +678,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/refresh-connector-reports.py",
+      "generator": "ci/evidence/reports/refresh-connector-reports.py",
       "inputs": [],
       "key": "report_data_lineage",
       "kind": "canonical",
@@ -629,7 +706,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/refresh-connector-reports.py",
+      "generator": "ci/evidence/reports/refresh-connector-reports.py",
       "inputs": [],
       "key": "report_freshness",
       "kind": "canonical",
@@ -657,7 +734,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/refresh-connector-reports.py",
+      "generator": "ci/evidence/reports/refresh-connector-reports.py",
       "inputs": [],
       "key": "report_path_migration",
       "kind": "canonical",
@@ -684,7 +761,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/refresh-connector-reports.py",
+      "generator": "ci/evidence/reports/refresh-connector-reports.py",
       "inputs": [],
       "key": "generator_runtime_summary",
       "kind": "canonical",
@@ -711,7 +788,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/run-verified-report-run.py",
+      "generator": "ci/runtime/lifecycle/run-verified-report-run.py",
       "inputs": [],
       "key": "verified_run_manifest",
       "kind": "canonical",
@@ -739,7 +816,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/refresh-connector-reports.py",
+      "generator": "ci/evidence/reports/refresh-connector-reports.py",
       "inputs": [],
       "key": "merge_readiness_dashboard",
       "kind": "canonical",
@@ -759,6 +836,76 @@
     {
       "category": "manifest",
       "commit_policy": "versioned-generated",
+      "data_kind": "roadmap_only",
+      "data_origin": "repository",
+      "dependencies": [],
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/evidence/reports/generate-connector-roadmap.py",
+      "inputs": [
+        "connectors",
+        "Makefile",
+        "ci",
+        "config",
+        "docs",
+        "reports/testing/generated"
+      ],
+      "key": "connector_roadmap",
+      "kind": "roadmap",
+      "make_target": "refresh-connector-reports",
+      "native_mrts_required": false,
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/connector-roadmap.generated.json",
+        "reports/testing/generated/manifest/connector-roadmap.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Roadmap-only status, feasibility, gap, and ranking report for future connectors.",
+      "runtime_required": false,
+      "severity": "informational",
+      "stem": "connector-roadmap.generated"
+    },
+    {
+      "category": "canonical",
+      "commit_policy": "versioned-generated",
+      "data_kind": "capability-catalog",
+      "data_origin": "repository",
+      "dependencies": [],
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/evidence/collectors/connector_capabilities.py",
+      "inputs": [
+        "connectors/apache/capabilities.json",
+        "connectors/nginx/capabilities.json",
+        "connectors/haproxy/capabilities.json",
+        "connectors/envoy/capabilities.json",
+        "connectors/traefik/capabilities.json",
+        "connectors/lighttpd/capabilities.json"
+      ],
+      "key": "connector_capabilities",
+      "kind": "canonical",
+      "make_target": "capabilities-all-connectors",
+      "native_mrts_required": false,
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/canonical/connector-capabilities.generated.json",
+        "reports/testing/generated/canonical/connector-capabilities.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Canonical capability and evidence-stage declarations for all six connectors.",
+      "runtime_required": false,
+      "severity": "informational",
+      "stem": "connector-capabilities.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
       "data_kind": "analysis",
       "data_origin": "runtime",
       "dependencies": [],
@@ -767,7 +914,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/generate-verified-runtime-mismatch-analysis.py",
+      "generator": "ci/evidence/reports/generate-verified-runtime-mismatch-analysis.py",
       "inputs": [
         "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
         "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl"
@@ -798,7 +945,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-remaining-critical-batch-analysis.py",
+      "generator": "ci/evidence/reports/generate-remaining-critical-batch-analysis.py",
       "inputs": [],
       "key": "remaining_critical_batch_analysis",
       "kind": "canonical",
@@ -828,10 +975,10 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/run-native-case-comparison.py",
+      "generator": "ci/runtime/lifecycle/run-native-case-comparison.py",
       "inputs": [
-        "ci/run-native-case-comparison.py",
-        "ci/native_modsecurity_oracle.c",
+        "ci/runtime/lifecycle/run-native-case-comparison.py",
+        "ci/tools/native_modsecurity_oracle.c",
         "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json"
       ],
       "key": "native_semantics_comparison",
@@ -860,7 +1007,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-full-matrix-job-completeness.py",
+      "generator": "ci/evidence/reports/generate-full-matrix-job-completeness.py",
       "inputs": [
         "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
         "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl"
@@ -894,7 +1041,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-nginx-mrts-http500-cluster-analysis.py",
+      "generator": "ci/evidence/reports/generate-nginx-mrts-http500-cluster-analysis.py",
       "inputs": [
         "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
         "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
@@ -927,7 +1074,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/generate-system-environment-proof.py",
+      "generator": "ci/evidence/reports/generate-system-environment-proof.py",
       "inputs": [],
       "key": "system_environment_proof",
       "kind": "canonical",
@@ -955,7 +1102,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-full-runtime-matrix.py",
+      "generator": "ci/evidence/reports/generate-full-runtime-matrix.py",
       "inputs": [
         "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl"
       ],
@@ -990,7 +1137,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-remaining-failure-analysis.py",
+      "generator": "ci/evidence/reports/generate-remaining-failure-analysis.py",
       "inputs": [
         "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
         "reports/testing/generated/work-queues/connector-work-queue.generated.json",
@@ -1038,7 +1185,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-final-consistency-audit.py",
+      "generator": "ci/evidence/reports/generate-final-consistency-audit.py",
       "inputs": [
         "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
         "reports/testing/generated/work-queues/connector-work-queue.generated.json",
@@ -1086,7 +1233,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-remaining-failure-analysis.py",
+      "generator": "ci/evidence/reports/generate-remaining-failure-analysis.py",
       "inputs": [
         "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
         "reports/testing/generated/work-queues/connector-work-queue.generated.json",
@@ -1124,7 +1271,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-remaining-failure-analysis.py",
+      "generator": "ci/evidence/reports/generate-remaining-failure-analysis.py",
       "inputs": [
         "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
         "reports/testing/generated/work-queues/connector-work-queue.generated.json",
@@ -1159,7 +1306,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "framework:ci/generate-connector-work-queue.py",
+      "generator": "framework:ci/reporting/generate-connector-work-queue.py",
       "inputs": [
         "reports/testing/generated/canonical/full-runtime-matrix.generated.json"
       ],
@@ -1193,7 +1340,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "framework:ci/generate-phase-work-queue.py",
+      "generator": "framework:ci/reporting/generate-phase-work-queue.py",
       "inputs": [
         "reports/testing/generated/work-queues/connector-work-queue.generated.json",
         "reports/testing/generated/coverage/phase-coverage.generated.md",
@@ -1224,7 +1371,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-case-matrix.py",
+      "generator": "framework:ci/reporting/generate-case-matrix.py",
       "inputs": [
         "config/testing/import-status.json",
         "reports/testing/runtime-validation-snapshot.json"
@@ -1253,7 +1400,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-case-matrix.py",
+      "generator": "framework:ci/reporting/generate-case-matrix.py",
       "inputs": [
         "config/testing/import-status.json",
         "reports/testing/runtime-validation-snapshot.json"
@@ -1282,7 +1429,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-case-matrix.py",
+      "generator": "framework:ci/reporting/generate-case-matrix.py",
       "inputs": [
         "config/testing/import-status.json",
         "reports/testing/runtime-validation-snapshot.json"
@@ -1311,7 +1458,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-case-matrix.py",
+      "generator": "framework:ci/reporting/generate-case-matrix.py",
       "inputs": [
         "config/testing/import-status.json",
         "reports/testing/runtime-validation-snapshot.json"
@@ -1340,7 +1487,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-case-matrix.py",
+      "generator": "framework:ci/reporting/generate-case-matrix.py",
       "inputs": [
         "config/testing/import-status.json",
         "reports/testing/runtime-validation-snapshot.json"
@@ -1375,7 +1522,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-body-processor-analysis.py",
+      "generator": "ci/evidence/reports/generate-body-processor-analysis.py",
       "inputs": [
         "reports/testing/generated/work-queues/connector-work-queue.generated.json",
         "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
@@ -1414,7 +1561,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-intervention-blocking-analysis.py",
+      "generator": "ci/evidence/reports/generate-intervention-blocking-analysis.py",
       "inputs": [
         "reports/testing/generated/work-queues/connector-work-queue.generated.json",
         "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
@@ -1453,7 +1600,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-no-mrts-intervention-nomatch-analysis.py",
+      "generator": "ci/evidence/reports/generate-no-mrts-intervention-nomatch-analysis.py",
       "inputs": [
         "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
         "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
@@ -1490,7 +1637,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-nolog-audit-evidence-analysis.py",
+      "generator": "ci/evidence/reports/generate-nolog-audit-evidence-analysis.py",
       "inputs": [
         "reports/testing/generated/work-queues/connector-work-queue.generated.json",
         "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
@@ -1527,7 +1674,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-phase4-hard-abort-capability.py",
+      "generator": "ci/evidence/reports/generate-phase4-hard-abort-capability.py",
       "inputs": [
         "reports/testing/generated/work-queues/connector-work-queue.generated.json",
         "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
@@ -1564,7 +1711,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-response-header-hook-analysis.py",
+      "generator": "ci/evidence/reports/generate-response-header-hook-analysis.py",
       "inputs": [
         "reports/testing/generated/work-queues/connector-work-queue.generated.json",
         "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
@@ -1601,7 +1748,7 @@
         "md"
       ],
       "full_matrix_required": true,
-      "generator": "ci/generate-rule-chain-semantics-analysis.py",
+      "generator": "ci/evidence/reports/generate-rule-chain-semantics-analysis.py",
       "inputs": [
         "reports/testing/generated/work-queues/connector-work-queue.generated.json",
         "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
@@ -1633,7 +1780,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-case-matrix.py",
+      "generator": "framework:ci/reporting/generate-case-matrix.py",
       "inputs": [
         "config/testing/import-status.json",
         "reports/testing/runtime-validation-snapshot.json"
@@ -1662,7 +1809,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-case-matrix.py",
+      "generator": "framework:ci/reporting/generate-case-matrix.py",
       "inputs": [
         "config/testing/import-status.json",
         "reports/testing/runtime-validation-snapshot.json"
@@ -1691,7 +1838,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-case-matrix.py",
+      "generator": "framework:ci/reporting/generate-case-matrix.py",
       "inputs": [
         "config/testing/import-status.json",
         "reports/testing/runtime-validation-snapshot.json"
@@ -1720,7 +1867,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-case-matrix.py",
+      "generator": "framework:ci/reporting/generate-case-matrix.py",
       "inputs": [
         "config/testing/import-status.json",
         "reports/testing/runtime-validation-snapshot.json"
@@ -1750,7 +1897,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-mrts-native-report.py",
+      "generator": "framework:ci/reporting/generate-mrts-native-report.py",
       "inputs": [
         "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
         "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json"
@@ -1781,7 +1928,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-mrts-native-report.py",
+      "generator": "framework:ci/reporting/generate-mrts-native-report.py",
       "inputs": [
         "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
         "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json"
@@ -1812,7 +1959,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-mrts-native-report.py",
+      "generator": "framework:ci/reporting/generate-mrts-native-report.py",
       "inputs": [
         "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
         "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json"
@@ -1843,7 +1990,7 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "framework:ci/generate-mrts-native-report.py",
+      "generator": "framework:ci/reporting/generate-mrts-native-report.py",
       "inputs": [
         "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
         "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json"
@@ -1874,10 +2021,10 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/prepare-runtime-components.py",
+      "generator": "ci/provisioning/components/prepare-runtime-components.py",
       "inputs": [
-        "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
-        "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json"
+        "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/manifest.json",
+        "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/runtime-build-cache.json"
       ],
       "key": "runtime_build_cache",
       "kind": "cache",
@@ -1905,10 +2052,10 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/prepare-runtime-components.py",
+      "generator": "ci/provisioning/components/prepare-runtime-components.py",
       "inputs": [
-        "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
-        "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json"
+        "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/manifest.json",
+        "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/runtime-build-cache.json"
       ],
       "key": "runtime_component_cache",
       "kind": "cache",
@@ -1936,10 +2083,10 @@
         "md"
       ],
       "full_matrix_required": false,
-      "generator": "ci/update-runtime-reports.py",
+      "generator": "ci/evidence/reports/update-runtime-reports.py",
       "inputs": [
-        "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
-        "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json"
+        "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/manifest.json",
+        "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/runtime-build-cache.json"
       ],
       "key": "runtime_cache_index",
       "kind": "cache",
@@ -1962,11 +2109,23 @@
     "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
     "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json",
     "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
-    "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
-    "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json",
-    "ci/native_modsecurity_oracle.c",
-    "ci/run-native-case-comparison.py",
+    "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/manifest.json",
+    "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/runtime-build-cache.json",
+    "Makefile",
+    "ci",
+    "ci/runtime/lifecycle/run-native-case-comparison.py",
+    "ci/tools/native_modsecurity_oracle.c",
+    "config",
     "config/testing/import-status.json",
+    "connectors",
+    "connectors/apache/capabilities.json",
+    "connectors/envoy/capabilities.json",
+    "connectors/haproxy/capabilities.json",
+    "connectors/lighttpd/capabilities.json",
+    "connectors/nginx/capabilities.json",
+    "connectors/traefik/capabilities.json",
+    "docs",
+    "reports/testing/generated",
     "reports/testing/runtime-validation-snapshot.json"
   ]
 }

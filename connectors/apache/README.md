@@ -12,7 +12,7 @@ Implemented now:
 - Adapter-owned Apache connector layout under `connectors/apache/`, with
   productive source under `connectors/apache/src/`.
 - Shared directive-name metadata from `common/include/msconnector/directives.h`.
-- A PoC build-preparation helper in `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh`.
+- A PoC build-preparation helper in `modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh`.
 - A local runtime smoke harness under `connectors/apache/harness/`.
 - Use of all shared minimal cases under `modules/ModSecurity-test-Framework/tests/cases/`.
 - Use of source-derived shared imported cases, including raw JSON body,
@@ -64,7 +64,7 @@ The Phase 4 directives are bounded runtime controls. Phase 4 / RESPONSE_BODY
 remains non-promoted; source-level strict-mode wiring does not establish a
 late-abort result.
 
-Primary local reference: `/root/conecter/ModSecurity-apache`.
+Primary local reference: `<external-source-root>/ModSecurity-apache`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache.
 
 The Apache adapter-owned build layout lives under `connectors/apache/` and is

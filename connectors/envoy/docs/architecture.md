@@ -1,5 +1,7 @@
 # Envoy Connector Architecture
 
+**Language:** English | [Deutsch](architecture.de.md)
+
 Status: the targeted ext_authz request path is `minimal_runtime_smoke` /
 `connector-gap`. The separate ext_proc path has connector-local real-Envoy
 Common/libmodsecurity host evidence but no capability promotion.

@@ -14,7 +14,7 @@ productive Apache or NGINX connector path.
 | --- | --- | --- |
 | Apache adapter metadata | `connectors/apache/metadata.h`, `connectors/apache/metadata.c` | Stable repo-owned descriptor for the Apache connector source and license origin |
 | NGINX adapter metadata | `connectors/nginx/metadata.h`, `connectors/nginx/metadata.c` | Stable repo-owned descriptor for the NGINX connector source and license origin |
-| Adapter helper validation | `ci/check-adapter-helpers.sh` | Compiles adapter metadata under `$BUILD_ROOT` and checks required fields |
+| Adapter helper validation | `ci/checks/common/check-adapter-helpers.sh` | Compiles adapter metadata under `$BUILD_ROOT` and checks required fields |
 | Lint integration | `Makefile` | Runs the adapter helper smoke as part of `make lint` |
 
 After Phase 13, adapter metadata lives at the connector roots while
@@ -35,7 +35,7 @@ participates in generated NGINX build copies.
 ## Evidence
 
 The new adapter metadata is checked independently by
-`ci/check-adapter-helpers.sh`. Real-world Apache and NGINX smokes remain the
+`ci/checks/common/check-adapter-helpers.sh`. Real-world Apache and NGINX smokes remain the
 regression proof that the unchanged productive connector paths still behave as
 before.
 

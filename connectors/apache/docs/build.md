@@ -1,11 +1,13 @@
 # Apache Build
 
+**Language:** English | [Deutsch](build.de.md)
+
 Status: adapter-owned source migration complete
 
 The complete repository-supported Apache compile and local verification flow is
 documented in the root guide:
 
-- [`COMPILE_APACHE.md`](../../../COMPILE_APACHE.md)
+- [`docs/build/compilers/apache.md`](../../../docs/build/compilers/apache.md)
 
 ## Current Build Path
 

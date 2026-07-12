@@ -58,7 +58,7 @@ instead. The Phase 4 directives are bounded runtime controls.
 Phase 4 / RESPONSE_BODY remains non-promoted; source-level strict-mode wiring
 does not establish a late-abort result.
 
-Primary local reference: `/root/conecter/ModSecurity-nginx`.
+Primary local reference: `<external-source-root>/ModSecurity-nginx`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx.
 
 The adapter-owned build layout lives under `connectors/nginx/`: module `config`
@@ -69,7 +69,7 @@ materialized-source NGINX builds and smokes passed. Durable attribution stays in
 `licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and
 `connectors/nginx/SOURCE_MAP.json`.
 
-The build helper is `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh`. For the monorepo default it
+The build helper is `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh`. For the monorepo default it
 materializes `$BUILD_ROOT/nginx-build/connector-src` from adapter-owned
 `connectors/nginx/config` and `connectors/nginx/src` files only, then builds the
 connector as a dynamic NGINX module against an official `nginx/nginx` GitHub

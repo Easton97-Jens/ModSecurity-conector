@@ -1,5 +1,7 @@
 # Validation - Connector Template
 
+**Language:** English | [Deutsch](validation.de.md)
+
 ## Principle
 
 File structure, generated coverage, or a successful build is not runtime

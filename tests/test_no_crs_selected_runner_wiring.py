@@ -7,7 +7,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONSUMER = ROOT / "ci" / "consume-no-crs-selected-cases.sh"
+CONSUMER = ROOT / "ci" / "runtime" / "lifecycle" / "consume-no-crs-selected-cases.sh"
 
 
 class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
@@ -48,7 +48,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         self.assertNotIn("PASS", result.stdout)
 
     def test_remaining_connectors_keep_compatibility_and_native_targets_distinct(self) -> None:
-        stage = (ROOT / "ci" / "run-connector-stage.sh").read_text(encoding="utf-8")
+        stage = (ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh").read_text(encoding="utf-8")
         for connector, native_target, compatibility_target in (
             ("envoy", "runtime-smoke-envoy-ext-proc", "no-crs-baseline-envoy"),
             ("traefik", "runtime-smoke-traefik-native", "no-crs-baseline-traefik"),
@@ -63,7 +63,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         self.assertNotIn("compatibility SPOE/SPOP runner is forbidden", stage)
         self.assertIn("capability-selected No-CRS runner cases are missing", stage)
 
-        target_runner = (ROOT / "ci" / "run-remaining-connector-target.sh").read_text(
+        target_runner = (ROOT / "ci" / "runtime" / "lifecycle" / "run-remaining-connector-target.sh").read_text(
             encoding="utf-8"
         )
         self.assertIn("no-crs-baseline-*", target_runner)

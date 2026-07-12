@@ -9,7 +9,7 @@ Scaffold-Build-/Runtime-Harness.
 
 ## Fakten zur lokalen Quelle
 
-- Quelle: `/root/conecter/ModSecurity-nginx`
+- Quelle: `<external-source-root>/ModSecurity-nginx`
 - Upstream-Quelle: https://github.com/owasp-modsecurity/ModSecurity-nginx
 - Beobachteter Zweig: `master`
 - Beobachtete Version: `v1.0.4-14-g9eb44fd`
@@ -42,7 +42,7 @@ NGINX_GITHUB_REPO=https://github.com/nginx/nginx
 NGINX_RELEASE_TAG=latest
 ```
 
-Wenn `NGINX_RELEASE_TAG=latest`, `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` den tatsächlichen Wert auflöst
+Wenn `NGINX_RELEASE_TAG=latest`, `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh` den tatsächlichen Wert auflöst
 Release über die GitHub-Releases API und zeichnet das resultierende Tag auf
 `$BUILD_ROOT/logs/nginx/artifacts.txt`. Explizite Tags wie z
 `release-1.31.0` werden ebenfalls unterstützt. Es ist kein Branch-Fallback zulässig.

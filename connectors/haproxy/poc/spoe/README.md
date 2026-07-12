@@ -1,5 +1,7 @@
 # HAProxy SPOE/SPOA PoC Scaffold
 
+**Language:** English | [Deutsch](README.de.md)
+
 documentation only
 
 ## Status
@@ -9,14 +11,14 @@ documentation only
 - decision_status: undecided
 - promoted: false
 
-## Zweck
-Dieses Verzeichnis dient ausschließlich als dokumentarischer Platzhalter für
-einen späteren HAProxy-SPOE/SPOA-PoC im Rahmen der bestehenden
-Evidenzdokumente.
+## Purpose
+This directory serves exclusively as a documentary placeholder for
+a later HAProxy-SPOE/SPOA-PoC as part of the existing one
+Evidence documents.
 
 This directory does not contain a runnable HAProxy SPOE/SPOA PoC.
 
-## Geplante, aber nicht erstellte Artefakte (planned only)
+## Planned but not created artifacts (planned only)
 - `connectors/haproxy/poc/spoe/haproxy.cfg.example` (planned only)
 - `connectors/haproxy/poc/spoe/spoe-agent.conf.example` (planned only)
 - Framework-side tests: planned in ModSecurity-test-Framework, not in this repository.
@@ -24,24 +26,24 @@ This directory does not contain a runnable HAProxy SPOE/SPOA PoC.
 
 The example configuration files are illustrative only and not runtime verified.
 
-## Test- und Report-Ownership
+## Test and report ownership
 No tests are stored in this connector repository.
 
 All test definitions, test execution, runners, and generated reports belong to
-Easton97-Jens/ModSecurity-test-Framework.
+Easton97-Jens/ModSecurity test framework.
 
 runtime_verified must remain false in this repository until external framework
 evidence is produced.
 
-## Nicht-Ziele
-- Keine Runtime-Implementierung.
-- Kein C-Code.
-- Keine Python-/Shell-Skripte.
-- Keine HAProxy-Konfiguration in diesem Verzeichnis.
-- Keine SPOE-Agent-Konfiguration in diesem Verzeichnis.
-- Keine Aussage, dass SPOE/SPOA funktionsfähig ist.
+## Non-targets
+- No runtime implementation.
+- No C code.
+- No Python/Shell scripts.
+- No HAProxy configuration in this directory.
+- No SPOE agent configuration in this directory.
+- No statement that SPOE/SPOA is functional.
 
-## Offene Punkte
-- Exakte SPOE/SPOP-Konfigurationsdetails: Extern zu verifizieren.
-- Vollständige ModSecurity-Semantik: Nicht belegbar aus dem aktuellen Repository.
-- Request-/Response-/Intervention-Details: Noch zu prüfen.
+## Open points
+- Exact SPOE/SPOP configuration details: To be verified externally.
+- Full ModSecurity semantics: Not provable from current repository.
+- Request/Response/Intervention Details: To be checked.

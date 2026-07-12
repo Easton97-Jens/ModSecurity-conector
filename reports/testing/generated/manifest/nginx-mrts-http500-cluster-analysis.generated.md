@@ -11,6 +11,9 @@
 > Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
+<!-- retained-historical-generated-output -->
+> Current refresh status: `skipped_missing_input`. This report retains an earlier evidence-bearing snapshot because no newer verified inputs are available. Reason: required input missing or empty.
+
 # NGINX with-crs/with-mrts HTTP-500 Cluster Analysis
 
 **Language:** English | [Deutsch](nginx-mrts-http500-cluster-analysis.generated.de.md)
@@ -21,7 +24,7 @@
 - Job: `nginx:with-crs:with-mrts`
 - Primary blocker: `none`
 - HTTP-500 failures: `0`
-- Likely cause: Historical evidence: NGINX worker could not traverse /root-owned runtime parents, generated docroot was inaccessible, and try_files /index.html looped into HTTP 500. New runs should block in the worker-docroot preflight before this becomes runtime mismatch evidence.
+- Likely cause: Historical evidence: NGINX worker could not traverse <local-home-root>-owned runtime parents, generated docroot was inaccessible, and try_files /index.html looped into HTTP 500. New runs should block in the worker-docroot preflight before this becomes runtime mismatch evidence.
 - Classification: `harness_environment_error`; secondary `nginx_config_error`
 - Confidence: `high`
 
@@ -47,7 +50,7 @@
 
 - 0 HTTP-500 rows have 'rewrite or internal redirection cycle while internally redirecting to "/index.html"'.
 - 0 HTTP-500 rows have htdocs/index.html Permission denied in final-run error logs.
-- Historical namei evidence shows /root is 0700 while NGINX worker user is nobody; generated files below it are otherwise readable.
+- Historical namei evidence shows <local-home-root> is 0700 while NGINX worker user is nobody; generated files below it are otherwise readable.
 - No segfault/core/module-load error pattern was observed in the final-run cluster.
 
 ## Minimal Repro
@@ -61,7 +64,7 @@
 
 | Fix | File/Path | Risk | Expected Effect | Needs New Verified Run |
 | --- | --- | --- | --- | --- |
-| Keep verified NGINX Full-Matrix harness roots under VERIFIED_RUN_ROOT/NGINX_HARNESS_PARENT outside /root. | ci/run-full-matrix-parallel.sh / Makefile NGINX_HARNESS_PARENT | medium | Eliminates docroot Permission denied or reports it as a BLOCKED preflight before the 500 cluster can form. | True |
+| Keep verified NGINX Full-Matrix harness roots under VERIFIED_RUN_ROOT/NGINX_HARNESS_PARENT outside <local-home-root>. | ci/run-full-matrix-parallel.sh / Makefile NGINX_HARNESS_PARENT | medium | Eliminates docroot Permission denied or reports it as a BLOCKED preflight before the 500 cluster can form. | True |
 | Add a readiness/permission preflight that blocks NGINX jobs when worker user cannot traverse DOCROOT parents. | connectors/nginx/harness/run_nginx_smoke.sh | low | Classifies future inaccessible-docroot evidence as BLOCKED instead of runtime FAIL. | True |
 | Add a verified single-case Full-Matrix target for NGINX with CRS/MRTS setup and job metadata. | Makefile / ci/run-full-matrix-job.py | low | Provides minimal repro without rerunning the 524-case NGINX job. | False |
 
@@ -69,22 +72,22 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/job.json` | `31606405e016d20afb67ce650aaf098b8194133d87869846344929e74c70b8f9` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log` | `d1425a9d5db6ec05270dd7292078437ab1ffd4981efdaadc8b1bf9da902e621f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | `efc447466ad8121a9316477b087e74a7155148082320a9cd57805aa3327f675e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl` | `59dd481e19225c369952c566eca3981cb002c7050b699ee45be6dfdbef2d2603` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/build/full-matrix/with-crs/with-mrts/nginx/job.json` | `31606405e016d20afb67ce650aaf098b8194133d87869846344929e74c70b8f9` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/build/full-matrix/with-crs/with-mrts/nginx/run.log` | `d1425a9d5db6ec05270dd7292078437ab1ffd4981efdaadc8b1bf9da902e621f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | `efc447466ad8121a9316477b087e74a7155148082320a9cd57805aa3327f675e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl` | `59dd481e19225c369952c566eca3981cb002c7050b699ee45be6dfdbef2d2603` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | `a54dc3f43ffc6d2eb4493ad56c58e6eff959cb2ce1380f5eb3d4b4e02003f5c2` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `340546dbab42432eef255f99fda65c0d4301db589d6ac5c9f2a201a94326420e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/job.json` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl` | present | input file available |
+| `<verified-run-root>/build/full-matrix/with-crs/with-mrts/nginx/job.json` | present | input file available |
+| `<verified-run-root>/build/full-matrix/with-crs/with-mrts/nginx/run.log` | present | input file available |
+| `<verified-run-root>/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | input file available |
+| `<verified-run-root>/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl` | present | input file available |
 | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | present | input file available |
 | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | input file available |
+| `<verified-run-root>/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | input file available |

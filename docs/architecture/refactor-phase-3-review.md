@@ -41,7 +41,7 @@ real-world Apache and NGINX smoke runs.
 
 ## Risks
 
-- C and Python metadata names can drift. `ci/check-common-helpers.sh`,
+- C and Python metadata names can drift. `ci/checks/common/check-common-helpers.sh`,
   `make lint`, and summary schema checks are the current guardrails.
 - A future connector may need additional capability names; those should be
   added append-only and mirrored in the Python model.

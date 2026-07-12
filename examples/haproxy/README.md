@@ -1,160 +1,65 @@
-# HAProxy ModSecurity Examples
+# HAProxy native HTX examples
 
 **Language:** English | [Deutsch](README.de.md)
 
-## Table of Contents
+## Integration and boundary
 
-- [Status](#status)
-- [Purpose](#purpose)
-- [Needed Components](#needed-components)
-- [Files](#files)
-- [Production Paths](#production-paths)
-- [Request Phases 1/2](#request-phases-12)
-- [Phase 3 Response Headers](#phase-3-response-headers)
-- [Phase 4 / RESPONSE_BODY Strict-Abort](#phase-4-response_body-strict-abort)
-- [Variable And Placeholder Reference](#variable-and-placeholder-reference)
-- [Runtime Evidence](#runtime-evidence)
-- [Reload And Restart](#reload-and-restart)
-- [Limitations](#limitations)
-- [External Usage](#external-usage)
-- [Non-Claims](#non-claims)
-- [Related Docs](#related-docs)
+Integration mode: native HTX filter. The native [minimal](minimal/haproxy-htx.cfg)
+and [Safe](safe/haproxy-htx.cfg) references are distinct from the preserved
+[SPOE/SPOP compatibility material](compatibility-spoe/README.md).
 
-## Status
-
-HAProxy SPOE/SPOP production-style examples for `haproxy-modsecurity-spoa`.
-The selected path supports request phases and response headers; RESPONSE_BODY
-is not implemented and is not represented as production support.
-
-## Purpose
-
-These examples show the production SPOA path for HAProxy:
-`haproxy-modsecurity-spoa`, HAProxy + SPOE/SPOP + libmodsecurity, decision
-logging, audit-log plumbing, request phases 1/2, and implemented phase 3
-response headers. They do not provide a selected response-body/Phase-4 path.
-
-## Needed Components
-
-HAProxy, `haproxy-modsecurity-spoa`, libmodsecurity v3, SPOE config, ModSecurity rules, optional CRS, and writable HAProxy/SPOA/ModSecurity log locations.
+The Safe file selects phase4-mode safe for the selected HTTP/1.1 P1--P4 core.
+It is a configuration reference for the patched host filter, not a claim that
+stock HAProxy loads it. P1, P2, P3, and P4 mean request headers, request body,
+response headers, and response body. At the late P4 boundary Safe preserves a
+response instead of fabricating a status change. This directory does not claim
+a complete response buffer, per-chunk rule execution, or a client-observed
+Strict abort. No Strict configuration is supplied.
 
 ## Files
 
-- `haproxy-request-only.cfg`: HAProxy request-phase enforcement through SPOE.
-- `haproxy-response-headers.cfg`: HAProxy request plus response-header checks.
-- `haproxy-phase4-strict-abort.cfg`: retired, disabled historical sample; not
-  a runnable Phase-4 example.
-- `spoe-modsecurity.conf`: SPOE message and variable mapping.
-- `modsecurity-agent.conf`: `haproxy-modsecurity-spoa` configuration.
+| Path | Type | Purpose |
+| --- | --- | --- |
+| [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Host configuration | Native HTX parser-supported minimal P4 mode. |
+| [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Host configuration | Native HTTP/1.1 P1--P4 Safe reference. |
+| [rules/README.md](rules/README.md) | Documentation | Canonical No-CRS rules-file source and IDs. |
+| [expected/p1-p4-safe.md](expected/p1-p4-safe.md) | Documentation | Configuration intent, not a run result. |
+| [compatibility-spoe/](compatibility-spoe/README.md) | Compatibility | Former SPOE/SPOP path, deliberately separate. |
 
-## Production Paths
+The native references use host installation values: listener 127.0.0.1:8080,
+upstream 127.0.0.1:8081, and rules file
+/etc/modsecurity/no-crs-baseline.conf. None is a repository-relative path.
 
-The examples use production-style paths:
+## Values to adapt
 
-- `/usr/local/sbin/haproxy-modsecurity-spoa`
-- `/etc/haproxy/haproxy.cfg`
-- `/etc/haproxy/spoe-modsecurity.conf`
-- `/etc/haproxy/modsecurity-agent.conf`
-- `/etc/modsecurity/haproxy-rules.conf`
-- `/var/log/haproxy-modsecurity/decision.jsonl`
-- `/var/log/haproxy-modsecurity/audit.log`
-- `/var/log/haproxy-modsecurity/agent.log`
+| Name | Purpose and format | Required/default, setter, scope | Example, effect, and security |
+| --- | --- | --- | --- |
+| filter modsecurity-htx | Patched HAProxy filter directive | Required; no stock-host default; configured in frontend scope | The patched host must provide this parser. A stock binary rejecting it is a configuration incompatibility, not a reason to fall back silently. |
+| rules-file | Readable installed rules file | Required; no repository default; filter argument; frontend scope | /etc/modsecurity/no-crs-baseline.conf. A reviewed ruleset can block traffic. |
+| phase4-mode | P4 policy: minimal, safe, or strict | Optional filter argument; set in frontend scope; the Safe file sets safe | safe. It records a late P4 result without treating it as a status rewrite. |
+| bind address | Listener TCP address | Required; host config; frontend scope | 127.0.0.1:8080. Choose a private address for local testing; a public bind changes exposure. |
+| upstream server | Backend host and TCP port | Required; host config; backend scope | 127.0.0.1:8081. Replace with the intended application endpoint. |
+| timeout connect/client/server | Positive HAProxy duration | Required in these references; host config; defaults scope | 2s and 5s. Tune for the application; timeouts are not WAF decisions. |
 
-## Request Phases 1/2
+The No-CRS rule IDs and their phase meanings are in
+[rules/README.md](rules/README.md). The historical SPOE options and their
+separate limits remain documented beside their compatibility files.
 
-`haproxy-request-only.cfg` sends request metadata, headers, and request body to
-the SPOA service through the `request-check` group. HAProxy enforces returned
-transaction variables with `http-request deny`, redirect, and silent-drop
-rules.
+## Validation
 
-## Phase 3 Response Headers
+Place the selected reference in an installed patched HAProxy configuration,
+adapt rules-file and addresses, then run the installed host checker:
 
-`haproxy-response-headers.cfg` adds the `response-check` group. It sends
-response status and selected response headers to the SPOA service and enforces
-returned variables with `http-response` rules.
+~~~sh
+haproxy -c -f /etc/haproxy/haproxy.cfg
+~~~
 
-## Phase 4 / RESPONSE_BODY Strict-Abort
+The path is a distribution example; select the real host configuration path.
+A successful check proves that this HAProxy binary parsed the file. It does not
+prove P1--P4 outcomes, P4 client behavior, Strict aborts, production readiness,
+or that the SPOE/SPOP compatibility path has native HTX properties.
 
-`haproxy-phase4-strict-abort.cfg` is a retired, disabled historical artifact.
-The selected SPOE/SPOP configuration sends response headers only; it has no
-response-body route, so Phase 4 / RESPONSE_BODY is `not_implemented`. Do not
-use or report the retired sample as current runtime evidence.
+## Related material
 
-## Variable And Placeholder Reference
-
-| Name | Type | Required | Example value | Used in | Meaning | Change requires restart/reload | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `haproxy-modsecurity-spoa` | binary path | Yes | `/usr/local/sbin/haproxy-modsecurity-spoa` | service unit or process supervisor | Production SPOA/SPOP process that loads libmodsecurity. | restart SPOA | Built by `make -C connectors/haproxy build-spoa-runtime`. |
-| `filter spoe engine modsecurity` | HAProxy directive | Yes | `config /etc/haproxy/spoe-modsecurity.conf` | `haproxy-*.cfg` | Attaches the ModSecurity SPOE engine. | reload HAProxy | Config path must be readable by HAProxy. |
-| `http-request send-spoe-group` | HAProxy directive | Yes | `modsecurity request-check` | request HAProxy configs | Sends request data to the SPOA service. | reload HAProxy | Required for phases 1/2. |
-| `http-response send-spoe-group` | HAProxy directive | Response modes | `modsecurity response-check` | response-header HAProxy configs | Sends response data to the SPOA service. | reload HAProxy | Required for phase 3 only; no response body is sent. |
-| `be_spoa_modsecurity` | HAProxy backend | Yes | `127.0.0.1:12345` | `haproxy-*.cfg` | SPOP backend for the SPOA process. | reload HAProxy | Address must match agent `listen`. |
-| `spoe-agent modsecurity-agent` | SPOE section | Yes | `use-backend be_spoa_modsecurity` | `spoe-modsecurity.conf` | Defines the SPOE agent and backend. | reload HAProxy | Uses HAProxy `mode spop`. |
-| `groups` | SPOE option | Yes | `request-check response-check` | `spoe-modsecurity.conf` | Declares available SPOE groups. | reload HAProxy | Request-only deployments can still leave response group defined. |
-| `register-var-names` | SPOE option | Yes | `blocked action status redirect_url rule_id phase error` | `spoe-modsecurity.conf` | Registers transaction variables returned by SPOA. | reload HAProxy | HAProxy enforcement rules read these variables. |
-| `max-frame-size` | SPOE option | Yes | `65532` | `spoe-modsecurity.conf` | Bounds SPOE frame size. | reload HAProxy | Keep aligned with request/response body limits. |
-| `request_id` | SPOE message arg | Yes | `unique-id` | `spoe-modsecurity.conf` | Correlates requests in decision and audit logs. | reload HAProxy | `unique-id-header` exposes the same value upstream. |
-| `headers_bin` | SPOE message arg | Request checks | `req.hdrs_bin` | `spoe-modsecurity.conf` | Sends request headers in binary form. | reload HAProxy | Used by request phases. |
-| `body` | SPOE message arg | Request checks | `req.body` | `spoe-modsecurity.conf` | Sends bounded request body bytes. | reload HAProxy | Requires `option http-buffer-request`. |
-| `response_headers_bin` | SPOE message arg | Response checks | `res.hdrs_bin` | `spoe-modsecurity.conf` | Sends response headers in binary form, preserving repeated values such as `Set-Cookie`. | reload HAProxy | Preferred for phase 3 response-header evidence. |
-| `response_headers` | SPOE message arg | Response checks | `res.hdrs` | `spoe-modsecurity.conf` | Sends response headers for phase 3. | reload HAProxy | Supported by response-header evidence. |
-| `listen` | agent config key | Yes | `127.0.0.1:12345` | `modsecurity-agent.conf` | Address where `haproxy-modsecurity-spoa` listens. | restart SPOA | Must match HAProxy SPOP backend. |
-| `rules-file` | agent config key | Yes | `/etc/modsecurity/haproxy-rules.conf` | `modsecurity-agent.conf` | ModSecurity rules loaded by the SPOA process. | restart SPOA | Include CRS from this file when needed. |
-| `decision-log` | agent config key | Yes | `/var/log/haproxy-modsecurity/decision.jsonl` | `modsecurity-agent.conf` | JSONL runtime decision log. | restart SPOA | Preserve for evidence and debugging. |
-| `audit-log` | agent config key | No | `/var/log/haproxy-modsecurity/audit.log` | `modsecurity-agent.conf` | libmodsecurity audit log output. | restart SPOA | Ensure writable directory permissions. |
-| `log-file` | agent config key | No | `/var/log/haproxy-modsecurity/agent.log` | `modsecurity-agent.conf` | Agent diagnostic log. | restart SPOA | Rotate with system logs. |
-| `mode` | agent config key | Yes | `block` | `modsecurity-agent.conf` | Enables disruptive enforcement. | restart SPOA | Use detection mode only if implemented in the deployed binary. |
-| `fail-mode` | agent config key | Yes | `closed` | `modsecurity-agent.conf` | Behavior when processing fails. | restart SPOA | Choose according to service risk tolerance. |
-| `request-body-limit` | agent config key | No | `65532` | `modsecurity-agent.conf` | Bounds request body bytes processed. | restart SPOA | Keep within SPOE frame limits. |
-| `response-body-limit` | agent config key | Disabled | `0` | `modsecurity-agent.conf` | Disables response-body processing. | restart SPOA | No selected response-body route exists. |
-| `response-body-timeout` | agent config key | Disabled | `0` | `modsecurity-agent.conf` | Disables response-body waiting. | restart SPOA | No selected response-body route exists. |
-| `spoe-timeout` | agent config key | No | `2000` | `modsecurity-agent.conf` | Agent-side SPOE timeout in milliseconds. | restart SPOA | Keep aligned with HAProxy processing timeout. |
-| `worker-count` | agent config key | No | `1` | `modsecurity-agent.conf` | SPOA worker count. | restart SPOA | Size for production traffic after testing. |
-| `max-transactions` | agent config key | No | `4096` | `modsecurity-agent.conf` | Agent transaction capacity. | restart SPOA | Tune with memory and concurrency. |
-
-## Runtime Evidence
-
-Local generated evidence uses:
-
-- `/src/ModSecurity-conector-build/results/with-crs/haproxy-summary.json`
-- `/src/ModSecurity-conector-build/results/force-all/haproxy-summary.json`
-- `/src/ModSecurity-conector-build/logs/haproxy-runtime/decision.jsonl`
-- `/src/ModSecurity-conector-build/logs/haproxy-runtime/audit.log`
-- `reports/testing/generated/haproxy-runtime-results.generated.md`
-- `reports/testing/haproxy-poc.md`
-
-Default HAProxy smoke reports `55/55 PASS`. Force-all HAProxy evidence reports
-`133 attempted / 104 PASS / 23 FAIL / 0 BLOCKED / 6 NOT_EXECUTABLE`.
-
-## Reload And Restart
-
-Run `haproxy -c -f /etc/haproxy/haproxy.cfg` before reload. Reload HAProxy
-after HAProxy or SPOE config changes. Restart the SPOA service after
-`modsecurity-agent.conf`, rule file, binary, or library-path changes.
-
-## Limitations
-
-The root summaries are connector-neutral. Row-level HAProxy evidence stays in
-`reports/testing/generated/haproxy-runtime-results.generated.md`. There is no
-synthetic matrix writer; generated reports consume runtime summaries and
-snapshot data.
-
-
-## External Usage
-
-This directory contains example configs for external usage. They are starting points only and are not universal production defaults. The matching compile guide explains how to build or prepare the required artifact: `haproxy-modsecurity-spoa`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
-
-Service context: HAProxy plus SPOA process. After adapting the files, haproxy -c, reload HAProxy, and restart the operator-managed SPOA process. Inspect HAProxy logs, decision.jsonl, audit.log, and SPOA diagnostic logs.
-
-## Non-Claims
-
-- These examples are not a blanket production-readiness certification.
-- They do not prove every package/version/layout.
-- Phase 4 / RESPONSE_BODY is `not_implemented` in the selected SPOP path; the
-  retired sample is disabled and not current runtime evidence.
-
-## Related Docs
-
-- [COMPILE_HAPROXY.md](../../COMPILE_HAPROXY.md)
-- `connectors/haproxy/docs/build.md`
-- `connectors/haproxy/docs/validation.md`
-- `reports/testing/haproxy-poc.md`
+- [HAProxy connector source and native HTX boundary](../../connectors/haproxy/README.md)
+- [Repository examples overview](../README.md)

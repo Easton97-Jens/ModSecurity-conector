@@ -26,7 +26,7 @@ konkreten Connector geliefert werden.
 - Runner:
   `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 - Laufzeitbericht:
-  `reports/template-verification-nginx-apache/verified-runtime-run.md` oder ein
+  `reports/archive/template-verification-nginx-apache/verified-runtime-run.md` oder ein
   connector-spezifisches Äquivalent
 - Summary-JSON:
 `<BUILD_ROOT>/results/.../<connector>-summary.json`

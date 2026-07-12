@@ -54,7 +54,7 @@ build-modsecurity-binding: $(MODSECURITY_BINDING_BIN)
 	@echo "Scope: libmodsecurity binding self-tests only; no HAProxy runtime enforcement or RESPONSE_BODY verification is claimed."
 
 check-htx-overlay:
-	python3 "$(REPO_ROOT)/ci/check-haproxy-htx-overlay.py"
+	python3 "$(REPO_ROOT)/ci/checks/connectors/haproxy/check-haproxy-htx-overlay.py"
 
 test-htx-overlay: check-htx-overlay
 	python3 harness/test_haproxy_htx_smoke_helper.py

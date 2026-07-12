@@ -34,7 +34,7 @@ MODSECURITY_APACHE_SOURCE_DIR=connectors/apache
 APACHE_CONNECTOR_BUILD_DIR=$BUILD_ROOT/apache-build/connector-src
 ```
 
-`modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` materialisiert den Quellbaum und führt dann den aus
+`modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh` materialisiert den Quellbaum und führt dann den aus
 Standard-Autotools/APXS-Sequenz aus dem generierten Verzeichnis:
 
 ```sh

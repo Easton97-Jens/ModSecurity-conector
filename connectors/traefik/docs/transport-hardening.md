@@ -1,5 +1,7 @@
 # Traefik native transport-hardening boundary
 
+**Language:** English | [Deutsch](transport-hardening.de.md)
+
 This note applies only to the repository-owned native local-plugin path
 (`native-traefik-middleware`) on the pinned Traefik `3.7.5` host. It does not
 alter the separate `forwardAuth` compatibility path or promote a capability.

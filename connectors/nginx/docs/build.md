@@ -1,11 +1,13 @@
 # NGINX Build
 
+**Language:** English | [Deutsch](build.de.md)
+
 Status: adapter-owned dynamic module path
 
 The complete repository-supported NGINX compile and local verification flow is
 documented in the root guide:
 
-- [`COMPILE_NGINX.md`](../../../COMPILE_NGINX.md)
+- [`docs/build/compilers/nginx.md`](../../../docs/build/compilers/nginx.md)
 
 ## Current Build Path
 

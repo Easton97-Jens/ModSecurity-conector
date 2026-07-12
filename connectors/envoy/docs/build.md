@@ -1,5 +1,7 @@
 # Envoy Connector Build
 
+**Language:** English | [Deutsch](build.de.md)
+
 Status: C17 compile/link verified; targeted ext_authz request path is
 `minimal_runtime_smoke` / `connector-gap`.
 

@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T16:59:10Z`
+> Generated at: `2026-07-12T20:12:32Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
-> Generator: `ci/refresh-connector-reports.py`
+> Generator: `ci/evidence/reports/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f`
-> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
+> Connector SHA: `9b718cee0523da3e0822754dc4b05f327b6d969d`
+> Framework SHA: `4e9d4ba616235127b6fc0a2ee87107d93d03f40b`
 > Input status: `unknown`
 
 # Report Path Migration
@@ -21,7 +21,11 @@
 | `reports/testing/generated/body-processor-analysis.generated.json` | `reports/testing/generated/focused-analysis/body-processor-analysis.generated.json` | focused-analysis | migrated |
 | `reports/testing/generated/body-processor-analysis.generated.md` | `reports/testing/generated/focused-analysis/body-processor-analysis.generated.md` | focused-analysis | migrated |
 | `reports/testing/generated/case-matrix.generated.md` | `reports/testing/generated/coverage/case-matrix.generated.md` | coverage | migrated |
+| `reports/testing/generated/connector-capabilities.generated.json` | `reports/testing/generated/canonical/connector-capabilities.generated.json` | canonical | migrated |
+| `reports/testing/generated/connector-capabilities.generated.md` | `reports/testing/generated/canonical/connector-capabilities.generated.md` | canonical | migrated |
 | `reports/testing/generated/connector-gap-summary.generated.md` | `reports/testing/generated/coverage/connector-gap-summary.generated.md` | coverage | migrated |
+| `reports/testing/generated/connector-roadmap.generated.json` | `reports/testing/generated/manifest/connector-roadmap.generated.json` | manifest | migrated |
+| `reports/testing/generated/connector-roadmap.generated.md` | `reports/testing/generated/manifest/connector-roadmap.generated.md` | manifest | migrated |
 | `reports/testing/generated/connector-work-queue.generated.json` | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | work-queues | migrated |
 | `reports/testing/generated/connector-work-queue.generated.md` | `reports/testing/generated/work-queues/connector-work-queue.generated.md` | work-queues | migrated |
 | `reports/testing/generated/coverage-summary.generated.md` | `reports/testing/generated/coverage/coverage-summary.generated.md` | coverage | migrated |

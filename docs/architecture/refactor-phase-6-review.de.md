@@ -13,7 +13,7 @@ produktiver Apache- oder NGINX-Connector-Pfad.
 | --- | --- | --- |
 | Metadaten des Apache-Adapters | `connectors/apache/metadata.h`, `connectors/apache/metadata.c` | Stabiler Repo-eigener Deskriptor für die Apache-Connector-Quelle und den Lizenzursprung |
 | Metadaten des NGINX-Adapters | `connectors/nginx/metadata.h`, `connectors/nginx/metadata.c` | Stabiler Repo-eigener Deskriptor für die NGINX-Connector-Quelle und den Lizenzursprung |
-| Validierung des Adapter-Helfers | `ci/check-adapter-helpers.sh` | Kompiliert Adaptermetadaten unter `$BUILD_ROOT` und prüft erforderliche Felder |
+| Validierung des Adapter-Helfers | `ci/checks/common/check-adapter-helpers.sh` | Kompiliert Adaptermetadaten unter `$BUILD_ROOT` und prüft erforderliche Felder |
 | Lint-Integration | `Makefile` | Führt den Adapter-Helfer Smoke als Teil von `make lint` aus |
 
 Nach Phase 13 verbleiben die Adaptermetadaten solange im Connector-Stammverzeichnis
@@ -34,7 +34,7 @@ beteiligt sich an generierten NGINX-Build-Kopien.
 ## Evidence
 
 Die neuen Adapter-Metadaten werden unabhängig von überprüft
-`ci/check-adapter-helpers.sh`. Reale Apache- und NGINX-Smokes bleiben bestehen
+`ci/checks/common/check-adapter-helpers.sh`. Reale Apache- und NGINX-Smokes bleiben bestehen
 RegressionsEvidence, dass sich die unveränderten produktiven Connector-Pfade immer noch so verhalten
 vor.
 

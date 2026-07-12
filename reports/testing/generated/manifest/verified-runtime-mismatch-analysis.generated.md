@@ -11,6 +11,9 @@
 > Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
+<!-- retained-historical-generated-output -->
+> Current refresh status: `skipped_missing_input`. This report retains an earlier evidence-bearing snapshot because no newer verified inputs are available. Reason: required input missing or empty.
+
 # Verified Runtime Mismatch Analysis
 
 **Language:** English | [Deutsch](verified-runtime-mismatch-analysis.generated.de.md)
@@ -37,23 +40,23 @@ This report is generated only from verified runtime producer files. It does not 
 
 | Input | Status | SHA256 |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | `bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json` | present | `1717c2a630321e9b7bf04cadd161eac0c164673442e843c2bd291994f0a1038c` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json` | present | `d20599aa223dad587761dd10551cb44fdbc00b83165baa7071c8d159ecc1ea04` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json` | present | `949e28d7142459e86e0cb9ec1fad12b8b7172a5681039421e4075087d6c3de82` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json` | present | `0a7ac7b47460d1aece31e5a5cce68ff254229b0d8da71644dd06d92739113aa6` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json` | present | `af1020b64ee7d12bd6580aafa92e5182aaacaf27dd8599991cfdf6cf161deabe` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | `213018f411175c07f783a4ab48618a52e54b07f2be1d36543a18096b3c6013ef` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json` | present | `2ad3431b993b3b1bd376f883bf7e4e92a69190a88685056a58dd8072e1ed181e` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json` | present | `af547bfca06e171781dee73eb432942ce47189d9ab8363fa7c694ed0cd994fda` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json` | present | `fd4de70202d5780055fc4d4ad076133078c876970cf21cf54023d18139dd9fa4` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json` | present | `6f93aac6466c0e301e3bd6dfc3c4bbab4f5955ec884cd28eb28ba6821ab1ba0a` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json` | present | `1ff741bf7a50983b1d2e403206f2a75ba4cc21e43a45b0dd530f49cd3b344f46` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | `efc447466ad8121a9316477b087e74a7155148082320a9cd57805aa3327f675e` |
-| `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | `dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7` |
-| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/native-case-run.json` | present | `9167164893422a4ebf6587db8d70a96a61f169b49766a2abca2279126459a8d3` |
-| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json` | present | `97a35281bbe37a2d08df5962b766ed71be05dd4dcb0673d275a0596d16650820` |
-| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json` | present | `38964013ce0ab0541e763b0472694e0123e70d8c55e609fb961c290064cee1a5` |
+| `<verified-run-root>/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | `bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8` |
+| `<verified-run-root>/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json` | present | `1717c2a630321e9b7bf04cadd161eac0c164673442e843c2bd291994f0a1038c` |
+| `<verified-run-root>/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json` | present | `d20599aa223dad587761dd10551cb44fdbc00b83165baa7071c8d159ecc1ea04` |
+| `<verified-run-root>/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json` | present | `949e28d7142459e86e0cb9ec1fad12b8b7172a5681039421e4075087d6c3de82` |
+| `<verified-run-root>/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json` | present | `0a7ac7b47460d1aece31e5a5cce68ff254229b0d8da71644dd06d92739113aa6` |
+| `<verified-run-root>/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json` | present | `af1020b64ee7d12bd6580aafa92e5182aaacaf27dd8599991cfdf6cf161deabe` |
+| `<verified-run-root>/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | `213018f411175c07f783a4ab48618a52e54b07f2be1d36543a18096b3c6013ef` |
+| `<verified-run-root>/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json` | present | `2ad3431b993b3b1bd376f883bf7e4e92a69190a88685056a58dd8072e1ed181e` |
+| `<verified-run-root>/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json` | present | `af547bfca06e171781dee73eb432942ce47189d9ab8363fa7c694ed0cd994fda` |
+| `<verified-run-root>/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json` | present | `fd4de70202d5780055fc4d4ad076133078c876970cf21cf54023d18139dd9fa4` |
+| `<verified-run-root>/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json` | present | `6f93aac6466c0e301e3bd6dfc3c4bbab4f5955ec884cd28eb28ba6821ab1ba0a` |
+| `<verified-run-root>/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json` | present | `1ff741bf7a50983b1d2e403206f2a75ba4cc21e43a45b0dd530f49cd3b344f46` |
+| `<verified-run-root>/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | `efc447466ad8121a9316477b087e74a7155148082320a9cd57805aa3327f675e` |
+| `<verified-run-root>/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | `dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7` |
+| `<verified-run-root>/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/native-case-run.json` | present | `9167164893422a4ebf6587db8d70a96a61f169b49766a2abca2279126459a8d3` |
+| `<verified-run-root>/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json` | present | `97a35281bbe37a2d08df5962b766ed71be05dd4dcb0673d275a0596d16650820` |
+| `<verified-run-root>/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json` | present | `38964013ce0ab0541e763b0472694e0123e70d8c55e609fb961c290064cee1a5` |
 
 ## By Connector
 
@@ -313,18 +316,18 @@ This report is generated only from verified runtime producer files. It does not 
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json` | `97a35281bbe37a2d08df5962b766ed71be05dd4dcb0673d275a0596d16650820` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/native-case-run.json` | `9167164893422a4ebf6587db8d70a96a61f169b49766a2abca2279126459a8d3` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json` | `38964013ce0ab0541e763b0472694e0123e70d8c55e609fb961c290064cee1a5` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/build/full-matrix/full-runtime-matrix-runs.jsonl` | `bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json` | `97a35281bbe37a2d08df5962b766ed71be05dd4dcb0673d275a0596d16650820` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/native-case-run.json` | `9167164893422a4ebf6587db8d70a96a61f169b49766a2abca2279126459a8d3` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json` | `38964013ce0ab0541e763b0472694e0123e70d8c55e609fb961c290064cee1a5` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/native-case-run.json` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json` | present | input file available |
+| `<verified-run-root>/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | input file available |
+| `<verified-run-root>/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | input file available |
+| `<verified-run-root>/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json` | present | input file available |
+| `<verified-run-root>/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/native-case-run.json` | present | input file available |
+| `<verified-run-root>/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json` | present | input file available |

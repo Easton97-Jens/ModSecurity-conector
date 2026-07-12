@@ -11,6 +11,9 @@
 > Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
+<!-- retained-historical-generated-output -->
+> Current refresh status: `skipped_missing_input`. This report retains an earlier evidence-bearing snapshot because no newer verified inputs are available. Reason: required input missing or empty.
+
 # Full MRTS Runtime Matrix
 
 **Language:** English | [Deutsch](full-runtime-matrix.generated.de.md)
@@ -26,18 +29,18 @@ Generated file - do not edit manually.
 ## Variant Results
 | Connector | Test variant | MRTS variant | Outcome | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending | Duration seconds | Summary | Log |
 |---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|
-| apache | no-crs | no-mrts | FAIL | 133 | 122 | 11 | 0 | 0 | 0 | 342 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log |
-| nginx | no-crs | no-mrts | FAIL | 140 | 115 | 25 | 0 | 0 | 0 | 577 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log |
-| haproxy | no-crs | no-mrts | FAIL | 133 | 122 | 11 | 0 | 0 | 0 | 278 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log |
-| apache | no-crs | with-mrts | FAIL | 516 | 407 | 109 | 0 | 0 | 383 | 1314 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log |
-| nginx | no-crs | with-mrts | FAIL | 523 | 407 | 116 | 0 | 0 | 383 | 3358 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log |
-| haproxy | no-crs | with-mrts | FAIL | 516 | 407 | 109 | 0 | 0 | 383 | 1090 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log |
-| apache | with-crs | no-mrts | FAIL | 134 | 122 | 12 | 0 | 0 | 0 | 366 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log |
-| nginx | with-crs | no-mrts | FAIL | 141 | 115 | 26 | 0 | 0 | 0 | 641 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log |
-| haproxy | with-crs | no-mrts | FAIL | 134 | 122 | 12 | 0 | 0 | 0 | 312 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log |
-| apache | with-crs | with-mrts | FAIL | 517 | 406 | 111 | 0 | 0 | 383 | 1423 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log |
-| nginx | with-crs | with-mrts | FAIL | 524 | 406 | 118 | 0 | 0 | 383 | 3594 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log |
-| haproxy | with-crs | with-mrts | FAIL | 517 | 406 | 111 | 0 | 0 | 383 | 1225 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log |
+| apache | no-crs | no-mrts | FAIL | 133 | 122 | 11 | 0 | 0 | 0 | 342 | <verified-run-root>/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json | <verified-run-root>/build/full-matrix/no-crs/no-mrts/apache/run.log |
+| nginx | no-crs | no-mrts | FAIL | 140 | 115 | 25 | 0 | 0 | 0 | 577 | <verified-run-root>/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json | <verified-run-root>/build/full-matrix/no-crs/no-mrts/nginx/run.log |
+| haproxy | no-crs | no-mrts | FAIL | 133 | 122 | 11 | 0 | 0 | 0 | 278 | <verified-run-root>/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json | <verified-run-root>/build/full-matrix/no-crs/no-mrts/haproxy/run.log |
+| apache | no-crs | with-mrts | FAIL | 516 | 407 | 109 | 0 | 0 | 383 | 1314 | <verified-run-root>/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json | <verified-run-root>/build/full-matrix/no-crs/with-mrts/apache/run.log |
+| nginx | no-crs | with-mrts | FAIL | 523 | 407 | 116 | 0 | 0 | 383 | 3358 | <verified-run-root>/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json | <verified-run-root>/build/full-matrix/no-crs/with-mrts/nginx/run.log |
+| haproxy | no-crs | with-mrts | FAIL | 516 | 407 | 109 | 0 | 0 | 383 | 1090 | <verified-run-root>/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json | <verified-run-root>/build/full-matrix/no-crs/with-mrts/haproxy/run.log |
+| apache | with-crs | no-mrts | FAIL | 134 | 122 | 12 | 0 | 0 | 0 | 366 | <verified-run-root>/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json | <verified-run-root>/build/full-matrix/with-crs/no-mrts/apache/run.log |
+| nginx | with-crs | no-mrts | FAIL | 141 | 115 | 26 | 0 | 0 | 0 | 641 | <verified-run-root>/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json | <verified-run-root>/build/full-matrix/with-crs/no-mrts/nginx/run.log |
+| haproxy | with-crs | no-mrts | FAIL | 134 | 122 | 12 | 0 | 0 | 0 | 312 | <verified-run-root>/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json | <verified-run-root>/build/full-matrix/with-crs/no-mrts/haproxy/run.log |
+| apache | with-crs | with-mrts | FAIL | 517 | 406 | 111 | 0 | 0 | 383 | 1423 | <verified-run-root>/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json | <verified-run-root>/build/full-matrix/with-crs/with-mrts/apache/run.log |
+| nginx | with-crs | with-mrts | FAIL | 524 | 406 | 118 | 0 | 0 | 383 | 3594 | <verified-run-root>/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json | <verified-run-root>/build/full-matrix/with-crs/with-mrts/nginx/run.log |
+| haproxy | with-crs | with-mrts | FAIL | 517 | 406 | 111 | 0 | 0 | 383 | 1225 | <verified-run-root>/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json | <verified-run-root>/build/full-matrix/with-crs/with-mrts/haproxy/run.log |
 
 ## MRTS Upstream Config Tests
 | Connector | Variant | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending |
@@ -67,10 +70,10 @@ These native MRTS reports are separate from connector full-matrix evidence.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/build/full-matrix/full-runtime-matrix-runs.jsonl` | `bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | input file available |
+| `<verified-run-root>/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | input file available |

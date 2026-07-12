@@ -90,7 +90,7 @@ $BUILD_ROOT/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so
 ```
 
 Keiner von PoC schreibt an `/usr`, `/usr/local`, `/etc/apache2`, `/etc/nginx` oder
-`/root/conecter/*`.
+`<external-source-root>/*`.
 
 ## Aktueller lokaler Vergleich
 

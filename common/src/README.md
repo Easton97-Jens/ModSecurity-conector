@@ -1,5 +1,7 @@
 # common/src
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: implemented conservative helper layer
 
 This directory contains connector-neutral implementation files only. The Phase 3
@@ -24,5 +26,5 @@ Open work is tracked in `docs/roadmap/todo-inventory.md`:
 - Keep these helpers limited to metadata and datatypes.
 - Do not add server lifecycle, request body, response filter, or libmodsecurity
   ownership code here.
-- Use `ci/check-common-helpers.sh` to compile and run the isolated C smoke under
+- Use `ci/checks/common/check-common-helpers.sh` to compile and run the isolated C smoke under
   `BUILD_ROOT`.

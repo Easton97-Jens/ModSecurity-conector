@@ -12,9 +12,9 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "ci"))
+sys.path.insert(0, str(ROOT / "ci" / "evidence" / "collectors"))
 SPEC = importlib.util.spec_from_file_location(
-    "connector_capabilities", ROOT / "ci/connector_capabilities.py"
+    "connector_capabilities", ROOT / "ci/evidence/collectors/connector_capabilities.py"
 )
 assert SPEC is not None and SPEC.loader is not None
 connector_capabilities = importlib.util.module_from_spec(SPEC)

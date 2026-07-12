@@ -62,7 +62,7 @@ input.
 
 NGINX productive source is now adapter-owned. The monorepo default
 `MODSECURITY_NGINX_SOURCE_DIR` is `connectors/nginx`, and
-`modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` materializes `$BUILD_ROOT/nginx-build/connector-src`
+`modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh` materializes `$BUILD_ROOT/nginx-build/connector-src`
 from adapter-owned NGINX `connectors/nginx/config` and module sources in
 `connectors/nginx/src`, plus generated materialization manifests.
 
@@ -82,7 +82,7 @@ attribution stays in `licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and
 `connectors/nginx/SOURCE_MAP.json`. The NGINX materialized-source manifest
 should show only `adapter-owned` and `generated-overlay` entries.
 
-`modules/ModSecurity-test-Framework/ci/run-nginx-smoke.sh` treats an existing monorepo-default NGINX build as
+`modules/ModSecurity-test-Framework/ci/runtime/run-nginx-smoke.sh` treats an existing monorepo-default NGINX build as
 stale when `$BUILD_ROOT/nginx-build/connector-src/materialized-source.json` is
 missing, still references `upstream-derived` entries, or does not mark the NGINX
 module `config` and C sources as `adapter-owned`. In that case it refreshes only
@@ -93,7 +93,7 @@ smokes, so old modules cannot mask or break adapter-owned source validation.
 
 Apache productive source is now adapter-owned. The monorepo default
 `MODSECURITY_APACHE_SOURCE_DIR` is `connectors/apache`, and
-`modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` materializes
+`modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh` materializes
 `$BUILD_ROOT/apache-build/connector-src` from adapter-owned Apache source,
 Autotools/APXS inputs, required `.in` templates, and generated manifests. The
 materializer keeps Apache paths unchanged so `./autogen.sh`, `./configure`, and
@@ -101,7 +101,7 @@ materializer keeps Apache paths unchanged so `./autogen.sh`, `./configure`, and
 
 The former `connectors/apache/upstream/` tree was removed after
 `REFRESH=1 BUILD_ROOT=/src/ModSecurity-conector-apache-final-build make
-smoke-apache` passed. `modules/ModSecurity-test-Framework/ci/run-apache-smoke.sh` treats an existing
+smoke-apache` passed. `modules/ModSecurity-test-Framework/ci/runtime/run-apache-smoke.sh` treats an existing
 monorepo-default Apache build as stale when the materialized-source manifest is
 missing, still references `upstream-derived` entries, or does not mark required
 Apache build/source/template files as `adapter-owned`.

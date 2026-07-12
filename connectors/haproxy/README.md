@@ -42,7 +42,7 @@ for enforcement, strict abort, or full `RESPONSE_BODY` support.
 
 See:
 
-- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
+- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
 - `connectors/_template/docs/coverage-decision-matrix.md`
 
 Shared connector-neutral data shapes used by the starter:
@@ -79,7 +79,7 @@ Shared connector-neutral data shapes used by the starter:
 ## Build Starter
 
 For the complete repository-supported HAProxy compile and local verification
-flow, see the root guide: [`COMPILE_HAPROXY.md`](../../COMPILE_HAPROXY.md).
+flow, see the root guide: [`docs/build/compilers/haproxy.md`](../../docs/build/compilers/haproxy.md).
 The connector-local notes below describe status and target scope only.
 
 Supported local build targets:
@@ -179,7 +179,7 @@ make -C connectors/haproxy check-htx-overlay
 HAPROXY_HTX_SOURCE_DIR=/path/to/haproxy-3.2.21 \
 MODSECURITY_INCLUDE_DIR=/path/to/include \
 MODSECURITY_LIB_DIR=/path/to/lib \
-BUILD_ROOT=/var/tmp/haproxy-htx-smoke \
+BUILD_ROOT=/srv/modsecurity-work/haproxy-htx-smoke \
 make -C connectors/haproxy runtime-smoke-haproxy-htx
 ```
 

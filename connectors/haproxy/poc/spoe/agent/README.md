@@ -1,22 +1,24 @@
 # SPOA Agent Placeholder
 
+**Language:** English | [Deutsch](README.de.md)
+
 documentation only
 
-Dieses Verzeichnis ist ein Platzhalter für eine spätere externe SPOA-Komponente
-(planned only). Es enthält absichtlich keine Implementierung und kein
-festgelegtes Agent-Design.
+This directory is a placeholder for a later external SPOA component
+(planned only). It intentionally contains no implementation and no
+fixed agent design.
 
-## Zweck (planned only)
-- Dokumentieren, welche Rolle eine externe Komponente im PoC haben könnte.
-- Keine Sprache festlegen.
-- Kein finales Design festlegen.
+## Purpose (planned only)
+- Document what role an external component could have in the PoC.
+- Do not set language.
+- Do not set a final design.
 
-## Offene Punkte
-- Request-Datenumfang: Noch zu prüfen.
-- Response-Datenumfang: Noch zu prüfen.
-- Intervention-Mapping: Noch zu prüfen.
-- Fail-open/fail-closed: Extern zu verifizieren.
-- Logging: Noch zu prüfen.
-- Performance: Extern zu verifizieren.
+## Open points
+- Request data scope: Still to be checked.
+- Response data scope: To be checked.
+- Intervention mapping: To be examined.
+- Fail-open/fail-closed: To be verified externally.
+- Logging: To be checked.
+- Performance: To be verified externally.
 
-Zusätzliche Architekturdetails sind Nicht belegbar aus dem aktuellen Repository.
+Additional architectural details are not available from the current repository.

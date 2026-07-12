@@ -26,7 +26,7 @@ Run the framework-owned helper rather than a hand-written curl command:
 
 ```sh
 cd modules/ModSecurity-test-Framework
-python3 ci/protocol_client.py \
+python3 ci/checks/protocol/protocol_client.py \
   --url https://127.0.0.1:8443/no-crs/deny \
   --protocol h2 \
   --artifact-dir /absolute/evidence/client-h2 \
@@ -105,7 +105,7 @@ the same target-authority hash, while retaining neither raw URL nor request
 payload. Then validate the client side explicitly:
 
 ```sh
-python3 ci/check_protocol_evidence.py \
+python3 ci/checks/protocol/check_protocol_evidence.py \
   --artifact-dir /absolute/evidence/client-h3-strict \
   --protocol h3 \
   --strict \
@@ -172,5 +172,5 @@ preflight artifact for each, and uploads only the payload-free bundle. A
 no-listener preflight is explicitly not connector runtime evidence; an H3
 `BLOCKED` observation is reported as a client-environment condition.
 
-See [the transport-hardening audit](../../reports/transport-hardening-audit.md)
+See [the transport-hardening audit](../../reports/audits/transport-hardening-audit.md)
 for current connector-specific boundaries and deliberately unmade claims.

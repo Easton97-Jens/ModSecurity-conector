@@ -13,7 +13,7 @@ headers only; Phase 4 / RESPONSE_BODY is not canonical evidence
   runtime with libmodsecurity.
 - `connectors/haproxy/harness/run_haproxy_smoke.sh` starts HAProxy, the SPOA
   runtime, and a local backend, then records live runtime decisions.
-- `modules/ModSecurity-test-Framework/ci/run-haproxy-runtime-matrix.sh` runs
+- `modules/ModSecurity-test-Framework/ci/runtime/run-haproxy-runtime-matrix.sh` runs
   the no-CRS, with-CRS, and force-all evidence paths.
 - Runtime evidence includes `decision.jsonl`, HAProxy logs, SPOA logs, audit
   logs when configured, JSONL case results, and generated summaries.
@@ -48,7 +48,7 @@ The production SPOA binary is staged at:
 
 The HAProxy runtime helper downloads, verifies, builds, and stages HAProxy
 under `BUILD_ROOT` using source pins from
-`modules/ModSecurity-test-Framework/ci/common.sh`.
+`modules/ModSecurity-test-Framework/ci/lib/common.sh`.
 
 ## Runtime Smoke
 
@@ -178,4 +178,4 @@ SPOA service.
 - `reports/testing/generated/runtime/haproxy-runtime-results.generated.md`
 - `reports/testing/test-coverage-overview.md`
 - `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
-- `COMPILE_HAPROXY.md`
+- `docs/build/compilers/haproxy.md`

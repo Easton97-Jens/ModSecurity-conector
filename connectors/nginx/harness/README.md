@@ -1,5 +1,7 @@
 # NGINX Smoke Harness
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: scaffolded
 
 This harness is a connector-specific proof-of-concept runner for the dynamic
@@ -13,7 +15,7 @@ minimal cases.
 ## Boundaries
 
 - Uses only artifacts under `BUILD_ROOT`.
-- Does not build or modify any `/root/conecter/*` repository.
+- Does not build or modify any `<external-source-root>/*` repository.
 - Does not import NGINX or ModSecurity-nginx source into this monorepo.
 - Reports `pass` only when NGINX returns the YAML-expected HTTP status for a
   real local request.

@@ -56,13 +56,13 @@ Nur `$CACHE_ROOT/shared` ist zwischen Connectoren wiederverwendbar; der
 Legacy-Baum `$VERIFIED_RUN_ROOT/component-cache` wird nicht als verwalteter
 Cache übernommen.
 Runtimepfade dürfen sich nicht in `/root`, im Quell-Checkout oder an Systemstandorten befinden
-wie `/usr`, `/etc`, `/var/lib`, `/bin` oder `/sbin`. `/var/tmp/...` und
-`${RUNNER_TEMP}/...` sind gültige Runtime-Eltern.
+wie `/usr`, `/etc`, `/var/lib`, `/bin` oder `/sbin`. Ein dediziertes externes
+Arbeitsverzeichnis oder `${RUNNER_TEMP}` ist ein gültiger Runtime-Elternpfad.
 
 ## Lokal verifizierter Lauf
 
 ```sh
-export VERIFIED_RUN_ROOT=/var/tmp/ModSecurity-conector-verified
+export VERIFIED_RUN_ROOT=/srv/modsecurity-work/verified
 export VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS=3600
 make verified-runtime-producers
 make verified-report-refresh
@@ -72,7 +72,7 @@ make verified-report-checks
 Für einen günstigeren lokalen Scheck:
 
 ```sh
-export VERIFIED_RUN_ROOT=/var/tmp/ModSecurity-conector-verified
+export VERIFIED_RUN_ROOT=/srv/modsecurity-work/verified
 make verified-report-run-smoke
 ```
 
@@ -119,7 +119,7 @@ nicht als Evidence für PASS oder Runtimeinkongruenz umgeschrieben werden.
 
 | Doppelte Logik | Alte Standorte | Neuer Helfer | Verhalten geändert? |
 | --- | --- | --- | --- |
-| Überprüfte Runtimepfad-Standardeinstellungen und Systempfadprüfungen | `Makefile`, `ci/run-verified-report-run.py`, `ci/run-full-matrix-job.py`, `ci/run-full-matrix-resume.py`, `ci/check-runtime-producer-readiness.py` | `ci/runtime_path_utils.py` und `modules/ModSecurity-test-Framework/ci/common.sh` | Standardmäßig wird jetzt `VERIFIED_RUN_ROOT` verwendet; Die Validierung blockiert weiterhin unsichere Pfade. |
-| SHA256-Datei-Hashing | Verifiziertes Manifest, Vollständigkeit der Matrix, Generatoren für Runtimeinkongruenzen | `ci/generated_report_utils.py` | NEIN. |
-| UTC-generierte Zeitstempel | Verifizierte Manifest- und full-matrix/mismatch-Generatoren | `ci/generated_report_utils.py` | NEIN. |
+| Überprüfte Runtimepfad-Standardeinstellungen und Systempfadprüfungen | `Makefile`, `ci/runtime/lifecycle/run-verified-report-run.py`, `ci/runtime/lifecycle/run-full-matrix-job.py`, `ci/runtime/lifecycle/run-full-matrix-resume.py`, `ci/checks/evidence/check-runtime-producer-readiness.py` | `ci/lib/runtime_path_utils.py` und `modules/ModSecurity-test-Framework/ci/lib/common.sh` | Standardmäßig wird jetzt `VERIFIED_RUN_ROOT` verwendet; Die Validierung blockiert weiterhin unsichere Pfade. |
+| SHA256-Datei-Hashing | Verifiziertes Manifest, Vollständigkeit der Matrix, Generatoren für Runtimeinkongruenzen | `ci/lib/generated_report_utils.py` | NEIN. |
+| UTC-generierte Zeitstempel | Verifizierte Manifest- und full-matrix/mismatch-Generatoren | `ci/lib/generated_report_utils.py` | NEIN. |
 | NGINX-Worker-Docroot-Zugriffsprüfungen | Berechtigungsdiagnose im NGINX-Harness und spätere HTTP-500-Analyse | `connectors/nginx/harness/run_nginx_smoke.sh` Preflight-Datensätze | Ja: Unzugängliches Docroot gibt jetzt BLOCKED zurück, bevor die NGINX-Anfrage bearbeitet wird. |

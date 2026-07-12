@@ -13,8 +13,8 @@ from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK_ROOT = ROOT / "modules" / "ModSecurity-test-Framework"
-BACKEND = ROOT / "ci" / "response-header-test-backend.py"
-METADATA = ROOT / "ci" / "harness-case-metadata.py"
+BACKEND = ROOT / "ci" / "runtime" / "common" / "response-header-test-backend.py"
+METADATA = ROOT / "ci" / "runtime" / "common" / "harness-case-metadata.py"
 
 
 def free_port() -> int:

@@ -1,5 +1,7 @@
 # lighttpd Harness
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: native config-load, start, and minimal runtime-smoke paths
 
 The connector owns four native harness scripts:

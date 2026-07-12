@@ -45,7 +45,7 @@ Host-Response-Streams verwendete.
 ## Kanonische Entscheidung für Phase 4
 
 Der frühere begrenzte SPOA/SPOP-Response-Zweig ist deaktiviert, weil er
-`wait-for-body` brauchte. Der gewählte Hostpfad besitzt keinen verdrahteten
+`wait-for-body` benötigte. Der gewählte Hostpfad besitzt keinen verdrahteten
 nativen Response-Body-Callback; Response-Body-Verfügbarkeit, `phase4` und
 `phase4_rule_evaluation` sind daher `not_implemented`. Auch die semantischen
 Durchsetzungs- und Late-Intervention-Facetten sind `not_implemented`. Das

@@ -1,5 +1,7 @@
 # lighttpd Build
 
+**Language:** English | [Deutsch](build.de.md)
+
 Status: native module compile/link verified; patched-host target builds a
 matched lighttpd 1.4.84 core and module below an isolated build root
 

@@ -40,7 +40,7 @@ reale Apache- und NGINX-Smoke-Läufe.
 
 ## Risiken
 
-- C- und Python-Metadatennamen können abweichen. `ci/check-common-helpers.sh`,
+- C- und Python-Metadatennamen können abweichen. `ci/checks/common/check-common-helpers.sh`,
 `make lint` und zusammenfassende Schemaprüfungen sind die aktuellen Leitplanken.
 – Ein zukünftiger Connector benötigt möglicherweise zusätzliche Funktionsnamen. Das sollten die sein
 Nur anhängen hinzugefügt und im Python-Modell gespiegelt.

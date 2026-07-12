@@ -56,13 +56,13 @@ builds, host runs, and logs independently as
 connectors; the legacy `$VERIFIED_RUN_ROOT/component-cache` tree is never
 adopted as a managed cache.
 Runtime paths must not be in `/root`, the source checkout, or system locations
-such as `/usr`, `/etc`, `/var/lib`, `/bin`, or `/sbin`. `/var/tmp/...` and
-`${RUNNER_TEMP}/...` are valid runtime parents.
+such as `/usr`, `/etc`, `/var/lib`, `/bin`, or `/sbin`. A dedicated external
+work directory or `${RUNNER_TEMP}` is a valid runtime parent.
 
 ## Local Verified Run
 
 ```sh
-export VERIFIED_RUN_ROOT=/var/tmp/ModSecurity-conector-verified
+export VERIFIED_RUN_ROOT=/srv/modsecurity-work/verified
 export VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS=3600
 make verified-runtime-producers
 make verified-report-refresh
@@ -72,7 +72,7 @@ make verified-report-checks
 For a cheaper local check:
 
 ```sh
-export VERIFIED_RUN_ROOT=/var/tmp/ModSecurity-conector-verified
+export VERIFIED_RUN_ROOT=/srv/modsecurity-work/verified
 make verified-report-run-smoke
 ```
 
@@ -119,7 +119,7 @@ not be rewritten as PASS or runtime mismatch evidence.
 
 | Duplicate Logic | Old Locations | New Helper | Behavior Changed? |
 | --- | --- | --- | --- |
-| Verified runtime path defaults and system-path checks | `Makefile`, `ci/run-verified-report-run.py`, `ci/run-full-matrix-job.py`, `ci/run-full-matrix-resume.py`, `ci/check-runtime-producer-readiness.py` | `ci/runtime_path_utils.py` and `modules/ModSecurity-test-Framework/ci/common.sh` | Defaults now use `VERIFIED_RUN_ROOT`; validation remains blocking for unsafe paths. |
-| SHA256 file hashing | Verified manifest, full-matrix completeness, runtime mismatch generators | `ci/generated_report_utils.py` | No. |
-| UTC generated timestamps | Verified manifest and full-matrix/mismatch generators | `ci/generated_report_utils.py` | No. |
+| Verified runtime path defaults and system-path checks | `Makefile`, `ci/runtime/lifecycle/run-verified-report-run.py`, `ci/runtime/lifecycle/run-full-matrix-job.py`, `ci/runtime/lifecycle/run-full-matrix-resume.py`, `ci/checks/evidence/check-runtime-producer-readiness.py` | `ci/lib/runtime_path_utils.py` and `modules/ModSecurity-test-Framework/ci/lib/common.sh` | Defaults now use `VERIFIED_RUN_ROOT`; validation remains blocking for unsafe paths. |
+| SHA256 file hashing | Verified manifest, full-matrix completeness, runtime mismatch generators | `ci/lib/generated_report_utils.py` | No. |
+| UTC generated timestamps | Verified manifest and full-matrix/mismatch generators | `ci/lib/generated_report_utils.py` | No. |
 | NGINX worker docroot access checks | Permission diagnostics in NGINX harness and later HTTP-500 analysis | `connectors/nginx/harness/run_nginx_smoke.sh` preflight records | Yes: inaccessible docroot now returns BLOCKED before NGINX request handling. |

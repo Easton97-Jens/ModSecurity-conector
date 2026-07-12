@@ -1,5 +1,7 @@
 # Traefik Harness
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: minimal_runtime_smoke for the connector-owned forwardAuth request path
 Runtime status: broader connector behavior remains not-verified / connector-gap
 

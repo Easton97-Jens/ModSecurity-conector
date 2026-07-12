@@ -11,7 +11,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
-    "collect_no_crs_source", ROOT / "ci/collect-no-crs-source.py"
+    "collect_no_crs_source", ROOT / "ci/runtime/lifecycle/collect-no-crs-source.py"
 )
 assert SPEC is not None and SPEC.loader is not None
 collector = importlib.util.module_from_spec(SPEC)
@@ -19,7 +19,7 @@ SPEC.loader.exec_module(collector)
 
 FRAMEWORK_SPEC = importlib.util.spec_from_file_location(
     "framework_no_crs_baseline",
-    ROOT / "modules/ModSecurity-test-Framework/ci/no_crs_baseline.py",
+    ROOT / "modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py",
 )
 assert FRAMEWORK_SPEC is not None and FRAMEWORK_SPEC.loader is not None
 framework_baseline = importlib.util.module_from_spec(FRAMEWORK_SPEC)
@@ -1079,7 +1079,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertFalse(audit_path.exists())
 
     def test_canonical_runner_routes_native_logs_into_raw_run(self) -> None:
-        source = (ROOT / "ci/run-no-crs-baseline.sh").read_text(encoding="utf-8")
+        source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
         for assignment in (
             "CANONICAL_VERIFIED_RUN_ROOT=$VERIFIED_RUN_ROOT",
             "STAGE_BUILD_ROOT=$CONNECTOR_RUN_ROOT/haproxy-host-work",
@@ -1101,7 +1101,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertIn(assignment, source)
 
     def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:
-        source = (ROOT / "ci/run-no-crs-baseline.sh").read_text(encoding="utf-8")
+        source = (ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh").read_text(encoding="utf-8")
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         for fragment in (
             "NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR=${NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR:-}",
@@ -1124,7 +1124,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertIn('PYTHON="$(FRAMEWORK_PYTHON)"', transport_checker)
 
         completed = subprocess.run(
-            ["sh", str(ROOT / "ci/run-no-crs-baseline.sh"), "envoy", "no_crs_baseline"],
+            ["sh", str(ROOT / "ci/runtime/lifecycle/run-no-crs-baseline.sh"), "envoy", "no_crs_baseline"],
             cwd=ROOT,
             env={
                 **os.environ,
@@ -1143,7 +1143,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         )
 
     def test_native_first_byte_log_stays_under_connector_run_root(self) -> None:
-        source = (ROOT / "ci/run-native-first-byte.sh").read_text(encoding="utf-8")
+        source = (ROOT / "ci/runtime/lifecycle/run-native-first-byte.sh").read_text(encoding="utf-8")
         self.assertIn("runtime_root=$HOST_RUNTIME_ROOT/first-byte-$connector", source)
         self.assertIn("log_root=$HOST_RUNTIME_ROOT/$connector-first-byte-logs", source)
         self.assertIn(

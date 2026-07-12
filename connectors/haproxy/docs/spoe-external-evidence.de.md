@@ -15,7 +15,7 @@ Runtime-Nachweise legen das Connector-Verhalten fest.
 | `filter spoe engine modsecurity config <file>` | Attaches the ModSecurity SPOE engine. |
 | Dedicated SPOP backend | Connects HAProxy to `haproxy-modsecurity-spoa`. |
 | SPOE request messages | Send request phases 1/2 data. |
-| SPOE response messages | Die aktive Repository-Konfiguration sendet nur Response-Header; ein Response-Body-Stream braucht einen separaten nativen Callback. |
+| SPOE response messages | Die aktive Repository-Konfiguration sendet nur Response-Header; ein Response-Body-Stream benötigt einen separaten nativen Callback. |
 | Set-var ACK values | Return `txn.modsec.*` variables for HAProxy enforcement. |
 
 ## Repository-Nachweise

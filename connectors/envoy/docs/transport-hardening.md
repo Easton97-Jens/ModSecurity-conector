@@ -1,5 +1,7 @@
 # Envoy ext_proc transport-hardening boundary
 
+**Language:** English | [Deutsch](transport-hardening.de.md)
+
 This note covers the repository-owned HTTP `envoy.filters.http.ext_proc` path for pinned Envoy `1.38.2`. It is separate from legacy `ext_authz` and does not promote a capability.
 
 ## API audit and post-commit strict boundary

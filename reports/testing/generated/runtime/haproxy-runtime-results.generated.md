@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-12T07:59:01Z`
+> Generated at: `2026-07-12T19:07:56Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
-> Generator: `framework:ci/generate-case-matrix.py`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `32249c908820cfcc21432656b0a0442740584e60`
-> Framework SHA: `ec4562aae1f5463d2ce2527d33e7c697f7bb2023`
+> Connector SHA: `9b718cee0523da3e0822754dc4b05f327b6d969d`
+> Framework SHA: `06d09c6173d929911bbf75e79e9ee0bf7ea3f734`
 > Input status: `complete`
 
 # Generated HAProxy Runtime Results

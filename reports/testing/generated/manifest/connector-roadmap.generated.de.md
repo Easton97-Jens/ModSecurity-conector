@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-11T05:59:47Z`
-> Verified run id: `2026-07-11T05-59-47Z-e64adac0`
+> Generated at: `2026-07-12T20:12:23Z`
+> Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
-> Generator: `ci/generate-connector-roadmap.py`
+> Generator: `ci/evidence/reports/generate-connector-roadmap.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `informational`
-> Connector SHA: `e64adac087abaa8c1bb7e220d16c7f34a0e9bd79`
-> Framework SHA: `de0fc5dc0751d3b0e8cb1bd5187e4e3ff558f41f`
+> Connector SHA: `9b718cee0523da3e0822754dc4b05f327b6d969d`
+> Framework SHA: `4e9d4ba616235127b6fc0a2ee87107d93d03f40b`
 > Input status: `complete`
 
 # Archivierte Connector-Roadmap vor dem kanonischen No-CRS-Modell
@@ -275,12 +275,12 @@ Diese Tabelle wird bei jeder Erzeugung aus den sechs `connectors/<name>/capabili
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `connectors` | `7718dd37b45e90a90f4c57fd6a495f1c84b6d56a89a3fef9b3114c17925f0966` | `2026-07-11T05-59-47Z-e64adac0` | present |
-| Declared input | `Makefile` | `ab39c7c7584d499a66cf0700273f0d51336c0a1e9e24954c3485027652a0b640` | `2026-07-11T05-59-47Z-e64adac0` | present |
-| Declared input | `ci` | `6aab3274a0b20f63f0e72af48f0e92ee2281b1a4fc796692f5f580131d31d63a` | `2026-07-11T05-59-47Z-e64adac0` | present |
-| Declared input | `config` | `b290b708415c6ee91cdbdf69c16f360a0a4c7311494b9ffdef8c5cafebf4cd03` | `2026-07-11T05-59-47Z-e64adac0` | present |
-| Declared input | `docs` | `de53518df73f2fa90b47f5cdb2d11c0da608536389b1617ccb37dcb172b5bd7c` | `2026-07-11T05-59-47Z-e64adac0` | present |
-| Declared input | `reports/testing/generated` | `93fcfe119a10479f7cec5a24cc7c08e244a432ab984d57f30347ce351dffcd34` | `2026-07-11T05-59-47Z-e64adac0` | present |
+| Declared input | `connectors` | `794c7060fe47b86b9f899dc4e39562f0c879bfa68b65e00efb9dd70840584e19` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `Makefile` | `e81bc90df73a382f0e4a199f81e39b97335667b73060407a8a145a0803702a01` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `ci` | `ddf1490014048ffaaf92e1aad9ad3b474486f5cb49ab4b5caa067fa2c44517d7` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `config` | `c72a2c9c7ccf6252032ef6d044e1170edd65cf4b02202d25addc21949eb3bd83` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `docs` | `791125d2131a185596df3d066193483cb2b49e002bb0c2e0bbda3db68cc3766c` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated` | `b790757cf6c34a0e2dd99cdb750f5bd45c0f167c878e686d2a92ce976d8a2320` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

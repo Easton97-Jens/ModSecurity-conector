@@ -7,7 +7,7 @@ Canonical capability source: `connectors/envoy/capabilities.json`.
 
 Global gate definitions:
 
-- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
+- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
 
 ## Phase 0: Scaffold
 

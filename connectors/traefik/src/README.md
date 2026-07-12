@@ -1,5 +1,7 @@
 # Traefik Source
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: minimal_runtime_smoke (forwardAuth request path only)
 Runtime status: broader connector behavior not verified
 

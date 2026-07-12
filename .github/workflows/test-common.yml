@@ -62,7 +62,7 @@ jobs:
           test -f docs/architecture/connector-adapter-interface.md
           test -f docs/architecture/common-runtime-boundaries.md
           test -f docs/connectors/future-connectors.md
-          test -f ci/check-common-helpers.sh
+          test -f ci/checks/common/check-common-helpers.sh
       - name: Lightweight framework checks
         if: github.event_name != 'pull_request'
         run: |

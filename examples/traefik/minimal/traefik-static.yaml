@@ -1,0 +1,19 @@
+# Static reference for the repository-owned native Traefik local plugin.
+# The file provider loads the adjacent dynamic configuration after it is copied
+# to an operator-selected host configuration directory.
+experimental:
+  localPlugins:
+    modsecurityNative:
+      moduleName: github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware
+      settings:
+        envs: []
+entryPoints:
+  web:
+    address: ":8080"
+providers:
+  file:
+    filename: "./traefik-dynamic.yaml"
+    watch: false
+log:
+  level: INFO
+accessLog: {}

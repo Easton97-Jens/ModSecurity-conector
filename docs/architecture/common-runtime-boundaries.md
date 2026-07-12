@@ -29,7 +29,7 @@ same status, origin, intervention, and capability names.
 That means:
 
 - connector smokes keep their existing Python/Shell execution model;
-- Common C helpers are validated independently by `ci/check-common-helpers.sh`;
+- Common C helpers are validated independently by `ci/checks/common/check-common-helpers.sh`;
 - summary JSON remains backward-compatible and append-only.
 
 ## Explicit Non-Boundaries
@@ -74,7 +74,7 @@ The adapter-owned metadata helpers:
 - contain no libmodsecurity internals;
 - contain no request, response, body, filter, intervention, or transaction
   lifecycle behavior;
-- are validated only by `ci/check-adapter-helpers.sh` under `$BUILD_ROOT`.
+- are validated only by `ci/checks/common/check-adapter-helpers.sh` under `$BUILD_ROOT`.
 
 Later phases moved productive connector build inputs into adapter-owned
 connector trees: NGINX in Phase 9/10 and Apache in Phase 11. Phase 13 then
@@ -90,7 +90,7 @@ replace-and-reduce phase and passing before/after smokes.
 ## Phase 7 Reporting Integration
 
 Phase 7 allows adapter-owned metadata to feed build and runtime summaries. The
-smoke scripts read the metadata through `modules/ModSecurity-test-Framework/ci/adapter_metadata.py`, a local parser
+smoke scripts read the metadata through `modules/ModSecurity-test-Framework/ci/lib/adapter_metadata.py`, a local parser
 with no FFI or C runtime dependency. The reporting order is explicit env
 override, external source git metadata, then adapter-owned monorepo metadata.
 

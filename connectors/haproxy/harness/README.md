@@ -1,5 +1,7 @@
 # HAProxy Harness
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: framework live-YAML runtime entrypoint
 Runtime status: live request-side YAML execution through HAProxy, SPOA/SPOP,
 and libmodsecurity. Current evidence:
@@ -27,8 +29,8 @@ safe/strict late-action, first-byte, Common-runtime-bridge, or capability-
 promotion evidence.
 
 The framework can prepare a local HAProxy binary without global installation
-through `modules/ModSecurity-test-Framework/ci/prepare-haproxy-runtime.sh`.
-HAProxy `3.2.19` is pinned only in framework `ci/common.sh`; its official
+through `modules/ModSecurity-test-Framework/ci/provisioning/prepare-haproxy-runtime.sh`.
+HAProxy `3.2.19` is pinned only in framework `ci/lib/common.sh`; its official
 checksum file and source Makefile were verified before adding the pin. The
 prepared binary path is:
 

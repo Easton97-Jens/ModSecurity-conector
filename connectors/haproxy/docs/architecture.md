@@ -1,5 +1,7 @@
 # HAProxy Architecture
 
+**Language:** English | [Deutsch](architecture.de.md)
+
 Status: production SPOA runtime, partial and evidence-scoped
 
 The HAProxy connector uses a production SPOA/SPOP process instead of an

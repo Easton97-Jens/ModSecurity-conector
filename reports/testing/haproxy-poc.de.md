@@ -13,7 +13,7 @@ Response-Header; Phase 4 / RESPONSE_BODY ist kein kanonischer Nachweis
   Laufzeit mit libmodsecurity.
 - `connectors/haproxy/harness/run_haproxy_smoke.sh` startet HAProxy, die SPOA
   Laufzeit und einem lokalen Backend, zeichnet dann Live-Laufzeitentscheidungen auf.
-- `modules/ModSecurity-test-Framework/ci/run-haproxy-runtime-matrix.sh` läuft
+- `modules/ModSecurity-test-Framework/ci/runtime/run-haproxy-runtime-matrix.sh` läuft
   die Pfade ohne CRS, mit CRS und alle Nachweise erzwingen.
 - Der Laufzeitnachweis umfasst `decision.jsonl`, HAProxy-Protokolle, SPOA-Protokolle und Audit
   Protokolliert bei Konfiguration JSONL Fallergebnisse und generierte Zusammenfassungen.
@@ -48,7 +48,7 @@ Die Produktion der SPOA-Binärdatei erfolgt unter:
 
 Der HAProxy-Laufzeithelfer lädt HAProxy herunter, überprüft, erstellt und stellt ihn bereit
 unter `BUILD_ROOT` unter Verwendung von Quellpins von
-`modules/ModSecurity-test-Framework/ci/common.sh`.
+`modules/ModSecurity-test-Framework/ci/lib/common.sh`.
 
 ## Runtime-Smoke
 
@@ -179,4 +179,4 @@ SPOA Dienst.
 - `reports/testing/generated/runtime/haproxy-runtime-results.generated.md`
 - `reports/testing/test-coverage-overview.md`
 - `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
-- `COMPILE_HAPROXY.md`
+- `docs/build/compilers/haproxy.md`

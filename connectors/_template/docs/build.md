@@ -1,5 +1,7 @@
 # Build - Connector Template
 
+**Language:** English | [Deutsch](build.de.md)
+
 ## Purpose
 
 This document records the build evidence a concrete connector must provide.

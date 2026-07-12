@@ -1,5 +1,7 @@
 # Architecture - Connector Template
 
+**Language:** English | [Deutsch](architecture.de.md)
+
 ## Goal
 
 This document is a planning frame for a future adapter-owned connector. It is

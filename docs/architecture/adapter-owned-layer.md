@@ -37,13 +37,13 @@ Apache and NGINX upstream trees have been removed. Apache provenance remains in
 | Path | Role | Runtime use |
 | --- | --- | --- |
 | `connectors/apache/metadata.h` | Apache adapter metadata API | Not linked into Apache module builds |
-| `connectors/apache/metadata.c` | Apache origin/source metadata | Validated by `ci/check-adapter-helpers.sh` |
+| `connectors/apache/metadata.c` | Apache origin/source metadata | Validated by `ci/checks/common/check-adapter-helpers.sh` |
 | `connectors/apache/autogen.sh`, `configure.ac`, `Makefile.am`, `build/*` | Adapter-owned Apache Autotools/APXS build inputs | Materialized to `$BUILD_ROOT/apache-build/connector-src` for monorepo-default Apache builds |
 | `connectors/apache/src/*.c`, `src/*.h` | Adapter-owned Apache module sources | Built through the generated Apache connector source tree |
 | `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/**/*.in`, `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/t/conf/extra.conf.in` | Apache configure templates retained from upstream layout | Materialized for Autotools compatibility |
 | `connectors/apache/SOURCE_MAP.json` | Apache base provenance map | Used by materialized-source manifests; not compiled |
 | `connectors/nginx/metadata.h` | NGINX adapter metadata API | Not linked into NGINX module builds |
-| `connectors/nginx/metadata.c` | NGINX origin/source metadata | Validated by `ci/check-adapter-helpers.sh` |
+| `connectors/nginx/metadata.c` | NGINX origin/source metadata | Validated by `ci/checks/common/check-adapter-helpers.sh` |
 | `connectors/nginx/src/ddebug.h` | NGINX debug compatibility header | Overlaid into NGINX materialized build sources; still used as external-source fallback when needed |
 | `connectors/nginx/config` | NGINX dynamic module build metadata | Materialized to `$BUILD_ROOT/nginx-build/connector-src/config` for monorepo-default NGINX builds |
 | `connectors/nginx/src/ngx_http_modsecurity_*.c` | Adapter-owned NGINX module sources | Built through the generated NGINX connector source tree |
@@ -84,13 +84,13 @@ Apache and NGINX upstream trees have been removed. Apache provenance remains in
 
 ## Validation
 
-The adapter metadata helpers are compiled by `ci/check-adapter-helpers.sh`
+The adapter metadata helpers are compiled by `ci/checks/common/check-adapter-helpers.sh`
 under `$BUILD_ROOT/adapter-helper-smoke/`. The script links the metadata sources
 with the Common `origin` helper and asserts that the stable fields are present.
-Its expected values are generated from `modules/ModSecurity-test-Framework/ci/adapter_metadata.py`, which parses
+Its expected values are generated from `modules/ModSecurity-test-Framework/ci/lib/adapter_metadata.py`, which parses
 the adapter-owned C metadata without FFI.
 
-`ci/check-adapter-metadata-drift.sh` compares the parsed adapter metadata with
+`ci/checks/common/check-adapter-metadata-drift.sh` compares the parsed adapter metadata with
 the connector `ORIGIN.md` files, central `licenses/` origin docs, and import
 documentation. Drift fails `make lint` before report metadata can silently
 diverge.
@@ -103,7 +103,7 @@ with before/after real-world connector smokes.
 
 Phase 8 starts using adapter-owned files in generated build sources. Phase 9
 migrates the NGINX module `config` and source files into `connectors/nginx/src`.
-For the monorepo-default NGINX source, `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` materializes
+For the monorepo-default NGINX source, `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh` materializes
 `$BUILD_ROOT/nginx-build/connector-src` from adapter-owned NGINX source and
 generated manifests only. The generated manifests identify the NGINX module
 sources as `adapter-owned` and record PR #377 patch provenance where
@@ -116,7 +116,7 @@ files from that tree after the Autoconf source anchor moves to
 `connectors/apache/`, productive C files live directly in
 `connectors/apache/src/`, and retained Autotools templates live under
 `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/`. For the monorepo-default Apache source,
-`modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` materializes
+`modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh` materializes
 `$BUILD_ROOT/apache-build/connector-src` from adapter-owned Apache source and
 generated manifests only. The generated manifest identifies Apache module
 sources, build inputs, and retained `.in` templates as `adapter-owned`; durable

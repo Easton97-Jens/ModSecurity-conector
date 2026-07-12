@@ -9,7 +9,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CHECKER = ROOT / "ci" / "check-runtime-path-policy.py"
+CHECKER = ROOT / "ci" / "checks" / "security" / "check-runtime-path-policy.py"
 
 
 class RuntimePathPolicyTest(unittest.TestCase):

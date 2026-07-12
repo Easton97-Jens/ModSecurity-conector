@@ -6,13 +6,13 @@ GitHub still shows all files in the repository tree; these links keep you in the
 
 ## Compile / Operator Guides
 
-- [Apache](../../COMPILE_APACHE.md)
-- [NGINX](../../COMPILE_NGINX.md)
-- [HAProxy](../../COMPILE_HAPROXY.md)
-- [Envoy](../../COMPILE_ENVOY.md)
-- [Traefik](../../COMPILE_TRAEFIK.md)
-- [Lighttpd](../../COMPILE_LIGHTTPD.md)
-- [Open connectors](../../COMPILE_OPEN_CONNECTORS.md)
+- [Apache](../../docs/build/compilers/apache.md)
+- [NGINX](../../docs/build/compilers/nginx.md)
+- [HAProxy](../../docs/build/compilers/haproxy.md)
+- [Envoy](../../docs/build/compilers/envoy.md)
+- [Traefik](../../docs/build/compilers/traefik.md)
+- [Lighttpd](../../docs/build/compilers/lighttpd.md)
+- [Open connectors](../../docs/build/compilers/overview.md)
 
 ## Example Config READMEs
 

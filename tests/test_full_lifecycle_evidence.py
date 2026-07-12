@@ -10,14 +10,14 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SANITIZER_SPEC = importlib.util.spec_from_file_location(
-    "sanitize_full_lifecycle_log", ROOT / "ci/sanitize-full-lifecycle-log.py"
+    "sanitize_full_lifecycle_log", ROOT / "ci/runtime/lifecycle/sanitize-full-lifecycle-log.py"
 )
 assert SANITIZER_SPEC is not None and SANITIZER_SPEC.loader is not None
 sanitizer = importlib.util.module_from_spec(SANITIZER_SPEC)
 SANITIZER_SPEC.loader.exec_module(sanitizer)
 
 CHECKER_SPEC = importlib.util.spec_from_file_location(
-    "check_full_lifecycle_evidence", ROOT / "ci/check-full-lifecycle-evidence.py"
+    "check_full_lifecycle_evidence", ROOT / "ci/checks/evidence/check-full-lifecycle-evidence.py"
 )
 assert CHECKER_SPEC is not None and CHECKER_SPEC.loader is not None
 checker = importlib.util.module_from_spec(CHECKER_SPEC)

@@ -1,5 +1,7 @@
 # HAProxy Test Framework Contract
 
+**Language:** English | [Deutsch](test-framework-contract.de.md)
+
 Status: current ownership boundary
 
 Executable cases, matrix generation, runtime snapshots, and generated reports

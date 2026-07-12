@@ -61,7 +61,7 @@ Eingang.
 
 Die produktive NGINX-Quelle gehört jetzt dem Adapter. Der Monorepo-Standard
 `MODSECURITY_NGINX_SOURCE_DIR` ist `connectors/nginx` und
-`modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` materialisiert `$BUILD_ROOT/nginx-build/connector-src`
+`modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh` materialisiert `$BUILD_ROOT/nginx-build/connector-src`
 von Adapter-eigenen NGINX `connectors/nginx/config` und Modulquellen in
 `connectors/nginx/src` sowie generierte Materialisierungsmanifeste.
 
@@ -81,7 +81,7 @@ Die Zuordnung bleibt in `licenses/nginx/`, `connectors/nginx/ORIGIN.md` und
 `connectors/nginx/SOURCE_MAP.json`. Das NGINX-Materialized-Source-Manifest
 sollte nur die Einträge `adapter-owned` und `generated-overlay` anzeigen.
 
-`modules/ModSecurity-test-Framework/ci/run-nginx-smoke.sh` behandelt einen vorhandenen Monorepo-Standard-NGINX-Build als
+`modules/ModSecurity-test-Framework/ci/runtime/run-nginx-smoke.sh` behandelt einen vorhandenen Monorepo-Standard-NGINX-Build als
 veraltet, wenn `$BUILD_ROOT/nginx-build/connector-src/materialized-source.json` ist
 fehlt, verweist immer noch auf `upstream-derived`-Einträge oder markiert den NGINX nicht
 Modul `config` und C-Quellen als `adapter-owned`. In diesem Fall wird nur aktualisiert
@@ -92,7 +92,7 @@ smoked, sodass alte Module die Quellenvalidierung im Besitz des Adapters nicht m
 
 Die produktive Apache-Quelle gehört jetzt dem Adapter. Der Monorepo-Standard
 `MODSECURITY_APACHE_SOURCE_DIR` ist `connectors/apache` und
-`modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` materialisiert
+`modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh` materialisiert
 `$BUILD_ROOT/apache-build/connector-src` aus der Apache-Quelle im Besitz des Adapters,
 Autotools/APXS-Eingaben, erforderliche `.in`-Vorlagen und generierte Manifeste. Der
 Materializer behält die Apache-Pfade unverändert bei, also `./autogen.sh`, `./configure` und
@@ -100,7 +100,7 @@ Materializer behält die Apache-Pfade unverändert bei, also `./autogen.sh`, `./
 
 Der frühere `connectors/apache/upstream/`-Baum wurde entfernt, nachdem
 `REFRESH=1 BUILD_ROOT=/src/ModSecurity-conector-apache-final-build make
-smoke-apache` bestanden hatte. `modules/ModSecurity-test-Framework/ci/run-apache-smoke.sh` behandelt ein vorhandenes
+smoke-apache` bestanden hatte. `modules/ModSecurity-test-Framework/ci/runtime/run-apache-smoke.sh` behandelt ein vorhandenes
 monorepo-default Apache-Build als veraltet, wenn das Materialized-Source-Manifest vorhanden ist
 fehlt, verweist weiterhin auf `upstream-derived`-Einträge oder markiert nicht erforderlich
 Apache build/source/template-Dateien als `adapter-owned`.

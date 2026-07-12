@@ -6,7 +6,7 @@ Status: eingerüstet
 
 ## Umgesetzt
 
-- `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` bereitet einen Connector-spezifischen Apache PoC-Build vor
+- `modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh` bereitet einen Connector-spezifischen Apache PoC-Build vor
   unter `BUILD_ROOT`.
 - Der Helfer kann Apache httpd aus dem Quellcode unter `BUILD_ROOT` erstellen; systemweit
   `apxs` und `httpd` sind nicht erforderlich.
@@ -36,8 +36,8 @@ wird nicht als Apache-Connector-Erfolg gezählt.
 Standardwerte sind nur lokale Annehmlichkeiten:
 
 ```sh
-MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
-MODSECURITY_APACHE_SOURCE_DIR=/root/conecter/ModSecurity-apache
+MODSECURITY_V3_SOURCE_DIR=<external-source-root>/ModSecurity_V3
+MODSECURITY_APACHE_SOURCE_DIR=<external-source-root>/ModSecurity-apache
 BUILD_ROOT=/src/ModSecurity-conector-build
 LOG_DIR=$BUILD_ROOT/logs/apache
 ```
@@ -46,11 +46,11 @@ Quellenverweise für diese lokalen Standardwerte:
 
 | Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
-| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
-| ModSecurity-apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
+| ModSecurity v3 | `<external-source-root>/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
+| ModSecurity-apache | `<external-source-root>/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
 
 Alle Pfade können von der Umgebung überschrieben werden. Generierte Dateien müssen außerhalb bleiben
-Git-Checkout und außerhalb `/root/conecter/*`.
+Git-Checkout und außerhalb `<external-source-root>/*`.
 
 ## Quellbasierter httpd-Modus
 
@@ -60,7 +60,7 @@ Der Apache PoC kann httpd ohne Paketinstallation erstellen:
 REFRESH=1 \
 BUILD_HTTPD_FROM_SOURCE=1 \
 BUILD_ROOT=/src/ModSecurity-conector-build \
-sh modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh
+sh modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh
 ```
 
 Standard-Quellversionen:
@@ -190,7 +190,7 @@ In diesem Arbeitsbereich am 15.05.2026 beobachtet:
 - `apxs`, `apxs2`, `apache2`, `httpd`, `apachectl` und `apache2ctl` waren nicht vorhanden
 gefunden in `PATH`.
 - `REFRESH=1 BUILD_HTTPD_FROM_SOURCE=1
-  BUILD_ROOT=/src/ModSecurity-conector-build sh modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh`
+  BUILD_ROOT=/src/ModSecurity-conector-build sh modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh`
   Apache httpd aus dem Quellcode erstellt, libmodsecurity v3 in einer beschreibbaren Kopie erstellt,
   und baute `mod_security3.so`.
 - `BUILD_ROOT=/src/ModSecurity-conector-build make smoke-apache` hat den Pass zurückgegeben

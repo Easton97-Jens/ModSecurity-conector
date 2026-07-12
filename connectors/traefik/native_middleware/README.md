@@ -1,5 +1,7 @@
 # Native Traefik streaming middleware source
 
+**Language:** English | [Deutsch](README.de.md)
+
 This is a repository-owned Go package shaped for Traefik's Go middleware
 entry points: `CreateConfig`, `New`, and `ServeHTTP`. `New` has the required
 `(http.Handler, error)` signature, and `.traefik.yml` records plugin metadata

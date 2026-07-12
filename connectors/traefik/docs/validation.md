@@ -1,5 +1,7 @@
 # Traefik Validation
 
+**Language:** English | [Deutsch](validation.de.md)
+
 Status: minimal_runtime_smoke for the forwardAuth request path only
 Runtime status: verified only when a local common.sh-managed Traefik binary runs the HTTP smoke
 
@@ -8,7 +10,7 @@ Traefik runtime validation is conditional. Without a local binary from
 BLOCKED evidence. With a resolved local binary, the smoke runner starts a
 minimal upstream, minimal forwardAuth decision service, and Traefik with a
 generated local config. Global validation gates and status vocabulary are defined in
-`reports/template-verification-nginx-apache/connector-scaffold-decisions.md` and
+`reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md` and
 `connectors/_template/docs/coverage-decision-matrix.md`.
 
 Runtime component metadata is pinned centrally in `common.sh`:
@@ -114,7 +116,7 @@ The C `forwardAuth` validation path and its existing status remain unchanged.
 
 `make connector-starter-checks` runs Traefik metadata and decision-service
 starter checks from
-`modules/ModSecurity-test-Framework/ci/run-connector-starter-checks.sh`.
+`modules/ModSecurity-test-Framework/ci/runtime/run-connector-starter-checks.sh`.
 Results are written to
 `/src/ModSecurity-conector-build/results/connector-starters/summary.json` and
 `/src/ModSecurity-conector-build/results/connector-starters/results.jsonl`.

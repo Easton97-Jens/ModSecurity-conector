@@ -52,7 +52,7 @@ FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
 SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"
 
 load_connector_adapter_metadata() {
-    eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell apache --prefix CONNECTOR_ADAPTER)"
+    eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell apache --prefix CONNECTOR_ADAPTER)"
     CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-$CONNECTOR_ADAPTER_SOURCE}"
     CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-$CONNECTOR_ADAPTER_SOURCE_REPO}"
     CONNECTOR_ORIGIN_SOURCE_URL="${CONNECTOR_ORIGIN_SOURCE_URL:-$CONNECTOR_ADAPTER_SOURCE_URL}"
@@ -598,7 +598,7 @@ send_synchronized_first_byte_request() {
     [ "$http_status" = "200" ] || fail "synchronized safe response status was not 200: $http_status"
     [ -s "$APACHE_PHASE4_LOG_FILE" ] || fail "Phase-4 host log is missing after synchronized response"
     FIRST_BYTE_HOST_METADATA="$SYNCHRONIZED_DIR/host-metadata.json"
-    "$PYTHON_BIN" "$REPO_ROOT/ci/write-first-byte-host-metadata.py" \
+    "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/lifecycle/write-first-byte-host-metadata.py" \
         --phase4-log "$APACHE_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" || \
         fail "could not derive bounded host metadata from the Phase-4 event"
     "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
@@ -761,7 +761,7 @@ start_response_header_backend() {
     fi
     RESPONSE_HEADER_BACKEND_PORT=$(select_free_port $((PORT + 1000)) "$PORT_SEARCH_LIMIT") || \
         blocked "no free response-header backend port found"
-    "$PYTHON_BIN" "$REPO_ROOT/ci/response-header-test-backend.py" \
+    "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/response-header-test-backend.py" \
         --port "$RESPONSE_HEADER_BACKEND_PORT" \
         --body-file "$DOCROOT/index.html" \
         --safe-root "$RUNTIME_ROOT" \
@@ -796,7 +796,7 @@ require_crs_preamble_if_needed() {
 
 resolve_apache_phase4_mode() {
     inherited_mode=${APACHE_PHASE4_MODE:-}
-    resolved_mode=$("$PYTHON_BIN" "$REPO_ROOT/ci/harness-case-metadata.py" apache-phase4-mode \
+    resolved_mode=$("$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" apache-phase4-mode \
         --case "$TEST_CASE" \
         --framework-root "$FRAMEWORK_ROOT" \
         --default safe \
@@ -929,7 +929,7 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
-if ! "$PYTHON_BIN" "$REPO_ROOT/ci/harness-case-metadata.py" response-header-fixture \
+if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" response-header-fixture \
     --case "$TEST_CASE" \
     --framework-root "$FRAMEWORK_ROOT" \
     --output "$RESPONSE_HEADER_FIXTURE_FILE" > "$LOG_DIR/response-header-fixture.log" 2>&1; then

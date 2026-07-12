@@ -1,5 +1,7 @@
 # Envoy ext_proc: Grenze für Transport-Hardening
 
+**Sprache:** [English](transport-hardening.md) | Deutsch
+
 Diese Notiz beschreibt den repository-eigenen HTTP-Pfad `envoy.filters.http.ext_proc` für das gepinnte Envoy-Release `1.38.2`. Er ist vom alten `ext_authz`-Kompatibilitätspfad getrennt und promotet keine Capability.
 
 ## API-Audit und Strict-Grenze nach Commit

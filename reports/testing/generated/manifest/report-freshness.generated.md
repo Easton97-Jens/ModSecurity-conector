@@ -1,15 +1,15 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T16:59:10Z`
+> Generated at: `2026-07-12T20:12:32Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
-> Generator: `ci/refresh-connector-reports.py`
+> Generator: `ci/evidence/reports/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f`
-> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
-> Input status: `complete`
+> Connector SHA: `9b718cee0523da3e0822754dc4b05f327b6d969d`
+> Framework SHA: `4e9d4ba616235127b6fc0a2ee87107d93d03f40b`
+> Input status: `stale`
 
 # Report Freshness
 
@@ -17,175 +17,180 @@
 
 | Report | Status | Generated At | Newest Input | Newest Output | Missing Inputs | Notes |
 |---|---|---|---|---|---|---|
-| `connector_coverage_reports` | fresh | - | 2026-06-16T19:13:26Z | 2026-06-19T16:57:55Z | - | generated |
-| `full_runtime_matrix` | fresh | 2026-06-19T16:57:56Z | 2026-06-19T16:51:50Z | 2026-06-19T16:57:56Z | - | generated |
-| `full_matrix_job_completeness` | fresh | 2026-06-19T16:57:57Z | 2026-06-19T16:57:57Z | 2026-06-19T16:57:57Z | - | generated |
-| `verified_runtime_mismatch_analysis` | fresh | 2026-06-19T16:58:03Z | 2026-06-19T16:57:57Z | 2026-06-19T16:58:04Z | - | generated |
-| `nginx_mrts_http500_cluster_analysis` | fresh | 2026-06-19T16:58:04Z | 2026-06-19T16:58:04Z | 2026-06-19T16:58:04Z | - | generated |
-| `connector_work_queue` | fresh | 2026-06-19T16:58:08Z | 2026-06-19T16:57:56Z | 2026-06-19T16:58:08Z | - | generated |
-| `phase_work_queue` | fresh | 2026-06-19T16:58:09Z | 2026-06-19T16:58:08Z | 2026-06-19T16:58:09Z | - | generated |
-| `native_mrts_reports` | fresh | 2026-06-19T16:58:10Z | 2026-06-16T21:14:22Z | 2026-06-19T16:58:10Z | - | generated |
-| `native_semantics_comparison` | fresh | 2026-06-19T16:58:11Z | 2026-06-19T16:58:04Z | 2026-06-19T16:58:11Z | - | generated |
-| `nolog_audit_evidence` | fresh | 2026-06-19T16:58:12Z | 2026-06-19T16:58:12Z | 2026-06-19T16:58:12Z | - | generated |
-| `response_header_hook_analysis` | fresh | 2026-06-19T16:58:16Z | 2026-06-19T16:58:15Z | 2026-06-19T16:58:16Z | - | generated |
-| `phase4_hard_abort_capability` | fresh | 2026-06-19T16:58:23Z | 2026-06-19T16:58:15Z | 2026-06-19T16:58:23Z | - | generated |
-| `remaining_failure_analysis` | fresh | 2026-06-19T16:58:27Z | 2026-06-19T16:58:23Z | 2026-06-19T16:58:45Z | - | generated |
-| `intervention_blocking_analysis` | fresh | 2026-06-19T16:58:52Z | 2026-06-19T16:58:45Z | 2026-06-19T16:58:52Z | - | generated |
-| `no_mrts_intervention_nomatch_analysis` | fresh | 2026-06-19T16:58:53Z | 2026-06-19T16:58:52Z | 2026-06-19T16:58:53Z | - | generated |
-| `body_processor_analysis` | fresh | 2026-06-19T16:59:03Z | 2026-06-19T16:58:45Z | 2026-06-19T16:59:04Z | - | generated |
-| `rule_chain_semantics_analysis` | fresh | 2026-06-19T16:59:05Z | 2026-06-19T16:58:45Z | 2026-06-19T16:59:05Z | - | generated |
-| `final_consistency_audit` | fresh | 2026-06-19T16:59:06Z | 2026-06-19T16:59:05Z | 2026-06-19T16:59:07Z | - | generated |
-| `runtime_cache_reports` | fresh | 2026-06-19T16:22:55Z | 2026-06-19T16:22:55Z | 2026-06-19T16:59:09Z | - | generated |
-| `report_dependency_graph` | fresh | 2026-06-19T16:59:10Z | 2026-06-19T16:59:05Z | 2026-06-19T16:59:10Z | - | generated |
-| `report_data_lineage` | fresh | 2026-06-19T16:59:10Z | 2026-06-19T16:59:05Z | 2026-06-19T16:59:11Z | - | generated |
-| `report_path_migration` | fresh | 2026-06-19T16:59:10Z | - | 2026-06-19T16:59:12Z | - | generated |
-| `generator_runtime_summary` | fresh | 2026-06-19T16:59:10Z | - | 2026-06-19T16:59:13Z | - | generated |
-| `report_freshness` | fresh | 2026-06-19T16:59:10Z | 2026-06-19T16:59:13Z | 2026-06-19T16:59:15Z | - | generated |
-| `merge_readiness_dashboard` | fresh | 2026-06-19T16:59:10Z | 2026-06-19T16:59:15Z | 2026-06-19T16:59:16Z | - | generated |
-| `report_refresh_manifest` | fresh | 2026-06-19T16:59:10Z | - | 2026-06-19T16:53:13Z | - | generated |
+| `connector_roadmap` | fresh | 2026-07-12T20:12:23Z | 2026-07-12T18:57:08Z | 2026-07-12T20:12:23Z | - | generated |
+| `connector_coverage_reports` | fresh | - | 2026-07-11T12:42:23Z | 2026-07-12T20:12:25Z | - | generated |
+| `full_runtime_matrix` | skipped | 2026-06-19T16:57:56Z | - | 2026-07-12T20:12:25Z | BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl | skipped_missing_input |
+| `full_matrix_job_completeness` | skipped | 2026-06-19T16:57:57Z | - | 2026-07-12T20:12:25Z | BUILD_ROOT:verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json, BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl | skipped_missing_input |
+| `verified_runtime_mismatch_analysis` | skipped | 2026-06-19T16:58:03Z | - | 2026-07-12T20:12:25Z | BUILD_ROOT:verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json, BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl | skipped_missing_input |
+| `nginx_mrts_http500_cluster_analysis` | stale | 2026-06-19T16:58:04Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:25Z | BUILD_ROOT:verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json, BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl | skipped_missing_input |
+| `connector_work_queue` | stale | 2026-06-19T16:58:08Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:26Z | - | skipped_stale_input |
+| `phase_work_queue` | stale | 2026-06-19T16:58:16Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:26Z | - | skipped_stale_input |
+| `native_mrts_reports` | skipped | 2026-06-19T16:58:10Z | - | 2026-07-12T20:12:26Z | BUILD_ROOT:mrts-native/apache2_ubuntu/job.json, BUILD_ROOT:mrts-native/nginx-pr24/job.json | skipped_missing_input |
+| `native_semantics_comparison` | stale | 2026-06-19T16:58:11Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:26Z | - | skipped_stale_input |
+| `nolog_audit_evidence` | stale | 2026-06-19T16:58:12Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:26Z | - | skipped_stale_input |
+| `response_header_hook_analysis` | stale | 2026-06-19T16:58:16Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:27Z | - | skipped_stale_input |
+| `phase4_hard_abort_capability` | stale | 2026-06-19T16:58:23Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:27Z | - | skipped_stale_input |
+| `remaining_failure_analysis` | stale | 2026-06-19T16:58:27Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:28Z | - | skipped_stale_input |
+| `intervention_blocking_analysis` | stale | 2026-06-19T16:58:52Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:29Z | - | skipped_stale_input |
+| `no_mrts_intervention_nomatch_analysis` | stale | 2026-06-19T16:58:53Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:29Z | - | skipped_stale_input |
+| `body_processor_analysis` | stale | 2026-06-19T16:59:03Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:29Z | - | skipped_stale_input |
+| `rule_chain_semantics_analysis` | stale | 2026-06-19T16:59:05Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:30Z | - | skipped_stale_input |
+| `final_consistency_audit` | stale | 2026-06-19T16:59:06Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:30Z | - | skipped_stale_input |
+| `runtime_cache_reports` | fresh | 2026-07-12T19:36:08Z | 2026-07-12T19:36:08Z | 2026-07-12T20:12:32Z | - | generated |
+| `report_dependency_graph` | missing-input | 2026-07-12T20:12:32Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:33Z | BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl, BUILD_ROOT:mrts-native/apache2_ubuntu/job.json, BUILD_ROOT:mrts-native/nginx-pr24/job.json, BUILD_ROOT:verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json | generated |
+| `report_data_lineage` | missing-input | 2026-07-12T20:12:32Z | 2026-07-12T20:12:15Z | 2026-07-12T20:12:35Z | BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl, BUILD_ROOT:mrts-native/apache2_ubuntu/job.json, BUILD_ROOT:mrts-native/nginx-pr24/job.json, BUILD_ROOT:verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json | generated |
+| `report_path_migration` | fresh | 2026-07-12T20:12:32Z | - | 2026-07-12T20:12:36Z | - | generated |
+| `generator_runtime_summary` | fresh | 2026-07-12T20:12:32Z | - | 2026-07-12T20:12:37Z | - | generated |
+| `report_freshness` | fresh | 2026-07-12T20:12:32Z | 2026-07-12T20:12:37Z | 2026-07-12T20:12:38Z | - | generated |
+| `merge_readiness_dashboard` | fresh | 2026-07-12T20:12:32Z | 2026-07-12T20:12:38Z | 2026-07-12T20:12:40Z | - | generated |
+| `report_refresh_manifest` | fresh | 2026-07-12T20:12:32Z | - | 2026-07-12T19:49:19Z | - | generated |
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/test-coverage-overview.md` | `69070f2de357eb2ba8e183aab3538eba889f94adb7bc85aee84b34854cf4fadb` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/runtime/apache-runtime-results.generated.md` | `cba0382175ff7ae6ed075d5d71e0f5f0f95c9d142dd132ef98a664acd59c70b0` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/coverage/case-matrix.generated.md` | `e90db4f17c744192fc94090d69b506727e2fd245e7433357c06d74fb3919b224` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/coverage/connector-gap-summary.generated.md` | `34e699da3eff35bde4b0bd9c8a2ee235438185f39b8f9c9a541d3f259d3ac22d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/coverage/coverage-summary.generated.md` | `e99c19b2ccb2177ef80d6e4f1e1e0def5d97abe6e80a0ebc48a15b4b547cc185` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/runtime/haproxy-runtime-results.generated.md` | `f750008a72c079073dd7e56e823a5847f1bbc8a67da92111f0b0e5837cc86c62` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/runtime/nginx-runtime-results.generated.md` | `b25ec24b6dbc4fc75bfed070a20222574c7959989894b6f0b7181acec20ee9e5` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `6c36afa87a2f63eaa9ff2df91e08759b8f657ee9a8090112afcc534174e98e70` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/runtime/runtime-matrix.generated.md` | `7e576397ffa4d228661a89a122b3da5c8bd125005faf3b10e80fd1cc5f8e47fa` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/coverage/xfail-summary.generated.md` | `d2d2ba9329d8450eeca0b70ce27ee40ec9b5dfe481af77be3041f165e5902f1c` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `3f41446a7fb73a361c12e31507673774698ec41d108f2c8e75c8c57b8d2ef007` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.md` | `d3e8f05990e759309737c03ceaf5704df9e4fa764ba7456f950de1df27985f9e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | `a54dc3f43ffc6d2eb4493ad56c58e6eff959cb2ce1380f5eb3d4b4e02003f5c2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.md` | `fd51743376acf989e793920682afebbc9143354e5632f4bca7362039bf374031` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `340546dbab42432eef255f99fda65c0d4301db589d6ac5c9f2a201a94326420e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.md` | `09808a7e1ffdc0da95ebaa442be0ce7fcb0917a4f223971abaf631483d31e101` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json` | `cd80349d7516fe254fed03188f7d84fc61979b5680b09607c7a8e19d142eff47` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md` | `f63942c830b84b8d860e29838c359e0bff1c83a6e93dd42004f6cf1fd2f900dc` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `89f3d29f508ef24e279589f6a3fa791c2f62d5a13ca89f58b10adb4ba4cd3484` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.md` | `181e5c9692208a3738ecf21898d1cd0e9ef48bdadb671d15ce6db96af77798df` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `de46f52db4aa93f393cf9e7a97ef734435d9e9d7f9af4c99ceed8294867d9a1b` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.md` | `77fb4e42e7c3c597ba01e1ed06c5538cfc138991071b61a999cbc72e242589ef` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-full.generated.json` | `d7fbd046106a858fc6bbb11c7f14ddb745bef5059b9fc5cbdba9b1b512ddf8c4` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-full.generated.md` | `ed52bc32832ebc5f9ddd86f02da24fb04c130886bd577708c50bb49f0224f476` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `a628c7910973dfe3ea2379d1de447632bb7a68bc93945814d7e5922711b01933` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.md` | `470fd8d70ea28643db99244b32827af944a54b443fa3a43ced4b6e6ab9dee963` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `dcb7aea74fa53c58425123bf580dbe52ae9898bbc0af29bd38ee98925848c833` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.md` | `60743f7a55b7c2307b775f726cc104b8d1d51dad11a2467d71fc5da656f08e91` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | `8b8298f135b70c6487dcfbae620801fc09fabe03e73c91fe8657a27505216bce` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.md` | `402461581b40b1fbc2ed3f1e80635a9d86c62d50baf06a78d7770c64b58b332d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/native-semantics-comparison.generated.json` | `cf34c749555c04585d0e5dbe339f2f7da889f2888ec57811bf3f83b9caae1e07` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/native-semantics-comparison.generated.md` | `877e9517127d7a633b05a61cd49321954cf15a6280431335b0f6a541223943cf` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json` | `4cc4b220df8adb4ebdb3e8666a41be8c1e37660ba0baf0a37e489087415dca4c` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md` | `b91ec05385354df66d5e093b7c4e5322c650453f838a635607360e091e2dd27e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `de46f52db4aa93f393cf9e7a97ef734435d9e9d7f9af4c99ceed8294867d9a1b` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.md` | `77fb4e42e7c3c597ba01e1ed06c5538cfc138991071b61a999cbc72e242589ef` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json` | `7d73f40c3ec211958b2eb5979a0c45f13303b53da032a90f96f00d8d77da5092` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md` | `ecb3cd3d223d253108124993e8f9a015ce0327706486324d1076996bb7429ff5` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `de46f52db4aa93f393cf9e7a97ef734435d9e9d7f9af4c99ceed8294867d9a1b` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.md` | `77fb4e42e7c3c597ba01e1ed06c5538cfc138991071b61a999cbc72e242589ef` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json` | `6e00d5cd2e1239d414915f89feca72d744dcaf27d5c224513dc78ed3db310682` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md` | `3001ac33e571720034c3dde53026da6f23b9e6f00354dd1663ff38749bcecec6` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `de46f52db4aa93f393cf9e7a97ef734435d9e9d7f9af4c99ceed8294867d9a1b` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.md` | `77fb4e42e7c3c597ba01e1ed06c5538cfc138991071b61a999cbc72e242589ef` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `c581790d4581ac9cf843e973f127b274784caf286d1661d72b5144f078049165` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.md` | `7e76a8ff1ac0ae00097c29a077c5fef69a58ef32029155dd020b23abd2381d0d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `45c592a17f99671474b5f510d59c5c5f162861bcc74e37f4a7c72e6e4bc6a736` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.md` | `e9b7ea1a192b515b87a81e92fd2e96b815928e056164e67f403a31b7f03cdb4d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `df4c56d7bd0afa823a2a90b4808120369d1c8281b8a00eed7266f1654369c62a` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.md` | `a13c90b3a87e3432dc4f676ff761455d7591d5c5386e8f192cca8d7ce5ee4cbe` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | `256bdac6851d1bea706d7ae21377412ce79edb977969ec5774e0b27a6ae56a8e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.md` | `cf6af6ed34689b1525034a45d3f96a5c50358bf2b0efb9404bf35721b147c1a8` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json` | `a163cfa2dd4408fb802138a063f4651c6c930b4799b6089976083e19a45b5082` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md` | `fd70fa41822a6ce6ad3d9641916584886633fe53d6adc6439a161da0c8dea7bd` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/body-processor-analysis.generated.json` | `4ca4fc4f48a5420c3dc9892faa3d53b1b28b322dc49fcc3adc6e341681465be4` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/body-processor-analysis.generated.md` | `4008c3f89a009caa7427524b7f654c6abc56adc24d2929b5108a5d50fb92c1ed` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json` | `97fca3207c05713f8e25bc092e5bf9e9ab65c7f36e5ba1da28cece9ff7637636` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md` | `274ffcb77ed9f54fa3cea5fb46fe11a099ff5c3db6fc0579ccc649ae845e4bbf` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/final-consistency-audit.generated.json` | `d969736e6a6b68e331b83c17dd8edb8516314b1d78dd5e8c9ab41806bfea1502` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/final-consistency-audit.generated.md` | `025fb240f14c6e43beb9d07f14412a568887e573c30f17f28a77d78e44982c1f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/cache/runtime-component-cache.generated.json` | `0e80ecc746c25c39dfd4542e8ae17326c46f29a5f8ced40584a7f5c21e59bca4` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/cache/runtime-component-cache.generated.md` | `2e3327934d5622355336035571a6d9089df68eaa6e125e24a2a0382e48afe692` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.json` | `ae50c5b4d806a243908560466ef33b1c4a0c582e62b7dcd194e18001374d01d9` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.md` | `910bd76fc7fa1316dd95365260ce540a4334e2ad12830dfca32a662849a5edcd` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/cache/runtime-cache-index.generated.json` | `4c1b1b63fd6990aff380f735079f466a2a1e9b4f27503c0e838cd3d7d69a5efd` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/cache/runtime-cache-index.generated.md` | `3ab329e4e9636e66465b5176826987162f5e96689d97795f076081563d712bf8` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-dependency-graph.generated.json` | `35d1e3f9d85906c00f1f2ac0278f5a98596bc7fff6a7f51429ffd3b402934730` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-dependency-graph.generated.md` | `0b2c8712e63c21e1266fa30d0c72bf5f523f3322e811b7dff1ebb69b005979ff` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-data-lineage.generated.json` | `229163ab6de4a2fc25d64ee786819b4fb46c70473f901938404b76ed53e240a2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-data-lineage.generated.md` | `8c67603836fd501c24f2f4974b19408a2f9bb56fba852f5e8b5a3061dcf95e31` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-path-migration.generated.json` | `421d22fe95977b752f85e726342cda9b9d1823c638e3b128c7272397301fec6d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-path-migration.generated.md` | `b1b29f03707eaa469f042b4768affa480a2a36d43296569d98157b4e7111fb9e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/generator-runtime-summary.generated.md` | `d6c6e2bdcd57ea655e8f60ca9d14e525fcc13cc403a2f8d3c7006ab279c9bd75` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/connector-roadmap.generated.json` | `9c4016e723c87f057816fe83a456f6b9146c947e98dc486859d10a75befd0472` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/connector-roadmap.generated.md` | `3d095d9246dbd665a365166225d9dd40fb8f74b7b695b3d08ea790b786e43493` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/test-coverage-overview.md` | `eb8531f6d83fa7fc29cf775e273b40c46468dbcebf88cac876d10f0e6eb62148` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/runtime/apache-runtime-results.generated.md` | `6a0f4f705b0062709c0f21b73fb0a26b6a2a38a6f52abcc0fb376dde47995eb3` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/coverage/case-matrix.generated.md` | `89f35d5215d00186f03b3017c1839bfbc58b60f8d90b39516f1ce72f9a055571` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/coverage/connector-gap-summary.generated.md` | `4b665723632d5fa69f0e47593feb1663cf007bce7a3a0eeec252289b5949f3cb` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/coverage/coverage-summary.generated.md` | `b0f44ffa879cd44c19b256cd4d2bf1570fd6452adddf868cb2fa60bcee941577` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/runtime/haproxy-runtime-results.generated.md` | `d628984b45415314b2f3461ff4f84dbe64921cad698f9a40eb665b2386257c71` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/runtime/nginx-runtime-results.generated.md` | `ec863bca499782fa69096708e53616ab5761b9672f5de15a4d9e1ade8a27ddb9` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `7da89e3821de5ee8fdc4c129dcd766a10eed8eece8c1cd928b58b531fcf30872` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/runtime/runtime-matrix.generated.md` | `e13f0ca3911ebc5c030f9a2c3fa6e4e33d67590d712c1f73030a2a50a8f7abcb` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/coverage/xfail-summary.generated.md` | `e986e49ce78158b2f96e153d340148b2590f5237ff923aae96940126ba617290` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `3f41446a7fb73a361c12e31507673774698ec41d108f2c8e75c8c57b8d2ef007` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.md` | `5a12905087f9da1f324337ebb39e52c494c3b57229aa0b2d069cfe425796c3a8` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | `a54dc3f43ffc6d2eb4493ad56c58e6eff959cb2ce1380f5eb3d4b4e02003f5c2` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.md` | `b809a1641f4bbaa22b18d6a63ef6d32cd6389ac937b316d684001a055b0f8ef4` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `340546dbab42432eef255f99fda65c0d4301db589d6ac5c9f2a201a94326420e` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.md` | `28890c18ba215d54856cb43939a16bba7b0d75592c73250ea357c407302303c7` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json` | `cd80349d7516fe254fed03188f7d84fc61979b5680b09607c7a8e19d142eff47` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md` | `b0bc132f9a6d93e7c57492f00024431541e0f7de53b67dbcf64514c58a41167c` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `89f3d29f508ef24e279589f6a3fa791c2f62d5a13ca89f58b10adb4ba4cd3484` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.md` | `2d4b68a3dc593f3ce95b202a124fbd24454fda261089e7cde5f67b972d23db00` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `de46f52db4aa93f393cf9e7a97ef734435d9e9d7f9af4c99ceed8294867d9a1b` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.md` | `3f500554ef2376d55d16972b04e773c3309dfacdda3f069ca8a14ff2be07e643` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-full.generated.json` | `d7fbd046106a858fc6bbb11c7f14ddb745bef5059b9fc5cbdba9b1b512ddf8c4` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-full.generated.md` | `28766e05f7832dc1491b012493336b71a5d1c67dd0022050d9dc0f472a7c4e77` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `a628c7910973dfe3ea2379d1de447632bb7a68bc93945814d7e5922711b01933` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.md` | `88f142196ac211bcdd631f901a53610578c5ce4eebc5dd6fe866eb1b8780e929` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `dcb7aea74fa53c58425123bf580dbe52ae9898bbc0af29bd38ee98925848c833` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.md` | `b09e3147b1a44e2aa2039095d7996803e03cb2ecaf282ea443d4ed0155565f65` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | `8b8298f135b70c6487dcfbae620801fc09fabe03e73c91fe8657a27505216bce` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.md` | `507a9dfbea95edeb3aaf73b3688d080924d090aa8add76c5808f1a760b57938d` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/manifest/native-semantics-comparison.generated.json` | `cf34c749555c04585d0e5dbe339f2f7da889f2888ec57811bf3f83b9caae1e07` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/manifest/native-semantics-comparison.generated.md` | `eb8ce1c9decb259adf692692beae6e5fc25da35e7af672a6cbfce5e3d5345563` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json` | `4cc4b220df8adb4ebdb3e8666a41be8c1e37660ba0baf0a37e489087415dca4c` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md` | `808d96eb46c2b51c9621f7c7c9524a4190c567e96ee07ea5aba2e8b4563b9fe7` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `de46f52db4aa93f393cf9e7a97ef734435d9e9d7f9af4c99ceed8294867d9a1b` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.md` | `3f500554ef2376d55d16972b04e773c3309dfacdda3f069ca8a14ff2be07e643` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json` | `7d73f40c3ec211958b2eb5979a0c45f13303b53da032a90f96f00d8d77da5092` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md` | `e2b30f56ea6c305276604d2b5414e8083f8839e337666251bf3eed3c3c9fe7d1` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `de46f52db4aa93f393cf9e7a97ef734435d9e9d7f9af4c99ceed8294867d9a1b` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.md` | `3f500554ef2376d55d16972b04e773c3309dfacdda3f069ca8a14ff2be07e643` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json` | `6e00d5cd2e1239d414915f89feca72d744dcaf27d5c224513dc78ed3db310682` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md` | `b0e3b4c05ca0a7d24cbaaa32b7c3e8457cb1e7f9b9be51454edb3c89e88ac1ea` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `de46f52db4aa93f393cf9e7a97ef734435d9e9d7f9af4c99ceed8294867d9a1b` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.md` | `3f500554ef2376d55d16972b04e773c3309dfacdda3f069ca8a14ff2be07e643` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `c581790d4581ac9cf843e973f127b274784caf286d1661d72b5144f078049165` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.md` | `e1fe9715830ba612d0939617b59f9abe8ffc1380faef9b08a88cb0573327f096` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `45c592a17f99671474b5f510d59c5c5f162861bcc74e37f4a7c72e6e4bc6a736` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.md` | `096cf8ab13676c7f65285d701339b5ee66e9f5d1bc7d2e3da55771390c69438b` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `486d395cbc4da9e489dcc2f81e0fda69c34e66971e03133f02f797570f9a2400` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.md` | `fd411d0b1f24a595c3a46d871f8a69868608335f55b1c50d239f6e95988092d5` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | `256bdac6851d1bea706d7ae21377412ce79edb977969ec5774e0b27a6ae56a8e` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.md` | `479ef888acb275528232d32a0fbdbd54f6abaee78e3e87ba31a999a82ebe62a0` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json` | `a163cfa2dd4408fb802138a063f4651c6c930b4799b6089976083e19a45b5082` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md` | `6abd7b7b7bde4a426e1284c51ef867ba9f90a1ddaa045677f54ee88e79dad4db` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/body-processor-analysis.generated.json` | `4ca4fc4f48a5420c3dc9892faa3d53b1b28b322dc49fcc3adc6e341681465be4` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/body-processor-analysis.generated.md` | `7be2d1b763aa475bea209bcf0554848d3faac7e662e97a10f8781fbd202522f2` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json` | `97fca3207c05713f8e25bc092e5bf9e9ab65c7f36e5ba1da28cece9ff7637636` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md` | `b81577dc9928b17577f390deb7f131190c85898d037b76d3a6749d2fd11f8c45` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/canonical/final-consistency-audit.generated.json` | `d969736e6a6b68e331b83c17dd8edb8516314b1d78dd5e8c9ab41806bfea1502` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/canonical/final-consistency-audit.generated.md` | `80f770f9d8f05480c8fc1e57ed715ccbc41a5fb0a0bf5299911d3e90dd53bfe5` | `2026-06-16T19-12-00Z-614c8049` | stale |
+| Declared input | `reports/testing/generated/cache/runtime-component-cache.generated.json` | `03c2f68e9bc059c277b9d9fa23b7b98ffe0f4bb74e172e1205a356ac69e5661e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/cache/runtime-component-cache.generated.md` | `640e44bb2748b0364a82c762b2f9d9009dc670188f9877e46fdd4c6e2714e12c` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.json` | `1ac095cbdfe784f36f77e7cfee3f26c0f1f7fd29dd33530fc737dee1ef6c96b6` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.md` | `481addeceeba6fd3405387e6efaacdb2662e81092d230baf9dc33d678bc67dc3` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/cache/runtime-cache-index.generated.json` | `312b6e1f09927d2c042ee760974d2211ba43a0a06efb7d0c578030aae64f7e4f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/cache/runtime-cache-index.generated.md` | `cb212b15d611770acb02dc0fd96f9680b243943c04e8d93699bf5dda5d3c9a16` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-dependency-graph.generated.json` | `73a7f6063791b5a60cf229e055d7af96ff1248528dd59af3474fe4c759a5e47d` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-dependency-graph.generated.md` | `73bf8bc6b13a0b6beddd08ca2f1bc7984c36e351109eae3d6006fd6095ca1168` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-data-lineage.generated.json` | `7052ea608ad07903b8f4c4b685e6a70cebe48d308f548bae2b02da9025e2859c` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-data-lineage.generated.md` | `3c1f5c99f3bdf7b74e383da89e112a4aa779465392fff27c3c4d2e4a2d802456` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-path-migration.generated.json` | `6d0e406fc217afb9761a3fa7091426c12ac729b7a416972c94f8467da4f35770` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-path-migration.generated.md` | `9ca1a656ae8270671bbd7f444fbacaf8822d9fc796ad5c52c44957159e118089` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/generator-runtime-summary.generated.md` | `a9337683168623d967bc00f4c493b41d8b3ffa3db9713ca66557a4e41e716f4e` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
+| `reports/testing/generated/manifest/connector-roadmap.generated.json` | present | input file available |
+| `reports/testing/generated/manifest/connector-roadmap.generated.md` | present | input file available |
 | `reports/testing/test-coverage-overview.md` | present | input file available |
-| `reports/testing/generated/runtime/apache-runtime-results.generated.md` | present | input file available |
-| `reports/testing/generated/coverage/case-matrix.generated.md` | present | input file available |
-| `reports/testing/generated/coverage/connector-gap-summary.generated.md` | present | input file available |
-| `reports/testing/generated/coverage/coverage-summary.generated.md` | present | input file available |
-| `reports/testing/generated/runtime/haproxy-runtime-results.generated.md` | present | input file available |
-| `reports/testing/generated/runtime/nginx-runtime-results.generated.md` | present | input file available |
-| `reports/testing/generated/coverage/phase-coverage.generated.md` | present | input file available |
-| `reports/testing/generated/runtime/runtime-matrix.generated.md` | present | input file available |
-| `reports/testing/generated/coverage/xfail-summary.generated.md` | present | input file available |
-| `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | present | input file available |
-| `reports/testing/generated/canonical/full-runtime-matrix.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | present | input file available |
-| `reports/testing/generated/manifest/full-matrix-job-completeness.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | present | input file available |
-| `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json` | present | input file available |
-| `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md` | present | input file available |
-| `reports/testing/generated/work-queues/connector-work-queue.generated.json` | present | input file available |
-| `reports/testing/generated/work-queues/connector-work-queue.generated.md` | present | input file available |
-| `reports/testing/generated/work-queues/phase-work-queue.generated.json` | present | input file available |
-| `reports/testing/generated/work-queues/phase-work-queue.generated.md` | present | input file available |
-| `reports/testing/generated/mrts-native/mrts-native-full.generated.json` | present | input file available |
-| `reports/testing/generated/mrts-native/mrts-native-full.generated.md` | present | input file available |
-| `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | present | input file available |
-| `reports/testing/generated/mrts-native/mrts-native-apache.generated.md` | present | input file available |
-| `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | present | input file available |
-| `reports/testing/generated/mrts-native/mrts-native-nginx.generated.md` | present | input file available |
-| `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | present | input file available |
-| `reports/testing/generated/mrts-native/mrts-native-summary.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/native-semantics-comparison.generated.json` | present | input file available |
-| `reports/testing/generated/manifest/native-semantics-comparison.generated.md` | present | input file available |
-| `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json` | present | input file available |
-| `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md` | present | input file available |
-| `reports/testing/generated/work-queues/phase-work-queue.generated.json` | present | input file available |
-| `reports/testing/generated/work-queues/phase-work-queue.generated.md` | present | input file available |
-| `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json` | present | input file available |
-| `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md` | present | input file available |
-| `reports/testing/generated/work-queues/phase-work-queue.generated.json` | present | input file available |
-| `reports/testing/generated/work-queues/phase-work-queue.generated.md` | present | input file available |
-| `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json` | present | input file available |
-| `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md` | present | input file available |
-| `reports/testing/generated/work-queues/phase-work-queue.generated.json` | present | input file available |
-| `reports/testing/generated/work-queues/phase-work-queue.generated.md` | present | input file available |
-| `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | present | input file available |
-| `reports/testing/generated/canonical/remaining-failure-analysis.generated.md` | present | input file available |
-| `reports/testing/generated/canonical/next-fix-plan.generated.json` | present | input file available |
-| `reports/testing/generated/canonical/next-fix-plan.generated.md` | present | input file available |
-| `reports/testing/generated/canonical/full-run-evidence.generated.json` | present | input file available |
+| `reports/testing/generated/runtime/apache-runtime-results.generated.md` | stale | generated report input is stale: framework_sha differs |
+| `reports/testing/generated/coverage/case-matrix.generated.md` | stale | generated report input is stale: framework_sha differs |
+| `reports/testing/generated/coverage/connector-gap-summary.generated.md` | stale | generated report input is stale: framework_sha differs |
+| `reports/testing/generated/coverage/coverage-summary.generated.md` | stale | generated report input is stale: framework_sha differs |
+| `reports/testing/generated/runtime/haproxy-runtime-results.generated.md` | stale | generated report input is stale: framework_sha differs |
+| `reports/testing/generated/runtime/nginx-runtime-results.generated.md` | stale | generated report input is stale: framework_sha differs |
+| `reports/testing/generated/coverage/phase-coverage.generated.md` | stale | generated report input is stale: framework_sha differs |
+| `reports/testing/generated/runtime/runtime-matrix.generated.md` | stale | generated report input is stale: framework_sha differs |
+| `reports/testing/generated/coverage/xfail-summary.generated.md` | stale | generated report input is stale: framework_sha differs |
+| `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/canonical/full-runtime-matrix.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/manifest/full-matrix-job-completeness.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/work-queues/connector-work-queue.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/work-queues/connector-work-queue.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/work-queues/phase-work-queue.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/work-queues/phase-work-queue.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/mrts-native/mrts-native-full.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/mrts-native/mrts-native-full.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/mrts-native/mrts-native-apache.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/mrts-native/mrts-native-nginx.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/mrts-native/mrts-native-summary.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/manifest/native-semantics-comparison.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/manifest/native-semantics-comparison.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/work-queues/phase-work-queue.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/work-queues/phase-work-queue.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/work-queues/phase-work-queue.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/work-queues/phase-work-queue.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/work-queues/phase-work-queue.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/work-queues/phase-work-queue.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/canonical/remaining-failure-analysis.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/canonical/next-fix-plan.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/canonical/next-fix-plan.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/canonical/full-run-evidence.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
 | `reports/testing/generated/canonical/full-run-evidence.generated.md` | present | input file available |
-| `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | present | input file available |
-| `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.md` | present | input file available |
-| `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json` | present | input file available |
-| `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md` | present | input file available |
-| `reports/testing/generated/focused-analysis/body-processor-analysis.generated.json` | present | input file available |
-| `reports/testing/generated/focused-analysis/body-processor-analysis.generated.md` | present | input file available |
-| `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json` | present | input file available |
-| `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md` | present | input file available |
-| `reports/testing/generated/canonical/final-consistency-audit.generated.json` | present | input file available |
-| `reports/testing/generated/canonical/final-consistency-audit.generated.md` | present | input file available |
+| `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/body-processor-analysis.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/body-processor-analysis.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/canonical/final-consistency-audit.generated.json` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
+| `reports/testing/generated/canonical/final-consistency-audit.generated.md` | stale | generated report input is stale: connector_sha differs; framework_sha differs |
 | `reports/testing/generated/cache/runtime-component-cache.generated.json` | present | input file available |
 | `reports/testing/generated/cache/runtime-component-cache.generated.md` | present | input file available |
 | `reports/testing/generated/cache/runtime-build-cache.generated.json` | present | input file available |

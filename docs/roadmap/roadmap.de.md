@@ -45,7 +45,7 @@ Statusdatenformen.
 Interventions-, Ursprungs- und Fähigkeitsmetadaten.
 - Apache- und NGINX-Metadatendateien, `ORIGIN.md`-Dateien, `SOURCE_MAP.json`-Dateien,
 zentrale Attributionskopien unter `licenses/` und Driftprüfungen
-`ci/check-adapter-metadata-drift.sh`.
+`ci/checks/common/check-adapter-metadata-drift.sh`.
 – Adaptereigene Apache-Build-Eingaben, APXS/Autotools-Dateien, Harness-Dateien usw
 Produktivquelle unter `connectors/apache/src/`.
 - Adaptereigenes NGINX-Modul `config`, Harness-Dateien und produktive Quelle

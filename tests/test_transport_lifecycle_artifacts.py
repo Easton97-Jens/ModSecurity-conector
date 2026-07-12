@@ -12,7 +12,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
-    "transport_lifecycle_artifacts", ROOT / "ci" / "write-transport-lifecycle-artifacts.py"
+    "transport_lifecycle_artifacts", ROOT / "ci" / "runtime" / "lifecycle" / "write-transport-lifecycle-artifacts.py"
 )
 assert SPEC is not None and SPEC.loader is not None
 artifacts = importlib.util.module_from_spec(SPEC)
@@ -100,7 +100,7 @@ class TransportLifecycleArtifactsTest(unittest.TestCase):
             event, "nginx", "native-nginx-http-module", "run-barrier"
         )
         self.assertIsNotNone(barrier)
-        framework_ci = ROOT / "modules" / "ModSecurity-test-Framework" / "ci"
+        framework_ci = ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "checks" / "catalog"
         framework_runners = ROOT / "modules" / "ModSecurity-test-Framework" / "tests" / "runners"
         probe = (
             "import json, sys; "

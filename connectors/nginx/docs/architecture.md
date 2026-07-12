@@ -1,5 +1,7 @@
 # NGINX Architecture
 
+**Language:** English | [Deutsch](architecture.de.md)
+
 Status: adapter-owned runtime path, evidence-scoped
 
 The NGINX connector is an NGINX HTTP dynamic module using libmodsecurity v3
@@ -30,7 +32,7 @@ These surfaces are not connector-neutral and must remain under
 - Default runtime smoke: `60/60 PASS`.
 - Force-all runtime evidence: `140 attempted / 95 PASS / 39 FAIL /
   0 BLOCKED / 6 NOT_EXECUTABLE`.
-- Build and smoke flow: `COMPILE_NGINX.md`.
+- Build and smoke flow: `docs/build/compilers/nginx.md`.
 - Generated detail report:
   `reports/testing/generated/nginx-runtime-results.generated.md`.
 

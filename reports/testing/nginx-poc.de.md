@@ -6,7 +6,7 @@ Status: eingerüstet
 
 ## Umgesetzt
 
-- `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` bereitet einen Connector-spezifischen NGINX PoC-Build vor
+- `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh` bereitet einen Connector-spezifischen NGINX PoC-Build vor
   unter `BUILD_ROOT`.
 - Der Helfer kopiert die schreibgeschützten Dateien libmodsecurity v3 und ModSecurity-nginx
   Quellen in `$BUILD_ROOT/nginx-build/` und erstellt nur innerhalb dieser Kopien.
@@ -38,8 +38,8 @@ Wird nicht als NGINX Connector-Erfolg gezählt.
 Standardwerte sind nur lokale Annehmlichkeiten:
 
 ```sh
-MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
-MODSECURITY_NGINX_SOURCE_DIR=/root/conecter/ModSecurity-nginx
+MODSECURITY_V3_SOURCE_DIR=<external-source-root>/ModSecurity_V3
+MODSECURITY_NGINX_SOURCE_DIR=<external-source-root>/ModSecurity-nginx
 BUILD_ROOT=/src/ModSecurity-conector-build
 LOG_DIR=$BUILD_ROOT/logs/nginx
 ```
@@ -48,11 +48,11 @@ Quellenverweise für diese lokalen Standardwerte:
 
 | Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
-| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
-| ModSecurity-nginx | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
+| ModSecurity v3 | `<external-source-root>/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
+| ModSecurity-nginx | `<external-source-root>/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
 
 Alle Pfade können von der Umgebung überschrieben werden. Generierte Dateien müssen außerhalb bleiben
-Git-Checkout und außerhalb `/root/conecter/*`.
+Git-Checkout und außerhalb `<external-source-root>/*`.
 
 Führen Sie den Build-Helfer aus mit:
 
@@ -60,7 +60,7 @@ Führen Sie den Build-Helfer aus mit:
 REFRESH=1 \
 BUILD_NGINX_FROM_SOURCE=1 \
 BUILD_ROOT=/src/ModSecurity-conector-build \
-sh modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh
+sh modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh
 ```
 
 Der Helfer erstellt libmodsecurity v3 in:
@@ -116,7 +116,7 @@ neueste Version. Der Helfer codiert diesen Wert nicht fest.
 Für eine angeheftete Veröffentlichung:
 
 ```sh
-NGINX_RELEASE_TAG=release-1.31.0 sh modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh
+NGINX_RELEASE_TAG=release-1.31.0 sh modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh
 ```
 
 Das Archiv URL ist:
@@ -170,7 +170,7 @@ make smoke-nginx
 In diesem Arbeitsbereich am 15.05.2026 beobachtet:
 
 - `REFRESH=1 BUILD_NGINX_FROM_SOURCE=1
-  BUILD_ROOT=/src/ModSecurity-conector-build sh modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh`
+  BUILD_ROOT=/src/ModSecurity-conector-build sh modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh`
   libmodsecurity v3 in einer beschreibbaren Kopie erstellt, NGINX-Release behoben
   über GitHub, erstellte NGINX und produzierte das dynamische ModSecurity-Modul.
 - `BUILD_ROOT=/src/ModSecurity-conector-build make smoke-nginx` hat den Pass zurückgegeben
@@ -228,6 +228,6 @@ Offene NGINX PoC-Follow-ups werden erfasst
 - GitHub neueste Version API:
   https://api.github.com/repos/nginx/nginx/releases/latest
 - NGINX Dokumentation konfigurieren: https://nginx.org/en/docs/configure.html
-- ModSecurity-nginx lokale Quelle: `/root/conecter/ModSecurity-nginx`
+- ModSecurity-nginx lokale Quelle: `<external-source-root>/ModSecurity-nginx`
 - ModSecurity-nginx-Upstream-Quelle:
   https://github.com/owasp-modsecurity/ModSecurity-nginx

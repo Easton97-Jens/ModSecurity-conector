@@ -16,7 +16,7 @@ STANDALONE_RULES = ROOT / "connectors" / "traefik" / "config" / "traefik-native-
 
 FRAMEWORK_SPEC = importlib.util.spec_from_file_location(
     "framework_no_crs_baseline_for_traefik_transport",
-    ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "no_crs_baseline.py",
+    ROOT / "modules" / "ModSecurity-test-Framework" / "ci" / "checks" / "catalog" / "no_crs_baseline.py",
 )
 assert FRAMEWORK_SPEC is not None and FRAMEWORK_SPEC.loader is not None
 framework_baseline = importlib.util.module_from_spec(FRAMEWORK_SPEC)

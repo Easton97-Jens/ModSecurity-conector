@@ -1,36 +1,105 @@
-# Connector Docs
+# Connector documentation
 
 **Language:** English | [Deutsch](README.de.md)
 
+This section navigates the six selected connector routes. “P1”, “P2”, “P3”,
+and “P4” mean the ModSecurity request-header, request-body, response-header,
+and response-body phases. A route’s actual case status is run-specific and
+comes from its evidence; source presence, a capability manifest, or a build
+does not itself make a PASS claim.
 
-Status: implemented
+The selected HTTP/1.1 core documentation does not claim production readiness,
+CRS verification, complete HTTP/2 or HTTP/3 verification, a complete matrix,
+or strict behavior for all connectors.
 
-Connector docs explain current Apache, NGINX, and HAProxy connector behavior and
-the requirements future connectors must meet before claiming compatibility.
+## Connector map
 
-## Documents
+| Connector | Selected full-lifecycle profile | Recorded integration mode | Connector entry point | P1–P4 scope and boundary |
+|---|---|---|---|---|
+| Apache | <code>native-httpd-module</code> | <code>native-httpd-module</code> | [connector README](../../connectors/apache/README.md) | Native module route; P1–P4 observations remain run/evidence dependent and response-body processing can finalize at EOS |
+| NGINX | <code>native-nginx-http-module</code> | <code>native-nginx-http-module</code> | [connector README](../../connectors/nginx/README.md) | Native HTTP module route; P1–P4 require the selected host run and artifacts |
+| HAProxy | <code>native-htx-filter</code> | <code>native-htx-filter</code> | [connector README](../../connectors/haproxy/README.md) | Native HTX filter route; body slices are passed incrementally and phase 4 completes at HTX EOS |
+| Envoy | <code>ext_proc</code> | <code>ext_proc</code> | [connector README](../../connectors/envoy/README.md) | Streamed external-processing route; strict post-commit reset remains a separate, evidence-gated question |
+| Traefik | <code>native-middleware</code> | <code>native-traefik-middleware</code> | [connector README](../../connectors/traefik/README.md) | Native middleware with a local UDS service; strict reset remains separate until host evidence proves it |
+| lighttpd | <code>patched-native</code> | <code>patched-native-lighttpd</code> | [connector README](../../connectors/lighttpd/README.md) | Patched native host/module route; entity-body ranges are processed before transfer framing and phase 4 completes at entity EOS |
 
-| Document | Use |
-| --- | --- |
-| `directive-parity.md` | Current Apache and NGINX directive support and semantics |
-| `rule-load-stats.md` | Common rule-load metadata shape and Apache/NGINX adapter semantics |
-| `future-connectors.md` | Envoy, Lighttpd, Traefik, and deferred connector planning constraints |
-| `../../reports/testing/real-world-connector-validation.md` | Current real-world connector proof model and smoke evidence caveats |
-| `../../reports/testing/evidence/pr-evidence-summary.md` | PR #377 and PR #3564 evidence boundaries |
+The profile value is the internal target identity checked by the root lifecycle
+runner. The recorded integration mode is the descriptive value written into
+run-local effective capability information. Do not interchange the names or
+set them manually to reclassify a compatibility route.
 
-## Upstream References
+## Integration modes
 
-| Connector | Upstream |
-| --- | --- |
-| Apache | https://github.com/owasp-modsecurity/ModSecurity-apache |
-| NGINX | https://github.com/owasp-modsecurity/ModSecurity-nginx |
-| HAProxy | https://github.com/haproxy/haproxy |
-| Envoy | https://github.com/envoyproxy/envoy |
-| Lighttpd | https://github.com/lighttpd/lighttpd1.4 |
-| Traefik | https://github.com/traefik/traefik |
+| Mode | Host and role | Request/response visibility | Core route or compatibility term | Known boundary |
+|---|---|---|---|---|
+| <code>native-httpd-module</code> | Apache module loaded by httpd | Host request/response hooks and filters | Selected Apache core route | Response-body decisions may finalize at EOS; evidence must show the actual outcome |
+| <code>native-nginx-http-module</code> | NGINX HTTP module | NGINX request/response processing | Selected NGINX core route | Host configuration, worker permissions, and runtime artifacts remain profile-specific |
+| <code>native-htx-filter</code> | HAProxy native HTX filter | HTX request/response representation | Selected HAProxy core route | HTX/EOS semantics are not a claim of complete transport or protocol coverage |
+| <code>ext_proc</code> | Envoy external processing bridge | Streamed host/processor exchange | Selected Envoy core route | A processor/gRPC event is not automatically proof of a client-visible strict reset |
+| <code>native-traefik-middleware</code> | Traefik native middleware with local UDS service | Middleware request/response path through its local engine | Recorded selected Traefik mode | UDS locality and source wiring do not themselves prove strict transport behavior |
+| <code>patched-native-lighttpd</code> | Patched lighttpd native core plus module | HTTP/1 entity-body ranges before transfer framing | Recorded selected lighttpd mode | Patch/build existence and EOS wiring require run artifacts for a result assertion |
+| <code>ext_authz</code> | Envoy external authorization service | Normally pre-upstream authorization view | Compatibility/alternate term | It does not observe the later upstream response like ext_proc |
+| <code>forwardAuth</code> | Traefik forward-auth integration | Authorization request/response decision | Compatibility/alternate term | Do not relabel it as native middleware evidence |
+| <code>spoe-spop-agent</code> | HAProxy agent/protocol vocabulary | Agent-mediated request/response path | Compatibility/alternate term | Do not interchange it with the selected native HTX filter identity |
 
-No future connector is implemented until it can prove a real HTTP client to
-server connector to libmodsecurity path. HAProxy now has an evidence-scoped
-SPOA/SPOP runtime path; Envoy, Lighttpd, and Traefik remain deferred until the
-Common metadata and harness behavior are stable enough to design
-connector-specific proof paths.
+<code>EOS</code> means end of stream, <code>HTX</code> is HAProxy’s internal
+HTTP transaction representation, and <code>UDS</code> is a Unix domain socket.
+See the [glossary](../reference/glossary.md) for the complete definitions.
+
+## Target map
+
+| Task | Target | Important input | Output / limitation |
+|---|---|---|---|
+| Build one connector | <code>make build-<connector></code> | Safe <code>BUILD_ROOT</code>; host prerequisites | Build output only; no runtime assertion |
+| Check one configuration | <code>make check-config-<connector></code> | Prepared selected host/config | Config-load diagnostic; no traffic |
+| Run a minimal smoke | <code>make runtime-smoke-<connector></code> where provided | Prepared host and safe runtime paths | Focused runtime output; not full-lifecycle evidence |
+| Run the selected No-CRS baseline | <code>make no-crs-baseline-<connector></code> | <code>NO_CRS_RULES_FILE</code>, safe paths | Candidate evidence selected by capabilities |
+| Run one full lifecycle | <code>make full-lifecycle-<connector></code> | Target-managed profile identity; <code>NO_CRS_RUN_ID</code> recommended | Candidate full-lifecycle artifacts |
+| Validate a connector run | <code>make evidence-check-<connector></code> | <code>NO_CRS_RUN_ID</code> or latest run ID, <code>EVIDENCE_ROOT</code> | Read-only evidence validation |
+
+The placeholder <code>&lt;connector&gt;</code> allows
+<code>apache</code>, <code>nginx</code>, <code>haproxy</code>,
+<code>envoy</code>, <code>traefik</code>, and <code>lighttpd</code>. Example:
+
+~~~sh
+NO_CRS_RUN_ID="six-core-20260712T120000Z" make full-lifecycle-nginx
+~~~
+
+<code>NO_CRS_RUN_ID</code> is a safe identifier for one evidence set. It is
+required by explicit evidence gates, has no fixed root default, and must not
+contain secrets, personal data, slashes, or traversal segments. The example
+does not assert the outcome of the command; inspect the generated artifacts
+and validation result. See [configuration variables](../configuration/variables.md#no-crs-and-evidence-variables).
+
+## Configuration variables and placeholders
+
+The central [variable reference](../configuration/variables.md) documents
+format, default, setter, scope, effect, and safety for root variables and
+direct harness controls. The concise connector-specific groups are:
+
+| Connector | Typical direct variables | What to verify before use |
+|---|---|---|
+| Apache | <code>APACHE_HTTPD</code>, <code>APXS</code>/<code>APXS_BIN</code>, <code>APACHE_MODULE</code>, <code>HTTPD_PREFIX</code>, <code>PORT</code> | Trusted host/module paths and a loopback port |
+| NGINX | <code>NGINX_BINARY</code>, <code>NGINX_MODULE</code>, <code>NGINX_PREFIX</code>, <code>NGINX_HARNESS_PARENT</code>, <code>NGINX_WORKER_USER</code> | Module/binary compatibility and worker access to runtime paths |
+| HAProxy | <code>HAPROXY_BIN</code>, <code>SPOA_RUNTIME_BIN</code>, <code>HAPROXY_HTX_CANONICAL_RULES_FILE</code>, port offsets | Trusted host/agent binaries and non-conflicting loopback ports |
+| Envoy | <code>ENVOY_BIN</code>, <code>EXT_PROC_BIN</code>, <code>ENVOY_CONFIG</code>, <code>EXT_PROC_PORT</code> | Generated config outside checkout and valid local ports |
+| Traefik | <code>TRAEFIK_BIN</code>, <code>TRAEFIK_NATIVE_RUNTIME_ROOT</code>, <code>TRAEFIK_CONNECTOR_CONFIG</code>, <code>TRAEFIK_CONNECTOR_LISTEN</code> | Trusted binary, private runtime root, loopback listen addresses |
+| lighttpd | <code>LIGHTTPD_BIN</code>, <code>LIGHTTPD_PATCHED_ROOT</code>, <code>LIGHTTPD_CONNECTOR_MODULE</code>, <code>LIGHTTPD_SMOKE_PORT</code> | Matching patched host/module, absolute external paths, valid loopback port |
+
+Names in this table are not a promise that every direct override is suitable
+for CI or canonical evidence. The root targets set compatible invocation-local
+values and should be preferred.
+
+## Status and evidence boundary
+
+Use <code>PASS</code>, <code>FAIL</code>, <code>BLOCKED</code>,
+<code>NOT EXECUTED</code>, <code>NOT APPLICABLE</code>, and
+<code>UNSUPPORTED</code> exactly as defined in
+[Testing](../testing/README.md). A capability may be
+<code>implemented_not_asserted</code> without any particular canonical run
+having passed. Conversely, an evidence run is evaluated against its selected
+profile, rules, case requirements, and artifacts; it does not certify
+unselected protocols or compatibility paths.
+
+Read [Evidence](../evidence/README.md) before using a connector result in a
+report or claim.

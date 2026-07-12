@@ -1,5 +1,7 @@
 # HAProxy Integration Decision
 
+**Language:** English | [Deutsch](integration-decision.de.md)
+
 Status: SPOE/SPOA selected for current production runtime scope
 
 ## Decision

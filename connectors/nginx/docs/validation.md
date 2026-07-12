@@ -1,5 +1,7 @@
 # NGINX Validation
 
+**Language:** English | [Deutsch](validation.de.md)
+
 Status: evidence-scoped
 
 NGINX runtime claims require a concrete smoke or matrix command and generated

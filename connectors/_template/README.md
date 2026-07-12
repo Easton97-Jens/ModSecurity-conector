@@ -1,5 +1,7 @@
 # Connector Template
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status:
 
 - template: yes

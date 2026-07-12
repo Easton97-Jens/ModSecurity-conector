@@ -1,116 +1,139 @@
-# Persistenter lokaler Engine-Service
+# Persistenter lokaler Engine-Dienst
 
-`traefik-engine-service` ist die persistente lokale Common/libmodsecurity-
-Engine für den ausgewählten nativen Traefik-Hostpfad. Sie ist ein
-Unix-Domain-Socket-Prozess mit genau einer gemeinsamen Runtime. Das ist nötig,
-weil Traefik die lokale Go-Middleware über Yaegi lädt und die C++-
-libmodsecurity dort nicht direkt linken kann.
+**Sprache:** [English](engine-service.md) | Deutsch
 
-`native_middleware/` wählt die Engine nur mit `engineMode: uds` und einem
-privaten absoluten `engineSocketPath`. Der native Hostprobe erzeugt beides
-unter seinem connector-spezifischen Runtime-Root. Die eingecheckte
-Referenzkonfiguration bleibt absichtlich bei `passthrough`, damit sie keinen
-veralteten oder gemeinsam genutzten Socket-Pfad enthält. Ein Source-Build oder
-ein lokaler Protokolltest ist kein Traefik-Hostnachweis und promotet keine
-Capabilities, CRS-Unterstützung, Safe/Strict oder Produktionsreife.
+Dieses Verzeichnis enthält die persistente lokale Engine hinter der ausgewählten
+Traefik Native-Middleware-Host-Probe. `traefik-engine-service` ist dauerhaft
+Lokaler Unix-Domänen-Socket-Prozess, der eine Common/libmodsecurity-Laufzeit besitzt.
+Es existiert, weil der ausgewählte lokale Traefik-Plugin-Pfad das Go ausführt
+Middleware durch Yaegi; Es kann die C/C++-Libmodsecurity nicht direkt verknüpfen
+Laufzeit.
+
+`native_middleware/` wählt es nur aus, wenn `engineMode: uds` und ein privater
+`engineSocketPath` werden vom isolierten Host-Harness versorgt. Die Standardeinstellung
+Die Quellkonfiguration bleibt `passthrough`. Die fokussierten lokalen Tests sind es nicht
+Traefik-Host-Beweis; Die separate Pinned-Host-Sonde zielt auf No-CRS-Beweise ab
+bewirbt ausschließlich und niemals eingecheckte Funktionen, CRS-Unterstützung, Safe/Strict oder
+Produktionsbereitschaft.
 
 ## Build und lokaler Protokolltest
 
+Der Dienst muss mit einer expliziten lokal erstellten libmodsecurity verknüpft sein:
+
 ```sh
-MODSECURITY_INCLUDE_DIR=/absolut/include \
-MODSECURITY_LIB_DIR=/absolut/lib \
+MODSECURITY_INCLUDE_DIR=/absolute/include \
+MODSECURITY_LIB_DIR=/absolute/lib \
 make -C connectors/traefik build-engine-service
 
-MODSECURITY_INCLUDE_DIR=/absolut/include \
-MODSECURITY_LIB_DIR=/absolut/lib \
+MODSECURITY_INCLUDE_DIR=/absolute/include \
+MODSECURITY_LIB_DIR=/absolute/lib \
 make -C connectors/traefik test-engine-service
 ```
 
-`test-engine-service` baut den C17-Service, führt Parser-/Negativtests aus,
-startet eine echte lokale Common/libmodsecurity-Serviceinstanz und treibt eine
-sichere Transaktion sowie die lokale gezielte Request-Header-Deny-Regel über
-Unix-Sockets. Er verwirft außerdem einen zu großen Chunk und ein unzulässiges
-Outcome. Das ist nur ein Service-/Protokoll-Test: Traefik startet nicht und
-keine Hostaktion wird dadurch belegt.
+`test-engine-service` erstellt den C17-Dienst, führt seinen Parser/Selbsttest aus und startet
+ein echter lokaler Common/libmodsecurity-Dienstprozess und treibt beides sicher an
+Transaktion und die gezielte Anforderungsheader-Verweigerungsregel des Repositorys gegenüber Unix
+Steckdosen. Es lehnt auch einen übergroßen Teil und ein Ergebnis außerhalb des Staates ab
+Anerkennung. Dies ist nur ein fokussierter Dienst-/Protokolltest; das tut es nicht
+Starten Sie Traefik oder beweisen Sie eine Host-Aktion.
 
-Die Beispielkonfiguration ist `config/traefik-engine-service.conf`. Ihr
-relativer `rules_file`-Pfad erwartet das Repository-Root als Arbeitsverzeichnis;
-produktive Aufrufe müssen einen vertrauenswürdigen absoluten Regelpfad und ein
-privates Runtime-Verzeichnis verwenden. Der Daemon verweigert einen vorhandenen
-Socket-Pfad, bindet neue Sockets mit `0600` und löscht keinen beliebigen
-bestehenden Pfad.
+Der separate Real-Host-Probe erstellt den Dienst unter seiner isolierten Laufzeit
+root, startet es einmal und wählt `engineMode: uds` im angehefteten Traefik-Lokal aus
+Plugin. Wenn `MSCONNECTOR_RULES_FILE` festgelegt ist, wird genau dieser kanonische Wert geladen
+Keine CRS-Regeldatei und erfordert die Regel-IDs `1100001`, `1100101`, `1100201` und
+`1100301` für P1 bis P4. Das eingecheckte Zielgerät ist ein eigenständiges Gerät
+Nur Fallback. Für die Host-Probe ist erforderlich, dass P1 `200` erlaubt, P1 `403` verweigert und P2 verweigert
+`403`, P3 Pre-Commit Deny `403` und P4 Safe/Log-Only mit sichtbarem `200`; P4
+strict ist explizit `NOT EXECUTED`.
 
-## Echte native Hostprobe
-
-Der separate Hostprobe baut die Engine in seinem isolierten Runtime-Root,
-startet sie einmal und wählt sie im echten gepinnten Traefik-Local-Plugin-Pfad:
+Die Beispielkonfiguration ist
+`config/traefik-engine-service.conf`. Sein Verwandter `rules_file` geht davon aus
+Repository-Stammverzeichnis als Arbeitsverzeichnis. Bereitstellungen sollten eine vertrauenswürdige Version verwenden
+absoluter Regelpfad und ein privates Laufzeitverzeichnis:
 
 ```sh
-MODSECURITY_INCLUDE_DIR=/absolut/include \
-MODSECURITY_LIB_DIR=/absolut/lib \
-TRAEFIK_BIN=/absolut/traefik \
-TRAEFIK_NATIVE_RUNTIME_ROOT=/absolut/leerer-runtime-root \
-MSCONNECTOR_RULES_FILE=/absolut/no-crs-baseline.conf \
-make -C connectors/traefik runtime-smoke-traefik-native
+cd /absolute/ModSecurity-conector
+/absolute/traefik-engine-service --check-config \
+  --config connectors/traefik/config/traefik-engine-service.conf
+/absolute/traefik-engine-service --serve \
+  --config connectors/traefik/config/traefik-engine-service.conf \
+  --socket /absolute/private-runtime/traefik-engine.sock
 ```
 
-Ist `MSCONNECTOR_RULES_FILE` gesetzt, lädt der Probe genau diese kanonische
-No-CRS-Regeldatei und erwartet die IDs `1100001`, `1100101`, `1100201` und
-`1100301`. Ohne die Variable ist ausschließlich für einen selbständigen
-lokalen Probe die eigene gezielte Regeldatei mit getrennten IDs erlaubt. Der
-Probe verlangt P1-Allow `200`, P1-Deny `403`, P2-Deny `403`, P3-Deny vor dem
-Commit `403` und P4-Safe/Log-only mit sichtbarem `200`. P4-Strict ist explizit
-`NOT EXECUTED`.
+Der Daemon lehnt einen vorhandenen Socket-Pfad ab, bindet mit dem Modus `0600` und tut dies auch
+Die Verknüpfung eines beliebigen, bereits vorhandenen Pfads kann nicht aufgehoben werden. Es serialisiert allgemeine Laufzeitaufrufe
+hinter einem Mutex unter Beibehaltung des Transaktionsstatus pro Unix-Verbindung. Es ist
+Prozess und Engine bleiben über Verbindungen hinweg bestehen; eine Verbindung stellt genau dar
+eine Transaktion.
 
-## Lebenszyklus und Begrenzungen
+## Wire-Vertrag
 
-`src/traefik_engine_protocol.h` ist die normative Wire-Spezifikation. Jeder
-Frame hat 12 Byte: `MSE1`, Version `1`, Opcode, zwei Null-Reservierungsbytes
-und eine Big-Endian-Payloadlänge. Die Payload ist auf 65.536 Byte und jeder
-rohe Request-/Response-Chunk auf 32.768 Byte begrenzt. Es gelten zusätzlich
-Grenzen für URI, IDs, Adressen und höchstens 128 Header. NUL-Bytes in Metadaten,
-Restbytes, ungültige Flags, falsche Reihenfolgen und doppelte EOS werden
-abgelehnt. Payloads werden weder geloggt noch in `RESULT` zurückgespiegelt.
+`src/traefik_engine_protocol.h` ist die normative Protokolldeklaration. Rahmen
+haben den folgenden 12-Byte-Big-Endian-Header:
 
-Eine Socket-Verbindung trägt genau eine Transaktion; der Daemon und seine
-Engine bleiben über Verbindungen hinweg bestehen. Die Go-Middleware öffnet
-einmal pro `ServeHTTP` eine UDS-Verbindung und verwendet sie für den gesamten
-P1--P4-Lebenszyklus. Common-Aufrufe werden durch ein Mutex serialisiert, die
-Transaktionszustände bleiben verbindungslokal.
+| Bytes | Wert |
+| --- | --- |
+| 0--3 | ASCII `MSE1` |
+| 4 | Protokollversion `1` |
+| 5 | Opcode |
+| 6--7 | null reservierte Flags |
+| 8--11 | Nutzlastlänge |
 
-Der Client ruft explizit auf:
+Die maximale Nutzlast beträgt 65.536 Byte. Jeder rohe Anforderungs- oder Antwortblock ist
+einzeln auf 32.768 Bytes begrenzt. Metadaten haben separate Obergrenzen: höchstens 128
+Header, 256-Byte-Header-Namen, 8.192-Byte-Header-Werte, ein 4.096-Byte-URI,
+und begrenzte IDs/Adressen. Eingebettete NUL-Bytes, nachgestellte Metadaten, ungültig
+Frame-Flags, ungültige Reihenfolge und doppelte EOS-Vorgänge werden abgelehnt.
 
-1. `BEGIN` für Request-Metadaten/Header,
-2. `REQUEST_CHUNK` und genau ein `REQUEST_EOS`,
-3. `RESPONSE_HEADERS`, optionale `RESPONSE_CHUNK`, genau ein `RESPONSE_EOS`
-   sowie `RESPONSE_COMMIT` für die tatsächlichen Host-Commit-Metadaten,
-4. `FINISH` und nach erfolgreichem Abschluss `DESTROY`.
+Der Client sendet diesen geordneten Lebenszyklus:
 
-EOF, Protokollfehler oder Socket-Timeout zerstören eine offene Transaktion,
-erzeugen aber keinen hostbestätigten Outcome. `RESULT` enthält nur begrenzte
-Entscheidungsmetadaten sowie ggf. Transaction-ID, Rule-ID und Redirect-URL,
-nie Bodies, Header, URI-Werte oder Regelmeldungen.
+1. `BEGIN` überträgt begrenzte Anforderungsmetadaten und Header. Es ruft Common auf
+   Verbindungs-/URI-/Request-Header-Verarbeitung und gibt die erste Entscheidung zurück.
+2. Null oder mehr `REQUEST_CHUNK`-Frames, gefolgt von genau einmal
+   `REQUEST_EOS`, hängen Sie den Anforderungstext an und beenden Sie ihn.
+3. `RESPONSE_HEADERS`, null oder mehr `RESPONSE_CHUNK`-Frames und genau einer
+   `RESPONSE_EOS` verarbeitet den Antwortlebenszyklus. `RESPONSE_COMMIT`-Datensätze
+   die beiden Host-Metadaten-Booleans (`headers_sent`, `body_started`) sofort
+   bevor oder nachdem der Host Bytes weiterleitet; Es puffert niemals Bytes.
+4. `FINISH` ruft die allgemeine Protokollierung/Finalisierung erst nach dem erforderlichen EOS auf
+   Anrufe (oder nach einer Terminal-Engine-Entscheidung).
+5. `DESTROY` ist nach einem erfolgreichen `FINISH` erforderlich und gibt das Common frei
+   Transaktion. EOF, fehlerhafte Eingaben oder ein Socket-Timeout zerstören ebenfalls eine
+   In-Flight-Transaktion ohne Synthese eines Host-Ergebnisses.
 
-## Outcome-Grenze
+`RESPONSE_HEADERS` ist `u16 status`, eine HTTP-Version mit begrenzter Länge und Präfix.
+dann eine begrenzte Header-Liste. `BEGIN` verwendet die Methode mit Längenpräfix, URI und HTTP
+Version, Hostname, Client-Adresse/Port, Server-Adresse/Port, Host-Anfrage-ID,
+und Header in der genauen Reihenfolge, die im Header dokumentiert ist.
 
-`OUTCOME` wird erst gesendet, nachdem der Go-`ResponseWriter` die konkrete
-Hostaktion geschrieben hat. Ein fehlgeschlagener oder kurzer Body-Write führt
-nur zu Commit-Metadaten, aber nie zu einem hostbestätigten Event. Vor einem
-Response-Commit akzeptiert der Service nur die passende disruptive Aktion mit
-`HOST_ACTION_APPLIED` und passendem sichtbaren Status. Common behält das rohe
-Engine-Entscheidungsereignis und schreibt danach ein zweites,
-hostbestätigtes Ereignis mit `transport_result=http_status`.
+Jeder Befehl erhält einen `RESULT`-Frame. Seine Nutzlast beginnt mit Befehl, Ergebnis
+Code, angeforderte Entscheidungsaktion, Phase, HTTP-Status und Lebenszyklus-Flags;
+Es dürfen nur eine begrenzte Transaktions-ID, Regel-ID und Weiterleitungs-URL folgen. Es nie
+Enthält Anforderungs-/Antworttextbytes, Header, URI-Werte, Regelnachrichten usw
+Protokollnachrichten.
 
-Nach Header-/Body-Commit kann eine disruptive Response-Body-Entscheidung nur
-als `LOG_ONLY` ohne Action-Flag und mit dem tatsächlich bereits sichtbaren
-Status bestätigt werden. Das zweite Ereignis verwendet dann
-`transport_result=log_only`. Der Service kann keine Traefik-Response
-zurücksetzen und weder einen späten Abort noch eine Strict-Intervention
-behaupten.
+## Ergebnisgrenze
 
-Der Hostprobe setzt `event_path` unter seinem eigenen Runtime-Root und die
-Common-Integration exakt auf `native-traefik-middleware`. Er übernimmt nur
-metadatenhaltiges JSONL und filtert hostbestätigte Events über die kanonischen
-`transport_result`-Werte. Weder Request- noch Response-Payloads werden als
-Evidenz übernommen. Cancellation-/Disconnect-Fälle und jede
-Capability-Promotion bleiben getrennte Arbeit.
+`OUTCOME` wird erst gesendet, nachdem der Go `ResponseWriter` tatsächlich geschrieben hat
+ausgewählte Host-Aktion. Ein fehlgeschlagener oder kurzer Antworttext-Schreibvorgang führt zu einem Commit
+Nur Metadaten und niemals ein vom Host bestätigtes Ergebnis. Bevor Sie antworten, schreiben Sie es fest
+akzeptiert nur eine übereinstimmende angeforderte Störaktion mit einer expliziten Anforderung
+`HOST_ACTION_APPLIED`-Flag und entsprechender sichtbarer Status. Mit einem Run-Local
+`event_path`, der Dienst ruft dann die Common Host-Outcome-API auf: Common
+behält das rohe Engine-Decision-Ereignis bei und schreibt ein zweites Ereignis mit Canonical
+`transport_result=http_status`.
+
+Nachdem Antwortheader/-text festgeschrieben wurden, wird ein Antworttext unterbrochen
+Die Entscheidung kann nur als `LOG_ONLY` bestätigt werden, ohne Flag für angewandte Aktion
+und der tatsächlich bereits sichtbare HTTP-Status. Der Dienst kann einen Traefik nicht zurücksetzen
+Antwort oder ein verspäteter Abbruch beweisen, so verweigert es alle stärkeren Post-Commits
+Danksagungen. Seine vom Gastgeber bestätigten Veranstaltungsverwendungen
+`transport_result=log_only`. Das Pinned-Host-Probe zeichnet dies nur als auf
+gezieltes P4-sicheres/nur-Protokollieren-Verhalten; strikte Spätintervention ist `NOT EXECUTED`.
+
+Der Host-Harness hält `event_path` unter seinem connector-spezifischen Laufzeitstamm,
+setzt den allgemeinen Integrationsmodus auf `native-traefik-middleware` und leitet die Rohdaten weiter
+JSONL-Artefakt und filtert vom Host bestätigte Ergebnisereignisse nach
+kanonische `transport_result`-Werte. Es behandelt nicht das Rohe
+„Requested-Decision“-Ereignis als Host-Aktion. Stornierungs-/Trennungsschutz und
+Fähigkeitsförderung bleiben separate Arbeiten.

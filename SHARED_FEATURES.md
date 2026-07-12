@@ -1,5 +1,7 @@
 # Shared Features
 
+**Language:** English | [Deutsch](SHARED_FEATURES.de.md)
+
 This document expands the root README's `Connector Feature Status` section. It
 describes shared connector behavior only when that behavior is visible in the
 README, existing documentation, tests, scripts, Makefiles, or source files.
@@ -390,8 +392,8 @@ generated metadata alone.
 
 ## Further Reading
 
-- [Compile Nginx](./COMPILE_NGINX.md)
-- [Compile Apache](./COMPILE_APACHE.md)
+- [Compile Nginx](./docs/build/compilers/nginx.md)
+- [Compile Apache](./docs/build/compilers/apache.md)
 - `README.md`
 - `docs/architecture/architecture.md`
 - `docs/architecture/common-runtime-boundaries.md`

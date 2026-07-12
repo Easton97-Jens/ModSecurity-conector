@@ -51,7 +51,7 @@ jobs:
           test -f docs/testing/verified-run-environment.md
           test -f reports/testing/test-coverage-overview.md
       - name: Check bilingual documentation
-        run: python ci/check-bilingual-docs.py
+        run: python ci/checks/documentation/check-bilingual-docs.py
       - name: Run lightweight lint
         if: github.event_name != 'pull_request'
         run: |

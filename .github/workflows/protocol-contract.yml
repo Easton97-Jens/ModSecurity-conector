@@ -68,7 +68,7 @@ jobs:
           NGINX_PROTOCOL_PROFILE: ${{ matrix.profile }}
         run: |
           set -eu
-          sh -eu -c '. modules/ModSecurity-test-Framework/ci/common.sh; nginx_protocol_profile_valid "$NGINX_PROTOCOL_PROFILE"; nginx_protocol_profile_configure_flags "$NGINX_PROTOCOL_PROFILE"'
+          sh -eu -c '. modules/ModSecurity-test-Framework/ci/lib/common.sh; nginx_protocol_profile_valid "$NGINX_PROTOCOL_PROFILE"; nginx_protocol_profile_configure_flags "$NGINX_PROTOCOL_PROFILE"'
       - name: Build selected NGINX protocol profile
         env:
           NGINX_PROTOCOL_PROFILE: ${{ matrix.profile }}

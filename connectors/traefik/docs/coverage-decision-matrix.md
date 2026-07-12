@@ -8,7 +8,7 @@ Runtime status: broader connector behavior not verified
 This file records Traefik-specific status only. Global matrix rules and
 promotion gates are defined in
 `connectors/_template/docs/coverage-decision-matrix.md` and
-`reports/template-verification-nginx-apache/connector-scaffold-decisions.md`.
+`reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`.
 
 ## Current Traefik Status
 

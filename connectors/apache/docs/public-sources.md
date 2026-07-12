@@ -1,5 +1,7 @@
 # Apache Public Sources
 
+**Language:** English | [Deutsch](public-sources.de.md)
+
 Status: current references
 
 Repository-owned Apache connector source lives under `connectors/apache/`.
@@ -12,4 +14,4 @@ read-only rebuilds:
 - Apache module/APXS build context: Apache httpd documentation
 
 Source pins and generated build roots for clean-clone runtime validation are
-documented in `COMPILE_APACHE.md` and the framework `ci/common.sh` helpers.
+documented in `docs/build/compilers/apache.md` and the framework `ci/lib/common.sh` helpers.

@@ -11,6 +11,9 @@
 > Framework-SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Eingabestatus: `complete`
 
+<!-- retained-historical-generated-output -->
+> Aktueller Refresh-Status: `skipped_missing_input`. Dieser Report bewahrt einen früheren evidenztragenden Snapshot, weil keine neuen verifizierten Eingaben vorliegen. Grund: required input missing or empty.
+
 # MRTS Native Infrastructure Report
 
 **Sprache:** [English](mrts-native-full.generated.md) | Deutsch
@@ -72,12 +75,12 @@ Diese nativen MRTS-Berichte sind vom Connector-Vollmatrixbeweis getrennt.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | `234ac210219fe61948da3815ed6587a21d86497fad6ef1a2a4d67acab12f1eda` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | `161d7c17ed090bfe0cb7842c33c98251d8d217b73de5f09e8b886a5cbc0970a7` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/build/mrts-native/apache2_ubuntu/job.json` | `234ac210219fe61948da3815ed6587a21d86497fad6ef1a2a4d67acab12f1eda` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/build/mrts-native/nginx-pr24/job.json` | `161d7c17ed090bfe0cb7842c33c98251d8d217b73de5f09e8b886a5cbc0970a7` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Datenverfügbarkeit / fehlende Informationen
 
 | Input | Status | Notes |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | present | input file available |
+| `<verified-run-root>/build/mrts-native/apache2_ubuntu/job.json` | present | input file available |
+| `<verified-run-root>/build/mrts-native/nginx-pr24/job.json` | present | input file available |

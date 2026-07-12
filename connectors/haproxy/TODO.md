@@ -19,7 +19,7 @@ asserted without a new run under `$EVIDENCE_ROOT/haproxy/<run-id>/`.
 
 Global gate definitions:
 
-- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
+- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
 
 ## Phase 0: Scaffold
 
@@ -44,7 +44,7 @@ Global gate definitions:
 ## Phase 2: Build
 
 - [x] metadata build-starter approach documented
-- [x] root compile guide documented in `COMPILE_HAPROXY.md`
+- [x] root compile guide documented in `docs/build/compilers/haproxy.md`
 - [x] metadata object build command documented
 - [x] local SPOA agent starter build documented
 - [x] local SPOA agent starter self-test documented

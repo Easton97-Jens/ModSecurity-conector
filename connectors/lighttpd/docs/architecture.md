@@ -1,5 +1,7 @@
 # lighttpd Architecture
 
+**Language:** English | [Deutsch](architecture.de.md)
+
 Status: native module, `minimal_runtime_smoke` for a Phase-1 header rule
 
 ## Runtime flow

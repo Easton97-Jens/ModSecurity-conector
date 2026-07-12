@@ -28,7 +28,7 @@ curl-Kommandos:
 
 ```sh
 cd modules/ModSecurity-test-Framework
-python3 ci/protocol_client.py \
+python3 ci/checks/protocol/protocol_client.py \
   --url https://127.0.0.1:8443/no-crs/deny \
   --protocol h2 \
   --artifact-dir /absolute/evidence/client-h2 \
@@ -113,7 +113,7 @@ diesen anderen Token und denselben Target-Authority-Hash, ohne rohe URL oder
 Request-Payload zu behalten. Validiere anschließend die Client-Seite explizit:
 
 ```sh
-python3 ci/check_protocol_evidence.py \
+python3 ci/checks/protocol/check_protocol_evidence.py \
   --artifact-dir /absolute/evidence/client-h3-strict \
   --protocol h3 \
   --strict \
@@ -185,4 +185,4 @@ Connector-Runtime-Evidence; eine H3-Observation `BLOCKED` wird als
 Client-Umgebungszustand berichtet.
 
 Die aktuellen Connector-Grenzen und bewusst nicht erhobenen Claims stehen im
-[Audit zur Transport-Härtung](../../reports/transport-hardening-audit.de.md).
+[Audit zur Transport-Härtung](../../reports/audits/transport-hardening-audit.de.md).

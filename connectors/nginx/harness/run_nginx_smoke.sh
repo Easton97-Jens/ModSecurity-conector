@@ -6,7 +6,7 @@ REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}"
 [ -d "$FRAMEWORK_ROOT" ] || { echo "nginx_smoke: blocked FRAMEWORK_ROOT is missing; run git submodule update --init --recursive or set FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework"; exit 77; }
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$REPO_ROOT}"
-. "$FRAMEWORK_ROOT/ci/common.sh"
+. "$FRAMEWORK_ROOT/ci/lib/common.sh"
 VERIFIED_RUN_ROOT="${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}"
 VERIFIED_BUILD_ROOT="${VERIFIED_BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}"
 BUILD_ROOT="${BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
@@ -98,7 +98,7 @@ NGINX_UPSTREAM_PROTOCOL="${NGINX_UPSTREAM_PROTOCOL:-http1}"
 NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR="${NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR:-}"
 
 load_connector_adapter_metadata() {
-    eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell nginx --prefix CONNECTOR_ADAPTER)"
+    eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell nginx --prefix CONNECTOR_ADAPTER)"
     CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-$CONNECTOR_ADAPTER_SOURCE}"
     CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-$CONNECTOR_ADAPTER_SOURCE_REPO}"
     CONNECTOR_ORIGIN_SOURCE_URL="${CONNECTOR_ORIGIN_SOURCE_URL:-$CONNECTOR_ADAPTER_SOURCE_URL}"
@@ -988,7 +988,7 @@ send_synchronized_first_byte_request() {
     [ "$http_status" = "200" ] || fail "synchronized safe response status was not 200: $http_status"
     [ -s "$NGINX_PHASE4_LOG_FILE" ] || fail "Phase-4 host log is missing after synchronized response"
     FIRST_BYTE_HOST_METADATA="$SYNCHRONIZED_DIR/host-metadata.json"
-    "$PYTHON_BIN" "$REPO_ROOT/ci/write-first-byte-host-metadata.py" \
+    "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/lifecycle/write-first-byte-host-metadata.py" \
         --phase4-log "$NGINX_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" || \
         fail "could not derive bounded host metadata from the Phase-4 event"
     "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
@@ -1068,7 +1068,7 @@ run_nginx_protocol_client_if_requested() {
     # intentionally supplies no synthetic stream ID or ALPN sidecar: curl
     # cannot establish the per-stream causal facts required for promotion.
     set +e
-    "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/protocol_client.py" \
+    "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/checks/protocol/protocol_client.py" \
         --url "https://127.0.0.1:$PORT/no-crs/allow" \
         --protocol "$protocol" \
         --artifact-dir "$artifact_dir" \
@@ -1259,7 +1259,7 @@ start_response_header_backend() {
     fi
     RESPONSE_HEADER_BACKEND_PORT=$(select_free_port $((PORT + 1000)) "$PORT_SEARCH_LIMIT") || \
         blocked "no free response-header backend port found"
-    "$PYTHON_BIN" "$REPO_ROOT/ci/response-header-test-backend.py" \
+    "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/response-header-test-backend.py" \
         --port "$RESPONSE_HEADER_BACKEND_PORT" \
         --body-file "$DOCROOT/index.html" \
         --safe-root "$RUNTIME_ROOT" \
@@ -1426,7 +1426,7 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
-if ! "$PYTHON_BIN" "$REPO_ROOT/ci/harness-case-metadata.py" response-header-fixture \
+if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" response-header-fixture \
     --case "$TEST_CASE" \
     --framework-root "$FRAMEWORK_ROOT" \
     --output "$RESPONSE_HEADER_FIXTURE_FILE" > "$LOG_DIR/response-header-fixture.log" 2>&1; then

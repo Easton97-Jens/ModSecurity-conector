@@ -22,7 +22,7 @@ CONNECTOR_SMOKE_SCRIPT_DIR="$FRAMEWORK_ROOT/ci"
 
 export CONNECTOR_ROOT FRAMEWORK_ROOT HARNESS_PATH CONNECTOR_SMOKE_SCRIPT_DIR
 
-. "$FRAMEWORK_ROOT/ci/connector-smoke-common.sh"
+. "$FRAMEWORK_ROOT/ci/lib/connector-smoke-common.sh"
 
 [ -d "$CONNECTOR_DIR" ] || connector_skip_missing_dependency \
     "$CONNECTOR_NAME" \

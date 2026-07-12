@@ -28,7 +28,7 @@ dieselben Status-, Ursprungs-, Interventions- und Fähigkeitsnamen.
 Das bedeutet:
 
 - Connector Smokes behalten ihr bestehendes Python/Shell-Ausführungsmodell;
-- Gängige C-Helfer werden unabhängig von `ci/check-common-helpers.sh` validiert;
+- Gängige C-Helfer werden unabhängig von `ci/checks/common/check-common-helpers.sh` validiert;
 - Zusammenfassung JSON bleibt abwärtskompatibel und nur anfügbar.
 
 ## Explizite Nicht-Grenzen
@@ -73,7 +73,7 @@ kompatible Form;
 - keine libmodsecurity-Interna enthalten;
 - keine Anfrage, Antwort, Text, Filter, Intervention oder Transaktion enthalten
 Lebenszyklusverhalten;
-- werden nur von `ci/check-adapter-helpers.sh` unter `$BUILD_ROOT` validiert.
+- werden nur von `ci/checks/common/check-adapter-helpers.sh` unter `$BUILD_ROOT` validiert.
 
 In späteren Phasen wurden produktive Connector-Build-Eingaben in den Besitz des Adapters verschoben
 Connector-Bäume: NGINX in Phase 9/10 und Apache in Phase 11. Phase 13 dann
@@ -89,7 +89,7 @@ Ersetzen-und-Reduzieren-Phase und vorbeiziehender before/after-Smoke.
 ## Phase 7 Reporting-Integration
 
 In Phase 7 können Adapter-eigene Metadaten als Feed für Build- und Runtimezusammenfassungen verwendet werden. Der
-Smoke-Skripte lesen die Metadaten über `modules/ModSecurity-test-Framework/ci/adapter_metadata.py`, einen lokalen Parser
+Smoke-Skripte lesen die Metadaten über `modules/ModSecurity-test-Framework/ci/lib/adapter_metadata.py`, einen lokalen Parser
 ohne FFI- oder C-Runtimeabhängigkeit. Die Meldereihenfolge ist explizit festgelegt
 Override, Git-Metadaten der externen Quelle, dann Adapter-eigene Monorepo-Metadaten.
 

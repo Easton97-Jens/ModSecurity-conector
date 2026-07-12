@@ -1,38 +1,40 @@
 # SPOE PoC Harness Placeholder
 
+**Language:** English | [Deutsch](README.de.md)
+
 documentation only
 
-Dieses Verzeichnis dokumentiert nur geplante Hooks für einen späteren PoC
-(planned only). Es enthält keinen Harness-Code.
+This directory only documents planned hooks for a later PoC
+(planned only). It does not contain a harness code.
 
-## Geplante Hooks (planned only)
+## Planned hooks (planned only)
 
 ### prepare
-- Zweck: Testumgebung vorbereiten.
+- Purpose: Prepare test environment.
 - Status: planned only
-- Offene Punkte: Artefaktpfade und Vorbedingungen noch zu prüfen.
+- Open points: Artifact paths and prerequisites still to be checked.
 
 ### start
-- Zweck: HAProxy und externe Komponente starten.
+- Purpose: Start HAProxy and external component.
 - Status: planned only
-- Offene Punkte: Startreihenfolge und Health-Prüfung Extern zu verifizieren.
+- Open points: Starting order and health check to be verified externally.
 
 ### send_request
-- Zweck: Benign-/malicious-Requests auslösen.
+- Purpose: Trigger benign/malicious requests.
 - Status: planned only
-- Offene Punkte: Request-Daten und Erwartungswerte noch zu prüfen.
+- Open points: Request data and expected values still to be checked.
 
 ### collect_logs
-- Zweck: Laufzeit-Logs sammeln.
+- Purpose: Collect runtime logs.
 - Status: planned only
-- Offene Punkte: Logquellen/Format und Korrelation noch zu prüfen.
+- Open points: Log sources/format and correlation still to be checked.
 
 ### stop
-- Zweck: Prozesse kontrolliert stoppen.
+- Purpose: Stop processes in a controlled manner.
 - Status: planned only
-- Offene Punkte: Abbruch-/Timeout-Verhalten Extern zu verifizieren.
+- Open points: Abort/timeout behavior to be verified externally.
 
 ### cleanup
-- Zweck: PoC-Artefakte bereinigen.
+- Purpose: Clean up PoC artifacts.
 - Status: planned only
-- Offene Punkte: Umfang und Grenzen noch zu prüfen.
+- Open points: scope and limits still to be examined.

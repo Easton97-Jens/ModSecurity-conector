@@ -1,5 +1,7 @@
 # Common Design
 
+**Language:** English | [Deutsch](design.de.md)
+
 Status: scaffolded
 
 ## Boundary
@@ -57,7 +59,7 @@ server-specific terms or depend on Envoy, Traefik, lighttpd, Apache, HAProxy, or
 Nginx SDKs.
 
 Runtime dependency discovery belongs to the test-framework shell helpers that
-source `modules/ModSecurity-test-Framework/ci/common.sh`. Connector smokes must
+source `modules/ModSecurity-test-Framework/ci/lib/common.sh`. Connector smokes must
 use common.sh-managed paths or explicit environment variables such as
 `ENVOY_BIN`, `TRAEFIK_BIN`, and `LIGHTTPD_BIN`. They must not install runtime
 components globally or silently fall back to system `PATH`.
@@ -102,20 +104,18 @@ libmodsecurity loaded rule `1000001` and returned a 403 intervention. Missing
 local libmodsecurity headers/libraries produce Exit 77/BLOCKED evidence with
 `decision_backend=libmodsecurity` and `modsecurity_backend_verified=false`.
 The resolver is shared in `connector-smoke-common.sh`; it accepts only explicit
-local overrides or local common.sh-managed runtime/component roots, including
-previous verified roots such as `/tmp/ModSecurity-conector-verified` and
-`/var/tmp/ModSecurity-conector-verified`, and rejects system/PATH fallbacks for
-libmodsecurity.
+local overrides or common.sh-managed external runtime/component roots, and
+rejects system/PATH fallbacks for libmodsecurity. The exact invocation root is
+recorded as run metadata rather than documented as a developer-local path.
 
 The same open-connector runner also supports minimal and secondary CRS smokes
 with `DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs` or the
 connector-specific CRS Make targets.
 CRS source-of-truth remains in `common.sh`: `CRS_REPO_URL`, `CRS_GIT_REF`,
 `CRS_SOURCE_DIR`, and `CRS_RUNTIME_DIR`. The runner may resolve an already
-staged CRS checkout only from common.sh-managed verified roots such as
-`/tmp/ModSecurity-conector-verified` or
-`/var/tmp/ModSecurity-conector-verified`; it does not download CRS, install CRS
-globally, or search system paths. The generated smoke config is written under
+staged CRS checkout only from common.sh-managed verified external roots; it
+does not download CRS, install CRS globally, or search system paths. The
+generated smoke config is written under
 the connector runtime/result root as `crs-smoke/` for the minimal case and
 `crs-secondary-smoke/` for the secondary case.
 
@@ -143,7 +143,7 @@ missing libmodsecurity, or missing runtime dependencies remain Exit 77/BLOCKED
 evidence.
 
 Official source metadata for these open connector runtime components is tracked
-in `modules/ModSecurity-test-Framework/ci/runtime-components.manifest.json`.
+in `modules/ModSecurity-test-Framework/ci/provisioning/runtime-components.manifest.json`.
 The fixed versions, official source URLs, download URLs, and SHA256 values are
 defined in `common.sh`; the manifest mirrors them for machine-readable
 inventory. Downloads are disabled by default and are allowed only through

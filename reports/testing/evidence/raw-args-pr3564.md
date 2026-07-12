@@ -22,7 +22,7 @@ The locally observed ModSecurity v3 reference is:
 
 | Repository | Local reference | Upstream | Observed commit | Observed version/tag |
 | --- | --- | --- | --- | --- |
-| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` |
+| ModSecurity v3 | `<external-source-root>/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` |
 
 This source is treated as read-only. RAW argument collections are not counted as
 active common PASS in this repository unless the configured local v3 source

@@ -36,13 +36,13 @@ Apache- und NGINX-Upstream-Bäume wurden entfernt. Die Herkunft des Apache bleib
 | Weg | Rolle | Runtimenutzung |
 | --- | --- | --- |
 | `connectors/apache/metadata.h` | Metadaten-API des Apache-Adapters | Nicht mit Apache-Modul-Builds verknüpft |
-| `connectors/apache/metadata.c` | Apache origin/source-Metadaten | Validiert durch `ci/check-adapter-helpers.sh` |
+| `connectors/apache/metadata.c` | Apache origin/source-Metadaten | Validiert durch `ci/checks/common/check-adapter-helpers.sh` |
 | `connectors/apache/autogen.sh`, `configure.ac`, `Makefile.am`, `build/*` | Adaptereigene Apache Autotools/APXS-Build-Eingaben | Materialisiert in `$BUILD_ROOT/apache-build/connector-src` für Monorepo-Standard-Apache-Builds |
 | `connectors/apache/src/*.c`, `src/*.h` | Adaptereigene Apache-Modulquellen | Erstellt durch den generierten Apache-Connector-Quellbaum |
 | `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/**/*.in`, `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/t/conf/extra.conf.in` | Apache-Konfigurationsvorlagen, die vom Upstream-Layout übernommen wurden | Aus Gründen der Autotools-Kompatibilität materialisiert |
 | `connectors/apache/SOURCE_MAP.json` | Herkunftskarte der Apache-Basis | Wird von Materialized-Source-Manifesten verwendet. nicht kompiliert |
 | `connectors/nginx/metadata.h` | Metadaten-API des NGINX-Adapters | Nicht mit NGINX-Modul-Builds verknüpft |
-| `connectors/nginx/metadata.c` | NGINX origin/source-Metadaten | Validiert durch `ci/check-adapter-helpers.sh` |
+| `connectors/nginx/metadata.c` | NGINX origin/source-Metadaten | Validiert durch `ci/checks/common/check-adapter-helpers.sh` |
 | `connectors/nginx/src/ddebug.h` | NGINX-Debug-Kompatibilitätsheader | Überlagert in materialisierte NGINX-Build-Quellen; Wird bei Bedarf weiterhin als Ausweichquelle für externe Quellen verwendet |
 | `connectors/nginx/config` | Build-Metadaten des dynamischen NGINX-Moduls | Materialisiert in `$BUILD_ROOT/nginx-build/connector-src/config` für Monorepo-Standard-NGINX-Builds |
 | `connectors/nginx/src/ngx_http_modsecurity_*.c` | Adaptereigene NGINX-Modulquellen | Erstellt durch den generierten NGINX-Connector-Quellbaum |
@@ -83,13 +83,13 @@ Anschlüsse.
 
 ## Validierung
 
-Die Adapter-Metadaten-Helfer werden von `ci/check-adapter-helpers.sh` kompiliert
+Die Adapter-Metadaten-Helfer werden von `ci/checks/common/check-adapter-helpers.sh` kompiliert
 unter `$BUILD_ROOT/adapter-helper-smoke/`. Das Skript verknüpft die Metadatenquellen
 mit dem Common `origin`-Helfer und stellt sicher, dass die stabilen Felder vorhanden sind.
-Die erwarteten Werte werden von `modules/ModSecurity-test-Framework/ci/adapter_metadata.py` generiert, das analysiert
+Die erwarteten Werte werden von `modules/ModSecurity-test-Framework/ci/lib/adapter_metadata.py` generiert, das analysiert
 die Adapter-eigenen C-Metadaten ohne FFI.
 
-`ci/check-adapter-metadata-drift.sh` vergleicht die analysierten Adaptermetadaten mit
+`ci/checks/common/check-adapter-metadata-drift.sh` vergleicht die analysierten Adaptermetadaten mit
 die Connector-`ORIGIN.md`-Dateien, zentrale `licenses/`-Ursprungsdokumente und den Import
 Dokumentation. Drift schlägt `make lint` fehl, bevor Metadaten automatisch gemeldet werden können
 divergieren.
@@ -102,7 +102,7 @@ mit before/after realer Connector smoked.
 
 Phase 8 beginnt mit der Verwendung von Adapter-eigenen Dateien in generierten Build-Quellen. Phase 9
 Migriert das NGINX-Modul `config` und Quelldateien nach `connectors/nginx/src`.
-Für die Monorepo-Standard-NGINX-Quelle wird `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` materialisiert
+Für die Monorepo-Standard-NGINX-Quelle wird `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh` materialisiert
 `$BUILD_ROOT/nginx-build/connector-src` von der adaptereigenen NGINX-Quelle und
 Nur generierte Manifeste. Die generierten Manifeste identifizieren das NGINX-Modul
 Quellen als `adapter-owned` und PR #377-Patch-Herkunft aufzeichnen, wo
@@ -115,7 +115,7 @@ Dateien aus diesem Baum, nachdem der Autoconf-Quellanker dorthin verschoben wurd
 `connectors/apache/`, produktive C-Dateien leben direkt in
 `connectors/apache/src/` und beibehaltene Autotools-Vorlagen leben darunter
 `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/`. Für die monorepo-default-Apache-Quelle:
-`modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` materialisiert
+`modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh` materialisiert
 `$BUILD_ROOT/apache-build/connector-src` aus der Apache-Quelle im Besitz des Adapters und
 Nur generierte Manifeste. Das generierte Manifest identifiziert das Apache-Modul
 Quellen, Build-Eingaben und beibehaltene `.in`-Vorlagen als `adapter-owned`; dauerhaft

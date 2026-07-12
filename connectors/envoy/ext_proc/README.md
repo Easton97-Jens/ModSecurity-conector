@@ -1,5 +1,7 @@
 # Envoy `ext_proc` Common/libmodsecurity full-lifecycle path
 
+**Language:** English | [Deutsch](README.de.md)
+
 This directory is a pinned Go implementation of Envoy's official
 `envoy.service.ext_proc.v3.ExternalProcessor` gRPC interface. It is separate
 from the existing C `ext_authz` service and does not change that selected,

@@ -1,5 +1,7 @@
 # HAProxy SPOE/SPOA Harness Design Plan
 
+**Language:** English | [Deutsch](design.de.md)
+
 ## Status
 
 documentation_only: true
@@ -9,100 +11,100 @@ harness_executed: false
 decision_status: undecided
 promoted: false
 
-## Zweck
-Dieses Dokument beschreibt nur, welche Aufgaben ein späterer Harness für den
-HAProxy SPOE/SPOA-PoC erfüllen müsste. Es enthält keine Implementierung und
-beweist keine Laufzeitfähigkeit.
+## Purpose
+This document only describes what tasks a later harness will perform
+HAProxy would have to meet SPOE/SPOA-PoC. It does not contain any implementation and
+does not prove runtime capability.
 
-## Rolle des Harness
-- Der Harness würde später die PoC-Umgebung vorbereiten.
-- Er würde später HAProxy und eine externe SPOA-Komponente starten.
-- Er würde später Testrequests senden.
-- Er würde später Logs sammeln.
-- Er würde später einen Report erzeugen.
-- Alles ist planned only / Noch zu prüfen.
+## Role of Harness
+- The harness would later prepare the PoC environment.
+- He would later start HAProxy and an external SPOA component.
+- He would send test requests later.
+- He would collect logs later.
+- He would generate a report later.
+- Everything is planned only / Still to be checked.
 
 The harness contract would be consumed by the central ModSecurity-test-Framework; no tests are stored here.
 
-## Nicht-Ziele
-- Kein ausführbarer Harness.
-- Keine Prozesssteuerung.
-- Kein Netzwerktest.
-- Kein HAProxy-Start.
-- Kein Agent-Start.
-- Kein Request-Test.
-- Kein Block/Allow-Nachweis.
-- Kein Runtime-Report.
-- Keine CI-Integration.
+## Non-targets
+- No executable harness.
+- No process control.
+- No network test.
+- No HAProxy startup.
+- No agent start.
+- No request test.
+- No block/allow proof.
+- No runtime report.
+- No CI integration.
 
-## Geplante Harness-Hooks
+## Planned harness hooks
 
-| Hook | Zweck | Geplante Inputs | Geplante Outputs | Erfolgskriterium | Status |
+| Hook | Purpose | Planned inputs | Planned outputs | Success criterion | Status |
 |---|---|---|---|---|---|
-| prepare | PoC-Verzeichnisse/Platzhalterzustand vorbereiten | Geplante Pfade, geplante Konfig-Platzhalter | Geplanter Arbeitsbereich | Noch zu prüfen. | planned only |
-| start | Geplante Startphase für HAProxy und SPOA-Komponente | Geplante Konfigpfade, geplante Prozessparameter | Geplante Prozesszustände | Noch zu prüfen. | planned only |
-| send_request | Framework-seitig auszulösende benign/malicious Requests | Geplante Requestdefinitionen aus zentralem Framework | Geplante allow/block-Signale | Noch zu prüfen. | planned only |
-| collect_logs | Geplante Logsammlung für Framework-Evidenz | Geplante Logquellen | Geplante Logartefakte | Noch zu prüfen. | planned only |
-| stop | Geplantes Stoppen der Prozesse | Geplante Prozessreferenzen | Geplanter Stoppzustand | Noch zu prüfen. | planned only |
-| cleanup | Geplantes Aufräumen temporärer Artefakte | Geplante Artefaktliste | Geplanter bereinigter Zustand | Noch zu prüfen. | planned only |
-| generate_report | Framework-seitige Reportgenerierung | Geplante Testergebnisse/Logreferenzen | Geplanter Reportpfad im zentralen Framework | Noch zu prüfen. | planned only |
+| prepare | Prepare PoC directories/placeholder state | Planned paths, planned config placeholders | Planned work area | Still to be checked. | planned only |
+| start | Planned launch phase for HAProxy and SPOA component | Planned config paths, planned process parameters | Planned process states | Still to be checked. | planned only |
+| send_request | Benign/malicious requests to be triggered by the framework | Planned request definitions from central framework | Scheduled allow/block signals | Still to be checked. | planned only |
+| collect_logs | Scheduled Log Collection for Framework Evidence | Scheduled log sources | Scheduled Log Artifacts | Still to be checked. | planned only |
+| stop | Planned stopping of processes | Planned Process References | Scheduled stop state | Still to be checked. | planned only |
+| cleanup | Scheduled cleanup of temporary artifacts | Scheduled Artifact List | Planned cleaned state | Still to be checked. | planned only |
+| generate_report | Framework-side report generation | Scheduled test results/log references | Planned report path in the central framework | Still to be checked. | planned only |
 
-## Hook-Details
+## Hook details
 
 ### prepare
-- Zweck: Geplante Vorbereitungsphase für PoC-Arbeitsbereiche.
-- Benötigte Artefakte: Noch zu prüfen.
-- Offene Punkte: Pfadmodell, Mindestvoraussetzungen, Fehlerverhalten. Noch zu prüfen.
+- Purpose: Planned preparation phase for PoC workspaces.
+- Required artifacts: To be checked.
+- Open points: path model, minimum requirements, error behavior. Still to be checked.
 - Status: planned only.
 
 ### start
-- HAProxy Start geplant, aber nicht implementiert.
-- SPOA-Agent Start geplant, aber nicht implementiert.
-- Prozess-/Port-/Timeout-Verhalten: Noch zu prüfen.
-- Exakte Startreihenfolge und Abhängigkeiten: Extern zu verifizieren.
+- HAProxy launch planned but not implemented.
+- SPOA agent launch planned but not implemented.
+- Process/port/timeout behavior: To be checked.
+- Exact startup order and dependencies: To be verified externally.
 - Status: planned only.
 
 ### send_request
-- benign request geplant.
-- malicious request geplant.
-- erwartete Ergebnisse: allow/block-signal planned only.
-- keine Verifikation aktuell.
-- Request-Metadatenvollständigkeit: Nicht belegbar aus dem aktuellen Repository.
+- benign request planned.
+- malicious request planned.
+- expected results: allow/block-signal planned only.
+- no verification currently.
+- Request metadata completeness: Not available from the current repository.
 - Status: planned only.
 
 ### collect_logs
 - HAProxy logs planned only.
 - Agent logs planned only.
-- Korrelation über transaction_id planned only.
-- noch kein Log-Schema bewiesen.
-- Logfeld-Semantik und Vollständigkeit: Noch zu prüfen.
+- Correlation via transaction_id planned only.
+- no log scheme proven yet.
+- Log field semantics and completeness: To be checked.
 - Status: planned only.
 
 ### stop
-- Prozess-Stopp planned only.
-- Fehlerverhalten offen.
-- Fail-open/fail-closed-relevante Stoppszenarien: Extern zu verifizieren.
+- Process stop planned only.
+- Error behavior open.
+- Fail-open/fail-closed relevant stop scenarios: To be verified externally.
 - Status: planned only.
 
 ### cleanup
-- temporäre Dateien/Prozesse planned only.
-- offen.
-- Grenzen zwischen PoC-Artefakten und externen Ressourcen: Noch zu prüfen.
+- temporary files/processes planned only.
+- open.
+- Boundaries between PoC artifacts and external resources: To be reviewed.
 - Status: planned only.
 
 ### generate_report
-- geplanter Report liegt ausschließlich im zentralen Test-Framework.
-- aktuell nicht vorhanden.
-- runtime_verified muss false bleiben, bis echte Ausführung erfolgt.
-- Reportfeld-Semantik: Noch zu prüfen.
+- Planned report is exclusively in the central test framework.
+- currently not available.
+- runtime_verified must remain false until real execution occurs.
+- Report field semantics: To be checked.
 - Status: planned only.
 
-## Geplantes Report-Schema
-Nur planned only; die konkrete Erzeugung erfolgt zentral im
-ModSecurity-test-Framework.
+## Scheduled report schema
+Only planned only; the actual production takes place centrally
+ModSecurity testing framework.
 
-## Grenzen / Nicht belegt
-- Dass dieser Harness lauffähig ist: Nicht belegbar aus dem aktuellen Repository.
-- Dass HAProxy/SPOA mit diesen geplanten Schritten korrekt interagiert: Extern zu verifizieren.
-- Dass Block/Allow/Redirect-Semantik vollständig abgedeckt wird: Noch zu prüfen.
-- Dass Response-Header/Response-Body zuverlässig verifizierbar sind: Noch zu prüfen.
+## Limits / Not documented
+- That this harness is executable: Not verifiable from the current repository.
+- That HAProxy/SPOA interacts correctly with these planned steps: To be verified externally.
+- That block/allow/redirect semantics are fully covered: To be checked.
+- That response headers/response bodies can be reliably verified: Still to be checked.

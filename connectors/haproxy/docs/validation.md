@@ -1,5 +1,7 @@
 # HAProxy Validation
 
+**Language:** English | [Deutsch](validation.de.md)
+
 Status: partial; historical SPOA runtime material is evidence-scoped and does
 not promote canonical Phase-4 facets.
 
@@ -21,7 +23,7 @@ make -C connectors/haproxy build-spoa-runtime
 HAPROXY_HTX_SOURCE_DIR=/absolute/path/to/haproxy-3.2.21 \
   MODSECURITY_INCLUDE_DIR=/absolute/path/to/include \
   MODSECURITY_LIB_DIR=/absolute/path/to/lib \
-  BUILD_ROOT=/var/tmp/haproxy-htx-smoke \
+  BUILD_ROOT=/srv/modsecurity-work/haproxy-htx-smoke \
   make -C connectors/haproxy runtime-smoke-haproxy-htx
 make smoke-haproxy
 make runtime-matrix-haproxy

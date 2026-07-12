@@ -224,5 +224,5 @@ partial hinaus bewertet werden können.
 The complete Template evaluation is documented in:
 
 ```text
-reports/template-verification-nginx-apache/template-evaluation.md
+reports/archive/template-verification-nginx-apache/template-evaluation.md
 ```

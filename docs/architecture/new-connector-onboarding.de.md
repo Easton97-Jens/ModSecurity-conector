@@ -14,7 +14,7 @@ Das Material kann Architekturoptionen, Risiken und Evidenceschritte beschreiben,
 keine Runtime-PASS/FAIL-Werte, Vollmatrixzeilen, Zusammenführungsbereitschaftssignale erstellen,
 oder Produktionsstatus.
 
-Der aktuelle Roadmap-Bericht wird von `ci/generate-connector-roadmap.py` und generiert
+Der aktuelle Roadmap-Bericht wird von `ci/evidence/reports/generate-connector-roadmap.py` und generiert
 geschrieben unter `reports/testing/generated/manifest/connector-roadmap.generated.*`.
 Es ist als `roadmap_only` registriert und erfordert weder Runtime noch Vollmatrix
 Eingänge.

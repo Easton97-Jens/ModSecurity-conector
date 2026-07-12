@@ -1,5 +1,7 @@
 # lighttpd Validation
 
+**Language:** English | [Deutsch](validation.de.md)
+
 Status: `minimal_runtime_smoke` for the native Phase-1 header path
 
 ## Evidence layers

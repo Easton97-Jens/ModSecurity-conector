@@ -1,0 +1,285 @@
+{
+  "findings": [
+    "The historical aggregate forwarded one VERIFIED_RUN_ROOT to every connector; only raw evidence subdirectories were connector-qualified.",
+    "ci/runtime/lifecycle/run-no-crs-baseline.sh historically read runtime-env.sh and manifest.json from VERIFIED_RUN_ROOT/component-cache instead of CONNECTOR_COMPONENT_CACHE.",
+    "The Traefik full-lifecycle target dispatched runtime-smoke without a forwardAuth build prerequisite, so the inferred binary path was missing rather than non-executable.",
+    "The historical Make wrapper translated a child Exit 77 into a Make failure status, losing the original BLOCKED classification at the stage boundary."
+  ],
+  "generated_at": "2026-07-11T18:59:19Z",
+  "kind": "full_lifecycle_runtime_root_audit",
+  "run_id": "full-lifecycle-all-20260711T155358Z",
+  "schema_version": 1,
+  "targets": [
+    {
+      "binary_executable": true,
+      "binary_exists": true,
+      "binary_kind": "file",
+      "binary_owner": "root:0",
+      "binary_sha256": "c101941d42b9298a3802ce51db8b36b29a2fc2f112a9c6a85a29d83c913917a0",
+      "build_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build",
+      "cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "component_cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "connector": "apache",
+      "evidence_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence/apache/full-lifecycle-all-20260711T155358Z",
+      "expected_binary": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache/builds/connectors/apache/ee6c15e623ee74d0660bf8324093bb11e60f807710e3d92d9d5242748605081b/httpd/bin/httpd",
+      "expected_binary_source": "historical manifest host_version path",
+      "foreign_connector_root_detected": false,
+      "resolved_binary": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache/builds/connectors/apache/ee6c15e623ee74d0660bf8324093bb11e60f807710e3d92d9d5242748605081b/httpd/bin/httpd",
+      "run_id": "full-lifecycle-all-20260711T155358Z",
+      "run_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline/apache/full-lifecycle-all-20260711T155358Z",
+      "source_of_each_environment_value": {
+        "BUILD_ROOT": {
+          "source": "Makefile: VERIFIED_BUILD_ROOT defaults to VERIFIED_RUN_ROOT/build and ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh forwards it unchanged",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build"
+        },
+        "CONNECTOR_COMPONENT_CACHE": {
+          "source": "Makefile/ci/provisioning/cache/with-runtime-components.sh default derived from VERIFIED_RUN_ROOT/component-cache",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache"
+        },
+        "EVIDENCE_ROOT": {
+          "source": "ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh defaults it from BUILD_ROOT/no-crs-evidence",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence"
+        },
+        "NO_CRS_RAW_ROOT": {
+          "source": "ci/runtime/lifecycle/run-no-crs-baseline.sh default derived from BUILD_ROOT",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline"
+        },
+        "TRAEFIK_CONNECTOR_BIN": {
+          "source": "connectors/traefik/scripts/runtime_smoke.py inferred default; no explicit persisted assignment was recorded",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/traefik-connector/traefik-forwardauth"
+        },
+        "VERIFIED_RUN_ROOT": {
+          "source": "caller environment of the historical canonical aggregate invocation",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z"
+        }
+      },
+      "target": "full-lifecycle-apache"
+    },
+    {
+      "binary_executable": true,
+      "binary_exists": true,
+      "binary_kind": "file",
+      "binary_owner": "root:0",
+      "binary_sha256": "870c91e0cb2234126f5b70e25c3bc089502efdfb53990faf0ad73bcccb24242e",
+      "build_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build",
+      "cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "component_cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "connector": "nginx",
+      "evidence_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence/nginx/full-lifecycle-all-20260711T155358Z",
+      "expected_binary": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache/builds/connectors/nginx/2328a427520369bb45b0e36b442ba7d8a9eb8d7bea06f5b852ce757207e36cae/nginx/sbin/nginx",
+      "expected_binary_source": "historical cache artifact selected by connector host convention",
+      "foreign_connector_root_detected": true,
+      "resolved_binary": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache/builds/connectors/nginx/2328a427520369bb45b0e36b442ba7d8a9eb8d7bea06f5b852ce757207e36cae/nginx/sbin/nginx",
+      "run_id": "full-lifecycle-all-20260711T155358Z",
+      "run_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline/nginx/full-lifecycle-all-20260711T155358Z",
+      "source_of_each_environment_value": {
+        "BUILD_ROOT": {
+          "source": "Makefile: VERIFIED_BUILD_ROOT defaults to VERIFIED_RUN_ROOT/build and ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh forwards it unchanged",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build"
+        },
+        "CONNECTOR_COMPONENT_CACHE": {
+          "source": "Makefile/ci/provisioning/cache/with-runtime-components.sh default derived from VERIFIED_RUN_ROOT/component-cache",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache"
+        },
+        "EVIDENCE_ROOT": {
+          "source": "ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh defaults it from BUILD_ROOT/no-crs-evidence",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence"
+        },
+        "NO_CRS_RAW_ROOT": {
+          "source": "ci/runtime/lifecycle/run-no-crs-baseline.sh default derived from BUILD_ROOT",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline"
+        },
+        "TRAEFIK_CONNECTOR_BIN": {
+          "source": "connectors/traefik/scripts/runtime_smoke.py inferred default; no explicit persisted assignment was recorded",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/traefik-connector/traefik-forwardauth"
+        },
+        "VERIFIED_RUN_ROOT": {
+          "source": "caller environment of the historical canonical aggregate invocation",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z"
+        }
+      },
+      "target": "full-lifecycle-nginx"
+    },
+    {
+      "binary_executable": true,
+      "binary_exists": true,
+      "binary_kind": "file",
+      "binary_owner": "root:0",
+      "binary_sha256": "b228c1df80b1c1567f72db3a088b41cf148e7c3f39cb2e21591384aff2c1b1ba",
+      "build_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build",
+      "cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "component_cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "connector": "haproxy",
+      "evidence_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence/haproxy/full-lifecycle-all-20260711T155358Z",
+      "expected_binary": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache/builds/connectors/haproxy/04708323416d773dd2227dda20efdde5e92064f3f903cbdc2b099d3d03bfff8b/haproxy-runtime/haproxy/sbin/haproxy",
+      "expected_binary_source": "historical cache artifact selected by connector host convention",
+      "foreign_connector_root_detected": true,
+      "resolved_binary": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache/builds/connectors/haproxy/04708323416d773dd2227dda20efdde5e92064f3f903cbdc2b099d3d03bfff8b/haproxy-runtime/haproxy/sbin/haproxy",
+      "run_id": "full-lifecycle-all-20260711T155358Z",
+      "run_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline/haproxy/full-lifecycle-all-20260711T155358Z",
+      "source_of_each_environment_value": {
+        "BUILD_ROOT": {
+          "source": "Makefile: VERIFIED_BUILD_ROOT defaults to VERIFIED_RUN_ROOT/build and ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh forwards it unchanged",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build"
+        },
+        "CONNECTOR_COMPONENT_CACHE": {
+          "source": "Makefile/ci/provisioning/cache/with-runtime-components.sh default derived from VERIFIED_RUN_ROOT/component-cache",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache"
+        },
+        "EVIDENCE_ROOT": {
+          "source": "ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh defaults it from BUILD_ROOT/no-crs-evidence",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence"
+        },
+        "NO_CRS_RAW_ROOT": {
+          "source": "ci/runtime/lifecycle/run-no-crs-baseline.sh default derived from BUILD_ROOT",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline"
+        },
+        "TRAEFIK_CONNECTOR_BIN": {
+          "source": "connectors/traefik/scripts/runtime_smoke.py inferred default; no explicit persisted assignment was recorded",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/traefik-connector/traefik-forwardauth"
+        },
+        "VERIFIED_RUN_ROOT": {
+          "source": "caller environment of the historical canonical aggregate invocation",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z"
+        }
+      },
+      "target": "full-lifecycle-haproxy"
+    },
+    {
+      "binary_executable": true,
+      "binary_exists": true,
+      "binary_kind": "file",
+      "binary_owner": "root:0",
+      "binary_sha256": "87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899",
+      "build_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build",
+      "cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "component_cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "connector": "envoy",
+      "evidence_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence/envoy/full-lifecycle-all-20260711T155358Z",
+      "expected_binary": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache/envoy/bin/envoy",
+      "expected_binary_source": "historical manifest host_version path",
+      "foreign_connector_root_detected": true,
+      "resolved_binary": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache/envoy/bin/envoy",
+      "run_id": "full-lifecycle-all-20260711T155358Z",
+      "run_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline/envoy/full-lifecycle-all-20260711T155358Z",
+      "source_of_each_environment_value": {
+        "BUILD_ROOT": {
+          "source": "Makefile: VERIFIED_BUILD_ROOT defaults to VERIFIED_RUN_ROOT/build and ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh forwards it unchanged",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build"
+        },
+        "CONNECTOR_COMPONENT_CACHE": {
+          "source": "Makefile/ci/provisioning/cache/with-runtime-components.sh default derived from VERIFIED_RUN_ROOT/component-cache",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache"
+        },
+        "EVIDENCE_ROOT": {
+          "source": "ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh defaults it from BUILD_ROOT/no-crs-evidence",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence"
+        },
+        "NO_CRS_RAW_ROOT": {
+          "source": "ci/runtime/lifecycle/run-no-crs-baseline.sh default derived from BUILD_ROOT",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline"
+        },
+        "TRAEFIK_CONNECTOR_BIN": {
+          "source": "connectors/traefik/scripts/runtime_smoke.py inferred default; no explicit persisted assignment was recorded",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/traefik-connector/traefik-forwardauth"
+        },
+        "VERIFIED_RUN_ROOT": {
+          "source": "caller environment of the historical canonical aggregate invocation",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z"
+        }
+      },
+      "target": "full-lifecycle-envoy"
+    },
+    {
+      "binary_executable": false,
+      "binary_exists": false,
+      "binary_kind": "missing",
+      "binary_owner": null,
+      "binary_sha256": null,
+      "build_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build",
+      "cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "component_cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "connector": "traefik",
+      "evidence_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence/traefik/full-lifecycle-all-20260711T155358Z",
+      "expected_binary": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/traefik-connector/traefik-forwardauth",
+      "expected_binary_source": "runtime_smoke.py default TRAEFIK_CONNECTOR_BIN",
+      "foreign_connector_root_detected": true,
+      "resolved_binary": null,
+      "run_id": "full-lifecycle-all-20260711T155358Z",
+      "run_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline/traefik/full-lifecycle-all-20260711T155358Z",
+      "source_of_each_environment_value": {
+        "BUILD_ROOT": {
+          "source": "Makefile: VERIFIED_BUILD_ROOT defaults to VERIFIED_RUN_ROOT/build and ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh forwards it unchanged",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build"
+        },
+        "CONNECTOR_COMPONENT_CACHE": {
+          "source": "Makefile/ci/provisioning/cache/with-runtime-components.sh default derived from VERIFIED_RUN_ROOT/component-cache",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache"
+        },
+        "EVIDENCE_ROOT": {
+          "source": "ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh defaults it from BUILD_ROOT/no-crs-evidence",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence"
+        },
+        "NO_CRS_RAW_ROOT": {
+          "source": "ci/runtime/lifecycle/run-no-crs-baseline.sh default derived from BUILD_ROOT",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline"
+        },
+        "TRAEFIK_CONNECTOR_BIN": {
+          "source": "connectors/traefik/scripts/runtime_smoke.py inferred default; no explicit persisted assignment was recorded",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/traefik-connector/traefik-forwardauth"
+        },
+        "VERIFIED_RUN_ROOT": {
+          "source": "caller environment of the historical canonical aggregate invocation",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z"
+        }
+      },
+      "target": "full-lifecycle-traefik"
+    },
+    {
+      "binary_executable": true,
+      "binary_exists": true,
+      "binary_kind": "file",
+      "binary_owner": "root:0",
+      "binary_sha256": "83cb905568496eea3813eee5ab32ba9614f49b1479ece86acd0103617087ad97",
+      "build_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build",
+      "cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "component_cache_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache",
+      "connector": "lighttpd",
+      "evidence_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence/lighttpd/full-lifecycle-all-20260711T155358Z",
+      "expected_binary": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache/lighttpd/bin/lighttpd",
+      "expected_binary_source": "historical cache artifact selected by connector host convention",
+      "foreign_connector_root_detected": true,
+      "resolved_binary": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache/lighttpd/bin/lighttpd",
+      "run_id": "full-lifecycle-all-20260711T155358Z",
+      "run_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline/lighttpd/full-lifecycle-all-20260711T155358Z",
+      "source_of_each_environment_value": {
+        "BUILD_ROOT": {
+          "source": "Makefile: VERIFIED_BUILD_ROOT defaults to VERIFIED_RUN_ROOT/build and ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh forwards it unchanged",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build"
+        },
+        "CONNECTOR_COMPONENT_CACHE": {
+          "source": "Makefile/ci/provisioning/cache/with-runtime-components.sh default derived from VERIFIED_RUN_ROOT/component-cache",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/component-cache"
+        },
+        "EVIDENCE_ROOT": {
+          "source": "ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh defaults it from BUILD_ROOT/no-crs-evidence",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/no-crs-evidence"
+        },
+        "NO_CRS_RAW_ROOT": {
+          "source": "ci/runtime/lifecycle/run-no-crs-baseline.sh default derived from BUILD_ROOT",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/canonical-raw/no_crs_baseline"
+        },
+        "TRAEFIK_CONNECTOR_BIN": {
+          "source": "connectors/traefik/scripts/runtime_smoke.py inferred default; no explicit persisted assignment was recorded",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z/build/traefik-connector/traefik-forwardauth"
+        },
+        "VERIFIED_RUN_ROOT": {
+          "source": "caller environment of the historical canonical aggregate invocation",
+          "value": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z"
+        }
+      },
+      "target": "full-lifecycle-lighttpd"
+    }
+  ],
+  "verified_run_root": "/var/tmp/ModSecurity-conector-full-lifecycle-apache-first-byte-20260711T142155Z"
+}

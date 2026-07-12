@@ -1,79 +1,95 @@
-# Documentation Index
+# Documentation index
 
 **Language:** English | [Deutsch](README.de.md)
 
+This directory is the documentation entry point for the connector repository.
+It describes the current six-connector HTTP/1.1 core lifecycle work without
+claiming production readiness, CRS verification, HTTP/2 verification, HTTP/3
+verification, a complete matrix, or strict behavior for all connectors.
 
-Status: implemented
+## Start here
 
-This directory is grouped by topic so connector-owned architecture, roadmap,
-and source-attribution docs stay navigable as the framework-owned case corpus
-and generated reports grow.
+| Area | Read this when you need | Source of truth |
+|---|---|---|
+| [Configuration](configuration/variables.md) | Variables, path roles, placeholders, target inputs, IDs, statuses, or integration modes | Root Makefile and runtime wrappers |
+| [Glossary](reference/glossary.md) | A definition of EOS, HTX, ext_proc, APXS, UDS, Evidence, or another repository term | This reference plus local explanations |
+| [Build](build/README.md) | Build families, toolchain prerequisites, caches, and safe build paths | Root and connector Makefiles |
+| [Connectors](connectors/README.md) | The selected host route and documentation entry point for one connector | Connector metadata, capabilities, and harnesses |
+| [Testing](testing/README.md) | Target selection, statuses, case IDs, and test boundaries | Root targets and Framework case catalog |
+| [Evidence](evidence/README.md) | Artifact layout, validation, promotion, privacy, and run IDs | Runtime lifecycle wrappers and Framework schemas |
+| [Architecture](architecture/README.md) | Common layer, connector boundaries, and architecture decisions | Checked-in architecture documents |
+| [Development](development/documentation-style-guide.md) | How to write or review documentation safely | This style guide |
+| [Reports](../reports/testing/README.md) | Current generated and manually maintained test/report entry points | Report generators and report metadata |
+| [Framework module](../modules/ModSecurity-test-Framework/README.md) | Framework-owned catalog, schemas, runners, and CI documentation | Framework repository |
 
-## Main Sections
+All relative paths in this table start at the repository root or this
+<code>docs/</code> directory as indicated by the link. Generated reports stay
+under <code>reports/</code>; do not manually alter a file marked generated.
 
-| Section | Purpose |
-| --- | --- |
-| `architecture/` | Common C-first model, adapter boundaries, status/capability models, and refactor plans |
-| `connectors/` | Apache/NGINX directive/rule-load docs and future connector planning |
-| `testing/` | Verified-run runtime environment, worker-access preflights, and generated-report workflow notes |
-| `roadmap/` | Current connector roadmap |
-| `licensing/` | License and origin policy for imported connector sources |
-| `../reports/testing/` | Connector-owned generated evidence, real-world validation notes, case matrix, and PR/source evidence |
-| `../modules/ModSecurity-test-Framework/docs/` | Framework-owned YAML schema, fixtures, case corpus, import analyses, TODO inventory, and reusable testing docs |
+## Navigation by task
 
-## Bilingual Documentation Policy
+### Run a local structural check
 
-English is the primary project language. German companion files use the
-`*.de.md` suffix and should be created together with new repository-owned
-Markdown documentation whenever practical.
+Use the following command after changing repository-owned documentation:
 
-Generated reports need either generator support for their German companion or
-a clear manual-update note in the German file. When an English generated report
-is refreshed, review and update the matching `*.de.md` file in the same
-documentation change while preserving tables, IDs, hashes, paths, metrics, and
-machine-readable values.
-
-GitHub templates remain English-first. German issue templates and German
-sections are complementary user-facing entry points and must not change
-workflow-critical labels, IDs, or YAML keys.
-
-`tools/MRTS/**` is foreign upstream content and is not translated or modified.
-Use the lightweight guard locally before sending documentation changes:
-
-```sh
+~~~sh
 make check-bilingual-docs
-```
+~~~
 
-## Source References
+The target checks English/German companion files and local links. It does not
+run all connectors or create runtime evidence. See
+[Testing](testing/README.md) for status and exit-code meanings.
 
-| Repository | Repo-local purpose | Upstream | Observed version/tag | License |
-| --- | --- | --- | --- | --- |
-| ModSecurity v2 | Historical/source comparison reference only | https://github.com/owasp-modsecurity/ModSecurity | `v2.9.13` | Apache-2.0 |
-| ModSecurity v3 | libmodsecurity runtime/API reference | https://github.com/owasp-modsecurity/ModSecurity | `v3.0.15` | Apache-2.0 |
-| ModSecurity-apache | Apache adapter behavior/source attribution reference | https://github.com/owasp-modsecurity/ModSecurity-apache | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
-| ModSecurity-nginx | NGINX adapter behavior/source attribution reference | https://github.com/owasp-modsecurity/ModSecurity-nginx | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
+### Prepare or run a selected connector route
 
-CI, local development, and report refreshes should use repository-relative
-paths, submodules, and environment variables rather than machine-specific source
-locations.
+Start with [Build](build/README.md), then the matching entry in
+[Connectors](connectors/README.md). The placeholder
+<code>&lt;connector&gt;</code> accepts only <code>apache</code>,
+<code>nginx</code>, <code>haproxy</code>, <code>envoy</code>,
+<code>traefik</code>, or <code>lighttpd</code>; for example:
 
-## First Reads
+~~~sh
+make build-nginx
+~~~
 
-- Architecture boundary: `architecture/architecture.md`
-- Capability model: `architecture/capability-model.md`
-- Status model: `architecture/status-model.md`
-- Real connector proof mode: `../reports/testing/real-world-connector-validation.md`
-- Testing report index: `../reports/testing/README.md`
-- Verified run environment: `testing/verified-run-environment.md`
-- Merge readiness: `../reports/testing/generated/canonical/final-consistency-audit.generated.md`
-- Current compatibility evidence: `../reports/testing/test-coverage-overview.md`
-- Case matrix: `../reports/testing/case-matrix.md` and
-  `../reports/testing/generated/coverage/case-matrix.generated.md`
-- Roadmap and open work: `roadmap/roadmap.md` and
-  `../modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`
-- YAML schema and shared fixtures:
-  `../modules/ModSecurity-test-Framework/docs/imports/common/schema.md` and
-  `../modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md`
-- PR/source evidence: `../reports/testing/evidence/pr-evidence-summary.md`
-  and `../reports/testing/evidence/raw-args-pr3564.md`
-- License and origin: `licensing/license-and-origin.md` and `../licenses/README.md`
+This builds one selected route. It does not by itself prove runtime behavior
+or promote a capability.
+
+### Work with canonical evidence
+
+Choose a safe run ID and evidence directory as described in
+[Configuration](configuration/variables.md#no-crs-and-evidence-variables).
+Then use the exact target family documented in
+[Evidence](evidence/README.md). A run ID is a filesystem-safe token such as
+<code>six-core-20260712T120000Z</code>; it must not contain secrets or
+personal data.
+
+## Documentation ownership
+
+- Repository-owned explanations, navigation, and current guides belong under
+  <code>docs/</code>, connector directories, or reports as appropriate.
+- The Framework owns reusable case schemas, catalog mechanics, and framework
+  runners in <code>modules/ModSecurity-test-Framework/</code>.
+- Generated material belongs at its generator-defined location. Change its
+  generator/source of truth, preserve provenance, and regenerate.
+- Historical reports preserve their original facts and should be marked
+  historical rather than rewritten as current state.
+- [Historical documentation](archive/README.md) contains retained repository
+  inventories and issue snapshots that are not current guidance.
+
+## Current connector status sources
+
+The six selected connector names are Apache, NGINX, HAProxy, Envoy, Traefik,
+and lighttpd. Each connector's checked-in scope declaration is
+`connectors/<connector>/capabilities.json`; its connector guide explains the
+host route and the evidence boundary. A `minimal_runtime_smoke` status denotes
+a narrow, connector-specific runtime path only. It never substitutes for a
+canonical aggregate result or for unexecuted catalog cases.
+
+## Bilingual policy
+
+Every repository-owned English document under <code>docs/</code> has a
+<code>.de.md</code> companion with the same technical names, defaults, paths,
+IDs, statuses, and targets. Read the
+[documentation style guide](development/documentation-style-guide.md) before
+adding a variable, placeholder, command example, or evidence claim.

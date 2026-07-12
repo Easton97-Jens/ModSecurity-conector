@@ -9,9 +9,9 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "ci"))
+sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
-    "prepare_runtime_components", ROOT / "ci/prepare-runtime-components.py"
+    "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
 )
 assert SPEC is not None and SPEC.loader is not None
 components = importlib.util.module_from_spec(SPEC)
@@ -36,9 +36,11 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
             (connector_root / "common/src").mkdir(parents=True)
             (framework_root / "ci").mkdir(parents=True)
             (connector_root / f"connectors/{connector}/input.c").write_text("int x;\n", encoding="utf-8")
-            (framework_root / f"ci/prepare-{connector}-build.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            (framework_root / f"ci/provisioning/prepare-{connector}-build.sh").parent.mkdir(parents=True, exist_ok=True)
+            (framework_root / f"ci/provisioning/prepare-{connector}-build.sh").write_text("#!/bin/sh\n", encoding="utf-8")
             if connector == "nginx":
-                (framework_root / "ci/common.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+                (framework_root / "ci/lib/common.sh").parent.mkdir(parents=True, exist_ok=True)
+                (framework_root / "ci/lib/common.sh").write_text("#!/bin/sh\n", encoding="utf-8")
             compiler = mock.patch.object(
                 components,
                 "compiler_identity",

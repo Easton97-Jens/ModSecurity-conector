@@ -1,147 +1,69 @@
-# NGINX ModSecurity Beispiele
+# NGINX-Beispiele für das native Modul
 
 **Sprache:** [English](README.md) | Deutsch
 
-## Inhaltsverzeichnis
+## Integration und Grenze
 
-- [Status](#status)
-- [Zweck](#zweck)
-- [Benötigte Komponenten](#benötigte-komponenten)
-- [Dateien](#dateien)
-- [Produktionspfade](#produktionspfade)
-- [Request-Only-Modus](#request-only-modus)
-- [Phase 4 / RESPONSE_BODY-Modus](#phase-4--response_body-modus)
-- [Variablen- und Platzhalterreferenz](#variablen--und-platzhalterreferenz)
-- [Logging und Evidence](#logging-und-evidence)
-- [Sicherheitshinweise](#sicherheitshinweise)
-- [Externer Einsatz](#externer-einsatz)
-- [Nicht-Claims](#nicht-claims)
-- [Verwandte Dokumente](#verwandte-dokumente)
+Integrationsmodus: natives NGINX-HTTP-Modul.
+[minimal/nginx.conf](minimal/nginx.conf) ist Request-only.
+[safe/nginx.conf](safe/nginx.conf) ist die begrenzte HTTP/1.1-P1--P4-Safe-
+Referenz. [strict/nginx.conf](strict/nginx.conf) dokumentiert eine
+parser-unterstützte Konfigurationsform, nicht die Behauptung eines beobachteten
+späten Abbruchs oder Statuswechsels.
 
-## Status
-
-NGINX-Dynamic-Module-Beispiele für request-only und begrenzten Strict-Abort.
-Produktionsnah, aber kein Nachweis für jeden NGINX-Build, jede Modul-ABI oder
-vollständige RESPONSE_BODY-Unterstützung.
-
-## Zweck
-
-Diese Beispiele zeigen produktionsnahe NGINX-Konfiguration für request-only
-ModSecurity und begrenzte Strict-Abort-Phase-4- / RESPONSE_BODY-Evidence.
-
-## Benötigte Komponenten
-
-NGINX und `ngx_http_modsecurity_module.so`, gebaut für eine kompatible
-NGINX-ABI, libmodsecurity v3, ModSecurity-Regeln, optional CRS sowie
-beschreibbare NGINX-/ModSecurity-Log-Orte.
+Der P4-Body-Filter läuft nach dem Response-Header-Pfad. Safe zeichnet späte
+Ergebnisse daher auf, ohne sie als sauberen client-sichtbaren 403 darzustellen.
+Die Referenz schaltet gzip aus, bis die Byte-Repräsentation des installierten
+Moduls validiert wurde. Sie verspricht weder P4-Bewertung pro Chunk noch einen
+vollständigen Connector-Response-Buffer.
 
 ## Dateien
 
-- `nginx-modsecurity-request-only.conf`: NGINX-Modul und request-only
-  Direktiven.
-- `modsecurity-request-only.conf`: libmodsecurity-Regelkonfiguration für
-  Request-Phasen.
-- `nginx-modsecurity-phase4-strict-abort.conf`: NGINX-Connector-Direktiven für
-  begrenztes Strict-Abort-Phase-4-Verhalten.
-- `modsecurity-phase4.conf`: libmodsecurity-Regelkonfiguration für Response
-  Bodies.
+| Pfad | Typ | Zweck |
+| --- | --- | --- |
+| [minimal/nginx.conf](minimal/nginx.conf) | Host-Konfiguration | Request-only-Referenz des nativen Moduls. |
+| [safe/nginx.conf](safe/nginx.conf) | Host-Konfiguration | Begrenzte P1--P4-Safe-Referenz. |
+| [strict/nginx.conf](strict/nginx.conf) | Host-Konfiguration | Explizit begrenzte Strict-Konfigurationsform. |
+| [rules/request-only.conf](rules/request-only.conf) | Regeln | Request-only-Einstellungen. |
+| [rules/p1-p4-safe.conf](rules/p1-p4-safe.conf) | Regeln | Begrenzte P4-Einstellungen und lokale Illustration. |
+| [rules/README.de.md](rules/README.de.md) | Dokumentation | No-CRS-Quelle und Regel-IDs. |
+| [expected/p1-p4-safe.de.md](expected/p1-p4-safe.de.md) | Dokumentation | Nur Absicht, keine Test-Evidence. |
 
-## Produktionspfade
+Die genannten Pfade sind ab examples/nginx repository-relativ. Modul, Regeln,
+Logs, Listener und Upstream-Werte darin sind Hostbeispiele.
 
-Die Beispiele verwenden übliche NGINX- und ModSecurity-Pfade:
+## Anzupassende Werte
 
-- `modules/ngx_http_modsecurity_module.so`
-- `/etc/nginx/nginx.conf`
-- `/etc/modsecurity/modsecurity-request-only.conf`
-- `/etc/modsecurity/modsecurity-phase4.conf`
-- `/etc/modsecurity/crs/`
-- `/var/log/modsecurity/nginx-phase4.jsonl`
-- `/var/log/modsecurity/nginx-audit.log`
-- `/var/log/nginx/access.log`
-- `/var/log/nginx/error.log`
+| Name | Zweck und Format | Pflicht/Default, Setzer, Geltungsbereich | Beispiel, Auswirkung und Sicherheit |
+| --- | --- | --- | --- |
+| load_module-Pfad | Installiertes dynamisches NGINX-Modul | Pflicht; kein Repository-Default; Betreiber; Main-Scope | modules/ngx_http_modsecurity_module.so. Das Modul muss zur exakten NGINX-ABI passen. |
+| modsecurity_rules_file | Lesbare libmodsecurity-Regeldatei | Pflicht; kein Repository-Default; Host-Konfiguration; http-Scope | /etc/modsecurity/modsecurity-phase4.conf. Ein geprüftes Ruleset kann Traffic blockieren. |
+| modsecurity_phase4_mode | P4-Policy: minimal, safe oder strict | Für Safe- oder Strict-Datei Pflicht; Host-Konfiguration; http-Scope | safe in safe/nginx.conf. Strict ist hier nur Konfiguration. |
+| modsecurity_phase4_content_types_file | Explizite Liste der Response-MIME-Typen | Optional; Host-Konfiguration; http-Scope | /etc/modsecurity/phase4-content-types.conf. Fehlende Datei lässt Validierung fehlschlagen. |
+| modsecurity_phase4_log | Ziel für Decision-JSONL | Optional; Host-Konfiguration; http-Scope | /var/log/modsecurity/nginx-phase4.jsonl. Request-Metadaten schützen und rotieren. |
+| app_backend und 127.0.0.1:8081 | Upstream-Gruppe und lokaler TCP-Endpunkt | Für diese Proxy-Referenzen Pflicht; Host-Konfiguration; http-Scope | Durch gewünschten Upstream ersetzen. Loopback vermeidet unbeabsichtigte Freigabe beim lokalen Test. |
+| listen 8080 und server_name example.test | Listener und Virtual-Host-Selektor | In diesen Dateien Pflicht; Host-Konfiguration; Server-Scope | Für installierten Host ersetzen; ein öffentlicher Bind verändert die Exponierung. |
+| SecResponseBodyLimit | Positives P4-Byte-Limit | Für begrenzte P4-Regeln Pflicht; Regeldatei; Rule-Engine-Scope | 1048576 Bytes. Aus dieser Referenz kein unbegrenztes Verhalten ableiten. |
 
-## Request-Only-Modus
+Regel-ID 9001801 ist nur illustrativ, weder OWASP-CRS- noch No-CRS-Baseline-ID;
+siehe [rules/README.de.md](rules/README.de.md).
 
-Der Request-only-Modus lädt `ngx_http_modsecurity_module`, aktiviert
-`modsecurity on` und zeigt mit `modsecurity_rules_file` auf eine Konfiguration
-mit `SecResponseBodyAccess Off`.
+## Validierung
 
-```bash
+Die gewählte Datei in die installierte NGINX-Konfiguration kopieren oder
+einbinden, alle Hostwerte anpassen und danach die vollständige installierte
+Konfiguration prüfen:
+
+~~~sh
 nginx -t
-nginx -s reload
-```
+~~~
 
-## Phase 4 / RESPONSE_BODY-Modus
+Nach einem beabsichtigten Reload NGINX-Error-Log und konfigurierte
+ModSecurity-Logs prüfen. Die Validierung beweist nur Syntax und lesbare
+Abhängigkeiten, nicht P1--P4-Ergebnisse, sichtbaren späten P4-Status,
+Strict-Abbruch, Produktionsreife oder CRS-Abdeckung.
 
-Das Strict-Abort-Beispiel aktiviert `SecResponseBodyAccess On` und
-`modsecurity_phase4_mode strict`. Der Connector kann späte Interventions
-aufzeichnen und einen bereits begonnenen Transfer abbrechen. Das ist
-Runtime-Evidence, keine vollständige Buffering-Parität und keine promotete
-RESPONSE_BODY-Capability.
+## Verwandtes Material
 
-Phase 4 / RESPONSE_BODY bleibt nicht promoted; begrenzte Strict-Abort-Evidence
-wird nur als Runtime-Evidence dokumentiert.
-
-## Variablen- und Platzhalterreferenz
-
-| Name | Typ | Erforderlich | Beispielwert | Verwendet in | Bedeutung | Änderung erfordert Restart/Reload | Hinweise |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `load_module` | NGINX-Direktive | Ja | `modules/ngx_http_modsecurity_module.so` | `nginx-modsecurity-*.conf` | Lädt das NGINX-Connector-Modul. | Restart | Dynamische Module werden beim Master-Start geladen. |
-| `modsecurity` | NGINX-Direktive | Ja | `on` | `nginx-modsecurity-*.conf` | Aktiviert ModSecurity im konfigurierten Scope. | Reload | Je nach Bedarf in `http`, `server` oder `location` verwenden. |
-| `modsecurity_rules_file` | NGINX-Direktive | Ja | `/etc/modsecurity/modsecurity-request-only.conf` | `nginx-modsecurity-*.conf` | Zeigt NGINX auf die libmodsecurity-Regeldatei. | Reload | Phase-4-Regeldatei nur für begrenzte Response-Evidence verwenden. |
-| `modsecurity_phase4_mode` | NGINX-Direktive | Nur Phase 4 | `strict` | `nginx-modsecurity-phase4-strict-abort.conf` | Wählt Strict-Abort-Response-Verhalten. | Reload | Kann eine bereits begonnene Response abbrechen. |
-| `modsecurity_phase4_content_types_file` | NGINX-Direktive | Nur Phase 4 | `/etc/modsecurity/phase4-content-types.conf` | `nginx-modsecurity-phase4-strict-abort.conf` | Optionale Allowlist für Response-Body-MIME-Typen. | Reload | In Produktion eng halten. |
-| `modsecurity_phase4_log` | NGINX-Direktive | Nur Phase 4 | `/var/log/modsecurity/nginx-phase4.jsonl` | `nginx-modsecurity-phase4-strict-abort.conf` | JSONL-Connector-Decision-Evidence. | Reload | Mit normaler Logrotation rotieren. |
-| `gzip` | NGINX-Direktive | Nein | `off` | `nginx-modsecurity-phase4-strict-abort.conf` | Hält Kompression während der Validierung deaktiviert. | Reload | Byte-Reihenfolge prüfen, bevor Kompression aktiviert wird. |
-| `proxy_pass` | NGINX-Direktive | Ja | `http://app_backend` | `nginx-modsecurity-*.conf` | Beispielroute zur Upstream-Anwendung. | Reload | Durch Produktions-Upstreams ersetzen. |
-| `SecRuleEngine` | ModSecurity-Direktive | Ja | `On` | `modsecurity-*.conf` | Aktiviert Regelausführung. | Reload | Für nicht-disruptiven Rollout `DetectionOnly` verwenden. |
-| `SecRequestBodyAccess` | ModSecurity-Direktive | Ja | `On` | `modsecurity-*.conf` | Aktiviert Request-Body-Verarbeitung. | Reload | Request-Body-Support ist von RESPONSE_BODY getrennt. |
-| `SecResponseBodyAccess` | ModSecurity-Direktive | Ja | `Off` oder `On` | `modsecurity-*.conf` | Aktiviert oder deaktiviert RESPONSE_BODY-Verarbeitung. | Reload | `On` bleibt begrenzte Strict-Abort-Evidence. |
-| `SecResponseBodyMimeType` | ModSecurity-Direktive | Nur Phase 4 | `text/plain text/html application/json` | `modsecurity-phase4.conf` | Begrenzt inspizierte Response-MIME-Typen. | Reload | Explizit halten, um binäre Responses zu vermeiden. |
-| `SecResponseBodyLimit` | ModSecurity-Direktive | Nur Phase 4 | `1048576` | `modsecurity-phase4.conf` | Begrenzt libmodsecurity-Response-Body-Buffering. | Reload | Nicht auf unbegrenztes Buffering verlassen. |
-| `SecResponseBodyLimitAction` | ModSecurity-Direktive | Nur Phase 4 | `ProcessPartial` | `modsecurity-phase4.conf` | Definiert Verhalten, wenn der Body das Limit überschreitet. | Reload | Mit Produktions-Risikopolicy abstimmen. |
-| `IncludeOptional` | ModSecurity-Direktive | Nein | `/etc/modsecurity/crs/rules/*.conf` | `modsecurity-*.conf` | Bindet CRS-Dateien ein, falls vorhanden. | Reload | Fehlende CRS-Dateien blockieren den Start nicht. |
-| `SecAuditEngine` | ModSecurity-Direktive | Nein | `RelevantOnly` | `modsecurity-*.conf` | Aktiviert Audit-Logging für relevante Transactions. | Reload | Mit Logrotation verwenden. |
-| `SecAuditLog` | ModSecurity-Direktive | Nein | `/var/log/modsecurity/nginx-audit.log` | `modsecurity-*.conf` | Ziel für Audit-Logs. | Reload | Sicherstellen, dass NGINX-Worker schreiben können. |
-| `RESPONSE_BODY` | ModSecurity-Collection | Nur Phase 4 | `@contains response-attack` | `modsecurity-phase4.conf` | Beispielziel für Outbound-Regeln. | Reload | Beispielregel durch Produktionsregeln ersetzen. |
-
-## Logging und Evidence
-
-Connector-Phase-4-Decisions sind JSON-Zeilen in `nginx-phase4.jsonl`. Audit
-Records werden von libmodsecurity über `SecAuditLog` erzeugt. Access- und
-Error-Logs bleiben unter `/var/log/nginx`.
-
-## Sicherheitshinweise
-
-Behalten Sie request-only als Baseline, prüfen Sie die Modul-ABI-Kompatibilität
-mit dem bereitgestellten NGINX-Binary, validieren Sie Response-Body-Verhalten
-zuerst mit deaktivierter Kompression und bewahren Sie Strict-Abort-Evidence auf,
-wenn Outbound-Regeln getestet werden.
-
-## Externer Einsatz
-
-Dieses Verzeichnis enthält Beispielkonfigurationen für externen Einsatz. Sie
-sind nur Startpunkte und keine universellen Produktionsdefaults. Der passende
-Compile-Guide erklärt, wie das erforderliche Artefakt
-`ngx_http_modsecurity_module.so` gebaut oder vorbereitet wird. Kopieren oder
-adaptieren Sie nur die Dateien, die zu Ihrem Deployment passen; Pfade wie
-`/etc/...`, `/usr/lib/...`, `127.0.0.1`, Ports, Backend-URLs und Log-Pfade sind
-Platzhalter, sofern sie nicht zu Ihrem System passen.
-
-Service-Kontext: NGINX. Nach dem Anpassen der Dateien `nginx -t` ausführen und
-den NGINX-Service reloaden. NGINX-Error-/Access-Logs und ModSecurity-Audit-Logs
-prüfen.
-
-## Nicht-Claims
-
-- Diese Beispiele sind keine pauschale Production-Readiness-Zertifizierung.
-- Sie belegen nicht jedes Paket, jede Version oder jedes Layout.
-- Phase-4- / RESPONSE_BODY-Beispiele sind nur begrenzte Runtime-Evidence, keine
-  promotete vollständige Unterstützung.
-
-## Verwandte Dokumente
-
-- [COMPILE_NGINX.de.md](../../COMPILE_NGINX.de.md)
-- `connectors/nginx/docs/build.md`
-- `connectors/nginx/docs/validation.md`
-- `reports/testing/nginx-poc.md`
+- [NGINX-Connector-Quellcode und Validierungsgrenze](../../connectors/nginx/README.de.md)
+- [Repository-Beispielübersicht](../README.de.md)

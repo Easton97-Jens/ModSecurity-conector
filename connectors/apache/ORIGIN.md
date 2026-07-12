@@ -2,7 +2,7 @@
 
 Status: adapter-owned source cleanup complete
 
-Local reference: `/root/conecter/ModSecurity-apache`
+Local reference: `<external-source-root>/ModSecurity-apache`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache
 Source branch: `master`
 Source commit: `0488c77f69669584324b70460614a382224b4883`
@@ -11,7 +11,7 @@ License: Apache-2.0, retained in `licenses/apache/`.
 
 | Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
-| ModSecurity-apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
+| ModSecurity-apache | `<external-source-root>/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
 
 Central attribution: `licenses/apache/`
 Per-file provenance: `connectors/apache/SOURCE_MAP.json`

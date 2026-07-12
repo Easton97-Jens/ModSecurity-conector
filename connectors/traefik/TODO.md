@@ -13,7 +13,7 @@ non-promoted and cannot by itself promote a lifecycle capability.
 
 Global gate definitions:
 
-- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
+- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
 - `connectors/_template/docs/coverage-decision-matrix.md`
 
 ## Phase 0: Scaffold

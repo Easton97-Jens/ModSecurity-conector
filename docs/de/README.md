@@ -6,13 +6,13 @@ GitHub zeigt weiterhin alle Dateien im Repository-Baum; diese Links halten Sie i
 
 ## Compile- / Operator-Guides
 
-- [Apache](../../COMPILE_APACHE.de.md)
-- [NGINX](../../COMPILE_NGINX.de.md)
-- [HAProxy](../../COMPILE_HAPROXY.de.md)
-- [Envoy](../../COMPILE_ENVOY.de.md)
-- [Traefik](../../COMPILE_TRAEFIK.de.md)
-- [Lighttpd](../../COMPILE_LIGHTTPD.de.md)
-- [Open Connectors](../../COMPILE_OPEN_CONNECTORS.de.md)
+- [Apache](../../docs/build/compilers/apache.de.md)
+- [NGINX](../../docs/build/compilers/nginx.de.md)
+- [HAProxy](../../docs/build/compilers/haproxy.de.md)
+- [Envoy](../../docs/build/compilers/envoy.de.md)
+- [Traefik](../../docs/build/compilers/traefik.de.md)
+- [Lighttpd](../../docs/build/compilers/lighttpd.de.md)
+- [Open Connectors](../../docs/build/compilers/overview.de.md)
 
 ## Beispiel-Konfigurationen
 

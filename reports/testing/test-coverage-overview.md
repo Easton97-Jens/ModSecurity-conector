@@ -107,7 +107,7 @@ These native MRTS reports are separate from connector full-matrix evidence.
 | sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | POSIX shell syntax check passed for connector integration shell scripts |
 | bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | Bash syntax check passed for connector integration shell scripts |
 | git diff --check | PASS | No whitespace errors reported |
-| diff -u /tmp/pre-connector.diff /tmp/post-connector.diff | PASS | Connector source diff snapshot is unchanged; no new connector source changes were introduced |
+| diff -u <temporary-work-root>/pre-connector.diff <temporary-work-root>/post-connector.diff | PASS | Connector source diff snapshot is unchanged; no new connector source changes were introduced |
 | git diff --exit-code -- connectors/apache/src connectors/nginx/src | BLOCKED | Non-zero because connectors/apache/src/mod_security3.c had a pre-existing unrelated local change before this fix; the pre/post connector diff snapshot is unchanged |
 | git ls-files .venv | PASS | No tracked .venv files |
 
@@ -121,7 +121,7 @@ These native MRTS reports are separate from connector full-matrix evidence.
 ## Runtime Smoke Status
 - Snapshot: **2026-06-16** (2026-06-16 21:13:26 CEST)
 - Git: branch `master`, commit `614c804`
-- BUILD_ROOT: `/var/tmp/ModSecurity-conector-verified/build`
+- BUILD_ROOT: `<verified-run-root>/build`
 - Snapshot file: `reports/testing/runtime-validation-snapshot.json`
 
 ### Default Runtime Smoke Status
@@ -135,8 +135,8 @@ These native MRTS reports are separate from connector full-matrix evidence.
 ### Force-All Runtime Smoke Status
 | Connector | Command | Status | Exit | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Evidence |
 |---|---|---|---|---|---|---|---|---|---|
-| apache | FORCE_ALL_CASES=1 make smoke-apache | FAIL | 2 | 133 | 108 | 19 | 0 | 6 | /root/.local/state/ModSecurity-conector-build/results/force-all/apache-summary.json |
-| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 2 | 140 | 74 | 60 | 0 | 6 | /root/.local/state/ModSecurity-conector-build/results/force-all/nginx-summary.json |
+| apache | FORCE_ALL_CASES=1 make smoke-apache | FAIL | 2 | 133 | 108 | 19 | 0 | 6 | <local-state-root>/results/force-all/apache-summary.json |
+| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 2 | 140 | 74 | 60 | 0 | 6 | <local-state-root>/results/force-all/nginx-summary.json |
 | haproxy | FORCE_ALL_CASES=1 make smoke-haproxy | FAIL | 1 | 133 | 104 | 23 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
 
 ## Connector Runtime Availability

@@ -1,5 +1,7 @@
 # HAProxy SPOE/SPOA PoC Plan
 
+**Language:** English | [Deutsch](spoe-poc-plan.de.md)
+
 Status: implemented for current production SPOA runtime scope
 
 The earlier plan has moved from planned-only documentation to a live

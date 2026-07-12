@@ -26,7 +26,7 @@ by each concrete connector.
 - Runner:
   `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 - Runtime report:
-  `reports/template-verification-nginx-apache/verified-runtime-run.md` or a
+  `reports/archive/template-verification-nginx-apache/verified-runtime-run.md` or a
   connector-specific equivalent
 - Summary JSON:
   `<BUILD_ROOT>/results/.../<connector>-summary.json`

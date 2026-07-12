@@ -1,5 +1,7 @@
 # Traefik Architecture
 
+**Language:** English | [Deutsch](architecture.de.md)
+
 Status: forwardAuth compatibility smoke plus a non-promoted native local-plugin host probe
 Runtime status: broader rule behavior is not verified
 
@@ -10,7 +12,7 @@ example configuration. The engine, transaction, limit, decision, and HTTP
 service implementation remains connector-neutral under `common/runtime/`.
 
 Global scaffold gates remain in
-`reports/template-verification-nginx-apache/connector-scaffold-decisions.md`.
+`reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`.
 
 ## Repository Evidence
 

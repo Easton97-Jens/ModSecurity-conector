@@ -22,7 +22,7 @@ RUNTIME_ROOT="${RUNTIME_ROOT:-}"
 HAPROXY_BIN="${HAPROXY_BIN:-$BUILD_ROOT/haproxy-runtime/haproxy/sbin/haproxy}"
 SPOA_RUNTIME_BIN="${SPOA_RUNTIME_BIN:-$BUILD_ROOT/haproxy-spoa-runtime/haproxy-modsecurity-spoa}"
 MODSECURITY_BINDING_DIR="${MODSECURITY_BINDING_DIR:-$BUILD_ROOT/haproxy-modsecurity-binding}"
-PREPARE_HAPROXY_RUNTIME="$FRAMEWORK_ROOT/ci/prepare-haproxy-runtime.sh"
+PREPARE_HAPROXY_RUNTIME="$FRAMEWORK_ROOT/ci/provisioning/prepare-haproxy-runtime.sh"
 CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 CURL_BIN="${CURL:-}"
 PYTHON_BIN="${PYTHON:-python3}"
@@ -44,7 +44,7 @@ MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-no-crs}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
 export MODSECURITY_TEST_VARIANT
 
-. "$FRAMEWORK_ROOT/ci/common.sh"
+. "$FRAMEWORK_ROOT/ci/lib/common.sh"
 
 CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-}"
 CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-}"
@@ -55,7 +55,7 @@ CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-}"
 CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-}"
 
 load_connector_adapter_metadata() {
-    metadata_shell=$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell haproxy --prefix CONNECTOR_ADAPTER 2>/dev/null || true)
+    metadata_shell=$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell haproxy --prefix CONNECTOR_ADAPTER 2>/dev/null || true)
     [ -n "$metadata_shell" ] || return 0
     eval "$metadata_shell"
     CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-$CONNECTOR_ADAPTER_SOURCE}"

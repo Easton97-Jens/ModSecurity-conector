@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+**Language:** English | [Deutsch](AGENTS.de.md)
+
 ## Project Structure & Module Organization
 
 This is a ModSecurity connector monorepo. Shared connector-neutral C/C++ interfaces live in `common/include/msconnector/`, with helpers in `common/src/`. Adapter-owned code is under `connectors/`: active Apache, NGINX, and HAProxy sources use `connectors/<name>/src/`, `harness/`, `docs/`, and metadata files. Future connector scaffolds live beside them. The reusable test framework is the submodule at `modules/ModSecurity-test-Framework`; generated evidence and matrices are under `reports/testing/generated/`. CI tooling lives in `ci/`, and sample server configs are in `examples/`.
@@ -27,4 +29,4 @@ Recent commits use short, lowercase, imperative summaries such as `refresh verif
 
 ## Security & Configuration Tips
 
-Keep runtime and build artifacts outside the checkout; the Makefile defaults to `/var/tmp/ModSecurity-conector-verified`. Do not commit downloaded upstream source trees, secrets, local logs, or unreviewed generated artifacts. Preserve pinned upstream refs and license/origin metadata when touching connector imports.
+Keep runtime and build artifacts outside the checkout; the Makefile derives an invocation-local verified root from the CI or temporary runtime parent. Do not commit downloaded upstream source trees, secrets, local logs, or unreviewed generated artifacts. Preserve pinned upstream refs and license/origin metadata when touching connector imports.

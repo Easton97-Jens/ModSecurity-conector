@@ -1,5 +1,7 @@
 # HAProxy Public Sources
 
+**Language:** English | [Deutsch](public-sources.de.md)
+
 Status: current references
 
 External sources document the HAProxy mechanisms used by the repository. They
@@ -14,8 +16,8 @@ runtime evidence.
 - HAProxy source: https://github.com/haproxy/haproxy
 
 Repository source pins for clean-clone builds are centralized in
-`modules/ModSecurity-test-Framework/ci/common.sh`. The standard compile and
-runtime flow is documented in `COMPILE_HAPROXY.md`. The separate
+`modules/ModSecurity-test-Framework/ci/lib/common.sh`. The standard compile and
+runtime flow is documented in `docs/build/compilers/haproxy.md`. The separate
 full-lifecycle HTX observer is pinned to HAProxy 3.2.21 and copied into a
 disposable worktree; that source selection does not turn the observer into an
 enforcement or capability-promotion path.

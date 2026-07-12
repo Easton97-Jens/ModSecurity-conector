@@ -133,7 +133,7 @@ binaries return Exit 77; config, startup, mapping, or status errors return FAIL.
 
 See:
 
-- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
+- `reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`
 - `connectors/_template/docs/coverage-decision-matrix.md`
 
 ## Traefik-specific State
@@ -204,7 +204,7 @@ evidence is written through `common/scripts/write_smoke_result.py`, so Traefik
 does not maintain its own JSON result writer.
 
 `make smoke-traefik` sources the framework common smoke wrapper, which sources
-`modules/ModSecurity-test-Framework/ci/common.sh`. Runtime dependencies are not
+`modules/ModSecurity-test-Framework/ci/lib/common.sh`. Runtime dependencies are not
 installed globally and the harness does not assume `traefik` exists in the
 global `PATH`.
 
@@ -302,7 +302,7 @@ Traefik source metadata is centralized in `common.sh`: `TRAEFIK_VERSION=3.7.5`,
 the official GitHub release URL, the install docs URL, the Linux amd64
 download URL, `TRAEFIK_SHA256_URL`, and the pinned SHA256. The
 machine-readable mirror is
-`modules/ModSecurity-test-Framework/ci/runtime-components.manifest.json`.
+`modules/ModSecurity-test-Framework/ci/provisioning/runtime-components.manifest.json`.
 Downloads are not executed by default and, when opted in, stage only under
 `$CONNECTOR_COMPONENT_CACHE/traefik`.
 

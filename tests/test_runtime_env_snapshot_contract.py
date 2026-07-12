@@ -11,10 +11,10 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PREPARE_PATH = ROOT / "ci" / "prepare-runtime-components.py"
-RESERVE_PATH = ROOT / "ci" / "reserve-runtime-env-snapshot.sh"
-NATIVE_COMPARISON_PATH = ROOT / "ci" / "run-native-case-comparison.py"
-sys.path.insert(0, str(ROOT / "ci"))
+PREPARE_PATH = ROOT / "ci" / "provisioning" / "components" / "prepare-runtime-components.py"
+RESERVE_PATH = ROOT / "ci" / "runtime" / "lifecycle" / "reserve-runtime-env-snapshot.sh"
+NATIVE_COMPARISON_PATH = ROOT / "ci" / "runtime" / "lifecycle" / "run-native-case-comparison.py"
+sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "runtime_env_snapshot_prepare_runtime_components", PREPARE_PATH
 )
@@ -146,7 +146,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             result = subprocess.run(
                 [
                     "sh",
-                    str(ROOT / "ci" / "with-runtime-components.sh"),
+                    str(ROOT / "ci" / "provisioning" / "cache" / "with-runtime-components.sh"),
                     "sh",
                     "-c",
                     'printf "%s|%s" "$MODSECURITY_INCLUDE_DIR" "$RUNTIME_COMPONENT_ENV_SNAPSHOT"',
@@ -234,14 +234,14 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             self.assertNotEqual("/wrong/shared/value", loaded.get("MODSECURITY_INCLUDE_DIR"))
 
     def test_central_runners_use_the_exact_local_snapshot_not_shared_runtime_env(self) -> None:
-        with_runner = (ROOT / "ci" / "with-runtime-components.sh").read_text(encoding="utf-8")
-        remaining_runner = (ROOT / "ci" / "run-remaining-connector-target.sh").read_text(
+        with_runner = (ROOT / "ci" / "provisioning" / "cache" / "with-runtime-components.sh").read_text(encoding="utf-8")
+        remaining_runner = (ROOT / "ci" / "runtime" / "lifecycle" / "run-remaining-connector-target.sh").read_text(
             encoding="utf-8"
         )
-        canonical_runner = (ROOT / "ci" / "run-no-crs-baseline.sh").read_text(
+        canonical_runner = (ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-baseline.sh").read_text(
             encoding="utf-8"
         )
-        stage_runner = (ROOT / "ci" / "run-connector-stage.sh").read_text(encoding="utf-8")
+        stage_runner = (ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh").read_text(encoding="utf-8")
 
         for source in (with_runner, remaining_runner, canonical_runner):
             self.assertIn("runtime_env=$RUNTIME_COMPONENT_ENV_SNAPSHOT", source)
@@ -263,7 +263,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
         )
         self.assertIn(
             "--runtime-env-snapshot \"$RUNTIME_COMPONENT_ENV_SNAPSHOT\"",
-            (ROOT / "ci" / "prepare-runtime-components.sh").read_text(encoding="utf-8"),
+            (ROOT / "ci" / "provisioning" / "components" / "prepare-runtime-components.sh").read_text(encoding="utf-8"),
         )
         native_runner = NATIVE_COMPARISON_PATH.read_text(encoding="utf-8")
         self.assertIn("snapshot_value = env.get(\"RUNTIME_COMPONENT_ENV_SNAPSHOT\"", native_runner)

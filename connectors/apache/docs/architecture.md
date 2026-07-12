@@ -1,5 +1,7 @@
 # Apache Architecture
 
+**Language:** English | [Deutsch](architecture.de.md)
+
 Status: adapter-owned runtime path, evidence-scoped
 
 The Apache connector is an Apache httpd module using libmodsecurity v3 public C
@@ -31,7 +33,7 @@ These surfaces are not connector-neutral and must remain under
 - Default runtime smoke: `54/54 PASS`.
 - Force-all runtime evidence: `133 attempted / 100 PASS / 27 FAIL /
   0 BLOCKED / 6 NOT_EXECUTABLE`.
-- Build and smoke flow: `COMPILE_APACHE.md`.
+- Build and smoke flow: `docs/build/compilers/apache.md`.
 - Generated detail report:
   `reports/testing/generated/apache-runtime-results.generated.md`.
 

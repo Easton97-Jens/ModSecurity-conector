@@ -13,9 +13,9 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "ci"))
+sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
-    "prepare_runtime_components", ROOT / "ci/prepare-runtime-components.py"
+    "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
 )
 assert SPEC is not None and SPEC.loader is not None
 components = importlib.util.module_from_spec(SPEC)
@@ -218,7 +218,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
 
     def run_haproxy_prepare_with_shared_cache(self, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["sh", str(ROOT / "modules/ModSecurity-test-Framework/ci/prepare-haproxy-runtime.sh")],
+            ["sh", str(ROOT / "modules/ModSecurity-test-Framework/ci/provisioning/prepare-haproxy-runtime.sh")],
             cwd=ROOT,
             env={**os.environ, **env},
             text=True,

@@ -1,5 +1,7 @@
 # Traefik: Grenze für Transport-Hardening des nativen Pfads
 
+**Sprache:** [English](transport-hardening.md) | Deutsch
+
 Diese Notiz gilt ausschließlich für den repository-eigenen nativen
 Local-Plugin-Pfad (`native-traefik-middleware`) auf dem gepinnten
 Traefik-Host `3.7.5`. Der getrennte `forwardAuth`-Kompatibilitätspfad und

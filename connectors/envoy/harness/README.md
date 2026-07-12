@@ -1,5 +1,7 @@
 # Envoy Connector Harness
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: C17 `ext_authz` service with separated start and runtime smokes.
 Connector metadata is `minimal_runtime_smoke` / `connector-gap` for the targeted
 request-header 200/403 path only.

@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
-    "resolve_full_lifecycle_profile", ROOT / "ci/resolve-full-lifecycle-profile.py"
+    "resolve_full_lifecycle_profile", ROOT / "ci/runtime/lifecycle/resolve-full-lifecycle-profile.py"
 )
 assert SPEC is not None and SPEC.loader is not None
 profiles = importlib.util.module_from_spec(SPEC)

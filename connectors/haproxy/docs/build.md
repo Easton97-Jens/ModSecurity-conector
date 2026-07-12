@@ -1,11 +1,13 @@
 # HAProxy Build
 
+**Language:** English | [Deutsch](build.de.md)
+
 Status: production SPOA runtime build available
 
 The complete repository-supported HAProxy compile and local verification flow
 is documented in the root guide:
 
-- [`COMPILE_HAPROXY.md`](../../../COMPILE_HAPROXY.md)
+- [`docs/build/compilers/haproxy.md`](../../../docs/build/compilers/haproxy.md)
 
 ## Current Build Path
 
@@ -59,7 +61,7 @@ worktree and does not replace the SPOE/SPOP binary:
 HAPROXY_HTX_SOURCE_DIR=/absolute/path/to/haproxy-3.2.21 \
   MODSECURITY_INCLUDE_DIR=/absolute/path/to/include \
   MODSECURITY_LIB_DIR=/absolute/path/to/lib \
-  BUILD_ROOT=/var/tmp/haproxy-htx-smoke \
+  BUILD_ROOT=/srv/modsecurity-work/haproxy-htx-smoke \
   make -C connectors/haproxy runtime-smoke-haproxy-htx
 ```
 

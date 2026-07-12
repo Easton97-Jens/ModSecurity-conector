@@ -45,7 +45,7 @@
 | parent | `.` | `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f` | `master` | dirty | present |
 | framework_submodule | `modules/ModSecurity-test-Framework` | `dc19582d89bd8ef50463c5a9c5a0271cc37bb958` | `master` | clean | present |
 | mrts_submodule | `modules/ModSecurity-test-Framework/tools/MRTS` | `13aa91291adea12d5c607fdd165d010fcfb1da78` | `HEAD` | clean | present |
-| framework_sibling_checkout | `/root/git/ModSecurity-test-Framework` | `not_found` | `not_found` | not_found | not_found |
+| framework_sibling_checkout | `<local-home-root>/git/ModSecurity-test-Framework` | `not_found` | `not_found` | not_found | not_found |
 
 ## Berichte
 | Category | Owner | Severity | Report | Generator | Target | Status | Return code | Duration | Freshness | Outputs | Input status | Missing inputs | Missing outputs | Generated at |

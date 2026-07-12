@@ -1,5 +1,7 @@
 # lighttpd Public Sources
 
+**Language:** English | [Deutsch](public-sources.de.md)
+
 Status: host API references for a repository-owned native module
 Runtime status: `minimal_runtime_smoke` for the pinned Phase-1 header path
 
@@ -19,4 +21,4 @@ Phase-1 host route remains non-promoted.
 Any future source import must be documented through
 `connectors/lighttpd/ORIGIN.md`, `connectors/lighttpd/SOURCE_MAP.json`, and the
 global connector gates in
-`reports/template-verification-nginx-apache/connector-scaffold-decisions.md`.
+`reports/archive/template-verification-nginx-apache/connector-scaffold-decisions.md`.

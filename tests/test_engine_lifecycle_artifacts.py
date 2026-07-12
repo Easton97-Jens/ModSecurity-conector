@@ -10,7 +10,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WRITER = ROOT / "ci/write-engine-lifecycle-artifacts.py"
+WRITER = ROOT / "ci/runtime/lifecycle/write-engine-lifecycle-artifacts.py"
 
 
 class EngineLifecycleArtifactsTest(unittest.TestCase):

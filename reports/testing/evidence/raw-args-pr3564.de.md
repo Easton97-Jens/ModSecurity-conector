@@ -22,7 +22,7 @@ Die lokal beobachtete ModSecurity v3-Referenz lautet:
 
 | Repository | Local reference | Upstream | Observed commit | Observed version/tag |
 | --- | --- | --- | --- | --- |
-| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` |
+| ModSecurity v3 | `<external-source-root>/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` |
 
 Diese Quelle wird als schreibgeschützt behandelt. RAW Argumentsammlungen werden nicht gezählt
 aktiver allgemeiner PASS in diesem Repository, es sei denn, die lokale v3-Quelle ist konfiguriert
