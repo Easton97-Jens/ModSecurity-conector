@@ -2,45 +2,45 @@
 
 **Sprache:** [English](all-connectors-full-lifecycle-readiness.md) | Deutsch
 
-## Aktuelle Host-Evidence vom 12.07.2026
+## Kanonische Sechs-Connector-HTTP/1.1-Kern-Evidence vom 12.07.2026
 
-Dieses Update ersetzt den nachfolgenden Implementierungsstatus vom 11.07.2026,
-soweit er einen Pfad als rein passthrough- oder observer-basiert beschreibt.
-Es dokumentiert ausgewählte echte Hostläufe mit Common-/libmodsecurity-
-Transaktionen; weder eine vollständige Connector-Matrix noch Production-
-Eigenschaften werden behauptet.
+Die ausgewählten echten Hosts schlossen einen gemeinsamen kanonischen Lauf ab:
+`six-connectors-core-final-20260712T164725Z-e16e7f1`. Alle sechs Runner
+endeten mit `0`; der kompakte read-only Kernchecker sowie First-Byte-,
+No-Full-Response-Buffer-, Event-Privacy-, Lifecycle-, Transport- und
+Promotion-Checks bestanden. Der Aggregatstatus bleibt nur wegen des
+erweiterten Katalogs `NOT EXECUTED`. Dies ist echte Common-/libmodsecurity-
+Host-Evidence, keine Aussage über eine vollständige Connector-Matrix oder
+Production-Eigenschaften.
 
-- **Runtime-Roots und Cache-v2:** Jeder ausgewählte Full-Lifecycle-Runner
-  verwendet eigene Build-, Run-, Log- und Evidence-Roots. Gemeinsame native
-  Abhängigkeiten bleiben unveränderliche Schlüssel-Einträge in Cache-v2;
-  Connector- oder Common-Änderungen wählen vor einem Hostlauf einen neuen
-  Connector-Eintrag.
-- **Traefik:** Die gepinnte native Middleware wählt im echten Traefik-Route
-  ihren persistenten lokalen UDS-Common-/libmodsecurity-Dienst. Der
-  ausgewählte Lauf belegt P1/P2/P3-Enforcement und P4-Safe `log_only`.
-  Strict bleibt ohne beim Client sichtbaren Post-Commit-Reset `NOT EXECUTED`.
-- **Envoy:** Der echte `ext_proc`-Listener erreicht pro Stream die CGo-
-  Common-/Runtime-Bridge. Der ausgewählte Lauf belegt P1/P2/P3-Enforcement
-  und P4-Safe `log_only`; ein strikter Downstream-Reset bleibt `NOT EXECUTED`.
-- **HAProxy:** Der native HTX-Filter wendet im ausgewählten Host echte P1-
-  und P3-Pre-Commit-Antworten (403/429/403) an. P2/P4-Host-Enforcement und
-  Late-Action-Claims bleiben nicht promoted.
-- **lighttpd:** Der passende gepatchte Core/das Modul besitzt reale P1/P2/P3-
-  Ergebnisse. Sein verfügbarer Output-Hook sieht HTTP/1-Wire-Bytes statt einer
-  decodierten Entity; Response-Body-Inspektion und P4-Promotion bleiben daher
-  `NOT EXECUTED`.
-- **Apache und NGINX:** Frische native Hostläufe liefern P1/P2/P3-Ergebnisse
-  sowie getrennte P4-Safe-`log_only`- und Strict-Connection-Abort-Records.
-  Dem verwalteten NGINX-Build fehlt `--with-http_v2_module`; HTTP/2 ist für
-  diesen Build deshalb `NOT_APPLICABLE` und wird nicht aus HTTP/1.1 abgeleitet.
+- **Apache — `native-httpd-module`:** P1, P2, P3, P4-Regel 1100301 und Safe
+  `log_only`, First-Byte-vor-EOS, No-Full-Buffer und Cleanup sind `PASS`.
+- **NGINX — `native-nginx-http-module`:** P1, P2, P3, P4-Regel 1100301 und
+  Safe `log_only`, First-Byte-vor-EOS, No-Full-Buffer und Cleanup sind `PASS`.
+- **HAProxy — `native-htx-filter`:** P1 Allow/403/429, echter P2- und P3-403,
+  P4-Regel 1100301 Safe `log_only`, First-Byte-vor-EOS, No-Full-Buffer und
+  Cleanup sind `PASS`.
+- **Envoy — `ext_proc`:** P1 Allow/403, P2 403, P3 403/302-Redirect,
+  P4-Regel 1100301 und Safe `log_only`, First-Byte-vor-EOS, No-Full-Buffer
+  und Cleanup sind `PASS`.
+- **Traefik — `native-traefik-middleware`:** P1, P2, P3, P4-Regel 1100301
+  und Safe `log_only`, First-Byte-vor-EOS, No-Full-Buffer und Cleanup sind
+  `PASS`.
+- **lighttpd — `patched-native-lighttpd`:** P1, P2, P3, P4-Regel 1100301 und
+  Safe `log_only`, First-Byte-vor-EOS, No-Full-Buffer und Cleanup sind auf
+  dem gepatchten Entity-Body-Pfad `PASS`.
 
-## Implementierungsstatus vom 11.07.2026
+Alle ausgewählten P4-Safe-Ergebnisse erhalten nach Commit den sichtbaren HTTP
+200; alle First-Byte-Nachweise sind payloadfreie Real-Host-Beobachtungen bei
+pausiertem Upstream vor EOS. Strikte Post-Commit-Enforcement, HTTP/2, HTTP/3
+und erweiterte Fälle bleiben getrennte Hardening-Arbeit.
 
-Dieses Update dokumentiert Arbeit nach dem darunterstehenden Source-Audit vor der Implementierung. Es
-stuft keinen Connector zu einem verifizierten Full-Lifecycle-, Low-Latency-
-oder Production-Status hoch. Wo das ältere Audit einen Pfad als fehlend
-beschreibt, ersetzt dieses Update nur diese Aussage und nur innerhalb der hier
-genannten Evidenzgrenze.
+## Historischer Implementierungsstatus (11.07.2026; für ausgewählte Kernpfade überholt)
+
+Dieser historische Snapshot dokumentiert Arbeit nach dem Source-Audit vor der
+Implementierung. Er liegt vor dem kanonischen gemeinsamen Kernlauf oben;
+Aussagen über fehlende, Observer- oder Passthrough-Pfade sind keine aktuellen
+Aussagen über die ausgewählten Kernpfade.
 
 - **Isolierte Runtime-Roots und Cache:** `ci/resolve-runtime-paths.py` leitet
   je Connector Evidence-, Build-, Run- und Log-Roots unter einem vom Aufrufer
@@ -85,9 +85,13 @@ den separaten Envoy-`ext_proc`-Transportpfad, den nativen Traefik-Local-
 Plugin-Hostprobe oder den gepatchten lighttpd-Host; deren begrenzter aktueller
 Stand steht oben.
 
-## Historische technische Zusammenfassung
+## Historische technische Zusammenfassung (Snapshot vor Kernlauf)
 
-Kein Connector ist aktuell als latenzarmer Full-Lifecycle-Connector zur Runtime verifiziert. Dieses Source-Audit findet brauchbare Bausteine, aber kein neues Artefaktset pro Connector, das P1–P4, Safe-/Strict-Late-Intervention, fehlendes vollständiges Response-Buffering und first byte before response end gemeinsam belegt.
+Zum Zeitpunkt dieses Source-Audit-Snapshots besaß kein Connector ein frisches
+gemeinsames Artefaktset für den ausgewählten P1–P4-Kern. Die kanonische
+Evidence oben ersetzt diese Schlussfolgerung nur für die sechs ausgewählten
+HTTP/1.1-Pfade; sie belegt weder Strict noch HTTP/2, HTTP/3 oder die volle
+Matrix.
 
 - Apache gibt die aktuelle Output-Brigade vor EOS weiter und finalisiert P2/P4 bei EOS. Der First-Byte- und Hosttransport-Nachweis fehlt.
 - NGINX appendiert im Source pro Body-Puffer und wertet bei EOS aus; kanonische Runtime-Evidence fehlt.
@@ -97,7 +101,7 @@ Kein Connector ist aktuell als latenzarmer Full-Lifecycle-Connector zur Runtime 
 
 implemented_not_asserted bedeutet vorhandenen Code ohne Runtime-PASS. not_implemented bedeutet fehlenden oder ungeeigneten Pfad. unsupported_by_host_model gilt nur für den jeweils aktivierten Integrationsmodus und nicht für die gesamte Hostplattform.
 
-## Historische Audit-Evidenzgrenze
+## Historische Audit-Evidenzgrenze (Snapshot vor Kernlauf)
 
 Der historische Audit-Snapshot beruht auf Source, Capability-Dateien, Harnesses und Framework-Katalog auf feature/all-connectors-no-crs-baseline. Für diesen Snapshot lief kein neuer kanonischer Full-Lifecycle-Runtime-Test. Spätere abgegrenzte Läufe stehen im Update oben und promoten selbst kein kanonisches Full-Lifecycle-Resultat. Runtime-Aussagen der historischen Matrix sind deshalb NOT EXECUTED, im Request-only-Modus UNSUPPORTED oder Source-only implemented_not_asserted.
 
@@ -217,7 +221,11 @@ versionierter Core-/ABI-Output-Filter für aktuelle Chunks, EOS, Abort, Cleanup
 und relevante HTTP/1.x-/HTTP/2-Write-Pfade. Ein normaler Response-start-Hook
 ist kein Phase-4- oder Late-Intervention-Hook.
 
-## Tests, Cache und Promotion
+## Historischer Test-, Cache- und Promotion-Snapshot (vor Kernlauf)
+
+Die folgende Test-/Cache-Beschreibung liegt vor dem kanonischen Kernlauf. Sie
+bleibt für die Provenance erhalten und beschreibt nicht die aktuellen
+Kernfall-Status der ausgewählten Pfade.
 
 Der vorhandene No-CRS-Katalog ist der einzige Result-Schema-Ort für capability-gesteuerte Full-Lifecycle-Fälle. Sein neuer deklarativer Unterkatalog full-lifecycle besteht den Catalog-Check mit 104 Fällen; alle neuen Fixtures sind future beziehungsweise not_executed_until_real_host. Das ist implemented_not_asserted für den Katalogvertrag, nicht Runtime-Evidence. Die Capability-Selektion akzeptiert alle sechs aktuellen Connector-Manifeste mit konservativen Zuständen. P1/P2/P3/P4, Content-Type-Scope, Limits, Safe/Strict, Protokolle und Payload-Privacy sind aktuell NOT EXECUTED, bis echte Hostartefakte vorliegen.
 
@@ -257,7 +265,13 @@ vorhandene unmarkierte Entries werden abgelehnt statt unmittelbar vor der
 Löschung geclaimt. Das ist Source- und Unit-/Contract-Evidence, keine
 Host-Runtime-Evidence.
 
-Ein Connector darf erst weiterpromotet werden, wenn ein echter Hostlauf P1–P4, EOS-Finalisierung, First Byte vor Upstream-Ende, korrekte Pre-/Post-Commit-Semantik, metadata-only Events, Cleanup, Keep-Alive, Limits und anwendbare Protokolle im vollständigen Artefaktset belegt.
+Diese bewusst strengeren Capability-/Production-Promotion-Kriterien gehen über
+den kompakten Kernabschluss hinaus. Sie umfassen unter anderem Strict,
+Keep-Alive, Limits und anwendbare protokollspezifische Pfade. Ein Connector
+darf erst weiterpromotet werden, wenn ein echter Hostlauf P1–P4,
+EOS-Finalisierung, First Byte vor Upstream-Ende, korrekte Pre-/Post-Commit-
+Semantik, metadata-only Events, Cleanup, Keep-Alive, Limits und anwendbare
+Protokolle im vollständigen Artefaktset belegt.
 
 ## Bewusst nicht erhobene Claims
 

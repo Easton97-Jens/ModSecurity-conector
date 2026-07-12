@@ -2,41 +2,45 @@
 
 **Language:** English | [Deutsch](all-connectors-full-lifecycle-readiness.de.md)
 
-## 2026-07-12 current host-evidence update
+## 2026-07-12 canonical six-connector HTTP/1.1 core evidence
 
-This update supersedes the 2026-07-11 implementation-status block below where
-it describes a route as passthrough-only or observer-only. It records selected
-real-host runs with Common/libmodsecurity transactions; it does not promote a
-complete connector matrix or make a production claim.
+The selected real hosts completed one shared canonical run:
+`six-connectors-core-final-20260712T164725Z-e16e7f1`. All six runners exited
+`0`; the compact read-only core checker, first-byte, no-full-response-buffer,
+event-privacy, lifecycle, transport, and promotion checks passed. The
+aggregate result remains `NOT EXECUTED` only because the extended catalog is
+outside this compact core scope. This is real-host Common/libmodsecurity
+evidence, not a complete connector-matrix or production claim.
 
-- **Runtime roots and Cache-v2:** every selected full-lifecycle runner uses
-  its connector-specific build, run, log, and evidence roots. Shared native
-  dependencies remain immutable keyed Cache-v2 entries; connector source or
-  Common changes select a new connector entry before a host run.
-- **Traefik:** the pinned native middleware selects its persistent local UDS
-  Common/libmodsecurity service in the real Traefik route. The selected run
-  has P1/P2/P3 enforcement and P4 Safe `log_only` evidence. Strict remains
-  `NOT EXECUTED` without a client-visible post-commit reset.
-- **Envoy:** the real `ext_proc` listener reaches the CGo Common/runtime
-  bridge per stream. The selected run has P1/P2/P3 enforcement and P4 Safe
-  `log_only`; a strict downstream reset remains `NOT EXECUTED`.
-- **HAProxy:** the native HTX filter now applies real P1 and P3 pre-commit
-  replies (403/429/403) in the selected host. P2/P4 host-enforcement and
-  late-action claims remain unpromoted.
-- **lighttpd:** the matched patched core/module has real P1/P2/P3 outcomes.
-  Its available output hook exposes HTTP/1 wire bytes rather than a decoded
-  entity, so response-body inspection and P4 promotion remain `NOT EXECUTED`.
-- **Apache and NGINX:** fresh native-host runs provide P1/P2/P3 outcomes and
-  separate P4 Safe `log_only` and Strict connection-abort records. The
-  managed NGINX build lacks `--with-http_v2_module`, so HTTP/2 is
-  `NOT_APPLICABLE` for that build rather than inferred from HTTP/1.1.
+- **Apache — `native-httpd-module`:** P1, P2, P3, P4 rule 1100301 and Safe
+  `log_only`, first-byte-before-EOS, no-full-buffer, and cleanup are `PASS`.
+- **NGINX — `native-nginx-http-module`:** P1, P2, P3, P4 rule 1100301 and
+  Safe `log_only`, first-byte-before-EOS, no-full-buffer, and cleanup are
+  `PASS`.
+- **HAProxy — `native-htx-filter`:** P1 Allow/403/429, real P2 and P3 403,
+  P4 rule 1100301 Safe `log_only`, first-byte-before-EOS, no-full-buffer, and
+  cleanup are `PASS`.
+- **Envoy — `ext_proc`:** P1 Allow/403, P2 403, P3 403/302 redirect, P4 rule
+  1100301 and Safe `log_only`, first-byte-before-EOS, no-full-buffer, and
+  cleanup are `PASS`.
+- **Traefik — `native-traefik-middleware`:** P1, P2, P3, P4 rule 1100301 and
+  Safe `log_only`, first-byte-before-EOS, no-full-buffer, and cleanup are
+  `PASS`.
+- **lighttpd — `patched-native-lighttpd`:** P1, P2, P3, P4 rule 1100301 and
+  Safe `log_only`, first-byte-before-EOS, no-full-buffer, and cleanup are
+  `PASS` on the patched Entity-Body path.
 
-## 2026-07-11 implementation-status update
+All selected P4 Safe outcomes preserve client-visible HTTP 200 after commit;
+all first-byte proofs are payload-free real-host observations made while the
+upstream was paused before EOS. Strict post-commit enforcement, HTTP/2,
+HTTP/3, and extended cases remain separate hardening work.
 
-This update records work added after the pre-implementation source-audit baseline below.  It does
-not promote any connector to a verified full-lifecycle, low-latency, or
-production state.  Where the older audit says a path was absent, the entries
-below supersede that point only to the evidence boundary stated here.
+## Historical implementation-status snapshot (2026-07-11; superseded for selected core paths)
+
+This historical snapshot records work added after the pre-implementation
+source-audit baseline. It predates the canonical shared core run above; its
+absence, observer, and passthrough statements are not current claims about
+the selected core paths.
 
 - **Isolated runtime roots and cache:** `ci/resolve-runtime-paths.py` now
   derives and validates per-connector evidence, build, run, and log roots
@@ -80,12 +84,12 @@ Envoy `ext_proc` transport path, the native Traefik local-plugin host probe,
 or the patched lighttpd host; the bounded current status for those paths is
 above.
 
-## Historical technical summary
+## Historical technical summary (pre-core snapshot)
 
-No connector is currently runtime-verified as a low-latency full-lifecycle
-connector.  This source audit finds usable building blocks, but no fresh
-per-connector artifact set proving P1–P4, safe/strict late intervention, no
-complete response buffering, and first-byte-before-response-end together.
+At the time of this source-audit snapshot, no connector had a fresh shared
+artifact set proving the selected P1–P4 core together. The canonical evidence
+above supersedes that conclusion for the six selected HTTP/1.1 paths only; it
+does not establish strict, HTTP/2, HTTP/3, or full-matrix readiness.
 
 The decisive differences are real:
 
@@ -108,7 +112,7 @@ means code exists and **not** that a run passed.  `not_implemented` means the
 needed behavior/evidence route is absent.  `unsupported_by_host_model` applies
 only to the named selected host mode.
 
-## Historical audit evidence boundary
+## Historical audit evidence boundary (pre-core snapshot)
 
 The historical audit snapshot is based on repository source, checked-in
 capability declarations, harnesses, and Framework catalog logic on
@@ -353,7 +357,11 @@ add a narrowly versioned core/ABI output-filter hook covering current chunks,
 EOS, abort, cleanup, and relevant HTTP/1.x/HTTP/2 write paths. A normal
 response-start hook does not constitute a Phase-4 or late-intervention hook.
 
-## Tests and runtime proof
+## Historical tests and provisioning snapshot (pre-core)
+
+The following test/cache discussion predates the canonical core run. It is
+retained for provenance and does not describe the current selected core-case
+statuses.
 
 The Framework No-CRS catalog now contains a declarative `full-lifecycle/`
 subcatalog. Its catalog check passes with 104 cases, while every new fixture is
@@ -407,7 +415,11 @@ that exact entry. Existing unmarked entries are rejected rather than being
 claimed immediately before deletion. This is source and unit/contract evidence,
 not host-runtime evidence.
 
-## Exit criteria for a connector promotion
+## Stricter criteria beyond this compact core milestone
+
+These are deliberately stricter capability/production promotion criteria.
+They remain beyond the compact functional completion recorded above, including
+Strict behavior, limits, keep-alive, and applicable protocol-specific paths.
 
 Each connector may move beyond `implemented_not_asserted` only when one run
 proves all applicable items through a real host path:
