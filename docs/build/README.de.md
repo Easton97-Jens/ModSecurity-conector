@@ -72,6 +72,80 @@ Ausführen eines Rezepts auf. Vollständige Formate, Defaults und
 Framework-weitergereichte Source-Variablen stehen unter
 [Konfigurationsvariablen](../reference/variables.de.md).
 
+## Lokale C/C++-Diagnostik
+
+Integrationsstufe 1 stellt eine reproduzierbare lokale C17/C++17-
+Diagnosegrundlage bereit. Sie ist ausschließlich eine Source- und
+Contract-Prüfung: Sie bereitet weder Runtime-Komponenten vor noch lädt oder
+installiert sie Tools und beansprucht keine Runtime-, Production-, CRS- oder
+Connector-Release-Evidence.
+
+### Toolvoraussetzungen und Blockierungsstatus
+
+Vor einer Diagnoseerfassung <code>make check-analysis-tools</code> ausführen.
+Das Target gibt die tatsächlich ausgewählten Pfade und Versionen von
+<code>CC</code>, <code>CXX</code>, <code>clangd</code> und Bear aus. Ein
+fehlendes erforderliches Tool, NGINX-Header-Set, libmodsecurity-Header,
+lokaler Library-Pfad oder externer beschreibbarer Pfad erzeugt
+<code>BLOCKED</code> und Exit-Code <code>77</code>; die Targets installieren,
+laden oder bereiten keinen Ersatz vor. Ein fehlender, relativer oder innerhalb
+des Checkouts liegender erforderlicher Output-Parameter ist ein Bedienfehler
+und liefert Exit-Code <code>2</code>.
+
+<code>clang-tidy</code> wird bewusst nicht aufgerufen. Diese Stufe fügt weder
+eine <code>.clang-tidy</code>-Datei noch eine <code>.clangd</code>-Datei,
+Static-Analyzer- oder Sanitizer-Flags, Production-Binary-Flags oder ein
+CI-Gate hinzu.
+
+### Capture- und C++17-Evaluator-Targets
+
+| Target | Erforderliche lokale Eingabe | Ergebnis und Grenze |
+|---|---|---|
+| <code>make compile-db-nginx-c17</code> | Absolutes externes <code>COMPDB_OUTPUT</code>; vorhandene NGINX- und libmodsecurity-Header | Bear erfasst den direkten Compilerprozess von <code>check-nginx-c17</code>. Er deckt die in <code>connectors/nginx/config</code> deklarierten NGINX- und Common-Quellen einschließlich <code>common/src/late_intervention.c</code> ab. |
+| <code>make check-targeted-evaluator-cpp17</code> | Absolutes externes <code>CPP_BUILD_ROOT</code>, <code>MODSECURITY_INCLUDE_DIR</code> und <code>MODSECURITY_LIB_DIR</code>; optionales absolutes <code>MODSECURITY_LIB_FILE</code> | Kompiliert nur <code>common/scripts/modsecurity_targeted_eval.cc</code> mit <code>-std=c++17 -Wall -Wextra -Werror</code>. Das lokale Binary wird nicht ausgeführt und ist kein Production-Artefakt. |
+| <code>make compile-db-cpp17</code> | Dieselben C++17-Eingaben sowie dasselbe externe <code>COMPDB_OUTPUT</code> | Bear erfasst den echten Evaluator-Compilerprozess und führt dessen C++17-Eintrag atomar mit einer gültigen bestehenden Datenbank zusammen. Es wird kein Compilerkommando erfunden. |
+| <code>make check-clangd-c17</code> | Ein zusammengeführtes externes <code>COMPDB_OUTPUT</code> mit NGINX-, Common- und Evaluator-Einträgen | Validiert die Datenbank und prüft je eine repräsentative NGINX-, Common- und C++17-Translation-Unit mit <code>clangd --check</code>. Es werden keine Fixes angewendet; Konfiguration, Background-Indexing, Clang-Tidy und clangd-Tweaks sind deaktiviert. |
+
+Jede Erfassung filtert generierte Probes und externe kopierte Quellen, behält
+nur getrackte Checkout-Translation-Units, validiert C17/C++17 und
+<code>-Wall -Wextra -Werror</code>, dedupliziert nach Translation-Unit und
+veröffentlicht per atomarem Replace. Eine fehlgeschlagene Erfassung oder
+Validierung lässt ein bestehendes <code>COMPDB_OUTPUT</code> unverändert. Der
+Ausgabepfad und jeder erfasste Compiler-Output müssen absolut und außerhalb
+des Checkouts liegen.
+
+Einen externen Analyse-Root statt des ausgecheckten lokalen
+<code>compile_commands.json</code> verwenden; der Root-Dateiname und
+<code>/.cache/clangd/</code> werden absichtlich von Git ignoriert. Für eine
+vollständige C17/C++17-Datenbank zuerst NGINX erfassen und dann C++17 in
+dieselbe Datei zusammenführen:
+
+~~~sh
+make check-analysis-tools
+make compile-db-nginx-c17 COMPDB_OUTPUT="/abs/analysis/nginx/compile_commands.json"
+make check-targeted-evaluator-cpp17 \
+  CPP_BUILD_ROOT="/abs/build/cpp-evaluator" \
+  MODSECURITY_INCLUDE_DIR="/abs/libmodsecurity/include" \
+  MODSECURITY_LIB_DIR="/abs/libmodsecurity/lib"
+make compile-db-cpp17 \
+  COMPDB_OUTPUT="/abs/analysis/nginx/compile_commands.json" \
+  CPP_BUILD_ROOT="/abs/build/cpp-evaluator-cdb" \
+  MODSECURITY_INCLUDE_DIR="/abs/libmodsecurity/include" \
+  MODSECURITY_LIB_DIR="/abs/libmodsecurity/lib"
+make check-clangd-c17 COMPDB_OUTPUT="/abs/analysis/nginx/compile_commands.json"
+~~~
+
+<code>compile-db-cpp17</code> erhält gültige NGINX-Zeilen und ersetzt nur eine
+passende Evaluator-Zeile; es kann daher auch vor der NGINX-Erfassung laufen.
+Eine Datenbank mit nur einer Sprache ist weiterhin für ihr Capture-Target
+gültig, aber <code>check-clangd-c17</code> schlägt eindeutig fehl, bis beide
+erforderlichen Abdeckungsmengen vorhanden sind.
+
+Diese erste Stufe besitzt keine Compilation-Database-Abdeckung für Apache,
+HAProxy, Envoy, Traefik oder lighttpd. Sie führt keinen Connector-Traffic aus,
+untersucht keine Runtime-Artefakte, aktiviert Clang-Tidy nicht und begründet
+keine Production- oder Runtime-Freigabe.
+
 ## Cache- und Source-Provisionierung
 
 <code>CACHE_ROOT</code> verwendet standardmäßig

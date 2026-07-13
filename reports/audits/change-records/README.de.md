@@ -151,3 +151,4 @@ speichern. Runtime-Rohdaten und Build-Ausgaben bleiben außerhalb des Checkouts.
 | --- | --- | --- | --- |
 | CR-20260713-change-traceability-governance | 2026-07-13 | Versionierte Change-Traceability-Governance | English companion / [Deutsch](CR-20260713-change-traceability-governance.de.md) |
 | CR-20260713-bilingual-policy-enforcement | 2026-07-13 | Durchsetzung der zweisprachigen Richtlinie | English companion / [Deutsch](CR-20260713-bilingual-policy-enforcement.de.md) |
+| CR-20260713-c-cpp-diagnostics | 2026-07-13 | Reproduzierbare C- und C++-Diagnostik | English companion / [Deutsch](CR-20260713-c-cpp-diagnostics.de.md) |

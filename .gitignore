@@ -29,6 +29,8 @@ coverage.xml
 htmlcov/
 /build/
 /dist/
+/compile_commands.json
+/.cache/clangd/
 
 verified-runs/
 ModSecurity-conector-build/

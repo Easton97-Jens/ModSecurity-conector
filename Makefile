@@ -227,6 +227,7 @@ export LIGHTTPD_DECISION_BACKEND
 .PHONY: check-framework prepare-runtime-components prepare-envoy-runtime prepare-traefik-runtime prepare-lighttpd-runtime prepare-lighttpd-runtime-build prepare-open-connector-runtimes runtime-components-inventory runtime-components-sources check-framework-fixture-syntax check-runtime-producer-readiness check-runtime-path-policy check-bilingual-docs check-doc-links check-variable-documentation check-connector-config-reference generate-connector-config-reference refresh-connector-reports refresh-all-reports check-generated-report-layout report-governance verified-report-evidence-gate generate-system-environment-proof prove-generated-reports verified-runtime-producers verified-report-refresh verified-report-producers verified-report-consumers verified-report-checks verified-report-run verified-report-run-soft verified-report-run-smoke verified-full-matrix-job verified-case verified-native-case verified-apache-case verified-nginx-case verified-haproxy-case verified-full-matrix-resume full-matrix-single-job-runtime full-matrix-resume-runtime smoke-common smoke-apache smoke-nginx smoke-envoy smoke-envoy-modsecurity smoke-envoy-crs smoke-envoy-crs-secondary smoke-haproxy smoke-lighttpd smoke-lighttpd-modsecurity smoke-lighttpd-crs smoke-lighttpd-crs-secondary smoke-traefik smoke-traefik-modsecurity smoke-traefik-crs smoke-traefik-crs-secondary smoke-open-connectors-crs smoke-open-connectors-crs-secondary smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-all-runtime runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel full-matrix-parallel-runtime generate-full-runtime-matrix generate-full-matrix-job-completeness generate-nginx-mrts-http500-cluster-analysis generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-native-semantics-comparison generate-remaining-critical-batch-analysis generate-remaining-failure-analysis mrts-native-full-run mrts-native-full-run-runtime mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 .PHONY: smoke-envoy-request-body smoke-traefik-request-body smoke-lighttpd-request-body smoke-open-connectors-request-body
 .PHONY: check-compiler-guides
+.PHONY: check-analysis-tools compile-db-nginx-c17 check-targeted-evaluator-cpp17 compile-db-cpp17 check-clangd-c17
 .PHONY: build-apache build-nginx build-haproxy build-envoy build-traefik build-lighttpd build-all-connectors
 .PHONY: check-config-apache check-config-nginx check-config-haproxy check-config-envoy check-config-traefik check-config-lighttpd check-config-all-connectors
 .PHONY: start-smoke-apache start-smoke-nginx start-smoke-haproxy start-smoke-all-connectors
@@ -318,6 +319,21 @@ check-variable-documentation:
 
 check-compiler-guides:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_compiler_guides
+
+check-analysis-tools:
+	PYTHONDONTWRITEBYTECODE=1 CC="$(CC)" CXX="$(CXX)" sh ci/checks/analysis/check-analysis-tools.sh
+
+compile-db-nginx-c17:
+	PYTHONDONTWRITEBYTECODE=1 CC="$(CC)" PYTHON="$(PYTHON)" COMPDB_OUTPUT="$(COMPDB_OUTPUT)" sh ci/checks/analysis/compile-db-nginx-c17.sh
+
+check-targeted-evaluator-cpp17:
+	PYTHONDONTWRITEBYTECODE=1 CXX="$(CXX)" CPP_BUILD_ROOT="$(CPP_BUILD_ROOT)" MODSECURITY_INCLUDE_DIR="$(MODSECURITY_INCLUDE_DIR)" MODSECURITY_LIB_DIR="$(MODSECURITY_LIB_DIR)" MODSECURITY_LIB_FILE="$(MODSECURITY_LIB_FILE)" sh ci/checks/analysis/check-targeted-evaluator-cpp17.sh
+
+compile-db-cpp17:
+	PYTHONDONTWRITEBYTECODE=1 CXX="$(CXX)" PYTHON="$(PYTHON)" COMPDB_OUTPUT="$(COMPDB_OUTPUT)" CPP_BUILD_ROOT="$(CPP_BUILD_ROOT)" MODSECURITY_INCLUDE_DIR="$(MODSECURITY_INCLUDE_DIR)" MODSECURITY_LIB_DIR="$(MODSECURITY_LIB_DIR)" MODSECURITY_LIB_FILE="$(MODSECURITY_LIB_FILE)" sh ci/checks/analysis/compile-db-cpp17.sh
+
+check-clangd-c17:
+	PYTHONDONTWRITEBYTECODE=1 PYTHON="$(PYTHON)" COMPDB_OUTPUT="$(COMPDB_OUTPUT)" sh ci/checks/analysis/check-clangd-c17.sh
 
 generate-connector-config-reference:
 	$(PYTHON) ci/tools/generate-connector-config-reference.py
