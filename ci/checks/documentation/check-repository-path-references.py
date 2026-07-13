@@ -24,6 +24,7 @@ CURRENT_DOC_PREFIXES = (
     "docs/README",
     "docs/architecture",
     "docs/build/",
+    "docs/change-traceability",
     "docs/configuration",
     "docs/reference/",
     "docs/testing-and-evidence",

@@ -1,5 +1,7 @@
 # HAProxy Connector TODO
 
+**Language:** English | [Deutsch](TODO.de.md)
+
 Status: HAProxy/SPOA/SPOP host path (partial); canonical capability manifest present
 Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 

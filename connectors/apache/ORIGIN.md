@@ -1,5 +1,7 @@
 # Apache Connector Origin Map
 
+**Language:** English | [Deutsch](ORIGIN.de.md)
+
 Status: adapter-owned source cleanup complete
 
 Local reference: `<external-source-root>/ModSecurity-apache`

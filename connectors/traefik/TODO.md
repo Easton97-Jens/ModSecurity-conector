@@ -1,5 +1,7 @@
 # Traefik Connector TODO
 
+**Language:** English | [Deutsch](TODO.de.md)
+
 Status: minimal_runtime_smoke (forwardAuth request path only)
 Runtime status: connector-gap outside the targeted request-header proof
 Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`

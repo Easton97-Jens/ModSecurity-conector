@@ -1,5 +1,7 @@
 # lighttpd Connector Origin
 
+**Language:** English | [Deutsch](ORIGIN.de.md)
+
 Status: repository-owned native module; stock `minimal_runtime_smoke` plus a
 non-promoted patched-host full-lifecycle probe
 

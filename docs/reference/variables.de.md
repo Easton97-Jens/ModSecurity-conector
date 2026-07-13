@@ -408,6 +408,9 @@ Definitionen stehen im [Glossar](../reference/glossary.de.md); die
   Auswahl und Validierungsgrenzen.
 - Die [Evidence-Dokumentation](../testing-and-evidence.de.md) erläutert Artefakte
   und Promotion-Grenzen.
-- Der [Dokumentationsstil-Leitfaden](../../AGENTS.de.md)
-  definiert die erforderliche lokale Erklärung für zukünftige Variablen und
+- Die [Nachvollziehbarkeitsrichtlinie](../change-traceability.de.md) definiert
+  die erforderliche zweisprachige Erklärung für zukünftige Variablen und
   Platzhalter.
+- `AGENTS.md` ist eine optionale lokale Anweisungsdatei für Codex und gehört
+  nicht zur versionierten Projektdokumentation. Für sie gibt es keine deutsche
+  Begleitdatei.

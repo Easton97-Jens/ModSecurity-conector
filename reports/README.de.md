@@ -10,6 +10,7 @@ nicht die lauflokalen Artefakte, aus denen ein Claim validiert wurde.
 | Aktuelle Kern-Evidence | [current/core-completion.de.md](current/core-completion.de.md) | Abgegrenzte ausgewählte Sechs-Connector-HTTP/1.1-Kern-Evidence. |
 | Aktuelle Readiness | [current/readiness.de.md](current/readiness.de.md) | Aktueller Status, Grenzen und bewusst nicht erhobene Claims. |
 | Architektur- und Evidence-Audit | [audits/architecture-and-evidence.de.md](audits/architecture-and-evidence.de.md) | Konsolidierter Architektur-, Runtime-Root-, Transport- und Evidence-Vertrag. |
+| Change Records | [audits/change-records/README.de.md](audits/change-records/README.de.md) | Versionierte, manuell gepflegte Records für nicht triviale Änderungen. |
 | Konfigurationsinventar | [connector-configuration-inventory.json](connector-configuration-inventory.json) | Generiertes quellenbasiertes Inventar für Connector-, Common-Runtime- und Engine-Optionen. |
 | Testing- und Generated-Berichte | [testing/README.de.md](testing/README.de.md) | Generatorverwaltete Runtime-, Coverage-, Cache- und Evidence-Berichte. |
 

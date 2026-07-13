@@ -1,5 +1,7 @@
 # TODO - New Connector From Template
 
+**Language:** English | [Deutsch](TODO.de.md)
+
 Status: suitable scaffold, not runtime-verified
 
 Template evaluation: geeignet als Scaffold-Vorlage, nicht runtime-verifiziert

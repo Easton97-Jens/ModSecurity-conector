@@ -1,5 +1,7 @@
 # Apache Planning
 
+**Language:** English | [Deutsch](TODO.de.md)
+
 Status: native Apache module; canonical capability manifest present
 Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 

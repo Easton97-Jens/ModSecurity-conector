@@ -10,6 +10,7 @@ run-local artifacts from which a claim was validated.
 | Current core evidence | [current/core-completion.md](current/core-completion.md) | Bounded selected six-connector HTTP/1.1 core evidence. |
 | Current readiness | [current/readiness.md](current/readiness.md) | Current status, boundaries, and deliberately unmade claims. |
 | Architecture and evidence audit | [audits/architecture-and-evidence.md](audits/architecture-and-evidence.md) | Consolidated architecture, runtime-root, transport, and evidence contract. |
+| Change Records | [audits/change-records/README.md](audits/change-records/README.md) | Versioned, manually maintained records for non-trivial changes. |
 | Configuration inventory | [connector-configuration-inventory.json](connector-configuration-inventory.json) | Generated source-backed connector, Common Runtime, and engine option inventory. |
 | Testing and generated reports | [testing/README.md](testing/README.md) | Generator-managed runtime, coverage, cache, and evidence reports. |
 

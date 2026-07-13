@@ -1,5 +1,7 @@
 # Traefik Connector Origin
 
+**Language:** English | [Deutsch](ORIGIN.de.md)
+
 Status: forwardAuth compatibility smoke plus targeted native UDS host probe
 Runtime status: targeted local P1--P4-safe evidence; broader verification remains open
 

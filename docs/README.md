@@ -19,6 +19,7 @@ complete matrix, or strict behavior for every connector.
 | Test or interpret artifacts | [Testing and evidence](testing-and-evidence.md) | Selected run records and Framework schemas |
 | Operate safely | [Operations and security](operations-and-security.md) | Explicit deployment, limit, privacy, and provenance boundary |
 | Choose a connector | [Connector index](connectors/README.md) | Selected integration mode and connector guide |
+| Trace a material change | [Change traceability](change-traceability.md) / [Change Records](../reports/audits/change-records/README.md) | Binding workflow, paired records, and evidence/data boundary |
 
 ## Connector guides
 

@@ -1,5 +1,7 @@
 # NGINX Planning
 
+**Language:** English | [Deutsch](TODO.de.md)
+
 Status: native NGINX module; canonical capability manifest present
 Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 

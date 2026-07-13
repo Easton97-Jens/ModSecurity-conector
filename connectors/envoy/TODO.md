@@ -1,5 +1,7 @@
 # Envoy Connector TODO
 
+**Language:** English | [Deutsch](TODO.de.md)
+
 Status: targeted `minimal_runtime_smoke` for the real HTTP `ext_authz` request path
 Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 Metadata evidence states: `compile_verified`, `minimal_runtime_smoke`, and `connector-gap`.

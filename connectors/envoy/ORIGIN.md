@@ -1,5 +1,7 @@
 # Envoy Connector Origin
 
+**Language:** English | [Deutsch](ORIGIN.de.md)
+
 Status: repository-local ext_authz connector source plus a non-promoted Go/CGo
 ext_proc Common/libmodsecurity path selected by the full-lifecycle profile
 Runtime status: `minimal_runtime_smoke` for the HTTP ext_authz request path

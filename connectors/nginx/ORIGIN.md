@@ -1,5 +1,7 @@
 # NGINX Connector Origin Map
 
+**Language:** English | [Deutsch](ORIGIN.de.md)
+
 Status: adapter-owned source migration complete
 
 Local reference: `<external-source-root>/ModSecurity-nginx`

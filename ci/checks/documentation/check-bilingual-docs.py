@@ -23,18 +23,82 @@ LINK_RE = re.compile(r"(?<!!)\[[^\]\n]+\]\(([^)\n]+)\)")
 REFERENCE_LINK_RE = re.compile(r"^\s*\[[^\]]+\]:\s+(\S+)")
 FENCE_PREFIXES = ("```", "~~~")
 GERMAN_GENERATED_NOTE = "Diese deutsche Datei ist eine übersetzte Begleitdatei"
-TRANSLATION_EXEMPT_CONNECTOR_FILENAMES = frozenset({"ORIGIN.md", "TODO.md"})
 SPECIAL_LANGUAGE_INDEXES: tuple[tuple[Path, Path], ...] = ()
+CHANGE_RECORDS_DIRECTORY = Path("reports/audits/change-records")
 LOCAL_CODEX_RTK_ROOT_FILENAMES = frozenset(
     {
         "AGENTS.md",
-        "AGENTS.de.md",
         "AGENTS.override.md",
         "RTK.md",
-        "RTK.de.md",
     }
 )
 LOCAL_CODEX_RTK_ROOT_DIRECTORY_NAMES = frozenset({".codex", ".rtk"})
+FORBIDDEN_LOCAL_LANGUAGE_COMPANIONS = frozenset(
+    {"AGENTS.de.md", "AGENTS.override.de.md", "RTK.de.md"}
+)
+PR_TEMPLATE_REQUIRED_HEADINGS = {
+    "English": (
+        "### Summary",
+        "### Change Record",
+        "### Motivation and context",
+        "### Acceptance criteria",
+        "### Detailed changes",
+        "### Tests and command results",
+        "### Runtime evidence",
+        "### Security impact",
+        "### Documentation status",
+        "### Known limitations",
+        "### Checks not run",
+    ),
+    "Deutsch": (
+        "### Zusammenfassung",
+        "### Change Record",
+        "### Motivation und Kontext",
+        "### Akzeptanzkriterien",
+        "### Detaillierte Änderungen",
+        "### Tests und Befehlsergebnisse",
+        "### Runtime-Evidence",
+        "### Sicherheitsauswirkung",
+        "### Dokumentationsstatus",
+        "### Bekannte Einschränkungen",
+        "### Nicht ausgeführte Prüfungen",
+    ),
+}
+CHANGE_RECORD_REQUIRED_HEADINGS = {
+    "English": (
+        "## Identity",
+        "## Motivation and problem statement",
+        "## Acceptance criteria",
+        "## Implementation decision and rationale",
+        "## Changed files",
+        "## Commands executed",
+        "## Security impact",
+        "## Runtime evidence",
+        "## Known limitations",
+        "## Remaining risks",
+        "## Checks not run and rationale",
+        "## Final diff and review status",
+    ),
+    "Deutsch": (
+        "## Identität",
+        "## Motivation und Problemstellung",
+        "## Akzeptanzkriterien",
+        "## Implementierungsentscheidung und Begründung",
+        "## Geänderte Dateien",
+        "## Ausgeführte Befehle",
+        "## Security-Auswirkung",
+        "## Runtime-Evidence",
+        "## Bekannte Einschränkungen",
+        "## Verbleibende Risiken",
+        "## Nicht ausgeführte Prüfungen mit Begründung",
+        "## Finaler Diff- und Review-Status",
+    ),
+}
+CHANGE_RECORD_IDENTITY_LABELS = (
+    ("Change ID", "Change-ID"),
+    ("Date (UTC)", "Datum (UTC)"),
+    ("Base revision", "Basis-Revision"),
+)
 HEADING_RE = re.compile(r"^(#{1,6})\s+\S", re.MULTILINE)
 TABLE_ROW_RE = re.compile(r"^\|.*\|\s*$")
 
@@ -68,48 +132,42 @@ def english_counterpart(path: Path) -> Path:
     return path.with_name(path.name.removesuffix(".de.md") + ".md")
 
 
-def is_translation_exempt(path: Path) -> bool:
-    """Return true only for connector provenance/work-tracking metadata.
-
-    ORIGIN.md and TODO.md are intentionally single-language, machine/source
-    metadata.  Reader-facing connector READMEs, harness notes, PoC designs,
-    and docs remain subject to the normal English/German companion rule.
-    """
-    return path.parts[:1] == ("connectors",) and path.name in TRANSLATION_EXEMPT_CONNECTOR_FILENAMES
-
-
 def is_special_language_index(path: Path) -> bool:
     return any(path in pair for pair in SPECIAL_LANGUAGE_INDEXES)
 
 
-def needs_extended_connector_parity(path: Path) -> bool:
-    """Scope structural parity to newly normalized root/common/connector docs."""
+def needs_structural_parity(path: Path) -> bool:
+    """Return true for policy-owned documentation with stable prose structure."""
     text = path.as_posix()
     return (
         len(path.parts) == 1
         or text.startswith("common/")
         or text.startswith("connectors/")
-    ) and not is_translation_exempt(path)
+        or text.startswith("docs/")
+        or text.startswith("ci/")
+        or text.startswith("config/")
+        or text.startswith("tests/")
+        or text.startswith("licenses/")
+        or text.startswith(f"{CHANGE_RECORDS_DIRECTORY.as_posix()}/")
+    )
 
 
 def pair_required(path: Path) -> bool:
     text = path.as_posix()
     name = path.name
-    if name.endswith(".de.md") or is_tools_mrts(path) or is_translation_exempt(path) or is_special_language_index(path):
+    if name.endswith(".de.md") or is_tools_mrts(path) or is_special_language_index(path):
         return False
-    if needs_extended_connector_parity(path):
-        return True
-    if text == "README.md":
+    if text == ".github/pull_request_template.md":
+        return False
+    if needs_structural_parity(path):
         return True
     if name.startswith("COMPILE_") and name.endswith(".md"):
-        return True
-    if text.startswith("docs/"):
         return True
     if text.startswith("examples/"):
         return True
     if text.startswith("reports/"):
         return True
-    if text.startswith(".github/ISSUE_TEMPLATE/") and name.endswith(".md"):
+    if text.startswith(".github/") and name.endswith(".md"):
         return True
     if text in {
         "modules/ModSecurity-test-Framework/README.md",
@@ -192,6 +250,85 @@ def table_block_rows(text: str) -> list[int]:
     return blocks
 
 
+def markdown_table_value(text: str, label: str) -> str | None:
+    pattern = re.compile(rf"^\|\s*{re.escape(label)}\s*\|\s*(.*?)\s*\|\s*$", re.MULTILINE)
+    match = pattern.search(text)
+    return match.group(1) if match else None
+
+
+def check_change_record_pair(
+    source: Path,
+    companion: Path,
+    source_text: str,
+    companion_text: str,
+) -> list[str]:
+    if source.parent != CHANGE_RECORDS_DIRECTORY:
+        return []
+
+    errors: list[str] = []
+    if source.name == "README.md":
+        return errors
+    for heading in CHANGE_RECORD_REQUIRED_HEADINGS["English"]:
+        if heading not in source_text:
+            errors.append(f"{source}: missing Change Record section {heading!r}")
+    for heading in CHANGE_RECORD_REQUIRED_HEADINGS["Deutsch"]:
+        if heading not in companion_text:
+            errors.append(f"{companion}: missing Change Record section {heading!r}")
+
+    if source.name == "TEMPLATE.md":
+        return errors
+
+    record_name = source.name.removesuffix(".md")
+    if "-" not in record_name:
+        errors.append(
+            f"{source}: Change Record filename must use <change-id>-<name>.md"
+        )
+    for english_label, german_label in CHANGE_RECORD_IDENTITY_LABELS:
+        english_value = markdown_table_value(source_text, english_label)
+        german_value = markdown_table_value(companion_text, german_label)
+        if english_value is None:
+            errors.append(f"{source}: missing Change Record identity field {english_label!r}")
+        if german_value is None:
+            errors.append(f"{companion}: missing Change Record identity field {german_label!r}")
+        if english_value is not None and german_value is not None and english_value != german_value:
+            errors.append(
+                f"{source}: Change Record identity field {english_label!r} differs from "
+                f"{companion} ({english_value!r} != {german_value!r})"
+            )
+    return errors
+
+
+def check_pr_template(repo: Path) -> list[str]:
+    path = repo / ".github/pull_request_template.md"
+    if not path.exists():
+        return []
+
+    text = path.read_text(encoding="utf-8", errors="replace")
+    errors: list[str] = []
+    for language, headings in PR_TEMPLATE_REQUIRED_HEADINGS.items():
+        section_heading = f"## {language}"
+        if section_heading not in text:
+            errors.append(
+                ".github/pull_request_template.md: missing bilingual "
+                f"{language} section"
+            )
+        for heading in headings:
+            if heading not in text:
+                errors.append(
+                    ".github/pull_request_template.md: missing "
+                    f"{language} required section {heading!r}"
+                )
+    return errors
+
+
+def check_forbidden_local_language_companions(repo: Path) -> list[str]:
+    return [
+        f"{filename}: local Codex/RTK configuration must not have a German companion"
+        for filename in sorted(FORBIDDEN_LOCAL_LANGUAGE_COMPANIONS)
+        if (repo / filename).exists()
+    ]
+
+
 def check_pairs_and_switches(repo: Path) -> list[str]:
     errors: list[str] = []
     for source in english_sources(repo):
@@ -209,7 +346,7 @@ def check_pairs_and_switches(repo: Path) -> list[str]:
             errors.append(f"{rel_source}: missing language switch {english_switch!r}")
         if german_switch not in companion_text:
             errors.append(f"{rel_companion}: missing language switch {german_switch!r}")
-        if needs_extended_connector_parity(rel_source):
+        if needs_structural_parity(rel_source):
             english_headings = heading_levels(source_text)
             german_headings = heading_levels(companion_text)
             if english_headings != german_headings:
@@ -226,6 +363,14 @@ def check_pairs_and_switches(repo: Path) -> list[str]:
                     f"{rel_source}: table-row structure differs from {rel_companion} "
                     f"({english_tables!r} != {german_tables!r})"
                 )
+        errors.extend(
+            check_change_record_pair(
+                rel_source,
+                rel_companion,
+                source_text,
+                companion_text,
+            )
+        )
     for english_index, german_index in SPECIAL_LANGUAGE_INDEXES:
         english_path = repo / english_index
         german_path = repo / german_index
@@ -240,11 +385,6 @@ def check_pairs_and_switches(repo: Path) -> list[str]:
             errors.append(f"{english_index}: missing language-index switch {expected_english!r}")
         if expected_german not in german_text:
             errors.append(f"{german_index}: missing language-index switch {expected_german!r}")
-    pr_template = repo / ".github/pull_request_template.md"
-    if pr_template.exists():
-        text = pr_template.read_text(encoding="utf-8", errors="replace")
-        if "## English" not in text or "## Deutsch" not in text:
-            errors.append(".github/pull_request_template.md: missing bilingual English/Deutsch sections")
     return errors
 
 
@@ -352,6 +492,8 @@ def main(argv: list[str] | None = None) -> int:
 
     errors: list[str] = []
     errors.extend(check_pairs_and_switches(repo))
+    errors.extend(check_pr_template(repo))
+    errors.extend(check_forbidden_local_language_companions(repo))
     errors.extend(check_generated_german_notes(repo))
     errors.extend(check_links(repo))
     errors.extend(check_tools_mrts_clean(repo))

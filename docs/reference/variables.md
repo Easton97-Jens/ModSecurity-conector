@@ -396,5 +396,7 @@ for navigation.
   and validation boundaries.
 - [Evidence documentation](../testing-and-evidence.md) explains artifacts and
   promotion boundaries.
-- [Documentation style guide](../../AGENTS.md)
-  defines the required local explanation for future variables and placeholders.
+- The [change traceability policy](../change-traceability.md) defines the
+  required bilingual explanation for future variables and placeholders.
+- `AGENTS.md` is an optional local instruction file for Codex and is not part of
+  the versioned project documentation. It has no German companion file.

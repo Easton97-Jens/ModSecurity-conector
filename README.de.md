@@ -128,8 +128,11 @@ erheben.
 - [Build-Guide](docs/build/README.de.md)
 - [Connector-Guide](docs/connectors/README.de.md)
 - [Tests und Nachweise](docs/testing-and-evidence.de.md)
+- [Nachvollziehbarkeit von Änderungen](docs/change-traceability.de.md)
+- Dokumentationspflege: `AGENTS.md` ist eine optionale lokale Anweisungsdatei für
+  Codex und gehört nicht zur versionierten Projektdokumentation. Für sie gibt es
+  keine deutsche Begleitdatei.
 - [Betrieb und Sicherheit](docs/operations-and-security.de.md)
-- [Dokumentationspflege](AGENTS.de.md#dokumentationspflege)
 - [Framework-Modul](modules/ModSecurity-test-Framework/README.de.md)
 
 Repository-eigene English-/German-Dokumentation wird geprüft mit:

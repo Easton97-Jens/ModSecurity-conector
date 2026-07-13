@@ -123,8 +123,11 @@ matrices remain separate evidence-gated work. Read the current
 - [Build guide](docs/build/README.md)
 - [Connector guide](docs/connectors/README.md)
 - [Testing and evidence](docs/testing-and-evidence.md)
+- [Change traceability](docs/change-traceability.md)
+- Documentation maintenance: `AGENTS.md` is an optional local instruction file for
+  Codex and is not part of the versioned project documentation. It has no German
+  companion file.
 - [Operations and security](docs/operations-and-security.md)
-- [Documentation maintenance](AGENTS.md#documentation-maintenance)
 - [Framework module](modules/ModSecurity-test-Framework/README.md)
 
 Repository-owned English/German documentation is checked with:

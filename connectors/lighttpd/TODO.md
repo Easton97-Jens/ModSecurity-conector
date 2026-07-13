@@ -1,5 +1,7 @@
 # lighttpd Connector TODO
 
+**Language:** English | [Deutsch](TODO.de.md)
+
 Status: native `minimal_runtime_smoke` for Phase-1 headers
 Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
 Metadata evidence states: `link_verified`, `minimal_runtime_smoke`, and `partial_runtime_path`.
