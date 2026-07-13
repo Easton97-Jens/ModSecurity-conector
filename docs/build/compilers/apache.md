@@ -18,6 +18,7 @@ libmodsecurity v3, Apache HTTP Server 2.4, APR/APR-util, PCRE2, the repository A
 - [Productive Apache sources](../../../connectors/apache/src/)
 - [Autotools configuration](../../../connectors/apache/configure.ac)
 - [Source mapping](../../../connectors/apache/SOURCE_MAP.json)
+- [Standalone Apache configuration harness](../../../connectors/apache/harness/apache_smoke.conf)
 
 This is the primary connector path for this guide: connectors/apache/. The official host documentation in the following section explains only how to provide or build the host; it does not replace the connector source.
 
@@ -48,13 +49,28 @@ export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
+
+
 ## 5. Prepare libmodsecurity v3
 
 Build libmodsecurity v3 first with the shared guide:
 
 [Build libmodsecurity v3](libmodsecurity.md)
 
-The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.
+The following hand-off uses the official simple-build default `/usr/local/modsecurity`. Override MODSECURITY_PREFIX, MODSECURITY_INCLUDE_DIR, or MODSECURITY_LIB_DIR only for a deliberately selected installation. It checks the header and chooses `lib64` only when `lib` lacks libmodsecurity.
+
+Apache's current adapter accepts a prefix and assumes its `lib` directory, so use the normal default layout for Apache or enhance that adapter before selecting lib64.
+
+```sh
+export MODSECURITY_PREFIX="${MODSECURITY_PREFIX:-/usr/local/modsecurity}"
+export MODSECURITY_INCLUDE_DIR="${MODSECURITY_INCLUDE_DIR:-$MODSECURITY_PREFIX/include}"
+export MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$MODSECURITY_PREFIX/lib}"
+if [ ! -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ] && [ -f "$MODSECURITY_PREFIX/lib64/libmodsecurity.so" ]; then
+    MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib64"
+fi
+test -f "$MODSECURITY_INCLUDE_DIR/modsecurity/modsecurity.h"
+test -f "$MODSECURITY_LIB_DIR/libmodsecurity.so"
+```
 
 ## 6. Provide the host or proxy
 
@@ -88,10 +104,13 @@ The package path provides Apache httpd, APXS, the module directory, and the head
 These queries show the host prefix, header directory, module directory, and Apache version. They must describe the same Apache installation.
 
 ```sh
-apxs -q PREFIX
-apxs -q INCLUDEDIR
-apxs -q LIBEXECDIR
-apachectl -v
+APXS="${APXS:-$(command -v apxs || command -v apxs2)}"
+test -x "$APXS"
+HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"
+"$APXS" -q PREFIX
+"$APXS" -q INCLUDEDIR
+"$APXS" -q LIBEXECDIR
+"$HTTPD_BIN" -v
 ```
 
 ### Source build and integrity checks
@@ -108,12 +127,16 @@ INSTALL_DIR="$HOME/.local/apache-modsecurity"
 
 #### Download and unpack
 
-This creates an isolated source tree; it does not build the adapter.
+This verifies the archive before unpacking it and creates an isolated source tree; it does not build the adapter. Import the Apache release signing key from the official download page before running the GPG check.
 
 ```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2"
+curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.sha256"
+curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.asc"
+sha256sum -c "httpd-$VERSION.tar.bz2.sha256"
+gpg --verify "httpd-$VERSION.tar.bz2.asc" "httpd-$VERSION.tar.bz2"
 tar -xjf "httpd-$VERSION.tar.bz2"
 ```
 
@@ -122,7 +145,7 @@ tar -xjf "httpd-$VERSION.tar.bz2"
 Configure and install Apache into the private prefix. The connector remains Section 7 work.
 
 ```sh
-cd "httpd-$VERSION"
+cd "$WORKDIR/httpd-$VERSION"
 ./configure --prefix="$INSTALL_DIR" --enable-mods-shared=most --with-pcre="$(command -v pcre2-config)"
 make -j2
 make install
@@ -137,18 +160,6 @@ test -x "$INSTALL_DIR/bin/httpd"
 test -x "$INSTALL_DIR/bin/apachectl"
 test -x "$INSTALL_DIR/bin/apxs"
 "$INSTALL_DIR/bin/apxs" -q PREFIX
-```
-
-#### Optional: verify download and version
-
-Import the Apache release key from the official download page before using the signature check.
-
-```sh
-cd "$WORKDIR"
-curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.sha256"
-curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.asc"
-sha256sum -c "httpd-$VERSION.tar.bz2.sha256"
-gpg --verify "httpd-$VERSION.tar.bz2.asc" "httpd-$VERSION.tar.bz2"
 ```
 
 ## 7. Build and integrate the connector
@@ -168,52 +179,70 @@ APXS="$HOME/.local/apache-modsecurity/bin/apxs"
 configure.ac accepts --with-apache as an optional lookup override, but this guide passes the httpd derived from the selected APXS explicitly. The repository build helper uses the same pairing, preventing an adapter from being configured against a different host binary.
 
 ```sh
-APXS="${APXS:-apxs}"
+APXS="${APXS:-$(command -v apxs || command -v apxs2)}"
+test -x "$APXS"
 HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"
 cd "$CONNECTOR_ROOT/connectors/apache"
 test -f "$CONNECTOR_ROOT/connectors/apache/configure.ac"
 mkdir -p "$HOME/connector-build/apache"
 CONNECTOR_BUILD_DIR="$(mktemp -d "$HOME/connector-build/apache/connector-src.XXXXXX")"
-```
-
-```sh
 CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$CONNECTOR_ROOT/modules/ModSecurity-test-Framework/ci/provisioning/materialize-connector-source.sh" --connector apache --adapter-dir "$CONNECTOR_ROOT/connectors/apache" --dest-dir "$CONNECTOR_BUILD_DIR"
 cd "$CONNECTOR_BUILD_DIR"
 ./autogen.sh
-./configure --with-libmodsecurity="/usr/local" --with-apxs="$APXS" --with-apache="$HTTPD_BIN"
+./configure --with-libmodsecurity="$MODSECURITY_PREFIX" --with-apxs="$APXS" --with-apache="$HTTPD_BIN"
 make -j2
-make install
-```
-
-```sh
+if [ -w "$("$APXS" -q LIBEXECDIR)" ]; then
+    make install
+else
+    sudo make install
+fi
 MODULE_PATH="$("$APXS" -q LIBEXECDIR)/mod_security3.so"
 test -f "$MODULE_PATH"
 ```
 
 ## 8. Configuration
 
-Create the local test rule and standalone Apache configuration. This section does not start Apache; Section 10 performs the syntax check and loopback requests.
+Create the local test rule and an isolated, writable Apache configuration. This section does not start Apache; Section 10 performs the syntax check and loopback requests. The generated module file selects a package-host MPM and supporting DSOs when present; a source host with a static MPM remains valid without an extra MPM line.
 
 ```sh
-APXS="${APXS:-apxs}"
-HTTPD_PREFIX="$("$APXS" -q PREFIX)"
-HTTPD_BIN="$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)"
+APXS="${APXS:-$(command -v apxs || command -v apxs2)}"
+test -x "$APXS"
+HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"
+HTTPD_MODULE_DIR="$("$APXS" -q LIBEXECDIR)"
+HTTPD_RUNTIME_ROOT="$HOME/connector-build/apache/runtime"
+HTTPD_DOCUMENT_ROOT="$HTTPD_RUNTIME_ROOT/htdocs"
+HTTPD_MODULES="$HTTPD_RUNTIME_ROOT/httpd-modules.conf"
 RULES_FILE="$HOME/connector-build/apache/modsecurity-local.conf"
-HTTPD_CONFIG="$HOME/connector-build/apache/httpd-local.conf"
+HTTPD_CONFIG="$HTTPD_RUNTIME_ROOT/httpd-local.conf"
+mkdir -p "$HTTPD_RUNTIME_ROOT/logs" "$HTTPD_RUNTIME_ROOT/run" "$HTTPD_DOCUMENT_ROOT"
+printf "apache modsecurity test\n" > "$HTTPD_DOCUMENT_ROOT/index.html"
+: > "$HTTPD_MODULES"
+for mpm in mpm_event mpm_worker mpm_prefork; do
+    if [ -f "$HTTPD_MODULE_DIR/mod_$mpm.so" ]; then
+        printf "LoadModule %s_module \"%s/mod_%s.so\"\n" "$mpm" "$HTTPD_MODULE_DIR" "$mpm" >> "$HTTPD_MODULES"
+        break
+    fi
+done
+for module in authz_core authz_host mime dir unixd; do
+    if [ -f "$HTTPD_MODULE_DIR/mod_$module.so" ]; then
+        printf "LoadModule %s_module \"%s/mod_%s.so\"\n" "$module" "$HTTPD_MODULE_DIR" "$module" >> "$HTTPD_MODULES"
+    fi
+done
 cat > "$RULES_FILE" <<EOF
 SecRuleEngine On
 SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
 EOF
-```
-
-```sh
 cat > "$HTTPD_CONFIG" <<EOF
-ServerRoot "$HTTPD_PREFIX"
+ServerRoot "$HTTPD_RUNTIME_ROOT"
+PidFile "run/httpd.pid"
+DefaultRuntimeDir "run"
 Listen 127.0.0.1:8080
 ServerName 127.0.0.1
+ErrorLog "logs/error.log"
+Include "$HTTPD_MODULES"
 LoadModule security3_module "$MODULE_PATH"
-DocumentRoot "$HTTPD_PREFIX/htdocs"
-<Directory "$HTTPD_PREFIX/htdocs">
+DocumentRoot "$HTTPD_DOCUMENT_ROOT"
+<Directory "$HTTPD_DOCUMENT_ROOT">
     Require all granted
 </Directory>
 <Location "/">
@@ -234,10 +263,7 @@ Validate the selected host, connector artifact, dynamic library resolution, and 
 "$APXS" -q INCLUDEDIR
 "$APXS" -q LIBEXECDIR
 file "$MODULE_PATH"
-```
-
-```sh
-ldd "$MODULE_PATH" | grep -F libmodsecurity
+LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$MODULE_PATH" | grep -F libmodsecurity | grep -Fv "not found"
 ```
 
 ## 10. Local HTTP/1.1 functional test
@@ -245,11 +271,11 @@ ldd "$MODULE_PATH" | grep -F libmodsecurity
 Run only against loopback. A 200 response on `/` and a 403 response on `/blocked` demonstrate the local rule path; they do not establish a broader claim.
 
 ```sh
-"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -t
-"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k start
-curl -i http://127.0.0.1:8080/
-curl -i http://127.0.0.1:8080/blocked
-"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k stop
+LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HTTPD_BIN" -d "$HTTPD_RUNTIME_ROOT" -f "$HTTPD_CONFIG" -t
+LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HTTPD_BIN" -d "$HTTPD_RUNTIME_ROOT" -f "$HTTPD_CONFIG" -k start
+test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/)" = "200"
+test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/blocked)" = "403"
+LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HTTPD_BIN" -d "$HTTPD_RUNTIME_ROOT" -f "$HTTPD_CONFIG" -k stop
 ```
 
 ## 11. Package-assisted path
@@ -304,8 +330,10 @@ git -C "$CONNECTOR_ROOT" submodule update --init --recursive
 Do not copy files indiscriminately to `/usr/lib` and do not remove global directories. A user prefix does not need `sudo`. Remove evidence or logs only after deliberate review.
 
 ```sh
-find "$HOME/src/modsecurity-connectors" -maxdepth 2 -mindepth 1 -print
-# Review the listed paths first; remove only a chosen external host-build directory.
+test ! -e "$HOME/connector-build/apache" || find "$HOME/connector-build/apache" -maxdepth 2 -mindepth 1 -print
+test ! -e "$HOME/.local/apache-modsecurity" || find "$HOME/.local/apache-modsecurity" -maxdepth 2 -mindepth 1 -print
+test ! -e "$HOME/modsecurity-connector-work" || find "$HOME/modsecurity-connector-work" -maxdepth 2 -mindepth 1 -print
+# Review the listed external paths first; remove only a chosen host-build or test directory.
 ```
 
 ## 15. Troubleshooting
@@ -320,14 +348,21 @@ If `apxs -q` points at different headers or a different module directory than th
 | --- | --- |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
+| MODSECURITY_PREFIX | libmodsecurity installation prefix. The official simple-build default is /usr/local/modsecurity. |
+| MODSECURITY_INCLUDE_DIR | libmodsecurity header directory selected from MODSECURITY_PREFIX. |
+| MODSECURITY_LIB_DIR | libmodsecurity shared-library directory selected from MODSECURITY_PREFIX; the hand-off detects lib64 when needed. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |
-| HTTPD_PREFIX | Private httpd installation prefix. |
+| LD_LIBRARY_PATH | Process-local loader search path used only for a documented local module or service check; do not set it globally. |
 | APXS | APXS from the same host that will load the module. |
 | CONNECTOR_BUILD_DIR | External materialized Autotools worktree for the repository Apache adapter. |
 | HTTPD_BIN | httpd executable paired explicitly with APXS during configuration. |
 | MODULE_PATH | Installed repository DSO resolved by APXS. |
+| HTTPD_MODULE_DIR | Apache module directory reported by the selected APXS. |
+| HTTPD_RUNTIME_ROOT | Private writable Apache runtime root for the standalone loopback instance. |
+| HTTPD_DOCUMENT_ROOT | Private document root containing the explicit local test page. |
+| HTTPD_MODULES | Generated module-load file for the standalone Apache instance. |
 | HTTPD_CONFIG | Local standalone httpd configuration. |
 | WORKDIR | External Apache source workspace. |
 | VERSION | Selected Apache source release in the optional source path. |

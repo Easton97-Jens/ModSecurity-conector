@@ -66,12 +66,12 @@ sudo make install
 
 ## Check the result
 
-```sh
-ls /usr/local/include/modsecurity
-ls /usr/local/lib | grep modsecurity
-```
+The official simple-build default prefix is `/usr/local/modsecurity`. Its library normally lives below that prefix in `lib`; a deliberately selected platform layout can use `lib64`.
 
-Depending on the system, the library can be under `/usr/local/lib`, `/usr/local/lib64`, or a distribution-specific path.
+```sh
+ls /usr/local/modsecurity/include/modsecurity
+find /usr/local/modsecurity -maxdepth 2 -type f -name 'libmodsecurity.so*' -print
+```
 
 ## Optional: installation for the current user only
 

@@ -66,12 +66,12 @@ sudo make install
 
 ## Erfolg prüfen
 
-```sh
-ls /usr/local/include/modsecurity
-ls /usr/local/lib | grep modsecurity
-```
+Der Standardprefix des offiziellen einfachen Builds ist `/usr/local/modsecurity`. Die Library liegt normalerweise darunter in `lib`; bewusst gewählte Plattformlayouts können `lib64` verwenden.
 
-Je nach System kann die Bibliothek unter `/usr/local/lib`, `/usr/local/lib64` oder einem distributionsabhängigen Pfad liegen.
+```sh
+ls /usr/local/modsecurity/include/modsecurity
+find /usr/local/modsecurity -maxdepth 2 -type f -name 'libmodsecurity.so*' -print
+```
 
 ## Optional: Installation nur für den eigenen Benutzer
 

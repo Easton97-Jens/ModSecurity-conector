@@ -53,13 +53,31 @@ export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
+Das repository-eigene ext_proc-Modul verlangt Go 1.24.0; die gepinnte Moduldeklaration vor dem Build in Abschnitt 7 prüfen.
+
+```sh
+go version
+grep -Fx "go 1.24.0" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"
+```
+
 ## 5. ModSecurity vorbereiten
 
 Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:
 
 [libmodsecurity v3 bauen](libmodsecurity.de.md)
 
-Die folgenden Connector-Befehle setzen die Standardinstallation unter `/usr/local` voraus. Für einen benutzerlokalen Prefix den fortgeschrittenen Abschnitt der gemeinsamen Anleitung verwenden und Include- sowie Library-Pfade bewusst übergeben.
+Der folgende Handoff verwendet den offiziellen Standard des einfachen Builds `/usr/local/modsecurity`. MODSECURITY_PREFIX, MODSECURITY_INCLUDE_DIR oder MODSECURITY_LIB_DIR nur für eine bewusst gewählte Installation überschreiben. Er prüft den Header und wählt `lib64` nur, wenn `lib` libmodsecurity nicht enthält.
+
+```sh
+export MODSECURITY_PREFIX="${MODSECURITY_PREFIX:-/usr/local/modsecurity}"
+export MODSECURITY_INCLUDE_DIR="${MODSECURITY_INCLUDE_DIR:-$MODSECURITY_PREFIX/include}"
+export MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$MODSECURITY_PREFIX/lib}"
+if [ ! -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ] && [ -f "$MODSECURITY_PREFIX/lib64/libmodsecurity.so" ]; then
+    MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib64"
+fi
+test -f "$MODSECURITY_INCLUDE_DIR/modsecurity/modsecurity.h"
+test -f "$MODSECURITY_LIB_DIR/libmodsecurity.so"
+```
 
 ## 6. Host oder Proxy bereitstellen
 
@@ -79,6 +97,7 @@ Das offizielle x86_64-Artefakt wird in ein lokales Arbeitsverzeichnis geschriebe
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.38.2/envoy-1.38.2-linux-x86_64" -o envoy
+printf "%s  %s\n" "87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899" "envoy" | sha256sum -c -
 chmod 755 envoy
 ./envoy --version
 ```
@@ -102,14 +121,6 @@ test -x "$WORKDIR/envoy"
 
 Ein vollständiger Bazel-Build ist ressourcenintensiv und absichtlich nicht Teil des Einsteigerwegs. Vor der Nutzung als Host-Override die [offizielle Envoy-Source-Build-Anleitung](https://www.envoyproxy.io/docs/envoy/latest/start/building/local_docker_build.html) für den ausgewählten Release befolgen.
 
-#### Optional: Download und Version verifizieren
-
-Die feste Prüfsumme gilt für das ausgewählte repository-kompatible x86_64-Releaseartefakt und ist kein Claim über neuere Upstream-Releases.
-
-```sh
-printf "%s  %s\n" "87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899" "envoy" | sha256sum -c -
-```
-
 ## 7. Connector bauen und einbinden
 
 Das repository-eigene ext_proc-Executable ist die aus Source gebaute Komponente. Es linkt die Common-/libmodsecurity-Bridge und ist nicht Teil eines offiziellen Envoy-Binaries. Die erzeugte Hostkonfiguration verwendet `envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor`, einen HTTP/2-gRPC-Cluster und einen Router nach diesem Filter. Den Service in einen externen Root bauen und danach beide Konfigurationen erzeugen.
@@ -121,13 +132,10 @@ export HOST_BUILD_BASE="$HOME/connector-build/envoy"
 export ENVOY_BIN="$HOST_BUILD_BASE/envoy"
 cd "$CONNECTOR_ROOT"
 export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"
-BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/envoy/build/build_ext_proc.sh
+BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh "$CONNECTOR_ROOT/connectors/envoy/build/build_ext_proc.sh"
 export EXT_PROC_BIN="$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc"
-```
-
-```sh
 test -x "$EXT_PROC_BIN"
-BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/envoy/build/test_ext_proc.sh
+BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh "$CONNECTOR_ROOT/connectors/envoy/build/test_ext_proc.sh"
 ```
 
 ## 8. Konfiguration
@@ -137,20 +145,19 @@ Die folgende lokale Regel ist eine Testregel und keine CRS-Regel. Konfigurations
 ```sh
 export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
 export ENVOY_CONFIG="$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc.yaml"
-export EXT_PROC_RUNTIME_CONFIG="$BUILD_ROOT/envoy-ext-proc/runtime/ext-proc.conf"
+export EXT_PROC_CONFIG="$CONNECTOR_ROOT/connectors/envoy/config/envoy-ext-proc-service.json"
+export RUNTIME_ROOT="$BUILD_ROOT/envoy-ext-proc/runtime-smoke"
+export EXT_PROC_RUNTIME_CONFIG="$RUNTIME_ROOT/envoy-ext-proc-runtime.conf"
 export ENVOY_PORT=18080
 export ENVOY_UPSTREAM_PORT=18081
 export EXT_PROC_PORT=18083
-```
-
-```sh
 export ENVOY_ADMIN_PORT=19001
 cat > "$RULES_FILE" <<EOF
 SecRuleEngine On
 SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
 EOF
-OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$ENVOY_PORT" UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" EXT_PROC_PORT="$EXT_PROC_PORT" ADMIN_PORT="$ENVOY_ADMIN_PORT" sh connectors/envoy/config/prepare_envoy_ext_proc_config.sh
-OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG" RULES_FILE="$RULES_FILE" EVENT_PATH="$BUILD_ROOT/envoy-ext-proc/runtime/events.jsonl" sh connectors/envoy/config/prepare_envoy_ext_proc_runtime_config.sh
+OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$ENVOY_PORT" UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" EXT_PROC_PORT="$EXT_PROC_PORT" ADMIN_PORT="$ENVOY_ADMIN_PORT" sh "$CONNECTOR_ROOT/connectors/envoy/config/prepare_envoy_ext_proc_config.sh"
+OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG" RULES_FILE="$RULES_FILE" EVENT_PATH="$RUNTIME_ROOT/events.jsonl" sh "$CONNECTOR_ROOT/connectors/envoy/config/prepare_envoy_ext_proc_runtime_config.sh"
 ```
 
 ## 9. Build- und ABI-Validierung
@@ -159,14 +166,11 @@ Ausgewählten Host, Connector-Artefakt, Auflösung dynamischer Libraries und erz
 
 ```sh
 "$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG"
-"$EXT_PROC_BIN" --check-config --config connectors/envoy/config/envoy-ext-proc-service.json
+"$EXT_PROC_BIN" --check-config --config "$EXT_PROC_CONFIG" --runtime-config "$EXT_PROC_RUNTIME_CONFIG"
 "$ENVOY_BIN" --version
 test -x "$EXT_PROC_BIN"
 file "$EXT_PROC_BIN"
-ldd "$EXT_PROC_BIN" | grep -F libmodsecurity
-```
-
-```sh
+ldd "$EXT_PROC_BIN" | grep -F libmodsecurity | grep -Fv "not found"
 grep -F "envoy.filters.http.ext_proc" "$ENVOY_CONFIG"
 grep -F "request_body_mode: STREAMED" "$ENVOY_CONFIG"
 ```
@@ -176,8 +180,8 @@ grep -F "request_body_mode: STREAMED" "$ENVOY_CONFIG"
 Nur gegen Loopback ausführen. Das begrenzte Repository-Harness startet Envoy, ext_proc und seinen Upstream und sendet dann HTTP/1.1-Allow- und lokale Deny-Probes durch die erzeugte `ext_proc`-Route. Sein Admin-Endpunkt ist nur auf Loopback gebunden und dient lokalen Readiness-Diagnosen. Seine Ergebnisse gelten nur für diese beobachteten Requests.
 
 ```sh
-RUNTIME_ROOT="$BUILD_ROOT/envoy-ext-proc/runtime-smoke" ENVOY_BIN="$ENVOY_BIN" RULES_FILE="$RULES_FILE" ENVOY_SMOKE_PORT="$ENVOY_PORT" ENVOY_UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" ENVOY_EXT_PROC_PORT="$EXT_PROC_PORT" ENVOY_ADMIN_PORT="$ENVOY_ADMIN_PORT" sh connectors/envoy/harness/run_envoy_ext_proc_runtime.sh
-# The bounded runner starts Envoy, ext_proc, and a loopback upstream, sends local HTTP/1.1 requests, and stops them.
+RUNTIME_ROOT="$RUNTIME_ROOT" ENVOY_BIN="$ENVOY_BIN" RULES_FILE="$RULES_FILE" ENVOY_SMOKE_PORT="$ENVOY_PORT" ENVOY_UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" ENVOY_EXT_PROC_PORT="$EXT_PROC_PORT" ENVOY_ADMIN_PORT="$ENVOY_ADMIN_PORT" EXT_PROC_RUNTIME_CONFIG="$EXT_PROC_RUNTIME_CONFIG" sh "$CONNECTOR_ROOT/connectors/envoy/harness/run_envoy_ext_proc_runtime.sh"
+# The bounded runner regenerates its run-local Envoy and ext_proc runtime files, then starts Envoy, ext_proc, and a loopback upstream, sends local HTTP/1.1 requests, and stops them.
 ```
 
 ## 11. Paketgestützter Weg
@@ -232,8 +236,9 @@ git -C "$CONNECTOR_ROOT" submodule update --init --recursive
 Keine Dateien pauschal nach `/usr/lib` kopieren und keine globalen Verzeichnisse entfernen. Bei einem Benutzer-Prefix ist kein `sudo` nötig. Evidence oder Logs erst nach bewusster Prüfung entfernen.
 
 ```sh
-find "$HOME/src/modsecurity-connectors" -maxdepth 2 -mindepth 1 -print
-# Review the listed paths first; remove only a chosen external host-build directory.
+test ! -e "$HOME/connector-build/envoy" || find "$HOME/connector-build/envoy" -maxdepth 2 -mindepth 1 -print
+test ! -e "$HOME/modsecurity-connector-work" || find "$HOME/modsecurity-connector-work" -maxdepth 2 -mindepth 1 -print
+# Review the listed external paths first; remove only a chosen host-build or test directory.
 ```
 
 ## 15. Troubleshooting
@@ -248,6 +253,9 @@ Ein offizielles Envoy-Binary ist nur der Host. Schlägt die Validierung fehl, er
 | --- | --- |
 | CONNECTOR_ROOT | Git-Top-Level dieses Repository-Checkouts; die Connector-Skripte werden von dort aus aufgerufen. |
 | RULES_FILE | Lokale Testregeldatei; keine CRS-Regeldatei. |
+| MODSECURITY_PREFIX | Installationsprefix von libmodsecurity. Der offizielle Standard des einfachen Builds ist /usr/local/modsecurity. |
+| MODSECURITY_INCLUDE_DIR | Aus MODSECURITY_PREFIX ausgewähltes Headerverzeichnis von libmodsecurity. |
+| MODSECURITY_LIB_DIR | Aus MODSECURITY_PREFIX ausgewähltes Shared-Library-Verzeichnis von libmodsecurity; der Handoff erkennt bei Bedarf lib64. |
 | VERIFIED_RUN_PARENT | Externer Elternordner eines frischen Repository-Testcheckouts und seiner Testartefakte. |
 | run_id | Eindeutige Kennung eines repository-gesteuerten Full-Lifecycle-Laufs. |
 | NO_CRS_RUN_ID | Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt. |
@@ -256,13 +264,19 @@ Ein offizielles Envoy-Binary ist nur der Host. Schlägt die Validierung fehl, er
 | ENVOY_BIN | Verifiziertes Envoy-Executable. |
 | EXT_PROC_BIN | Repository-gebautes ext_proc-Service-Executable. |
 | ENVOY_CONFIG | Erzeugte Loopback-Envoy-Konfiguration. |
+| EXT_PROC_CONFIG | Repository-ext_proc-Servicekonfiguration, die zusammen mit der erzeugten Laufzeitkonfiguration validiert wird. |
 | EXT_PROC_RUNTIME_CONFIG | Erzeugte Common-Laufzeitkonfiguration für ext_proc. |
 | OUTPUT_CONFIG | Ausgabepfad eines Konfigurationsmaterialisierungsbefehls. |
 | EVENT_PATH | Absoluter lokaler Eventlog-Pfad für den ext_proc-Laufzeitkonfigurationsgenerator. |
 | RUNTIME_ROOT | Externer temporärer Root des begrenzten Envoy-Laufzeitharnesses. |
+| LISTEN_PORT | An den Envoy-Konfigurationsgenerator übergebener Loopback-Listenerport. |
+| UPSTREAM_PORT | An den Envoy-Konfigurationsgenerator übergebener Loopback-Upstream-Port. |
+| ADMIN_PORT | An den Envoy-Konfigurationsgenerator übergebener Loopback-Adminport. |
 | ENVOY_PORT | Loopback-Listenerport von Envoy. |
 | ENVOY_UPSTREAM_PORT | Vom Test genutzter Loopback-Upstream-Port. |
 | EXT_PROC_PORT | Loopback-gRPC-Port des ext_proc-Service. |
+| ENVOY_SMOKE_PORT | An das begrenzte Repository-Envoy-Harness übergebener Loopback-Listenerport. |
+| ENVOY_EXT_PROC_PORT | An das begrenzte Repository-Envoy-Harness übergebener Loopback-gRPC-Port. |
 | ENVOY_ADMIN_PORT | Loopback-Adminport von Envoy. |
 | WORKDIR | Externes Envoy-Binary-Arbeitsverzeichnis. |
 

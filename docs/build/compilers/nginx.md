@@ -26,7 +26,7 @@ Section 7 builds this adapter-owned connector as the documented dynamic NGINX mo
 ## 3. Official upstream documentation
 
 - **Source and scope:** [Building nginx from Sources](https://nginx.org/en/docs/configure.html)
-  The official configure options, including prefix paths, compatibility, compiler, and linker flags. Version scope: NGINX options are release-dependent; inspect `./auto/configure --help` for the selected source.
+  The official configure options, including prefix paths, compatibility, compiler, and linker flags. Version scope: NGINX options are release-dependent; inspect `./configure --help` for the selected source archive.
 - **Source and scope:** [Official NGINX packages](https://nginx.org/en/linux_packages.html)
   Official distribution package repositories and package-install context; not an ABI-equivalence claim for a source-built module. Version scope: Package layout changes by distribution and release.
 
@@ -46,6 +46,8 @@ export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
+
+
 ## 5. Prepare libmodsecurity v3
 
 Install libmodsecurity v3 first:
@@ -54,7 +56,18 @@ Install libmodsecurity v3 first:
 
 NGINX and the repository-owned NGINX connector are built afterwards.
 
-The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.
+The following hand-off uses the official simple-build default `/usr/local/modsecurity`. Override MODSECURITY_PREFIX, MODSECURITY_INCLUDE_DIR, or MODSECURITY_LIB_DIR only for a deliberately selected installation. It checks the header and chooses `lib64` only when `lib` lacks libmodsecurity.
+
+```sh
+export MODSECURITY_PREFIX="${MODSECURITY_PREFIX:-/usr/local/modsecurity}"
+export MODSECURITY_INCLUDE_DIR="${MODSECURITY_INCLUDE_DIR:-$MODSECURITY_PREFIX/include}"
+export MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$MODSECURITY_PREFIX/lib}"
+if [ ! -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ] && [ -f "$MODSECURITY_PREFIX/lib64/libmodsecurity.so" ]; then
+    MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib64"
+fi
+test -f "$MODSECURITY_INCLUDE_DIR/modsecurity/modsecurity.h"
+test -f "$MODSECURITY_LIB_DIR/libmodsecurity.so"
+```
 
 ## 6. Provide the host or proxy
 
@@ -69,12 +82,14 @@ VERSION="1.31.2"
 
 #### Download and unpack the host source
 
-This creates only the selected NGINX host source tree. Section 7 adds the repository-owned dynamic connector from the current checkout.
+This verifies the selected NGINX archive before unpacking it and creates only the host source tree. Import the NGINX release signing key from the official release site before running the GPG check. Section 7 adds the repository-owned dynamic connector from the current checkout.
 
 ```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 curl -fLO "https://nginx.org/download/nginx-$VERSION.tar.gz"
+curl -fLO "https://nginx.org/download/nginx-$VERSION.tar.gz.asc"
+gpg --verify "nginx-$VERSION.tar.gz.asc" "nginx-$VERSION.tar.gz"
 tar -xzf "nginx-$VERSION.tar.gz"
 ```
 
@@ -87,33 +102,26 @@ No host binary or module has been built yet. The NGINX source is ready for Secti
 This file proves that the selected upstream NGINX source input was obtained.
 
 ```sh
-test -f "$WORKDIR/nginx-$VERSION/auto/configure"
+test -f "$WORKDIR/nginx-$VERSION/configure"
 ```
 
 ### Source build and integrity checks
 
-#### Optional: verify download and version
-
-Import the NGINX release signing key from the official release site before verifying the detached signature. The repository framework records the matching `release-1.31.2` host provenance independently from this concise host flow.
-
-```sh
-curl -fLO "https://nginx.org/download/nginx-$VERSION.tar.gz.asc"
-gpg --verify "nginx-$VERSION.tar.gz.asc" "nginx-$VERSION.tar.gz"
-```
-
 ## 7. Build and integrate the connector
 
-Section 6 provided only the NGINX host source. The adapter-owned connector is already in this checkout under `connectors/nginx/`; build it as the selected dynamic NGINX module. The Common and libmodsecurity paths below are explicit so the dynamic module is built from the same repository and engine inputs.
+Section 6 provided only the NGINX host source. The adapter-owned connector is already in this checkout under `connectors/nginx/`; build it as the selected dynamic NGINX module. The Common and libmodsecurity paths below are explicit so the dynamic module is built from the same repository and engine inputs. `make install` installs the dynamic module at the configured modules path; do not copy it a second time.
 
 ```sh
 INSTALL_DIR="$HOME/.local/nginx-modsecurity"
 JOBS=2
 cd "$WORKDIR/nginx-$VERSION"
+MODSECURITY_INC="$MODSECURITY_INCLUDE_DIR"
+MODSECURITY_LIB="$MODSECURITY_LIB_DIR"
 MSCONNECTOR_COMMON_INC="$CONNECTOR_ROOT/common/include" \
 MSCONNECTOR_COMMON_SRC="$CONNECTOR_ROOT/common/src" \
-MODSECURITY_INC="/usr/local/include" \
-MODSECURITY_LIB="/usr/local/lib" \
-./auto/configure \
+MODSECURITY_INC="$MODSECURITY_INC" \
+MODSECURITY_LIB="$MODSECURITY_LIB" \
+./configure \
   --prefix="$INSTALL_DIR" \
   --sbin-path="$INSTALL_DIR/sbin/nginx" \
   --modules-path="$INSTALL_DIR/modules" \
@@ -127,11 +135,6 @@ make -j"$JOBS"
 make install
 ```
 
-```sh
-mkdir -p "$INSTALL_DIR/modules"
-cp -a "objs/ngx_http_modsecurity_module.so" "$INSTALL_DIR/modules/"
-```
-
 ## 8. Configuration
 
 Create a local test rule and nginx.conf. The primary connector is a dynamic module, so nginx.conf loads it before the events and http blocks. This section writes configuration only; Section 10 validates and starts it.
@@ -139,6 +142,9 @@ Create a local test rule and nginx.conf. The primary connector is a dynamic modu
 ```sh
 RULES_FILE="$WORKDIR/modsecurity-local.conf"
 NGINX_CONFIG="$INSTALL_DIR/conf/nginx.conf"
+NGINX_DOCROOT="$WORKDIR/htdocs"
+mkdir -p "$NGINX_DOCROOT"
+printf "nginx modsecurity test\n" > "$NGINX_DOCROOT/index.html"
 cat > "$RULES_FILE" <<'EOF'
 SecRuleEngine On
 SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
@@ -150,10 +156,15 @@ events {}
 http {
     server {
         listen 127.0.0.1:8080;
+        modsecurity on;
+        modsecurity_rules_file "$RULES_FILE";
+        location = /__modsec_ready {
+            modsecurity off;
+            return 204;
+        }
         location / {
-            modsecurity on;
-            modsecurity_rules_file "$RULES_FILE";
-            return 200 "nginx modsecurity test\n";
+            root "$NGINX_DOCROOT";
+            index index.html;
         }
     }
 }
@@ -172,10 +183,7 @@ test -f "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so"
 "$INSTALL_DIR/sbin/nginx" -V
 "$INSTALL_DIR/sbin/nginx" -V 2>&1 | grep -F -- "--add-dynamic-module=$CONNECTOR_ROOT/connectors/nginx"
 file "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so"
-ldd "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so" | grep -F libmodsecurity
-```
-
-```sh
+ldd "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so" | grep -F libmodsecurity | grep -Fv "not found"
 test -f "$RULES_FILE"
 test -f "$NGINX_CONFIG"
 ```
@@ -189,8 +197,8 @@ Run the syntax check first, then start the local host, send one ordinary and one
 ```sh
 "$INSTALL_DIR/sbin/nginx" -t -p "$INSTALL_DIR" -c conf/nginx.conf
 "$INSTALL_DIR/sbin/nginx" -p "$INSTALL_DIR" -c conf/nginx.conf
-curl -i http://127.0.0.1:8080/
-curl -i http://127.0.0.1:8080/blocked
+test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/)" = "200"
+test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/blocked)" = "403"
 "$INSTALL_DIR/sbin/nginx" -p "$INSTALL_DIR" -c conf/nginx.conf -s quit
 ```
 
@@ -246,8 +254,10 @@ git -C "$CONNECTOR_ROOT" submodule update --init --recursive
 Do not copy files indiscriminately to `/usr/lib` and do not remove global directories. A user prefix does not need `sudo`. Remove evidence or logs only after deliberate review.
 
 ```sh
-find "$HOME/src/modsecurity-connectors" -maxdepth 2 -mindepth 1 -print
-# Review the listed paths first; remove only a chosen external host-build directory.
+test ! -e "$HOME/nginx-modsecurity" || find "$HOME/nginx-modsecurity" -maxdepth 2 -mindepth 1 -print
+test ! -e "$HOME/.local/nginx-modsecurity" || find "$HOME/.local/nginx-modsecurity" -maxdepth 2 -mindepth 1 -print
+test ! -e "$HOME/modsecurity-connector-work" || find "$HOME/modsecurity-connector-work" -maxdepth 2 -mindepth 1 -print
+# Review the listed external paths first; remove only a chosen host-build or test directory.
 ```
 
 ## 15. Troubleshooting
@@ -262,6 +272,9 @@ A startup or directive failure normally means the NGINX binary, dynamic-module c
 | --- | --- |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
+| MODSECURITY_PREFIX | libmodsecurity installation prefix. The official simple-build default is /usr/local/modsecurity. |
+| MODSECURITY_INCLUDE_DIR | libmodsecurity header directory selected from MODSECURITY_PREFIX. |
+| MODSECURITY_LIB_DIR | libmodsecurity shared-library directory selected from MODSECURITY_PREFIX; the hand-off detects lib64 when needed. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |
@@ -270,6 +283,7 @@ A startup or directive failure normally means the NGINX binary, dynamic-module c
 | MODSECURITY_INC | libmodsecurity header directory selected from the shared build. |
 | MODSECURITY_LIB | libmodsecurity library directory selected from the shared build. |
 | NGINX_CONFIG | Local NGINX configuration for the loopback test. |
+| NGINX_DOCROOT | External local document root used by the protected static-content test. |
 | WORKDIR | External NGINX host-source workspace. |
 | VERSION | Selected official NGINX release. |
 | INSTALL_DIR | Private NGINX installation prefix for the dynamic-module build. |

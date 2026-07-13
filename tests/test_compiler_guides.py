@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 import unittest
 from urllib.parse import urlparse
@@ -131,8 +132,45 @@ def shell_variables(content: str) -> set[str]:
     return set(re.findall(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)", "\n".join(shell_blocks(content))))
 
 
+def executable_shell_lines(content: str) -> list[str]:
+    lines: list[str] = []
+    for block in shell_blocks(content):
+        delimiter: str | None = None
+        for line in block.splitlines():
+            if delimiter is not None:
+                if line == delimiter:
+                    delimiter = None
+                continue
+            lines.append(line)
+            match = re.search(r"<<['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?", line)
+            if match is not None:
+                delimiter = match.group(1)
+    return lines
+
+
 def shell_assignments(content: str) -> list[str]:
-    return re.findall(r"^([A-Za-z_][A-Za-z0-9_]*)=", "\n".join(shell_blocks(content)), flags=re.MULTILINE)
+    return re.findall(
+        r"(?<![A-Za-z0-9_-])(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=",
+        "\n".join(executable_shell_lines(content)),
+    )
+
+
+def leading_shell_assignments(content: str) -> list[str]:
+    return re.findall(
+        r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=",
+        "\n".join(executable_shell_lines(content)),
+        flags=re.MULTILINE,
+    )
+
+
+def local_markdown_targets(document: Path) -> set[Path]:
+    targets: set[Path] = set()
+    for target in re.findall(r"\]\(([^)]+)\)", document.read_text(encoding="utf-8")):
+        target = target.split("#", maxsplit=1)[0]
+        if not target or "://" in target or target.startswith("mailto:"):
+            continue
+        targets.add((document.parent / target).resolve())
+    return targets
 
 
 def target_exists(target: str) -> bool:
@@ -324,7 +362,16 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                 connector_shell = "\n".join(shell_blocks(content))
                 self.assertNotIn(COMMON_BEGINNER_COMMANDS[0], connector_shell, slug)
                 self.assertNotIn("\n./build.sh\n", f"\n{connector_shell}\n", slug)
-                self.assertNotIn("sudo make install", connector_shell, slug)
+                if slug == "apache":
+                    self.assertIn('if [ -w "$("$APXS" -q LIBEXECDIR)" ]; then', connector_shell)
+                    self.assertIn("sudo make install", connector_shell)
+                else:
+                    self.assertNotIn("sudo make install", connector_shell, slug)
+
+                section_five = numbered_section(content, 5)
+                self.assertIn('/usr/local/modsecurity', section_five, slug)
+                self.assertIn('export MODSECURITY_INCLUDE_DIR=', section_five, slug)
+                self.assertIn('export MODSECURITY_LIB_DIR=', section_five, slug)
 
     def test_connector_structure_and_bilingual_technical_parity(self) -> None:
         for slug in SLUGS:
@@ -413,6 +460,29 @@ class CompilerGuideGenerationTest(unittest.TestCase):
             }
             self.assertEqual(normalize(expected_english), normalize(expected_german), slug)
 
+    def test_all_generated_relative_markdown_links_resolve(self) -> None:
+        for document in sorted(GUIDE_DIRECTORY.glob("*.md")):
+            for target in local_markdown_targets(document):
+                self.assertTrue(target.exists(), f"{document.name}: {target}")
+
+    def test_repository_sections_link_readme_source_build_and_configuration_material(self) -> None:
+        required_configuration = {
+            "apache": "../../../connectors/apache/harness/apache_smoke.conf",
+            "nginx": "../../../connectors/nginx/config",
+            "haproxy": "../../../connectors/haproxy/harness/run_haproxy_htx_runtime.sh",
+            "envoy": "../../../connectors/envoy/config/",
+            "traefik": "../../../connectors/traefik/config/traefik-native-middleware-static.yaml",
+            "lighttpd": "../../../connectors/lighttpd/config/lighttpd-native.conf",
+        }
+        for slug, configuration_path in required_configuration.items():
+            info = GENERATOR.MANUAL_GUIDES[slug]
+            all_paths = {
+                *{path for _, _, path in info["repository_connector_source_links"]},
+                *{path for _, _, path in info["repository_connector_build_files"]},
+            }
+            self.assertIn(configuration_path, all_paths, slug)
+            self.assertTrue(connector_link_target(configuration_path).exists(), slug)
+
     def test_apache_and_nginx_upstreams_are_prose_only_alternatives(self) -> None:
         alternatives = {
             "apache": "ModSecurity-apache",
@@ -469,7 +539,6 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                 "What was installed or built?",
                 "Check the result",
                 "Source build and integrity checks",
-                "Optional: verify download and version",
             ),
             (
                 True,
@@ -477,21 +546,17 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                 "Was wurde installiert oder gebaut?",
                 "Erfolg prüfen",
                 "Source-Build und Integritätsprüfung",
-                "Optional: Download und Version verifizieren",
             ),
         )
         for slug in SLUGS:
-            for german, simple_heading, installed_heading, success_heading, source_heading, verification_heading in localized:
+            for german, simple_heading, installed_heading, success_heading, source_heading in localized:
                 section = numbered_section(guide(slug, german=german), 6)
                 for heading in (simple_heading, installed_heading, success_heading, source_heading):
                     self.assertIn(f"### {heading}", section, f"{slug}: {heading}")
                 simple = h3_section(section, simple_heading)
-                source = h3_section(section, source_heading)
                 self.assertNotRegex(simple, r"(?m)^export\b", slug)
-                self.assertLessEqual(len(shell_assignments(simple)), 3, slug)
+                self.assertLessEqual(len(leading_shell_assignments(simple)), 3, slug)
                 self.assertNotIn("LD_LIBRARY_PATH", simple, slug)
-                for block in shell_blocks(section):
-                    self.assertLessEqual(len(nonempty_shell_lines(block)), 6, slug)
                 for forbidden in (
                     "SecRule",
                     "cat >",
@@ -505,43 +570,53 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                     "\nkill ",
                 ):
                     self.assertNotIn(forbidden, section, f"{slug}: {forbidden}")
-                self.assertIn(f"#### {verification_heading}", source, slug)
-                self.assertRegex(source.lower(), r"sha256|gpg|checksum", slug)
+                self.assertRegex(section.lower(), r"sha256|gpg|checksum", slug)
+
+                if slug in {"apache", "nginx", "haproxy", "traefik", "lighttpd"}:
+                    self.assertLess(section.index("sha256sum") if "sha256sum" in section else section.index("gpg --verify"), section.index("tar -x"), slug)
+                if slug in {"apache", "nginx"}:
+                    self.assertLess(section.index("gpg --verify"), section.index("tar -x"), slug)
+                if slug == "envoy":
+                    self.assertLess(section.index("sha256sum -c -"), section.index("chmod 755 envoy"), slug)
 
     def test_connector_configuration_validation_and_runtime_stay_in_sections_seven_to_ten(self) -> None:
         nginx = {number: numbered_section(guide("nginx"), number) for number in range(6, 11)}
-        for token in ("./auto/configure", "make install", "nginx.conf", "curl -i"):
+        for token in ("./configure", "make install", "nginx.conf", "curl -i"):
             self.assertNotIn(token, nginx[6])
         self.assertNotIn("git clone https://github.com/owasp-modsecurity/ModSecurity-nginx.git", nginx[6])
         self.assertNotIn("ModSecurity-nginx", nginx[6])
         for token in (
-            "./auto/configure",
+            "./configure",
             'MSCONNECTOR_COMMON_INC="$CONNECTOR_ROOT/common/include"',
             'MSCONNECTOR_COMMON_SRC="$CONNECTOR_ROOT/common/src"',
-            'MODSECURITY_INC="/usr/local/include"',
-            'MODSECURITY_LIB="/usr/local/lib"',
+            'MODSECURITY_INC="$MODSECURITY_INCLUDE_DIR"',
+            'MODSECURITY_LIB="$MODSECURITY_LIB_DIR"',
             "--with-compat",
             '--add-dynamic-module="$CONNECTOR_ROOT/connectors/nginx"',
             'make -j"$JOBS"',
             "make install",
-            'cp -a "objs/ngx_http_modsecurity_module.so" "$INSTALL_DIR/modules/"',
         ):
             self.assertIn(token, nginx[7])
+        self.assertNotIn("./auto/configure", nginx[7])
+        self.assertNotIn('cp -a "objs/ngx_http_modsecurity_module.so"', nginx[7])
         self.assertNotIn("--add-module=", nginx[7])
         self.assertNotIn("ModSecurity-nginx", nginx[7])
         self.assertIn("modsecurity-local.conf", nginx[8])
         self.assertIn("nginx.conf", nginx[8])
         self.assertIn("load_module modules/ngx_http_modsecurity_module.so;", nginx[8])
+        self.assertIn('root "$NGINX_DOCROOT";', nginx[8])
+        self.assertIn('index index.html;', nginx[8])
+        self.assertNotIn('return 200 "nginx modsecurity test', nginx[8])
         self.assertIn('"$INSTALL_DIR/sbin/nginx" -V', nginx[9])
         for token in (
             'test -f "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so"',
             "--add-dynamic-module=$CONNECTOR_ROOT/connectors/nginx",
             'file "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so"',
-            'ldd "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so" | grep -F libmodsecurity',
+            'ldd "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so" | grep -F libmodsecurity | grep -Fv "not found"',
         ):
             self.assertIn(token, nginx[9])
         self.assertNotIn("--add-module=$WORKDIR/ModSecurity-nginx", nginx[9])
-        for token in ('-t -p "$INSTALL_DIR"', "curl -i http://127.0.0.1:8080/", "-s quit"):
+        for token in ('-t -p "$INSTALL_DIR"', '= "200"', '= "403"', "-s quit"):
             self.assertIn(token, nginx[10])
 
         apache = {number: numbered_section(guide("apache"), number) for number in range(6, 11)}
@@ -549,27 +624,43 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         self.assertIn('test -x "$INSTALL_DIR/bin/apxs"', apache[6])
         self.assertIn('APXS="$HOME/.local/apache-modsecurity/bin/apxs"', apache[7])
         for token in (
+            'command -v apxs || command -v apxs2',
             'cd "$CONNECTOR_ROOT/connectors/apache"',
             'test -f "$CONNECTOR_ROOT/connectors/apache/configure.ac"',
             "materialize-connector-source.sh",
             '--adapter-dir "$CONNECTOR_ROOT/connectors/apache"',
             "./autogen.sh",
+            '--with-libmodsecurity="$MODSECURITY_PREFIX"',
             '--with-apxs="$APXS"',
             '--with-apache="$HTTPD_BIN"',
+            'sudo make install',
         ):
             self.assertIn(token, apache[7])
         self.assertNotIn("git clone https://github.com/owasp-modsecurity/ModSecurity-apache.git", apache[7])
         self.assertIn('"$APXS" -q LIBEXECDIR', apache[9])
         self.assertIn("LoadModule security3_module", apache[8])
+        for token in ("HTTPD_RUNTIME_ROOT", "HTTPD_DOCUMENT_ROOT", "HTTPD_MODULES", "DefaultRuntimeDir", 'printf "apache modsecurity test'):
+            self.assertIn(token, apache[8])
+        self.assertIn('LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR', apache[9])
+        self.assertIn('LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR', apache[10])
+        self.assertIn('= "200"', apache[10])
+        self.assertIn('= "403"', apache[10])
 
         haproxy = {number: numbered_section(guide("haproxy"), number) for number in range(6, 11)}
         self.assertNotIn("build-overlay.sh", haproxy[6])
-        self.assertIn("build-overlay.sh", haproxy[7])
+        self.assertIn('sh "$CONNECTOR_ROOT/connectors/haproxy/htx-overlay/build-overlay.sh"', haproxy[7])
+        self.assertIn('MODSECURITY_INCLUDE_DIR', numbered_section(guide("haproxy"), 5))
+        self.assertIn('MODSECURITY_LIB_DIR', numbered_section(guide("haproxy"), 5))
         self.assertIn("modsecurity-htx", haproxy[8])
         self.assertIn("phase4-mode safe", haproxy[8])
         self.assertIn("SPOE/SPOP", haproxy[7])
         self.assertNotIn('"$HAPROXY_HTX_BIN" -c', haproxy[8])
         self.assertIn('"$HAPROXY_HTX_BIN" -c', haproxy[9])
+        self.assertIn('grep -Fv "not found"', haproxy[9])
+        self.assertIn('kill -0 "$haproxy_pid"', haproxy[10])
+        self.assertIn('test "$attempt" -lt 50', haproxy[10])
+        self.assertIn('= "200"', haproxy[10])
+        self.assertIn('= "403"', haproxy[10])
 
         envoy = {number: numbered_section(guide("envoy"), number) for number in range(6, 11)}
         self.assertNotIn("build_ext_proc.sh", envoy[6])
@@ -578,6 +669,9 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         self.assertNotIn("--mode validate", envoy[8])
         self.assertIn("--mode validate", envoy[9])
         self.assertIn("--check-config", envoy[9])
+        self.assertIn('EXT_PROC_CONFIG="$CONNECTOR_ROOT/connectors/envoy/config/envoy-ext-proc-service.json"', envoy[8])
+        self.assertIn('--runtime-config "$EXT_PROC_RUNTIME_CONFIG"', envoy[9])
+        self.assertIn('EXT_PROC_RUNTIME_CONFIG="$EXT_PROC_RUNTIME_CONFIG"', envoy[10])
 
         traefik = {number: numbered_section(guide("traefik"), number) for number in range(6, 11)}
         self.assertNotIn("make test-unit", h3_section(traefik[6], "Simple path"))
@@ -589,6 +683,20 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         self.assertNotIn('"$TRAEFIK_BIN" check', traefik[8])
         self.assertIn('"$TRAEFIK_BIN" check', traefik[9])
         self.assertIn("--check-config", traefik[9])
+        self.assertIn('traefik-native-runtime-$(date -u +%Y%m%dT%H%M%SZ)', traefik[8])
+        self.assertIn('mktemp -d /tmp/msconnector-traefik-uds.XXXXXX', traefik[8])
+        self.assertIn('chmod 700 "$TRAEFIK_SOCKET_DIR"', traefik[8])
+        self.assertIn('TRAEFIK_ENGINE_SOCKET="$TRAEFIK_SOCKET_DIR/engine.sock"', traefik[8])
+        self.assertIn('test "${#TRAEFIK_ENGINE_SOCKET}" -lt 108', traefik[8])
+        self.assertIn('native_middleware/.' , traefik[8])
+        self.assertIn('( cd "$TRAEFIK_RUNTIME_ROOT" && "$TRAEFIK_BIN" check --configFile="$TRAEFIK_STATIC_CONFIG" )', traefik[9])
+        self.assertNotRegex(traefik[9], r'(?m)^"\$TRAEFIK_BIN" check --configFile=')
+        self.assertIn('test -S "$TRAEFIK_ENGINE_SOCKET"', traefik[10])
+        self.assertIn('stat -c "%a" "$TRAEFIK_ENGINE_SOCKET"', traefik[10])
+        self.assertIn('kill -0 "$traefik_pid"', traefik[10])
+        self.assertIn('test "$attempt" -lt 50', traefik[10])
+        self.assertIn('= "200"', traefik[10])
+        self.assertIn('= "403"', traefik[10])
 
         lighttpd = {number: numbered_section(guide("lighttpd"), number) for number in range(6, 11)}
         self.assertIn("patch --dry-run -p1", lighttpd[6])
@@ -598,22 +706,26 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         self.assertNotIn(" -tt -f", lighttpd[8])
         self.assertIn(" -tt -f", lighttpd[9])
         self.assertIn("Entity-Body", guide("lighttpd"))
+        self.assertIn('LIGHTTPD_DOCUMENT_ROOT', lighttpd[8])
+        self.assertIn('index.html', lighttpd[8])
+        self.assertIn('server.modules = ( "mod_indexfile", "mod_msconnector", "mod_staticfile" )', lighttpd[8])
+        self.assertIn('index-file.names = ( "index.html" )', lighttpd[8])
+        self.assertIn('grep -Fv "not found"', lighttpd[9])
+        self.assertIn('mod_(indexfile|staticfile)_plugin_init$', lighttpd[9])
+        self.assertIn('kill -0 "$lighttpd_pid"', lighttpd[10])
+        self.assertIn('test "$attempt" -lt 50', lighttpd[10])
+        self.assertIn('= "200"', lighttpd[10])
+        self.assertIn('= "403"', lighttpd[10])
 
-        for slug, sections in (
-            ("haproxy", haproxy),
-            ("envoy", envoy),
-            ("traefik", traefik),
-            ("lighttpd", lighttpd),
-        ):
-            self.assertIn('cd "$CONNECTOR_ROOT"', sections[7], slug)
+        for slug, sections in (("haproxy", haproxy), ("envoy", envoy), ("traefik", traefik), ("lighttpd", lighttpd)):
+            self.assertNotRegex(sections[7], r"\bsh connectors/", slug)
 
         traefik_source = h3_section(traefik[6], "Source build and integrity checks")
         self.assertIn('grep -E "^go " go.mod', traefik_source)
+        self.assertIn('grep -Fx "go 1.25.0" go.mod', traefik_source)
         self.assertIn("git rev-parse HEAD", traefik_source)
-        for slug in ("apache", "haproxy", "traefik", "lighttpd"):
-            source = h3_section(numbered_section(guide(slug), 6), "Source build and integrity checks")
-            verification = source[source.index("#### Optional: verify download and version") :]
-            self.assertIn('cd "$WORKDIR"', verification, slug)
+        self.assertIn('go 1.24.0', numbered_section(guide("envoy"), 4))
+        self.assertIn('go 1.24.0', numbered_section(guide("traefik"), 4))
 
     def test_repository_test_paths_follow_manual_steps_and_targets_exist(self) -> None:
         for connector in GENERATOR.CONNECTORS:
@@ -636,11 +748,44 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                 self.assertTrue(target_exists(target), f"missing Make target: {target}")
 
     def test_manual_shell_placeholders_are_documented(self) -> None:
-        ignored = {"HOME", "PWD"}
+        ignored = {"HOME", "PWD", "archive", "attempt", "module", "mpm"}
         for slug in SLUGS:
-            manual = "".join(numbered_section(guide(slug), number) for number in range(6, 11))
-            unexplained = shell_variables(manual) - variable_names(guide(slug)) - ignored
-            self.assertEqual(set(), unexplained, slug)
+            for german in (False, True):
+                content = guide(slug, german=german)
+                manual = "".join(numbered_section(content, number) for number in range(4, 11))
+                used_names = shell_variables(manual) | set(shell_assignments(manual))
+                unexplained = used_names - variable_names(content) - ignored
+                self.assertEqual(set(), unexplained, f"{slug} german={german}")
+
+                outside_variable_table = content.replace(numbered_section(content, 16), "")
+                documented_but_unused = variable_names(content) - (
+                    shell_variables(outside_variable_table)
+                    | set(shell_assignments(outside_variable_table))
+                )
+                self.assertEqual(set(), documented_but_unused, f"{slug} german={german}")
+
+    def test_every_generated_shell_block_is_syntactically_valid(self) -> None:
+        documents = [*sorted(GUIDE_DIRECTORY.glob("*.md"))]
+        for document in documents:
+            for index, block in enumerate(shell_blocks(document.read_text(encoding="utf-8")), start=1):
+                result = subprocess.run(
+                    ["sh", "-n"], input=block, text=True, capture_output=True, check=False
+                )
+                self.assertEqual(0, result.returncode, f"{document.name} block {index}: {result.stderr}")
+
+    def test_prefix_and_cleanup_regressions_are_explicit(self) -> None:
+        for content in (common_guide(), common_guide(german=True)):
+            self.assertIn("/usr/local/modsecurity/include/modsecurity", content)
+            self.assertIn("/usr/local/modsecurity", content)
+            self.assertNotIn("/usr/local/include/modsecurity", content)
+        for slug in SLUGS:
+            content = guide(slug)
+            self.assertIn('MODSECURITY_PREFIX="${MODSECURITY_PREFIX:-/usr/local/modsecurity}"', content)
+            cleanup = numbered_section(content, 14)
+            self.assertNotIn("src/modsecurity-connectors", cleanup)
+            self.assertIn("$HOME/", cleanup)
+        self.assertIn('test ! -e "$LIGHTTPD_PATCHED_SRC"', guide("lighttpd"))
+        self.assertIn('htx-overlay-$(date -u +%Y%m%dT%H%M%SZ)', guide("haproxy"))
 
     def test_guides_use_safe_defaults_and_state_required_boundaries(self) -> None:
         forbidden_claims = (

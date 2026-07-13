@@ -20,6 +20,8 @@ libmodsecurity v3, Traefik, the repository native Go middleware, the C/C++ engin
 - [Native middleware builder](../../../connectors/traefik/build/build-native-middleware.sh)
 - [Engine-service builder](../../../connectors/traefik/build/build-engine-service.sh)
 - [Source mapping](../../../connectors/traefik/SOURCE_MAP.json)
+- [Native middleware static configuration](../../../connectors/traefik/config/traefik-native-middleware-static.yaml)
+- [Native middleware dynamic configuration](../../../connectors/traefik/config/traefik-native-middleware-dynamic.yaml)
 
 This is the primary connector path for this guide: connectors/traefik/. The official host documentation in the following section explains only how to provide or build the host; it does not replace the connector source.
 
@@ -31,8 +33,6 @@ Section 7 builds the repository native middleware and its engine service; the of
   Official installation choices, entry points, routers, services, and safe local startup context. Version scope: Confirm the documentation version for the selected Traefik release.
 - **Source and scope:** [Building and Testing](https://doc.traefik.io/traefik/contributing/building-testing/)
   Official source checkout, Go/tooling, build, and test workflow. Version scope: The required Go version is defined by the selected release's `go.mod`.
-- **Source and scope:** [Traefik Configuration Reference](https://doc.traefik.io/traefik/reference/)
-  Current official reference index for static configuration, File Provider, routers, middleware, and services. Version scope: Check that the current reference matches the selected release before applying a setting.
 - **Source and scope:** [Traefik v3.7 configuration overview](https://doc.traefik.io/traefik/v3.7/getting-started/configuration-overview/)
   The distinction between static installation configuration and dynamic routing configuration. Version scope: Use one static configuration method and recheck it for another release.
 - **Source and scope:** [Traefik v3.7 EntryPoints](https://doc.traefik.io/traefik/v3.7/reference/install-configuration/entrypoints/)
@@ -58,13 +58,31 @@ export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
+The repository native middleware module requires Go 1.24.0; this differs from the optional Traefik-v3.7.5 host-source requirement in Section 6.
+
+```sh
+go version
+grep -Fx "go 1.24.0" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"
+```
+
 ## 5. Prepare libmodsecurity v3
 
 Build libmodsecurity v3 first with the shared guide:
 
 [Build libmodsecurity v3](libmodsecurity.md)
 
-The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.
+The following hand-off uses the official simple-build default `/usr/local/modsecurity`. Override MODSECURITY_PREFIX, MODSECURITY_INCLUDE_DIR, or MODSECURITY_LIB_DIR only for a deliberately selected installation. It checks the header and chooses `lib64` only when `lib` lacks libmodsecurity.
+
+```sh
+export MODSECURITY_PREFIX="${MODSECURITY_PREFIX:-/usr/local/modsecurity}"
+export MODSECURITY_INCLUDE_DIR="${MODSECURITY_INCLUDE_DIR:-$MODSECURITY_PREFIX/include}"
+export MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$MODSECURITY_PREFIX/lib}"
+if [ ! -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ] && [ -f "$MODSECURITY_PREFIX/lib64/libmodsecurity.so" ]; then
+    MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib64"
+fi
+test -f "$MODSECURITY_INCLUDE_DIR/modsecurity/modsecurity.h"
+test -f "$MODSECURITY_LIB_DIR/libmodsecurity.so"
+```
 
 ## 6. Provide the host or proxy
 
@@ -85,6 +103,8 @@ The official linux_amd64 release archive contains the host binary; no repository
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 curl -fLO "https://github.com/traefik/traefik/releases/download/v${VERSION}/traefik_v${VERSION}_linux_amd64.tar.gz"
+curl -fLO "https://github.com/traefik/traefik/releases/download/v${VERSION}/traefik_v${VERSION}_checksums.txt"
+grep "traefik_v${VERSION}_linux_amd64.tar.gz" "traefik_v${VERSION}_checksums.txt" | sha256sum -c -
 tar -xzf "traefik_v${VERSION}_linux_amd64.tar.gz"
 ```
 
@@ -97,15 +117,15 @@ The release archive provides only the Traefik host binary. The repository native
 These checks identify the extracted host binary before the connector build starts.
 
 ```sh
-test -x ./traefik
-./traefik version
+test -x "$WORKDIR/traefik"
+"$WORKDIR/traefik" version
 ```
 
 ### Source build and integrity checks
 
 #### Optional: build Traefik from source
 
-Check the Go version required by the selected tag before cloning it. This path builds only the Traefik host; the repository middleware and engine still belong to Section 7.
+Traefik v3.7.5's selected source declares Go 1.25.0 in go.mod; check that exact requirement before cloning it. This path builds only the Traefik host; the repository middleware and engine still belong to Section 7.
 
 ```sh
 go version
@@ -113,6 +133,7 @@ git clone https://github.com/traefik/traefik.git "$WORKDIR/traefik-source"
 cd "$WORKDIR/traefik-source"
 git checkout --detach "v$VERSION"
 grep -E "^go " go.mod
+grep -Fx "go 1.25.0" go.mod
 git rev-parse HEAD
 ```
 
@@ -121,42 +142,31 @@ git rev-parse HEAD
 The official build command and version output confirm the source-host result. The repository middleware and engine remain Section 7 work.
 
 ```sh
+cd "$WORKDIR/traefik-source"
 make binary
-./dist/traefik version
-```
-
-#### Optional: verify download and version
-
-The checksum manifest is tied to the selected repository-compatible release.
-
-```sh
-cd "$WORKDIR"
-curl -fLO "https://github.com/traefik/traefik/releases/download/v${VERSION}/traefik_v${VERSION}_checksums.txt"
-grep "traefik_v${VERSION}_linux_amd64.tar.gz" "traefik_v${VERSION}_checksums.txt" | sha256sum -c -
+export TRAEFIK_BIN="$WORKDIR/traefik-source/dist/traefik"
+"$WORKDIR/traefik-source/dist/traefik" version
 ```
 
 ## 7. Build and integrate the connector
 
-A standard Traefik binary does not include the native ModSecurity middleware or the persistent engine service. Build the Go middleware and the C/C++ service from this checkout, placing both outputs outside it. The engine socket must be private to the local run and must not be reused as a shared system endpoint.
+A standard Traefik binary does not include the native ModSecurity middleware or the persistent engine service. Section 7 compiles and tests the repository Go middleware package, then builds the C/C++ service outside this checkout; Section 8 stages the plugin source for the local run. The engine socket must be private to the local run and must not be reused as a shared system endpoint.
 
 The host path is reintroduced here only so that the connector commands can consume the Section 6 host without rebuilding it.
 
 ```sh
 export HOST_BUILD_BASE="$HOME/connector-build/traefik"
-export TRAEFIK_BIN="$HOST_BUILD_BASE/traefik"
+export TRAEFIK_BIN="${TRAEFIK_BIN:-$HOST_BUILD_BASE/traefik}"
 cd "$CONNECTOR_ROOT"
 export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"
 export TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$BUILD_ROOT/traefik-native-middleware"
 export TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$BUILD_ROOT/traefik-engine-service"
-```
-
-```sh
 export TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR/traefik-engine-service"
-BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh connectors/traefik/build/build-native-middleware.sh build
-BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh connectors/traefik/build/build-native-middleware.sh test
-BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/traefik/build/build-engine-service.sh build
+BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh "$CONNECTOR_ROOT/connectors/traefik/build/build-native-middleware.sh" build
+BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh "$CONNECTOR_ROOT/connectors/traefik/build/build-native-middleware.sh" test
+BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh "$CONNECTOR_ROOT/connectors/traefik/build/build-engine-service.sh" build
 test -x "$TRAEFIK_ENGINE_SERVICE_BIN"
-BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/traefik/build/build-engine-service.sh test
+BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh "$CONNECTOR_ROOT/connectors/traefik/build/build-engine-service.sh" test
 ```
 
 ## 8. Configuration
@@ -166,27 +176,22 @@ The local rule below is a test rule, not a CRS rule. Keep configuration and runt
 The configuration deliberately uses only loopback entry points and does not enable an insecure dashboard or API. Treat any dashboard or administration endpoint as optional and secure it separately for a real deployment.
 
 ```sh
-export TRAEFIK_RUNTIME_ROOT="$BUILD_ROOT/traefik-native-runtime"
-export RULES_FILE="$BUILD_ROOT/traefik-native-rules.conf"
-export TRAEFIK_STATIC_CONFIG="$BUILD_ROOT/traefik-static.yaml"
-export TRAEFIK_DYNAMIC_CONFIG="$BUILD_ROOT/traefik-dynamic.yaml"
-export TRAEFIK_ENGINE_CONFIG="$BUILD_ROOT/traefik-engine.conf"
-export TRAEFIK_ENGINE_SOCKET="$BUILD_ROOT/run/traefik-engine.sock"
-```
-
-```sh
+export TRAEFIK_RUNTIME_ROOT="$BUILD_ROOT/traefik-native-runtime-$(date -u +%Y%m%dT%H%M%SZ)"
+export RULES_FILE="$TRAEFIK_RUNTIME_ROOT/traefik-native-rules.conf"
+export TRAEFIK_STATIC_CONFIG="$TRAEFIK_RUNTIME_ROOT/traefik-static.yaml"
+export TRAEFIK_DYNAMIC_CONFIG="$TRAEFIK_RUNTIME_ROOT/traefik-dynamic.yaml"
+export TRAEFIK_ENGINE_CONFIG="$TRAEFIK_RUNTIME_ROOT/traefik-engine.conf"
+export TRAEFIK_SOCKET_DIR="$(mktemp -d /tmp/msconnector-traefik-uds.XXXXXX)"
+chmod 700 "$TRAEFIK_SOCKET_DIR"
+export TRAEFIK_ENGINE_SOCKET="$TRAEFIK_SOCKET_DIR/engine.sock"
+test "${#TRAEFIK_ENGINE_SOCKET}" -lt 108
 export TRAEFIK_PORT=18080
 export TRAEFIK_UPSTREAM_PORT=18081
 export TRAEFIK_PING_PORT=18082
 export TRAEFIK_PLUGIN_MODULE="github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware"
 export TRAEFIK_PLUGIN_SOURCE="$TRAEFIK_RUNTIME_ROOT/plugins-local/src/$TRAEFIK_PLUGIN_MODULE"
-mkdir -p "$(dirname "$TRAEFIK_PLUGIN_SOURCE")" "$BUILD_ROOT/run" "$BUILD_ROOT/logs"
-```
-
-```sh
-cp -a "$CONNECTOR_ROOT/connectors/traefik/native_middleware" "$TRAEFIK_PLUGIN_SOURCE"
-mkdir -p "$(dirname "$TRAEFIK_ENGINE_SOCKET")"
-chmod 700 "$(dirname "$TRAEFIK_ENGINE_SOCKET")"
+mkdir -p "$TRAEFIK_PLUGIN_SOURCE" "$TRAEFIK_RUNTIME_ROOT/logs"
+cp -a "$CONNECTOR_ROOT/connectors/traefik/native_middleware/." "$TRAEFIK_PLUGIN_SOURCE/"
 cat > "$RULES_FILE" <<EOF
 SecRuleEngine On
 SecRule REQUEST_HEADERS:X-Modsec-Smoke "@streq block" "id:100001,phase:1,deny,status:403,log"
@@ -235,9 +240,6 @@ http:
         servers:
           - url: http://127.0.0.1:$TRAEFIK_UPSTREAM_PORT
 EOF
-```
-
-```sh
 cat > "$TRAEFIK_ENGINE_CONFIG" <<EOF
 enabled=on
 rules_file=$RULES_FILE
@@ -251,7 +253,7 @@ phase4_mode=safe
 default_block_status=403
 default_error_status=500
 use_error_log=off
-event_path=$BUILD_ROOT/logs/traefik-events.jsonl
+event_path=$TRAEFIK_RUNTIME_ROOT/logs/traefik-events.jsonl
 max_header_count=100
 max_header_name_size=256
 max_header_value_size=8192
@@ -265,16 +267,13 @@ EOF
 Validate the selected host, connector artifact, dynamic library resolution, and generated configuration before sending traffic.
 
 ```sh
-"$TRAEFIK_BIN" check --configFile="$TRAEFIK_STATIC_CONFIG"
+( cd "$TRAEFIK_RUNTIME_ROOT" && "$TRAEFIK_BIN" check --configFile="$TRAEFIK_STATIC_CONFIG" )
 "$TRAEFIK_ENGINE_SERVICE_BIN" --check-config --config "$TRAEFIK_ENGINE_CONFIG"
 "$TRAEFIK_BIN" version
 test -f "$TRAEFIK_STATIC_CONFIG"
 test -f "$TRAEFIK_DYNAMIC_CONFIG"
 test -x "$TRAEFIK_ENGINE_SERVICE_BIN"
-```
-
-```sh
-ldd "$TRAEFIK_ENGINE_SERVICE_BIN" | grep -F libmodsecurity
+ldd "$TRAEFIK_ENGINE_SERVICE_BIN" | grep -F libmodsecurity | grep -Fv "not found"
 grep -F "modsecurityNative" "$TRAEFIK_STATIC_CONFIG"
 grep -F "engineSocketPath" "$TRAEFIK_DYNAMIC_CONFIG"
 ```
@@ -284,18 +283,34 @@ grep -F "engineSocketPath" "$TRAEFIK_DYNAMIC_CONFIG"
 Run only against loopback. `/ping` confirms host startup; the ordinary `/native` request exercises the private UDS route, and the `X-Modsec-Smoke: block` test header triggers the local 403 rule. These observations do not establish a broader claim.
 
 ```sh
-python3 -m http.server "$TRAEFIK_UPSTREAM_PORT" --bind 127.0.0.1 --directory "$TRAEFIK_RUNTIME_ROOT" > "$BUILD_ROOT/logs/upstream.log" 2>&1 &
+python3 -m http.server "$TRAEFIK_UPSTREAM_PORT" --bind 127.0.0.1 --directory "$TRAEFIK_RUNTIME_ROOT" > "$TRAEFIK_RUNTIME_ROOT/logs/upstream.log" 2>&1 &
 upstream_pid=$!
-"$TRAEFIK_ENGINE_SERVICE_BIN" --serve --config "$TRAEFIK_ENGINE_CONFIG" --socket "$TRAEFIK_ENGINE_SOCKET" > "$BUILD_ROOT/logs/engine.log" 2>&1 &
+LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$TRAEFIK_ENGINE_SERVICE_BIN" --serve --config "$TRAEFIK_ENGINE_CONFIG" --socket "$TRAEFIK_ENGINE_SOCKET" > "$TRAEFIK_RUNTIME_ROOT/logs/engine.log" 2>&1 &
 engine_pid=$!
-( cd "$TRAEFIK_RUNTIME_ROOT" && "$TRAEFIK_BIN" --configFile="$TRAEFIK_STATIC_CONFIG" ) > "$BUILD_ROOT/logs/traefik.log" 2>&1 &
+attempt=0
+while [ "$attempt" -lt 50 ] && [ ! -S "$TRAEFIK_ENGINE_SOCKET" ]; do
+    attempt=$((attempt + 1))
+    sleep 0.1
+done
+test -S "$TRAEFIK_ENGINE_SOCKET"
+test "$(stat -c "%a" "$TRAEFIK_ENGINE_SOCKET")" = "600"
+( cd "$TRAEFIK_RUNTIME_ROOT" && LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$TRAEFIK_BIN" --configFile="$TRAEFIK_STATIC_CONFIG" ) > "$TRAEFIK_RUNTIME_ROOT/logs/traefik.log" 2>&1 &
 traefik_pid=$!
-```
-
-```sh
+attempt=0
+while [ "$attempt" -lt 50 ]; do
+    if ! kill -0 "$traefik_pid" 2>/dev/null; then
+        exit 1
+    fi
+    if curl --http1.1 -fsS "http://127.0.0.1:$TRAEFIK_PING_PORT/ping" >/dev/null; then
+        break
+    fi
+    attempt=$((attempt + 1))
+    sleep 0.1
+done
+test "$attempt" -lt 50
 curl --http1.1 -fsS "http://127.0.0.1:$TRAEFIK_PING_PORT/ping"
-curl --http1.1 -i -H "X-Request-Id: traefik-native-allow" http://127.0.0.1:$TRAEFIK_PORT/native
-curl --http1.1 -i -H "X-Modsec-Smoke: block" -H "X-Request-Id: traefik-native-deny" http://127.0.0.1:$TRAEFIK_PORT/native
+test "$(curl --http1.1 -sS -o /dev/null -w "%{http_code}" -H "X-Request-Id: traefik-native-allow" http://127.0.0.1:$TRAEFIK_PORT/native)" = "200"
+test "$(curl --http1.1 -sS -o /dev/null -w "%{http_code}" -H "X-Modsec-Smoke: block" -H "X-Request-Id: traefik-native-deny" http://127.0.0.1:$TRAEFIK_PORT/native)" = "403"
 kill "$traefik_pid" "$engine_pid" "$upstream_pid"
 ```
 
@@ -351,8 +366,10 @@ git -C "$CONNECTOR_ROOT" submodule update --init --recursive
 Do not copy files indiscriminately to `/usr/lib` and do not remove global directories. A user prefix does not need `sudo`. Remove evidence or logs only after deliberate review.
 
 ```sh
-find "$HOME/src/modsecurity-connectors" -maxdepth 2 -mindepth 1 -print
-# Review the listed paths first; remove only a chosen external host-build directory.
+test ! -e "$HOME/connector-build/traefik" || find "$HOME/connector-build/traefik" -maxdepth 2 -mindepth 1 -print
+test ! -e "$HOME/modsecurity-connector-work" || find "$HOME/modsecurity-connector-work" -maxdepth 2 -mindepth 1 -print
+test -z "${TRAEFIK_SOCKET_DIR:-}" || test ! -e "$TRAEFIK_SOCKET_DIR" || find "$TRAEFIK_SOCKET_DIR" -maxdepth 2 -mindepth 1 -print
+# Review the listed external paths first; remove only a chosen host-build or test directory.
 ```
 
 ## 15. Troubleshooting
@@ -367,11 +384,15 @@ If Traefik starts without the middleware, check the local-plugin workspace, stat
 | --- | --- |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
+| MODSECURITY_PREFIX | libmodsecurity installation prefix. The official simple-build default is /usr/local/modsecurity. |
+| MODSECURITY_INCLUDE_DIR | libmodsecurity header directory selected from MODSECURITY_PREFIX. |
+| MODSECURITY_LIB_DIR | libmodsecurity shared-library directory selected from MODSECURITY_PREFIX; the hand-off detects lib64 when needed. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |
 | HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
 | BUILD_ROOT | External build and runtime root for repository-owned connector components. |
+| LD_LIBRARY_PATH | Process-local loader search path used only for a documented local module or service check; do not set it globally. |
 | upstream_pid | Local test-upstream process ID from $!; use it only in the same shell run. |
 | engine_pid | Local started Traefik engine-service process ID from $!; use it only in the same shell run. |
 | traefik_pid | Local started Traefik process ID from $!; use it only in the same shell run. |
@@ -380,6 +401,7 @@ If Traefik starts without the middleware, check the local-plugin workspace, stat
 | TRAEFIK_ENGINE_SERVICE_BUILD_DIR | External C/C++ engine-service build directory. |
 | TRAEFIK_ENGINE_SERVICE_BIN | Built private engine-service executable. |
 | TRAEFIK_RUNTIME_ROOT | Private working directory that contains the staged local plugin during a manual run. |
+| TRAEFIK_SOCKET_DIR | Short private directory for the run-local Unix-domain socket; its mode is 0700. |
 | TRAEFIK_STATIC_CONFIG | Local-plugin registration configuration. |
 | TRAEFIK_DYNAMIC_CONFIG | File Provider router/middleware configuration. |
 | TRAEFIK_ENGINE_CONFIG | Private engine-service runtime configuration. |

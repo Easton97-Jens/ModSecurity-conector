@@ -18,8 +18,10 @@ libmodsecurity v3, lighttpd 1.4.84 source, the repository Entity-Body patch, a p
 - [Connector module source](../../../connectors/lighttpd/module/mod_msconnector.c)
 - [Productive lighttpd sources](../../../connectors/lighttpd/src/)
 - [Patched-host builder](../../../connectors/lighttpd/build/build_patched_host.sh)
+- [Connector module builder](../../../connectors/lighttpd/build/build_module.sh)
 - [Entity-Body patch](../../../connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch)
 - [Source mapping](../../../connectors/lighttpd/SOURCE_MAP.json)
+- [Native lighttpd configuration](../../../connectors/lighttpd/config/lighttpd-native.conf)
 
 This is the primary connector path for this guide: connectors/lighttpd/. The official host documentation in the following section explains only how to provide or build the host; it does not replace the connector source.
 
@@ -46,19 +48,32 @@ export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
+
+
 ## 5. Prepare libmodsecurity v3
 
 Build libmodsecurity v3 first with the shared guide:
 
 [Build libmodsecurity v3](libmodsecurity.md)
 
-The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.
+The following hand-off uses the official simple-build default `/usr/local/modsecurity`. Override MODSECURITY_PREFIX, MODSECURITY_INCLUDE_DIR, or MODSECURITY_LIB_DIR only for a deliberately selected installation. It checks the header and chooses `lib64` only when `lib` lacks libmodsecurity.
+
+```sh
+export MODSECURITY_PREFIX="${MODSECURITY_PREFIX:-/usr/local/modsecurity}"
+export MODSECURITY_INCLUDE_DIR="${MODSECURITY_INCLUDE_DIR:-$MODSECURITY_PREFIX/include}"
+export MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$MODSECURITY_PREFIX/lib}"
+if [ ! -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ] && [ -f "$MODSECURITY_PREFIX/lib64/libmodsecurity.so" ]; then
+    MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib64"
+fi
+test -f "$MODSECURITY_INCLUDE_DIR/modsecurity/modsecurity.h"
+test -f "$MODSECURITY_LIB_DIR/libmodsecurity.so"
+```
 
 ## 6. Provide the host or proxy
 
 ### Simple path
 
-The selected path requires a patched lighttpd source host. The first steps download the exact version required by the repository patch; the patch and host build follow under the source-build heading.
+The selected path requires a patched lighttpd source host. The first steps download the exact version required by the repository patch; the patch and host build follow under the source-build heading. Use a fresh external workspace for a new patch run so a reviewed patched copy is never silently nested or reused.
 
 ```sh
 WORKDIR="$HOME/connector-build/lighttpd"
@@ -74,6 +89,9 @@ This leaves the verified upstream source untouched so that the patch is applied 
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 curl -fLO "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.tar.xz"
+curl -fL "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.sha256sum" -o "lighttpd-$VERSION.sha256sum"
+awk -v archive="lighttpd-$VERSION.tar.xz" '$2 == archive { print }' "lighttpd-$VERSION.sha256sum" | sha256sum -c -
+printf "%s  %s\n" "076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70" "lighttpd-$VERSION.tar.xz" | sha256sum -c -
 tar -xJf "lighttpd-$VERSION.tar.xz"
 ```
 
@@ -88,8 +106,11 @@ The private prefix contains the patched lighttpd host. It does not contain the r
 The first patch command only tests whether the selected source accepts the patch. The second command changes the disposable working copy.
 
 ```sh
-cp -a "lighttpd-$VERSION" "lighttpd-$VERSION-patched"
-cd "lighttpd-$VERSION-patched"
+cd "$WORKDIR"
+export LIGHTTPD_PATCHED_SRC="$WORKDIR/lighttpd-$VERSION-patched"
+test ! -e "$LIGHTTPD_PATCHED_SRC"
+cp -a "lighttpd-$VERSION" "$LIGHTTPD_PATCHED_SRC"
+cd "$LIGHTTPD_PATCHED_SRC"
 patch --dry-run -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"
 patch -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"
 ```
@@ -110,23 +131,15 @@ make install
 Keep this advanced alternative for comparison or reproducible build layouts; it still builds only the patched host.
 
 ```sh
-mkdir -p "$WORKDIR/build-$VERSION"
-cd "$WORKDIR/build-$VERSION"
+cd "$WORKDIR/lighttpd-$VERSION-patched"
+./autogen.sh
+export LIGHTTPD_BUILD_DIR="$WORKDIR/build-$VERSION"
+mkdir -p "$LIGHTTPD_BUILD_DIR"
+cd "$LIGHTTPD_BUILD_DIR"
 "$WORKDIR/lighttpd-$VERSION-patched/configure" --prefix="$INSTALL_DIR"
 make -j2
 make check
 make install
-```
-
-#### Optional: verify download and version
-
-The official checksum file and the fixed patch-compatible checksum both apply to lighttpd 1.4.84.
-
-```sh
-cd "$WORKDIR"
-curl -fL "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.sha256sum" -o "lighttpd-$VERSION.sha256sum"
-awk -v archive="lighttpd-$VERSION.tar.xz" '$2 == archive { print }' "lighttpd-$VERSION.sha256sum" | sha256sum -c -
-printf "%s  %s\n" "076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70" "lighttpd-$VERSION.tar.xz" | sha256sum -c -
 ```
 
 ### Check the result
@@ -139,22 +152,19 @@ The upstream 1.4.84 installation layout places lighttpd below sbin for this pref
 
 ## 7. Build and integrate the connector
 
-The repository module must use the same patched source headers and generated `config.h` as the host. The source build script links it to libmodsecurity and writes the module to an external directory. A normal lighttpd package lacks the Entity-Body hook and cannot load this selected module as an equivalent path.
+The repository module must use the same patched source headers and generated `config.h` as the host. The source build script links it to libmodsecurity and writes the module to an external directory. The selected source host builds its index and static-file modules into the binary; Section 8 names them explicitly because compatibility module loading stays disabled. A normal lighttpd package lacks the Entity-Body hook and cannot load this selected module as an equivalent path.
 
 The host path is reintroduced here only so that the connector commands can consume the Section 6 host without rebuilding it.
 
 ```sh
 export HOST_BUILD_BASE="$HOME/connector-build/lighttpd"
 export LIGHTTPD_PATCHED_SRC="$HOST_BUILD_BASE/lighttpd-1.4.84-patched"
-export LIGHTTPD_BUILD_DIR="$LIGHTTPD_PATCHED_SRC"
+export LIGHTTPD_BUILD_DIR="${LIGHTTPD_BUILD_DIR:-$LIGHTTPD_PATCHED_SRC}"
 export LIGHTTPD_PREFIX="$HOME/.local/lighttpd-modsecurity"
 cd "$CONNECTOR_ROOT"
 export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"
-```
-
-```sh
 export LIGHTTPD_MODULE_DIR="$BUILD_ROOT/modules"
-BUILD_ROOT="$BUILD_ROOT" LIGHTTPD_CONNECTOR_OUT_DIR="$BUILD_ROOT/connector" LIGHTTPD_MODULE_DIR="$LIGHTTPD_MODULE_DIR" LIGHTTPD_MSCONNECTOR_CORE_MODE=patched LIGHTTPD_SOURCE_DIR="$LIGHTTPD_PATCHED_SRC" LIGHTTPD_BUILD_ROOT="$LIGHTTPD_BUILD_DIR" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/lighttpd/build/build_module.sh
+BUILD_ROOT="$BUILD_ROOT" LIGHTTPD_CONNECTOR_OUT_DIR="$BUILD_ROOT/connector" LIGHTTPD_MODULE_DIR="$LIGHTTPD_MODULE_DIR" LIGHTTPD_MSCONNECTOR_CORE_MODE=patched LIGHTTPD_SOURCE_DIR="$LIGHTTPD_PATCHED_SRC" LIGHTTPD_BUILD_ROOT="$LIGHTTPD_BUILD_DIR" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh "$CONNECTOR_ROOT/connectors/lighttpd/build/build_module.sh"
 export LIGHTTPD_MODULE="$LIGHTTPD_MODULE_DIR/mod_msconnector.so"
 test -f "$LIGHTTPD_MODULE"
 ```
@@ -167,6 +177,9 @@ The local rule below is a test rule, not a CRS rule. Keep configuration and runt
 export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
 export LIGHTTPD_RUNTIME_CONFIG="$HOST_BUILD_BASE/msconnector-runtime.conf"
 export LIGHTTPD_CONFIG="$HOST_BUILD_BASE/lighttpd-local.conf"
+export LIGHTTPD_DOCUMENT_ROOT="$HOST_BUILD_BASE/htdocs"
+mkdir -p "$LIGHTTPD_DOCUMENT_ROOT"
+printf "lighttpd modsecurity test\n" > "$LIGHTTPD_DOCUMENT_ROOT/index.html"
 cat > "$RULES_FILE" <<EOF
 SecRuleEngine On
 SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
@@ -179,10 +192,11 @@ phase4_mode=safe
 EOF
 cat > "$LIGHTTPD_CONFIG" <<EOF
 server.compat-module-load = "disable"
-server.modules = ( "mod_msconnector" )
+server.modules = ( "mod_indexfile", "mod_msconnector", "mod_staticfile" )
+index-file.names = ( "index.html" )
 server.bind = "127.0.0.1"
 server.port = 8080
-server.document-root = "$LIGHTTPD_PREFIX/htdocs"
+server.document-root = "$LIGHTTPD_DOCUMENT_ROOT"
 server.pid-file = "$HOST_BUILD_BASE/lighttpd.pid"
 server.errorlog = "$HOST_BUILD_BASE/lighttpd-error.log"
 msconnector.enabled = "enable"
@@ -198,8 +212,9 @@ Validate the selected host, connector artifact, dynamic library resolution, and 
 "$LIGHTTPD_PREFIX/sbin/lighttpd" -tt -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR"
 "$LIGHTTPD_PREFIX/sbin/lighttpd" -V
 file "$LIGHTTPD_MODULE"
-ldd "$LIGHTTPD_MODULE" | grep -F libmodsecurity
+ldd "$LIGHTTPD_MODULE" | grep -F libmodsecurity | grep -Fv "not found"
 nm -D "$LIGHTTPD_MODULE" | grep -E "mod_msconnector_plugin_init$"
+nm "$LIGHTTPD_PREFIX/sbin/lighttpd" | grep -E "mod_(indexfile|staticfile)_plugin_init$"
 grep -F LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION "$LIGHTTPD_PATCHED_SRC/src/plugin.h"
 ```
 
@@ -208,10 +223,22 @@ grep -F LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION "$LIGHTTPD_PATCHED_SRC/src/
 Run only against loopback. A 200 response on `/` and a 403 response on `/blocked` demonstrate the local rule path; they do not establish a broader claim.
 
 ```sh
-"$LIGHTTPD_PREFIX/sbin/lighttpd" -D -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR" &
+LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$LIGHTTPD_PREFIX/sbin/lighttpd" -D -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR" &
 lighttpd_pid=$!
-curl -i http://127.0.0.1:8080/
-curl -i http://127.0.0.1:8080/blocked
+attempt=0
+while [ "$attempt" -lt 50 ]; do
+    if ! kill -0 "$lighttpd_pid" 2>/dev/null; then
+        exit 1
+    fi
+    if [ "$(curl -sS --connect-timeout 1 -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/ 2>/dev/null)" = "200" ]; then
+        break
+    fi
+    attempt=$((attempt + 1))
+    sleep 0.1
+done
+test "$attempt" -lt 50
+test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/)" = "200"
+test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/blocked)" = "403"
 kill "$lighttpd_pid"
 ```
 
@@ -267,8 +294,10 @@ git -C "$CONNECTOR_ROOT" submodule update --init --recursive
 Do not copy files indiscriminately to `/usr/lib` and do not remove global directories. A user prefix does not need `sudo`. Remove evidence or logs only after deliberate review.
 
 ```sh
-find "$HOME/src/modsecurity-connectors" -maxdepth 2 -mindepth 1 -print
-# Review the listed paths first; remove only a chosen external host-build directory.
+test ! -e "$HOME/connector-build/lighttpd" || find "$HOME/connector-build/lighttpd" -maxdepth 2 -mindepth 1 -print
+test ! -e "$HOME/.local/lighttpd-modsecurity" || find "$HOME/.local/lighttpd-modsecurity" -maxdepth 2 -mindepth 1 -print
+test ! -e "$HOME/modsecurity-connector-work" || find "$HOME/modsecurity-connector-work" -maxdepth 2 -mindepth 1 -print
+# Review the listed external paths first; remove only a chosen host-build or test directory.
 ```
 
 ## 15. Troubleshooting
@@ -283,18 +312,27 @@ If patch dry-run fails, do not force it: verify the exact 1.4.84 source and patc
 | --- | --- |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
+| MODSECURITY_PREFIX | libmodsecurity installation prefix. The official simple-build default is /usr/local/modsecurity. |
+| MODSECURITY_INCLUDE_DIR | libmodsecurity header directory selected from MODSECURITY_PREFIX. |
+| MODSECURITY_LIB_DIR | libmodsecurity shared-library directory selected from MODSECURITY_PREFIX; the hand-off detects lib64 when needed. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |
 | HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
 | BUILD_ROOT | External build and runtime root for repository-owned connector components. |
+| LD_LIBRARY_PATH | Process-local loader search path used only for a documented local module or service check; do not set it globally. |
 | lighttpd_pid | Local started-lighttpd process ID from $!; use it only in the same shell run. |
 | LIGHTTPD_PATCHED_SRC | Disposable patched copy of the selected source. |
 | LIGHTTPD_BUILD_DIR | Out-of-tree patched lighttpd build directory. |
 | LIGHTTPD_PREFIX | Private patched host installation prefix. |
+| LIGHTTPD_SOURCE_DIR | Patched lighttpd source tree supplied to the connector module builder. |
+| LIGHTTPD_BUILD_ROOT | Matching patched lighttpd build tree that provides generated headers and config.h. |
+| LIGHTTPD_CONNECTOR_OUT_DIR | External intermediate output directory for the connector module build. |
+| LIGHTTPD_MSCONNECTOR_CORE_MODE | Builder mode that requires the patched lighttpd core ABI. |
 | LIGHTTPD_MODULE_DIR | External directory for the matching connector module. |
 | LIGHTTPD_MODULE | Built matching module path. |
 | LIGHTTPD_RUNTIME_CONFIG | Connector runtime rules/mode configuration. |
+| LIGHTTPD_DOCUMENT_ROOT | External document root containing the explicit loopback test page. |
 | LIGHTTPD_CONFIG | Local lighttpd server configuration. |
 | WORKDIR | External lighttpd source workspace. |
 | VERSION | Exact lighttpd version required by the repository patch. |
