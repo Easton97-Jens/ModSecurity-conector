@@ -1628,6 +1628,1030 @@ lifecycle.
 """
 
 
+OFFICIAL_DOMAINS = {
+    "httpd.apache.org",
+    "nginx.org",
+    "github.com/owasp-modsecurity",
+    "github.com/haproxy",
+    "docs.haproxy.org",
+    "haproxy.org",
+    "www.haproxy.org",
+    "envoyproxy.io",
+    "www.envoyproxy.io",
+    "github.com/envoyproxy",
+    "doc.traefik.io",
+    "github.com/traefik",
+    "github.com/lighttpd",
+    "download.lighttpd.net",
+    "redmine.lighttpd.net",
+}
+
+
+# This second, source-first model is intentionally independent from the
+# Framework target map above.  It records upstream material and the manual
+# hand-off into a repository connector.  Commands, pins, URLs, and variables
+# are shared by the English and German renderers; only explanatory prose is
+# localized.
+MANUAL_GUIDES: dict[str, dict[str, object]] = {
+    "apache": {
+        "components": (
+            "libmodsecurity v3, Apache HTTP Server 2.4, APR/APR-util, PCRE2, the repository Apache adapter, APXS, a local rule file, and a loopback httpd instance.",
+            "libmodsecurity v3, Apache HTTP Server 2.4, APR/APR-util, PCRE2, der Repository-Apache-Adapter, APXS, eine lokale Regeldatei und eine httpd-Instanz auf Loopback.",
+        ),
+        "official_sources": (
+            ("Compiling and Installing", "https://httpd.apache.org/docs/2.4/install.html", "Apache's official source release, APR/APR-util and PCRE2 prerequisites, configure, make, installation, start, and stop sequence.", "Offizieller Apache-Quellrelease sowie Voraussetzungen für APR/APR-util und PCRE2, Configure, Make, Installation, Start und Stop.", "HTTP Server 2.4; choose and verify the release again before building."),
+            ("APXS", "https://httpd.apache.org/docs/2.4/programs/apxs.html", "The DSO build/install interface and the queries that bind a module to one httpd build.", "Die DSO-Build-/Installationsschnittstelle und die Abfragen, die ein Modul an genau einen httpd-Build binden.", "HTTP Server 2.4 APXS reference."),
+            ("Apache HTTP Server Download", "https://httpd.apache.org/download.cgi", "Official release archives, PGP signatures, checksums, and Apache KEYS.", "Offizielle Releasearchive, PGP-Signaturen, Prüfsummen und Apache KEYS.", "The page changes when Apache publishes a release."),
+            ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 source and its Autotools build instructions.", "Die libmodsecurity-v3-Quelle und ihre Autotools-Buildanleitung.", "The selected Git tag/commit is recorded below."),
+        ),
+        "host_intro": (
+            "Follow Apache's source-release flow first. Either provide matching system APR/APR-util development inputs, or unpack verified APR and APR-util trees as `srclib/apr` and `srclib/apr-util` before configuring httpd. The latter is Apache's documented bundled-APR layout.",
+            "Zuerst dem Apache-Source-Release-Ablauf folgen. Entweder passende System-Entwicklungseingaben für APR/APR-util bereitstellen oder geprüfte APR- und APR-util-Bäume vor dem Configure als `srclib/apr` und `srclib/apr-util` entpacken. Letzteres ist das von Apache dokumentierte Bundled-APR-Layout.",
+        ),
+        "host_commands": (
+            'export HOST_BUILD_BASE="$BUILD_BASE/apache"',
+            'export HTTPD_VERSION="2.4.68"',
+            'export HTTPD_ARCHIVE="httpd-$HTTPD_VERSION.tar.gz"',
+            'export HTTPD_URL="https://downloads.apache.org/httpd/$HTTPD_ARCHIVE"',
+            'export HTTPD_PREFIX="$HOME/.local/httpd-modsecurity"',
+            'export HTTPD_SRC="$HOST_BUILD_BASE/httpd-$HTTPD_VERSION"',
+            'export APXS="$HTTPD_PREFIX/bin/apxs"',
+            'mkdir -p "$HOST_BUILD_BASE"',
+            'cd "$HOST_BUILD_BASE"',
+            'curl -fLO "$HTTPD_URL"',
+            'curl -fLO "$HTTPD_URL.asc"',
+            'curl -fLO "$HTTPD_URL.sha256"',
+            'sha256sum -c "${HTTPD_ARCHIVE}.sha256"',
+            '# Import Apache KEYS through the official download page before this verification.',
+            'gpg --verify "${HTTPD_ARCHIVE}.asc" "$HTTPD_ARCHIVE"',
+            'tar -xzf "$HTTPD_ARCHIVE"',
+            'cd "$HTTPD_SRC"',
+            '# If APR/APR-util are not supplied by the system, place verified trees in srclib/apr and srclib/apr-util.',
+            './configure --help | grep -E -- "--prefix|--with-included-apr|--with-pcre|--enable-mods-shared"',
+            './configure --prefix="$HTTPD_PREFIX" --enable-mods-shared=most --with-pcre="$(command -v pcre2-config)"',
+            'make -j"$jobs"',
+            'make install',
+            'test -x "$HTTPD_PREFIX/bin/httpd"',
+            'test -x "$HTTPD_PREFIX/bin/apachectl"',
+            'test -x "$APXS"',
+        ),
+        "connector_intro": (
+            "The repository adapter is an Autotools/APXS project. Configure it with the APXS and httpd that were just built; APXS reads the compiler, include, and module-directory values of that exact host.",
+            "Der Repository-Adapter ist ein Autotools-/APXS-Projekt. Ihn mit genau dem soeben gebauten APXS und httpd konfigurieren; APXS liest Compiler-, Include- und Modulverzeichniswerte genau dieses Hosts.",
+        ),
+        "connector_commands": (
+            'export CONNECTOR_SRC="$CONNECTOR_ROOT/connectors/apache"',
+            'cd "$CONNECTOR_SRC"',
+            './autogen.sh',
+            './configure --with-libmodsecurity="$MODSECURITY_PREFIX" --with-apxs="$APXS" --with-apache="$HTTPD_PREFIX/bin/httpd"',
+            'make -j"$jobs"',
+            'make install',
+            'export MODULE_PATH="$("$APXS" -q LIBEXECDIR)/mod_security3.so"',
+            'test -f "$MODULE_PATH"',
+        ),
+        "config_commands": (
+            'export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"',
+            'export HTTPD_CONFIG="$HOST_BUILD_BASE/httpd-local.conf"',
+            'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
+            'cat > "$HTTPD_CONFIG" <<EOF\nServerRoot "$HTTPD_PREFIX"\nListen 127.0.0.1:8080\nServerName 127.0.0.1\nLoadModule security3_module "$MODULE_PATH"\nDocumentRoot "$HTTPD_PREFIX/htdocs"\n<Directory "$HTTPD_PREFIX/htdocs">\n    Require all granted\n</Directory>\n<Location "/">\n    modsecurity on\n    modsecurity_rules_file "$RULES_FILE"\n</Location>\nEOF',
+            '"$HTTPD_PREFIX/bin/httpd" -t -f "$HTTPD_CONFIG"',
+        ),
+        "validation": (
+            '"$HTTPD_PREFIX/bin/httpd" -v',
+            '"$HTTPD_PREFIX/bin/apachectl" -V',
+            '"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -M | grep -E "(^|[[:space:]])so_module"',
+            '"$APXS" -q PREFIX',
+            '"$APXS" -q INCLUDEDIR',
+            '"$APXS" -q LIBEXECDIR',
+            '"$APXS" -q CC',
+            'file "$MODULE_PATH"',
+            'ldd "$MODULE_PATH" | grep -F libmodsecurity',
+        ),
+        "http_commands": (
+            '"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k start',
+            'curl -i http://127.0.0.1:8080/',
+            'curl -i http://127.0.0.1:8080/blocked',
+            '"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k stop',
+        ),
+        "package_queries": ('apt-cache search apache2', 'dnf search httpd', 'apache2 -v 2>/dev/null || httpd -v 2>/dev/null || true'),
+        "package_note": (
+            "A package host can be useful for comparison, but its APXS, headers, module directory, configuration layout, and service name can differ from this source prefix. Query the matching distribution's official package documentation before choosing package names; rebuild the adapter with that package's APXS if that is the intended host.",
+            "Ein Pakethost kann zum Vergleich nützlich sein, aber sein APXS, seine Header, sein Modulverzeichnis, Konfigurationslayout und Servicename können von diesem Source-Prefix abweichen. Vor konkreten Paketnamen die offizielle Paketdokumentation der passenden Distribution prüfen; den Adapter mit APXS dieses Pakets neu bauen, wenn er der beabsichtigte Host ist.",
+        ),
+        "variables": (
+            ("HTTPD_VERSION", "Selected Apache 2.4 release; revalidate against the download page.", "Ausgewählter Apache-2.4-Release; gegen die Downloadseite erneut validieren."),
+            ("HTTPD_ARCHIVE", "Release archive filename derived from HTTPD_VERSION.", "Aus HTTPD_VERSION abgeleiteter Releasearchivname."),
+            ("HTTPD_URL", "Official Apache archive URL.", "Offizielle Apache-Archiv-URL."),
+            ("HTTPD_PREFIX", "Private httpd installation prefix.", "Privater httpd-Installationsprefix."),
+            ("HTTPD_SRC", "Unpacked Apache source tree.", "Entpackter Apache-Source-Baum."),
+            ("APXS", "APXS from the same host that will load the module.", "APXS desselben Hosts, der das Modul lädt."),
+            ("CONNECTOR_SRC", "Repository Apache connector source selected from CONNECTOR_ROOT.", "Aus CONNECTOR_ROOT ausgewählte Repository-Source des Apache-Connectors."),
+            ("MODULE_PATH", "Installed repository DSO resolved by APXS.", "Durch APXS aufgelöstes installiertes Repository-DSO."),
+            ("HTTPD_CONFIG", "Local standalone httpd configuration.", "Lokale eigenständige httpd-Konfiguration."),
+        ),
+        "troubleshoot": (
+            "If `apxs -q` points at different headers or a different module directory than the running httpd, stop and rebuild the adapter. A module built against one Apache ABI must not be loaded by another one.",
+            "Wenn `apxs -q` auf andere Header oder ein anderes Modulverzeichnis als das laufende httpd zeigt, stoppen und den Adapter neu bauen. Ein gegen eine Apache-ABI gebautes Modul darf nicht von einer anderen geladen werden.",
+        ),
+    },
+    "nginx": {
+        "components": (
+            "libmodsecurity v3, an official NGINX source release, ModSecurity-nginx, the repository NGINX source integration, a dynamic module, a local rule file, and a loopback NGINX instance.",
+            "libmodsecurity v3, ein offizieller NGINX-Source-Release, ModSecurity-nginx, die Repository-NGINX-Source-Integration, ein dynamisches Modul, eine lokale Regeldatei und eine NGINX-Instanz auf Loopback.",
+        ),
+        "official_sources": (
+            ("Building nginx from Sources", "https://nginx.org/en/docs/configure.html", "The official configure options, including prefix paths, dynamic modules, compatibility, compiler, and linker flags.", "Die offiziellen Configure-Optionen einschließlich Prefix-Pfaden, Dynamic Modules, Kompatibilität sowie Compiler- und Linkerflags.", "NGINX options are release-dependent; inspect `./auto/configure --help` for the selected source."),
+            ("Official NGINX packages", "https://nginx.org/en/linux_packages.html", "Official distribution package repositories and package-install context; not an ABI-equivalence claim for a source-built module.", "Offizielle Distributionsrepositories und Paketinstallationskontext; kein ABI-Gleichwertigkeitsclaim für ein aus Source gebautes Modul.", "Package layout changes by distribution and release."),
+            ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
+            ("ModSecurity-nginx", "https://github.com/owasp-modsecurity/ModSecurity-nginx", "The official NGINX connector source consumed by `--add-dynamic-module`.", "Die offizielle NGINX-Connectorquelle, die durch `--add-dynamic-module` eingebunden wird.", "Pin it to a release tag or commit matching the selected NGINX source."),
+        ),
+        "host_intro": (
+            "This is the deliberately small NGINX-plus-libmodsecurity build extracted from the relevant technical parts of the supplied reference script: isolated directories, compiler/linker paths, pinned sources, the connector, configure, build, installation, ABI checks, and provenance. The external script builds further optional modules and integrations; they are not required for this core build and are not covered here.",
+            "Dies ist der bewusst kleine NGINX-plus-libmodsecurity-Build aus den fachlich relevanten Teilen des bereitgestellten Referenzskripts: isolierte Verzeichnisse, Compiler-/Linkerpfade, gepinnte Quellen, Connector, Configure, Build, Installation, ABI-Prüfungen und Provenienz. Das externe Skript baut weitere optionale Module und Integrationen; sie sind für diesen Kernbuild nicht erforderlich und werden hier nicht behandelt.",
+        ),
+        "host_commands": (
+            'export NGINX_BUILD_BASE="$HOME/src/nginx-modsecurity"',
+            'export NGINX_VERSION="1.31.2"',
+            'export NGINX_ARCHIVE="nginx-$NGINX_VERSION.tar.gz"',
+            'export NGINX_URL="https://nginx.org/download/$NGINX_ARCHIVE"',
+            'export NGINX_SRC="$NGINX_BUILD_BASE/nginx"',
+            'export NGINX_PREFIX="$HOME/.local/nginx-modsecurity"',
+            'export MODSECURITY_NGINX_SRC="$NGINX_BUILD_BASE/ModSecurity-nginx"',
+            'export MODSECURITY_NGINX_REF="v1.0.4"',
+            'export MODSECURITY_NGINX_COMMIT="3f4b57df10ce43b1f1c722141f7621dc64838be8"',
+            'mkdir -p "$NGINX_BUILD_BASE"',
+            'cd "$NGINX_BUILD_BASE"',
+            'curl -fLO "$NGINX_URL"',
+            'curl -fLO "$NGINX_URL.asc"',
+            '# Import the NGINX release signing key from the official release site before verifying.',
+            'gpg --verify "${NGINX_ARCHIVE}.asc" "$NGINX_ARCHIVE"',
+            'tar -xzf "$NGINX_ARCHIVE"',
+            'mv "nginx-$NGINX_VERSION" "$NGINX_SRC"',
+        ),
+        "connector_intro": (
+            "Clone and pin the official ModSecurity-nginx connector, then configure the host and connector together. `--add-module` links a connector into NGINX statically; `--add-dynamic-module` creates a separately loaded module. This guide uses the dynamic form and therefore keeps the module with the exact binary that built it.",
+            "Den offiziellen ModSecurity-nginx-Connector klonen und pinnen, dann Host und Connector gemeinsam konfigurieren. `--add-module` bindet einen Connector statisch in NGINX ein; `--add-dynamic-module` erzeugt ein separat geladenes Modul. Diese Anleitung verwendet die dynamische Form und hält das Modul daher beim exakt dazu gebauten Binary.",
+        ),
+        "connector_commands": (
+            'git clone https://github.com/owasp-modsecurity/ModSecurity-nginx.git "$MODSECURITY_NGINX_SRC"',
+            'git -C "$MODSECURITY_NGINX_SRC" checkout --detach "$MODSECURITY_NGINX_REF"',
+            'test "$(git -C "$MODSECURITY_NGINX_SRC" rev-parse HEAD)" = "$MODSECURITY_NGINX_COMMIT"',
+            'git -C "$MODSECURITY_NGINX_SRC" rev-parse HEAD',
+            'cd "$NGINX_SRC"',
+            './auto/configure --help | grep -E -- "--with-compat|--add-dynamic-module|--with-pcre-jit|--with-http_ssl_module"',
+            './auto/configure --prefix="$NGINX_PREFIX" --sbin-path="$NGINX_PREFIX/sbin/nginx" --modules-path="$NGINX_PREFIX/modules" --conf-path="$NGINX_PREFIX/conf/nginx.conf" --pid-path="$NGINX_PREFIX/logs/nginx.pid" --http-log-path="$NGINX_PREFIX/logs/access.log" --error-log-path="$NGINX_PREFIX/logs/error.log" --with-http_ssl_module --with-pcre-jit --with-compat --add-dynamic-module="$MODSECURITY_NGINX_SRC" --with-cc-opt="-I$MODSECURITY_PREFIX/include" --with-ld-opt="-L$MODSECURITY_PREFIX/lib -Wl,-rpath,$MODSECURITY_PREFIX/lib"',
+            './objs/nginx -V 2>&1 || true',
+            "grep -E '^(CC|LD|CORE_LIBS)' objs/Makefile || true",
+            'make -j"$jobs" V=1 2>&1 | tee nginx-build.log',
+            'make modules',
+            'make install',
+            'export NGINX_MODULE="$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so"',
+            'test -x "$NGINX_PREFIX/sbin/nginx"',
+            'test -f "$NGINX_MODULE"',
+        ),
+        "config_commands": (
+            'export RULES_FILE="$NGINX_BUILD_BASE/modsecurity-local.conf"',
+            'export NGINX_CONFIG="$NGINX_PREFIX/conf/nginx.conf"',
+            'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
+            'cat > "$NGINX_CONFIG" <<EOF\nload_module modules/ngx_http_modsecurity_module.so;\nevents {}\nhttp {\n    server {\n        listen 127.0.0.1:8080;\n        location / {\n            modsecurity on;\n            modsecurity_rules_file "$RULES_FILE";\n            return 200 "nginx modsecurity test\\n";\n        }\n    }\n}\nEOF',
+            '"$NGINX_PREFIX/sbin/nginx" -t -p "$NGINX_PREFIX" -c conf/nginx.conf',
+        ),
+        "config_note": (
+            "For the complete directive-level contract, read the repository [NGINX configuration reference](../../../examples/nginx/configuration-reference.md) before adapting this local example.",
+            "Für den vollständigen Direktivenvertrag vor der Anpassung dieses lokalen Beispiels die repository-eigene [NGINX-Konfigurationsreferenz](../../../examples/nginx/configuration-reference.de.md) lesen.",
+        ),
+        "validation": (
+            '"$NGINX_PREFIX/sbin/nginx" -V',
+            'file objs/nginx',
+            'ldd objs/nginx',
+            'find objs -maxdepth 2 -type f -name "*modsecurity*.so" -print',
+            'file "$NGINX_PREFIX/sbin/nginx"',
+            'ldd "$NGINX_PREFIX/sbin/nginx"',
+            'file "$NGINX_MODULE"',
+            'ldd "$NGINX_MODULE" | grep -F libmodsecurity',
+        ),
+        "http_commands": (
+            '"$NGINX_PREFIX/sbin/nginx" -p "$NGINX_PREFIX" -c conf/nginx.conf',
+            'curl -i http://127.0.0.1:8080/',
+            'curl -i http://127.0.0.1:8080/blocked',
+            '"$NGINX_PREFIX/sbin/nginx" -p "$NGINX_PREFIX" -c conf/nginx.conf -s quit',
+            '{ "$NGINX_PREFIX/sbin/nginx" -V 2>&1; git -C "$MODSECURITY_SRC" rev-parse HEAD; git -C "$MODSECURITY_NGINX_SRC" rev-parse HEAD; cc --version; c++ --version; sha256sum "$NGINX_PREFIX/sbin/nginx"; } > "$NGINX_BUILD_BASE/build-provenance.txt"',
+        ),
+        "package_queries": ('apt-cache search nginx', 'dnf search nginx', 'nginx -V 2>&1 || true'),
+        "package_note": (
+            "An official package can provide a host, but a separately compiled dynamic module must match its exact NGINX build options and ABI. It is not interchangeable with this source-built binary/module pair. Check the official NGINX package page and the package's own `nginx -V` output before attempting a package-host module build.",
+            "Ein offizielles Paket kann einen Host bereitstellen, aber ein separat kompiliertes dynamisches Modul muss zu dessen exakten NGINX-Buildoptionen und ABI passen. Es ist nicht mit diesem aus Source gebauten Binary-/Modulpaar austauschbar. Vor einem Paket-Host-Modulbuild die offizielle NGINX-Paketseite und die Ausgabe `nginx -V` des Pakets prüfen.",
+        ),
+        "variables": (
+            ("NGINX_BUILD_BASE", "External NGINX source/build/provenance directory.", "Externes NGINX-Source-/Build-/Provenienzverzeichnis."),
+            ("NGINX_VERSION", "Selected official NGINX release.", "Ausgewählter offizieller NGINX-Release."),
+            ("NGINX_ARCHIVE", "Archive name derived from NGINX_VERSION.", "Aus NGINX_VERSION abgeleiteter Archivname."),
+            ("NGINX_URL", "Official NGINX archive URL.", "Offizielle NGINX-Archiv-URL."),
+            ("NGINX_SRC", "Unpacked NGINX source tree.", "Entpackter NGINX-Source-Baum."),
+            ("NGINX_PREFIX", "Private NGINX installation prefix.", "Privater NGINX-Installationsprefix."),
+            ("MODSECURITY_NGINX_SRC", "Pinned ModSecurity-nginx checkout.", "Gepinnter ModSecurity-nginx-Checkout."),
+            ("MODSECURITY_NGINX_REF", "Release tag selected for the connector.", "Für den Connector ausgewählter Release-Tag."),
+            ("MODSECURITY_NGINX_COMMIT", "Expected commit resolved from the connector tag.", "Vom Connector-Tag erwarteter aufgelöster Commit."),
+            ("NGINX_MODULE", "Dynamic module built with this NGINX source.", "Mit dieser NGINX-Quelle gebautes dynamisches Modul."),
+            ("NGINX_CONFIG", "Local NGINX configuration for the loopback test.", "Lokale NGINX-Konfiguration für den Loopback-Test."),
+        ),
+        "troubleshoot": (
+            "A `load_module` failure normally means the NGINX binary, configure arguments, connector checkout, or module differ. Rebuild the pair together; do not copy the module into an unrelated package installation.",
+            "Ein `load_module`-Fehler bedeutet normalerweise, dass NGINX-Binary, Configure-Argumente, Connector-Checkout oder Modul voneinander abweichen. Das Paar gemeinsam neu bauen; das Modul nicht in eine fremde Paketinstallation kopieren.",
+        ),
+    },
+    "haproxy": {
+        "components": (
+            "libmodsecurity v3, HAProxy 3.2.21 source, the repository native HTX filter/overlay, the Common bridge, a local rule file, a loopback frontend, and a loopback upstream.",
+            "libmodsecurity v3, HAProxy-3.2.21-Source, der repository-eigene native HTX-Filter/Overlay, die Common-Bridge, eine lokale Regeldatei, ein Loopback-Frontend und ein Loopback-Upstream.",
+        ),
+        "official_sources": (
+            ("HAProxy INSTALL", "https://github.com/haproxy/haproxy/blob/master/INSTALL", "Official target selection, build options, compilation, and installation guidance.", "Offizielle Anleitung zur Target-Auswahl, Buildoptionen, Kompilierung und Installation.", "Read the INSTALL file for the exact selected HAProxy release."),
+            ("HAProxy Documentation", "https://docs.haproxy.org/", "Configuration syntax and CLI documentation for `haproxy -c` and runtime operation.", "Konfigurationssyntax und CLI-Dokumentation für `haproxy -c` und den Laufzeitbetrieb.", "Use documentation matching the selected major/minor series."),
+            ("HAProxy Releases", "https://www.haproxy.org/download/", "Official source downloads and release series selection.", "Offizielle Source-Downloads und Auswahl der Release-Serie.", "The repository overlay currently fixes its compatible source to 3.2.21."),
+            ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
+        ),
+        "host_intro": (
+            "Build an official HAProxy first and inspect `haproxy -vv`. The selected repository integration has a stricter compatibility constraint: its native HTX overlay explicitly requires HAProxy 3.2.21. The normal HAProxy build below proves the upstream host build; the following overlay build creates the selected host copy and links it to libmodsecurity.",
+            "Zuerst ein offizielles HAProxy bauen und `haproxy -vv` prüfen. Die ausgewählte Repository-Integration hat eine strengere Kompatibilitätsgrenze: Ihr nativer HTX-Overlay erfordert ausdrücklich HAProxy 3.2.21. Der normale HAProxy-Build belegt den Upstream-Hostbuild; der folgende Overlay-Build erzeugt die ausgewählte Hostkopie und linkt sie mit libmodsecurity.",
+        ),
+        "host_commands": (
+            'export HOST_BUILD_BASE="$BUILD_BASE/haproxy"',
+            'export HAPROXY_VERSION="3.2.21"',
+            'export HAPROXY_ARCHIVE="haproxy-$HAPROXY_VERSION.tar.gz"',
+            'export HAPROXY_URL="https://www.haproxy.org/download/3.2/src/$HAPROXY_ARCHIVE"',
+            'export HAPROXY_SHA256="0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339"',
+            'export HAPROXY_SRC="$HOST_BUILD_BASE/haproxy-$HAPROXY_VERSION"',
+            'export HAPROXY_PREFIX="$HOME/.local/haproxy-modsecurity"',
+            'export HAPROXY_STAGE="$HOST_BUILD_BASE/stage"',
+            'mkdir -p "$HOST_BUILD_BASE"',
+            'cd "$HOST_BUILD_BASE"',
+            'curl -fLO "$HAPROXY_URL"',
+            'printf "%s  %s\\n" "$HAPROXY_SHA256" "$HAPROXY_ARCHIVE" | sha256sum -c -',
+            'tar -xzf "$HAPROXY_ARCHIVE"',
+            'cd "$HAPROXY_SRC"',
+            'make help',
+            'make -j"$jobs" TARGET=linux-glibc USE_OPENSSL=1 USE_ZLIB=1 USE_PCRE2=1',
+            'make install-bin DESTDIR="$HAPROXY_STAGE" PREFIX="$HAPROXY_PREFIX"',
+            'export HAPROXY_BIN="$HAPROXY_STAGE$HAPROXY_PREFIX/sbin/haproxy"',
+            '"$HAPROXY_BIN" -vv',
+        ),
+        "connector_intro": (
+            "The official HAProxy release does not contain this connector. The repository native HTX integration copies the compatible source to an external worktree, checks and applies its overlay, adds the HTX filter plus Common/libmodsecurity bridge, and rebuilds the host. SPOE/SPOP is a separate compatibility path and is not evidence for this native filter.",
+            "Der offizielle HAProxy-Release enthält diesen Connector nicht. Die repository-eigene native HTX-Integration kopiert die kompatible Quelle in einen externen Worktree, prüft und wendet ihren Overlay an, fügt HTX-Filter sowie Common-/libmodsecurity-Bridge hinzu und baut den Host neu. SPOE/SPOP ist ein separater Kompatibilitätsweg und keine Evidence für diesen nativen Filter.",
+        ),
+        "connector_commands": (
+            'export HAPROXY_HTX_SOURCE_DIR="$HAPROXY_SRC"',
+            'export HAPROXY_HTX_BUILD_DIR="$HOST_BUILD_BASE/htx-overlay"',
+            'export MODSECURITY_INCLUDE_DIR="$MODSECURITY_PREFIX/include"',
+            'export MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib"',
+            'export MAKE_JOBS="$jobs"',
+            'CONNECTOR_ROOT="$CONNECTOR_ROOT" sh connectors/haproxy/htx-overlay/build-overlay.sh',
+            'export HAPROXY_HTX_BIN="$HAPROXY_HTX_BUILD_DIR/worktree/haproxy"',
+            'test -x "$HAPROXY_HTX_BIN"',
+            '"$HAPROXY_HTX_BIN" -vv',
+        ),
+        "config_commands": (
+            'export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"',
+            'export HAPROXY_CONFIG="$HOST_BUILD_BASE/haproxy-local.cfg"',
+            'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
+            'cat > "$HAPROXY_CONFIG" <<EOF\nglobal\n    daemon\ndefaults\n    mode http\n    timeout connect 5s\n    timeout client 30s\n    timeout server 30s\nfrontend local\n    bind 127.0.0.1:8080\n    filter modsecurity-htx rules-file "$RULES_FILE" phase4-mode safe\n    default_backend local_upstream\nbackend local_upstream\n    server app 127.0.0.1:8081\nEOF',
+            '"$HAPROXY_HTX_BIN" -c -f "$HAPROXY_CONFIG"',
+        ),
+        "validation": (
+            '"$HAPROXY_HTX_BIN" -vv',
+            'file "$HAPROXY_HTX_BIN"',
+            'ldd "$HAPROXY_HTX_BIN" | grep -F libmodsecurity',
+            'test -f "$HAPROXY_HTX_BUILD_DIR/overlay-build.env"',
+            'sha256sum "$HAPROXY_HTX_BIN"',
+        ),
+        "http_commands": (
+            'mkdir -p "$HOST_BUILD_BASE/www"',
+            'printf "haproxy local upstream\\n" > "$HOST_BUILD_BASE/www/index.html"',
+            'python3 -m http.server 8081 --bind 127.0.0.1 --directory "$HOST_BUILD_BASE/www" > "$HOST_BUILD_BASE/upstream.log" 2>&1 &',
+            'upstream_pid=$!',
+            'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HAPROXY_HTX_BIN" -db -f "$HAPROXY_CONFIG" > "$HOST_BUILD_BASE/haproxy.log" 2>&1 &',
+            'haproxy_pid=$!',
+            'curl -i http://127.0.0.1:8080/',
+            'curl -i http://127.0.0.1:8080/blocked',
+            'kill "$haproxy_pid" "$upstream_pid"',
+        ),
+        "package_queries": ('apt-cache search haproxy', 'dnf search haproxy', 'haproxy -vv 2>/dev/null || true'),
+        "package_note": (
+            "A package can provide an ordinary HAProxy for comparison, but it does not carry the repository HTX overlay. It therefore cannot substitute for the selected native filter path; use the exact compatible source and overlay build.",
+            "Ein Paket kann ein gewöhnliches HAProxy zum Vergleich bereitstellen, trägt aber nicht den repository-eigenen HTX-Overlay. Es kann daher den ausgewählten nativen Filterweg nicht ersetzen; die exakt kompatible Quelle und den Overlay-Build verwenden.",
+        ),
+        "variables": (
+            ("HAPROXY_VERSION", "Version required by the current HTX overlay.", "Von der aktuellen HTX-Overlay verlangte Version."),
+            ("HAPROXY_ARCHIVE", "Archive name derived from HAPROXY_VERSION.", "Aus HAPROXY_VERSION abgeleiteter Archivname."),
+            ("HAPROXY_URL", "Official HAProxy source archive URL.", "Offizielle HAProxy-Sourcearchiv-URL."),
+            ("HAPROXY_SHA256", "Expected SHA-256 for the selected source archive.", "Erwartete SHA-256 des ausgewählten Sourcearchivs."),
+            ("HAPROXY_SRC", "Verified upstream source tree.", "Verifizierter Upstream-Source-Baum."),
+            ("HAPROXY_PREFIX", "Private upstream host installation prefix.", "Privater Upstream-Host-Installationsprefix."),
+            ("HAPROXY_STAGE", "Staging root used with DESTDIR.", "Mit DESTDIR verwendeter Staging-Root."),
+            ("HAPROXY_BIN", "Staged ordinary HAProxy binary.", "Gestagtes gewöhnliches HAProxy-Binary."),
+            ("HAPROXY_HTX_SOURCE_DIR", "Verified source consumed by the overlay builder.", "Vom Overlay-Builder verwendete verifizierte Quelle."),
+            ("HAPROXY_HTX_BUILD_DIR", "External disposable overlay worktree and provenance directory.", "Externes disponierbares Overlay-Worktree- und Provenienzverzeichnis."),
+            ("HAPROXY_HTX_BIN", "Repository-built native HTX host binary.", "Repository-gebautes natives HTX-Hostbinary."),
+            ("MAKE_JOBS", "Parallel-job value passed to the repository overlay builder.", "An den Repository-Overlay-Builder übergebener Parallel-Job-Wert."),
+            ("HAPROXY_CONFIG", "Local loopback HAProxy configuration.", "Lokale Loopback-HAProxy-Konfiguration."),
+        ),
+        "troubleshoot": (
+            "The overlay refuses a version other than 3.2.21, an in-tree build directory, missing libmodsecurity headers, or a missing library. Treat that as a compatibility boundary, not as a reason to substitute a SPOA result.",
+            "Der Overlay verweigert eine andere Version als 3.2.21, ein In-Tree-Buildverzeichnis, fehlende libmodsecurity-Header oder eine fehlende Bibliothek. Das als Kompatibilitätsgrenze behandeln, nicht als Grund, ein SPOA-Ergebnis einzusetzen.",
+        ),
+    },
+    "envoy": {
+        "components": (
+            "libmodsecurity v3, an official Envoy binary or optional Bazel build, the repository ext_proc service, its CGo/Common bridge, gRPC configuration, a local rule file, and loopback Envoy/upstream listeners.",
+            "libmodsecurity v3, ein offizielles Envoy-Binary oder optionaler Bazel-Build, der repository-eigene ext_proc-Service, seine CGo-/Common-Bridge, gRPC-Konfiguration, eine lokale Regeldatei und Loopback-Listener für Envoy/Upstream.",
+        ),
+        "official_sources": (
+            ("Installing Envoy", "https://www.envoyproxy.io/docs/envoy/latest/start/install", "Official binary, package, and container installation choices plus version inspection.", "Offizielle Auswahl von Binary-, Paket- und Containerinstallation sowie Versionsprüfung.", "The page is version-sensitive; use the docs matching the selected Envoy release."),
+            ("Run Envoy", "https://www.envoyproxy.io/docs/envoy/latest/start/quick-start/run-envoy.html", "The official version, configuration validation, and local startup commands.", "Die offiziellen Befehle für Version, Konfigurationsvalidierung und lokalen Start.", "Use the selected Envoy release documentation."),
+            ("Static configuration", "https://www.envoyproxy.io/docs/envoy/latest/start/quick-start/configuration-static", "Listener, HTTP connection manager, route, and cluster configuration used by the loopback example.", "Listener-, HTTP-Connection-Manager-, Route- und Clusterkonfiguration des Loopback-Beispiels.", "Verify field names against the selected release."),
+            ("HTTP external processing filter", "https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter", "The official ext_proc filter and bidirectional gRPC configuration contract.", "Der offizielle ext_proc-Filter und der Vertrag für bidirektionale gRPC-Konfiguration.", "Filter fields and semantics are release-dependent."),
+            ("Envoy admin interface", "https://www.envoyproxy.io/docs/envoy/latest/operations/admin.html", "Loopback-only admin endpoints and their local diagnostic purpose.", "Nur auf Loopback gebundene Admin-Endpunkte und ihren lokalen Diagnosezweck.", "Do not expose the local example as a general management interface."),
+            ("Envoy v1.38.2 release", "https://github.com/envoyproxy/envoy/releases/tag/v1.38.2", "Official selected release page, binary asset, and checksum material.", "Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial.", "This guide pins the binary route to v1.38.2."),
+            ("Envoy source/Bazel guidance", "https://github.com/envoyproxy/envoy/blob/v1.38.2/bazel/README.md", "Official optional source-build guidance; it is resource-intensive and not the default route.", "Offizielle optionale Source-Build-Anleitung; sie ist ressourcenintensiv und nicht der Standardweg.", "Use only with the selected tag and sufficient CPU, memory, and storage."),
+            ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
+        ),
+        "host_intro": (
+            "For the normal local connector route, use Envoy's official release binary and validate it before configuring the ext_proc service. A complete Envoy source build is optional, not the default: the official Bazel route is resource-intensive and must be checked against the selected release's `bazel/README.md` before use.",
+            "Für den normalen lokalen Connectorweg das offizielle Envoy-Releasebinary verwenden und es vor der Konfiguration des ext_proc-Service validieren. Ein vollständiger Envoy-Source-Build ist optional, nicht der Standard: Der offizielle Bazel-Weg ist ressourcenintensiv und muss vor der Nutzung gegen `bazel/README.md` des ausgewählten Releases geprüft werden.",
+        ),
+        "host_commands": (
+            'export HOST_BUILD_BASE="$BUILD_BASE/envoy"',
+            'export ENVOY_VERSION="1.38.2"',
+            'export ENVOY_BIN="$HOST_BUILD_BASE/bin/envoy"',
+            'export ENVOY_DOWNLOAD_URL="https://github.com/envoyproxy/envoy/releases/download/v$ENVOY_VERSION/envoy-$ENVOY_VERSION-linux-x86_64"',
+            'export ENVOY_SHA256="87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899"',
+            'mkdir -p "$HOST_BUILD_BASE/bin"',
+            'curl -fL "$ENVOY_DOWNLOAD_URL" -o "$ENVOY_BIN"',
+            'printf "%s  %s\\n" "$ENVOY_SHA256" "$ENVOY_BIN" | sha256sum -c -',
+            'chmod 755 "$ENVOY_BIN"',
+            '"$ENVOY_BIN" --version',
+            '# Optional only after reading the matching upstream Bazel guide: bazel build -c opt //source/exe:envoy-static',
+        ),
+        "connector_intro": (
+            "The repository ext_proc executable is the source-built component. It links the Common/libmodsecurity bridge and is not part of an official Envoy binary. The generated host configuration uses `envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor`, an HTTP/2 gRPC cluster, and a router after that filter. Build the service into an external root, then generate both configurations there.",
+            "Das repository-eigene ext_proc-Executable ist die aus Source gebaute Komponente. Es linkt die Common-/libmodsecurity-Bridge und ist nicht Teil eines offiziellen Envoy-Binaries. Die erzeugte Hostkonfiguration verwendet `envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor`, einen HTTP/2-gRPC-Cluster und einen Router nach diesem Filter. Den Service in einen externen Root bauen und danach beide Konfigurationen erzeugen.",
+        ),
+        "connector_commands": (
+            'export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"',
+            'export MODSECURITY_INCLUDE_DIR="$MODSECURITY_PREFIX/include"',
+            'export MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib"',
+            'BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/envoy/build/build_ext_proc.sh',
+            'export EXT_PROC_BIN="$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc"',
+            'test -x "$EXT_PROC_BIN"',
+            'BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/envoy/build/test_ext_proc.sh',
+        ),
+        "config_commands": (
+            'export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"',
+            'export ENVOY_CONFIG="$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc.yaml"',
+            'export EXT_PROC_RUNTIME_CONFIG="$BUILD_ROOT/envoy-ext-proc/runtime/ext-proc.conf"',
+            'export ENVOY_PORT=18080',
+            'export ENVOY_UPSTREAM_PORT=18081',
+            'export EXT_PROC_PORT=18083',
+            'export ENVOY_ADMIN_PORT=19001',
+            'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
+            'OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$ENVOY_PORT" UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" EXT_PROC_PORT="$EXT_PROC_PORT" ADMIN_PORT="$ENVOY_ADMIN_PORT" sh connectors/envoy/config/prepare_envoy_ext_proc_config.sh',
+            'OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG" RULES_FILE="$RULES_FILE" EVENT_PATH="$BUILD_ROOT/envoy-ext-proc/runtime/events.jsonl" sh connectors/envoy/config/prepare_envoy_ext_proc_runtime_config.sh',
+            '"$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG"',
+            '"$EXT_PROC_BIN" --check-config --config connectors/envoy/config/envoy-ext-proc-service.json',
+        ),
+        "validation": (
+            '"$ENVOY_BIN" --version',
+            'test -x "$EXT_PROC_BIN"',
+            'file "$EXT_PROC_BIN"',
+            'ldd "$EXT_PROC_BIN" | grep -F libmodsecurity',
+            'grep -F "envoy.filters.http.ext_proc" "$ENVOY_CONFIG"',
+            'grep -F "request_body_mode: STREAMED" "$ENVOY_CONFIG"',
+        ),
+        "http_commands": (
+            'RUNTIME_ROOT="$BUILD_ROOT/envoy-ext-proc/runtime-smoke" ENVOY_BIN="$ENVOY_BIN" RULES_FILE="$RULES_FILE" ENVOY_SMOKE_PORT="$ENVOY_PORT" ENVOY_UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" ENVOY_EXT_PROC_PORT="$EXT_PROC_PORT" ENVOY_ADMIN_PORT="$ENVOY_ADMIN_PORT" sh connectors/envoy/harness/run_envoy_ext_proc_runtime.sh',
+            '# The bounded runner starts Envoy, ext_proc, and a loopback upstream, sends local HTTP/1.1 requests, and stops them.',
+        ),
+        "http_note": (
+            "Run only against loopback. The bounded repository harness starts Envoy, ext_proc, and its upstream, then sends HTTP/1.1 allow and local denial probes through the generated `ext_proc` route. Its admin endpoint is loopback-only and used for local readiness diagnostics. Its results apply only to those observed requests.",
+            "Nur gegen Loopback ausführen. Das begrenzte Repository-Harness startet Envoy, ext_proc und seinen Upstream und sendet dann HTTP/1.1-Allow- und lokale Deny-Probes durch die erzeugte `ext_proc`-Route. Sein Admin-Endpunkt ist nur auf Loopback gebunden und dient lokalen Readiness-Diagnosen. Seine Ergebnisse gelten nur für diese beobachteten Requests.",
+        ),
+        "package_queries": ('apt-cache search envoy', 'dnf search envoy', 'envoy --version 2>/dev/null || true'),
+        "package_note": (
+            "Packages can provide a host binary or build dependencies, but they do not include the repository ext_proc service or its Common/libmodsecurity bridge. Validate a package binary separately and retain the source-built service.",
+            "Pakete können ein Hostbinary oder Buildabhängigkeiten liefern, enthalten aber nicht den repository-eigenen ext_proc-Service oder seine Common-/libmodsecurity-Bridge. Ein Paketbinary getrennt validieren und den aus Source gebauten Service beibehalten.",
+        ),
+        "variables": (
+            ("ENVOY_VERSION", "Selected official Envoy release for the binary route.", "Ausgewählter offizieller Envoy-Release für den Binary-Weg."),
+            ("ENVOY_BIN", "Verified Envoy executable.", "Verifiziertes Envoy-Executable."),
+            ("ENVOY_DOWNLOAD_URL", "Official Envoy release-binary URL.", "Offizielle Envoy-Releasebinary-URL."),
+            ("ENVOY_SHA256", "Expected binary checksum for the selected release.", "Erwartete Binary-Prüfsumme des ausgewählten Releases."),
+            ("BUILD_ROOT", "External repository connector build root.", "Externer Build-Root des Repository-Connectors."),
+            ("EXT_PROC_BIN", "Repository-built ext_proc service executable.", "Repository-gebautes ext_proc-Service-Executable."),
+            ("ENVOY_CONFIG", "Generated loopback Envoy configuration.", "Erzeugte Loopback-Envoy-Konfiguration."),
+            ("EXT_PROC_RUNTIME_CONFIG", "Generated Common runtime configuration for ext_proc.", "Erzeugte Common-Laufzeitkonfiguration für ext_proc."),
+            ("OUTPUT_CONFIG", "Output path consumed by one configuration-materialization command.", "Ausgabepfad eines Konfigurationsmaterialisierungsbefehls."),
+            ("EVENT_PATH", "Absolute local event-log path passed to the ext_proc runtime configuration writer.", "Absoluter lokaler Eventlog-Pfad für den ext_proc-Laufzeitkonfigurationsgenerator."),
+            ("RUNTIME_ROOT", "External ephemeral root used by the bounded Envoy runtime harness.", "Externer temporärer Root des begrenzten Envoy-Laufzeitharnesses."),
+            ("ENVOY_PORT", "Loopback Envoy listener port.", "Loopback-Listenerport von Envoy."),
+            ("ENVOY_UPSTREAM_PORT", "Loopback upstream port used by the test.", "Vom Test genutzter Loopback-Upstream-Port."),
+            ("EXT_PROC_PORT", "Loopback gRPC ext_proc service port.", "Loopback-gRPC-Port des ext_proc-Service."),
+            ("ENVOY_ADMIN_PORT", "Loopback Envoy admin port.", "Loopback-Adminport von Envoy."),
+        ),
+        "troubleshoot": (
+            "An official Envoy binary is only the host. If validation fails, check the generated ext_proc YAML, gRPC port ownership, the ext_proc service configuration, and the libmodsecurity loader path; do not replace ext_proc with the separate ext_authz compatibility service.",
+            "Ein offizielles Envoy-Binary ist nur der Host. Schlägt die Validierung fehl, erzeugtes ext_proc-YAML, Besitz der gRPC-Ports, ext_proc-Servicekonfiguration und libmodsecurity-Loaderpfad prüfen; ext_proc nicht durch den separaten ext_authz-Kompatibilitätsservice ersetzen.",
+        ),
+    },
+    "traefik": {
+        "components": (
+            "libmodsecurity v3, Traefik, the repository native Go middleware, the C/C++ engine service, Common/libmodsecurity, a private Unix-domain socket, static and dynamic File Provider configuration, and loopback HTTP traffic.",
+            "libmodsecurity v3, Traefik, die repository-eigene native Go-Middleware, der C/C++-Engine-Service, Common/libmodsecurity, ein privater Unix-Domain-Socket, statische und dynamische File-Provider-Konfiguration sowie HTTP-Traffic auf Loopback.",
+        ),
+        "official_sources": (
+            ("Traefik Getting Started", "https://doc.traefik.io/traefik/getting-started/", "Official installation choices, entry points, routers, services, and safe local startup context.", "Offizielle Installationsoptionen, EntryPoints, Router, Services und sicherer lokaler Startkontext.", "Confirm the documentation version for the selected Traefik release."),
+            ("Building and Testing", "https://doc.traefik.io/traefik/contributing/building-testing/", "Official source checkout, Go/tooling, build, and test workflow.", "Offizieller Source-Checkout sowie Go-/Tooling-, Build- und Testablauf.", "The required Go version is defined by the selected release's `go.mod`."),
+            ("Traefik Configuration Reference", "https://doc.traefik.io/traefik/reference/", "Current official reference index for static configuration, File Provider, routers, middleware, and services.", "Aktueller offizieller Referenzindex für statische Konfiguration, File Provider, Router, Middleware und Services.", "Check that the current reference matches the selected release before applying a setting."),
+            ("Traefik v3.7 configuration overview", "https://doc.traefik.io/traefik/v3.7/getting-started/configuration-overview/", "The distinction between static installation configuration and dynamic routing configuration.", "Die Unterscheidung zwischen statischer Installations- und dynamischer Routing-Konfiguration.", "Use one static configuration method and recheck it for another release."),
+            ("Traefik v3.7 EntryPoints", "https://doc.traefik.io/traefik/v3.7/reference/install-configuration/entrypoints/", "Static loopback entry-point configuration.", "Statische Konfiguration der Loopback-EntryPoints.", "Field names are release-specific."),
+            ("Traefik v3.7 File Provider", "https://doc.traefik.io/traefik/v3.7/reference/routing-configuration/other-providers/file/", "Dynamic File Provider routers, middleware, and services.", "Dynamische Router, Middleware und Services des File Providers.", "Recheck the selected version before using another release."),
+            ("Traefik v3.7 health check", "https://doc.traefik.io/traefik/v3.7/reference/install-configuration/observability/healthcheck/", "The loopback ping endpoint used to confirm local host startup.", "Der Loopback-Ping-Endpunkt zur Bestätigung des lokalen Hoststarts.", "Do not enable an insecure dashboard for this local check."),
+            ("Traefik v3.7.5 release", "https://github.com/traefik/traefik/releases/tag/v3.7.5", "Official fixed release material and checksum source.", "Offizielles festes Releasematerial und Prüfsummenquelle.", "This guide selects v3.7.5 as the repository-compatible host input."),
+            ("Traefik v3.7.5 source", "https://github.com/traefik/traefik/tree/v3.7.5", "Official selected source tree; its go.mod defines the required host Go version.", "Offizieller ausgewählter Source-Baum; sein go.mod definiert die benötigte Go-Version des Hosts.", "The host's Go requirement is distinct from the repository middleware module's requirement."),
+        ),
+        "host_intro": (
+            "Use an official binary, container, or source build for the Traefik host. The source example below checks out the repository-compatible v3.7.5 tag; its upstream `go.mod` declares Go 1.25.0. That host requirement is distinct from this repository's native middleware module, which currently declares its own Go version.",
+            "Für den Traefik-Host ein offizielles Binary, einen Container oder einen Source-Build verwenden. Das Source-Beispiel checkt den repository-kompatiblen Tag v3.7.5 aus; dessen Upstream-`go.mod` deklariert Go 1.25.0. Diese Hostanforderung ist von der nativen Middleware dieses Repositorys verschieden, deren Modul derzeit eine eigene Go-Version deklariert.",
+        ),
+        "host_commands": (
+            'export HOST_BUILD_BASE="$BUILD_BASE/traefik"',
+            'export TRAEFIK_VERSION="3.7.5"',
+            'export TRAEFIK_REF="v$TRAEFIK_VERSION"',
+            'export TRAEFIK_SRC="$HOST_BUILD_BASE/traefik"',
+            'export TRAEFIK_BIN="$HOST_BUILD_BASE/bin/traefik"',
+            'mkdir -p "$HOST_BUILD_BASE/bin"',
+            'git clone https://github.com/traefik/traefik.git "$TRAEFIK_SRC"',
+            'git -C "$TRAEFIK_SRC" checkout --detach "$TRAEFIK_REF"',
+            'git -C "$TRAEFIK_SRC" rev-parse HEAD',
+            'grep -E "^go " "$TRAEFIK_SRC/go.mod"',
+            'go version',
+            'cd "$TRAEFIK_SRC"',
+            'make test-unit',
+            'make binary',
+            'install -m 755 dist/traefik "$TRAEFIK_BIN"',
+            '"$TRAEFIK_BIN" version',
+        ),
+        "connector_intro": (
+            "A standard Traefik binary does not include the native ModSecurity middleware or the persistent engine service. Build the Go middleware and the C/C++ service from this checkout, placing both outputs outside it. The engine socket must be private to the local run and must not be reused as a shared system endpoint.",
+            "Ein Standard-Traefik-Binary enthält weder die native ModSecurity-Middleware noch den persistenten Engine-Service. Die Go-Middleware und den C/C++-Service aus diesem Checkout bauen und beide Ausgaben außerhalb ablegen. Der Engine-Socket muss für den lokalen Run privat sein und darf nicht als geteilter Systemendpunkt wiederverwendet werden.",
+        ),
+        "connector_commands": (
+            'export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"',
+            'export TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$BUILD_ROOT/traefik-native-middleware"',
+            'export TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$BUILD_ROOT/traefik-engine-service"',
+            'export TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR/traefik-engine-service"',
+            'export MODSECURITY_INCLUDE_DIR="$MODSECURITY_PREFIX/include"',
+            'export MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib"',
+            'BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh connectors/traefik/build/build-native-middleware.sh build',
+            'BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh connectors/traefik/build/build-native-middleware.sh test',
+            'BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/traefik/build/build-engine-service.sh build',
+            'test -x "$TRAEFIK_ENGINE_SERVICE_BIN"',
+            'BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/traefik/build/build-engine-service.sh test',
+        ),
+        "config_commands": (
+            'export TRAEFIK_RUNTIME_ROOT="$BUILD_ROOT/traefik-native-runtime"',
+            'export RULES_FILE="$BUILD_ROOT/traefik-native-rules.conf"',
+            'export TRAEFIK_STATIC_CONFIG="$BUILD_ROOT/traefik-static.yaml"',
+            'export TRAEFIK_DYNAMIC_CONFIG="$BUILD_ROOT/traefik-dynamic.yaml"',
+            'export TRAEFIK_ENGINE_CONFIG="$BUILD_ROOT/traefik-engine.conf"',
+            'export TRAEFIK_ENGINE_SOCKET="$BUILD_ROOT/run/traefik-engine.sock"',
+            'export TRAEFIK_PORT=18080',
+            'export TRAEFIK_UPSTREAM_PORT=18081',
+            'export TRAEFIK_PING_PORT=18082',
+            'export TRAEFIK_PLUGIN_MODULE="github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware"',
+            'export TRAEFIK_PLUGIN_SOURCE="$TRAEFIK_RUNTIME_ROOT/plugins-local/src/$TRAEFIK_PLUGIN_MODULE"',
+            'mkdir -p "$(dirname "$TRAEFIK_PLUGIN_SOURCE")" "$BUILD_ROOT/run" "$BUILD_ROOT/logs"',
+            'cp -a "$CONNECTOR_ROOT/connectors/traefik/native_middleware" "$TRAEFIK_PLUGIN_SOURCE"',
+            'mkdir -p "$(dirname "$TRAEFIK_ENGINE_SOCKET")"',
+            'chmod 700 "$(dirname "$TRAEFIK_ENGINE_SOCKET")"',
+            'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_HEADERS:X-Modsec-Smoke "@streq block" "id:100001,phase:1,deny,status:403,log"\nEOF',
+            'cat > "$TRAEFIK_STATIC_CONFIG" <<EOF\nentryPoints:\n  web:\n    address: "127.0.0.1:$TRAEFIK_PORT"\n  health:\n    address: "127.0.0.1:$TRAEFIK_PING_PORT"\nproviders:\n  file:\n    filename: "$TRAEFIK_DYNAMIC_CONFIG"\n    watch: false\nping:\n  entryPoint: health\nexperimental:\n  localPlugins:\n    modsecurityNative:\n      moduleName: $TRAEFIK_PLUGIN_MODULE\n      settings:\n        envs: []\nEOF',
+            'cat > "$TRAEFIK_DYNAMIC_CONFIG" <<EOF\nhttp:\n  routers:\n    native:\n      entryPoints: [web]\n      rule: "PathPrefix(`/`)"\n      middlewares: [native]\n      service: upstream\n  middlewares:\n    native:\n      plugin:\n        modsecurityNative:\n          maxHeaderCount: 128\n          maxHeaderBytes: 65536\n          maxRequestChunkBytes: 32768\n          maxResponseChunkBytes: 32768\n          transactionIDHeader: X-Request-Id\n          engineMode: uds\n          engineSocketPath: $TRAEFIK_ENGINE_SOCKET\n  services:\n    upstream:\n      loadBalancer:\n        servers:\n          - url: http://127.0.0.1:$TRAEFIK_UPSTREAM_PORT\nEOF',
+            'cat > "$TRAEFIK_ENGINE_CONFIG" <<EOF\nenabled=on\nrules_file=$RULES_FILE\ntransaction_id_header=x-request-id\nrequest_body_mode=streaming\nresponse_body_mode=streaming\nrequest_body_limit=4096\nresponse_body_limit=4096\nbody_limit_action=reject\nphase4_mode=safe\ndefault_block_status=403\ndefault_error_status=500\nuse_error_log=off\nevent_path=$BUILD_ROOT/logs/traefik-events.jsonl\nmax_header_count=100\nmax_header_name_size=256\nmax_header_value_size=8192\nmax_total_header_bytes=65536\nmax_event_json_bytes=16384\nEOF',
+            '"$TRAEFIK_BIN" check --configFile="$TRAEFIK_STATIC_CONFIG"',
+            '"$TRAEFIK_ENGINE_SERVICE_BIN" --check-config --config "$TRAEFIK_ENGINE_CONFIG"',
+        ),
+        "config_note": (
+            "The configuration deliberately uses only loopback entry points and does not enable an insecure dashboard or API. Treat any dashboard or administration endpoint as optional and secure it separately for a real deployment.",
+            "Die Konfiguration verwendet bewusst nur Loopback-EntryPoints und aktiviert kein unsicheres Dashboard oder API. Jedes Dashboard oder jeden Administrationsendpunkt nur optional verwenden und für einen echten Betrieb separat absichern.",
+        ),
+        "validation": (
+            '"$TRAEFIK_BIN" version',
+            'test -f "$TRAEFIK_STATIC_CONFIG"',
+            'test -f "$TRAEFIK_DYNAMIC_CONFIG"',
+            'test -x "$TRAEFIK_ENGINE_SERVICE_BIN"',
+            'ldd "$TRAEFIK_ENGINE_SERVICE_BIN" | grep -F libmodsecurity',
+            'grep -F "modsecurityNative" "$TRAEFIK_STATIC_CONFIG"',
+            'grep -F "engineSocketPath" "$TRAEFIK_DYNAMIC_CONFIG"',
+        ),
+        "http_commands": (
+            'python3 -m http.server "$TRAEFIK_UPSTREAM_PORT" --bind 127.0.0.1 --directory "$TRAEFIK_RUNTIME_ROOT" > "$BUILD_ROOT/logs/upstream.log" 2>&1 &',
+            'upstream_pid=$!',
+            'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$TRAEFIK_ENGINE_SERVICE_BIN" --serve --config "$TRAEFIK_ENGINE_CONFIG" --socket "$TRAEFIK_ENGINE_SOCKET" > "$BUILD_ROOT/logs/engine.log" 2>&1 &',
+            'engine_pid=$!',
+            '( cd "$TRAEFIK_RUNTIME_ROOT" && LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$TRAEFIK_BIN" --configFile="$TRAEFIK_STATIC_CONFIG" ) > "$BUILD_ROOT/logs/traefik.log" 2>&1 &',
+            'traefik_pid=$!',
+            'curl --http1.1 -fsS "http://127.0.0.1:$TRAEFIK_PING_PORT/ping"',
+            'curl --http1.1 -i -H "X-Request-Id: traefik-native-allow" http://127.0.0.1:$TRAEFIK_PORT/native',
+            'curl --http1.1 -i -H "X-Modsec-Smoke: block" -H "X-Request-Id: traefik-native-deny" http://127.0.0.1:$TRAEFIK_PORT/native',
+            'kill "$traefik_pid" "$engine_pid" "$upstream_pid"',
+        ),
+        "http_note": (
+            "Run only against loopback. `/ping` confirms host startup; the ordinary `/native` request exercises the private UDS route, and the `X-Modsec-Smoke: block` test header triggers the local 403 rule. These observations do not establish a broader claim.",
+            "Nur gegen Loopback ausführen. `/ping` bestätigt den Hoststart; der normale Request auf `/native` nutzt den privaten UDS-Weg, und der Testheader `X-Modsec-Smoke: block` löst die lokale 403-Regel aus. Diese Beobachtungen begründen keinen weitergehenden Claim.",
+        ),
+        "package_queries": ('apt-cache search traefik', 'dnf search traefik', 'traefik version 2>/dev/null || true'),
+        "package_note": (
+            "A package or a separately downloaded host binary can supply Traefik itself, but neither contains the repository Go middleware, CGo/Common bridge, or UDS engine service. Keep those source-built components and validate their socket permissions.",
+            "Ein Paket oder separat geladenes Hostbinary kann Traefik selbst bereitstellen, aber keines enthält die repository-eigene Go-Middleware, CGo-/Common-Bridge oder den UDS-Engine-Service. Diese aus Source gebauten Komponenten beibehalten und ihre Socket-Berechtigungen validieren.",
+        ),
+        "variables": (
+            ("TRAEFIK_VERSION", "Repository-compatible Traefik release input.", "Repository-kompatible Traefik-Releaseeingabe."),
+            ("TRAEFIK_REF", "Git tag derived from TRAEFIK_VERSION.", "Aus TRAEFIK_VERSION abgeleiteter Git-Tag."),
+            ("TRAEFIK_SRC", "Pinned upstream Traefik source tree.", "Gepinnter Upstream-Traefik-Source-Baum."),
+            ("TRAEFIK_BIN", "Built or otherwise verified host binary.", "Gebautes oder anderweitig verifiziertes Hostbinary."),
+            ("BUILD_ROOT", "External root for repository-native outputs and runtime files.", "Externer Root für repository-native Ausgaben und Laufzeitdateien."),
+            ("TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR", "External Go middleware build report directory.", "Externes Go-Middleware-Buildreport-Verzeichnis."),
+            ("TRAEFIK_ENGINE_SERVICE_BUILD_DIR", "External C/C++ engine-service build directory.", "Externes C/C++-Engine-Service-Buildverzeichnis."),
+            ("TRAEFIK_ENGINE_SERVICE_BIN", "Built private engine-service executable.", "Gebautes privates Engine-Service-Executable."),
+            ("TRAEFIK_RUNTIME_ROOT", "Private working directory that contains the staged local plugin during a manual run.", "Privates Arbeitsverzeichnis mit dem für einen manuellen Lauf bereitgestellten lokalen Plugin."),
+            ("TRAEFIK_STATIC_CONFIG", "Local-plugin registration configuration.", "Konfiguration der lokalen Pluginregistrierung."),
+            ("TRAEFIK_DYNAMIC_CONFIG", "File Provider router/middleware configuration.", "File-Provider-Konfiguration für Router/Middleware."),
+            ("TRAEFIK_ENGINE_CONFIG", "Private engine-service runtime configuration.", "Private Laufzeitkonfiguration des Engine-Service."),
+            ("TRAEFIK_ENGINE_SOCKET", "Private run-local UDS endpoint, not a global path.", "Privater run-lokaler UDS-Endpunkt, kein globaler Pfad."),
+            ("TRAEFIK_PLUGIN_MODULE", "Official local-plugin module path staged beneath plugins-local/src.", "Offizieller lokaler Plugin-Modulpfad unter plugins-local/src."),
+            ("TRAEFIK_PLUGIN_SOURCE", "Staged source directory for the local Traefik plugin.", "Bereitgestelltes Source-Verzeichnis für das lokale Traefik-Plugin."),
+            ("TRAEFIK_PORT", "Loopback web entry point for the manual test.", "Loopback-Web-EntryPoint für den manuellen Test."),
+            ("TRAEFIK_UPSTREAM_PORT", "Loopback test upstream port.", "Loopback-Port des Test-Upstreams."),
+            ("TRAEFIK_PING_PORT", "Loopback ping endpoint port.", "Loopback-Port des Ping-Endpunkts."),
+        ),
+        "troubleshoot": (
+            "If Traefik starts without the middleware, check the local-plugin workspace, static registration, File Provider, and the permissions/ownership of the run-local UDS directory. A forwardAuth compatibility route does not diagnose the selected native middleware path.",
+            "Wenn Traefik ohne Middleware startet, lokalen Plugin-Workspace, statische Registrierung, File Provider sowie Berechtigungen/Eigentümer des run-lokalen UDS-Verzeichnisses prüfen. Ein ForwardAuth-Kompatibilitätsweg diagnostiziert den ausgewählten nativen Middleware-Weg nicht.",
+        ),
+    },
+    "lighttpd": {
+        "components": (
+            "libmodsecurity v3, lighttpd 1.4.84 source, the repository Entity-Body patch, a patched host, a matching connector module, a local runtime configuration, and loopback HTTP/1.1 traffic.",
+            "libmodsecurity v3, lighttpd-1.4.84-Source, der repository-eigene Entity-Body-Patch, ein gepatchter Host, ein passendes Connectormodul, eine lokale Laufzeitkonfiguration und HTTP/1.1-Traffic auf Loopback.",
+        ),
+        "official_sources": (
+            ("lighttpd INSTALL", "https://github.com/lighttpd/lighttpd1.4/blob/master/INSTALL", "Official prerequisites, Autotools/source-build, test, installation, and startup guidance.", "Offizielle Voraussetzungen sowie Autotools-/Source-Build-, Test-, Installations- und Startanleitung.", "Re-check INSTALL for the selected lighttpd release."),
+            ("lighttpd Source Downloads", "https://download.lighttpd.net/lighttpd/", "Official release archives and checksum material.", "Offizielle Releasearchive und Prüfsummenmaterial.", "The latest upstream release can differ from the repository patch pin."),
+            ("lighttpd Documentation", "https://redmine.lighttpd.net/projects/lighttpd/wiki", "Official configuration and command documentation when applicable to the selected host release.", "Offizielle Konfigurations- und Befehlsdokumentation, soweit sie für den ausgewählten Hostrelease gilt.", "Check accessibility and release relevance before relying on a page."),
+            ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
+        ),
+        "host_intro": (
+            "The current repository patch and patched-host scripts are pinned to lighttpd 1.4.84. Do not silently substitute a newer upstream archive: for example, a newer upstream release must be treated as an update that requires patch, configure, ABI, and runtime revalidation. Work on a disposable copy so the verified upstream source remains available for comparison.",
+            "Der aktuelle Repository-Patch und die gepatchten Hostskripte sind auf lighttpd 1.4.84 gepinnt. Kein neueres Upstream-Archiv stillschweigend einsetzen: Ein neuerer Upstream-Release ist ein Update, das Patch, Configure, ABI und Laufzeit neu validieren muss. An einer disponierbaren Kopie arbeiten, damit die verifizierte Upstream-Quelle zum Vergleich erhalten bleibt.",
+        ),
+        "host_commands": (
+            'export HOST_BUILD_BASE="$BUILD_BASE/lighttpd"',
+            'export LIGHTTPD_VERSION="1.4.84"',
+            'export LIGHTTPD_ARCHIVE="lighttpd-$LIGHTTPD_VERSION.tar.xz"',
+            'export LIGHTTPD_URL="https://download.lighttpd.net/lighttpd/releases-1.4.x/$LIGHTTPD_ARCHIVE"',
+            'export LIGHTTPD_CHECKSUM_URL="https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$LIGHTTPD_VERSION.sha256sum"',
+            'export LIGHTTPD_CHECKSUM_FILE="$HOST_BUILD_BASE/lighttpd-$LIGHTTPD_VERSION.sha256sum"',
+            'export LIGHTTPD_SHA256="076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70"',
+            'export LIGHTTPD_SRC="$HOST_BUILD_BASE/lighttpd-$LIGHTTPD_VERSION"',
+            'export LIGHTTPD_PATCHED_SRC="$HOST_BUILD_BASE/lighttpd-$LIGHTTPD_VERSION-patched"',
+            'export LIGHTTPD_BUILD_DIR="$HOST_BUILD_BASE/build-$LIGHTTPD_VERSION"',
+            'export LIGHTTPD_PREFIX="$HOME/.local/lighttpd-modsecurity"',
+            'export LIGHTTPD_PATCH_FILE="$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"',
+            'mkdir -p "$HOST_BUILD_BASE"',
+            'cd "$HOST_BUILD_BASE"',
+            'curl -fLO "$LIGHTTPD_URL"',
+            'curl -fL "$LIGHTTPD_CHECKSUM_URL" -o "$LIGHTTPD_CHECKSUM_FILE"',
+            'awk -v archive="$LIGHTTPD_ARCHIVE" \'$2 == archive { print }\' "$LIGHTTPD_CHECKSUM_FILE" | sha256sum -c -',
+            'printf "%s  %s\\n" "$LIGHTTPD_SHA256" "$LIGHTTPD_ARCHIVE" | sha256sum -c -',
+            'tar -xJf "$LIGHTTPD_ARCHIVE"',
+            'cp -a "$LIGHTTPD_SRC" "$LIGHTTPD_PATCHED_SRC"',
+            'cd "$LIGHTTPD_PATCHED_SRC"',
+            'patch --dry-run -p1 < "$LIGHTTPD_PATCH_FILE"',
+            'patch -p1 < "$LIGHTTPD_PATCH_FILE"',
+            'if test -x ./autogen.sh; then ./autogen.sh; fi',
+            './configure --help | grep -E -- "--prefix|--bindir|--sbindir|--libdir"',
+            'mkdir -p "$LIGHTTPD_BUILD_DIR"',
+            'cd "$LIGHTTPD_BUILD_DIR"',
+            '"$LIGHTTPD_PATCHED_SRC/configure" --prefix="$LIGHTTPD_PREFIX" --bindir="$LIGHTTPD_PREFIX/bin" --sbindir="$LIGHTTPD_PREFIX/bin" --libdir="$LIGHTTPD_PREFIX/lib"',
+            'make -j"$jobs"',
+            'if make -n check >/dev/null 2>&1; then make check; fi',
+            'make install',
+            '"$LIGHTTPD_PREFIX/bin/lighttpd" -V',
+        ),
+        "connector_intro": (
+            "The repository module must use the same patched source headers and generated `config.h` as the host. The source build script links it to libmodsecurity and writes the module to an external directory. A normal lighttpd package lacks the Entity-Body hook and cannot load this selected module as an equivalent path.",
+            "Das Repository-Modul muss dieselben gepatchten Source-Header und dieselbe generierte `config.h` wie der Host verwenden. Das Source-Buildskript linkt es mit libmodsecurity und schreibt das Modul in ein externes Verzeichnis. Ein normales lighttpd-Paket besitzt den Entity-Body-Hook nicht und kann dieses ausgewählte Modul nicht als gleichwertigen Weg laden.",
+        ),
+        "connector_commands": (
+            'export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"',
+            'export LIGHTTPD_MODULE_DIR="$BUILD_ROOT/modules"',
+            'export MODSECURITY_INCLUDE_DIR="$MODSECURITY_PREFIX/include"',
+            'export MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib"',
+            'BUILD_ROOT="$BUILD_ROOT" LIGHTTPD_CONNECTOR_OUT_DIR="$BUILD_ROOT/connector" LIGHTTPD_MODULE_DIR="$LIGHTTPD_MODULE_DIR" LIGHTTPD_MSCONNECTOR_CORE_MODE=patched LIGHTTPD_SOURCE_DIR="$LIGHTTPD_PATCHED_SRC" LIGHTTPD_BUILD_ROOT="$LIGHTTPD_BUILD_DIR" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/lighttpd/build/build_module.sh',
+            'export LIGHTTPD_MODULE="$LIGHTTPD_MODULE_DIR/mod_msconnector.so"',
+            'test -f "$LIGHTTPD_MODULE"',
+        ),
+        "config_commands": (
+            'export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"',
+            'export LIGHTTPD_RUNTIME_CONFIG="$HOST_BUILD_BASE/msconnector-runtime.conf"',
+            'export LIGHTTPD_CONFIG="$HOST_BUILD_BASE/lighttpd-local.conf"',
+            'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
+            'cat > "$LIGHTTPD_RUNTIME_CONFIG" <<EOF\nrules_file=$RULES_FILE\nrequest_body_mode=none\nresponse_body_mode=none\nphase4_mode=safe\nEOF',
+            'cat > "$LIGHTTPD_CONFIG" <<EOF\nserver.compat-module-load = "disable"\nserver.modules = ( "mod_msconnector" )\nserver.bind = "127.0.0.1"\nserver.port = 8080\nserver.document-root = "$LIGHTTPD_PREFIX/htdocs"\nserver.pid-file = "$HOST_BUILD_BASE/lighttpd.pid"\nserver.errorlog = "$HOST_BUILD_BASE/lighttpd-error.log"\nmsconnector.enabled = "enable"\nmsconnector.config-file = "$LIGHTTPD_RUNTIME_CONFIG"\nEOF',
+            '"$LIGHTTPD_PREFIX/bin/lighttpd" -tt -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR"',
+        ),
+        "validation": (
+            '"$LIGHTTPD_PREFIX/bin/lighttpd" -V',
+            'file "$LIGHTTPD_MODULE"',
+            'ldd "$LIGHTTPD_MODULE" | grep -F libmodsecurity',
+            'nm -D "$LIGHTTPD_MODULE" | grep -E "mod_msconnector_plugin_init$"',
+            'grep -F LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION "$LIGHTTPD_PATCHED_SRC/src/plugin.h"',
+        ),
+        "http_commands": (
+            'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$LIGHTTPD_PREFIX/bin/lighttpd" -D -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR" &',
+            'lighttpd_pid=$!',
+            'curl -i http://127.0.0.1:8080/',
+            'curl -i http://127.0.0.1:8080/blocked',
+            'kill "$lighttpd_pid"',
+        ),
+        "package_queries": ('apt-cache search lighttpd', 'dnf search lighttpd', 'lighttpd -V 2>/dev/null || true'),
+        "package_note": (
+            "A package can supply a comparison host and prerequisites, but it cannot supply this repository's versioned Entity-Body patch or a module built with matching patched headers. It is not a package-only version of the selected path.",
+            "Ein Paket kann einen Vergleichshost und Voraussetzungen liefern, aber nicht den versionierten Entity-Body-Patch dieses Repositorys oder ein Modul mit passenden gepatchten Headern. Es ist keine package-only-Version des ausgewählten Weges.",
+        ),
+        "variables": (
+            ("LIGHTTPD_VERSION", "Exact upstream version required by the repository patch.", "Vom Repository-Patch verlangte exakte Upstream-Version."),
+            ("LIGHTTPD_ARCHIVE", "Archive name derived from LIGHTTPD_VERSION.", "Aus LIGHTTPD_VERSION abgeleiteter Archivname."),
+            ("LIGHTTPD_URL", "Official lighttpd source archive URL.", "Offizielle lighttpd-Sourcearchiv-URL."),
+            ("LIGHTTPD_CHECKSUM_URL", "Official selected-release checksum URL.", "Offizielle Prüfsummen-URL des ausgewählten Releases."),
+            ("LIGHTTPD_CHECKSUM_FILE", "Downloaded official checksum file for the selected archive.", "Geladene offizielle Prüfsummendatei für das ausgewählte Archiv."),
+            ("LIGHTTPD_SHA256", "Expected selected archive checksum.", "Erwartete Prüfsumme des ausgewählten Archivs."),
+            ("LIGHTTPD_SRC", "Verified unmodified upstream source tree.", "Verifizierter unveränderter Upstream-Source-Baum."),
+            ("LIGHTTPD_PATCHED_SRC", "Disposable patched copy of the selected source.", "Disponierbare gepatchte Kopie der ausgewählten Quelle."),
+            ("LIGHTTPD_BUILD_DIR", "Out-of-tree patched lighttpd build directory.", "Out-of-tree-Buildverzeichnis des gepatchten lighttpd."),
+            ("LIGHTTPD_PREFIX", "Private patched host installation prefix.", "Privater Installationsprefix des gepatchten Hosts."),
+            ("LIGHTTPD_PATCH_FILE", "Repository versioned Entity-Body patch.", "Versionierter Entity-Body-Patch des Repositorys."),
+            ("LIGHTTPD_MODULE_DIR", "External directory for the matching connector module.", "Externes Verzeichnis für das passende Connectormodul."),
+            ("LIGHTTPD_MODULE", "Built matching module path.", "Pfad des gebauten passenden Moduls."),
+            ("LIGHTTPD_RUNTIME_CONFIG", "Connector runtime rules/mode configuration.", "Connector-Laufzeitkonfiguration für Regeln/Modus."),
+            ("LIGHTTPD_CONFIG", "Local lighttpd server configuration.", "Lokale lighttpd-Serverkonfiguration."),
+        ),
+        "troubleshoot": (
+            "If patch dry-run fails, do not force it: verify the exact 1.4.84 source and patch checksum. If the module cannot load, rebuild the patched core and module from the same source/header/configuration set.",
+            "Wenn der Patch-Dry-Run fehlschlägt, ihn nicht erzwingen: die exakte 1.4.84-Quelle und Patch-Prüfsumme prüfen. Kann das Modul nicht geladen werden, gepatchten Core und Modul aus demselben Source-/Header-/Konfigurationssatz neu bauen.",
+        ),
+    },
+}
+
+
+def manual_localized(value: tuple[str, str], german: bool) -> str:
+    return value[1] if german else value[0]
+
+
+def fenced(language: str, body: str) -> str:
+    return f"```{language}\n{body.rstrip()}\n```"
+
+
+def manual_heading(number: int, english: str, german_text: str, german: bool) -> str:
+    return f"## {number}. {german_text if german else english}"
+
+
+def manual_official_sources(info: dict[str, object], german: bool) -> str:
+    rows: list[str] = []
+    for title, url, english_scope, german_scope, version_scope in info["official_sources"]:
+        purpose = "Quelle und Umfang" if german else "Source and scope"
+        scope = german_scope if german else english_scope
+        version_label = "Versionsbezug" if german else "Version scope"
+        version_text = (
+            f"Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. ({version_scope})"
+            if german
+            else version_scope
+        )
+        rows.append(f"- **{purpose}:** [{title}]({url})\n  {scope} {version_label}: {version_text}")
+    return "\n".join(rows)
+
+
+def manual_common_variables(german: bool) -> list[tuple[str, str]]:
+    if german:
+        return [
+            ("BUILD_BASE", "Portabler Source-/Build-Stamm, z. B. `$HOME/src/modsecurity-build`."),
+            ("CONNECTOR_ROOT", "Git-Top-Level dieses Repository-Checkouts; die Connector-Skripte werden von dort aus aufgerufen."),
+            ("HOST_BUILD_BASE", "Connector-spezifisches externes Unterverzeichnis unter BUILD_BASE für Quellen, Builds, Konfiguration und lokale Logs."),
+            ("BUILD_ROOT", "Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten."),
+            ("MODSECURITY_SRC", "Checkout der ModSecurity-v3-Engine unter BUILD_BASE."),
+            ("MODSECURITY_PREFIX", "Isolierter Benutzer-Prefix für Header, Libraries und pkg-config-Metadaten."),
+            ("MODSECURITY_REF", "Fester Git-Tag der Engine; kein beweglicher Branch."),
+            ("MODSECURITY_COMMIT", "Erwarteter Commit, auf den MODSECURITY_REF aufgelöst werden muss."),
+            ("MODSECURITY_INCLUDE_DIR", "Include-Verzeichnis unter MODSECURITY_PREFIX für Repository-Komponenten."),
+            ("MODSECURITY_LIB_DIR", "Library-Verzeichnis unter MODSECURITY_PREFIX für Repository-Komponenten."),
+            ("PKG_CONFIG_PATH", "Temporärer Suchpfad für die lokale libmodsecurity-pc-Datei."),
+            ("LD_LIBRARY_PATH", "Nur temporärer Loaderpfad für lokale Tests, kein globales Installationsrezept."),
+            ("RULES_FILE", "Lokale Testregeldatei; keine CRS-Regeldatei."),
+            ("jobs", "Lokale Anzahl paralleler Buildjobs aus `getconf`; bei wenig RAM reduzieren."),
+            ("VERIFIED_RUN_PARENT", "Externer Elternordner eines frischen Repository-Testcheckouts und seiner Testartefakte."),
+            ("run_id", "Eindeutige Kennung eines repository-gesteuerten Full-Lifecycle-Laufs."),
+            ("NO_CRS_RUN_ID", "Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt."),
+            ("upstream_pid", "Lokale Prozess-ID des Test-Upstreams aus `$!`; nur im selben Shell-Lauf verwenden."),
+            ("haproxy_pid", "Lokale Prozess-ID des gestarteten HAProxy aus `$!`; nur im selben Shell-Lauf verwenden."),
+            ("engine_pid", "Lokale Prozess-ID des gestarteten Traefik-Engine-Service aus `$!`; nur im selben Shell-Lauf verwenden."),
+            ("traefik_pid", "Lokale Prozess-ID des gestarteten Traefik aus `$!`; nur im selben Shell-Lauf verwenden."),
+            ("lighttpd_pid", "Lokale Prozess-ID des gestarteten lighttpd aus `$!`; nur im selben Shell-Lauf verwenden."),
+        ]
+    return [
+        ("BUILD_BASE", "Portable source/build parent, for example `$HOME/src/modsecurity-build`."),
+        ("CONNECTOR_ROOT", "Git top level of this checkout; connector scripts are called from it."),
+        ("HOST_BUILD_BASE", "Connector-specific external subtree below BUILD_BASE for sources, builds, configuration, and local logs."),
+        ("BUILD_ROOT", "External build and runtime root for repository-owned connector components."),
+        ("MODSECURITY_SRC", "Checkout of the ModSecurity v3 engine below BUILD_BASE."),
+        ("MODSECURITY_PREFIX", "Isolated user prefix for headers, libraries, and pkg-config metadata."),
+        ("MODSECURITY_REF", "Fixed engine Git tag, never a moving branch."),
+        ("MODSECURITY_COMMIT", "Expected commit to which MODSECURITY_REF must resolve."),
+        ("MODSECURITY_INCLUDE_DIR", "Include directory below MODSECURITY_PREFIX for repository components."),
+        ("MODSECURITY_LIB_DIR", "Library directory below MODSECURITY_PREFIX for repository components."),
+        ("PKG_CONFIG_PATH", "Temporary search path for the local libmodsecurity pc file."),
+        ("LD_LIBRARY_PATH", "Temporary loader path for local tests only, not a global installation recipe."),
+        ("RULES_FILE", "Local test-rule file, not a CRS rule file."),
+        ("jobs", "Local parallel-build count from `getconf`; reduce it on low-memory hosts."),
+        ("VERIFIED_RUN_PARENT", "External parent for a fresh repository-test checkout and its test artifacts."),
+        ("run_id", "Unique identifier for one repository-controlled full-lifecycle run."),
+        ("NO_CRS_RUN_ID", "Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated."),
+        ("upstream_pid", "Local test-upstream process ID from `$!`; use it only in the same shell run."),
+        ("haproxy_pid", "Local started-HAProxy process ID from `$!`; use it only in the same shell run."),
+        ("engine_pid", "Local started Traefik engine-service process ID from `$!`; use it only in the same shell run."),
+        ("traefik_pid", "Local started Traefik process ID from `$!`; use it only in the same shell run."),
+        ("lighttpd_pid", "Local started-lighttpd process ID from `$!`; use it only in the same shell run."),
+    ]
+
+
+def manual_variable_table(info: dict[str, object], german: bool) -> str:
+    rows = manual_common_variables(german)
+    for name, english, german_text in info["variables"]:
+        rows.append((name, german_text if german else english))
+    headers = ("Variable/Platzhalter", "Bedeutung") if german else ("Variable/placeholder", "Meaning")
+    return markdown_table(headers, rows)
+
+
+def manual_modsecurity_build(german: bool) -> str:
+    intro = (
+        "Dieser Ablauf verwendet einen festen, überprüfbaren Git-Tag und dessen aufgelösten Commit. `v3/master` ist kein reproduzierbarer Pin und wird deshalb nicht als solcher dargestellt. `build.sh` regeneriert beziehungsweise aktualisiert die Autotools-Eingaben; es kompiliert die Bibliothek noch nicht.",
+        "This flow uses a fixed, verifiable Git tag and its resolved commit. `v3/master` is not a reproducible pin and is therefore not presented as one. `build.sh` regenerates or refreshes the Autotools inputs; it does not compile the library yet.",
+    )
+    note = (
+        "Beim ausgewählten Stand wird PCRE2 standardmäßig erkannt; `--with-pcre2` wird nicht erfunden. Die optionalen Schalter werden vor der Verwendung mit `./configure --help` geprüft. Wenn der gewählte Release einen Schalter nicht anbietet, ihn aus dem Aufruf entfernen statt einen nicht akzeptierten Befehl zu dokumentieren.",
+        "At the selected revision PCRE2 is detected by default; this guide does not invent `--with-pcre2`. Optional switches are checked with `./configure --help` before use. If the chosen release does not offer a switch, remove it rather than documenting an unaccepted command.",
+    )
+    commands = (
+        'export BUILD_BASE="$HOME/src/modsecurity-build"',
+        'export MODSECURITY_SRC="$BUILD_BASE/ModSecurity"',
+        'export MODSECURITY_PREFIX="$HOME/.local/modsecurity"',
+        'export MODSECURITY_REF="v3.0.16"',
+        'export MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+        'mkdir -p "$BUILD_BASE"',
+        'git clone --recurse-submodules https://github.com/owasp-modsecurity/ModSecurity.git "$MODSECURITY_SRC"',
+        'git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"',
+        'git -C "$MODSECURITY_SRC" submodule update --init --recursive',
+        'test "$(git -C "$MODSECURITY_SRC" rev-parse HEAD)" = "$MODSECURITY_COMMIT"',
+        'git -C "$MODSECURITY_SRC" rev-parse HEAD',
+        'cd "$MODSECURITY_SRC"',
+        './build.sh',
+        './configure --help | grep -E -- "--with-(lmdb|libxml|curl|yajl)"',
+        './configure --prefix="$MODSECURITY_PREFIX" --with-lmdb --with-libxml --with-curl --with-yajl',
+        'jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"',
+        'make -j"$jobs"',
+        'make check',
+        'make install',
+        'export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"',
+        'export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"',
+    )
+    validation = (
+        'test -d "$MODSECURITY_PREFIX/include"',
+        'test -d "$MODSECURITY_PREFIX/lib"',
+        'find "$MODSECURITY_PREFIX" -maxdepth 3 -type f | sort',
+        'pkg-config --modversion libmodsecurity 2>/dev/null || true',
+        'find "$MODSECURITY_PREFIX/lib" -type f \\( -name "libmodsecurity.so*" -o -name "libmodsecurity.a" \\) -print',
+    )
+    if german:
+        return f"""{intro[0]}
+
+{shell(commands)}
+
+{note[0]}
+
+`PKG_CONFIG_PATH` ermöglicht Buildsystemen, die benutzerlokale Installation zu
+finden. `LD_LIBRARY_PATH` ist nur für lokale Entwicklung und Tests; für eine
+dauerhafte Systeminstallation bewusstes Loader-Setup oder rpath prüfen.
+
+{shell(validation)}"""
+    return f"""{intro[1]}
+
+{shell(commands)}
+
+{note[1]}
+
+`PKG_CONFIG_PATH` lets build systems find the user-local installation.
+`LD_LIBRARY_PATH` is only for local development and tests; use a deliberate
+loader configuration or rpath for a durable system installation.
+
+{shell(validation)}"""
+
+
+def repository_test_path(item: dict[str, str], german: bool) -> str:
+    slug = item["slug"]
+    flow = (
+        'export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"',
+        'mkdir -p "$VERIFIED_RUN_PARENT"',
+        'cd "$VERIFIED_RUN_PARENT"',
+        'git clone --recurse-submodules https://github.com/Easton97-Jens/ModSecurity-conector.git',
+        'cd ModSecurity-conector',
+        'git switch feature/all-connectors-no-crs-baseline',
+        'git submodule update --init --recursive',
+        'make check-framework',
+        'make prepare-runtime-components',
+        f'make {item["build"]}',
+        f'make {item["config"]}',
+        f'make {item["start"]}',
+        f'make {item["runtime"]}',
+        f'run_id="{slug}-core-$(date -u +%Y%m%dT%H%M%SZ)"',
+        f'NO_CRS_RUN_ID="$run_id" make {item["full"]}',
+        f'NO_CRS_RUN_ID="$run_id" make evidence-check-{slug}',
+    )
+    explanation = (
+        "This section follows the manual build. The targets automate and test the build and integration steps described above; they do not replace their technical documentation. Exit `77` means a deliberately blocked prerequisite, and one successful target is not a broader release claim.",
+        "Dieser Abschnitt folgt nach dem manuellen Build. Die Targets automatisieren und testen die zuvor beschriebenen Build- und Integrationsschritte; sie ersetzen nicht deren technische Dokumentation. Exit `77` bedeutet eine bewusst blockierte Voraussetzung, und ein einzelner Target-Erfolg ist keine weitergehende Freigabe.",
+    )
+    return f"{manual_localized(explanation, german)}\n\n{shell(flow)}"
+
+
+def source_first_guide(item: dict[str, str], german: bool) -> str:
+    info = MANUAL_GUIDES[item["slug"]]
+    name = item["name_de"] if german else item["name"]
+    purpose = (
+        f"This guide describes the manual development and integration build for `{item['profile']}` on {name}. The manual source build is the primary path; the repository test path follows it as an automated verification route.",
+        f"Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `{item['profile']}` bei {name}. Der manuelle Source-Build ist der Hauptpfad; der Repository-Testweg folgt danach als automatisierte Prüfstrecke.",
+    )
+    prereqs = (
+        "Required are Git, a C compiler, a C++ compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2 development files, libxml2 development files, YAJL, LMDB, and libcurl. Package names vary by distribution and release: check the official distribution documentation and local availability before installing anything.",
+        "Benötigt werden Git, ein C-Compiler, ein C++-Compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2-Entwicklungsdateien, libxml2-Entwicklungsdateien, YAJL, LMDB und libcurl. Paketnamen sind distributions- und releaseabhängig: vor einer Installation die offizielle Distributionsdokumentation und die lokale Verfügbarkeit prüfen.",
+    )
+    prereq_commands = (
+        'command -v git cc c++ make autoreconf libtool pkg-config',
+        'pkg-config --exists libpcre2-8',
+        'pkg-config --exists libxml-2.0',
+        'pkg-config --exists yajl',
+        'pkg-config --exists lmdb',
+        'pkg-config --exists libcurl',
+        'export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"',
+        'test -f "$CONNECTOR_ROOT/Makefile"',
+    )
+    package_intro = (
+        f"Status: `{DETAILS[item['slug']]['package_status']}`. Package queries deliberately precede installation. Use only the line matching the distribution.",
+        f"Status: `{DETAILS[item['slug']]['package_status']}`. Paketabfragen sind absichtlich vor einer Installation platziert. Nur die zur Distribution passende Zeile verwenden.",
+    )
+    update_commands = (
+        'git -C "$MODSECURITY_SRC" fetch --tags origin',
+        'git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"',
+        'git -C "$MODSECURITY_SRC" submodule update --init --recursive',
+        'git -C "$MODSECURITY_SRC" rev-parse HEAD',
+        'cd "$MODSECURITY_SRC"',
+        'make clean',
+        'make -j"$jobs"',
+    )
+    cleanup_commands = (
+        'find "$BUILD_BASE" -maxdepth 2 -mindepth 1 -print',
+        '# Review the listed paths first; remove only a chosen private prefix or external build directory.',
+        'rmdir "$MODSECURITY_PREFIX" 2>/dev/null || true',
+    )
+    boundary = (
+        "These instructions describe a reproducible development and integration build. They are not a production release. They do not claim complete CRS coverage, a complete protocol or platform matrix, or package-path equivalence when a host patch, module, middleware, or service is absent.",
+        "Diese Anleitung beschreibt einen nachvollziehbaren Entwicklungs- und Integrationsbuild. Sie ist keine Produktionsfreigabe. Sie behauptet keine vollständige CRS-Abdeckung, keine vollständige Protokoll- oder Plattformmatrix und keine Gleichwertigkeit eines Paketwegs, wenn Hostpatch, Modul, Middleware oder Service fehlen.",
+    )
+    update_note = (
+        "Before an update, recheck the linked upstream documentation, release version, and configure/build options. Then repeat every affected host, connector, ABI, and local HTTP test.",
+        "Vor einem Update immer die verlinkte Upstream-Anleitung, Releaseversion sowie Configure-/Buildoptionen erneut prüfen. Anschließend alle betroffenen Host-, Connector-, ABI- und lokalen HTTP-Tests wiederholen.",
+    )
+    cleanup_note = (
+        "Do not copy files indiscriminately to `/usr/lib` and do not remove global directories. A user prefix does not need `sudo`. Remove evidence or logs only after deliberate review.",
+        "Keine Dateien pauschal nach `/usr/lib` kopieren und keine globalen Verzeichnisse entfernen. Bei einem Benutzer-Prefix ist kein `sudo` nötig. Evidence oder Logs erst nach bewusster Prüfung entfernen.",
+    )
+    trouble_prefix = (
+        "Common: for missing headers or libraries, first check `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, the selected prefix, and `pkg-config` output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.",
+        "Gemeinsam: Bei fehlenden Headern oder Libraries zuerst `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, den ausgewählten Prefix und die Ausgabe von `pkg-config` prüfen. Bei einem ABI-Fehler Host, Header und Connector aus demselben ausgewählten Quellensatz neu bauen.",
+    )
+    return f"""{MARKER}
+
+# {"Manueller Source-Build" if german else "Manual source build"}: {name}
+
+{language_switch(item['slug'], german)}
+
+{manual_heading(1, "Purpose and selected integration path", "Zweck und ausgewählter Integrationspfad", german)}
+
+{manual_localized(purpose, german)}
+
+{manual_heading(2, "Build components", "Komponenten des Builds", german)}
+
+{manual_localized(info['components'], german)}
+
+{manual_heading(3, "Official upstream documentation", "Offizielle Upstream-Dokumentation", german)}
+
+{manual_official_sources(info, german)}
+
+{manual_heading(4, "Prerequisites", "Voraussetzungen", german)}
+
+{manual_localized(prereqs, german)}
+
+{shell(prereq_commands)}
+
+{manual_heading(5, "Build libmodsecurity v3 from source", "libmodsecurity v3 aus Source bauen", german)}
+
+{manual_modsecurity_build(german)}
+
+{manual_heading(6, "Prepare or build the host or proxy", "Host oder Proxy vorbereiten beziehungsweise bauen", german)}
+
+{manual_localized(info['host_intro'], german)}
+
+{shell(info['host_commands'])}
+
+{manual_heading(7, "Build and integrate the connector", "Connector bauen und einbinden", german)}
+
+{manual_localized(info['connector_intro'], german)}
+
+{shell(('cd "$CONNECTOR_ROOT"',))}
+
+{shell(info['connector_commands'])}
+
+{manual_heading(8, "Configuration", "Konfiguration", german)}
+
+{("The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout." if not german else "Die folgende lokale Regel ist eine Testregel und keine CRS-Regel. Konfigurations- und Laufzeitdateien außerhalb des Git-Checkouts halten.")}
+
+{manual_localized(info['config_note'], german) if 'config_note' in info else ''}
+
+{shell(info['config_commands'])}
+
+{manual_heading(9, "Build and ABI validation", "Build- und ABI-Validierung", german)}
+
+{("Validate the selected host, connector artifact, dynamic library resolution, and generated configuration before sending traffic." if not german else "Ausgewählten Host, Connector-Artefakt, Auflösung dynamischer Libraries und erzeugte Konfiguration vor dem Senden von Traffic validieren.")}
+
+{shell(info['validation'])}
+
+{manual_heading(10, "Local HTTP/1.1 functional test", "Lokaler HTTP/1.1-Funktionstest", german)}
+
+{manual_localized(info['http_note'], german) if 'http_note' in info else ("Run only against loopback. A 200 response on `/` and a 403 response on `/blocked` demonstrate the local rule path; they do not establish a broader claim." if not german else "Nur gegen Loopback ausführen. Eine 200-Antwort auf `/` und eine 403-Antwort auf `/blocked` zeigen den lokalen Regelweg; sie begründen keinen weitergehenden Claim.")}
+
+{shell(info['http_commands'])}
+
+{manual_heading(11, "Package-assisted path", "Paketgestützter Weg", german)}
+
+{manual_localized(package_intro, german)}
+
+{("Treat the host package, its matching development/API package, and connector build dependencies as separate inputs. The queries below establish local availability before a package name is selected; the final command prints the candidate host version. The connector component described above remains a source build whenever the selected module, service, middleware, or host patch is not part of that package." if not german else "Hostpaket, dazu passendes Entwicklungs-/API-Paket und Connector-Buildabhängigkeiten als getrennte Eingaben behandeln. Die folgenden Abfragen klären zunächst die lokale Verfügbarkeit; der letzte Befehl gibt die Kandidaten-Hostversion aus. Die oben beschriebene Connector-Komponente bleibt ein Source-Build, wenn das ausgewählte Modul, der Service, die Middleware oder der Hostpatch nicht Bestandteil dieses Pakets ist.")}
+
+{shell(info['package_queries'])}
+
+{manual_localized(info['package_note'], german)}
+
+{manual_heading(12, "Repository-controlled test path", "Repository-gesteuerter Testweg", german)}
+
+{repository_test_path(item, german)}
+
+{manual_heading(13, "Update and rebuild", "Aktualisieren und neu bauen", german)}
+
+{manual_localized(update_note, german)}
+
+{shell(update_commands)}
+
+{manual_heading(14, "Uninstall and cleanup", "Deinstallation und Cleanup", german)}
+
+{manual_localized(cleanup_note, german)}
+
+{shell(cleanup_commands)}
+
+{manual_heading(15, "Troubleshooting", "Troubleshooting", german)}
+
+{manual_localized(trouble_prefix, german)}
+
+{manual_localized(info['troubleshoot'], german)}
+
+{manual_heading(16, "Variables and placeholders", "Variablen und Platzhalter", german)}
+
+{manual_variable_table(info, german)}
+
+{manual_heading(17, "Boundaries and non-claims", "Grenzen und nicht erhobene Claims", german)}
+
+{manual_localized(boundary, german)}
+"""
+
+
 def rendered_files() -> dict[str, str]:
     """Return every generated compiler-guide file without writing it."""
     rendered = {
@@ -1637,8 +2661,8 @@ def rendered_files() -> dict[str, str]:
         "overview.de.md": generated_overview(True),
     }
     for item in CONNECTORS:
-        rendered[f"{item['slug']}.md"] = expanded_guide(item, False)
-        rendered[f"{item['slug']}.de.md"] = expanded_guide(item, True)
+        rendered[f"{item['slug']}.md"] = source_first_guide(item, False)
+        rendered[f"{item['slug']}.de.md"] = source_first_guide(item, True)
     return rendered
 
 

@@ -1,72 +1,216 @@
 <!-- Generated from scripts/generate_compiler_guides.py; do not edit directly. -->
 
-# Build-, Source- und Paketwege: HAProxy
+# Manueller Source-Build: HAProxy
 
 **Sprache:** [English](haproxy.md) | Deutsch
 
-## Zweck und aktueller Integrationspfad
+## 1. Zweck und ausgewählter Integrationspfad
 
-Dieser Guide dokumentiert den ausgewählten Integrationspfad
-`native-htx-filter` für HAProxy: nativer HTX-Filter, der für den vollständigen Lifecycle ausgewählt ist. Der kanonische Kernlauf ist
-`make full-lifecycle-haproxy-htx`. Build-, Konfigurations-, Start- und Kompatibilitäts-
-Smokes bleiben davon getrennt.
+Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `native-htx-filter` bei HAProxy. Der manuelle Source-Build ist der Hauptpfad; der Repository-Testweg folgt danach als automatisierte Prüfstrecke.
 
-## Die drei Wege im Vergleich
+## 2. Komponenten des Builds
 
-| Weg | Für wen? | Systemweite Änderungen | Baut Host aus Source? | Kernpfad möglich? | Evidence möglich? |
-| --- | --- | --- | --- | --- | --- |
-| Repository-Testweg | Entwicklung und CI | Nein | Repository-gesteuert | Ja | Ja, nach Full Lifecycle |
-| Lokaler Source-Build | Entwicklung und Integration | Optional | Ja, Repository-Source | Ja | Ja, nur ausgewählter Run |
-| Paketweg | Schneller lokaler Einstieg | Ja | Meist nein | Nur mit Source-Anteil | Nur passendes Profil und Run |
+libmodsecurity v3, HAProxy-3.2.21-Source, der repository-eigene native HTX-Filter/Overlay, die Common-Bridge, eine lokale Regeldatei, ein Loopback-Frontend und ein Loopback-Upstream.
 
-Der Paketstatus dieses Connectors lautet exakt
-`package-assisted source build`. Pakete liefern Abhängigkeiten und möglicherweise einen Host, während Repository-Connector oder Hostintegration ein Source-Build bleiben. Paketinstallation allein ist keine Evidence des ausgewählten Kerns.
+## 3. Offizielle Upstream-Dokumentation
 
-## Gemeinsame Voraussetzungen
+- **Quelle und Umfang:** [HAProxy INSTALL](https://github.com/haproxy/haproxy/blob/master/INSTALL)
+  Offizielle Anleitung zur Target-Auswahl, Buildoptionen, Kompilierung und Installation. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Read the INSTALL file for the exact selected HAProxy release.)
+- **Quelle und Umfang:** [HAProxy Documentation](https://docs.haproxy.org/)
+  Konfigurationssyntax und CLI-Dokumentation für `haproxy -c` und den Laufzeitbetrieb. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Use documentation matching the selected major/minor series.)
+- **Quelle und Umfang:** [HAProxy Releases](https://www.haproxy.org/download/)
+  Offizielle Source-Downloads und Auswahl der Release-Serie. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (The repository overlay currently fixes its compatible source to 3.2.21.)
+- **Quelle und Umfang:** [ModSecurity repository](https://github.com/owasp-modsecurity/ModSecurity)
+  Die libmodsecurity-v3-Enginequelle. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (The selected tag/commit is shown in the shared build section.)
 
-Git, ein beschreibbarer externer Stamm, C/C++-Buildtools, libmodsecurity-Eingaben und das Framework-Submodule. Die ausgewählte HAProxy-Quelle wird mit dem untenstehenden Pin provisioniert.
+## 4. Voraussetzungen
 
-Der Test- und Source-Weg brauchen nur Basistools und einen beschreibbaren
-externen Stamm, keine globale Installation des ausgewählten Connectors. Vor
-einer Paketinstallation die Verfügbarkeit abfragen:
+Benötigt werden Git, ein C-Compiler, ein C++-Compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2-Entwicklungsdateien, libxml2-Entwicklungsdateien, YAJL, LMDB und libcurl. Paketnamen sind distributions- und releaseabhängig: vor einer Installation die offizielle Distributionsdokumentation und die lokale Verfügbarkeit prüfen.
 
 ```sh
-# Debian / Ubuntu (apt)
-apt-cache policy build-essential pkg-config git curl ca-certificates
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-dnf info gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
+command -v git cc c++ make autoreconf libtool pkg-config
+pkg-config --exists libpcre2-8
+pkg-config --exists libxml-2.0
+pkg-config --exists yajl
+pkg-config --exists lmdb
+pkg-config --exists libcurl
+export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
+test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-Auf einem Rechner nur die Zeile der passenden Distributionsfamilie ausführen.
+## 5. libmodsecurity v3 aus Source bauen
 
-`VERIFIED_RUN_PARENT` muss außerhalb des Git-Checkouts liegen. Er enthält
-Build-, Cache-, Runtime-, Log- und Evidence-Dateien und darf keine Secrets im
-Namen tragen. `CACHE_ROOT` ist Cache-v2 mit wiederverwendbaren Eingaben, nicht
-mit kanonischer Evidence. Die vorbereiteten, wirksamen Quellen zeigt:
+Dieser Ablauf verwendet einen festen, überprüfbaren Git-Tag und dessen aufgelösten Commit. `v3/master` ist kein reproduzierbarer Pin und wird deshalb nicht als solcher dargestellt. `build.sh` regeneriert beziehungsweise aktualisiert die Autotools-Eingaben; es kompiliert die Bibliothek noch nicht.
 
 ```sh
-make runtime-components-inventory
-make runtime-components-sources
+export BUILD_BASE="$HOME/src/modsecurity-build"
+export MODSECURITY_SRC="$BUILD_BASE/ModSecurity"
+export MODSECURITY_PREFIX="$HOME/.local/modsecurity"
+export MODSECURITY_REF="v3.0.16"
+export MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
+mkdir -p "$BUILD_BASE"
+git clone --recurse-submodules https://github.com/owasp-modsecurity/ModSecurity.git "$MODSECURITY_SRC"
+git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
+git -C "$MODSECURITY_SRC" submodule update --init --recursive
+test "$(git -C "$MODSECURITY_SRC" rev-parse HEAD)" = "$MODSECURITY_COMMIT"
+git -C "$MODSECURITY_SRC" rev-parse HEAD
+cd "$MODSECURITY_SRC"
+./build.sh
+./configure --help | grep -E -- "--with-(lmdb|libxml|curl|yajl)"
+./configure --prefix="$MODSECURITY_PREFIX" --with-lmdb --with-libxml --with-curl --with-yajl
+jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"
+make -j"$jobs"
+make check
+make install
+export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 ```
 
-## Weg 1: Repository-gesteuert testen
+Beim ausgewählten Stand wird PCRE2 standardmäßig erkannt; `--with-pcre2` wird nicht erfunden. Die optionalen Schalter werden vor der Verwendung mit `./configure --help` geprüft. Wenn der gewählte Release einen Schalter nicht anbietet, ihn aus dem Aufruf entfernen statt einen nicht akzeptierten Befehl zu dokumentieren.
 
-Git, ein beschreibbarer externer Stamm, C/C++-Buildtools, libmodsecurity-Eingaben und das Framework-Submodule. Die ausgewählte HAProxy-Quelle wird mit dem untenstehenden Pin provisioniert.
-
-Die folgenden Befehle klonen den definierten Branch, initialisieren das
-Framework und führen alle getrennten Stufen aus. Sie installieren keinen
-Connector systemweit. Fehlen Basistools, zuerst im Paketweg deren Verfügbarkeit
-prüfen und nur die dort gezeigten Basispakete installieren.
+`PKG_CONFIG_PATH` ermöglicht Buildsystemen, die benutzerlokale Installation zu
+finden. `LD_LIBRARY_PATH` ist nur für lokale Entwicklung und Tests; für eine
+dauerhafte Systeminstallation bewusstes Loader-Setup oder rpath prüfen.
 
 ```sh
+test -d "$MODSECURITY_PREFIX/include"
+test -d "$MODSECURITY_PREFIX/lib"
+find "$MODSECURITY_PREFIX" -maxdepth 3 -type f | sort
+pkg-config --modversion libmodsecurity 2>/dev/null || true
+find "$MODSECURITY_PREFIX/lib" -type f \( -name "libmodsecurity.so*" -o -name "libmodsecurity.a" \) -print
+```
+
+## 6. Host oder Proxy vorbereiten beziehungsweise bauen
+
+Zuerst ein offizielles HAProxy bauen und `haproxy -vv` prüfen. Die ausgewählte Repository-Integration hat eine strengere Kompatibilitätsgrenze: Ihr nativer HTX-Overlay erfordert ausdrücklich HAProxy 3.2.21. Der normale HAProxy-Build belegt den Upstream-Hostbuild; der folgende Overlay-Build erzeugt die ausgewählte Hostkopie und linkt sie mit libmodsecurity.
+
+```sh
+export HOST_BUILD_BASE="$BUILD_BASE/haproxy"
+export HAPROXY_VERSION="3.2.21"
+export HAPROXY_ARCHIVE="haproxy-$HAPROXY_VERSION.tar.gz"
+export HAPROXY_URL="https://www.haproxy.org/download/3.2/src/$HAPROXY_ARCHIVE"
+export HAPROXY_SHA256="0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339"
+export HAPROXY_SRC="$HOST_BUILD_BASE/haproxy-$HAPROXY_VERSION"
+export HAPROXY_PREFIX="$HOME/.local/haproxy-modsecurity"
+export HAPROXY_STAGE="$HOST_BUILD_BASE/stage"
+mkdir -p "$HOST_BUILD_BASE"
+cd "$HOST_BUILD_BASE"
+curl -fLO "$HAPROXY_URL"
+printf "%s  %s\n" "$HAPROXY_SHA256" "$HAPROXY_ARCHIVE" | sha256sum -c -
+tar -xzf "$HAPROXY_ARCHIVE"
+cd "$HAPROXY_SRC"
+make help
+make -j"$jobs" TARGET=linux-glibc USE_OPENSSL=1 USE_ZLIB=1 USE_PCRE2=1
+make install-bin DESTDIR="$HAPROXY_STAGE" PREFIX="$HAPROXY_PREFIX"
+export HAPROXY_BIN="$HAPROXY_STAGE$HAPROXY_PREFIX/sbin/haproxy"
+"$HAPROXY_BIN" -vv
+```
+
+## 7. Connector bauen und einbinden
+
+Der offizielle HAProxy-Release enthält diesen Connector nicht. Die repository-eigene native HTX-Integration kopiert die kompatible Quelle in einen externen Worktree, prüft und wendet ihren Overlay an, fügt HTX-Filter sowie Common-/libmodsecurity-Bridge hinzu und baut den Host neu. SPOE/SPOP ist ein separater Kompatibilitätsweg und keine Evidence für diesen nativen Filter.
+
+```sh
+cd "$CONNECTOR_ROOT"
+```
+
+```sh
+export HAPROXY_HTX_SOURCE_DIR="$HAPROXY_SRC"
+export HAPROXY_HTX_BUILD_DIR="$HOST_BUILD_BASE/htx-overlay"
+export MODSECURITY_INCLUDE_DIR="$MODSECURITY_PREFIX/include"
+export MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib"
+export MAKE_JOBS="$jobs"
+CONNECTOR_ROOT="$CONNECTOR_ROOT" sh connectors/haproxy/htx-overlay/build-overlay.sh
+export HAPROXY_HTX_BIN="$HAPROXY_HTX_BUILD_DIR/worktree/haproxy"
+test -x "$HAPROXY_HTX_BIN"
+"$HAPROXY_HTX_BIN" -vv
+```
+
+## 8. Konfiguration
+
+Die folgende lokale Regel ist eine Testregel und keine CRS-Regel. Konfigurations- und Laufzeitdateien außerhalb des Git-Checkouts halten.
+
+
+
+```sh
+export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
+export HAPROXY_CONFIG="$HOST_BUILD_BASE/haproxy-local.cfg"
+cat > "$RULES_FILE" <<EOF
+SecRuleEngine On
+SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
+EOF
+cat > "$HAPROXY_CONFIG" <<EOF
+global
+    daemon
+defaults
+    mode http
+    timeout connect 5s
+    timeout client 30s
+    timeout server 30s
+frontend local
+    bind 127.0.0.1:8080
+    filter modsecurity-htx rules-file "$RULES_FILE" phase4-mode safe
+    default_backend local_upstream
+backend local_upstream
+    server app 127.0.0.1:8081
+EOF
+"$HAPROXY_HTX_BIN" -c -f "$HAPROXY_CONFIG"
+```
+
+## 9. Build- und ABI-Validierung
+
+Ausgewählten Host, Connector-Artefakt, Auflösung dynamischer Libraries und erzeugte Konfiguration vor dem Senden von Traffic validieren.
+
+```sh
+"$HAPROXY_HTX_BIN" -vv
+file "$HAPROXY_HTX_BIN"
+ldd "$HAPROXY_HTX_BIN" | grep -F libmodsecurity
+test -f "$HAPROXY_HTX_BUILD_DIR/overlay-build.env"
+sha256sum "$HAPROXY_HTX_BIN"
+```
+
+## 10. Lokaler HTTP/1.1-Funktionstest
+
+Nur gegen Loopback ausführen. Eine 200-Antwort auf `/` und eine 403-Antwort auf `/blocked` zeigen den lokalen Regelweg; sie begründen keinen weitergehenden Claim.
+
+```sh
+mkdir -p "$HOST_BUILD_BASE/www"
+printf "haproxy local upstream\n" > "$HOST_BUILD_BASE/www/index.html"
+python3 -m http.server 8081 --bind 127.0.0.1 --directory "$HOST_BUILD_BASE/www" > "$HOST_BUILD_BASE/upstream.log" 2>&1 &
+upstream_pid=$!
+LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HAPROXY_HTX_BIN" -db -f "$HAPROXY_CONFIG" > "$HOST_BUILD_BASE/haproxy.log" 2>&1 &
+haproxy_pid=$!
+curl -i http://127.0.0.1:8080/
+curl -i http://127.0.0.1:8080/blocked
+kill "$haproxy_pid" "$upstream_pid"
+```
+
+## 11. Paketgestützter Weg
+
+Status: `package-assisted source build`. Paketabfragen sind absichtlich vor einer Installation platziert. Nur die zur Distribution passende Zeile verwenden.
+
+Hostpaket, dazu passendes Entwicklungs-/API-Paket und Connector-Buildabhängigkeiten als getrennte Eingaben behandeln. Die folgenden Abfragen klären zunächst die lokale Verfügbarkeit; der letzte Befehl gibt die Kandidaten-Hostversion aus. Die oben beschriebene Connector-Komponente bleibt ein Source-Build, wenn das ausgewählte Modul, der Service, die Middleware oder der Hostpatch nicht Bestandteil dieses Pakets ist.
+
+```sh
+apt-cache search haproxy
+dnf search haproxy
+haproxy -vv 2>/dev/null || true
+```
+
+Ein Paket kann ein gewöhnliches HAProxy zum Vergleich bereitstellen, trägt aber nicht den repository-eigenen HTX-Overlay. Es kann daher den ausgewählten nativen Filterweg nicht ersetzen; die exakt kompatible Quelle und den Overlay-Build verwenden.
+
+## 12. Repository-gesteuerter Testweg
+
+Dieser Abschnitt folgt nach dem manuellen Build. Die Targets automatisieren und testen die zuvor beschriebenen Build- und Integrationsschritte; sie ersetzen nicht deren technische Dokumentation. Exit `77` bedeutet eine bewusst blockierte Voraussetzung, und ein einzelner Target-Erfolg ist keine weitergehende Freigabe.
+
+```sh
+export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
+mkdir -p "$VERIFIED_RUN_PARENT"
+cd "$VERIFIED_RUN_PARENT"
 git clone --recurse-submodules https://github.com/Easton97-Jens/ModSecurity-conector.git
 cd ModSecurity-conector
 git switch feature/all-connectors-no-crs-baseline
 git submodule update --init --recursive
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build"
 make check-framework
 make prepare-runtime-components
 make build-haproxy
@@ -78,403 +222,76 @@ NO_CRS_RUN_ID="$run_id" make full-lifecycle-haproxy-htx
 NO_CRS_RUN_ID="$run_id" make evidence-check-haproxy
 ```
 
-| Befehl | Zweck | Voraussetzung | Ergebnis/Ort | Exit- und Evidence-Grenze |
-| --- | --- | --- | --- | --- |
-| `git clone` / `git switch` / `git submodule update` | definierter Checkout | Netzwerkzugang und Git | Checkout mit Framework-Submodule | Git-Fehler sind keine Build- oder Runtime-Evidence. |
-| `make check-framework` | Framework-Vertrag prüfen | initialisiertes Submodule | bestätigter Framework-Pfad | `77` kann ein fehlendes Framework als BLOCKED melden; kein Connector-Test. |
-| `make prepare-runtime-components` | Cache-v2 und Host-/Source-Eingaben vorbereiten | beschreibbarer externer Run-Root | Provenienz, Cache und vorbereitete Eingaben | `77` bedeutet bewusst blockierte Voraussetzung; Cache ist keine Evidence. |
-| `make build-haproxy` | Buildstufe | Vorbereitung und Toolchain | `$BUILD_ROOT/stages/haproxy/build/results` | `0` ist Stufenerfolg, kein Config- oder Trafficnachweis. |
-| `make check-config-haproxy` | Konfiguration laden/prüfen | erzeugter Host/Connector | `$BUILD_ROOT/stages/haproxy/config_load/results` | `0` ist kein gesendeter HTTP-Request. |
-| `make start-smoke-haproxy` | Host ohne Volltraffic starten | lesbare Konfiguration und freie lokale Ressourcen | `$BUILD_ROOT/stages/haproxy/start_smoke/results` | `0` ist keine Full-Lifecycle-Evidence. |
-| `make runtime-smoke-haproxy` | begrenzten repository-eigenen Runtime-Smoke ausführen | vorbereiteter Host und lokale Ports | `$BUILD_ROOT/stages/haproxy/minimal_runtime_smoke/results` | `0` gilt nur für diesen Smoke. |
-| `make full-lifecycle-haproxy-htx` | ausgewählten No-CRS-Kernlauf ausführen | sicherer Run-Identifier | `$VERIFIED_RUN_ROOT/evidence/no-crs-evidence/haproxy/$run_id` | Kanonische Artefakte erst nach anschließendem Evidence-Check bewerten. |
-| `make evidence-check-haproxy` | bereits erzeugte kanonische Artefakte validieren | derselbe Run-Identifier und vollständige Artefakte | `$VERIFIED_RUN_ROOT/evidence/no-crs-evidence/haproxy/$run_id` | validiert vorhandene Evidence; erzeugt keine neuen Logs oder Runtime-Dateien. |
+## 13. Aktualisieren und neu bauen
 
-`0` bedeutet Erfolg der jeweiligen Stufe. `77` steht für eine bewusst
-blockierte Voraussetzung, etwa fehlendes Framework oder einen ungeeigneten
-externen Root. `2` kann bei ungültiger Stage-, Connector- oder
-Eingabeauswahl auftreten. Andere Nichtnullwerte sind fehlgeschlagene oder
-weitergereichte Checks; sie sind nicht als stärkere Aussage zu interpretieren.
-
-### Validierung
-
-Der vorherige Block führt mit demselben `run_id` Config-, Start- und
-HTTP/1.1-Smoke sowie den ausgewählten P1–P4-Kernlauf aus. Die folgenden Befehle
-prüfen Host, Artefakt und dynamische Library erneut, wiederholen die
-repository-gesteuerten Config-/Start-/Runtime-Checks und validieren die bereits
-erzeugte Evidence. Der Evidence-Check startet keinen neuen Kernlauf.
+Vor einem Update immer die verlinkte Upstream-Anleitung, Releaseversion sowie Configure-/Buildoptionen erneut prüfen. Anschließend alle betroffenen Host-, Connector-, ABI- und lokalen HTTP-Tests wiederholen.
 
 ```sh
-test -x "$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy"
-"$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy" -vv
-test -x "$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy"
-ldd "$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy" | grep -F libmodsecurity
-make check-config-haproxy
-make start-smoke-haproxy
-make runtime-smoke-haproxy
-NO_CRS_RUN_ID="$run_id" make evidence-check-haproxy
-make runtime-components-inventory
-make runtime-components-sources
+git -C "$MODSECURITY_SRC" fetch --tags origin
+git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
+git -C "$MODSECURITY_SRC" submodule update --init --recursive
+git -C "$MODSECURITY_SRC" rev-parse HEAD
+cd "$MODSECURITY_SRC"
+make clean
+make -j"$jobs"
 ```
 
-## Weg 2: Lokal aus Source bauen
+## 14. Deinstallation und Cleanup
 
-Der kanonische Hostweg baut ein natives HTX-Overlay gegen vom Framework provisionierte HAProxy-Quelle sowie libmodsecurity-Header/-Bibliotheken. Das Root-Full-Lifecycle-Target ist der unterstützte Source-Befehl, weil es verifizierte Quelle, Build-Root, Regeln und Eventpfade zusammen übergibt.
-
-
-
-Die folgenden Pins sind Eingaben des unterstützten Vorbereiters. Bei einem
-geänderten Pin sind `runtime-components-inventory` und
-`runtime-components-sources` maßgeblich; besonders bei beweglichen
-libmodsecurity-Referenzen wird der aufgelöste Commit dort dokumentiert.
-
-| Komponente | Pin/Version | Quelle | Integrität/Commit |
-| --- | --- | --- | --- |
-| HAProxy | 3.2.21 (`HAPROXY_VERSION`) | https://www.haproxy.org/download/3.2/src/haproxy-3.2.21.tar.gz | SHA256 `0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339` |
-| libmodsecurity | configured `MODSECURITY_GIT_REF` (default `v3/master`) | https://github.com/owasp-modsecurity/ModSecurity.git | resolved commit is recorded in Cache-v2 provenance |
-
-`-O2 -g` ist ein nachvollziehbarer Entwicklungswert, kein Repository-Default
-und keine Vorgabe für ein Deployment. `jobs` ist die Anzahl paralleler
-Compilerprozesse; bei wenig RAM beispielsweise `2` wählen. `CPPFLAGS`,
-`LDFLAGS`, `PKG_CONFIG_PATH` und `LD_LIBRARY_PATH` nur für bewusst gewählte
-Header-, Bibliotheks- oder Stagingpfade setzen.
+Keine Dateien pauschal nach `/usr/lib` kopieren und keine globalen Verzeichnisse entfernen. Bei einem Benutzer-Prefix ist kein `sudo` nötig. Evidence oder Logs erst nach bewusster Prüfung entfernen.
 
 ```sh
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build/haproxy-source"
-export CC=gcc
-export CXX=g++
-export CFLAGS="-O2 -g"
-export CXXFLAGS="-O2 -g"
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')"
-make check-framework
-make prepare-runtime-components
-make runtime-components-inventory
-make runtime-components-sources
-run_id="haproxy-source-$(date -u +%Y%m%dT%H%M%SZ)"
-MAKE_JOBS="$jobs" make build-haproxy
-make check-config-haproxy
-make start-smoke-haproxy
-make runtime-smoke-haproxy
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-haproxy-htx
+find "$BUILD_BASE" -maxdepth 2 -mindepth 1 -print
+# Review the listed paths first; remove only a chosen private prefix or external build directory.
+rmdir "$MODSECURITY_PREFIX" 2>/dev/null || true
 ```
 
-`build-haproxy` ist eine unterstützte Kompatibilitäts-/Binding-Stufe. Der ausgewählte native HTX-Filter wird von `full-lifecycle-haproxy-htx` gegen die passende vorbereitete HAProxy-Quelle gebaut und ausgeführt; ein SPOA/SPOP-Ergebnis wird nicht dafür eingesetzt.
+## 15. Troubleshooting
 
-| Befehlsgruppe | Zweck | Voraussetzung | Ergebnis und Grenze |
-| --- | --- | --- | --- |
-| Source-Buildbefehle oben | ausgewählten Host, Modul oder Service aus Source bauen | vorbereitete Provenienz, Toolchain und externer Buildroot | Artefakte und Command-/Source-Info-Records unter `$BUILD_ROOT`; Exit `0` ist nur Build-Erfolg. |
-| gezeigte Config-/Test-/Runtime-Targets | Artefakt, ABI und Loader im selben Staging prüfen | passende Header, Bibliotheken und lesbare Konfiguration | Die Targets prüfen das erzeugte Modul bzw. den Service und dessen Library-Auflösung; `77` kann eine fehlende Voraussetzung melden. |
-| `make full-lifecycle-haproxy-htx` + Evidence-Check | ausgewählten Kernpfad ausführen und Artefakte validieren | sicherer `run_id` und vollständige Runtime | Evidence unter `evidence/no-crs-evidence/haproxy/$run_id`; `2` steht für ungültige Eingabe/Stufe, andere Fehler bleiben Fehler. |
+Gemeinsam: Bei fehlenden Headern oder Libraries zuerst `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, den ausgewählten Prefix und die Ausgabe von `pkg-config` prüfen. Bei einem ABI-Fehler Host, Header und Connector aus demselben ausgewählten Quellensatz neu bauen.
 
-Der unterstützte Build wird dabei durch `connectors/haproxy/htx-overlay/build-overlay.sh` umgesetzt; die
-Root-Stufen dispatchen über
-`ci/runtime/lifecycle/run-connector-stage.sh`, der Full Lifecycle über
-`ci/runtime/lifecycle/run-no-crs-baseline.sh`. Diese Skripte sind die
-Implementierung hinter den gezeigten Make-Targets, nicht eine zweite,
-eigenständig zu kopierende Handbauanleitung.
+Der Overlay verweigert eine andere Version als 3.2.21, ein In-Tree-Buildverzeichnis, fehlende libmodsecurity-Header oder eine fehlende Bibliothek. Das als Kompatibilitätsgrenze behandeln, nicht als Grund, ein SPOA-Ergebnis einzusetzen.
 
-Der SPOA/SPOP-Kompatibilitätsweg und ein Package-Host-Smoke sind getrennte Diagnosen. Sie ersetzen weder das ausgewählte native HTX-Overlay noch dessen Source-/Buildflags oder dessen `haproxy -c`-Parsercheck.
+## 16. Variablen und Platzhalter
 
-### Prefix und Staging
+| Variable/Platzhalter | Bedeutung |
+| --- | --- |
+| BUILD_BASE | Portabler Source-/Build-Stamm, z. B. `$HOME/src/modsecurity-build`. |
+| CONNECTOR_ROOT | Git-Top-Level dieses Repository-Checkouts; die Connector-Skripte werden von dort aus aufgerufen. |
+| HOST_BUILD_BASE | Connector-spezifisches externes Unterverzeichnis unter BUILD_BASE für Quellen, Builds, Konfiguration und lokale Logs. |
+| BUILD_ROOT | Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten. |
+| MODSECURITY_SRC | Checkout der ModSecurity-v3-Engine unter BUILD_BASE. |
+| MODSECURITY_PREFIX | Isolierter Benutzer-Prefix für Header, Libraries und pkg-config-Metadaten. |
+| MODSECURITY_REF | Fester Git-Tag der Engine; kein beweglicher Branch. |
+| MODSECURITY_COMMIT | Erwarteter Commit, auf den MODSECURITY_REF aufgelöst werden muss. |
+| MODSECURITY_INCLUDE_DIR | Include-Verzeichnis unter MODSECURITY_PREFIX für Repository-Komponenten. |
+| MODSECURITY_LIB_DIR | Library-Verzeichnis unter MODSECURITY_PREFIX für Repository-Komponenten. |
+| PKG_CONFIG_PATH | Temporärer Suchpfad für die lokale libmodsecurity-pc-Datei. |
+| LD_LIBRARY_PATH | Nur temporärer Loaderpfad für lokale Tests, kein globales Installationsrezept. |
+| RULES_FILE | Lokale Testregeldatei; keine CRS-Regeldatei. |
+| jobs | Lokale Anzahl paralleler Buildjobs aus `getconf`; bei wenig RAM reduzieren. |
+| VERIFIED_RUN_PARENT | Externer Elternordner eines frischen Repository-Testcheckouts und seiner Testartefakte. |
+| run_id | Eindeutige Kennung eines repository-gesteuerten Full-Lifecycle-Laufs. |
+| NO_CRS_RUN_ID | Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt. |
+| upstream_pid | Lokale Prozess-ID des Test-Upstreams aus `$!`; nur im selben Shell-Lauf verwenden. |
+| haproxy_pid | Lokale Prozess-ID des gestarteten HAProxy aus `$!`; nur im selben Shell-Lauf verwenden. |
+| engine_pid | Lokale Prozess-ID des gestarteten Traefik-Engine-Service aus `$!`; nur im selben Shell-Lauf verwenden. |
+| traefik_pid | Lokale Prozess-ID des gestarteten Traefik aus `$!`; nur im selben Shell-Lauf verwenden. |
+| lighttpd_pid | Lokale Prozess-ID des gestarteten lighttpd aus `$!`; nur im selben Shell-Lauf verwenden. |
+| HAPROXY_VERSION | Von der aktuellen HTX-Overlay verlangte Version. |
+| HAPROXY_ARCHIVE | Aus HAPROXY_VERSION abgeleiteter Archivname. |
+| HAPROXY_URL | Offizielle HAProxy-Sourcearchiv-URL. |
+| HAPROXY_SHA256 | Erwartete SHA-256 des ausgewählten Sourcearchivs. |
+| HAPROXY_SRC | Verifizierter Upstream-Source-Baum. |
+| HAPROXY_PREFIX | Privater Upstream-Host-Installationsprefix. |
+| HAPROXY_STAGE | Mit DESTDIR verwendeter Staging-Root. |
+| HAPROXY_BIN | Gestagtes gewöhnliches HAProxy-Binary. |
+| HAPROXY_HTX_SOURCE_DIR | Vom Overlay-Builder verwendete verifizierte Quelle. |
+| HAPROXY_HTX_BUILD_DIR | Externes disponierbares Overlay-Worktree- und Provenienzverzeichnis. |
+| HAPROXY_HTX_BIN | Repository-gebautes natives HTX-Hostbinary. |
+| MAKE_JOBS | An den Repository-Overlay-Builder übergebener Parallel-Job-Wert. |
+| HAPROXY_CONFIG | Lokale Loopback-HAProxy-Konfiguration. |
 
-| Ort | Verwendung | Grenze |
-| --- | --- | --- |
-| `/usr` | vom Distributionspaket verwaltet | nicht als manueller Default überschreiben |
-| `/usr/local` | bewusste lokale Installation | vorher Dateien inventarisieren |
-| `/opt/modsecurity-connector` | bewusst gewählter isolierter Prefix | `PKG_CONFIG_PATH` und Loaderpfad gezielt setzen |
-| `$HOME/.local` | benutzerlokale Installation | kein gemeinsam genutzter Systemhost |
-| unter `VERIFIED_RUN_PARENT` | empfohlenes externes Staging | Standard für diesen Entwicklungsweg; außerhalb des Checkouts |
+## 17. Grenzen und nicht erhobene Claims
 
-Der unterstützte Vorbereiter besitzt den exakten Upstream-Configure- und
-Installationsaufruf. Seine erzeugten Command-, Source-Info- und
-Artifact-Records im externen Buildroot sind der nachvollziehbare
-Konfigurations- und Kompilierungsnachweis; diese Anleitung erfindet keinen
-zweiten Handaufruf.
-
-### Validierung
-
-Die folgenden Befehle prüfen das aufgelöste Hostbinary an seinem dokumentierten
-externen Staging- oder Cachepfad nach Vorbereitung beziehungsweise Source-Build.
-Danach prüfen die Artefaktbefehle, dass das erzeugte Modul oder der Service
-vorhanden ist und `ldd` `libmodsecurity` auflöst. Die unterstützten Targets
-prüfen anschließend Link, Konfiguration, Start oder den ausgewählten Lifecycle.
-
-```sh
-test -x "$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy"
-"$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy" -vv
-test -x "$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy"
-ldd "$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy" | grep -F libmodsecurity
-make check-config-haproxy
-NO_CRS_RUN_ID="$run_id" make evidence-check-haproxy
-```
-
-## Weg 3: Über Pakete beziehungsweise paketgestützt installieren
-
-Status: `package-assisted source build`. Pakete liefern Abhängigkeiten und möglicherweise einen Host, während Repository-Connector oder Hostintegration ein Source-Build bleiben. Paketinstallation allein ist keine Evidence des ausgewählten Kerns.
-
-Ein HAProxy-Paket und Abhängigkeiten können lokale Arbeit unterstützen, aber kein gewöhnliches Paket liefert den ausgewählten nativen HTX-Filter samt passendem Source-Overlay. Es ist kein package-only-Ersatz.
-
-Paketnamen sind releaseabhängig. Diese Abfrage erfolgt vor jeder Installation;
-Fedora `mod_security` ist ModSecurity v2 und kein Ersatz für
-`libmodsecurity-devel` aus dem v3-Pfad.
-
-Die ersten Befehle sind für **Debian / Ubuntu (apt)**, die folgenden für
-**Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)**. Nur die passende Familie
-verwenden.
-
-```sh
-# Debian / Ubuntu (apt)
-apt-cache policy build-essential pkg-config git curl ca-certificates
-apt-cache policy libpcre2-dev zlib1g-dev libssl-dev libmodsecurity-dev haproxy
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-dnf info gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
-dnf info pcre2-devel zlib-devel openssl-devel libmodsecurity-devel haproxy
-```
-
-
-
-Nur nach erfolgreicher Prüfung und nach eigener Kontrolle der Liste installieren:
-
-```sh
-# Debian / Ubuntu (apt)
-sudo apt update
-sudo apt install --yes build-essential pkg-config git curl ca-certificates
-sudo apt install --yes libpcre2-dev zlib1g-dev libssl-dev libmodsecurity-dev haproxy
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-sudo dnf install -y gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
-sudo dnf install -y pcre2-devel zlib-devel openssl-devel libmodsecurity-devel haproxy
-```
-
-`sudo` wird verwendet, weil Paketdatenbank und Systempfade gewöhnlich
-Administratorrechte benötigen. In CI oder einem Container ist der Prozess oft
-bereits root; dann `sudo` weglassen statt die Paketliste zu ändern.
-
-Pakete liefern nur den Abhängigkeits-/Hostanteil. Anschließend diesen unterstützten Source-Follow-up ausführen; die Paketinstallation baut weder den ausgewählten Connector noch die Hostintegration allein.
-
-```sh
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build/haproxy-package"
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')"
-make check-framework
-make prepare-runtime-components
-make runtime-components-inventory
-make runtime-components-sources
-run_id="haproxy-package-$(date -u +%Y%m%dT%H%M%SZ)"
-MAKE_JOBS="$jobs" make build-haproxy
-make check-config-haproxy
-make start-smoke-haproxy
-make runtime-smoke-haproxy
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-haproxy-htx
-```
-
-| Befehlsgruppe | Zweck | Voraussetzung | Ergebnis und Grenze |
-| --- | --- | --- | --- |
-| Source-Buildbefehle oben | ausgewählten Host, Modul oder Service aus Source bauen | vorbereitete Provenienz, Toolchain und externer Buildroot | Artefakte und Command-/Source-Info-Records unter `$BUILD_ROOT`; Exit `0` ist nur Build-Erfolg. |
-| gezeigte Config-/Test-/Runtime-Targets | Artefakt, ABI und Loader im selben Staging prüfen | passende Header, Bibliotheken und lesbare Konfiguration | Die Targets prüfen das erzeugte Modul bzw. den Service und dessen Library-Auflösung; `77` kann eine fehlende Voraussetzung melden. |
-| `make full-lifecycle-haproxy-htx` + Evidence-Check | ausgewählten Kernpfad ausführen und Artefakte validieren | sicherer `run_id` und vollständige Runtime | Evidence unter `evidence/no-crs-evidence/haproxy/$run_id`; `2` steht für ungültige Eingabe/Stufe, andere Fehler bleiben Fehler. |
-
-### Validierung
-
-`libmodsecurity` muss als v3-Entwicklungsabhängigkeit Header und
-pkg-config-Metadaten liefern. Fehlt einer dieser Befehle, zum
-repository-gesteuerten Source-Build zurückkehren; kein ModSecurity-v2-Paket
-stillschweigend einsetzen.
-
-```sh
-pkg-config --exists libmodsecurity
-pkg-config --atleast-version=3.0 libmodsecurity
-pkg-config --modversion libmodsecurity
-pkg_version="$(pkg-config --modversion libmodsecurity)"
-case "$pkg_version" in 3.*) ;; *) printf '%s\n' "libmodsecurity major version must be 3: $pkg_version" >&2; exit 1 ;; esac
-pkg-config --cflags libmodsecurity
-pkg-config --libs libmodsecurity
-make check-config-haproxy
-test -x "$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy"
-"$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy" -vv
-test -x "$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy"
-ldd "$VERIFIED_RUN_ROOT/runs/haproxy/$run_id/haproxy-host-work/runtime/overlay-build/worktree/haproxy" | grep -F libmodsecurity
-make check-config-haproxy
-NO_CRS_RUN_ID="$run_id" make evidence-check-haproxy
-```
-
-## Nach dem Build konfigurieren
-
-Die Config-Stufe validiert die Repository-Konfiguration; der ausgewählte Full-Lifecycle baut und validiert zusätzlich das native HTX-Host-Overlay.
-
-Die gewählte Konfiguration, Regeln und Modulpfade werden durch die
-repository-eigenen Targets erzeugt oder geprüft. Konfigurationsdateien müssen
-lesbar sein; keine Cookies, Autorisierungswerte, Tokens, privaten Schlüssel
-oder Rohlogs in Konfiguration oder Evidence ablegen.
-
-```sh
-make check-config-haproxy
-```
-
-## Build und Installation validieren
-
-Für alle Wege gilt: Hostbinary und Version prüfen, Connectorartefakt und
-Shared Libraries im ausgewählten Staging betrachten, dann Config- und
-Start-Smoke ausführen. Die Source- und Paketwege enden deshalb jeweils mit
-ihrem Validierungsblock; ein einzelner Compile oder Link reicht nicht.
-
-```sh
-make check-config-haproxy
-make start-smoke-haproxy
-make runtime-smoke-haproxy
-```
-
-## Realen HTTP/1.1-Test ausführen
-
-`make runtime-smoke-haproxy` ist der unterstützte repository-eigene
-Minimal-Smoke mit realem HTTP/1.1-Traffic für seine dokumentierte Route. Die
-konkreten lokalen Ports, URLs und Requests werden aus der erzeugten
-Konfiguration abgeleitet; keinen zweiten `curl`-Endpoint erfinden. Für den
-ausgewählten P1–P4-Kernpfad, soweit anwendbar, folgt der Full Lifecycle:
-
-```sh
-run_id="haproxy-http11-$(date -u +%Y%m%dT%H%M%SZ)"
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-haproxy-htx
-NO_CRS_RUN_ID="$run_id" make evidence-check-haproxy
-```
-
-Der Minimal-Smoke und der Full Lifecycle haben unterschiedliche Grenzen. Ein
-P1-Deny, P2/P3/P4-Beobachtungen oder ein PASS gelten nur für den tatsächlich
-ausgeführten repository-definierten Fall und werden hier nicht zu einer
-allgemeinen Capability-Aussage ausgeweitet.
-
-## Evidence und Logs prüfen
-
-Nach einem Full Lifecycle liegen abgeleitete, run-gebundene Verzeichnisse unter
-`$VERIFIED_RUN_ROOT`: Evidence in
-`evidence/no-crs-evidence/haproxy/$run_id`, Builddateien in
-`build/haproxy/$run_id`, Runtime-Dateien in `runs/haproxy/$run_id` und
-sanitisierte Logs in `run-logs/haproxy/$run_id`. Allgemeine Stufenresultate
-liegen unter `$BUILD_ROOT/stages/haproxy`. Pfade sind abgeleitet, nicht feste
-Systempfade.
-
-```sh
-NO_CRS_RUN_ID="$run_id" make evidence-check-haproxy
-make runtime-components-inventory
-make runtime-components-sources
-```
-
-Evidence erst nach dem Check teilen und sensible Werte vorher entfernen. Cache
-und Downloads sind wiederverwendbare Eingaben, keine Evidence.
-
-## Aktualisieren und neu bauen
-
-Den Checkout nur kontrolliert aktualisieren, danach Submodule und Provenienz
-erneut prüfen. Einen alten Cache nicht als Beleg für neue Pins behandeln.
-
-```sh
-git pull --ff-only
-git submodule update --init --recursive
-make runtime-components-inventory
-make runtime-components-sources
-make check-framework
-make prepare-runtime-components
-make build-haproxy
-```
-
-## Deinstallieren und bereinigen
-
-Repository-Testweg: Den externen `VERIFIED_RUN_PARENT` erst nach Inspektion
-oder Archivierung der gewünschten Evidence leeren; der Git-Checkout bleibt
-unverändert. `rmdir` entfernt nur leere Verzeichnisse und ist deshalb der
-sichere Abschluss statt eines unkontrollierten rekursiven Löschbefehls.
-
-```sh
-find "$VERIFIED_RUN_PARENT" -maxdepth 1 -mindepth 1 -print
-rmdir "$VERIFIED_RUN_PARENT"
-```
-
-Source-Build: Externes Staging oder einen bewusst gewählten Prefix erst nach
-Inventarisierung entfernen. Eine Installation unter `/usr` oder `/usr/local`
-nicht pauschal löschen. Paketweg: Nur tatsächlich selbst installierte
-Connectorpakete entfernen; Benutzerdaten und Evidence nicht ungefragt löschen.
-
-```sh
-sudo apt remove haproxy
-sudo dnf remove haproxy
-```
-
-## Troubleshooting
-
-### Testweg
-
-Bei Exit `77` zuerst Framework-Submodule, absoluten externen Root, fehlende
-Basistools und Cache-Provenienz prüfen. Bei Exit `2` Connector-, Stage- und
-Run-ID-Eingaben prüfen. Ist ein Port belegt, den vorherigen lokalen Prozess
-geordnet beenden und den Run mit neuer Run-ID wiederholen; Cache-Einträge nicht
-blind mischen oder umbenennen.
-
-### Source-Build
-
-Fehlender Compiler oder Header: die Source-Voraussetzungen und die gewählte
-Toolchain prüfen. Findet `pkg-config` libmodsecurity nicht, Header- und
-Library-Root sowie `PKG_CONFIG_PATH` prüfen. Bei ABI- oder Modulfehlern Host,
-Header, Modul, Prefix und Connector gemeinsam aus derselben vorbereiteten
-Quelle bauen. Bei fehlender Shared Library nur den bewussten Stagingpfad und
-`LD_LIBRARY_PATH` prüfen, nicht global Dateien kopieren.
-
-### Paketweg
-
-Vor Installation Release-Verfügbarkeit erneut abfragen. Bei fehlenden v3-
-Headern oder pkg-config-Metadaten den Source-Build verwenden. Eine nicht
-lesbare Konfiguration, falsche Dateiberechtigung oder ein belegter Port ist
-kein Paketbeweis. Ein Paket-Host mit nicht passender ABI darf nicht mit einem
-Source-Modul kombiniert werden.
-
-## Variablen und Platzhalter
-
-| Variable/Platzhalter | Pflicht | Standard | Beispiel | Bedeutung |
-| --- | --- | --- | --- | --- |
-| VERIFIED_RUN_PARENT | ja | vom Makefile gewählt, wenn nicht gesetzt | $HOME/modsecurity-connector-work | Beschreibbarer externer Stamm für Build, Cache, Runtime, Logs und Evidence; außerhalb des Checkouts und ohne Secrets im Namen. |
-| VERIFIED_RUN_ROOT | nein | unter VERIFIED_RUN_PARENT abgeleitet | $HOME/modsecurity-connector-work/ModSecurity-conector-verified | Run-gebundener externer Stamm; enthält abgeleitete Build-, Run-, Log- und Evidence-Pfade. |
-| BUILD_ROOT | nein | unter dem verifizierten Run abgeleitet | externes Build-Unterverzeichnis | Staging- und Buildausgabe; nicht in den Git-Checkout legen. |
-| CACHE_ROOT | nein | als Cache-v2 unter dem verifizierten Run abgeleitet | externes Cache-v2-Unterverzeichnis | Wiederverwendbare Eingaben; kein PASS und keine kanonische Evidence. |
-| NO_CRS_RUN_ID | für Full Lifecycle | leer | nginx-core-20260712T120000Z | Dateisicherer Name eines Evidence-Runs; denselben Wert für Full Lifecycle und Evidence-Check verwenden. |
-| CC | nein | Toolchain-Default | gcc | C-Compiler für C- und CGo-nahe Buildschritte. |
-| CXX | nein | Toolchain-Default | g++ | C++-Compiler für Abhängigkeiten, die ihn benötigen. |
-| CFLAGS | nein | Toolchain-Default | -O2 -g | Zusätzliche C-Flags; Beispiel ist Entwicklungswert, kein Repository- oder Produktionsdefault. |
-| CXXFLAGS | nein | Toolchain-Default | -O2 -g | Zusätzliche C++-Flags; kein Produktionsprofil. |
-| CPPFLAGS | nein | leer oder Toolchain-Default | -I/opt/modsecurity-connector/include | Zusätzliche Include-Flags für bewusst gewählte Headerpfade. |
-| LDFLAGS | nein | leer oder Toolchain-Default | -L/opt/modsecurity-connector/lib | Zusätzliche Linkerflags für bewusst gewählte Bibliothekspfade. |
-| PKG_CONFIG_PATH | nein | Paketmanager-/Toolchain-Default | /opt/modsecurity-connector/lib/pkgconfig | Zusätzlicher Suchpfad für pkg-config-Metadaten; kein ABI-Ersatz. |
-| LD_LIBRARY_PATH | nein | Loader-Default | /opt/modsecurity-connector/lib | Temporärer Suchpfad für Shared Libraries; keine globale Installation. |
-| MAKE_JOBS | nein | vom Framework ermittelt | 2 | Anzahl paralleler Compilerprozesse; bei wenig RAM kleiner wählen. |
-| HOME | nein | Anmeldeverzeichnis | $HOME | Shellwert für das Benutzerverzeichnis; keine lokale Entwicklerpfadangabe. |
-| jobs | nein | nicht gesetzt | 2 | Lokale Shellvariable aus `getconf`, die an `MAKE_JOBS` übergeben wird. |
-| run_id | nein | nicht gesetzt | apache-core-20260712T120000Z | Lokale Shellvariable, aus der `NO_CRS_RUN_ID` gesetzt wird. |
-| HAPROXY_VERSION | nein | 3.2.21 | 3.2.21 | Gepinnte HAProxy-Source-Version für das ausgewählte Overlay. |
-| HAPROXY_SOURCE_URL | nein | Framework default | official HAProxy source URL | Von der Vorbereitung verifizierte Source-URL. |
-| HAPROXY_SHA256 | nein | Framework default | pinned SHA256 | Integritätseingabe für das ausgewählte HAProxy-Archiv. |
-| HAPROXY_SOURCE_DIR | nein | generated external source directory | external HAProxy source directory | Provisionierte Quelle für das native HTX-Overlay. |
-| HAPROXY_BIN | nein | resolved by preparation | external HTX haproxy path | HAProxy-Executable des ausgewählten HTX-Runtimewegs. |
-| HAPROXY_HTX_RUNTIME_ROOT | nein | derived below BUILD_ROOT | external HTX runtime directory | Runtime-, Event- und Overlaydateien des ausgewählten HTX-Wegs. |
-| HAPROXY_HTX_BUILD_DIR | nein | derived external overlay directory | external overlay build directory | Buildort des nativen HTX-Overlays außerhalb des Checkouts. |
-
-| Dokumentierter Wert | Beispiel | Bedeutung |
-| --- | --- | --- |
-| Connectorname | haproxy | Make- und Evidence-Name dieses Guides; kein Platzhalter in den gezeigten Befehlen. |
-| Source-Verzeichnis | unter `$BUILD_ROOT` oder vorbereiteter Provenienz | Vom unterstützten Vorbereiter erzeugte Quelle; keinen zweiten Hand-Checkout als Ersatz verwenden. |
-| Build-Verzeichnis | `$BUILD_ROOT/stages/haproxy` | Staging- und Stufenergebnisse außerhalb des Checkouts. |
-| Installationsprefix | externes Staging unter `VERIFIED_RUN_PARENT` | Bevorzugter Entwicklungsort statt systemweiter Installation. |
-| Rules-Datei | vom Full-Lifecycle-Dispatcher | Kanonische Regeldatei wird vom ausgewählten Lauf geliefert; keine lokale Datei als gleichwertig ausgeben. |
-| Modul-/Hostbinary | von Vorbereitung oder Source-Build aufgelöst | Pfad, Header und ABI gehören zum selben ausgewählten Host. |
-
-## Einschränkungen und nicht erhobene Claims
-
-Die Anweisungen beschreiben reproduzierbare Entwicklungs-, Test- und
-Buildwege. Sie sind keine Bewertung als produktionsreifes Paket oder gehärtete
-Deployment-Anleitung. Sie behaupten keine vollständige CRS-Abdeckung,
-keine vollständige Protokoll- oder Plattformmatrix und keine über den
-dokumentierten Run hinausgehende Sicherheitseigenschaft. Ein Paketweg ist nur
-dann gleichwertig, wenn der ausgewählte Host-, Modul-, Middleware-, Service-
-oder Patchpfad tatsächlich durch den dokumentierten Full Lifecycle ausgeführt
-und geprüft wurde.
+Diese Anleitung beschreibt einen nachvollziehbaren Entwicklungs- und Integrationsbuild. Sie ist keine Produktionsfreigabe. Sie behauptet keine vollständige CRS-Abdeckung, keine vollständige Protokoll- oder Plattformmatrix und keine Gleichwertigkeit eines Paketwegs, wenn Hostpatch, Modul, Middleware oder Service fehlen.

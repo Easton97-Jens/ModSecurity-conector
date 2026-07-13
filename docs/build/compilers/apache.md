@@ -1,71 +1,219 @@
 <!-- Generated from scripts/generate_compiler_guides.py; do not edit directly. -->
 
-# Build, source-build, and package paths: Apache HTTP Server
+# Manual source build: Apache HTTP Server
 
 **Language:** English | [Deutsch](apache.de.md)
 
-## Purpose and current integration route
+## 1. Purpose and selected integration path
 
-This guide documents the selected integration route `native-httpd-module` for
-Apache HTTP Server: native httpd module built through APXS. The canonical core run is `make full-lifecycle-apache`. Build,
-configuration, start, and compatibility smokes remain separate from it.
+This guide describes the manual development and integration build for `native-httpd-module` on Apache HTTP Server. The manual source build is the primary path; the repository test path follows it as an automated verification route.
 
-## Compare the three paths
+## 2. Build components
 
-| Path | For whom? | System-wide changes | Builds host from source? | Core path possible? | Evidence possible? |
-| --- | --- | --- | --- | --- | --- |
-| Repository test path | Development and CI | No | Repository-controlled | Yes | Yes, after full lifecycle |
-| Local source build | Development and integration | Optional | Yes, repository source | Yes | Yes, selected run only |
-| Package path | Quick local start | Yes | Usually no | Only with source portion | Only matching profile and run |
+libmodsecurity v3, Apache HTTP Server 2.4, APR/APR-util, PCRE2, the repository Apache adapter, APXS, a local rule file, and a loopback httpd instance.
 
-The exact package status for this connector is
-`package-assisted source build`. Packages provide dependencies and possibly a host, while the repository connector or host integration remains a source build. Package installation alone is not selected-core evidence.
+## 3. Official upstream documentation
 
-## Shared prerequisites
+- **Source and scope:** [Compiling and Installing](https://httpd.apache.org/docs/2.4/install.html)
+  Apache's official source release, APR/APR-util and PCRE2 prerequisites, configure, make, installation, start, and stop sequence. Version scope: HTTP Server 2.4; choose and verify the release again before building.
+- **Source and scope:** [APXS](https://httpd.apache.org/docs/2.4/programs/apxs.html)
+  The DSO build/install interface and the queries that bind a module to one httpd build. Version scope: HTTP Server 2.4 APXS reference.
+- **Source and scope:** [Apache HTTP Server Download](https://httpd.apache.org/download.cgi)
+  Official release archives, PGP signatures, checksums, and Apache KEYS. Version scope: The page changes when Apache publishes a release.
+- **Source and scope:** [ModSecurity repository](https://github.com/owasp-modsecurity/ModSecurity)
+  The libmodsecurity v3 source and its Autotools build instructions. Version scope: The selected Git tag/commit is recorded below.
 
-Git, a writable external parent, C/C++ build tools, and the Framework submodule. The preparation route stages Apache, APR, APR-util, PCRE2, and libmodsecurity inputs.
+## 4. Prerequisites
 
-The test and source paths need only base tools and a writable external parent,
-not a global installation of the selected connector. Query availability before
-installing a package:
+Required are Git, a C compiler, a C++ compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2 development files, libxml2 development files, YAJL, LMDB, and libcurl. Package names vary by distribution and release: check the official distribution documentation and local availability before installing anything.
 
 ```sh
-# Debian / Ubuntu (apt)
-apt-cache policy build-essential pkg-config git curl ca-certificates
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-dnf info gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
+command -v git cc c++ make autoreconf libtool pkg-config
+pkg-config --exists libpcre2-8
+pkg-config --exists libxml-2.0
+pkg-config --exists yajl
+pkg-config --exists lmdb
+pkg-config --exists libcurl
+export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
+test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-On one machine, run only the line for its matching distribution family.
+## 5. Build libmodsecurity v3 from source
 
-`VERIFIED_RUN_PARENT` must stay outside the Git checkout. It holds build,
-cache, runtime, log, and evidence files and must not contain secrets in its
-name. `CACHE_ROOT` is Cache-v2 with reusable inputs, not canonical evidence.
-Show the prepared, effective sources with:
+This flow uses a fixed, verifiable Git tag and its resolved commit. `v3/master` is not a reproducible pin and is therefore not presented as one. `build.sh` regenerates or refreshes the Autotools inputs; it does not compile the library yet.
 
 ```sh
-make runtime-components-inventory
-make runtime-components-sources
+export BUILD_BASE="$HOME/src/modsecurity-build"
+export MODSECURITY_SRC="$BUILD_BASE/ModSecurity"
+export MODSECURITY_PREFIX="$HOME/.local/modsecurity"
+export MODSECURITY_REF="v3.0.16"
+export MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
+mkdir -p "$BUILD_BASE"
+git clone --recurse-submodules https://github.com/owasp-modsecurity/ModSecurity.git "$MODSECURITY_SRC"
+git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
+git -C "$MODSECURITY_SRC" submodule update --init --recursive
+test "$(git -C "$MODSECURITY_SRC" rev-parse HEAD)" = "$MODSECURITY_COMMIT"
+git -C "$MODSECURITY_SRC" rev-parse HEAD
+cd "$MODSECURITY_SRC"
+./build.sh
+./configure --help | grep -E -- "--with-(lmdb|libxml|curl|yajl)"
+./configure --prefix="$MODSECURITY_PREFIX" --with-lmdb --with-libxml --with-curl --with-yajl
+jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"
+make -j"$jobs"
+make check
+make install
+export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 ```
 
-## Path 1: Repository-controlled test
+At the selected revision PCRE2 is detected by default; this guide does not invent `--with-pcre2`. Optional switches are checked with `./configure --help` before use. If the chosen release does not offer a switch, remove it rather than documenting an unaccepted command.
 
-Git, a writable external parent, C/C++ build tools, and the Framework submodule. The preparation route stages Apache, APR, APR-util, PCRE2, and libmodsecurity inputs.
-
-These commands clone the defined branch, initialize the Framework, and run all
-separate stages. They do not install a connector system-wide. If base tools are
-missing, first query their availability in the package path and install only
-the base packages shown there.
+`PKG_CONFIG_PATH` lets build systems find the user-local installation.
+`LD_LIBRARY_PATH` is only for local development and tests; use a deliberate
+loader configuration or rpath for a durable system installation.
 
 ```sh
+test -d "$MODSECURITY_PREFIX/include"
+test -d "$MODSECURITY_PREFIX/lib"
+find "$MODSECURITY_PREFIX" -maxdepth 3 -type f | sort
+pkg-config --modversion libmodsecurity 2>/dev/null || true
+find "$MODSECURITY_PREFIX/lib" -type f \( -name "libmodsecurity.so*" -o -name "libmodsecurity.a" \) -print
+```
+
+## 6. Prepare or build the host or proxy
+
+Follow Apache's source-release flow first. Either provide matching system APR/APR-util development inputs, or unpack verified APR and APR-util trees as `srclib/apr` and `srclib/apr-util` before configuring httpd. The latter is Apache's documented bundled-APR layout.
+
+```sh
+export HOST_BUILD_BASE="$BUILD_BASE/apache"
+export HTTPD_VERSION="2.4.68"
+export HTTPD_ARCHIVE="httpd-$HTTPD_VERSION.tar.gz"
+export HTTPD_URL="https://downloads.apache.org/httpd/$HTTPD_ARCHIVE"
+export HTTPD_PREFIX="$HOME/.local/httpd-modsecurity"
+export HTTPD_SRC="$HOST_BUILD_BASE/httpd-$HTTPD_VERSION"
+export APXS="$HTTPD_PREFIX/bin/apxs"
+mkdir -p "$HOST_BUILD_BASE"
+cd "$HOST_BUILD_BASE"
+curl -fLO "$HTTPD_URL"
+curl -fLO "$HTTPD_URL.asc"
+curl -fLO "$HTTPD_URL.sha256"
+sha256sum -c "${HTTPD_ARCHIVE}.sha256"
+# Import Apache KEYS through the official download page before this verification.
+gpg --verify "${HTTPD_ARCHIVE}.asc" "$HTTPD_ARCHIVE"
+tar -xzf "$HTTPD_ARCHIVE"
+cd "$HTTPD_SRC"
+# If APR/APR-util are not supplied by the system, place verified trees in srclib/apr and srclib/apr-util.
+./configure --help | grep -E -- "--prefix|--with-included-apr|--with-pcre|--enable-mods-shared"
+./configure --prefix="$HTTPD_PREFIX" --enable-mods-shared=most --with-pcre="$(command -v pcre2-config)"
+make -j"$jobs"
+make install
+test -x "$HTTPD_PREFIX/bin/httpd"
+test -x "$HTTPD_PREFIX/bin/apachectl"
+test -x "$APXS"
+```
+
+## 7. Build and integrate the connector
+
+The repository adapter is an Autotools/APXS project. Configure it with the APXS and httpd that were just built; APXS reads the compiler, include, and module-directory values of that exact host.
+
+```sh
+cd "$CONNECTOR_ROOT"
+```
+
+```sh
+export CONNECTOR_SRC="$CONNECTOR_ROOT/connectors/apache"
+cd "$CONNECTOR_SRC"
+./autogen.sh
+./configure --with-libmodsecurity="$MODSECURITY_PREFIX" --with-apxs="$APXS" --with-apache="$HTTPD_PREFIX/bin/httpd"
+make -j"$jobs"
+make install
+export MODULE_PATH="$("$APXS" -q LIBEXECDIR)/mod_security3.so"
+test -f "$MODULE_PATH"
+```
+
+## 8. Configuration
+
+The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout.
+
+
+
+```sh
+export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
+export HTTPD_CONFIG="$HOST_BUILD_BASE/httpd-local.conf"
+cat > "$RULES_FILE" <<EOF
+SecRuleEngine On
+SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
+EOF
+cat > "$HTTPD_CONFIG" <<EOF
+ServerRoot "$HTTPD_PREFIX"
+Listen 127.0.0.1:8080
+ServerName 127.0.0.1
+LoadModule security3_module "$MODULE_PATH"
+DocumentRoot "$HTTPD_PREFIX/htdocs"
+<Directory "$HTTPD_PREFIX/htdocs">
+    Require all granted
+</Directory>
+<Location "/">
+    modsecurity on
+    modsecurity_rules_file "$RULES_FILE"
+</Location>
+EOF
+"$HTTPD_PREFIX/bin/httpd" -t -f "$HTTPD_CONFIG"
+```
+
+## 9. Build and ABI validation
+
+Validate the selected host, connector artifact, dynamic library resolution, and generated configuration before sending traffic.
+
+```sh
+"$HTTPD_PREFIX/bin/httpd" -v
+"$HTTPD_PREFIX/bin/apachectl" -V
+"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -M | grep -E "(^|[[:space:]])so_module"
+"$APXS" -q PREFIX
+"$APXS" -q INCLUDEDIR
+"$APXS" -q LIBEXECDIR
+"$APXS" -q CC
+file "$MODULE_PATH"
+ldd "$MODULE_PATH" | grep -F libmodsecurity
+```
+
+## 10. Local HTTP/1.1 functional test
+
+Run only against loopback. A 200 response on `/` and a 403 response on `/blocked` demonstrate the local rule path; they do not establish a broader claim.
+
+```sh
+"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k start
+curl -i http://127.0.0.1:8080/
+curl -i http://127.0.0.1:8080/blocked
+"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k stop
+```
+
+## 11. Package-assisted path
+
+Status: `package-assisted source build`. Package queries deliberately precede installation. Use only the line matching the distribution.
+
+Treat the host package, its matching development/API package, and connector build dependencies as separate inputs. The queries below establish local availability before a package name is selected; the final command prints the candidate host version. The connector component described above remains a source build whenever the selected module, service, middleware, or host patch is not part of that package.
+
+```sh
+apt-cache search apache2
+dnf search httpd
+apache2 -v 2>/dev/null || httpd -v 2>/dev/null || true
+```
+
+A package host can be useful for comparison, but its APXS, headers, module directory, configuration layout, and service name can differ from this source prefix. Query the matching distribution's official package documentation before choosing package names; rebuild the adapter with that package's APXS if that is the intended host.
+
+## 12. Repository-controlled test path
+
+This section follows the manual build. The targets automate and test the build and integration steps described above; they do not replace their technical documentation. Exit `77` means a deliberately blocked prerequisite, and one successful target is not a broader release claim.
+
+```sh
+export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
+mkdir -p "$VERIFIED_RUN_PARENT"
+cd "$VERIFIED_RUN_PARENT"
 git clone --recurse-submodules https://github.com/Easton97-Jens/ModSecurity-conector.git
 cd ModSecurity-conector
 git switch feature/all-connectors-no-crs-baseline
 git submodule update --init --recursive
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build"
 make check-framework
 make prepare-runtime-components
 make build-apache
@@ -77,405 +225,72 @@ NO_CRS_RUN_ID="$run_id" make full-lifecycle-apache
 NO_CRS_RUN_ID="$run_id" make evidence-check-apache
 ```
 
-| Command | Purpose | Prerequisite | Output/location | Exit and evidence boundary |
-| --- | --- | --- | --- | --- |
-| `git clone` / `git switch` / `git submodule update` | defined checkout | network access and Git | checkout with Framework submodule | Git failures are not build or runtime evidence. |
-| `make check-framework` | check the Framework contract | initialized submodule | confirmed Framework path | `77` can report a missing Framework as BLOCKED; it is not a connector test. |
-| `make prepare-runtime-components` | prepare Cache-v2 and host/source inputs | writable external run root | provenance, cache, and prepared inputs | `77` means a deliberately blocked prerequisite; a cache is not evidence. |
-| `make build-apache` | build stage | preparation and toolchain | `$BUILD_ROOT/stages/apache/build/results` | `0` is stage success, not config or traffic proof. |
-| `make check-config-apache` | load/check configuration | built host/connector | `$BUILD_ROOT/stages/apache/config_load/results` | `0` is not a sent HTTP request. |
-| `make start-smoke-apache` | start host without full traffic | readable config and free local resources | `$BUILD_ROOT/stages/apache/start_smoke/results` | `0` is not full-lifecycle evidence. |
-| `make runtime-smoke-apache` | run bounded repository-owned runtime smoke | prepared host and local ports | `$BUILD_ROOT/stages/apache/minimal_runtime_smoke/results` | `0` applies only to this smoke. |
-| `make full-lifecycle-apache` | run selected No-CRS core lifecycle | safe run identifier | `$VERIFIED_RUN_ROOT/evidence/no-crs-evidence/apache/$run_id` | Assess canonical artifacts only after the following evidence check. |
-| `make evidence-check-apache` | validate existing canonical artifacts | same run identifier and complete artifacts | `$VERIFIED_RUN_ROOT/evidence/no-crs-evidence/apache/$run_id` | validates existing evidence; it creates no new logs or runtime files. |
+## 13. Update and rebuild
 
-`0` means success of the individual stage. `77` means a deliberately blocked
-prerequisite, such as a missing Framework or unsuitable external root. `2` can
-mean an invalid stage, connector, or input selection. Other nonzero values are
-failed or propagated checks; do not interpret them as a stronger result.
-
-### Validation
-
-The preceding block uses the same `run_id` for configuration, start, the
-HTTP/1.1 smoke, and the selected P1–P4 core lifecycle. The following commands
-recheck the host, artifact, and dynamic library, repeat the repository-owned
-config/start/runtime checks, and validate the evidence already produced. The
-evidence check does not start a new core lifecycle.
+Before an update, recheck the linked upstream documentation, release version, and configure/build options. Then repeat every affected host, connector, ABI, and local HTTP test.
 
 ```sh
-test -x "$BUILD_ROOT/apache-runtime/httpd/bin/httpd"
-"$BUILD_ROOT/apache-runtime/httpd/bin/httpd" -v
-test -x "$BUILD_ROOT/apache-runtime/httpd/bin/apxs"
-"$BUILD_ROOT/apache-runtime/httpd/bin/apxs" -q LIBEXECDIR
-test -f "$BUILD_ROOT/apache-build/output/apache/mod_security3.so"
-ldd "$BUILD_ROOT/apache-build/output/apache/mod_security3.so" | grep -F libmodsecurity
-make check-config-apache
-make start-smoke-apache
-make runtime-smoke-apache
-NO_CRS_RUN_ID="$run_id" make evidence-check-apache
-make runtime-components-inventory
-make runtime-components-sources
+git -C "$MODSECURITY_SRC" fetch --tags origin
+git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
+git -C "$MODSECURITY_SRC" submodule update --init --recursive
+git -C "$MODSECURITY_SRC" rev-parse HEAD
+cd "$MODSECURITY_SRC"
+make clean
+make -j"$jobs"
 ```
 
-## Path 2: Local source build
+## 14. Uninstall and cleanup
 
-APXS, httpd headers, and the executed httpd binary must come from one selected Apache build. The supported Framework preparer owns the exact upstream configure command and its external staging.
-
-
-
-These pins are inputs to the supported preparer. When a pin changes,
-`runtime-components-inventory` and `runtime-components-sources` are
-authoritative; in particular, a moving libmodsecurity reference is documented
-there by its resolved commit.
-
-| Component | Pin/version | Source | Integrity/commit |
-| --- | --- | --- | --- |
-| Apache HTTP Server | 2.4.68 (`HTTPD_VERSION`) | https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2 | SHA256 `68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06` |
-| APR | 1.7.6 (`APR_VERSION`) | https://downloads.apache.org/apr/apr-1.7.6.tar.bz2 | SHA256 `49030d92d2575da735791b496dc322f3ce5cff9494779ba8cc28c7f46c5deb32` |
-| APR-util | 1.6.3 (`APR_UTIL_VERSION`) | https://downloads.apache.org/apr/apr-util-1.6.3.tar.bz2 | SHA256 `a41076e3710746326c3945042994ad9a4fcac0ce0277dd8fea076fec3c9772b5` |
-| PCRE2 | 10.47 (`PCRE2_VERSION`) | https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.47/pcre2-10.47.tar.bz2 | effective source identity is recorded by preparation |
-| libmodsecurity | configured `MODSECURITY_GIT_REF` (default `v3/master`) | https://github.com/owasp-modsecurity/ModSecurity.git | resolved commit is recorded in Cache-v2 provenance |
-
-`-O2 -g` is an understandable development value, not a repository default or
-a deployment prescription. `jobs` is the number of parallel compiler
-processes; choose a lower value such as `2` on a memory-constrained machine.
-Set `CPPFLAGS`, `LDFLAGS`, `PKG_CONFIG_PATH`, and `LD_LIBRARY_PATH` only for
-deliberately selected header, library, or staging paths.
+Do not copy files indiscriminately to `/usr/lib` and do not remove global directories. A user prefix does not need `sudo`. Remove evidence or logs only after deliberate review.
 
 ```sh
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build/apache-source"
-export CC=gcc
-export CXX=g++
-export CFLAGS="-O2 -g"
-export CXXFLAGS="-O2 -g"
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')"
-make check-framework
-make prepare-runtime-components
-make runtime-components-inventory
-make runtime-components-sources
-run_id="apache-source-$(date -u +%Y%m%dT%H%M%SZ)"
-BUILD_HTTPD_FROM_SOURCE=1 MAKE_JOBS="$jobs" make build-apache
-make check-config-apache
-make start-smoke-apache
-make runtime-smoke-apache
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-apache
+find "$BUILD_BASE" -maxdepth 2 -mindepth 1 -print
+# Review the listed paths first; remove only a chosen private prefix or external build directory.
+rmdir "$MODSECURITY_PREFIX" 2>/dev/null || true
 ```
 
-`BUILD_HTTPD_FROM_SOURCE=1` delegates httpd, APR, APR-util, PCRE2, libmodsecurity, APXS, connector configuration, and external staging to the Framework preparer. It records its exact configure commands in the Apache command, source-info, and artifact records below the external build root.
+## 15. Troubleshooting
 
-| Command group | Purpose | Prerequisite | Output and boundary |
-| --- | --- | --- | --- |
-| source-build commands above | build the selected host, module, or service from source | prepared provenance, toolchain, and external build root | artifacts and command/source-info records below `$BUILD_ROOT`; exit `0` is build success only. |
-| shown config/test/runtime targets | check artifact, ABI, and loader in the same staging area | matching headers, libraries, and readable configuration | Targets check the generated module or service and its library resolution; `77` can report a missing prerequisite. |
-| `make full-lifecycle-apache` + evidence check | run selected core path and validate artifacts | safe `run_id` and complete runtime | evidence below `evidence/no-crs-evidence/apache/$run_id`; `2` is invalid input/stage and other failures remain failures. |
+Common: for missing headers or libraries, first check `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, the selected prefix, and `pkg-config` output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.
 
-The supported build is implemented by `modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh`; root stages
-dispatch through `ci/runtime/lifecycle/run-connector-stage.sh`, and the full
-lifecycle through `ci/runtime/lifecycle/run-no-crs-baseline.sh`. Those scripts
-are the implementation behind the shown Make targets, not a second manual
-build recipe to copy independently.
+If `apxs -q` points at different headers or a different module directory than the running httpd, stop and rebuild the adapter. A module built against one Apache ABI must not be loaded by another one.
 
-`APXS_BIN`, `APACHE_BIN`, and the executed httpd binary must belong to the same Apache ABI. The module path and `LoadModule` entry are generated and checked by the selected route; do not combine distribution headers with another httpd build.
+## 16. Variables and placeholders
 
-### Prefix and staging
+| Variable/placeholder | Meaning |
+| --- | --- |
+| BUILD_BASE | Portable source/build parent, for example `$HOME/src/modsecurity-build`. |
+| CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
+| HOST_BUILD_BASE | Connector-specific external subtree below BUILD_BASE for sources, builds, configuration, and local logs. |
+| BUILD_ROOT | External build and runtime root for repository-owned connector components. |
+| MODSECURITY_SRC | Checkout of the ModSecurity v3 engine below BUILD_BASE. |
+| MODSECURITY_PREFIX | Isolated user prefix for headers, libraries, and pkg-config metadata. |
+| MODSECURITY_REF | Fixed engine Git tag, never a moving branch. |
+| MODSECURITY_COMMIT | Expected commit to which MODSECURITY_REF must resolve. |
+| MODSECURITY_INCLUDE_DIR | Include directory below MODSECURITY_PREFIX for repository components. |
+| MODSECURITY_LIB_DIR | Library directory below MODSECURITY_PREFIX for repository components. |
+| PKG_CONFIG_PATH | Temporary search path for the local libmodsecurity pc file. |
+| LD_LIBRARY_PATH | Temporary loader path for local tests only, not a global installation recipe. |
+| RULES_FILE | Local test-rule file, not a CRS rule file. |
+| jobs | Local parallel-build count from `getconf`; reduce it on low-memory hosts. |
+| VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
+| run_id | Unique identifier for one repository-controlled full-lifecycle run. |
+| NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |
+| upstream_pid | Local test-upstream process ID from `$!`; use it only in the same shell run. |
+| haproxy_pid | Local started-HAProxy process ID from `$!`; use it only in the same shell run. |
+| engine_pid | Local started Traefik engine-service process ID from `$!`; use it only in the same shell run. |
+| traefik_pid | Local started Traefik process ID from `$!`; use it only in the same shell run. |
+| lighttpd_pid | Local started-lighttpd process ID from `$!`; use it only in the same shell run. |
+| HTTPD_VERSION | Selected Apache 2.4 release; revalidate against the download page. |
+| HTTPD_ARCHIVE | Release archive filename derived from HTTPD_VERSION. |
+| HTTPD_URL | Official Apache archive URL. |
+| HTTPD_PREFIX | Private httpd installation prefix. |
+| HTTPD_SRC | Unpacked Apache source tree. |
+| APXS | APXS from the same host that will load the module. |
+| CONNECTOR_SRC | Repository Apache connector source selected from CONNECTOR_ROOT. |
+| MODULE_PATH | Installed repository DSO resolved by APXS. |
+| HTTPD_CONFIG | Local standalone httpd configuration. |
 
-| Location | Use | Boundary |
-| --- | --- | --- |
-| `/usr` | managed by a distribution package | do not overwrite it as a manual default |
-| `/usr/local` | deliberate local installation | inventory files first |
-| `/opt/modsecurity-connector` | deliberately selected isolated prefix | set `PKG_CONFIG_PATH` and loader path deliberately |
-| `$HOME/.local` | user-local installation | not a shared system host |
-| below `VERIFIED_RUN_PARENT` | recommended external staging | default for this development path; outside the checkout |
+## 17. Boundaries and non-claims
 
-The supported preparer owns the exact upstream configure and installation
-invocation. Its generated command, source-info, and artifact records in the
-external build root are the reproducible configuration and compilation record;
-this guide does not invent a second manual invocation.
-
-### Validation
-
-These commands inspect the resolved host binary at its documented external
-staging or cache path after preparation or source build. The artifact commands
-then check that the generated module or service exists and that `ldd` resolves
-`libmodsecurity`. The supported targets then check link, configuration, start,
-or the selected lifecycle.
-
-```sh
-test -x "$BUILD_ROOT/apache-runtime/httpd/bin/httpd"
-"$BUILD_ROOT/apache-runtime/httpd/bin/httpd" -v
-test -x "$BUILD_ROOT/apache-runtime/httpd/bin/apxs"
-"$BUILD_ROOT/apache-runtime/httpd/bin/apxs" -q LIBEXECDIR
-test -f "$BUILD_ROOT/apache-build/output/apache/mod_security3.so"
-ldd "$BUILD_ROOT/apache-build/output/apache/mod_security3.so" | grep -F libmodsecurity
-make check-config-apache
-make start-smoke-apache
-make runtime-smoke-apache
-NO_CRS_RUN_ID="$run_id" make evidence-check-apache
-```
-
-## Path 3: Package or package-assisted installation
-
-Status: `package-assisted source build`. Packages provide dependencies and possibly a host, while the repository connector or host integration remains a source build. Package installation alone is not selected-core evidence.
-
-Host and APXS packages can assist development, but the repository native module is still built from source against that exact host. A distribution ModSecurity-v2 Apache module is not this libmodsecurity-v3 route.
-
-Package names are release-dependent. Query them before every installation;
-Fedora `mod_security` is ModSecurity v2 and is not a replacement for the
-v3-path `libmodsecurity-devel` package.
-
-The first commands are for **Debian / Ubuntu (apt)**; the following commands
-are for **Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)**. Use only the matching
-family.
-
-```sh
-# Debian / Ubuntu (apt)
-apt-cache policy build-essential pkg-config git curl ca-certificates
-apt-cache policy autoconf automake libtool libpcre2-dev libssl-dev libmodsecurity-dev apache2 apache2-dev
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-dnf info gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
-dnf info autoconf automake libtool pcre2-devel openssl-devel libmodsecurity-devel httpd httpd-devel
-```
-
-
-
-Install only after a successful query and after reviewing the list yourself:
-
-```sh
-# Debian / Ubuntu (apt)
-sudo apt update
-sudo apt install --yes build-essential pkg-config git curl ca-certificates
-sudo apt install --yes autoconf automake libtool libpcre2-dev libssl-dev libmodsecurity-dev apache2 apache2-dev
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-sudo dnf install -y gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
-sudo dnf install -y autoconf automake libtool pcre2-devel openssl-devel libmodsecurity-devel httpd httpd-devel
-```
-
-`sudo` is used because package databases and system paths normally require
-administrator privileges. A CI job or container often already runs as root;
-in that case omit `sudo` instead of changing the package list.
-
-Packages provide only the dependency/host portion. Continue with this supported source follow-up; package installation alone does not build the selected connector or host integration.
-
-```sh
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build/apache-package"
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')"
-make check-framework
-make prepare-runtime-components
-make runtime-components-inventory
-make runtime-components-sources
-run_id="apache-package-$(date -u +%Y%m%dT%H%M%SZ)"
-BUILD_HTTPD_FROM_SOURCE=1 MAKE_JOBS="$jobs" make build-apache
-make check-config-apache
-make start-smoke-apache
-make runtime-smoke-apache
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-apache
-```
-
-| Command group | Purpose | Prerequisite | Output and boundary |
-| --- | --- | --- | --- |
-| source-build commands above | build the selected host, module, or service from source | prepared provenance, toolchain, and external build root | artifacts and command/source-info records below `$BUILD_ROOT`; exit `0` is build success only. |
-| shown config/test/runtime targets | check artifact, ABI, and loader in the same staging area | matching headers, libraries, and readable configuration | Targets check the generated module or service and its library resolution; `77` can report a missing prerequisite. |
-| `make full-lifecycle-apache` + evidence check | run selected core path and validate artifacts | safe `run_id` and complete runtime | evidence below `evidence/no-crs-evidence/apache/$run_id`; `2` is invalid input/stage and other failures remain failures. |
-
-### Validation
-
-`libmodsecurity` must provide v3 development headers and pkg-config metadata.
-If any of these commands is unavailable, return to the repository-controlled
-source build; never silently use a ModSecurity-v2 package.
-
-```sh
-pkg-config --exists libmodsecurity
-pkg-config --atleast-version=3.0 libmodsecurity
-pkg-config --modversion libmodsecurity
-pkg_version="$(pkg-config --modversion libmodsecurity)"
-case "$pkg_version" in 3.*) ;; *) printf '%s\n' "libmodsecurity major version must be 3: $pkg_version" >&2; exit 1 ;; esac
-pkg-config --cflags libmodsecurity
-pkg-config --libs libmodsecurity
-make check-config-apache
-test -x "$BUILD_ROOT/apache-runtime/httpd/bin/httpd"
-"$BUILD_ROOT/apache-runtime/httpd/bin/httpd" -v
-test -x "$BUILD_ROOT/apache-runtime/httpd/bin/apxs"
-"$BUILD_ROOT/apache-runtime/httpd/bin/apxs" -q LIBEXECDIR
-test -f "$BUILD_ROOT/apache-build/output/apache/mod_security3.so"
-ldd "$BUILD_ROOT/apache-build/output/apache/mod_security3.so" | grep -F libmodsecurity
-make check-config-apache
-make start-smoke-apache
-make runtime-smoke-apache
-NO_CRS_RUN_ID="$run_id" make evidence-check-apache
-```
-
-## Configure after the build
-
-The config target is the supported httpd config test for the generated selected host configuration.
-
-The selected configuration, rules, and module paths are generated or checked
-by repository-owned targets. Configuration files must be readable; do not put
-cookies, authorization values, tokens, private keys, or raw logs into config
-or evidence.
-
-```sh
-make check-config-apache
-```
-
-## Validate build and installation
-
-For every path: inspect the host binary and version, inspect connector output
-and shared libraries in the selected staging area, then run config and start
-smokes. The source and package paths therefore each end in their own validation
-block; a compile or link by itself is insufficient.
-
-```sh
-make check-config-apache
-make start-smoke-apache
-make runtime-smoke-apache
-```
-
-## Run a real HTTP/1.1 test
-
-`make runtime-smoke-apache` is the supported repository-owned minimal smoke with
-real HTTP/1.1 traffic for its documented route. Concrete local ports, URLs,
-and requests come from generated configuration; do not invent a second `curl`
-endpoint. Run the full lifecycle for the selected P1–P4 core path where
-applicable:
-
-```sh
-run_id="apache-http11-$(date -u +%Y%m%dT%H%M%SZ)"
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-apache
-NO_CRS_RUN_ID="$run_id" make evidence-check-apache
-```
-
-The minimal smoke and the full lifecycle have different boundaries. A P1 deny,
-P2/P3/P4 observation, or PASS applies only to the repository-defined case that
-actually ran and is not expanded here into a general capability statement.
-
-## Inspect evidence and logs
-
-After a full lifecycle, derived run-bound directories are below
-`$VERIFIED_RUN_ROOT`: evidence at
-`evidence/no-crs-evidence/apache/$run_id`, build files at
-`build/apache/$run_id`, runtime files at `runs/apache/$run_id`, and sanitized
-logs at `run-logs/apache/$run_id`. General stage results are below
-`$BUILD_ROOT/stages/apache`. These are derived paths, not fixed system paths.
-
-```sh
-NO_CRS_RUN_ID="$run_id" make evidence-check-apache
-make runtime-components-inventory
-make runtime-components-sources
-```
-
-Share evidence only after the check and remove sensitive values first. Caches
-and downloads are reusable inputs, not evidence.
-
-## Update and rebuild
-
-Update a checkout deliberately, then recheck submodules and provenance. Do not
-treat an old cache as proof for changed pins.
-
-```sh
-git pull --ff-only
-git submodule update --init --recursive
-make runtime-components-inventory
-make runtime-components-sources
-make check-framework
-make prepare-runtime-components
-make build-apache
-```
-
-## Uninstall and clean up
-
-Repository test path: inspect or archive desired evidence before emptying the
-external `VERIFIED_RUN_PARENT`; the Git checkout stays unchanged. `rmdir` only
-removes empty directories, so it is the safe final operation instead of an
-uncontrolled recursive delete.
-
-```sh
-find "$VERIFIED_RUN_PARENT" -maxdepth 1 -mindepth 1 -print
-rmdir "$VERIFIED_RUN_PARENT"
-```
-
-Source build: remove external staging or a deliberately selected prefix only
-after inventorying it. Do not broadly remove an installation below `/usr` or
-`/usr/local`. Package path: remove only connector packages actually installed
-by the operator; do not delete user data or evidence without review.
-
-```sh
-sudo apt remove apache2 apache2-dev
-sudo dnf remove httpd httpd-devel
-```
-
-## Troubleshooting
-
-### Repository test path
-
-For exit `77`, first check the Framework submodule, absolute external root,
-missing base tools, and cache provenance. For exit `2`, check connector, stage,
-and run-id input. If a port is occupied, stop the previous local process in an
-orderly way and repeat with a new run ID; do not blindly mix or rename cache
-entries.
-
-### Source build
-
-For a missing compiler or header, check source prerequisites and the selected
-toolchain. If pkg-config cannot find libmodsecurity, check the header/library
-root and `PKG_CONFIG_PATH`. For ABI or module failures, build host, headers,
-module, prefix, and connector together from the same prepared source. For a
-missing shared library, check only the deliberate staging path and
-`LD_LIBRARY_PATH`; do not globally copy files.
-
-### Package path
-
-Query release availability again before installation. Use the source build if
-v3 headers or pkg-config metadata are absent. An unreadable configuration,
-wrong file permission, or occupied port is not package proof. Do not combine a
-package host with a source module that has a different ABI.
-
-## Variables and placeholders
-
-| Variable/placeholder | Required | Default | Example | Meaning |
-| --- | --- | --- | --- | --- |
-| VERIFIED_RUN_PARENT | yes | chosen by Make when unset | $HOME/modsecurity-connector-work | Writable external parent for build, cache, runtime, logs, and evidence; outside the checkout and without secrets in its name. |
-| VERIFIED_RUN_ROOT | no | derived below VERIFIED_RUN_PARENT | $HOME/modsecurity-connector-work/ModSecurity-conector-verified | Run-bound external root; holds derived build, run, log, and evidence paths. |
-| BUILD_ROOT | no | derived below verified run | external build subdirectory | Staging and build output; keep it outside the Git checkout. |
-| CACHE_ROOT | no | derived as cache-v2 below verified run | external cache-v2 subdirectory | Reusable inputs; not a PASS and not canonical evidence. |
-| NO_CRS_RUN_ID | for full lifecycle | empty | nginx-core-20260712T120000Z | Filesystem-safe name of one evidence run; use it for both full lifecycle and evidence check. |
-| CC | no | toolchain default | gcc | C compiler for C and CGo-adjacent build steps. |
-| CXX | no | toolchain default | g++ | C++ compiler for dependencies that need it. |
-| CFLAGS | no | toolchain default | -O2 -g | Additional C flags; example is a development value, not a repository or production default. |
-| CXXFLAGS | no | toolchain default | -O2 -g | Additional C++ flags; not a production profile. |
-| CPPFLAGS | no | empty or toolchain default | -I/opt/modsecurity-connector/include | Additional include flags for deliberately selected header paths. |
-| LDFLAGS | no | empty or toolchain default | -L/opt/modsecurity-connector/lib | Additional linker flags for deliberately selected library paths. |
-| PKG_CONFIG_PATH | no | package-manager/toolchain default | /opt/modsecurity-connector/lib/pkgconfig | Additional pkg-config metadata search path; not an ABI substitute. |
-| LD_LIBRARY_PATH | no | loader default | /opt/modsecurity-connector/lib | Temporary shared-library search path; not a global installation. |
-| MAKE_JOBS | no | detected by Framework | 2 | Number of parallel compiler processes; choose lower on a memory-constrained machine. |
-| HOME | no | login home directory | $HOME | Shell value for user home directory; no local developer path. |
-| jobs | no | unset | 2 | Local shell variable from `getconf`, passed to `MAKE_JOBS`. |
-| run_id | no | unset | apache-core-20260712T120000Z | Local shell variable used to set `NO_CRS_RUN_ID`. |
-| BUILD_HTTPD_FROM_SOURCE | no | 0 | 1 | Opt in to the Framework-managed Apache source host. |
-| APACHE_BIN | no | host discovery or preparation | external selected httpd path | Apache executable that must match APXS and module headers. |
-| APACHECTL_BIN | no | host discovery or preparation | external selected apachectl path | Optional apachectl-compatible control command for the same host. |
-| APXS_BIN | no | host discovery or preparation | external selected APXS path | APXS used to compile the module for the selected httpd. |
-
-| Documented value | Example | Meaning |
-| --- | --- | --- |
-| connector name | apache | Make and evidence name for this guide; no placeholder remains in the shown commands. |
-| source directory | below `$BUILD_ROOT` or prepared provenance | Source created by the supported preparer; do not substitute a second manual checkout. |
-| build directory | `$BUILD_ROOT/stages/apache` | Staging and stage results outside the checkout. |
-| installation prefix | external staging below `VERIFIED_RUN_PARENT` | Preferred development location instead of a system-wide installation. |
-| rules file | provided by the full-lifecycle dispatcher | The selected run supplies canonical rules; do not present a local file as equivalent. |
-| module/host binary | resolved by preparation or source build | Path, headers, and ABI belong to the same selected host. |
-
-## Limitations and non-claims
-
-These instructions describe reproducible development, test, and build paths.
-They are not an assessment of a production package or hardened deployment
-guidance. They do not assert complete CRS coverage, a complete protocol or
-platform matrix, or a security property beyond the documented run. A package
-path is equivalent only when the selected host, module, middleware, service,
-or patch path actually ran and was checked through the documented full
-lifecycle.
+These instructions describe a reproducible development and integration build. They are not a production release. They do not claim complete CRS coverage, a complete protocol or platform matrix, or package-path equivalence when a host patch, module, middleware, or service is absent.

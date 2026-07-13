@@ -1,74 +1,293 @@
 <!-- Generated from scripts/generate_compiler_guides.py; do not edit directly. -->
 
-# Build, source-build, and package paths: Traefik
+# Manual source build: Traefik
 
 **Language:** English | [Deutsch](traefik.de.md)
 
-## Purpose and current integration route
+## 1. Purpose and selected integration path
 
-This guide documents the selected integration route `native-middleware` for
-Traefik: native Traefik middleware with a private persistent UDS engine service. The canonical core run is `make full-lifecycle-traefik-native`. Build,
-configuration, start, and compatibility smokes remain separate from it.
+This guide describes the manual development and integration build for `native-middleware` on Traefik. The manual source build is the primary path; the repository test path follows it as an automated verification route.
 
-## Compare the three paths
+## 2. Build components
 
-| Path | For whom? | System-wide changes | Builds host from source? | Core path possible? | Evidence possible? |
-| --- | --- | --- | --- | --- | --- |
-| Repository test path | Development and CI | No | Repository-controlled | Yes | Yes, after full lifecycle |
-| Local source build | Development and integration | Optional | Verified binary; middleware/service from source | Yes | Yes, selected run only |
-| Package path | Quick local start | Yes | Usually no | Only with source portion | Only matching profile and run |
+libmodsecurity v3, Traefik, the repository native Go middleware, the C/C++ engine service, Common/libmodsecurity, a private Unix-domain socket, static and dynamic File Provider configuration, and loopback HTTP traffic.
 
-The exact package status for this connector is
-`package-assisted source build`. Packages provide dependencies and possibly a host, while the repository connector or host integration remains a source build. Package installation alone is not selected-core evidence.
+## 3. Official upstream documentation
 
-## Shared prerequisites
+- **Source and scope:** [Traefik Getting Started](https://doc.traefik.io/traefik/getting-started/)
+  Official installation choices, entry points, routers, services, and safe local startup context. Version scope: Confirm the documentation version for the selected Traefik release.
+- **Source and scope:** [Building and Testing](https://doc.traefik.io/traefik/contributing/building-testing/)
+  Official source checkout, Go/tooling, build, and test workflow. Version scope: The required Go version is defined by the selected release's `go.mod`.
+- **Source and scope:** [Traefik Configuration Reference](https://doc.traefik.io/traefik/reference/)
+  Current official reference index for static configuration, File Provider, routers, middleware, and services. Version scope: Check that the current reference matches the selected release before applying a setting.
+- **Source and scope:** [Traefik v3.7 configuration overview](https://doc.traefik.io/traefik/v3.7/getting-started/configuration-overview/)
+  The distinction between static installation configuration and dynamic routing configuration. Version scope: Use one static configuration method and recheck it for another release.
+- **Source and scope:** [Traefik v3.7 EntryPoints](https://doc.traefik.io/traefik/v3.7/reference/install-configuration/entrypoints/)
+  Static loopback entry-point configuration. Version scope: Field names are release-specific.
+- **Source and scope:** [Traefik v3.7 File Provider](https://doc.traefik.io/traefik/v3.7/reference/routing-configuration/other-providers/file/)
+  Dynamic File Provider routers, middleware, and services. Version scope: Recheck the selected version before using another release.
+- **Source and scope:** [Traefik v3.7 health check](https://doc.traefik.io/traefik/v3.7/reference/install-configuration/observability/healthcheck/)
+  The loopback ping endpoint used to confirm local host startup. Version scope: Do not enable an insecure dashboard for this local check.
+- **Source and scope:** [Traefik v3.7.5 release](https://github.com/traefik/traefik/releases/tag/v3.7.5)
+  Official fixed release material and checksum source. Version scope: This guide selects v3.7.5 as the repository-compatible host input.
+- **Source and scope:** [Traefik v3.7.5 source](https://github.com/traefik/traefik/tree/v3.7.5)
+  Official selected source tree; its go.mod defines the required host Go version. Version scope: The host's Go requirement is distinct from the repository middleware module's requirement.
 
-Git, a writable external parent, Go and C/C++ build tools, libmodsecurity inputs, and the Framework submodule. Runtime preparation supplies the pinned host binary through provenance policy.
+## 4. Prerequisites
 
-The test and source paths need only base tools and a writable external parent,
-not a global installation of the selected connector. Query availability before
-installing a package:
+Required are Git, a C compiler, a C++ compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2 development files, libxml2 development files, YAJL, LMDB, and libcurl. Package names vary by distribution and release: check the official distribution documentation and local availability before installing anything.
 
 ```sh
-# Debian / Ubuntu (apt)
-apt-cache policy build-essential pkg-config git curl ca-certificates
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-dnf info gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
+command -v git cc c++ make autoreconf libtool pkg-config
+pkg-config --exists libpcre2-8
+pkg-config --exists libxml-2.0
+pkg-config --exists yajl
+pkg-config --exists lmdb
+pkg-config --exists libcurl
+export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
+test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-On one machine, run only the line for its matching distribution family.
+## 5. Build libmodsecurity v3 from source
 
-`VERIFIED_RUN_PARENT` must stay outside the Git checkout. It holds build,
-cache, runtime, log, and evidence files and must not contain secrets in its
-name. `CACHE_ROOT` is Cache-v2 with reusable inputs, not canonical evidence.
-Show the prepared, effective sources with:
+This flow uses a fixed, verifiable Git tag and its resolved commit. `v3/master` is not a reproducible pin and is therefore not presented as one. `build.sh` regenerates or refreshes the Autotools inputs; it does not compile the library yet.
 
 ```sh
-make runtime-components-inventory
-make runtime-components-sources
+export BUILD_BASE="$HOME/src/modsecurity-build"
+export MODSECURITY_SRC="$BUILD_BASE/ModSecurity"
+export MODSECURITY_PREFIX="$HOME/.local/modsecurity"
+export MODSECURITY_REF="v3.0.16"
+export MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
+mkdir -p "$BUILD_BASE"
+git clone --recurse-submodules https://github.com/owasp-modsecurity/ModSecurity.git "$MODSECURITY_SRC"
+git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
+git -C "$MODSECURITY_SRC" submodule update --init --recursive
+test "$(git -C "$MODSECURITY_SRC" rev-parse HEAD)" = "$MODSECURITY_COMMIT"
+git -C "$MODSECURITY_SRC" rev-parse HEAD
+cd "$MODSECURITY_SRC"
+./build.sh
+./configure --help | grep -E -- "--with-(lmdb|libxml|curl|yajl)"
+./configure --prefix="$MODSECURITY_PREFIX" --with-lmdb --with-libxml --with-curl --with-yajl
+jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"
+make -j"$jobs"
+make check
+make install
+export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 ```
 
-## Path 1: Repository-controlled test
+At the selected revision PCRE2 is detected by default; this guide does not invent `--with-pcre2`. Optional switches are checked with `./configure --help` before use. If the chosen release does not offer a switch, remove it rather than documenting an unaccepted command.
 
-Git, a writable external parent, Go and C/C++ build tools, libmodsecurity inputs, and the Framework submodule. Runtime preparation supplies the pinned host binary through provenance policy.
-
-These commands clone the defined branch, initialize the Framework, and run all
-separate stages. They do not install a connector system-wide. If base tools are
-missing, first query their availability in the package path and install only
-the base packages shown there.
+`PKG_CONFIG_PATH` lets build systems find the user-local installation.
+`LD_LIBRARY_PATH` is only for local development and tests; use a deliberate
+loader configuration or rpath for a durable system installation.
 
 ```sh
+test -d "$MODSECURITY_PREFIX/include"
+test -d "$MODSECURITY_PREFIX/lib"
+find "$MODSECURITY_PREFIX" -maxdepth 3 -type f | sort
+pkg-config --modversion libmodsecurity 2>/dev/null || true
+find "$MODSECURITY_PREFIX/lib" -type f \( -name "libmodsecurity.so*" -o -name "libmodsecurity.a" \) -print
+```
+
+## 6. Prepare or build the host or proxy
+
+Use an official binary, container, or source build for the Traefik host. The source example below checks out the repository-compatible v3.7.5 tag; its upstream `go.mod` declares Go 1.25.0. That host requirement is distinct from this repository's native middleware module, which currently declares its own Go version.
+
+```sh
+export HOST_BUILD_BASE="$BUILD_BASE/traefik"
+export TRAEFIK_VERSION="3.7.5"
+export TRAEFIK_REF="v$TRAEFIK_VERSION"
+export TRAEFIK_SRC="$HOST_BUILD_BASE/traefik"
+export TRAEFIK_BIN="$HOST_BUILD_BASE/bin/traefik"
+mkdir -p "$HOST_BUILD_BASE/bin"
+git clone https://github.com/traefik/traefik.git "$TRAEFIK_SRC"
+git -C "$TRAEFIK_SRC" checkout --detach "$TRAEFIK_REF"
+git -C "$TRAEFIK_SRC" rev-parse HEAD
+grep -E "^go " "$TRAEFIK_SRC/go.mod"
+go version
+cd "$TRAEFIK_SRC"
+make test-unit
+make binary
+install -m 755 dist/traefik "$TRAEFIK_BIN"
+"$TRAEFIK_BIN" version
+```
+
+## 7. Build and integrate the connector
+
+A standard Traefik binary does not include the native ModSecurity middleware or the persistent engine service. Build the Go middleware and the C/C++ service from this checkout, placing both outputs outside it. The engine socket must be private to the local run and must not be reused as a shared system endpoint.
+
+```sh
+cd "$CONNECTOR_ROOT"
+```
+
+```sh
+export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"
+export TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$BUILD_ROOT/traefik-native-middleware"
+export TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$BUILD_ROOT/traefik-engine-service"
+export TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR/traefik-engine-service"
+export MODSECURITY_INCLUDE_DIR="$MODSECURITY_PREFIX/include"
+export MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib"
+BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh connectors/traefik/build/build-native-middleware.sh build
+BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh connectors/traefik/build/build-native-middleware.sh test
+BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/traefik/build/build-engine-service.sh build
+test -x "$TRAEFIK_ENGINE_SERVICE_BIN"
+BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/traefik/build/build-engine-service.sh test
+```
+
+## 8. Configuration
+
+The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout.
+
+The configuration deliberately uses only loopback entry points and does not enable an insecure dashboard or API. Treat any dashboard or administration endpoint as optional and secure it separately for a real deployment.
+
+```sh
+export TRAEFIK_RUNTIME_ROOT="$BUILD_ROOT/traefik-native-runtime"
+export RULES_FILE="$BUILD_ROOT/traefik-native-rules.conf"
+export TRAEFIK_STATIC_CONFIG="$BUILD_ROOT/traefik-static.yaml"
+export TRAEFIK_DYNAMIC_CONFIG="$BUILD_ROOT/traefik-dynamic.yaml"
+export TRAEFIK_ENGINE_CONFIG="$BUILD_ROOT/traefik-engine.conf"
+export TRAEFIK_ENGINE_SOCKET="$BUILD_ROOT/run/traefik-engine.sock"
+export TRAEFIK_PORT=18080
+export TRAEFIK_UPSTREAM_PORT=18081
+export TRAEFIK_PING_PORT=18082
+export TRAEFIK_PLUGIN_MODULE="github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware"
+export TRAEFIK_PLUGIN_SOURCE="$TRAEFIK_RUNTIME_ROOT/plugins-local/src/$TRAEFIK_PLUGIN_MODULE"
+mkdir -p "$(dirname "$TRAEFIK_PLUGIN_SOURCE")" "$BUILD_ROOT/run" "$BUILD_ROOT/logs"
+cp -a "$CONNECTOR_ROOT/connectors/traefik/native_middleware" "$TRAEFIK_PLUGIN_SOURCE"
+mkdir -p "$(dirname "$TRAEFIK_ENGINE_SOCKET")"
+chmod 700 "$(dirname "$TRAEFIK_ENGINE_SOCKET")"
+cat > "$RULES_FILE" <<EOF
+SecRuleEngine On
+SecRule REQUEST_HEADERS:X-Modsec-Smoke "@streq block" "id:100001,phase:1,deny,status:403,log"
+EOF
+cat > "$TRAEFIK_STATIC_CONFIG" <<EOF
+entryPoints:
+  web:
+    address: "127.0.0.1:$TRAEFIK_PORT"
+  health:
+    address: "127.0.0.1:$TRAEFIK_PING_PORT"
+providers:
+  file:
+    filename: "$TRAEFIK_DYNAMIC_CONFIG"
+    watch: false
+ping:
+  entryPoint: health
+experimental:
+  localPlugins:
+    modsecurityNative:
+      moduleName: $TRAEFIK_PLUGIN_MODULE
+      settings:
+        envs: []
+EOF
+cat > "$TRAEFIK_DYNAMIC_CONFIG" <<EOF
+http:
+  routers:
+    native:
+      entryPoints: [web]
+      rule: "PathPrefix(`/`)"
+      middlewares: [native]
+      service: upstream
+  middlewares:
+    native:
+      plugin:
+        modsecurityNative:
+          maxHeaderCount: 128
+          maxHeaderBytes: 65536
+          maxRequestChunkBytes: 32768
+          maxResponseChunkBytes: 32768
+          transactionIDHeader: X-Request-Id
+          engineMode: uds
+          engineSocketPath: $TRAEFIK_ENGINE_SOCKET
+  services:
+    upstream:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:$TRAEFIK_UPSTREAM_PORT
+EOF
+cat > "$TRAEFIK_ENGINE_CONFIG" <<EOF
+enabled=on
+rules_file=$RULES_FILE
+transaction_id_header=x-request-id
+request_body_mode=streaming
+response_body_mode=streaming
+request_body_limit=4096
+response_body_limit=4096
+body_limit_action=reject
+phase4_mode=safe
+default_block_status=403
+default_error_status=500
+use_error_log=off
+event_path=$BUILD_ROOT/logs/traefik-events.jsonl
+max_header_count=100
+max_header_name_size=256
+max_header_value_size=8192
+max_total_header_bytes=65536
+max_event_json_bytes=16384
+EOF
+"$TRAEFIK_BIN" check --configFile="$TRAEFIK_STATIC_CONFIG"
+"$TRAEFIK_ENGINE_SERVICE_BIN" --check-config --config "$TRAEFIK_ENGINE_CONFIG"
+```
+
+## 9. Build and ABI validation
+
+Validate the selected host, connector artifact, dynamic library resolution, and generated configuration before sending traffic.
+
+```sh
+"$TRAEFIK_BIN" version
+test -f "$TRAEFIK_STATIC_CONFIG"
+test -f "$TRAEFIK_DYNAMIC_CONFIG"
+test -x "$TRAEFIK_ENGINE_SERVICE_BIN"
+ldd "$TRAEFIK_ENGINE_SERVICE_BIN" | grep -F libmodsecurity
+grep -F "modsecurityNative" "$TRAEFIK_STATIC_CONFIG"
+grep -F "engineSocketPath" "$TRAEFIK_DYNAMIC_CONFIG"
+```
+
+## 10. Local HTTP/1.1 functional test
+
+Run only against loopback. `/ping` confirms host startup; the ordinary `/native` request exercises the private UDS route, and the `X-Modsec-Smoke: block` test header triggers the local 403 rule. These observations do not establish a broader claim.
+
+```sh
+python3 -m http.server "$TRAEFIK_UPSTREAM_PORT" --bind 127.0.0.1 --directory "$TRAEFIK_RUNTIME_ROOT" > "$BUILD_ROOT/logs/upstream.log" 2>&1 &
+upstream_pid=$!
+LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$TRAEFIK_ENGINE_SERVICE_BIN" --serve --config "$TRAEFIK_ENGINE_CONFIG" --socket "$TRAEFIK_ENGINE_SOCKET" > "$BUILD_ROOT/logs/engine.log" 2>&1 &
+engine_pid=$!
+( cd "$TRAEFIK_RUNTIME_ROOT" && LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$TRAEFIK_BIN" --configFile="$TRAEFIK_STATIC_CONFIG" ) > "$BUILD_ROOT/logs/traefik.log" 2>&1 &
+traefik_pid=$!
+curl --http1.1 -fsS "http://127.0.0.1:$TRAEFIK_PING_PORT/ping"
+curl --http1.1 -i -H "X-Request-Id: traefik-native-allow" http://127.0.0.1:$TRAEFIK_PORT/native
+curl --http1.1 -i -H "X-Modsec-Smoke: block" -H "X-Request-Id: traefik-native-deny" http://127.0.0.1:$TRAEFIK_PORT/native
+kill "$traefik_pid" "$engine_pid" "$upstream_pid"
+```
+
+## 11. Package-assisted path
+
+Status: `package-assisted source build`. Package queries deliberately precede installation. Use only the line matching the distribution.
+
+Treat the host package, its matching development/API package, and connector build dependencies as separate inputs. The queries below establish local availability before a package name is selected; the final command prints the candidate host version. The connector component described above remains a source build whenever the selected module, service, middleware, or host patch is not part of that package.
+
+```sh
+apt-cache search traefik
+dnf search traefik
+traefik version 2>/dev/null || true
+```
+
+A package or a separately downloaded host binary can supply Traefik itself, but neither contains the repository Go middleware, CGo/Common bridge, or UDS engine service. Keep those source-built components and validate their socket permissions.
+
+## 12. Repository-controlled test path
+
+This section follows the manual build. The targets automate and test the build and integration steps described above; they do not replace their technical documentation. Exit `77` means a deliberately blocked prerequisite, and one successful target is not a broader release claim.
+
+```sh
+export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
+mkdir -p "$VERIFIED_RUN_PARENT"
+cd "$VERIFIED_RUN_PARENT"
 git clone --recurse-submodules https://github.com/Easton97-Jens/ModSecurity-conector.git
 cd ModSecurity-conector
 git switch feature/all-connectors-no-crs-baseline
 git submodule update --init --recursive
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build"
 make check-framework
 make prepare-runtime-components
-make prepare-traefik-runtime
 make build-traefik
 make check-config-traefik
 make start-smoke-traefik
@@ -78,406 +297,81 @@ NO_CRS_RUN_ID="$run_id" make full-lifecycle-traefik-native
 NO_CRS_RUN_ID="$run_id" make evidence-check-traefik
 ```
 
-| Command | Purpose | Prerequisite | Output/location | Exit and evidence boundary |
-| --- | --- | --- | --- | --- |
-| `git clone` / `git switch` / `git submodule update` | defined checkout | network access and Git | checkout with Framework submodule | Git failures are not build or runtime evidence. |
-| `make check-framework` | check the Framework contract | initialized submodule | confirmed Framework path | `77` can report a missing Framework as BLOCKED; it is not a connector test. |
-| `make prepare-runtime-components` + `make prepare-traefik-runtime` | prepare Cache-v2 and host/source inputs | writable external run root | provenance, cache, and prepared inputs | `77` means a deliberately blocked prerequisite; a cache is not evidence. |
-| `make build-traefik` | build stage | preparation and toolchain | `$BUILD_ROOT/stages/traefik/build/results` | `0` is stage success, not config or traffic proof. |
-| `make check-config-traefik` | load/check configuration | built host/connector | `$BUILD_ROOT/stages/traefik/config_load/results` | `0` is not a sent HTTP request. |
-| `make start-smoke-traefik` | start host without full traffic | readable config and free local resources | `$BUILD_ROOT/stages/traefik/start_smoke/results` | `0` is not full-lifecycle evidence. |
-| `make runtime-smoke-traefik` | run bounded repository-owned runtime smoke | prepared host and local ports | `$BUILD_ROOT/stages/traefik/minimal_runtime_smoke/results` | `0` applies only to this smoke. |
-| `make full-lifecycle-traefik-native` | run selected No-CRS core lifecycle | safe run identifier | `$VERIFIED_RUN_ROOT/evidence/no-crs-evidence/traefik/$run_id` | Assess canonical artifacts only after the following evidence check. |
-| `make evidence-check-traefik` | validate existing canonical artifacts | same run identifier and complete artifacts | `$VERIFIED_RUN_ROOT/evidence/no-crs-evidence/traefik/$run_id` | validates existing evidence; it creates no new logs or runtime files. |
+## 13. Update and rebuild
 
-`0` means success of the individual stage. `77` means a deliberately blocked
-prerequisite, such as a missing Framework or unsuitable external root. `2` can
-mean an invalid stage, connector, or input selection. Other nonzero values are
-failed or propagated checks; do not interpret them as a stronger result.
-
-### Validation
-
-The preceding block uses the same `run_id` for configuration, start, the
-HTTP/1.1 smoke, and the selected P1–P4 core lifecycle. The following commands
-recheck the host, artifact, and dynamic library, repeat the repository-owned
-config/start/runtime checks, and validate the evidence already produced. The
-evidence check does not start a new core lifecycle.
+Before an update, recheck the linked upstream documentation, release version, and configure/build options. Then repeat every affected host, connector, ABI, and local HTTP test.
 
 ```sh
-test -x "$CACHE_ROOT/shared/traefik/bin/traefik"
-"$CACHE_ROOT/shared/traefik/bin/traefik" version
-test -x "$VERIFIED_RUN_ROOT/runs/traefik/$run_id/traefik-runtime/engine-build/traefik-engine-service"
-ldd "$VERIFIED_RUN_ROOT/runs/traefik/$run_id/traefik-runtime/engine-build/traefik-engine-service" | grep -F libmodsecurity
-make check-config-traefik
-make start-smoke-traefik
-make runtime-smoke-traefik
-NO_CRS_RUN_ID="$run_id" make evidence-check-traefik
-make runtime-components-inventory
-make runtime-components-sources
+git -C "$MODSECURITY_SRC" fetch --tags origin
+git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
+git -C "$MODSECURITY_SRC" submodule update --init --recursive
+git -C "$MODSECURITY_SRC" rev-parse HEAD
+cd "$MODSECURITY_SRC"
+make clean
+make -j"$jobs"
 ```
 
-## Path 2: Local source build
+## 14. Uninstall and cleanup
 
-The native middleware and private UDS engine service are repository source builds using Go, CGo/Common, and libmodsecurity. The selected Traefik host is a verified release binary, not presented as a maintained full host source build.
-
-The Go module `connectors/traefik/native_middleware/go.mod` declares `go 1.24.0`. Check `go version` before building; a package name alone does not promise a compatible Go version.
-
-These pins are inputs to the supported preparer. When a pin changes,
-`runtime-components-inventory` and `runtime-components-sources` are
-authoritative; in particular, a moving libmodsecurity reference is documented
-there by its resolved commit.
-
-| Component | Pin/version | Source | Integrity/commit |
-| --- | --- | --- | --- |
-| Traefik host binary | 3.7.5 (`TRAEFIK_VERSION`) | https://github.com/traefik/traefik/releases/download/v3.7.5/traefik_v3.7.5_linux_amd64.tar.gz | SHA256 `9da81a928fde965c2c4678698bbc28bc3f600223b14c32b35bd480bf5ec863dc` |
-| native middleware and engine service | current checkout commit | connectors/traefik | Git commit plus external build provenance |
-| libmodsecurity | configured `MODSECURITY_GIT_REF` (default `v3/master`) | https://github.com/owasp-modsecurity/ModSecurity.git | resolved commit is recorded in Cache-v2 provenance |
-
-`-O2 -g` is an understandable development value, not a repository default or
-a deployment prescription. `jobs` is the number of parallel compiler
-processes; choose a lower value such as `2` on a memory-constrained machine.
-Set `CPPFLAGS`, `LDFLAGS`, `PKG_CONFIG_PATH`, and `LD_LIBRARY_PATH` only for
-deliberately selected header, library, or staging paths.
+Do not copy files indiscriminately to `/usr/lib` and do not remove global directories. A user prefix does not need `sudo`. Remove evidence or logs only after deliberate review.
 
 ```sh
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build/traefik-source"
-export CC=gcc
-export CXX=g++
-export CFLAGS="-O2 -g"
-export CXXFLAGS="-O2 -g"
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')"
-make check-framework
-make prepare-runtime-components
-make prepare-traefik-runtime
-make runtime-components-inventory
-make runtime-components-sources
-run_id="traefik-source-$(date -u +%Y%m%dT%H%M%SZ)"
-MAKE_JOBS="$jobs" make -C connectors/traefik build-native-middleware
-MAKE_JOBS="$jobs" make -C connectors/traefik test-native-middleware
-MAKE_JOBS="$jobs" make -C connectors/traefik build-engine-service
-MAKE_JOBS="$jobs" make -C connectors/traefik test-engine-service
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-traefik-native
+find "$BUILD_BASE" -maxdepth 2 -mindepth 1 -print
+# Review the listed paths first; remove only a chosen private prefix or external build directory.
+rmdir "$MODSECURITY_PREFIX" 2>/dev/null || true
 ```
 
-The focused commands build the local native middleware and its private UDS engine service. The selected host remains the verified Traefik binary from preparation; forwardAuth compatibility is not the selected route.
+## 15. Troubleshooting
 
-| Command group | Purpose | Prerequisite | Output and boundary |
-| --- | --- | --- | --- |
-| source-build commands above | build the selected host, module, or service from source | prepared provenance, toolchain, and external build root | artifacts and command/source-info records below `$BUILD_ROOT`; exit `0` is build success only. |
-| shown config/test/runtime targets | check artifact, ABI, and loader in the same staging area | matching headers, libraries, and readable configuration | Targets check the generated module or service and its library resolution; `77` can report a missing prerequisite. |
-| `make full-lifecycle-traefik-native` + evidence check | run selected core path and validate artifacts | safe `run_id` and complete runtime | evidence below `evidence/no-crs-evidence/traefik/$run_id`; `2` is invalid input/stage and other failures remain failures. |
+Common: for missing headers or libraries, first check `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, the selected prefix, and `pkg-config` output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.
 
-The supported build is implemented by `connectors/traefik/build/build-native-middleware.sh`, `connectors/traefik/build/build-engine-service.sh`; root stages
-dispatch through `ci/runtime/lifecycle/run-connector-stage.sh`, and the full
-lifecycle through `ci/runtime/lifecycle/run-no-crs-baseline.sh`. Those scripts
-are the implementation behind the shown Make targets, not a second manual
-build recipe to copy independently.
+If Traefik starts without the middleware, check the local-plugin workspace, static registration, File Provider, and the permissions/ownership of the run-local UDS directory. A forwardAuth compatibility route does not diagnose the selected native middleware path.
 
-The host binary, local plugin, File Provider configuration, UDS permissions, engine service, and libmodsecurity runtime library are one invocation-local set. A standard host package does not include native middleware or its engine service.
+## 16. Variables and placeholders
 
-### Prefix and staging
+| Variable/placeholder | Meaning |
+| --- | --- |
+| BUILD_BASE | Portable source/build parent, for example `$HOME/src/modsecurity-build`. |
+| CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
+| HOST_BUILD_BASE | Connector-specific external subtree below BUILD_BASE for sources, builds, configuration, and local logs. |
+| BUILD_ROOT | External build and runtime root for repository-owned connector components. |
+| MODSECURITY_SRC | Checkout of the ModSecurity v3 engine below BUILD_BASE. |
+| MODSECURITY_PREFIX | Isolated user prefix for headers, libraries, and pkg-config metadata. |
+| MODSECURITY_REF | Fixed engine Git tag, never a moving branch. |
+| MODSECURITY_COMMIT | Expected commit to which MODSECURITY_REF must resolve. |
+| MODSECURITY_INCLUDE_DIR | Include directory below MODSECURITY_PREFIX for repository components. |
+| MODSECURITY_LIB_DIR | Library directory below MODSECURITY_PREFIX for repository components. |
+| PKG_CONFIG_PATH | Temporary search path for the local libmodsecurity pc file. |
+| LD_LIBRARY_PATH | Temporary loader path for local tests only, not a global installation recipe. |
+| RULES_FILE | Local test-rule file, not a CRS rule file. |
+| jobs | Local parallel-build count from `getconf`; reduce it on low-memory hosts. |
+| VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
+| run_id | Unique identifier for one repository-controlled full-lifecycle run. |
+| NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |
+| upstream_pid | Local test-upstream process ID from `$!`; use it only in the same shell run. |
+| haproxy_pid | Local started-HAProxy process ID from `$!`; use it only in the same shell run. |
+| engine_pid | Local started Traefik engine-service process ID from `$!`; use it only in the same shell run. |
+| traefik_pid | Local started Traefik process ID from `$!`; use it only in the same shell run. |
+| lighttpd_pid | Local started-lighttpd process ID from `$!`; use it only in the same shell run. |
+| TRAEFIK_VERSION | Repository-compatible Traefik release input. |
+| TRAEFIK_REF | Git tag derived from TRAEFIK_VERSION. |
+| TRAEFIK_SRC | Pinned upstream Traefik source tree. |
+| TRAEFIK_BIN | Built or otherwise verified host binary. |
+| BUILD_ROOT | External root for repository-native outputs and runtime files. |
+| TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR | External Go middleware build report directory. |
+| TRAEFIK_ENGINE_SERVICE_BUILD_DIR | External C/C++ engine-service build directory. |
+| TRAEFIK_ENGINE_SERVICE_BIN | Built private engine-service executable. |
+| TRAEFIK_RUNTIME_ROOT | Private working directory that contains the staged local plugin during a manual run. |
+| TRAEFIK_STATIC_CONFIG | Local-plugin registration configuration. |
+| TRAEFIK_DYNAMIC_CONFIG | File Provider router/middleware configuration. |
+| TRAEFIK_ENGINE_CONFIG | Private engine-service runtime configuration. |
+| TRAEFIK_ENGINE_SOCKET | Private run-local UDS endpoint, not a global path. |
+| TRAEFIK_PLUGIN_MODULE | Official local-plugin module path staged beneath plugins-local/src. |
+| TRAEFIK_PLUGIN_SOURCE | Staged source directory for the local Traefik plugin. |
+| TRAEFIK_PORT | Loopback web entry point for the manual test. |
+| TRAEFIK_UPSTREAM_PORT | Loopback test upstream port. |
+| TRAEFIK_PING_PORT | Loopback ping endpoint port. |
 
-| Location | Use | Boundary |
-| --- | --- | --- |
-| `/usr` | managed by a distribution package | do not overwrite it as a manual default |
-| `/usr/local` | deliberate local installation | inventory files first |
-| `/opt/modsecurity-connector` | deliberately selected isolated prefix | set `PKG_CONFIG_PATH` and loader path deliberately |
-| `$HOME/.local` | user-local installation | not a shared system host |
-| below `VERIFIED_RUN_PARENT` | recommended external staging | default for this development path; outside the checkout |
+## 17. Boundaries and non-claims
 
-The supported preparer owns the exact upstream configure and installation
-invocation. Its generated command, source-info, and artifact records in the
-external build root are the reproducible configuration and compilation record;
-this guide does not invent a second manual invocation.
-
-### Validation
-
-These commands inspect the resolved host binary at its documented external
-staging or cache path after preparation or source build. The artifact commands
-then check that the generated module or service exists and that `ldd` resolves
-`libmodsecurity`. The supported targets then check link, configuration, start,
-or the selected lifecycle.
-
-```sh
-test -x "$CACHE_ROOT/shared/traefik/bin/traefik"
-"$CACHE_ROOT/shared/traefik/bin/traefik" version
-test -x "$BUILD_ROOT/traefik-engine-service/traefik-engine-service"
-ldd "$BUILD_ROOT/traefik-engine-service/traefik-engine-service" | grep -F libmodsecurity
-go version
-grep -Fx 'go 1.24.0' connectors/traefik/native_middleware/go.mod
-make -C connectors/traefik test-engine-service
-NO_CRS_RUN_ID="$run_id" make evidence-check-traefik
-```
-
-## Path 3: Package or package-assisted installation
-
-Status: `package-assisted source build`. Packages provide dependencies and possibly a host, while the repository connector or host integration remains a source build. Package installation alone is not selected-core evidence.
-
-Packages provide build dependencies only. A standard Traefik package or unrelated release binary does not contain the repository-native middleware or persistent UDS engine service.
-
-Package names are release-dependent. Query them before every installation;
-Fedora `mod_security` is ModSecurity v2 and is not a replacement for the
-v3-path `libmodsecurity-devel` package.
-
-The first commands are for **Debian / Ubuntu (apt)**; the following commands
-are for **Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)**. Use only the matching
-family.
-
-```sh
-# Debian / Ubuntu (apt)
-apt-cache policy build-essential pkg-config git curl ca-certificates
-apt-cache policy golang-go libmodsecurity-dev
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-dnf info gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
-dnf info golang libmodsecurity-devel
-# Host-package availability inquiry only; no package is selected by this query
-apt-cache search '^traefik$'
-dnf search traefik
-```
-
-The final query lines only discover whether a distribution offers a Traefik host package; no result is treated as the selected host, because the repository uses its verified binary plus source-built native middleware and engine service.
-
-Install only after a successful query and after reviewing the list yourself:
-
-```sh
-# Debian / Ubuntu (apt)
-sudo apt update
-sudo apt install --yes build-essential pkg-config git curl ca-certificates
-sudo apt install --yes golang-go libmodsecurity-dev
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-sudo dnf install -y gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
-sudo dnf install -y golang libmodsecurity-devel
-```
-
-`sudo` is used because package databases and system paths normally require
-administrator privileges. A CI job or container often already runs as root;
-in that case omit `sudo` instead of changing the package list.
-
-Packages provide only the dependency/host portion. Continue with this supported source follow-up; package installation alone does not build the selected connector or host integration.
-
-```sh
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build/traefik-package"
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')"
-make check-framework
-make prepare-runtime-components
-make prepare-traefik-runtime
-make runtime-components-inventory
-make runtime-components-sources
-run_id="traefik-package-$(date -u +%Y%m%dT%H%M%SZ)"
-MAKE_JOBS="$jobs" make -C connectors/traefik build-native-middleware
-MAKE_JOBS="$jobs" make -C connectors/traefik test-native-middleware
-MAKE_JOBS="$jobs" make -C connectors/traefik build-engine-service
-MAKE_JOBS="$jobs" make -C connectors/traefik test-engine-service
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-traefik-native
-```
-
-| Command group | Purpose | Prerequisite | Output and boundary |
-| --- | --- | --- | --- |
-| source-build commands above | build the selected host, module, or service from source | prepared provenance, toolchain, and external build root | artifacts and command/source-info records below `$BUILD_ROOT`; exit `0` is build success only. |
-| shown config/test/runtime targets | check artifact, ABI, and loader in the same staging area | matching headers, libraries, and readable configuration | Targets check the generated module or service and its library resolution; `77` can report a missing prerequisite. |
-| `make full-lifecycle-traefik-native` + evidence check | run selected core path and validate artifacts | safe `run_id` and complete runtime | evidence below `evidence/no-crs-evidence/traefik/$run_id`; `2` is invalid input/stage and other failures remain failures. |
-
-### Validation
-
-`libmodsecurity` must provide v3 development headers and pkg-config metadata.
-If any of these commands is unavailable, return to the repository-controlled
-source build; never silently use a ModSecurity-v2 package.
-
-```sh
-pkg-config --exists libmodsecurity
-pkg-config --atleast-version=3.0 libmodsecurity
-pkg-config --modversion libmodsecurity
-pkg_version="$(pkg-config --modversion libmodsecurity)"
-case "$pkg_version" in 3.*) ;; *) printf '%s\n' "libmodsecurity major version must be 3: $pkg_version" >&2; exit 1 ;; esac
-pkg-config --cflags libmodsecurity
-pkg-config --libs libmodsecurity
-make check-config-traefik
-test -x "$CACHE_ROOT/shared/traefik/bin/traefik"
-"$CACHE_ROOT/shared/traefik/bin/traefik" version
-test -x "$BUILD_ROOT/traefik-engine-service/traefik-engine-service"
-ldd "$BUILD_ROOT/traefik-engine-service/traefik-engine-service" | grep -F libmodsecurity
-go version
-grep -Fx 'go 1.24.0' connectors/traefik/native_middleware/go.mod
-make -C connectors/traefik test-engine-service
-NO_CRS_RUN_ID="$run_id" make evidence-check-traefik
-```
-
-## Configure after the build
-
-The config target checks repository connector configuration. The selected native full lifecycle separately starts the pinned host with local plugin and UDS engine; forwardAuth compatibility is not a substitute.
-
-The selected configuration, rules, and module paths are generated or checked
-by repository-owned targets. Configuration files must be readable; do not put
-cookies, authorization values, tokens, private keys, or raw logs into config
-or evidence.
-
-```sh
-make check-config-traefik
-```
-
-## Validate build and installation
-
-For every path: inspect the host binary and version, inspect connector output
-and shared libraries in the selected staging area, then run config and start
-smokes. The source and package paths therefore each end in their own validation
-block; a compile or link by itself is insufficient.
-
-```sh
-make check-config-traefik
-make start-smoke-traefik
-make runtime-smoke-traefik
-```
-
-## Run a real HTTP/1.1 test
-
-`make runtime-smoke-traefik` is the supported repository-owned minimal smoke with
-real HTTP/1.1 traffic for its documented route. Concrete local ports, URLs,
-and requests come from generated configuration; do not invent a second `curl`
-endpoint. Run the full lifecycle for the selected P1–P4 core path where
-applicable:
-
-```sh
-run_id="traefik-http11-$(date -u +%Y%m%dT%H%M%SZ)"
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-traefik-native
-NO_CRS_RUN_ID="$run_id" make evidence-check-traefik
-```
-
-The minimal smoke and the full lifecycle have different boundaries. A P1 deny,
-P2/P3/P4 observation, or PASS applies only to the repository-defined case that
-actually ran and is not expanded here into a general capability statement.
-
-## Inspect evidence and logs
-
-After a full lifecycle, derived run-bound directories are below
-`$VERIFIED_RUN_ROOT`: evidence at
-`evidence/no-crs-evidence/traefik/$run_id`, build files at
-`build/traefik/$run_id`, runtime files at `runs/traefik/$run_id`, and sanitized
-logs at `run-logs/traefik/$run_id`. General stage results are below
-`$BUILD_ROOT/stages/traefik`. These are derived paths, not fixed system paths.
-
-```sh
-NO_CRS_RUN_ID="$run_id" make evidence-check-traefik
-make runtime-components-inventory
-make runtime-components-sources
-```
-
-Share evidence only after the check and remove sensitive values first. Caches
-and downloads are reusable inputs, not evidence.
-
-## Update and rebuild
-
-Update a checkout deliberately, then recheck submodules and provenance. Do not
-treat an old cache as proof for changed pins.
-
-```sh
-git pull --ff-only
-git submodule update --init --recursive
-make runtime-components-inventory
-make runtime-components-sources
-make check-framework
-make prepare-runtime-components
-make prepare-traefik-runtime
-make build-traefik
-```
-
-## Uninstall and clean up
-
-Repository test path: inspect or archive desired evidence before emptying the
-external `VERIFIED_RUN_PARENT`; the Git checkout stays unchanged. `rmdir` only
-removes empty directories, so it is the safe final operation instead of an
-uncontrolled recursive delete.
-
-```sh
-find "$VERIFIED_RUN_PARENT" -maxdepth 1 -mindepth 1 -print
-rmdir "$VERIFIED_RUN_PARENT"
-```
-
-Source build: remove external staging or a deliberately selected prefix only
-after inventorying it. Do not broadly remove an installation below `/usr` or
-`/usr/local`. Package path: remove only connector packages actually installed
-by the operator; do not delete user data or evidence without review.
-
-```sh
-sudo apt remove golang-go
-sudo dnf remove golang
-```
-
-## Troubleshooting
-
-### Repository test path
-
-For exit `77`, first check the Framework submodule, absolute external root,
-missing base tools, and cache provenance. For exit `2`, check connector, stage,
-and run-id input. If a port is occupied, stop the previous local process in an
-orderly way and repeat with a new run ID; do not blindly mix or rename cache
-entries.
-
-### Source build
-
-For a missing compiler or header, check source prerequisites and the selected
-toolchain. If pkg-config cannot find libmodsecurity, check the header/library
-root and `PKG_CONFIG_PATH`. For ABI or module failures, build host, headers,
-module, prefix, and connector together from the same prepared source. For a
-missing shared library, check only the deliberate staging path and
-`LD_LIBRARY_PATH`; do not globally copy files.
-
-### Package path
-
-Query release availability again before installation. Use the source build if
-v3 headers or pkg-config metadata are absent. An unreadable configuration,
-wrong file permission, or occupied port is not package proof. Do not combine a
-package host with a source module that has a different ABI.
-
-## Variables and placeholders
-
-| Variable/placeholder | Required | Default | Example | Meaning |
-| --- | --- | --- | --- | --- |
-| VERIFIED_RUN_PARENT | yes | chosen by Make when unset | $HOME/modsecurity-connector-work | Writable external parent for build, cache, runtime, logs, and evidence; outside the checkout and without secrets in its name. |
-| VERIFIED_RUN_ROOT | no | derived below VERIFIED_RUN_PARENT | $HOME/modsecurity-connector-work/ModSecurity-conector-verified | Run-bound external root; holds derived build, run, log, and evidence paths. |
-| BUILD_ROOT | no | derived below verified run | external build subdirectory | Staging and build output; keep it outside the Git checkout. |
-| CACHE_ROOT | no | derived as cache-v2 below verified run | external cache-v2 subdirectory | Reusable inputs; not a PASS and not canonical evidence. |
-| NO_CRS_RUN_ID | for full lifecycle | empty | nginx-core-20260712T120000Z | Filesystem-safe name of one evidence run; use it for both full lifecycle and evidence check. |
-| CC | no | toolchain default | gcc | C compiler for C and CGo-adjacent build steps. |
-| CXX | no | toolchain default | g++ | C++ compiler for dependencies that need it. |
-| CFLAGS | no | toolchain default | -O2 -g | Additional C flags; example is a development value, not a repository or production default. |
-| CXXFLAGS | no | toolchain default | -O2 -g | Additional C++ flags; not a production profile. |
-| CPPFLAGS | no | empty or toolchain default | -I/opt/modsecurity-connector/include | Additional include flags for deliberately selected header paths. |
-| LDFLAGS | no | empty or toolchain default | -L/opt/modsecurity-connector/lib | Additional linker flags for deliberately selected library paths. |
-| PKG_CONFIG_PATH | no | package-manager/toolchain default | /opt/modsecurity-connector/lib/pkgconfig | Additional pkg-config metadata search path; not an ABI substitute. |
-| LD_LIBRARY_PATH | no | loader default | /opt/modsecurity-connector/lib | Temporary shared-library search path; not a global installation. |
-| MAKE_JOBS | no | detected by Framework | 2 | Number of parallel compiler processes; choose lower on a memory-constrained machine. |
-| HOME | no | login home directory | $HOME | Shell value for user home directory; no local developer path. |
-| jobs | no | unset | 2 | Local shell variable from `getconf`, passed to `MAKE_JOBS`. |
-| run_id | no | unset | apache-core-20260712T120000Z | Local shell variable used to set `NO_CRS_RUN_ID`. |
-| TRAEFIK_BIN | no | generated external cache binary | verified external Traefik binary | Resolved pinned Traefik host binary. |
-| TRAEFIK_NATIVE_RUNTIME_ROOT | no | derived under BUILD_ROOT | external native runtime directory | Invocation-local native middleware files. |
-| TRAEFIK_CONNECTOR_CONFIG | no | connector configuration file | connector configuration file | Repository connector configuration. |
-| TRAEFIK_ENGINE_SERVICE_BIN | no | derived external executable | external engine-service executable | Repository-built private UDS engine service. |
-| MSCONNECTOR_RULES_FILE | no | unset | absolute no-CRS rules file | Canonical rule input for the selected native runtime when exported by the dispatcher. |
-| TRAEFIK_ENGINE_SERVICE_CFLAGS | no | unset | -O2 -g | Optional C flags for the C/C++ engine-service build only. |
-| TRAEFIK_ENGINE_SERVICE_LDFLAGS | no | unset | -L/opt/modsecurity-connector/lib | Optional linker flags for the engine service only. |
-
-| Documented value | Example | Meaning |
-| --- | --- | --- |
-| connector name | traefik | Make and evidence name for this guide; no placeholder remains in the shown commands. |
-| source directory | below `$BUILD_ROOT` or prepared provenance | Source created by the supported preparer; do not substitute a second manual checkout. |
-| build directory | `$BUILD_ROOT/stages/traefik` | Staging and stage results outside the checkout. |
-| installation prefix | external staging below `VERIFIED_RUN_PARENT` | Preferred development location instead of a system-wide installation. |
-| rules file | provided by the full-lifecycle dispatcher | The selected run supplies canonical rules; do not present a local file as equivalent. |
-| module/host binary | resolved by preparation or source build | Path, headers, and ABI belong to the same selected host. |
-
-## Limitations and non-claims
-
-These instructions describe reproducible development, test, and build paths.
-They are not an assessment of a production package or hardened deployment
-guidance. They do not assert complete CRS coverage, a complete protocol or
-platform matrix, or a security property beyond the documented run. A package
-path is equivalent only when the selected host, module, middleware, service,
-or patch path actually ran and was checked through the documented full
-lifecycle.
+These instructions describe a reproducible development and integration build. They are not a production release. They do not claim complete CRS coverage, a complete protocol or platform matrix, or package-path equivalence when a host patch, module, middleware, or service is absent.

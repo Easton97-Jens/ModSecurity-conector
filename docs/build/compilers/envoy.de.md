@@ -1,75 +1,203 @@
 <!-- Generated from scripts/generate_compiler_guides.py; do not edit directly. -->
 
-# Build-, Source- und Paketwege: Envoy
+# Manueller Source-Build: Envoy
 
 **Sprache:** [English](envoy.md) | Deutsch
 
-## Zweck und aktueller Integrationspfad
+## 1. Zweck und ausgewählter Integrationspfad
 
-Dieser Guide dokumentiert den ausgewählten Integrationspfad
-`ext_proc` für Envoy: gestreamter Envoy-External-Processing-Service mit Common/libmodsecurity-Bridge. Der kanonische Kernlauf ist
-`make full-lifecycle-envoy-ext-proc`. Build-, Konfigurations-, Start- und Kompatibilitäts-
-Smokes bleiben davon getrennt.
+Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `ext_proc` bei Envoy. Der manuelle Source-Build ist der Hauptpfad; der Repository-Testweg folgt danach als automatisierte Prüfstrecke.
 
-## Die drei Wege im Vergleich
+## 2. Komponenten des Builds
 
-| Weg | Für wen? | Systemweite Änderungen | Baut Host aus Source? | Kernpfad möglich? | Evidence möglich? |
-| --- | --- | --- | --- | --- | --- |
-| Repository-Testweg | Entwicklung und CI | Nein | Repository-gesteuert | Ja | Ja, nach Full Lifecycle |
-| Lokaler Source-Build | Entwicklung und Integration | Optional | Verifiziertes Binary; Service aus Source | Ja | Ja, nur ausgewählter Run |
-| Paketweg | Schneller lokaler Einstieg | Ja | Meist nein | Nur mit Source-Anteil | Nur passendes Profil und Run |
+libmodsecurity v3, ein offizielles Envoy-Binary oder optionaler Bazel-Build, der repository-eigene ext_proc-Service, seine CGo-/Common-Bridge, gRPC-Konfiguration, eine lokale Regeldatei und Loopback-Listener für Envoy/Upstream.
 
-Der Paketstatus dieses Connectors lautet exakt
-`package-assisted source build`. Pakete liefern Abhängigkeiten und möglicherweise einen Host, während Repository-Connector oder Hostintegration ein Source-Build bleiben. Paketinstallation allein ist keine Evidence des ausgewählten Kerns.
+## 3. Offizielle Upstream-Dokumentation
 
-## Gemeinsame Voraussetzungen
+- **Quelle und Umfang:** [Installing Envoy](https://www.envoyproxy.io/docs/envoy/latest/start/install)
+  Offizielle Auswahl von Binary-, Paket- und Containerinstallation sowie Versionsprüfung. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (The page is version-sensitive; use the docs matching the selected Envoy release.)
+- **Quelle und Umfang:** [Run Envoy](https://www.envoyproxy.io/docs/envoy/latest/start/quick-start/run-envoy.html)
+  Die offiziellen Befehle für Version, Konfigurationsvalidierung und lokalen Start. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Use the selected Envoy release documentation.)
+- **Quelle und Umfang:** [Static configuration](https://www.envoyproxy.io/docs/envoy/latest/start/quick-start/configuration-static)
+  Listener-, HTTP-Connection-Manager-, Route- und Clusterkonfiguration des Loopback-Beispiels. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Verify field names against the selected release.)
+- **Quelle und Umfang:** [HTTP external processing filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter)
+  Der offizielle ext_proc-Filter und der Vertrag für bidirektionale gRPC-Konfiguration. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Filter fields and semantics are release-dependent.)
+- **Quelle und Umfang:** [Envoy admin interface](https://www.envoyproxy.io/docs/envoy/latest/operations/admin.html)
+  Nur auf Loopback gebundene Admin-Endpunkte und ihren lokalen Diagnosezweck. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Do not expose the local example as a general management interface.)
+- **Quelle und Umfang:** [Envoy v1.38.2 release](https://github.com/envoyproxy/envoy/releases/tag/v1.38.2)
+  Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (This guide pins the binary route to v1.38.2.)
+- **Quelle und Umfang:** [Envoy source/Bazel guidance](https://github.com/envoyproxy/envoy/blob/v1.38.2/bazel/README.md)
+  Offizielle optionale Source-Build-Anleitung; sie ist ressourcenintensiv und nicht der Standardweg. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Use only with the selected tag and sufficient CPU, memory, and storage.)
+- **Quelle und Umfang:** [ModSecurity repository](https://github.com/owasp-modsecurity/ModSecurity)
+  Die libmodsecurity-v3-Enginequelle. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (The selected tag/commit is shown in the shared build section.)
 
-Git, ein beschreibbarer externer Stamm, Go- und C/C++-Buildtools, libmodsecurity-Eingaben und das Framework-Submodule. Das spezifische Vorbereitungstarget beschafft das gepinnte Hostbinary ausschließlich über die Repository-Richtlinie.
+## 4. Voraussetzungen
 
-Der Test- und Source-Weg brauchen nur Basistools und einen beschreibbaren
-externen Stamm, keine globale Installation des ausgewählten Connectors. Vor
-einer Paketinstallation die Verfügbarkeit abfragen:
+Benötigt werden Git, ein C-Compiler, ein C++-Compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2-Entwicklungsdateien, libxml2-Entwicklungsdateien, YAJL, LMDB und libcurl. Paketnamen sind distributions- und releaseabhängig: vor einer Installation die offizielle Distributionsdokumentation und die lokale Verfügbarkeit prüfen.
 
 ```sh
-# Debian / Ubuntu (apt)
-apt-cache policy build-essential pkg-config git curl ca-certificates
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-dnf info gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
+command -v git cc c++ make autoreconf libtool pkg-config
+pkg-config --exists libpcre2-8
+pkg-config --exists libxml-2.0
+pkg-config --exists yajl
+pkg-config --exists lmdb
+pkg-config --exists libcurl
+export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
+test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-Auf einem Rechner nur die Zeile der passenden Distributionsfamilie ausführen.
+## 5. libmodsecurity v3 aus Source bauen
 
-`VERIFIED_RUN_PARENT` muss außerhalb des Git-Checkouts liegen. Er enthält
-Build-, Cache-, Runtime-, Log- und Evidence-Dateien und darf keine Secrets im
-Namen tragen. `CACHE_ROOT` ist Cache-v2 mit wiederverwendbaren Eingaben, nicht
-mit kanonischer Evidence. Die vorbereiteten, wirksamen Quellen zeigt:
+Dieser Ablauf verwendet einen festen, überprüfbaren Git-Tag und dessen aufgelösten Commit. `v3/master` ist kein reproduzierbarer Pin und wird deshalb nicht als solcher dargestellt. `build.sh` regeneriert beziehungsweise aktualisiert die Autotools-Eingaben; es kompiliert die Bibliothek noch nicht.
 
 ```sh
-make runtime-components-inventory
-make runtime-components-sources
+export BUILD_BASE="$HOME/src/modsecurity-build"
+export MODSECURITY_SRC="$BUILD_BASE/ModSecurity"
+export MODSECURITY_PREFIX="$HOME/.local/modsecurity"
+export MODSECURITY_REF="v3.0.16"
+export MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
+mkdir -p "$BUILD_BASE"
+git clone --recurse-submodules https://github.com/owasp-modsecurity/ModSecurity.git "$MODSECURITY_SRC"
+git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
+git -C "$MODSECURITY_SRC" submodule update --init --recursive
+test "$(git -C "$MODSECURITY_SRC" rev-parse HEAD)" = "$MODSECURITY_COMMIT"
+git -C "$MODSECURITY_SRC" rev-parse HEAD
+cd "$MODSECURITY_SRC"
+./build.sh
+./configure --help | grep -E -- "--with-(lmdb|libxml|curl|yajl)"
+./configure --prefix="$MODSECURITY_PREFIX" --with-lmdb --with-libxml --with-curl --with-yajl
+jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"
+make -j"$jobs"
+make check
+make install
+export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 ```
 
-## Weg 1: Repository-gesteuert testen
+Beim ausgewählten Stand wird PCRE2 standardmäßig erkannt; `--with-pcre2` wird nicht erfunden. Die optionalen Schalter werden vor der Verwendung mit `./configure --help` geprüft. Wenn der gewählte Release einen Schalter nicht anbietet, ihn aus dem Aufruf entfernen statt einen nicht akzeptierten Befehl zu dokumentieren.
 
-Git, ein beschreibbarer externer Stamm, Go- und C/C++-Buildtools, libmodsecurity-Eingaben und das Framework-Submodule. Das spezifische Vorbereitungstarget beschafft das gepinnte Hostbinary ausschließlich über die Repository-Richtlinie.
-
-Die folgenden Befehle klonen den definierten Branch, initialisieren das
-Framework und führen alle getrennten Stufen aus. Sie installieren keinen
-Connector systemweit. Fehlen Basistools, zuerst im Paketweg deren Verfügbarkeit
-prüfen und nur die dort gezeigten Basispakete installieren.
+`PKG_CONFIG_PATH` ermöglicht Buildsystemen, die benutzerlokale Installation zu
+finden. `LD_LIBRARY_PATH` ist nur für lokale Entwicklung und Tests; für eine
+dauerhafte Systeminstallation bewusstes Loader-Setup oder rpath prüfen.
 
 ```sh
+test -d "$MODSECURITY_PREFIX/include"
+test -d "$MODSECURITY_PREFIX/lib"
+find "$MODSECURITY_PREFIX" -maxdepth 3 -type f | sort
+pkg-config --modversion libmodsecurity 2>/dev/null || true
+find "$MODSECURITY_PREFIX/lib" -type f \( -name "libmodsecurity.so*" -o -name "libmodsecurity.a" \) -print
+```
+
+## 6. Host oder Proxy vorbereiten beziehungsweise bauen
+
+Für den normalen lokalen Connectorweg das offizielle Envoy-Releasebinary verwenden und es vor der Konfiguration des ext_proc-Service validieren. Ein vollständiger Envoy-Source-Build ist optional, nicht der Standard: Der offizielle Bazel-Weg ist ressourcenintensiv und muss vor der Nutzung gegen `bazel/README.md` des ausgewählten Releases geprüft werden.
+
+```sh
+export HOST_BUILD_BASE="$BUILD_BASE/envoy"
+export ENVOY_VERSION="1.38.2"
+export ENVOY_BIN="$HOST_BUILD_BASE/bin/envoy"
+export ENVOY_DOWNLOAD_URL="https://github.com/envoyproxy/envoy/releases/download/v$ENVOY_VERSION/envoy-$ENVOY_VERSION-linux-x86_64"
+export ENVOY_SHA256="87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899"
+mkdir -p "$HOST_BUILD_BASE/bin"
+curl -fL "$ENVOY_DOWNLOAD_URL" -o "$ENVOY_BIN"
+printf "%s  %s\n" "$ENVOY_SHA256" "$ENVOY_BIN" | sha256sum -c -
+chmod 755 "$ENVOY_BIN"
+"$ENVOY_BIN" --version
+# Optional only after reading the matching upstream Bazel guide: bazel build -c opt //source/exe:envoy-static
+```
+
+## 7. Connector bauen und einbinden
+
+Das repository-eigene ext_proc-Executable ist die aus Source gebaute Komponente. Es linkt die Common-/libmodsecurity-Bridge und ist nicht Teil eines offiziellen Envoy-Binaries. Die erzeugte Hostkonfiguration verwendet `envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor`, einen HTTP/2-gRPC-Cluster und einen Router nach diesem Filter. Den Service in einen externen Root bauen und danach beide Konfigurationen erzeugen.
+
+```sh
+cd "$CONNECTOR_ROOT"
+```
+
+```sh
+export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"
+export MODSECURITY_INCLUDE_DIR="$MODSECURITY_PREFIX/include"
+export MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib"
+BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/envoy/build/build_ext_proc.sh
+export EXT_PROC_BIN="$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc"
+test -x "$EXT_PROC_BIN"
+BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/envoy/build/test_ext_proc.sh
+```
+
+## 8. Konfiguration
+
+Die folgende lokale Regel ist eine Testregel und keine CRS-Regel. Konfigurations- und Laufzeitdateien außerhalb des Git-Checkouts halten.
+
+
+
+```sh
+export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
+export ENVOY_CONFIG="$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc.yaml"
+export EXT_PROC_RUNTIME_CONFIG="$BUILD_ROOT/envoy-ext-proc/runtime/ext-proc.conf"
+export ENVOY_PORT=18080
+export ENVOY_UPSTREAM_PORT=18081
+export EXT_PROC_PORT=18083
+export ENVOY_ADMIN_PORT=19001
+cat > "$RULES_FILE" <<EOF
+SecRuleEngine On
+SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
+EOF
+OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$ENVOY_PORT" UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" EXT_PROC_PORT="$EXT_PROC_PORT" ADMIN_PORT="$ENVOY_ADMIN_PORT" sh connectors/envoy/config/prepare_envoy_ext_proc_config.sh
+OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG" RULES_FILE="$RULES_FILE" EVENT_PATH="$BUILD_ROOT/envoy-ext-proc/runtime/events.jsonl" sh connectors/envoy/config/prepare_envoy_ext_proc_runtime_config.sh
+"$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG"
+"$EXT_PROC_BIN" --check-config --config connectors/envoy/config/envoy-ext-proc-service.json
+```
+
+## 9. Build- und ABI-Validierung
+
+Ausgewählten Host, Connector-Artefakt, Auflösung dynamischer Libraries und erzeugte Konfiguration vor dem Senden von Traffic validieren.
+
+```sh
+"$ENVOY_BIN" --version
+test -x "$EXT_PROC_BIN"
+file "$EXT_PROC_BIN"
+ldd "$EXT_PROC_BIN" | grep -F libmodsecurity
+grep -F "envoy.filters.http.ext_proc" "$ENVOY_CONFIG"
+grep -F "request_body_mode: STREAMED" "$ENVOY_CONFIG"
+```
+
+## 10. Lokaler HTTP/1.1-Funktionstest
+
+Nur gegen Loopback ausführen. Das begrenzte Repository-Harness startet Envoy, ext_proc und seinen Upstream und sendet dann HTTP/1.1-Allow- und lokale Deny-Probes durch die erzeugte `ext_proc`-Route. Sein Admin-Endpunkt ist nur auf Loopback gebunden und dient lokalen Readiness-Diagnosen. Seine Ergebnisse gelten nur für diese beobachteten Requests.
+
+```sh
+RUNTIME_ROOT="$BUILD_ROOT/envoy-ext-proc/runtime-smoke" ENVOY_BIN="$ENVOY_BIN" RULES_FILE="$RULES_FILE" ENVOY_SMOKE_PORT="$ENVOY_PORT" ENVOY_UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" ENVOY_EXT_PROC_PORT="$EXT_PROC_PORT" ENVOY_ADMIN_PORT="$ENVOY_ADMIN_PORT" sh connectors/envoy/harness/run_envoy_ext_proc_runtime.sh
+# The bounded runner starts Envoy, ext_proc, and a loopback upstream, sends local HTTP/1.1 requests, and stops them.
+```
+
+## 11. Paketgestützter Weg
+
+Status: `package-assisted source build`. Paketabfragen sind absichtlich vor einer Installation platziert. Nur die zur Distribution passende Zeile verwenden.
+
+Hostpaket, dazu passendes Entwicklungs-/API-Paket und Connector-Buildabhängigkeiten als getrennte Eingaben behandeln. Die folgenden Abfragen klären zunächst die lokale Verfügbarkeit; der letzte Befehl gibt die Kandidaten-Hostversion aus. Die oben beschriebene Connector-Komponente bleibt ein Source-Build, wenn das ausgewählte Modul, der Service, die Middleware oder der Hostpatch nicht Bestandteil dieses Pakets ist.
+
+```sh
+apt-cache search envoy
+dnf search envoy
+envoy --version 2>/dev/null || true
+```
+
+Pakete können ein Hostbinary oder Buildabhängigkeiten liefern, enthalten aber nicht den repository-eigenen ext_proc-Service oder seine Common-/libmodsecurity-Bridge. Ein Paketbinary getrennt validieren und den aus Source gebauten Service beibehalten.
+
+## 12. Repository-gesteuerter Testweg
+
+Dieser Abschnitt folgt nach dem manuellen Build. Die Targets automatisieren und testen die zuvor beschriebenen Build- und Integrationsschritte; sie ersetzen nicht deren technische Dokumentation. Exit `77` bedeutet eine bewusst blockierte Voraussetzung, und ein einzelner Target-Erfolg ist keine weitergehende Freigabe.
+
+```sh
+export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
+mkdir -p "$VERIFIED_RUN_PARENT"
+cd "$VERIFIED_RUN_PARENT"
 git clone --recurse-submodules https://github.com/Easton97-Jens/ModSecurity-conector.git
 cd ModSecurity-conector
 git switch feature/all-connectors-no-crs-baseline
 git submodule update --init --recursive
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build"
 make check-framework
 make prepare-runtime-components
-make prepare-envoy-runtime
 make build-envoy
 make check-config-envoy
 make start-smoke-envoy
@@ -79,412 +207,78 @@ NO_CRS_RUN_ID="$run_id" make full-lifecycle-envoy-ext-proc
 NO_CRS_RUN_ID="$run_id" make evidence-check-envoy
 ```
 
-| Befehl | Zweck | Voraussetzung | Ergebnis/Ort | Exit- und Evidence-Grenze |
-| --- | --- | --- | --- | --- |
-| `git clone` / `git switch` / `git submodule update` | definierter Checkout | Netzwerkzugang und Git | Checkout mit Framework-Submodule | Git-Fehler sind keine Build- oder Runtime-Evidence. |
-| `make check-framework` | Framework-Vertrag prüfen | initialisiertes Submodule | bestätigter Framework-Pfad | `77` kann ein fehlendes Framework als BLOCKED melden; kein Connector-Test. |
-| `make prepare-runtime-components` + `make prepare-envoy-runtime` | Cache-v2 und Host-/Source-Eingaben vorbereiten | beschreibbarer externer Run-Root | Provenienz, Cache und vorbereitete Eingaben | `77` bedeutet bewusst blockierte Voraussetzung; Cache ist keine Evidence. |
-| `make build-envoy` | Buildstufe | Vorbereitung und Toolchain | `$BUILD_ROOT/stages/envoy/build/results` | `0` ist Stufenerfolg, kein Config- oder Trafficnachweis. |
-| `make check-config-envoy` | Konfiguration laden/prüfen | erzeugter Host/Connector | `$BUILD_ROOT/stages/envoy/config_load/results` | `0` ist kein gesendeter HTTP-Request. |
-| `make start-smoke-envoy` | Host ohne Volltraffic starten | lesbare Konfiguration und freie lokale Ressourcen | `$BUILD_ROOT/stages/envoy/start_smoke/results` | `0` ist keine Full-Lifecycle-Evidence. |
-| `make runtime-smoke-envoy` | begrenzten repository-eigenen Runtime-Smoke ausführen | vorbereiteter Host und lokale Ports | `$BUILD_ROOT/stages/envoy/minimal_runtime_smoke/results` | `0` gilt nur für diesen Smoke. |
-| `make full-lifecycle-envoy-ext-proc` | ausgewählten No-CRS-Kernlauf ausführen | sicherer Run-Identifier | `$VERIFIED_RUN_ROOT/evidence/no-crs-evidence/envoy/$run_id` | Kanonische Artefakte erst nach anschließendem Evidence-Check bewerten. |
-| `make evidence-check-envoy` | bereits erzeugte kanonische Artefakte validieren | derselbe Run-Identifier und vollständige Artefakte | `$VERIFIED_RUN_ROOT/evidence/no-crs-evidence/envoy/$run_id` | validiert vorhandene Evidence; erzeugt keine neuen Logs oder Runtime-Dateien. |
+## 13. Aktualisieren und neu bauen
 
-`0` bedeutet Erfolg der jeweiligen Stufe. `77` steht für eine bewusst
-blockierte Voraussetzung, etwa fehlendes Framework oder einen ungeeigneten
-externen Root. `2` kann bei ungültiger Stage-, Connector- oder
-Eingabeauswahl auftreten. Andere Nichtnullwerte sind fehlgeschlagene oder
-weitergereichte Checks; sie sind nicht als stärkere Aussage zu interpretieren.
-
-### Validierung
-
-Der vorherige Block führt mit demselben `run_id` Config-, Start- und
-HTTP/1.1-Smoke sowie den ausgewählten P1–P4-Kernlauf aus. Die folgenden Befehle
-prüfen Host, Artefakt und dynamische Library erneut, wiederholen die
-repository-gesteuerten Config-/Start-/Runtime-Checks und validieren die bereits
-erzeugte Evidence. Der Evidence-Check startet keinen neuen Kernlauf.
+Vor einem Update immer die verlinkte Upstream-Anleitung, Releaseversion sowie Configure-/Buildoptionen erneut prüfen. Anschließend alle betroffenen Host-, Connector-, ABI- und lokalen HTTP-Tests wiederholen.
 
 ```sh
-test -x "$CACHE_ROOT/shared/envoy/bin/envoy"
-"$CACHE_ROOT/shared/envoy/bin/envoy" --version
-test -x "$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc"
-ldd "$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc" | grep -F libmodsecurity
-make check-config-envoy
-make start-smoke-envoy
-make runtime-smoke-envoy
-NO_CRS_RUN_ID="$run_id" make evidence-check-envoy
-make runtime-components-inventory
-make runtime-components-sources
+git -C "$MODSECURITY_SRC" fetch --tags origin
+git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
+git -C "$MODSECURITY_SRC" submodule update --init --recursive
+git -C "$MODSECURITY_SRC" rev-parse HEAD
+cd "$MODSECURITY_SRC"
+make clean
+make -j"$jobs"
 ```
 
-## Weg 2: Lokal aus Source bauen
+## 14. Deinstallation und Cleanup
 
-Das Repository baut ext_proc-Service, CGo/Common-Bridge und erzeugte Konfiguration aus Source. Es pflegt keinen getesteten vollständigen Envoy-Host-Source-Build; daher wird ein verifiziertes gepinntes Binary statt eines erfundenen manuellen Host-Builds verwendet.
-
-Das Go-Modul `connectors/envoy/ext_proc/go.mod` deklariert `go 1.24.0`. Vor dem Build `go version` prüfen; der Paketname allein verspricht keine passende Go-Version.
-
-Die folgenden Pins sind Eingaben des unterstützten Vorbereiters. Bei einem
-geänderten Pin sind `runtime-components-inventory` und
-`runtime-components-sources` maßgeblich; besonders bei beweglichen
-libmodsecurity-Referenzen wird der aufgelöste Commit dort dokumentiert.
-
-| Komponente | Pin/Version | Quelle | Integrität/Commit |
-| --- | --- | --- | --- |
-| Envoy host binary | 1.38.2 (`ENVOY_VERSION`) | https://github.com/envoyproxy/envoy/releases/download/v1.38.2/envoy-1.38.2-linux-x86_64 | SHA256 `87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899` |
-| repository ext_proc service | current checkout commit | connectors/envoy | Git commit plus external build provenance |
-| libmodsecurity | configured `MODSECURITY_GIT_REF` (default `v3/master`) | https://github.com/owasp-modsecurity/ModSecurity.git | resolved commit is recorded in Cache-v2 provenance |
-
-`-O2 -g` ist ein nachvollziehbarer Entwicklungswert, kein Repository-Default
-und keine Vorgabe für ein Deployment. `jobs` ist die Anzahl paralleler
-Compilerprozesse; bei wenig RAM beispielsweise `2` wählen. `CPPFLAGS`,
-`LDFLAGS`, `PKG_CONFIG_PATH` und `LD_LIBRARY_PATH` nur für bewusst gewählte
-Header-, Bibliotheks- oder Stagingpfade setzen.
+Keine Dateien pauschal nach `/usr/lib` kopieren und keine globalen Verzeichnisse entfernen. Bei einem Benutzer-Prefix ist kein `sudo` nötig. Evidence oder Logs erst nach bewusster Prüfung entfernen.
 
 ```sh
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build/envoy-source"
-export CC=gcc
-export CXX=g++
-export CFLAGS="-O2 -g"
-export CXXFLAGS="-O2 -g"
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')"
-make check-framework
-make prepare-runtime-components
-make prepare-envoy-runtime
-make runtime-components-inventory
-make runtime-components-sources
-run_id="envoy-source-$(date -u +%Y%m%dT%H%M%SZ)"
-MAKE_JOBS="$jobs" make -C connectors/envoy build-envoy-ext-proc
-MAKE_JOBS="$jobs" make -C connectors/envoy test-envoy-ext-proc
-MAKE_JOBS="$jobs" make -C connectors/envoy check-envoy-ext-proc-config
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-envoy-ext-proc
+find "$BUILD_BASE" -maxdepth 2 -mindepth 1 -print
+# Review the listed paths first; remove only a chosen private prefix or external build directory.
+rmdir "$MODSECURITY_PREFIX" 2>/dev/null || true
 ```
 
-Die fokussierten Connector-Befehle bauen und testen den repository-eigenen ext_proc-Service. Der ausgewählte Host bleibt das verifizierte Envoy-Binary aus der Vorbereitung; ext_authz-Kompatibilitätsbefehle sind nicht der ausgewählte Weg.
+## 15. Troubleshooting
 
-| Befehlsgruppe | Zweck | Voraussetzung | Ergebnis und Grenze |
-| --- | --- | --- | --- |
-| Source-Buildbefehle oben | ausgewählten Host, Modul oder Service aus Source bauen | vorbereitete Provenienz, Toolchain und externer Buildroot | Artefakte und Command-/Source-Info-Records unter `$BUILD_ROOT`; Exit `0` ist nur Build-Erfolg. |
-| gezeigte Config-/Test-/Runtime-Targets | Artefakt, ABI und Loader im selben Staging prüfen | passende Header, Bibliotheken und lesbare Konfiguration | Die Targets prüfen das erzeugte Modul bzw. den Service und dessen Library-Auflösung; `77` kann eine fehlende Voraussetzung melden. |
-| `make full-lifecycle-envoy-ext-proc` + Evidence-Check | ausgewählten Kernpfad ausführen und Artefakte validieren | sicherer `run_id` und vollständige Runtime | Evidence unter `evidence/no-crs-evidence/envoy/$run_id`; `2` steht für ungültige Eingabe/Stufe, andere Fehler bleiben Fehler. |
+Gemeinsam: Bei fehlenden Headern oder Libraries zuerst `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, den ausgewählten Prefix und die Ausgabe von `pkg-config` prüfen. Bei einem ABI-Fehler Host, Header und Connector aus demselben ausgewählten Quellensatz neu bauen.
 
-Der unterstützte Build wird dabei durch `connectors/envoy/build/build_ext_proc.sh` umgesetzt; die
-Root-Stufen dispatchen über
-`ci/runtime/lifecycle/run-connector-stage.sh`, der Full Lifecycle über
-`ci/runtime/lifecycle/run-no-crs-baseline.sh`. Diese Skripte sind die
-Implementierung hinter den gezeigten Make-Targets, nicht eine zweite,
-eigenständig zu kopierende Handbauanleitung.
+Ein offizielles Envoy-Binary ist nur der Host. Schlägt die Validierung fehl, erzeugtes ext_proc-YAML, Besitz der gRPC-Ports, ext_proc-Servicekonfiguration und libmodsecurity-Loaderpfad prüfen; ext_proc nicht durch den separaten ext_authz-Kompatibilitätsservice ersetzen.
 
-Das Envoy-Binary ist eine verifizierte Hosteingabe; das ext_proc-Executable ist der repository-eigene Source-Build. Erzeugte Konfiguration, Ports, CGo-Bridge und libmodsecurity-Laufzeitbibliothek müssen in einem externen Invocation-Root bleiben.
+## 16. Variablen und Platzhalter
 
-### Prefix und Staging
+| Variable/Platzhalter | Bedeutung |
+| --- | --- |
+| BUILD_BASE | Portabler Source-/Build-Stamm, z. B. `$HOME/src/modsecurity-build`. |
+| CONNECTOR_ROOT | Git-Top-Level dieses Repository-Checkouts; die Connector-Skripte werden von dort aus aufgerufen. |
+| HOST_BUILD_BASE | Connector-spezifisches externes Unterverzeichnis unter BUILD_BASE für Quellen, Builds, Konfiguration und lokale Logs. |
+| BUILD_ROOT | Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten. |
+| MODSECURITY_SRC | Checkout der ModSecurity-v3-Engine unter BUILD_BASE. |
+| MODSECURITY_PREFIX | Isolierter Benutzer-Prefix für Header, Libraries und pkg-config-Metadaten. |
+| MODSECURITY_REF | Fester Git-Tag der Engine; kein beweglicher Branch. |
+| MODSECURITY_COMMIT | Erwarteter Commit, auf den MODSECURITY_REF aufgelöst werden muss. |
+| MODSECURITY_INCLUDE_DIR | Include-Verzeichnis unter MODSECURITY_PREFIX für Repository-Komponenten. |
+| MODSECURITY_LIB_DIR | Library-Verzeichnis unter MODSECURITY_PREFIX für Repository-Komponenten. |
+| PKG_CONFIG_PATH | Temporärer Suchpfad für die lokale libmodsecurity-pc-Datei. |
+| LD_LIBRARY_PATH | Nur temporärer Loaderpfad für lokale Tests, kein globales Installationsrezept. |
+| RULES_FILE | Lokale Testregeldatei; keine CRS-Regeldatei. |
+| jobs | Lokale Anzahl paralleler Buildjobs aus `getconf`; bei wenig RAM reduzieren. |
+| VERIFIED_RUN_PARENT | Externer Elternordner eines frischen Repository-Testcheckouts und seiner Testartefakte. |
+| run_id | Eindeutige Kennung eines repository-gesteuerten Full-Lifecycle-Laufs. |
+| NO_CRS_RUN_ID | Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt. |
+| upstream_pid | Lokale Prozess-ID des Test-Upstreams aus `$!`; nur im selben Shell-Lauf verwenden. |
+| haproxy_pid | Lokale Prozess-ID des gestarteten HAProxy aus `$!`; nur im selben Shell-Lauf verwenden. |
+| engine_pid | Lokale Prozess-ID des gestarteten Traefik-Engine-Service aus `$!`; nur im selben Shell-Lauf verwenden. |
+| traefik_pid | Lokale Prozess-ID des gestarteten Traefik aus `$!`; nur im selben Shell-Lauf verwenden. |
+| lighttpd_pid | Lokale Prozess-ID des gestarteten lighttpd aus `$!`; nur im selben Shell-Lauf verwenden. |
+| ENVOY_VERSION | Ausgewählter offizieller Envoy-Release für den Binary-Weg. |
+| ENVOY_BIN | Verifiziertes Envoy-Executable. |
+| ENVOY_DOWNLOAD_URL | Offizielle Envoy-Releasebinary-URL. |
+| ENVOY_SHA256 | Erwartete Binary-Prüfsumme des ausgewählten Releases. |
+| BUILD_ROOT | Externer Build-Root des Repository-Connectors. |
+| EXT_PROC_BIN | Repository-gebautes ext_proc-Service-Executable. |
+| ENVOY_CONFIG | Erzeugte Loopback-Envoy-Konfiguration. |
+| EXT_PROC_RUNTIME_CONFIG | Erzeugte Common-Laufzeitkonfiguration für ext_proc. |
+| OUTPUT_CONFIG | Ausgabepfad eines Konfigurationsmaterialisierungsbefehls. |
+| EVENT_PATH | Absoluter lokaler Eventlog-Pfad für den ext_proc-Laufzeitkonfigurationsgenerator. |
+| RUNTIME_ROOT | Externer temporärer Root des begrenzten Envoy-Laufzeitharnesses. |
+| ENVOY_PORT | Loopback-Listenerport von Envoy. |
+| ENVOY_UPSTREAM_PORT | Vom Test genutzter Loopback-Upstream-Port. |
+| EXT_PROC_PORT | Loopback-gRPC-Port des ext_proc-Service. |
+| ENVOY_ADMIN_PORT | Loopback-Adminport von Envoy. |
 
-| Ort | Verwendung | Grenze |
-| --- | --- | --- |
-| `/usr` | vom Distributionspaket verwaltet | nicht als manueller Default überschreiben |
-| `/usr/local` | bewusste lokale Installation | vorher Dateien inventarisieren |
-| `/opt/modsecurity-connector` | bewusst gewählter isolierter Prefix | `PKG_CONFIG_PATH` und Loaderpfad gezielt setzen |
-| `$HOME/.local` | benutzerlokale Installation | kein gemeinsam genutzter Systemhost |
-| unter `VERIFIED_RUN_PARENT` | empfohlenes externes Staging | Standard für diesen Entwicklungsweg; außerhalb des Checkouts |
+## 17. Grenzen und nicht erhobene Claims
 
-Der unterstützte Vorbereiter besitzt den exakten Upstream-Configure- und
-Installationsaufruf. Seine erzeugten Command-, Source-Info- und
-Artifact-Records im externen Buildroot sind der nachvollziehbare
-Konfigurations- und Kompilierungsnachweis; diese Anleitung erfindet keinen
-zweiten Handaufruf.
-
-### Validierung
-
-Die folgenden Befehle prüfen das aufgelöste Hostbinary an seinem dokumentierten
-externen Staging- oder Cachepfad nach Vorbereitung beziehungsweise Source-Build.
-Danach prüfen die Artefaktbefehle, dass das erzeugte Modul oder der Service
-vorhanden ist und `ldd` `libmodsecurity` auflöst. Die unterstützten Targets
-prüfen anschließend Link, Konfiguration, Start oder den ausgewählten Lifecycle.
-
-```sh
-test -x "$CACHE_ROOT/shared/envoy/bin/envoy"
-"$CACHE_ROOT/shared/envoy/bin/envoy" --version
-test -x "$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc"
-ldd "$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc" | grep -F libmodsecurity
-go version
-grep -Fx 'go 1.24.0' connectors/envoy/ext_proc/go.mod
-make -C connectors/envoy check-envoy-ext-proc-config
-NO_CRS_RUN_ID="$run_id" make evidence-check-envoy
-```
-
-## Weg 3: Über Pakete beziehungsweise paketgestützt installieren
-
-Status: `package-assisted source build`. Pakete liefern Abhängigkeiten und möglicherweise einen Host, während Repository-Connector oder Hostintegration ein Source-Build bleiben. Paketinstallation allein ist keine Evidence des ausgewählten Kerns.
-
-Geprüfte Paketnamen decken Buildabhängigkeiten ab, nicht einen gleichwertigen ausgewählten Envoy-Host. Jedes Distributions-Envoy-Paket enthält weiterhin nicht den repository-eigenen ext_proc-Service und muss separat geprüft werden.
-
-Paketnamen sind releaseabhängig. Diese Abfrage erfolgt vor jeder Installation;
-Fedora `mod_security` ist ModSecurity v2 und kein Ersatz für
-`libmodsecurity-devel` aus dem v3-Pfad.
-
-Die ersten Befehle sind für **Debian / Ubuntu (apt)**, die folgenden für
-**Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)**. Nur die passende Familie
-verwenden.
-
-```sh
-# Debian / Ubuntu (apt)
-apt-cache policy build-essential pkg-config git curl ca-certificates
-apt-cache policy golang-go protobuf-compiler libprotobuf-dev libgrpc-dev libmodsecurity-dev
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-dnf info gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
-dnf info golang protobuf-devel grpc-devel libmodsecurity-devel
-# Host-package availability inquiry only; no package is selected by this query
-apt-cache search '^envoy$'
-dnf search envoy
-```
-
-Die letzten Abfragezeilen ermitteln nur, ob eine Distribution ein Envoy-Hostpaket anbietet; kein Ergebnis gilt als ausgewählter Host, weil das Repository sein verifiziertes Binary samt Source-gebautem ext_proc-Service nutzt.
-
-Nur nach erfolgreicher Prüfung und nach eigener Kontrolle der Liste installieren:
-
-```sh
-# Debian / Ubuntu (apt)
-sudo apt update
-sudo apt install --yes build-essential pkg-config git curl ca-certificates
-sudo apt install --yes golang-go protobuf-compiler libprotobuf-dev libgrpc-dev libmodsecurity-dev
-# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)
-sudo dnf install -y gcc gcc-c++ make pkgconf-pkg-config git curl ca-certificates
-sudo dnf install -y golang protobuf-devel grpc-devel libmodsecurity-devel
-```
-
-`sudo` wird verwendet, weil Paketdatenbank und Systempfade gewöhnlich
-Administratorrechte benötigen. In CI oder einem Container ist der Prozess oft
-bereits root; dann `sudo` weglassen statt die Paketliste zu ändern.
-
-Pakete liefern nur den Abhängigkeits-/Hostanteil. Anschließend diesen unterstützten Source-Follow-up ausführen; die Paketinstallation baut weder den ausgewählten Connector noch die Hostintegration allein.
-
-```sh
-export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
-export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"
-export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build/envoy-package"
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')"
-make check-framework
-make prepare-runtime-components
-make prepare-envoy-runtime
-make runtime-components-inventory
-make runtime-components-sources
-run_id="envoy-package-$(date -u +%Y%m%dT%H%M%SZ)"
-MAKE_JOBS="$jobs" make -C connectors/envoy build-envoy-ext-proc
-MAKE_JOBS="$jobs" make -C connectors/envoy test-envoy-ext-proc
-MAKE_JOBS="$jobs" make -C connectors/envoy check-envoy-ext-proc-config
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-envoy-ext-proc
-```
-
-| Befehlsgruppe | Zweck | Voraussetzung | Ergebnis und Grenze |
-| --- | --- | --- | --- |
-| Source-Buildbefehle oben | ausgewählten Host, Modul oder Service aus Source bauen | vorbereitete Provenienz, Toolchain und externer Buildroot | Artefakte und Command-/Source-Info-Records unter `$BUILD_ROOT`; Exit `0` ist nur Build-Erfolg. |
-| gezeigte Config-/Test-/Runtime-Targets | Artefakt, ABI und Loader im selben Staging prüfen | passende Header, Bibliotheken und lesbare Konfiguration | Die Targets prüfen das erzeugte Modul bzw. den Service und dessen Library-Auflösung; `77` kann eine fehlende Voraussetzung melden. |
-| `make full-lifecycle-envoy-ext-proc` + Evidence-Check | ausgewählten Kernpfad ausführen und Artefakte validieren | sicherer `run_id` und vollständige Runtime | Evidence unter `evidence/no-crs-evidence/envoy/$run_id`; `2` steht für ungültige Eingabe/Stufe, andere Fehler bleiben Fehler. |
-
-### Validierung
-
-`libmodsecurity` muss als v3-Entwicklungsabhängigkeit Header und
-pkg-config-Metadaten liefern. Fehlt einer dieser Befehle, zum
-repository-gesteuerten Source-Build zurückkehren; kein ModSecurity-v2-Paket
-stillschweigend einsetzen.
-
-```sh
-pkg-config --exists libmodsecurity
-pkg-config --atleast-version=3.0 libmodsecurity
-pkg-config --modversion libmodsecurity
-pkg_version="$(pkg-config --modversion libmodsecurity)"
-case "$pkg_version" in 3.*) ;; *) printf '%s\n' "libmodsecurity major version must be 3: $pkg_version" >&2; exit 1 ;; esac
-pkg-config --cflags libmodsecurity
-pkg-config --libs libmodsecurity
-make check-config-envoy
-test -x "$CACHE_ROOT/shared/envoy/bin/envoy"
-"$CACHE_ROOT/shared/envoy/bin/envoy" --version
-test -x "$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc"
-ldd "$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc" | grep -F libmodsecurity
-go version
-grep -Fx 'go 1.24.0' connectors/envoy/ext_proc/go.mod
-make -C connectors/envoy check-envoy-ext-proc-config
-NO_CRS_RUN_ID="$run_id" make evidence-check-envoy
-```
-
-## Nach dem Build konfigurieren
-
-Das Config-Target prüft Repository-Service und erzeugte Envoy-ext_proc-Konfiguration; es erklärt kein System-Envoy-Paket für gleichwertig.
-
-Die gewählte Konfiguration, Regeln und Modulpfade werden durch die
-repository-eigenen Targets erzeugt oder geprüft. Konfigurationsdateien müssen
-lesbar sein; keine Cookies, Autorisierungswerte, Tokens, privaten Schlüssel
-oder Rohlogs in Konfiguration oder Evidence ablegen.
-
-```sh
-make check-config-envoy
-```
-
-## Build und Installation validieren
-
-Für alle Wege gilt: Hostbinary und Version prüfen, Connectorartefakt und
-Shared Libraries im ausgewählten Staging betrachten, dann Config- und
-Start-Smoke ausführen. Die Source- und Paketwege enden deshalb jeweils mit
-ihrem Validierungsblock; ein einzelner Compile oder Link reicht nicht.
-
-```sh
-make check-config-envoy
-make start-smoke-envoy
-make runtime-smoke-envoy
-```
-
-## Realen HTTP/1.1-Test ausführen
-
-`make runtime-smoke-envoy` ist der unterstützte repository-eigene
-Minimal-Smoke mit realem HTTP/1.1-Traffic für seine dokumentierte Route. Die
-konkreten lokalen Ports, URLs und Requests werden aus der erzeugten
-Konfiguration abgeleitet; keinen zweiten `curl`-Endpoint erfinden. Für den
-ausgewählten P1–P4-Kernpfad, soweit anwendbar, folgt der Full Lifecycle:
-
-```sh
-run_id="envoy-http11-$(date -u +%Y%m%dT%H%M%SZ)"
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-envoy-ext-proc
-NO_CRS_RUN_ID="$run_id" make evidence-check-envoy
-```
-
-Der Minimal-Smoke und der Full Lifecycle haben unterschiedliche Grenzen. Ein
-P1-Deny, P2/P3/P4-Beobachtungen oder ein PASS gelten nur für den tatsächlich
-ausgeführten repository-definierten Fall und werden hier nicht zu einer
-allgemeinen Capability-Aussage ausgeweitet.
-
-## Evidence und Logs prüfen
-
-Nach einem Full Lifecycle liegen abgeleitete, run-gebundene Verzeichnisse unter
-`$VERIFIED_RUN_ROOT`: Evidence in
-`evidence/no-crs-evidence/envoy/$run_id`, Builddateien in
-`build/envoy/$run_id`, Runtime-Dateien in `runs/envoy/$run_id` und
-sanitisierte Logs in `run-logs/envoy/$run_id`. Allgemeine Stufenresultate
-liegen unter `$BUILD_ROOT/stages/envoy`. Pfade sind abgeleitet, nicht feste
-Systempfade.
-
-```sh
-NO_CRS_RUN_ID="$run_id" make evidence-check-envoy
-make runtime-components-inventory
-make runtime-components-sources
-```
-
-Evidence erst nach dem Check teilen und sensible Werte vorher entfernen. Cache
-und Downloads sind wiederverwendbare Eingaben, keine Evidence.
-
-## Aktualisieren und neu bauen
-
-Den Checkout nur kontrolliert aktualisieren, danach Submodule und Provenienz
-erneut prüfen. Einen alten Cache nicht als Beleg für neue Pins behandeln.
-
-```sh
-git pull --ff-only
-git submodule update --init --recursive
-make runtime-components-inventory
-make runtime-components-sources
-make check-framework
-make prepare-runtime-components
-make prepare-envoy-runtime
-make build-envoy
-```
-
-## Deinstallieren und bereinigen
-
-Repository-Testweg: Den externen `VERIFIED_RUN_PARENT` erst nach Inspektion
-oder Archivierung der gewünschten Evidence leeren; der Git-Checkout bleibt
-unverändert. `rmdir` entfernt nur leere Verzeichnisse und ist deshalb der
-sichere Abschluss statt eines unkontrollierten rekursiven Löschbefehls.
-
-```sh
-find "$VERIFIED_RUN_PARENT" -maxdepth 1 -mindepth 1 -print
-rmdir "$VERIFIED_RUN_PARENT"
-```
-
-Source-Build: Externes Staging oder einen bewusst gewählten Prefix erst nach
-Inventarisierung entfernen. Eine Installation unter `/usr` oder `/usr/local`
-nicht pauschal löschen. Paketweg: Nur tatsächlich selbst installierte
-Connectorpakete entfernen; Benutzerdaten und Evidence nicht ungefragt löschen.
-
-```sh
-sudo apt remove golang-go protobuf-compiler libprotobuf-dev libgrpc-dev
-sudo dnf remove golang protobuf-devel grpc-devel
-```
-
-## Troubleshooting
-
-### Testweg
-
-Bei Exit `77` zuerst Framework-Submodule, absoluten externen Root, fehlende
-Basistools und Cache-Provenienz prüfen. Bei Exit `2` Connector-, Stage- und
-Run-ID-Eingaben prüfen. Ist ein Port belegt, den vorherigen lokalen Prozess
-geordnet beenden und den Run mit neuer Run-ID wiederholen; Cache-Einträge nicht
-blind mischen oder umbenennen.
-
-### Source-Build
-
-Fehlender Compiler oder Header: die Source-Voraussetzungen und die gewählte
-Toolchain prüfen. Findet `pkg-config` libmodsecurity nicht, Header- und
-Library-Root sowie `PKG_CONFIG_PATH` prüfen. Bei ABI- oder Modulfehlern Host,
-Header, Modul, Prefix und Connector gemeinsam aus derselben vorbereiteten
-Quelle bauen. Bei fehlender Shared Library nur den bewussten Stagingpfad und
-`LD_LIBRARY_PATH` prüfen, nicht global Dateien kopieren.
-
-### Paketweg
-
-Vor Installation Release-Verfügbarkeit erneut abfragen. Bei fehlenden v3-
-Headern oder pkg-config-Metadaten den Source-Build verwenden. Eine nicht
-lesbare Konfiguration, falsche Dateiberechtigung oder ein belegter Port ist
-kein Paketbeweis. Ein Paket-Host mit nicht passender ABI darf nicht mit einem
-Source-Modul kombiniert werden.
-
-## Variablen und Platzhalter
-
-| Variable/Platzhalter | Pflicht | Standard | Beispiel | Bedeutung |
-| --- | --- | --- | --- | --- |
-| VERIFIED_RUN_PARENT | ja | vom Makefile gewählt, wenn nicht gesetzt | $HOME/modsecurity-connector-work | Beschreibbarer externer Stamm für Build, Cache, Runtime, Logs und Evidence; außerhalb des Checkouts und ohne Secrets im Namen. |
-| VERIFIED_RUN_ROOT | nein | unter VERIFIED_RUN_PARENT abgeleitet | $HOME/modsecurity-connector-work/ModSecurity-conector-verified | Run-gebundener externer Stamm; enthält abgeleitete Build-, Run-, Log- und Evidence-Pfade. |
-| BUILD_ROOT | nein | unter dem verifizierten Run abgeleitet | externes Build-Unterverzeichnis | Staging- und Buildausgabe; nicht in den Git-Checkout legen. |
-| CACHE_ROOT | nein | als Cache-v2 unter dem verifizierten Run abgeleitet | externes Cache-v2-Unterverzeichnis | Wiederverwendbare Eingaben; kein PASS und keine kanonische Evidence. |
-| NO_CRS_RUN_ID | für Full Lifecycle | leer | nginx-core-20260712T120000Z | Dateisicherer Name eines Evidence-Runs; denselben Wert für Full Lifecycle und Evidence-Check verwenden. |
-| CC | nein | Toolchain-Default | gcc | C-Compiler für C- und CGo-nahe Buildschritte. |
-| CXX | nein | Toolchain-Default | g++ | C++-Compiler für Abhängigkeiten, die ihn benötigen. |
-| CFLAGS | nein | Toolchain-Default | -O2 -g | Zusätzliche C-Flags; Beispiel ist Entwicklungswert, kein Repository- oder Produktionsdefault. |
-| CXXFLAGS | nein | Toolchain-Default | -O2 -g | Zusätzliche C++-Flags; kein Produktionsprofil. |
-| CPPFLAGS | nein | leer oder Toolchain-Default | -I/opt/modsecurity-connector/include | Zusätzliche Include-Flags für bewusst gewählte Headerpfade. |
-| LDFLAGS | nein | leer oder Toolchain-Default | -L/opt/modsecurity-connector/lib | Zusätzliche Linkerflags für bewusst gewählte Bibliothekspfade. |
-| PKG_CONFIG_PATH | nein | Paketmanager-/Toolchain-Default | /opt/modsecurity-connector/lib/pkgconfig | Zusätzlicher Suchpfad für pkg-config-Metadaten; kein ABI-Ersatz. |
-| LD_LIBRARY_PATH | nein | Loader-Default | /opt/modsecurity-connector/lib | Temporärer Suchpfad für Shared Libraries; keine globale Installation. |
-| MAKE_JOBS | nein | vom Framework ermittelt | 2 | Anzahl paralleler Compilerprozesse; bei wenig RAM kleiner wählen. |
-| HOME | nein | Anmeldeverzeichnis | $HOME | Shellwert für das Benutzerverzeichnis; keine lokale Entwicklerpfadangabe. |
-| jobs | nein | nicht gesetzt | 2 | Lokale Shellvariable aus `getconf`, die an `MAKE_JOBS` übergeben wird. |
-| run_id | nein | nicht gesetzt | apache-core-20260712T120000Z | Lokale Shellvariable, aus der `NO_CRS_RUN_ID` gesetzt wird. |
-| ENVOY_BIN | nein | generated external cache binary | verified external Envoy binary | Aufgelöstes Hostbinary für den gepinnten Envoy-Release. |
-| EXT_PROC_CONFIG | nein | connector configuration file | connector ext_proc configuration | Repository-ext_proc-Servicekonfiguration für Checks. |
-| EXT_PROC_RUNTIME_CONFIG | nein | derived external runtime file | external runtime config | Erzeugte Laufzeitkonfiguration des ausgewählten ext_proc-Wegs. |
-| EXT_PROC_RUNTIME_ROOT | nein | derived under BUILD_ROOT | external ext_proc runtime directory | Laufzeitdateien und Eventlogs von ext_proc. |
-| RULES_FILE | nein | connector default | absolute rules file | Rules-Datei für lokale Connector-Diagnosen; kanonische Runs liefern ihre eigenen ausgewählten Regeln. |
-| MSCONNECTOR_RULES_FILE | nein | unset | absolute no-CRS rules file | Kanonische Regeleingabe, wenn die ausgewählte Runtime sie exportiert. |
-| ENVOY_TRANSPORT_CANCEL_PROBE | nein | 0 | 1 | Opt-in-Cancellation-Probe; kein Claim über einen client-sichtbaren strikten Reset. |
-
-| Dokumentierter Wert | Beispiel | Bedeutung |
-| --- | --- | --- |
-| Connectorname | envoy | Make- und Evidence-Name dieses Guides; kein Platzhalter in den gezeigten Befehlen. |
-| Source-Verzeichnis | unter `$BUILD_ROOT` oder vorbereiteter Provenienz | Vom unterstützten Vorbereiter erzeugte Quelle; keinen zweiten Hand-Checkout als Ersatz verwenden. |
-| Build-Verzeichnis | `$BUILD_ROOT/stages/envoy` | Staging- und Stufenergebnisse außerhalb des Checkouts. |
-| Installationsprefix | externes Staging unter `VERIFIED_RUN_PARENT` | Bevorzugter Entwicklungsort statt systemweiter Installation. |
-| Rules-Datei | vom Full-Lifecycle-Dispatcher | Kanonische Regeldatei wird vom ausgewählten Lauf geliefert; keine lokale Datei als gleichwertig ausgeben. |
-| Modul-/Hostbinary | von Vorbereitung oder Source-Build aufgelöst | Pfad, Header und ABI gehören zum selben ausgewählten Host. |
-
-## Einschränkungen und nicht erhobene Claims
-
-Die Anweisungen beschreiben reproduzierbare Entwicklungs-, Test- und
-Buildwege. Sie sind keine Bewertung als produktionsreifes Paket oder gehärtete
-Deployment-Anleitung. Sie behaupten keine vollständige CRS-Abdeckung,
-keine vollständige Protokoll- oder Plattformmatrix und keine über den
-dokumentierten Run hinausgehende Sicherheitseigenschaft. Ein Paketweg ist nur
-dann gleichwertig, wenn der ausgewählte Host-, Modul-, Middleware-, Service-
-oder Patchpfad tatsächlich durch den dokumentierten Full Lifecycle ausgeführt
-und geprüft wurde.
+Diese Anleitung beschreibt einen nachvollziehbaren Entwicklungs- und Integrationsbuild. Sie ist keine Produktionsfreigabe. Sie behauptet keine vollständige CRS-Abdeckung, keine vollständige Protokoll- oder Plattformmatrix und keine Gleichwertigkeit eines Paketwegs, wenn Hostpatch, Modul, Middleware oder Service fehlen.
