@@ -9,7 +9,8 @@
 
 # Python
 .venv/
-__pycache__/
+venv/
+env/
 *.pyc
 *.py[cod]
 .pytest_cache/
@@ -38,3 +39,10 @@ tmp/
 *.log
 *.load
 actions-update-report.md
+
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

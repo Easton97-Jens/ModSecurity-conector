@@ -25,6 +25,16 @@ FENCE_PREFIXES = ("```", "~~~")
 GERMAN_GENERATED_NOTE = "Diese deutsche Datei ist eine übersetzte Begleitdatei"
 TRANSLATION_EXEMPT_CONNECTOR_FILENAMES = frozenset({"ORIGIN.md", "TODO.md"})
 SPECIAL_LANGUAGE_INDEXES: tuple[tuple[Path, Path], ...] = ()
+LOCAL_CODEX_RTK_ROOT_FILENAMES = frozenset(
+    {
+        "AGENTS.md",
+        "AGENTS.de.md",
+        "AGENTS.override.md",
+        "RTK.md",
+        "RTK.de.md",
+    }
+)
+LOCAL_CODEX_RTK_ROOT_DIRECTORY_NAMES = frozenset({".codex", ".rtk"})
 HEADING_RE = re.compile(r"^(#{1,6})\s+\S", re.MULTILINE)
 TABLE_ROW_RE = re.compile(r"^\|.*\|\s*$")
 
@@ -32,6 +42,14 @@ TABLE_ROW_RE = re.compile(r"^\|.*\|\s*$")
 def is_tools_mrts(path: Path) -> bool:
     text = path.as_posix()
     return text.startswith("tools/MRTS/") or text.startswith("modules/ModSecurity-test-Framework/tools/MRTS/")
+
+
+def is_local_codex_rtk_path(path: Path) -> bool:
+    """Return true for developer-local Codex/RTK configuration only."""
+    return (
+        (len(path.parts) == 1 and path.name in LOCAL_CODEX_RTK_ROOT_FILENAMES)
+        or (bool(path.parts) and path.parts[0] in LOCAL_CODEX_RTK_ROOT_DIRECTORY_NAMES)
+    )
 
 
 def is_ignored(path: Path) -> bool:
@@ -112,7 +130,13 @@ def pair_required(path: Path) -> bool:
 
 
 def english_sources(repo: Path) -> list[Path]:
-    return sorted(path for path in repo.rglob("*.md") if not is_ignored(path) and pair_required(path.relative_to(repo)))
+    return sorted(
+        path
+        for path in repo.rglob("*.md")
+        if not is_ignored(path)
+        and not is_local_codex_rtk_path(path.relative_to(repo))
+        and pair_required(path.relative_to(repo))
+    )
 
 
 def checked_markdown_files(repo: Path) -> list[Path]:
@@ -261,6 +285,8 @@ def check_links(repo: Path) -> list[str]:
                     rel_candidate = candidate.relative_to(repo)
                 except ValueError:
                     errors.append(f"{rel_path}:{line_number}: link escapes repository: {raw_target}")
+                    continue
+                if is_local_codex_rtk_path(rel_candidate):
                     continue
                 if not candidate.exists():
                     errors.append(f"{rel_path}:{line_number}: missing local link target: {raw_target}")
