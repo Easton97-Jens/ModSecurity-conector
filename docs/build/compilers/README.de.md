@@ -1,104 +1,49 @@
 <!-- Generated from scripts/generate_compiler_guides.py; do not edit directly. -->
 
-# Compiler- und Build-Wege
+# Compiler-, Source-Build- und Paketwege
 
 **Sprache:** [English](README.md) | Deutsch
 
 ## Zweck
 
-Dieses Verzeichnis beschreibt die aktuellen Repository-Wege für Build,
-Konfigurationsladung, Start-Smoke, minimalen Runtime-Smoke und den ausgewählten
-No-CRS-Full-Lifecycle-Run. Es ist keine Anleitung, einen beliebigen
-Distributionshost global zu installieren. Ein erfolgreicher Build, Link oder
-Config-Check ist kein Produktions-, CRS-, HTTP/2-, HTTP/3- oder
-Vollmatrix-Nachweis.
+Jeder Detailguide beschreibt einen repository-gesteuerten Testweg, einen
+lokalen Source-Build und einen ehrlichen Paketweg. Ein Build, Link,
+Config-Check, Start oder Paketinstallationsresultat ist für sich allein keine
+Runtime-, CRS-, Sicherheits-, Produktions- oder Vollmatrix-Evidence.
 
-## Ausgewählte Wege
+## Entscheidungsmatrix
 
-| Detailanleitung | Build | ausgewähltes Full-Lifecycle-Target | Host-Profil |
-| --- | --- | --- | --- |
-| [Apache HTTP Server](apache.de.md) | `build-apache` | `full-lifecycle-apache` | `native-httpd-module` |
-| [NGINX](nginx.de.md) | `build-nginx` | `full-lifecycle-nginx` | `native-nginx-http-module` |
-| [HAProxy](haproxy.de.md) | `build-haproxy` | `full-lifecycle-haproxy-htx` | `native-htx-filter` |
-| [Envoy](envoy.de.md) | `build-envoy` | `full-lifecycle-envoy-ext-proc` | `ext_proc` |
-| [Traefik](traefik.de.md) | `build-traefik` | `full-lifecycle-traefik-native` | `native-middleware` |
-| [lighttpd](lighttpd.de.md) | `build-lighttpd` | `full-lifecycle-lighttpd-patched` | `patched-native` |
+| Connector | Testweg | Source-Build | Paketstatus | Ausgewählter Kernpfad |
+| --- | --- | --- | --- | --- |
+| [Apache HTTP Server](apache.de.md) | `make build-apache` | `make full-lifecycle-apache` | `package-assisted source build` | `native-httpd-module` |
+| [NGINX](nginx.de.md) | `make build-nginx` | `make full-lifecycle-nginx` | `package-assisted source build` | `native-nginx-http-module` |
+| [HAProxy](haproxy.de.md) | `make build-haproxy` | `make full-lifecycle-haproxy-htx` | `package-assisted source build` | `native-htx-filter` |
+| [Envoy](envoy.de.md) | `make build-envoy` | `make full-lifecycle-envoy-ext-proc` | `package-assisted source build` | `ext_proc` |
+| [Traefik](traefik.de.md) | `make build-traefik` | `make full-lifecycle-traefik-native` | `package-assisted source build` | `native-middleware` |
+| [lighttpd](lighttpd.de.md) | `make build-lighttpd` | `make full-lifecycle-lighttpd-patched` | `selected profile not available package-only` | `patched-native` |
 
-Die Host-Profilwerte setzt das jeweilige Full-Lifecycle-Target selbst. Die
-internen Variablen `NO_CRS_ARTIFACT_PROFILE`,
-`FULL_LIFECYCLE_HOST_PROFILE` und `FULL_LIFECYCLE_EXECUTED_TARGET` dürfen nicht
-manuell gesetzt werden, um einen Kompatibilitäts-Smoke umzubenennen.
+## Entscheidungsbaum
 
-## Gemeinsamer Ablauf
+Nur testen?
+→ Repository-Testweg verwenden.
 
-```sh
-make check-framework
-make prepare-runtime-components
-make build-<connector>
-make check-config-<connector>
-make start-smoke-<connector>
-make runtime-smoke-<connector>
-```
+Eigene Builds oder Änderungen entwickeln?
+→ Lokalen Source-Build mit externem `VERIFIED_RUN_PARENT` verwenden.
 
-`<connector>` ist ein Dokumentationsplatzhalter für genau einen Namen aus der
-Tabelle. Den Platzhalter nicht wörtlich an `make` übergeben. Für eine
-kanonische Evidenz muss ein sicherer Run-Identifier derselben Ausführung
-verwendet werden:
+Systempakete für Host und Abhängigkeiten verwenden?
+→ Paketweg prüfen, Verfügbarkeit vor Installation abfragen und v3/ABI validieren.
+
+Benötigt der Kernpfad Hostpatch, Modul, Middleware oder Service?
+→ Paketgestützten Source-Build verwenden, kein Standardpaket als gleichwertig ausgeben.
+
+## Gemeinsame Voraussetzung
 
 ```sh
-run_id="core-$(date -u +%Y%m%dT%H%M%SZ)"
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-<connector>
-NO_CRS_RUN_ID="$run_id" make evidence-check-<connector>
+export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"
 ```
 
-Die vollständige Ausführung aller sechs Connectoren ist
-`NO_CRS_RUN_ID="$run_id" make full-lifecycle-all-connectors`. Sie erzeugt
-run-spezifische Evidenz; sie ersetzt keine Prüfung der resultierenden
-Artefakte.
-
-## Cache-v2, Versionen und Provenienz
-
-`VERIFIED_RUN_PARENT` bestimmt einen externen, beschreibbaren
-Ausführungsstamm. Daraus leitet der Root-Makefile `BUILD_ROOT` sowie
-`CACHE_ROOT=.../cache-v2` und dessen gemeinsames Component-Cache ab. Das Cache
-ist wiederverwendbare Eingabe, nicht kanonische Evidenz. Quellen, Versionen,
-Prüfsummen und lokale Overrides werden durch die vorbereiteten Komponenten
-gebunden; die effektive Identität zeigt:
-
-```sh
-make runtime-components-inventory
-make runtime-components-sources
-```
-
-Die [Variablenreferenz](../../reference/variables.de.md) definiert Format,
-Standard, Scope, Wirkung und Sicherheitsgrenze aller Build-, Cache-,
-Provenienz- und Hostvariablen. Nur vertrauenswürdige absolute Pfade außerhalb
-des Checkouts für Build, Cache, Log und Evidenz verwenden.
-
-## Dokumentationsgrenze
-
-Die nachstehenden pro-Connector-Anleitungen verweisen auf die aktuelle
-[Build-Übersicht](../README.de.md), den
-[Test- und Evidence-Guide](../../testing-and-evidence.de.md), Connector-Anleitungen und
-Beispiele. Ältere Integrationsbeschreibungen bleiben gegebenenfalls als
-historische oder diagnostische Hinweise markiert; sie sind keine aktiven
-Profilselektoren und dürfen keine Capability promoten.
-
-## Vorbereitung offener Connectoren
-
-Envoy, Traefik und lighttpd verwenden repository-eigene Build- und
-Runtime-Komponenten. Die detaillierten Anleitungen bleiben die einzige
-Quelle; die jeweiligen Vorbereitungstargets sind:
-
-| Connector | Vorbereitung | Full Lifecycle | Host-Profil |
-| --- | --- | --- | --- |
-| [Envoy](envoy.de.md) | `prepare-envoy-runtime` | `full-lifecycle-envoy-ext-proc` | `ext_proc` |
-| [Traefik](traefik.de.md) | `prepare-traefik-runtime` | `full-lifecycle-traefik-native` | `native-middleware` |
-| [lighttpd](lighttpd.de.md) | `prepare-lighttpd-runtime-build` | `full-lifecycle-lighttpd-patched` | `patched-native` |
-
-Kompatibilitätsdiagnosen über ext_authz, ForwardAuth oder eine Bridge ersetzen
-nicht den ausgewählten ext_proc-, native-middleware- oder patched-native-Pfad.
-
-## Weiterführend
-
-Die Detailanleitungen beginnen bei [Apache](apache.de.md).
+Der externe Stamm liegt außerhalb des Checkouts, enthält Build-, Cache-,
+Runtime-, Log- und Evidence-Dateien und sollte keine Secrets im Namen tragen.
+Siehe auch [den Connectorüberblick](overview.de.md), die
+[Variablenreferenz](../../reference/variables.de.md) und die
+[Test-/Evidence-Grenzen](../../testing-and-evidence.de.md).
