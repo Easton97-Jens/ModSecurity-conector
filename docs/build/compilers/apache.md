@@ -12,6 +12,17 @@ This guide describes the manual development and integration build for `native-ht
 
 libmodsecurity v3, Apache HTTP Server 2.4, APR/APR-util, PCRE2, the repository Apache adapter, APXS, a local rule file, and a loopback httpd instance.
 
+## Connector in this repository
+
+- [Apache connector](../../../connectors/apache/README.md)
+- [Productive Apache sources](../../../connectors/apache/src/)
+- [Autotools configuration](../../../connectors/apache/configure.ac)
+- [Source mapping](../../../connectors/apache/SOURCE_MAP.json)
+
+This is the primary connector path for this guide: connectors/apache/. The official host documentation in the following section explains only how to provide or build the host; it does not replace the connector source.
+
+Section 7 materializes this adapter-owned source into an external Autotools worktree and builds it with the selected APXS/httpd pair.
+
 ## 3. Official upstream documentation
 
 - **Source and scope:** [Compiling and Installing](https://httpd.apache.org/docs/2.4/install.html)
@@ -20,6 +31,12 @@ libmodsecurity v3, Apache HTTP Server 2.4, APR/APR-util, PCRE2, the repository A
   The DSO build/install interface and the queries that bind a module to one httpd build. Version scope: HTTP Server 2.4 APXS reference.
 - **Source and scope:** [Apache HTTP Server Download](https://httpd.apache.org/download.cgi)
   Official release archives, PGP signatures, checksums, and Apache KEYS. Version scope: The page changes when Apache publishes a release.
+
+## Alternative: official upstream connector
+
+The official upstream connector [ModSecurity-apache](https://github.com/owasp-modsecurity/ModSecurity-apache) is an alternative implementation.
+
+The main path in this guide uses the repository-owned adapter under [`connectors/apache/`](../../../connectors/apache/README.md). A separate upstream build does not automatically include the repository-owned Common integration and is not automatically equivalent to the checked path here.
 
 ## 4. Prerequisites
 
@@ -136,7 +153,7 @@ gpg --verify "httpd-$VERSION.tar.bz2.asc" "httpd-$VERSION.tar.bz2"
 
 ## 7. Build and integrate the connector
 
-Use the APXS checked in Section 6. The package path normally exposes apxs; the optional source-host assignment below selects the matching private APXS explicitly.
+The adapter used in this guide is under [connectors/apache](../../../connectors/apache/README.md). Its productive module code is under [connectors/apache/src](../../../connectors/apache/src/). Use the APXS checked in Section 6; the package path normally exposes apxs, while the optional source-host assignment below selects the matching private APXS explicitly. The supported materialization step keeps generated Autotools templates in an external worktree while preserving connectors/apache/ as the adapter source of record.
 
 #### Optional: select the source-host APXS
 
@@ -146,13 +163,24 @@ If you built the optional Apache source host in Section 6, run this in the same 
 APXS="$HOME/.local/apache-modsecurity/bin/apxs"
 ```
 
-#### Build and install the adapter
+#### Materialize, build, and install the adapter
+
+configure.ac accepts --with-apache as an optional lookup override, but this guide passes the httpd derived from the selected APXS explicitly. The repository build helper uses the same pairing, preventing an adapter from being configured against a different host binary.
 
 ```sh
 APXS="${APXS:-apxs}"
+HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"
 cd "$CONNECTOR_ROOT/connectors/apache"
+test -f "$CONNECTOR_ROOT/connectors/apache/configure.ac"
+mkdir -p "$HOME/connector-build/apache"
+CONNECTOR_BUILD_DIR="$(mktemp -d "$HOME/connector-build/apache/connector-src.XXXXXX")"
+```
+
+```sh
+CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$CONNECTOR_ROOT/modules/ModSecurity-test-Framework/ci/provisioning/materialize-connector-source.sh" --connector apache --adapter-dir "$CONNECTOR_ROOT/connectors/apache" --dest-dir "$CONNECTOR_BUILD_DIR"
+cd "$CONNECTOR_BUILD_DIR"
 ./autogen.sh
-./configure --with-libmodsecurity="/usr/local" --with-apxs="$APXS"
+./configure --with-libmodsecurity="/usr/local" --with-apxs="$APXS" --with-apache="$HTTPD_BIN"
 make -j2
 make install
 ```
@@ -291,25 +319,19 @@ If `apxs -q` points at different headers or a different module directory than th
 | Variable/placeholder | Meaning |
 | --- | --- |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
-| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
-| BUILD_ROOT | External build and runtime root for repository-owned connector components. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |
-| upstream_pid | Local test-upstream process ID from `$!`; use it only in the same shell run. |
-| haproxy_pid | Local started-HAProxy process ID from `$!`; use it only in the same shell run. |
-| engine_pid | Local started Traefik engine-service process ID from `$!`; use it only in the same shell run. |
-| traefik_pid | Local started Traefik process ID from `$!`; use it only in the same shell run. |
-| lighttpd_pid | Local started-lighttpd process ID from `$!`; use it only in the same shell run. |
 | HTTPD_PREFIX | Private httpd installation prefix. |
 | APXS | APXS from the same host that will load the module. |
+| CONNECTOR_BUILD_DIR | External materialized Autotools worktree for the repository Apache adapter. |
+| HTTPD_BIN | httpd executable paired explicitly with APXS during configuration. |
 | MODULE_PATH | Installed repository DSO resolved by APXS. |
 | HTTPD_CONFIG | Local standalone httpd configuration. |
 | WORKDIR | External Apache source workspace. |
 | VERSION | Selected Apache source release in the optional source path. |
 | INSTALL_DIR | Private Apache installation prefix in the optional source path. |
-| HTTPD_BIN | Apache executable resolved from the selected APXS installation. |
 
 ## 17. Boundaries and non-claims
 

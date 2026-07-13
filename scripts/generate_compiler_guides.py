@@ -1658,6 +1658,41 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             "libmodsecurity v3, Apache HTTP Server 2.4, APR/APR-util, PCRE2, the repository Apache adapter, APXS, a local rule file, and a loopback httpd instance.",
             "libmodsecurity v3, Apache HTTP Server 2.4, APR/APR-util, PCRE2, der Repository-Apache-Adapter, APXS, eine lokale Regeldatei und eine httpd-Instanz auf Loopback.",
         ),
+        "repository_connector_title": ("Apache connector", "Apache-Connector"),
+        "repository_connector_path": "connectors/apache",
+        "repository_connector_readme": (
+            "../../../connectors/apache/README.md",
+            "../../../connectors/apache/README.de.md",
+        ),
+        "repository_connector_source_links": (
+            (
+                "Productive Apache sources",
+                "Produktive Apache-Quellen",
+                "../../../connectors/apache/src/",
+            ),
+        ),
+        "repository_connector_build_files": (
+            (
+                "Autotools configuration",
+                "Autotools-Konfiguration",
+                "../../../connectors/apache/configure.ac",
+            ),
+            (
+                "Source mapping",
+                "Source-Zuordnung",
+                "../../../connectors/apache/SOURCE_MAP.json",
+            ),
+        ),
+        "repository_connector_build_steps": (
+            "Section 7 materializes this adapter-owned source into an external Autotools worktree and builds it with the selected APXS/httpd pair.",
+            "Abschnitt 7 materialisiert diese adaptereigene Quelle in einen externen Autotools-Worktree und baut sie mit dem ausgewählten APXS-/httpd-Paar.",
+        ),
+        "alternative_connector_title": ("ModSecurity-apache", "ModSecurity-apache"),
+        "alternative_connector_url": "https://github.com/owasp-modsecurity/ModSecurity-apache",
+        "alternative_connector_note": (
+            "The main path in this guide uses the repository-owned adapter under [`connectors/apache/`](../../../connectors/apache/README.md). A separate upstream build does not automatically include the repository-owned Common integration and is not automatically equivalent to the checked path here.",
+            "Der Hauptweg dieser Anleitung verwendet den repository-eigenen Adapter unter [`connectors/apache/`](../../../connectors/apache/README.de.md). Ein separater Upstream-Build enthält nicht automatisch die repository-eigene Common-Integration und ist nicht automatisch mit dem hier geprüften Pfad gleichwertig.",
+        ),
         "official_sources": (
             ("Compiling and Installing", "https://httpd.apache.org/docs/2.4/install.html", "Apache's official source release, APR/APR-util and PCRE2 prerequisites, configure, make, installation, start, and stop sequence.", "Offizieller Apache-Quellrelease sowie Voraussetzungen für APR/APR-util und PCRE2, Configure, Make, Installation, Start und Stop.", "HTTP Server 2.4; choose and verify the release again before building."),
             ("APXS", "https://httpd.apache.org/docs/2.4/programs/apxs.html", "The DSO build/install interface and the queries that bind a module to one httpd build.", "Die DSO-Build-/Installationsschnittstelle und die Abfragen, die ein Modul an genau einen httpd-Build binden.", "HTTP Server 2.4 APXS reference."),
@@ -1677,6 +1712,8 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("HTTPD_SRC", "Unpacked Apache source tree.", "Entpackter Apache-Source-Baum."),
             ("APXS", "APXS from the same host that will load the module.", "APXS desselben Hosts, der das Modul lädt."),
             ("CONNECTOR_SRC", "Repository Apache connector source selected from CONNECTOR_ROOT.", "Aus CONNECTOR_ROOT ausgewählte Repository-Source des Apache-Connectors."),
+            ("CONNECTOR_BUILD_DIR", "External materialized Autotools worktree for the repository Apache adapter.", "Externer materialisierter Autotools-Worktree für den Repository-Apache-Adapter."),
+            ("HTTPD_BIN", "httpd executable paired explicitly with APXS during configuration.", "httpd-Executable, das beim Configure ausdrücklich mit APXS gepaart wird."),
             ("MODULE_PATH", "Installed repository DSO resolved by APXS.", "Durch APXS aufgelöstes installiertes Repository-DSO."),
             ("HTTPD_CONFIG", "Local standalone httpd configuration.", "Lokale eigenständige httpd-Konfiguration."),
         ),
@@ -1687,14 +1724,48 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
     },
     "nginx": {
         "components": (
-            "libmodsecurity v3, an official NGINX source release, ModSecurity-nginx, a statically integrated NGINX module, a local rule file, and a loopback NGINX instance.",
-            "libmodsecurity v3, ein offizieller NGINX-Source-Release, ModSecurity-nginx, ein statisch eingebundenes NGINX-Modul, eine lokale Regeldatei und eine NGINX-Instanz auf Loopback.",
+            "libmodsecurity v3, an official NGINX source release, the repository-owned dynamic NGINX connector, the Common integration, a local rule file, and a loopback NGINX instance.",
+            "libmodsecurity v3, ein offizieller NGINX-Source-Release, der repository-eigene dynamische NGINX-Connector, die Common-Integration, eine lokale Regeldatei und eine NGINX-Instanz auf Loopback.",
+        ),
+        "repository_connector_title": ("NGINX connector", "NGINX-Connector"),
+        "repository_connector_path": "connectors/nginx",
+        "repository_connector_readme": (
+            "../../../connectors/nginx/README.md",
+            "../../../connectors/nginx/README.de.md",
+        ),
+        "repository_connector_source_links": (
+            (
+                "NGINX module configuration",
+                "NGINX-Modulkonfiguration",
+                "../../../connectors/nginx/config",
+            ),
+            (
+                "Productive NGINX sources",
+                "Produktive NGINX-Quellen",
+                "../../../connectors/nginx/src/",
+            ),
+        ),
+        "repository_connector_build_files": (
+            (
+                "Source mapping",
+                "Source-Zuordnung",
+                "../../../connectors/nginx/SOURCE_MAP.json",
+            ),
+        ),
+        "repository_connector_build_steps": (
+            "Section 7 builds this adapter-owned connector as the documented dynamic NGINX module; official host documentation only provides the NGINX host source or package context.",
+            "Abschnitt 7 baut diesen adaptereigenen Connector als dokumentiertes dynamisches NGINX-Modul; die offizielle Hostdokumentation stellt nur die NGINX-Hostquelle oder den Paketkontext bereit.",
+        ),
+        "alternative_connector_title": ("ModSecurity-nginx", "ModSecurity-nginx"),
+        "alternative_connector_url": "https://github.com/owasp-modsecurity/ModSecurity-nginx",
+        "alternative_connector_note": (
+            "This guide uses the connector in [`connectors/nginx/`](../../../connectors/nginx/README.md) by default because it contains the repository-owned Common integration, configuration, and tested adaptations. An upstream-only build is a different build path and is not automatically equivalent to the selected repository connector.",
+            "Diese Anleitung verwendet standardmäßig den Connector aus [`connectors/nginx/`](../../../connectors/nginx/README.de.md), weil dieser die repository-eigene Common-Integration, Konfiguration und die hier getesteten Anpassungen enthält. Ein Upstream-only-Build ist ein anderer Buildpfad und nicht automatisch gleichwertig mit dem ausgewählten Repository-Connector.",
         ),
         "official_sources": (
             ("Building nginx from Sources", "https://nginx.org/en/docs/configure.html", "The official configure options, including prefix paths, compatibility, compiler, and linker flags.", "Die offiziellen Configure-Optionen einschließlich Prefix-Pfaden, Kompatibilität sowie Compiler- und Linkerflags.", "NGINX options are release-dependent; inspect `./auto/configure --help` for the selected source."),
             ("Official NGINX packages", "https://nginx.org/en/linux_packages.html", "Official distribution package repositories and package-install context; not an ABI-equivalence claim for a source-built module.", "Offizielle Distributionsrepositories und Paketinstallationskontext; kein ABI-Gleichwertigkeitsclaim für ein aus Source gebautes Modul.", "Package layout changes by distribution and release."),
             ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
-            ("ModSecurity-nginx", "https://github.com/owasp-modsecurity/ModSecurity-nginx", "The official NGINX connector source consumed by the NGINX configure step.", "Die offizielle NGINX-Connectorquelle, die vom NGINX-Configure-Schritt eingebunden wird.", "Pin it to a release tag or commit matching the selected NGINX source."),
         ),
         "config_note": (
             "For the complete directive-level contract, read the repository [NGINX configuration reference](../../../examples/nginx/configuration-reference.md) before adapting this local example.",
@@ -1712,15 +1783,15 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("NGINX_URL", "Official NGINX archive URL.", "Offizielle NGINX-Archiv-URL."),
             ("NGINX_SRC", "Unpacked NGINX source tree.", "Entpackter NGINX-Source-Baum."),
             ("NGINX_PREFIX", "Private NGINX installation prefix.", "Privater NGINX-Installationsprefix."),
-            ("MODSECURITY_NGINX_SRC", "Pinned ModSecurity-nginx checkout.", "Gepinnter ModSecurity-nginx-Checkout."),
-            ("MODSECURITY_NGINX_REF", "Release tag selected for the connector.", "Für den Connector ausgewählter Release-Tag."),
-            ("MODSECURITY_NGINX_COMMIT", "Expected commit resolved from the connector tag.", "Vom Connector-Tag erwarteter aufgelöster Commit."),
-            ("NGINX_MODULE", "Dynamic module built with this NGINX source.", "Mit dieser NGINX-Quelle gebautes dynamisches Modul."),
+            ("MSCONNECTOR_COMMON_INC", "Repository Common header directory passed to the NGINX module configuration.", "An die NGINX-Modulkonfiguration übergebenes Repository-Common-Headerverzeichnis."),
+            ("MSCONNECTOR_COMMON_SRC", "Repository Common source directory compiled into the NGINX module.", "In das NGINX-Modul kompilierte Repository-Common-Quelldateien."),
+            ("MODSECURITY_INC", "libmodsecurity header directory selected from the shared build.", "Aus dem gemeinsamen Build ausgewähltes libmodsecurity-Headerverzeichnis."),
+            ("MODSECURITY_LIB", "libmodsecurity library directory selected from the shared build.", "Aus dem gemeinsamen Build ausgewähltes libmodsecurity-Bibliotheksverzeichnis."),
             ("NGINX_CONFIG", "Local NGINX configuration for the loopback test.", "Lokale NGINX-Konfiguration für den Loopback-Test."),
         ),
         "troubleshoot": (
-            "A startup or directive failure normally means the NGINX binary, configure arguments, connector checkout, or installed library differ. Rebuild the pair together; do not combine it with an unrelated package installation.",
-            "Ein Start- oder Direktivenfehler bedeutet normalerweise, dass NGINX-Binary, Configure-Argumente, Connector-Checkout oder installierte Library voneinander abweichen. Das Paar gemeinsam neu bauen; nicht mit einer fremden Paketinstallation kombinieren.",
+            "A startup or directive failure normally means the NGINX binary, dynamic-module configure arguments, repository connector, or installed library differ. Rebuild the pair together; do not combine it with an unrelated package installation.",
+            "Ein Start- oder Direktivenfehler bedeutet normalerweise, dass NGINX-Binary, Configure-Argumente für das dynamische Modul, Repository-Connector oder installierte Library voneinander abweichen. Das Paar gemeinsam neu bauen; nicht mit einer fremden Paketinstallation kombinieren.",
         ),
     },
     "haproxy": {
@@ -1728,6 +1799,43 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             "libmodsecurity v3, HAProxy 3.2.21 source, the repository native HTX filter/overlay, the Common bridge, a local rule file, a loopback frontend, and a loopback upstream.",
             "libmodsecurity v3, HAProxy-3.2.21-Source, der repository-eigene native HTX-Filter/Overlay, die Common-Bridge, eine lokale Regeldatei, ein Loopback-Frontend und ein Loopback-Upstream.",
         ),
+        "repository_connector_title": ("HAProxy connector", "HAProxy-Connector"),
+        "repository_connector_path": "connectors/haproxy",
+        "repository_connector_readme": (
+            "../../../connectors/haproxy/README.md",
+            "../../../connectors/haproxy/README.de.md",
+        ),
+        "repository_connector_source_links": (
+            (
+                "Productive HAProxy sources",
+                "Produktive HAProxy-Quellen",
+                "../../../connectors/haproxy/src/",
+            ),
+            (
+                "Native HTX overlay",
+                "Nativer HTX-Overlay",
+                "../../../connectors/haproxy/htx-overlay/",
+            ),
+        ),
+        "repository_connector_build_files": (
+            (
+                "HTX overlay builder",
+                "HTX-Overlay-Builder",
+                "../../../connectors/haproxy/htx-overlay/build-overlay.sh",
+            ),
+            (
+                "Source mapping",
+                "Source-Zuordnung",
+                "../../../connectors/haproxy/SOURCE_MAP.json",
+            ),
+        ),
+        "repository_connector_build_steps": (
+            "Section 7 applies the repository-owned HTX overlay to the selected host source and builds the Common/libmodsecurity integration.",
+            "Abschnitt 7 wendet den repository-eigenen HTX-Overlay auf die ausgewählte Hostquelle an und baut die Common-/libmodsecurity-Integration.",
+        ),
+        "alternative_connector_title": "",
+        "alternative_connector_url": "",
+        "alternative_connector_note": ("", ""),
         "official_sources": (
             ("HAProxy INSTALL", "https://github.com/haproxy/haproxy/blob/master/INSTALL", "Official target selection, build options, compilation, and installation guidance.", "Offizielle Anleitung zur Target-Auswahl, Buildoptionen, Kompilierung und Installation.", "Read the INSTALL file for the exact selected HAProxy release."),
             ("HAProxy Documentation", "https://docs.haproxy.org/", "Configuration syntax and CLI documentation for `haproxy -c` and runtime operation.", "Konfigurationssyntax und CLI-Dokumentation für `haproxy -c` und den Laufzeitbetrieb.", "Use documentation matching the selected major/minor series."),
@@ -1804,6 +1912,43 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             "libmodsecurity v3, an official Envoy binary or optional Bazel build, the repository ext_proc service, its CGo/Common bridge, gRPC configuration, a local rule file, and loopback Envoy/upstream listeners.",
             "libmodsecurity v3, ein offizielles Envoy-Binary oder optionaler Bazel-Build, der repository-eigene ext_proc-Service, seine CGo-/Common-Bridge, gRPC-Konfiguration, eine lokale Regeldatei und Loopback-Listener für Envoy/Upstream.",
         ),
+        "repository_connector_title": ("Envoy connector", "Envoy-Connector"),
+        "repository_connector_path": "connectors/envoy",
+        "repository_connector_readme": (
+            "../../../connectors/envoy/README.md",
+            "../../../connectors/envoy/README.de.md",
+        ),
+        "repository_connector_source_links": (
+            (
+                "Productive ext_proc service",
+                "Produktiver ext_proc-Service",
+                "../../../connectors/envoy/ext_proc/",
+            ),
+            (
+                "Connector configuration",
+                "Connector-Konfiguration",
+                "../../../connectors/envoy/config/",
+            ),
+        ),
+        "repository_connector_build_files": (
+            (
+                "ext_proc build helper",
+                "ext_proc-Build-Helper",
+                "../../../connectors/envoy/build/build_ext_proc.sh",
+            ),
+            (
+                "Source mapping",
+                "Source-Zuordnung",
+                "../../../connectors/envoy/SOURCE_MAP.json",
+            ),
+        ),
+        "repository_connector_build_steps": (
+            "Section 7 builds the repository-owned ext_proc service; the official Envoy documentation only explains the host binary and host configuration.",
+            "Abschnitt 7 baut den repository-eigenen ext_proc-Service; die offizielle Envoy-Dokumentation erläutert nur Hostbinary und Hostkonfiguration.",
+        ),
+        "alternative_connector_title": "",
+        "alternative_connector_url": "",
+        "alternative_connector_note": ("", ""),
         "official_sources": (
             ("Installing Envoy", "https://www.envoyproxy.io/docs/envoy/latest/start/install", "Official binary, package, and container installation choices plus version inspection.", "Offizielle Auswahl von Binary-, Paket- und Containerinstallation sowie Versionsprüfung.", "The page is version-sensitive; use the docs matching the selected Envoy release."),
             ("Run Envoy", "https://www.envoyproxy.io/docs/envoy/latest/start/quick-start/run-envoy.html", "The official version, configuration validation, and local startup commands.", "Die offiziellen Befehle für Version, Konfigurationsvalidierung und lokalen Start.", "Use the selected Envoy release documentation."),
@@ -1889,6 +2034,48 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             "libmodsecurity v3, Traefik, the repository native Go middleware, the C/C++ engine service, Common/libmodsecurity, a private Unix-domain socket, static and dynamic File Provider configuration, and loopback HTTP traffic.",
             "libmodsecurity v3, Traefik, die repository-eigene native Go-Middleware, der C/C++-Engine-Service, Common/libmodsecurity, ein privater Unix-Domain-Socket, statische und dynamische File-Provider-Konfiguration sowie HTTP-Traffic auf Loopback.",
         ),
+        "repository_connector_title": ("Traefik connector", "Traefik-Connector"),
+        "repository_connector_path": "connectors/traefik",
+        "repository_connector_readme": (
+            "../../../connectors/traefik/README.md",
+            "../../../connectors/traefik/README.de.md",
+        ),
+        "repository_connector_source_links": (
+            (
+                "Native middleware source",
+                "Native Middleware-Quelle",
+                "../../../connectors/traefik/native_middleware/",
+            ),
+            (
+                "Engine-service sources",
+                "Engine-Service-Quellen",
+                "../../../connectors/traefik/src/",
+            ),
+        ),
+        "repository_connector_build_files": (
+            (
+                "Native middleware builder",
+                "Native-Middleware-Builder",
+                "../../../connectors/traefik/build/build-native-middleware.sh",
+            ),
+            (
+                "Engine-service builder",
+                "Engine-Service-Builder",
+                "../../../connectors/traefik/build/build-engine-service.sh",
+            ),
+            (
+                "Source mapping",
+                "Source-Zuordnung",
+                "../../../connectors/traefik/SOURCE_MAP.json",
+            ),
+        ),
+        "repository_connector_build_steps": (
+            "Section 7 builds the repository native middleware and its engine service; the official Traefik material only documents the host.",
+            "Abschnitt 7 baut die repository-eigene native Middleware und ihren Engine-Service; das offizielle Traefik-Material dokumentiert nur den Host.",
+        ),
+        "alternative_connector_title": "",
+        "alternative_connector_url": "",
+        "alternative_connector_note": ("", ""),
         "official_sources": (
             ("Traefik Getting Started", "https://doc.traefik.io/traefik/getting-started/", "Official installation choices, entry points, routers, services, and safe local startup context.", "Offizielle Installationsoptionen, EntryPoints, Router, Services und sicherer lokaler Startkontext.", "Confirm the documentation version for the selected Traefik release."),
             ("Building and Testing", "https://doc.traefik.io/traefik/contributing/building-testing/", "Official source checkout, Go/tooling, build, and test workflow.", "Offizieller Source-Checkout sowie Go-/Tooling-, Build- und Testablauf.", "The required Go version is defined by the selected release's `go.mod`."),
@@ -2004,6 +2191,48 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             "libmodsecurity v3, lighttpd 1.4.84 source, the repository Entity-Body patch, a patched host, a matching connector module, a local runtime configuration, and loopback HTTP/1.1 traffic.",
             "libmodsecurity v3, lighttpd-1.4.84-Source, der repository-eigene Entity-Body-Patch, ein gepatchter Host, ein passendes Connectormodul, eine lokale Laufzeitkonfiguration und HTTP/1.1-Traffic auf Loopback.",
         ),
+        "repository_connector_title": ("lighttpd connector", "lighttpd-Connector"),
+        "repository_connector_path": "connectors/lighttpd",
+        "repository_connector_readme": (
+            "../../../connectors/lighttpd/README.md",
+            "../../../connectors/lighttpd/README.de.md",
+        ),
+        "repository_connector_source_links": (
+            (
+                "Connector module source",
+                "Connectormodul-Quelle",
+                "../../../connectors/lighttpd/module/mod_msconnector.c",
+            ),
+            (
+                "Productive lighttpd sources",
+                "Produktive lighttpd-Quellen",
+                "../../../connectors/lighttpd/src/",
+            ),
+        ),
+        "repository_connector_build_files": (
+            (
+                "Patched-host builder",
+                "Patched-Host-Builder",
+                "../../../connectors/lighttpd/build/build_patched_host.sh",
+            ),
+            (
+                "Entity-Body patch",
+                "Entity-Body-Patch",
+                "../../../connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch",
+            ),
+            (
+                "Source mapping",
+                "Source-Zuordnung",
+                "../../../connectors/lighttpd/SOURCE_MAP.json",
+            ),
+        ),
+        "repository_connector_build_steps": (
+            "Section 7 builds the repository module against the matching patched host; official lighttpd documentation only provides the host source and host instructions.",
+            "Abschnitt 7 baut das Repository-Modul gegen den passenden gepatchten Host; die offizielle lighttpd-Dokumentation stellt nur Hostquelle und Hostanleitung bereit.",
+        ),
+        "alternative_connector_title": "",
+        "alternative_connector_url": "",
+        "alternative_connector_note": ("", ""),
         "official_sources": (
             ("lighttpd INSTALL", "https://github.com/lighttpd/lighttpd1.4/blob/master/INSTALL", "Official prerequisites, Autotools/source-build, test, installation, and startup guidance.", "Offizielle Voraussetzungen sowie Autotools-/Source-Build-, Test-, Installations- und Startanleitung.", "Re-check INSTALL for the selected lighttpd release."),
             ("lighttpd Source Downloads", "https://download.lighttpd.net/lighttpd/", "Official release archives and checksum material.", "Offizielle Releasearchive und Prüfsummenmaterial.", "The latest upstream release can differ from the repository patch pin."),
@@ -2155,8 +2384,8 @@ COMMON_MODSECURITY: dict[str, object] = {
             "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)",
         ),
         "nginx": (
-            "Install libmodsecurity v3 first:\n\n[Simple libmodsecurity v3 build](libmodsecurity.md)\n\nNGINX and ModSecurity-nginx are built afterwards.",
-            "Installiere zuerst libmodsecurity v3:\n\n[Einfacher libmodsecurity-v3-Build](libmodsecurity.de.md)\n\nDanach werden NGINX und ModSecurity-nginx gebaut.",
+            "Install libmodsecurity v3 first:\n\n[Simple libmodsecurity v3 build](libmodsecurity.md)\n\nNGINX and the repository-owned NGINX connector are built afterwards.",
+            "Installiere zuerst libmodsecurity v3:\n\n[Einfacher libmodsecurity-v3-Build](libmodsecurity.de.md)\n\nDanach werden NGINX und der repository-eigene NGINX-Connector gebaut.",
         ),
         "haproxy": (
             "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)",
@@ -2292,8 +2521,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
     },
     "nginx": {
         "host_simple_intro": (
-            "Download the selected NGINX source and the ModSecurity-nginx connector source. This only prepares the inputs; Section 7 performs the static connector build.",
-            "Die ausgewählte NGINX-Quelle und die ModSecurity-nginx-Connectorquelle herunterladen. Das bereitet nur die Eingaben vor; Abschnitt 7 baut den statischen Connector.",
+            "Download only the selected official NGINX host source. The repository source of truth currently pins `NGINX_RELEASE_TAG=release-1.31.2`, which corresponds to the official `1.31.2` archive below. This does not load a connector from another repository: the connector is already in this checkout under `connectors/nginx/`.",
+            "Nur die ausgewählte offizielle NGINX-Hostquelle herunterladen. Die Repository-Source-of-Truth pinnt derzeit `NGINX_RELEASE_TAG=release-1.31.2`; dies entspricht dem unten verwendeten offiziellen Archiv `1.31.2`. Dabei wird kein Connector aus einem anderen Repository geladen: Der Connector liegt bereits in diesem Checkout unter `connectors/nginx/`.",
         ),
         "host_simple_variables": (
             'WORKDIR="$HOME/nginx-modsecurity"',
@@ -2301,30 +2530,28 @@ HOST_SETUP: dict[str, dict[str, object]] = {
         ),
         "host_download_steps": (
             (
-                "Download the host and connector sources",
-                "Host- und Connectorquellen herunterladen",
-                "The two source trees are all that Section 7 needs to configure NGINX with the connector.",
-                "Die beiden Source-Bäume sind alles, was Abschnitt 7 benötigt, um NGINX mit dem Connector zu konfigurieren.",
+                "Download and unpack the host source",
+                "Hostquelle herunterladen und entpacken",
+                "This creates only the selected NGINX host source tree. Section 7 adds the repository-owned dynamic connector from the current checkout.",
+                "Dies erstellt nur den ausgewählten NGINX-Host-Source-Baum. Abschnitt 7 fügt den repository-eigenen dynamischen Connector aus dem aktuellen Checkout hinzu.",
                 (
                     'mkdir -p "$WORKDIR"',
                     'cd "$WORKDIR"',
                     'curl -fLO "https://nginx.org/download/nginx-$VERSION.tar.gz"',
                     'tar -xzf "nginx-$VERSION.tar.gz"',
-                    "git clone https://github.com/owasp-modsecurity/ModSecurity-nginx.git",
                 ),
             ),
         ),
         "host_build_steps": (),
         "host_installed": (
-            "No host binary or module has been built yet. The NGINX source and ModSecurity-nginx checkout are ready for the connector integration in Section 7.",
-            "Es wurde noch kein Hostbinary oder Modul gebaut. NGINX-Quelle und ModSecurity-nginx-Checkout sind für die Connector-Integration in Abschnitt 7 bereit.",
+            "No host binary or module has been built yet. The NGINX source is ready for Section 7, and the repository-owned connector remains in `connectors/nginx/` in this checkout.",
+            "Es wurde noch kein Hostbinary oder Modul gebaut. Die NGINX-Quelle ist für Abschnitt 7 bereit, und der repository-eigene Connector bleibt in diesem Checkout unter `connectors/nginx/`.",
         ),
         "host_success_check": (
-            "Both files prove that the expected upstream source inputs were obtained.",
-            "Beide Dateien zeigen, dass die erwarteten Upstream-Source-Eingaben vorhanden sind.",
+            "This file proves that the selected upstream NGINX source input was obtained.",
+            "Diese Datei zeigt, dass die ausgewählte Upstream-NGINX-Source-Eingabe vorhanden ist.",
             (
                 'test -f "$WORKDIR/nginx-$VERSION/auto/configure"',
-                'test -f "$WORKDIR/ModSecurity-nginx/config"',
             ),
         ),
         "host_source_alternative": (),
@@ -2332,21 +2559,19 @@ HOST_SETUP: dict[str, dict[str, object]] = {
             (
                 "Optional: verify download and version",
                 "Optional: Download und Version verifizieren",
-                "Import the NGINX release signing key from the official release site before verifying the detached signature. The connector tag and resolved commit are recorded separately from the beginner flow.",
-                "Vor der Prüfung der abgetrennten Signatur den NGINX-Release-Schlüssel von der offiziellen Release-Seite importieren. Connector-Tag und aufgelöster Commit werden getrennt vom Einsteigerweg dokumentiert.",
+                "Import the NGINX release signing key from the official release site before verifying the detached signature. The repository framework records the matching `release-1.31.2` host provenance independently from this concise host flow.",
+                "Vor der Prüfung der abgetrennten Signatur den NGINX-Release-Schlüssel von der offiziellen Release-Seite importieren. Das Repository-Framework dokumentiert die passende Host-Provenienz `release-1.31.2` unabhängig von diesem kompakten Hostablauf.",
                 (
                     'curl -fLO "https://nginx.org/download/nginx-$VERSION.tar.gz.asc"',
                     'gpg --verify "nginx-$VERSION.tar.gz.asc" "nginx-$VERSION.tar.gz"',
-                    'git -C "$WORKDIR/ModSecurity-nginx" checkout --detach v1.0.4',
-                    'test "$(git -C "$WORKDIR/ModSecurity-nginx" rev-parse HEAD)" = "3f4b57df10ce43b1f1c722141f7621dc64838be8"',
                 ),
             ),
         ),
         "source_build_is_primary": False,
         "variables": (
-            ("WORKDIR", "NGINX source and connector workspace.", "NGINX-Source- und Connector-Arbeitsverzeichnis."),
+            ("WORKDIR", "External NGINX host-source workspace.", "Externes NGINX-Host-Source-Arbeitsverzeichnis."),
             ("VERSION", "Selected official NGINX release.", "Ausgewählter offizieller NGINX-Release."),
-            ("INSTALL_DIR", "Private static NGINX installation prefix.", "Privater Installationsprefix des statischen NGINX."),
+            ("INSTALL_DIR", "Private NGINX installation prefix for the dynamic-module build.", "Privater NGINX-Installationsprefix für den Dynamic-Module-Build."),
             ("JOBS", "Deliberately small number of parallel NGINX build jobs.", "Bewusst kleine Anzahl paralleler NGINX-Buildjobs."),
         ),
     },
@@ -2681,8 +2906,18 @@ CONFIGURATION_VALIDATIONS: dict[str, tuple[str, ...]] = {
 # Section 16 documents the variables used by the active Section 6–10 paths,
 # not historical host-model names retained in older connector metadata.
 ACTIVE_MANUAL_VARIABLES: dict[str, frozenset[str]] = {
-    "apache": frozenset({"APXS", "HTTPD_PREFIX", "MODULE_PATH", "HTTPD_CONFIG"}),
-    "nginx": frozenset({"NGINX_CONFIG"}),
+    "apache": frozenset(
+        {"APXS", "HTTPD_PREFIX", "HTTPD_BIN", "CONNECTOR_BUILD_DIR", "MODULE_PATH", "HTTPD_CONFIG"}
+    ),
+    "nginx": frozenset(
+        {
+            "MSCONNECTOR_COMMON_INC",
+            "MSCONNECTOR_COMMON_SRC",
+            "MODSECURITY_INC",
+            "MODSECURITY_LIB",
+            "NGINX_CONFIG",
+        }
+    ),
     "haproxy": frozenset(
         {
             "HAPROXY_SRC",
@@ -2752,6 +2987,58 @@ def manual_heading(number: int, english: str, german_text: str, german: bool) ->
     return f"## {number}. {german_text if german else english}"
 
 
+def repository_connector_section(info: dict[str, object], german: bool) -> str:
+    """Render the local adapter source separately from upstream host material."""
+    language_index = 1 if german else 0
+    title = info["repository_connector_title"][language_index]
+    connector_path = info["repository_connector_path"]
+    readme = info["repository_connector_readme"][language_index]
+    links = [f"- [{title}]({readme})"]
+    for english_title, german_title, path in info["repository_connector_source_links"]:
+        links.append(f"- [{german_title if german else english_title}]({path})")
+    for english_title, german_title, path in info["repository_connector_build_files"]:
+        links.append(f"- [{german_title if german else english_title}]({path})")
+    heading = "Connector in diesem Repository" if german else "Connector in this repository"
+    primary_path = (
+        f"Dies ist der primäre Connectorpfad dieser Anleitung: {connector_path}/. Die offizielle Hostdokumentation im folgenden Abschnitt erklärt nur Bereitstellung oder Build des Hosts und ersetzt nicht die Connectorquelle.",
+        f"This is the primary connector path for this guide: {connector_path}/. The official host documentation in the following section explains only how to provide or build the host; it does not replace the connector source.",
+    )
+    return "\n\n".join(
+        (
+            f"## {heading}",
+            "\n".join(links),
+            primary_path[0] if german else primary_path[1],
+            manual_localized(info["repository_connector_build_steps"], german),
+        )
+    )
+
+
+def alternative_connector_section(info: dict[str, object], german: bool) -> str:
+    """Render an upstream connector only as prose-only alternative material."""
+    url = info["alternative_connector_url"]
+    if not url:
+        return ""
+    language_index = 1 if german else 0
+    title = info["alternative_connector_title"][language_index]
+    heading = (
+        "Alternative: offizieller Upstream-Connector"
+        if german
+        else "Alternative: official upstream connector"
+    )
+    introduction = (
+        f"Der offizielle Upstream-Connector [{title}]({url}) ist eine alternative Implementierung."
+        if german
+        else f"The official upstream connector [{title}]({url}) is an alternative implementation."
+    )
+    return "\n\n".join(
+        (
+            f"## {heading}",
+            introduction,
+            manual_localized(info["alternative_connector_note"], german),
+        )
+    )
+
+
 def manual_official_sources(info: dict[str, object], german: bool) -> str:
     rows: list[str] = []
     for title, url, english_scope, german_scope, version_scope in info["official_sources"]:
@@ -2769,40 +3056,88 @@ def manual_official_sources(info: dict[str, object], german: bool) -> str:
     return "\n".join(rows)
 
 
-def manual_common_variables(german: bool) -> list[tuple[str, str]]:
-    if german:
-        return [
-            ("CONNECTOR_ROOT", "Git-Top-Level dieses Repository-Checkouts; die Connector-Skripte werden von dort aus aufgerufen."),
-            ("HOST_BUILD_BASE", "Connector-spezifisches externes Verzeichnis für Quellen, Builds, Konfiguration und lokale Logs."),
-            ("BUILD_ROOT", "Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten."),
-            ("RULES_FILE", "Lokale Testregeldatei; keine CRS-Regeldatei."),
-            ("VERIFIED_RUN_PARENT", "Externer Elternordner eines frischen Repository-Testcheckouts und seiner Testartefakte."),
-            ("run_id", "Eindeutige Kennung eines repository-gesteuerten Full-Lifecycle-Laufs."),
-            ("NO_CRS_RUN_ID", "Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt."),
-            ("upstream_pid", "Lokale Prozess-ID des Test-Upstreams aus `$!`; nur im selben Shell-Lauf verwenden."),
-            ("haproxy_pid", "Lokale Prozess-ID des gestarteten HAProxy aus `$!`; nur im selben Shell-Lauf verwenden."),
-            ("engine_pid", "Lokale Prozess-ID des gestarteten Traefik-Engine-Service aus `$!`; nur im selben Shell-Lauf verwenden."),
-            ("traefik_pid", "Lokale Prozess-ID des gestarteten Traefik aus `$!`; nur im selben Shell-Lauf verwenden."),
-            ("lighttpd_pid", "Lokale Prozess-ID des gestarteten lighttpd aus `$!`; nur im selben Shell-Lauf verwenden."),
-        ]
+def manual_common_variables(german: bool, slug: str) -> list[tuple[str, str]]:
+    """Return only shared placeholders that are used by this guide."""
+    descriptions: dict[str, tuple[str, str]] = {
+        "CONNECTOR_ROOT": (
+            "Git top level of this checkout; connector scripts are called from it.",
+            "Git-Top-Level dieses Repository-Checkouts; die Connector-Skripte werden von dort aus aufgerufen.",
+        ),
+        "HOST_BUILD_BASE": (
+            "Connector-specific external directory for sources, builds, configuration, and local logs.",
+            "Connector-spezifisches externes Verzeichnis für Quellen, Builds, Konfiguration und lokale Logs.",
+        ),
+        "BUILD_ROOT": (
+            "External build and runtime root for repository-owned connector components.",
+            "Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten.",
+        ),
+        "RULES_FILE": (
+            "Local test-rule file, not a CRS rule file.",
+            "Lokale Testregeldatei; keine CRS-Regeldatei.",
+        ),
+        "VERIFIED_RUN_PARENT": (
+            "External parent for a fresh repository-test checkout and its test artifacts.",
+            "Externer Elternordner eines frischen Repository-Testcheckouts und seiner Testartefakte.",
+        ),
+        "run_id": (
+            "Unique identifier for one repository-controlled full-lifecycle run.",
+            "Eindeutige Kennung eines repository-gesteuerten Full-Lifecycle-Laufs.",
+        ),
+        "NO_CRS_RUN_ID": (
+            "Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated.",
+            "Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt.",
+        ),
+        "upstream_pid": (
+            "Local test-upstream process ID from $!; use it only in the same shell run.",
+            "Lokale Prozess-ID des Test-Upstreams aus $!; nur im selben Shell-Lauf verwenden.",
+        ),
+        "haproxy_pid": (
+            "Local started-HAProxy process ID from $!; use it only in the same shell run.",
+            "Lokale Prozess-ID des gestarteten HAProxy aus $!; nur im selben Shell-Lauf verwenden.",
+        ),
+        "engine_pid": (
+            "Local started Traefik engine-service process ID from $!; use it only in the same shell run.",
+            "Lokale Prozess-ID des gestarteten Traefik-Engine-Service aus $!; nur im selben Shell-Lauf verwenden.",
+        ),
+        "traefik_pid": (
+            "Local started Traefik process ID from $!; use it only in the same shell run.",
+            "Lokale Prozess-ID des gestarteten Traefik aus $!; nur im selben Shell-Lauf verwenden.",
+        ),
+        "lighttpd_pid": (
+            "Local started-lighttpd process ID from $!; use it only in the same shell run.",
+            "Lokale Prozess-ID des gestarteten lighttpd aus $!; nur im selben Shell-Lauf verwenden.",
+        ),
+    }
+    common_names = (
+        "CONNECTOR_ROOT",
+        "RULES_FILE",
+        "VERIFIED_RUN_PARENT",
+        "run_id",
+        "NO_CRS_RUN_ID",
+    )
+    connector_names: dict[str, tuple[str, ...]] = {
+        "apache": (),
+        "nginx": (),
+        "haproxy": ("HOST_BUILD_BASE", "upstream_pid", "haproxy_pid"),
+        "envoy": ("HOST_BUILD_BASE", "BUILD_ROOT"),
+        "traefik": (
+            "HOST_BUILD_BASE",
+            "BUILD_ROOT",
+            "upstream_pid",
+            "engine_pid",
+            "traefik_pid",
+        ),
+        "lighttpd": ("HOST_BUILD_BASE", "BUILD_ROOT", "lighttpd_pid"),
+    }
+    names = (*common_names, *connector_names[slug])
     return [
-        ("CONNECTOR_ROOT", "Git top level of this checkout; connector scripts are called from it."),
-        ("HOST_BUILD_BASE", "Connector-specific external directory for sources, builds, configuration, and local logs."),
-        ("BUILD_ROOT", "External build and runtime root for repository-owned connector components."),
-        ("RULES_FILE", "Local test-rule file, not a CRS rule file."),
-        ("VERIFIED_RUN_PARENT", "External parent for a fresh repository-test checkout and its test artifacts."),
-        ("run_id", "Unique identifier for one repository-controlled full-lifecycle run."),
-        ("NO_CRS_RUN_ID", "Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated."),
-        ("upstream_pid", "Local test-upstream process ID from `$!`; use it only in the same shell run."),
-        ("haproxy_pid", "Local started-HAProxy process ID from `$!`; use it only in the same shell run."),
-        ("engine_pid", "Local started Traefik engine-service process ID from `$!`; use it only in the same shell run."),
-        ("traefik_pid", "Local started Traefik process ID from `$!`; use it only in the same shell run."),
-        ("lighttpd_pid", "Local started-lighttpd process ID from `$!`; use it only in the same shell run."),
+        (name, descriptions[name][1] if german else descriptions[name][0])
+        for name in names
     ]
 
 
 def manual_variable_table(info: dict[str, object], german: bool, slug: str) -> str:
-    rows = manual_common_variables(german)
+    rows = manual_common_variables(german, slug)
     active_names = ACTIVE_MANUAL_VARIABLES[slug]
     for name, english, german_text in info["variables"]:
         if name in active_names:
@@ -2980,25 +3315,43 @@ def connector_context(slug: str) -> tuple[str, ...]:
 
 def nginx_connector_build(german: bool) -> str:
     intro = (
-        "Section 6 provided the NGINX and ModSecurity-nginx source trees. Build them together now with the connector statically linked into the selected NGINX binary.",
-        "Abschnitt 6 hat NGINX- und ModSecurity-nginx-Source-Bäume bereitgestellt. Sie werden nun gemeinsam gebaut, wobei der Connector statisch in das ausgewählte NGINX-Binary eingebunden wird.",
+        "Section 6 provided only the NGINX host source. The adapter-owned connector is already in this checkout under `connectors/nginx/`; build it as the selected dynamic NGINX module. The Common and libmodsecurity paths below are explicit so the dynamic module is built from the same repository and engine inputs.",
+        "Abschnitt 6 hat nur die NGINX-Hostquelle bereitgestellt. Der adaptereigene Connector liegt bereits in diesem Checkout unter `connectors/nginx/`; ihn als ausgewähltes dynamisches NGINX-Modul bauen. Die Common- und libmodsecurity-Pfade unten sind bewusst explizit, damit das dynamische Modul aus denselben Repository- und Engine-Eingaben gebaut wird.",
     )
     commands = (
         'INSTALL_DIR="$HOME/.local/nginx-modsecurity"',
         "JOBS=2",
         'cd "$WORKDIR/nginx-$VERSION"',
-        './auto/configure --prefix="$INSTALL_DIR" --with-http_ssl_module --add-module="$WORKDIR/ModSecurity-nginx" --with-cc-opt="-I/usr/local/include" --with-ld-opt="-L/usr/local/lib"',
+        "\n".join(
+            (
+                'MSCONNECTOR_COMMON_INC="$CONNECTOR_ROOT/common/include" \\',
+                'MSCONNECTOR_COMMON_SRC="$CONNECTOR_ROOT/common/src" \\',
+                'MODSECURITY_INC="/usr/local/include" \\',
+                'MODSECURITY_LIB="/usr/local/lib" \\',
+                './auto/configure \\',
+                '  --prefix="$INSTALL_DIR" \\',
+                '  --sbin-path="$INSTALL_DIR/sbin/nginx" \\',
+                '  --modules-path="$INSTALL_DIR/modules" \\',
+                '  --conf-path="$INSTALL_DIR/conf/nginx.conf" \\',
+                '  --pid-path="$INSTALL_DIR/logs/nginx.pid" \\',
+                '  --error-log-path="$INSTALL_DIR/logs/error.log" \\',
+                '  --http-log-path="$INSTALL_DIR/logs/access.log" \\',
+                '  --with-compat \\',
+                '  --add-dynamic-module="$CONNECTOR_ROOT/connectors/nginx"',
+            )
+        ),
         'make -j"$JOBS"',
         "make install",
-        'test -x "$INSTALL_DIR/sbin/nginx"',
+        'mkdir -p "$INSTALL_DIR/modules"',
+        'cp -a "objs/ngx_http_modsecurity_module.so" "$INSTALL_DIR/modules/"',
     )
     return f"{manual_localized(intro, german)}\n\n{shell_groups(commands)}"
 
 
 def apache_connector_build(german: bool) -> str:
     intro = (
-        "Use the APXS checked in Section 6. The package path normally exposes apxs; the optional source-host assignment below selects the matching private APXS explicitly.",
-        "Das in Abschnitt 6 geprüfte APXS verwenden. Der Paketweg stellt normalerweise apxs bereit; die folgende optionale Source-Host-Zuweisung wählt das passende private APXS ausdrücklich aus.",
+        "The adapter used in this guide is under [connectors/apache](../../../connectors/apache/README.md). Its productive module code is under [connectors/apache/src](../../../connectors/apache/src/). Use the APXS checked in Section 6; the package path normally exposes apxs, while the optional source-host assignment below selects the matching private APXS explicitly. The supported materialization step keeps generated Autotools templates in an external worktree while preserving connectors/apache/ as the adapter source of record.",
+        "Der in dieser Anleitung verwendete Adapter befindet sich unter [connectors/apache](../../../connectors/apache/README.de.md). Der produktive Modulcode liegt unter [connectors/apache/src](../../../connectors/apache/src/). Das in Abschnitt 6 geprüfte APXS verwenden; der Paketweg stellt normalerweise apxs bereit, während die optionale Source-Host-Zuweisung unten das passende private APXS ausdrücklich auswählt. Der unterstützte Materialisierungsschritt hält erzeugte Autotools-Templates in einem externen Worktree, während connectors/apache/ die maßgebliche Adapterquelle bleibt.",
     )
     source_apxs = (
         "#### Optional: select the source-host APXS\n\nIf you built the optional Apache source host in Section 6, run this in the same shell before the adapter commands. Package-host users skip it.\n\n```sh\nAPXS=\"$HOME/.local/apache-modsecurity/bin/apxs\"\n```",
@@ -3006,15 +3359,25 @@ def apache_connector_build(german: bool) -> str:
     )
     commands = (
         'APXS="${APXS:-apxs}"',
+        'HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"',
         'cd "$CONNECTOR_ROOT/connectors/apache"',
+        'test -f "$CONNECTOR_ROOT/connectors/apache/configure.ac"',
+        'mkdir -p "$HOME/connector-build/apache"',
+        'CONNECTOR_BUILD_DIR="$(mktemp -d "$HOME/connector-build/apache/connector-src.XXXXXX")"',
+        'CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$CONNECTOR_ROOT/modules/ModSecurity-test-Framework/ci/provisioning/materialize-connector-source.sh" --connector apache --adapter-dir "$CONNECTOR_ROOT/connectors/apache" --dest-dir "$CONNECTOR_BUILD_DIR"',
+        'cd "$CONNECTOR_BUILD_DIR"',
         "./autogen.sh",
-        './configure --with-libmodsecurity="/usr/local" --with-apxs="$APXS"',
+        './configure --with-libmodsecurity="/usr/local" --with-apxs="$APXS" --with-apache="$HTTPD_BIN"',
         "make -j2",
         "make install",
         'MODULE_PATH="$("$APXS" -q LIBEXECDIR)/mod_security3.so"',
         'test -f "$MODULE_PATH"',
     )
-    return f"{manual_localized(intro, german)}\n\n{manual_localized(source_apxs, german)}\n\n#### {'Adapter bauen und installieren' if german else 'Build and install the adapter'}\n\n{shell_groups(commands)}"
+    apache_binding_note = (
+        "configure.ac accepts --with-apache as an optional lookup override, but this guide passes the httpd derived from the selected APXS explicitly. The repository build helper uses the same pairing, preventing an adapter from being configured against a different host binary.",
+        "configure.ac akzeptiert --with-apache als optionales Lookup-Override, aber diese Anleitung übergibt das aus dem ausgewählten APXS abgeleitete httpd ausdrücklich. Der Repository-Buildhelper verwendet dieselbe Paarung und verhindert so, dass der Adapter gegen ein anderes Hostbinary konfiguriert wird.",
+    )
+    return f"{manual_localized(intro, german)}\n\n{manual_localized(source_apxs, german)}\n\n#### {'Adapter materialisieren, bauen und installieren' if german else 'Materialize, build, and install the adapter'}\n\n{manual_localized(apache_binding_note, german)}\n\n{shell_groups(commands)}"
 
 
 def connector_build_section(item: dict[str, str], info: dict[str, object], german: bool) -> str:
@@ -3038,15 +3401,15 @@ def connector_build_section(item: dict[str, str], info: dict[str, object], germa
 
 def nginx_configuration_section(info: dict[str, object], german: bool) -> str:
     intro = (
-        "Create a local test rule and nginx.conf. This section writes configuration only; Section 10 validates and starts it.",
-        "Eine lokale Testregel und nginx.conf erstellen. Dieser Abschnitt schreibt nur Konfiguration; Abschnitt 10 validiert und startet sie.",
+        "Create a local test rule and nginx.conf. The primary connector is a dynamic module, so nginx.conf loads it before the events and http blocks. This section writes configuration only; Section 10 validates and starts it.",
+        "Eine lokale Testregel und nginx.conf erstellen. Der primäre Connector ist ein dynamisches Modul; deshalb lädt nginx.conf es vor den Blöcken events und http. Dieser Abschnitt schreibt nur Konfiguration; Abschnitt 10 validiert und startet sie.",
     )
     note = manual_localized(info["config_note"], german)
     commands = (
         'RULES_FILE="$WORKDIR/modsecurity-local.conf"',
         'NGINX_CONFIG="$INSTALL_DIR/conf/nginx.conf"',
         "cat > \"$RULES_FILE\" <<'EOF'\nSecRuleEngine On\nSecRule REQUEST_URI \"@streq /blocked\" \"id:100001,phase:1,deny,status:403,log\"\nEOF",
-        'cat > "$NGINX_CONFIG" <<EOF\nevents {}\nhttp {\n    server {\n        listen 127.0.0.1:8080;\n        location / {\n            modsecurity on;\n            modsecurity_rules_file "$RULES_FILE";\n            return 200 "nginx modsecurity test\\n";\n        }\n    }\n}\nEOF',
+        'cat > "$NGINX_CONFIG" <<EOF\nload_module modules/ngx_http_modsecurity_module.so;\n\nevents {}\nhttp {\n    server {\n        listen 127.0.0.1:8080;\n        location / {\n            modsecurity on;\n            modsecurity_rules_file "$RULES_FILE";\n            return 200 "nginx modsecurity test\\n";\n        }\n    }\n}\nEOF',
     )
     return f"{manual_localized(intro, german)}\n\n{shell_groups(commands)}\n\n{note}"
 
@@ -3087,9 +3450,12 @@ def configuration_section(item: dict[str, str], info: dict[str, object], german:
 
 def nginx_validation_section(german: bool) -> str:
     commands = (
-        '"$INSTALL_DIR/sbin/nginx" -V',
         'test -x "$INSTALL_DIR/sbin/nginx"',
-        '"$INSTALL_DIR/sbin/nginx" -V 2>&1 | grep -F -- "--add-module=$WORKDIR/ModSecurity-nginx"',
+        'test -f "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so"',
+        '"$INSTALL_DIR/sbin/nginx" -V',
+        '"$INSTALL_DIR/sbin/nginx" -V 2>&1 | grep -F -- "--add-dynamic-module=$CONNECTOR_ROOT/connectors/nginx"',
+        'file "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so"',
+        'ldd "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so" | grep -F libmodsecurity',
         'test -f "$RULES_FILE"',
         'test -f "$NGINX_CONFIG"',
     )
@@ -3249,9 +3615,13 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
 
 {manual_localized(info['components'], german)}
 
+{repository_connector_section(info, german)}
+
 {manual_heading(3, "Official upstream documentation", "Offizielle Upstream-Dokumentation", german)}
 
 {manual_official_sources(info, german)}
+
+{alternative_connector_section(info, german)}
 
 {manual_heading(4, "Prerequisites", "Voraussetzungen", german)}
 

@@ -12,6 +12,19 @@ This guide describes the manual development and integration build for `patched-n
 
 libmodsecurity v3, lighttpd 1.4.84 source, the repository Entity-Body patch, a patched host, a matching connector module, a local runtime configuration, and loopback HTTP/1.1 traffic.
 
+## Connector in this repository
+
+- [lighttpd connector](../../../connectors/lighttpd/README.md)
+- [Connector module source](../../../connectors/lighttpd/module/mod_msconnector.c)
+- [Productive lighttpd sources](../../../connectors/lighttpd/src/)
+- [Patched-host builder](../../../connectors/lighttpd/build/build_patched_host.sh)
+- [Entity-Body patch](../../../connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch)
+- [Source mapping](../../../connectors/lighttpd/SOURCE_MAP.json)
+
+This is the primary connector path for this guide: connectors/lighttpd/. The official host documentation in the following section explains only how to provide or build the host; it does not replace the connector source.
+
+Section 7 builds the repository module against the matching patched host; official lighttpd documentation only provides the host source and host instructions.
+
 ## 3. Official upstream documentation
 
 - **Source and scope:** [lighttpd INSTALL](https://github.com/lighttpd/lighttpd1.4/blob/master/INSTALL)
@@ -20,6 +33,8 @@ libmodsecurity v3, lighttpd 1.4.84 source, the repository Entity-Body patch, a p
   Official release archives and checksum material. Version scope: The latest upstream release can differ from the repository patch pin.
 - **Source and scope:** [lighttpd Documentation](https://redmine.lighttpd.net/projects/lighttpd/wiki)
   Official configuration and command documentation when applicable to the selected host release. Version scope: Check accessibility and release relevance before relying on a page.
+
+
 
 ## 4. Prerequisites
 
@@ -267,17 +282,13 @@ If patch dry-run fails, do not force it: verify the exact 1.4.84 source and patc
 | Variable/placeholder | Meaning |
 | --- | --- |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
-| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
-| BUILD_ROOT | External build and runtime root for repository-owned connector components. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |
-| upstream_pid | Local test-upstream process ID from `$!`; use it only in the same shell run. |
-| haproxy_pid | Local started-HAProxy process ID from `$!`; use it only in the same shell run. |
-| engine_pid | Local started Traefik engine-service process ID from `$!`; use it only in the same shell run. |
-| traefik_pid | Local started Traefik process ID from `$!`; use it only in the same shell run. |
-| lighttpd_pid | Local started-lighttpd process ID from `$!`; use it only in the same shell run. |
+| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
+| BUILD_ROOT | External build and runtime root for repository-owned connector components. |
+| lighttpd_pid | Local started-lighttpd process ID from $!; use it only in the same shell run. |
 | LIGHTTPD_PATCHED_SRC | Disposable patched copy of the selected source. |
 | LIGHTTPD_BUILD_DIR | Out-of-tree patched lighttpd build directory. |
 | LIGHTTPD_PREFIX | Private patched host installation prefix. |

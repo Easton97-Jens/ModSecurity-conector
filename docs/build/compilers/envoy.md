@@ -12,6 +12,18 @@ This guide describes the manual development and integration build for `ext_proc`
 
 libmodsecurity v3, an official Envoy binary or optional Bazel build, the repository ext_proc service, its CGo/Common bridge, gRPC configuration, a local rule file, and loopback Envoy/upstream listeners.
 
+## Connector in this repository
+
+- [Envoy connector](../../../connectors/envoy/README.md)
+- [Productive ext_proc service](../../../connectors/envoy/ext_proc/)
+- [Connector configuration](../../../connectors/envoy/config/)
+- [ext_proc build helper](../../../connectors/envoy/build/build_ext_proc.sh)
+- [Source mapping](../../../connectors/envoy/SOURCE_MAP.json)
+
+This is the primary connector path for this guide: connectors/envoy/. The official host documentation in the following section explains only how to provide or build the host; it does not replace the connector source.
+
+Section 7 builds the repository-owned ext_proc service; the official Envoy documentation only explains the host binary and host configuration.
+
 ## 3. Official upstream documentation
 
 - **Source and scope:** [Installing Envoy](https://www.envoyproxy.io/docs/envoy/latest/start/install)
@@ -28,6 +40,8 @@ libmodsecurity v3, an official Envoy binary or optional Bazel build, the reposit
   Official selected release page, binary asset, and checksum material. Version scope: This guide pins the binary route to v1.38.2.
 - **Source and scope:** [Envoy source/Bazel guidance](https://github.com/envoyproxy/envoy/blob/v1.38.2/bazel/README.md)
   Official optional source-build guidance; it is resource-intensive and not the default route. Version scope: Use only with the selected tag and sufficient CPU, memory, and storage.
+
+
 
 ## 4. Prerequisites
 
@@ -233,17 +247,12 @@ An official Envoy binary is only the host. If validation fails, check the genera
 | Variable/placeholder | Meaning |
 | --- | --- |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
-| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
-| BUILD_ROOT | External build and runtime root for repository-owned connector components. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |
-| upstream_pid | Local test-upstream process ID from `$!`; use it only in the same shell run. |
-| haproxy_pid | Local started-HAProxy process ID from `$!`; use it only in the same shell run. |
-| engine_pid | Local started Traefik engine-service process ID from `$!`; use it only in the same shell run. |
-| traefik_pid | Local started Traefik process ID from `$!`; use it only in the same shell run. |
-| lighttpd_pid | Local started-lighttpd process ID from `$!`; use it only in the same shell run. |
+| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
+| BUILD_ROOT | External build and runtime root for repository-owned connector components. |
 | ENVOY_BIN | Verified Envoy executable. |
 | EXT_PROC_BIN | Repository-built ext_proc service executable. |
 | ENVOY_CONFIG | Generated loopback Envoy configuration. |

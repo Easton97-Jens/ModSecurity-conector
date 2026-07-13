@@ -12,6 +12,19 @@ This guide describes the manual development and integration build for `native-mi
 
 libmodsecurity v3, Traefik, the repository native Go middleware, the C/C++ engine service, Common/libmodsecurity, a private Unix-domain socket, static and dynamic File Provider configuration, and loopback HTTP traffic.
 
+## Connector in this repository
+
+- [Traefik connector](../../../connectors/traefik/README.md)
+- [Native middleware source](../../../connectors/traefik/native_middleware/)
+- [Engine-service sources](../../../connectors/traefik/src/)
+- [Native middleware builder](../../../connectors/traefik/build/build-native-middleware.sh)
+- [Engine-service builder](../../../connectors/traefik/build/build-engine-service.sh)
+- [Source mapping](../../../connectors/traefik/SOURCE_MAP.json)
+
+This is the primary connector path for this guide: connectors/traefik/. The official host documentation in the following section explains only how to provide or build the host; it does not replace the connector source.
+
+Section 7 builds the repository native middleware and its engine service; the official Traefik material only documents the host.
+
 ## 3. Official upstream documentation
 
 - **Source and scope:** [Traefik Getting Started](https://doc.traefik.io/traefik/getting-started/)
@@ -32,6 +45,8 @@ libmodsecurity v3, Traefik, the repository native Go middleware, the C/C++ engin
   Official fixed release material and checksum source. Version scope: This guide selects v3.7.5 as the repository-compatible host input.
 - **Source and scope:** [Traefik v3.7.5 source](https://github.com/traefik/traefik/tree/v3.7.5)
   Official selected source tree; its go.mod defines the required host Go version. Version scope: The host's Go requirement is distinct from the repository middleware module's requirement.
+
+
 
 ## 4. Prerequisites
 
@@ -351,17 +366,15 @@ If Traefik starts without the middleware, check the local-plugin workspace, stat
 | Variable/placeholder | Meaning |
 | --- | --- |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
-| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
-| BUILD_ROOT | External build and runtime root for repository-owned connector components. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |
-| upstream_pid | Local test-upstream process ID from `$!`; use it only in the same shell run. |
-| haproxy_pid | Local started-HAProxy process ID from `$!`; use it only in the same shell run. |
-| engine_pid | Local started Traefik engine-service process ID from `$!`; use it only in the same shell run. |
-| traefik_pid | Local started Traefik process ID from `$!`; use it only in the same shell run. |
-| lighttpd_pid | Local started-lighttpd process ID from `$!`; use it only in the same shell run. |
+| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
+| BUILD_ROOT | External build and runtime root for repository-owned connector components. |
+| upstream_pid | Local test-upstream process ID from $!; use it only in the same shell run. |
+| engine_pid | Local started Traefik engine-service process ID from $!; use it only in the same shell run. |
+| traefik_pid | Local started Traefik process ID from $!; use it only in the same shell run. |
 | TRAEFIK_BIN | Built or otherwise verified host binary. |
 | TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR | External Go middleware build report directory. |
 | TRAEFIK_ENGINE_SERVICE_BUILD_DIR | External C/C++ engine-service build directory. |

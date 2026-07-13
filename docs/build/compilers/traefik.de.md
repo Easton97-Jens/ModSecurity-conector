@@ -12,6 +12,19 @@ Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `
 
 libmodsecurity v3, Traefik, die repository-eigene native Go-Middleware, der C/C++-Engine-Service, Common/libmodsecurity, ein privater Unix-Domain-Socket, statische und dynamische File-Provider-Konfiguration sowie HTTP-Traffic auf Loopback.
 
+## Connector in diesem Repository
+
+- [Traefik-Connector](../../../connectors/traefik/README.de.md)
+- [Native Middleware-Quelle](../../../connectors/traefik/native_middleware/)
+- [Engine-Service-Quellen](../../../connectors/traefik/src/)
+- [Native-Middleware-Builder](../../../connectors/traefik/build/build-native-middleware.sh)
+- [Engine-Service-Builder](../../../connectors/traefik/build/build-engine-service.sh)
+- [Source-Zuordnung](../../../connectors/traefik/SOURCE_MAP.json)
+
+Dies ist der primäre Connectorpfad dieser Anleitung: connectors/traefik/. Die offizielle Hostdokumentation im folgenden Abschnitt erklärt nur Bereitstellung oder Build des Hosts und ersetzt nicht die Connectorquelle.
+
+Abschnitt 7 baut die repository-eigene native Middleware und ihren Engine-Service; das offizielle Traefik-Material dokumentiert nur den Host.
+
 ## 3. Offizielle Upstream-Dokumentation
 
 - **Quelle und Umfang:** [Traefik Getting Started](https://doc.traefik.io/traefik/getting-started/)
@@ -32,6 +45,8 @@ libmodsecurity v3, Traefik, die repository-eigene native Go-Middleware, der C/C+
   Offizielles festes Releasematerial und Prüfsummenquelle. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (This guide selects v3.7.5 as the repository-compatible host input.)
 - **Quelle und Umfang:** [Traefik v3.7.5 source](https://github.com/traefik/traefik/tree/v3.7.5)
   Offizieller ausgewählter Source-Baum; sein go.mod definiert die benötigte Go-Version des Hosts. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (The host's Go requirement is distinct from the repository middleware module's requirement.)
+
+
 
 ## 4. Voraussetzungen
 
@@ -351,17 +366,15 @@ Wenn Traefik ohne Middleware startet, lokalen Plugin-Workspace, statische Regist
 | Variable/Platzhalter | Bedeutung |
 | --- | --- |
 | CONNECTOR_ROOT | Git-Top-Level dieses Repository-Checkouts; die Connector-Skripte werden von dort aus aufgerufen. |
-| HOST_BUILD_BASE | Connector-spezifisches externes Verzeichnis für Quellen, Builds, Konfiguration und lokale Logs. |
-| BUILD_ROOT | Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten. |
 | RULES_FILE | Lokale Testregeldatei; keine CRS-Regeldatei. |
 | VERIFIED_RUN_PARENT | Externer Elternordner eines frischen Repository-Testcheckouts und seiner Testartefakte. |
 | run_id | Eindeutige Kennung eines repository-gesteuerten Full-Lifecycle-Laufs. |
 | NO_CRS_RUN_ID | Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt. |
-| upstream_pid | Lokale Prozess-ID des Test-Upstreams aus `$!`; nur im selben Shell-Lauf verwenden. |
-| haproxy_pid | Lokale Prozess-ID des gestarteten HAProxy aus `$!`; nur im selben Shell-Lauf verwenden. |
-| engine_pid | Lokale Prozess-ID des gestarteten Traefik-Engine-Service aus `$!`; nur im selben Shell-Lauf verwenden. |
-| traefik_pid | Lokale Prozess-ID des gestarteten Traefik aus `$!`; nur im selben Shell-Lauf verwenden. |
-| lighttpd_pid | Lokale Prozess-ID des gestarteten lighttpd aus `$!`; nur im selben Shell-Lauf verwenden. |
+| HOST_BUILD_BASE | Connector-spezifisches externes Verzeichnis für Quellen, Builds, Konfiguration und lokale Logs. |
+| BUILD_ROOT | Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten. |
+| upstream_pid | Lokale Prozess-ID des Test-Upstreams aus $!; nur im selben Shell-Lauf verwenden. |
+| engine_pid | Lokale Prozess-ID des gestarteten Traefik-Engine-Service aus $!; nur im selben Shell-Lauf verwenden. |
+| traefik_pid | Lokale Prozess-ID des gestarteten Traefik aus $!; nur im selben Shell-Lauf verwenden. |
 | TRAEFIK_BIN | Gebautes oder anderweitig verifiziertes Hostbinary. |
 | TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR | Externes Go-Middleware-Buildreport-Verzeichnis. |
 | TRAEFIK_ENGINE_SERVICE_BUILD_DIR | Externes C/C++-Engine-Service-Buildverzeichnis. |

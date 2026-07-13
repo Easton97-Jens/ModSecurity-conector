@@ -12,6 +12,18 @@ This guide describes the manual development and integration build for `native-ht
 
 libmodsecurity v3, HAProxy 3.2.21 source, the repository native HTX filter/overlay, the Common bridge, a local rule file, a loopback frontend, and a loopback upstream.
 
+## Connector in this repository
+
+- [HAProxy connector](../../../connectors/haproxy/README.md)
+- [Productive HAProxy sources](../../../connectors/haproxy/src/)
+- [Native HTX overlay](../../../connectors/haproxy/htx-overlay/)
+- [HTX overlay builder](../../../connectors/haproxy/htx-overlay/build-overlay.sh)
+- [Source mapping](../../../connectors/haproxy/SOURCE_MAP.json)
+
+This is the primary connector path for this guide: connectors/haproxy/. The official host documentation in the following section explains only how to provide or build the host; it does not replace the connector source.
+
+Section 7 applies the repository-owned HTX overlay to the selected host source and builds the Common/libmodsecurity integration.
+
 ## 3. Official upstream documentation
 
 - **Source and scope:** [HAProxy INSTALL](https://github.com/haproxy/haproxy/blob/master/INSTALL)
@@ -20,6 +32,8 @@ libmodsecurity v3, HAProxy 3.2.21 source, the repository native HTX filter/overl
   Configuration syntax and CLI documentation for `haproxy -c` and runtime operation. Version scope: Use documentation matching the selected major/minor series.
 - **Source and scope:** [HAProxy Releases](https://www.haproxy.org/download/)
   Official source downloads and release series selection. Version scope: The repository overlay currently fixes its compatible source to 3.2.21.
+
+
 
 ## 4. Prerequisites
 
@@ -257,17 +271,13 @@ The overlay refuses a version other than 3.2.21, an in-tree build directory, mis
 | Variable/placeholder | Meaning |
 | --- | --- |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
-| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
-| BUILD_ROOT | External build and runtime root for repository-owned connector components. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |
-| upstream_pid | Local test-upstream process ID from `$!`; use it only in the same shell run. |
-| haproxy_pid | Local started-HAProxy process ID from `$!`; use it only in the same shell run. |
-| engine_pid | Local started Traefik engine-service process ID from `$!`; use it only in the same shell run. |
-| traefik_pid | Local started Traefik process ID from `$!`; use it only in the same shell run. |
-| lighttpd_pid | Local started-lighttpd process ID from `$!`; use it only in the same shell run. |
+| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
+| upstream_pid | Local test-upstream process ID from $!; use it only in the same shell run. |
+| haproxy_pid | Local started-HAProxy process ID from $!; use it only in the same shell run. |
 | HAPROXY_SRC | Verified upstream source tree. |
 | HAPROXY_HTX_SOURCE_DIR | Verified source consumed by the overlay builder. |
 | HAPROXY_HTX_BUILD_DIR | External disposable overlay worktree and provenance directory. |

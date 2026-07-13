@@ -94,7 +94,7 @@ def numbered_section(content: str, number: int) -> str:
     start = re.search(rf"^## {number}\. .+$", content, flags=re.MULTILINE)
     if start is None:
         raise AssertionError(f"missing section {number}")
-    end = re.search(rf"^## {number + 1}\. .+$", content[start.end() :], flags=re.MULTILINE)
+    end = re.search(r"^## (?!#)", content[start.end() :], flags=re.MULTILINE)
     return content[start.start() : start.end() + (end.start() if end else len(content))]
 
 
@@ -146,6 +146,28 @@ def target_exists(target: str) -> bool:
     )
 
 
+def expected_headings(slug: str, german: bool) -> list[str]:
+    headings_for_language = list(GERMAN_HEADINGS if german else ENGLISH_HEADINGS)
+    headings_for_language.insert(
+        2,
+        "Connector in diesem Repository"
+        if german
+        else "Connector in this repository",
+    )
+    if slug in {"apache", "nginx"}:
+        headings_for_language.insert(
+            4,
+            "Alternative: offizieller Upstream-Connector"
+            if german
+            else "Alternative: official upstream connector",
+        )
+    return headings_for_language
+
+
+def connector_link_target(path: str) -> Path:
+    return (GUIDE_DIRECTORY / path).resolve()
+
+
 def is_allowed_official_url(url: str) -> bool:
     parsed = urlparse(url)
     if parsed.scheme != "https" or not parsed.netloc:
@@ -187,9 +209,27 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         for slug, setup in GENERATOR.HOST_SETUP.items():
             self.assertTrue(required_host_fields.issubset(setup), slug)
             self.assertLessEqual(len(setup["host_simple_variables"]), 3, slug)
-        for info in GENERATOR.MANUAL_GUIDES.values():
+        for slug, info in GENERATOR.MANUAL_GUIDES.items():
             self.assertNotIn("host_intro", info)
             self.assertNotIn("host_commands", info)
+            self.assertTrue(
+                {
+                    "repository_connector_title",
+                    "repository_connector_path",
+                    "repository_connector_readme",
+                    "repository_connector_source_links",
+                    "repository_connector_build_files",
+                    "repository_connector_build_steps",
+                    "alternative_connector_title",
+                    "alternative_connector_url",
+                    "alternative_connector_note",
+                }.issubset(info),
+            )
+            self.assertEqual(2, len(info["repository_connector_title"]))
+            self.assertEqual(f"connectors/{slug}", info["repository_connector_path"])
+            self.assertEqual(2, len(info["repository_connector_readme"]))
+            self.assertEqual(2, len(info["repository_connector_build_steps"]))
+            self.assertEqual(2, len(info["alternative_connector_note"]))
         self.assertEqual(set(SLUGS), set(GENERATOR.ACTIVE_MANUAL_VARIABLES))
         for slug, names in GENERATOR.ACTIVE_MANUAL_VARIABLES.items():
             available = {name for name, _, _ in GENERATOR.MANUAL_GUIDES[slug]["variables"]}
@@ -290,15 +330,15 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         for slug in SLUGS:
             english = guide(slug)
             german = guide(slug, german=True)
-            self.assertEqual(ENGLISH_HEADINGS, headings(english), slug)
-            self.assertEqual(GERMAN_HEADINGS, headings(german), slug)
+            self.assertEqual(expected_headings(slug, False), headings(english), slug)
+            self.assertEqual(expected_headings(slug, True), headings(german), slug)
             self.assertEqual(shell_blocks(english), shell_blocks(german), slug)
             self.assertEqual(variable_names(english), variable_names(german), slug)
 
-    def test_official_upstream_sources_are_described_allowed_and_present(self) -> None:
+    def test_host_documentation_is_separate_from_repository_connectors(self) -> None:
         required_url_fragments = {
             "apache": ("httpd.apache.org/docs/2.4/install.html", "httpd.apache.org/docs/2.4/programs/apxs.html"),
-            "nginx": ("nginx.org/", "github.com/owasp-modsecurity/ModSecurity-nginx"),
+            "nginx": ("nginx.org/",),
             "haproxy": ("github.com/haproxy/haproxy", "docs.haproxy.org"),
             "envoy": ("envoyproxy.io",),
             "traefik": ("doc.traefik.io",),
@@ -320,10 +360,106 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                 self.assertTrue(is_allowed_official_url(url), f"{slug}: {url}")
                 urls.append(url)
                 for content in (guide(slug), guide(slug, german=True)):
-                    self.assertIn(f"]({url})", content, f"{slug}: {url}")
+                    section = numbered_section(content, 3)
+                    self.assertIn(f"]({url})", section, f"{slug}: {url}")
+                    self.assertNotIn("../../../connectors/", section, slug)
             joined = "\n".join(urls)
             for fragment in required_url_fragments[slug]:
                 self.assertIn(fragment, joined, slug)
+            alternative_url = GENERATOR.MANUAL_GUIDES[slug]["alternative_connector_url"]
+            self.assertNotIn(alternative_url, urls, slug)
+
+    def test_every_guide_links_its_repository_connector_and_real_paths(self) -> None:
+        for slug in SLUGS:
+            info = GENERATOR.MANUAL_GUIDES[slug]
+            english_section = h2_section(guide(slug), "Connector in this repository")
+            german_section = h2_section(guide(slug, german=True), "Connector in diesem Repository")
+            self.assertIn("primary connector path", english_section, slug)
+            self.assertIn("primäre Connectorpfad", german_section, slug)
+            self.assertIn(f"{info['repository_connector_path']}/", english_section, slug)
+            self.assertIn(f"{info['repository_connector_path']}/", german_section, slug)
+
+            expected_english = {
+                info["repository_connector_readme"][0],
+                *{
+                    path
+                    for _, _, path in info["repository_connector_source_links"]
+                },
+                *{
+                    path
+                    for _, _, path in info["repository_connector_build_files"]
+                },
+            }
+            expected_german = {
+                info["repository_connector_readme"][1],
+                *{
+                    path
+                    for _, _, path in info["repository_connector_source_links"]
+                },
+                *{
+                    path
+                    for _, _, path in info["repository_connector_build_files"]
+                },
+            }
+            for path in expected_english:
+                self.assertIn(f"]({path})", english_section, f"{slug}: {path}")
+                self.assertTrue(connector_link_target(path).exists(), f"{slug}: {path}")
+            for path in expected_german:
+                self.assertIn(f"]({path})", german_section, f"{slug}: {path}")
+                self.assertTrue(connector_link_target(path).exists(), f"{slug}: {path}")
+
+            normalize = lambda paths: {
+                path.replace("README.de.md", "README.md") for path in paths
+            }
+            self.assertEqual(normalize(expected_english), normalize(expected_german), slug)
+
+    def test_apache_and_nginx_upstreams_are_prose_only_alternatives(self) -> None:
+        alternatives = {
+            "apache": "ModSecurity-apache",
+            "nginx": "ModSecurity-nginx",
+        }
+        for slug, upstream_name in alternatives.items():
+            for german in (False, True):
+                content = guide(slug, german=german)
+                heading = (
+                    "Alternative: offizieller Upstream-Connector"
+                    if german
+                    else "Alternative: official upstream connector"
+                )
+                alternative = h2_section(content, heading)
+                self.assertIn(
+                    GENERATOR.MANUAL_GUIDES[slug]["alternative_connector_url"],
+                    alternative,
+                )
+                self.assertIn(upstream_name, alternative)
+                self.assertEqual([], shell_blocks(alternative), slug)
+                self.assertNotIn("git clone", alternative, slug)
+                self.assertNotIn("./configure", alternative, slug)
+                self.assertNotIn("make ", alternative, slug)
+                outside_alternative = content.replace(alternative, "")
+                self.assertNotIn(upstream_name, outside_alternative, slug)
+
+    def test_variable_tables_do_not_cross_connector_boundaries(self) -> None:
+        pid_names = {
+            "upstream_pid",
+            "haproxy_pid",
+            "engine_pid",
+            "traefik_pid",
+            "lighttpd_pid",
+        }
+        expected_pids = {
+            "apache": set(),
+            "nginx": set(),
+            "haproxy": {"upstream_pid", "haproxy_pid"},
+            "envoy": set(),
+            "traefik": {"upstream_pid", "engine_pid", "traefik_pid"},
+            "lighttpd": {"lighttpd_pid"},
+        }
+        for slug in SLUGS:
+            names = variable_names(guide(slug))
+            self.assertEqual(expected_pids[slug], names & pid_names, slug)
+        for slug in ("apache", "nginx"):
+            self.assertTrue(variable_names(guide(slug)).isdisjoint(pid_names), slug)
 
     def test_section_six_is_small_host_only_setup(self) -> None:
         localized = (
@@ -376,14 +512,35 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         nginx = {number: numbered_section(guide("nginx"), number) for number in range(6, 11)}
         for token in ("./auto/configure", "make install", "nginx.conf", "curl -i"):
             self.assertNotIn(token, nginx[6])
-        for token in ("./auto/configure", "--add-module", 'make -j"$JOBS"', "make install"):
+        self.assertNotIn("git clone https://github.com/owasp-modsecurity/ModSecurity-nginx.git", nginx[6])
+        self.assertNotIn("ModSecurity-nginx", nginx[6])
+        for token in (
+            "./auto/configure",
+            'MSCONNECTOR_COMMON_INC="$CONNECTOR_ROOT/common/include"',
+            'MSCONNECTOR_COMMON_SRC="$CONNECTOR_ROOT/common/src"',
+            'MODSECURITY_INC="/usr/local/include"',
+            'MODSECURITY_LIB="/usr/local/lib"',
+            "--with-compat",
+            '--add-dynamic-module="$CONNECTOR_ROOT/connectors/nginx"',
+            'make -j"$JOBS"',
+            "make install",
+            'cp -a "objs/ngx_http_modsecurity_module.so" "$INSTALL_DIR/modules/"',
+        ):
             self.assertIn(token, nginx[7])
-        self.assertNotIn("--add-dynamic-module", nginx[7])
-        self.assertNotIn("--with-compat", nginx[7])
+        self.assertNotIn("--add-module=", nginx[7])
+        self.assertNotIn("ModSecurity-nginx", nginx[7])
         self.assertIn("modsecurity-local.conf", nginx[8])
         self.assertIn("nginx.conf", nginx[8])
+        self.assertIn("load_module modules/ngx_http_modsecurity_module.so;", nginx[8])
         self.assertIn('"$INSTALL_DIR/sbin/nginx" -V', nginx[9])
-        self.assertIn("--add-module=$WORKDIR/ModSecurity-nginx", nginx[9])
+        for token in (
+            'test -f "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so"',
+            "--add-dynamic-module=$CONNECTOR_ROOT/connectors/nginx",
+            'file "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so"',
+            'ldd "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so" | grep -F libmodsecurity',
+        ):
+            self.assertIn(token, nginx[9])
+        self.assertNotIn("--add-module=$WORKDIR/ModSecurity-nginx", nginx[9])
         for token in ('-t -p "$INSTALL_DIR"', "curl -i http://127.0.0.1:8080/", "-s quit"):
             self.assertIn(token, nginx[10])
 
@@ -391,6 +548,17 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         self.assertIn("apache2-dev", apache[6])
         self.assertIn('test -x "$INSTALL_DIR/bin/apxs"', apache[6])
         self.assertIn('APXS="$HOME/.local/apache-modsecurity/bin/apxs"', apache[7])
+        for token in (
+            'cd "$CONNECTOR_ROOT/connectors/apache"',
+            'test -f "$CONNECTOR_ROOT/connectors/apache/configure.ac"',
+            "materialize-connector-source.sh",
+            '--adapter-dir "$CONNECTOR_ROOT/connectors/apache"',
+            "./autogen.sh",
+            '--with-apxs="$APXS"',
+            '--with-apache="$HTTPD_BIN"',
+        ):
+            self.assertIn(token, apache[7])
+        self.assertNotIn("git clone https://github.com/owasp-modsecurity/ModSecurity-apache.git", apache[7])
         self.assertIn('"$APXS" -q LIBEXECDIR', apache[9])
         self.assertIn("LoadModule security3_module", apache[8])
 

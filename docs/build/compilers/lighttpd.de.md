@@ -12,6 +12,19 @@ Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `
 
 libmodsecurity v3, lighttpd-1.4.84-Source, der repository-eigene Entity-Body-Patch, ein gepatchter Host, ein passendes Connectormodul, eine lokale Laufzeitkonfiguration und HTTP/1.1-Traffic auf Loopback.
 
+## Connector in diesem Repository
+
+- [lighttpd-Connector](../../../connectors/lighttpd/README.de.md)
+- [Connectormodul-Quelle](../../../connectors/lighttpd/module/mod_msconnector.c)
+- [Produktive lighttpd-Quellen](../../../connectors/lighttpd/src/)
+- [Patched-Host-Builder](../../../connectors/lighttpd/build/build_patched_host.sh)
+- [Entity-Body-Patch](../../../connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch)
+- [Source-Zuordnung](../../../connectors/lighttpd/SOURCE_MAP.json)
+
+Dies ist der primäre Connectorpfad dieser Anleitung: connectors/lighttpd/. Die offizielle Hostdokumentation im folgenden Abschnitt erklärt nur Bereitstellung oder Build des Hosts und ersetzt nicht die Connectorquelle.
+
+Abschnitt 7 baut das Repository-Modul gegen den passenden gepatchten Host; die offizielle lighttpd-Dokumentation stellt nur Hostquelle und Hostanleitung bereit.
+
 ## 3. Offizielle Upstream-Dokumentation
 
 - **Quelle und Umfang:** [lighttpd INSTALL](https://github.com/lighttpd/lighttpd1.4/blob/master/INSTALL)
@@ -20,6 +33,8 @@ libmodsecurity v3, lighttpd-1.4.84-Source, der repository-eigene Entity-Body-Pat
   Offizielle Releasearchive und Prüfsummenmaterial. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (The latest upstream release can differ from the repository patch pin.)
 - **Quelle und Umfang:** [lighttpd Documentation](https://redmine.lighttpd.net/projects/lighttpd/wiki)
   Offizielle Konfigurations- und Befehlsdokumentation, soweit sie für den ausgewählten Hostrelease gilt. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Check accessibility and release relevance before relying on a page.)
+
+
 
 ## 4. Voraussetzungen
 
@@ -267,17 +282,13 @@ Wenn der Patch-Dry-Run fehlschlägt, ihn nicht erzwingen: die exakte 1.4.84-Quel
 | Variable/Platzhalter | Bedeutung |
 | --- | --- |
 | CONNECTOR_ROOT | Git-Top-Level dieses Repository-Checkouts; die Connector-Skripte werden von dort aus aufgerufen. |
-| HOST_BUILD_BASE | Connector-spezifisches externes Verzeichnis für Quellen, Builds, Konfiguration und lokale Logs. |
-| BUILD_ROOT | Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten. |
 | RULES_FILE | Lokale Testregeldatei; keine CRS-Regeldatei. |
 | VERIFIED_RUN_PARENT | Externer Elternordner eines frischen Repository-Testcheckouts und seiner Testartefakte. |
 | run_id | Eindeutige Kennung eines repository-gesteuerten Full-Lifecycle-Laufs. |
 | NO_CRS_RUN_ID | Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt. |
-| upstream_pid | Lokale Prozess-ID des Test-Upstreams aus `$!`; nur im selben Shell-Lauf verwenden. |
-| haproxy_pid | Lokale Prozess-ID des gestarteten HAProxy aus `$!`; nur im selben Shell-Lauf verwenden. |
-| engine_pid | Lokale Prozess-ID des gestarteten Traefik-Engine-Service aus `$!`; nur im selben Shell-Lauf verwenden. |
-| traefik_pid | Lokale Prozess-ID des gestarteten Traefik aus `$!`; nur im selben Shell-Lauf verwenden. |
-| lighttpd_pid | Lokale Prozess-ID des gestarteten lighttpd aus `$!`; nur im selben Shell-Lauf verwenden. |
+| HOST_BUILD_BASE | Connector-spezifisches externes Verzeichnis für Quellen, Builds, Konfiguration und lokale Logs. |
+| BUILD_ROOT | Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten. |
+| lighttpd_pid | Lokale Prozess-ID des gestarteten lighttpd aus $!; nur im selben Shell-Lauf verwenden. |
 | LIGHTTPD_PATCHED_SRC | Disponierbare gepatchte Kopie der ausgewählten Quelle. |
 | LIGHTTPD_BUILD_DIR | Out-of-tree-Buildverzeichnis des gepatchten lighttpd. |
 | LIGHTTPD_PREFIX | Privater Installationsprefix des gepatchten Hosts. |
