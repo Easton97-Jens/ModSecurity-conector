@@ -1,4 +1,5 @@
 #!@SHELL@
+set -e
 
 WRAPPED_OPTS=""
 for opt in "$@"; do
@@ -30,6 +31,21 @@ fi
 
 MSCONNECTOR_COMMON_SOURCES=
 if test -n "$MSCONNECTOR_COMMON_SRC"; then
+    MSCONNECTOR_COMMON_SOURCE_ROOT=$(CDPATH= cd "$MSCONNECTOR_COMMON_SRC" && pwd)
+    MSCONNECTOR_COMMON_BUILD_SRC=${MSCONNECTOR_COMMON_BUILD_SRC:-$(pwd -P)/build/common-src}
+    mkdir -p "$MSCONNECTOR_COMMON_BUILD_SRC"
+    for common_source in \
+        config.c config_parser.c directive_spec.c directive_adapter.c \
+        request_helpers.c response_helpers.c request_mapper_contract.c \
+        response_mapper_contract.c headers.c event.c event_jsonl.c \
+        json_escape.c rule_id.c log_sanitize.c redaction.c \
+        resource_limits.c dos_guard.c error.c status.c body_policy.c \
+        block_statuses.c http_status.c transaction_state.c late_intervention.c limits.c crs.c
+    do
+        cp "$MSCONNECTOR_COMMON_SOURCE_ROOT/$common_source" \
+            "$MSCONNECTOR_COMMON_BUILD_SRC/$common_source"
+    done
+    MSCONNECTOR_COMMON_SRC=$MSCONNECTOR_COMMON_BUILD_SRC
     MSCONNECTOR_COMMON_SOURCES="
 $MSCONNECTOR_COMMON_SRC/config.c
 $MSCONNECTOR_COMMON_SRC/config_parser.c
@@ -54,6 +70,7 @@ $MSCONNECTOR_COMMON_SRC/body_policy.c
 $MSCONNECTOR_COMMON_SRC/block_statuses.c
 $MSCONNECTOR_COMMON_SRC/http_status.c
 $MSCONNECTOR_COMMON_SRC/transaction_state.c
+$MSCONNECTOR_COMMON_SRC/late_intervention.c
 $MSCONNECTOR_COMMON_SRC/limits.c
 $MSCONNECTOR_COMMON_SRC/crs.c"
 fi

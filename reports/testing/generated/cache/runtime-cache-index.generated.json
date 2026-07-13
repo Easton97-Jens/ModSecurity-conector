@@ -1,142 +1,142 @@
 {
-  "build_root": "/var/tmp/ModSecurity-conector-verified/build",
+  "build_root": "/var/tmp/ModSecurity-conector-verified/build/lighttpd/repository-cleanup-core-20260712T192931Z",
   "cache_status": "cache_input_present",
-  "component_cache_root": "/var/tmp/ModSecurity-conector-verified/component-cache",
+  "component_cache_root": "/var/tmp/ModSecurity-conector-verified/cache-v2/shared",
   "components": [
     {
-      "build_id": "0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72",
+      "build_id": "060604d44135db16f6aad7d6cc519a2c6e5d1ad5d499d3782ab35cec22753720",
       "name": "modsecurity",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72",
+      "path": "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/prefix/modsecurity/060604d44135db16f6aad7d6cc519a2c6e5d1ad5d499d3782ab35cec22753720",
       "source_ref": "v3/master",
       "status": "reused"
     },
     {
-      "build_id": "898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67",
+      "build_id": "-",
       "name": "apache_httpd",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/build",
-      "source_ref": "2.4.67",
-      "status": "reused"
-    },
-    {
-      "build_id": "d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12",
-      "name": "nginx",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/build",
-      "source_ref": "latest",
-      "status": "reused"
-    },
-    {
-      "build_id": "599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048",
-      "name": "haproxy",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048",
+      "path": "-",
       "source_ref": "-",
-      "status": "reused"
+      "status": "not_selected"
+    },
+    {
+      "build_id": "-",
+      "name": "nginx",
+      "path": "-",
+      "source_ref": "-",
+      "status": "not_selected"
+    },
+    {
+      "build_id": "-",
+      "name": "haproxy",
+      "path": "-",
+      "source_ref": "-",
+      "status": "not_selected"
     },
     {
       "build_id": "-",
       "name": "go_ftw",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/bin/go-ftw",
-      "source_ref": "v2.4.0",
-      "status": "present"
+      "path": "-",
+      "source_ref": "-",
+      "status": "not_selected"
     },
     {
       "build_id": "-",
       "name": "albedo",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/bin/albedo",
-      "source_ref": "v0.3.0",
-      "status": "present"
+      "path": "-",
+      "source_ref": "-",
+      "status": "not_selected"
     },
     {
-      "build_id": "-",
+      "build_id": "b644c7b974a809dc1562b206e7d29aeeaaa4167d43d42cdd6c9bb10714daf57a",
       "name": "expat",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/expat",
-      "source_ref": "R_2_8_1",
+      "path": "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/builds/expat/b644c7b974a809dc1562b206e7d29aeeaaa4167d43d42cdd6c9bb10714daf57a/prefix",
+      "source_ref": "R_2_8_2",
       "status": "present"
     }
   ],
-  "generated_at": "2026-06-19T16:22:55Z",
+  "generated_at": "2026-07-12T19:36:08Z",
   "important_files": [
     {
       "name": "libmodsecurity",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib/libmodsecurity.so",
-      "sha256": "61d6f374dfafb684b62415bd8ef97ccb3b8615516fd93b0f972f89eeb62125ca",
-      "size": 60085664,
+      "path": "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/prefix/modsecurity/060604d44135db16f6aad7d6cc519a2c6e5d1ad5d499d3782ab35cec22753720/lib/libmodsecurity.so",
+      "sha256": "b95a7d601c043ae9dcf94e486bc177903e3864de08742cdd10ffb917e8605f5d",
+      "size": 60189104,
       "status": "present"
     },
     {
       "name": "apache_httpd",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/httpd",
-      "sha256": "82242c219cc91b9645d0bfbae8629be5afaf046bd2653a8c92cccab0b8bc40a2",
-      "size": 2356304,
-      "status": "present"
+      "path": "-",
+      "sha256": "-",
+      "size": 0,
+      "status": "missing"
     },
     {
       "name": "apache_apxs",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/apxs",
-      "sha256": "9bac676928668024d7dbbd233e2c509ab6b6382bee472a374542f96dd1957036",
-      "size": 24143,
-      "status": "present"
+      "path": "-",
+      "sha256": "-",
+      "size": 0,
+      "status": "missing"
     },
     {
       "name": "apache_mod_security3",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/build/output/apache/mod_security3.so",
-      "sha256": "06c04934d991976410700bebb8418933643cc2cdd0e0952d94588fe5079b1182",
-      "size": 110128,
-      "status": "present"
+      "path": "-",
+      "sha256": "-",
+      "size": 0,
+      "status": "missing"
     },
     {
       "name": "nginx",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/sbin/nginx",
-      "sha256": "4b12b2bc1e056a68f42d0918e02ed9d8dbf455e5e1b6fdcedd9187297e98e459",
-      "size": 4325048,
-      "status": "present"
+      "path": "-",
+      "sha256": "-",
+      "size": 0,
+      "status": "missing"
     },
     {
       "name": "nginx_modsecurity_module",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/modules/ngx_http_modsecurity_module.so",
-      "sha256": "058c8d15f828864a09919b650d5e6c4293cf2ccb549aa0b3059f4f763ed6f773",
-      "size": 245808,
-      "status": "present"
+      "path": "-",
+      "sha256": "-",
+      "size": 0,
+      "status": "missing"
     },
     {
       "name": "haproxy",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy",
-      "sha256": "591fb673cd8dc2f0140c8eeed333b44940afcb461e50322e30e09cb05ea3cedb",
-      "size": 19230968,
-      "status": "present"
+      "path": "-",
+      "sha256": "-",
+      "size": 0,
+      "status": "missing"
     },
     {
       "name": "haproxy_spoa",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
-      "sha256": "058a20d2b33929b68b401b7916cdd6737faf52661a43400f93214b734b16b8ed",
-      "size": 90592,
-      "status": "present"
+      "path": "-",
+      "sha256": "-",
+      "size": 0,
+      "status": "missing"
     },
     {
       "name": "go-ftw",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/bin/go-ftw",
-      "sha256": "332425c41385ee10fa79c543ce8527c099873fd73bcaf73dd2a2cc353f84b952",
-      "size": 36288156,
-      "status": "present"
+      "path": "-",
+      "sha256": "-",
+      "size": 0,
+      "status": "missing"
     },
     {
       "name": "albedo",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/bin/albedo",
-      "sha256": "72872f718729f51e924fa8ba3c82b3b5eca9db6be4490fc5cbb731317f2ad1bd",
-      "size": 10153312,
-      "status": "present"
+      "path": "-",
+      "sha256": "-",
+      "size": 0,
+      "status": "missing"
     },
     {
       "name": "expat_header",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/expat/include/expat.h",
-      "sha256": "52d756026bf09befdb211c453e2009a646d6c6b519e6885e971b2550396619fb",
+      "path": "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/builds/expat/b644c7b974a809dc1562b206e7d29aeeaaa4167d43d42cdd6c9bb10714daf57a/prefix/include/expat.h",
+      "sha256": "eb43180fbdca40e36d9558060e6e654ef4c451ca656ad679e9e1269eb45456b3",
       "size": 45224,
       "status": "present"
     },
     {
       "name": "shared_build_libmodsecurity",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib/libmodsecurity.so",
-      "sha256": "61d6f374dfafb684b62415bd8ef97ccb3b8615516fd93b0f972f89eeb62125ca",
-      "size": 60085664,
+      "path": "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/prefix/modsecurity/060604d44135db16f6aad7d6cc519a2c6e5d1ad5d499d3782ab35cec22753720/lib/libmodsecurity.so",
+      "sha256": "b95a7d601c043ae9dcf94e486bc177903e3864de08742cdd10ffb917e8605f5d",
+      "size": 60189104,
       "status": "present"
     }
   ],
@@ -144,79 +144,80 @@
   "manifests": [
     {
       "name": "component-cache manifest",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
-      "sha256": "3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec",
-      "size": 56033,
+      "path": "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/manifest.json",
+      "sha256": "13123f03dbe90f01402a8c2c439e46455a0fa688448e540a5cdab11722022392",
+      "size": 35258,
       "status": "present"
     },
     {
       "name": "runtime build-cache manifest",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json",
-      "sha256": "469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789",
-      "size": 14942,
+      "path": "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/runtime-build-cache.json",
+      "sha256": "04ba882c6feda15868fc9b175f3d3c2875fdbdfa480872a332d8317edea1b017",
+      "size": 7985,
       "status": "present"
     },
     {
       "name": "git components manifest",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/git-components.json",
-      "sha256": "c4e18783b970500f25f92964b3035b9b441fe307da19582c3de4ce62b66b2b86",
-      "size": 5829,
+      "path": "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/git-components.json",
+      "sha256": "264e9488d22ea6b598613a178f48a72c89c9e3ec9cd33825c07e5b68a1396262",
+      "size": 4060,
       "status": "present"
     },
     {
       "name": "runtime env",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-env.sh",
-      "sha256": "4dc7cbd3c334faeac71db45df2839a4ff297029d8746d80f2cc38683429dedf8",
-      "size": 7939,
+      "path": "/var/tmp/ModSecurity-conector-verified/cache-v2/shared/runtime-env.sh",
+      "sha256": "30c186efdd2a51a0dde44eb10b2b3b9dfd7a4ee1d3862fe33c2e2bbe2cf71cb1",
+      "size": 4085,
       "status": "present"
     }
   ],
   "metadata": {
     "category": "cache",
     "commit_policy": "versioned-generated",
-    "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
+    "connector_sha": "9b718cee0523da3e0822754dc4b05f327b6d969d",
     "data_kind": "cache-index",
     "data_origin": "cache",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
+    "framework_sha": "4e9d4ba616235127b6fc0a2ee87107d93d03f40b",
     "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-19T16:22:55Z",
-    "generated_by": "ci/update-runtime-reports.py",
+    "generated_at": "2026-07-12T19:36:08Z",
+    "generated_by": "ci/evidence/reports/update-runtime-reports.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
-        "sha256": "3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec",
-        "source_hash": "3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec",
+        "path": "<verified-run-root>/cache-v2/shared/manifest.json",
+        "sha256": "13123f03dbe90f01402a8c2c439e46455a0fa688448e540a5cdab11722022392",
+        "source_hash": "13123f03dbe90f01402a8c2c439e46455a0fa688448e540a5cdab11722022392",
         "status": "present"
       },
       {
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json",
-        "sha256": "469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789",
-        "source_hash": "469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789",
+        "path": "<verified-run-root>/cache-v2/shared/runtime-build-cache.json",
+        "sha256": "04ba882c6feda15868fc9b175f3d3c2875fdbdfa480872a332d8317edea1b017",
+        "source_hash": "04ba882c6feda15868fc9b175f3d3c2875fdbdfa480872a332d8317edea1b017",
         "status": "present"
       },
       {
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/component-cache/git-components.json",
-        "sha256": "c4e18783b970500f25f92964b3035b9b441fe307da19582c3de4ce62b66b2b86",
-        "source_hash": "c4e18783b970500f25f92964b3035b9b441fe307da19582c3de4ce62b66b2b86",
+        "path": "<verified-run-root>/cache-v2/shared/git-components.json",
+        "sha256": "264e9488d22ea6b598613a178f48a72c89c9e3ec9cd33825c07e5b68a1396262",
+        "source_hash": "264e9488d22ea6b598613a178f48a72c89c9e3ec9cd33825c07e5b68a1396262",
         "status": "present"
       },
       {
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-env.sh",
-        "sha256": "4dc7cbd3c334faeac71db45df2839a4ff297029d8746d80f2cc38683429dedf8",
-        "source_hash": "4dc7cbd3c334faeac71db45df2839a4ff297029d8746d80f2cc38683429dedf8",
+        "path": "<verified-run-root>/cache-v2/shared/runtime-env.sh",
+        "sha256": "30c186efdd2a51a0dde44eb10b2b3b9dfd7a4ee1d3862fe33c2e2bbe2cf71cb1",
+        "source_hash": "30c186efdd2a51a0dde44eb10b2b3b9dfd7a4ee1d3862fe33c2e2bbe2cf71cb1",
         "status": "present"
       }
     ],
     "make_target": "prepare-runtime-components",
     "missing_inputs": [],
+    "output_name": "runtime-cache-index.generated.md",
     "owner": "cache",
     "report_key": "runtime_cache_index",
     "schema_version": 1,
@@ -228,9 +229,9 @@
   "report_kind": "runtime-cache-index",
   "status": "generated",
   "summary": {
-    "components_present": 7,
+    "components_present": 2,
     "components_total": 7,
-    "important_files_present": 12,
+    "important_files_present": 3,
     "important_files_total": 12
   },
   "verified_run_id": "2026-06-16T19-12-00Z-614c8049"

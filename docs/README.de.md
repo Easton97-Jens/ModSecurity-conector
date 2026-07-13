@@ -2,80 +2,56 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
-Status: umgesetzt
+Dieses Verzeichnis ist der Dokumentationseinstieg für den ausgewählten
+Sechs-Connector-HTTP/1.1-Kern. Es beschreibt aktuelle Repository-Grenzen ohne
+Produktionsreife, CRS-Verifikation, vollständige HTTP/2-/HTTP/3-Verifikation,
+vollständige Matrix oder Strict-Verhalten für jeden Connector zu behaupten.
 
-Dieses Verzeichnis ist nach Themen gruppiert, damit connector-eigene
-Architektur-, Roadmap- und Source-Attribution-Dokumente auch dann navigierbar
-bleiben, wenn der framework-eigene Case-Korpus und die generierten Reports
-wachsen.
+## Einstieg
 
-## Hauptabschnitte
+| Bedarf | Kanonisches Dokument | Source-of-Truth-Grenze |
+| --- | --- | --- |
+| Einen Checkout initialisieren | [Einstieg](getting-started.de.md) | Framework-Setup und begrenzter erster Validierungsweg |
+| Repository-Architektur | [Architektur](architecture.de.md) | Eingecheckte Source-Ownership und dokumentierte Lifecycle-Grenze |
+| Host-, Runtime- und Engine-Konfiguration | [Konfiguration](configuration.de.md) | Vollständige Connector-Syntax bleibt in <code>examples/</code> |
+| Variablen und Begriffe | [Variablen](reference/variables.de.md) / [Glossar](reference/glossary.de.md) | Root-Makefile, Wrapper und dokumentierte Verträge |
+| Einen Host bauen | [Build](build/README.de.md) | Root-/Connector-Build-Inputs und Compiler-Guides |
+| Tests oder Artefakte deuten | [Tests und Nachweise](testing-and-evidence.de.md) | Ausgewählte Run-Records und Framework-Schemata |
+| Sicher betreiben | [Betrieb und Sicherheit](operations-and-security.de.md) | Explizite Deployment-, Limit-, Datenschutz- und Provenienzgrenze |
+| Einen Connector wählen | [Connector-Index](connectors/README.de.md) | Ausgewählter Integrationsmodus und Connector-Guide |
 
-| Abschnitt | Zweck |
-| --- | --- |
-| `architecture/` | Gemeinsames C-first-Modell, Adaptergrenzen, Status-/Capability-Modelle und Refactoring-Pläne |
-| `connectors/` | Apache-/NGINX-Direktiven, Rule-Load-Dokumentation und Planung zukünftiger Connectoren |
-| `testing/` | Verified-Run-Runtime-Umgebung, Worker-Zugriffs-Preflights und Workflow-Hinweise für generierte Reports |
-| `roadmap/` | Aktuelle Connector-Roadmap |
-| `licensing/` | Lizenz- und Herkunftsrichtlinie für importierte Connector-Quellen |
-| `../reports/testing/` | Connector-eigene generierte Evidence, Real-World-Validierungsnotizen, Case Matrix und PR-/Source-Evidence |
-| `../modules/ModSecurity-test-Framework/docs/` | Framework-eigenes YAML-Schema, Fixtures, Case-Korpus, Importanalysen, TODO-Inventar und wiederverwendbare Testdokumente |
+## Connector-Guides
 
-## Richtlinie für zweisprachige Dokumentation
+| Connector | Ausgewählter Modus | Kanonischer Guide |
+| --- | --- | --- |
+| Apache | <code>native-httpd-module</code> | [Apache](connectors/apache.de.md) |
+| NGINX | <code>native-nginx-http-module</code> | [NGINX](connectors/nginx.de.md) |
+| HAProxy | <code>native-htx-filter</code> | [HAProxy](connectors/haproxy.de.md) |
+| Envoy | <code>ext_proc</code> | [Envoy](connectors/envoy.de.md) |
+| Traefik | <code>native-traefik-middleware</code> | [Traefik](connectors/traefik.de.md) |
+| lighttpd | <code>patched-native-lighttpd</code> | [lighttpd](connectors/lighttpd.de.md) |
 
-Englisch ist die primäre Projektsprache. Deutsche Begleitdateien verwenden die
-Endung `*.de.md` und sollten bei neuen repository-eigenen Markdown-Dokumenten
-nach Möglichkeit direkt mit angelegt werden.
+Ausgewähltes Profil und aufgezeichneter Integrationsmodus sind verwandte, aber
+getrennte Identitäten. Der kanonische Zustand einer Fähigkeit beginnt in jedem
+<code>capabilities.json</code> des Connectors; Profil, Build, Source-Tree oder
+generiertes Inventar sind kein PASS-Ergebnis.
 
-Generierte Reports benötigen entweder Generator-Unterstützung für die deutsche
-Begleitdatei oder einen klaren manuellen Aktualisierungshinweis in der
-deutschen Datei. Wenn ein englischer generierter Report neu erzeugt wird, muss
-die passende `*.de.md`-Datei in derselben Dokumentationsänderung geprüft und
-aktualisiert werden. Tabellen, IDs, Hashes, Pfade, Metriken und
-maschinenlesbare Werte bleiben dabei unverändert.
+## Aktueller Scope und Evidence
 
-GitHub-Templates bleiben englisch zuerst. Deutsche Issue-Templates und
-deutsche Abschnitte sind ergänzende, benutzerseitige Einstiegspunkte und dürfen
-workflow-kritische Labels, IDs oder YAML-Keys nicht verändern.
+Das Repository zeichnet ausgewählte Lifecycle-Evidence nach Run-ID auf. Ein
+enger <code>minimal_runtime_smoke</code>, ein Konfigurationsladen oder ein
+Source-Level-Contract-Check belegt nur seine angegebene Ebene. Lesen Sie
+[Reports](../reports/README.de.md), bevor Sie einen zeitabhängigen
+Statusclaim formulieren.
 
-`tools/MRTS/**` ist fremder Upstream-Inhalt und wird nicht übersetzt oder
-geändert. Vor Dokumentationsänderungen kann der schnelle Schutz lokal so
-ausgeführt werden:
+## Unterstützendes Material
 
-```sh
-make check-bilingual-docs
-```
+- [Compiler-Guides](build/compilers/README.de.md)
+- [Lizenz, Origin und Betriebsgrenze](operations-and-security.de.md)
+- [Common-Source-Tree-Guide](../common/README.de.md)
+- [Konfigurationsbeispiele](../examples/README.de.md)
+- [Framework-Modul](../modules/ModSecurity-test-Framework/README.de.md)
 
-## Quellenangaben
-
-| Repository | Repo-lokaler Zweck | Upstream | Beobachtete Version / Tag | Lizenz |
-| --- | --- | --- | --- | --- |
-| ModSecurity v2 | Nur historische Source-/Vergleichsreferenz | https://github.com/owasp-modsecurity/ModSecurity | `v2.9.13` | Apache-2.0 |
-| ModSecurity v3 | libmodsecurity-Runtime-/API-Referenz | https://github.com/owasp-modsecurity/ModSecurity | `v3.0.15` | Apache-2.0 |
-| ModSecurity-apache | Referenz für Apache-Adapter-Verhalten und Source-Attribution | https://github.com/owasp-modsecurity/ModSecurity-apache | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
-| ModSecurity-nginx | Referenz für NGINX-Adapter-Verhalten und Source-Attribution | https://github.com/owasp-modsecurity/ModSecurity-nginx | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
-
-CI, lokale Entwicklung und Report-Refreshes sollten repository-relative Pfade,
-Submodule und Umgebungsvariablen verwenden, nicht maschinenspezifische
-Source-Orte.
-
-## Erste Lesungen
-
-- Architekturgrenze: `architecture/architecture.md`
-- Fähigkeitsmodell: `architecture/capability-model.md`
-- Statusmodell: `architecture/status-model.md`
-- Real-World-Connector-Proof-Modus: `../reports/testing/real-world-connector-validation.md`
-- Testing-Report-Index: `../reports/testing/README.md`
-- Verified-Run-Umgebung: `testing/verified-run-environment.md`
-- Zusammenführungsbereitschaft: `../reports/testing/generated/canonical/final-consistency-audit.generated.md`
-- Aktueller Kompatibilitätsnachweis: `../reports/testing/test-coverage-overview.md`
-- Case Matrix: `../reports/testing/case-matrix.md` und
-`../reports/testing/generated/coverage/case-matrix.generated.md`
-- Roadmap und offene Arbeit: `roadmap/roadmap.md` und
-`../modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`
-- YAML-Schema und gemeinsam genutzte Fixtures:
-`../modules/ModSecurity-test-Framework/docs/imports/common/schema.md` und
-`../modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md`
-- PR-/Source-Evidence: `../reports/testing/evidence/pr-evidence-summary.md`
-und `../reports/testing/evidence/raw-args-pr3564.md`
-- Lizenz und Herkunft: `licensing/license-and-origin.md` und `../licenses/README.md`
+Repository-eigene englische/deutsche Dokumentation wird mit
+<code>make check-bilingual-docs</code> geprüft. Generierte Ausgaben werden über
+Generator und Source-Vertrag geändert, nicht durch manuelle Änderungen.

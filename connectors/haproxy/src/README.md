@@ -1,5 +1,7 @@
 # HAProxy Source
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: live-yaml-spoa-runtime (partial)
 Runtime status: live request-side YAML execution through HAProxy, SPOA/SPOP,
 and libmodsecurity.

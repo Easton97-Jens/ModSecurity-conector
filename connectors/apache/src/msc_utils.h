@@ -21,6 +21,7 @@ int id(const char *fn, const char *format, ...);
 
 
 apr_status_t send_error_bucket(msc_t *msr, ap_filter_t *f, int status);
+apr_status_t send_input_error_bucket(msc_t *msr, ap_filter_t *f, int status);
 
 
 #endif  /* _SRC_MSC_UTILS__ */

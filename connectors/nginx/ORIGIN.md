@@ -2,7 +2,7 @@
 
 Status: adapter-owned source migration complete
 
-Local reference: `/root/conecter/ModSecurity-nginx`
+Local reference: `<external-source-root>/ModSecurity-nginx`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx
 Source branch: `master`
 Source commit: `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846`
@@ -12,7 +12,7 @@ Default imported path: `connectors/nginx`
 
 | Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
-| ModSecurity-nginx | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
+| ModSecurity-nginx | `<external-source-root>/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
 
 Central attribution: `licenses/nginx/`
 
@@ -90,7 +90,8 @@ files relate to the adapter-owned source tree.
 
 ## Pruning Review
 
-Last reviewed in `modules/ModSecurity-test-Framework/docs/imports/upstream-pruning-analysis.md`.
+The Framework's current [connector integration guide](../../modules/ModSecurity-test-Framework/docs/connector-integration.md)
+records the applicable source/catalog boundary.
 
 `connectors/nginx/upstream/` was removed in phase 10. Future NGINX source
 reductions should update `connectors/nginx/SOURCE_MAP.json`,

@@ -38,10 +38,6 @@
 | `rule_chain_semantics_analysis` | fresh | 2026-06-19T16:59:05Z | 2026-06-19T16:58:45Z | 2026-06-19T16:59:05Z | - | generated |
 | `final_consistency_audit` | fresh | 2026-06-19T16:59:06Z | 2026-06-19T16:59:05Z | 2026-06-19T16:59:07Z | - | generated |
 | `runtime_cache_reports` | fresh | 2026-06-19T16:22:55Z | 2026-06-19T16:22:55Z | 2026-06-19T16:59:09Z | - | generated |
-| `report_dependency_graph` | fresh | 2026-06-19T16:59:10Z | 2026-06-19T16:59:05Z | 2026-06-19T16:59:10Z | - | generated |
-| `report_data_lineage` | fresh | 2026-06-19T16:59:10Z | 2026-06-19T16:59:05Z | 2026-06-19T16:59:11Z | - | generated |
-| `report_path_migration` | fresh | 2026-06-19T16:59:10Z | - | 2026-06-19T16:59:12Z | - | generated |
-| `generator_runtime_summary` | fresh | 2026-06-19T16:59:10Z | - | 2026-06-19T16:59:13Z | - | generated |
 | `report_freshness` | fresh | 2026-06-19T16:59:10Z | 2026-06-19T16:59:13Z | 2026-06-19T16:59:15Z | - | generated |
 | `merge_readiness_dashboard` | fresh | 2026-06-19T16:59:10Z | 2026-06-19T16:59:15Z | 2026-06-19T16:59:16Z | - | generated |
 | `report_refresh_manifest` | fresh | 2026-06-19T16:59:10Z | - | 2026-06-19T16:53:13Z | - | generated |
@@ -116,13 +112,6 @@
 | Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.md` | `910bd76fc7fa1316dd95365260ce540a4334e2ad12830dfca32a662849a5edcd` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/generated/cache/runtime-cache-index.generated.json` | `4c1b1b63fd6990aff380f735079f466a2a1e9b4f27503c0e838cd3d7d69a5efd` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/generated/cache/runtime-cache-index.generated.md` | `3ab329e4e9636e66465b5176826987162f5e96689d97795f076081563d712bf8` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-dependency-graph.generated.json` | `35d1e3f9d85906c00f1f2ac0278f5a98596bc7fff6a7f51429ffd3b402934730` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-dependency-graph.generated.md` | `0b2c8712e63c21e1266fa30d0c72bf5f523f3322e811b7dff1ebb69b005979ff` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-data-lineage.generated.json` | `229163ab6de4a2fc25d64ee786819b4fb46c70473f901938404b76ed53e240a2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-data-lineage.generated.md` | `8c67603836fd501c24f2f4974b19408a2f9bb56fba852f5e8b5a3061dcf95e31` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-path-migration.generated.json` | `421d22fe95977b752f85e726342cda9b9d1823c638e3b128c7272397301fec6d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-path-migration.generated.md` | `b1b29f03707eaa469f042b4768affa480a2a36d43296569d98157b4e7111fb9e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/generator-runtime-summary.generated.md` | `d6c6e2bdcd57ea655e8f60ca9d14e525fcc13cc403a2f8d3c7006ab279c9bd75` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Datenverfügbarkeit / fehlende Informationen
 
@@ -194,10 +183,3 @@
 | `reports/testing/generated/cache/runtime-build-cache.generated.md` | present | input file available |
 | `reports/testing/generated/cache/runtime-cache-index.generated.json` | present | input file available |
 | `reports/testing/generated/cache/runtime-cache-index.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/report-dependency-graph.generated.json` | present | input file available |
-| `reports/testing/generated/manifest/report-dependency-graph.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/report-data-lineage.generated.json` | present | input file available |
-| `reports/testing/generated/manifest/report-data-lineage.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/report-path-migration.generated.json` | present | input file available |
-| `reports/testing/generated/manifest/report-path-migration.generated.md` | present | input file available |
-| `reports/testing/generated/manifest/generator-runtime-summary.generated.md` | present | input file available |

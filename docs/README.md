@@ -1,79 +1,57 @@
-# Documentation Index
+# Documentation index
 
 **Language:** English | [Deutsch](README.de.md)
 
+This directory is the documentation entry point for the selected six-connector
+HTTP/1.1 core. It describes current repository boundaries without claiming
+production readiness, CRS verification, complete HTTP/2/HTTP/3 verification, a
+complete matrix, or strict behavior for every connector.
 
-Status: implemented
+## Start here
 
-This directory is grouped by topic so connector-owned architecture, roadmap,
-and source-attribution docs stay navigable as the framework-owned case corpus
-and generated reports grow.
+| Need | Canonical document | Source-of-truth boundary |
+| --- | --- | --- |
+| Initialize a checkout | [Getting started](getting-started.md) | Framework setup and the limited first validation path |
+| Repository architecture | [Architecture](architecture.md) | Checked-in source ownership and documented lifecycle boundary |
+| Host, runtime, and engine configuration | [Configuration](configuration.md) | Complete per-connector syntax remains in <code>examples/</code> |
+| Variables and terms | [Variables](reference/variables.md) / [Glossary](reference/glossary.md) | Root Makefile, wrappers, and documented contracts |
+| Build one host | [Build](build/README.md) | Root/connector build inputs and compiler guides |
+| Test or interpret artifacts | [Testing and evidence](testing-and-evidence.md) | Selected run records and Framework schemas |
+| Operate safely | [Operations and security](operations-and-security.md) | Explicit deployment, limit, privacy, and provenance boundary |
+| Choose a connector | [Connector index](connectors/README.md) | Selected integration mode and connector guide |
 
-## Main Sections
+## Connector guides
 
-| Section | Purpose |
-| --- | --- |
-| `architecture/` | Common C-first model, adapter boundaries, status/capability models, and refactor plans |
-| `connectors/` | Apache/NGINX directive/rule-load docs and future connector planning |
-| `testing/` | Verified-run runtime environment, worker-access preflights, and generated-report workflow notes |
-| `roadmap/` | Current connector roadmap |
-| `licensing/` | License and origin policy for imported connector sources |
-| `../reports/testing/` | Connector-owned generated evidence, real-world validation notes, case matrix, and PR/source evidence |
-| `../modules/ModSecurity-test-Framework/docs/` | Framework-owned YAML schema, fixtures, case corpus, import analyses, TODO inventory, and reusable testing docs |
+| Connector | Selected mode | Canonical guide |
+| --- | --- | --- |
+| Apache | <code>native-httpd-module</code> | [Apache](connectors/apache.md) |
+| NGINX | <code>native-nginx-http-module</code> | [NGINX](connectors/nginx.md) |
+| HAProxy | <code>native-htx-filter</code> | [HAProxy](connectors/haproxy.md) |
+| Envoy | <code>ext_proc</code> | [Envoy](connectors/envoy.md) |
+| Traefik | <code>native-traefik-middleware</code> | [Traefik](connectors/traefik.md) |
+| lighttpd | <code>patched-native-lighttpd</code> | [lighttpd](connectors/lighttpd.md) |
 
-## Bilingual Documentation Policy
+The selected profile and the recorded integration mode are related but distinct
+identities. The canonical state for a capability begins in each connector's
+<code>capabilities.json</code>; a profile, build, source tree, or generated
+inventory is not a PASS result.
 
-English is the primary project language. German companion files use the
-`*.de.md` suffix and should be created together with new repository-owned
-Markdown documentation whenever practical.
+## Current scope and evidence
 
-Generated reports need either generator support for their German companion or
-a clear manual-update note in the German file. When an English generated report
-is refreshed, review and update the matching `*.de.md` file in the same
-documentation change while preserving tables, IDs, hashes, paths, metrics, and
-machine-readable values.
+The repository records selected lifecycle evidence by run ID. A narrow
+<code>minimal_runtime_smoke</code>, a configuration load, or a source-level
+contract check establishes only its stated layer. Read the current reports
+through [Reports](../reports/README.md) before making a time-sensitive status
+claim.
 
-GitHub templates remain English-first. German issue templates and German
-sections are complementary user-facing entry points and must not change
-workflow-critical labels, IDs, or YAML keys.
+## Supporting material
 
-`tools/MRTS/**` is foreign upstream content and is not translated or modified.
-Use the lightweight guard locally before sending documentation changes:
+- [Compiler guides](build/compilers/README.md)
+- [License, origin, and operational boundary](operations-and-security.md)
+- [Common source-tree guide](../common/README.md)
+- [Configuration examples](../examples/README.md)
+- [Framework module](../modules/ModSecurity-test-Framework/README.md)
 
-```sh
-make check-bilingual-docs
-```
-
-## Source References
-
-| Repository | Repo-local purpose | Upstream | Observed version/tag | License |
-| --- | --- | --- | --- | --- |
-| ModSecurity v2 | Historical/source comparison reference only | https://github.com/owasp-modsecurity/ModSecurity | `v2.9.13` | Apache-2.0 |
-| ModSecurity v3 | libmodsecurity runtime/API reference | https://github.com/owasp-modsecurity/ModSecurity | `v3.0.15` | Apache-2.0 |
-| ModSecurity-apache | Apache adapter behavior/source attribution reference | https://github.com/owasp-modsecurity/ModSecurity-apache | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
-| ModSecurity-nginx | NGINX adapter behavior/source attribution reference | https://github.com/owasp-modsecurity/ModSecurity-nginx | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
-
-CI, local development, and report refreshes should use repository-relative
-paths, submodules, and environment variables rather than machine-specific source
-locations.
-
-## First Reads
-
-- Architecture boundary: `architecture/architecture.md`
-- Capability model: `architecture/capability-model.md`
-- Status model: `architecture/status-model.md`
-- Real connector proof mode: `../reports/testing/real-world-connector-validation.md`
-- Testing report index: `../reports/testing/README.md`
-- Verified run environment: `testing/verified-run-environment.md`
-- Merge readiness: `../reports/testing/generated/canonical/final-consistency-audit.generated.md`
-- Current compatibility evidence: `../reports/testing/test-coverage-overview.md`
-- Case matrix: `../reports/testing/case-matrix.md` and
-  `../reports/testing/generated/coverage/case-matrix.generated.md`
-- Roadmap and open work: `roadmap/roadmap.md` and
-  `../modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`
-- YAML schema and shared fixtures:
-  `../modules/ModSecurity-test-Framework/docs/imports/common/schema.md` and
-  `../modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md`
-- PR/source evidence: `../reports/testing/evidence/pr-evidence-summary.md`
-  and `../reports/testing/evidence/raw-args-pr3564.md`
-- License and origin: `licensing/license-and-origin.md` and `../licenses/README.md`
+Repository-owned English/German documentation is checked with
+<code>make check-bilingual-docs</code>. Generated outputs must be changed
+through their generator and source contract rather than by manual edits.

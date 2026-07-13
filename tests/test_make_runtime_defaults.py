@@ -1,0 +1,61 @@
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+# This test supplies its own VERIFIED_RUN_ROOT and verifies the Makefile's
+# derived defaults.  Clear parent path overrides so ambient CI settings do not
+# turn that default-path assertion into an override test.
+RUNTIME_PATH_OVERRIDES = (
+    "VERIFIED_BUILD_ROOT",
+    "BUILD_ROOT",
+    "TMP_ROOT",
+    "LOG_ROOT",
+)
+
+
+class MakeRuntimeDefaultsTest(unittest.TestCase):
+    def test_default_tmp_root_is_below_build_root(self) -> None:
+        """Default connector roots remain build-contained under CI overrides."""
+        with tempfile.TemporaryDirectory(prefix="make-runtime-defaults-") as temporary:
+            run_root = Path(temporary) / "verified-run"
+            recipe = 'print-runtime-roots: ; @printf "%s\\n%s\\n" "$(TMP_ROOT)" "$(LOG_ROOT)"'
+            environment = os.environ.copy()
+            for name in RUNTIME_PATH_OVERRIDES:
+                environment.pop(name, None)
+            result = subprocess.run(
+                [
+                    "make",
+                    "-s",
+                    "--no-print-directory",
+                    "--eval",
+                    recipe,
+                    "print-runtime-roots",
+                    f"VERIFIED_RUN_ROOT={run_root}",
+                ],
+                cwd=ROOT,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=environment,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(
+                [
+                    str(run_root / "build" / "tmp"),
+                    str(run_root / "build" / "logs"),
+                ],
+                result.stdout.splitlines(),
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

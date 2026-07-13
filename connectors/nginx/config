@@ -159,6 +159,7 @@ if test -n "$ngx_module_link"; then
             $MSCONNECTOR_COMMON_SRC/headers.c \
             $MSCONNECTOR_COMMON_SRC/event.c \
             $MSCONNECTOR_COMMON_SRC/transaction_state.c \
+            $MSCONNECTOR_COMMON_SRC/late_intervention.c \
             $MSCONNECTOR_COMMON_SRC/event_jsonl.c \
             $MSCONNECTOR_COMMON_SRC/json_escape.c \
             $MSCONNECTOR_COMMON_SRC/rule_id.c \
@@ -215,6 +216,7 @@ else
 	    $MSCONNECTOR_COMMON_SRC/headers.c \
 	    $MSCONNECTOR_COMMON_SRC/event.c \
 	    $MSCONNECTOR_COMMON_SRC/transaction_state.c \
+	    $MSCONNECTOR_COMMON_SRC/late_intervention.c \
 	    $MSCONNECTOR_COMMON_SRC/event_jsonl.c \
 	    $MSCONNECTOR_COMMON_SRC/json_escape.c \
 	    $MSCONNECTOR_COMMON_SRC/rule_id.c \

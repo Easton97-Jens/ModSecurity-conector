@@ -1,5 +1,7 @@
 # Traefik Harness
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: minimal_runtime_smoke for the connector-owned forwardAuth request path
 Runtime status: broader connector behavior remains not-verified / connector-gap
 
@@ -39,6 +41,16 @@ make smoke-traefik
 The framework-facing entrypoint does not run decision-service starter self-tests
 as runtime evidence. Missing explicitly local runtime dependencies remain
 BLOCKED/77.
+
+The full-lifecycle dispatcher does not reuse this `forwardAuth` compatibility
+entrypoint. It invokes `runtime-smoke-traefik-native` through
+`full-lifecycle-traefik-native`, which stages `native_middleware/` in an
+isolated pinned Traefik local-plugin workspace, builds/starts a persistent
+private UDS Common/libmodsecurity engine, and verifies target P1--P4-safe
+host behavior. It loads `MSCONNECTOR_RULES_FILE` when supplied so the real
+events use the Framework rule IDs. This evidence remains non-promoted and
+cannot stand in for capability or production verification; P4 strict remains
+`NOT EXECUTED`.
 
 Future harness work must document:
 

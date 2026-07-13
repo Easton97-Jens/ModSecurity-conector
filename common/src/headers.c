@@ -76,13 +76,15 @@ int msconnector_headers_content_type_matches(const msconnector_header *headers, 
     const msconnector_header *header = msconnector_headers_find(headers, header_count, "content-type");
     size_t value_index = 0;
     const size_t content_type_size = content_type == 0 ? 0U : strlen(content_type);
+    size_t index;
+    size_t suffix_index;
     if (header == 0 || header->value == 0 || content_type == 0) { return 0; }
     while (value_index < header->value_size && is_ows(header->value[value_index])) { ++value_index; }
     if (header->value_size - value_index < content_type_size) { return 0; }
-    for (size_t index = 0; index < content_type_size; ++index) {
+    for (index = 0; index < content_type_size; ++index) {
         if (tolower((unsigned char)header->value[value_index + index]) != tolower((unsigned char)content_type[index])) { return 0; }
     }
-    size_t suffix_index = value_index + content_type_size;
+    suffix_index = value_index + content_type_size;
     while (suffix_index < header->value_size && is_ows(header->value[suffix_index])) { ++suffix_index; }
     return suffix_index == header->value_size || header->value[suffix_index] == ';';
 }

@@ -32,9 +32,9 @@ CLEANDIRECTORIES = \
 	src/.libs
 
 
+# The wrapper appends the Common SDK sources required by Apache adoption.
 all:
 	chmod +x build/apxs-wrapper
-	# build/apxs-wrapper appends the Common SDK sources required by Apache adoption.
 	build/apxs-wrapper
 
 test:

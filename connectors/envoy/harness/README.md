@@ -1,5 +1,7 @@
 # Envoy Connector Harness
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: C17 `ext_authz` service with separated start and runtime smokes.
 Connector metadata is `minimal_runtime_smoke` / `connector-gap` for the targeted
 request-header 200/403 path only.
@@ -26,3 +28,14 @@ Every started process is stopped on success, error, or signal.
 The smoke records metadata-only decision events and does not log request or
 response bodies. `ext_authz` is request-phase only; response-body verification
 remains false.
+
+The full-lifecycle dispatcher does not reuse the `ext_authz` runtime entrypoint.
+It invokes `runtime-smoke-envoy-ext-proc` through
+`full-lifecycle-envoy-ext-proc`, which starts a real Envoy listener, the Go
+`ext_proc` CGo/Common service, and a local upstream. The selected service uses
+one real Common/libmodsecurity transaction per ext_proc stream and writes raw
+Common JSONL under the run root; its completion JSONL remains supplementary.
+The smoke verifies bounded HTTP/1.1 P1/P2/P3/P4 rule/action behavior, including
+host-confirmed deny, redirect, and safe log-only outcomes after successful gRPC
+sends. This connector-local evidence is non-promoted and cannot establish
+reset, timeout, HTTP/2, client-byte, canonical-result, or production claims.

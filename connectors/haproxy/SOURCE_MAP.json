@@ -7,15 +7,19 @@
   "repo_authored_files": [
     {
       "path": "connectors/haproxy/metadata.c",
-      "purpose": "metadata for the HAProxy starter; no HAProxy API or runtime adapter logic"
+      "purpose": "Common adapter metadata for the repository-owned HAProxy/SPOP implementation; no host-runtime claim by itself"
     },
     {
       "path": "connectors/haproxy/metadata.h",
-      "purpose": "metadata declarations for the HAProxy starter"
+      "purpose": "Common adapter metadata declarations for the HAProxy/SPOP implementation"
+    },
+    {
+      "path": "connectors/haproxy/capabilities.json",
+      "purpose": "canonical host-model and per-capability state declaration; runtime promotion requires separate evidence"
     },
     {
       "path": "connectors/haproxy/Makefile",
-      "purpose": "compile the metadata object, local SPOA agent starter, and diagnostic SPOP subset"
+      "purpose": "compile the metadata object, local SPOA agent starter, diagnostic SPOP subset, and separate full-lifecycle HTX observer target"
     },
     {
       "path": "connectors/haproxy/src/haproxy_spoa_agent_starter.c",
@@ -31,7 +35,7 @@
     },
     {
       "path": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
-      "purpose": "request-side SPOP runtime that parses live HAProxy method, uri, req.hdrs_bin/req.hdrs, and req.body SPOE arguments, then returns set-var ACK enforcement for 403 disruptive decisions; not a full SPOA agent implementation"
+      "purpose": "SPOP runtime that parses live HAProxy request and optional response notifications, returns typed decision variables, and writes metadata-only decision JSONL with fixed reason codes; not a full SPOA protocol implementation"
     },
     {
       "path": "connectors/haproxy/src/haproxy_modsecurity_binding.c",
@@ -44,6 +48,30 @@
     {
       "path": "connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c",
       "purpose": "CLI entry point for the local ModSecurity binding self-tests"
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "purpose": "repository-owned HAProxy 3.2.21 native HTX observer filter with borrowed chunk callbacks, selected only by full-lifecycle-haproxy-htx"
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy-3.2.21-makefile.patch",
+      "purpose": "repository-owned narrow Makefile overlay for the isolated HAProxy 3.2.21 worktree"
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/build-overlay.sh",
+      "purpose": "version-pinned isolated HAProxy overlay build and provenance writer"
+    },
+    {
+      "path": "connectors/haproxy/harness/run_haproxy_htx_runtime.sh",
+      "purpose": "repository-owned real HAProxy HTX P1/P3 precommit runtime smoke using canonical No-CRS rules; P2/P4 remain metadata-only and all evidence is non-promoted rather than SPOP enforcement evidence"
+    },
+    {
+      "path": "connectors/haproxy/harness/haproxy_htx_smoke_helper.py",
+      "purpose": "repository-owned local upstream/config/metadata helper for the HTX transport smoke"
+    },
+    {
+      "path": "connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py",
+      "purpose": "focused connector-local tests for HTX configuration and metadata-only evidence generation"
     }
   ],
   "shared_inputs": [
@@ -80,7 +108,7 @@
   ],
   "blocked_dependencies": [
     "full production SPOA/SPOP implementation beyond the request-side runtime subset",
-    "response header/body phase runtime evidence",
+    "capability-promoting response header/body enforcement evidence for the selected compatibility path",
     "audit/log assertion runtime evidence",
     "non-403 disruptive status and redirect mapping evidence",
     "RESPONSE_BODY runtime evidence"
@@ -91,6 +119,7 @@
     "response phase support",
     "audit/log assertion support",
     "non-403 disruptive status support",
-    "RESPONSE_BODY blocking"
+    "RESPONSE_BODY blocking",
+    "capability promotion from the full-lifecycle HTX observer evidence"
   ]
 }

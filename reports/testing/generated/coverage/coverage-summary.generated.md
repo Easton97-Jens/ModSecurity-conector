@@ -1,40 +1,41 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-06T16:46:14Z`
+> Generated at: `2026-07-12T19:07:56Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
-> Generator: `framework:ci/generate-case-matrix.py`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `4afa499f6719e802c5091c43742e99ba39d6d42a`
-> Framework SHA: `3817acec9f2fb483b275b5a9a747542ec40e3b45`
+> Connector SHA: `9b718cee0523da3e0822754dc4b05f327b6d969d`
+> Framework SHA: `06d09c6173d929911bbf75e79e9ee0bf7ea3f734`
 > Input status: `complete`
 
 # Generated Coverage Summary
 
 **Language:** English | [Deutsch](coverage-summary.generated.de.md)
 
-- Total cases: 156
-- RESPONSE_BODY cases: 25
+- Total cases: 160
+- RESPONSE_BODY cases: 29
 - Verified runtime cases: 0
-- Non-verified runtime cases: 156
+- Non-verified runtime cases: 160
 
 ## By scope
 - common: 149
-- apache: 0
-- nginx: 7
+- apache: 2
+- nginx: 9
 - unknown: 0
 
 ## By source
 - ModSecurity-apache PR: 4
 - owasp-modsecurity/ModSecurity-apache#78: 3
-- unknown: 149
+- unknown: 153
 
 ## By status
 - active: 8
 - connector-gap: 15
 - imported: 133
+- pending: 4
 
 ## By variable/collection
 - `RESPONSE_BODY`: 20
@@ -91,14 +92,14 @@
 ## Verification note
 - Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.
 - RESPONSE_BODY remains non-verified/non-promoted until stable full-smoke runtime evidence exists.
-- Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; pass-through rows do not prove full RESPONSE_BODY support.
+- RESPONSE_BODY remains non-verified/non-promoted; legacy bounded samples and pass-through rows do not prove selected-host support.
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
 | Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/runtime-validation-snapshot.json` | `c8e7113e2b7d4982ad6817e9f3fd4387370db33224a0f14ec265126ec685f5f9` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/runtime-validation-snapshot.json` | `d3017f038a44a5f5596e36e3482f92cd93ce6f2173bb958da98cddc05884cd8f` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

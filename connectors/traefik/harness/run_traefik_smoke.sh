@@ -6,7 +6,7 @@ CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)}"
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}"
 HARNESS_PATH="$SCRIPT_DIR/$(basename "$0")"
 
-. "$FRAMEWORK_ROOT/ci/common.sh"
+. "$FRAMEWORK_ROOT/ci/lib/common.sh"
 
 export CONNECTOR_ROOT FRAMEWORK_ROOT HARNESS_PATH
 

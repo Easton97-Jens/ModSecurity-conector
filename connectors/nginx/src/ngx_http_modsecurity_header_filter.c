@@ -22,6 +22,8 @@
 
 #include "ngx_http_modsecurity_common.h"
 #include "ngx_http_modsecurity_mapper.h"
+#include "msconnector/event.h"
+#include "msconnector/event_jsonl.h"
 
 static ngx_http_output_header_filter_pt ngx_http_next_header_filter;
 
@@ -33,6 +35,9 @@ static ngx_int_t ngx_http_modsecurity_resolv_header_last_modified(ngx_http_reque
 static ngx_int_t ngx_http_modsecurity_resolv_header_connection(ngx_http_request_t *r, ngx_str_t name, off_t offset);
 static ngx_int_t ngx_http_modsecurity_resolv_header_transfer_encoding(ngx_http_request_t *r, ngx_str_t name, off_t offset);
 static ngx_int_t ngx_http_modsecurity_resolv_header_vary(ngx_http_request_t *r, ngx_str_t name, off_t offset);
+static ngx_int_t ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
+    ngx_http_modsecurity_conf_t *mcf, int original_status,
+    const char *wanted, const char *actual);
 
 ngx_http_modsecurity_header_out_t ngx_http_modsecurity_headers_out[] = {
 
@@ -406,6 +411,83 @@ ngx_http_modsecurity_resolv_header_vary(ngx_http_request_t *r, ngx_str_t name, o
     return 1;
 }
 
+/*
+ * Phase 3 is still before NGINX's terminal header filter.  Preserve only
+ * bounded metadata about a disruptive response-header decision before the
+ * request is finalized; neither response headers nor body bytes are copied
+ * into the evidence stream.
+ */
+static ngx_int_t
+ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
+    ngx_http_modsecurity_conf_t *mcf, int original_status,
+    const char *wanted, const char *actual)
+{
+    msconnector_event event;
+    char line[4096];
+    int json_truncated = 0;
+    size_t line_length;
+    ssize_t written;
+    ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
+
+    if (mcf == NULL || mcf->phase4_log_file == NULL ||
+        mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
+        return NGX_OK;
+    }
+
+    msconnector_event_init(&event);
+    event.meta.message_id = MSCONN_EVENT_RESPONSE_BLOCKED;
+    event.meta.level = msconnector_event_default_level(event.meta.message_id);
+    event.meta.message = msconnector_event_default_message(event.meta.message_id);
+    event.meta.event = "phase3_intervention";
+    event.meta.connector = "nginx";
+    event.meta.integration_mode = "native-nginx-http-module";
+    event.meta.transaction_id = ctx != NULL && ctx->event_transaction_id.len > 0U
+        ? (const char *)ctx->event_transaction_id.data : "";
+    event.decision.phase = MSCONNECTOR_PHASE_RESPONSE_HEADERS;
+    event.decision.status = MSCONNECTOR_STATUS_BLOCKED;
+    event.decision.action = actual;
+    event.decision.requested_action = wanted;
+    event.decision.actual_action = actual;
+    event.decision.rule_id = ctx != NULL ? ctx->last_intervention_rule_id : "";
+    event.decision.reason = "response_headers_before_commit";
+    event.http.http_status = ctx != NULL && ctx->last_intervention_status > 0
+        ? (int)ctx->last_intervention_status : NGX_HTTP_FORBIDDEN;
+    event.http.original_http_status = original_status;
+    event.http.visible_http_status = event.http.http_status;
+    event.http.transport_result = "http_status";
+    event.flags.late_intervention = 0;
+    event.flags.response_started = 0;
+    event.flags.response_committed = 0;
+    event.flags.headers_sent = 0;
+    event.flags.body_started = 0;
+    event.flags.body_truncated = 0;
+    event.flags.connection_aborted = 0;
+
+    if (!msconnector_event_write_jsonl_line(&event, line, sizeof(line),
+        &json_truncated)) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity phase3 common event serialization failed%s",
+            json_truncated ? " (truncated)" : "");
+        return NGX_ERROR;
+    }
+
+    line_length = ngx_strlen(line);
+    written = ngx_write_fd(mcf->phase4_log_file->fd, (u_char *)line,
+        line_length);
+    if (written < 0) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, ngx_errno,
+            "modsecurity phase3 log write failed");
+        return NGX_ERROR;
+    }
+    if ((size_t)written != line_length) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity phase3 log short write: %z of %uz bytes", written,
+            line_length);
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
 ngx_int_t
 ngx_http_modsecurity_header_filter_init(void)
 {
@@ -427,6 +509,8 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
     ngx_uint_t status;
     char *http_response_ver;
     ngx_pool_t *old_pool;
+    ngx_http_modsecurity_conf_t *mcf;
+    const char *wanted;
 
 
 /* XXX: if NOT_MODIFIED, do we need to process it at all?  see xslt_header_filter() */
@@ -557,6 +641,13 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         return ngx_http_next_header_filter(r);
     }
     if (ret > 0) {
+        mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+        wanted = ctx->last_intervention_status >= 300 &&
+            ctx->last_intervention_status < 400 ? "redirect" : "deny";
+        if (ngx_http_modsecurity_phase3_log_event(r, mcf, (int)status,
+                wanted, wanted) != NGX_OK) {
+            return NGX_ERROR;
+        }
         return ngx_http_filter_finalize_request(r, &ngx_http_modsecurity_module, ret);
     }
 

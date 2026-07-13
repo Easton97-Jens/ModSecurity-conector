@@ -1,11 +1,13 @@
 # Envoy Connector TODO
 
-Status: `compile_verified` ext_authz connector service
-Runtime metadata: `minimal_runtime_smoke` / `connector-gap`
+Status: targeted `minimal_runtime_smoke` for the real HTTP `ext_authz` request path
+Canonical No-CRS status: `supported_not_verified` / `NOT EXECUTED`
+Metadata evidence states: `compile_verified`, `minimal_runtime_smoke`, and `connector-gap`.
 
-Global gate definitions:
+Canonical capability source: `connectors/envoy/capabilities.json`.
 
-- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
+Global gate definitions are consolidated in
+`docs/connectors/README.md` and `docs/testing-and-evidence.md`.
 
 ## Phase 0: Scaffold
 
@@ -38,6 +40,31 @@ Global gate definitions:
 - [x] proxy-wasm/ext_proc dependencies documented as outside the selected path
 - [ ] production adapter build logs documented
 
+## Separate non-promoted ext_proc full-lifecycle host path
+
+- [x] Pinned official Go Envoy proto/gRPC module and checksum lock added.
+- [x] Connector-local `ExternalProcessor` stream service added with per-stream
+      state, bounded incremental header/body callbacks, EOS cleanup, and
+      cancellation cleanup.
+- [x] Non-`BUFFERED` `STREAMED` request/response Envoy template and external
+      materializer added.
+- [x] Source/unit and tagged CGo tests cover chunks, EOS, cancellation,
+      pre-response decisions, response commit ordering, and the conservative
+      late-action result.
+- [x] Replace `PassthroughEngine` in the normal executable with the reviewed
+      Common/libmodsecurity transaction bridge. Source-only protobuf/unit
+      builds retain passthrough only when no runtime config can be accepted.
+- [x] Validate the pinned Envoy release against the materialized config and run
+      a real local HTTP/1.1 P1/P2/P3/P4 Common/libmodsecurity host smoke with
+      raw Common rule/action evidence and cleanup evidence.
+- [x] Add an opt-in real HTTP/1.1 client-close-after-first-byte probe with an
+      exactly-one unattributed terminal completion record
+      (`grpc_context_canceled_unattributed` or `grpc_peer_eof`) and a healthy
+      follow-up request. Its diagnostic sidecar is intentionally not canonical
+      reset or client-cancel promotion evidence.
+- [ ] Run HTTP/2, timeout, reset, and first-byte cases; a bridge now exists,
+      but these cases remain unverified and must not be promoted.
+
 ## Phase 3: ModSecurity Bridge
 
 - [x] libmodsecurity headers supplied through explicit/Framework environment
@@ -50,7 +77,9 @@ Global gate definitions:
 - [x] connector-local `runtime-smoke-envoy` entrypoint implemented
 - [x] harness command documented
 - [x] missing dependencies are BLOCKED while real runtime errors fail
-- [ ] root evidence writer consumes the connector-local summary/event artifacts
+- [ ] canonical Framework evidence normalization consumes the connector-local
+      summary/event artifacts and writes the shared `result.json` and manifest;
+      keep this open until a current canonical run passes validation
 - [x] real Envoy ext_authz runtime harness implemented
 - [x] allowed request returns HTTP 200 in the local targeted smoke
 - [x] blocked request returns rule-backed HTTP 403 through Envoy ext_authz
@@ -59,6 +88,11 @@ Global gate definitions:
 
 - [ ] `make test-no-crs` executed for Envoy scope
 - [ ] PASS/FAIL/BLOCKED counts documented
+- [ ] Request-body delivery is exercised before Phase 2 is promoted beyond
+      `configured_not_exercised`.
+- [ ] `make no-crs-baseline-envoy` produces current canonical evidence.
+- [ ] `make evidence-check-envoy` validates the result without treating the
+      unsupported upstream response phases as failures or PASS.
 
 ## Phase 6: With-CRS Runtime
 
@@ -79,3 +113,20 @@ Global gate definitions:
 - [ ] eligible for `runtime-smoke-verified`
 - [ ] eligible for `crs-verified`
 - [ ] eligible for more than `partial`
+
+## Canonical Phase-4 architecture boundary
+
+The selected HTTP `ext_authz` integration runs before upstream handling.  The
+following source-contract facets are therefore
+`unsupported_by_host_model`: `response_body_buffered`, `phase4`,
+`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort`, and
+`late_intervention_status_metadata`.
+
+- [x] Classify selected Phase-4 cases as `UNSUPPORTED` with the ext_authz
+      upstream-response boundary, rather than `NOT EXECUTED`.
+- [ ] Do not treat request-side 200/403 evidence as response-body, late-action,
+      original-status, visible-status, or connection-abort evidence.
+- [ ] Reassess these states only for a different Envoy integration that actually
+      receives the upstream response; that integration requires new host-path
+      evidence and must not reuse ext_authz results.

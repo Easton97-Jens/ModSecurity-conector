@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-06T16:46:14Z`
+> Generated at: `2026-07-12T19:07:56Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
-> Generator: `framework:ci/generate-case-matrix.py`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `4afa499f6719e802c5091c43742e99ba39d6d42a`
-> Framework SHA: `3817acec9f2fb483b275b5a9a747542ec40e3b45`
+> Connector SHA: `9b718cee0523da3e0822754dc4b05f327b6d969d`
+> Framework SHA: `06d09c6173d929911bbf75e79e9ee0bf7ea3f734`
 > Input status: `complete`
 
 # Generated Case Matrix
@@ -57,7 +57,11 @@
 | xml_namespace_edge_connector_gap | `tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | common | 1,2 | REQUEST_HEADERS:Content-Type, XML:/* | @contains, @rx | lowercase, none | imported | - | active | - | unknown | no | - |
 | xml_request_body_block | `tests/cases/body/xml/xml_request_body_block.yaml` | common | 1,2 | XML:/* | @contains | lowercase, none | imported | - | active | - | unknown | no | - |
 | xml_request_body_malformed_connector_gap | `tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | common | 1,2 | REQUEST_HEADERS:Content-Type, XML | @contains, @rx | lowercase, none | imported | - | active | - | unknown | no | - |
+| phase4_deny_after_commit_abort | `tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_abort.yaml` | apache | - | - | - | - | pending | - | active | - | false | yes | - |
+| phase4_deny_after_commit_log_only | `tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_log_only.yaml` | apache | - | - | - | - | pending | - | active | - | false | yes | - |
 | nginx_phase4_content_type_out_of_scope | `tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
+| phase4_deny_after_commit_abort | `tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_abort.yaml` | nginx | - | - | - | - | pending | - | active | - | false | yes | - |
+| phase4_deny_after_commit_log_only | `tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_log_only.yaml` | nginx | - | - | - | - | pending | - | active | - | false | yes | - |
 | nginx_phase4_minimal_log_only | `tests/cases/connector-specific/nginx/nginx_phase4_minimal_log_only.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | nginx_phase4_safe_log_only | `tests/cases/connector-specific/nginx/nginx_phase4_safe_log_only.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | nginx_phase4_strict_connection_abort | `tests/cases/connector-specific/nginx/nginx_phase4_strict_connection_abort.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
@@ -179,7 +183,7 @@
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
 | Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/runtime-validation-snapshot.json` | `c8e7113e2b7d4982ad6817e9f3fd4387370db33224a0f14ec265126ec685f5f9` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/runtime-validation-snapshot.json` | `d3017f038a44a5f5596e36e3482f92cd93ce6f2173bb958da98cddc05884cd8f` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

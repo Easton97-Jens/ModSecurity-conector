@@ -93,8 +93,16 @@ struct haproxy_modsecurity_transaction {
     haproxy_modsecurity_engine *engine;
     Transaction *transaction;
     int logging_done;
+    int request_headers_processed;
+    int request_body_processed;
+    int request_body_started;
+    size_t request_body_bytes_seen;
+    size_t request_body_bytes_inspected;
     int response_headers_processed;
     int response_body_processed;
+    int response_body_started;
+    size_t response_body_bytes_seen;
+    size_t response_body_bytes_inspected;
     char request_id[128];
 };
 
@@ -213,8 +221,6 @@ static void capture_intervention(
             intervention.log);
         msconnector_sanitize_log_message(intervention.log, intervention.log != 0 ? strlen(intervention.log) : 0U,
             decision->log_message, sizeof(decision->log_message), &truncated);
-        copy_message(decision->rule_message, sizeof(decision->rule_message),
-            intervention.log);
         rule_id_result = msconnector_rule_id_extract_from_message(intervention.log, common_rule_id,
             sizeof(common_rule_id));
         if (rule_id_result > 0) {
@@ -626,7 +632,7 @@ static void transaction_cleanup(haproxy_modsecurity_transaction *transaction, in
     free(transaction);
 }
 
-int haproxy_modsecurity_transaction_begin(
+int haproxy_modsecurity_transaction_begin_request(
         haproxy_modsecurity_engine *engine,
         const haproxy_modsecurity_request *request,
         haproxy_modsecurity_decision *decision,
@@ -727,26 +733,107 @@ int haproxy_modsecurity_transaction_begin(
         transaction_cleanup(created, 0);
         return 1;
     }
+    created->request_headers_processed = 1;
     capture_intervention(created->transaction, 1, decision);
     *transaction = created;
-    if (decision->disruptive != 0) {
-        return 0;
+    return 0;
+}
+
+int haproxy_modsecurity_transaction_append_request_body_chunk(
+        haproxy_modsecurity_transaction *transaction,
+        const unsigned char *body,
+        unsigned int body_len,
+        haproxy_modsecurity_decision *decision) {
+    init_decision(decision, 2);
+    if (transaction == 0 || transaction->transaction == 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "missing transaction or request body");
+        return 1;
     }
-    if (request->body != 0 && request->body_len > 0) {
-        if (msc_append_request_body(created->transaction,
-                request->body, (size_t)request->body_len) < 0) {
-            copy_message(decision->log_message, sizeof(decision->log_message),
-                "msc_append_request_body failed");
-            return 1;
-        }
+    if (!transaction->request_headers_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "request headers must be processed before request body chunks");
+        return 1;
     }
-    if (msc_process_request_body(created->transaction) < 0) {
+    if (transaction->request_body_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "request body append after end-of-stream");
+        return 1;
+    }
+    if (body_len > 0U && body == 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "request body pointer is required when length is nonzero");
+        return 1;
+    }
+    transaction->request_body_bytes_seen += body_len;
+    if (body_len > 0U &&
+            msc_append_request_body(transaction->transaction, body,
+                (size_t)body_len) < 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "msc_append_request_body failed");
+        return 1;
+    }
+    transaction->request_body_started = 1;
+    transaction->request_body_bytes_inspected += body_len;
+    return 0;
+}
+
+int haproxy_modsecurity_transaction_finish_request_body(
+        haproxy_modsecurity_transaction *transaction,
+        haproxy_modsecurity_decision *decision) {
+    init_decision(decision, 2);
+    if (transaction == 0 || transaction->transaction == 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "missing transaction or request body");
+        return 1;
+    }
+    if (!transaction->request_headers_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "request headers must be processed before request body finalization");
+        return 1;
+    }
+    if (transaction->request_body_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "request body may only be finalized once");
+        return 1;
+    }
+    if (msc_process_request_body(transaction->transaction) < 0) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_request_body failed");
         return 1;
     }
-    capture_intervention(created->transaction, 2, decision);
+    transaction->request_body_processed = 1;
+    capture_intervention(transaction->transaction, 2, decision);
     return 0;
+}
+
+int haproxy_modsecurity_transaction_begin(
+        haproxy_modsecurity_engine *engine,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision,
+        haproxy_modsecurity_transaction **transaction) {
+    haproxy_modsecurity_transaction *created = 0;
+    int rc;
+
+    if (transaction == 0) {
+        init_decision(decision, 0);
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "missing transaction output");
+        return 1;
+    }
+    *transaction = 0;
+    rc = haproxy_modsecurity_transaction_begin_request(engine, request, decision,
+        transaction);
+    created = *transaction;
+    if (rc != 0 || created == 0 || decision->disruptive != 0) {
+        return rc;
+    }
+    if (request != 0 && request->body != 0 && request->body_len > 0U &&
+            haproxy_modsecurity_transaction_append_request_body_chunk(created,
+                request->body, request->body_len, decision) != 0) {
+        return 1;
+    }
+    return haproxy_modsecurity_transaction_finish_request_body(created, decision);
 }
 
 int haproxy_modsecurity_transaction_process_response_headers(
@@ -808,6 +895,74 @@ int haproxy_modsecurity_transaction_process_response_headers(
     return 0;
 }
 
+int haproxy_modsecurity_transaction_append_response_body_chunk(
+        haproxy_modsecurity_transaction *transaction,
+        const unsigned char *body,
+        unsigned int body_len,
+        haproxy_modsecurity_decision *decision) {
+    init_decision(decision, 4);
+    if (transaction == 0 || transaction->transaction == 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "missing transaction or response body");
+        return 1;
+    }
+    if (!transaction->response_headers_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "response headers must be processed before response body chunks");
+        return 1;
+    }
+    if (transaction->response_body_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "response body append after end-of-stream");
+        return 1;
+    }
+    if (body_len > 0U && body == 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "response body pointer is required when length is nonzero");
+        return 1;
+    }
+    transaction->response_body_bytes_seen += body_len;
+    if (body_len > 0U &&
+            msc_append_response_body(transaction->transaction, body,
+                (size_t)body_len) < 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "msc_append_response_body failed");
+        return 1;
+    }
+    transaction->response_body_started = 1;
+    transaction->response_body_bytes_inspected += body_len;
+    return 0;
+}
+
+int haproxy_modsecurity_transaction_finish_response_body(
+        haproxy_modsecurity_transaction *transaction,
+        haproxy_modsecurity_decision *decision) {
+    init_decision(decision, 4);
+    if (transaction == 0 || transaction->transaction == 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "missing transaction or response body");
+        return 1;
+    }
+    if (!transaction->response_headers_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "response headers must be processed before response body finalization");
+        return 1;
+    }
+    if (transaction->response_body_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "response body may only be finalized once");
+        return 1;
+    }
+    if (msc_process_response_body(transaction->transaction) < 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "msc_process_response_body failed");
+        return 1;
+    }
+    transaction->response_body_processed = 1;
+    capture_intervention(transaction->transaction, 4, decision);
+    return 0;
+}
+
 int haproxy_modsecurity_transaction_process_response_body(
         haproxy_modsecurity_transaction *transaction,
         const haproxy_modsecurity_response *response,
@@ -826,22 +981,12 @@ int haproxy_modsecurity_transaction_process_response_body(
         }
         init_decision(decision, 4);
     }
-    if (response->body != 0 && response->body_len > 0) {
-        if (msc_append_response_body(transaction->transaction,
-                response->body, (size_t)response->body_len) < 0) {
-            copy_message(decision->log_message, sizeof(decision->log_message),
-                "msc_append_response_body failed");
-            return 1;
-        }
-    }
-    if (msc_process_response_body(transaction->transaction) < 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_response_body failed");
+    if (haproxy_modsecurity_transaction_append_response_body_chunk(
+            transaction, response->body, response->body_len, decision) != 0) {
         return 1;
     }
-    transaction->response_body_processed = 1;
-    capture_intervention(transaction->transaction, 4, decision);
-    return 0;
+    return haproxy_modsecurity_transaction_finish_response_body(
+        transaction, decision);
 }
 
 void haproxy_modsecurity_transaction_finish(

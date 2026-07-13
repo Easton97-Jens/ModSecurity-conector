@@ -8,11 +8,13 @@ BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecuri
 SERVICE_BIN=${SERVICE_BIN:-$BUILD_ROOT/envoy-connector/msconnector_envoy_ext_authz}
 CONFIG_FILE=${CONFIG_FILE:-$CONNECTOR_DIR/config/envoy-ext-authz.conf}
 RULES_FILE=${RULES_FILE:-$REPO_ROOT/common/rules/modsecurity_targeted_smoke.conf}
+EXPECTED_RULE_ID=${MSCONNECTOR_EXPECTED_RULE_ID:-1000001}
 RUNTIME_ROOT=${RUNTIME_ROOT:-$BUILD_ROOT/envoy-connector/runtime-smoke}
 EVENT_LOG_PATH=${EVENT_LOG_PATH:-$RUNTIME_ROOT/events.jsonl}
 PYTHON_BIN=${PYTHON:-python3}
 HELPER="$SCRIPT_DIR/envoy_smoke_helper.py"
 YAML_TEMPLATE="$CONNECTOR_DIR/config/envoy-ext-authz-smoke.yaml.in"
+NO_CRS_SELECTION_CONSUMER="$REPO_ROOT/ci/runtime/lifecycle/consume-no-crs-selected-cases.sh"
 ENVOY_CONFIG="$RUNTIME_ROOT/envoy.yaml"
 SUMMARY="$RUNTIME_ROOT/runtime-summary.txt"
 ENVOY_STDOUT="$RUNTIME_ROOT/envoy.stdout.log"
@@ -53,6 +55,11 @@ trap cleanup EXIT HUP INT TERM
 [ -f "$YAML_TEMPLATE" ] || missing_dependency "Envoy config template is missing: $YAML_TEMPLATE"
 [ -f "$HELPER" ] || missing_dependency "smoke helper is missing: $HELPER"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || missing_dependency "Python interpreter is missing: $PYTHON_BIN"
+
+if [ "${MSCONNECTOR_NO_CRS_BASELINE:-0}" = "1" ]; then
+    [ -x "$NO_CRS_SELECTION_CONSUMER" ] || missing_dependency "No-CRS selected-case consumer is missing: $NO_CRS_SELECTION_CONSUMER"
+    "$NO_CRS_SELECTION_CONSUMER" envoy
+fi
 
 case "$RUNTIME_ROOT" in
     /*) ;;
@@ -160,7 +167,7 @@ if [ ! -s "$EVENT_LOG_PATH" ]; then
     echo "envoy_runtime_smoke: FAIL - metadata event log was not produced: $EVENT_LOG_PATH" >&2
     exit 1
 fi
-if ! grep -q '"rule_id":"1000001"' "$EVENT_LOG_PATH" ||
+if ! grep -q "\"rule_id\":\"$EXPECTED_RULE_ID\"" "$EVENT_LOG_PATH" ||
     ! grep -q '"transaction_id":"envoy-block-1"' "$EVENT_LOG_PATH"; then
     echo "envoy_runtime_smoke: FAIL - event log lacks rule/transaction evidence" >&2
     exit 1
@@ -179,7 +186,7 @@ done
     printf 'integration_mode=ext_authz\n'
     printf 'allowed_request_status=%s\n' "$allowed_status"
     printf 'blocked_request_status=%s\n' "$blocked_status"
-    printf 'rule_id=1000001\n'
+    printf 'rule_id=%s\n' "$EXPECTED_RULE_ID"
     printf 'event_log=%s\n' "$EVENT_LOG_PATH"
     printf 'envoy_config=%s\n' "$ENVOY_CONFIG"
     printf 'response_body_verified=false\n'

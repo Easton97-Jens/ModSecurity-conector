@@ -22,7 +22,7 @@ RUNTIME_ROOT="${RUNTIME_ROOT:-}"
 HAPROXY_BIN="${HAPROXY_BIN:-$BUILD_ROOT/haproxy-runtime/haproxy/sbin/haproxy}"
 SPOA_RUNTIME_BIN="${SPOA_RUNTIME_BIN:-$BUILD_ROOT/haproxy-spoa-runtime/haproxy-modsecurity-spoa}"
 MODSECURITY_BINDING_DIR="${MODSECURITY_BINDING_DIR:-$BUILD_ROOT/haproxy-modsecurity-binding}"
-PREPARE_HAPROXY_RUNTIME="$FRAMEWORK_ROOT/ci/prepare-haproxy-runtime.sh"
+PREPARE_HAPROXY_RUNTIME="$FRAMEWORK_ROOT/ci/provisioning/prepare-haproxy-runtime.sh"
 CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 CURL_BIN="${CURL:-}"
 PYTHON_BIN="${PYTHON:-python3}"
@@ -38,12 +38,13 @@ TEST_CASE="${TEST_CASE:-}"
 SMOKE_CASES="${SMOKE_CASES:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
+MSCONNECTOR_SMOKE_STAGE="${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}"
 STATUS_FILE="$LOG_DIR/status.txt"
 MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-no-crs}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
 export MODSECURITY_TEST_VARIANT
 
-. "$FRAMEWORK_ROOT/ci/common.sh"
+. "$FRAMEWORK_ROOT/ci/lib/common.sh"
 
 CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-}"
 CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-}"
@@ -54,7 +55,7 @@ CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-}"
 CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-}"
 
 load_connector_adapter_metadata() {
-    metadata_shell=$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell haproxy --prefix CONNECTOR_ADAPTER 2>/dev/null || true)
+    metadata_shell=$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell haproxy --prefix CONNECTOR_ADAPTER 2>/dev/null || true)
     [ -n "$metadata_shell" ] || return 0
     eval "$metadata_shell"
     CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-$CONNECTOR_ADAPTER_SOURCE}"
@@ -393,9 +394,13 @@ expect = effective_expect(case)
 intervention = str(expect.get("intervention", ""))
 status = int(expect.get("status", 0))
 response_headers = bool(caps.intersection({"phase3", "phase4", "response-headers", "response-body"}))
-response_body = bool(caps.intersection({"phase4", "response-body"}))
 print(f"HAPROXY_ENABLE_RESPONSE_HEADERS={1 if response_headers else 0}")
-print(f"HAPROXY_ENABLE_RESPONSE_BODY={1 if response_body else 0}")
+# The selected SPOE/SPOP integration has no native response-chunk callback.
+# Do not enable HAProxy's wait-for-body sample path for Phase 4: it delays
+# output for a synthetic agent message and cannot prove the low-latency
+# lifecycle contract.  A future HTX/filter adapter may set this only after it
+# exposes genuine borrowed chunks and end-of-stream semantics.
+print("HAPROXY_ENABLE_RESPONSE_BODY=0")
 print(f"HAPROXY_EXPECT_INTERVENTION={intervention!r}")
 print(f"HAPROXY_EXPECT_STATUS={status}")
 print("HAPROXY_NOT_EXECUTABLE_REASON=''")
@@ -631,15 +636,15 @@ ensure_local_haproxy() {
         CONNECTOR_ROOT="$REPO_ROOT" \
         FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
         sh "$PREPARE_HAPROXY_RUNTIME" >"$LOG_DIR/prepare-haproxy-runtime.log" 2>&1 || \
-        blocked "prepare-haproxy-runtime failed; see $LOG_DIR/prepare-haproxy-runtime.log"
-    [ -x "$HAPROXY_BIN" ] || blocked "local HAProxy binary missing after prepare: $HAPROXY_BIN"
+        fail "prepare-haproxy-runtime failed; see $LOG_DIR/prepare-haproxy-runtime.log"
+    [ -x "$HAPROXY_BIN" ] || fail "local HAProxy binary missing after prepare: $HAPROXY_BIN"
 }
 
 ensure_spoa_runtime() {
     if [ -x "$SPOA_RUNTIME_BIN" ] && [ -f "$MODSECURITY_BINDING_DIR/paths.env" ]; then
         . "$MODSECURITY_BINDING_DIR/paths.env"
         export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR
-        [ -n "${MODSECURITY_LIB_DIR:-}" ] || blocked "ModSecurity library directory missing from paths.env"
+        [ -n "${MODSECURITY_LIB_DIR:-}" ] || fail "ModSecurity library directory missing from paths.env"
         return 0
     fi
     if [ "${RUNTIME_COMPONENTS_PREPARED_ONLY:-0}" = "1" ]; then
@@ -650,12 +655,12 @@ ensure_spoa_runtime() {
         LOG_ROOT="$LOG_ROOT" \
         REPO_ROOT="$REPO_ROOT" \
         make -C "$REPO_ROOT/connectors/haproxy" build-modsecurity-binding build-spoa-runtime >"$LOG_DIR/haproxy-build.log" 2>&1 || \
-        blocked "HAProxy ModSecurity binding/SPOA runtime build failed; see $LOG_DIR/haproxy-build.log"
-    [ -x "$SPOA_RUNTIME_BIN" ] || blocked "SPOA runtime missing after build: $SPOA_RUNTIME_BIN"
-    [ -f "$MODSECURITY_BINDING_DIR/paths.env" ] || blocked "ModSecurity binding paths missing: $MODSECURITY_BINDING_DIR/paths.env"
+        fail "HAProxy ModSecurity binding/SPOA runtime build failed; see $LOG_DIR/haproxy-build.log"
+    [ -x "$SPOA_RUNTIME_BIN" ] || fail "SPOA runtime missing after build: $SPOA_RUNTIME_BIN"
+    [ -f "$MODSECURITY_BINDING_DIR/paths.env" ] || fail "ModSecurity binding paths missing: $MODSECURITY_BINDING_DIR/paths.env"
     . "$MODSECURITY_BINDING_DIR/paths.env"
     export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR
-    [ -n "${MODSECURITY_LIB_DIR:-}" ] || blocked "ModSecurity library directory missing from paths.env"
+    [ -n "${MODSECURITY_LIB_DIR:-}" ] || fail "ModSecurity library directory missing from paths.env"
 }
 
 cleanup() {
@@ -692,18 +697,16 @@ write_haproxy_config() {
         echo "    unique-id-format %[uuid()]"
         echo "    unique-id-header X-Request-ID"
         echo "    option http-buffer-request"
-        if [ "${HAPROXY_ENABLE_RESPONSE_BODY:-0}" = "1" ]; then
-            echo "    http-response wait-for-body time 50ms at-least 1"
-        fi
         echo "    filter spoe engine modsecurity config $SPOE_CFG"
         echo "    http-request send-spoe-group modsecurity request-check"
         echo "    http-request redirect location %[var(txn.modsec.redirect_url)] code 302 if { var(txn.modsec.action) -m str redirect } { var(txn.modsec.redirect_url) -m found }"
         echo "    http-request silent-drop if { var(txn.modsec.action) -m str drop }"
         echo "    http-request deny status 401 if { var(txn.modsec.status) -m int 401 }"
-        echo "    http-request deny status 403 if { var(txn.modsec.blocked) -m bool }"
         echo "    http-request deny status 406 if { var(txn.modsec.status) -m int 406 }"
         echo "    http-request deny status 429 if { var(txn.modsec.status) -m int 429 }"
         echo "    http-request deny status 503 if { var(txn.modsec.status) -m int 503 }"
+        # Preserve an explicit disruptive status before falling back to 403.
+        echo "    http-request deny status 403 if { var(txn.modsec.blocked) -m bool }"
         if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
             echo "    http-response set-header Last-Modified \"Wed, 21 Oct 2015 07:28:00 GMT\""
             echo "    http-response set-header Content-Type \"text/html; charset=utf-8\""
@@ -713,10 +716,11 @@ write_haproxy_config() {
             echo "    http-response send-spoe-group modsecurity response-check"
             echo "    http-response silent-drop if { var(txn.modsec.action) -m str drop }"
             echo "    http-response deny status 401 if { var(txn.modsec.status) -m int 401 }"
-            echo "    http-response deny status 403 if { var(txn.modsec.blocked) -m bool }"
             echo "    http-response deny status 406 if { var(txn.modsec.status) -m int 406 }"
             echo "    http-response deny status 429 if { var(txn.modsec.status) -m int 429 }"
             echo "    http-response deny status 503 if { var(txn.modsec.status) -m int 503 }"
+            # Preserve an explicit disruptive status before falling back to 403.
+            echo "    http-response deny status 403 if { var(txn.modsec.blocked) -m bool }"
         fi
         echo "    default_backend be_haproxy_smoke_app"
         echo
@@ -760,11 +764,7 @@ write_haproxy_config() {
             echo "    messages check-response"
             echo
             echo "spoe-message check-response"
-            if [ "${HAPROXY_ENABLE_RESPONSE_BODY:-0}" = "1" ]; then
-                echo "    args request_id=unique-id response_status=txn.status response_headers_bin=res.hdrs_bin response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server) response_body=res.body response_body_len=res.body_len"
-            else
-                echo "    args request_id=unique-id response_status=txn.status response_headers_bin=res.hdrs_bin response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server)"
-            fi
+            echo "    args request_id=unique-id response_status=txn.status response_headers_bin=res.hdrs_bin response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server)"
         fi
     } > "$SPOE_CFG"
 }
@@ -823,7 +823,7 @@ class Handler(BaseHTTPRequestHandler):
 ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
 PY
     BACKEND_PID=$!
-    wait_tcp_port "$BACKEND_PORT" || blocked "backend failed to start on 127.0.0.1:$BACKEND_PORT"
+    wait_tcp_port "$BACKEND_PORT" || fail "backend failed to start on 127.0.0.1:$BACKEND_PORT"
 }
 
 start_agent() {
@@ -831,12 +831,8 @@ start_agent() {
     pid_file="$RUNTIME_ROOT/spoa.pid"
     port_file="$RUNTIME_ROOT/spoa.port"
     response_header_arg=
-    response_body_limit=0
     if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
         response_header_arg=--enable-response-headers
-    fi
-    if [ "${HAPROXY_ENABLE_RESPONSE_BODY:-0}" = "1" ]; then
-        response_body_limit="${HAPROXY_RESPONSE_BODY_LIMIT:-32768}"
     fi
     LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
         "$SPOA_RUNTIME_BIN" \
@@ -855,8 +851,6 @@ start_agent() {
             --case "$CASE_NAME" \
             --expected-status "$EXPECT_STATUS" \
             --request-body-limit 65532 \
-            --response-body-limit "$response_body_limit" \
-            --response-body-timeout 50 \
             $response_header_arg \
             >"$LOG_DIR/spoa-runtime.stdout.log" \
             2>"$LOG_DIR/spoa-runtime.stderr.log" &
@@ -872,18 +866,18 @@ start_agent() {
     if rule_parse_startup_is_not_executable; then
         mark_not_executable "ModSecurity rule parse failed for generated case; see $LOG_DIR/spoa-runtime.stderr.log"
     fi
-    blocked "SPOA runtime failed to start; see $LOG_DIR/spoa-runtime.stderr.log"
+    fail "SPOA runtime failed to start; see $LOG_DIR/spoa-runtime.stderr.log"
 }
 
 start_haproxy() {
     write_haproxy_config
     if ! "$HAPROXY_BIN" -c -f "$HAPROXY_CFG" >"$LOG_DIR/haproxy-configtest.log" 2>&1; then
-        blocked "HAProxy configtest failed; see $LOG_DIR/haproxy-configtest.log"
+        fail "HAProxy configtest failed; see $LOG_DIR/haproxy-configtest.log"
     fi
     "$HAPROXY_BIN" -db -f "$HAPROXY_CFG" >"$LOG_DIR/haproxy.stdout.log" 2>"$LOG_DIR/haproxy.stderr.log" &
     HAPROXY_PID=$!
     sleep 0.2
-    kill -0 "$HAPROXY_PID" >/dev/null 2>&1 || blocked "HAProxy exited before request; see $LOG_DIR/haproxy.stderr.log"
+    kill -0 "$HAPROXY_PID" >/dev/null 2>&1 || fail "HAProxy exited before request; see $LOG_DIR/haproxy.stderr.log"
 }
 
 send_case_request() {
@@ -935,6 +929,7 @@ echo "haproxy_smoke: LOG_DIR=$LOG_DIR"
 echo "haproxy_smoke: TEST_CASE=$TEST_CASE"
 echo "haproxy_smoke: CASE_SCOPE=$CASE_SCOPE"
 echo "haproxy_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+echo "haproxy_smoke: MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE"
 if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
     echo "haproxy_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
 fi
@@ -958,9 +953,17 @@ rm -f "$LOG_DIR/"*.log \
     "$RUNTIME_ROOT/"*.port 2>/dev/null || true
 rm -f "$LOG_DIR/audit/"* 2>/dev/null || true
 
-CURL_BIN=$(find_curl)
-[ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
-[ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+case "$MSCONNECTOR_SMOKE_STAGE" in
+    config_load|start_smoke|minimal_runtime_smoke) ;;
+    *) fail "unsupported MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE" ;;
+esac
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+    CURL_BIN=$(find_curl)
+    [ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
+    [ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+else
+    CURL_BIN=
+fi
 
 ensure_local_haproxy
 ensure_spoa_runtime
@@ -990,7 +993,7 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --audit-log-file "$AUDIT_LOG_FILE" \
     --audit-log-dir "$AUDIT_LOG_DIR" \
     --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
-    blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
+    fail "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
 
@@ -1003,9 +1006,26 @@ PORT=$(select_free_port "$PORT" "$PORT_SEARCH_LIMIT") || blocked "no free localh
 SPOA_PORT=$(select_offset_port "$PORT" "$HAPROXY_SPOA_PORT_OFFSET" "$PORT_SEARCH_LIMIT") || blocked "no free local SPOA port found from $((PORT + HAPROXY_SPOA_PORT_OFFSET)) within $PORT_SEARCH_LIMIT attempts"
 BACKEND_PORT=$(select_offset_port "$PORT" "$HAPROXY_BACKEND_PORT_OFFSET" "$PORT_SEARCH_LIMIT") || blocked "no free local backend port found from $((PORT + HAPROXY_BACKEND_PORT_OFFSET)) within $PORT_SEARCH_LIMIT attempts"
 trap cleanup EXIT INT TERM
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
+    write_haproxy_config
+    if ! "$HAPROXY_BIN" -c -f "$HAPROXY_CFG" >"$LOG_DIR/haproxy-configtest.log" 2>&1; then
+        fail "HAProxy configtest failed; see $LOG_DIR/haproxy-configtest.log"
+    fi
+    echo "haproxy_smoke: pass config_load (no process started, no request sent)"
+    exit 0
+fi
 start_backend
 start_agent
 start_haproxy
+
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
+    sleep 1
+    kill -0 "$BACKEND_PID" >/dev/null 2>&1 || fail "backend exited during request-free start smoke"
+    kill -0 "$AGENT_PID" >/dev/null 2>&1 || fail "SPOA agent exited during request-free start smoke"
+    kill -0 "$HAPROXY_PID" >/dev/null 2>&1 || fail "HAProxy exited during request-free start smoke"
+    echo "haproxy_smoke: pass start_smoke (request-free host and agent liveness verified)"
+    exit 0
+fi
 
 set +e
 http_status=$(send_case_request)

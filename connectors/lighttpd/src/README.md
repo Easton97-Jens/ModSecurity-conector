@@ -1,5 +1,7 @@
 # lighttpd Source
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: native Phase-1 mapper plus retained legacy starters
 
 Primary native source:

@@ -1,5 +1,7 @@
 # src - Connector Template
 
+**Language:** English | [Deutsch](README.de.md)
+
 This directory is reserved for productive source code of a concrete connector
 after its origin, license, metadata, design, and validation evidence are known.
 

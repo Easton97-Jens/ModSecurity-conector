@@ -1,10 +1,13 @@
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "mod_security3.h"
 #include "msc_utils.h"
 #include "msc_config.h"
+#include "msconnector/limits.h"
 #include "msconnector/options.h"
+#include "msconnector/rule_id.h"
 
 /*
  *
@@ -27,12 +30,25 @@ static int process_request_headers(request_rec *r, msc_t *msr);
 void modsecurity_log_cb(void *log, const void* data)
 {
     const char *msg;
+    char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
     if (log == NULL || data == NULL) {
         return;
     }
     msg = (const char *) data;
     request_rec *r = (request_rec *) log;
     msc_conf_t *conf = NULL;
+    msc_t *msr = NULL;
+
+    msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
+    rule_id[0] = '\0';
+    if (msr != NULL && msr->native_event_phase_active &&
+        (msr->native_event_phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ||
+         msr->native_event_phase == MSCONNECTOR_PHASE_REQUEST_BODY) &&
+        msconnector_rule_id_extract_from_message(msg, rule_id,
+            sizeof(rule_id)) > 0)
+    {
+        apache_log_rule_match_event(msr, r, msr->native_event_phase, rule_id);
+    }
 
     if (r->per_dir_config != NULL) {
         conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
@@ -207,6 +223,12 @@ static msc_t *create_tx_context(request_rec *r) {
     } else {
         msr->t = msc_new_transaction(msc_apache->modsec,
             z->rules_set, (void *)r);
+    }
+    if (transaction_id != NULL && transaction_id[0] != '\0') {
+        msr->event_transaction_id = apr_pstrdup(r->pool, transaction_id);
+    } else {
+        msr->event_transaction_id = apr_psprintf(r->pool, "%ld-%ld",
+            (long)r->request_time, (long)r->connection->id);
     }
 
     store_tx_context(msr, r);
@@ -481,12 +503,16 @@ static int hook_request_late(request_rec *r)
     }
 #endif
 
-
-    msc_process_request_body(msr->t);
-    it = process_intervention(msr->t, r);
-    if (it != N_INTERVENTION_STATUS)
+    /* No-body requests have no input EOS to drive the filter.  Complete P2
+     * here; requests that advertise a body remain streaming until
+     * MODSECURITY_IN receives EOS (or Apache drains an unread body). */
+    if (!ap_request_has_body(r))
     {
-        return it;
+        it = msc_finalize_request_body(msr, r);
+        if (it != N_INTERVENTION_STATUS)
+        {
+            return it;
+        }
     }
 
     return DECLINED;
@@ -567,10 +593,19 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
             && r->protocol[4] != '\0'
             && r->protocol[5] != '\0') ? 5 : 0;
 
+        msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+        msr->native_event_phase_active = 1;
         msc_process_uri(msr->t, r->unparsed_uri, r->method, r->protocol + offset);
+        msr->native_event_phase_active = 0;
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
+            const char *action = msr->last_intervention_status >= 300 &&
+                msr->last_intervention_status < 400 ? "redirect" : "deny";
+
+            apache_emit_intervention_event(msr, r, "phase1_intervention",
+                MSCONNECTOR_PHASE_REQUEST_HEADERS, action, action,
+                "request_uri_before_request_headers", r->status, 0);
             return it;
         }
     }
@@ -590,11 +625,23 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
             const char *val = te[i].val;
             msc_add_request_header(msr->t, key, val);
         }
+        msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+        msr->native_event_phase_active = 1;
         msc_process_request_headers(msr->t);
+        msr->native_event_phase_active = 0;
 
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
+            const char *action = msr->last_intervention_status >= 300 &&
+                msr->last_intervention_status < 400 ? "redirect" : "deny";
+
+            /* The native request-header hook has not handed control to a
+             * handler yet.  Write this bounded event in the same real host
+             * path that returns the HTTP intervention to Apache. */
+            apache_emit_intervention_event(msr, r, "phase1_intervention",
+                MSCONNECTOR_PHASE_REQUEST_HEADERS, action, action,
+                "request_headers_before_handler", r->status, 0);
             return it;
         }
     }

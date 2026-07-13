@@ -1,6 +1,7 @@
 #ifndef MSCONNECTOR_CONFIG_H
 #define MSCONNECTOR_CONFIG_H
 
+#include "msconnector/body_policy.h"
 #include "msconnector/options.h"
 #include <stddef.h>
 
@@ -29,10 +30,19 @@ typedef struct msconnector_config {
     const char *phase4_content_types_file;
     const char *phase4_log_path;
     size_t phase4_body_limit;
+    size_t request_body_limit;
+    size_t response_body_limit;
+    msconnector_body_limit_action body_limit_action;
+    /* Zero disables the optional host-side budget. Common stores this value
+     * but has no host timer or cancellation primitive with which to enforce
+     * it. The unset sentinel preserves an explicit zero during config merge. */
+    size_t late_intervention_timeout_ms;
     int default_block_status;
     int default_error_status;
     int unsupported_status;
 } msconnector_config;
+
+#define MSCONNECTOR_LATE_INTERVENTION_TIMEOUT_UNSET ((size_t)-1)
 
 void msconnector_config_init(msconnector_config *config);
 void msconnector_config_apply_defaults(msconnector_config *config);

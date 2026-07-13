@@ -58,7 +58,7 @@
     "working_tree_dirty": "dirty"
   },
   "mrts_native": {
-    "generated_at": "2026-06-19T15:44:00Z",
+    "generated_at": "2026-06-19T16:58:10Z",
     "report_json": "reports/testing/generated/mrts-native/mrts-native-full.generated.json",
     "report_md": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
     "reports": {

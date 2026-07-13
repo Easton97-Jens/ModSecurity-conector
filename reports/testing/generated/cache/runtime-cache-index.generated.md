@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T16:22:55Z`
+> Generated at: `2026-07-12T19:36:08Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
-> Generator: `ci/update-runtime-reports.py`
+> Generator: `ci/evidence/reports/update-runtime-reports.py`
 > Make target: `prepare-runtime-components`
 > Owner: `cache`
 > Severity: `cache`
-> Connector SHA: `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f`
-> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
+> Connector SHA: `9b718cee0523da3e0822754dc4b05f327b6d969d`
+> Framework SHA: `4e9d4ba616235127b6fc0a2ee87107d93d03f40b`
 > Input status: `complete`
 
 # Runtime Cache Index
@@ -16,64 +16,64 @@
 **Language:** English | [Deutsch](runtime-cache-index.generated.de.md)
 
 - Status: `cache_input_present`
-- Component cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
-- Build root: `/var/tmp/ModSecurity-conector-verified/build`
-- Component presence: `7/7`
-- Important files present: `12/12`
+- Component cache root: `<verified-run-root>/cache-v2/shared`
+- Build root: `<verified-run-root>/build/lighttpd/repository-cleanup-core-20260712T192931Z`
+- Component presence: `2/7`
+- Important files present: `3/12`
 - Policy: Local cache directories and binaries are not committed; this generated index records provenance only.
 
 ## Manifests
 
 | Item | Status | SHA256 | Path |
 |---|---|---|---|
-| component-cache manifest | present | `3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec` | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` |
-| runtime build-cache manifest | present | `469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789` | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` |
-| git components manifest | present | `c4e18783b970500f25f92964b3035b9b441fe307da19582c3de4ce62b66b2b86` | `/var/tmp/ModSecurity-conector-verified/component-cache/git-components.json` |
-| runtime env | present | `4dc7cbd3c334faeac71db45df2839a4ff297029d8746d80f2cc38683429dedf8` | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-env.sh` |
+| component-cache manifest | present | `13123f03dbe90f01402a8c2c439e46455a0fa688448e540a5cdab11722022392` | `<verified-run-root>/cache-v2/shared/manifest.json` |
+| runtime build-cache manifest | present | `04ba882c6feda15868fc9b175f3d3c2875fdbdfa480872a332d8317edea1b017` | `<verified-run-root>/cache-v2/shared/runtime-build-cache.json` |
+| git components manifest | present | `264e9488d22ea6b598613a178f48a72c89c9e3ec9cd33825c07e5b68a1396262` | `<verified-run-root>/cache-v2/shared/git-components.json` |
+| runtime env | present | `30c186efdd2a51a0dde44eb10b2b3b9dfd7a4ee1d3862fe33c2e2bbe2cf71cb1` | `<verified-run-root>/cache-v2/shared/runtime-env.sh` |
 
 ## Components
 
 | Component | Status | Build ID | Source / Path |
 |---|---|---|---|
-| modsecurity | reused | `0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72` | `/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72` |
-| apache_httpd | reused | `898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/build` |
-| nginx | reused | `d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/build` |
-| haproxy | reused | `599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048` |
-| go_ftw | present | `-` | `/var/tmp/ModSecurity-conector-verified/component-cache/bin/go-ftw` |
-| albedo | present | `-` | `/var/tmp/ModSecurity-conector-verified/component-cache/bin/albedo` |
-| expat | present | `-` | `/var/tmp/ModSecurity-conector-verified/component-cache/prefix/expat` |
+| modsecurity | reused | `060604d44135db16f6aad7d6cc519a2c6e5d1ad5d499d3782ab35cec22753720` | `<verified-run-root>/cache-v2/shared/prefix/modsecurity/060604d44135db16f6aad7d6cc519a2c6e5d1ad5d499d3782ab35cec22753720` |
+| apache_httpd | not_selected | `-` | `-` |
+| nginx | not_selected | `-` | `-` |
+| haproxy | not_selected | `-` | `-` |
+| go_ftw | not_selected | `-` | `-` |
+| albedo | not_selected | `-` | `-` |
+| expat | present | `b644c7b974a809dc1562b206e7d29aeeaaa4167d43d42cdd6c9bb10714daf57a` | `<verified-run-root>/cache-v2/shared/builds/expat/b644c7b974a809dc1562b206e7d29aeeaaa4167d43d42cdd6c9bb10714daf57a/prefix` |
 
 ## Important Files
 
 | Item | Status | SHA256 | Path |
 |---|---|---|---|
-| libmodsecurity | present | `61d6f374dfafb684b62415bd8ef97ccb3b8615516fd93b0f972f89eeb62125ca` | `/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib/libmodsecurity.so` |
-| apache_httpd | present | `82242c219cc91b9645d0bfbae8629be5afaf046bd2653a8c92cccab0b8bc40a2` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/httpd` |
-| apache_apxs | present | `9bac676928668024d7dbbd233e2c509ab6b6382bee472a374542f96dd1957036` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/apxs` |
-| apache_mod_security3 | present | `06c04934d991976410700bebb8418933643cc2cdd0e0952d94588fe5079b1182` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/build/output/apache/mod_security3.so` |
-| nginx | present | `4b12b2bc1e056a68f42d0918e02ed9d8dbf455e5e1b6fdcedd9187297e98e459` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/sbin/nginx` |
-| nginx_modsecurity_module | present | `058c8d15f828864a09919b650d5e6c4293cf2ccb549aa0b3059f4f763ed6f773` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/modules/ngx_http_modsecurity_module.so` |
-| haproxy | present | `591fb673cd8dc2f0140c8eeed333b44940afcb461e50322e30e09cb05ea3cedb` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy` |
-| haproxy_spoa | present | `058a20d2b33929b68b401b7916cdd6737faf52661a43400f93214b734b16b8ed` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa` |
-| go-ftw | present | `332425c41385ee10fa79c543ce8527c099873fd73bcaf73dd2a2cc353f84b952` | `/var/tmp/ModSecurity-conector-verified/component-cache/bin/go-ftw` |
-| albedo | present | `72872f718729f51e924fa8ba3c82b3b5eca9db6be4490fc5cbb731317f2ad1bd` | `/var/tmp/ModSecurity-conector-verified/component-cache/bin/albedo` |
-| expat_header | present | `52d756026bf09befdb211c453e2009a646d6c6b519e6885e971b2550396619fb` | `/var/tmp/ModSecurity-conector-verified/component-cache/prefix/expat/include/expat.h` |
-| shared_build_libmodsecurity | present | `61d6f374dfafb684b62415bd8ef97ccb3b8615516fd93b0f972f89eeb62125ca` | `/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib/libmodsecurity.so` |
+| libmodsecurity | present | `b95a7d601c043ae9dcf94e486bc177903e3864de08742cdd10ffb917e8605f5d` | `<verified-run-root>/cache-v2/shared/prefix/modsecurity/060604d44135db16f6aad7d6cc519a2c6e5d1ad5d499d3782ab35cec22753720/lib/libmodsecurity.so` |
+| apache_httpd | missing | `-` | `-` |
+| apache_apxs | missing | `-` | `-` |
+| apache_mod_security3 | missing | `-` | `-` |
+| nginx | missing | `-` | `-` |
+| nginx_modsecurity_module | missing | `-` | `-` |
+| haproxy | missing | `-` | `-` |
+| haproxy_spoa | missing | `-` | `-` |
+| go-ftw | missing | `-` | `-` |
+| albedo | missing | `-` | `-` |
+| expat_header | present | `eb43180fbdca40e36d9558060e6e654ef4c451ca656ad679e9e1269eb45456b3` | `<verified-run-root>/cache-v2/shared/builds/expat/b644c7b974a809dc1562b206e7d29aeeaaa4167d43d42cdd6c9bb10714daf57a/prefix/include/expat.h` |
+| shared_build_libmodsecurity | present | `b95a7d601c043ae9dcf94e486bc177903e3864de08742cdd10ffb917e8605f5d` | `<verified-run-root>/cache-v2/shared/prefix/modsecurity/060604d44135db16f6aad7d6cc519a2c6e5d1ad5d499d3782ab35cec22753720/lib/libmodsecurity.so` |
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | `3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` | `469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/git-components.json` | `c4e18783b970500f25f92964b3035b9b441fe307da19582c3de4ce62b66b2b86` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-env.sh` | `4dc7cbd3c334faeac71db45df2839a4ff297029d8746d80f2cc38683429dedf8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/cache-v2/shared/manifest.json` | `13123f03dbe90f01402a8c2c439e46455a0fa688448e540a5cdab11722022392` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/cache-v2/shared/runtime-build-cache.json` | `04ba882c6feda15868fc9b175f3d3c2875fdbdfa480872a332d8317edea1b017` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/cache-v2/shared/git-components.json` | `264e9488d22ea6b598613a178f48a72c89c9e3ec9cd33825c07e5b68a1396262` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/cache-v2/shared/runtime-env.sh` | `30c186efdd2a51a0dde44eb10b2b3b9dfd7a4ee1d3862fe33c2e2bbe2cf71cb1` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/component-cache/git-components.json` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-env.sh` | present | input file available |
+| `<verified-run-root>/cache-v2/shared/manifest.json` | present | input file available |
+| `<verified-run-root>/cache-v2/shared/runtime-build-cache.json` | present | input file available |
+| `<verified-run-root>/cache-v2/shared/git-components.json` | present | input file available |
+| `<verified-run-root>/cache-v2/shared/runtime-env.sh` | present | input file available |

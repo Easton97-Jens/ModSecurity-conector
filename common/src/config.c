@@ -28,6 +28,15 @@ static enum msconnector_phase4_mode merge_phase4_mode(
     return parent;
 }
 
+static msconnector_body_limit_action merge_body_limit_action(
+    msconnector_body_limit_action parent,
+    msconnector_body_limit_action child) {
+    if (child != MSCONNECTOR_BODY_LIMIT_ACTION_UNSET) {
+        return child;
+    }
+    return parent;
+}
+
 
 static int string_empty(const char *value) {
     return value == 0 || value[0] == '\0';
@@ -62,6 +71,15 @@ static size_t merge_size_value(size_t parent, size_t child) {
         return child;
     }
 
+    return parent;
+}
+
+static size_t merge_late_intervention_timeout(
+    size_t parent,
+    size_t child) {
+    if (child != MSCONNECTOR_LATE_INTERVENTION_TIMEOUT_UNSET) {
+        return child;
+    }
     return parent;
 }
 
@@ -154,6 +172,11 @@ void msconnector_config_init(msconnector_config *config) {
     config->phase4_content_types_file = 0;
     config->phase4_log_path = 0;
     config->phase4_body_limit = 0;
+    config->request_body_limit = 0;
+    config->response_body_limit = 0;
+    config->body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_UNSET;
+    config->late_intervention_timeout_ms =
+        MSCONNECTOR_LATE_INTERVENTION_TIMEOUT_UNSET;
     config->default_block_status = 0;
     config->default_error_status = 0;
     config->unsupported_status = 0;
@@ -178,6 +201,23 @@ void msconnector_config_apply_defaults(msconnector_config *config) {
 
     if (config->phase4_body_limit == 0U) {
         config->phase4_body_limit = MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT;
+    }
+
+    if (config->request_body_limit == 0U) {
+        config->request_body_limit = MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT;
+    }
+
+    if (config->response_body_limit == 0U) {
+        config->response_body_limit = config->phase4_body_limit;
+    }
+
+    if (config->body_limit_action == MSCONNECTOR_BODY_LIMIT_ACTION_UNSET) {
+        config->body_limit_action = MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
+    }
+
+    if (config->late_intervention_timeout_ms ==
+        MSCONNECTOR_LATE_INTERVENTION_TIMEOUT_UNSET) {
+        config->late_intervention_timeout_ms = 0U;
     }
 
     if (config->default_block_status == 0) {
@@ -226,6 +266,15 @@ int msconnector_config_merge(
         child->phase4_content_types_file);
     out->phase4_log_path = merge_string(parent->phase4_log_path, child->phase4_log_path);
     out->phase4_body_limit = merge_size_value(parent->phase4_body_limit, child->phase4_body_limit);
+    out->request_body_limit = merge_size_value(
+        parent->request_body_limit, child->request_body_limit);
+    out->response_body_limit = merge_size_value(
+        parent->response_body_limit, child->response_body_limit);
+    out->body_limit_action = merge_body_limit_action(
+        parent->body_limit_action, child->body_limit_action);
+    out->late_intervention_timeout_ms = merge_late_intervention_timeout(
+        parent->late_intervention_timeout_ms,
+        child->late_intervention_timeout_ms);
     out->default_block_status = merge_status_value(parent->default_block_status, child->default_block_status);
     out->default_error_status = merge_status_value(parent->default_error_status, child->default_error_status);
     out->unsupported_status = merge_status_value(parent->unsupported_status, child->unsupported_status);
@@ -251,6 +300,12 @@ int msconnector_config_validate(const msconnector_config *config, char *error, s
     if (config->phase4_mode < MSCONNECTOR_PHASE4_MODE_UNSET ||
         config->phase4_mode > MSCONNECTOR_PHASE4_MODE_STRICT) {
         set_error(error, error_len, "invalid phase4 mode");
+        return 0;
+    }
+
+    if (config->body_limit_action != MSCONNECTOR_BODY_LIMIT_ACTION_UNSET &&
+        !msconnector_body_limit_action_is_supported(config->body_limit_action)) {
+        set_error(error, error_len, "invalid body limit action");
         return 0;
     }
 

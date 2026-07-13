@@ -7,7 +7,7 @@ FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Frame
 HARNESS_PATH="$SCRIPT_DIR/$(basename "$0")"
 
 # shellcheck source=/dev/null
-. "$FRAMEWORK_ROOT/ci/common.sh"
+. "$FRAMEWORK_ROOT/ci/lib/common.sh"
 
 export CONNECTOR_ROOT FRAMEWORK_ROOT HARNESS_PATH
 

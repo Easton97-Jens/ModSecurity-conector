@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+**Language:** English | [Deutsch](AGENTS.de.md)
+
 ## Project Structure & Module Organization
 
 This is a ModSecurity connector monorepo. Shared connector-neutral C/C++ interfaces live in `common/include/msconnector/`, with helpers in `common/src/`. Adapter-owned code is under `connectors/`: active Apache, NGINX, and HAProxy sources use `connectors/<name>/src/`, `harness/`, `docs/`, and metadata files. Future connector scaffolds live beside them. The reusable test framework is the submodule at `modules/ModSecurity-test-Framework`; generated evidence and matrices are under `reports/testing/generated/`. CI tooling lives in `ci/`, and sample server configs are in `examples/`.
@@ -27,4 +29,25 @@ Recent commits use short, lowercase, imperative summaries such as `refresh verif
 
 ## Security & Configuration Tips
 
-Keep runtime and build artifacts outside the checkout; the Makefile defaults to `/var/tmp/ModSecurity-conector-verified`. Do not commit downloaded upstream source trees, secrets, local logs, or unreviewed generated artifacts. Preserve pinned upstream refs and license/origin metadata when touching connector imports.
+Keep runtime and build artifacts outside the checkout; the Makefile derives an invocation-local verified root from the CI or temporary runtime parent. Do not commit downloaded upstream source trees, secrets, local logs, or unreviewed generated artifacts. Preserve pinned upstream refs and license/origin metadata when touching connector imports.
+
+## Documentation Maintenance
+
+Keep repository-owned reader documentation as English/German pairs with one H1
+and the language switch directly below it. The canonical root topics are
+`docs/architecture.*`, `docs/configuration.*`,
+`docs/testing-and-evidence.*`, `docs/operations-and-security.*`, and the
+connector index/guides under `docs/connectors/`; retain complete
+host-directive syntax in the corresponding `examples/<connector>/`
+configuration reference.
+
+Explain variables and executable placeholders near their first use, then link
+to `docs/reference/variables.*`. Keep values, paths, targets, IDs, status
+terms, and integration-mode names identical across translations. Mark examples
+as examples rather than defaults, avoid developer-specific paths and secrets,
+and distinguish a build/configuration check from host traffic and evidence.
+
+Do not manually edit generated Markdown. Update its generator or source
+contract, then run `make check-bilingual-docs` and the relevant documentation
+checks. A source, build, configuration, or generated-report change is not by
+itself a runtime, CRS, protocol, security, or production claim.

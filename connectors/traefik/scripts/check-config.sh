@@ -18,5 +18,12 @@ if [ ! -f "$CONFIG_PATH" ]; then
     exit 77
 fi
 
+# The repository-owned default config validates that its event sink can be
+# opened.  Keep its run-local parent available so a fresh checkout can perform
+# a parse/configuration check without relying on a prior runtime smoke run.
+if [ "$CONFIG_PATH" = "$CONNECTOR_ROOT/config/traefik-forwardauth.conf" ]; then
+    mkdir -p /var/tmp/ModSecurity-conector-verified/logs
+fi
+
 cd "$REPO_ROOT"
 exec "$CONNECTOR_BIN" --check-config --config "$CONFIG_PATH"

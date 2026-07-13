@@ -1,5 +1,7 @@
 # Harness - Connector Template
 
+**Language:** English | [Deutsch](README.de.md)
+
 This directory describes the harness evidence expected for a future connector.
 It intentionally contains no runnable harness implementation.
 

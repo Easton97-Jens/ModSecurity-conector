@@ -5,6 +5,8 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}"
 [ -d "$FRAMEWORK_ROOT" ] || { echo "nginx_smoke: blocked FRAMEWORK_ROOT is missing; run git submodule update --init --recursive or set FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework"; exit 77; }
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$REPO_ROOT}"
+. "$FRAMEWORK_ROOT/ci/lib/common.sh"
 VERIFIED_RUN_ROOT="${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}"
 VERIFIED_BUILD_ROOT="${VERIFIED_BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}"
 BUILD_ROOT="${BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
@@ -30,8 +32,25 @@ if [ -z "${NGINX_HARNESS_WORK_ROOT:-}" ]; then
     fi
     NGINX_HARNESS_WORK_ROOT=$(mktemp -d "$NGINX_HARNESS_PARENT/ModSecurity-conector-nginx-runtime-$CURRENT_UID-XXXXXX")
 fi
-NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$BUILD_ROOT/nginx-build}"
-NGINX_PREFIX="${NGINX_PREFIX:-$BUILD_ROOT/nginx-runtime/nginx}"
+# Preserve the direct H1 harness defaults while making non-H1 profile paths
+# distinct for callers that invoke this script without the framework wrapper.
+if [ -n "${NGINX_BUILD_DIR+x}" ]; then NGINX_BUILD_DIR_WAS_SET=1; else NGINX_BUILD_DIR_WAS_SET=0; fi
+if [ -n "${NGINX_PREFIX+x}" ]; then NGINX_PREFIX_WAS_SET=1; else NGINX_PREFIX_WAS_SET=0; fi
+case "$NGINX_PROTOCOL_PROFILE" in
+    h1) NGINX_PROFILE_PATH_SUFFIX="" ;;
+    h1-h2|h1-h2-h3-quic) NGINX_PROFILE_PATH_SUFFIX="-$NGINX_PROTOCOL_PROFILE" ;;
+    *) NGINX_PROFILE_PATH_SUFFIX="-$NGINX_PROTOCOL_PROFILE" ;;
+esac
+if [ "$NGINX_BUILD_DIR_WAS_SET" = "1" ]; then
+    NGINX_BUILD_DIR="$NGINX_BUILD_DIR"
+else
+    NGINX_BUILD_DIR="$BUILD_ROOT/nginx-build$NGINX_PROFILE_PATH_SUFFIX"
+fi
+if [ "$NGINX_PREFIX_WAS_SET" = "1" ]; then
+    NGINX_PREFIX="$NGINX_PREFIX"
+else
+    NGINX_PREFIX="$BUILD_ROOT/nginx-runtime/nginx$NGINX_PROFILE_PATH_SUFFIX"
+fi
 NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
 NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$NGINX_BUILD_DIR/output/modsecurity/lib}"
@@ -53,9 +72,11 @@ PORT_RETRY_LIMIT="${PORT_RETRY_LIMIT:-1}"
 TEMPLATE="$SCRIPT_DIR/nginx_smoke.conf"
 TEST_CASE="${TEST_CASE:-}"
 SMOKE_CASES="${SMOKE_CASES:-}"
+NO_CRS_SELECTED_CASE_IDS="${NO_CRS_SELECTED_CASE_IDS:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
+MSCONNECTOR_SMOKE_STAGE="${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}"
 STATUS_FILE="$LOG_DIR/status.txt"
 CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-}"
 CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-}"
@@ -69,9 +90,15 @@ MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
 NGINX_WORKER_USER="${NGINX_WORKER_USER:-nobody}"
 NGINX_WORKER_GROUP="${NGINX_WORKER_GROUP:-}"
 PERMISSIONS_LOG="${PERMISSIONS_LOG:-}"
+MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
+FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
+SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"
+NGINX_DOWNSTREAM_PROTOCOL="${NGINX_DOWNSTREAM_PROTOCOL:-http1}"
+NGINX_UPSTREAM_PROTOCOL="${NGINX_UPSTREAM_PROTOCOL:-http1}"
+NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR="${NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR:-}"
 
 load_connector_adapter_metadata() {
-    eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell nginx --prefix CONNECTOR_ADAPTER)"
+    eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell nginx --prefix CONNECTOR_ADAPTER)"
     CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-$CONNECTOR_ADAPTER_SOURCE}"
     CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-$CONNECTOR_ADAPTER_SOURCE_REPO}"
     CONNECTOR_ORIGIN_SOURCE_URL="${CONNECTOR_ORIGIN_SOURCE_URL:-$CONNECTOR_ADAPTER_SOURCE_URL}"
@@ -345,6 +372,48 @@ list_case_files() {
         --scope "$CASE_SCOPE"
 }
 
+append_smoke_case() {
+    fixture=$1
+    case " $SMOKE_CASES " in
+        *" $fixture "*|*" $fixture.yaml "*) return 0 ;;
+    esac
+    SMOKE_CASES="${SMOKE_CASES}${SMOKE_CASES:+ }$fixture"
+}
+
+append_selected_phase4_fixtures() {
+    # The canonical catalog remains connector-neutral.  NGINX maps only its
+    # real, post-header safe/strict host paths to dedicated fixtures, whose
+    # YAML names are the canonical case IDs.  Never synthesize a pre-commit
+    # result from this body-filter path.
+    case "${NO_CRS_BASELINE:-}" in
+        1|true|TRUE|yes|YES|on|ON) ;;
+        *) return 0 ;;
+    esac
+    [ "$RUN_ONE_CASE" != "1" ] || return 0
+    [ -n "$NO_CRS_SELECTED_CASE_IDS" ] || return 0
+
+    set -f
+    for case_id in $NO_CRS_SELECTED_CASE_IDS; do
+        case "$case_id" in
+            phase4_deny_after_commit_log_only)
+                append_smoke_case nginx_phase4_deny_after_commit_log_only
+                ;;
+            phase4_deny_after_commit_abort)
+                append_smoke_case nginx_phase4_deny_after_commit_abort
+                ;;
+            *[!A-Za-z0-9_]*|"")
+                set +f
+                blocked "unsafe canonical case id: $case_id"
+                ;;
+            *)
+                # Other canonical IDs either have a catalog-owned runner
+                # fixture or are derived from the real safe/strict events.
+                ;;
+        esac
+    done
+    set +f
+}
+
 write_case_result() {
     case_path=$1
     case_status=$2
@@ -397,6 +466,7 @@ run_all_cases() {
     : > "$summary_file"
     : > "$results_jsonl"
 
+    append_selected_phase4_fixtures
     cases=$(list_case_files) || exit 1
     if [ -z "$cases" ]; then
         echo "nginx_smoke: fail no shared smoke cases found" >&2
@@ -499,12 +569,238 @@ find_curl() {
     command -v curl 2>/dev/null || true
 }
 
+validate_nginx_protocol_request() {
+    nginx_protocol_profile_valid "$NGINX_PROTOCOL_PROFILE" || \
+        blocked "unsupported NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE; expected h1, h1-h2, or h1-h2-h3-quic"
+    case "$NGINX_DOWNSTREAM_PROTOCOL" in
+        http1|h2|h3) ;;
+        *) blocked "unsupported NGINX_DOWNSTREAM_PROTOCOL=$NGINX_DOWNSTREAM_PROTOCOL; expected http1, h2, or h3" ;;
+    esac
+    case "$NGINX_UPSTREAM_PROTOCOL" in
+        http1) ;;
+        h2|h2c|h3)
+            blocked "NGINX upstream protocol $NGINX_UPSTREAM_PROTOCOL is not implemented by this bounded harness; downstream and upstream protocol evidence remain separate"
+            ;;
+        *) blocked "unsupported NGINX_UPSTREAM_PROTOCOL=$NGINX_UPSTREAM_PROTOCOL" ;;
+    esac
+    if [ "$NGINX_DOWNSTREAM_PROTOCOL" = "h2" ] && ! nginx_protocol_profile_has_http2 "$NGINX_PROTOCOL_PROFILE"; then
+        blocked "requested h2 downstream requires NGINX_PROTOCOL_PROFILE=h1-h2 or h1-h2-h3-quic"
+    fi
+    if [ "$NGINX_DOWNSTREAM_PROTOCOL" = "h3" ] && ! nginx_protocol_profile_has_http3 "$NGINX_PROTOCOL_PROFILE"; then
+        blocked "requested h3 downstream requires NGINX_PROTOCOL_PROFILE=h1-h2-h3-quic"
+    fi
+}
+
+nginx_downstream_transport() {
+    case "$NGINX_DOWNSTREAM_PROTOCOL" in
+        http1) printf '%s\n' tcp ;;
+        h2) printf '%s\n' tls_tcp ;;
+        h3) printf '%s\n' quic_udp ;;
+    esac
+}
+
+verify_nginx_protocol_build() {
+    version_log="$LOG_DIR/nginx-version.log"
+    case "$NGINX_PROTOCOL_PROFILE" in
+        h1)
+            return 0
+            ;;
+        h1-h2)
+            required_flags='--with-http_ssl_module --with-http_v2_module'
+            ;;
+        h1-h2-h3-quic)
+            required_flags='--with-http_ssl_module --with-http_v2_module --with-http_v3_module'
+            ;;
+    esac
+    for required_flag in $required_flags; do
+        grep -F -- "$required_flag" "$version_log" >/dev/null 2>&1 || \
+            blocked "NGINX -V lacks required $NGINX_PROTOCOL_PROFILE build flag $required_flag; see $version_log"
+    done
+    if nginx_protocol_profile_has_http3 "$NGINX_PROTOCOL_PROFILE" && \
+        ! grep -F -- '--with-openssl=' "$version_log" >/dev/null 2>&1; then
+        blocked "NGINX -V lacks a pinned --with-openssl source binding for the requested H3 profile; see $version_log"
+    fi
+}
+
+record_nginx_protocol_applicability() {
+    version_log="$LOG_DIR/nginx-version.log"
+    applicability_file="$LOG_DIR/nginx-protocol-applicability.json"
+    legacy_http2_file="$LOG_DIR/nginx-http2-applicability.json"
+
+    if ! "$NGINX_BINARY" -V > "$version_log" 2>&1; then
+        blocked "NGINX host probe failed: $NGINX_BINARY -V; see $version_log"
+    fi
+
+    "$PYTHON_BIN" - "$version_log" "$applicability_file" "$legacy_http2_file" "$NGINX_BINARY" \
+        "$NGINX_PROTOCOL_PROFILE" "$NGINX_DOWNSTREAM_PROTOCOL" "$NGINX_UPSTREAM_PROTOCOL" "$(nginx_downstream_transport)" "$PORT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+version_log = Path(sys.argv[1])
+output = Path(sys.argv[2])
+legacy_output = Path(sys.argv[3])
+binary, profile, downstream, upstream, transport, port_text = sys.argv[4:]
+port = int(port_text)
+configure_output = version_log.read_text(encoding="utf-8", errors="replace")
+flags = {
+    "http_ssl": "--with-http_ssl_module" in configure_output,
+    "http2": "--with-http_v2_module" in configure_output,
+    "http3": "--with-http_v3_module" in configure_output,
+    "pinned_tls_source": "--with-openssl=" in configure_output,
+}
+
+def applicability(protocol: str, flag: bool, selected: bool) -> dict[str, object]:
+    if not flag:
+        return {
+            "status": "NOT_APPLICABLE",
+            "reason": f"nginx -V lacks the {protocol} module required by this host build",
+        }
+    if not selected:
+        return {
+            "status": "NOT_EXECUTED",
+            "reason": f"{protocol} is build-capable, but this invocation selected {downstream} downstream traffic",
+        }
+    return {
+        "status": "NOT_EXECUTED",
+        "reason": f"{protocol} listener/client path was selected, but no negotiated client observation has been recorded yet",
+    }
+
+payload = {
+    "evidence_origin": "real_host_build",
+    "nginx_binary": binary,
+    "nginx_v_log": str(version_log),
+    "protocol_profile": profile,
+    "downstream_protocol": downstream,
+    "upstream_protocol": upstream,
+    "transport": transport,
+    "integration_mode": "nginx_module",
+    "http_ssl_configure_flag": flags["http_ssl"],
+    "http2_configure_flag": flags["http2"],
+    "http3_configure_flag": flags["http3"],
+    "pinned_tls_source_configure_arg": flags["pinned_tls_source"],
+    "http2": applicability("HTTP/2", flags["http2"], downstream == "h2"),
+    "http3": applicability("HTTP/3", flags["http3"], downstream == "h3"),
+    # TCP and UDP use the same numeric port for the H3 profile, but remain
+    # separate listener facts.  Neither fact is negotiated-runtime evidence.
+    "tcp_listener": {
+        "configured": downstream in {"h2", "h3"},
+        "transport": "tls_tcp" if downstream in {"h2", "h3"} else "tcp",
+        "port": port,
+    },
+    "udp_listener": {
+        "configured": downstream == "h3" and flags["http3"],
+        "transport": "quic_udp",
+        "port": port,
+    },
+    "http3_0rtt": {
+        "status": "NOT_EXECUTED",
+        "reason": "0-RTT is outside the first H3 milestone and has no replay/body transaction contract.",
+    },
+    "runtime_evidence_recorded": False,
+    "reason": "Build flags and a rendered listener are not negotiated protocol or connector lifecycle evidence.",
+}
+output.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+
+# Preserve the prior single-protocol artifact for consumers that have not yet
+# adopted the bounded H2/H3 applicability document.
+legacy = {
+    "evidence_origin": payload["evidence_origin"],
+    "nginx_binary": binary,
+    "nginx_v_log": str(version_log),
+    "http2_configure_flag": flags["http2"],
+    "status": payload["http2"]["status"],
+    "reason": payload["http2"]["reason"],
+}
+legacy_output.write_text(json.dumps(legacy, sort_keys=True) + "\n", encoding="utf-8")
+PY
+}
+
 escape_sed() {
     raw_value=$1
     printf '%s' "$raw_value" | sed 's/[&|]/\\&/g'
 }
 
+generate_protocol_tls_material() {
+    [ "$NGINX_DOWNSTREAM_PROTOCOL" != "http1" ] || return 0
+    command -v openssl >/dev/null 2>&1 || \
+        blocked "missing openssl required to create an ephemeral local TLS certificate for $NGINX_DOWNSTREAM_PROTOCOL"
+    umask 077
+    if ! openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+        -subj '/CN=ModSecurity local test CA' \
+        -keyout "$NGINX_TLS_CA_KEY" \
+        -out "$NGINX_TLS_CA_CERT" > "$LOG_DIR/tls-certificate-generation.log" 2>&1 || \
+        ! openssl req -new -newkey rsa:2048 -nodes \
+        -subj '/CN=localhost' \
+        -keyout "$NGINX_TLS_SERVER_KEY" \
+        -out "$NGINX_TLS_SERVER_CSR" >> "$LOG_DIR/tls-certificate-generation.log" 2>&1 || \
+        ! printf '%s\n' \
+            'basicConstraints=CA:FALSE' \
+            'keyUsage=digitalSignature,keyEncipherment' \
+            'extendedKeyUsage=serverAuth' \
+            'subjectAltName=DNS:localhost,IP:127.0.0.1' \
+            > "$NGINX_TLS_SERVER_EXT" || \
+        ! openssl x509 -req -days 1 -sha256 \
+            -in "$NGINX_TLS_SERVER_CSR" \
+            -CA "$NGINX_TLS_CA_CERT" -CAkey "$NGINX_TLS_CA_KEY" -CAcreateserial \
+            -out "$NGINX_TLS_SERVER_CERT" -extfile "$NGINX_TLS_SERVER_EXT" \
+            >> "$LOG_DIR/tls-certificate-generation.log" 2>&1; then
+        blocked "could not create ephemeral local CA and short-lived leaf certificate; see $LOG_DIR/tls-certificate-generation.log"
+    fi
+    chmod 600 "$NGINX_TLS_CA_KEY" "$NGINX_TLS_SERVER_KEY"
+    chmod 644 "$NGINX_TLS_CA_CERT" "$NGINX_TLS_SERVER_CERT"
+}
+
+write_nginx_protocol_directives() {
+    : > "$NGINX_PROTOCOL_LISTEN_DIRECTIVES_FILE"
+    : > "$NGINX_PROTOCOL_SERVER_DIRECTIVES_FILE"
+    case "$NGINX_DOWNSTREAM_PROTOCOL" in
+        http1)
+            printf 'listen 127.0.0.1:%s;\n' "$PORT" > "$NGINX_PROTOCOL_LISTEN_DIRECTIVES_FILE"
+            ;;
+        h2)
+            generate_protocol_tls_material
+            printf 'listen 127.0.0.1:%s ssl;\n' "$PORT" > "$NGINX_PROTOCOL_LISTEN_DIRECTIVES_FILE"
+            {
+                printf 'ssl_certificate "%s";\n' "$NGINX_TLS_SERVER_CERT"
+                printf 'ssl_certificate_key "%s";\n' "$NGINX_TLS_SERVER_KEY"
+                echo 'ssl_protocols TLSv1.2 TLSv1.3;'
+                echo 'http2 on;'
+            } > "$NGINX_PROTOCOL_SERVER_DIRECTIVES_FILE"
+            ;;
+        h3)
+            generate_protocol_tls_material
+            {
+                printf 'listen 127.0.0.1:%s ssl;\n' "$PORT"
+                printf 'listen 127.0.0.1:%s quic reuseport;\n' "$PORT"
+            } > "$NGINX_PROTOCOL_LISTEN_DIRECTIVES_FILE"
+            {
+                printf 'ssl_certificate "%s";\n' "$NGINX_TLS_SERVER_CERT"
+                printf 'ssl_certificate_key "%s";\n' "$NGINX_TLS_SERVER_KEY"
+                echo 'ssl_protocols TLSv1.2 TLSv1.3;'
+                echo 'http2 on;'
+                echo 'http3 on;'
+                printf 'add_header Alt-Svc '\''h3=":%s"; ma=60'\'' always;\n' "$PORT"
+            } > "$NGINX_PROTOCOL_SERVER_DIRECTIVES_FILE"
+            ;;
+    esac
+}
+
 render_config() {
+    NGINX_PHASE4_MODE_DIRECTIVE=""
+    # Each smoke fixture starts an independent NGINX process.  Scope the
+    # native complex-value transaction ID to that fixture so distinct real
+    # P4 transactions cannot reuse the host's fresh connection counter.
+    NGINX_TRANSACTION_ID_DIRECTIVE="modsecurity_transaction_id nginx-${case_name}-\$connection-\$connection_requests;"
+    case "${NGINX_PHASE4_MODE:-}" in
+        "") ;;
+        minimal|safe|strict)
+            NGINX_PHASE4_MODE_DIRECTIVE="modsecurity_phase4_mode $NGINX_PHASE4_MODE;"
+            ;;
+        *)
+            fail "unsupported generated NGINX_PHASE4_MODE=$NGINX_PHASE4_MODE"
+            ;;
+    esac
     sed \
         -e "s|@@RUNTIME_ROOT@@|$(escape_sed "$RUNTIME_ROOT")|g" \
         -e "s|@@LOG_DIR@@|$(escape_sed "$LOG_DIR")|g" \
@@ -513,12 +809,21 @@ render_config() {
         -e "s|@@DOCROOT@@|$(escape_sed "$DOCROOT")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@NGINX_PHASE4_LOG@@|$(escape_sed "$NGINX_PHASE4_LOG_FILE")|g" \
+        -e "s|@@NGINX_TRANSACTION_ID_DIRECTIVE@@|$(escape_sed "$NGINX_TRANSACTION_ID_DIRECTIVE")|g" \
+        -e "s|@@NGINX_PHASE4_MODE_DIRECTIVE@@|$(escape_sed "$NGINX_PHASE4_MODE_DIRECTIVE")|g" \
+        -e "s|@@NGINX_PROTOCOL_LISTEN_DIRECTIVES@@|$(escape_sed "$NGINX_PROTOCOL_LISTEN_DIRECTIVES_FILE")|g" \
+        -e "s|@@NGINX_PROTOCOL_SERVER_DIRECTIVES@@|$(escape_sed "$NGINX_PROTOCOL_SERVER_DIRECTIVES_FILE")|g" \
         -e "s|@@NGINX_LOCATION_DIRECTIVES@@|$(escape_sed "$NGINX_LOCATION_DIRECTIVES_FILE")|g" \
         -e "s|@@NGINX_LOCATION_HANDLER_DIRECTIVES@@|$(escape_sed "$NGINX_LOCATION_HANDLER_DIRECTIVES_FILE")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
 cleanup() {
+    if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
+        [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ] && : > "$SYNCHRONIZED_RELEASE_FILE"
+        kill "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
+        wait "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
+    fi
     if [ -n "${NGINX_PID:-}" ] && kill -0 "$NGINX_PID" >/dev/null 2>&1; then
         kill "$NGINX_PID" >/dev/null 2>&1 || true
         wait "$NGINX_PID" >/dev/null 2>&1 || true
@@ -530,22 +835,35 @@ cleanup() {
     if [ -n "${RUNTIME_PID_FILE:-}" ]; then
         rm -f "$RUNTIME_PID_FILE"
     fi
+    # These private keys belong only to the ephemeral local listener.  No key
+    # or certificate chain may survive cleanup into a reusable runtime or an
+    # evidence directory.
+    rm -f \
+        "${NGINX_TLS_CA_KEY:-}" "${NGINX_TLS_CA_CERT:-}" \
+        "${NGINX_TLS_SERVER_KEY:-}" "${NGINX_TLS_SERVER_CERT:-}" \
+        "${NGINX_TLS_SERVER_CSR:-}" "${NGINX_TLS_SERVER_EXT:-}" \
+        "${NGINX_TLS_CA_CERT:-}.srl"
 }
 
 port_is_free() {
     port_to_probe=$1
-    "$PYTHON_BIN" - "$port_to_probe" <<'PY'
+    "$PYTHON_BIN" - "$port_to_probe" "$NGINX_DOWNSTREAM_PROTOCOL" <<'PY'
 import socket
 import sys
 
 port = int(sys.argv[1])
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-try:
-    sock.bind(("127.0.0.1", port))
-except OSError:
-    raise SystemExit(1)
-finally:
-    sock.close()
+protocol = sys.argv[2]
+kinds = [socket.SOCK_STREAM]
+if protocol == "h3":
+    kinds.append(socket.SOCK_DGRAM)
+for kind in kinds:
+    sock = socket.socket(socket.AF_INET, kind)
+    try:
+        sock.bind(("127.0.0.1", port))
+    except OSError:
+        raise SystemExit(1)
+    finally:
+        sock.close()
 PY
 }
 
@@ -595,6 +913,96 @@ select_free_port() {
     return 1
 }
 
+start_synchronized_upstream() {
+    [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] || return 0
+    [ -f "$SYNCHRONIZED_UPSTREAM" ] || blocked "missing synchronized upstream helper: $SYNCHRONIZED_UPSTREAM"
+    SYNCHRONIZED_DIR="$RUNTIME_ROOT/first-byte"
+    SYNCHRONIZED_READY_FILE="$SYNCHRONIZED_DIR/upstream-ready.json"
+    SYNCHRONIZED_PAUSED_FILE="$SYNCHRONIZED_DIR/upstream-paused.json"
+    SYNCHRONIZED_RELEASE_FILE="$SYNCHRONIZED_DIR/upstream-release"
+    SYNCHRONIZED_SERVER_EVIDENCE_FILE="$SYNCHRONIZED_DIR/upstream-server.json"
+    rm -rf "$SYNCHRONIZED_DIR"
+    mkdir -p "$SYNCHRONIZED_DIR"
+    "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
+        --ready-file "$SYNCHRONIZED_READY_FILE" \
+        --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
+        --release-file "$SYNCHRONIZED_RELEASE_FILE" \
+        --server-evidence-file "$SYNCHRONIZED_SERVER_EVIDENCE_FILE" \
+        --timeout 30 >"$LOG_DIR/synchronized-upstream.stdout.log" \
+        2>"$LOG_DIR/synchronized-upstream.stderr.log" &
+    SYNCHRONIZED_UPSTREAM_PID=$!
+    i=0
+    while [ "$i" -lt 30 ]; do
+        if [ -f "$SYNCHRONIZED_READY_FILE" ]; then
+            break
+        fi
+        if ! kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
+            blocked "synchronized upstream exited before publishing its address"
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    [ -f "$SYNCHRONIZED_READY_FILE" ] || blocked "synchronized upstream did not publish its address"
+    RESPONSE_HEADER_BACKEND_PORT=$("$PYTHON_BIN" - "$SYNCHRONIZED_READY_FILE" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+port = payload.get("upstream_port")
+if not isinstance(port, int) or port < 1 or port > 65535:
+    raise SystemExit(1)
+print(port)
+PY
+    ) || blocked "synchronized upstream ready record has no valid port"
+}
+
+send_synchronized_first_byte_request() {
+    [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] || return 1
+    [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ] || fail "FULL_LIFECYCLE_EVIDENCE_OUTPUT is required for synchronized lifecycle mode"
+    request_url_path=$(quote_request_path "$REQUEST_PATH")
+    : > "$RESPONSE_BODY"
+    "$CURL_BIN" -sS --no-buffer -X GET -o "$RESPONSE_BODY" -w "%{http_code}" \
+        "http://127.0.0.1:$PORT$request_url_path" >"$LOG_DIR/first-byte-status.txt" \
+        2>"$LOG_DIR/first-byte-client.err" &
+    FIRST_BYTE_CLIENT_PID=$!
+    observed_first_byte=0
+    i=0
+    while [ "$i" -lt 300 ]; do
+        if [ -f "$SYNCHRONIZED_PAUSED_FILE" ] && [ -s "$RESPONSE_BODY" ]; then
+            observed_first_byte=1
+            break
+        fi
+        if ! kill -0 "$FIRST_BYTE_CLIENT_PID" >/dev/null 2>&1; then
+            break
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+    : > "$SYNCHRONIZED_RELEASE_FILE"
+    set +e
+    wait "$FIRST_BYTE_CLIENT_PID"
+    client_rc=$?
+    set -e
+    [ "$observed_first_byte" -eq 1 ] || fail "client did not receive a first response byte while upstream was paused"
+    [ "$client_rc" -eq 0 ] || fail "synchronized client failed after upstream release rc=$client_rc"
+    http_status=$(cat "$LOG_DIR/first-byte-status.txt" 2>/dev/null || true)
+    [ "$http_status" = "200" ] || fail "synchronized safe response status was not 200: $http_status"
+    [ -s "$NGINX_PHASE4_LOG_FILE" ] || fail "Phase-4 host log is missing after synchronized response"
+    FIRST_BYTE_HOST_METADATA="$SYNCHRONIZED_DIR/host-metadata.json"
+    "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/lifecycle/write-first-byte-host-metadata.py" \
+        --phase4-log "$NGINX_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" || \
+        fail "could not derive bounded host metadata from the Phase-4 event"
+    "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
+        --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
+        --client-first-byte-file "$RESPONSE_BODY" \
+        --host-metadata-json "$FIRST_BYTE_HOST_METADATA" \
+        --evidence-origin real_host \
+        --output "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" || \
+        fail "could not write synchronized first-byte evidence"
+    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+    printf '%s\n' "http_status" > "$LOG_DIR/observed-transport-result.txt"
+    return 0
+}
+
 stop_stale_runtime_pid() {
     pid_file=$1
     [ -f "$pid_file" ] || return 0
@@ -640,6 +1048,97 @@ bind_conflict_seen() {
         "$LOG_DIR/error.log" >/dev/null 2>&1
 }
 
+run_nginx_protocol_client_if_requested() {
+    artifact_dir=$NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR
+    [ -n "$artifact_dir" ] || return 0
+    observation=$artifact_dir/client-protocol-observation.json
+    if [ -f "$observation" ] && [ ! -L "$observation" ]; then
+        return 0
+    fi
+    case "$NGINX_DOWNSTREAM_PROTOCOL" in
+        h2|h3) protocol=$NGINX_DOWNSTREAM_PROTOCOL ;;
+        *) return 0 ;;
+    esac
+    protocol_probe_token="nginx-${protocol}-live-probe"
+    umask 077
+    mkdir -p "$artifact_dir"
+    # This is a real forced client->native-connector probe while NGINX is
+    # alive. Its bounded probe token identifies only this non-promoting request;
+    # no native event or catalog case is allowed to borrow it. The probe also
+    # intentionally supplies no synthetic stream ID or ALPN sidecar: curl
+    # cannot establish the per-stream causal facts required for promotion.
+    set +e
+    "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/checks/protocol/protocol_client.py" \
+        --url "https://127.0.0.1:$PORT/no-crs/allow" \
+        --protocol "$protocol" \
+        --artifact-dir "$artifact_dir" \
+        --curl "$CURL_BIN" \
+        --cacert "$NGINX_TLS_CA_CERT" \
+        --header "X-Modsec-Smoke: allow" \
+        --transport-case-id "$protocol_probe_token" \
+        --connector nginx \
+        --integration-mode native-nginx-http-module \
+        --run-id "${NO_CRS_RUN_ID:-local}" >/dev/null 2>&1
+    client_rc=$?
+    set -e
+    [ -s "$observation" ] || fail "protocol client did not publish a payload-free observation"
+    client_status=$("$PYTHON_BIN" - "$observation" "$protocol" "$protocol_probe_token" <<'PY'
+import json
+import sys
+
+try:
+    value = json.load(open(sys.argv[1], encoding="utf-8"))
+except (OSError, ValueError):
+    raise SystemExit(1)
+protocol = sys.argv[2]
+probe_token = sys.argv[3]
+if not isinstance(value, dict):
+    raise SystemExit(1)
+status = value.get("status")
+if value.get("transport_case_id") != probe_token:
+    raise SystemExit(1)
+if status == "BLOCKED":
+    if value.get("reason") not in {
+        "client_http3_unsupported",
+        "client_required_feature_unavailable",
+        "client_required_option_unavailable",
+        "curl_executable_unavailable",
+        "curl_version_probe_timeout",
+        "curl_version_probe_failed",
+        "curl_help_probe_unavailable",
+        "curl_help_probe_timeout",
+        "curl_help_probe_failed",
+    } or value.get("curl_exit_code") is not None:
+        raise SystemExit(1)
+elif status == "NOT_EXECUTED":
+    if (
+        value.get("reason") != "incomplete_protocol_provenance"
+        or value.get("requested_protocol") != protocol
+        or value.get("negotiated_protocol") != protocol
+        or value.get("fallback_used") is not False
+        or value.get("http_status") != 200
+        or value.get("curl_exit_code") != 0
+        or value.get("response_committed") is not True
+    ):
+        raise SystemExit(1)
+    if protocol == "h2" and value.get("transport") != "tls_tcp":
+        raise SystemExit(1)
+    # This diagnostic probe must remain explicitly non-promoting.  A native
+    # stream/ALPN sidecar belongs to a case-correlated transport test, not to
+    # this standalone liveness request.
+    if "stream_id" in value or "alpn" in value:
+        raise SystemExit(1)
+else:
+    # A fallback, transfer failure, or accidental complete PASS is not a
+    # harmless diagnostic. It would contradict this exact non-promoting probe.
+    raise SystemExit(1)
+print(status)
+PY
+    ) || fail "protocol client wrote an invalid observation"
+    printf 'protocol-client status=%s exit=%s (non-promoting without stream/case correlation)\n' \
+        "$client_status" "$client_rc" >> "$STATUS_FILE"
+}
+
 start_server() {
     attempt=0
     while :; do
@@ -650,6 +1149,7 @@ start_server() {
             echo "info: selected port $selected_port after requested port $PORT was unavailable" >> "$STATUS_FILE"
         fi
         PORT="$selected_port"
+        write_nginx_protocol_directives
         render_config
 
         if ! "$NGINX_BINARY" -t -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" > "$LOG_DIR/configtest.log" 2>&1; then
@@ -659,8 +1159,37 @@ start_server() {
             fail "NGINX configtest failed; see $LOG_DIR/configtest.log"
         fi
 
+        if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
+            return 0
+        fi
+
         "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" > "$LOG_DIR/nginx-stdout.log" 2>&1 &
         NGINX_PID=$!
+
+        if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
+            sleep 1
+            if kill -0 "$NGINX_PID" >/dev/null 2>&1; then
+                return 0
+            fi
+            fail "NGINX exited during request-free start smoke; see $LOG_DIR/nginx-stdout.log and $LOG_DIR/error.log"
+        fi
+
+        if [ "$NGINX_DOWNSTREAM_PROTOCOL" != "http1" ]; then
+            # The profile listener is real and was config-tested/started, but
+            # this baseline case runner has no protocol-specific case catalog
+            # or transaction/stream correlation yet.  Never send its legacy
+            # HTTP/1 curl request to a TLS/QUIC listener and never count that
+            # as H2/H3 evidence.
+            sleep 1
+            if kill -0 "$NGINX_PID" >/dev/null 2>&1; then
+                # This is a TCP readiness check only.  The forced client
+                # probe below remains the sole HTTP/2 or HTTP/3 observation.
+                wait_tcp_port "$PORT" || fail "NGINX protocol listener did not become TCP-ready; see $LOG_DIR/nginx-stdout.log and $LOG_DIR/error.log"
+                run_nginx_protocol_client_if_requested
+                not_executable "forced $NGINX_DOWNSTREAM_PROTOCOL client case is not wired in this bounded NGINX harness; protocol applicability remains NOT_EXECUTED"
+            fi
+            fail "NGINX exited before protocol-specific client dispatch; see $LOG_DIR/nginx-stdout.log and $LOG_DIR/error.log"
+        fi
 
         ready=0
         i=0
@@ -718,17 +1247,23 @@ PY
 }
 
 response_header_backend_needed() {
-    grep -Eq "RESPONSE_HEADERS:([Cc]ontent-[Tt]ype|[Ll]ocation|[Ss]et-[Cc]ookie)" "$RULES_FILE"
+    [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] && return 0
+    grep -Eqi '(^|[^[:alnum:]_])RESPONSE_HEADERS([[:space:]:]|$)' "$RULES_FILE"
 }
 
 start_response_header_backend() {
     response_header_backend_needed || return 0
+    if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then
+        start_synchronized_upstream
+        return 0
+    fi
     RESPONSE_HEADER_BACKEND_PORT=$(select_free_port $((PORT + 1000)) "$PORT_SEARCH_LIMIT") || \
         blocked "no free response-header backend port found"
-    "$PYTHON_BIN" "$REPO_ROOT/ci/response-header-test-backend.py" \
+    "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/response-header-test-backend.py" \
         --port "$RESPONSE_HEADER_BACKEND_PORT" \
         --body-file "$DOCROOT/index.html" \
         --safe-root "$RUNTIME_ROOT" \
+        --fixture-file "$RESPONSE_HEADER_FIXTURE_FILE" \
         >"$LOG_DIR/response-header-backend.stdout.log" \
         2>"$LOG_DIR/response-header-backend.stderr.log" &
     RESPONSE_HEADER_BACKEND_PID=$!
@@ -742,6 +1277,13 @@ write_location_handler_directives() {
         {
             echo "# Generated proxy route for response-header smoke cases."
             echo "proxy_pass http://127.0.0.1:$RESPONSE_HEADER_BACKEND_PORT;"
+            # The synchronized first-byte proof observes a client-visible
+            # chunk while the upstream is paused.  NGINX's default proxy
+            # buffering can defer that chunk until EOS, which would test its
+            # buffer policy rather than the connector's forwarding path.
+            if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then
+                echo "proxy_buffering off;"
+            fi
             echo "proxy_set_header Host \$host;"
         } > "$output"
         return 0
@@ -774,6 +1316,8 @@ if [ -z "$RUNTIME_ROOT" ]; then
 fi
 STATUS_FILE="$LOG_DIR/status.txt"
 
+validate_nginx_protocol_request
+
 echo "nginx_smoke: BUILD_ROOT=$BUILD_ROOT"
 echo "nginx_smoke: NGINX_BUILD_DIR=$NGINX_BUILD_DIR"
 echo "nginx_smoke: NGINX_PREFIX=$NGINX_PREFIX"
@@ -785,6 +1329,11 @@ echo "nginx_smoke: LOG_DIR=$LOG_DIR"
 echo "nginx_smoke: TEST_CASE=$TEST_CASE"
 echo "nginx_smoke: CASE_SCOPE=$CASE_SCOPE"
 echo "nginx_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+echo "nginx_smoke: MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE"
+echo "nginx_smoke: NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE"
+echo "nginx_smoke: downstream_protocol=$NGINX_DOWNSTREAM_PROTOCOL"
+echo "nginx_smoke: upstream_protocol=$NGINX_UPSTREAM_PROTOCOL"
+echo "nginx_smoke: transport=$(nginx_downstream_transport)"
 if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
     echo "nginx_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
 fi
@@ -804,6 +1353,9 @@ ensure_dir_755 "$NGINX_HARNESS_WORK_ROOT" "$RUNTIME_BASE" "$LOG_DIR" "$LOG_DIR/a
 : > "$STATUS_FILE"
 stop_stale_runtime_pid "$RUNTIME_PID_FILE"
 rm -f "$LOG_DIR/configtest.log" \
+	    "$LOG_DIR/nginx-version.log" \
+	    "$LOG_DIR/nginx-http2-applicability.json" \
+	    "$LOG_DIR/nginx-protocol-applicability.json" \
     "$LOG_DIR/curl-attack.err" \
 	    "$LOG_DIR/curl-ready.err" \
 	    "$LOG_DIR/nginx.log" \
@@ -814,12 +1366,25 @@ rm -f "$LOG_DIR/configtest.log" \
 	    "$RUNTIME_ROOT/nginx.pid"
 rm -f "$LOG_DIR/audit/"*
 
-CURL_BIN=$(find_curl)
+case "$MSCONNECTOR_SMOKE_STAGE" in
+    config_load|start_smoke|minimal_runtime_smoke) ;;
+    *) fail "unsupported MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE" ;;
+esac
+
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+    CURL_BIN=$(find_curl)
+else
+    CURL_BIN=
+fi
 
 [ -x "$NGINX_BINARY" ] || blocked "missing executable NGINX binary: $NGINX_BINARY"
 [ -f "$NGINX_MODULE" ] || blocked "missing NGINX ModSecurity dynamic module: $NGINX_MODULE"
-[ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
-[ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+record_nginx_protocol_applicability
+verify_nginx_protocol_build
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+    [ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
+    [ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+fi
 [ -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ] || blocked "missing staged libmodsecurity.so: $MODSECURITY_LIB_DIR/libmodsecurity.so"
 
 CONFIG_FILE="$RUNTIME_ROOT/conf/nginx.conf"
@@ -834,6 +1399,15 @@ AUDIT_LOG_DIR="$LOG_DIR/audit"
 NGINX_LOCATION_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-directives.conf"
 NGINX_LOCATION_HANDLER_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-handler-directives.conf"
 NGINX_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
+RESPONSE_HEADER_FIXTURE_FILE="$RUNTIME_ROOT/conf/response-header-fixture.json"
+NGINX_PROTOCOL_LISTEN_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-protocol-listen.conf"
+NGINX_PROTOCOL_SERVER_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-protocol-server.conf"
+NGINX_TLS_SERVER_CERT="$RUNTIME_ROOT/conf/nginx-test-server.crt"
+NGINX_TLS_SERVER_KEY="$RUNTIME_ROOT/conf/nginx-test-server.key"
+NGINX_TLS_CA_CERT="$RUNTIME_ROOT/conf/nginx-test-ca.crt"
+NGINX_TLS_CA_KEY="$RUNTIME_ROOT/conf/nginx-test-ca.key"
+NGINX_TLS_SERVER_CSR="$RUNTIME_ROOT/conf/nginx-test-server.csr"
+NGINX_TLS_SERVER_EXT="$RUNTIME_ROOT/conf/nginx-test-server.ext"
 
 ensure_worker_runtime_permissions
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
@@ -852,6 +1426,12 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
+if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" response-header-fixture \
+    --case "$TEST_CASE" \
+    --framework-root "$FRAMEWORK_ROOT" \
+    --output "$RESPONSE_HEADER_FIXTURE_FILE" > "$LOG_DIR/response-header-fixture.log" 2>&1; then
+    not_executable "failed to materialize response-header backend fixture; see $LOG_DIR/response-header-fixture.log"
+fi
 start_response_header_backend
 write_location_handler_directives "$NGINX_LOCATION_HANDLER_DIRECTIVES_FILE"
 ensure_worker_runtime_permissions
@@ -862,6 +1442,21 @@ export LD_LIBRARY_PATH
 
 trap cleanup EXIT INT TERM
 start_server
+
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
+    echo "nginx_smoke: pass config_load (no process started, no request sent)"
+    exit 0
+fi
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
+    echo "nginx_smoke: pass start_smoke (request-free host liveness verified)"
+    exit 0
+fi
+
+if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then
+    send_synchronized_first_byte_request
+    echo "nginx_smoke: pass synchronized-first-byte"
+    exit 0
+fi
 
 set +e
 http_status=$(send_case_request)

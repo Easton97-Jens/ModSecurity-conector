@@ -25,7 +25,7 @@ Grund: Die erforderliche generierte Eingabe ist blockiert
 
 | Command | Status | Return Code | Notes |
 |---|---|---:|---|
-| `/root/git/ModSecurity-conector/.venv/bin/python ci/generate-remaining-failure-analysis.py --connector-root /root/git/ModSecurity-conector --output-dir /root/git/ModSecurity-conector/reports/testing/generated` | blocked | - | required generated input is blocked |
+| `<local-home-root>/git/ModSecurity-conector/.venv/bin/python ci/generate-remaining-failure-analysis.py --connector-root <local-home-root>/git/ModSecurity-conector --output-dir <local-home-root>/git/ModSecurity-conector/reports/testing/generated` | blocked | - | required generated input is blocked |
 
 ## Reihen
 

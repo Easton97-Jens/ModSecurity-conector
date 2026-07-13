@@ -1,5 +1,7 @@
 # Apache Connector
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: adapter-owned source migration complete
 
 This directory is reserved for an Apache adapter for libmodsecurity v3.
@@ -10,13 +12,14 @@ Implemented now:
 - Adapter-owned Apache connector layout under `connectors/apache/`, with
   productive source under `connectors/apache/src/`.
 - Shared directive-name metadata from `common/include/msconnector/directives.h`.
-- A PoC build-preparation helper in `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh`.
+- A PoC build-preparation helper in `modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh`.
 - A local runtime smoke harness under `connectors/apache/harness/`.
 - Use of all shared minimal cases under `modules/ModSecurity-test-Framework/tests/cases/`.
 - Use of source-derived shared imported cases, including raw JSON body,
   simple multipart text-field, and response-body pass-through smokes.
-- A local source-built httpd run observed the YAML-expected HTTP status for all
-  current shared minimal cases on 2026-05-15.
+- A historical local source-built httpd run observed the YAML-expected HTTP
+  status for all current shared minimal cases on 2026-05-15. It is not current
+  canonical Phase-4 facet evidence.
 
 Not implemented:
 
@@ -24,8 +27,8 @@ Not implemented:
   migration.
 - No claim that the Apache connector is complete beyond the documented shared
   minimal/imported smokes.
-- No full RESPONSE_BODY promotion. Bounded Phase 4 strict-abort evidence is
-  documented as runtime evidence only.
+- No full RESPONSE_BODY promotion. Source-level Phase-4 and strict-mode wiring
+  are not canonical runtime evidence.
 
 ## Supported Directives
 
@@ -58,10 +61,10 @@ intervention behavior, request or response handling, hooks, filters, buckets,
 or transaction ownership.
 
 The Phase 4 directives are bounded runtime controls. Phase 4 / RESPONSE_BODY
-remains non-promoted; bounded strict-abort evidence is documented/reported as
-runtime evidence only.
+remains non-promoted; source-level strict-mode wiring does not establish a
+late-abort result.
 
-Primary local reference: `/root/conecter/ModSecurity-apache`.
+Primary local reference: `<external-source-root>/ModSecurity-apache`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache.
 
 The Apache adapter-owned build layout lives under `connectors/apache/` and is
@@ -89,7 +92,7 @@ Relevant framework paths:
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/apache/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 
-Current generated evidence keeps Apache `partial`:
+Historical generated evidence keeps Apache `partial`:
 
 - Default runtime smoke: `54/54 PASS`.
 - Force-all runtime evidence: `133 attempted / 100 PASS / 27 FAIL /
@@ -97,13 +100,14 @@ Current generated evidence keeps Apache `partial`:
 
 ## Coverage / Runtime Decision Matrix
 
-See `docs/coverage-decision-matrix.md`.
+See the [canonical Apache guide](../../docs/connectors/apache.md) for the
+evidence boundary and current configuration reference.
 
 Apache currently remains `partial`: default smoke is clean, force-all evidence
 still records FAIL and NOT_EXECUTABLE rows, generated coverage reporting is not
 automatic runtime promotion, and RESPONSE_BODY remains non-promoted.
 
-See `docs/connectors/directive-parity.md` and
+See [configuration](../../docs/configuration.md) and
 `connectors/apache/harness/README.md`.
 
 ## Common SDK adoption boundary
@@ -122,3 +126,35 @@ APLOG logging, return-code mapping, and APXS/autotools build inputs.
 
 This Common SDK adoption does not claim production readiness, CRS coverage,
 full-matrix coverage, or new runtime verification behavior.
+
+## Canonical Phase-4 boundary
+
+Apache uses a native httpd output-filter path that borrows the current bucket,
+passes the current brigade onward before EOS, and finishes Phase 4 at EOS.
+That is incremental ingestion with end-of-stream evaluation, not per-chunk
+rule evaluation. The checked-in manifest intentionally declares
+`response_body_buffered`, `phase4`,
+`phase4_rule_evaluation`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort`, and
+`late_intervention_status_metadata` as `implemented_not_asserted`.  No current
+canonical real-host evidence promotes any of those facets.
+
+`phase4_pre_commit_deny` is deliberately `not_implemented`: the body decision
+is made at EOS after the response-header path, so the native host has no
+deterministic uncommitted response-body decision point. A denial branch in
+source is not a basis for claiming a visible Phase-4 HTTP status rewrite.
+
+A Phase-4 rule match is not evidence of a client-visible 403.  A canonical
+event must keep `original_http_status`, requested WAF status,
+`visible_http_status`, `requested_action`, `actual_action`, response-commit
+metadata, and `connection_aborted` separate.  Before commitment a deny may be
+possible; after commitment the common policy can only record `log_only` in
+safe mode or `abort_connection` in strict mode.  Neither outcome may be
+reported as a successful pre-commit deny without matching host evidence.
+
+The required applicable cases are `phase4_rule_observed`,
+`phase4_deny_after_commit_log_only`, `phase4_deny_after_commit_abort`, and the
+two metadata cases. `phase4_deny_before_commit` remains unselected for this
+host model. All cases remain evidence-gated rather than inferred from this
+source description, and events contain metadata only—never response-body
+payloads.
