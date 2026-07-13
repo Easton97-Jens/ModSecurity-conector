@@ -29,7 +29,7 @@ ENGLISH_HEADINGS = [
     "3. Official upstream documentation",
     "4. Prerequisites",
     "5. Prepare libmodsecurity v3",
-    "6. Prepare or build the host or proxy",
+    "6. Provide the host or proxy",
     "7. Build and integrate the connector",
     "8. Configuration",
     "9. Build and ABI validation",
@@ -49,7 +49,7 @@ GERMAN_HEADINGS = [
     "3. Offizielle Upstream-Dokumentation",
     "4. Voraussetzungen",
     "5. ModSecurity vorbereiten",
-    "6. Host oder Proxy vorbereiten beziehungsweise bauen",
+    "6. Host oder Proxy bereitstellen",
     "7. Connector bauen und einbinden",
     "8. Konfiguration",
     "9. Build- und ABI-Validierung",
@@ -106,6 +106,14 @@ def h2_section(content: str, heading: str) -> str:
     return content[start.start() : start.end() + (end.start() if end else len(content))]
 
 
+def h3_section(content: str, heading: str) -> str:
+    start = re.search(rf"^### {re.escape(heading)}$", content, flags=re.MULTILINE)
+    if start is None:
+        raise AssertionError(f"missing heading: {heading}")
+    end = re.search(r"^(?:## |### )(?!#)", content[start.end() :], flags=re.MULTILINE)
+    return content[start.start() : start.end() + (end.start() if end else len(content))]
+
+
 def shell_blocks(content: str) -> list[str]:
     return re.findall(r"```sh\n(.*?)\n```", content, flags=re.DOTALL)
 
@@ -121,6 +129,10 @@ def variable_names(content: str) -> set[str]:
 
 def shell_variables(content: str) -> set[str]:
     return set(re.findall(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)", "\n".join(shell_blocks(content))))
+
+
+def shell_assignments(content: str) -> list[str]:
+    return re.findall(r"^([A-Za-z_][A-Za-z0-9_]*)=", "\n".join(shell_blocks(content)), flags=re.MULTILINE)
 
 
 def target_exists(target: str) -> bool:
@@ -162,6 +174,26 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         self.assertEqual(len(COMMON_BEGINNER_COMMANDS), len(explanations))
         self.assertTrue(all(len(explanation) == 2 for explanation in explanations))
         self.assertEqual(set(SLUGS), set(common["connector_engine_reference"]))
+        self.assertEqual(set(SLUGS), set(GENERATOR.HOST_SETUP))
+        required_host_fields = {
+            "host_simple_intro",
+            "host_simple_variables",
+            "host_download_steps",
+            "host_build_steps",
+            "host_success_check",
+            "host_advanced_verification",
+            "host_source_alternative",
+        }
+        for slug, setup in GENERATOR.HOST_SETUP.items():
+            self.assertTrue(required_host_fields.issubset(setup), slug)
+            self.assertLessEqual(len(setup["host_simple_variables"]), 3, slug)
+        for info in GENERATOR.MANUAL_GUIDES.values():
+            self.assertNotIn("host_intro", info)
+            self.assertNotIn("host_commands", info)
+        self.assertEqual(set(SLUGS), set(GENERATOR.ACTIVE_MANUAL_VARIABLES))
+        for slug, names in GENERATOR.ACTIVE_MANUAL_VARIABLES.items():
+            available = {name for name, _, _ in GENERATOR.MANUAL_GUIDES[slug]["variables"]}
+            self.assertTrue(names.issubset(available), slug)
 
     def test_generated_files_are_complete_current_and_idempotent(self) -> None:
         rendered = GENERATOR.rendered_files()
@@ -293,49 +325,127 @@ class CompilerGuideGenerationTest(unittest.TestCase):
             for fragment in required_url_fragments[slug]:
                 self.assertIn(fragment, joined, slug)
 
-    def test_connector_specific_host_and_integration_steps_are_documented(self) -> None:
-        nginx = numbered_section(guide("nginx"), 6)
-        self.assertEqual(
-            ["WORKDIR", "INSTALL_DIR", "JOBS"],
-            re.findall(r"^([A-Z][A-Z_]+)=", nginx, flags=re.MULTILINE),
+    def test_section_six_is_small_host_only_setup(self) -> None:
+        localized = (
+            (
+                False,
+                "Simple path",
+                "What was installed or built?",
+                "Check the result",
+                "Source build and integrity checks",
+                "Optional: verify download and version",
+            ),
+            (
+                True,
+                "Einfacher Weg",
+                "Was wurde installiert oder gebaut?",
+                "Erfolg prüfen",
+                "Source-Build und Integritätsprüfung",
+                "Optional: Download und Version verifizieren",
+            ),
         )
-        for token in (
-            "nginx.org/download",
-            "ModSecurity-nginx",
-            "./auto/configure",
-            "--add-module",
-            'make -j"$JOBS"',
-            "make install",
-            "nginx.conf",
-            '-t -p "$INSTALL_DIR"',
-            "curl -i http://127.0.0.1:8080/",
+        for slug in SLUGS:
+            for german, simple_heading, installed_heading, success_heading, source_heading, verification_heading in localized:
+                section = numbered_section(guide(slug, german=german), 6)
+                for heading in (simple_heading, installed_heading, success_heading, source_heading):
+                    self.assertIn(f"### {heading}", section, f"{slug}: {heading}")
+                simple = h3_section(section, simple_heading)
+                source = h3_section(section, source_heading)
+                self.assertNotRegex(simple, r"(?m)^export\b", slug)
+                self.assertLessEqual(len(shell_assignments(simple)), 3, slug)
+                self.assertNotIn("LD_LIBRARY_PATH", simple, slug)
+                for block in shell_blocks(section):
+                    self.assertLessEqual(len(nonempty_shell_lines(block)), 6, slug)
+                for forbidden in (
+                    "SecRule",
+                    "cat >",
+                    "curl -i",
+                    "curl --http1.1",
+                    "http://127.0.0.1",
+                    "full-lifecycle",
+                    "evidence-check",
+                    " -k start",
+                    " -s quit",
+                    "\nkill ",
+                ):
+                    self.assertNotIn(forbidden, section, f"{slug}: {forbidden}")
+                self.assertIn(f"#### {verification_heading}", source, slug)
+                self.assertRegex(source.lower(), r"sha256|gpg|checksum", slug)
+
+    def test_connector_configuration_validation_and_runtime_stay_in_sections_seven_to_ten(self) -> None:
+        nginx = {number: numbered_section(guide("nginx"), number) for number in range(6, 11)}
+        for token in ("./auto/configure", "make install", "nginx.conf", "curl -i"):
+            self.assertNotIn(token, nginx[6])
+        for token in ("./auto/configure", "--add-module", 'make -j"$JOBS"', "make install"):
+            self.assertIn(token, nginx[7])
+        self.assertNotIn("--add-dynamic-module", nginx[7])
+        self.assertNotIn("--with-compat", nginx[7])
+        self.assertIn("modsecurity-local.conf", nginx[8])
+        self.assertIn("nginx.conf", nginx[8])
+        self.assertIn('"$INSTALL_DIR/sbin/nginx" -V', nginx[9])
+        self.assertIn("--add-module=$WORKDIR/ModSecurity-nginx", nginx[9])
+        for token in ('-t -p "$INSTALL_DIR"', "curl -i http://127.0.0.1:8080/", "-s quit"):
+            self.assertIn(token, nginx[10])
+
+        apache = {number: numbered_section(guide("apache"), number) for number in range(6, 11)}
+        self.assertIn("apache2-dev", apache[6])
+        self.assertIn('test -x "$INSTALL_DIR/bin/apxs"', apache[6])
+        self.assertIn('APXS="$HOME/.local/apache-modsecurity/bin/apxs"', apache[7])
+        self.assertIn('"$APXS" -q LIBEXECDIR', apache[9])
+        self.assertIn("LoadModule security3_module", apache[8])
+
+        haproxy = {number: numbered_section(guide("haproxy"), number) for number in range(6, 11)}
+        self.assertNotIn("build-overlay.sh", haproxy[6])
+        self.assertIn("build-overlay.sh", haproxy[7])
+        self.assertIn("modsecurity-htx", haproxy[8])
+        self.assertIn("phase4-mode safe", haproxy[8])
+        self.assertIn("SPOE/SPOP", haproxy[7])
+        self.assertNotIn('"$HAPROXY_HTX_BIN" -c', haproxy[8])
+        self.assertIn('"$HAPROXY_HTX_BIN" -c', haproxy[9])
+
+        envoy = {number: numbered_section(guide("envoy"), number) for number in range(6, 11)}
+        self.assertNotIn("build_ext_proc.sh", envoy[6])
+        self.assertIn("build_ext_proc.sh", envoy[7])
+        self.assertIn("ExternalProcessor", envoy[7])
+        self.assertNotIn("--mode validate", envoy[8])
+        self.assertIn("--mode validate", envoy[9])
+        self.assertIn("--check-config", envoy[9])
+
+        traefik = {number: numbered_section(guide("traefik"), number) for number in range(6, 11)}
+        self.assertNotIn("make test-unit", h3_section(traefik[6], "Simple path"))
+        self.assertNotIn("git clone", h3_section(traefik[6], "Simple path"))
+        for token in ("build-native-middleware.sh", "build-engine-service.sh", "Go middleware", "engine service"):
+            self.assertIn(token, traefik[7])
+        for token in ("engineMode: uds", "engineSocketPath", "localPlugins"):
+            self.assertIn(token, traefik[8])
+        self.assertNotIn('"$TRAEFIK_BIN" check', traefik[8])
+        self.assertIn('"$TRAEFIK_BIN" check', traefik[9])
+        self.assertIn("--check-config", traefik[9])
+
+        lighttpd = {number: numbered_section(guide("lighttpd"), number) for number in range(6, 11)}
+        self.assertIn("patch --dry-run -p1", lighttpd[6])
+        self.assertIn("patch -p1", lighttpd[6])
+        self.assertNotIn("build_module.sh", lighttpd[6])
+        self.assertIn("build_module.sh", lighttpd[7])
+        self.assertNotIn(" -tt -f", lighttpd[8])
+        self.assertIn(" -tt -f", lighttpd[9])
+        self.assertIn("Entity-Body", guide("lighttpd"))
+
+        for slug, sections in (
+            ("haproxy", haproxy),
+            ("envoy", envoy),
+            ("traefik", traefik),
+            ("lighttpd", lighttpd),
         ):
-            self.assertIn(token, nginx)
-        self.assertNotIn("--add-dynamic-module", nginx)
-        self.assertNotIn("--with-compat", nginx)
-        self.assertNotIn("MODSECURITY_PREFIX", nginx)
+            self.assertIn('cd "$CONNECTOR_ROOT"', sections[7], slug)
 
-        apache = guide("apache")
-        self.assertIn('"$APXS" -q LIBEXECDIR', apache)
-        self.assertIn("LoadModule security3_module", apache)
-
-        haproxy = guide("haproxy")
-        self.assertIn("modsecurity-htx", haproxy)
-        self.assertIn("phase4-mode safe", haproxy)
-        self.assertIn("SPOE/SPOP", haproxy)
-
-        envoy = guide("envoy")
-        self.assertIn("ext_proc", envoy)
-        self.assertIn("ExternalProcessor", envoy)
-        self.assertIn("--mode validate", envoy)
-
-        traefik = guide("traefik")
-        for token in ("native Go middleware", "engine service", "engineMode: uds", "engineSocketPath", "localPlugins"):
-            self.assertIn(token, traefik)
-
-        lighttpd = guide("lighttpd")
-        self.assertIn('patch --dry-run -p1 < "$LIGHTTPD_PATCH_FILE"', lighttpd)
-        self.assertIn("Entity-Body", lighttpd)
+        traefik_source = h3_section(traefik[6], "Source build and integrity checks")
+        self.assertIn('grep -E "^go " go.mod', traefik_source)
+        self.assertIn("git rev-parse HEAD", traefik_source)
+        for slug in ("apache", "haproxy", "traefik", "lighttpd"):
+            source = h3_section(numbered_section(guide(slug), 6), "Source build and integrity checks")
+            verification = source[source.index("#### Optional: verify download and version") :]
+            self.assertIn('cd "$WORKDIR"', verification, slug)
 
     def test_repository_test_paths_follow_manual_steps_and_targets_exist(self) -> None:
         for connector in GENERATOR.CONNECTORS:

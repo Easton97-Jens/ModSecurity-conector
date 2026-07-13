@@ -39,68 +39,146 @@ Build libmodsecurity v3 first with the shared guide:
 
 The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.
 
-## 6. Prepare or build the host or proxy
+## 6. Provide the host or proxy
 
-Follow Apache's source-release flow first. Either provide matching system APR/APR-util development inputs, or unpack verified APR and APR-util trees as `srclib/apr` and `srclib/apr-util` before configuring httpd. The latter is Apache's documented bundled-APR layout.
+### Simple path
+
+For the simplest local adapter build, install an Apache package together with its development package. The development package supplies APXS and the matching headers.
+
+#### Debian / Ubuntu
+
+Install the host and its APXS/header package from the distribution.
 
 ```sh
-export HOST_BUILD_BASE="$HOME/src/modsecurity-connectors/apache"
-export HTTPD_VERSION="2.4.68"
-export HTTPD_ARCHIVE="httpd-$HTTPD_VERSION.tar.gz"
-export HTTPD_URL="https://downloads.apache.org/httpd/$HTTPD_ARCHIVE"
-export HTTPD_PREFIX="$HOME/.local/httpd-modsecurity"
-export HTTPD_SRC="$HOST_BUILD_BASE/httpd-$HTTPD_VERSION"
-export APXS="$HTTPD_PREFIX/bin/apxs"
-mkdir -p "$HOST_BUILD_BASE"
-cd "$HOST_BUILD_BASE"
-curl -fLO "$HTTPD_URL"
-curl -fLO "$HTTPD_URL.asc"
-curl -fLO "$HTTPD_URL.sha256"
-sha256sum -c "${HTTPD_ARCHIVE}.sha256"
-# Import Apache KEYS through the official download page before this verification.
-gpg --verify "${HTTPD_ARCHIVE}.asc" "$HTTPD_ARCHIVE"
-tar -xzf "$HTTPD_ARCHIVE"
-cd "$HTTPD_SRC"
-# If APR/APR-util are not supplied by the system, place verified trees in srclib/apr and srclib/apr-util.
-./configure --help | grep -E -- "--prefix|--with-included-apr|--with-pcre|--enable-mods-shared"
-./configure --prefix="$HTTPD_PREFIX" --enable-mods-shared=most --with-pcre="$(command -v pcre2-config)"
-make -j"2"
+sudo apt update
+sudo apt install apache2 apache2-dev
+```
+
+#### Fedora / RHEL
+
+Install the corresponding httpd and development packages.
+
+```sh
+sudo dnf install httpd httpd-devel
+```
+
+### What was installed or built?
+
+The package path provides Apache httpd, APXS, the module directory, and the headers needed to build a module for that exact host.
+
+### Check the result
+
+These queries show the host prefix, header directory, module directory, and Apache version. They must describe the same Apache installation.
+
+```sh
+apxs -q PREFIX
+apxs -q INCLUDEDIR
+apxs -q LIBEXECDIR
+apachectl -v
+```
+
+### Source build and integrity checks
+
+#### Optional: build Apache completely from source
+
+APR and APR-util are Apache portability libraries. Use matching system development packages, or place verified APR and APR-util source trees below srclib before configuring Apache.
+
+```sh
+WORKDIR="$HOME/connector-build/apache"
+VERSION="2.4.68"
+INSTALL_DIR="$HOME/.local/apache-modsecurity"
+```
+
+#### Download and unpack
+
+This creates an isolated source tree; it does not build the adapter.
+
+```sh
+mkdir -p "$WORKDIR"
+cd "$WORKDIR"
+curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2"
+tar -xjf "httpd-$VERSION.tar.bz2"
+```
+
+#### Build the host
+
+Configure and install Apache into the private prefix. The connector remains Section 7 work.
+
+```sh
+cd "httpd-$VERSION"
+./configure --prefix="$INSTALL_DIR" --enable-mods-shared=most --with-pcre="$(command -v pcre2-config)"
+make -j2
 make install
-test -x "$HTTPD_PREFIX/bin/httpd"
-test -x "$HTTPD_PREFIX/bin/apachectl"
-test -x "$APXS"
+```
+
+#### Check source-host outputs
+
+These checks confirm that the private source host exposes the APXS and executable pair that Section 7 must use.
+
+```sh
+test -x "$INSTALL_DIR/bin/httpd"
+test -x "$INSTALL_DIR/bin/apachectl"
+test -x "$INSTALL_DIR/bin/apxs"
+"$INSTALL_DIR/bin/apxs" -q PREFIX
+```
+
+#### Optional: verify download and version
+
+Import the Apache release key from the official download page before using the signature check.
+
+```sh
+cd "$WORKDIR"
+curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.sha256"
+curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.asc"
+sha256sum -c "httpd-$VERSION.tar.bz2.sha256"
+gpg --verify "httpd-$VERSION.tar.bz2.asc" "httpd-$VERSION.tar.bz2"
 ```
 
 ## 7. Build and integrate the connector
 
-The repository adapter is an Autotools/APXS project. Configure it with the APXS and httpd that were just built; APXS reads the compiler, include, and module-directory values of that exact host.
+Use the APXS checked in Section 6. The package path normally exposes apxs; the optional source-host assignment below selects the matching private APXS explicitly.
+
+#### Optional: select the source-host APXS
+
+If you built the optional Apache source host in Section 6, run this in the same shell before the adapter commands. Package-host users skip it.
 
 ```sh
-cd "$CONNECTOR_ROOT"
+APXS="$HOME/.local/apache-modsecurity/bin/apxs"
+```
+
+#### Build and install the adapter
+
+```sh
+APXS="${APXS:-apxs}"
+cd "$CONNECTOR_ROOT/connectors/apache"
+./autogen.sh
+./configure --with-libmodsecurity="/usr/local" --with-apxs="$APXS"
+make -j2
+make install
 ```
 
 ```sh
-export CONNECTOR_SRC="$CONNECTOR_ROOT/connectors/apache"
-cd "$CONNECTOR_SRC"
-./autogen.sh
-./configure --with-libmodsecurity="/usr/local" --with-apxs="$APXS" --with-apache="$HTTPD_PREFIX/bin/httpd"
-make -j"2"
-make install
-export MODULE_PATH="$("$APXS" -q LIBEXECDIR)/mod_security3.so"
+MODULE_PATH="$("$APXS" -q LIBEXECDIR)/mod_security3.so"
 test -f "$MODULE_PATH"
 ```
 
 ## 8. Configuration
 
-The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout.
+Create the local test rule and standalone Apache configuration. This section does not start Apache; Section 10 performs the syntax check and loopback requests.
 
 ```sh
-export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
-export HTTPD_CONFIG="$HOST_BUILD_BASE/httpd-local.conf"
+APXS="${APXS:-apxs}"
+HTTPD_PREFIX="$("$APXS" -q PREFIX)"
+HTTPD_BIN="$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)"
+RULES_FILE="$HOME/connector-build/apache/modsecurity-local.conf"
+HTTPD_CONFIG="$HOME/connector-build/apache/httpd-local.conf"
 cat > "$RULES_FILE" <<EOF
 SecRuleEngine On
 SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
 EOF
+```
+
+```sh
 cat > "$HTTPD_CONFIG" <<EOF
 ServerRoot "$HTTPD_PREFIX"
 Listen 127.0.0.1:8080
@@ -115,7 +193,6 @@ DocumentRoot "$HTTPD_PREFIX/htdocs"
     modsecurity_rules_file "$RULES_FILE"
 </Location>
 EOF
-"$HTTPD_PREFIX/bin/httpd" -t -f "$HTTPD_CONFIG"
 ```
 
 ## 9. Build and ABI validation
@@ -123,14 +200,15 @@ EOF
 Validate the selected host, connector artifact, dynamic library resolution, and generated configuration before sending traffic.
 
 ```sh
-"$HTTPD_PREFIX/bin/httpd" -v
-"$HTTPD_PREFIX/bin/apachectl" -V
-"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -M | grep -E "(^|[[:space:]])so_module"
+"$HTTPD_BIN" -v
+"$HTTPD_BIN" -M | grep -E "(^|[[:space:]])so_module"
 "$APXS" -q PREFIX
 "$APXS" -q INCLUDEDIR
 "$APXS" -q LIBEXECDIR
-"$APXS" -q CC
 file "$MODULE_PATH"
+```
+
+```sh
 ldd "$MODULE_PATH" | grep -F libmodsecurity
 ```
 
@@ -139,10 +217,11 @@ ldd "$MODULE_PATH" | grep -F libmodsecurity
 Run only against loopback. A 200 response on `/` and a 403 response on `/blocked` demonstrate the local rule path; they do not establish a broader claim.
 
 ```sh
-"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k start
+"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -t
+"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k start
 curl -i http://127.0.0.1:8080/
 curl -i http://127.0.0.1:8080/blocked
-"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k stop
+"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k stop
 ```
 
 ## 11. Package-assisted path
@@ -223,15 +302,14 @@ If `apxs -q` points at different headers or a different module directory than th
 | engine_pid | Local started Traefik engine-service process ID from `$!`; use it only in the same shell run. |
 | traefik_pid | Local started Traefik process ID from `$!`; use it only in the same shell run. |
 | lighttpd_pid | Local started-lighttpd process ID from `$!`; use it only in the same shell run. |
-| HTTPD_VERSION | Selected Apache 2.4 release; revalidate against the download page. |
-| HTTPD_ARCHIVE | Release archive filename derived from HTTPD_VERSION. |
-| HTTPD_URL | Official Apache archive URL. |
 | HTTPD_PREFIX | Private httpd installation prefix. |
-| HTTPD_SRC | Unpacked Apache source tree. |
 | APXS | APXS from the same host that will load the module. |
-| CONNECTOR_SRC | Repository Apache connector source selected from CONNECTOR_ROOT. |
 | MODULE_PATH | Installed repository DSO resolved by APXS. |
 | HTTPD_CONFIG | Local standalone httpd configuration. |
+| WORKDIR | External Apache source workspace. |
+| VERSION | Selected Apache source release in the optional source path. |
+| INSTALL_DIR | Private Apache installation prefix in the optional source path. |
+| HTTPD_BIN | Apache executable resolved from the selected APXS installation. |
 
 ## 17. Boundaries and non-claims
 

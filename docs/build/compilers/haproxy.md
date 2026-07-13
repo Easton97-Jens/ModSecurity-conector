@@ -39,43 +39,90 @@ Build libmodsecurity v3 first with the shared guide:
 
 The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.
 
-## 6. Prepare or build the host or proxy
+## 6. Provide the host or proxy
 
-Build an official HAProxy first and inspect `haproxy -vv`. The selected repository integration has a stricter compatibility constraint: its native HTX overlay explicitly requires HAProxy 3.2.21. The normal HAProxy build below proves the upstream host build; the following overlay build creates the selected host copy and links it to libmodsecurity.
+### Simple path
+
+Build the exact HAProxy release required by the native HTX overlay. This is an ordinary upstream host build; the repository overlay remains Section 7 work.
 
 ```sh
-export HOST_BUILD_BASE="$HOME/src/modsecurity-connectors/haproxy"
-export HAPROXY_VERSION="3.2.21"
-export HAPROXY_ARCHIVE="haproxy-$HAPROXY_VERSION.tar.gz"
-export HAPROXY_URL="https://www.haproxy.org/download/3.2/src/$HAPROXY_ARCHIVE"
-export HAPROXY_SHA256="0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339"
-export HAPROXY_SRC="$HOST_BUILD_BASE/haproxy-$HAPROXY_VERSION"
-export HAPROXY_PREFIX="$HOME/.local/haproxy-modsecurity"
-export HAPROXY_STAGE="$HOST_BUILD_BASE/stage"
-mkdir -p "$HOST_BUILD_BASE"
-cd "$HOST_BUILD_BASE"
-curl -fLO "$HAPROXY_URL"
-printf "%s  %s\n" "$HAPROXY_SHA256" "$HAPROXY_ARCHIVE" | sha256sum -c -
-tar -xzf "$HAPROXY_ARCHIVE"
-cd "$HAPROXY_SRC"
-make help
-make -j"2" TARGET=linux-glibc USE_OPENSSL=1 USE_ZLIB=1 USE_PCRE2=1
-make install-bin DESTDIR="$HAPROXY_STAGE" PREFIX="$HAPROXY_PREFIX"
-export HAPROXY_BIN="$HAPROXY_STAGE$HAPROXY_PREFIX/sbin/haproxy"
-"$HAPROXY_BIN" -vv
+WORKDIR="$HOME/connector-build/haproxy"
+VERSION="3.2.21"
+JOBS=2
+```
+
+#### Download and unpack HAProxy
+
+This downloads the selected official host source into an isolated workspace.
+
+```sh
+mkdir -p "$WORKDIR"
+cd "$WORKDIR"
+curl -fLO "https://www.haproxy.org/download/3.2/src/haproxy-$VERSION.tar.gz"
+tar -xzf "haproxy-$VERSION.tar.gz"
+cd "haproxy-$VERSION"
+```
+
+#### Build the upstream host
+
+The selected build options enable the libraries used by this local host build. They do not add the repository HTX filter.
+
+```sh
+make -j"$JOBS" TARGET=linux-glibc USE_OPENSSL=1 USE_ZLIB=1 USE_PCRE2=1
+```
+
+### What was installed or built?
+
+The upstream haproxy executable is built in the unpacked source tree. No staging prefix or connector overlay is part of the simple path.
+
+### Check the result
+
+The verbose version output identifies the selected upstream binary and its enabled build features.
+
+```sh
+./haproxy -vv
+```
+
+### Source build and integrity checks
+
+#### Optional: verify download and version
+
+Use the official release checksum before treating the source as the input to the HTX overlay.
+
+```sh
+cd "$WORKDIR"
+curl -fLO "https://www.haproxy.org/download/3.2/src/haproxy-$VERSION.tar.gz.sha256"
+printf "%s  %s\n" "0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339" "haproxy-$VERSION.tar.gz" | sha256sum -c -
+```
+
+#### Optional: stage the ordinary host
+
+A staged installation is useful for inspection, but it is not the native HTX connector build.
+
+```sh
+cd "$WORKDIR/haproxy-$VERSION"
+INSTALL_DIR="$HOME/.local/haproxy-modsecurity"
+STAGE="$WORKDIR/stage"
+make install-bin DESTDIR="$STAGE" PREFIX="$INSTALL_DIR"
+"$STAGE$INSTALL_DIR/sbin/haproxy" -vv
 ```
 
 ## 7. Build and integrate the connector
 
 The official HAProxy release does not contain this connector. The repository native HTX integration copies the compatible source to an external worktree, checks and applies its overlay, adds the HTX filter plus Common/libmodsecurity bridge, and rebuilds the host. SPOE/SPOP is a separate compatibility path and is not evidence for this native filter.
 
+The host path is reintroduced here only so that the connector commands can consume the Section 6 host without rebuilding it.
+
 ```sh
+export HOST_BUILD_BASE="$HOME/connector-build/haproxy"
+export HAPROXY_SRC="$HOST_BUILD_BASE/haproxy-3.2.21"
+export HAPROXY_HTX_BUILD_DIR="$HOST_BUILD_BASE/htx-overlay"
 cd "$CONNECTOR_ROOT"
+export HAPROXY_HTX_SOURCE_DIR="$HAPROXY_SRC"
+export HAPROXY_HTX_BUILD_DIR="$HOST_BUILD_BASE/htx-overlay"
 ```
 
 ```sh
-export HAPROXY_HTX_SOURCE_DIR="$HAPROXY_SRC"
-export HAPROXY_HTX_BUILD_DIR="$HOST_BUILD_BASE/htx-overlay"
 export MAKE_JOBS="2"
 CONNECTOR_ROOT="$CONNECTOR_ROOT" sh connectors/haproxy/htx-overlay/build-overlay.sh
 export HAPROXY_HTX_BIN="$HAPROXY_HTX_BUILD_DIR/worktree/haproxy"
@@ -85,7 +132,7 @@ test -x "$HAPROXY_HTX_BIN"
 
 ## 8. Configuration
 
-The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout.
+The local rule below is a test rule, not a CRS rule. Keep configuration and runtime files outside the Git checkout.
 
 ```sh
 export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
@@ -109,7 +156,6 @@ frontend local
 backend local_upstream
     server app 127.0.0.1:8081
 EOF
-"$HAPROXY_HTX_BIN" -c -f "$HAPROXY_CONFIG"
 ```
 
 ## 9. Build and ABI validation
@@ -117,6 +163,7 @@ EOF
 Validate the selected host, connector artifact, dynamic library resolution, and generated configuration before sending traffic.
 
 ```sh
+"$HAPROXY_HTX_BIN" -c -f "$HAPROXY_CONFIG"
 "$HAPROXY_HTX_BIN" -vv
 file "$HAPROXY_HTX_BIN"
 ldd "$HAPROXY_HTX_BIN" | grep -F libmodsecurity
@@ -135,6 +182,9 @@ python3 -m http.server 8081 --bind 127.0.0.1 --directory "$HOST_BUILD_BASE/www" 
 upstream_pid=$!
 "$HAPROXY_HTX_BIN" -db -f "$HAPROXY_CONFIG" > "$HOST_BUILD_BASE/haproxy.log" 2>&1 &
 haproxy_pid=$!
+```
+
+```sh
 curl -i http://127.0.0.1:8080/
 curl -i http://127.0.0.1:8080/blocked
 kill "$haproxy_pid" "$upstream_pid"
@@ -218,19 +268,17 @@ The overlay refuses a version other than 3.2.21, an in-tree build directory, mis
 | engine_pid | Local started Traefik engine-service process ID from `$!`; use it only in the same shell run. |
 | traefik_pid | Local started Traefik process ID from `$!`; use it only in the same shell run. |
 | lighttpd_pid | Local started-lighttpd process ID from `$!`; use it only in the same shell run. |
-| HAPROXY_VERSION | Version required by the current HTX overlay. |
-| HAPROXY_ARCHIVE | Archive name derived from HAPROXY_VERSION. |
-| HAPROXY_URL | Official HAProxy source archive URL. |
-| HAPROXY_SHA256 | Expected SHA-256 for the selected source archive. |
 | HAPROXY_SRC | Verified upstream source tree. |
-| HAPROXY_PREFIX | Private upstream host installation prefix. |
-| HAPROXY_STAGE | Staging root used with DESTDIR. |
-| HAPROXY_BIN | Staged ordinary HAProxy binary. |
 | HAPROXY_HTX_SOURCE_DIR | Verified source consumed by the overlay builder. |
 | HAPROXY_HTX_BUILD_DIR | External disposable overlay worktree and provenance directory. |
 | HAPROXY_HTX_BIN | Repository-built native HTX host binary. |
 | MAKE_JOBS | Parallel-job value passed to the repository overlay builder. |
 | HAPROXY_CONFIG | Local loopback HAProxy configuration. |
+| WORKDIR | External HAProxy source workspace. |
+| VERSION | Exact HAProxy version required by the HTX overlay. |
+| JOBS | Deliberately small number of parallel HAProxy build jobs. |
+| INSTALL_DIR | Optional private ordinary HAProxy installation prefix. |
+| STAGE | Optional staging root for the ordinary host installation. |
 
 ## 17. Boundaries and non-claims
 

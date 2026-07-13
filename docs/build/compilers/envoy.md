@@ -47,43 +47,78 @@ Build libmodsecurity v3 first with the shared guide:
 
 The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.
 
-## 6. Prepare or build the host or proxy
+## 6. Provide the host or proxy
 
-For the normal local connector route, use Envoy's official release binary and validate it before configuring the ext_proc service. A complete Envoy source build is optional, not the default: the official Bazel route is resource-intensive and must be checked against the selected release's `bazel/README.md` before use.
+### Simple path
+
+Use the repository-compatible official Envoy release binary. The ext_proc service is a separate repository component and is built in Section 7.
 
 ```sh
-export HOST_BUILD_BASE="$HOME/src/modsecurity-connectors/envoy"
-export ENVOY_VERSION="1.38.2"
-export ENVOY_BIN="$HOST_BUILD_BASE/bin/envoy"
-export ENVOY_DOWNLOAD_URL="https://github.com/envoyproxy/envoy/releases/download/v$ENVOY_VERSION/envoy-$ENVOY_VERSION-linux-x86_64"
-export ENVOY_SHA256="87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899"
-mkdir -p "$HOST_BUILD_BASE/bin"
-curl -fL "$ENVOY_DOWNLOAD_URL" -o "$ENVOY_BIN"
-printf "%s  %s\n" "$ENVOY_SHA256" "$ENVOY_BIN" | sha256sum -c -
-chmod 755 "$ENVOY_BIN"
-"$ENVOY_BIN" --version
-# Optional only after reading the matching upstream Bazel guide: bazel build -c opt //source/exe:envoy-static
+WORKDIR="$HOME/connector-build/envoy"
+```
+
+#### Download the release binary
+
+The official x86_64 asset is written to a local workspace and made executable.
+
+```sh
+mkdir -p "$WORKDIR"
+cd "$WORKDIR"
+curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.38.2/envoy-1.38.2-linux-x86_64" -o envoy
+chmod 755 envoy
+./envoy --version
+```
+
+### What was installed or built?
+
+Only the official Envoy host binary is present. It does not include the repository ext_proc executable, its Common bridge, or configuration.
+
+### Check the result
+
+The file and version checks confirm that the intended local host binary is ready for Section 7.
+
+```sh
+test -x "$WORKDIR/envoy"
+"$WORKDIR/envoy" --version
+```
+
+### Source build and integrity checks
+
+#### Optional: build Envoy from source
+
+A full Bazel build is resource-intensive and deliberately not part of the beginner path. Follow the [official Envoy source-build guidance](https://www.envoyproxy.io/docs/envoy/latest/start/building/local_docker_build.html) for the selected release before using it as a host override.
+
+#### Optional: verify download and version
+
+The fixed checksum is for the selected repository-compatible x86_64 release asset, not a claim about newer upstream releases.
+
+```sh
+printf "%s  %s\n" "87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899" "envoy" | sha256sum -c -
 ```
 
 ## 7. Build and integrate the connector
 
 The repository ext_proc executable is the source-built component. It links the Common/libmodsecurity bridge and is not part of an official Envoy binary. The generated host configuration uses `envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor`, an HTTP/2 gRPC cluster, and a router after that filter. Build the service into an external root, then generate both configurations there.
 
-```sh
-cd "$CONNECTOR_ROOT"
-```
+The host path is reintroduced here only so that the connector commands can consume the Section 6 host without rebuilding it.
 
 ```sh
+export HOST_BUILD_BASE="$HOME/connector-build/envoy"
+export ENVOY_BIN="$HOST_BUILD_BASE/envoy"
+cd "$CONNECTOR_ROOT"
 export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"
 BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/envoy/build/build_ext_proc.sh
 export EXT_PROC_BIN="$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc"
+```
+
+```sh
 test -x "$EXT_PROC_BIN"
 BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/envoy/build/test_ext_proc.sh
 ```
 
 ## 8. Configuration
 
-The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout.
+The local rule below is a test rule, not a CRS rule. Keep configuration and runtime files outside the Git checkout.
 
 ```sh
 export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
@@ -92,6 +127,9 @@ export EXT_PROC_RUNTIME_CONFIG="$BUILD_ROOT/envoy-ext-proc/runtime/ext-proc.conf
 export ENVOY_PORT=18080
 export ENVOY_UPSTREAM_PORT=18081
 export EXT_PROC_PORT=18083
+```
+
+```sh
 export ENVOY_ADMIN_PORT=19001
 cat > "$RULES_FILE" <<EOF
 SecRuleEngine On
@@ -99,8 +137,6 @@ SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
 EOF
 OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$ENVOY_PORT" UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" EXT_PROC_PORT="$EXT_PROC_PORT" ADMIN_PORT="$ENVOY_ADMIN_PORT" sh connectors/envoy/config/prepare_envoy_ext_proc_config.sh
 OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG" RULES_FILE="$RULES_FILE" EVENT_PATH="$BUILD_ROOT/envoy-ext-proc/runtime/events.jsonl" sh connectors/envoy/config/prepare_envoy_ext_proc_runtime_config.sh
-"$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG"
-"$EXT_PROC_BIN" --check-config --config connectors/envoy/config/envoy-ext-proc-service.json
 ```
 
 ## 9. Build and ABI validation
@@ -108,10 +144,15 @@ OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG" RULES_FILE="$RULES_FILE" EVENT_PATH="$B
 Validate the selected host, connector artifact, dynamic library resolution, and generated configuration before sending traffic.
 
 ```sh
+"$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG"
+"$EXT_PROC_BIN" --check-config --config connectors/envoy/config/envoy-ext-proc-service.json
 "$ENVOY_BIN" --version
 test -x "$EXT_PROC_BIN"
 file "$EXT_PROC_BIN"
 ldd "$EXT_PROC_BIN" | grep -F libmodsecurity
+```
+
+```sh
 grep -F "envoy.filters.http.ext_proc" "$ENVOY_CONFIG"
 grep -F "request_body_mode: STREAMED" "$ENVOY_CONFIG"
 ```
@@ -203,11 +244,7 @@ An official Envoy binary is only the host. If validation fails, check the genera
 | engine_pid | Local started Traefik engine-service process ID from `$!`; use it only in the same shell run. |
 | traefik_pid | Local started Traefik process ID from `$!`; use it only in the same shell run. |
 | lighttpd_pid | Local started-lighttpd process ID from `$!`; use it only in the same shell run. |
-| ENVOY_VERSION | Selected official Envoy release for the binary route. |
 | ENVOY_BIN | Verified Envoy executable. |
-| ENVOY_DOWNLOAD_URL | Official Envoy release-binary URL. |
-| ENVOY_SHA256 | Expected binary checksum for the selected release. |
-| BUILD_ROOT | External repository connector build root. |
 | EXT_PROC_BIN | Repository-built ext_proc service executable. |
 | ENVOY_CONFIG | Generated loopback Envoy configuration. |
 | EXT_PROC_RUNTIME_CONFIG | Generated Common runtime configuration for ext_proc. |
@@ -218,6 +255,7 @@ An official Envoy binary is only the host. If validation fails, check the genera
 | ENVOY_UPSTREAM_PORT | Loopback upstream port used by the test. |
 | EXT_PROC_PORT | Loopback gRPC ext_proc service port. |
 | ENVOY_ADMIN_PORT | Loopback Envoy admin port. |
+| WORKDIR | External Envoy binary workspace. |
 
 ## 17. Boundaries and non-claims
 

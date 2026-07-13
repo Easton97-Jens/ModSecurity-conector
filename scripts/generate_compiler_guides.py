@@ -1664,75 +1664,6 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("Apache HTTP Server Download", "https://httpd.apache.org/download.cgi", "Official release archives, PGP signatures, checksums, and Apache KEYS.", "Offizielle Releasearchive, PGP-Signaturen, Prüfsummen und Apache KEYS.", "The page changes when Apache publishes a release."),
             ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 source and its Autotools build instructions.", "Die libmodsecurity-v3-Quelle und ihre Autotools-Buildanleitung.", "The selected Git tag/commit is recorded below."),
         ),
-        "host_intro": (
-            "Follow Apache's source-release flow first. Either provide matching system APR/APR-util development inputs, or unpack verified APR and APR-util trees as `srclib/apr` and `srclib/apr-util` before configuring httpd. The latter is Apache's documented bundled-APR layout.",
-            "Zuerst dem Apache-Source-Release-Ablauf folgen. Entweder passende System-Entwicklungseingaben für APR/APR-util bereitstellen oder geprüfte APR- und APR-util-Bäume vor dem Configure als `srclib/apr` und `srclib/apr-util` entpacken. Letzteres ist das von Apache dokumentierte Bundled-APR-Layout.",
-        ),
-        "host_commands": (
-            'export HOST_BUILD_BASE="$BUILD_BASE/apache"',
-            'export HTTPD_VERSION="2.4.68"',
-            'export HTTPD_ARCHIVE="httpd-$HTTPD_VERSION.tar.gz"',
-            'export HTTPD_URL="https://downloads.apache.org/httpd/$HTTPD_ARCHIVE"',
-            'export HTTPD_PREFIX="$HOME/.local/httpd-modsecurity"',
-            'export HTTPD_SRC="$HOST_BUILD_BASE/httpd-$HTTPD_VERSION"',
-            'export APXS="$HTTPD_PREFIX/bin/apxs"',
-            'mkdir -p "$HOST_BUILD_BASE"',
-            'cd "$HOST_BUILD_BASE"',
-            'curl -fLO "$HTTPD_URL"',
-            'curl -fLO "$HTTPD_URL.asc"',
-            'curl -fLO "$HTTPD_URL.sha256"',
-            'sha256sum -c "${HTTPD_ARCHIVE}.sha256"',
-            '# Import Apache KEYS through the official download page before this verification.',
-            'gpg --verify "${HTTPD_ARCHIVE}.asc" "$HTTPD_ARCHIVE"',
-            'tar -xzf "$HTTPD_ARCHIVE"',
-            'cd "$HTTPD_SRC"',
-            '# If APR/APR-util are not supplied by the system, place verified trees in srclib/apr and srclib/apr-util.',
-            './configure --help | grep -E -- "--prefix|--with-included-apr|--with-pcre|--enable-mods-shared"',
-            './configure --prefix="$HTTPD_PREFIX" --enable-mods-shared=most --with-pcre="$(command -v pcre2-config)"',
-            'make -j"$jobs"',
-            'make install',
-            'test -x "$HTTPD_PREFIX/bin/httpd"',
-            'test -x "$HTTPD_PREFIX/bin/apachectl"',
-            'test -x "$APXS"',
-        ),
-        "connector_intro": (
-            "The repository adapter is an Autotools/APXS project. Configure it with the APXS and httpd that were just built; APXS reads the compiler, include, and module-directory values of that exact host.",
-            "Der Repository-Adapter ist ein Autotools-/APXS-Projekt. Ihn mit genau dem soeben gebauten APXS und httpd konfigurieren; APXS liest Compiler-, Include- und Modulverzeichniswerte genau dieses Hosts.",
-        ),
-        "connector_commands": (
-            'export CONNECTOR_SRC="$CONNECTOR_ROOT/connectors/apache"',
-            'cd "$CONNECTOR_SRC"',
-            './autogen.sh',
-            './configure --with-libmodsecurity="$MODSECURITY_PREFIX" --with-apxs="$APXS" --with-apache="$HTTPD_PREFIX/bin/httpd"',
-            'make -j"$jobs"',
-            'make install',
-            'export MODULE_PATH="$("$APXS" -q LIBEXECDIR)/mod_security3.so"',
-            'test -f "$MODULE_PATH"',
-        ),
-        "config_commands": (
-            'export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"',
-            'export HTTPD_CONFIG="$HOST_BUILD_BASE/httpd-local.conf"',
-            'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
-            'cat > "$HTTPD_CONFIG" <<EOF\nServerRoot "$HTTPD_PREFIX"\nListen 127.0.0.1:8080\nServerName 127.0.0.1\nLoadModule security3_module "$MODULE_PATH"\nDocumentRoot "$HTTPD_PREFIX/htdocs"\n<Directory "$HTTPD_PREFIX/htdocs">\n    Require all granted\n</Directory>\n<Location "/">\n    modsecurity on\n    modsecurity_rules_file "$RULES_FILE"\n</Location>\nEOF',
-            '"$HTTPD_PREFIX/bin/httpd" -t -f "$HTTPD_CONFIG"',
-        ),
-        "validation": (
-            '"$HTTPD_PREFIX/bin/httpd" -v',
-            '"$HTTPD_PREFIX/bin/apachectl" -V',
-            '"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -M | grep -E "(^|[[:space:]])so_module"',
-            '"$APXS" -q PREFIX',
-            '"$APXS" -q INCLUDEDIR',
-            '"$APXS" -q LIBEXECDIR',
-            '"$APXS" -q CC',
-            'file "$MODULE_PATH"',
-            'ldd "$MODULE_PATH" | grep -F libmodsecurity',
-        ),
-        "http_commands": (
-            '"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k start',
-            'curl -i http://127.0.0.1:8080/',
-            'curl -i http://127.0.0.1:8080/blocked',
-            '"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k stop',
-        ),
         "package_queries": ('apt-cache search apache2', 'dnf search httpd', 'apache2 -v 2>/dev/null || httpd -v 2>/dev/null || true'),
         "package_note": (
             "A package host can be useful for comparison, but its APXS, headers, module directory, configuration layout, and service name can differ from this source prefix. Query the matching distribution's official package documentation before choosing package names; rebuild the adapter with that package's APXS if that is the intended host.",
@@ -1765,77 +1696,9 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
             ("ModSecurity-nginx", "https://github.com/owasp-modsecurity/ModSecurity-nginx", "The official NGINX connector source consumed by the NGINX configure step.", "Die offizielle NGINX-Connectorquelle, die vom NGINX-Configure-Schritt eingebunden wird.", "Pin it to a release tag or commit matching the selected NGINX source."),
         ),
-        "host_intro": (
-            "This is the deliberately small NGINX-plus-libmodsecurity build extracted from the relevant technical parts of the supplied reference script: isolated directories, compiler/linker paths, pinned sources, the connector, configure, build, installation, ABI checks, and provenance. The external script builds further optional modules and integrations; they are not required for this core build and are not covered here.",
-            "Dies ist der bewusst kleine NGINX-plus-libmodsecurity-Build aus den fachlich relevanten Teilen des bereitgestellten Referenzskripts: isolierte Verzeichnisse, Compiler-/Linkerpfade, gepinnte Quellen, Connector, Configure, Build, Installation, ABI-Prüfungen und Provenienz. Das externe Skript baut weitere optionale Module und Integrationen; sie sind für diesen Kernbuild nicht erforderlich und werden hier nicht behandelt.",
-        ),
-        "host_commands": (
-            'export NGINX_BUILD_BASE="$HOME/src/nginx-modsecurity"',
-            'export NGINX_VERSION="1.31.2"',
-            'export NGINX_ARCHIVE="nginx-$NGINX_VERSION.tar.gz"',
-            'export NGINX_URL="https://nginx.org/download/$NGINX_ARCHIVE"',
-            'export NGINX_SRC="$NGINX_BUILD_BASE/nginx"',
-            'export NGINX_PREFIX="$HOME/.local/nginx-modsecurity"',
-            'export MODSECURITY_NGINX_SRC="$NGINX_BUILD_BASE/ModSecurity-nginx"',
-            'export MODSECURITY_NGINX_REF="v1.0.4"',
-            'export MODSECURITY_NGINX_COMMIT="3f4b57df10ce43b1f1c722141f7621dc64838be8"',
-            'mkdir -p "$NGINX_BUILD_BASE"',
-            'cd "$NGINX_BUILD_BASE"',
-            'curl -fLO "$NGINX_URL"',
-            'curl -fLO "$NGINX_URL.asc"',
-            '# Import the NGINX release signing key from the official release site before verifying.',
-            'gpg --verify "${NGINX_ARCHIVE}.asc" "$NGINX_ARCHIVE"',
-            'tar -xzf "$NGINX_ARCHIVE"',
-            'mv "nginx-$NGINX_VERSION" "$NGINX_SRC"',
-        ),
-        "connector_intro": (
-            "Clone and pin the official ModSecurity-nginx connector, then configure the host and connector together. `--add-module` links a connector into NGINX statically; `--add-dynamic-module` creates a separately loaded module. This guide uses the dynamic form and therefore keeps the module with the exact binary that built it.",
-            "Den offiziellen ModSecurity-nginx-Connector klonen und pinnen, dann Host und Connector gemeinsam konfigurieren. `--add-module` bindet einen Connector statisch in NGINX ein; `--add-dynamic-module` erzeugt ein separat geladenes Modul. Diese Anleitung verwendet die dynamische Form und hält das Modul daher beim exakt dazu gebauten Binary.",
-        ),
-        "connector_commands": (
-            'git clone https://github.com/owasp-modsecurity/ModSecurity-nginx.git "$MODSECURITY_NGINX_SRC"',
-            'git -C "$MODSECURITY_NGINX_SRC" checkout --detach "$MODSECURITY_NGINX_REF"',
-            'test "$(git -C "$MODSECURITY_NGINX_SRC" rev-parse HEAD)" = "$MODSECURITY_NGINX_COMMIT"',
-            'git -C "$MODSECURITY_NGINX_SRC" rev-parse HEAD',
-            'cd "$NGINX_SRC"',
-            './auto/configure --help | grep -E -- "--with-compat|--add-dynamic-module|--with-pcre-jit|--with-http_ssl_module"',
-            './auto/configure --prefix="$NGINX_PREFIX" --sbin-path="$NGINX_PREFIX/sbin/nginx" --modules-path="$NGINX_PREFIX/modules" --conf-path="$NGINX_PREFIX/conf/nginx.conf" --pid-path="$NGINX_PREFIX/logs/nginx.pid" --http-log-path="$NGINX_PREFIX/logs/access.log" --error-log-path="$NGINX_PREFIX/logs/error.log" --with-http_ssl_module --with-pcre-jit --with-compat --add-dynamic-module="$MODSECURITY_NGINX_SRC" --with-cc-opt="-I$MODSECURITY_PREFIX/include" --with-ld-opt="-L$MODSECURITY_PREFIX/lib -Wl,-rpath,$MODSECURITY_PREFIX/lib"',
-            './objs/nginx -V 2>&1 || true',
-            "grep -E '^(CC|LD|CORE_LIBS)' objs/Makefile || true",
-            'make -j"$jobs" V=1 2>&1 | tee nginx-build.log',
-            'make modules',
-            'make install',
-            'export NGINX_MODULE="$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so"',
-            'test -x "$NGINX_PREFIX/sbin/nginx"',
-            'test -f "$NGINX_MODULE"',
-        ),
-        "config_commands": (
-            'export RULES_FILE="$NGINX_BUILD_BASE/modsecurity-local.conf"',
-            'export NGINX_CONFIG="$NGINX_PREFIX/conf/nginx.conf"',
-            'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
-            'cat > "$NGINX_CONFIG" <<EOF\nload_module modules/ngx_http_modsecurity_module.so;\nevents {}\nhttp {\n    server {\n        listen 127.0.0.1:8080;\n        location / {\n            modsecurity on;\n            modsecurity_rules_file "$RULES_FILE";\n            return 200 "nginx modsecurity test\\n";\n        }\n    }\n}\nEOF',
-            '"$NGINX_PREFIX/sbin/nginx" -t -p "$NGINX_PREFIX" -c conf/nginx.conf',
-        ),
         "config_note": (
             "For the complete directive-level contract, read the repository [NGINX configuration reference](../../../examples/nginx/configuration-reference.md) before adapting this local example.",
             "Für den vollständigen Direktivenvertrag vor der Anpassung dieses lokalen Beispiels die repository-eigene [NGINX-Konfigurationsreferenz](../../../examples/nginx/configuration-reference.de.md) lesen.",
-        ),
-        "validation": (
-            '"$NGINX_PREFIX/sbin/nginx" -V',
-            'file objs/nginx',
-            'ldd objs/nginx',
-            'find objs -maxdepth 2 -type f -name "*modsecurity*.so" -print',
-            'file "$NGINX_PREFIX/sbin/nginx"',
-            'ldd "$NGINX_PREFIX/sbin/nginx"',
-            'file "$NGINX_MODULE"',
-            'ldd "$NGINX_MODULE" | grep -F libmodsecurity',
-        ),
-        "http_commands": (
-            '"$NGINX_PREFIX/sbin/nginx" -p "$NGINX_PREFIX" -c conf/nginx.conf',
-            'curl -i http://127.0.0.1:8080/',
-            'curl -i http://127.0.0.1:8080/blocked',
-            '"$NGINX_PREFIX/sbin/nginx" -p "$NGINX_PREFIX" -c conf/nginx.conf -s quit',
-            '{ "$NGINX_PREFIX/sbin/nginx" -V 2>&1; git -C "$MODSECURITY_SRC" rev-parse HEAD; git -C "$MODSECURITY_NGINX_SRC" rev-parse HEAD; cc --version; c++ --version; sha256sum "$NGINX_PREFIX/sbin/nginx"; } > "$NGINX_BUILD_BASE/build-provenance.txt"',
         ),
         "package_queries": ('apt-cache search nginx', 'dnf search nginx', 'nginx -V 2>&1 || true'),
         "package_note": (
@@ -1870,31 +1733,6 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("HAProxy Documentation", "https://docs.haproxy.org/", "Configuration syntax and CLI documentation for `haproxy -c` and runtime operation.", "Konfigurationssyntax und CLI-Dokumentation für `haproxy -c` und den Laufzeitbetrieb.", "Use documentation matching the selected major/minor series."),
             ("HAProxy Releases", "https://www.haproxy.org/download/", "Official source downloads and release series selection.", "Offizielle Source-Downloads und Auswahl der Release-Serie.", "The repository overlay currently fixes its compatible source to 3.2.21."),
             ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
-        ),
-        "host_intro": (
-            "Build an official HAProxy first and inspect `haproxy -vv`. The selected repository integration has a stricter compatibility constraint: its native HTX overlay explicitly requires HAProxy 3.2.21. The normal HAProxy build below proves the upstream host build; the following overlay build creates the selected host copy and links it to libmodsecurity.",
-            "Zuerst ein offizielles HAProxy bauen und `haproxy -vv` prüfen. Die ausgewählte Repository-Integration hat eine strengere Kompatibilitätsgrenze: Ihr nativer HTX-Overlay erfordert ausdrücklich HAProxy 3.2.21. Der normale HAProxy-Build belegt den Upstream-Hostbuild; der folgende Overlay-Build erzeugt die ausgewählte Hostkopie und linkt sie mit libmodsecurity.",
-        ),
-        "host_commands": (
-            'export HOST_BUILD_BASE="$BUILD_BASE/haproxy"',
-            'export HAPROXY_VERSION="3.2.21"',
-            'export HAPROXY_ARCHIVE="haproxy-$HAPROXY_VERSION.tar.gz"',
-            'export HAPROXY_URL="https://www.haproxy.org/download/3.2/src/$HAPROXY_ARCHIVE"',
-            'export HAPROXY_SHA256="0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339"',
-            'export HAPROXY_SRC="$HOST_BUILD_BASE/haproxy-$HAPROXY_VERSION"',
-            'export HAPROXY_PREFIX="$HOME/.local/haproxy-modsecurity"',
-            'export HAPROXY_STAGE="$HOST_BUILD_BASE/stage"',
-            'mkdir -p "$HOST_BUILD_BASE"',
-            'cd "$HOST_BUILD_BASE"',
-            'curl -fLO "$HAPROXY_URL"',
-            'printf "%s  %s\\n" "$HAPROXY_SHA256" "$HAPROXY_ARCHIVE" | sha256sum -c -',
-            'tar -xzf "$HAPROXY_ARCHIVE"',
-            'cd "$HAPROXY_SRC"',
-            'make help',
-            'make -j"$jobs" TARGET=linux-glibc USE_OPENSSL=1 USE_ZLIB=1 USE_PCRE2=1',
-            'make install-bin DESTDIR="$HAPROXY_STAGE" PREFIX="$HAPROXY_PREFIX"',
-            'export HAPROXY_BIN="$HAPROXY_STAGE$HAPROXY_PREFIX/sbin/haproxy"',
-            '"$HAPROXY_BIN" -vv',
         ),
         "connector_intro": (
             "The official HAProxy release does not contain this connector. The repository native HTX integration copies the compatible source to an external worktree, checks and applies its overlay, adds the HTX filter plus Common/libmodsecurity bridge, and rebuilds the host. SPOE/SPOP is a separate compatibility path and is not evidence for this native filter.",
@@ -1975,23 +1813,6 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("Envoy v1.38.2 release", "https://github.com/envoyproxy/envoy/releases/tag/v1.38.2", "Official selected release page, binary asset, and checksum material.", "Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial.", "This guide pins the binary route to v1.38.2."),
             ("Envoy source/Bazel guidance", "https://github.com/envoyproxy/envoy/blob/v1.38.2/bazel/README.md", "Official optional source-build guidance; it is resource-intensive and not the default route.", "Offizielle optionale Source-Build-Anleitung; sie ist ressourcenintensiv und nicht der Standardweg.", "Use only with the selected tag and sufficient CPU, memory, and storage."),
             ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
-        ),
-        "host_intro": (
-            "For the normal local connector route, use Envoy's official release binary and validate it before configuring the ext_proc service. A complete Envoy source build is optional, not the default: the official Bazel route is resource-intensive and must be checked against the selected release's `bazel/README.md` before use.",
-            "Für den normalen lokalen Connectorweg das offizielle Envoy-Releasebinary verwenden und es vor der Konfiguration des ext_proc-Service validieren. Ein vollständiger Envoy-Source-Build ist optional, nicht der Standard: Der offizielle Bazel-Weg ist ressourcenintensiv und muss vor der Nutzung gegen `bazel/README.md` des ausgewählten Releases geprüft werden.",
-        ),
-        "host_commands": (
-            'export HOST_BUILD_BASE="$BUILD_BASE/envoy"',
-            'export ENVOY_VERSION="1.38.2"',
-            'export ENVOY_BIN="$HOST_BUILD_BASE/bin/envoy"',
-            'export ENVOY_DOWNLOAD_URL="https://github.com/envoyproxy/envoy/releases/download/v$ENVOY_VERSION/envoy-$ENVOY_VERSION-linux-x86_64"',
-            'export ENVOY_SHA256="87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899"',
-            'mkdir -p "$HOST_BUILD_BASE/bin"',
-            'curl -fL "$ENVOY_DOWNLOAD_URL" -o "$ENVOY_BIN"',
-            'printf "%s  %s\\n" "$ENVOY_SHA256" "$ENVOY_BIN" | sha256sum -c -',
-            'chmod 755 "$ENVOY_BIN"',
-            '"$ENVOY_BIN" --version',
-            '# Optional only after reading the matching upstream Bazel guide: bazel build -c opt //source/exe:envoy-static',
         ),
         "connector_intro": (
             "The repository ext_proc executable is the source-built component. It links the Common/libmodsecurity bridge and is not part of an official Envoy binary. The generated host configuration uses `envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor`, an HTTP/2 gRPC cluster, and a router after that filter. Build the service into an external root, then generate both configurations there.",
@@ -2078,28 +1899,6 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("Traefik v3.7 health check", "https://doc.traefik.io/traefik/v3.7/reference/install-configuration/observability/healthcheck/", "The loopback ping endpoint used to confirm local host startup.", "Der Loopback-Ping-Endpunkt zur Bestätigung des lokalen Hoststarts.", "Do not enable an insecure dashboard for this local check."),
             ("Traefik v3.7.5 release", "https://github.com/traefik/traefik/releases/tag/v3.7.5", "Official fixed release material and checksum source.", "Offizielles festes Releasematerial und Prüfsummenquelle.", "This guide selects v3.7.5 as the repository-compatible host input."),
             ("Traefik v3.7.5 source", "https://github.com/traefik/traefik/tree/v3.7.5", "Official selected source tree; its go.mod defines the required host Go version.", "Offizieller ausgewählter Source-Baum; sein go.mod definiert die benötigte Go-Version des Hosts.", "The host's Go requirement is distinct from the repository middleware module's requirement."),
-        ),
-        "host_intro": (
-            "Use an official binary, container, or source build for the Traefik host. The source example below checks out the repository-compatible v3.7.5 tag; its upstream `go.mod` declares Go 1.25.0. That host requirement is distinct from this repository's native middleware module, which currently declares its own Go version.",
-            "Für den Traefik-Host ein offizielles Binary, einen Container oder einen Source-Build verwenden. Das Source-Beispiel checkt den repository-kompatiblen Tag v3.7.5 aus; dessen Upstream-`go.mod` deklariert Go 1.25.0. Diese Hostanforderung ist von der nativen Middleware dieses Repositorys verschieden, deren Modul derzeit eine eigene Go-Version deklariert.",
-        ),
-        "host_commands": (
-            'export HOST_BUILD_BASE="$BUILD_BASE/traefik"',
-            'export TRAEFIK_VERSION="3.7.5"',
-            'export TRAEFIK_REF="v$TRAEFIK_VERSION"',
-            'export TRAEFIK_SRC="$HOST_BUILD_BASE/traefik"',
-            'export TRAEFIK_BIN="$HOST_BUILD_BASE/bin/traefik"',
-            'mkdir -p "$HOST_BUILD_BASE/bin"',
-            'git clone https://github.com/traefik/traefik.git "$TRAEFIK_SRC"',
-            'git -C "$TRAEFIK_SRC" checkout --detach "$TRAEFIK_REF"',
-            'git -C "$TRAEFIK_SRC" rev-parse HEAD',
-            'grep -E "^go " "$TRAEFIK_SRC/go.mod"',
-            'go version',
-            'cd "$TRAEFIK_SRC"',
-            'make test-unit',
-            'make binary',
-            'install -m 755 dist/traefik "$TRAEFIK_BIN"',
-            '"$TRAEFIK_BIN" version',
         ),
         "connector_intro": (
             "A standard Traefik binary does not include the native ModSecurity middleware or the persistent engine service. Build the Go middleware and the C/C++ service from this checkout, placing both outputs outside it. The engine socket must be private to the local run and must not be reused as a shared system endpoint.",
@@ -2211,44 +2010,6 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("lighttpd Documentation", "https://redmine.lighttpd.net/projects/lighttpd/wiki", "Official configuration and command documentation when applicable to the selected host release.", "Offizielle Konfigurations- und Befehlsdokumentation, soweit sie für den ausgewählten Hostrelease gilt.", "Check accessibility and release relevance before relying on a page."),
             ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
         ),
-        "host_intro": (
-            "The current repository patch and patched-host scripts are pinned to lighttpd 1.4.84. Do not silently substitute a newer upstream archive: for example, a newer upstream release must be treated as an update that requires patch, configure, ABI, and runtime revalidation. Work on a disposable copy so the verified upstream source remains available for comparison.",
-            "Der aktuelle Repository-Patch und die gepatchten Hostskripte sind auf lighttpd 1.4.84 gepinnt. Kein neueres Upstream-Archiv stillschweigend einsetzen: Ein neuerer Upstream-Release ist ein Update, das Patch, Configure, ABI und Laufzeit neu validieren muss. An einer disponierbaren Kopie arbeiten, damit die verifizierte Upstream-Quelle zum Vergleich erhalten bleibt.",
-        ),
-        "host_commands": (
-            'export HOST_BUILD_BASE="$BUILD_BASE/lighttpd"',
-            'export LIGHTTPD_VERSION="1.4.84"',
-            'export LIGHTTPD_ARCHIVE="lighttpd-$LIGHTTPD_VERSION.tar.xz"',
-            'export LIGHTTPD_URL="https://download.lighttpd.net/lighttpd/releases-1.4.x/$LIGHTTPD_ARCHIVE"',
-            'export LIGHTTPD_CHECKSUM_URL="https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$LIGHTTPD_VERSION.sha256sum"',
-            'export LIGHTTPD_CHECKSUM_FILE="$HOST_BUILD_BASE/lighttpd-$LIGHTTPD_VERSION.sha256sum"',
-            'export LIGHTTPD_SHA256="076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70"',
-            'export LIGHTTPD_SRC="$HOST_BUILD_BASE/lighttpd-$LIGHTTPD_VERSION"',
-            'export LIGHTTPD_PATCHED_SRC="$HOST_BUILD_BASE/lighttpd-$LIGHTTPD_VERSION-patched"',
-            'export LIGHTTPD_BUILD_DIR="$HOST_BUILD_BASE/build-$LIGHTTPD_VERSION"',
-            'export LIGHTTPD_PREFIX="$HOME/.local/lighttpd-modsecurity"',
-            'export LIGHTTPD_PATCH_FILE="$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"',
-            'mkdir -p "$HOST_BUILD_BASE"',
-            'cd "$HOST_BUILD_BASE"',
-            'curl -fLO "$LIGHTTPD_URL"',
-            'curl -fL "$LIGHTTPD_CHECKSUM_URL" -o "$LIGHTTPD_CHECKSUM_FILE"',
-            'awk -v archive="$LIGHTTPD_ARCHIVE" \'$2 == archive { print }\' "$LIGHTTPD_CHECKSUM_FILE" | sha256sum -c -',
-            'printf "%s  %s\\n" "$LIGHTTPD_SHA256" "$LIGHTTPD_ARCHIVE" | sha256sum -c -',
-            'tar -xJf "$LIGHTTPD_ARCHIVE"',
-            'cp -a "$LIGHTTPD_SRC" "$LIGHTTPD_PATCHED_SRC"',
-            'cd "$LIGHTTPD_PATCHED_SRC"',
-            'patch --dry-run -p1 < "$LIGHTTPD_PATCH_FILE"',
-            'patch -p1 < "$LIGHTTPD_PATCH_FILE"',
-            'if test -x ./autogen.sh; then ./autogen.sh; fi',
-            './configure --help | grep -E -- "--prefix|--bindir|--sbindir|--libdir"',
-            'mkdir -p "$LIGHTTPD_BUILD_DIR"',
-            'cd "$LIGHTTPD_BUILD_DIR"',
-            '"$LIGHTTPD_PATCHED_SRC/configure" --prefix="$LIGHTTPD_PREFIX" --bindir="$LIGHTTPD_PREFIX/bin" --sbindir="$LIGHTTPD_PREFIX/bin" --libdir="$LIGHTTPD_PREFIX/lib"',
-            'make -j"$jobs"',
-            'if make -n check >/dev/null 2>&1; then make check; fi',
-            'make install',
-            '"$LIGHTTPD_PREFIX/bin/lighttpd" -V',
-        ),
         "connector_intro": (
             "The repository module must use the same patched source headers and generated `config.h` as the host. The source build script links it to libmodsecurity and writes the module to an external directory. A normal lighttpd package lacks the Entity-Body hook and cannot load this selected module as an equivalent path.",
             "Das Repository-Modul muss dieselben gepatchten Source-Header und dieselbe generierte `config.h` wie der Host verwenden. Das Source-Buildskript linkt es mit libmodsecurity und schreibt das Modul in ein externes Verzeichnis. Ein normales lighttpd-Paket besitzt den Entity-Body-Hook nicht und kann dieses ausgewählte Modul nicht als gleichwertigen Weg laden.",
@@ -2269,17 +2030,17 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
             'cat > "$LIGHTTPD_RUNTIME_CONFIG" <<EOF\nrules_file=$RULES_FILE\nrequest_body_mode=none\nresponse_body_mode=none\nphase4_mode=safe\nEOF',
             'cat > "$LIGHTTPD_CONFIG" <<EOF\nserver.compat-module-load = "disable"\nserver.modules = ( "mod_msconnector" )\nserver.bind = "127.0.0.1"\nserver.port = 8080\nserver.document-root = "$LIGHTTPD_PREFIX/htdocs"\nserver.pid-file = "$HOST_BUILD_BASE/lighttpd.pid"\nserver.errorlog = "$HOST_BUILD_BASE/lighttpd-error.log"\nmsconnector.enabled = "enable"\nmsconnector.config-file = "$LIGHTTPD_RUNTIME_CONFIG"\nEOF',
-            '"$LIGHTTPD_PREFIX/bin/lighttpd" -tt -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR"',
+            '"$LIGHTTPD_PREFIX/sbin/lighttpd" -tt -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR"',
         ),
         "validation": (
-            '"$LIGHTTPD_PREFIX/bin/lighttpd" -V',
+            '"$LIGHTTPD_PREFIX/sbin/lighttpd" -V',
             'file "$LIGHTTPD_MODULE"',
             'ldd "$LIGHTTPD_MODULE" | grep -F libmodsecurity',
             'nm -D "$LIGHTTPD_MODULE" | grep -E "mod_msconnector_plugin_init$"',
             'grep -F LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION "$LIGHTTPD_PATCHED_SRC/src/plugin.h"',
         ),
         "http_commands": (
-            'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$LIGHTTPD_PREFIX/bin/lighttpd" -D -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR" &',
+            'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$LIGHTTPD_PREFIX/sbin/lighttpd" -D -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR" &',
             'lighttpd_pid=$!',
             'curl -i http://127.0.0.1:8080/',
             'curl -i http://127.0.0.1:8080/blocked',
@@ -2417,6 +2178,568 @@ COMMON_MODSECURITY: dict[str, object] = {
 }
 
 
+# Section 6 has one purpose: provide a host or proxy.  These records keep its
+# beginner host flow distinct from connector integration, configuration,
+# artifact checks, and runtime traffic in Sections 7–10.  Every command tuple
+# is rendered unchanged in English and German.
+#
+# A block is: (English title, German title, English explanation, German
+# explanation, shell commands).
+HOST_SETUP: dict[str, dict[str, object]] = {
+    "apache": {
+        "host_simple_intro": (
+            "For the simplest local adapter build, install an Apache package together with its development package. The development package supplies APXS and the matching headers.",
+            "Für den einfachsten lokalen Adapterbuild ein Apache-Paket zusammen mit seinem Entwicklungspaket installieren. Das Entwicklungspaket liefert APXS und die passenden Header.",
+        ),
+        "host_simple_variables": (),
+        "host_download_steps": (
+            (
+                "Debian / Ubuntu",
+                "Debian / Ubuntu",
+                "Install the host and its APXS/header package from the distribution.",
+                "Host und zugehöriges APXS-/Header-Paket aus der Distribution installieren.",
+                ("sudo apt update", "sudo apt install apache2 apache2-dev"),
+            ),
+            (
+                "Fedora / RHEL",
+                "Fedora / RHEL",
+                "Install the corresponding httpd and development packages.",
+                "Die entsprechenden httpd- und Entwicklungspakete installieren.",
+                ("sudo dnf install httpd httpd-devel",),
+            ),
+        ),
+        "host_build_steps": (),
+        "host_installed": (
+            "The package path provides Apache httpd, APXS, the module directory, and the headers needed to build a module for that exact host.",
+            "Der Paketweg stellt Apache httpd, APXS, das Modulverzeichnis und die Header für ein Modul dieses konkreten Hosts bereit.",
+        ),
+        "host_success_check": (
+            "These queries show the host prefix, header directory, module directory, and Apache version. They must describe the same Apache installation.",
+            "Diese Abfragen zeigen Host-Prefix, Headerverzeichnis, Modulverzeichnis und Apache-Version. Sie müssen dieselbe Apache-Installation beschreiben.",
+            ("apxs -q PREFIX", "apxs -q INCLUDEDIR", "apxs -q LIBEXECDIR", "apachectl -v"),
+        ),
+        "host_source_alternative": (
+            (
+                "Optional: build Apache completely from source",
+                "Optional: Apache vollständig aus Source bauen",
+                "APR and APR-util are Apache portability libraries. Use matching system development packages, or place verified APR and APR-util source trees below srclib before configuring Apache.",
+                "APR und APR-util sind Apache-Portable-Bibliotheken. Passende System-Entwicklungspakete verwenden oder verifizierte APR- und APR-util-Source-Bäume vor dem Configure unter srclib ablegen.",
+                (
+                    'WORKDIR="$HOME/connector-build/apache"',
+                    'VERSION="2.4.68"',
+                    'INSTALL_DIR="$HOME/.local/apache-modsecurity"',
+                ),
+            ),
+            (
+                "Download and unpack",
+                "Herunterladen und entpacken",
+                "This creates an isolated source tree; it does not build the adapter.",
+                "Dies erstellt einen isolierten Source-Baum; der Adapter wird dadurch noch nicht gebaut.",
+                (
+                    'mkdir -p "$WORKDIR"',
+                    'cd "$WORKDIR"',
+                    'curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2"',
+                    'tar -xjf "httpd-$VERSION.tar.bz2"',
+                ),
+            ),
+            (
+                "Build the host",
+                "Host bauen",
+                "Configure and install Apache into the private prefix. The connector remains Section 7 work.",
+                "Apache in den privaten Prefix konfigurieren und installieren. Der Connector bleibt Arbeit für Abschnitt 7.",
+                (
+                    'cd "httpd-$VERSION"',
+                    './configure --prefix="$INSTALL_DIR" --enable-mods-shared=most --with-pcre="$(command -v pcre2-config)"',
+                    "make -j2",
+                    "make install",
+                ),
+            ),
+            (
+                "Check source-host outputs",
+                "Source-Host-Ausgaben prüfen",
+                "These checks confirm that the private source host exposes the APXS and executable pair that Section 7 must use.",
+                "Diese Prüfungen bestätigen, dass der private Source-Host genau das APXS-/Executable-Paar bereitstellt, das Abschnitt 7 verwenden muss.",
+                (
+                    'test -x "$INSTALL_DIR/bin/httpd"',
+                    'test -x "$INSTALL_DIR/bin/apachectl"',
+                    'test -x "$INSTALL_DIR/bin/apxs"',
+                    '"$INSTALL_DIR/bin/apxs" -q PREFIX',
+                ),
+            ),
+        ),
+        "host_advanced_verification": (
+            (
+                "Optional: verify download and version",
+                "Optional: Download und Version verifizieren",
+                "Import the Apache release key from the official download page before using the signature check.",
+                "Vor der Signaturprüfung den Apache-Release-Schlüssel von der offiziellen Downloadseite importieren.",
+                (
+                    'cd "$WORKDIR"',
+                    'curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.sha256"',
+                    'curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.asc"',
+                    'sha256sum -c "httpd-$VERSION.tar.bz2.sha256"',
+                    'gpg --verify "httpd-$VERSION.tar.bz2.asc" "httpd-$VERSION.tar.bz2"',
+                ),
+            ),
+        ),
+        "source_build_is_primary": False,
+        "variables": (
+            ("WORKDIR", "External Apache source workspace.", "Externes Apache-Source-Arbeitsverzeichnis."),
+            ("VERSION", "Selected Apache source release in the optional source path.", "Ausgewählter Apache-Source-Release im optionalen Source-Weg."),
+            ("INSTALL_DIR", "Private Apache installation prefix in the optional source path.", "Privater Apache-Installationsprefix im optionalen Source-Weg."),
+            ("HTTPD_BIN", "Apache executable resolved from the selected APXS installation.", "Über die ausgewählte APXS-Installation aufgelöstes Apache-Executable."),
+        ),
+    },
+    "nginx": {
+        "host_simple_intro": (
+            "Download the selected NGINX source and the ModSecurity-nginx connector source. This only prepares the inputs; Section 7 performs the static connector build.",
+            "Die ausgewählte NGINX-Quelle und die ModSecurity-nginx-Connectorquelle herunterladen. Das bereitet nur die Eingaben vor; Abschnitt 7 baut den statischen Connector.",
+        ),
+        "host_simple_variables": (
+            'WORKDIR="$HOME/nginx-modsecurity"',
+            'VERSION="1.31.2"',
+        ),
+        "host_download_steps": (
+            (
+                "Download the host and connector sources",
+                "Host- und Connectorquellen herunterladen",
+                "The two source trees are all that Section 7 needs to configure NGINX with the connector.",
+                "Die beiden Source-Bäume sind alles, was Abschnitt 7 benötigt, um NGINX mit dem Connector zu konfigurieren.",
+                (
+                    'mkdir -p "$WORKDIR"',
+                    'cd "$WORKDIR"',
+                    'curl -fLO "https://nginx.org/download/nginx-$VERSION.tar.gz"',
+                    'tar -xzf "nginx-$VERSION.tar.gz"',
+                    "git clone https://github.com/owasp-modsecurity/ModSecurity-nginx.git",
+                ),
+            ),
+        ),
+        "host_build_steps": (),
+        "host_installed": (
+            "No host binary or module has been built yet. The NGINX source and ModSecurity-nginx checkout are ready for the connector integration in Section 7.",
+            "Es wurde noch kein Hostbinary oder Modul gebaut. NGINX-Quelle und ModSecurity-nginx-Checkout sind für die Connector-Integration in Abschnitt 7 bereit.",
+        ),
+        "host_success_check": (
+            "Both files prove that the expected upstream source inputs were obtained.",
+            "Beide Dateien zeigen, dass die erwarteten Upstream-Source-Eingaben vorhanden sind.",
+            (
+                'test -f "$WORKDIR/nginx-$VERSION/auto/configure"',
+                'test -f "$WORKDIR/ModSecurity-nginx/config"',
+            ),
+        ),
+        "host_source_alternative": (),
+        "host_advanced_verification": (
+            (
+                "Optional: verify download and version",
+                "Optional: Download und Version verifizieren",
+                "Import the NGINX release signing key from the official release site before verifying the detached signature. The connector tag and resolved commit are recorded separately from the beginner flow.",
+                "Vor der Prüfung der abgetrennten Signatur den NGINX-Release-Schlüssel von der offiziellen Release-Seite importieren. Connector-Tag und aufgelöster Commit werden getrennt vom Einsteigerweg dokumentiert.",
+                (
+                    'curl -fLO "https://nginx.org/download/nginx-$VERSION.tar.gz.asc"',
+                    'gpg --verify "nginx-$VERSION.tar.gz.asc" "nginx-$VERSION.tar.gz"',
+                    'git -C "$WORKDIR/ModSecurity-nginx" checkout --detach v1.0.4',
+                    'test "$(git -C "$WORKDIR/ModSecurity-nginx" rev-parse HEAD)" = "3f4b57df10ce43b1f1c722141f7621dc64838be8"',
+                ),
+            ),
+        ),
+        "source_build_is_primary": False,
+        "variables": (
+            ("WORKDIR", "NGINX source and connector workspace.", "NGINX-Source- und Connector-Arbeitsverzeichnis."),
+            ("VERSION", "Selected official NGINX release.", "Ausgewählter offizieller NGINX-Release."),
+            ("INSTALL_DIR", "Private static NGINX installation prefix.", "Privater Installationsprefix des statischen NGINX."),
+            ("JOBS", "Deliberately small number of parallel NGINX build jobs.", "Bewusst kleine Anzahl paralleler NGINX-Buildjobs."),
+        ),
+    },
+    "haproxy": {
+        "host_simple_intro": (
+            "Build the exact HAProxy release required by the native HTX overlay. This is an ordinary upstream host build; the repository overlay remains Section 7 work.",
+            "Den exakten HAProxy-Release bauen, den der native HTX-Overlay verlangt. Dies ist ein gewöhnlicher Upstream-Hostbuild; der Repository-Overlay bleibt Arbeit für Abschnitt 7.",
+        ),
+        "host_simple_variables": (
+            'WORKDIR="$HOME/connector-build/haproxy"',
+            'VERSION="3.2.21"',
+            "JOBS=2",
+        ),
+        "host_download_steps": (
+            (
+                "Download and unpack HAProxy",
+                "HAProxy herunterladen und entpacken",
+                "This downloads the selected official host source into an isolated workspace.",
+                "Dies lädt die ausgewählte offizielle Hostquelle in ein isoliertes Arbeitsverzeichnis.",
+                (
+                    'mkdir -p "$WORKDIR"',
+                    'cd "$WORKDIR"',
+                    'curl -fLO "https://www.haproxy.org/download/3.2/src/haproxy-$VERSION.tar.gz"',
+                    'tar -xzf "haproxy-$VERSION.tar.gz"',
+                    'cd "haproxy-$VERSION"',
+                ),
+            ),
+        ),
+        "host_build_steps": (
+            (
+                "Build the upstream host",
+                "Upstream-Host bauen",
+                "The selected build options enable the libraries used by this local host build. They do not add the repository HTX filter.",
+                "Die ausgewählten Buildoptionen aktivieren die Libraries dieses lokalen Hostbuilds. Sie fügen nicht den Repository-HTX-Filter hinzu.",
+                ('make -j"$JOBS" TARGET=linux-glibc USE_OPENSSL=1 USE_ZLIB=1 USE_PCRE2=1',),
+            ),
+        ),
+        "host_installed": (
+            "The upstream haproxy executable is built in the unpacked source tree. No staging prefix or connector overlay is part of the simple path.",
+            "Das Upstream-haproxy-Executable wird im entpackten Source-Baum gebaut. Kein Staging-Prefix und kein Connector-Overlay gehören zum einfachen Weg.",
+        ),
+        "host_success_check": (
+            "The verbose version output identifies the selected upstream binary and its enabled build features.",
+            "Die ausführliche Versionsausgabe identifiziert das ausgewählte Upstream-Binary und seine aktivierten Buildfeatures.",
+            ("./haproxy -vv",),
+        ),
+        "host_source_alternative": (),
+        "host_advanced_verification": (
+            (
+                "Optional: verify download and version",
+                "Optional: Download und Version verifizieren",
+                "Use the official release checksum before treating the source as the input to the HTX overlay.",
+                "Die offizielle Release-Prüfsumme verwenden, bevor die Quelle als Eingabe des HTX-Overlays verwendet wird.",
+                (
+                    'cd "$WORKDIR"',
+                    'curl -fLO "https://www.haproxy.org/download/3.2/src/haproxy-$VERSION.tar.gz.sha256"',
+                    'printf "%s  %s\\n" "0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339" "haproxy-$VERSION.tar.gz" | sha256sum -c -',
+                ),
+            ),
+            (
+                "Optional: stage the ordinary host",
+                "Optional: gewöhnlichen Host stagen",
+                "A staged installation is useful for inspection, but it is not the native HTX connector build.",
+                "Eine gestagte Installation ist für die Prüfung nützlich, aber nicht der native HTX-Connectorbuild.",
+                (
+                    'cd "$WORKDIR/haproxy-$VERSION"',
+                    'INSTALL_DIR="$HOME/.local/haproxy-modsecurity"',
+                    'STAGE="$WORKDIR/stage"',
+                    'make install-bin DESTDIR="$STAGE" PREFIX="$INSTALL_DIR"',
+                    '"$STAGE$INSTALL_DIR/sbin/haproxy" -vv',
+                ),
+            ),
+        ),
+        "source_build_is_primary": False,
+        "variables": (
+            ("WORKDIR", "External HAProxy source workspace.", "Externes HAProxy-Source-Arbeitsverzeichnis."),
+            ("VERSION", "Exact HAProxy version required by the HTX overlay.", "Vom HTX-Overlay verlangte exakte HAProxy-Version."),
+            ("JOBS", "Deliberately small number of parallel HAProxy build jobs.", "Bewusst kleine Anzahl paralleler HAProxy-Buildjobs."),
+            ("INSTALL_DIR", "Optional private ordinary HAProxy installation prefix.", "Optionaler privater Installationsprefix des gewöhnlichen HAProxy."),
+            ("STAGE", "Optional staging root for the ordinary host installation.", "Optionaler Staging-Root der gewöhnlichen Hostinstallation."),
+        ),
+    },
+    "envoy": {
+        "host_simple_intro": (
+            "Use the repository-compatible official Envoy release binary. The ext_proc service is a separate repository component and is built in Section 7.",
+            "Das repository-kompatible offizielle Envoy-Releasebinary verwenden. Der ext_proc-Service ist eine getrennte Repository-Komponente und wird in Abschnitt 7 gebaut.",
+        ),
+        "host_simple_variables": ('WORKDIR="$HOME/connector-build/envoy"',),
+        "host_download_steps": (
+            (
+                "Download the release binary",
+                "Releasebinary herunterladen",
+                "The official x86_64 asset is written to a local workspace and made executable.",
+                "Das offizielle x86_64-Artefakt wird in ein lokales Arbeitsverzeichnis geschrieben und ausführbar gemacht.",
+                (
+                    'mkdir -p "$WORKDIR"',
+                    'cd "$WORKDIR"',
+                    'curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.38.2/envoy-1.38.2-linux-x86_64" -o envoy',
+                    "chmod 755 envoy",
+                    "./envoy --version",
+                ),
+            ),
+        ),
+        "host_build_steps": (),
+        "host_installed": (
+            "Only the official Envoy host binary is present. It does not include the repository ext_proc executable, its Common bridge, or configuration.",
+            "Es ist nur das offizielle Envoy-Hostbinary vorhanden. Es enthält weder das repository-eigene ext_proc-Executable noch seine Common-Bridge oder Konfiguration.",
+        ),
+        "host_success_check": (
+            "The file and version checks confirm that the intended local host binary is ready for Section 7.",
+            "Datei- und Versionsprüfung bestätigen, dass das beabsichtigte lokale Hostbinary für Abschnitt 7 bereit ist.",
+            ('test -x "$WORKDIR/envoy"', '"$WORKDIR/envoy" --version'),
+        ),
+        "host_source_alternative": (
+            (
+                "Optional: build Envoy from source",
+                "Optional: Envoy aus Source bauen",
+                "A full Bazel build is resource-intensive and deliberately not part of the beginner path. Follow the [official Envoy source-build guidance](https://www.envoyproxy.io/docs/envoy/latest/start/building/local_docker_build.html) for the selected release before using it as a host override.",
+                "Ein vollständiger Bazel-Build ist ressourcenintensiv und absichtlich nicht Teil des Einsteigerwegs. Vor der Nutzung als Host-Override die [offizielle Envoy-Source-Build-Anleitung](https://www.envoyproxy.io/docs/envoy/latest/start/building/local_docker_build.html) für den ausgewählten Release befolgen.",
+                (),
+            ),
+        ),
+        "host_advanced_verification": (
+            (
+                "Optional: verify download and version",
+                "Optional: Download und Version verifizieren",
+                "The fixed checksum is for the selected repository-compatible x86_64 release asset, not a claim about newer upstream releases.",
+                "Die feste Prüfsumme gilt für das ausgewählte repository-kompatible x86_64-Releaseartefakt und ist kein Claim über neuere Upstream-Releases.",
+                (
+                    'printf "%s  %s\\n" "87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899" "envoy" | sha256sum -c -',
+                ),
+            ),
+        ),
+        "source_build_is_primary": False,
+        "variables": (("WORKDIR", "External Envoy binary workspace.", "Externes Envoy-Binary-Arbeitsverzeichnis."),),
+    },
+    "traefik": {
+        "host_simple_intro": (
+            "Use the repository-compatible official Traefik release binary. Native middleware and the engine service remain separate Section 7 components.",
+            "Das repository-kompatible offizielle Traefik-Releasebinary verwenden. Native Middleware und Engine-Service bleiben getrennte Komponenten von Abschnitt 7.",
+        ),
+        "host_simple_variables": (
+            'WORKDIR="$HOME/connector-build/traefik"',
+            'VERSION="3.7.5"',
+        ),
+        "host_download_steps": (
+            (
+                "Download and unpack Traefik",
+                "Traefik herunterladen und entpacken",
+                "The official linux_amd64 release archive contains the host binary; no repository middleware is built here.",
+                "Das offizielle linux_amd64-Releasearchiv enthält das Hostbinary; hier wird keine Repository-Middleware gebaut.",
+                (
+                    'mkdir -p "$WORKDIR"',
+                    'cd "$WORKDIR"',
+                    'curl -fLO "https://github.com/traefik/traefik/releases/download/v${VERSION}/traefik_v${VERSION}_linux_amd64.tar.gz"',
+                    'tar -xzf "traefik_v${VERSION}_linux_amd64.tar.gz"',
+                ),
+            ),
+        ),
+        "host_build_steps": (),
+        "host_installed": (
+            "The release archive provides only the Traefik host binary. The repository native middleware, CGo/Common bridge, and UDS engine service are built later.",
+            "Das Releasearchiv stellt nur das Traefik-Hostbinary bereit. Repository-native Middleware, CGo-/Common-Bridge und UDS-Engine-Service werden später gebaut.",
+        ),
+        "host_success_check": (
+            "These checks identify the extracted host binary before the connector build starts.",
+            "Diese Prüfungen identifizieren das entpackte Hostbinary, bevor der Connectorbuild beginnt.",
+            ("test -x ./traefik", "./traefik version"),
+        ),
+        "host_source_alternative": (
+            (
+                "Optional: build Traefik from source",
+                "Optional: Traefik aus Source bauen",
+                "Check the Go version required by the selected tag before cloning it. This path builds only the Traefik host; the repository middleware and engine still belong to Section 7.",
+                "Vor dem Klonen die vom ausgewählten Tag verlangte Go-Version prüfen. Dieser Weg baut nur den Traefik-Host; Repository-Middleware und Engine bleiben Abschnitt 7.",
+                (
+                    "go version",
+                    'git clone https://github.com/traefik/traefik.git "$WORKDIR/traefik-source"',
+                    'cd "$WORKDIR/traefik-source"',
+                    'git checkout --detach "v$VERSION"',
+                    'grep -E "^go " go.mod',
+                    "git rev-parse HEAD",
+                ),
+            ),
+            (
+                "Build the Traefik source host",
+                "Traefik-Source-Host bauen",
+                "The official build command and version output confirm the source-host result. The repository middleware and engine remain Section 7 work.",
+                "Der offizielle Buildbefehl und die Versionsausgabe bestätigen das Source-Host-Ergebnis. Repository-Middleware und Engine bleiben Arbeit für Abschnitt 7.",
+                (
+                    "make binary",
+                    "./dist/traefik version",
+                ),
+            ),
+        ),
+        "host_advanced_verification": (
+            (
+                "Optional: verify download and version",
+                "Optional: Download und Version verifizieren",
+                "The checksum manifest is tied to the selected repository-compatible release.",
+                "Das Prüfsummenmanifest ist an den ausgewählten repository-kompatiblen Release gebunden.",
+                (
+                    'cd "$WORKDIR"',
+                    'curl -fLO "https://github.com/traefik/traefik/releases/download/v${VERSION}/traefik_v${VERSION}_checksums.txt"',
+                    'grep "traefik_v${VERSION}_linux_amd64.tar.gz" "traefik_v${VERSION}_checksums.txt" | sha256sum -c -',
+                ),
+            ),
+        ),
+        "source_build_is_primary": False,
+        "variables": (
+            ("WORKDIR", "External Traefik host workspace.", "Externes Traefik-Host-Arbeitsverzeichnis."),
+            ("VERSION", "Repository-compatible Traefik release.", "Repository-kompatibler Traefik-Release."),
+        ),
+    },
+    "lighttpd": {
+        "host_simple_intro": (
+            "The selected path requires a patched lighttpd source host. The first steps download the exact version required by the repository patch; the patch and host build follow under the source-build heading.",
+            "Der ausgewählte Weg benötigt einen gepatchten lighttpd-Source-Host. Die ersten Schritte laden die vom Repository-Patch verlangte exakte Version; Patch und Hostbuild folgen unter der Source-Build-Überschrift.",
+        ),
+        "host_simple_variables": (
+            'WORKDIR="$HOME/connector-build/lighttpd"',
+            'VERSION="1.4.84"',
+            'INSTALL_DIR="$HOME/.local/lighttpd-modsecurity"',
+        ),
+        "host_download_steps": (
+            (
+                "Download lighttpd",
+                "lighttpd herunterladen",
+                "This leaves the verified upstream source untouched so that the patch is applied only to a disposable copy.",
+                "Dadurch bleibt die verifizierte Upstream-Quelle unverändert; der Patch wird nur auf eine disponierbare Kopie angewendet.",
+                (
+                    'mkdir -p "$WORKDIR"',
+                    'cd "$WORKDIR"',
+                    'curl -fLO "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.tar.xz"',
+                    'tar -xJf "lighttpd-$VERSION.tar.xz"',
+                ),
+            ),
+        ),
+        "host_build_steps": (
+            (
+                "Create a working copy and test the patch",
+                "Arbeitskopie erstellen und Patch testen",
+                "The first patch command only tests whether the selected source accepts the patch. The second command changes the disposable working copy.",
+                "Der erste Patchbefehl testet nur, ob die ausgewählte Quelle den Patch akzeptiert. Der zweite Befehl verändert die disponierbare Arbeitskopie.",
+                (
+                    'cp -a "lighttpd-$VERSION" "lighttpd-$VERSION-patched"',
+                    'cd "lighttpd-$VERSION-patched"',
+                    'patch --dry-run -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"',
+                    'patch -p1 < "$CONNECTOR_ROOT/connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch"',
+                ),
+            ),
+            (
+                "Build the patched host",
+                "Gepatchten Host bauen",
+                "This builds only the patched lighttpd host. The connector module is deliberately deferred to Section 7.",
+                "Dies baut nur den gepatchten lighttpd-Host. Das Connectormodul wird bewusst auf Abschnitt 7 verschoben.",
+                (
+                    "test -x ./autogen.sh && ./autogen.sh",
+                    './configure --prefix="$INSTALL_DIR"',
+                    "make -j2",
+                    "make install",
+                ),
+            ),
+        ),
+        "host_installed": (
+            "The private prefix contains the patched lighttpd host. It does not contain the repository connector module yet.",
+            "Der private Prefix enthält den gepatchten lighttpd-Host. Er enthält noch nicht das repository-eigene Connectormodul.",
+        ),
+        "host_success_check": (
+            "The upstream 1.4.84 installation layout places lighttpd below sbin for this prefix.",
+            "Das Upstream-Installationslayout von 1.4.84 legt lighttpd für diesen Prefix unter sbin ab.",
+            ('"$INSTALL_DIR/sbin/lighttpd" -V',),
+        ),
+        "host_source_alternative": (
+            (
+                "Optional: use an out-of-tree host build",
+                "Optional: Out-of-tree-Hostbuild verwenden",
+                "Keep this advanced alternative for comparison or reproducible build layouts; it still builds only the patched host.",
+                "Diese fortgeschrittene Alternative für Vergleich oder reproduzierbare Buildlayouts beibehalten; sie baut weiterhin nur den gepatchten Host.",
+                (
+                    'mkdir -p "$WORKDIR/build-$VERSION"',
+                    'cd "$WORKDIR/build-$VERSION"',
+                    '"$WORKDIR/lighttpd-$VERSION-patched/configure" --prefix="$INSTALL_DIR"',
+                    "make -j2",
+                    "make check",
+                    "make install",
+                ),
+            ),
+        ),
+        "host_advanced_verification": (
+            (
+                "Optional: verify download and version",
+                "Optional: Download und Version verifizieren",
+                "The official checksum file and the fixed patch-compatible checksum both apply to lighttpd 1.4.84.",
+                "Offizielle Prüfsummendatei und feste patch-kompatible Prüfsumme gelten beide für lighttpd 1.4.84.",
+                (
+                    'cd "$WORKDIR"',
+                    'curl -fL "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.sha256sum" -o "lighttpd-$VERSION.sha256sum"',
+                    "awk -v archive=\"lighttpd-$VERSION.tar.xz\" '$2 == archive { print }' \"lighttpd-$VERSION.sha256sum\" | sha256sum -c -",
+                    'printf "%s  %s\\n" "076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70" "lighttpd-$VERSION.tar.xz" | sha256sum -c -',
+                ),
+            ),
+        ),
+        "source_build_is_primary": True,
+        "variables": (
+            ("WORKDIR", "External lighttpd source workspace.", "Externes lighttpd-Source-Arbeitsverzeichnis."),
+            ("VERSION", "Exact lighttpd version required by the repository patch.", "Vom Repository-Patch verlangte exakte lighttpd-Version."),
+            ("INSTALL_DIR", "Private patched lighttpd installation prefix.", "Privater Installationsprefix des gepatchten lighttpd."),
+        ),
+    },
+}
+
+
+# Configuration creation belongs in Section 8.  These syntax/configuration
+# checks use the files written there, so render them with the other artifact
+# checks in Section 9 instead of quietly validating a configuration while it
+# is being written.
+CONFIGURATION_VALIDATIONS: dict[str, tuple[str, ...]] = {
+    "haproxy": ('"$HAPROXY_HTX_BIN" -c -f "$HAPROXY_CONFIG"',),
+    "envoy": (
+        '"$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG"',
+        '"$EXT_PROC_BIN" --check-config --config connectors/envoy/config/envoy-ext-proc-service.json',
+    ),
+    "traefik": (
+        '"$TRAEFIK_BIN" check --configFile="$TRAEFIK_STATIC_CONFIG"',
+        '"$TRAEFIK_ENGINE_SERVICE_BIN" --check-config --config "$TRAEFIK_ENGINE_CONFIG"',
+    ),
+    "lighttpd": ('"$LIGHTTPD_PREFIX/sbin/lighttpd" -tt -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR"',),
+}
+
+
+# Section 16 documents the variables used by the active Section 6–10 paths,
+# not historical host-model names retained in older connector metadata.
+ACTIVE_MANUAL_VARIABLES: dict[str, frozenset[str]] = {
+    "apache": frozenset({"APXS", "HTTPD_PREFIX", "MODULE_PATH", "HTTPD_CONFIG"}),
+    "nginx": frozenset({"NGINX_CONFIG"}),
+    "haproxy": frozenset(
+        {
+            "HAPROXY_SRC",
+            "HAPROXY_HTX_SOURCE_DIR",
+            "HAPROXY_HTX_BUILD_DIR",
+            "HAPROXY_HTX_BIN",
+            "MAKE_JOBS",
+            "HAPROXY_CONFIG",
+        }
+    ),
+    "envoy": frozenset(
+        {
+            "ENVOY_BIN",
+            "EXT_PROC_BIN",
+            "ENVOY_CONFIG",
+            "EXT_PROC_RUNTIME_CONFIG",
+            "OUTPUT_CONFIG",
+            "EVENT_PATH",
+            "RUNTIME_ROOT",
+            "ENVOY_PORT",
+            "ENVOY_UPSTREAM_PORT",
+            "EXT_PROC_PORT",
+            "ENVOY_ADMIN_PORT",
+        }
+    ),
+    "traefik": frozenset(
+        {
+            "TRAEFIK_BIN",
+            "TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR",
+            "TRAEFIK_ENGINE_SERVICE_BUILD_DIR",
+            "TRAEFIK_ENGINE_SERVICE_BIN",
+            "TRAEFIK_RUNTIME_ROOT",
+            "TRAEFIK_STATIC_CONFIG",
+            "TRAEFIK_DYNAMIC_CONFIG",
+            "TRAEFIK_ENGINE_CONFIG",
+            "TRAEFIK_ENGINE_SOCKET",
+            "TRAEFIK_PLUGIN_MODULE",
+            "TRAEFIK_PLUGIN_SOURCE",
+            "TRAEFIK_PORT",
+            "TRAEFIK_UPSTREAM_PORT",
+            "TRAEFIK_PING_PORT",
+        }
+    ),
+    "lighttpd": frozenset(
+        {
+            "LIGHTTPD_PATCHED_SRC",
+            "LIGHTTPD_BUILD_DIR",
+            "LIGHTTPD_PREFIX",
+            "LIGHTTPD_MODULE_DIR",
+            "LIGHTTPD_MODULE",
+            "LIGHTTPD_RUNTIME_CONFIG",
+            "LIGHTTPD_CONFIG",
+        }
+    ),
+}
+
+
 def manual_localized(value: tuple[str, str], german: bool) -> str:
     return value[1] if german else value[0]
 
@@ -2478,30 +2801,72 @@ def manual_common_variables(german: bool) -> list[tuple[str, str]]:
     ]
 
 
-def manual_variable_table(info: dict[str, object], german: bool) -> str:
+def manual_variable_table(info: dict[str, object], german: bool, slug: str) -> str:
     rows = manual_common_variables(german)
+    active_names = ACTIVE_MANUAL_VARIABLES[slug]
     for name, english, german_text in info["variables"]:
-        rows.append((name, german_text if german else english))
+        if name in active_names:
+            rows.append((name, german_text if german else english))
+    existing = {name for name, _ in rows}
+    for name, english, german_text in HOST_SETUP[slug]["variables"]:
+        if name not in existing:
+            rows.append((name, german_text if german else english))
+            existing.add(name)
     headers = ("Variable/Platzhalter", "Bedeutung") if german else ("Variable/placeholder", "Meaning")
     return markdown_table(headers, rows)
 
 
-def nginx_simple_variable_table(german: bool) -> str:
-    rows = (
-        [
-            ("WORKDIR", "Arbeitsverzeichnis für NGINX-Quelle, Connector und lokale Regeldatei."),
-            ("INSTALL_DIR", "Privates NGINX-Installationsverzeichnis."),
-            ("JOBS", "Bewusst kleine Anzahl paralleler NGINX-Buildjobs."),
-        ]
-        if german
-        else [
-            ("WORKDIR", "Working directory for the NGINX source, connector, and local rule file."),
-            ("INSTALL_DIR", "Private NGINX installation directory."),
-            ("JOBS", "Deliberately modest number of parallel NGINX build jobs."),
-        ]
+def host_blocks(blocks: tuple[tuple[str, str, str, str, tuple[str, ...]], ...], german: bool) -> str:
+    rendered: list[str] = []
+    for english_title, german_title, english_text, german_text, commands in blocks:
+        body = f"#### {german_title if german else english_title}\n\n{german_text if german else english_text}"
+        if commands:
+            body += f"\n\n{shell(commands)}"
+        rendered.append(body)
+    return "\n\n".join(rendered)
+
+
+def shell_groups(commands: tuple[str, ...], size: int = 6) -> str:
+    """Keep manual command sequences small enough to read and run in stages."""
+    return "\n\n".join(shell(commands[index : index + size]) for index in range(0, len(commands), size))
+
+
+def host_provisioning_section(slug: str, german: bool) -> str:
+    setup = HOST_SETUP[slug]
+    simple_heading = "### Einfacher Weg" if german else "### Simple path"
+    installed_heading = "### Was wurde installiert oder gebaut?" if german else "### What was installed or built?"
+    success_heading = "### Erfolg prüfen" if german else "### Check the result"
+    source_heading = "### Source-Build und Integritätsprüfung" if german else "### Source build and integrity checks"
+    simple_parts = [
+        simple_heading,
+        manual_localized(setup["host_simple_intro"], german),
+    ]
+    variables = tuple(setup["host_simple_variables"])
+    if variables:
+        simple_parts.append(shell(variables))
+    download = host_blocks(tuple(setup["host_download_steps"]), german)
+    if download:
+        simple_parts.append(download)
+    simple_build = host_blocks(tuple(setup["host_build_steps"]), german)
+    source_parts = [source_heading]
+    if setup["source_build_is_primary"] and simple_build:
+        source_parts.append(simple_build)
+    source_alternative = host_blocks(tuple(setup["host_source_alternative"]), german)
+    if source_alternative:
+        source_parts.append(source_alternative)
+    verification = host_blocks(tuple(setup["host_advanced_verification"]), german)
+    if verification:
+        source_parts.append(verification)
+    installed = f"{installed_heading}\n\n{manual_localized(setup['host_installed'], german)}"
+    success = (
+        f"{success_heading}\n\n{manual_localized(setup['host_success_check'][:2], german)}"
+        f"\n\n{shell(tuple(setup['host_success_check'][2]))}"
     )
-    headers = ("Variable", "Bedeutung") if german else ("Variable", "Meaning")
-    return markdown_table(headers, rows)
+    if not setup["source_build_is_primary"] and simple_build:
+        simple_parts.append(simple_build)
+    if setup["source_build_is_primary"]:
+        return "\n\n".join((*simple_parts, installed, "\n\n".join(source_parts), success))
+    return "\n\n".join((*simple_parts, installed, success, "\n\n".join(source_parts)))
 
 
 def common_modsecurity_guide(german: bool) -> str:
@@ -2587,37 +2952,204 @@ def normalized_connector_commands(commands: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(normalized)
 
 
-def nginx_beginner_build(german: bool) -> str:
+def connector_context(slug: str) -> tuple[str, ...]:
+    """Reintroduce only the hand-off paths that later manual stages require."""
+    contexts: dict[str, tuple[str, ...]] = {
+        "haproxy": (
+            'export HOST_BUILD_BASE="$HOME/connector-build/haproxy"',
+            'export HAPROXY_SRC="$HOST_BUILD_BASE/haproxy-3.2.21"',
+            'export HAPROXY_HTX_BUILD_DIR="$HOST_BUILD_BASE/htx-overlay"',
+        ),
+        "envoy": (
+            'export HOST_BUILD_BASE="$HOME/connector-build/envoy"',
+            'export ENVOY_BIN="$HOST_BUILD_BASE/envoy"',
+        ),
+        "traefik": (
+            'export HOST_BUILD_BASE="$HOME/connector-build/traefik"',
+            'export TRAEFIK_BIN="$HOST_BUILD_BASE/traefik"',
+        ),
+        "lighttpd": (
+            'export HOST_BUILD_BASE="$HOME/connector-build/lighttpd"',
+            'export LIGHTTPD_PATCHED_SRC="$HOST_BUILD_BASE/lighttpd-1.4.84-patched"',
+            'export LIGHTTPD_BUILD_DIR="$LIGHTTPD_PATCHED_SRC"',
+            'export LIGHTTPD_PREFIX="$HOME/.local/lighttpd-modsecurity"',
+        ),
+    }
+    return contexts.get(slug, ())
+
+
+def nginx_connector_build(german: bool) -> str:
     intro = (
-        "The simple NGINX path uses only a work directory, an installation directory, and a deliberately modest number of build jobs. It builds the connector statically with the NGINX binary; it does not rebuild libmodsecurity.",
-        "Der einfache NGINX-Weg verwendet nur ein Arbeitsverzeichnis, ein Installationsverzeichnis und eine bewusst kleine Anzahl Buildjobs. Er baut den Connector statisch mit dem NGINX-Binary; libmodsecurity wird dabei nicht erneut gebaut.",
-    )
-    steps = (
-        "1. Download NGINX.\n2. Clone ModSecurity-nginx.\n3. Run configure.\n4. Run make.\n5. Run make install.\n6. Create nginx.conf.\n7. Run nginx -t.\n8. Run the curl test.",
-        "1. NGINX herunterladen.\n2. ModSecurity-nginx klonen.\n3. configure ausführen.\n4. make ausführen.\n5. make install ausführen.\n6. nginx.conf erstellen.\n7. nginx -t ausführen.\n8. Curl-Test ausführen.",
+        "Section 6 provided the NGINX and ModSecurity-nginx source trees. Build them together now with the connector statically linked into the selected NGINX binary.",
+        "Abschnitt 6 hat NGINX- und ModSecurity-nginx-Source-Bäume bereitgestellt. Sie werden nun gemeinsam gebaut, wobei der Connector statisch in das ausgewählte NGINX-Binary eingebunden wird.",
     )
     commands = (
-        'WORKDIR=\"$HOME/nginx-modsecurity\"',
-        'INSTALL_DIR=\"$HOME/.local/nginx-modsecurity\"',
-        'JOBS=2',
-        'mkdir -p \"$WORKDIR\"',
-        'cd \"$WORKDIR\"',
-        'curl -fLO https://nginx.org/download/nginx-1.31.2.tar.gz',
-        'tar -xzf nginx-1.31.2.tar.gz',
-        'git clone https://github.com/owasp-modsecurity/ModSecurity-nginx.git',
-        'cd nginx-1.31.2',
-        './auto/configure --prefix=\"$INSTALL_DIR\" --with-http_ssl_module --add-module=\"$WORKDIR/ModSecurity-nginx\" --with-cc-opt=\"-I/usr/local/include\" --with-ld-opt=\"-L/usr/local/lib\"',
-        'make -j\"$JOBS\"',
-        'make install',
-        'cat > \"$WORKDIR/modsecurity-local.conf\" <<'"'"'EOF'"'"'\nSecRuleEngine On\nSecRule REQUEST_URI \"@streq /blocked\" \"id:100001,phase:1,deny,status:403,log\"\nEOF',
-        'cat > \"$INSTALL_DIR/conf/nginx.conf\" <<EOF\nevents {}\nhttp {\n    server {\n        listen 127.0.0.1:8080;\n        location / {\n            modsecurity on;\n            modsecurity_rules_file \"$WORKDIR/modsecurity-local.conf\";\n            return 200 \"nginx modsecurity test\\n\";\n        }\n    }\n}\nEOF',
-        '\"$INSTALL_DIR/sbin/nginx\" -t -p \"$INSTALL_DIR\" -c conf/nginx.conf',
-        '\"$INSTALL_DIR/sbin/nginx\" -p \"$INSTALL_DIR\" -c conf/nginx.conf',
-        'curl -i http://127.0.0.1:8080/',
-        'curl -i http://127.0.0.1:8080/blocked',
-        '\"$INSTALL_DIR/sbin/nginx\" -p \"$INSTALL_DIR\" -c conf/nginx.conf -s quit',
+        'INSTALL_DIR="$HOME/.local/nginx-modsecurity"',
+        "JOBS=2",
+        'cd "$WORKDIR/nginx-$VERSION"',
+        './auto/configure --prefix="$INSTALL_DIR" --with-http_ssl_module --add-module="$WORKDIR/ModSecurity-nginx" --with-cc-opt="-I/usr/local/include" --with-ld-opt="-L/usr/local/lib"',
+        'make -j"$JOBS"',
+        "make install",
+        'test -x "$INSTALL_DIR/sbin/nginx"',
     )
-    return f"{manual_localized(intro, german)}\n\n{manual_localized(steps, german)}\n\n{shell(commands)}"
+    return f"{manual_localized(intro, german)}\n\n{shell_groups(commands)}"
+
+
+def apache_connector_build(german: bool) -> str:
+    intro = (
+        "Use the APXS checked in Section 6. The package path normally exposes apxs; the optional source-host assignment below selects the matching private APXS explicitly.",
+        "Das in Abschnitt 6 geprüfte APXS verwenden. Der Paketweg stellt normalerweise apxs bereit; die folgende optionale Source-Host-Zuweisung wählt das passende private APXS ausdrücklich aus.",
+    )
+    source_apxs = (
+        "#### Optional: select the source-host APXS\n\nIf you built the optional Apache source host in Section 6, run this in the same shell before the adapter commands. Package-host users skip it.\n\n```sh\nAPXS=\"$HOME/.local/apache-modsecurity/bin/apxs\"\n```",
+        "#### Optional: Source-Host-APXS auswählen\n\nWenn der optionale Apache-Source-Host aus Abschnitt 6 gebaut wurde, diese Zuweisung vor den Adapterbefehlen in derselben Shell ausführen. Nutzer des Pakethosts überspringen sie.\n\n```sh\nAPXS=\"$HOME/.local/apache-modsecurity/bin/apxs\"\n```",
+    )
+    commands = (
+        'APXS="${APXS:-apxs}"',
+        'cd "$CONNECTOR_ROOT/connectors/apache"',
+        "./autogen.sh",
+        './configure --with-libmodsecurity="/usr/local" --with-apxs="$APXS"',
+        "make -j2",
+        "make install",
+        'MODULE_PATH="$("$APXS" -q LIBEXECDIR)/mod_security3.so"',
+        'test -f "$MODULE_PATH"',
+    )
+    return f"{manual_localized(intro, german)}\n\n{manual_localized(source_apxs, german)}\n\n#### {'Adapter bauen und installieren' if german else 'Build and install the adapter'}\n\n{shell_groups(commands)}"
+
+
+def connector_build_section(item: dict[str, str], info: dict[str, object], german: bool) -> str:
+    slug = item["slug"]
+    if slug == "nginx":
+        return nginx_connector_build(german)
+    if slug == "apache":
+        return apache_connector_build(german)
+    intro = manual_localized(info["connector_intro"], german)
+    commands = (
+        *connector_context(slug),
+        'cd "$CONNECTOR_ROOT"',
+        *normalized_connector_commands(info["connector_commands"]),
+    )
+    handoff = (
+        "The host path is reintroduced here only so that the connector commands can consume the Section 6 host without rebuilding it.",
+        "Der Hostpfad wird hier nur erneut gesetzt, damit die Connectorbefehle den Host aus Abschnitt 6 verwenden können, ohne ihn erneut zu bauen.",
+    )
+    return f"{intro}\n\n{manual_localized(handoff, german)}\n\n{shell_groups(commands)}"
+
+
+def nginx_configuration_section(info: dict[str, object], german: bool) -> str:
+    intro = (
+        "Create a local test rule and nginx.conf. This section writes configuration only; Section 10 validates and starts it.",
+        "Eine lokale Testregel und nginx.conf erstellen. Dieser Abschnitt schreibt nur Konfiguration; Abschnitt 10 validiert und startet sie.",
+    )
+    note = manual_localized(info["config_note"], german)
+    commands = (
+        'RULES_FILE="$WORKDIR/modsecurity-local.conf"',
+        'NGINX_CONFIG="$INSTALL_DIR/conf/nginx.conf"',
+        "cat > \"$RULES_FILE\" <<'EOF'\nSecRuleEngine On\nSecRule REQUEST_URI \"@streq /blocked\" \"id:100001,phase:1,deny,status:403,log\"\nEOF",
+        'cat > "$NGINX_CONFIG" <<EOF\nevents {}\nhttp {\n    server {\n        listen 127.0.0.1:8080;\n        location / {\n            modsecurity on;\n            modsecurity_rules_file "$RULES_FILE";\n            return 200 "nginx modsecurity test\\n";\n        }\n    }\n}\nEOF',
+    )
+    return f"{manual_localized(intro, german)}\n\n{shell_groups(commands)}\n\n{note}"
+
+
+def apache_configuration_section(german: bool) -> str:
+    intro = (
+        "Create the local test rule and standalone Apache configuration. This section does not start Apache; Section 10 performs the syntax check and loopback requests.",
+        "Die lokale Testregel und eigenständige Apache-Konfiguration erstellen. Dieser Abschnitt startet Apache nicht; Abschnitt 10 führt Syntaxprüfung und Loopback-Anfragen aus.",
+    )
+    commands = (
+        'APXS="${APXS:-apxs}"',
+        'HTTPD_PREFIX="$("$APXS" -q PREFIX)"',
+        'HTTPD_BIN="$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)"',
+        'RULES_FILE="$HOME/connector-build/apache/modsecurity-local.conf"',
+        'HTTPD_CONFIG="$HOME/connector-build/apache/httpd-local.conf"',
+        'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
+        'cat > "$HTTPD_CONFIG" <<EOF\nServerRoot "$HTTPD_PREFIX"\nListen 127.0.0.1:8080\nServerName 127.0.0.1\nLoadModule security3_module "$MODULE_PATH"\nDocumentRoot "$HTTPD_PREFIX/htdocs"\n<Directory "$HTTPD_PREFIX/htdocs">\n    Require all granted\n</Directory>\n<Location "/">\n    modsecurity on\n    modsecurity_rules_file "$RULES_FILE"\n</Location>\nEOF',
+    )
+    return f"{manual_localized(intro, german)}\n\n{shell_groups(commands)}"
+
+
+def configuration_section(item: dict[str, str], info: dict[str, object], german: bool) -> str:
+    if item["slug"] == "nginx":
+        return nginx_configuration_section(info, german)
+    if item["slug"] == "apache":
+        return apache_configuration_section(german)
+    intro = (
+        "The local rule below is a test rule, not a CRS rule. Keep configuration and runtime files outside the Git checkout.",
+        "Die folgende lokale Regel ist eine Testregel und keine CRS-Regel. Konfigurations- und Laufzeitdateien außerhalb des Git-Checkouts halten.",
+    )
+    note = "\n\n" + manual_localized(info["config_note"], german) if "config_note" in info else ""
+    validation_commands = CONFIGURATION_VALIDATIONS.get(item["slug"], ())
+    commands = tuple(
+        command for command in info["config_commands"] if command not in validation_commands
+    )
+    return f"{manual_localized(intro, german)}{note}\n\n{shell_groups(normalized_connector_commands(commands))}"
+
+
+def nginx_validation_section(german: bool) -> str:
+    commands = (
+        '"$INSTALL_DIR/sbin/nginx" -V',
+        'test -x "$INSTALL_DIR/sbin/nginx"',
+        '"$INSTALL_DIR/sbin/nginx" -V 2>&1 | grep -F -- "--add-module=$WORKDIR/ModSecurity-nginx"',
+        'test -f "$RULES_FILE"',
+        'test -f "$NGINX_CONFIG"',
+    )
+    return shell_groups(commands)
+
+
+def apache_validation_section(german: bool) -> str:
+    commands = (
+        '"$HTTPD_BIN" -v',
+        '"$HTTPD_BIN" -M | grep -E "(^|[[:space:]])so_module"',
+        '"$APXS" -q PREFIX',
+        '"$APXS" -q INCLUDEDIR',
+        '"$APXS" -q LIBEXECDIR',
+        'file "$MODULE_PATH"',
+        'ldd "$MODULE_PATH" | grep -F libmodsecurity',
+    )
+    return shell_groups(commands)
+
+
+def validation_section(item: dict[str, str], info: dict[str, object], german: bool) -> str:
+    if item["slug"] == "nginx":
+        return nginx_validation_section(german)
+    if item["slug"] == "apache":
+        return apache_validation_section(german)
+    commands = (*CONFIGURATION_VALIDATIONS.get(item["slug"], ()), *info["validation"])
+    return shell_groups(normalized_connector_commands(commands))
+
+
+def nginx_runtime_section(german: bool) -> str:
+    intro = (
+        "Run the syntax check first, then start the local host, send one ordinary and one blocked loopback request, and stop it.",
+        "Zuerst die Syntax prüfen, dann den lokalen Host starten, eine normale und eine geblockte Loopback-Anfrage senden und ihn wieder stoppen.",
+    )
+    commands = (
+        '"$INSTALL_DIR/sbin/nginx" -t -p "$INSTALL_DIR" -c conf/nginx.conf',
+        '"$INSTALL_DIR/sbin/nginx" -p "$INSTALL_DIR" -c conf/nginx.conf',
+        "curl -i http://127.0.0.1:8080/",
+        "curl -i http://127.0.0.1:8080/blocked",
+        '"$INSTALL_DIR/sbin/nginx" -p "$INSTALL_DIR" -c conf/nginx.conf -s quit',
+    )
+    return f"{manual_localized(intro, german)}\n\n{shell_groups(commands)}"
+
+
+def apache_runtime_section(german: bool) -> str:
+    commands = (
+        '"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -t',
+        '"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k start',
+        "curl -i http://127.0.0.1:8080/",
+        "curl -i http://127.0.0.1:8080/blocked",
+        '"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k stop',
+    )
+    return shell_groups(commands)
+
+
+def runtime_section(item: dict[str, str], info: dict[str, object], german: bool) -> str:
+    if item["slug"] == "nginx":
+        return nginx_runtime_section(german)
+    if item["slug"] == "apache":
+        return apache_runtime_section(german)
+    return shell_groups(normalized_connector_commands(info["http_commands"]))
 
 
 # The detailed engine build used to live in every connector guide.  It is now
@@ -2697,40 +3229,12 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
         "Common: for missing headers or libraries, return to the shared guide's advanced section and check the deliberately selected prefix and pkg-config output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.",
         "Gemeinsam: Bei fehlenden Headern oder Libraries zum fortgeschrittenen Abschnitt der gemeinsamen Anleitung zurückkehren und den bewusst gewählten Prefix sowie die pkg-config-Ausgabe prüfen. Bei einem ABI-Fehler Host, Header und Connector aus demselben ausgewählten Quellensatz neu bauen.",
     )
-    if slug == "nginx":
-        host_build = nginx_beginner_build(german)
-        connector_build = (
-            "NGINX and ModSecurity-nginx were cloned, configured, compiled, and installed together in the preceding simple build."
-            if not german
-            else "NGINX und ModSecurity-nginx wurden im vorhergehenden einfachen Build gemeinsam geklont, konfiguriert, kompiliert und installiert."
-        )
-        configuration = (
-            "The simple build above writes the local rule file and nginx.conf, then runs the required nginx configuration test."
-            if not german
-            else "Der einfache Build oben schreibt die lokale Regeldatei und nginx.conf und führt anschließend den erforderlichen NGINX-Konfigurationstest aus."
-        )
-        if "config_note" in info:
-            configuration += "\n\n" + manual_localized(info["config_note"], german)
-        validation = shell(('"$INSTALL_DIR/sbin/nginx" -V',))
-        http_test = (
-            "The simple build starts NGINX on loopback and uses curl for a normal and a blocked request before stopping it."
-            if not german
-            else "Der einfache Build startet NGINX auf Loopback und verwendet curl für eine normale und eine geblockte Anfrage, bevor er ihn beendet."
-        )
-        variables = nginx_simple_variable_table(german)
-    else:
-        host_build = f"{manual_localized(info['host_intro'], german)}\n\n{shell(normalized_connector_commands(info['host_commands']))}"
-        connector_root_command = 'cd "$CONNECTOR_ROOT"'
-        connector_build = f"{manual_localized(info['connector_intro'], german)}\n\n{shell((connector_root_command,))}\n\n{shell(normalized_connector_commands(info['connector_commands']))}"
-        configuration = (
-            ("The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout." if not german else "Die folgende lokale Regel ist eine Testregel und keine CRS-Regel. Konfigurations- und Laufzeitdateien außerhalb des Git-Checkouts halten.")
-            + ("\n\n" + manual_localized(info["config_note"], german) if "config_note" in info else "")
-            + "\n\n"
-            + shell(normalized_connector_commands(info["config_commands"]))
-        )
-        validation = shell(normalized_connector_commands(info["validation"]))
-        http_test = shell(normalized_connector_commands(info["http_commands"]))
-        variables = manual_variable_table(info, german)
+    host_build = host_provisioning_section(slug, german)
+    connector_build = connector_build_section(item, info, german)
+    configuration = configuration_section(item, info, german)
+    validation = validation_section(item, info, german)
+    http_test = runtime_section(item, info, german)
+    variables = manual_variable_table(info, german, slug)
     return f"""{MARKER}
 
 # {"Manueller Source-Build" if german else "Manual source build"}: {name}
@@ -2759,7 +3263,7 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
 
 {connector_engine_reference(item, german)}
 
-{manual_heading(6, "Prepare or build the host or proxy", "Host oder Proxy vorbereiten beziehungsweise bauen", german)}
+{manual_heading(6, "Provide the host or proxy", "Host oder Proxy bereitstellen", german)}
 
 {host_build}
 

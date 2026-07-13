@@ -51,41 +51,91 @@ Build libmodsecurity v3 first with the shared guide:
 
 The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.
 
-## 6. Prepare or build the host or proxy
+## 6. Provide the host or proxy
 
-Use an official binary, container, or source build for the Traefik host. The source example below checks out the repository-compatible v3.7.5 tag; its upstream `go.mod` declares Go 1.25.0. That host requirement is distinct from this repository's native middleware module, which currently declares its own Go version.
+### Simple path
+
+Use the repository-compatible official Traefik release binary. Native middleware and the engine service remain separate Section 7 components.
 
 ```sh
-export HOST_BUILD_BASE="$HOME/src/modsecurity-connectors/traefik"
-export TRAEFIK_VERSION="3.7.5"
-export TRAEFIK_REF="v$TRAEFIK_VERSION"
-export TRAEFIK_SRC="$HOST_BUILD_BASE/traefik"
-export TRAEFIK_BIN="$HOST_BUILD_BASE/bin/traefik"
-mkdir -p "$HOST_BUILD_BASE/bin"
-git clone https://github.com/traefik/traefik.git "$TRAEFIK_SRC"
-git -C "$TRAEFIK_SRC" checkout --detach "$TRAEFIK_REF"
-git -C "$TRAEFIK_SRC" rev-parse HEAD
-grep -E "^go " "$TRAEFIK_SRC/go.mod"
+WORKDIR="$HOME/connector-build/traefik"
+VERSION="3.7.5"
+```
+
+#### Download and unpack Traefik
+
+The official linux_amd64 release archive contains the host binary; no repository middleware is built here.
+
+```sh
+mkdir -p "$WORKDIR"
+cd "$WORKDIR"
+curl -fLO "https://github.com/traefik/traefik/releases/download/v${VERSION}/traefik_v${VERSION}_linux_amd64.tar.gz"
+tar -xzf "traefik_v${VERSION}_linux_amd64.tar.gz"
+```
+
+### What was installed or built?
+
+The release archive provides only the Traefik host binary. The repository native middleware, CGo/Common bridge, and UDS engine service are built later.
+
+### Check the result
+
+These checks identify the extracted host binary before the connector build starts.
+
+```sh
+test -x ./traefik
+./traefik version
+```
+
+### Source build and integrity checks
+
+#### Optional: build Traefik from source
+
+Check the Go version required by the selected tag before cloning it. This path builds only the Traefik host; the repository middleware and engine still belong to Section 7.
+
+```sh
 go version
-cd "$TRAEFIK_SRC"
-make test-unit
+git clone https://github.com/traefik/traefik.git "$WORKDIR/traefik-source"
+cd "$WORKDIR/traefik-source"
+git checkout --detach "v$VERSION"
+grep -E "^go " go.mod
+git rev-parse HEAD
+```
+
+#### Build the Traefik source host
+
+The official build command and version output confirm the source-host result. The repository middleware and engine remain Section 7 work.
+
+```sh
 make binary
-install -m 755 dist/traefik "$TRAEFIK_BIN"
-"$TRAEFIK_BIN" version
+./dist/traefik version
+```
+
+#### Optional: verify download and version
+
+The checksum manifest is tied to the selected repository-compatible release.
+
+```sh
+cd "$WORKDIR"
+curl -fLO "https://github.com/traefik/traefik/releases/download/v${VERSION}/traefik_v${VERSION}_checksums.txt"
+grep "traefik_v${VERSION}_linux_amd64.tar.gz" "traefik_v${VERSION}_checksums.txt" | sha256sum -c -
 ```
 
 ## 7. Build and integrate the connector
 
 A standard Traefik binary does not include the native ModSecurity middleware or the persistent engine service. Build the Go middleware and the C/C++ service from this checkout, placing both outputs outside it. The engine socket must be private to the local run and must not be reused as a shared system endpoint.
 
-```sh
-cd "$CONNECTOR_ROOT"
-```
+The host path is reintroduced here only so that the connector commands can consume the Section 6 host without rebuilding it.
 
 ```sh
+export HOST_BUILD_BASE="$HOME/connector-build/traefik"
+export TRAEFIK_BIN="$HOST_BUILD_BASE/traefik"
+cd "$CONNECTOR_ROOT"
 export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"
 export TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$BUILD_ROOT/traefik-native-middleware"
 export TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$BUILD_ROOT/traefik-engine-service"
+```
+
+```sh
 export TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR/traefik-engine-service"
 BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh connectors/traefik/build/build-native-middleware.sh build
 BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh connectors/traefik/build/build-native-middleware.sh test
@@ -96,7 +146,7 @@ BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVI
 
 ## 8. Configuration
 
-The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout.
+The local rule below is a test rule, not a CRS rule. Keep configuration and runtime files outside the Git checkout.
 
 The configuration deliberately uses only loopback entry points and does not enable an insecure dashboard or API. Treat any dashboard or administration endpoint as optional and secure it separately for a real deployment.
 
@@ -107,12 +157,18 @@ export TRAEFIK_STATIC_CONFIG="$BUILD_ROOT/traefik-static.yaml"
 export TRAEFIK_DYNAMIC_CONFIG="$BUILD_ROOT/traefik-dynamic.yaml"
 export TRAEFIK_ENGINE_CONFIG="$BUILD_ROOT/traefik-engine.conf"
 export TRAEFIK_ENGINE_SOCKET="$BUILD_ROOT/run/traefik-engine.sock"
+```
+
+```sh
 export TRAEFIK_PORT=18080
 export TRAEFIK_UPSTREAM_PORT=18081
 export TRAEFIK_PING_PORT=18082
 export TRAEFIK_PLUGIN_MODULE="github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware"
 export TRAEFIK_PLUGIN_SOURCE="$TRAEFIK_RUNTIME_ROOT/plugins-local/src/$TRAEFIK_PLUGIN_MODULE"
 mkdir -p "$(dirname "$TRAEFIK_PLUGIN_SOURCE")" "$BUILD_ROOT/run" "$BUILD_ROOT/logs"
+```
+
+```sh
 cp -a "$CONNECTOR_ROOT/connectors/traefik/native_middleware" "$TRAEFIK_PLUGIN_SOURCE"
 mkdir -p "$(dirname "$TRAEFIK_ENGINE_SOCKET")"
 chmod 700 "$(dirname "$TRAEFIK_ENGINE_SOCKET")"
@@ -164,6 +220,9 @@ http:
         servers:
           - url: http://127.0.0.1:$TRAEFIK_UPSTREAM_PORT
 EOF
+```
+
+```sh
 cat > "$TRAEFIK_ENGINE_CONFIG" <<EOF
 enabled=on
 rules_file=$RULES_FILE
@@ -184,8 +243,6 @@ max_header_value_size=8192
 max_total_header_bytes=65536
 max_event_json_bytes=16384
 EOF
-"$TRAEFIK_BIN" check --configFile="$TRAEFIK_STATIC_CONFIG"
-"$TRAEFIK_ENGINE_SERVICE_BIN" --check-config --config "$TRAEFIK_ENGINE_CONFIG"
 ```
 
 ## 9. Build and ABI validation
@@ -193,10 +250,15 @@ EOF
 Validate the selected host, connector artifact, dynamic library resolution, and generated configuration before sending traffic.
 
 ```sh
+"$TRAEFIK_BIN" check --configFile="$TRAEFIK_STATIC_CONFIG"
+"$TRAEFIK_ENGINE_SERVICE_BIN" --check-config --config "$TRAEFIK_ENGINE_CONFIG"
 "$TRAEFIK_BIN" version
 test -f "$TRAEFIK_STATIC_CONFIG"
 test -f "$TRAEFIK_DYNAMIC_CONFIG"
 test -x "$TRAEFIK_ENGINE_SERVICE_BIN"
+```
+
+```sh
 ldd "$TRAEFIK_ENGINE_SERVICE_BIN" | grep -F libmodsecurity
 grep -F "modsecurityNative" "$TRAEFIK_STATIC_CONFIG"
 grep -F "engineSocketPath" "$TRAEFIK_DYNAMIC_CONFIG"
@@ -213,6 +275,9 @@ upstream_pid=$!
 engine_pid=$!
 ( cd "$TRAEFIK_RUNTIME_ROOT" && "$TRAEFIK_BIN" --configFile="$TRAEFIK_STATIC_CONFIG" ) > "$BUILD_ROOT/logs/traefik.log" 2>&1 &
 traefik_pid=$!
+```
+
+```sh
 curl --http1.1 -fsS "http://127.0.0.1:$TRAEFIK_PING_PORT/ping"
 curl --http1.1 -i -H "X-Request-Id: traefik-native-allow" http://127.0.0.1:$TRAEFIK_PORT/native
 curl --http1.1 -i -H "X-Modsec-Smoke: block" -H "X-Request-Id: traefik-native-deny" http://127.0.0.1:$TRAEFIK_PORT/native
@@ -297,11 +362,7 @@ If Traefik starts without the middleware, check the local-plugin workspace, stat
 | engine_pid | Local started Traefik engine-service process ID from `$!`; use it only in the same shell run. |
 | traefik_pid | Local started Traefik process ID from `$!`; use it only in the same shell run. |
 | lighttpd_pid | Local started-lighttpd process ID from `$!`; use it only in the same shell run. |
-| TRAEFIK_VERSION | Repository-compatible Traefik release input. |
-| TRAEFIK_REF | Git tag derived from TRAEFIK_VERSION. |
-| TRAEFIK_SRC | Pinned upstream Traefik source tree. |
 | TRAEFIK_BIN | Built or otherwise verified host binary. |
-| BUILD_ROOT | External root for repository-native outputs and runtime files. |
 | TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR | External Go middleware build report directory. |
 | TRAEFIK_ENGINE_SERVICE_BUILD_DIR | External C/C++ engine-service build directory. |
 | TRAEFIK_ENGINE_SERVICE_BIN | Built private engine-service executable. |
@@ -315,6 +376,8 @@ If Traefik starts without the middleware, check the local-plugin workspace, stat
 | TRAEFIK_PORT | Loopback web entry point for the manual test. |
 | TRAEFIK_UPSTREAM_PORT | Loopback test upstream port. |
 | TRAEFIK_PING_PORT | Loopback ping endpoint port. |
+| WORKDIR | External Traefik host workspace. |
+| VERSION | Repository-compatible Traefik release. |
 
 ## 17. Boundaries and non-claims
 

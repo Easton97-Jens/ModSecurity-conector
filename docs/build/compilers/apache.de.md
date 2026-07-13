@@ -39,68 +39,146 @@ Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:
 
 Die folgenden Connector-Befehle setzen die Standardinstallation unter `/usr/local` voraus. Für einen benutzerlokalen Prefix den fortgeschrittenen Abschnitt der gemeinsamen Anleitung verwenden und Include- sowie Library-Pfade bewusst übergeben.
 
-## 6. Host oder Proxy vorbereiten beziehungsweise bauen
+## 6. Host oder Proxy bereitstellen
 
-Zuerst dem Apache-Source-Release-Ablauf folgen. Entweder passende System-Entwicklungseingaben für APR/APR-util bereitstellen oder geprüfte APR- und APR-util-Bäume vor dem Configure als `srclib/apr` und `srclib/apr-util` entpacken. Letzteres ist das von Apache dokumentierte Bundled-APR-Layout.
+### Einfacher Weg
+
+Für den einfachsten lokalen Adapterbuild ein Apache-Paket zusammen mit seinem Entwicklungspaket installieren. Das Entwicklungspaket liefert APXS und die passenden Header.
+
+#### Debian / Ubuntu
+
+Host und zugehöriges APXS-/Header-Paket aus der Distribution installieren.
 
 ```sh
-export HOST_BUILD_BASE="$HOME/src/modsecurity-connectors/apache"
-export HTTPD_VERSION="2.4.68"
-export HTTPD_ARCHIVE="httpd-$HTTPD_VERSION.tar.gz"
-export HTTPD_URL="https://downloads.apache.org/httpd/$HTTPD_ARCHIVE"
-export HTTPD_PREFIX="$HOME/.local/httpd-modsecurity"
-export HTTPD_SRC="$HOST_BUILD_BASE/httpd-$HTTPD_VERSION"
-export APXS="$HTTPD_PREFIX/bin/apxs"
-mkdir -p "$HOST_BUILD_BASE"
-cd "$HOST_BUILD_BASE"
-curl -fLO "$HTTPD_URL"
-curl -fLO "$HTTPD_URL.asc"
-curl -fLO "$HTTPD_URL.sha256"
-sha256sum -c "${HTTPD_ARCHIVE}.sha256"
-# Import Apache KEYS through the official download page before this verification.
-gpg --verify "${HTTPD_ARCHIVE}.asc" "$HTTPD_ARCHIVE"
-tar -xzf "$HTTPD_ARCHIVE"
-cd "$HTTPD_SRC"
-# If APR/APR-util are not supplied by the system, place verified trees in srclib/apr and srclib/apr-util.
-./configure --help | grep -E -- "--prefix|--with-included-apr|--with-pcre|--enable-mods-shared"
-./configure --prefix="$HTTPD_PREFIX" --enable-mods-shared=most --with-pcre="$(command -v pcre2-config)"
-make -j"2"
+sudo apt update
+sudo apt install apache2 apache2-dev
+```
+
+#### Fedora / RHEL
+
+Die entsprechenden httpd- und Entwicklungspakete installieren.
+
+```sh
+sudo dnf install httpd httpd-devel
+```
+
+### Was wurde installiert oder gebaut?
+
+Der Paketweg stellt Apache httpd, APXS, das Modulverzeichnis und die Header für ein Modul dieses konkreten Hosts bereit.
+
+### Erfolg prüfen
+
+Diese Abfragen zeigen Host-Prefix, Headerverzeichnis, Modulverzeichnis und Apache-Version. Sie müssen dieselbe Apache-Installation beschreiben.
+
+```sh
+apxs -q PREFIX
+apxs -q INCLUDEDIR
+apxs -q LIBEXECDIR
+apachectl -v
+```
+
+### Source-Build und Integritätsprüfung
+
+#### Optional: Apache vollständig aus Source bauen
+
+APR und APR-util sind Apache-Portable-Bibliotheken. Passende System-Entwicklungspakete verwenden oder verifizierte APR- und APR-util-Source-Bäume vor dem Configure unter srclib ablegen.
+
+```sh
+WORKDIR="$HOME/connector-build/apache"
+VERSION="2.4.68"
+INSTALL_DIR="$HOME/.local/apache-modsecurity"
+```
+
+#### Herunterladen und entpacken
+
+Dies erstellt einen isolierten Source-Baum; der Adapter wird dadurch noch nicht gebaut.
+
+```sh
+mkdir -p "$WORKDIR"
+cd "$WORKDIR"
+curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2"
+tar -xjf "httpd-$VERSION.tar.bz2"
+```
+
+#### Host bauen
+
+Apache in den privaten Prefix konfigurieren und installieren. Der Connector bleibt Arbeit für Abschnitt 7.
+
+```sh
+cd "httpd-$VERSION"
+./configure --prefix="$INSTALL_DIR" --enable-mods-shared=most --with-pcre="$(command -v pcre2-config)"
+make -j2
 make install
-test -x "$HTTPD_PREFIX/bin/httpd"
-test -x "$HTTPD_PREFIX/bin/apachectl"
-test -x "$APXS"
+```
+
+#### Source-Host-Ausgaben prüfen
+
+Diese Prüfungen bestätigen, dass der private Source-Host genau das APXS-/Executable-Paar bereitstellt, das Abschnitt 7 verwenden muss.
+
+```sh
+test -x "$INSTALL_DIR/bin/httpd"
+test -x "$INSTALL_DIR/bin/apachectl"
+test -x "$INSTALL_DIR/bin/apxs"
+"$INSTALL_DIR/bin/apxs" -q PREFIX
+```
+
+#### Optional: Download und Version verifizieren
+
+Vor der Signaturprüfung den Apache-Release-Schlüssel von der offiziellen Downloadseite importieren.
+
+```sh
+cd "$WORKDIR"
+curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.sha256"
+curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.asc"
+sha256sum -c "httpd-$VERSION.tar.bz2.sha256"
+gpg --verify "httpd-$VERSION.tar.bz2.asc" "httpd-$VERSION.tar.bz2"
 ```
 
 ## 7. Connector bauen und einbinden
 
-Der Repository-Adapter ist ein Autotools-/APXS-Projekt. Ihn mit genau dem soeben gebauten APXS und httpd konfigurieren; APXS liest Compiler-, Include- und Modulverzeichniswerte genau dieses Hosts.
+Das in Abschnitt 6 geprüfte APXS verwenden. Der Paketweg stellt normalerweise apxs bereit; die folgende optionale Source-Host-Zuweisung wählt das passende private APXS ausdrücklich aus.
+
+#### Optional: Source-Host-APXS auswählen
+
+Wenn der optionale Apache-Source-Host aus Abschnitt 6 gebaut wurde, diese Zuweisung vor den Adapterbefehlen in derselben Shell ausführen. Nutzer des Pakethosts überspringen sie.
 
 ```sh
-cd "$CONNECTOR_ROOT"
+APXS="$HOME/.local/apache-modsecurity/bin/apxs"
+```
+
+#### Adapter bauen und installieren
+
+```sh
+APXS="${APXS:-apxs}"
+cd "$CONNECTOR_ROOT/connectors/apache"
+./autogen.sh
+./configure --with-libmodsecurity="/usr/local" --with-apxs="$APXS"
+make -j2
+make install
 ```
 
 ```sh
-export CONNECTOR_SRC="$CONNECTOR_ROOT/connectors/apache"
-cd "$CONNECTOR_SRC"
-./autogen.sh
-./configure --with-libmodsecurity="/usr/local" --with-apxs="$APXS" --with-apache="$HTTPD_PREFIX/bin/httpd"
-make -j"2"
-make install
-export MODULE_PATH="$("$APXS" -q LIBEXECDIR)/mod_security3.so"
+MODULE_PATH="$("$APXS" -q LIBEXECDIR)/mod_security3.so"
 test -f "$MODULE_PATH"
 ```
 
 ## 8. Konfiguration
 
-Die folgende lokale Regel ist eine Testregel und keine CRS-Regel. Konfigurations- und Laufzeitdateien außerhalb des Git-Checkouts halten.
+Die lokale Testregel und eigenständige Apache-Konfiguration erstellen. Dieser Abschnitt startet Apache nicht; Abschnitt 10 führt Syntaxprüfung und Loopback-Anfragen aus.
 
 ```sh
-export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
-export HTTPD_CONFIG="$HOST_BUILD_BASE/httpd-local.conf"
+APXS="${APXS:-apxs}"
+HTTPD_PREFIX="$("$APXS" -q PREFIX)"
+HTTPD_BIN="$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)"
+RULES_FILE="$HOME/connector-build/apache/modsecurity-local.conf"
+HTTPD_CONFIG="$HOME/connector-build/apache/httpd-local.conf"
 cat > "$RULES_FILE" <<EOF
 SecRuleEngine On
 SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
 EOF
+```
+
+```sh
 cat > "$HTTPD_CONFIG" <<EOF
 ServerRoot "$HTTPD_PREFIX"
 Listen 127.0.0.1:8080
@@ -115,7 +193,6 @@ DocumentRoot "$HTTPD_PREFIX/htdocs"
     modsecurity_rules_file "$RULES_FILE"
 </Location>
 EOF
-"$HTTPD_PREFIX/bin/httpd" -t -f "$HTTPD_CONFIG"
 ```
 
 ## 9. Build- und ABI-Validierung
@@ -123,14 +200,15 @@ EOF
 Ausgewählten Host, Connector-Artefakt, Auflösung dynamischer Libraries und erzeugte Konfiguration vor dem Senden von Traffic validieren.
 
 ```sh
-"$HTTPD_PREFIX/bin/httpd" -v
-"$HTTPD_PREFIX/bin/apachectl" -V
-"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -M | grep -E "(^|[[:space:]])so_module"
+"$HTTPD_BIN" -v
+"$HTTPD_BIN" -M | grep -E "(^|[[:space:]])so_module"
 "$APXS" -q PREFIX
 "$APXS" -q INCLUDEDIR
 "$APXS" -q LIBEXECDIR
-"$APXS" -q CC
 file "$MODULE_PATH"
+```
+
+```sh
 ldd "$MODULE_PATH" | grep -F libmodsecurity
 ```
 
@@ -139,10 +217,11 @@ ldd "$MODULE_PATH" | grep -F libmodsecurity
 Nur gegen Loopback ausführen. Eine 200-Antwort auf `/` und eine 403-Antwort auf `/blocked` zeigen den lokalen Regelweg; sie begründen keinen weitergehenden Claim.
 
 ```sh
-"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k start
+"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -t
+"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k start
 curl -i http://127.0.0.1:8080/
 curl -i http://127.0.0.1:8080/blocked
-"$HTTPD_PREFIX/bin/httpd" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k stop
+"$HTTPD_BIN" -d "$HTTPD_PREFIX" -f "$HTTPD_CONFIG" -k stop
 ```
 
 ## 11. Paketgestützter Weg
@@ -223,15 +302,14 @@ Wenn `apxs -q` auf andere Header oder ein anderes Modulverzeichnis als das laufe
 | engine_pid | Lokale Prozess-ID des gestarteten Traefik-Engine-Service aus `$!`; nur im selben Shell-Lauf verwenden. |
 | traefik_pid | Lokale Prozess-ID des gestarteten Traefik aus `$!`; nur im selben Shell-Lauf verwenden. |
 | lighttpd_pid | Lokale Prozess-ID des gestarteten lighttpd aus `$!`; nur im selben Shell-Lauf verwenden. |
-| HTTPD_VERSION | Ausgewählter Apache-2.4-Release; gegen die Downloadseite erneut validieren. |
-| HTTPD_ARCHIVE | Aus HTTPD_VERSION abgeleiteter Releasearchivname. |
-| HTTPD_URL | Offizielle Apache-Archiv-URL. |
 | HTTPD_PREFIX | Privater httpd-Installationsprefix. |
-| HTTPD_SRC | Entpackter Apache-Source-Baum. |
 | APXS | APXS desselben Hosts, der das Modul lädt. |
-| CONNECTOR_SRC | Aus CONNECTOR_ROOT ausgewählte Repository-Source des Apache-Connectors. |
 | MODULE_PATH | Durch APXS aufgelöstes installiertes Repository-DSO. |
 | HTTPD_CONFIG | Lokale eigenständige httpd-Konfiguration. |
+| WORKDIR | Externes Apache-Source-Arbeitsverzeichnis. |
+| VERSION | Ausgewählter Apache-Source-Release im optionalen Source-Weg. |
+| INSTALL_DIR | Privater Apache-Installationsprefix im optionalen Source-Weg. |
+| HTTPD_BIN | Über die ausgewählte APXS-Installation aufgelöstes Apache-Executable. |
 
 ## 17. Grenzen und nicht erhobene Claims
 

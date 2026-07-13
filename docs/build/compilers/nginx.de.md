@@ -41,63 +41,97 @@ Danach werden NGINX und ModSecurity-nginx gebaut.
 
 Die folgenden Connector-Befehle setzen die Standardinstallation unter `/usr/local` voraus. Für einen benutzerlokalen Prefix den fortgeschrittenen Abschnitt der gemeinsamen Anleitung verwenden und Include- sowie Library-Pfade bewusst übergeben.
 
-## 6. Host oder Proxy vorbereiten beziehungsweise bauen
+## 6. Host oder Proxy bereitstellen
 
-Der einfache NGINX-Weg verwendet nur ein Arbeitsverzeichnis, ein Installationsverzeichnis und eine bewusst kleine Anzahl Buildjobs. Er baut den Connector statisch mit dem NGINX-Binary; libmodsecurity wird dabei nicht erneut gebaut.
+### Einfacher Weg
 
-1. NGINX herunterladen.
-2. ModSecurity-nginx klonen.
-3. configure ausführen.
-4. make ausführen.
-5. make install ausführen.
-6. nginx.conf erstellen.
-7. nginx -t ausführen.
-8. Curl-Test ausführen.
+Die ausgewählte NGINX-Quelle und die ModSecurity-nginx-Connectorquelle herunterladen. Das bereitet nur die Eingaben vor; Abschnitt 7 baut den statischen Connector.
 
 ```sh
 WORKDIR="$HOME/nginx-modsecurity"
-INSTALL_DIR="$HOME/.local/nginx-modsecurity"
-JOBS=2
+VERSION="1.31.2"
+```
+
+#### Host- und Connectorquellen herunterladen
+
+Die beiden Source-Bäume sind alles, was Abschnitt 7 benötigt, um NGINX mit dem Connector zu konfigurieren.
+
+```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
-curl -fLO https://nginx.org/download/nginx-1.31.2.tar.gz
-tar -xzf nginx-1.31.2.tar.gz
+curl -fLO "https://nginx.org/download/nginx-$VERSION.tar.gz"
+tar -xzf "nginx-$VERSION.tar.gz"
 git clone https://github.com/owasp-modsecurity/ModSecurity-nginx.git
-cd nginx-1.31.2
+```
+
+### Was wurde installiert oder gebaut?
+
+Es wurde noch kein Hostbinary oder Modul gebaut. NGINX-Quelle und ModSecurity-nginx-Checkout sind für die Connector-Integration in Abschnitt 7 bereit.
+
+### Erfolg prüfen
+
+Beide Dateien zeigen, dass die erwarteten Upstream-Source-Eingaben vorhanden sind.
+
+```sh
+test -f "$WORKDIR/nginx-$VERSION/auto/configure"
+test -f "$WORKDIR/ModSecurity-nginx/config"
+```
+
+### Source-Build und Integritätsprüfung
+
+#### Optional: Download und Version verifizieren
+
+Vor der Prüfung der abgetrennten Signatur den NGINX-Release-Schlüssel von der offiziellen Release-Seite importieren. Connector-Tag und aufgelöster Commit werden getrennt vom Einsteigerweg dokumentiert.
+
+```sh
+curl -fLO "https://nginx.org/download/nginx-$VERSION.tar.gz.asc"
+gpg --verify "nginx-$VERSION.tar.gz.asc" "nginx-$VERSION.tar.gz"
+git -C "$WORKDIR/ModSecurity-nginx" checkout --detach v1.0.4
+test "$(git -C "$WORKDIR/ModSecurity-nginx" rev-parse HEAD)" = "3f4b57df10ce43b1f1c722141f7621dc64838be8"
+```
+
+## 7. Connector bauen und einbinden
+
+Abschnitt 6 hat NGINX- und ModSecurity-nginx-Source-Bäume bereitgestellt. Sie werden nun gemeinsam gebaut, wobei der Connector statisch in das ausgewählte NGINX-Binary eingebunden wird.
+
+```sh
+INSTALL_DIR="$HOME/.local/nginx-modsecurity"
+JOBS=2
+cd "$WORKDIR/nginx-$VERSION"
 ./auto/configure --prefix="$INSTALL_DIR" --with-http_ssl_module --add-module="$WORKDIR/ModSecurity-nginx" --with-cc-opt="-I/usr/local/include" --with-ld-opt="-L/usr/local/lib"
 make -j"$JOBS"
 make install
-cat > "$WORKDIR/modsecurity-local.conf" <<'EOF'
+```
+
+```sh
+test -x "$INSTALL_DIR/sbin/nginx"
+```
+
+## 8. Konfiguration
+
+Eine lokale Testregel und nginx.conf erstellen. Dieser Abschnitt schreibt nur Konfiguration; Abschnitt 10 validiert und startet sie.
+
+```sh
+RULES_FILE="$WORKDIR/modsecurity-local.conf"
+NGINX_CONFIG="$INSTALL_DIR/conf/nginx.conf"
+cat > "$RULES_FILE" <<'EOF'
 SecRuleEngine On
 SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
 EOF
-cat > "$INSTALL_DIR/conf/nginx.conf" <<EOF
+cat > "$NGINX_CONFIG" <<EOF
 events {}
 http {
     server {
         listen 127.0.0.1:8080;
         location / {
             modsecurity on;
-            modsecurity_rules_file "$WORKDIR/modsecurity-local.conf";
+            modsecurity_rules_file "$RULES_FILE";
             return 200 "nginx modsecurity test\n";
         }
     }
 }
 EOF
-"$INSTALL_DIR/sbin/nginx" -t -p "$INSTALL_DIR" -c conf/nginx.conf
-"$INSTALL_DIR/sbin/nginx" -p "$INSTALL_DIR" -c conf/nginx.conf
-curl -i http://127.0.0.1:8080/
-curl -i http://127.0.0.1:8080/blocked
-"$INSTALL_DIR/sbin/nginx" -p "$INSTALL_DIR" -c conf/nginx.conf -s quit
 ```
-
-## 7. Connector bauen und einbinden
-
-NGINX und ModSecurity-nginx wurden im vorhergehenden einfachen Build gemeinsam geklont, konfiguriert, kompiliert und installiert.
-
-## 8. Konfiguration
-
-Der einfache Build oben schreibt die lokale Regeldatei und nginx.conf und führt anschließend den erforderlichen NGINX-Konfigurationstest aus.
 
 Für den vollständigen Direktivenvertrag vor der Anpassung dieses lokalen Beispiels die repository-eigene [NGINX-Konfigurationsreferenz](../../../examples/nginx/configuration-reference.de.md) lesen.
 
@@ -107,13 +141,25 @@ Ausgewählten Host, Connector-Artefakt, Auflösung dynamischer Libraries und erz
 
 ```sh
 "$INSTALL_DIR/sbin/nginx" -V
+test -x "$INSTALL_DIR/sbin/nginx"
+"$INSTALL_DIR/sbin/nginx" -V 2>&1 | grep -F -- "--add-module=$WORKDIR/ModSecurity-nginx"
+test -f "$RULES_FILE"
+test -f "$NGINX_CONFIG"
 ```
 
 ## 10. Lokaler HTTP/1.1-Funktionstest
 
 Nur gegen Loopback ausführen. Eine 200-Antwort auf `/` und eine 403-Antwort auf `/blocked` zeigen den lokalen Regelweg; sie begründen keinen weitergehenden Claim.
 
-Der einfache Build startet NGINX auf Loopback und verwendet curl für eine normale und eine geblockte Anfrage, bevor er ihn beendet.
+Zuerst die Syntax prüfen, dann den lokalen Host starten, eine normale und eine geblockte Loopback-Anfrage senden und ihn wieder stoppen.
+
+```sh
+"$INSTALL_DIR/sbin/nginx" -t -p "$INSTALL_DIR" -c conf/nginx.conf
+"$INSTALL_DIR/sbin/nginx" -p "$INSTALL_DIR" -c conf/nginx.conf
+curl -i http://127.0.0.1:8080/
+curl -i http://127.0.0.1:8080/blocked
+"$INSTALL_DIR/sbin/nginx" -p "$INSTALL_DIR" -c conf/nginx.conf -s quit
+```
 
 ## 11. Paketgestützter Weg
 
@@ -179,10 +225,24 @@ Ein Start- oder Direktivenfehler bedeutet normalerweise, dass NGINX-Binary, Conf
 
 ## 16. Variablen und Platzhalter
 
-| Variable | Bedeutung |
+| Variable/Platzhalter | Bedeutung |
 | --- | --- |
-| WORKDIR | Arbeitsverzeichnis für NGINX-Quelle, Connector und lokale Regeldatei. |
-| INSTALL_DIR | Privates NGINX-Installationsverzeichnis. |
+| CONNECTOR_ROOT | Git-Top-Level dieses Repository-Checkouts; die Connector-Skripte werden von dort aus aufgerufen. |
+| HOST_BUILD_BASE | Connector-spezifisches externes Verzeichnis für Quellen, Builds, Konfiguration und lokale Logs. |
+| BUILD_ROOT | Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten. |
+| RULES_FILE | Lokale Testregeldatei; keine CRS-Regeldatei. |
+| VERIFIED_RUN_PARENT | Externer Elternordner eines frischen Repository-Testcheckouts und seiner Testartefakte. |
+| run_id | Eindeutige Kennung eines repository-gesteuerten Full-Lifecycle-Laufs. |
+| NO_CRS_RUN_ID | Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt. |
+| upstream_pid | Lokale Prozess-ID des Test-Upstreams aus `$!`; nur im selben Shell-Lauf verwenden. |
+| haproxy_pid | Lokale Prozess-ID des gestarteten HAProxy aus `$!`; nur im selben Shell-Lauf verwenden. |
+| engine_pid | Lokale Prozess-ID des gestarteten Traefik-Engine-Service aus `$!`; nur im selben Shell-Lauf verwenden. |
+| traefik_pid | Lokale Prozess-ID des gestarteten Traefik aus `$!`; nur im selben Shell-Lauf verwenden. |
+| lighttpd_pid | Lokale Prozess-ID des gestarteten lighttpd aus `$!`; nur im selben Shell-Lauf verwenden. |
+| NGINX_CONFIG | Lokale NGINX-Konfiguration für den Loopback-Test. |
+| WORKDIR | NGINX-Source- und Connector-Arbeitsverzeichnis. |
+| VERSION | Ausgewählter offizieller NGINX-Release. |
+| INSTALL_DIR | Privater Installationsprefix des statischen NGINX. |
 | JOBS | Bewusst kleine Anzahl paralleler NGINX-Buildjobs. |
 
 ## 17. Grenzen und nicht erhobene Claims
