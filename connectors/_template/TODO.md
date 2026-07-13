@@ -1,5 +1,7 @@
 # TODO - New Connector From Template
 
+**Language:** English | [Deutsch](TODO.de.md)
+
 Status: suitable scaffold, not runtime-verified
 
 Template evaluation: geeignet als Scaffold-Vorlage, nicht runtime-verifiziert
@@ -38,10 +40,7 @@ Status: complete for the generic scaffold.
 
 - [x] `README.md` vorhanden.
 - [x] `TODO.md` vorhanden.
-- [x] `docs/architecture.md` vorhanden.
-- [x] `docs/build.md` vorhanden.
-- [x] `docs/validation.md` vorhanden.
-- [x] `docs/coverage-decision-matrix.md` vorhanden.
+- [x] Kanonischer neuer-Connector-Vertrag vorhanden.
 - [x] `harness/README.md` vorhanden.
 - [x] `src/README.md` vorhanden.
 - [x] Lokaler Template-Testordner ist entfernt.
@@ -221,8 +220,6 @@ partial hinaus bewertet werden können.
 
 ## Full evaluation
 
-The complete Template evaluation is documented in:
-
-```text
-reports/template-verification-nginx-apache/template-evaluation.md
-```
+The reusable template requirements are consolidated in
+`docs/connectors/README.md`; runtime promotion still requires a connector-
+specific evidence run.

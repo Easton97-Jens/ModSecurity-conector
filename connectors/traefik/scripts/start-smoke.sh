@@ -5,7 +5,7 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(CDPATH= cd "$CONNECTOR_ROOT/../.." && pwd)
 BUILD_ROOT="${BUILD_ROOT:-${TMPDIR:-/var/tmp}/ModSecurity-conector-verified/build}"
-COMPONENT_CACHE="${CONNECTOR_COMPONENT_CACHE:-${TMPDIR:-/var/tmp}/ModSecurity-conector-verified/component-cache}"
+COMPONENT_CACHE="${CONNECTOR_COMPONENT_CACHE:-${TMPDIR:-/var/tmp}/ModSecurity-conector-verified/cache-v2/shared}"
 CONNECTOR_BIN="${TRAEFIK_CONNECTOR_BIN:-$BUILD_ROOT/traefik-connector/traefik-forwardauth}"
 TRAEFIK_BIN="${TRAEFIK_BIN:-$COMPONENT_CACHE/traefik/bin/traefik}"
 CONFIG_PATH="${TRAEFIK_CONNECTOR_CONFIG:-$CONNECTOR_ROOT/config/traefik-forwardauth.conf}"

@@ -19,7 +19,11 @@ else
 fi
 [ -f "$MODULE_PATH" ] || blocked "connector module is missing: $MODULE_PATH"
 
-LIGHTTPD_CONFIG=$(BUILD_ROOT="$BUILD_ROOT" sh "$SCRIPT_DIR/prepare_native_smoke.sh")
+SMOKE_PREPARER=${LIGHTTPD_SMOKE_PREPARER:-$SCRIPT_DIR/prepare_native_smoke.sh}
+[ -f "$SMOKE_PREPARER" ] || blocked "smoke preparer is missing: $SMOKE_PREPARER"
+LIGHTTPD_CONFIG=$(BUILD_ROOT="$BUILD_ROOT" \
+    LIGHTTPD_SMOKE_DIR="${LIGHTTPD_SMOKE_DIR:-}" \
+    sh "$SMOKE_PREPARER")
 MODULE_DIR=$(dirname "$MODULE_PATH")
 SMOKE_DIR=$(dirname "$LIGHTTPD_CONFIG")
 SERVER_STDOUT=$SMOKE_DIR/start-smoke.stdout

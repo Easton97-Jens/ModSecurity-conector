@@ -3,8 +3,11 @@
 
 #include <stddef.h>
 
+#include "msconnector/body_policy.h"
 #include "msconnector/decision.h"
+#include "msconnector/decision_action.h"
 #include "msconnector/error.h"
+#include "msconnector/options.h"
 #include "msconnector/request.h"
 #include "msconnector/request_mapper_contract.h"
 #include "msconnector/response.h"
@@ -18,10 +21,25 @@ extern "C" {
  * Connector-neutral, libmodsecurity-backed runtime used by external-service
  * and native-module adapters. Host API types deliberately do not cross this
  * boundary. The runtime owns its engine, rules and configuration strings;
- * request and response objects remain borrowed for a transaction lifetime.
+ * request/response objects and body chunks are borrowed only for their
+ * corresponding call. A transaction retains bounded metadata, never a host
+ * request, response, or body pointer.
  */
 typedef struct msconnector_runtime msconnector_runtime;
 typedef struct msconnector_runtime_transaction msconnector_runtime_transaction;
+
+/*
+ * Body chunks are borrowed from the host.  The runtime never retains a chunk
+ * pointer after append_*_body_chunk() returns.  Counters describe metadata
+ * only and are safe to place in events or result records.
+ */
+typedef struct msconnector_runtime_body_progress {
+    size_t bytes_seen;
+    size_t bytes_inspected;
+    int truncated;
+    int finished;
+    msconnector_body_limit_outcome limit_outcome;
+} msconnector_runtime_body_progress;
 
 int msconnector_runtime_config_check(
     const char *connector_name,
@@ -36,6 +54,16 @@ int msconnector_runtime_create(
     char *error,
     size_t error_len);
 
+/*
+ * Sets the bounded, connector-specific integration mode copied into every
+ * Common decision event produced by this runtime. Call this during adapter
+ * setup, before beginning transactions; the runtime copies the value and
+ * never derives it from request metadata.
+ */
+int msconnector_runtime_set_event_integration_mode(
+    msconnector_runtime *runtime,
+    const char *integration_mode);
+
 void msconnector_runtime_destroy(msconnector_runtime **runtime);
 
 void msconnector_runtime_request_contract(
@@ -48,8 +76,23 @@ void msconnector_runtime_response_contract(
 
 size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime);
 size_t msconnector_runtime_response_body_limit(const msconnector_runtime *runtime);
+msconnector_body_mode msconnector_runtime_request_body_mode(
+    const msconnector_runtime *runtime);
+msconnector_body_mode msconnector_runtime_response_body_mode(
+    const msconnector_runtime *runtime);
+/* Returns the parsed common policy mode so a connector does not need a
+ * connector-local copy of Phase-4 configuration. */
+enum msconnector_phase4_mode msconnector_runtime_phase4_mode(
+    const msconnector_runtime *runtime);
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *runtime);
 size_t msconnector_runtime_header_count_limit(const msconnector_runtime *runtime);
+
+/* The parsed budget is in milliseconds. A zero value disables it. Common
+ * stores this adapter-facing value but does not own a host timer or a
+ * cancellation primitive, so callers must not treat the getter as proof that
+ * their transport enforces a deadline. */
+size_t msconnector_runtime_late_intervention_timeout_ms(
+    const msconnector_runtime *runtime);
 
 /*
  * Maps a concrete runtime error to the configured HTTP error policy while
@@ -68,6 +111,93 @@ int msconnector_runtime_transaction_begin(
     msconnector_decision *decision,
     msconnector_error *error);
 
+/*
+ * Explicit low-latency lifecycle operations.  Request/response headers are
+ * processed once.  Body chunks are ingested incrementally and phase 2/4 is
+ * finalized exactly once at end of stream.  libmodsecurity may evaluate body
+ * rules during the finish call rather than on an individual chunk.
+ */
+int msconnector_runtime_transaction_append_request_body_chunk(
+    msconnector_runtime_transaction *transaction,
+    const unsigned char *data,
+    size_t size,
+    msconnector_error *error);
+
+int msconnector_runtime_transaction_finish_request_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_decision *decision,
+    msconnector_error *error);
+
+int msconnector_runtime_transaction_process_response_headers(
+    msconnector_runtime_transaction *transaction,
+    const msconnector_response *response,
+    msconnector_decision *decision,
+    msconnector_error *error);
+
+int msconnector_runtime_transaction_append_response_body_chunk(
+    msconnector_runtime_transaction *transaction,
+    const unsigned char *data,
+    size_t size,
+    msconnector_error *error);
+
+int msconnector_runtime_transaction_finish_response_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_decision *decision,
+    msconnector_error *error);
+
+/*
+ * Close a response lifecycle that deliberately has no decoded entity-body
+ * input.  This is only valid with response_body_mode=none and never invokes
+ * libmodsecurity's response-body processing or produces Phase-4 evidence.
+ * A host must call it only after its real response stream has ended or has
+ * been abandoned.
+ */
+int msconnector_runtime_transaction_finish_unobserved_response_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_error *error);
+
+/*
+ * Hosts call this immediately before or after handing bytes to their next
+ * filter.  It records only commit metadata; it cannot retroactively change a
+ * response and does not retain any host buffer.
+ */
+void msconnector_runtime_transaction_set_response_commit_state(
+    msconnector_runtime_transaction *transaction,
+    int headers_sent,
+    int body_started);
+
+/*
+ * Records a second, host-confirmed outcome for a disruptive engine decision.
+ * The normal decision event is deliberately retained: it records what the
+ * rule engine requested, while this call records what the host actually did
+ * after applying (or intentionally downgrading) that request.  Call it only
+ * after the host action has succeeded or the host has deliberately selected a
+ * late log-only outcome.  `visible_http_status` is the status observable by
+ * the client; it may be zero only for a transport-only connection abort or a
+ * stream-local reset.  A stream reset must use actual action
+ * `MSCONNECTOR_DECISION_ACTION_STREAM_RESET`, `transport_result="stream_reset"`,
+ * and `connection_aborted=0`; it is not a substitute for a connection abort.
+ * The runtime never retains `transport_result`.
+ */
+int msconnector_runtime_transaction_record_host_action(
+    msconnector_runtime_transaction *transaction,
+    const msconnector_decision *decision,
+    msconnector_decision_action actual_action,
+    int visible_http_status,
+    const char *transport_result,
+    int connection_aborted,
+    msconnector_error *error);
+
+void msconnector_runtime_transaction_request_body_progress(
+    const msconnector_runtime_transaction *transaction,
+    msconnector_runtime_body_progress *progress);
+
+void msconnector_runtime_transaction_response_body_progress(
+    const msconnector_runtime_transaction *transaction,
+    msconnector_runtime_body_progress *progress);
+
+/* Buffered compatibility helper. Prefer the explicit header/chunk/finish API
+ * for full-lifecycle paths. */
 int msconnector_runtime_transaction_process_response(
     msconnector_runtime_transaction *transaction,
     const msconnector_response *response,

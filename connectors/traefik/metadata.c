@@ -15,8 +15,9 @@ static const msconnector_traefik_adapter_metadata traefik_metadata = {
         "traefik",
         "minimal-runtime-smoke",
         "traefik",
-        "Minimal forwardAuth request-header runtime smoke is verified locally; no "
-        "request-body, upstream response, CRS, security, or production capability is verified."
+        "The forwardAuth request-header path is implemented. Traefik supports "
+        "buffered body forwarding, but the checked-in path does not enable it; "
+        "upstream response phases remain outside this host model."
     },
     "traefik",
     "Traefik",

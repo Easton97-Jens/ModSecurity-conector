@@ -1,5 +1,7 @@
 # Apache Smoke Harness
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: adapter-owned source smoke harness
 
 This harness is a connector-specific proof-of-concept runner for the Apache
@@ -13,7 +15,7 @@ the YAML-expected HTTP status for all current shared minimal cases.
 ## Boundaries
 
 - Uses only artifacts under `BUILD_ROOT`.
-- Does not build or modify any `/root/conecter/*` repository.
+- Does not build or modify any `<external-source-root>/*` repository.
 - Does not build or mutate the source checkout; all generated Autotools and
   runtime files stay under `BUILD_ROOT`.
 - Reports `pass` only when Apache returns the YAML-expected HTTP status for a

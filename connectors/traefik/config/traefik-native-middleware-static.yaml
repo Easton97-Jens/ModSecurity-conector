@@ -1,0 +1,13 @@
+# Reference local-plugin registration for the repository-owned Go middleware.
+#
+# The full-lifecycle-traefik-native target stages the module under a disposable
+# local-plugin workspace and materializes an equivalent pinned-host
+# configuration. The isolated host harness pairs it with a private UDS engine
+# service; this reference does not contain a runtime socket path or promote any
+# capability.
+experimental:
+  localPlugins:
+    modsecurityNative:
+      moduleName: github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware
+      settings:
+        envs: []

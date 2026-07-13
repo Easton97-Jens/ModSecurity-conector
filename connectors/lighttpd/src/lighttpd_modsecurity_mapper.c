@@ -3,12 +3,15 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #ifdef MSCONNECTOR_LIGHTTPD_HOST_API
 
 #include "array.h"
 #include "base.h"
 #include "buffer.h"
+#include "chunk.h"
 #include "http_kv.h"
 #include "request.h"
 
@@ -191,6 +194,111 @@ int lighttpd_modsecurity_map_response(
     return 1;
 }
 
+static off_t lighttpd_chunk_available(const chunk *chunk) {
+    if (chunk->type == MEM_CHUNK) {
+        return (off_t)buffer_clen(chunk->mem) - chunk->offset;
+    }
+    return chunk->file.length - chunk->offset;
+}
+
+static int lighttpd_visit_file_range(
+        const chunk *chunk,
+        off_t offset,
+        off_t length,
+        lighttpd_modsecurity_body_chunk_consumer consumer,
+        void *userdata,
+        char *error,
+        size_t error_len) {
+    unsigned char scratch[16384];
+    int fd = chunk->file.fd;
+    int close_fd = 0;
+
+    if (fd < 0) {
+        fd = open(chunk->mem->ptr, O_RDONLY);
+        if (fd < 0) {
+            mapper_error(error, error_len, "could not open lighttpd file chunk");
+            return 0;
+        }
+        close_fd = 1;
+    }
+    while (length > 0) {
+        size_t want = length > (off_t)sizeof(scratch)
+            ? sizeof(scratch) : (size_t)length;
+        ssize_t read_size = chunk_file_pread(fd, scratch, want,
+            chunk->offset + offset);
+        if (read_size <= 0 || (size_t)read_size > want) {
+            if (close_fd) {
+                (void)close(fd);
+            }
+            mapper_error(error, error_len, "could not read lighttpd file chunk");
+            return 0;
+        }
+        if (!consumer(userdata, scratch, (size_t)read_size, error, error_len)) {
+            if (close_fd) {
+                (void)close(fd);
+            }
+            return 0;
+        }
+        offset += read_size;
+        length -= read_size;
+    }
+    if (close_fd) {
+        (void)close(fd);
+    }
+    return 1;
+}
+
+int lighttpd_modsecurity_visit_body_range(
+        const chunkqueue *queue,
+        off_t queue_offset,
+        off_t length,
+        lighttpd_modsecurity_body_chunk_consumer consumer,
+        void *userdata,
+        char *error,
+        size_t error_len) {
+    const chunk *chunk;
+
+    if (queue == NULL || consumer == NULL || queue_offset < 0 || length < 0) {
+        mapper_error(error, error_len, "invalid lighttpd body range");
+        return 0;
+    }
+    for (chunk = queue->first; chunk != NULL && length > 0; chunk = chunk->next) {
+        off_t available = lighttpd_chunk_available(chunk);
+        off_t take;
+
+        if (available < 0) {
+            mapper_error(error, error_len, "invalid lighttpd chunk offset");
+            return 0;
+        }
+        if (queue_offset >= available) {
+            queue_offset -= available;
+            continue;
+        }
+        take = available - queue_offset;
+        if (take > length) {
+            take = length;
+        }
+        if (chunk->type == MEM_CHUNK) {
+            if ((uintmax_t)take > (uintmax_t)SIZE_MAX ||
+                !consumer(userdata,
+                    (const unsigned char *)chunk->mem->ptr + chunk->offset + queue_offset,
+                    (size_t)take, error, error_len)) {
+                return 0;
+            }
+        } else if (!lighttpd_visit_file_range(chunk, queue_offset, take,
+                       consumer, userdata, error, error_len)) {
+            return 0;
+        }
+        length -= take;
+        queue_offset = 0;
+    }
+    if (length != 0) {
+        mapper_error(error, error_len, "lighttpd body range is no longer queued");
+        return 0;
+    }
+    return 1;
+}
+
 #else
 
 /*
@@ -247,6 +355,25 @@ int lighttpd_modsecurity_map_response(
     (void)total_header_limit;
     (void)storage;
     (void)out;
+    if (error != NULL && error_len > 0U) {
+        (void)snprintf(error, error_len, "%s", "lighttpd host headers were not enabled");
+    }
+    return 0;
+}
+
+int lighttpd_modsecurity_visit_body_range(
+        const chunkqueue *queue,
+        off_t queue_offset,
+        off_t length,
+        lighttpd_modsecurity_body_chunk_consumer consumer,
+        void *userdata,
+        char *error,
+        size_t error_len) {
+    (void)queue;
+    (void)queue_offset;
+    (void)length;
+    (void)consumer;
+    (void)userdata;
     if (error != NULL && error_len > 0U) {
         (void)snprintf(error, error_len, "%s", "lighttpd host headers were not enabled");
     }

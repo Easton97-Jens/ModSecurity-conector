@@ -15,6 +15,11 @@ const char *msconnector_capability_required_test(enum msconnector_capability_fla
     case MSCONNECTOR_CAPABILITY_CONFIG_RELOAD: return "config reload test";
     case MSCONNECTOR_CAPABILITY_CUSTOM_TRANSACTION_ID: return "transaction id visible in event/log output";
     case MSCONNECTOR_CAPABILITY_PHASE4_HARD_ABORT: return "phase4 hard-abort-after-200 event test";
+    case MSCONNECTOR_CAPABILITY_PHASE4_RULE_EVALUATION: return "phase4 rule-observed event test";
+    case MSCONNECTOR_CAPABILITY_PHASE4_PRE_COMMIT_DENY: return "phase4 pre-commit deny status test";
+    case MSCONNECTOR_CAPABILITY_LATE_INTERVENTION_LOG_ONLY: return "phase4 post-commit log-only event test";
+    case MSCONNECTOR_CAPABILITY_LATE_INTERVENTION_ABORT: return "phase4 post-commit abort event test";
+    case MSCONNECTOR_CAPABILITY_LATE_INTERVENTION_STATUS_METADATA: return "phase4 requested/original/visible status metadata test";
     case MSCONNECTOR_CAPABILITY_NONE: default: return 0;
     }
 }

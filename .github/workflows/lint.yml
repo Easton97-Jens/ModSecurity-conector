@@ -41,17 +41,16 @@ jobs:
             exit 1
           fi
           test -f README.md
-          test -f docs/architecture/architecture.md
-          test -f modules/ModSecurity-test-Framework/docs/imports/sources.md
-          test -f modules/ModSecurity-test-Framework/docs/testing/compatibility.md
-          test -f docs/roadmap/roadmap.md
+          test -f docs/architecture.md
+          test -f modules/ModSecurity-test-Framework/docs/connector-integration.md
+          test -f modules/ModSecurity-test-Framework/docs/testing-and-evidence.md
+          test -f docs/operations-and-security.md
           test -f docs/README.md
-          test -f docs/architecture/README.md
           test -f docs/connectors/README.md
-          test -f docs/testing/verified-run-environment.md
+          test -f docs/testing-and-evidence.md
           test -f reports/testing/test-coverage-overview.md
       - name: Check bilingual documentation
-        run: python ci/check-bilingual-docs.py
+        run: python ci/checks/documentation/check-bilingual-docs.py
       - name: Run lightweight lint
         if: github.event_name != 'pull_request'
         run: |

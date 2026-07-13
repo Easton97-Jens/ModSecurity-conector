@@ -1,0 +1,315 @@
+{
+  "schema_version": 1,
+  "connector": "traefik",
+  "host_name": "traefik",
+  "integration_mode": "http-forwardauth-service",
+  "metadata_source": "connectors/traefik/metadata.c",
+  "external_references": [
+    {
+      "title": "Traefik Proxy v3.7 ForwardAuth configuration",
+      "url": "https://doc.traefik.io/traefik/v3.7/reference/routing-configuration/http/middlewares/forwardauth/",
+      "supports": "forwardBody enables buffered request-body forwarding; maxBodySize bounds it; forwarding the body breaks streaming"
+    }
+  ],
+  "source_contract": [
+    "connectors/traefik/metadata.c",
+    "connectors/traefik/config/traefik-forwardauth-dynamic.yaml",
+    "connectors/traefik/config/traefik-forwardauth.conf",
+    "connectors/traefik/src/traefik_forwardauth_service_main.c",
+    "connectors/traefik/src/traefik_modsecurity_mapper.c",
+    "connectors/traefik/scripts/runtime_smoke.py",
+    "connectors/traefik/native_middleware/middleware.go",
+    "connectors/traefik/native_middleware/.traefik.yml",
+    "connectors/traefik/config/traefik-native-middleware-dynamic.yaml",
+    "connectors/traefik/config/traefik-native-middleware-static.yaml",
+    "connectors/traefik/scripts/runtime-native-middleware.sh",
+    "connectors/traefik/scripts/runtime_native_smoke.py"
+  ],
+  "host_model_constraints": [
+    "The selected forwardAuth service observes the authorization request before the upstream request and cannot inspect the later upstream response headers or body.",
+    "Traefik v3.7 supports buffered forwardAuth request bodies with forwardBody and maxBodySize, but the checked-in dynamic configuration does not enable them and the service config sets request_body_mode=none.",
+    "Traefik documents that forwardBody buffering breaks streaming, so streaming request-body inspection is outside this host path.",
+    "The authorization service currently sees the Traefik-to-service socket endpoints and does not map original client connection endpoints into Common connection metadata.",
+    "The full-lifecycle profile separately selects native-middleware through full-lifecycle-traefik-native in a pinned Traefik local-plugin host probe. Its selected UDS engine service performs Common/libmodsecurity evaluation, while this forwardAuth compatibility declaration remains separate and unpromoted."
+  ],
+  "capabilities": {
+    "connection_metadata": {
+      "state": "not_implemented",
+      "reason": "The HTTP authorization service maps its local Traefik peer socket rather than the original client connection metadata."
+    },
+    "request_headers": {
+      "state": "implemented_not_asserted",
+      "reason": "Configured forwardAuth request headers are mapped into Common Runtime; canonical multi-header and limit evidence is pending."
+    },
+    "request_body_buffered": {
+      "state": "not_implemented",
+      "reason": "Traefik v3.7 supports forwardBody plus maxBodySize, but the checked-in middleware omits both and the connector config disables request bodies; see the versioned official reference."
+    },
+    "request_body_streaming": {
+      "state": "unsupported_by_host_model",
+      "reason": "Traefik v3.7 documents that forwardBody reads and buffers the body before forwarding and therefore breaks streaming."
+    },
+    "response_headers": {
+      "state": "unsupported_by_host_model",
+      "reason": "forwardAuth runs before the upstream request and does not receive the later upstream response headers."
+    },
+    "response_body_buffered": {
+      "state": "unsupported_by_host_model",
+      "reason": "forwardAuth does not receive the later upstream response body."
+    },
+    "response_body_streaming": {
+      "state": "unsupported_by_host_model",
+      "reason": "forwardAuth does not receive an upstream response body stream."
+    },
+    "phase1": {
+      "state": "implemented_not_asserted",
+      "reason": "The forwardAuth request headers enter the Common Runtime Phase-1 path; a fresh canonical baseline result is pending."
+    },
+    "phase2": {
+      "state": "not_implemented",
+      "reason": "The checked-in host middleware does not set forwardBody and the connector config disables request-body processing."
+    },
+    "phase3": {
+      "state": "unsupported_by_host_model",
+      "reason": "The pre-upstream forwardAuth call cannot inspect upstream response headers."
+    },
+    "phase4": {
+      "state": "unsupported_by_host_model",
+      "reason": "The pre-upstream forwardAuth call cannot inspect upstream response bodies."
+    },
+    "phase4_rule_evaluation": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected Traefik forwardAuth integration runs before upstream handling and cannot inspect the later upstream response body for Phase-4 rule evaluation."
+    },
+    "phase4_pre_commit_deny": {
+      "state": "unsupported_by_host_model",
+      "reason": "Because forwardAuth never sees the later upstream response, it has no Phase-4 response point at which to deny before the response commits."
+    },
+    "late_intervention": {
+      "state": "unsupported_by_host_model",
+      "reason": "The authorization decision completes before the upstream response starts, so the chosen path has no response-phase late intervention point."
+    },
+    "late_intervention_log_only": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected pre-upstream forwardAuth host model has no committed upstream response on which to apply a late log-only intervention."
+    },
+    "late_intervention_abort": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected pre-upstream forwardAuth host model has no upstream response-phase point from which the authorization service can perform a late connection abort."
+    },
+    "late_intervention_status_metadata": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected forwardAuth integration does not observe an upstream response, so it cannot produce Phase-4 metadata that distinguishes original and visible upstream-response status or late actions."
+    },
+    "deny": {
+      "state": "implemented_not_asserted",
+      "reason": "A disruptive Common Runtime decision is returned as a non-2xx forwardAuth response; a fresh canonical deny result is pending."
+    },
+    "redirect": {
+      "state": "not_implemented",
+      "reason": "The Common Runtime preserves redirect status and URL, but the repository HTTP authorization response does not emit the Location header for Traefik to propagate."
+    },
+    "drop": {
+      "state": "unsupported_by_host_model",
+      "reason": "The external HTTP authorization contract returns a response and cannot directly silent-drop Traefik's client connection."
+    },
+    "abort_connection": {
+      "state": "unsupported_by_host_model",
+      "reason": "The external authorization service cannot directly abort Traefik's client connection as a ModSecurity action."
+    },
+    "log_only": {
+      "state": "implemented_not_asserted",
+      "reason": "A non-disruptive rule leaves the forwardAuth response successful; explicit canonical log-only evidence is pending."
+    },
+    "transaction_id": {
+      "state": "implemented_not_asserted",
+      "reason": "The configured x-request-id header is resolved by Common Runtime and included in decision events; canonical correlation evidence is pending."
+    },
+    "event_jsonl": {
+      "state": "implemented_not_asserted",
+      "reason": "Common Runtime writes bounded metadata-only disruptive-decision JSONL; canonical field and payload-absence evidence is pending."
+    },
+    "config_inline_rules": {
+      "state": "implemented_not_asserted",
+      "reason": "The repository authorization-service config parser and Common Runtime support inline rules; canonical config evidence is pending."
+    },
+    "config_rules_file": {
+      "state": "implemented_not_asserted",
+      "reason": "The checked-in service path loads a local rules file through Common Runtime; canonical positive and negative evidence is pending."
+    },
+    "config_remote_rules": {
+      "state": "implemented_not_asserted",
+      "reason": "Common Runtime exposes remote rule key and URL configuration, but the no-CRS baseline does not exercise external networking."
+    },
+    "transport_metadata": {
+      "state": "not_implemented",
+      "reason": "The pre-upstream forwardAuth service does not observe client-visible upstream-response commitment or transport outcomes."
+    },
+    "request_body_incremental_ingest": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected forwardAuth path disables request bodies, and Traefik forwardBody is buffered rather than incremental when enabled."
+    },
+    "response_body_incremental_ingest": {
+      "state": "unsupported_by_host_model",
+      "reason": "The pre-upstream forwardAuth service never receives an upstream response-body stream."
+    },
+    "phase4_end_of_stream_evaluation": {
+      "state": "unsupported_by_host_model",
+      "reason": "forwardAuth never receives the later upstream response stream or its end-of-stream event."
+    },
+    "content_type_scope": {
+      "state": "unsupported_by_host_model",
+      "reason": "The selected forwardAuth path does not receive an upstream response Content-Type or response body to scope."
+    },
+    "header_limits": {
+      "state": "not_implemented",
+      "reason": "Forwarded request headers have no connector-local canonical header-limit enforcement contract."
+    },
+    "request_body_limits": {
+      "state": "not_implemented",
+      "reason": "The checked-in forwardAuth middleware disables request-body forwarding and defines no active request-body limit behavior."
+    },
+    "response_body_limits": {
+      "state": "unsupported_by_host_model",
+      "reason": "forwardAuth does not receive an upstream response body on which to enforce a response-body limit."
+    },
+    "no_full_response_buffering": {
+      "state": "unsupported_by_host_model",
+      "reason": "The request-only forwardAuth host model has no upstream response stream for this property to describe."
+    },
+    "first_byte_before_response_end": {
+      "state": "unsupported_by_host_model",
+      "reason": "The request-only forwardAuth service cannot observe a Traefik client first byte or upstream response end."
+    },
+    "http1_content_length": {
+      "state": "configured_not_exercised",
+      "reason": "Traefik can proxy HTTP/1.1 responses, but no canonical forwardAuth transport case covers Content-Length handling."
+    },
+    "http1_chunked": {
+      "state": "configured_not_exercised",
+      "reason": "Traefik can proxy chunked HTTP/1.1 responses, but no canonical forwardAuth transport case covers them."
+    },
+    "keep_alive": {
+      "state": "configured_not_exercised",
+      "reason": "No canonical sequential-request keep-alive run is attached to the Traefik forwardAuth path."
+    },
+    "parallel_requests": {
+      "state": "not_implemented",
+      "reason": "The Traefik forwardAuth full-lifecycle catalog has no parallel-request evidence path."
+    },
+    "http2": {
+      "state": "configured_not_exercised",
+      "reason": "Traefik HTTP/2 transport behavior is not exercised by a canonical forwardAuth full-lifecycle case."
+    },
+    "http2_downstream": {
+      "state": "not_implemented",
+      "reason": "The repository-owned native-middleware harness renders only a cleartext web entry point; it has no TLS HTTP/2 listener or forced H2 client path."
+    },
+    "http2_upstream": {
+      "state": "not_implemented",
+      "reason": "No Traefik native middleware upstream HTTP/2 matrix is implemented."
+    },
+    "http2_tls_alpn": {
+      "state": "not_implemented",
+      "reason": "The repository-owned native-middleware configuration has no certificate, TLS entry point, or h2 ALPN configuration."
+    },
+    "http2_cleartext_h2c": {
+      "state": "not_implemented",
+      "reason": "No native middleware h2c profile is configured."
+    },
+    "http2_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No native middleware HTTP/2 stream-isolation runner is implemented."
+    },
+    "http2_stream_reset": {
+      "state": "not_implemented",
+      "reason": "HTTP/1 hijack behavior is not HTTP/2 reset evidence and no stream-reset API is wired."
+    },
+    "http3_downstream": {
+      "state": "not_implemented",
+      "reason": "The repository-owned native-middleware harness has no HTTP/3 entry point, UDP/QUIC listener, or forced H3 client path."
+    },
+    "http3_upstream": {
+      "state": "not_implemented",
+      "reason": "No Traefik native middleware upstream HTTP/3 matrix is implemented."
+    },
+    "http3_quic": {
+      "state": "not_implemented",
+      "reason": "No repository-owned Traefik QUIC listener or QUIC traffic observation is configured for the native middleware."
+    },
+    "http3_alt_svc": {
+      "state": "not_implemented",
+      "reason": "No repository-owned native-middleware Traefik configuration advertises an HTTP/3 Alt-Svc endpoint."
+    },
+    "http3_multiplexing": {
+      "state": "not_implemented",
+      "reason": "No native middleware H3 stream-isolation runner is implemented."
+    },
+    "http3_stream_reset": {
+      "state": "not_implemented",
+      "reason": "No client-visible QUIC stream-reset API is wired for the middleware."
+    },
+    "protocol_transaction_isolation": {
+      "state": "not_implemented",
+      "reason": "No multiplexed protocol transaction-isolation evidence is implemented."
+    },
+    "protocol_first_byte_before_response_end": {
+      "state": "not_implemented",
+      "reason": "No negotiated-protocol first-byte barrier is implemented."
+    },
+    "protocol_no_full_response_buffering": {
+      "state": "not_implemented",
+      "reason": "No negotiated-protocol no-full-buffer proof is implemented."
+    },
+    "client_abort": {
+      "state": "unsupported_by_host_model",
+      "reason": "The external authorization service cannot observe or directly control a Traefik client-abort lifecycle."
+    },
+    "upstream_abort": {
+      "state": "unsupported_by_host_model",
+      "reason": "The pre-upstream authorization service cannot observe or control an upstream response-abort lifecycle."
+    },
+    "response_body_decompression": {
+      "state": "unsupported_by_host_model",
+      "reason": "forwardAuth does not receive an upstream response body to decompress."
+    }
+  },
+  "evidence_stages": {
+    "source_contract": {
+      "status": "implemented_not_asserted",
+      "reason": "Service, mapper, metadata, Traefik configuration, and harness sources are present; no canonical source-contract result is attached."
+    },
+    "compile": {
+      "status": "implemented_not_asserted",
+      "reason": "A repository authorization-service build path exists; no current canonical compile result is attached."
+    },
+    "link": {
+      "status": "implemented_not_asserted",
+      "reason": "The service links Common Runtime and libmodsecurity; no current canonical link result is attached."
+    },
+    "config_load": {
+      "status": "implemented_not_asserted",
+      "reason": "Connector configuration and Traefik file-provider checks exist; no current canonical result is attached."
+    },
+    "start_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "Traefik and forwardAuth service request-free start wiring exists; no current canonical result is attached."
+    },
+    "minimal_runtime_smoke": {
+      "status": "implemented_not_asserted",
+      "reason": "A real Traefik forwardAuth 200/403 harness exists; no current canonical minimal-runtime result is attached."
+    },
+    "no_crs_baseline": {
+      "status": "supported_not_verified",
+      "reason": "Capability-selected pre-upstream cases can run through the host path, but no canonical baseline result is attached."
+    },
+    "crs_smoke": {
+      "status": "supported_not_verified",
+      "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence."
+    },
+    "extended_matrix": {
+      "status": "not_implemented",
+      "reason": "Extended-matrix verification is outside this canonical no-CRS declaration."
+    }
+  }
+}

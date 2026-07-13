@@ -11,6 +11,9 @@
 > Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
+<!-- retained-historical-generated-output -->
+> Current refresh status: `skipped_missing_input`. This report retains an earlier evidence-bearing snapshot because no newer verified inputs are available. Reason: required input missing or empty.
+
 # MRTS Native Summary
 
 **Language:** English | [Deutsch](mrts-native-summary.generated.de.md)

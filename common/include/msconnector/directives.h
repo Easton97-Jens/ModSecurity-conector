@@ -15,6 +15,10 @@ extern "C" {
 #define MSCONNECTOR_DIRECTIVE_PHASE4_CONTENT_TYPES_FILE "modsecurity_phase4_content_types_file"
 #define MSCONNECTOR_DIRECTIVE_PHASE4_LOG "modsecurity_phase4_log"
 #define MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT "modsecurity_phase4_body_limit"
+#define MSCONNECTOR_DIRECTIVE_REQUEST_BODY_LIMIT "modsecurity_request_body_limit"
+#define MSCONNECTOR_DIRECTIVE_RESPONSE_BODY_LIMIT "modsecurity_response_body_limit"
+#define MSCONNECTOR_DIRECTIVE_BODY_LIMIT_ACTION "modsecurity_body_limit_action"
+#define MSCONNECTOR_DIRECTIVE_LATE_INTERVENTION_TIMEOUT "modsecurity_late_intervention_timeout"
 #define MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG "modsecurity_use_error_log"
 
 #ifdef __cplusplus

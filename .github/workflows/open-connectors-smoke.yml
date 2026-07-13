@@ -1,14 +1,14 @@
-name: Open Connector Runtime Smokes
+name: Legacy Open Connector Diagnostics
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
   open-connectors-smoke:
+    name: Legacy Envoy, Traefik, and lighttpd diagnostics
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -73,17 +73,17 @@ jobs:
           set -eu
           TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
 
-      - name: Build remaining connector artifacts
+      - name: Native connector build diagnostics
         run: |
           set -eu
           TMPDIR=/tmp make build-remaining-connectors
 
-      - name: Request-free host start smokes
+      - name: Native request-free host start diagnostics
         run: |
           set -eu
           TMPDIR=/tmp make start-smoke-remaining-connectors
 
-      - name: Connector-owned minimal runtime smokes
+      - name: Native minimal runtime diagnostics
         run: |
           set -eu
           TMPDIR=/tmp make runtime-smoke-remaining-connectors
@@ -105,7 +105,7 @@ jobs:
           TMPDIR=/tmp make runtime-components-inventory | tee ci-artifacts/open-connectors/runtime-components-inventory.txt
           TMPDIR=/tmp make runtime-components-sources | tee ci-artifacts/open-connectors/runtime-components-sources.txt
 
-      - name: Simple runtime smokes
+      - name: Legacy compatibility runtime smokes
         run: |
           set -eu
           TMPDIR=/tmp make smoke-envoy
@@ -118,27 +118,38 @@ jobs:
           mkdir -p ci-artifacts/open-connectors/final-checks
           git status --short | tee ci-artifacts/open-connectors/final-checks/git-status-after-simple-smokes.txt
 
-      - name: Targeted ModSecurity smokes
+      - name: Legacy targeted ModSecurity compatibility probes
         run: |
           set -eu
           TMPDIR=/tmp make smoke-envoy-modsecurity
           TMPDIR=/tmp make smoke-traefik-modsecurity
           TMPDIR=/tmp make smoke-lighttpd-modsecurity
 
-      - name: Request Body smokes
+      - name: Legacy request-body compatibility probes
         run: |
           set -eu
-          TMPDIR=/tmp make smoke-open-connectors-request-body
+          mkdir -p ci-artifacts/open-connectors/legacy-scope
+          printf '%s\n' \
+            'NOT EXECUTED: the Envoy compatibility alias does not select a body case in the current native runner.' \
+            > ci-artifacts/open-connectors/legacy-scope/envoy-request-body.txt
+          TMPDIR=/tmp make smoke-traefik-request-body
+          TMPDIR=/tmp make smoke-lighttpd-request-body
 
-      - name: Minimal CRS smokes
+      - name: Legacy minimal CRS compatibility probes
         run: |
           set -eu
-          TMPDIR=/tmp make smoke-open-connectors-crs
+          mkdir -p ci-artifacts/open-connectors/legacy-scope
+          printf '%s\n' \
+            'NOT EXECUTED: the Envoy compatibility alias does not select CRS in the current native runner.' \
+            > ci-artifacts/open-connectors/legacy-scope/envoy-crs.txt
+          TMPDIR=/tmp make smoke-traefik-crs
+          TMPDIR=/tmp make smoke-lighttpd-crs
 
-      - name: Secondary CRS smokes
+      - name: Legacy secondary CRS compatibility probes
         run: |
           set -eu
-          TMPDIR=/tmp make smoke-open-connectors-crs-secondary
+          TMPDIR=/tmp make smoke-traefik-crs-secondary
+          TMPDIR=/tmp make smoke-lighttpd-crs-secondary
 
       - name: Workspace status after CRS smokes
         run: |
@@ -230,8 +241,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: open-connectors-final-checks
-          retention-days: 1
+          name: legacy-open-connectors-final-checks
+          retention-days: 10
           if-no-files-found: warn
           path: |
             ci-artifacts/open-connectors/final-checks/lint.log
@@ -258,53 +269,37 @@ jobs:
           set -eu
           artifact_root="ci-artifacts/open-connectors"
           mkdir -p "$artifact_root"
-          if [ -d /tmp/ModSecurity-conector-verified ]; then
-            rm -rf "$artifact_root/verified-root"
-            mkdir -p "$artifact_root/verified-root"
-            cp -a /tmp/ModSecurity-conector-verified/. "$artifact_root/verified-root/"
-          else
-            printf 'No /tmp/ModSecurity-conector-verified directory was produced.\n' > "$artifact_root/README.txt"
+          copied=0
+          copy_evidence_dir() {
+            source_path=$1
+            destination=$2
+            if [ ! -d "$source_path" ]; then
+              return 0
+            fi
+            mkdir -p "$(dirname "$destination")"
+            cp -a "$source_path" "$destination"
+            copied=$((copied + 1))
+          }
+          copy_evidence_dir "$BUILD_ROOT/envoy-connector/runtime-smoke" "$artifact_root/native/envoy-runtime-smoke"
+          copy_evidence_dir "$BUILD_ROOT/traefik-connector/runtime-smoke" "$artifact_root/native/traefik-runtime-smoke"
+          copy_evidence_dir "$BUILD_ROOT/lighttpd-connector/smoke" "$artifact_root/native/lighttpd-runtime-smoke"
+          copy_evidence_dir "$VERIFIED_RUN_ROOT/envoy-smoke" "$artifact_root/compatibility/envoy-smoke"
+          copy_evidence_dir "$VERIFIED_RUN_ROOT/traefik-smoke" "$artifact_root/compatibility/traefik-smoke"
+          copy_evidence_dir "$VERIFIED_RUN_ROOT/lighttpd-smoke" "$artifact_root/compatibility/lighttpd-smoke"
+          copy_evidence_dir "$LOG_ROOT" "$artifact_root/runtime-logs"
+          if [ "$copied" -eq 0 ]; then
+            printf 'No allowlisted runtime evidence directory was produced.\n' > "$artifact_root/README.txt"
           fi
-
-      - name: Cleanup artifacts before upload
-        if: always()
-        continue-on-error: true
-        uses: actions/github-script@v9
-        env:
-          ARTIFACT_NAME: open-connectors-smoke-evidence
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const targetName = process.env.ARTIFACT_NAME;
-            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
-              owner,
-              repo,
-              per_page: 100,
-            });
-
-            for (const artifact of artifacts) {
-              if (artifact.name !== targetName) {
-                continue;
-              }
-              try {
-                await github.rest.actions.deleteArtifact({
-                  owner,
-                  repo,
-                  artifact_id: artifact.id,
-                });
-                core.info(`Deleted previous artifact ${artifact.name} (${artifact.id}).`);
-              } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                core.warning(`Could not delete previous artifact ${artifact.name} (${artifact.id}): ${message}`);
-              }
-            }
+          printf '%s\n' \
+            'This legacy diagnostic bundle intentionally excludes component-cache, source, and build-cache trees.' \
+            > "$artifact_root/ARTIFACT-SCOPE.txt"
 
       - name: Upload open connector smoke evidence
         if: always()
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: open-connectors-smoke-evidence
-          retention-days: 1
+          name: legacy-open-connectors-smoke-evidence
+          retention-days: 10
           if-no-files-found: warn
           path: ci-artifacts/open-connectors/
 
@@ -364,9 +359,9 @@ jobs:
                   "n/a",
                   status("envoy", "runtime-result.json"),
                   status("envoy", "targeted-result.json"),
-                  status("envoy", "request-body-result.json"),
-                  status("envoy", "crs-result.json"),
-                  status("envoy", "crs-secondary-result.json"),
+                  "NOT EXECUTED (alias selects no body case)",
+                  "NOT EXECUTED (alias selects no CRS)",
+                  "NOT EXECUTED (legacy probe excluded)",
               ),
               (
                   "Traefik",
@@ -389,9 +384,12 @@ jobs:
           ]
 
           lines = [
-              "# Open Connector Runtime Smokes",
+              "# Legacy Open Connector Diagnostics",
               "",
-              "| Connector | Build | Simple | Targeted ModSecurity | Request Body | Minimal CRS | Secondary CRS |",
+              "These compatibility probes are not the canonical all-connector No-CRS baseline.",
+              "Native and compatibility paths remain separate, and legacy CRS/body probes do not promote native connector capabilities.",
+              "",
+              "| Connector | Build | Compatibility runtime | Compatibility ModSecurity | Legacy request body | Legacy minimal CRS | Legacy secondary CRS |",
               "| --- | --- | --- | --- | --- | --- | --- |",
           ]
           for row in rows:
@@ -400,7 +398,7 @@ jobs:
               [
                   "",
                   "Artifact path: `ci-artifacts/open-connectors/`.",
-                  "Artifact name: `open-connectors-smoke-evidence`.",
+                  "Artifact name: `legacy-open-connectors-smoke-evidence`.",
                   "",
                   "Forbidden claims remain forbidden:",
                   "",
@@ -417,7 +415,7 @@ jobs:
                   f"| quick-check | {final_check_status('quick-check')} | `final-checks/quick-check.log` |",
                   f"| git diff --check | {final_check_status('git-diff-check')} | `final-checks/git-diff-check.log` |",
                   "",
-                  "Final check diagnostics artifact: `open-connectors-final-checks`.",
+                  "Final check diagnostics artifact: `legacy-open-connectors-final-checks`.",
                   "",
               ]
           )

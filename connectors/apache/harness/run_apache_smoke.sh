@@ -35,6 +35,7 @@ SMOKE_CASES="${SMOKE_CASES:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
+MSCONNECTOR_SMOKE_STAGE="${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}"
 STATUS_FILE="$LOG_DIR/status.txt"
 IFMODULE_END="</IfModule>"
 CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-}"
@@ -46,9 +47,12 @@ CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-}"
 CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-}"
 MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
+MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
+FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
+SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"
 
 load_connector_adapter_metadata() {
-    eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell apache --prefix CONNECTOR_ADAPTER)"
+    eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell apache --prefix CONNECTOR_ADAPTER)"
     CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-$CONNECTOR_ADAPTER_SOURCE}"
     CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-$CONNECTOR_ADAPTER_SOURCE_REPO}"
     CONNECTOR_ORIGIN_SOURCE_URL="${CONNECTOR_ORIGIN_SOURCE_URL:-$CONNECTOR_ADAPTER_SOURCE_URL}"
@@ -138,6 +142,49 @@ list_case_files() {
     "$PYTHON_BIN" "$CASE_CLI" list-cases $args
 }
 
+append_smoke_case() {
+    fixture=$1
+    case " $SMOKE_CASES " in
+        *" $fixture "*|*" $fixture.yaml "*) return 0 ;;
+    esac
+    SMOKE_CASES="${SMOKE_CASES}${SMOKE_CASES:+ }$fixture"
+}
+
+append_selected_phase4_fixtures() {
+    # The canonical catalog names the late-intervention outcomes while the
+    # Apache harness owns the real post-commit host fixtures.  Add only those
+    # fixtures selected by the current plan; never manufacture a response-body
+    # result from a generic request-phase case.
+    case "${NO_CRS_BASELINE:-}" in
+        1|true|TRUE|yes|YES|on|ON) ;;
+        *) return 0 ;;
+    esac
+    [ "$RUN_ONE_CASE" != "1" ] || return 0
+    [ -n "${NO_CRS_SELECTED_CASE_IDS:-}" ] || return 0
+
+    set -f
+    for case_id in $NO_CRS_SELECTED_CASE_IDS; do
+        case "$case_id" in
+            phase4_deny_after_commit_log_only)
+                append_smoke_case apache_phase4_deny_after_commit_log_only
+                ;;
+            phase4_deny_after_commit_abort)
+                append_smoke_case apache_phase4_deny_after_commit_abort
+                ;;
+            *[!A-Za-z0-9_]*|"")
+                set +f
+                blocked "unsafe canonical case id: $case_id"
+                ;;
+            *)
+                # Other canonical IDs have catalog-owned runner fixtures or
+                # remain explicitly unexecuted until a real Apache driver
+                # exists for their contract.
+                ;;
+        esac
+    done
+    set +f
+}
+
 write_case_result() {
     case_path=$1
     case_status=$2
@@ -190,6 +237,7 @@ run_all_cases() {
     : > "$summary_file"
     : > "$results_jsonl"
 
+    append_selected_phase4_fixtures
     cases=$(list_case_files) || exit 1
     if [ -z "$cases" ]; then
         echo "apache_smoke: fail no shared smoke cases found" >&2
@@ -305,6 +353,13 @@ find_curl() {
 }
 
 apache_modules_dir() {
+    # APXS records its original staging prefix.  A managed Apache cache is
+    # atomically published after the build, so use the final install prefix
+    # first rather than trusting that historical path in apxs.
+    if [ -d "$HTTPD_PREFIX/modules" ]; then
+        printf '%s\n' "$HTTPD_PREFIX/modules"
+        return 0
+    fi
     if [ -n "$APXS_BIN" ] && [ -x "$APXS_BIN" ]; then
         dir=$("$APXS_BIN" -q LIBEXECDIR 2>/dev/null || true)
         if [ -n "$dir" ]; then
@@ -368,6 +423,10 @@ escape_sed() {
 }
 
 render_config() {
+    case "${APACHE_PHASE4_MODE:-}" in
+        minimal|safe|strict) ;;
+        *) fail "unsupported resolved APACHE_PHASE4_MODE=${APACHE_PHASE4_MODE:-}" ;;
+    esac
     sed \
         -e "s|@@RUNTIME_ROOT@@|$(escape_sed "$RUNTIME_ROOT")|g" \
         -e "s|@@LOG_DIR@@|$(escape_sed "$LOG_DIR")|g" \
@@ -378,10 +437,16 @@ render_config() {
         -e "s|@@APACHE_BACKEND_PROXY_FILE@@|$(escape_sed "$APACHE_BACKEND_PROXY_FILE")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@APACHE_PHASE4_LOG@@|$(escape_sed "$APACHE_PHASE4_LOG_FILE")|g" \
+        -e "s|@@APACHE_PHASE4_MODE@@|$(escape_sed "$APACHE_PHASE4_MODE")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
 cleanup() {
+    if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
+        [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ] && : > "$SYNCHRONIZED_RELEASE_FILE"
+        kill "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
+        wait "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
+    fi
     if [ -n "${HTTPD_PID:-}" ] && kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
         kill "$HTTPD_PID" >/dev/null 2>&1 || true
         wait "$HTTPD_PID" >/dev/null 2>&1 || true
@@ -458,6 +523,96 @@ select_free_port() {
     return 1
 }
 
+start_synchronized_upstream() {
+    [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] || return 0
+    [ -f "$SYNCHRONIZED_UPSTREAM" ] || blocked "missing synchronized upstream helper: $SYNCHRONIZED_UPSTREAM"
+    SYNCHRONIZED_DIR="$RUNTIME_ROOT/first-byte"
+    SYNCHRONIZED_READY_FILE="$SYNCHRONIZED_DIR/upstream-ready.json"
+    SYNCHRONIZED_PAUSED_FILE="$SYNCHRONIZED_DIR/upstream-paused.json"
+    SYNCHRONIZED_RELEASE_FILE="$SYNCHRONIZED_DIR/upstream-release"
+    SYNCHRONIZED_SERVER_EVIDENCE_FILE="$SYNCHRONIZED_DIR/upstream-server.json"
+    rm -rf "$SYNCHRONIZED_DIR"
+    mkdir -p "$SYNCHRONIZED_DIR"
+    "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
+        --ready-file "$SYNCHRONIZED_READY_FILE" \
+        --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
+        --release-file "$SYNCHRONIZED_RELEASE_FILE" \
+        --server-evidence-file "$SYNCHRONIZED_SERVER_EVIDENCE_FILE" \
+        --timeout 30 >"$LOG_DIR/synchronized-upstream.stdout.log" \
+        2>"$LOG_DIR/synchronized-upstream.stderr.log" &
+    SYNCHRONIZED_UPSTREAM_PID=$!
+    i=0
+    while [ "$i" -lt 30 ]; do
+        if [ -f "$SYNCHRONIZED_READY_FILE" ]; then
+            break
+        fi
+        if ! kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
+            blocked "synchronized upstream exited before publishing its address"
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    [ -f "$SYNCHRONIZED_READY_FILE" ] || blocked "synchronized upstream did not publish its address"
+    RESPONSE_HEADER_BACKEND_PORT=$("$PYTHON_BIN" - "$SYNCHRONIZED_READY_FILE" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+port = payload.get("upstream_port")
+if not isinstance(port, int) or port < 1 or port > 65535:
+    raise SystemExit(1)
+print(port)
+PY
+    ) || blocked "synchronized upstream ready record has no valid port"
+}
+
+send_synchronized_first_byte_request() {
+    [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] || return 1
+    [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ] || fail "FULL_LIFECYCLE_EVIDENCE_OUTPUT is required for synchronized lifecycle mode"
+    request_url_path=$(quote_request_path "$REQUEST_PATH")
+    : > "$RESPONSE_BODY"
+    "$CURL_BIN" -sS --no-buffer -X GET -o "$RESPONSE_BODY" -w "%{http_code}" \
+        "http://127.0.0.1:$PORT$request_url_path" >"$LOG_DIR/first-byte-status.txt" \
+        2>"$LOG_DIR/first-byte-client.err" &
+    FIRST_BYTE_CLIENT_PID=$!
+    observed_first_byte=0
+    i=0
+    while [ "$i" -lt 300 ]; do
+        if [ -f "$SYNCHRONIZED_PAUSED_FILE" ] && [ -s "$RESPONSE_BODY" ]; then
+            observed_first_byte=1
+            break
+        fi
+        if ! kill -0 "$FIRST_BYTE_CLIENT_PID" >/dev/null 2>&1; then
+            break
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+    : > "$SYNCHRONIZED_RELEASE_FILE"
+    set +e
+    wait "$FIRST_BYTE_CLIENT_PID"
+    client_rc=$?
+    set -e
+    [ "$observed_first_byte" -eq 1 ] || fail "client did not receive a first response byte while upstream was paused"
+    [ "$client_rc" -eq 0 ] || fail "synchronized client failed after upstream release rc=$client_rc"
+    http_status=$(cat "$LOG_DIR/first-byte-status.txt" 2>/dev/null || true)
+    [ "$http_status" = "200" ] || fail "synchronized safe response status was not 200: $http_status"
+    [ -s "$APACHE_PHASE4_LOG_FILE" ] || fail "Phase-4 host log is missing after synchronized response"
+    FIRST_BYTE_HOST_METADATA="$SYNCHRONIZED_DIR/host-metadata.json"
+    "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/lifecycle/write-first-byte-host-metadata.py" \
+        --phase4-log "$APACHE_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" || \
+        fail "could not derive bounded host metadata from the Phase-4 event"
+    "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
+        --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
+        --client-first-byte-file "$RESPONSE_BODY" \
+        --host-metadata-json "$FIRST_BYTE_HOST_METADATA" \
+        --evidence-origin real_host \
+        --output "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" || \
+        fail "could not write synchronized first-byte evidence"
+    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+    printf '%s\n' "http_status" > "$LOG_DIR/observed-transport-result.txt"
+    return 0
+}
+
 stop_stale_runtime_pid() {
     pid_file=$1
     [ -f "$pid_file" ] || return 0
@@ -523,8 +678,20 @@ start_server() {
             fail "Apache configtest failed; see $LOG_DIR/configtest.log"
         fi
 
+        if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
+            return 0
+        fi
+
         "$APACHE_HTTPD_BIN" -X -f "$CONFIG_FILE" > "$LOG_DIR/httpd.log" 2>&1 &
         HTTPD_PID=$!
+
+        if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
+            sleep 1
+            if kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
+                return 0
+            fi
+            fail "Apache exited during request-free start smoke; see $LOG_DIR/httpd.log"
+        fi
 
         ready=0
         i=0
@@ -582,17 +749,23 @@ PY
 }
 
 response_header_backend_needed() {
-    grep -Eq "RESPONSE_HEADERS:([Cc]ontent-[Tt]ype|[Ll]ocation|[Ss]et-[Cc]ookie)" "$RULES_FILE"
+    [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] && return 0
+    grep -Eqi '(^|[^[:alnum:]_])RESPONSE_HEADERS([[:space:]:]|$)' "$RULES_FILE"
 }
 
 start_response_header_backend() {
     response_header_backend_needed || return 0
+    if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then
+        start_synchronized_upstream
+        return 0
+    fi
     RESPONSE_HEADER_BACKEND_PORT=$(select_free_port $((PORT + 1000)) "$PORT_SEARCH_LIMIT") || \
         blocked "no free response-header backend port found"
-    "$PYTHON_BIN" "$REPO_ROOT/ci/response-header-test-backend.py" \
+    "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/response-header-test-backend.py" \
         --port "$RESPONSE_HEADER_BACKEND_PORT" \
         --body-file "$DOCROOT/index.html" \
         --safe-root "$RUNTIME_ROOT" \
+        --fixture-file "$RESPONSE_HEADER_FIXTURE_FILE" \
         >"$LOG_DIR/response-header-backend.stdout.log" \
         2>"$LOG_DIR/response-header-backend.stderr.log" &
     RESPONSE_HEADER_BACKEND_PID=$!
@@ -621,6 +794,26 @@ require_crs_preamble_if_needed() {
     fi
 }
 
+resolve_apache_phase4_mode() {
+    inherited_mode=${APACHE_PHASE4_MODE:-}
+    resolved_mode=$("$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" apache-phase4-mode \
+        --case "$TEST_CASE" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --default safe \
+        2>"$LOG_DIR/apache-phase4-mode.log") || \
+        not_executable "failed to resolve Apache Phase-4 mode from case metadata; see $LOG_DIR/apache-phase4-mode.log"
+    printf '%s\n' "$resolved_mode" >> "$LOG_DIR/apache-phase4-mode.log"
+    case "$resolved_mode" in
+        minimal|safe|strict) ;;
+        *) not_executable "case metadata returned unsupported Apache Phase-4 mode: $resolved_mode" ;;
+    esac
+    if [ -n "$inherited_mode" ] && [ "$inherited_mode" != "$resolved_mode" ]; then
+        fail "APACHE_PHASE4_MODE=$inherited_mode conflicts with case-resolved mode=$resolved_mode"
+    fi
+    APACHE_PHASE4_MODE=$resolved_mode
+    export APACHE_PHASE4_MODE
+}
+
 require_crs_preamble_if_needed
 
 if [ "$RUN_ONE_CASE" != "1" ]; then
@@ -646,6 +839,7 @@ echo "apache_smoke: APACHE_MODULE=$APACHE_MODULE"
 echo "apache_smoke: TEST_CASE=$TEST_CASE"
 echo "apache_smoke: CASE_SCOPE=$CASE_SCOPE"
 echo "apache_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+echo "apache_smoke: MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE"
 if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
     echo "apache_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
 fi
@@ -675,12 +869,23 @@ rm -f "$LOG_DIR/audit/"*
 
 APACHE_HTTPD_BIN=$(find_apache)
 APXS_BIN=$(find_apxs)
-CURL_BIN=$(find_curl)
+case "$MSCONNECTOR_SMOKE_STAGE" in
+    config_load|start_smoke|minimal_runtime_smoke) ;;
+    *) fail "unsupported MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE" ;;
+esac
+
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+    CURL_BIN=$(find_curl)
+else
+    CURL_BIN=
+fi
 
 [ -n "$APACHE_HTTPD_BIN" ] || blocked "missing Apache httpd executable; set APACHE_HTTPD=/path/to/apache2-or-httpd"
 [ -x "$APACHE_HTTPD_BIN" ] || blocked "Apache executable is not executable: $APACHE_HTTPD_BIN"
-[ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
-[ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
+    [ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
+    [ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
+fi
 [ -f "$APACHE_MODULE" ] || blocked "missing Apache connector module: $APACHE_MODULE"
 
 if [ ! -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ]; then
@@ -704,6 +909,7 @@ REQUEST_BODY_FILE="$RUNTIME_ROOT/conf/request-body.bin"
 AUDIT_LOG_FILE="$LOG_DIR/audit.log"
 AUDIT_LOG_DIR="$LOG_DIR/audit"
 APACHE_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
+RESPONSE_HEADER_FIXTURE_FILE="$RUNTIME_ROOT/conf/response-header-fixture.json"
 
 if [ -f "$HTTPD_PREFIX/conf/mime.types" ]; then
     cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_FILE"
@@ -723,6 +929,14 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
+if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" response-header-fixture \
+    --case "$TEST_CASE" \
+    --framework-root "$FRAMEWORK_ROOT" \
+    --output "$RESPONSE_HEADER_FIXTURE_FILE" > "$LOG_DIR/response-header-fixture.log" 2>&1; then
+    not_executable "failed to materialize response-header backend fixture; see $LOG_DIR/response-header-fixture.log"
+fi
+resolve_apache_phase4_mode
+echo "apache_smoke: APACHE_PHASE4_MODE=$APACHE_PHASE4_MODE"
 start_response_header_backend
 write_backend_proxy_directives "$APACHE_BACKEND_PROXY_FILE"
 
@@ -744,6 +958,21 @@ export LD_LIBRARY_PATH
 
 trap cleanup EXIT INT TERM
 start_server
+
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
+    echo "apache_smoke: pass config_load (no process started, no request sent)"
+    exit 0
+fi
+if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
+    echo "apache_smoke: pass start_smoke (request-free host liveness verified)"
+    exit 0
+fi
+
+if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then
+    send_synchronized_first_byte_request
+    echo "apache_smoke: pass synchronized-first-byte"
+    exit 0
+fi
 
 set +e
 http_status=$(send_case_request)

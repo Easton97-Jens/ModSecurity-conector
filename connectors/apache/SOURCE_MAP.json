@@ -86,6 +86,18 @@
       "license": "Apache-2.0",
       "reason": "Migrated Apache connector utility header without semantic changes."
     },
+    "src/msc_apache_mapper.c": {
+      "base_path": "connectors/apache/src/msc_apache_mapper.c",
+      "commit": "64b105a6b10b3006303896e292cd69c31b10304f",
+      "license": "Apache-2.0",
+      "reason": "Repo-owned Apache-to-Common-SDK mapper implementation required by the productive APXS build."
+    },
+    "src/msc_apache_mapper.h": {
+      "base_path": "connectors/apache/src/msc_apache_mapper.h",
+      "commit": "64b105a6b10b3006303896e292cd69c31b10304f",
+      "license": "Apache-2.0",
+      "reason": "Repo-owned Apache-to-Common-SDK mapper declaration required by the productive APXS build."
+    },
     "t/conf/extra.conf.in": {
       "base_path": "t/conf/extra.conf.in",
       "license": "Apache-2.0",
@@ -159,6 +171,10 @@
     }
   },
   "support_files": {
+    "connectors/apache/capabilities.json": {
+      "license": "Apache-2.0",
+      "reason": "Repo-owned canonical host-model and capability-state declaration; validated separately from imported productive source."
+    },
     "connectors/apache/metadata.c": {
       "license": "Apache-2.0",
       "reason": "Repo-owned adapter metadata helper; intentionally not materialized into the productive Apache connector build source."

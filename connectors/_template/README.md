@@ -1,5 +1,7 @@
 # Connector Template
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status:
 
 - template: yes
@@ -47,11 +49,6 @@ connectors/<name>/
 |-- ORIGIN.md
 |-- SOURCE_MAP.json
 |-- metadata.c or metadata.*
-|-- docs/
-|   |-- architecture.md
-|   |-- build.md
-|   |-- coverage-decision-matrix.md
-|   `-- validation.md
 |-- harness/
 |   `-- README.md
 `-- src/
@@ -168,8 +165,9 @@ No-CRS expectation to satisfy a With-CRS result.
 
 ## Coverage decision matrix
 
-Each concrete connector must maintain `docs/coverage-decision-matrix.md`.
-The matrix must separate:
+Each concrete connector must complete the canonical
+[new-connector contract](../../docs/connectors/README.md#new-connector-evidence-contract)
+and its flat guide under `docs/connectors/`. Its review matrix must separate:
 
 - framework case availability
 - No-CRS runtime result

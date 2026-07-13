@@ -1,19 +1,20 @@
 Generated file - do not edit manually.
 
+
 # ModSecurity Connector Test Coverage Overview
 
 **Language:** English | [Deutsch](test-coverage-overview.de.md)
 
 ## Summary
-- Total cases: **156**
+- Total cases: **160**
 - Verified/pass count (`runtime_verified=true`): **0**
 - Current XFAIL count: **0**
 - Former XFAIL cases tracked: **95**
-- Pending runtime verification count: **11**
+- Pending runtime verification count: **15**
 - Connector-gap count: **26**
 - Runtime-difference count: **13**
 - Future/experimental count: **17**
-- RESPONSE_BODY cases: **25** (still **not verified/promoted**)
+- RESPONSE_BODY cases: **29** (still **not verified/promoted**)
 - Mapped-only import inventory entries: **10**
 
 ## Coverage By Variable / Collection
@@ -54,18 +55,19 @@ Generated file - do not edit manually.
 | active | 8 |
 | connector-gap | 15 |
 | imported | 133 |
+| pending | 4 |
 
 ## Coverage By Scope
 | Scope | Count |
 |---|---:|
 | common | 149 |
-| apache | 0 |
-| nginx | 7 |
+| apache | 2 |
+| nginx | 9 |
 | unknown | 0 |
 
 ## Runtime Matrix Status
 - Default runtime-executable YAML cases: **61**
-- Force-all runtime-executable YAML cases: **156**
+- Force-all runtime-executable YAML cases: **160**
 - Apache attempted YAML cases from default summary: **54**
 - NGINX attempted YAML cases from default summary: **60**
 - HAProxy attempted YAML cases from default summary: **54**
@@ -79,7 +81,7 @@ Generated file - do not edit manually.
 |---|---:|---:|---:|
 | PASS | 10 | 10 | 10 |
 | FAIL | 44 | 50 | 44 |
-| NOT_EXECUTABLE | 102 | 96 | 102 |
+| NOT_EXECUTABLE | 106 | 100 | 106 |
 | MAPPED_ONLY | 10 | 10 | 10 |
 - Details: `reports/testing/generated/runtime/runtime-matrix.generated.md`
 - HAProxy per-case results: `reports/testing/generated/runtime/haproxy-runtime-results.generated.md`
@@ -105,7 +107,7 @@ These native MRTS reports are separate from connector full-matrix evidence.
 | sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | POSIX shell syntax check passed for connector integration shell scripts |
 | bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | Bash syntax check passed for connector integration shell scripts |
 | git diff --check | PASS | No whitespace errors reported |
-| diff -u /tmp/pre-connector.diff /tmp/post-connector.diff | PASS | Connector source diff snapshot is unchanged; no new connector source changes were introduced |
+| diff -u <temporary-work-root>/pre-connector.diff <temporary-work-root>/post-connector.diff | PASS | Connector source diff snapshot is unchanged; no new connector source changes were introduced |
 | git diff --exit-code -- connectors/apache/src connectors/nginx/src | BLOCKED | Non-zero because connectors/apache/src/mod_security3.c had a pre-existing unrelated local change before this fix; the pre/post connector diff snapshot is unchanged |
 | git ls-files .venv | PASS | No tracked .venv files |
 
@@ -119,7 +121,7 @@ These native MRTS reports are separate from connector full-matrix evidence.
 ## Runtime Smoke Status
 - Snapshot: **2026-06-16** (2026-06-16 21:13:26 CEST)
 - Git: branch `master`, commit `614c804`
-- BUILD_ROOT: `/var/tmp/ModSecurity-conector-verified/build`
+- BUILD_ROOT: `<verified-run-root>/build`
 - Snapshot file: `reports/testing/runtime-validation-snapshot.json`
 
 ### Default Runtime Smoke Status
@@ -133,8 +135,8 @@ These native MRTS reports are separate from connector full-matrix evidence.
 ### Force-All Runtime Smoke Status
 | Connector | Command | Status | Exit | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Evidence |
 |---|---|---|---|---|---|---|---|---|---|
-| apache | FORCE_ALL_CASES=1 make smoke-apache | FAIL | 2 | 133 | 108 | 19 | 0 | 6 | /root/.local/state/ModSecurity-conector-build/results/force-all/apache-summary.json |
-| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 2 | 140 | 74 | 60 | 0 | 6 | /root/.local/state/ModSecurity-conector-build/results/force-all/nginx-summary.json |
+| apache | FORCE_ALL_CASES=1 make smoke-apache | FAIL | 2 | 133 | 108 | 19 | 0 | 6 | <local-state-root>/results/force-all/apache-summary.json |
+| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 2 | 140 | 74 | 60 | 0 | 6 | <local-state-root>/results/force-all/nginx-summary.json |
 | haproxy | FORCE_ALL_CASES=1 make smoke-haproxy | FAIL | 1 | 133 | 104 | 23 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
 
 ## Connector Runtime Availability
@@ -355,4 +357,4 @@ GitHub/Codex checks are intentionally lightweight.
 Pending, future, and gap topics need local runtime validation before promotion.
 `make smoke-all` is authoritative only if it was actually executed successfully.
 No PASS numbers are inferred from this file when `make smoke-all` was not run successfully.
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY remains non-promoted; historic bounded strict-abort samples are noncanonical and not current runtime evidence.

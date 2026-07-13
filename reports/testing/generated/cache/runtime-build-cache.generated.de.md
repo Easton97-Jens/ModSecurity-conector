@@ -20,7 +20,7 @@
 - Geteilter ModSecurity-Status: `reused`
 - Geteilte ModSecurity-Quelle ref/SHA: `v3/master` / `2fd49292d751fc383b8faf7da6a8d480904774d0`
 - Geteilter ModSecurity-Build ID: `0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72`
-- Gemeinsames ModSecurity-Präfix: `/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72`
+- Gemeinsames ModSecurity-Präfix: `<verified-run-root>/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72`
 - Zusammenfassung der Build-Wiederverwendung: neu erstellt `0`, wiederverwendet `3`, blockiert `0`, gespeicherte Neuaufbauschätzung `3`
 
 | Connector | Status | Connector build ID | Uses ModSecurity build ID | Blocker |
@@ -34,10 +34,10 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` | `469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `<verified-run-root>/component-cache/runtime-build-cache.json` | `469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Datenverfügbarkeit / fehlende Informationen
 
 | Input | Status | Notes |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` | present | input file available |
+| `<verified-run-root>/component-cache/runtime-build-cache.json` | present | input file available |

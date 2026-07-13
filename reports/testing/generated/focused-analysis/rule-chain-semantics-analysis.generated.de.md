@@ -11,6 +11,9 @@
 > Framework-SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Eingabestatus: `complete`
 
+<!-- retained-historical-generated-output -->
+> Aktueller Refresh-Status: `skipped_stale_input`. Dieser Report bewahrt einen früheren evidenztragenden Snapshot, weil keine neuen verifizierten Eingaben vorliegen. Grund: required generated input is stale.
+
 # Analyse der Regelkettensemantik
 
 **Sprache:** [English](rule-chain-semantics-analysis.generated.md) | Deutsch

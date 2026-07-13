@@ -1,0 +1,1974 @@
+{
+  "capability_names": [
+    "connection_metadata",
+    "transport_metadata",
+    "request_headers",
+    "request_body_buffered",
+    "request_body_streaming",
+    "request_body_incremental_ingest",
+    "response_headers",
+    "response_body_buffered",
+    "response_body_streaming",
+    "response_body_incremental_ingest",
+    "phase1",
+    "phase2",
+    "phase3",
+    "phase4",
+    "phase4_rule_evaluation",
+    "phase4_end_of_stream_evaluation",
+    "phase4_pre_commit_deny",
+    "late_intervention",
+    "late_intervention_log_only",
+    "late_intervention_abort",
+    "late_intervention_status_metadata",
+    "content_type_scope",
+    "header_limits",
+    "request_body_limits",
+    "response_body_limits",
+    "no_full_response_buffering",
+    "first_byte_before_response_end",
+    "http1_content_length",
+    "http1_chunked",
+    "keep_alive",
+    "parallel_requests",
+    "http2",
+    "http2_downstream",
+    "http2_upstream",
+    "http2_tls_alpn",
+    "http2_cleartext_h2c",
+    "http2_multiplexing",
+    "http2_stream_reset",
+    "http3_downstream",
+    "http3_upstream",
+    "http3_quic",
+    "http3_alt_svc",
+    "http3_multiplexing",
+    "http3_stream_reset",
+    "protocol_transaction_isolation",
+    "protocol_first_byte_before_response_end",
+    "protocol_no_full_response_buffering",
+    "client_abort",
+    "upstream_abort",
+    "response_body_decompression",
+    "deny",
+    "redirect",
+    "drop",
+    "abort_connection",
+    "log_only",
+    "transaction_id",
+    "event_jsonl",
+    "config_inline_rules",
+    "config_rules_file",
+    "config_remote_rules"
+  ],
+  "connectors": {
+    "apache": {
+      "capabilities": {
+        "abort_connection": {
+          "reason": "Strict Phase-4 policy has an explicit post-commit connection-abort path; transport-level canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "client_abort": {
+          "reason": "No canonical Apache client-abort lifecycle case is implemented.",
+          "state": "not_implemented"
+        },
+        "config_inline_rules": {
+          "reason": "The modsecurity_rules directive loads inline rules through libmodsecurity; canonical config-load evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "config_remote_rules": {
+          "reason": "The modsecurity_rules_remote directive is wired to libmodsecurity; no remote-network capability is asserted by the no-CRS baseline.",
+          "state": "implemented_not_asserted"
+        },
+        "config_rules_file": {
+          "reason": "The modsecurity_rules_file directive loads local rules files; canonical positive and negative config evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "connection_metadata": {
+          "reason": "The native request hooks pass Apache client and server addresses and ports to libmodsecurity; no current canonical capability result is attached.",
+          "state": "implemented_not_asserted"
+        },
+        "content_type_scope": {
+          "reason": "The native Phase-4 path checks configured response Content-Type scope before it appends body bytes; evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "deny": {
+          "reason": "Disruptive ModSecurity statuses are returned through the Apache hook/filter path; canonical deny evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "drop": {
+          "reason": "The Apache intervention mapper does not preserve a distinct ModSecurity drop action.",
+          "state": "not_implemented"
+        },
+        "event_jsonl": {
+          "reason": "A bounded common JSONL event serializer is used for Phase-4 interventions, but request-phase event coverage must still be exercised.",
+          "state": "implemented_not_asserted"
+        },
+        "first_byte_before_response_end": {
+          "reason": "Pass-through source wiring exists, but the canonical synchronized first-byte proof has not run.",
+          "state": "implemented_not_asserted"
+        },
+        "header_limits": {
+          "reason": "No canonical Apache host-header-limit enforcement case is implemented in the full-lifecycle catalog.",
+          "state": "not_implemented"
+        },
+        "http1_chunked": {
+          "reason": "Apache filter wiring can receive chunked output, but no canonical transport result is attached.",
+          "state": "configured_not_exercised"
+        },
+        "http1_content_length": {
+          "reason": "Apache can serve HTTP/1.1 responses; this transport case has not been exercised by the canonical catalog.",
+          "state": "configured_not_exercised"
+        },
+        "http2": {
+          "reason": "No Apache HTTP/2 full-lifecycle run is attached.",
+          "state": "configured_not_exercised"
+        },
+        "http2_cleartext_h2c": {
+          "reason": "The pinned Apache harness has no h2c prior-knowledge listener.",
+          "state": "not_implemented"
+        },
+        "http2_downstream": {
+          "reason": "The pinned Apache native-host profile does not yet build and exercise mod_http2 on the connector path.",
+          "state": "not_implemented"
+        },
+        "http2_multiplexing": {
+          "reason": "No native Apache HTTP/2 multiplexing isolation evidence path is implemented.",
+          "state": "not_implemented"
+        },
+        "http2_stream_reset": {
+          "reason": "The Apache strict path only models a connection abort; no request-local HTTP/2 stream-reset API is implemented.",
+          "state": "not_implemented"
+        },
+        "http2_tls_alpn": {
+          "reason": "The pinned Apache harness has no TLS/ALPN h2 listener.",
+          "state": "not_implemented"
+        },
+        "http2_upstream": {
+          "reason": "No Apache native connector upstream HTTP/2 profile is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_alt_svc": {
+          "reason": "No native Apache HTTP/3 Alt-Svc profile is configured.",
+          "state": "not_implemented"
+        },
+        "http3_downstream": {
+          "reason": "The pinned Apache native host has no audited HTTP/3 module, QUIC listener, or H3 stream path.",
+          "state": "not_implemented"
+        },
+        "http3_multiplexing": {
+          "reason": "No native Apache HTTP/3 stream-isolation evidence path is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_quic": {
+          "reason": "The pinned Apache native host has no QUIC runtime path.",
+          "state": "not_implemented"
+        },
+        "http3_stream_reset": {
+          "reason": "No Apache H3 stream-reset API has been audited or wired.",
+          "state": "not_implemented"
+        },
+        "http3_upstream": {
+          "reason": "No Apache native connector upstream HTTP/3 profile is implemented.",
+          "state": "not_implemented"
+        },
+        "keep_alive": {
+          "reason": "No canonical sequential-request keep-alive run is attached.",
+          "state": "configured_not_exercised"
+        },
+        "late_intervention": {
+          "reason": "Phase-4 minimal, safe, and strict policy branches distinguish log-only, status denial, and post-commit connection abort; behavioral evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "late_intervention_abort": {
+          "reason": "The configured strict late-intervention branch has a controlled connection-abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true.",
+          "state": "implemented_not_asserted"
+        },
+        "late_intervention_log_only": {
+          "reason": "The configured safe late-intervention branch is intended to preserve the committed response and record a log-only result, but no canonical event proves requested deny, actual log_only, and an unchanged visible status.",
+          "state": "implemented_not_asserted"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "Phase-4 metadata wiring exists, but no canonical event yet proves separate requested WAF status, original host status, visible client status, requested action, and actual action.",
+          "state": "implemented_not_asserted"
+        },
+        "log_only": {
+          "reason": "Non-disruptive rules remain allowed and Phase-4 policy can record log-only outcomes; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "no_full_response_buffering": {
+          "reason": "The output filter no longer keeps a connector-owned brigade across calls, but a synchronized host runtime proof is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "parallel_requests": {
+          "reason": "The full-lifecycle parallel-request evidence path is not implemented.",
+          "state": "not_implemented"
+        },
+        "phase1": {
+          "reason": "The early request hook processes URI and request headers before request handling; the canonical Phase-1 baseline has not been run here.",
+          "state": "implemented_not_asserted"
+        },
+        "phase2": {
+          "reason": "The late request hook and input filter complete request-body processing; canonical Phase-2 evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase3": {
+          "reason": "The output filter invokes response-header processing before body processing; canonical Phase-3 evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4": {
+          "reason": "The output filter incrementally ingests current body buckets and invokes response-body processing once at EOS; canonical Phase-4 evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4_end_of_stream_evaluation": {
+          "reason": "The output filter invokes response-body processing once after its EOS bucket; canonical Phase-4 evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "The native response-body decision is finalized at EOS after the response-header path. The real host run reaches the safe late log_only path after commitment, so this connector has no deterministic pre-commit Phase-4 decision point and must not claim a visible Phase-4 HTTP status rewrite.",
+          "state": "not_implemented"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "The native output-filter path is wired for incremental ingestion and EOS response-body processing, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated.",
+          "state": "implemented_not_asserted"
+        },
+        "protocol_first_byte_before_response_end": {
+          "reason": "The existing first-byte proof is HTTP/1.1-only and is not protocol-profile evidence.",
+          "state": "not_implemented"
+        },
+        "protocol_no_full_response_buffering": {
+          "reason": "The existing no-buffer reasoning is not yet proven separately for a negotiated modern protocol.",
+          "state": "not_implemented"
+        },
+        "protocol_transaction_isolation": {
+          "reason": "Protocol-specific multiplexed transaction-isolation evidence is not implemented.",
+          "state": "not_implemented"
+        },
+        "redirect": {
+          "reason": "The intervention mapper sets Apache Location output and returns supported redirect statuses; canonical redirect evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "request_body_buffered": {
+          "reason": "The Apache input filter borrows each current request bucket and completes request-body processing at EOS; canonical body evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "request_body_incremental_ingest": {
+          "reason": "The input filter borrows and appends each Apache bucket and finalizes Phase 2 only at EOS; a real-host capability run is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "request_body_limits": {
+          "reason": "No connector-local configurable request-body limit action is implemented for the Apache streaming filter.",
+          "state": "not_implemented"
+        },
+        "request_body_streaming": {
+          "reason": "The connector appends body chunks but completes the ModSecurity body phase as a buffered phase rather than exposing streaming phase semantics.",
+          "state": "not_implemented"
+        },
+        "request_headers": {
+          "reason": "The native module maps Apache request headers and calls the ModSecurity request-header phase; canonical baseline evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_buffered": {
+          "reason": "The output filter appends bounded current response bytes and invokes response-body processing at EOS without retaining a cross-call brigade; canonical Phase-4 evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_decompression": {
+          "reason": "The connector has no verified response-body decompression contract.",
+          "state": "not_implemented"
+        },
+        "response_body_incremental_ingest": {
+          "reason": "The output filter inspects only the current bucket and passes each brigade onward without retaining a response body; runtime evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_limits": {
+          "reason": "The Phase-4 body limit bounds bytes passed to libmodsecurity, but no canonical limit evidence is attached.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_streaming": {
+          "reason": "The connector does not claim per-chunk Phase-4 rule evaluation: libmodsecurity may evaluate when the EOS finish call occurs.",
+          "state": "not_implemented"
+        },
+        "response_headers": {
+          "reason": "The Apache output filter maps response headers and invokes the response-header phase; canonical Phase-3 evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "transaction_id": {
+          "reason": "Static and Apache-expression transaction IDs are wired into transaction creation; canonical event correlation evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "transport_metadata": {
+          "reason": "The native filters retain status and commit metadata, but canonical transport evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "upstream_abort": {
+          "reason": "No canonical Apache upstream-abort lifecycle case is implemented.",
+          "state": "not_implemented"
+        }
+      },
+      "connector": "apache",
+      "evidence_stages": {
+        "compile": {
+          "reason": "An APXS module build path exists; no current canonical compile result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "config_load": {
+          "reason": "The harness has a real httpd configuration-test path; no current canonical result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "crs_smoke": {
+          "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence.",
+          "status": "supported_not_verified"
+        },
+        "extended_matrix": {
+          "reason": "Extended-matrix verification is outside this canonical no-CRS declaration.",
+          "status": "not_implemented"
+        },
+        "link": {
+          "reason": "The APXS path links the module with libmodsecurity and common sources; no current canonical link result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "minimal_runtime_smoke": {
+          "reason": "A real-host request harness exists; no current canonical minimal-runtime result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "no_crs_baseline": {
+          "reason": "The native host path can consume the shared no-CRS rules and cases, but no canonical baseline result is attached.",
+          "status": "supported_not_verified"
+        },
+        "source_contract": {
+          "reason": "Native source, metadata, configuration, and harness wiring are present; the canonical source-contract check has not yet produced run evidence.",
+          "status": "implemented_not_asserted"
+        },
+        "start_smoke": {
+          "reason": "The harness can start httpd without a request; no current canonical result is attached.",
+          "status": "implemented_not_asserted"
+        }
+      },
+      "host_model_constraints": [
+        "Apache filters borrow the current request/response buckets and pass them onward; libmodsecurity body-rule evaluation may still complete only at EOS, so this is incremental ingestion rather than per-chunk rule execution.",
+        "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
+        "A Phase-4 disruptive result can occur after response commitment and is handled by the configured late-intervention policy."
+      ],
+      "host_name": "apache",
+      "integration_mode": "native-httpd-module",
+      "metadata_source": "connectors/apache/metadata.c",
+      "source_contract": [
+        "connectors/apache/metadata.c",
+        "connectors/apache/src/mod_security3.c",
+        "connectors/apache/src/msc_filters.c",
+        "connectors/apache/src/msc_config.c",
+        "connectors/apache/harness/run_apache_smoke.sh"
+      ]
+    },
+    "envoy": {
+      "capabilities": {
+        "abort_connection": {
+          "reason": "The external authorization service cannot directly abort Envoy's downstream connection as a ModSecurity action.",
+          "state": "unsupported_by_host_model"
+        },
+        "client_abort": {
+          "reason": "The external authorization service cannot observe or directly control an Envoy downstream client-abort lifecycle.",
+          "state": "unsupported_by_host_model"
+        },
+        "config_inline_rules": {
+          "reason": "The repository HTTP authorization service configuration parser and Common Runtime support inline rules; canonical config evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "config_remote_rules": {
+          "reason": "Common Runtime exposes remote rule key and URL configuration, but the no-CRS baseline does not exercise external networking.",
+          "state": "implemented_not_asserted"
+        },
+        "config_rules_file": {
+          "reason": "The checked-in service path loads a local rules file through Common Runtime; canonical config evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "connection_metadata": {
+          "reason": "The HTTP authorization service maps its local Envoy peer socket rather than the original downstream connection metadata.",
+          "state": "not_implemented"
+        },
+        "content_type_scope": {
+          "reason": "The selected ext_authz path does not receive an upstream response Content-Type or response body to scope.",
+          "state": "unsupported_by_host_model"
+        },
+        "deny": {
+          "reason": "A disruptive Common Runtime decision is returned as a non-2xx ext_authz response; a fresh canonical deny result is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "drop": {
+          "reason": "The HTTP authorization contract returns an authorization response and cannot directly silent-drop the downstream connection.",
+          "state": "unsupported_by_host_model"
+        },
+        "event_jsonl": {
+          "reason": "Common Runtime writes bounded metadata-only disruptive-decision JSONL; canonical field and payload-absence evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "first_byte_before_response_end": {
+          "reason": "The request-only ext_authz service cannot observe an Envoy client first byte or upstream response end.",
+          "state": "unsupported_by_host_model"
+        },
+        "header_limits": {
+          "reason": "The ext_authz header allowlist is not a connector-local canonical header-limit enforcement contract.",
+          "state": "not_implemented"
+        },
+        "http1_chunked": {
+          "reason": "Envoy can proxy chunked HTTP/1.1 responses, but no canonical ext_authz transport case covers them.",
+          "state": "configured_not_exercised"
+        },
+        "http1_content_length": {
+          "reason": "Envoy can proxy HTTP/1.1 responses, but no canonical ext_authz transport case covers Content-Length handling.",
+          "state": "configured_not_exercised"
+        },
+        "http2": {
+          "reason": "Envoy HTTP/2 transport behavior is not exercised by a canonical ext_authz full-lifecycle case.",
+          "state": "configured_not_exercised"
+        },
+        "http2_cleartext_h2c": {
+          "reason": "No ext_proc h2c listener is configured.",
+          "state": "not_implemented"
+        },
+        "http2_downstream": {
+          "reason": "The selected native ext_proc harness has no TLS/ALPN HTTP/2 listener profile.",
+          "state": "not_implemented"
+        },
+        "http2_multiplexing": {
+          "reason": "No ext_proc HTTP/2 stream-isolation runner is implemented.",
+          "state": "not_implemented"
+        },
+        "http2_stream_reset": {
+          "reason": "Closing an ext_proc gRPC stream is not a client-visible HTTP/2 reset and no native reset hook is wired.",
+          "state": "not_implemented"
+        },
+        "http2_tls_alpn": {
+          "reason": "No pinned ext_proc TLS/ALPN listener is configured.",
+          "state": "not_implemented"
+        },
+        "http2_upstream": {
+          "reason": "No ext_proc upstream HTTP/2 evidence profile is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_alt_svc": {
+          "reason": "No Envoy H3 Alt-Svc profile is configured.",
+          "state": "not_implemented"
+        },
+        "http3_downstream": {
+          "reason": "The selected native ext_proc harness has no QUIC/HTTP/3 downstream listener.",
+          "state": "not_implemented"
+        },
+        "http3_multiplexing": {
+          "reason": "No Envoy H3 stream-isolation runner is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_quic": {
+          "reason": "No Envoy QUIC listener is configured in the pinned native harness.",
+          "state": "not_implemented"
+        },
+        "http3_stream_reset": {
+          "reason": "No client-visible QUIC stream-reset hook is implemented for ext_proc.",
+          "state": "not_implemented"
+        },
+        "http3_upstream": {
+          "reason": "No ext_proc upstream HTTP/3 evidence profile is implemented.",
+          "state": "not_implemented"
+        },
+        "keep_alive": {
+          "reason": "No canonical sequential-request keep-alive run is attached to the Envoy ext_authz path.",
+          "state": "configured_not_exercised"
+        },
+        "late_intervention": {
+          "reason": "The authorization decision completes before the upstream response starts, so there is no response-phase late intervention point.",
+          "state": "unsupported_by_host_model"
+        },
+        "late_intervention_abort": {
+          "reason": "The selected pre-upstream ext_authz host model has no upstream response-phase point from which the authorization service can perform a late connection abort.",
+          "state": "unsupported_by_host_model"
+        },
+        "late_intervention_log_only": {
+          "reason": "The selected pre-upstream ext_authz host model has no committed upstream response on which to apply a late log-only intervention.",
+          "state": "unsupported_by_host_model"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "The selected ext_authz integration does not observe an upstream response, so it cannot produce Phase-4 metadata that distinguishes original and visible upstream-response status or late actions.",
+          "state": "unsupported_by_host_model"
+        },
+        "log_only": {
+          "reason": "A non-disruptive rule leaves the authorization response successful; explicit canonical log-only evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "no_full_response_buffering": {
+          "reason": "The request-only ext_authz host model has no upstream response stream for this property to describe.",
+          "state": "unsupported_by_host_model"
+        },
+        "parallel_requests": {
+          "reason": "The Envoy ext_authz full-lifecycle catalog has no parallel-request evidence path.",
+          "state": "not_implemented"
+        },
+        "phase1": {
+          "reason": "The authorization service maps request headers into the Common Runtime Phase-1 path; a canonical baseline result is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase2": {
+          "reason": "Buffered request-body forwarding and Common Runtime Phase 2 are configured, but no existing host smoke proves that Envoy delivered the body.",
+          "state": "configured_not_exercised"
+        },
+        "phase3": {
+          "reason": "The pre-upstream ext_authz call cannot inspect upstream response headers.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4": {
+          "reason": "The pre-upstream ext_authz call cannot inspect upstream response bodies.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4_end_of_stream_evaluation": {
+          "reason": "HTTP ext_authz never receives the later upstream response stream or its end-of-stream event.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "Because ext_authz never sees the later upstream response, it has no Phase-4 response point at which to deny before the response commits.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "The selected Envoy ext_authz integration executes before the upstream response and does not expose upstream response-body data for Phase-4 rule evaluation.",
+          "state": "unsupported_by_host_model"
+        },
+        "protocol_first_byte_before_response_end": {
+          "reason": "No negotiated-protocol first-byte barrier is implemented.",
+          "state": "not_implemented"
+        },
+        "protocol_no_full_response_buffering": {
+          "reason": "No negotiated-protocol no-full-buffer proof is implemented.",
+          "state": "not_implemented"
+        },
+        "protocol_transaction_isolation": {
+          "reason": "No multiplexed downstream protocol transaction-isolation evidence is implemented.",
+          "state": "not_implemented"
+        },
+        "redirect": {
+          "reason": "The Common Runtime preserves redirect status and URL, but the repository HTTP authorization response does not emit the Location header.",
+          "state": "not_implemented"
+        },
+        "request_body_buffered": {
+          "reason": "Envoy with_request_body and the connector buffered body mode are both configured at 4096 bytes, but the existing host smoke sends no body.",
+          "state": "configured_not_exercised"
+        },
+        "request_body_incremental_ingest": {
+          "reason": "The selected ext_authz integration uses a bounded buffered authorization body, not incremental request-body ingestion.",
+          "state": "unsupported_by_host_model"
+        },
+        "request_body_limits": {
+          "reason": "Envoy with_request_body is configured with a 4096-byte bound, but no canonical host limit case has exercised it.",
+          "state": "configured_not_exercised"
+        },
+        "request_body_streaming": {
+          "reason": "The selected ext_authz integration deliberately uses the with_request_body buffered authorization request, not a streaming body protocol.",
+          "state": "unsupported_by_host_model"
+        },
+        "request_headers": {
+          "reason": "The ext_authz HTTP request forwards an allowlisted header set into the Common Runtime mapper; canonical header coverage is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_buffered": {
+          "reason": "HTTP ext_authz does not receive the later upstream response body.",
+          "state": "unsupported_by_host_model"
+        },
+        "response_body_decompression": {
+          "reason": "HTTP ext_authz does not receive an upstream response body to decompress.",
+          "state": "unsupported_by_host_model"
+        },
+        "response_body_incremental_ingest": {
+          "reason": "The pre-upstream ext_authz service never receives an upstream response-body stream.",
+          "state": "unsupported_by_host_model"
+        },
+        "response_body_limits": {
+          "reason": "HTTP ext_authz does not receive an upstream response body on which to enforce a response-body limit.",
+          "state": "unsupported_by_host_model"
+        },
+        "response_body_streaming": {
+          "reason": "HTTP ext_authz does not receive an upstream response body stream.",
+          "state": "unsupported_by_host_model"
+        },
+        "response_headers": {
+          "reason": "HTTP ext_authz runs before the upstream request and does not receive the later upstream response headers.",
+          "state": "unsupported_by_host_model"
+        },
+        "transaction_id": {
+          "reason": "The configured x-request-id header is resolved by Common Runtime and included in decision events; canonical correlation evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "transport_metadata": {
+          "reason": "The pre-upstream ext_authz service does not observe client-visible upstream-response commitment or transport outcomes.",
+          "state": "not_implemented"
+        },
+        "upstream_abort": {
+          "reason": "The pre-upstream authorization service cannot observe or control an upstream response-abort lifecycle.",
+          "state": "unsupported_by_host_model"
+        }
+      },
+      "connector": "envoy",
+      "evidence_stages": {
+        "compile": {
+          "reason": "A repository authorization-service build path exists; no current canonical compile result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "config_load": {
+          "reason": "Connector config check and real Envoy validation paths exist; no current canonical result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "crs_smoke": {
+          "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence.",
+          "status": "supported_not_verified"
+        },
+        "extended_matrix": {
+          "reason": "Extended-matrix verification is outside this canonical no-CRS declaration.",
+          "status": "not_implemented"
+        },
+        "link": {
+          "reason": "The service links Common Runtime and libmodsecurity; no current canonical link result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "minimal_runtime_smoke": {
+          "reason": "A real Envoy ext_authz 200/403 harness exists; no current canonical minimal-runtime result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "no_crs_baseline": {
+          "reason": "Capability-selected pre-upstream cases can run through the host path, but no canonical baseline result is attached.",
+          "status": "supported_not_verified"
+        },
+        "source_contract": {
+          "reason": "Service, mapper, metadata, Envoy configuration, and harness sources are present; no canonical source-contract result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "start_smoke": {
+          "reason": "Envoy and authorization-service start wiring exists; no current canonical request-free result is attached.",
+          "status": "implemented_not_asserted"
+        }
+      },
+      "host_model_constraints": [
+        "The selected Envoy HTTP ext_authz service observes a pre-upstream authorization request and cannot inspect the later upstream response headers or body.",
+        "The checked-in ext_authz configuration buffers at most 4096 request-body bytes with partial messages disabled; the existing minimal smoke sends no request body.",
+        "Only the headers allowed by the ext_authz authorization_request configuration are forwarded to the authorization service.",
+        "The authorization service currently sees the Envoy-to-service socket endpoints and does not map original downstream connection endpoints into Common connection metadata."
+      ],
+      "host_name": "envoy",
+      "integration_mode": "http-ext-authz-service",
+      "metadata_source": "connectors/envoy/metadata.c",
+      "source_contract": [
+        "connectors/envoy/metadata.c",
+        "connectors/envoy/config/envoy-ext-authz-smoke.yaml.in",
+        "connectors/envoy/config/envoy-ext-authz.conf",
+        "connectors/envoy/src/envoy_ext_authz_service_main.c",
+        "connectors/envoy/src/envoy_modsecurity_mapper.c",
+        "connectors/envoy/harness/run_envoy_connector_runtime.sh"
+      ]
+    },
+    "haproxy": {
+      "capabilities": {
+        "abort_connection": {
+          "reason": "The production binding does not expose a distinct abort-connection decision across SPOP.",
+          "state": "not_implemented"
+        },
+        "client_abort": {
+          "reason": "No HAProxy/SPOP client-abort lifecycle case or host-observed outcome is implemented.",
+          "state": "not_implemented"
+        },
+        "config_inline_rules": {
+          "reason": "Inline rules are used only by binding self-tests and are not exposed by the production HAProxy/SPOP configuration path.",
+          "state": "not_implemented"
+        },
+        "config_remote_rules": {
+          "reason": "The production HAProxy/SPOP configuration has no remote-rules option.",
+          "state": "not_implemented"
+        },
+        "config_rules_file": {
+          "reason": "The production agent accepts a startup rules file and loads it into libmodsecurity; canonical config evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "connection_metadata": {
+          "reason": "The SPOP request message carries client and server endpoints into the libmodsecurity binding; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "content_type_scope": {
+          "reason": "The experimental bounded response-sample branch does not implement a canonical Content-Type scope gate.",
+          "state": "not_implemented"
+        },
+        "deny": {
+          "reason": "The agent exports blocked/status variables and HAProxy maps them to explicit deny rules; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "drop": {
+          "reason": "Although the harness contains a silent-drop host rule, the libmodsecurity binding does not currently preserve a distinct drop action into agent variables.",
+          "state": "not_implemented"
+        },
+        "event_jsonl": {
+          "reason": "The production SPOP agent writes bounded metadata-only decision JSONL; canonical event-field and payload-absence evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "first_byte_before_response_end": {
+          "reason": "No native HAProxy response-body path exists yet to observe a client first byte before upstream end of stream.",
+          "state": "not_implemented"
+        },
+        "header_limits": {
+          "reason": "No connector-local HAProxy/SPOP header-limit enforcement contract is implemented.",
+          "state": "not_implemented"
+        },
+        "http1_chunked": {
+          "reason": "HAProxy can proxy chunked HTTP/1.1 responses, but no canonical SPOP host transport case covers them.",
+          "state": "configured_not_exercised"
+        },
+        "http1_content_length": {
+          "reason": "HAProxy can proxy HTTP/1.1 responses, but no canonical SPOP host transport case covers Content-Length handling.",
+          "state": "configured_not_exercised"
+        },
+        "http2": {
+          "reason": "HAProxy HTTP/2 transport behavior is not exercised by a canonical SPOP full-lifecycle case.",
+          "state": "configured_not_exercised"
+        },
+        "http2_cleartext_h2c": {
+          "reason": "No HAProxy h2c native connector profile is implemented.",
+          "state": "not_implemented"
+        },
+        "http2_downstream": {
+          "reason": "The pinned native HTX harness has no TLS/ALPN HTTP/2 frontend profile.",
+          "state": "not_implemented"
+        },
+        "http2_multiplexing": {
+          "reason": "No HAProxy HTTP/2 stream-isolation evidence path is implemented.",
+          "state": "not_implemented"
+        },
+        "http2_stream_reset": {
+          "reason": "The HTX filter has no proven HTTP/2 stream-reset action.",
+          "state": "not_implemented"
+        },
+        "http2_tls_alpn": {
+          "reason": "The pinned HAProxy build and harness do not configure an h2 ALPN listener.",
+          "state": "not_implemented"
+        },
+        "http2_upstream": {
+          "reason": "No HAProxy native HTX upstream HTTP/2 profile is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_alt_svc": {
+          "reason": "No HAProxy HTTP/3 Alt-Svc profile is configured.",
+          "state": "not_implemented"
+        },
+        "http3_downstream": {
+          "reason": "The pinned HAProxy native HTX build has no configured QUIC/HTTP/3 frontend.",
+          "state": "not_implemented"
+        },
+        "http3_multiplexing": {
+          "reason": "No HAProxy HTTP/3 stream-isolation evidence path is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_quic": {
+          "reason": "No pinned HAProxy QUIC runtime build is provisioned.",
+          "state": "not_implemented"
+        },
+        "http3_stream_reset": {
+          "reason": "The HTX filter has no proven QUIC stream-reset action.",
+          "state": "not_implemented"
+        },
+        "http3_upstream": {
+          "reason": "No HAProxy native HTX upstream HTTP/3 profile is implemented.",
+          "state": "not_implemented"
+        },
+        "keep_alive": {
+          "reason": "No canonical sequential-request keep-alive run is attached to the HAProxy/SPOP path.",
+          "state": "configured_not_exercised"
+        },
+        "late_intervention": {
+          "reason": "The current SPOE/SPOP response decision path is modeled before response commitment and implements no post-commit late-intervention point.",
+          "state": "not_implemented"
+        },
+        "late_intervention_abort": {
+          "reason": "The current HAProxy/SPOA path implements no controlled post-commit abort_connection action and no host-observed connection-abort result.",
+          "state": "not_implemented"
+        },
+        "late_intervention_log_only": {
+          "reason": "The current HAProxy/SPOA path has no post-commit log-only action or host-observed unchanged-visible-status result.",
+          "state": "not_implemented"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "Current diagnostics are policy-derived and the host runner does not capture original and visible client statuses plus actual commitment timing, so semantic late-intervention status metadata is not implemented.",
+          "state": "not_implemented"
+        },
+        "log_only": {
+          "reason": "Non-disruptive ModSecurity decisions leave the HAProxy request allowed; explicit log-only behavioral evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "no_full_response_buffering": {
+          "reason": "No native HAProxy response-body path exists yet to prove the required no-full-response-buffering contract.",
+          "state": "not_implemented"
+        },
+        "parallel_requests": {
+          "reason": "The HAProxy/SPOP full-lifecycle catalog has no parallel-request evidence path.",
+          "state": "not_implemented"
+        },
+        "phase1": {
+          "reason": "The request-check group executes connection, URI, and request-header processing in the agent; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase2": {
+          "reason": "The agent appends the bounded request body and invokes request-body processing; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase3": {
+          "reason": "The optional response-check group invokes response-header processing; canonical host evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4": {
+          "reason": "No native HAProxy response-body callback is wired into the selected SPOE/SPOP host configuration. The separate HTX observer is selected only by the non-promoted full-lifecycle profile and does not promote this SPOP capability.",
+          "state": "not_implemented"
+        },
+        "phase4_end_of_stream_evaluation": {
+          "reason": "The selected host configuration has no response-body stream or end-of-stream signal for Phase-4 completion.",
+          "state": "not_implemented"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "The current agent emits policy-derived pre-commit fields but the HAProxy host runner does not capture a client-visible Phase-4 deny and actual commitment timing, so this semantic capability is not implemented.",
+          "state": "not_implemented"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "Without a native HAProxy response-body stream, Phase-4 rule evaluation must not be claimed from the disabled response sample.",
+          "state": "not_implemented"
+        },
+        "protocol_first_byte_before_response_end": {
+          "reason": "No protocol-specific first-byte barrier is implemented.",
+          "state": "not_implemented"
+        },
+        "protocol_no_full_response_buffering": {
+          "reason": "No protocol-specific no-full-buffer proof is implemented.",
+          "state": "not_implemented"
+        },
+        "protocol_transaction_isolation": {
+          "reason": "No multiplexed protocol transaction-isolation case is implemented.",
+          "state": "not_implemented"
+        },
+        "redirect": {
+          "reason": "The agent exports redirect URL/action variables and HAProxy has an explicit request redirect rule; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "request_body_buffered": {
+          "reason": "The HAProxy configuration buffers the request and passes a bounded req.body sample to the agent; canonical Phase-2 evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "request_body_incremental_ingest": {
+          "reason": "The current SPOP request message carries one bounded req.body sample rather than incrementally ingested request chunks.",
+          "state": "not_implemented"
+        },
+        "request_body_limits": {
+          "reason": "The SPOP request-body sample is bounded by configuration, but no canonical host limit case has exercised its behavior.",
+          "state": "configured_not_exercised"
+        },
+        "request_body_streaming": {
+          "reason": "The current SPOP message carries one bounded body sample rather than a streaming body protocol.",
+          "state": "not_implemented"
+        },
+        "request_headers": {
+          "reason": "HAProxy request headers are encoded in the SPOP message and mapped into the transaction; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_buffered": {
+          "reason": "The selected SPOE/SPOP host configuration deliberately does not send response bodies; the former wait-for-body sample was disabled because it violates the low-latency contract.",
+          "state": "not_implemented"
+        },
+        "response_body_decompression": {
+          "reason": "The selected SPOE/SPOP configuration has no response-body decompression contract.",
+          "state": "not_implemented"
+        },
+        "response_body_incremental_ingest": {
+          "reason": "No native HAProxy response-chunk callback is wired into the selected SPOP path. The separate full-lifecycle HTX observer handles borrowed body chunks/EOS in observer mode, but does not change this SPOP capability state.",
+          "state": "not_implemented"
+        },
+        "response_body_limits": {
+          "reason": "No selected HAProxy response-body path exists on which to enforce a response-body limit.",
+          "state": "not_implemented"
+        },
+        "response_body_streaming": {
+          "reason": "The selected SPOE/SPOP configuration has no wired native response-chunk callback or streaming transaction protocol. A separate HTX observer is selected only by the non-promoted full-lifecycle profile and does not change this SPOP capability state.",
+          "state": "not_implemented"
+        },
+        "response_headers": {
+          "reason": "An optional HAProxy response-check message maps response headers and the agent invokes Phase 3; canonical host evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "transaction_id": {
+          "reason": "HAProxy unique IDs are carried as request IDs into the transaction and decision log; canonical correlation evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "transport_metadata": {
+          "reason": "SPOP decision messages do not expose client-visible response commitment, stream lifecycle, or transport-outcome metadata.",
+          "state": "not_implemented"
+        },
+        "upstream_abort": {
+          "reason": "No HAProxy/SPOP upstream-abort lifecycle case or host-observed outcome is implemented.",
+          "state": "not_implemented"
+        }
+      },
+      "connector": "haproxy",
+      "evidence_stages": {
+        "compile": {
+          "reason": "The production SPOP agent and binding have compile targets; no current canonical compile result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "config_load": {
+          "reason": "The harness runs a real HAProxy configuration check; no current canonical result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "crs_smoke": {
+          "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence.",
+          "status": "supported_not_verified"
+        },
+        "extended_matrix": {
+          "reason": "Extended-matrix verification is outside this canonical no-CRS declaration.",
+          "status": "not_implemented"
+        },
+        "link": {
+          "reason": "The agent link path includes libmodsecurity and common sources; no current canonical link result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "minimal_runtime_smoke": {
+          "reason": "A real HAProxy-to-agent request path exists; no current canonical minimal-runtime result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "no_crs_baseline": {
+          "reason": "The host and agent can consume shared no-CRS rules and cases, but no canonical baseline result is attached.",
+          "status": "supported_not_verified"
+        },
+        "source_contract": {
+          "reason": "Agent, binding, mapper, metadata, and real-host harness sources are present; no canonical source-contract result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "start_smoke": {
+          "reason": "The harness can start HAProxy, agent, and backend without traffic; no current canonical result is attached.",
+          "status": "implemented_not_asserted"
+        }
+      },
+      "host_model_constraints": [
+        "HAProxy and the repository-owned SPOP agent are separate processes; host and agent liveness and logs are distinct evidence.",
+        "Response phases run only when the HAProxy configuration sends the corresponding response notification to the agent.",
+        "The selected SPOE/SPOP configuration sends response headers only; the prior wait-for-body response sample is deliberately disabled because it is not a low-latency response stream.",
+        "Starter and binding self-tests are not HAProxy host-runtime evidence.",
+        "The full-lifecycle profile separately selects native-htx-filter through full-lifecycle-haproxy-htx: a patched HAProxy 3.2.21 non-promoted path with real P1/P2/P3 response outcomes and P4 safe log_only evidence. Its one-block P2 probe returns 403 and records zero or one observed upstream requests without proving their ordering; that does not prove incremental request forwarding or a general host-buffering property. P4 Strict has no client-visible abort evidence and remains NOT EXECUTED."
+      ],
+      "host_name": "haproxy",
+      "integration_mode": "spoe-spop-agent",
+      "metadata_source": "connectors/haproxy/metadata.c",
+      "source_contract": [
+        "connectors/haproxy/metadata.c",
+        "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+        "connectors/haproxy/src/haproxy_modsecurity_binding.c",
+        "connectors/haproxy/src/haproxy_modsecurity_mapper.c",
+        "connectors/haproxy/harness/run_haproxy_smoke.sh",
+        "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+        "connectors/haproxy/htx-overlay/haproxy-3.2.21-makefile.patch",
+        "connectors/haproxy/harness/run_haproxy_htx_runtime.sh"
+      ]
+    },
+    "lighttpd": {
+      "capabilities": {
+        "abort_connection": {
+          "reason": "The native lighttpd decision mapper has no connection-abort action.",
+          "state": "not_implemented"
+        },
+        "client_abort": {
+          "reason": "No native client-abort cleanup case records canonical transport metadata.",
+          "state": "not_implemented"
+        },
+        "config_inline_rules": {
+          "reason": "The native plugin uses the Common Runtime config parser, which supports inline rules; canonical config evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "config_remote_rules": {
+          "reason": "The native plugin uses Common Runtime remote rule configuration, but the no-CRS baseline does not exercise external networking.",
+          "state": "implemented_not_asserted"
+        },
+        "config_rules_file": {
+          "reason": "The native plugin uses the Common Runtime local rules-file path; canonical positive and negative evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "connection_metadata": {
+          "reason": "The native mapper reads lighttpd client and server socket endpoints into Common Runtime; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "content_type_scope": {
+          "reason": "No canonical response-stream run proves Content-Type behavior for the patched identity-only entity path.",
+          "state": "not_implemented"
+        },
+        "deny": {
+          "reason": "A disruptive Common Runtime decision is mapped to a lighttpd error status in request and response-start hooks; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "drop": {
+          "reason": "The native lighttpd decision mapper has no distinct drop action.",
+          "state": "not_implemented"
+        },
+        "event_jsonl": {
+          "reason": "Common Runtime writes bounded metadata-only disruptive-decision JSONL from the native path; canonical event evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "first_byte_before_response_end": {
+          "reason": "No synchronized real-client run demonstrates a first body byte before upstream EOS on the patched identity entity path.",
+          "state": "not_implemented"
+        },
+        "header_limits": {
+          "reason": "The native request and response mappers apply configured header count and total-size limits, but real-host limit evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "http1_chunked": {
+          "reason": "The native plugin can load in a lighttpd HTTP/1.1 host, but no canonical chunked transport evidence is attached.",
+          "state": "configured_not_exercised"
+        },
+        "http1_content_length": {
+          "reason": "The native plugin can load in a lighttpd HTTP/1.1 host, but the canonical Content-Length transport case has not run.",
+          "state": "configured_not_exercised"
+        },
+        "http2": {
+          "reason": "The pinned native lighttpd integration has no asserted HTTP/2 full-lifecycle transport path.",
+          "state": "unsupported_by_host_model"
+        },
+        "http2_cleartext_h2c": {
+          "reason": "No patched lighttpd h2c integration profile is implemented.",
+          "state": "not_implemented"
+        },
+        "http2_downstream": {
+          "reason": "The pinned patched lighttpd module rejects HTTP/2 requests; a decoded H2 stream hook is not implemented.",
+          "state": "not_implemented"
+        },
+        "http2_multiplexing": {
+          "reason": "The patched module has no H2 stream lifecycle or multiplexing contract.",
+          "state": "not_implemented"
+        },
+        "http2_stream_reset": {
+          "reason": "No lighttpd HTTP/2 stream-reset hook is implemented.",
+          "state": "not_implemented"
+        },
+        "http2_tls_alpn": {
+          "reason": "The managed lighttpd build currently disables TLS backends and has no h2 ALPN listener.",
+          "state": "not_implemented"
+        },
+        "http2_upstream": {
+          "reason": "No patched lighttpd upstream HTTP/2 profile is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_alt_svc": {
+          "reason": "No native lighttpd HTTP/3 Alt-Svc profile is configured.",
+          "state": "not_implemented"
+        },
+        "http3_downstream": {
+          "reason": "The pinned lighttpd 1.4.84 host has no audited native HTTP/3 listener or codec path.",
+          "state": "not_implemented"
+        },
+        "http3_multiplexing": {
+          "reason": "No native lighttpd H3 stream-isolation path is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_quic": {
+          "reason": "The pinned lighttpd host has no QUIC runtime path.",
+          "state": "not_implemented"
+        },
+        "http3_stream_reset": {
+          "reason": "No lighttpd H3 stream-reset API exists in the pinned host profile.",
+          "state": "not_implemented"
+        },
+        "http3_upstream": {
+          "reason": "No patched lighttpd upstream HTTP/3 profile is implemented.",
+          "state": "not_implemented"
+        },
+        "keep_alive": {
+          "reason": "No canonical sequential-request keep-alive run is attached to the native plugin.",
+          "state": "configured_not_exercised"
+        },
+        "late_intervention": {
+          "reason": "The patched callback resolves the shared late-intervention policy in source, but no real host run proves a post-commit outcome; the response-start hook is not late-intervention evidence.",
+          "state": "not_implemented"
+        },
+        "late_intervention_abort": {
+          "reason": "Strict deliberately remains NOT EXECUTED: the patched entity hook has no client-validated lighttpd connection-abort primitive or follow-up-health proof.",
+          "state": "not_implemented"
+        },
+        "late_intervention_log_only": {
+          "reason": "The patched source records disruptive safe/minimal Phase-4 decisions as actual log_only while preserving the response, but no client-visible canonical evidence has been produced.",
+          "state": "not_implemented"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "The patched source can record a safe log_only host action, but no canonical client artifact proves original, requested, visible, and actual values at a post-commit point.",
+          "state": "not_implemented"
+        },
+        "log_only": {
+          "reason": "Non-disruptive rules leave the lighttpd request or response allowed; explicit canonical log-only evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "no_full_response_buffering": {
+          "reason": "The patched callback receives only the current borrowed identity entity range and retains no queue copy, but no real first-byte-before-EOS client run proves the no-full-buffer property.",
+          "state": "not_implemented"
+        },
+        "parallel_requests": {
+          "reason": "The canonical parallel full-lifecycle isolation evidence path is not implemented for lighttpd.",
+          "state": "not_implemented"
+        },
+        "phase1": {
+          "reason": "The URI-clean hook starts the transaction and processes request headers; a fresh canonical Phase-1 result is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase2": {
+          "reason": "The stock module disables request bodies, and the selected capability profile has no promoted Phase-2 body result. The patched request-range source path is deliberately kept separate pending matching host evidence.",
+          "state": "not_implemented"
+        },
+        "phase3": {
+          "reason": "The response-start hook invokes Common Runtime response processing with mapped headers; real Phase-3 behavioral evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4": {
+          "reason": "The selected capability profile has no canonical Phase-4 host result. The patched identity entity-body source path is not promoted by its current body-disabled smoke.",
+          "state": "not_implemented"
+        },
+        "phase4_end_of_stream_evaluation": {
+          "reason": "The patched entity callback invokes the Common finish API once at EOS, but no real host run verifies that Phase-4 result; per-chunk rule evaluation is not claimed.",
+          "state": "not_implemented"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "The patched callback has no client-validated precommit disposition. It deliberately does not fabricate a late HTTP status from an EOS decision.",
+          "state": "not_implemented"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "The patched identity entity callback can incrementally ingest bytes and finish at EOS, but no real host run has observed rule 1100301 through that path; per-chunk evaluation is not claimed.",
+          "state": "not_implemented"
+        },
+        "protocol_first_byte_before_response_end": {
+          "reason": "No decoded modern-protocol response-body hook exists for a first-byte barrier.",
+          "state": "not_implemented"
+        },
+        "protocol_no_full_response_buffering": {
+          "reason": "No decoded modern-protocol response-body hook exists for a no-full-buffer proof.",
+          "state": "not_implemented"
+        },
+        "protocol_transaction_isolation": {
+          "reason": "No multiplexed protocol transaction-isolation evidence is implemented.",
+          "state": "not_implemented"
+        },
+        "redirect": {
+          "reason": "The native decision mapper accepts only error statuses and normalizes redirect statuses to a denial without a Location header.",
+          "state": "not_implemented"
+        },
+        "request_body_buffered": {
+          "reason": "The native module requires request_body_mode=none and supplies no request body to the mapper.",
+          "state": "not_implemented"
+        },
+        "request_body_incremental_ingest": {
+          "reason": "The patched 1.4.84 request callback supplies monotonic borrowed ranges, but the selected capability profile remains unpromoted without a matching canonical host result.",
+          "state": "not_implemented"
+        },
+        "request_body_limits": {
+          "reason": "No canonical request-stream run exercises body limits on the patched request-range path.",
+          "state": "not_implemented"
+        },
+        "request_body_streaming": {
+          "reason": "The checked-in selected evidence profile has no promoted request-stream case. The patched 1.4.84 ABI has a borrowed request-range source contract, but it remains non-promoted until its host artifacts are selected and validated.",
+          "state": "not_implemented"
+        },
+        "request_headers": {
+          "reason": "The native URI-clean hook maps lighttpd request headers into Common Runtime; canonical header evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_buffered": {
+          "reason": "The native module requires response_body_mode=none and supplies no response body to the mapper.",
+          "state": "not_implemented"
+        },
+        "response_body_decompression": {
+          "reason": "The patched response contract is identity only. gzip/br remain NOT EXECUTED until filter order and decompression have real host evidence.",
+          "state": "not_implemented"
+        },
+        "response_body_incremental_ingest": {
+          "reason": "The patched HTTP/1.1 identity entity callback supplies borrowed ranges before transfer framing and marks EOS once; its source/build contract lacks a canonical streaming host result.",
+          "state": "not_implemented"
+        },
+        "response_body_limits": {
+          "reason": "No canonical response-stream run exercises body limits on the patched identity entity path.",
+          "state": "not_implemented"
+        },
+        "response_body_streaming": {
+          "reason": "The checked-in selected evidence profile has no promoted response-stream case. The patched 1.4.84 ABI has a borrowed HTTP/1.1 identity entity-body callback before transfer framing, but no canonical streaming host run validates it.",
+          "state": "not_implemented"
+        },
+        "response_headers": {
+          "reason": "handle_response_start maps response headers into Common Runtime, but a real Phase-3 rule result has not yet been attached.",
+          "state": "implemented_not_asserted"
+        },
+        "transaction_id": {
+          "reason": "The module supplies a host request ID and Common Runtime resolves configured header or fallback transaction IDs; canonical correlation evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "transport_metadata": {
+          "reason": "The native mapper supplies host endpoint and response-status metadata, but a canonical transport run is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "upstream_abort": {
+          "reason": "No native upstream-abort cleanup case records canonical transport metadata.",
+          "state": "not_implemented"
+        }
+      },
+      "connector": "lighttpd",
+      "evidence_stages": {
+        "compile": {
+          "reason": "A native lighttpd module compile path exists; no current canonical compile result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "config_load": {
+          "reason": "A real lighttpd configuration-test path exists; no current canonical result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "crs_smoke": {
+          "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence.",
+          "status": "supported_not_verified"
+        },
+        "extended_matrix": {
+          "reason": "Extended-matrix verification is outside this canonical no-CRS declaration.",
+          "status": "not_implemented"
+        },
+        "link": {
+          "reason": "The module link path includes Common Runtime and libmodsecurity; no current canonical link result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "minimal_runtime_smoke": {
+          "reason": "A real native-module 200/403 harness exists; no current canonical minimal-runtime result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "no_crs_baseline": {
+          "reason": "Capability-selected request and response-header cases can use the native path, but no canonical baseline result is attached.",
+          "status": "supported_not_verified"
+        },
+        "source_contract": {
+          "reason": "Native module, mapper, metadata, configuration, and harness sources are present; no canonical source-contract result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "start_smoke": {
+          "reason": "A request-free native lighttpd start path exists; no current canonical result is attached.",
+          "status": "implemented_not_asserted"
+        }
+      },
+      "host_model_constraints": [
+        "The stock native plugin requires both body modes to be none. The matched patched 1.4.84 core/module pair accepts streaming request ranges and HTTP/1.1 identity response-entity ranges before transfer framing; this source/build contract has no canonical runtime promotion.",
+        "The response-header mapper is called from handle_response_start, but source wiring alone is not Phase-3 behavioral verification.",
+        "The legacy bridge and starter self-tests are separate from native mod_msconnector.so host-runtime evidence.",
+        "The full-lifecycle profile separately selects patched-native through full-lifecycle-lighttpd-patched: its checked-in host smoke uses both body modes as none. Identity streaming configuration is available for contract checks, while gzip/br, HTTP/2, strict abort, first-byte, and no-full-buffer client evidence remain NOT EXECUTED."
+      ],
+      "host_name": "lighttpd",
+      "integration_mode": "native-lighttpd-plugin",
+      "metadata_source": "connectors/lighttpd/metadata.c",
+      "source_contract": [
+        "connectors/lighttpd/metadata.c",
+        "connectors/lighttpd/config/lighttpd-native.conf",
+        "connectors/lighttpd/module/mod_msconnector.c",
+        "connectors/lighttpd/src/lighttpd_modsecurity_mapper.c",
+        "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
+        "connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch",
+        "connectors/lighttpd/build/build_patched_host.sh",
+        "connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh"
+      ]
+    },
+    "nginx": {
+      "capabilities": {
+        "abort_connection": {
+          "reason": "The strict Phase-4 branch has an explicit connection-abort outcome after headers are sent; transport evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "client_abort": {
+          "reason": "No native NGINX client-abort cleanup case currently records the canonical transport metadata.",
+          "state": "not_implemented"
+        },
+        "config_inline_rules": {
+          "reason": "The modsecurity_rules directive loads inline rules through libmodsecurity; canonical config evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "config_remote_rules": {
+          "reason": "The modsecurity_rules_remote directive is wired to libmodsecurity; the no-CRS baseline does not exercise external networking.",
+          "state": "implemented_not_asserted"
+        },
+        "config_rules_file": {
+          "reason": "The modsecurity_rules_file directive loads local rules files; canonical positive and negative evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "connection_metadata": {
+          "reason": "The native request path maps NGINX connection endpoints into the ModSecurity transaction; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "content_type_scope": {
+          "reason": "The Phase-4 filter checks its configured response Content-Type scope before appending body bytes; real-host coverage is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "deny": {
+          "reason": "Disruptive statuses are returned from access and filter phases; canonical deny evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "drop": {
+          "reason": "The NGINX intervention mapper does not preserve a distinct ModSecurity drop action.",
+          "state": "not_implemented"
+        },
+        "event_jsonl": {
+          "reason": "The Phase-4 filter serializes bounded common JSONL events, but request-phase canonical event coverage is not yet asserted.",
+          "state": "implemented_not_asserted"
+        },
+        "first_byte_before_response_end": {
+          "reason": "The pass-through filter wiring permits downstream delivery before end of stream, but the synchronized first-byte test has not run.",
+          "state": "implemented_not_asserted"
+        },
+        "header_limits": {
+          "reason": "No canonical NGINX connector path asserts the shared header-limit behavior in the full-lifecycle catalog.",
+          "state": "not_implemented"
+        },
+        "http1_chunked": {
+          "reason": "The body-filter path can receive HTTP/1.1 chunked response buffers, but no canonical transport result is attached.",
+          "state": "configured_not_exercised"
+        },
+        "http1_content_length": {
+          "reason": "The native NGINX module can run behind HTTP/1.1 Content-Length responses, but the canonical transport case has not run.",
+          "state": "configured_not_exercised"
+        },
+        "http2": {
+          "reason": "The module can be built into an HTTP/2-capable NGINX host, but the currently pinned canonical host was configured without --with-http_v2_module. No applicable HTTP/2 lifecycle case is attached.",
+          "state": "configured_not_exercised"
+        },
+        "http2_cleartext_h2c": {
+          "reason": "No h2c prior-knowledge listener profile is implemented for the native NGINX harness.",
+          "state": "not_implemented"
+        },
+        "http2_downstream": {
+          "reason": "The managed NGINX protocol build profile can enable the native HTTP/2 module, but no forced negotiated connector run is attached.",
+          "state": "implemented_not_asserted"
+        },
+        "http2_multiplexing": {
+          "reason": "No HTTP/2 parallel-stream transaction-isolation runner is implemented.",
+          "state": "not_implemented"
+        },
+        "http2_stream_reset": {
+          "reason": "The current strict filter marks a connection error; it does not prove a stream-local HTTP/2 reset.",
+          "state": "not_implemented"
+        },
+        "http2_tls_alpn": {
+          "reason": "The managed protocol profile can configure TLS and h2 ALPN, but no negotiated client evidence is attached.",
+          "state": "implemented_not_asserted"
+        },
+        "http2_upstream": {
+          "reason": "No native NGINX connector upstream HTTP/2 matrix is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_alt_svc": {
+          "reason": "The managed H3 listener template can advertise Alt-Svc, but no forced H3 observation is attached.",
+          "state": "implemented_not_asserted"
+        },
+        "http3_downstream": {
+          "reason": "The managed NGINX protocol profile has an explicit HTTP/3/QUIC build path, but no forced H3 client evidence is attached.",
+          "state": "implemented_not_asserted"
+        },
+        "http3_multiplexing": {
+          "reason": "No HTTP/3 parallel-stream transaction-isolation runner is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_quic": {
+          "reason": "The managed profile records a QUIC-capable TLS build input, but it is not runtime QUIC evidence.",
+          "state": "implemented_not_asserted"
+        },
+        "http3_stream_reset": {
+          "reason": "The current strict path has no proven QUIC stream-reset action.",
+          "state": "not_implemented"
+        },
+        "http3_upstream": {
+          "reason": "No native NGINX connector upstream HTTP/3 matrix is implemented.",
+          "state": "not_implemented"
+        },
+        "keep_alive": {
+          "reason": "No canonical sequential-request keep-alive run is attached to the native module.",
+          "state": "configured_not_exercised"
+        },
+        "late_intervention": {
+          "reason": "The body filter distinguishes pre-header denial from post-header log-only or connection-abort policy outcomes; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "late_intervention_abort": {
+          "reason": "The strict post-commit policy has an abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true.",
+          "state": "implemented_not_asserted"
+        },
+        "late_intervention_log_only": {
+          "reason": "The safe post-commit policy is wired to record a log-only outcome, but no canonical event proves requested deny, actual log_only, late_intervention=true, and an unchanged visible status.",
+          "state": "implemented_not_asserted"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "The Phase-4 path can emit intervention metadata, but no canonical event yet proves separate requested WAF status, original host status, visible client status, requested action, and actual action.",
+          "state": "implemented_not_asserted"
+        },
+        "log_only": {
+          "reason": "Non-disruptive rules pass and late Phase-4 policy records log-only outcomes; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "no_full_response_buffering": {
+          "reason": "The response filter processes and forwards current chain buffers rather than accumulating a connector-owned full response; synchronized proof is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "parallel_requests": {
+          "reason": "The canonical parallel full-lifecycle isolation evidence path is not implemented for this connector.",
+          "state": "not_implemented"
+        },
+        "phase1": {
+          "reason": "The access handler processes URI and request headers before upstream handling; canonical Phase-1 evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase2": {
+          "reason": "The request-body callback completes ModSecurity request-body processing; canonical Phase-2 evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase3": {
+          "reason": "The response header filter invokes ModSecurity Phase 3; canonical behavioral evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4": {
+          "reason": "The response body filter invokes bounded ModSecurity Phase 4; canonical behavioral evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4_end_of_stream_evaluation": {
+          "reason": "The body filter finalizes response-body processing once at last_buf or last_in_chain; canonical host evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "The native Phase-4 decision runs in the NGINX body filter after the response-header path; this connector has no demonstrated pre-commit response-body decision point, so a visible Phase-4 HTTP 403 must not be claimed.",
+          "state": "not_implemented"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "The bounded native response-body filter is wired to invoke Phase 4, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated.",
+          "state": "implemented_not_asserted"
+        },
+        "protocol_first_byte_before_response_end": {
+          "reason": "The existing synchronized first-byte proof is HTTP/1.1-only.",
+          "state": "not_implemented"
+        },
+        "protocol_no_full_response_buffering": {
+          "reason": "No negotiated HTTP/2 or HTTP/3 no-full-buffer proof is implemented.",
+          "state": "not_implemented"
+        },
+        "protocol_transaction_isolation": {
+          "reason": "No negotiated HTTP/2 or HTTP/3 transaction-isolation evidence is implemented.",
+          "state": "not_implemented"
+        },
+        "redirect": {
+          "reason": "The intervention mapper creates an NGINX Location header and returns redirect status before headers are sent; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "request_body_buffered": {
+          "reason": "The request-body callback appends buffered NGINX body buffers and completes Phase 2; canonical body evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "request_body_incremental_ingest": {
+          "reason": "The native request-body callback begins after NGINX has collected the host request body; it is not a real incremental host-ingestion path.",
+          "state": "not_implemented"
+        },
+        "request_body_limits": {
+          "reason": "The current request-body path is host-buffered and has no connector-level incremental limit outcome contract.",
+          "state": "not_implemented"
+        },
+        "request_body_streaming": {
+          "reason": "Body buffers are accumulated for a completed request-body phase rather than exposed as streaming ModSecurity phase execution.",
+          "state": "not_implemented"
+        },
+        "request_headers": {
+          "reason": "The access handler maps NGINX request headers and invokes request-header processing; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_buffered": {
+          "reason": "The bounded body filter invokes response-body processing and applies the configured Phase-4 policy; canonical evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_decompression": {
+          "reason": "The connector has no asserted response-body decompression contract.",
+          "state": "not_implemented"
+        },
+        "response_body_incremental_ingest": {
+          "reason": "The body filter appends each current NGINX buffer without retaining a cross-call response body, but no native-host evidence run is attached.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_limits": {
+          "reason": "The response filter bounds bytes supplied to ModSecurity with the configured Phase-4 limit, but limit-mode evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_streaming": {
+          "reason": "Response chains are inspected through bounded buffering and do not expose streaming Phase-4 semantics.",
+          "state": "not_implemented"
+        },
+        "response_headers": {
+          "reason": "The NGINX header filter invokes response-header processing; canonical Phase-3 evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "transaction_id": {
+          "reason": "NGINX complex-value transaction IDs are used when creating transactions; canonical event correlation evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "transport_metadata": {
+          "reason": "The native filters retain response status and commitment state, but no canonical transport run has recorded it.",
+          "state": "implemented_not_asserted"
+        },
+        "upstream_abort": {
+          "reason": "No native NGINX upstream-abort cleanup case currently records the canonical transport metadata.",
+          "state": "not_implemented"
+        }
+      },
+      "connector": "nginx",
+      "evidence_stages": {
+        "compile": {
+          "reason": "A source-built NGINX module path exists; no current canonical compile result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "config_load": {
+          "reason": "The harness has a real nginx -t path; no current canonical result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "crs_smoke": {
+          "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence.",
+          "status": "supported_not_verified"
+        },
+        "extended_matrix": {
+          "reason": "Extended-matrix verification is outside this canonical no-CRS declaration.",
+          "status": "not_implemented"
+        },
+        "link": {
+          "reason": "The build path links NGINX with the module, libmodsecurity, and common sources; no canonical link result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "minimal_runtime_smoke": {
+          "reason": "A real-host request harness exists; no current canonical minimal-runtime result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "no_crs_baseline": {
+          "reason": "The native host path can consume the shared no-CRS rules and cases, but no canonical baseline result is attached.",
+          "status": "supported_not_verified"
+        },
+        "source_contract": {
+          "reason": "Native source, metadata, filter wiring, and harness wiring are present; no canonical source-contract result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "start_smoke": {
+          "reason": "The harness can start NGINX without a request; no current canonical result is attached.",
+          "status": "implemented_not_asserted"
+        }
+      },
+      "host_model_constraints": [
+        "NGINX request and response body filters feed bounded body data into a completed ModSecurity phase; they do not provide streaming phase semantics.",
+        "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
+        "A Phase-4 decision can be observed after NGINX has sent response headers and is then governed by the late-intervention policy."
+      ],
+      "host_name": "nginx",
+      "integration_mode": "native-nginx-http-module",
+      "metadata_source": "connectors/nginx/metadata.c",
+      "source_contract": [
+        "connectors/nginx/metadata.c",
+        "connectors/nginx/src/ngx_http_modsecurity_access.c",
+        "connectors/nginx/src/ngx_http_modsecurity_header_filter.c",
+        "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+        "connectors/nginx/src/ngx_http_modsecurity_module.c",
+        "connectors/nginx/harness/run_nginx_smoke.sh"
+      ]
+    },
+    "traefik": {
+      "capabilities": {
+        "abort_connection": {
+          "reason": "The external authorization service cannot directly abort Traefik's client connection as a ModSecurity action.",
+          "state": "unsupported_by_host_model"
+        },
+        "client_abort": {
+          "reason": "The external authorization service cannot observe or directly control a Traefik client-abort lifecycle.",
+          "state": "unsupported_by_host_model"
+        },
+        "config_inline_rules": {
+          "reason": "The repository authorization-service config parser and Common Runtime support inline rules; canonical config evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "config_remote_rules": {
+          "reason": "Common Runtime exposes remote rule key and URL configuration, but the no-CRS baseline does not exercise external networking.",
+          "state": "implemented_not_asserted"
+        },
+        "config_rules_file": {
+          "reason": "The checked-in service path loads a local rules file through Common Runtime; canonical positive and negative evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "connection_metadata": {
+          "reason": "The HTTP authorization service maps its local Traefik peer socket rather than the original client connection metadata.",
+          "state": "not_implemented"
+        },
+        "content_type_scope": {
+          "reason": "The selected forwardAuth path does not receive an upstream response Content-Type or response body to scope.",
+          "state": "unsupported_by_host_model"
+        },
+        "deny": {
+          "reason": "A disruptive Common Runtime decision is returned as a non-2xx forwardAuth response; a fresh canonical deny result is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "drop": {
+          "reason": "The external HTTP authorization contract returns a response and cannot directly silent-drop Traefik's client connection.",
+          "state": "unsupported_by_host_model"
+        },
+        "event_jsonl": {
+          "reason": "Common Runtime writes bounded metadata-only disruptive-decision JSONL; canonical field and payload-absence evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "first_byte_before_response_end": {
+          "reason": "The request-only forwardAuth service cannot observe a Traefik client first byte or upstream response end.",
+          "state": "unsupported_by_host_model"
+        },
+        "header_limits": {
+          "reason": "Forwarded request headers have no connector-local canonical header-limit enforcement contract.",
+          "state": "not_implemented"
+        },
+        "http1_chunked": {
+          "reason": "Traefik can proxy chunked HTTP/1.1 responses, but no canonical forwardAuth transport case covers them.",
+          "state": "configured_not_exercised"
+        },
+        "http1_content_length": {
+          "reason": "Traefik can proxy HTTP/1.1 responses, but no canonical forwardAuth transport case covers Content-Length handling.",
+          "state": "configured_not_exercised"
+        },
+        "http2": {
+          "reason": "Traefik HTTP/2 transport behavior is not exercised by a canonical forwardAuth full-lifecycle case.",
+          "state": "configured_not_exercised"
+        },
+        "http2_cleartext_h2c": {
+          "reason": "No native middleware h2c profile is configured.",
+          "state": "not_implemented"
+        },
+        "http2_downstream": {
+          "reason": "The repository-owned native-middleware harness renders only a cleartext web entry point; it has no TLS HTTP/2 listener or forced H2 client path.",
+          "state": "not_implemented"
+        },
+        "http2_multiplexing": {
+          "reason": "No native middleware HTTP/2 stream-isolation runner is implemented.",
+          "state": "not_implemented"
+        },
+        "http2_stream_reset": {
+          "reason": "HTTP/1 hijack behavior is not HTTP/2 reset evidence and no stream-reset API is wired.",
+          "state": "not_implemented"
+        },
+        "http2_tls_alpn": {
+          "reason": "The repository-owned native-middleware configuration has no certificate, TLS entry point, or h2 ALPN configuration.",
+          "state": "not_implemented"
+        },
+        "http2_upstream": {
+          "reason": "No Traefik native middleware upstream HTTP/2 matrix is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_alt_svc": {
+          "reason": "No repository-owned native-middleware Traefik configuration advertises an HTTP/3 Alt-Svc endpoint.",
+          "state": "not_implemented"
+        },
+        "http3_downstream": {
+          "reason": "The repository-owned native-middleware harness has no HTTP/3 entry point, UDP/QUIC listener, or forced H3 client path.",
+          "state": "not_implemented"
+        },
+        "http3_multiplexing": {
+          "reason": "No native middleware H3 stream-isolation runner is implemented.",
+          "state": "not_implemented"
+        },
+        "http3_quic": {
+          "reason": "No repository-owned Traefik QUIC listener or QUIC traffic observation is configured for the native middleware.",
+          "state": "not_implemented"
+        },
+        "http3_stream_reset": {
+          "reason": "No client-visible QUIC stream-reset API is wired for the middleware.",
+          "state": "not_implemented"
+        },
+        "http3_upstream": {
+          "reason": "No Traefik native middleware upstream HTTP/3 matrix is implemented.",
+          "state": "not_implemented"
+        },
+        "keep_alive": {
+          "reason": "No canonical sequential-request keep-alive run is attached to the Traefik forwardAuth path.",
+          "state": "configured_not_exercised"
+        },
+        "late_intervention": {
+          "reason": "The authorization decision completes before the upstream response starts, so the chosen path has no response-phase late intervention point.",
+          "state": "unsupported_by_host_model"
+        },
+        "late_intervention_abort": {
+          "reason": "The selected pre-upstream forwardAuth host model has no upstream response-phase point from which the authorization service can perform a late connection abort.",
+          "state": "unsupported_by_host_model"
+        },
+        "late_intervention_log_only": {
+          "reason": "The selected pre-upstream forwardAuth host model has no committed upstream response on which to apply a late log-only intervention.",
+          "state": "unsupported_by_host_model"
+        },
+        "late_intervention_status_metadata": {
+          "reason": "The selected forwardAuth integration does not observe an upstream response, so it cannot produce Phase-4 metadata that distinguishes original and visible upstream-response status or late actions.",
+          "state": "unsupported_by_host_model"
+        },
+        "log_only": {
+          "reason": "A non-disruptive rule leaves the forwardAuth response successful; explicit canonical log-only evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "no_full_response_buffering": {
+          "reason": "The request-only forwardAuth host model has no upstream response stream for this property to describe.",
+          "state": "unsupported_by_host_model"
+        },
+        "parallel_requests": {
+          "reason": "The Traefik forwardAuth full-lifecycle catalog has no parallel-request evidence path.",
+          "state": "not_implemented"
+        },
+        "phase1": {
+          "reason": "The forwardAuth request headers enter the Common Runtime Phase-1 path; a fresh canonical baseline result is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "phase2": {
+          "reason": "The checked-in host middleware does not set forwardBody and the connector config disables request-body processing.",
+          "state": "not_implemented"
+        },
+        "phase3": {
+          "reason": "The pre-upstream forwardAuth call cannot inspect upstream response headers.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4": {
+          "reason": "The pre-upstream forwardAuth call cannot inspect upstream response bodies.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4_end_of_stream_evaluation": {
+          "reason": "forwardAuth never receives the later upstream response stream or its end-of-stream event.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4_pre_commit_deny": {
+          "reason": "Because forwardAuth never sees the later upstream response, it has no Phase-4 response point at which to deny before the response commits.",
+          "state": "unsupported_by_host_model"
+        },
+        "phase4_rule_evaluation": {
+          "reason": "The selected Traefik forwardAuth integration runs before upstream handling and cannot inspect the later upstream response body for Phase-4 rule evaluation.",
+          "state": "unsupported_by_host_model"
+        },
+        "protocol_first_byte_before_response_end": {
+          "reason": "No negotiated-protocol first-byte barrier is implemented.",
+          "state": "not_implemented"
+        },
+        "protocol_no_full_response_buffering": {
+          "reason": "No negotiated-protocol no-full-buffer proof is implemented.",
+          "state": "not_implemented"
+        },
+        "protocol_transaction_isolation": {
+          "reason": "No multiplexed protocol transaction-isolation evidence is implemented.",
+          "state": "not_implemented"
+        },
+        "redirect": {
+          "reason": "The Common Runtime preserves redirect status and URL, but the repository HTTP authorization response does not emit the Location header for Traefik to propagate.",
+          "state": "not_implemented"
+        },
+        "request_body_buffered": {
+          "reason": "Traefik v3.7 supports forwardBody plus maxBodySize, but the checked-in middleware omits both and the connector config disables request bodies; see the versioned official reference.",
+          "state": "not_implemented"
+        },
+        "request_body_incremental_ingest": {
+          "reason": "The selected forwardAuth path disables request bodies, and Traefik forwardBody is buffered rather than incremental when enabled.",
+          "state": "unsupported_by_host_model"
+        },
+        "request_body_limits": {
+          "reason": "The checked-in forwardAuth middleware disables request-body forwarding and defines no active request-body limit behavior.",
+          "state": "not_implemented"
+        },
+        "request_body_streaming": {
+          "reason": "Traefik v3.7 documents that forwardBody reads and buffers the body before forwarding and therefore breaks streaming.",
+          "state": "unsupported_by_host_model"
+        },
+        "request_headers": {
+          "reason": "Configured forwardAuth request headers are mapped into Common Runtime; canonical multi-header and limit evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "response_body_buffered": {
+          "reason": "forwardAuth does not receive the later upstream response body.",
+          "state": "unsupported_by_host_model"
+        },
+        "response_body_decompression": {
+          "reason": "forwardAuth does not receive an upstream response body to decompress.",
+          "state": "unsupported_by_host_model"
+        },
+        "response_body_incremental_ingest": {
+          "reason": "The pre-upstream forwardAuth service never receives an upstream response-body stream.",
+          "state": "unsupported_by_host_model"
+        },
+        "response_body_limits": {
+          "reason": "forwardAuth does not receive an upstream response body on which to enforce a response-body limit.",
+          "state": "unsupported_by_host_model"
+        },
+        "response_body_streaming": {
+          "reason": "forwardAuth does not receive an upstream response body stream.",
+          "state": "unsupported_by_host_model"
+        },
+        "response_headers": {
+          "reason": "forwardAuth runs before the upstream request and does not receive the later upstream response headers.",
+          "state": "unsupported_by_host_model"
+        },
+        "transaction_id": {
+          "reason": "The configured x-request-id header is resolved by Common Runtime and included in decision events; canonical correlation evidence is pending.",
+          "state": "implemented_not_asserted"
+        },
+        "transport_metadata": {
+          "reason": "The pre-upstream forwardAuth service does not observe client-visible upstream-response commitment or transport outcomes.",
+          "state": "not_implemented"
+        },
+        "upstream_abort": {
+          "reason": "The pre-upstream authorization service cannot observe or control an upstream response-abort lifecycle.",
+          "state": "unsupported_by_host_model"
+        }
+      },
+      "connector": "traefik",
+      "evidence_stages": {
+        "compile": {
+          "reason": "A repository authorization-service build path exists; no current canonical compile result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "config_load": {
+          "reason": "Connector configuration and Traefik file-provider checks exist; no current canonical result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "crs_smoke": {
+          "reason": "Legacy limited CRS smoke wiring exists and is not baseline evidence.",
+          "status": "supported_not_verified"
+        },
+        "extended_matrix": {
+          "reason": "Extended-matrix verification is outside this canonical no-CRS declaration.",
+          "status": "not_implemented"
+        },
+        "link": {
+          "reason": "The service links Common Runtime and libmodsecurity; no current canonical link result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "minimal_runtime_smoke": {
+          "reason": "A real Traefik forwardAuth 200/403 harness exists; no current canonical minimal-runtime result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "no_crs_baseline": {
+          "reason": "Capability-selected pre-upstream cases can run through the host path, but no canonical baseline result is attached.",
+          "status": "supported_not_verified"
+        },
+        "source_contract": {
+          "reason": "Service, mapper, metadata, Traefik configuration, and harness sources are present; no canonical source-contract result is attached.",
+          "status": "implemented_not_asserted"
+        },
+        "start_smoke": {
+          "reason": "Traefik and forwardAuth service request-free start wiring exists; no current canonical result is attached.",
+          "status": "implemented_not_asserted"
+        }
+      },
+      "external_references": [
+        {
+          "supports": "forwardBody enables buffered request-body forwarding; maxBodySize bounds it; forwarding the body breaks streaming",
+          "title": "Traefik Proxy v3.7 ForwardAuth configuration",
+          "url": "https://doc.traefik.io/traefik/v3.7/reference/routing-configuration/http/middlewares/forwardauth/"
+        }
+      ],
+      "host_model_constraints": [
+        "The selected forwardAuth service observes the authorization request before the upstream request and cannot inspect the later upstream response headers or body.",
+        "Traefik v3.7 supports buffered forwardAuth request bodies with forwardBody and maxBodySize, but the checked-in dynamic configuration does not enable them and the service config sets request_body_mode=none.",
+        "Traefik documents that forwardBody buffering breaks streaming, so streaming request-body inspection is outside this host path.",
+        "The authorization service currently sees the Traefik-to-service socket endpoints and does not map original client connection endpoints into Common connection metadata.",
+        "The full-lifecycle profile separately selects native-middleware through full-lifecycle-traefik-native in a pinned Traefik local-plugin host probe. Its selected UDS engine service performs Common/libmodsecurity evaluation, while this forwardAuth compatibility declaration remains separate and unpromoted."
+      ],
+      "host_name": "traefik",
+      "integration_mode": "http-forwardauth-service",
+      "metadata_source": "connectors/traefik/metadata.c",
+      "source_contract": [
+        "connectors/traefik/metadata.c",
+        "connectors/traefik/config/traefik-forwardauth-dynamic.yaml",
+        "connectors/traefik/config/traefik-forwardauth.conf",
+        "connectors/traefik/src/traefik_forwardauth_service_main.c",
+        "connectors/traefik/src/traefik_modsecurity_mapper.c",
+        "connectors/traefik/scripts/runtime_smoke.py",
+        "connectors/traefik/native_middleware/middleware.go",
+        "connectors/traefik/native_middleware/.traefik.yml",
+        "connectors/traefik/config/traefik-native-middleware-dynamic.yaml",
+        "connectors/traefik/config/traefik-native-middleware-static.yaml",
+        "connectors/traefik/scripts/runtime-native-middleware.sh",
+        "connectors/traefik/scripts/runtime_native_smoke.py"
+      ]
+    }
+  },
+  "evidence_stage_names": [
+    "source_contract",
+    "compile",
+    "link",
+    "config_load",
+    "start_smoke",
+    "minimal_runtime_smoke",
+    "no_crs_baseline",
+    "crs_smoke",
+    "extended_matrix"
+  ],
+  "generated_at": "2026-07-12T13:40:05Z",
+  "generated_from": [
+    "connectors/apache/capabilities.json",
+    "connectors/nginx/capabilities.json",
+    "connectors/haproxy/capabilities.json",
+    "connectors/envoy/capabilities.json",
+    "connectors/traefik/capabilities.json",
+    "connectors/lighttpd/capabilities.json"
+  ],
+  "kind": "connector-capability-catalog",
+  "metadata": {
+    "category": "canonical",
+    "commit_policy": "versioned-generated",
+    "connector_sha": "3315963a5616f666e52ebbf9e53f79494f93d9cb",
+    "data_kind": "capability-catalog",
+    "data_origin": "repository",
+    "data_source_policy": "verified-inputs-only",
+    "empty_inputs": [],
+    "framework_sha": "088e520052dcdb25ffa2d29bebcdf20ba0e066eb",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-07-12T13:40:05Z",
+    "generated_by": "ci/connector_capabilities.py",
+    "generated_notice": "Generated file - do not edit manually.",
+    "input_status": "complete",
+    "inputs": [
+      {
+        "notes": "input file available",
+        "path": "connectors/apache/capabilities.json",
+        "sha256": "95ba425551d9261bbbf4693c989f55468da78f7a2a6efa6eca8dc0ad69833a59",
+        "source_hash": "95ba425551d9261bbbf4693c989f55468da78f7a2a6efa6eca8dc0ad69833a59",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "connectors/nginx/capabilities.json",
+        "sha256": "70fa6bb202c0ac3ea8292fa654a98586852b238e1885e43e7d5235e7daa0a982",
+        "source_hash": "70fa6bb202c0ac3ea8292fa654a98586852b238e1885e43e7d5235e7daa0a982",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "connectors/haproxy/capabilities.json",
+        "sha256": "b8e3ca621904e925580604d5b7af1c97cf0a4c01a4c7a42cc7c58fae4c9d599c",
+        "source_hash": "b8e3ca621904e925580604d5b7af1c97cf0a4c01a4c7a42cc7c58fae4c9d599c",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "connectors/envoy/capabilities.json",
+        "sha256": "b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216",
+        "source_hash": "b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "connectors/traefik/capabilities.json",
+        "sha256": "04dbf29b4ed7085f1db172619b0957e6dc740964b9741c736b70e158fe904adc",
+        "source_hash": "04dbf29b4ed7085f1db172619b0957e6dc740964b9741c736b70e158fe904adc",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "connectors/lighttpd/capabilities.json",
+        "sha256": "4aac60435527d7a17ddc11deb14ae49f5a48e15c8a357c0ea45627fa4dc82995",
+        "source_hash": "4aac60435527d7a17ddc11deb14ae49f5a48e15c8a357c0ea45627fa4dc82995",
+        "status": "present"
+      }
+    ],
+    "make_target": "capabilities-all-connectors",
+    "missing_inputs": [],
+    "output_name": "connector-capabilities.generated.md",
+    "owner": "connector",
+    "report_key": "connector_capabilities",
+    "schema_version": 1,
+    "severity": "informational",
+    "unknown_inputs": [],
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
+    "working_tree_dirty": "dirty"
+  },
+  "runtime_promotion": false,
+  "schema_version": 1
+}

@@ -1,5 +1,7 @@
 # Central License And Attribution Index
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: implemented
 
 This directory is a central index for third-party source attribution in this

@@ -1,5 +1,7 @@
 # NGINX Connector License Origin
 
+**Language:** English | [Deutsch](ORIGIN.de.md)
+
 Status: implemented
 
 This directory mirrors the upstream license and attribution files for the

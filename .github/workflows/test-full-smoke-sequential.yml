@@ -65,7 +65,7 @@ jobs:
         run: |
           make setup-dev
           make lint
-          .venv/bin/python -P -m py_compile modules/ModSecurity-test-Framework/tests/normalizers/*.py modules/ModSecurity-test-Framework/tests/runners/*.py modules/ModSecurity-test-Framework/ci/*.py
+          find modules/ModSecurity-test-Framework/tests/normalizers modules/ModSecurity-test-Framework/tests/runners modules/ModSecurity-test-Framework/ci -type f -name '*.py' -print0 | xargs -0 -r .venv/bin/python -P -m py_compile
           git diff --check
 
       - name: Sequential full smoke

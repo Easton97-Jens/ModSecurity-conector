@@ -3,12 +3,66 @@
 #include "msc_utils.h"
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
+#include "msconnector/late_intervention.h"
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
 
 #include <apr_file_io.h>
 #include <string.h>
 #include <strings.h>
+
+
+/* Kept private to this translation unit; Phase 2 reaches it before the
+ * implementation below because input-filter EOS is handled near the start
+ * of this file. */
+static void apache_log_intervention_event(msc_t *msr, request_rec *r,
+    const char *event_name, enum msconnector_phase phase,
+    const char *wanted, const char *actual, const char *reason,
+    int original_status, int response_committed);
+
+
+/*
+ * Phase 2 has exactly one terminal transition.  Input buckets may arrive in
+ * many filter calls, while a handler which does not consume its request body
+ * may cause Apache to discard that body later.  Both paths share this helper
+ * so libmodsecurity never observes an append after end-of-stream.
+ */
+int msc_finalize_request_body(msc_t *msr, request_rec *r)
+{
+    int intervention;
+
+    if (msr == NULL || r == NULL || msr->t == NULL)
+    {
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (msr->request_body_processed)
+    {
+        return N_INTERVENTION_STATUS;
+    }
+    msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    msr->native_event_phase_active = 1;
+    if (msc_process_request_body(msr->t) < 0)
+    {
+        msr->native_event_phase_active = 0;
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    msr->native_event_phase_active = 0;
+    msr->request_body_processed = 1;
+    intervention = process_intervention(msr->t, r);
+    if (intervention != N_INTERVENTION_STATUS)
+    {
+        const char *action = msr->last_intervention_status >= 300 &&
+            msr->last_intervention_status < 400 ? "redirect" : "deny";
+
+        /* This is the actual Apache input-filter terminal path.  Emit the
+         * bounded decision metadata before returning the disruptive status to
+         * httpd, rather than reconstructing Phase 2 from audit output. */
+        apache_log_intervention_event(msr, r, "phase2_intervention",
+            MSCONNECTOR_PHASE_REQUEST_BODY, action, action,
+            "request_body_before_handler", r->status, 0);
+    }
+    return intervention;
+}
 
 
 apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
@@ -28,7 +82,7 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
         ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, f->r->server,
                 "ModSecurity: Internal Error: msr is null in input filter.");
         ap_remove_input_filter(f);
-        return send_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
+        return send_input_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
     }
 
     pbbTmp = apr_brigade_create(r->pool, c->bucket_alloc);
@@ -43,13 +97,22 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
     while (!APR_BRIGADE_EMPTY(pbbTmp))
     {
         apr_bucket *pbktIn = APR_BRIGADE_FIRST(pbbTmp);
-        apr_bucket *pbktOut;
         const char *data;
         apr_size_t len;
         int it;
 
         if (APR_BUCKET_IS_EOS(pbktIn))
         {
+            if (!msr->request_body_processed)
+            {
+                it = msc_finalize_request_body(msr, r);
+                if (it != N_INTERVENTION_STATUS)
+                {
+                    msr->request_body_intervention_sent = 1;
+                    ap_remove_input_filter(f);
+                    return send_input_error_bucket(msr, f, it);
+                }
+            }
             APR_BUCKET_REMOVE(pbktIn);
             APR_BRIGADE_INSERT_TAIL(pbbOut, pbktIn);
             break;
@@ -61,20 +124,19 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
             return ret;
         }
 
-        msc_append_request_body(msr->t, (const unsigned char *)data, len);
-        it = process_intervention(msr->t, r);
-        if (it != N_INTERVENTION_STATUS)
+        if (msc_append_request_body(msr->t,
+                (const unsigned char *)data, len) < 0)
         {
             ap_remove_input_filter(f);
-            return send_error_bucket(msr, f, it);
+            return send_input_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
         }
+        msr->request_body_bytes_seen += len;
+        msr->request_body_bytes_inspected += len;
 
-        // FIXME: Now we should have the body. Is this sane?
-        msc_process_request_body(msr->t);
-
-        pbktOut = apr_bucket_heap_create(data, len, 0, c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(pbbOut, pbktOut);
-        apr_bucket_delete(pbktIn);
+        /* The host owns this bucket. Move it through unchanged rather than
+         * materializing a second request-body copy in the connector. */
+        APR_BUCKET_REMOVE(pbktIn);
+        APR_BRIGADE_INSERT_TAIL(pbbOut, pbktIn);
     }
     return APR_SUCCESS;
 }
@@ -95,6 +157,50 @@ static const char *apache_response_content_type(request_rec *r)
     return value;
 }
 
+
+static const char *apache_request_content_type(request_rec *r)
+{
+    if (r == NULL || r->headers_in == NULL)
+    {
+        return "";
+    }
+    return apr_table_get(r->headers_in, "Content-Type");
+}
+
+
+static const char *apache_event_phase_name(enum msconnector_phase phase)
+{
+    switch (phase)
+    {
+        case MSCONNECTOR_PHASE_REQUEST_HEADERS:
+            return "request_headers";
+        case MSCONNECTOR_PHASE_REQUEST_BODY:
+            return "request_body";
+        case MSCONNECTOR_PHASE_RESPONSE_HEADERS:
+            return "response_headers";
+        case MSCONNECTOR_PHASE_RESPONSE_BODY:
+            return "response_body";
+        default:
+            return "unknown";
+    }
+}
+
+
+static const char *apache_phase4_mode_name(enum msconnector_phase4_mode mode)
+{
+    switch (mode)
+    {
+        case MSCONNECTOR_PHASE4_MODE_MINIMAL:
+            return "minimal";
+        case MSCONNECTOR_PHASE4_MODE_SAFE:
+            return "safe";
+        case MSCONNECTOR_PHASE4_MODE_STRICT:
+            return "strict";
+        case MSCONNECTOR_PHASE4_MODE_UNSET:
+        default:
+            return NULL;
+    }
+}
 
 static const char *apache_normalized_content_type(apr_pool_t *pool,
     const char *value)
@@ -179,9 +285,26 @@ static int apache_phase4_in_scope(msc_conf_t *conf, request_rec *r)
     return 0;
 }
 
+static const char *apache_phase4_actual_action(
+    msconnector_late_intervention_action action,
+    const char *requested_action)
+{
+    const char *name = msconnector_late_intervention_action_name(action);
 
-static void apache_phase4_log_event(msc_t *msr, request_rec *r,
-    const char *wanted, const char *actual, const char *reason)
+    if (strcmp(name, "deny_if_possible") == 0)
+    {
+        return requested_action != NULL &&
+            strcmp(requested_action, "redirect") == 0
+            ? "redirect" : "deny";
+    }
+    return name;
+}
+
+
+static void apache_log_intervention_event(msc_t *msr, request_rec *r,
+    const char *event_name, enum msconnector_phase phase,
+    const char *wanted, const char *actual, const char *reason,
+    int original_status, int response_committed)
 {
     msc_conf_t *conf;
     apr_file_t *file = NULL;
@@ -208,7 +331,7 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     if (rc != APR_SUCCESS)
     {
         ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
-            "ModSecurity: failed to open phase4 log %s",
+            "ModSecurity: failed to open intervention log %s",
             conf->common_config.phase4_log_path);
         return;
     }
@@ -218,9 +341,23 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
         rule_id, sizeof(rule_id));
 
     msconnector_event_init(&event);
-    event.meta.event = "phase4_intervention";
-    event.meta.connector = MSC_APACHE_CONNECTOR;
-    event.decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    event.meta.message_id = phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ||
+        phase == MSCONNECTOR_PHASE_REQUEST_BODY
+        ? MSCONN_EVENT_REQUEST_BLOCKED
+        : (phase == MSCONNECTOR_PHASE_RESPONSE_BODY
+            ? (strcmp(actual, "abort_connection") == 0
+                ? MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200
+                : (strcmp(actual, "log_only") == 0
+                    ? MSCONN_EVENT_PHASE4_LATE_INTERVENTION
+                    : MSCONN_EVENT_RESPONSE_BLOCKED))
+            : MSCONN_EVENT_RESPONSE_BLOCKED);
+    event.meta.level = msconnector_event_default_level(event.meta.message_id);
+    event.meta.message = msconnector_event_default_message(event.meta.message_id);
+    event.meta.event = event_name;
+    event.meta.connector = "apache";
+    event.meta.integration_mode = "native-httpd-module";
+    event.meta.transaction_id = msr->event_transaction_id;
+    event.decision.phase = phase;
     event.decision.status = MSCONNECTOR_STATUS_BLOCKED;
     event.decision.action = actual;
     event.decision.requested_action = wanted;
@@ -228,68 +365,245 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     event.decision.rule_id = rule_id;
     event.decision.reason = reason;
     event.http.http_status = msr->last_intervention_status;
-    event.http.original_http_status = r->status;
-    if (strcmp(reason, "buffered_before_commit") == 0)
+    event.http.original_http_status = original_status;
+    if (strcmp(actual, "deny") == 0 || strcmp(actual, "redirect") == 0)
     {
         event.http.visible_http_status = msr->last_intervention_status;
+        event.http.transport_result = "http_status";
+    }
+    else if (strcmp(actual, "abort_connection") == 0)
+    {
+        event.http.visible_http_status = r->status;
+        event.http.transport_result = "connection_aborted";
     }
     else
     {
         event.http.visible_http_status = r->status;
+        event.http.transport_result = "log_only";
     }
     event.request.method = r->method;
     event.request.uri = r->unparsed_uri;
-    event.flags.late_intervention = msr->response_committed;
-    event.flags.response_started = msr->response_committed;
-    event.flags.headers_sent = msr->response_committed;
-    event.flags.body_started = msr->response_committed;
-    event.flags.connection_aborted = msr->phase4_strict_abort;
-    event.flags.body_truncated = msr->response_body_truncated;
+    event.body.content_type = phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ||
+        phase == MSCONNECTOR_PHASE_REQUEST_BODY
+        ? apache_request_content_type(r) : apache_response_content_type(r);
+    event.body.bytes_seen = phase == MSCONNECTOR_PHASE_REQUEST_BODY
+        ? msr->request_body_bytes_seen
+        : (phase == MSCONNECTOR_PHASE_RESPONSE_BODY
+            ? msr->response_body_bytes_seen : 0U);
+    event.body.bytes_inspected = phase == MSCONNECTOR_PHASE_REQUEST_BODY
+        ? msr->request_body_bytes_inspected
+        : (phase == MSCONNECTOR_PHASE_RESPONSE_BODY
+            ? msr->response_body_bytes_inspected : 0U);
+    event.flags.late_intervention = response_committed;
+    if (response_committed)
+    {
+        event.flags.late_intervention_mode = apache_phase4_mode_name(
+            conf->common_config.phase4_mode);
+    }
+    event.flags.response_started = response_committed;
+    event.flags.response_committed = response_committed;
+    event.flags.headers_sent = response_committed;
+    event.flags.body_started = phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        response_committed;
+    /* Phase-2/4 intervention records are emitted only after their explicit
+     * body finish boundary; this is not a claim about client completion. */
+    event.flags.eos_seen = phase == MSCONNECTOR_PHASE_REQUEST_BODY ||
+        phase == MSCONNECTOR_PHASE_RESPONSE_BODY;
+    event.flags.connection_aborted = phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        msr->phase4_strict_abort;
+    event.flags.body_truncated = phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        msr->response_body_truncated;
 
     if (msconnector_event_write_jsonl_line(&event, line, sizeof(line),
         &json_truncated))
     {
-        apr_file_puts(line, file);
+        rc = apr_file_puts(line, file);
+        if (rc != APR_SUCCESS)
+        {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
+            "ModSecurity: failed to write intervention log %s",
+                conf->common_config.phase4_log_path);
+        }
     }
     else if (json_truncated)
     {
-        apr_file_puts(
-            "{\"event\":\"phase4_intervention\",\"phase\":\"response_body\","
+        rc = apr_file_puts(apr_psprintf(r->pool,
+            "{\"event\":\"%s\",\"integration_mode\":\"native-httpd-module\",\"phase\":\"%s\","
             "\"status\":\"blocked\",\"reason\":\"event serialization truncated\","
-            "\"truncated\":true}\n",
-            file);
+            "\"truncated\":true}\n", event_name,
+            apache_event_phase_name(phase)), file);
+        if (rc != APR_SUCCESS)
+        {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
+                "ModSecurity: failed to write truncated intervention log %s",
+                conf->common_config.phase4_log_path);
+        }
     }
     else
     {
-        apr_file_puts(
-            "{\"event\":\"phase4_intervention\",\"phase\":\"response_body\","
+        rc = apr_file_puts(apr_psprintf(r->pool,
+            "{\"event\":\"%s\",\"integration_mode\":\"native-httpd-module\",\"phase\":\"%s\","
             "\"status\":\"error\",\"reason\":\"event serialization failed\"}\n",
-            file);
+            event_name, apache_event_phase_name(phase)), file);
+        if (rc != APR_SUCCESS)
+        {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
+                "ModSecurity: failed to write failed intervention log %s",
+                conf->common_config.phase4_log_path);
+        }
         ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ModSecurity: failed to serialize common phase4 event");
+            "ModSecurity: failed to serialize common intervention event");
     }
 
-    apr_file_close(file);
+    rc = apr_file_close(file);
+    if (rc != APR_SUCCESS)
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
+            "ModSecurity: failed to close intervention log %s",
+            conf->common_config.phase4_log_path);
+    }
 }
 
 
-static apr_status_t apache_phase4_buffer_bucket(ap_filter_t *f,
-    msc_t *msr, msc_conf_t *conf, apr_bucket *bucket)
+void apache_emit_intervention_event(msc_t *msr, request_rec *r,
+    const char *event_name, enum msconnector_phase phase,
+    const char *wanted, const char *actual, const char *reason,
+    int original_status, int response_committed)
 {
-    apr_bucket *copy = NULL;
+    apache_log_intervention_event(msr, r, event_name, phase, wanted, actual,
+        reason, original_status, response_committed);
+}
+
+
+void apache_log_rule_match_event(msc_t *msr, request_rec *r,
+    enum msconnector_phase phase, const char *rule_id)
+{
+    msc_conf_t *conf;
+    apr_file_t *file = NULL;
+    apr_status_t rc;
+    msconnector_event event;
+    char line[4096];
+    int json_truncated = 0;
+
+    if (msr == NULL || r == NULL || r->per_dir_config == NULL ||
+        !msconnector_rule_id_validate(rule_id))
+    {
+        return;
+    }
+
+    conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+        &security3_module);
+    if (conf == NULL || conf->common_config.phase4_log_path == NULL)
+    {
+        return;
+    }
+
+    rc = apr_file_open(&file, conf->common_config.phase4_log_path,
+        APR_WRITE | APR_CREATE | APR_APPEND, APR_OS_DEFAULT, r->pool);
+    if (rc != APR_SUCCESS)
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
+            "ModSecurity: failed to open native rule-match log %s",
+            conf->common_config.phase4_log_path);
+        return;
+    }
+
+    /* This record is emitted synchronously by the real libmodsecurity log
+     * callback while Apache is in the named request phase.  It intentionally
+     * preserves a non-disruptive match as `pass`, rather than pretending that
+     * a rule with `log` was a deny or a late log-only intervention. */
+    msconnector_event_init(&event);
+    event.meta.level = "info";
+    event.meta.message_id = "MSCONN_EVENT_RULE_MATCHED";
+    event.meta.message = "Non-disruptive ModSecurity rule match observed in native Apache module.";
+    event.meta.event = "request_rule_match";
+    event.meta.connector = "apache";
+    event.meta.integration_mode = "native-httpd-module";
+    event.meta.transaction_id = msr->event_transaction_id;
+    event.decision.phase = phase;
+    event.decision.status = MSCONNECTOR_STATUS_OK;
+    event.decision.action = "pass";
+    event.decision.requested_action = "pass";
+    event.decision.actual_action = "pass";
+    event.decision.rule_id = rule_id;
+    event.decision.reason = "non_disruptive_rule_match";
+    event.http.transport_result = "not_observable";
+    event.request.method = r->method;
+    event.request.uri = r->unparsed_uri;
+    event.body.content_type = phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ||
+        phase == MSCONNECTOR_PHASE_REQUEST_BODY
+        ? apache_request_content_type(r) : apache_response_content_type(r);
+    event.body.bytes_seen = phase == MSCONNECTOR_PHASE_REQUEST_BODY
+        ? msr->request_body_bytes_seen : 0U;
+    event.body.bytes_inspected = phase == MSCONNECTOR_PHASE_REQUEST_BODY
+        ? msr->request_body_bytes_inspected : 0U;
+
+    if (msconnector_event_write_jsonl_line(&event, line, sizeof(line),
+        &json_truncated))
+    {
+        rc = apr_file_puts(line, file);
+        if (rc != APR_SUCCESS)
+        {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
+                "ModSecurity: failed to write native rule-match log %s",
+                conf->common_config.phase4_log_path);
+        }
+    }
+    else
+    {
+        rc = apr_file_puts(apr_psprintf(r->pool,
+            "{\"event\":\"request_rule_match\",\"integration_mode\":\"native-httpd-module\","
+            "\"phase\":\"%s\",\"status\":\"error\","
+            "\"reason\":\"native rule-match event serialization %s\"}\n",
+            apache_event_phase_name(phase),
+            json_truncated ? "truncated" : "failed"), file);
+        if (rc != APR_SUCCESS)
+        {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
+                "ModSecurity: failed to write native rule-match fallback %s",
+                conf->common_config.phase4_log_path);
+        }
+    }
+
+    rc = apr_file_close(file);
+    if (rc != APR_SUCCESS)
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
+            "ModSecurity: failed to close native rule-match log %s",
+            conf->common_config.phase4_log_path);
+    }
+}
+
+
+static void apache_phase4_log_event(msc_t *msr, request_rec *r,
+    const char *wanted, const char *actual, const char *reason)
+{
+    apache_log_intervention_event(msr, r, "phase4_intervention",
+        MSCONNECTOR_PHASE_RESPONSE_BODY, wanted, actual, reason, r->status,
+        msr != NULL ? msr->response_committed : 0);
+}
+
+
+static void apache_phase3_log_event(msc_t *msr, request_rec *r,
+    const char *wanted, const char *actual, int original_status)
+{
+    apache_log_intervention_event(msr, r, "phase3_intervention",
+        MSCONNECTOR_PHASE_RESPONSE_HEADERS, wanted, actual,
+        "response_headers_before_commit", original_status, 0);
+}
+
+
+static apr_status_t apache_phase4_append_bucket(msc_t *msr,
+    msc_conf_t *conf, request_rec *r, apr_bucket *bucket)
+{
     const char *data = NULL;
     apr_size_t len = 0;
     apr_size_t remaining;
     apr_status_t rc;
+    int in_scope;
 
     if (APR_BUCKET_IS_EOS(bucket) || APR_BUCKET_IS_METADATA(bucket))
     {
-        rc = apr_bucket_copy(bucket, &copy);
-        if (rc != APR_SUCCESS)
-        {
-            return rc;
-        }
-        APR_BRIGADE_INSERT_TAIL(msr->response_brigade, copy);
         return APR_SUCCESS;
     }
 
@@ -303,13 +617,22 @@ static apr_status_t apache_phase4_buffer_bucket(ap_filter_t *f,
     {
         msr->response_body_seen = 1;
         msr->response_body_bytes_seen += len;
+        in_scope = apache_phase4_in_scope(conf, r);
+        if (!in_scope)
+        {
+            return APR_SUCCESS;
+        }
         remaining = conf->common_config.phase4_body_limit > msr->response_body_bytes_inspected
             ? conf->common_config.phase4_body_limit - msr->response_body_bytes_inspected
             : 0;
         if (remaining > 0)
         {
             apr_size_t inspect_len = len < remaining ? len : remaining;
-            msc_append_response_body(msr->t, (const unsigned char *)data, inspect_len);
+            if (msc_append_response_body(msr->t,
+                    (const unsigned char *)data, inspect_len) < 0)
+            {
+                return APR_EGENERAL;
+            }
             msr->response_body_bytes_inspected += inspect_len;
         }
         if (len > remaining)
@@ -318,17 +641,67 @@ static apr_status_t apache_phase4_buffer_bucket(ap_filter_t *f,
         }
     }
 
-    rc = apr_bucket_copy(bucket, &copy);
-    if (rc != APR_SUCCESS)
+    return APR_SUCCESS;
+}
+
+
+/*
+ * A normal handler either consumes the request body or invokes
+ * ap_discard_request_body() before it emits output.  This guard covers the
+ * remaining host path: a handler that starts a response without doing either.
+ * Discarding through Apache's input chain normally keeps the body streamed and
+ * delivers EOS to MODSECURITY_IN. Apache may deliberately skip that drain
+ * when the connection is already closing; in that case this filter aborts
+ * rather than falsely finalizing an advertised body as empty before P3.
+ */
+static apr_status_t apache_finish_unread_request_body(ap_filter_t *f)
+{
+    request_rec *r = f->r;
+    msc_t *msr = (msc_t *)f->ctx;
+    int discard_status;
+    int it;
+
+    if (msr->request_body_processed)
     {
-        copy = apr_bucket_heap_create(data, len, NULL,
-            f->r->connection->bucket_alloc);
+        return APR_SUCCESS;
     }
-    if (copy == NULL)
+    if (ap_request_has_body(r))
     {
-        return APR_EGENERAL;
+        discard_status = ap_discard_request_body(r);
+        if (discard_status != OK)
+        {
+            ap_remove_output_filter(f);
+            /* MODSECURITY_IN has already emitted its error bucket for a
+             * disruptive Phase-2 decision; do not emit it a second time. */
+            if (msr->request_body_intervention_sent)
+            {
+                return APR_EGENERAL;
+            }
+            return send_error_bucket(msr, f,
+                discard_status >= HTTP_BAD_REQUEST && discard_status <= 599
+                    ? discard_status : HTTP_BAD_REQUEST);
+        }
+        if (!msr->request_body_processed)
+        {
+            /* ap_discard_request_body() is permitted to return OK without
+             * reading when Apache is closing the connection. There is no
+             * trustworthy EOS/P2 boundary in that path, so never enter P3. */
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING | APLOG_NOERRNO, 0, r,
+                "ModSecurity: request body was not drained to EOS; aborting before response headers");
+            ap_remove_output_filter(f);
+            return APR_ECONNABORTED;
+        }
+        return APR_SUCCESS;
     }
-    APR_BRIGADE_INSERT_TAIL(msr->response_brigade, copy);
+
+    /* A request that does not advertise a body has no input EOS to drive the
+     * filter, so complete its only valid empty terminal transition here. */
+    it = msc_finalize_request_body(msr, r);
+    if (it != N_INTERVENTION_STATUS)
+    {
+        ap_remove_output_filter(f);
+        return send_error_bucket(msr, f, it);
+    }
     return APR_SUCCESS;
 }
 
@@ -359,14 +732,12 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
         return send_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
     }
 
-    if (msr->response_brigade == NULL)
+    if (!msr->request_body_processed)
     {
-        msr->response_brigade = apr_brigade_create(r->pool,
-            r->connection->bucket_alloc);
-        if (msr->response_brigade == NULL)
+        apr_status_t rc = apache_finish_unread_request_body(f);
+        if (rc != APR_SUCCESS)
         {
-            ap_remove_output_filter(f);
-            return send_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
+            return rc;
         }
     }
 
@@ -376,7 +747,9 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
         const apr_array_header_t *arr = NULL;
         const apr_table_entry_t *te = NULL;
         const char *content_type;
+        const char *wanted;
         int i;
+        int original_status;
 
         arr = apr_table_elts(r->err_headers_out);
         te = (apr_table_entry_t *)arr->elts;
@@ -405,13 +778,24 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
                 (const unsigned char *)"Content-Type",
                 (const unsigned char *)content_type);
         }
-        msc_process_response_headers(msr->t, r->status, "HTTP 1.1");
+        original_status = r->status;
+        if (msc_process_response_headers(msr->t, original_status, "HTTP 1.1") < 0)
+        {
+            ap_remove_output_filter(f);
+            return send_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
+        }
         msr->response_headers_seen = 1;
         msr->response_headers_processed = 1;
 
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
+            wanted = msr->last_intervention_status >= 300 &&
+                msr->last_intervention_status < 400 ? "redirect" : "deny";
+            /* Header filtering runs before this output filter passes the
+             * brigade downstream.  Record the exact status transition before
+             * send_error_bucket can commit the visible response. */
+            apache_phase3_log_event(msr, r, wanted, wanted, original_status);
             ap_remove_output_filter(f);
             return send_error_bucket(msr, f, it);
         }
@@ -427,62 +811,77 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
         {
             eos_seen = 1;
         }
-        rc = apache_phase4_buffer_bucket(f, msr, conf, pbktIn);
+        rc = apache_phase4_append_bucket(msr, conf, r, pbktIn);
         if (rc != APR_SUCCESS)
         {
             return rc;
         }
     }
 
-    apr_brigade_cleanup(bb_in);
     if (!eos_seen)
     {
-        return APR_SUCCESS;
+        /* Do not retain a brigade across filter calls.  The currently
+         * inspected buckets remain owned by Apache and are passed on before
+         * the upstream response reaches end-of-stream. */
+        return ap_pass_brigade(f->next, bb_in);
     }
 
     if (!msr->response_body_processed)
     {
-        msc_process_response_body(msr->t);
+        if (msc_process_response_body(msr->t) < 0)
+        {
+            ap_remove_output_filter(f);
+            return send_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
+        }
         msr->response_body_processed = 1;
 
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
+            msconnector_late_intervention_policy policy;
+            msconnector_late_intervention_action action;
+            const char *wanted;
+            const char *actual;
+
             msr->phase4_intervention = 1;
             msr->response_committed = r->sent_bodyct > 0 ? 1 : 0;
+            wanted = msr->last_intervention_status >= 300 &&
+                msr->last_intervention_status < 400 ? "redirect" : "deny";
             if (!apache_phase4_in_scope(conf, r))
             {
-                apache_phase4_log_event(msr, r, "deny", "log_only",
+                apache_phase4_log_event(msr, r, wanted, "log_only",
                     "content_type_not_in_scope");
-                msr->response_committed = 1;
-                return ap_pass_brigade(f->next, msr->response_brigade);
+                return ap_pass_brigade(f->next, bb_in);
             }
-            if (conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_MINIMAL)
+            msconnector_late_intervention_policy_init(&policy);
+            action = msconnector_late_intervention_resolve(&policy,
+                msr->response_committed, msr->response_committed,
+                conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);
+            actual = apache_phase4_actual_action(action, wanted);
+            if (action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY)
             {
-                apache_phase4_log_event(msr, r, "deny", "log_only",
-                    "phase4_mode_minimal");
-                msr->response_committed = 1;
-                return ap_pass_brigade(f->next, msr->response_brigade);
+                apache_phase4_log_event(msr, r, wanted, actual,
+                    "response_committed_safe");
+                return ap_pass_brigade(f->next, bb_in);
             }
-            if (msr->response_committed)
+            if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION)
             {
                 msr->phase4_strict_abort = 1;
                 msr->response_committed = 1;
-                apache_phase4_log_event(msr, r, "deny",
-                    "connection_abort", "headers_or_body_already_sent");
+                apache_phase4_log_event(msr, r, wanted, actual,
+                    "response_committed_strict");
                 ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
                     "ModSecurity: phase4 intervention after response commit, action=connection_abort");
                 ap_remove_output_filter(f);
                 return APR_ECONNABORTED;
             }
-            apache_phase4_log_event(msr, r, "deny", "deny_status",
-                "buffered_before_commit");
-            apr_brigade_cleanup(msr->response_brigade);
+            apache_phase4_log_event(msr, r, wanted, actual,
+                "response_not_committed");
+            apr_brigade_cleanup(bb_in);
             ap_remove_output_filter(f);
             return send_error_bucket(msr, f, it);
         }
     }
 
-    msr->response_committed = 1;
-    return ap_pass_brigade(f->next, msr->response_brigade);
+    return ap_pass_brigade(f->next, bb_in);
 }

@@ -34,32 +34,32 @@
 | Architecture | x86_64 |
 | Hostname | jens |
 | User | root |
-| Working Directory | `/root/git/ModSecurity-conector` |
+| Working Directory | `<local-home-root>/git/ModSecurity-conector` |
 
 ## Framework Environment Resolution
 
 | Field | Value |
 |---|---|
-| Framework root | `/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework` |
-| common.sh path | `/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/common.sh` |
+| Framework root | `<local-home-root>/git/ModSecurity-conector/modules/ModSecurity-test-Framework` |
+| common.sh path | `<local-home-root>/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/common.sh` |
 | common.sh status | `loaded` |
 | common.sh return code | `0` |
-| VERIFIED_RUN_ROOT | `/var/tmp/ModSecurity-conector-verified` |
-| VERIFIED_STATE_ROOT | `/var/tmp/ModSecurity-conector-verified/state` |
-| VERIFIED_BUILD_ROOT | `/var/tmp/ModSecurity-conector-verified/build` |
-| VERIFIED_SOURCE_ROOT | `/var/tmp/ModSecurity-conector-verified/src` |
-| VERIFIED_TMP_ROOT | `/var/tmp/ModSecurity-conector-verified/tmp` |
-| VERIFIED_LOG_ROOT | `/var/tmp/ModSecurity-conector-verified/logs` |
-| VERIFIED_COMPONENT_CACHE | `/var/tmp/ModSecurity-conector-verified/component-cache` |
-| BUILD_ROOT | `/var/tmp/ModSecurity-conector-verified/build` |
-| SOURCE_ROOT | `/var/tmp/ModSecurity-conector-verified/src` |
-| TMP_ROOT | `/var/tmp/ModSecurity-conector-verified/tmp` |
-| LOG_ROOT | `/var/tmp/ModSecurity-conector-verified/logs` |
-| CONNECTOR_COMPONENT_CACHE | `/var/tmp/ModSecurity-conector-verified/component-cache` |
-| NGINX_HARNESS_PARENT | `/var/tmp/ModSecurity-conector-verified/nginx-harness` |
-| MATRIX_ROOT | `/var/tmp/ModSecurity-conector-verified/build/full-matrix` |
-| MRTS_BUILD_ROOT | `/var/tmp/ModSecurity-conector-verified/build/mrts` |
-| MRTS_NATIVE_ROOT | `/var/tmp/ModSecurity-conector-verified/build/mrts-native` |
+| VERIFIED_RUN_ROOT | `<verified-run-root>` |
+| VERIFIED_STATE_ROOT | `<verified-run-root>/state` |
+| VERIFIED_BUILD_ROOT | `<verified-run-root>/build` |
+| VERIFIED_SOURCE_ROOT | `<verified-run-root>/src` |
+| VERIFIED_TMP_ROOT | `<verified-run-root>/tmp` |
+| VERIFIED_LOG_ROOT | `<verified-run-root>/logs` |
+| VERIFIED_COMPONENT_CACHE | `<verified-run-root>/component-cache` |
+| BUILD_ROOT | `<verified-run-root>/build` |
+| SOURCE_ROOT | `<verified-run-root>/src` |
+| TMP_ROOT | `<verified-run-root>/tmp` |
+| LOG_ROOT | `<verified-run-root>/logs` |
+| CONNECTOR_COMPONENT_CACHE | `<verified-run-root>/component-cache` |
+| NGINX_HARNESS_PARENT | `<verified-run-root>/nginx-harness` |
+| MATRIX_ROOT | `<verified-run-root>/build/full-matrix` |
+| MRTS_BUILD_ROOT | `<verified-run-root>/build/mrts` |
+| MRTS_NATIVE_ROOT | `<verified-run-root>/build/mrts-native` |
 | VERIFIED_RUN_ID | `2026-06-16T19-12-00Z-614c8049` |
 | VERIFIED_RUN_PROFILE | `unset` |
 | VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS | `unset` |
@@ -86,11 +86,11 @@
 | CI_APACHE_BIN_CANDIDATES | `apache2 httpd apachectl` |
 | CI_APXS_BIN_CANDIDATES | `apxs apxs2` |
 | CI_NGINX_BIN_CANDIDATES | `nginx` |
-| HAPROXY_BIN | `/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime/haproxy/sbin/haproxy` |
+| HAPROXY_BIN | `<verified-run-root>/build/haproxy-runtime/haproxy/sbin/haproxy` |
 | HAPROXY_VERSION | `3.2.19` |
 | HAPROXY_SOURCE_URL | `https://www.haproxy.org/download/3.2/src/haproxy-3.2.19.tar.gz` |
-| HAPROXY_RUNTIME_DIR | `/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime/haproxy` |
-| HAPROXY_RUNTIME_BUILD_DIR | `/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime-build` |
+| HAPROXY_RUNTIME_DIR | `<verified-run-root>/build/haproxy-runtime/haproxy` |
+| HAPROXY_RUNTIME_BUILD_DIR | `<verified-run-root>/build/haproxy-runtime-build` |
 | EXPAT_SOURCE_URL | `https://github.com/libexpat/libexpat` |
 | EXPAT_GIT_REF | `master` |
 | EXPAT_GIT_URL | `https://github.com/libexpat/libexpat` |
@@ -106,7 +106,7 @@
 |---|---|---|---|---|---|---|
 | git | present | `/usr/bin/git` | `PATH fallback` | `git` | `git version 2.53.0` | `` |
 | python3 | present | `/usr/bin/python3` | `PATH fallback` | `python3` | `Python 3.14.4` | `` |
-| python | present | `/root/git/ModSecurity-conector/.venv/bin/python` | `PYTHON from process/make environment` | `.venv/bin/python python3 python` | `Python 3.14.4` | `resolved by Make PYTHON, ci_python, then python3/python fallback` |
+| python | present | `<local-home-root>/git/ModSecurity-conector/.venv/bin/python` | `PYTHON from process/make environment` | `.venv/bin/python python3 python` | `Python 3.14.4` | `resolved by Make PYTHON, ci_python, then python3/python fallback` |
 | make | present | `/usr/bin/make` | `PATH fallback` | `make` | `GNU Make 4.4.1` | `` |
 | bash | present | `/usr/bin/bash` | `PATH fallback` | `bash` | `GNU bash, version 5.3.9(1)-release (x86_64-pc-linux-gnu)` | `` |
 | sh | present | `/usr/bin/dash` | `/bin/sh executable check` | `/bin/sh` | `POSIX shell available (/usr/bin/dash)` | `checked shell availability with /bin/sh -c instead of sh --version` |
@@ -122,14 +122,14 @@
 | apachectl | missing | `` | `CI_APACHE_BIN_CANDIDATES from framework common.sh` | `apachectl` | `no candidate found: apachectl` | `APACHECTL_BIN is unset; checked apachectl candidate` |
 | apache/httpd | missing | `` | `CI_APACHE_BIN_CANDIDATES from framework common.sh` | `apache2 httpd apachectl` | `no candidate found: apache2 httpd apachectl` | `APACHECTL_BIN/APACHE_BIN are unset; checked APXS helper and framework candidates` |
 | nginx | missing | `` | `CI_NGINX_BIN_CANDIDATES from framework common.sh` | `nginx` | `no candidate found: nginx` | `NGINX_BIN is unset; checked framework candidates` |
-| haproxy | configured_missing | `/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime/haproxy/sbin/haproxy` | `HAPROXY_BIN from framework common.sh` | `` | `file not found` | `runtime path configured by common.sh but binary has not been built/prepared locally; HAPROXY_VERSION=3.2.19; HAPROXY_SOURCE_URL=https://www.haproxy.org/download/3.2/src/haproxy-3.2.19.tar.gz; HAPROXY_RUNTIME_DIR=/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime/haproxy; HAPROXY_RUNTIME_BUILD_DIR=/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime-build` |
+| haproxy | configured_missing | `<verified-run-root>/build/haproxy-runtime/haproxy/sbin/haproxy` | `HAPROXY_BIN from framework common.sh` | `` | `file not found` | `runtime path configured by common.sh but binary has not been built/prepared locally; HAPROXY_VERSION=3.2.19; HAPROXY_SOURCE_URL=https://www.haproxy.org/download/3.2/src/haproxy-3.2.19.tar.gz; HAPROXY_RUNTIME_DIR=<verified-run-root>/build/haproxy-runtime/haproxy; HAPROXY_RUNTIME_BUILD_DIR=<verified-run-root>/build/haproxy-runtime-build` |
 | apxs | missing | `` | `CI_APXS_BIN_CANDIDATES from framework common.sh` | `apxs apxs2` | `no candidate found: apxs apxs2` | `APXS_BIN is unset; checked framework candidates` |
 
 ## Runtime Component Readiness
 
 | Component | Status | Expected Path | Source URL | Version / Ref | How to Prepare |
 |---|---|---|---|---|---|
-| HAProxy | configured_missing | `/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime/haproxy/sbin/haproxy` | `https://www.haproxy.org/download/3.2/src/haproxy-3.2.19.tar.gz` | `3.2.19` | `make prepare-runtime-components or make runtime-matrix-haproxy` |
+| HAProxy | configured_missing | `<verified-run-root>/build/haproxy-runtime/haproxy/sbin/haproxy` | `https://www.haproxy.org/download/3.2/src/haproxy-3.2.19.tar.gz` | `3.2.19` | `make prepare-runtime-components or make runtime-matrix-haproxy` |
 | NGINX | missing | `nginx` | `https://github.com/nginx/nginx` | `latest` | `install nginx or prepare runtime components` |
 | Apache/APXS | missing | `apxs apxs2` | `https://archive.apache.org/dist/httpd/httpd-2.4.67.tar.bz2` | `2.4.67` | `install apache2-dev/httpd-devel or prepare Apache runtime` |
 | go-ftw | missing_optional | `go-ftw` | `https://github.com/coreruleset/go-ftw` | `v2.2.0` | `install go-ftw only if MRTS/FTW checks are required` |
@@ -140,9 +140,9 @@
 
 | Field | Value |
 |---|---|
-| NGINX_BIN | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/sbin/nginx` |
-| NGINX_MODULE_DIR | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/modules` |
-| ModSecurity module path | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/modules/ngx_http_modsecurity_module.so` |
+| NGINX_BIN | `<verified-run-root>/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/sbin/nginx` |
+| NGINX_MODULE_DIR | `<verified-run-root>/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/modules` |
+| ModSecurity module path | `<verified-run-root>/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/modules/ngx_http_modsecurity_module.so` |
 | Module exists | `true` |
 | How to prepare | `make prepare-runtime-components` |
 
@@ -150,19 +150,19 @@
 
 | Producer | Required | Status | Missing Tools | Missing Paths | How to Fix |
 |---|---|---|---|---|---|
-| prepare-runtime-components | True | not_run | - | `BUILD_ROOT=/var/tmp/ModSecurity-conector-verified/build`<br>`SOURCE_ROOT=/var/tmp/ModSecurity-conector-verified/src`<br>`CONNECTOR_COMPONENT_CACHE=/var/tmp/ModSecurity-conector-verified/component-cache` | `ensure VERIFIED_RUN_ROOT points outside /root and rerun make prepare-runtime-components` |
-| runtime-matrix-all | True | not_run | - | `BUILD_ROOT=/var/tmp/ModSecurity-conector-verified/build`<br>`TMP_ROOT=/var/tmp/ModSecurity-conector-verified/tmp`<br>`LOG_ROOT=/var/tmp/ModSecurity-conector-verified/logs`<br>`NGINX_HARNESS_PARENT=/var/tmp/ModSecurity-conector-verified/nginx-harness` | `run make runtime-matrix-all after prepare-runtime-components; inspect the verified command log on BLOCKED/FAIL` |
-| full-matrix-parallel | True | not_run | - | `MATRIX_ROOT=/var/tmp/ModSecurity-conector-verified/build/full-matrix` | `run make verified-report-run with safe BUILD_ROOT/MATRIX_ROOT paths` |
-| mrts-native-full-run | False | not_run | go-ftw, albedo, apachectl, apache/httpd, nginx, apxs | `MRTS_NATIVE_ROOT=/var/tmp/ModSecurity-conector-verified/build/mrts-native` | `install optional go-ftw/albedo/native webserver tooling or leave native MRTS as optional WARN evidence` |
+| prepare-runtime-components | True | not_run | - | `BUILD_ROOT=<verified-run-root>/build`<br>`SOURCE_ROOT=<verified-run-root>/src`<br>`CONNECTOR_COMPONENT_CACHE=<verified-run-root>/component-cache` | `ensure VERIFIED_RUN_ROOT points outside <local-home-root> and rerun make prepare-runtime-components` |
+| runtime-matrix-all | True | not_run | - | `BUILD_ROOT=<verified-run-root>/build`<br>`TMP_ROOT=<verified-run-root>/tmp`<br>`LOG_ROOT=<verified-run-root>/logs`<br>`NGINX_HARNESS_PARENT=<verified-run-root>/nginx-harness` | `run make runtime-matrix-all after prepare-runtime-components; inspect the verified command log on BLOCKED/FAIL` |
+| full-matrix-parallel | True | not_run | - | `MATRIX_ROOT=<verified-run-root>/build/full-matrix` | `run make verified-report-run with safe BUILD_ROOT/MATRIX_ROOT paths` |
+| mrts-native-full-run | False | not_run | go-ftw, albedo, apachectl, apache/httpd, nginx, apxs | `MRTS_NATIVE_ROOT=<verified-run-root>/build/mrts-native` | `install optional go-ftw/albedo/native webserver tooling or leave native MRTS as optional WARN evidence` |
 
 ## Runtime Network / Cache Readiness
 
 | Source | Status | Path | Notes |
 |---|---|---|---|
-| nginx latest release | present | `/var/tmp/ModSecurity-conector-verified/component-cache/archives/nginx/nginx-latest-release.json` | local cache available |
-| nginx archive cache | present | `/var/tmp/ModSecurity-conector-verified/component-cache/archives/nginx` | local cache available |
-| go-ftw git cache | present | `/var/tmp/ModSecurity-conector-verified/component-cache/git/go-ftw` | local cache available |
-| albedo git cache | present | `/var/tmp/ModSecurity-conector-verified/component-cache/git/albedo` | local cache available |
+| nginx latest release | present | `<verified-run-root>/component-cache/archives/nginx/nginx-latest-release.json` | local cache available |
+| nginx archive cache | present | `<verified-run-root>/component-cache/archives/nginx` | local cache available |
+| go-ftw git cache | present | `<verified-run-root>/component-cache/git/go-ftw` | local cache available |
+| albedo git cache | present | `<verified-run-root>/component-cache/git/albedo` | local cache available |
 
 ## HTTPS Repository URL Policy
 
@@ -176,13 +176,13 @@
 | Field | Value |
 |---|---|
 | sys.version | `3.14.4 (main, Apr  8 2026, 04:02:31) [GCC 15.2.0]` |
-| sys.executable | `/root/git/ModSecurity-conector/.venv/bin/python` |
+| sys.executable | `<local-home-root>/git/ModSecurity-conector/.venv/bin/python` |
 | sys.platform | `linux` |
 | platform.platform() | `Linux-7.0.0-22-generic-x86_64-with-glibc2.43` |
 | PYTHONPATH | `` |
 | PYTHONDONTWRITEBYTECODE | `1` |
 | .venv exists | `True` |
-| pip --version | `pip 26.1.2 from /root/git/ModSecurity-conector/.venv/lib/python3.14/site-packages/pip (python 3.14)` |
+| pip --version | `pip 26.1.2 from <local-home-root>/git/ModSecurity-conector/.venv/lib/python3.14/site-packages/pip (python 3.14)` |
 | pip freeze packages in excerpt | `1` |
 | pip freeze output hash | `0969da99a0bc2a1b71ed50584560f4588a37567ac63af3ddbaf3c4617ca5621a` |
 
@@ -190,10 +190,10 @@
 
 | Command | Status | Return Code | Duration | Notes |
 |---|---|---:|---:|---|
-| `make refresh-connector-reports` | PASS | 0 | 87.639 | refresh-connector-reports: RUN /root/git/ModSecurity-conector/.v |
-| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | PASS | 0 | 1.508 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
-| `make lint` | PASS | 0 | 6.435 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
-| `make quick-check` | PASS | 0 | 7.576 | PYTHONPYCACHEPREFIX="/var/tmp/ModSecurity-conector-verified/build/pycache" .venv/bin/python -P -m py_compile "/root/git/ModSecurity-conector/modules/ModSecurity-test-Fra |
+| `make refresh-connector-reports` | PASS | 0 | 87.639 | refresh-connector-reports: RUN <local-home-root>/git/ModSecurity-conector/.v |
+| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | PASS | 0 | 1.508 | make[1]: Leaving directory '<local-home-root>/git/ModSecurity-conector' |
+| `make lint` | PASS | 0 | 6.435 | make[1]: Leaving directory '<local-home-root>/git/ModSecurity-conector' |
+| `make quick-check` | PASS | 0 | 7.576 | PYTHONPYCACHEPREFIX="<verified-run-root>/build/pycache" .venv/bin/python -P -m py_compile "<local-home-root>/git/ModSecurity-conector/modules/ModSecurity-test-Fra |
 | `git status --short` | PASS | 0 | 0.106 |  M reports/testing/generated/manifest/report-path-migration.generate |
 
 ## Report Layout Evidence

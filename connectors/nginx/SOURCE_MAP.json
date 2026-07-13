@@ -58,6 +58,18 @@
       "license": "Apache-2.0",
       "reason": "Migrated upstream log-phase integration to adapter-owned source."
     },
+    "src/ngx_http_modsecurity_mapper.c": {
+      "base_path": "connectors/nginx/src/ngx_http_modsecurity_mapper.c",
+      "commit": "897c720def3762c4daab315a7fd022911571ff5b",
+      "license": "Apache-2.0",
+      "reason": "Repo-owned NGINX-to-Common-SDK mapper implementation required by the productive dynamic-module build."
+    },
+    "src/ngx_http_modsecurity_mapper.h": {
+      "base_path": "connectors/nginx/src/ngx_http_modsecurity_mapper.h",
+      "commit": "897c720def3762c4daab315a7fd022911571ff5b",
+      "license": "Apache-2.0",
+      "reason": "Repo-owned NGINX-to-Common-SDK mapper declaration required by the productive dynamic-module build."
+    },
     "src/ngx_http_modsecurity_module.c": {
       "base_path": "src/ngx_http_modsecurity_module.c",
       "license": "Apache-2.0",
@@ -78,6 +90,10 @@
     }
   },
   "support_files": {
+    "connectors/nginx/capabilities.json": {
+      "license": "Apache-2.0",
+      "reason": "Repo-owned canonical host-model and capability-state declaration; validated separately from imported productive source."
+    },
     "connectors/nginx/metadata.c": {
       "license": "Apache-2.0",
       "reason": "Repo-owned adapter metadata helper; intentionally not materialized into the productive NGINX connector build source."

@@ -1,5 +1,7 @@
 # Traefik Source
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: minimal_runtime_smoke (forwardAuth request path only)
 Runtime status: broader connector behavior not verified
 
@@ -14,10 +16,12 @@ This directory contains:
 - `traefik_forwardauth_service_main.c`: connector host profile and entry point
   for the shared HTTP authorization service runtime.
 
-The selected adapter path is an external `forwardAuth` service. It is not a
-Traefik Go plugin or cgo module. Upstream response inspection is explicitly
-unsupported by this request-phase protocol, even though the response mapper is
-linked for Common contract checking.
+The selected compatibility adapter path is an external `forwardAuth` service.
+The separate `../native_middleware/` Go module is selected only by the
+non-promoted full-lifecycle local-plugin host probe. It has a pass-through
+engine seam, not a cgo bridge or rule-evaluation claim. Upstream response
+inspection is explicitly unsupported by the selected request-phase protocol,
+even though the response mapper is linked for Common contract checking.
 
 Production source may be added only with repository-backed origin, license,
 source-map, metadata, build, and validation evidence. Do not infer Traefik

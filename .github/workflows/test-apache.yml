@@ -39,16 +39,14 @@ jobs:
           test -d modules/ModSecurity-test-Framework
           test -f connectors/apache/README.md
           test -f connectors/apache/TODO.md
-          test -f connectors/apache/docs/architecture.md
-          test -f connectors/apache/docs/build.md
-          test -f connectors/apache/docs/public-sources.md
+          test -f docs/connectors/apache.md
           test -f connectors/apache/harness/README.md
           test -f connectors/apache/harness/apache_smoke.conf
           test -f connectors/apache/harness/run_apache_smoke.sh
           test ! -d connectors/apache/tests
-          test -f modules/ModSecurity-test-Framework/docs/testing/imports/apache-regression-map.md
+          test -f modules/ModSecurity-test-Framework/docs/connector-integration.md
           test -f config/testing/import-status.json
-          test -f reports/testing/real-world-connector-validation.md
+          test -f docs/testing-and-evidence.md
           grep -q 'Status:' connectors/apache/TODO.md
       - name: Syntax and dry-run checks
         if: github.event_name != 'pull_request'

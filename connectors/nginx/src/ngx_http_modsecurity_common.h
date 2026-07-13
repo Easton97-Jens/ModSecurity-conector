@@ -26,6 +26,8 @@
 #include <modsecurity/transaction.h>
 
 #include "msconnector/config.h"
+#include "msconnector/limits.h"
+#include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
 
 
@@ -112,9 +114,18 @@ typedef struct {
     unsigned phase4_intervention:1;
     unsigned phase4_strict_abort:1;
     unsigned common_response_validated:1;
+    /* Set only around synchronous libmodsecurity request processing calls so
+     * its native log callback can emit bounded non-disruptive rule metadata
+     * with the actual host phase. */
+    unsigned native_event_phase_active:1;
     size_t response_body_bytes_seen;
     size_t response_body_bytes_inspected;
-    ngx_str_t last_intervention_log;
+    ngx_str_t event_transaction_id;
+    enum msconnector_phase native_event_phase;
+    /* Keep only the bounded rule identifier needed for a metadata-only
+     * Phase-4 event.  Do not retain the full libmodsecurity intervention
+     * message in the request pool. */
+    char last_intervention_rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
     ngx_int_t last_intervention_status;
 } ngx_http_modsecurity_ctx_t;
 
@@ -185,7 +196,7 @@ int ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_htt
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_create_ctx(ngx_http_request_t *r);
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r);
 char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p);
-#if (NGX_PCRE2)
+#if !(NGX_PCRE) || (NGX_PCRE2)
 #define ngx_http_modsecurity_pcre_malloc_init(x) NULL
 #define ngx_http_modsecurity_pcre_malloc_done(x) (void)x
 #else
@@ -206,6 +217,8 @@ int ngx_http_modsecurity_store_ctx_header(ngx_http_request_t *r, ngx_str_t *name
 
 /* ngx_http_modsecurity_log.c */
 void ngx_http_modsecurity_log(void *log, const void* data);
+void ngx_http_modsecurity_log_rule_match_event(ngx_http_request_t *r,
+    enum msconnector_phase phase, const char *rule_id);
 ngx_int_t ngx_http_modsecurity_log_handler(ngx_http_request_t *r);
 
 /* ngx_http_modsecurity_access.c */

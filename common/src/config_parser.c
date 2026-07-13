@@ -33,7 +33,7 @@ int msconnector_parse_phase4_mode(const char *value, enum msconnector_phase4_mod
     return 1;
 }
 
-static int parse_positive_decimal(const char *value, size_t *out) {
+static int parse_decimal(const char *value, size_t *out, int require_positive) {
     size_t result = 0;
     if (value == 0 || value[0] == '\0' || value[0] == '+' || value[0] == '-') { return 0; }
     for (size_t index = 0; value[index] != '\0'; ++index) {
@@ -43,16 +43,22 @@ static int parse_positive_decimal(const char *value, size_t *out) {
         if (result > (SIZE_MAX - digit) / 10U) { return 0; }
         result = result * 10U + digit;
     }
-    if (result == 0U) { return 0; }
+    if (require_positive && result == 0U) { return 0; }
     if (out != 0) { *out = result; }
     return 1;
 }
 
-int msconnector_parse_size(const char *value, size_t *out) { return parse_positive_decimal(value, out); }
+int msconnector_parse_size(const char *value, size_t *out) {
+    return parse_decimal(value, out, 1);
+}
+
+int msconnector_parse_nonnegative_size(const char *value, size_t *out) {
+    return parse_decimal(value, out, 0);
+}
 
 int msconnector_parse_http_status(const char *value, int *out) {
     size_t parsed = 0;
-    if (!parse_positive_decimal(value, &parsed) || parsed > (size_t)INT_MAX || !msconnector_http_status_is_valid((int)parsed)) { return 0; }
+    if (!parse_decimal(value, &parsed, 1) || parsed > (size_t)INT_MAX || !msconnector_http_status_is_valid((int)parsed)) { return 0; }
     if (out != 0) { *out = (int)parsed; }
     return 1;
 }

@@ -1,0 +1,586 @@
+# ModSecurity connector local lighttpd extension
+#
+# Target: lighttpd 1.4.84 source tree only.
+# ABI: LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION=1.
+#
+# This is deliberately incompatible with stock dynamic modules.  It adds
+# synchronous, borrowed request-body and HTTP/1.x entity-body/EOS callbacks.
+# The response hook runs before HTTP/1 transfer framing, not in the socket
+# queue. HTTP/2 is intentionally excluded because its connection queue
+# contains multiplexed framed bytes. EAGAIN and short writes happen after the
+# one-time entity callback, so they cannot duplicate body inspection.
+#
+--- a/src/http_chunk.h
++++ b/src/http_chunk.h
+@@ -17,6 +17,7 @@
+ int http_chunk_append_file_ref(request_st *r, struct stat_cache_entry *sce); /* copies "fn" */
+ void http_chunk_append_file_fd_range(request_st *r, const buffer *fn, int fd, off_t offset, off_t len); /* copies "fn" */
+ void http_chunk_append_file_ref_range(request_st *r, struct stat_cache_entry *sce, off_t offset, off_t len); /* copies "fn" */
++int http_chunk_msconnector_entity_close(request_st *r);
+ void http_chunk_close(request_st *r);
+ 
+ #endif
+--- a/src/http_chunk.c
++++ b/src/http_chunk.c
+@@ -12,12 +12,56 @@
+ #include "http_header.h"
+ #include "stat_cache.h"
+ #include "log.h"
++#include "plugins.h"
+ #include "request.h"
+ 
+ #include "sys-unistd.h" /* <unistd.h> */
+ 
+ #include <string.h>
+ 
++/*
++ * Local ModSecurity ABI bridge: inspect the current HTTP/1.x entity range
++ * before this file adds Transfer-Encoding framing.  The callback receives the
++ * application's borrowed bytes and no lighttpd queue is copied or retained.
++ * Socket short writes and EAGAIN occur later, after this one-time callback,
++ * so they cannot re-submit an entity range to the rule engine.
++ */
++static int
++http_chunk_msconnector_entity_body (request_st * const r,
++                                    const unsigned char * const data,
++                                    const size_t len,
++                                    const int eos)
++{
++    plugin_body_hook_result rc;
++
++    if (r->http_version > HTTP_VERSION_1_1
++        || r->resp_body_entity_hook_eos_sent
++        || r->resp_body_entity_hook_suppressed)
++        return 0;
++    if (0 == len && !eos)
++        return 0;
++    if ((0 != len && NULL == data)
++        || len > (size_t)INT64_MAX
++        || r->resp_body_entity_hook_next_offset
++             > (off_t)(INT64_MAX - (int64_t)len))
++        return -1;
++
++    rc = plugins_call_handle_response_body(r, data, len,
++             r->resp_body_entity_hook_next_offset, eos);
++    if (rc != PLUGIN_BODY_HOOK_CONTINUE)
++        return -1;
++    r->resp_body_entity_hook_next_offset += (off_t)len;
++    if (eos)
++        r->resp_body_entity_hook_eos_sent = 1;
++    return 0;
++}
++
++int
++http_chunk_msconnector_entity_close (request_st * const r)
++{
++    return http_chunk_msconnector_entity_body(r, NULL, 0, 1);
++}
++
+ __attribute_noinline__
+ static void http_chunk_len_append(chunkqueue * const cq, uintmax_t len) {
+     char buf[24]; /* 64-bit (8 bytes) is 16 hex chars (+2 \r\n, +1 \0 = 19) */
+@@ -208,6 +251,10 @@
+ 
+     chunkqueue * const cq = &r->write_queue;
+ 
++    if (0 != http_chunk_msconnector_entity_body(r,
++            (const unsigned char *)mem->ptr, len, 0))
++        return -1;
++
+     if (http_chunk_uses_tempfile(cq, len)) {
+         int rc = http_chunk_append_to_tempfile(r, mem->ptr, len);
+         buffer_clear(mem);
+@@ -232,6 +279,10 @@
+ 
+     chunkqueue * const cq = &r->write_queue;
+ 
++    if (0 != http_chunk_msconnector_entity_body(r,
++            (const unsigned char *)mem, len, 0))
++        return -1;
++
+     if (http_chunk_uses_tempfile(cq, len))
+         return http_chunk_append_to_tempfile(r, mem, len);
+ 
+@@ -344,8 +396,11 @@
+ 
+     if (r->resp_send_chunked) {
+         /* send trailers */
++        int rc;
+         r->resp_send_chunked = 0;
+-        int rc = http_chunk_append_mem(r, trailers, tlen);
++        r->resp_body_entity_hook_suppressed = 1;
++        rc = http_chunk_append_mem(r, trailers, tlen);
++        r->resp_body_entity_hook_suppressed = 0;
+         r->resp_send_chunked = 1;
+         if (0 != rc) return -1;
+     } /*(else discard trailers if response not chunked)*/
+@@ -363,6 +418,7 @@
+     off_t te_chunked = r->gw_dechunk->gw_chunked;
+     const char *mem = mb->ptr;
+     uint32_t len = buffer_clen(mb);
++    int eos = 0;
+     while (len) {
+         if (0 == te_chunked) {
+             const char *p;
+@@ -455,9 +511,12 @@
+                 }
+ 
+                 if (r->resp_send_chunked && mem - mb->ptr) {
++                    int rc;
+                     r->resp_send_chunked = 0;
+-                    int rc = http_chunk_append_mem(r, mb->ptr,
+-                                                   (size_t)(mem - mb->ptr));
++                    r->resp_body_entity_hook_suppressed = 1;
++                    rc = http_chunk_append_mem(r, mb->ptr,
++                                                (size_t)(mem - mb->ptr));
++                    r->resp_body_entity_hook_suppressed = 0;
+                     r->resp_send_chunked = 1;
+                     if (0 != rc)
+                         return -1;
+@@ -480,8 +539,12 @@
+             uint32_t clen = te_chunked - 2 <= (off_t)len
+               ? (uint32_t)(te_chunked - 2)
+               : len;
+-            if (!r->resp_send_chunked
+-                && 0 != http_chunk_append_mem(r, mem, clen))
++            if (r->resp_send_chunked) {
++                if (0 != http_chunk_msconnector_entity_body(r,
++                        (const unsigned char *)mem, clen, 0))
++                    return -1;
++            }
++            else if (0 != http_chunk_append_mem(r, mem, clen))
+                 return -1;
+             mem += clen;
+             len -= clen;
+@@ -510,8 +573,10 @@
+             te_chunked = 0;
+         }
+     }
+-    if (r->gw_dechunk->done)
++    if (r->gw_dechunk->done) {
+         r->resp_body_finished = 1;
++        eos = 1;
++    }
+     r->gw_dechunk->gw_chunked = te_chunked;
+ 
+     /* no need to decode chunked to immediately re-encode chunked;
+@@ -523,16 +588,20 @@
+      * which is when Transfer-Encoding: chunked might be chosen */
+     if (r->resp_send_chunked) {
+         r->resp_send_chunked = 0;
++        r->resp_body_entity_hook_suppressed = 1;
+         int rc = mb->size  /* might append to tmpfile; check rc */
+           ? http_chunk_append_buffer(r, mb)
+           : http_chunk_append_mem(r, BUF_PTR_LEN(mb));
++        r->resp_body_entity_hook_suppressed = 0;
+         r->resp_send_chunked = 1;
+-        return rc;
++        if (0 != rc || !eos)
++            return rc;
++        return http_chunk_msconnector_entity_close(r);
+     }
+     /*else if (mb->size)*//*(not worth the conditional)*/
+     buffer_clear(mb);
+ 
+-    return 0;
++    return eos ? http_chunk_msconnector_entity_close(r) : 0;
+ }
+ 
+ int http_chunk_decode_append_buffer(request_st * const r, buffer * const mem)
+--- a/src/plugin.h
++++ b/src/plugin.h
+@@ -5,6 +5,29 @@
+ #include "base_decls.h"
+ #include "plugin_config.h"
+ 
++/*
++ * Local ABI extension for the ModSecurity connector patch set.  The source
++ * patch is release-pinned (1.4.84), and its plugin ABI must not mix with a
++ * stock 1.4.84 process or a stock dynamic module: the callback fields below
++ * change sizeof(struct plugin).  Keep the existing version comparison in
++ * plugin.c effective by deriving a distinct version id here, where both the
++ * patched core and every rebuilt module see it.
++ */
++#define LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION 1
++enum { LIGHTTPD_MSCONNECTOR_BASE_VERSION_ID = LIGHTTPD_VERSION_ID };
++#define LIGHTTPD_MSCONNECTOR_PLUGIN_ABI_VERSION \
++  ((size_t)0x4d530000U | (size_t)LIGHTTPD_MSCONNECTOR_BASE_VERSION_ID)
++#undef LIGHTTPD_VERSION_ID
++#define LIGHTTPD_VERSION_ID LIGHTTPD_MSCONNECTOR_PLUGIN_ABI_VERSION
++
++struct chunkqueue;
++
++typedef enum plugin_body_hook_result {
++	PLUGIN_BODY_HOOK_CONTINUE = 0,
++	PLUGIN_BODY_HOOK_ERROR,
++	PLUGIN_BODY_HOOK_ABORT
++} plugin_body_hook_result;
++
+ 
+ #define SERVER_FUNC(x) \
+ 		static handler_t x(server *srv, void *p_d)
+@@ -68,6 +91,24 @@
+ 	const char *name;/* name of the plugin */
+ 	size_t version;
+ 	void *lib;       /* deprecated; do not use */
++
++	/*
++	 * Borrowed, synchronous body ranges for this local ABI extension.
++	 * Request callbacks visit a lighttpd-owned queue range.  Response
++	 * callbacks receive a current HTTP/1.x entity-body range before transfer
++	 * encoding is added. `stream_offset` is monotonic.  Callbacks must not
++	 * retain bytes, mutate queues, or perform deferred access. A NULL data
++	 * pointer is valid only for an empty response EOS notification.
++	 */
++	handler_t (* handle_request_body) (request_st *r,
++	                                  const struct chunkqueue *cq,
++	                                  off_t queue_offset, off_t length,
++	                                  off_t stream_offset, int eos,
++	                                  void *p_d);
++	plugin_body_hook_result (* handle_response_body) (request_st *r,
++	                                  const unsigned char *data, size_t length,
++	                                  off_t stream_offset, int eos,
++	                                  void *p_d);
+ };
+ typedef struct plugin plugin;
+ 
+--- a/src/plugins.h
++++ b/src/plugins.h
+@@ -3,6 +3,7 @@
+ #include "first.h"
+ 
+ #include "base_decls.h"
++#include "plugin.h"
+ 
+ __attribute_cold__
+ int plugins_load(server *srv);
+@@ -17,6 +18,13 @@
+ handler_t plugins_call_handle_subrequest_start(request_st *r);
+ #endif
+ handler_t plugins_call_handle_response_start(request_st *r);
++handler_t plugins_call_handle_request_body(request_st *r,
++                                           const struct chunkqueue *cq,
++                                           off_t queue_offset, off_t length,
++                                           off_t stream_offset, int eos);
++plugin_body_hook_result plugins_call_handle_response_body(request_st *r,
++                                           const unsigned char *data, size_t length,
++                                           off_t stream_offset, int eos);
+ handler_t plugins_call_handle_request_env(request_st *r);
+ handler_t plugins_call_handle_request_done(request_st *r);
+ handler_t plugins_call_handle_request_reset(request_st *r);
+--- a/src/plugin.c
++++ b/src/plugin.c
+@@ -35,6 +35,8 @@
+ 	PLUGIN_FUNC_HANDLE_SUBREQUEST_START,
+ 	/* PLUGIN_FUNC_HANDLE_SUBREQUEST, *//* max one handler_module per req */
+ 	PLUGIN_FUNC_HANDLE_RESPONSE_START,
++	PLUGIN_FUNC_HANDLE_REQUEST_BODY,
++	PLUGIN_FUNC_HANDLE_RESPONSE_BODY,
+ 	PLUGIN_FUNC_HANDLE_REQUEST_DONE,
+ 	PLUGIN_FUNC_HANDLE_REQUEST_RESET,
+ 	PLUGIN_FUNC_HANDLE_REQUEST_ENV,
+@@ -301,10 +303,27 @@
+ } plugin_fn_srv_data;
+ 
+ typedef struct {
+-  handler_t(*fn)(server *, void *, pid_t, int);
+-  plugin_data_base *data;
++	handler_t(*fn)(server *, void *, pid_t, int);
++	plugin_data_base *data;
+ } plugin_fn_waitpid_data;
+ 
++typedef struct {
++	handler_t(*fn)(request_st *, const struct chunkqueue *, off_t, off_t,
++	               off_t, int, void *);
++	plugin_data_base *data;
++} plugin_fn_request_body_data;
++
++typedef struct {
++	plugin_body_hook_result(*fn)(request_st *, const unsigned char *, size_t,
++	                             off_t, int, void *);
++	plugin_data_base *data;
++} plugin_fn_response_body_data;
++
++typedef char plugin_fn_request_body_data_must_match_plugin_fn_data[
++  sizeof(plugin_fn_request_body_data) == sizeof(plugin_fn_data) ? 1 : -1];
++typedef char plugin_fn_response_body_data_must_match_plugin_fn_data[
++  sizeof(plugin_fn_response_body_data) == sizeof(plugin_fn_data) ? 1 : -1];
++
+ __attribute_hot__
+ static handler_t plugins_call_fn_req_data(request_st * const r, const int e) {
+     const void * const plugin_slots = r->con->plugin_slots;
+@@ -374,6 +393,49 @@
+ PLUGIN_CALL_FN_REQ_DATA(PLUGIN_FUNC_HANDLE_REQUEST_RESET, handle_request_reset)
+ PLUGIN_CALL_FN_REQ_DATA(PLUGIN_FUNC_HANDLE_REQUEST_ENV, handle_request_env)
+ 
++handler_t
++plugins_call_handle_request_body (request_st * const r,
++                                  const struct chunkqueue * const cq,
++                                  const off_t queue_offset,
++                                  const off_t length,
++                                  const off_t stream_offset,
++                                  const int eos)
++{
++	const void * const plugin_slots = r->con->plugin_slots;
++	const uint32_t offset =
++	  ((const uint16_t *)plugin_slots)[PLUGIN_FUNC_HANDLE_REQUEST_BODY];
++	if (0 == offset) return HANDLER_GO_ON;
++	const plugin_fn_request_body_data *plfd =
++	  (const plugin_fn_request_body_data *)(((uintptr_t)plugin_slots)+offset);
++	handler_t rc = HANDLER_GO_ON;
++	while (plfd->fn
++	       && (rc = plfd->fn(r, cq, queue_offset, length, stream_offset, eos,
++	                          plfd->data)) == HANDLER_GO_ON)
++		++plfd;
++	return rc;
++}
++
++plugin_body_hook_result
++plugins_call_handle_response_body (request_st * const r,
++                                   const unsigned char * const data,
++                                   const size_t length,
++                                   const off_t stream_offset,
++                                   const int eos)
++{
++	const void * const plugin_slots = r->con->plugin_slots;
++	const uint32_t offset =
++	  ((const uint16_t *)plugin_slots)[PLUGIN_FUNC_HANDLE_RESPONSE_BODY];
++	if (0 == offset) return PLUGIN_BODY_HOOK_CONTINUE;
++	const plugin_fn_response_body_data *plfd =
++	  (const plugin_fn_response_body_data *)(((uintptr_t)plugin_slots)+offset);
++	plugin_body_hook_result rc = PLUGIN_BODY_HOOK_CONTINUE;
++	while (plfd->fn
++	       && (rc = plfd->fn(r, data, length, stream_offset, eos,
++	                          plfd->data)) == PLUGIN_BODY_HOOK_CONTINUE)
++		++plfd;
++	return rc;
++}
++
+ /**
+  * plugins that use
+  *
+@@ -462,6 +524,38 @@
+     }
+ }
+ 
++__attribute_cold__
++static void
++plugins_call_init_request_body_slot (server * const srv,
++  handler_t(* const fn)(request_st *, const struct chunkqueue *, off_t, off_t,
++                         off_t, int, void *),
++  plugin_data_base * const data, const uint32_t offset)
++{
++	if (fn) {
++		plugin_fn_request_body_data *plfd = (plugin_fn_request_body_data *)
++		  (((uintptr_t)srv->plugin_slots) + offset);
++		while (plfd->fn) ++plfd;
++		plfd->fn = fn;
++		plfd->data = data;
++	}
++}
++
++__attribute_cold__
++static void
++plugins_call_init_response_body_slot (server * const srv,
++  plugin_body_hook_result(* const fn)(request_st *, const unsigned char *,
++                                      size_t, off_t, int, void *),
++  plugin_data_base * const data, const uint32_t offset)
++{
++	if (fn) {
++		plugin_fn_response_body_data *plfd = (plugin_fn_response_body_data *)
++		  (((uintptr_t)srv->plugin_slots) + offset);
++		while (plfd->fn) ++plfd;
++		plfd->fn = fn;
++		plfd->data = data;
++	}
++}
++
+ handler_t plugins_call_init(server *srv) {
+ 	/* note: p->init() is called during plugins_load() -> plugin_data_init()
+ 	 * but the historical name of this function remains */
+@@ -501,6 +595,10 @@
+ 			++offsets[PLUGIN_FUNC_HANDLE_SUBREQUEST_START];
+ 		if (p->handle_response_start)
+ 			++offsets[PLUGIN_FUNC_HANDLE_RESPONSE_START];
++		if (p->handle_request_body)
++			++offsets[PLUGIN_FUNC_HANDLE_REQUEST_BODY];
++		if (p->handle_response_body)
++			++offsets[PLUGIN_FUNC_HANDLE_RESPONSE_BODY];
+ 		if (p->handle_docroot)
+ 			++offsets[PLUGIN_FUNC_HANDLE_DOCROOT];
+ 		if (p->handle_physical)
+@@ -577,6 +675,10 @@
+ 					offsets[PLUGIN_FUNC_HANDLE_SUBREQUEST_START]);
+ 		plugins_call_init_slot(srv, (pl_cb_t)p->handle_response_start, pd,
+ 					offsets[PLUGIN_FUNC_HANDLE_RESPONSE_START]);
++		plugins_call_init_request_body_slot(srv, p->handle_request_body, pd,
++					offsets[PLUGIN_FUNC_HANDLE_REQUEST_BODY]);
++		plugins_call_init_response_body_slot(srv, p->handle_response_body, pd,
++					offsets[PLUGIN_FUNC_HANDLE_RESPONSE_BODY]);
+ 		plugins_call_init_slot(srv, (pl_cb_t)p->handle_docroot, pd,
+ 					offsets[PLUGIN_FUNC_HANDLE_DOCROOT]);
+ 		plugins_call_init_slot(srv, (pl_cb_t)p->handle_physical, pd,
+--- a/src/request.h
++++ b/src/request.h
+@@ -189,11 +189,15 @@
+     array resp_headers;
+     char resp_body_finished;
+     char resp_body_started;
+-    char resp_send_chunked;
+-    char resp_decode_chunked;
+-    char resp_header_repeated;
++	char resp_send_chunked;
++	char resp_decode_chunked;
++	char resp_header_repeated;
++	char reqbody_hook_eos_sent;
++	char resp_body_entity_hook_eos_sent;
++	char resp_body_entity_hook_suppressed;
++	off_t resp_body_entity_hook_next_offset;
+ 
+-    char loops_per_request;  /* catch endless loops in a single request */
++	char loops_per_request;  /* catch endless loops in a single request */
+     int8_t keep_alive; /* only request.c can enable it, others may disable */
+ 
+     buffer *tmp_buf;                    /* shared; same as srv->tmp_buf */
+--- a/src/http-header-glue.c
++++ b/src/http-header-glue.c
+@@ -320,8 +320,11 @@
+ void http_response_body_clear (request_st * const r, int preserve_length) {
+     r->resp_body_finished = 0;
+     r->resp_body_started = 0;
+-    r->resp_send_chunked = 0;
+-    r->resp_body_scratchpad = -1;
++	r->resp_send_chunked = 0;
++	r->resp_body_scratchpad = -1;
++	r->resp_body_entity_hook_eos_sent = 0;
++	r->resp_body_entity_hook_suppressed = 0;
++	r->resp_body_entity_hook_next_offset = 0;
+     if (light_btst(r->resp_htags, HTTP_HEADER_TRANSFER_ENCODING)) {
+         http_header_response_unset(r, HTTP_HEADER_TRANSFER_ENCODING,
+                                    CONST_STR_LEN("Transfer-Encoding"));
+@@ -783,6 +786,8 @@
+ static int http_response_append_buffer(request_st * const r, buffer * const mem, const int simple_accum) {
+     /* Note: this routine is separate from http_response_append_mem() to
+      * potentially avoid copying buffer by using http_chunk_append_buffer(). */
++    int eos = 0;
++    int rc;
+ 
+     if (r->resp_decode_chunked)
+         return http_chunk_decode_append_buffer(r, mem);
+@@ -799,6 +804,7 @@
+         }
+         else { /* (r->resp_body_scratchpad <= 0) */
+             r->resp_body_finished = 1;
++            eos = 1;
+             if (__builtin_expect( (r->resp_body_scratchpad < 0), 0)) {
+                 /*(silently truncate if data exceeds Content-Length)*/
+                 len += r->resp_body_scratchpad;
+@@ -816,7 +822,10 @@
+              && http_response_append_buffer_simple_accum(r, buffer_clen(mem))) {
+         return 0; /*(accumulate small reads in buffer)*/
+     }
+-    return http_chunk_append_buffer(r, mem);
++    rc = http_chunk_append_buffer(r, mem);
++    if (0 != rc || !eos)
++        return rc;
++    return http_chunk_msconnector_entity_close(r);
+ }
+ 
+ 
+@@ -857,6 +866,9 @@
+ 
+ 
+ static int http_response_append_mem(request_st * const r, const char * const mem, uint32_t len) {
++    int eos = 0;
++    int rc;
++
+     if (r->resp_decode_chunked)
+         return http_chunk_decode_append_mem(r, mem, len);
+ 
+@@ -864,6 +876,7 @@
+         r->resp_body_scratchpad -= (off_t)len;
+         if (r->resp_body_scratchpad <= 0) {
+             r->resp_body_finished = 1;
++            eos = 1;
+             if (__builtin_expect( (r->resp_body_scratchpad < 0), 0)) {
+                 /*(silently truncate if data exceeds Content-Length)*/
+                 len = (size_t)(r->resp_body_scratchpad + (off_t)len);
+@@ -875,7 +888,10 @@
+         /*(silently truncate if data exceeds Content-Length)*/
+         return 0;
+     }
+-    return http_chunk_append_mem(r, mem, len);
++    rc = http_chunk_append_mem(r, mem, len);
++    if (0 != rc || !eos)
++        return rc;
++    return http_chunk_msconnector_entity_close(r);
+ }
+ 
+ 
+--- a/src/reqpool.c
++++ b/src/reqpool.c
+@@ -126,8 +126,9 @@
+     /*con->proto_default_port = 80;*//*set to default in connection_accepted()*/
+ 
+     r->http_host = NULL;
+-    r->reqbody_length = 0;
+-    r->resp_body_scratchpad = -1;
++	r->reqbody_length = 0;
++	r->reqbody_hook_eos_sent = 0;
++	r->resp_body_scratchpad = -1;
+     r->rqst_htags = 0;
+ 
+     r->error_handler_saved_status = 0;
+--- a/src/h1.c
++++ b/src/h1.c
+@@ -21,6 +21,7 @@
+ #include "reqpool.h"    /* request_reset_ex() */
+ #include "request.h"
+ #include "response.h"   /* http_response_reqbody_read_error() */
++#include "plugins.h"
+ 
+ 
+ static int
+@@ -846,9 +847,10 @@
+ handler_t
+ h1_reqbody_read (request_st * const r)
+ {
+-    connection * const con = r->con;
+-    chunkqueue * const cq = &r->read_queue;
+-    chunkqueue * const dst_cq = &r->reqbody_queue;
++	connection * const con = r->con;
++	chunkqueue * const cq = &r->read_queue;
++	chunkqueue * const dst_cq = &r->reqbody_queue;
++	const off_t body_before = dst_cq->bytes_in;
+ 
+     int is_closed = 0;
+ 
+@@ -908,7 +910,23 @@
+         chunkqueue_remove_finished_chunks(cq);
+     }
+ 
+-    if (dst_cq->bytes_in == (off_t)r->reqbody_length) {
++	{
++		const off_t body_after = dst_cq->bytes_in;
++		const int eos = !r->reqbody_hook_eos_sent
++		  && r->reqbody_length >= 0
++		  && body_after == (off_t)r->reqbody_length;
++		if (body_after > body_before || eos) {
++			const handler_t hook_rc = plugins_call_handle_request_body(r,
++			  dst_cq, body_before - dst_cq->bytes_out, body_after - body_before,
++			  body_before, eos);
++			if (hook_rc != HANDLER_GO_ON)
++				return hook_rc;
++			if (eos)
++				r->reqbody_hook_eos_sent = 1;
++		}
++	}
++
++	if (dst_cq->bytes_in == (off_t)r->reqbody_length) {
+         /* Content is ready */
+         r->conf.stream_request_body &= ~FDEVENT_STREAM_REQUEST_POLLIN;
+         if (r->state == CON_STATE_READ_POST) {
+	char reqbody_hook_eos_sent;
+	char resp_body_entity_hook_eos_sent;
+	char resp_body_entity_hook_suppressed;
+	off_t resp_body_entity_hook_next_offset;

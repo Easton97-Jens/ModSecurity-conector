@@ -20,7 +20,5 @@ jobs:
           set -eu
           test -f connectors/haproxy/README.md
           test -f connectors/haproxy/TODO.md
-          test -f connectors/haproxy/docs/architecture.md
-          test -f connectors/haproxy/docs/build.md
-          test -f connectors/haproxy/docs/public-sources.md
+          test -f docs/connectors/haproxy.md
           grep -q 'Status:' connectors/haproxy/TODO.md

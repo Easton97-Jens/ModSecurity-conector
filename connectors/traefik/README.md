@@ -1,14 +1,16 @@
 # Traefik Connector
 
-Status: minimal_runtime_smoke for the forwardAuth request path only
+**Language:** English | [Deutsch](README.de.md)
+
+Status: forwardAuth compatibility smoke plus a non-promoted native local-plugin host probe
 Runtime status: targeted local Traefik/Common-runtime allow 200/block 403
 Verification status: not_verified / connector-gap
 
 The selected connector architecture is an external HTTP `forwardAuth` service.
 `src/traefik_forwardauth_service_main.c` registers a Traefik host profile with
 the connector-neutral Common runtime, while `traefik_modsecurity_mapper.c`
-provides real thin mapper functions. This is not a Traefik Go plugin or cgo
-module and does not establish production readiness.
+provides real thin mapper functions. It remains the selected path and does not
+establish production readiness.
 
 The repository build surfaces compile only repository-owned C code and shared
 Common helpers:
@@ -19,12 +21,83 @@ Common helpers:
 - `connectors/traefik/src/traefik_decision_service.*`
 - `connectors/traefik/src/traefik_modsecurity_mapper.*`
 - `connectors/traefik/src/traefik_forwardauth_service_main.c`
+- `connectors/traefik/native_middleware/` (native local-plugin host source)
 - shared helpers from `common/src/` and `common/include/msconnector/`
 - shared runtime implementation from `common/runtime/`
 
-It does not include a Traefik plugin SDK, Go module, or cgo bridge. Upstream
-response headers and bodies are outside the selected request-phase
-`forwardAuth` protocol and remain explicitly unsupported.
+The `forwardAuth` path remains the request-only compatibility path. The
+repository-owned Go middleware under `native_middleware/` is selected by
+`full-lifecycle-traefik-native` through Traefik's local-plugin workspace. Its
+isolated host probe chooses `engineMode: uds`, so one persistent local
+Common/libmodsecurity service is reused across one UDS session per host
+request. It has targeted real-host P1--P4 evidence but does not change the
+checked-in capability declaration, CRS state, Safe/Strict status, or production
+readiness. Upstream response headers and bodies remain unsupported in the
+separate `forwardAuth` compatibility protocol.
+
+## Persistent native UDS engine service
+
+`src/traefik_engine_service.c` and
+`src/traefik_engine_protocol.h` add a persistent local Unix-domain-socket
+Common/libmodsecurity service for the Yaegi-compatible Go bridge. It has
+bounded metadata/chunk frames and explicit transaction EOS, finish, and destroy
+operations. The native host probe supplies its private socket and run-local
+event path; it records a host outcome only after the actual ResponseWriter
+action succeeds. After response commitment, a P4 disruptive decision is
+accepted only as `LOG_ONLY` with the actual visible status.
+
+```sh
+MODSECURITY_INCLUDE_DIR=/local/include \
+MODSECURITY_LIB_DIR=/local/lib \
+make -C connectors/traefik test-engine-service
+```
+
+The focused test starts only the local engine service and is not a Traefik
+host-runtime test. See the [canonical Traefik guide](../../docs/connectors/traefik.md)
+for lifecycle, configuration, canonical-rule selection, and outcome boundaries.
+
+## Native Go streaming host probe (non-promoted)
+
+`native_middleware/` implements Traefik-shaped `CreateConfig`, `New`, and
+`ServeHTTP` entry points using the Go `net/http` interfaces. Its response
+writer preserves `Flush`, `Hijack`, `Push`, `ReadFrom`, and `Unwrap`; it sends
+bounded request and response body slices to an explicit engine seam and never
+collects a whole response. The source default is deliberately pass-through;
+the isolated host probe selects the separately built persistent UDS
+Common/libmodsecurity engine.
+
+Run only the local source checks with:
+
+```sh
+make -C connectors/traefik test-native-middleware
+make -C connectors/traefik build-native-middleware
+```
+
+These commands compile and unit-test repository source. The separate host
+probe stages that source below a disposable `plugins-local` workspace, starts
+the pinned Traefik binary, requires the plugin load confirmation, and sends a
+body-bearing request through a router selecting the middleware:
+
+```sh
+TRAEFIK_BIN=/absolute/local/traefik \
+TRAEFIK_NATIVE_RUNTIME_ROOT=/absolute/runtime-root \
+MODSECURITY_INCLUDE_DIR=/absolute/include \
+MODSECURITY_LIB_DIR=/absolute/lib \
+MSCONNECTOR_RULES_FILE=/absolute/no-crs-baseline.conf \
+make -C connectors/traefik runtime-smoke-traefik-native
+```
+
+The host probe records metadata only, never bodies. With the canonical rules
+file it requires P1 allow `200`, P1 deny `403` (rule `1100001`), P2 deny `403`
+(`1100101`), P3 pre-commit deny `403` (`1100201`), and P4 safe/log-only with
+visible `200` (`1100301`). P4 strict is `NOT EXECUTED`. The host-confirmed
+JSONL records use integration mode `native-traefik-middleware` and canonical
+`transport_result` values `http_status` or `log_only`. This evidence does not
+promote P1–P4, Safe/Strict, first-byte, no-full-buffer, CRS, or production
+capabilities. The C `forwardAuth` commands remain the selected compatibility
+path. The exact native transport/API boundary, including the non-promoting
+keep-alive observation and Strict `NOT EXECUTED` rationale, is in the
+[canonical Traefik guide](../../docs/connectors/traefik.md).
 
 ## Connector Service Build
 
@@ -58,10 +131,8 @@ binaries return Exit 77; config, startup, mapping, or status errors return FAIL.
 
 ## Global Contract
 
-See:
-
-- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
-- `connectors/_template/docs/coverage-decision-matrix.md`
+See the canonical [connector contract](../../docs/connectors/README.md) and
+[testing/evidence guide](../../docs/testing-and-evidence.md).
 
 ## Traefik-specific State
 
@@ -69,10 +140,13 @@ See:
 - Metadata: repo-owned compile-time metadata present
 - Build: C17 Common-runtime service plus legacy starter commands present
 - Self-test: local decision-service starter self-test present
-- Harness: conditional local Traefik forwardAuth smoke when a local binary is available
-- Targeted No-CRS runtime: pass-local; full No-CRS matrix not run
+- Harness: conditional local Traefik forwardAuth smoke plus an isolated native
+  UDS host probe when local Traefik and libmodsecurity inputs are available
+- Targeted native No-CRS runtime: real local P1--P4-safe evidence; full matrix
+  and capability promotion not run
 - With-CRS runtime: not run
-- RESPONSE_BODY blocking: not verified
+- RESPONSE_BODY blocking: `unsupported_by_host_model` for `forwardAuth`; the
+  separate native UDS probe has only non-promoted P4 safe/log-only evidence
 
 ## Build and Self-Test
 
@@ -106,19 +180,21 @@ are implemented:
 - `make test-with-crs`
 - `make smoke-common`
 
-No No-CRS, With-CRS, RESPONSE_BODY, negative/pass-through, audit/log, or Traefik
-runtime result is claimed for Traefik by this starter.
+The starter itself claims no No-CRS, With-CRS, RESPONSE_BODY, negative/
+pass-through, audit/log, or Traefik runtime result. The separate native UDS
+host probe records only its targeted metadata-only evidence.
 
 ## Parallel Runtime-Smoke Phase
 
-Phase 1 targets Traefik `forwardAuth`. A Go plugin is explicitly out of scope
-for this phase.
+Phase 1 compatibility targets Traefik `forwardAuth`. The native Go middleware
+has a separate pinned-host UDS probe with Common/libmodsecurity rule execution;
+that targeted result has no runtime promotion.
 
 The Traefik connector-specific surface is limited to:
 
-- forwardAuth integration design and future Traefik configuration;
-- Traefik smoke harness entrypoint;
-- local decision-service starter code.
+- forwardAuth compatibility integration and configuration;
+- native local-plugin UDS engine service and host harness;
+- Traefik smoke harness entrypoints and local decision-service starter code.
 
 Shared request, response, intervention, status, logging, capabilities, origin,
 and transaction concepts come from `common/include/msconnector/`. Runtime smoke
@@ -126,7 +202,7 @@ evidence is written through `common/scripts/write_smoke_result.py`, so Traefik
 does not maintain its own JSON result writer.
 
 `make smoke-traefik` sources the framework common smoke wrapper, which sources
-`modules/ModSecurity-test-Framework/ci/common.sh`. Runtime dependencies are not
+`modules/ModSecurity-test-Framework/ci/lib/common.sh`. Runtime dependencies are not
 installed globally and the harness does not assume `traefik` exists in the
 global `PATH`.
 
@@ -224,7 +300,7 @@ Traefik source metadata is centralized in `common.sh`: `TRAEFIK_VERSION=3.7.5`,
 the official GitHub release URL, the install docs URL, the Linux amd64
 download URL, `TRAEFIK_SHA256_URL`, and the pinned SHA256. The
 machine-readable mirror is
-`modules/ModSecurity-test-Framework/ci/runtime-components.manifest.json`.
+`modules/ModSecurity-test-Framework/ci/provisioning/runtime-components.manifest.json`.
 Downloads are not executed by default and, when opted in, stage only under
 `$CONNECTOR_COMPONENT_CACHE/traefik`.
 
@@ -250,6 +326,28 @@ This connector is prepared for the Common SDK but remains `not_verified` / `conn
 - Request and response mapper contracts use thin C17 functions in `connectors/traefik/src/traefik_modsecurity_mapper.*`; dead macro aliases are not used.
 - The service host profile selects `integration_mode=forwardAuth`, prefers `X-Forwarded-Uri` then `X-Original-Uri`, and passes the mapper callbacks to the neutral HTTP authorization service.
 - Runtime decisions use Common decision/intervention models; the targeted smoke verifies a Common blocked-event JSONL record without body payload fields.
+- The selected native host probe sets Common integration mode to
+  `native-traefik-middleware`, sends host outcomes only after ResponseWriter
+  confirmation, and retains separate raw decision and host-outcome events.
 - Connector-specific code remains responsible for the host profile, build glue, example configuration, and process entry point.
 - Response mapping is linked for contract checking only; upstream response inspection is unsupported by `forwardAuth`.
 - No production, CRS-complete, full-matrix, broad runtime, or RESPONSE_BODY verification is claimed.
+
+## Compatibility and native Phase-4 boundary
+
+The compatibility host model is Traefik `forwardAuth`. It executes before
+upstream handling and cannot inspect the later upstream response body.
+Consequently, for that compatibility path,
+`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`phase4_pre_commit_deny`, `late_intervention`,
+`late_intervention_log_only`, `late_intervention_abort`, and
+`late_intervention_status_metadata` are
+`unsupported_by_host_model`, not merely absent from a local run.
+
+The separate selected native UDS probe does observe the upstream response. It
+has targeted evidence for a P3 pre-commit denial and a P4 post-commit
+`log_only` outcome with original and visible status metadata. It cannot prove
+a late abort; strict P4 is `NOT EXECUTED`. Neither path changes a capability
+state without the separate canonical evidence/promotion process.
+
+No response-body payload belongs in an event or report.

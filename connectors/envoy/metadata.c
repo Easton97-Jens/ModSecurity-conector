@@ -10,19 +10,19 @@ static const msconnector_envoy_adapter_metadata envoy_metadata = {
         "not selected"
     },
     {
-        MSCONNECTOR_CAPABILITY_CONNECTION_METADATA |
-            MSCONNECTOR_CAPABILITY_REQUEST_HEADERS |
+        MSCONNECTOR_CAPABILITY_REQUEST_HEADERS |
+            MSCONNECTOR_CAPABILITY_REQUEST_BODY_BUFFERED |
             MSCONNECTOR_CAPABILITY_CUSTOM_TRANSACTION_ID,
         "envoy",
         "ext-authz-service",
         "Envoy",
-        "minimal ext_authz request-header 200/403 smoke verified; response phases, CRS, security and production remain unverified"
+        "The request-header path is implemented; buffered request-body forwarding is configured but not exercised. Original downstream connection metadata and upstream response phases are not available through the current service path."
     },
     "envoy",
     "Envoy",
     "repository-local-ext-authz-service",
     "connectors/envoy",
-    "Envoy HTTP ext_authz service over connector-neutral common/runtime; request phase only",
+    "Envoy HTTP ext_authz service over connector-neutral common/runtime; pre-upstream request phases only",
     "compile_verified",
     "minimal_runtime_smoke",
     "connector-gap"

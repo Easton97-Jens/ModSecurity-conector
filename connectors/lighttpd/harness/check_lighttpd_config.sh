@@ -19,10 +19,15 @@ else
 fi
 [ -f "$MODULE_PATH" ] || blocked "connector module is missing: $MODULE_PATH"
 
-LIGHTTPD_CONFIG=$(BUILD_ROOT="$BUILD_ROOT" sh "$SCRIPT_DIR/prepare_native_smoke.sh")
+SMOKE_PREPARER=${LIGHTTPD_SMOKE_PREPARER:-$SCRIPT_DIR/prepare_native_smoke.sh}
+[ -f "$SMOKE_PREPARER" ] || blocked "smoke preparer is missing: $SMOKE_PREPARER"
+LIGHTTPD_CONFIG=$(BUILD_ROOT="$BUILD_ROOT" \
+    LIGHTTPD_SMOKE_DIR="${LIGHTTPD_SMOKE_DIR:-}" \
+    sh "$SMOKE_PREPARER")
 MODULE_DIR=$(dirname "$MODULE_PATH")
-CHECK_STDOUT=$BUILD_ROOT/lighttpd-connector/smoke/config-check.stdout
-CHECK_STDERR=$BUILD_ROOT/lighttpd-connector/smoke/config-check.stderr
+SMOKE_DIR=$(dirname "$LIGHTTPD_CONFIG")
+CHECK_STDOUT=$SMOKE_DIR/config-check.stdout
+CHECK_STDERR=$SMOKE_DIR/config-check.stderr
 
 if "$LIGHTTPD_COMMAND" -m "$MODULE_DIR" -tt -f "$LIGHTTPD_CONFIG" \
     >"$CHECK_STDOUT" 2>"$CHECK_STDERR"; then

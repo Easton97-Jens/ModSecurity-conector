@@ -22,6 +22,11 @@ static const capability_name_entry capability_names[] = {
     {MSCONNECTOR_CAPABILITY_CONFIG_RELOAD, "config-reload"},
     {MSCONNECTOR_CAPABILITY_CUSTOM_TRANSACTION_ID, "custom-transaction-id"},
     {MSCONNECTOR_CAPABILITY_PHASE4_HARD_ABORT, "phase4-hard-abort"},
+    {MSCONNECTOR_CAPABILITY_PHASE4_RULE_EVALUATION, "phase4-rule-evaluation"},
+    {MSCONNECTOR_CAPABILITY_PHASE4_PRE_COMMIT_DENY, "phase4-pre-commit-deny"},
+    {MSCONNECTOR_CAPABILITY_LATE_INTERVENTION_LOG_ONLY, "late-intervention-log-only"},
+    {MSCONNECTOR_CAPABILITY_LATE_INTERVENTION_ABORT, "late-intervention-abort"},
+    {MSCONNECTOR_CAPABILITY_LATE_INTERVENTION_STATUS_METADATA, "late-intervention-status-metadata"},
 };
 
 const char *msconnector_capability_name(enum msconnector_capability_flag flag) {

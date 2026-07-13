@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-06T16:46:14Z`
+> Generated at: `2026-07-12T19:07:56Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
-> Generator: `framework:ci/generate-case-matrix.py`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `4afa499f6719e802c5091c43742e99ba39d6d42a`
-> Framework SHA: `3817acec9f2fb483b275b5a9a747542ec40e3b45`
+> Connector SHA: `9b718cee0523da3e0822754dc4b05f327b6d969d`
+> Framework SHA: `06d09c6173d929911bbf75e79e9ee0bf7ea3f734`
 > Input status: `complete`
 
 # Generated Runtime Matrix
@@ -19,9 +19,9 @@ This matrix joins repository YAML cases with the latest tracked local runtime sn
 Former XFAIL cases are rendered from live runtime evidence like any other YAML case; RESPONSE_BODY remains non-verified/non-promoted.
 
 ## Counts
-- YAML cases: **156**
+- YAML cases: **160**
 - Default runtime-executable YAML cases: **61**
-- Force-all runtime-executable YAML cases: **156**
+- Force-all runtime-executable YAML cases: **160**
 - Apache attempted YAML cases in default runtime snapshot: **54**
 - NGINX attempted YAML cases in default runtime snapshot: **60**
 - HAProxy attempted YAML cases in default runtime snapshot: **54**
@@ -32,14 +32,14 @@ Former XFAIL cases are rendered from live runtime evidence like any other YAML c
 - `NOT_EXECUTABLE` means the YAML case is not applicable to that connector or the runner cannot execute that YAML status for that connector.
 - `NOT EXECUTED` means no runtime case evidence is recorded in a non-force/default snapshot.
 - `MAPPED_ONLY` entries are import inventory items, not runnable YAML case files.
-- Bounded Phase 4 / strict-abort classifications remain non-promotable metadata even when the live runtime status is PASS.
+- RESPONSE_BODY classifications remain non-promotable metadata unless current selected-host chunks, EOS, and canonical artifacts prove them; legacy bounded samples are not runtime evidence.
 
 ## Status Counts
 | Status | Apache | NGINX | HAProxy |
 |---|---:|---:|---:|
 | PASS | 10 | 10 | 10 |
 | FAIL | 44 | 50 | 44 |
-| NOT_EXECUTABLE | 102 | 96 | 102 |
+| NOT_EXECUTABLE | 106 | 100 | 106 |
 | MAPPED_ONLY | 10 | 10 | 10 |
 
 ## Connector Runtime Availability
@@ -92,7 +92,11 @@ Former XFAIL cases are rendered from live runtime evidence like any other YAML c
 | xml_namespace_edge_connector_gap | tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml | common | body-processors | - | connector_gap | imported | no | yes | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/apache/apache-summary.json | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/nginx/nginx-summary.json | NOT_EXECUTABLE | not promoted | no haproxy runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/haproxy/haproxy-summary.json |
 | xml_request_body_block | tests/cases/body/xml/xml_request_body_block.yaml | common | body-processors | - | active | imported | yes | yes | FAIL | not promoted | fail: expected HTTP 403, observed 200 | /src/ModSecurity-conector-build/results/no-crs/with-mrts/apache/apache-summary.json; case=xml_request_body_block; status=fail; expected=403; actual=200 | FAIL | not promoted | fail: expected HTTP 403, observed 405 | /src/ModSecurity-conector-build/results/no-crs/with-mrts/nginx/nginx-summary.json; case=xml_request_body_block; status=fail; expected=403; actual=405 | FAIL | not promoted | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/results/no-crs/with-mrts/haproxy/haproxy-summary.json; case=xml_request_body_block; status=fail; expected=403; actual=501 |
 | xml_request_body_malformed_connector_gap | tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml | common | body-processors | - | connector_gap | imported | no | yes | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/apache/apache-summary.json | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/nginx/nginx-summary.json | NOT_EXECUTABLE | not promoted | no haproxy runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/haproxy/haproxy-summary.json |
+| phase4_deny_after_commit_abort | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_abort.yaml | apache | no-crs-baseline | - | pending | pending | no | yes | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/apache/apache-summary.json | NOT_EXECUTABLE | - | apache-specific case is not applicable to nginx | - | NOT_EXECUTABLE | - | apache-specific case is not applicable to haproxy | - |
+| phase4_deny_after_commit_log_only | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_log_only.yaml | apache | no-crs-baseline | - | pending | pending | no | yes | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/apache/apache-summary.json | NOT_EXECUTABLE | - | apache-specific case is not applicable to nginx | - | NOT_EXECUTABLE | - | apache-specific case is not applicable to haproxy | - |
 | nginx_phase4_content_type_out_of_scope | tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml | nginx | response-body | - | active | imported | yes | yes | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - | FAIL | RESPONSE_BODY non-verified; non-promotable | fail: phase4 log file missing or empty: /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_content_type_out_of_scope/phase4.log | /src/ModSecurity-conector-build/results/no-crs/with-mrts/nginx/nginx-summary.json; case=nginx_phase4_content_type_out_of_scope; status=fail; expected=200; actual=200 | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
+| phase4_deny_after_commit_abort | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_abort.yaml | nginx | no-crs-baseline | - | pending | pending | no | yes | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/nginx/nginx-summary.json | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
+| phase4_deny_after_commit_log_only | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_log_only.yaml | nginx | no-crs-baseline | - | pending | pending | no | yes | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/nginx/nginx-summary.json | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
 | nginx_phase4_minimal_log_only | tests/cases/connector-specific/nginx/nginx_phase4_minimal_log_only.yaml | nginx | response-body | - | active | imported | yes | yes | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - | FAIL | RESPONSE_BODY non-verified; non-promotable | fail: phase4 log file missing or empty: /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_minimal_log_only/phase4.log | /src/ModSecurity-conector-build/results/no-crs/with-mrts/nginx/nginx-summary.json; case=nginx_phase4_minimal_log_only; status=fail; expected=200; actual=200 | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
 | nginx_phase4_safe_log_only | tests/cases/connector-specific/nginx/nginx_phase4_safe_log_only.yaml | nginx | response-body | - | active | imported | yes | yes | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - | FAIL | RESPONSE_BODY non-verified; non-promotable | fail: phase4 log file missing or empty: /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_safe_log_only/phase4.log | /src/ModSecurity-conector-build/results/no-crs/with-mrts/nginx/nginx-summary.json; case=nginx_phase4_safe_log_only; status=fail; expected=200; actual=200 | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
 | nginx_phase4_strict_connection_abort | tests/cases/connector-specific/nginx/nginx_phase4_strict_connection_abort.yaml | nginx | response-body | - | active | imported | no | yes | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/no-crs/with-mrts/nginx/nginx-summary.json | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
@@ -228,7 +232,7 @@ Former XFAIL cases are rendered from live runtime evidence like any other YAML c
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
 | Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/runtime-validation-snapshot.json` | `c8e7113e2b7d4982ad6817e9f3fd4387370db33224a0f14ec265126ec685f5f9` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/runtime-validation-snapshot.json` | `d3017f038a44a5f5596e36e3482f92cd93ce6f2173bb958da98cddc05884cd8f` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

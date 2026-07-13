@@ -1,177 +1,185 @@
-# HAProxy ModSecurity Beispiele
+# HAProxy-Beispiele für nativen HTX
 
 **Sprache:** [English](README.md) | Deutsch
 
-## Inhaltsverzeichnis
+## Integration und Grenze
 
-- [Status](#status)
-- [Zweck](#zweck)
-- [Benötigte Komponenten](#benötigte-komponenten)
-- [Dateien](#dateien)
-- [Produktionspfade](#produktionspfade)
-- [Request-Phasen 1/2](#request-phasen-12)
-- [Phase 3 Response Headers](#phase-3-response-headers)
-- [Phase 4 / RESPONSE_BODY Strict-Abort](#phase-4--response_body-strict-abort)
-- [Variablen- und Platzhalterreferenz](#variablen--und-platzhalterreferenz)
-- [Runtime-Evidence](#runtime-evidence)
-- [Reload und Restart](#reload-und-restart)
-- [Grenzen](#grenzen)
-- [Externer Einsatz](#externer-einsatz)
-- [Nicht-Claims](#nicht-claims)
-- [Verwandte Dokumente](#verwandte-dokumente)
+Integrationsmodus: nativer HTX-Filter. Die nativen Referenzen
+[minimal](minimal/haproxy-htx.cfg) und [Safe](safe/haproxy-htx.cfg) sind von
+dem bewahrten [SPOE/SPOP-Kompatibilitätsmaterial](#spoespop-kompatibilität)
+getrennt.
 
-## Status
-
-Produktionsnahe HAProxy-SPOE/SPOP-Beispiele für `haproxy-modsecurity-spoa`.
-Sie promoten weder RESPONSE_BODY noch Force-all-FAIL-Zeilen als
-Produktionssupport.
-
-## Zweck
-
-Diese Beispiele zeigen den produktiven SPOA-Pfad für HAProxy:
-`haproxy-modsecurity-spoa`, HAProxy + SPOE/SPOP + libmodsecurity,
-Decision-Logging, Audit-Log-Plumbing, Request-Phasen 1/2, implementierte
-Phase-3-Response-Header und begrenzte Phase-4-Strict-Abort-Evidence.
-
-## Benötigte Komponenten
-
-HAProxy, `haproxy-modsecurity-spoa`, libmodsecurity v3, SPOE-Konfiguration,
-ModSecurity-Regeln, optional CRS sowie beschreibbare HAProxy-/SPOA-/
-ModSecurity-Log-Orte.
+Die Safe-Datei wählt phase4-mode safe für den ausgewählten HTTP/1.1-P1--P4-
+Kern. Sie ist eine Konfigurationsreferenz für den gepatchten Hostfilter, keine
+Behauptung, dass Stock-HAProxy ihn lädt. P1, P2, P3 und P4 sind Request-Header,
+Request-Body, Response-Header und Response-Body. An der späten P4-Grenze
+bewahrt Safe die Response, statt einen Statuswechsel zu erfinden. Dieses
+Verzeichnis behauptet weder vollständiges Response-Buffering noch
+Regelbewertung pro Chunk oder einen clientbeobachteten Strict-Abbruch. Das
+[Strict-Profilgrenze](#strict-profilgrenze) hält die optionale Parsergrenze fest,
+ohne einen nativen Host-Abbruch zu behaupten.
 
 ## Dateien
 
-- `haproxy-request-only.cfg`: HAProxy-Request-Phase-Enforcement über SPOE.
-- `haproxy-response-headers.cfg`: HAProxy-Request- plus Response-Header-Checks.
-- `haproxy-phase4-strict-abort.cfg`: Beispiel für begrenzten
-  Phase-4-Strict-Abort.
-- `spoe-modsecurity.conf`: SPOE-Message- und Variablen-Mapping.
-- `modsecurity-agent.conf`: Konfiguration für `haproxy-modsecurity-spoa`.
+| Pfad | Typ | Zweck |
+| --- | --- | --- |
+| [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Host-Konfiguration | Parser-unterstützter minimaler P4-Modus des nativen HTX. |
+| [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Host-Konfiguration | Native HTTP/1.1-P1--P4-Safe-Referenz. |
+| [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Host-Konfiguration | Nativer Connector mit DetectionOnly-Regeln; siehe [DetectionOnly-Profil](#detectiononly-profil). |
+| [disabled/haproxy-htx.cfg](disabled/haproxy-htx.cfg) | Host-Konfiguration | Nativer Filter fehlt; siehe [Deaktiviertes Profil](#deaktiviertes-profil). |
+| [rules/detection-only.conf](rules/detection-only.conf) | Regeln | DetectionOnly-Engine-Einstellungen. |
+| [rules/engine-off.conf](rules/engine-off.conf) | Regeln | Engine-Off-Einstellungen, getrennt vom Deaktivieren des Connectors. |
+| [No-CRS-Regeln](#no-crs-regeln) | Dokumentation | Quelle und IDs der kanonischen No-CRS-Rules-Datei. |
+| [P1--P4-Safe-Absicht](#p1-p4-safe-absicht) | Dokumentation | Konfigurationsabsicht, kein Laufergebnis. |
+| [SPOE/SPOP-Kompatibilität](#spoespop-kompatibilität) | Kompatibilität | Früherer SPOE/SPOP-Pfad, absichtlich getrennt. |
 
-## Produktionspfade
+Die nativen Referenzen verwenden Hostinstallationswerte: Listener
+127.0.0.1:8080, Upstream 127.0.0.1:8081 und Rules-Datei
+/etc/modsecurity/no-crs-baseline.conf. Keiner davon ist ein
+repository-relativer Pfad.
 
-Die Beispiele verwenden produktionsnahe Pfade:
+## Anzupassende Werte
 
-- `/usr/local/sbin/haproxy-modsecurity-spoa`
-- `/etc/haproxy/haproxy.cfg`
-- `/etc/haproxy/spoe-modsecurity.conf`
-- `/etc/haproxy/modsecurity-agent.conf`
-- `/etc/modsecurity/haproxy-rules.conf`
-- `/var/log/haproxy-modsecurity/decision.jsonl`
-- `/var/log/haproxy-modsecurity/audit.log`
-- `/var/log/haproxy-modsecurity/agent.log`
+| Name | Zweck und Format | Pflicht/Default, Setzer, Geltungsbereich | Beispiel, Auswirkung und Sicherheit |
+| --- | --- | --- | --- |
+| filter modsecurity-htx | Direktive des gepatchten HAProxy-Filters | Pflicht; kein Stock-Host-Default; im Frontend-Scope konfiguriert | Der gepatchte Host muss diesen Parser bereitstellen. Lehnt ein Stock-Binary ihn ab, ist das eine Konfigurationsinkompatibilität, kein Grund für stilles Fallback. |
+| rules-file | Lesbare installierte Regeldatei | Pflicht; kein Repository-Default; Filterargument; Frontend-Scope | /etc/modsecurity/no-crs-baseline.conf. Ein geprüftes Ruleset kann Traffic blockieren. |
+| phase4-mode | P4-Policy: minimal, safe oder strict | Optionales Filterargument; Frontend-Scope; Safe-Datei setzt safe | safe. Zeichnet ein spätes P4-Ergebnis auf, ohne es als Statuswechsel auszugeben. |
+| bind-Adresse | Listener-TCP-Adresse | Pflicht; Host-Konfiguration; Frontend-Scope | 127.0.0.1:8080. Für lokale Tests private Adresse wählen; ein öffentlicher Bind verändert die Exponierung. |
+| Upstream-Server | Backend-Host und TCP-Port | Pflicht; Host-Konfiguration; Backend-Scope | 127.0.0.1:8081. Durch gewünschten Application-Endpunkt ersetzen. |
+| timeout connect/client/server | Positive HAProxy-Dauer | In diesen Referenzen Pflicht; Host-Konfiguration; defaults-Scope | 2s und 5s. Für die Anwendung anpassen; Timeouts sind keine WAF-Entscheidungen. |
 
-## Request-Phasen 1/2
+No-CRS-Regel-IDs und ihre Phasenbedeutung stehen in
+[No-CRS-Regeln](#no-crs-regeln). Die historischen SPOE-Optionen und ihre
+getrennten Limits stehen bei der [SPOE/SPOP-Kompatibilität](#spoespop-kompatibilität).
 
-`haproxy-request-only.cfg` sendet Request-Metadaten, Header und Request Body
-über die Gruppe `request-check` an den SPOA-Service. HAProxy erzwingt
-zurückgegebene Transaction-Variablen mit `http-request deny`, Redirect- und
-Silent-Drop-Regeln.
+## Konfigurationsreferenz
 
-## Phase 3 Response Headers
+Die generierte [Konfigurationsreferenz](configuration-reference.de.md) trennt
+den nativen HTX-Parser von den SPOE/SPOP-Kompatibilitätsdateien.
 
-`haproxy-response-headers.cfg` ergänzt die Gruppe `response-check`. Sie sendet
-Response-Status und ausgewählte Response Header an den SPOA-Service und
-erzwingt zurückgegebene Variablen mit `http-response`-Regeln.
+| Einstellung | Ebene | Aufgabe |
+| --- | --- | --- |
+| `filter modsecurity-htx` | Host / Connector | Bindet den ausgewählten nativen HTX-Lifecycle-Filter ein. |
+| `SecRuleEngine` | ModSecurity Engine | Wertet Regeln aus, die über `rules-file` geladen werden. |
+| `SecRequestBodyAccess` | ModSecurity Engine | Erlaubt P2-Eingaben, wenn natives HTX sie liefert. |
+| `SecResponseBodyAccess` | ModSecurity Engine | Erlaubt P4-Eingaben, wenn natives HTX sie liefert. |
+| `phase4-mode` | Connector / Common Policy | Fordert die Late-P4-Policy minimal, safe oder strict an. |
 
-## Phase 4 / RESPONSE_BODY Strict-Abort
+Das Entfernen des nativen Filters deaktiviert den Connector-Pfad.
+`SecRuleEngine Off` entfernt den Filter nicht, deaktiviert aber die
+Engine-Regelverarbeitung. `filter spoe` bleibt ein getrennter
+Kompatibilitätsweg und keine native HTX-Einstellung.
 
-`haproxy-phase4-strict-abort.cfg` ergänzt `http-response wait-for-body` und
-sendet begrenzte Response-Bytes an den SPOA-Service. Die Runtime kann begrenzte
-Strict-Abort-Evidence aufzeichnen, einschließlich `decision.jsonl` und
-Audit-Log-Ausgabe.
+## Profile
 
-Phase 4 / RESPONSE_BODY bleibt nicht promoted; begrenzte Strict-Abort-Evidence
-wird nur als Runtime-Evidence dokumentiert.
+### DetectionOnly-Profil
 
-## Variablen- und Platzhalterreferenz
+`detection-only/haproxy-htx.cfg` lässt den nativen HTX-Filter aktiv und wählt
+die DetectionOnly-Regeldatei. DetectionOnly lädt und bewertet Engine-Regeln und
+zeichnet Treffer auf, führt aber keine disruptiven Engine-Aktionen aus.
 
-| Name | Typ | Erforderlich | Beispielwert | Verwendet in | Bedeutung | Änderung erfordert Restart/Reload | Hinweise |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `haproxy-modsecurity-spoa` | Binary-Pfad | Ja | `/usr/local/sbin/haproxy-modsecurity-spoa` | Service Unit oder Process Supervisor | Produktiver SPOA/SPOP-Prozess, der libmodsecurity lädt. | SPOA neu starten | Gebaut durch `make -C connectors/haproxy build-spoa-runtime`. |
-| `filter spoe engine modsecurity` | HAProxy-Direktive | Ja | `config /etc/haproxy/spoe-modsecurity.conf` | `haproxy-*.cfg` | Hängt die ModSecurity-SPOE-Engine ein. | HAProxy reloaden | Config-Pfad muss für HAProxy lesbar sein. |
-| `http-request send-spoe-group` | HAProxy-Direktive | Ja | `modsecurity request-check` | Request- und Phase-4-HAProxy-Konfigurationen | Sendet Request-Daten an den SPOA-Service. | HAProxy reloaden | Für Phasen 1/2 erforderlich. |
-| `http-response send-spoe-group` | HAProxy-Direktive | Response-Modi | `modsecurity response-check` | Response-Header- und Phase-4-HAProxy-Konfigurationen | Sendet Response-Daten an den SPOA-Service. | HAProxy reloaden | Für Phase 3 und begrenzte Phase-4-Evidence erforderlich. |
-| `http-response wait-for-body` | HAProxy-Direktive | Nur Phase 4 | `time 50ms at-least 1` | `haproxy-phase4-strict-abort.cfg` | Macht begrenzte Response-Bytes für SPOE verfügbar. | HAProxy reloaden | Timeout und Byte-Erwartungen begrenzt halten. |
-| `be_spoa_modsecurity` | HAProxy-Backend | Ja | `127.0.0.1:12345` | `haproxy-*.cfg` | SPOP-Backend für den SPOA-Prozess. | HAProxy reloaden | Adresse muss zu Agent-`listen` passen. |
-| `spoe-agent modsecurity-agent` | SPOE-Section | Ja | `use-backend be_spoa_modsecurity` | `spoe-modsecurity.conf` | Definiert SPOE-Agent und Backend. | HAProxy reloaden | Verwendet HAProxy `mode spop`. |
-| `groups` | SPOE-Option | Ja | `request-check response-check` | `spoe-modsecurity.conf` | Deklariert verfügbare SPOE-Gruppen. | HAProxy reloaden | Request-only-Deployments können die Response-Gruppe weiterhin definiert lassen. |
-| `register-var-names` | SPOE-Option | Ja | `blocked action status redirect_url rule_id phase error` | `spoe-modsecurity.conf` | Registriert von SPOA zurückgegebene Transaction-Variablen. | HAProxy reloaden | HAProxy-Enforcement-Regeln lesen diese Variablen. |
-| `max-frame-size` | SPOE-Option | Ja | `65532` | `spoe-modsecurity.conf` | Begrenzt die SPOE-Frame-Größe. | HAProxy reloaden | Mit Request-/Response-Body-Limits abstimmen. |
-| `request_id` | SPOE-Message-Argument | Ja | `unique-id` | `spoe-modsecurity.conf` | Korreliert Requests in Decision- und Audit-Logs. | HAProxy reloaden | `unique-id-header` stellt denselben Wert upstream bereit. |
-| `headers_bin` | SPOE-Message-Argument | Request-Checks | `req.hdrs_bin` | `spoe-modsecurity.conf` | Sendet Request Header in binärer Form. | HAProxy reloaden | Wird von Request-Phasen verwendet. |
-| `body` | SPOE-Message-Argument | Request-Checks | `req.body` | `spoe-modsecurity.conf` | Sendet begrenzte Request-Body-Bytes. | HAProxy reloaden | Erfordert `option http-buffer-request`. |
-| `response_headers_bin` | SPOE-Message-Argument | Response-Checks | `res.hdrs_bin` | `spoe-modsecurity.conf` | Sendet Response Header in binärer Form und erhält wiederholte Werte wie `Set-Cookie`. | HAProxy reloaden | Bevorzugt für Phase-3-Response-Header-Evidence. |
-| `response_headers` | SPOE-Message-Argument | Response-Checks | `res.hdrs` | `spoe-modsecurity.conf` | Sendet Response Header für Phase 3. | HAProxy reloaden | Von Response-Header-Evidence unterstützt. |
-| `response_body` | SPOE-Message-Argument | Nur Phase 4 | `res.body` | `spoe-modsecurity.conf` | Sendet begrenzte Response-Body-Bytes. | HAProxy reloaden | Nur nicht-promotete Runtime-Evidence. |
-| `listen` | Agent-Config-Key | Ja | `127.0.0.1:12345` | `modsecurity-agent.conf` | Adresse, auf der `haproxy-modsecurity-spoa` lauscht. | SPOA neu starten | Muss zum HAProxy-SPOP-Backend passen. |
-| `rules-file` | Agent-Config-Key | Ja | `/etc/modsecurity/haproxy-rules.conf` | `modsecurity-agent.conf` | ModSecurity-Regeln, die vom SPOA-Prozess geladen werden. | SPOA neu starten | CRS bei Bedarf aus dieser Datei einbinden. |
-| `decision-log` | Agent-Config-Key | Ja | `/var/log/haproxy-modsecurity/decision.jsonl` | `modsecurity-agent.conf` | JSONL-Runtime-Decision-Log. | SPOA neu starten | Für Evidence und Debugging aufbewahren. |
-| `audit-log` | Agent-Config-Key | Nein | `/var/log/haproxy-modsecurity/audit.log` | `modsecurity-agent.conf` | libmodsecurity-Audit-Log-Ausgabe. | SPOA neu starten | Schreibbare Verzeichnisberechtigungen sicherstellen. |
-| `log-file` | Agent-Config-Key | Nein | `/var/log/haproxy-modsecurity/agent.log` | `modsecurity-agent.conf` | Agent-Diagnose-Log. | SPOA neu starten | Mit Systemlogs rotieren. |
-| `mode` | Agent-Config-Key | Ja | `block` | `modsecurity-agent.conf` | Aktiviert disruptives Enforcement. | SPOA neu starten | Detection Mode nur verwenden, wenn er im bereitgestellten Binary implementiert ist. |
-| `fail-mode` | Agent-Config-Key | Ja | `closed` | `modsecurity-agent.conf` | Verhalten bei Processing-Fehlern. | SPOA neu starten | Entsprechend der Service-Risikotoleranz wählen. |
-| `request-body-limit` | Agent-Config-Key | Nein | `65532` | `modsecurity-agent.conf` | Begrenzt verarbeitete Request-Body-Bytes. | SPOA neu starten | Innerhalb der SPOE-Frame-Limits halten. |
-| `response-body-limit` | Agent-Config-Key | Nur Phase 4 | `65532` | `modsecurity-agent.conf` | Begrenzt verarbeitete Response-Body-Bytes. | SPOA neu starten | `0` deaktiviert Response-Body-Verarbeitung. |
-| `response-body-timeout` | Agent-Config-Key | Nur Phase 4 | `50` | `modsecurity-agent.conf` | Begrenztes Warten auf Response-Body-Evidence. | SPOA neu starten | Klein halten, um Response-Latenz zu vermeiden. |
-| `spoe-timeout` | Agent-Config-Key | Nein | `2000` | `modsecurity-agent.conf` | Agent-seitiger SPOE-Timeout in Millisekunden. | SPOA neu starten | Mit HAProxy-Processing-Timeout abstimmen. |
-| `worker-count` | Agent-Config-Key | Nein | `1` | `modsecurity-agent.conf` | Anzahl der SPOA-Worker. | SPOA neu starten | Nach Tests für Produktionsverkehr dimensionieren. |
-| `max-transactions` | Agent-Config-Key | Nein | `4096` | `modsecurity-agent.conf` | Agent-Transaction-Kapazität. | SPOA neu starten | Mit Speicher und Nebenläufigkeit abstimmen. |
+Nach dem Anpassen der Hostpfade den untenstehenden Connector-
+Validierungsbefehl verwenden. Dieses Profil ist Konfigurationsanleitung und
+keine Runtime-Evidenz.
 
-## Runtime-Evidence
+### Deaktiviertes Profil
 
-Lokale generierte Evidence verwendet:
+`disabled/haproxy-htx.cfg` lässt `filter modsecurity-htx` weg; SPOE wird nicht
+ersetzt. Dies unterscheidet sich von `SecRuleEngine Off`, das bei aktivem
+Hostconnector die Regelauswertung innerhalb der Engine abschaltet.
 
-- `/src/ModSecurity-conector-build/results/with-crs/haproxy-summary.json`
-- `/src/ModSecurity-conector-build/results/force-all/haproxy-summary.json`
-- `/src/ModSecurity-conector-build/logs/haproxy-runtime/decision.jsonl`
-- `/src/ModSecurity-conector-build/logs/haproxy-runtime/audit.log`
-- `reports/testing/generated/haproxy-runtime-results.generated.md`
-- `reports/testing/haproxy-poc.md`
+Nach dem Anpassen der Hostpfade den untenstehenden Connector-
+Validierungsbefehl verwenden. Aus einem deaktivierten Profil kein
+P1--P4-Verhalten ableiten.
 
-Der Default-HAProxy-Smoke berichtet `55/55 PASS`. Force-all-HAProxy-Evidence
-berichtet `133 attempted / 104 PASS / 23 FAIL / 0 BLOCKED /
-6 NOT_EXECUTABLE`.
+## P1--P4-Safe-Absicht
 
-## Reload und Restart
+Die native HTX-Safe-Referenz wählt phase4-mode safe. Sie ist für den
+gepatchten nativen Filterpfad gedacht, nicht für den SPOE/SPOP-
+Kompatibilitätsservice. Eine P4-Entscheidung nach dem Beginn einer Response
+wird als Safe-Log-only aufgezeichnet; die Konfiguration verspricht keinen
+Statuswechsel und keinen Strict-Abbruch.
 
-Führen Sie vor dem Reload `haproxy -c -f /etc/haproxy/haproxy.cfg` aus. Reloaden
-Sie HAProxy nach Änderungen an HAProxy- oder SPOE-Konfiguration. Starten Sie den
-SPOA-Service nach Änderungen an `modsecurity-agent.conf`, Regeldatei, Binary
-oder Library-Pfad neu.
+Die Minimal-Referenz zeigt den parser-unterstützten minimal-Modus. Es gibt kein
+Strict-Beispiel, weil eine eingecheckte Filteroption keinen
+clientbeobachteten Abbruch nach dem Commit beweist.
 
-## Grenzen
+## No-CRS-Regeln
 
-Die Root-Zusammenfassungen sind connector-neutral. Row-Level-HAProxy-Evidence
-bleibt in `reports/testing/generated/haproxy-runtime-results.generated.md`. Es
-gibt keinen synthetischen Matrix-Writer; generierte Reports verwenden
-Runtime-Zusammenfassungen und Snapshot-Daten.
+Die nativen HTX-Referenzen verwenden eine installierte Kopie der
+repository-eigenen [No-CRS-Baseline-Regeln](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf).
+Der rules-file-Wert im HAProxy-Filter ist ein Host-Installationspfad, kein
+relativer Pfad zum HAProxy-Prozess.
 
-## Externer Einsatz
+| Regel-ID | Phase | Zweck |
+| ---: | ---: | --- |
+| 1100001 | P1 | Request-Header-Deny |
+| 1100101 | P2 | Request-Body-Deny |
+| 1100201 | P3 | Response-Header-Deny |
+| 1100301 | P4 | Response-Body-Entscheidung für die Safe-Grenze |
 
-Dieses Verzeichnis enthält Beispielkonfigurationen für externen Einsatz. Sie
-sind nur Startpunkte und keine universellen Produktionsdefaults. Der passende
-Compile-Guide erklärt, wie das erforderliche Artefakt
-`haproxy-modsecurity-spoa` gebaut oder vorbereitet wird. Kopieren oder
-adaptieren Sie nur die Dateien, die zu Ihrem Deployment passen; Pfade wie
-`/etc/...`, `/usr/lib/...`, `127.0.0.1`, Ports, Backend-URLs und Log-Pfade sind
-Platzhalter, sofern sie nicht zu Ihrem System passen.
+## SPOE/SPOP-Kompatibilität
 
-Service-Kontext: HAProxy plus SPOA-Prozess. Nach dem Anpassen der Dateien
-`haproxy -c` ausführen, HAProxy reloaden und den betreiberverwalteten
-SPOA-Prozess neu starten. HAProxy-Logs, `decision.jsonl`, `audit.log` und
-SPOA-Diagnose-Logs prüfen.
+Die bewahrten Dateien unten sind frühere HAProxy-SPOE/SPOP-Beispiele. Sie sind
+von der nativen HTX-P1--P4-Safe-Referenz unter [safe/](safe/) getrennt.
 
-## Nicht-Claims
+| Datei | Geltungsbereich |
+| --- | --- |
+| [haproxy-request-only.cfg](compatibility-spoe/haproxy-request-only.cfg) | Request-SPOE-Gruppe für P1/P2-artige Request-Entscheidungen. |
+| [haproxy-response-headers.cfg](compatibility-spoe/haproxy-response-headers.cfg) | Ergänzt Response-Header-SPOE; keine Response-Body-Verarbeitung. |
+| [spoe-modsecurity.conf](compatibility-spoe/spoe-modsecurity.conf) | Mapping für SPOE-Agent, Gruppen, Nachrichten und Rückgabevariablen. |
+| [modsecurity-agent.conf](compatibility-spoe/modsecurity-agent.conf) | Einstellungen des SPOA-Prozesses. |
+| [legacy-phase4-strict-abort.cfg](compatibility-spoe/legacy-phase4-strict-abort.cfg) | Deaktiviertes historisches Beispiel; nie als P4-Evidence verwenden. |
 
-- Diese Beispiele sind keine pauschale Production-Readiness-Zertifizierung.
-- Sie belegen nicht jedes Paket, jede Version oder jedes Layout.
-- Phase-4- / RESPONSE_BODY-Beispiele sind nur begrenzte Runtime-Evidence, keine
-  promotete vollständige Unterstützung.
+### Anzupassende Werte
 
-## Verwandte Dokumente
+| Name | Zweck und Format | Pflicht/Default, Setzer, Geltungsbereich | Beispiel und Grenze |
+| --- | --- | --- |
+| filter spoe engine modsecurity config | HAProxy-SPOE-Filter und lesbare Agent-Datei | Pflicht; Host-Konfiguration; Frontend-Scope | /etc/haproxy/spoe-modsecurity.conf. Wählt Kompatibilitäts-SPOE, nicht natives HTX. |
+| send-spoe-group | Request- oder Response-Header-SPOE-Nachrichtengruppe | Für passende Datei Pflicht; Host-Konfiguration; Request-/Response-Scope | request-check oder response-check. response-check sendet keinen Response-Body. |
+| be_spoa_modsecurity | SPOP-Backendname und Endpunkt | Pflicht; Host-Konfiguration; Backend-Scope | 127.0.0.1:12345. Muss zum listen-Wert des Agenten passen. |
+| groups und register-var-names | SPOE-Gruppennamen und Rückgabe-Transaction-Variablen | Pflicht; spoe-modsecurity.conf; Agent-Scope | request-check response-check und blocked/action/status-Felder. Namen müssen zu HAProxy-Enforcement-Ausdrücken passen. |
+| max-frame-size | Positives SPOE-Frame-Byte-Limit | Pflicht; spoe-modsecurity.conf; Agent-Scope | 65532. Begrenzt einen Frame, schafft keine P4-Body-Unterstützung. |
+| rules-file | Lesbare Agent-Regeldatei | Pflicht; modsecurity-agent.conf; SPOA-Scope | /etc/modsecurity/haproxy-rules.conf. Ein geprüftes Ruleset kann Traffic blockieren. |
+| decision-log, audit-log, log-file | Beschreibbare Prozesslogpfade | decision-log Pflicht, andere optional; SPOA-Scope | /var/log/haproxy-modsecurity. Metadaten schützen und keine Secrets loggen. |
+| response-body-limit und response-body-timeout | Kompatibilitäts-Response-Body-Controls | Explizit deaktiviert; SPOA-Scope | 0 und 0. Nicht als P4-Unterstützung darstellen. |
 
-- [COMPILE_HAPROXY.de.md](../../COMPILE_HAPROXY.de.md)
-- `connectors/haproxy/docs/build.md`
-- `connectors/haproxy/docs/validation.md`
-- `reports/testing/haproxy-poc.md`
+SPOP-Adresse 127.0.0.1:12345, HAProxy-Listener 127.0.0.1:8080, Upstream
+127.0.0.1:8081 und /etc- oder /var/log-Pfade sind Hostbeispiele, keine
+repository-relativen Pfade.
+
+Dieser Pfad darf nicht verwendet werden, um natives HTX-Verhalten,
+P4-Response-Body-Verarbeitung, Safe-Late-Verhalten, Strict-Abbruch, First Byte
+vor EOS oder No-Full-Response-Buffer zu behaupten.
+
+## Validierung
+
+Die gewählte Referenz in eine installierte gepatchte HAProxy-Konfiguration
+übernehmen, Rules-Datei und Adressen anpassen und danach den Hostchecker
+ausführen:
+
+~~~sh
+haproxy -c -f /etc/haproxy/haproxy.cfg
+~~~
+
+Der Pfad ist ein Distributionsbeispiel; den echten Host-Konfigurationspfad
+wählen. Ein erfolgreicher Check beweist, dass dieses HAProxy-Binary die Datei
+geparst hat. Er beweist weder P1--P4-Ergebnisse noch P4-Clientverhalten,
+Strict-Abbrüche, Produktionsreife oder native HTX-Eigenschaften des
+SPOE/SPOP-Kompatibilitätspfads.
+
+## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
+
+Der native HTX-Parser akzeptiert `phase4-mode strict`, aber der aktuelle
+Hostpfad zeichnet den gewünschten Abbruch als `not_attempted` auf. Strict ist
+optional und hier wird kein ausführbares Profil behauptet.
+
+Das optionale Argument am nativen Filter setzen, mit `haproxy -c -f <config>`
+validieren und es ohne neue Host-Evidenz nicht als client-sichtbaren Abbruch
+darstellen.
+
+## Verwandtes Material
+
+- [HAProxy-Connector-Quellcode und native HTX-Grenze](../../connectors/haproxy/README.de.md)
+- [Repository-Beispielübersicht](../README.de.md)

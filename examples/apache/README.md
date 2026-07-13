@@ -1,135 +1,149 @@
-# Apache ModSecurity Examples
+# Apache native-module examples
 
 **Language:** English | [Deutsch](README.de.md)
 
-## Table of Contents
+## Integration and boundary
 
-- [Status](#status)
-- [Purpose](#purpose)
-- [Needed Components](#needed-components)
-- [Files](#files)
-- [Production Paths](#production-paths)
-- [Request-Only Mode](#request-only-mode)
-- [Phase 4 / RESPONSE_BODY Mode](#phase-4-response_body-mode)
-- [Variable And Placeholder Reference](#variable-and-placeholder-reference)
-- [Logging And Evidence](#logging-and-evidence)
-- [Security Notes](#security-notes)
-- [External Usage](#external-usage)
-- [Non-Claims](#non-claims)
-- [Related Docs](#related-docs)
+Integration mode: native httpd module. The [minimal reference](minimal/httpd.conf)
+is request oriented; the [Safe reference](safe/httpd.conf) selects the native
+HTTP/1.1 P1--P4 configuration shape. P1 is request headers, P2 request body,
+P3 response headers, and P4 response body.
 
-## Status
-
-Apache request-only and bounded Phase 4 examples. Production-style, but not proof of every Apache distribution package, MPM, or complete RESPONSE_BODY support.
-
-## Purpose
-
-These examples show production-style Apache httpd configuration for
-request-only ModSecurity and bounded Phase 4 / RESPONSE_BODY evidence.
-
-## Needed Components
-
-Apache httpd/APXS and `mod_security3.so` built for the same Apache ABI, libmodsecurity v3, ModSecurity rules, optional CRS, and writable Apache/ModSecurity log locations.
+Safe is a post-commit policy, not a visible-status guarantee. The filter passes
+current data onward and completes response-body processing at EOS. This does
+not promise per-chunk rule evaluation or a connector-owned full response
+buffer. A late P4 decision must be recorded as log-only unless matching host
+evidence establishes something more. The [Strict profile boundary](#strict-profile-boundary)
+documents the parser-supported optional value but does not claim a
+client-visible abort.
 
 ## Files
 
-- `apache-modsecurity-request-only.conf`: Apache module and request-only
-  connector directives.
-- `modsecurity-request-only.conf`: libmodsecurity request-phase rules config.
-- `apache-modsecurity-phase4-buffered.conf`: Apache connector directives for
-  bounded Phase 4 buffering.
-- `modsecurity-phase4.conf`: libmodsecurity response-body rules config.
+| Path | Type | Purpose |
+| --- | --- | --- |
+| [minimal/httpd.conf](minimal/httpd.conf) | Host configuration | Request-oriented starting point. |
+| [safe/httpd.conf](safe/httpd.conf) | Host configuration | Bounded native P1--P4 Safe reference. |
+| [detection-only/httpd.conf](detection-only/httpd.conf) | Host configuration | Native connector with DetectionOnly engine rules; see [DetectionOnly profile](#detectiononly-profile). |
+| [disabled/httpd.conf](disabled/httpd.conf) | Host configuration | Connector disabled at the Apache layer; see [Disabled profile](#disabled-profile). |
+| [rules/request-only.conf](rules/request-only.conf) | Rules | Request-only rule-engine settings. |
+| [rules/p1-p4-safe.conf](rules/p1-p4-safe.conf) | Rules | Bounded response-body settings and local P4 illustration. |
+| [rules/detection-only.conf](rules/detection-only.conf) | Rules | DetectionOnly engine settings. |
+| [rules/engine-off.conf](rules/engine-off.conf) | Rules | Engine-Off settings, distinct from disabling the connector. |
+| [No-CRS rules](#no-crs-rules) | Documentation | No-CRS source and rule-ID meanings. |
+| [P1--P4 Safe intent](#p1-p4-safe-intent) | Documentation | Configuration intent, not a test result. |
 
-## Production Paths
+All paths in this table are repository-relative from examples/apache. Paths in
+the configuration, including /usr/lib/apache2/modules/mod_security3.so,
+/etc/modsecurity, and /var/log, are host-installation examples.
 
-The examples use common Debian-style paths:
+## Values to adapt
 
-- `/usr/lib/apache2/modules/mod_security3.so`
-- `/etc/modsecurity/modsecurity-request-only.conf`
-- `/etc/modsecurity/modsecurity-phase4.conf`
-- `/etc/modsecurity/crs/`
-- `/var/log/modsecurity/apache-phase4.jsonl`
-- `/var/log/modsecurity/apache-audit.log`
-- `/var/log/apache2/access.log`
-- `/var/log/apache2/error.log`
+| Name | Purpose and format | Required/default, setter, scope | Example, effect, and security |
+| --- | --- | --- | --- |
+| security3_module | Module loaded by LoadModule | Required; no repository default; Apache package or local build; server scope | mod_security3.so at an installed module path. A wrong ABI or path prevents startup. |
+| modsecurity_rules_file | Readable libmodsecurity rules file | Required; no repository default; host config; module scope | /etc/modsecurity/modsecurity-phase4.conf. A reviewed ruleset can block traffic. |
+| modsecurity_phase4_mode | Late P4 policy: minimal, safe, or strict | Safe file only; host config; module scope | safe. It avoids representing a late decision as a fabricated status. |
+| modsecurity_phase4_content_types_file | Explicit response MIME-type file | Optional; host config; module scope | /etc/modsecurity/phase4-content-types.conf. Keep it narrow; unreadable files fail validation. |
+| modsecurity_phase4_log | Decision JSONL destination | Optional; host config; module scope | /var/log/modsecurity/apache-phase4.jsonl. Protect and rotate request metadata. |
+| modsecurity_phase4_body_limit and SecResponseBodyLimit | Positive P4 byte limits | Required for bounded Safe use; host and rules files; no automatic alignment | 1048576 bytes. Mismatches change P4 input; never make this unbounded. |
+| SecRequestBodyAccess and SecResponseBodyAccess | Request/response body switches | Required in matching rules; rule-engine scope | On in Safe rules; response access is Off in request-only. |
+| SecResponseBodyMimeType and SecResponseBodyLimitAction | P4 scope and over-limit policy | Required in Safe rules; rule-engine scope | Explicit text/JSON types and ProcessPartial. Do not infer binary behavior. |
+| SecAuditLog | Audit-log destination | Optional; rules file; rule-engine scope | /var/log/modsecurity/apache-audit.log. Apply access control and retention policy. |
 
-Adjust paths for distributions that use `/etc/httpd` and `/var/log/httpd`.
+Rule ID 9002801 is local to p1-p4-safe.conf. It is not an OWASP CRS or No-CRS
+baseline ID; see [No-CRS rules](#no-crs-rules).
 
-## Request-Only Mode
+## Configuration reference
 
-Request-only mode enables ModSecurity for request phases and keeps
-`SecResponseBodyAccess Off`. It is the conservative default when late response
-disruption is not acceptable.
+The generated [configuration reference](configuration-reference.md) documents
+all 11 registered Apache directives, the host fields used here, and their
+parser/default/merge anchors.
 
-```bash
-apachectl configtest
-apachectl graceful
-```
+| Setting | Layer | Task |
+| --- | --- | --- |
+| `modsecurity on|off` | Host / Connector | Enables or disables Apache transaction creation. |
+| `SecRuleEngine` | ModSecurity Engine | Evaluates loaded rules and selects enforcement, DetectionOnly, or Off. |
+| `SecRequestBodyAccess` | ModSecurity Engine | Makes P2 request-body input available to the engine. |
+| `SecResponseBodyAccess` | ModSecurity Engine | Makes eligible P4 response-body input available to the engine. |
+| `modsecurity_phase4_mode` | Connector / Common policy | Selects requested late-P4 policy; Safe does not promise a late 403. |
 
-## Phase 4 / RESPONSE_BODY Mode
+`modsecurity on` with `SecRuleEngine Off` creates the connector path but disables
+engine rule evaluation. `modsecurity off` prevents the engine from receiving a
+connector transaction even when a rules file says `SecRuleEngine On`.
 
-The Phase 4 example enables `SecResponseBodyAccess On`, MIME restrictions,
-`SecResponseBodyLimit`, `SecResponseBodyLimitAction ProcessPartial`, and the
-Apache connector `modsecurity_phase4_body_limit`. If Apache can inspect the
-buffered response before commit, a disruptive Phase 4 rule can return a
-blocking status. If a response has already committed, strict-abort behavior is
-runtime evidence, not a clean full-body promotion.
+## Profiles
 
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
-documented as runtime evidence only.
+### DetectionOnly profile
 
-## Variable And Placeholder Reference
+`detection-only/httpd.conf` keeps `modsecurity on` and selects the
+DetectionOnly rules file. DetectionOnly loads and evaluates engine rules and
+records matches, but it does not apply disruptive engine actions.
 
-| Name | Type | Required | Example value | Used in | Meaning | Change requires restart/reload | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `security3_module` | Apache module name | Yes | `mod_security3.so` | `apache-modsecurity-*.conf` | Loads the Apache connector. | restart or graceful reload | Path is distribution-specific. |
-| `modsecurity` | Apache directive | Yes | `on` | `apache-modsecurity-*.conf` | Enables ModSecurity in the configured scope. | graceful reload | Use inside global config or vhost scope. |
-| `modsecurity_rules_file` | Apache directive | Yes | `/etc/modsecurity/modsecurity-request-only.conf` | `apache-modsecurity-*.conf` | Points Apache to the libmodsecurity rules file. | graceful reload | Use the Phase 4 rules file only for bounded response evidence. |
-| `modsecurity_use_error_log` | Apache directive | No | `on` | `apache-modsecurity-*.conf` | Sends connector diagnostics to Apache error log. | graceful reload | Useful during rollout. |
-| `modsecurity_phase4_mode` | Apache directive | Phase 4 only | `safe` | `apache-modsecurity-phase4-buffered.conf` | Selects connector Phase 4 behavior. | graceful reload | Safe mode prefers clean blocking before response commit. |
-| `modsecurity_phase4_content_types_file` | Apache directive | Phase 4 only | `/etc/modsecurity/phase4-content-types.conf` | `apache-modsecurity-phase4-buffered.conf` | Optional allow-list for response-body MIME types. | graceful reload | Keep narrow in production. |
-| `modsecurity_phase4_log` | Apache directive | Phase 4 only | `/var/log/modsecurity/apache-phase4.jsonl` | `apache-modsecurity-phase4-buffered.conf` | JSONL connector decision evidence. | graceful reload | Rotate with normal log rotation. |
-| `modsecurity_phase4_body_limit` | Apache directive | Phase 4 only | `1048576` | `apache-modsecurity-phase4-buffered.conf` | Bounds connector response buffering. | graceful reload | Keep aligned with `SecResponseBodyLimit`. |
-| `SecRuleEngine` | ModSecurity directive | Yes | `On` | `modsecurity-*.conf` | Enables rule execution. | graceful reload | Use `DetectionOnly` for non-disruptive rollout. |
-| `SecRequestBodyAccess` | ModSecurity directive | Yes | `On` | `modsecurity-*.conf` | Enables request-body processing. | graceful reload | Request body support is promoted separately from RESPONSE_BODY. |
-| `SecResponseBodyAccess` | ModSecurity directive | Yes | `Off` or `On` | `modsecurity-*.conf` | Enables or disables RESPONSE_BODY processing. | graceful reload | `On` is bounded evidence only in these examples. |
-| `SecResponseBodyMimeType` | ModSecurity directive | Phase 4 only | `text/plain text/html application/json` | `modsecurity-phase4.conf` | Limits inspected response MIME types. | graceful reload | Keep explicit to avoid binary responses. |
-| `SecResponseBodyLimit` | ModSecurity directive | Phase 4 only | `1048576` | `modsecurity-phase4.conf` | Bounds libmodsecurity response-body buffering. | graceful reload | Keep aligned with connector limit. |
-| `SecResponseBodyLimitAction` | ModSecurity directive | Phase 4 only | `ProcessPartial` | `modsecurity-phase4.conf` | Defines behavior when the body exceeds the limit. | graceful reload | Avoid unbounded buffering. |
-| `IncludeOptional` | ModSecurity directive | No | `/etc/modsecurity/crs/rules/*.conf` | `modsecurity-*.conf` | Includes CRS files if present. | graceful reload | Missing CRS files do not block startup. |
-| `SecAuditEngine` | ModSecurity directive | No | `RelevantOnly` | `modsecurity-*.conf` | Enables audit logging for relevant transactions. | graceful reload | Use with log rotation. |
-| `SecAuditLog` | ModSecurity directive | No | `/var/log/modsecurity/apache-audit.log` | `modsecurity-*.conf` | Audit log destination. | graceful reload | Ensure directory permissions allow Apache writes. |
-| `RESPONSE_BODY` | ModSecurity collection | Phase 4 only | `@contains response-attack` | `modsecurity-phase4.conf` | Example outbound rule target. | graceful reload | Replace the example rule with production rules. |
+After adapting the host paths, use the connector validation command below.
+This profile is configuration guidance, not runtime evidence.
 
-## Logging And Evidence
+### Disabled profile
 
-Connector decisions are written to `apache-phase4.jsonl` when Phase 4 connector
-logging is enabled. Audit records are written by libmodsecurity through
-`SecAuditLog`. Apache access and error logs remain under the Apache log
-directory.
+`disabled/httpd.conf` sets `modsecurity off`, so Apache creates no connector
+transaction. This is distinct from `SecRuleEngine Off`, which leaves an active
+host connector but disables rule evaluation inside the engine.
 
-## Security Notes
+After adapting the host paths, use the connector validation command below. Do
+not infer P1--P4 behavior from a disabled profile.
 
-Start with request-only mode, enable audit logging, validate CRS includes, and
-disable compression until the deployment proves whether the connector sees
-compressed or uncompressed response bytes.
+## P1--P4 Safe intent
 
+The Safe reference configures native httpd-module processing for P1 through P4
+and bounds response-body input at 1048576 bytes. A P4 decision that happens
+after response commitment is expected to be handled as Safe log-only behavior;
+it must not be documented as a visible HTTP 403 without matching host evidence.
 
-## External Usage
+This section records configuration intent, not a run result. The native path
+does not promise per-chunk rule evaluation, a full connector response buffer,
+or a Strict post-commit abort. No Strict example is supplied here.
 
-This directory contains example configs for external usage. They are starting points only and are not universal production defaults. The matching compile guide explains how to build or prepare the required artifact: `mod_security3.so`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+## No-CRS rules
 
-Service context: Apache/httpd. After adapting the files, apachectl configtest and reload the Apache service. Inspect Apache error/access logs and ModSecurity audit logs.
+The reusable No-CRS source is
+[modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf).
+It is repository-relative and should be copied or installed by the operator as
+a reviewed host rules file, for example /etc/modsecurity/no-crs-baseline.conf.
 
-## Non-Claims
+| Rule ID | Phase | Purpose |
+| ---: | ---: | --- |
+| 1100001 | P1 | Request-header deny |
+| 1100101 | P2 | Request-body deny |
+| 1100201 | P3 | Response-header deny |
+| 1100301 | P4 | Response-body decision used by the Safe boundary |
 
-- These examples are not a blanket production-readiness certification.
-- They do not prove every package/version/layout.
-- Phase 4 / RESPONSE_BODY examples are bounded runtime evidence only, not promoted full support.
+The checked-in p1-p4-safe.conf is an illustrative Apache rules file. Its
+9002801 rule is local to that example and is not an OWASP CRS or No-CRS
+baseline ID.
 
-## Related Docs
+## Validation
 
-- [COMPILE_APACHE.md](../../COMPILE_APACHE.md)
-- `connectors/apache/docs/build.md`
-- `connectors/apache/docs/validation.md`
-- `reports/testing/apache-poc.md`
+Install or include the selected files, adapt every host path, and check the
+complete installed Apache configuration:
+
+~~~sh
+apachectl -t
+~~~
+
+After an intentional reload, inspect the Apache error log, decision log, and
+audit log. A syntax check does not prove P1--P4 behavior, a client-visible P4
+status, CRS coverage, or production readiness.
+
+## Strict profile boundary <a id="strict-profile-boundary"></a>
+
+`modsecurity_phase4_mode strict` is parser-supported, but this repository has
+no Apache host evidence for a client-visible late abort. Strict is therefore
+optional and intentionally has no runnable configuration here.
+
+Start from `safe/httpd.conf`, set `modsecurity_phase4_mode strict`, validate
+with `apachectl -t`, and record host-specific evidence before relying on a
+post-commit action.
+
+## Related material
+
+- [Apache connector source and validation boundary](../../connectors/apache/README.md)
+- [Repository examples overview](../README.md)
