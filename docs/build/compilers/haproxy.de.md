@@ -20,72 +20,31 @@ libmodsecurity v3, HAProxy-3.2.21-Source, der repository-eigene native HTX-Filte
   Konfigurationssyntax und CLI-Dokumentation für `haproxy -c` und den Laufzeitbetrieb. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (Use documentation matching the selected major/minor series.)
 - **Quelle und Umfang:** [HAProxy Releases](https://www.haproxy.org/download/)
   Offizielle Source-Downloads und Auswahl der Release-Serie. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (The repository overlay currently fixes its compatible source to 3.2.21.)
-- **Quelle und Umfang:** [ModSecurity repository](https://github.com/owasp-modsecurity/ModSecurity)
-  Die libmodsecurity-v3-Enginequelle. Versionsbezug: Dieser Bezug ist versionsabhängig; Release, Optionen und Kompatibilität vor dem Build erneut gegen die Quelle prüfen. (The selected tag/commit is shown in the shared build section.)
 
 ## 4. Voraussetzungen
 
-Benötigt werden Git, ein C-Compiler, ein C++-Compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2-Entwicklungsdateien, libxml2-Entwicklungsdateien, YAJL, LMDB und libcurl. Paketnamen sind distributions- und releaseabhängig: vor einer Installation die offizielle Distributionsdokumentation und die lokale Verfügbarkeit prüfen.
+Zuerst libmodsecurity mit der gemeinsamen Anleitung bauen. Danach die dokumentierten Entwicklungswerkzeuge des ausgewählten Hosts installieren und Host, Connector, Header sowie Libraries kompatibel halten.
 
 ```sh
-command -v git cc c++ make autoreconf libtool pkg-config
-pkg-config --exists libpcre2-8
-pkg-config --exists libxml-2.0
-pkg-config --exists yajl
-pkg-config --exists lmdb
-pkg-config --exists libcurl
+command -v git cc c++ make
 export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-## 5. libmodsecurity v3 aus Source bauen
+## 5. ModSecurity vorbereiten
 
-Dieser Ablauf verwendet einen festen, überprüfbaren Git-Tag und dessen aufgelösten Commit. `v3/master` ist kein reproduzierbarer Pin und wird deshalb nicht als solcher dargestellt. `build.sh` regeneriert beziehungsweise aktualisiert die Autotools-Eingaben; es kompiliert die Bibliothek noch nicht.
+Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:
 
-```sh
-export BUILD_BASE="$HOME/src/modsecurity-build"
-export MODSECURITY_SRC="$BUILD_BASE/ModSecurity"
-export MODSECURITY_PREFIX="$HOME/.local/modsecurity"
-export MODSECURITY_REF="v3.0.16"
-export MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
-mkdir -p "$BUILD_BASE"
-git clone --recurse-submodules https://github.com/owasp-modsecurity/ModSecurity.git "$MODSECURITY_SRC"
-git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
-git -C "$MODSECURITY_SRC" submodule update --init --recursive
-test "$(git -C "$MODSECURITY_SRC" rev-parse HEAD)" = "$MODSECURITY_COMMIT"
-git -C "$MODSECURITY_SRC" rev-parse HEAD
-cd "$MODSECURITY_SRC"
-./build.sh
-./configure --help | grep -E -- "--with-(lmdb|libxml|curl|yajl)"
-./configure --prefix="$MODSECURITY_PREFIX" --with-lmdb --with-libxml --with-curl --with-yajl
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"
-make -j"$jobs"
-make check
-make install
-export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-```
+[libmodsecurity v3 bauen](libmodsecurity.de.md)
 
-Beim ausgewählten Stand wird PCRE2 standardmäßig erkannt; `--with-pcre2` wird nicht erfunden. Die optionalen Schalter werden vor der Verwendung mit `./configure --help` geprüft. Wenn der gewählte Release einen Schalter nicht anbietet, ihn aus dem Aufruf entfernen statt einen nicht akzeptierten Befehl zu dokumentieren.
-
-`PKG_CONFIG_PATH` ermöglicht Buildsystemen, die benutzerlokale Installation zu
-finden. `LD_LIBRARY_PATH` ist nur für lokale Entwicklung und Tests; für eine
-dauerhafte Systeminstallation bewusstes Loader-Setup oder rpath prüfen.
-
-```sh
-test -d "$MODSECURITY_PREFIX/include"
-test -d "$MODSECURITY_PREFIX/lib"
-find "$MODSECURITY_PREFIX" -maxdepth 3 -type f | sort
-pkg-config --modversion libmodsecurity 2>/dev/null || true
-find "$MODSECURITY_PREFIX/lib" -type f \( -name "libmodsecurity.so*" -o -name "libmodsecurity.a" \) -print
-```
+Die folgenden Connector-Befehle setzen die Standardinstallation unter `/usr/local` voraus. Für einen benutzerlokalen Prefix den fortgeschrittenen Abschnitt der gemeinsamen Anleitung verwenden und Include- sowie Library-Pfade bewusst übergeben.
 
 ## 6. Host oder Proxy vorbereiten beziehungsweise bauen
 
 Zuerst ein offizielles HAProxy bauen und `haproxy -vv` prüfen. Die ausgewählte Repository-Integration hat eine strengere Kompatibilitätsgrenze: Ihr nativer HTX-Overlay erfordert ausdrücklich HAProxy 3.2.21. Der normale HAProxy-Build belegt den Upstream-Hostbuild; der folgende Overlay-Build erzeugt die ausgewählte Hostkopie und linkt sie mit libmodsecurity.
 
 ```sh
-export HOST_BUILD_BASE="$BUILD_BASE/haproxy"
+export HOST_BUILD_BASE="$HOME/src/modsecurity-connectors/haproxy"
 export HAPROXY_VERSION="3.2.21"
 export HAPROXY_ARCHIVE="haproxy-$HAPROXY_VERSION.tar.gz"
 export HAPROXY_URL="https://www.haproxy.org/download/3.2/src/$HAPROXY_ARCHIVE"
@@ -100,7 +59,7 @@ printf "%s  %s\n" "$HAPROXY_SHA256" "$HAPROXY_ARCHIVE" | sha256sum -c -
 tar -xzf "$HAPROXY_ARCHIVE"
 cd "$HAPROXY_SRC"
 make help
-make -j"$jobs" TARGET=linux-glibc USE_OPENSSL=1 USE_ZLIB=1 USE_PCRE2=1
+make -j"2" TARGET=linux-glibc USE_OPENSSL=1 USE_ZLIB=1 USE_PCRE2=1
 make install-bin DESTDIR="$HAPROXY_STAGE" PREFIX="$HAPROXY_PREFIX"
 export HAPROXY_BIN="$HAPROXY_STAGE$HAPROXY_PREFIX/sbin/haproxy"
 "$HAPROXY_BIN" -vv
@@ -117,9 +76,7 @@ cd "$CONNECTOR_ROOT"
 ```sh
 export HAPROXY_HTX_SOURCE_DIR="$HAPROXY_SRC"
 export HAPROXY_HTX_BUILD_DIR="$HOST_BUILD_BASE/htx-overlay"
-export MODSECURITY_INCLUDE_DIR="$MODSECURITY_PREFIX/include"
-export MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib"
-export MAKE_JOBS="$jobs"
+export MAKE_JOBS="2"
 CONNECTOR_ROOT="$CONNECTOR_ROOT" sh connectors/haproxy/htx-overlay/build-overlay.sh
 export HAPROXY_HTX_BIN="$HAPROXY_HTX_BUILD_DIR/worktree/haproxy"
 test -x "$HAPROXY_HTX_BIN"
@@ -129,8 +86,6 @@ test -x "$HAPROXY_HTX_BIN"
 ## 8. Konfiguration
 
 Die folgende lokale Regel ist eine Testregel und keine CRS-Regel. Konfigurations- und Laufzeitdateien außerhalb des Git-Checkouts halten.
-
-
 
 ```sh
 export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
@@ -178,7 +133,7 @@ mkdir -p "$HOST_BUILD_BASE/www"
 printf "haproxy local upstream\n" > "$HOST_BUILD_BASE/www/index.html"
 python3 -m http.server 8081 --bind 127.0.0.1 --directory "$HOST_BUILD_BASE/www" > "$HOST_BUILD_BASE/upstream.log" 2>&1 &
 upstream_pid=$!
-LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HAPROXY_HTX_BIN" -db -f "$HAPROXY_CONFIG" > "$HOST_BUILD_BASE/haproxy.log" 2>&1 &
+"$HAPROXY_HTX_BIN" -db -f "$HAPROXY_CONFIG" > "$HOST_BUILD_BASE/haproxy.log" 2>&1 &
 haproxy_pid=$!
 curl -i http://127.0.0.1:8080/
 curl -i http://127.0.0.1:8080/blocked
@@ -227,13 +182,9 @@ NO_CRS_RUN_ID="$run_id" make evidence-check-haproxy
 Vor einem Update immer die verlinkte Upstream-Anleitung, Releaseversion sowie Configure-/Buildoptionen erneut prüfen. Anschließend alle betroffenen Host-, Connector-, ABI- und lokalen HTTP-Tests wiederholen.
 
 ```sh
-git -C "$MODSECURITY_SRC" fetch --tags origin
-git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
-git -C "$MODSECURITY_SRC" submodule update --init --recursive
-git -C "$MODSECURITY_SRC" rev-parse HEAD
-cd "$MODSECURITY_SRC"
-make clean
-make -j"$jobs"
+git -C "$CONNECTOR_ROOT" pull --ff-only
+git -C "$CONNECTOR_ROOT" submodule update --init --recursive
+# Rebuild the selected host and connector with the commands above.
 ```
 
 ## 14. Deinstallation und Cleanup
@@ -241,14 +192,13 @@ make -j"$jobs"
 Keine Dateien pauschal nach `/usr/lib` kopieren und keine globalen Verzeichnisse entfernen. Bei einem Benutzer-Prefix ist kein `sudo` nötig. Evidence oder Logs erst nach bewusster Prüfung entfernen.
 
 ```sh
-find "$BUILD_BASE" -maxdepth 2 -mindepth 1 -print
-# Review the listed paths first; remove only a chosen private prefix or external build directory.
-rmdir "$MODSECURITY_PREFIX" 2>/dev/null || true
+find "$HOME/src/modsecurity-connectors" -maxdepth 2 -mindepth 1 -print
+# Review the listed paths first; remove only a chosen external host-build directory.
 ```
 
 ## 15. Troubleshooting
 
-Gemeinsam: Bei fehlenden Headern oder Libraries zuerst `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, den ausgewählten Prefix und die Ausgabe von `pkg-config` prüfen. Bei einem ABI-Fehler Host, Header und Connector aus demselben ausgewählten Quellensatz neu bauen.
+Gemeinsam: Bei fehlenden Headern oder Libraries zum fortgeschrittenen Abschnitt der gemeinsamen Anleitung zurückkehren und den bewusst gewählten Prefix sowie die pkg-config-Ausgabe prüfen. Bei einem ABI-Fehler Host, Header und Connector aus demselben ausgewählten Quellensatz neu bauen.
 
 Der Overlay verweigert eine andere Version als 3.2.21, ein In-Tree-Buildverzeichnis, fehlende libmodsecurity-Header oder eine fehlende Bibliothek. Das als Kompatibilitätsgrenze behandeln, nicht als Grund, ein SPOA-Ergebnis einzusetzen.
 
@@ -256,20 +206,10 @@ Der Overlay verweigert eine andere Version als 3.2.21, ein In-Tree-Buildverzeich
 
 | Variable/Platzhalter | Bedeutung |
 | --- | --- |
-| BUILD_BASE | Portabler Source-/Build-Stamm, z. B. `$HOME/src/modsecurity-build`. |
 | CONNECTOR_ROOT | Git-Top-Level dieses Repository-Checkouts; die Connector-Skripte werden von dort aus aufgerufen. |
-| HOST_BUILD_BASE | Connector-spezifisches externes Unterverzeichnis unter BUILD_BASE für Quellen, Builds, Konfiguration und lokale Logs. |
+| HOST_BUILD_BASE | Connector-spezifisches externes Verzeichnis für Quellen, Builds, Konfiguration und lokale Logs. |
 | BUILD_ROOT | Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten. |
-| MODSECURITY_SRC | Checkout der ModSecurity-v3-Engine unter BUILD_BASE. |
-| MODSECURITY_PREFIX | Isolierter Benutzer-Prefix für Header, Libraries und pkg-config-Metadaten. |
-| MODSECURITY_REF | Fester Git-Tag der Engine; kein beweglicher Branch. |
-| MODSECURITY_COMMIT | Erwarteter Commit, auf den MODSECURITY_REF aufgelöst werden muss. |
-| MODSECURITY_INCLUDE_DIR | Include-Verzeichnis unter MODSECURITY_PREFIX für Repository-Komponenten. |
-| MODSECURITY_LIB_DIR | Library-Verzeichnis unter MODSECURITY_PREFIX für Repository-Komponenten. |
-| PKG_CONFIG_PATH | Temporärer Suchpfad für die lokale libmodsecurity-pc-Datei. |
-| LD_LIBRARY_PATH | Nur temporärer Loaderpfad für lokale Tests, kein globales Installationsrezept. |
 | RULES_FILE | Lokale Testregeldatei; keine CRS-Regeldatei. |
-| jobs | Lokale Anzahl paralleler Buildjobs aus `getconf`; bei wenig RAM reduzieren. |
 | VERIFIED_RUN_PARENT | Externer Elternordner eines frischen Repository-Testcheckouts und seiner Testartefakte. |
 | run_id | Eindeutige Kennung eines repository-gesteuerten Full-Lifecycle-Laufs. |
 | NO_CRS_RUN_ID | Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt. |

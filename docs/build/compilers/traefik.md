@@ -35,67 +35,28 @@ libmodsecurity v3, Traefik, the repository native Go middleware, the C/C++ engin
 
 ## 4. Prerequisites
 
-Required are Git, a C compiler, a C++ compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2 development files, libxml2 development files, YAJL, LMDB, and libcurl. Package names vary by distribution and release: check the official distribution documentation and local availability before installing anything.
+Build libmodsecurity first with the shared guide. Then install the selected host's documented development tools and keep the host, connector, headers, and libraries compatible.
 
 ```sh
-command -v git cc c++ make autoreconf libtool pkg-config
-pkg-config --exists libpcre2-8
-pkg-config --exists libxml-2.0
-pkg-config --exists yajl
-pkg-config --exists lmdb
-pkg-config --exists libcurl
+command -v git cc c++ make
 export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-## 5. Build libmodsecurity v3 from source
+## 5. Prepare libmodsecurity v3
 
-This flow uses a fixed, verifiable Git tag and its resolved commit. `v3/master` is not a reproducible pin and is therefore not presented as one. `build.sh` regenerates or refreshes the Autotools inputs; it does not compile the library yet.
+Build libmodsecurity v3 first with the shared guide:
 
-```sh
-export BUILD_BASE="$HOME/src/modsecurity-build"
-export MODSECURITY_SRC="$BUILD_BASE/ModSecurity"
-export MODSECURITY_PREFIX="$HOME/.local/modsecurity"
-export MODSECURITY_REF="v3.0.16"
-export MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
-mkdir -p "$BUILD_BASE"
-git clone --recurse-submodules https://github.com/owasp-modsecurity/ModSecurity.git "$MODSECURITY_SRC"
-git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
-git -C "$MODSECURITY_SRC" submodule update --init --recursive
-test "$(git -C "$MODSECURITY_SRC" rev-parse HEAD)" = "$MODSECURITY_COMMIT"
-git -C "$MODSECURITY_SRC" rev-parse HEAD
-cd "$MODSECURITY_SRC"
-./build.sh
-./configure --help | grep -E -- "--with-(lmdb|libxml|curl|yajl)"
-./configure --prefix="$MODSECURITY_PREFIX" --with-lmdb --with-libxml --with-curl --with-yajl
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"
-make -j"$jobs"
-make check
-make install
-export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-```
+[Build libmodsecurity v3](libmodsecurity.md)
 
-At the selected revision PCRE2 is detected by default; this guide does not invent `--with-pcre2`. Optional switches are checked with `./configure --help` before use. If the chosen release does not offer a switch, remove it rather than documenting an unaccepted command.
-
-`PKG_CONFIG_PATH` lets build systems find the user-local installation.
-`LD_LIBRARY_PATH` is only for local development and tests; use a deliberate
-loader configuration or rpath for a durable system installation.
-
-```sh
-test -d "$MODSECURITY_PREFIX/include"
-test -d "$MODSECURITY_PREFIX/lib"
-find "$MODSECURITY_PREFIX" -maxdepth 3 -type f | sort
-pkg-config --modversion libmodsecurity 2>/dev/null || true
-find "$MODSECURITY_PREFIX/lib" -type f \( -name "libmodsecurity.so*" -o -name "libmodsecurity.a" \) -print
-```
+The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.
 
 ## 6. Prepare or build the host or proxy
 
 Use an official binary, container, or source build for the Traefik host. The source example below checks out the repository-compatible v3.7.5 tag; its upstream `go.mod` declares Go 1.25.0. That host requirement is distinct from this repository's native middleware module, which currently declares its own Go version.
 
 ```sh
-export HOST_BUILD_BASE="$BUILD_BASE/traefik"
+export HOST_BUILD_BASE="$HOME/src/modsecurity-connectors/traefik"
 export TRAEFIK_VERSION="3.7.5"
 export TRAEFIK_REF="v$TRAEFIK_VERSION"
 export TRAEFIK_SRC="$HOST_BUILD_BASE/traefik"
@@ -126,13 +87,11 @@ export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"
 export TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$BUILD_ROOT/traefik-native-middleware"
 export TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$BUILD_ROOT/traefik-engine-service"
 export TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR/traefik-engine-service"
-export MODSECURITY_INCLUDE_DIR="$MODSECURITY_PREFIX/include"
-export MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib"
 BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh connectors/traefik/build/build-native-middleware.sh build
 BUILD_ROOT="$BUILD_ROOT" TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR" sh connectors/traefik/build/build-native-middleware.sh test
-BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/traefik/build/build-engine-service.sh build
+BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/traefik/build/build-engine-service.sh build
 test -x "$TRAEFIK_ENGINE_SERVICE_BIN"
-BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/traefik/build/build-engine-service.sh test
+BUILD_ROOT="$BUILD_ROOT" TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR" TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BIN" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/traefik/build/build-engine-service.sh test
 ```
 
 ## 8. Configuration
@@ -250,9 +209,9 @@ Run only against loopback. `/ping` confirms host startup; the ordinary `/native`
 ```sh
 python3 -m http.server "$TRAEFIK_UPSTREAM_PORT" --bind 127.0.0.1 --directory "$TRAEFIK_RUNTIME_ROOT" > "$BUILD_ROOT/logs/upstream.log" 2>&1 &
 upstream_pid=$!
-LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$TRAEFIK_ENGINE_SERVICE_BIN" --serve --config "$TRAEFIK_ENGINE_CONFIG" --socket "$TRAEFIK_ENGINE_SOCKET" > "$BUILD_ROOT/logs/engine.log" 2>&1 &
+"$TRAEFIK_ENGINE_SERVICE_BIN" --serve --config "$TRAEFIK_ENGINE_CONFIG" --socket "$TRAEFIK_ENGINE_SOCKET" > "$BUILD_ROOT/logs/engine.log" 2>&1 &
 engine_pid=$!
-( cd "$TRAEFIK_RUNTIME_ROOT" && LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$TRAEFIK_BIN" --configFile="$TRAEFIK_STATIC_CONFIG" ) > "$BUILD_ROOT/logs/traefik.log" 2>&1 &
+( cd "$TRAEFIK_RUNTIME_ROOT" && "$TRAEFIK_BIN" --configFile="$TRAEFIK_STATIC_CONFIG" ) > "$BUILD_ROOT/logs/traefik.log" 2>&1 &
 traefik_pid=$!
 curl --http1.1 -fsS "http://127.0.0.1:$TRAEFIK_PING_PORT/ping"
 curl --http1.1 -i -H "X-Request-Id: traefik-native-allow" http://127.0.0.1:$TRAEFIK_PORT/native
@@ -302,13 +261,9 @@ NO_CRS_RUN_ID="$run_id" make evidence-check-traefik
 Before an update, recheck the linked upstream documentation, release version, and configure/build options. Then repeat every affected host, connector, ABI, and local HTTP test.
 
 ```sh
-git -C "$MODSECURITY_SRC" fetch --tags origin
-git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
-git -C "$MODSECURITY_SRC" submodule update --init --recursive
-git -C "$MODSECURITY_SRC" rev-parse HEAD
-cd "$MODSECURITY_SRC"
-make clean
-make -j"$jobs"
+git -C "$CONNECTOR_ROOT" pull --ff-only
+git -C "$CONNECTOR_ROOT" submodule update --init --recursive
+# Rebuild the selected host and connector with the commands above.
 ```
 
 ## 14. Uninstall and cleanup
@@ -316,14 +271,13 @@ make -j"$jobs"
 Do not copy files indiscriminately to `/usr/lib` and do not remove global directories. A user prefix does not need `sudo`. Remove evidence or logs only after deliberate review.
 
 ```sh
-find "$BUILD_BASE" -maxdepth 2 -mindepth 1 -print
-# Review the listed paths first; remove only a chosen private prefix or external build directory.
-rmdir "$MODSECURITY_PREFIX" 2>/dev/null || true
+find "$HOME/src/modsecurity-connectors" -maxdepth 2 -mindepth 1 -print
+# Review the listed paths first; remove only a chosen external host-build directory.
 ```
 
 ## 15. Troubleshooting
 
-Common: for missing headers or libraries, first check `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, the selected prefix, and `pkg-config` output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.
+Common: for missing headers or libraries, return to the shared guide's advanced section and check the deliberately selected prefix and pkg-config output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.
 
 If Traefik starts without the middleware, check the local-plugin workspace, static registration, File Provider, and the permissions/ownership of the run-local UDS directory. A forwardAuth compatibility route does not diagnose the selected native middleware path.
 
@@ -331,20 +285,10 @@ If Traefik starts without the middleware, check the local-plugin workspace, stat
 
 | Variable/placeholder | Meaning |
 | --- | --- |
-| BUILD_BASE | Portable source/build parent, for example `$HOME/src/modsecurity-build`. |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
-| HOST_BUILD_BASE | Connector-specific external subtree below BUILD_BASE for sources, builds, configuration, and local logs. |
+| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
 | BUILD_ROOT | External build and runtime root for repository-owned connector components. |
-| MODSECURITY_SRC | Checkout of the ModSecurity v3 engine below BUILD_BASE. |
-| MODSECURITY_PREFIX | Isolated user prefix for headers, libraries, and pkg-config metadata. |
-| MODSECURITY_REF | Fixed engine Git tag, never a moving branch. |
-| MODSECURITY_COMMIT | Expected commit to which MODSECURITY_REF must resolve. |
-| MODSECURITY_INCLUDE_DIR | Include directory below MODSECURITY_PREFIX for repository components. |
-| MODSECURITY_LIB_DIR | Library directory below MODSECURITY_PREFIX for repository components. |
-| PKG_CONFIG_PATH | Temporary search path for the local libmodsecurity pc file. |
-| LD_LIBRARY_PATH | Temporary loader path for local tests only, not a global installation recipe. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
-| jobs | Local parallel-build count from `getconf`; reduce it on low-memory hosts. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |

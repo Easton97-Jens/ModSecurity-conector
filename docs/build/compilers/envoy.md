@@ -28,72 +28,31 @@ libmodsecurity v3, an official Envoy binary or optional Bazel build, the reposit
   Official selected release page, binary asset, and checksum material. Version scope: This guide pins the binary route to v1.38.2.
 - **Source and scope:** [Envoy source/Bazel guidance](https://github.com/envoyproxy/envoy/blob/v1.38.2/bazel/README.md)
   Official optional source-build guidance; it is resource-intensive and not the default route. Version scope: Use only with the selected tag and sufficient CPU, memory, and storage.
-- **Source and scope:** [ModSecurity repository](https://github.com/owasp-modsecurity/ModSecurity)
-  The libmodsecurity v3 engine source. Version scope: The selected tag/commit is shown in the shared build section.
 
 ## 4. Prerequisites
 
-Required are Git, a C compiler, a C++ compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2 development files, libxml2 development files, YAJL, LMDB, and libcurl. Package names vary by distribution and release: check the official distribution documentation and local availability before installing anything.
+Build libmodsecurity first with the shared guide. Then install the selected host's documented development tools and keep the host, connector, headers, and libraries compatible.
 
 ```sh
-command -v git cc c++ make autoreconf libtool pkg-config
-pkg-config --exists libpcre2-8
-pkg-config --exists libxml-2.0
-pkg-config --exists yajl
-pkg-config --exists lmdb
-pkg-config --exists libcurl
+command -v git cc c++ make
 export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-## 5. Build libmodsecurity v3 from source
+## 5. Prepare libmodsecurity v3
 
-This flow uses a fixed, verifiable Git tag and its resolved commit. `v3/master` is not a reproducible pin and is therefore not presented as one. `build.sh` regenerates or refreshes the Autotools inputs; it does not compile the library yet.
+Build libmodsecurity v3 first with the shared guide:
 
-```sh
-export BUILD_BASE="$HOME/src/modsecurity-build"
-export MODSECURITY_SRC="$BUILD_BASE/ModSecurity"
-export MODSECURITY_PREFIX="$HOME/.local/modsecurity"
-export MODSECURITY_REF="v3.0.16"
-export MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
-mkdir -p "$BUILD_BASE"
-git clone --recurse-submodules https://github.com/owasp-modsecurity/ModSecurity.git "$MODSECURITY_SRC"
-git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
-git -C "$MODSECURITY_SRC" submodule update --init --recursive
-test "$(git -C "$MODSECURITY_SRC" rev-parse HEAD)" = "$MODSECURITY_COMMIT"
-git -C "$MODSECURITY_SRC" rev-parse HEAD
-cd "$MODSECURITY_SRC"
-./build.sh
-./configure --help | grep -E -- "--with-(lmdb|libxml|curl|yajl)"
-./configure --prefix="$MODSECURITY_PREFIX" --with-lmdb --with-libxml --with-curl --with-yajl
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"
-make -j"$jobs"
-make check
-make install
-export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-```
+[Build libmodsecurity v3](libmodsecurity.md)
 
-At the selected revision PCRE2 is detected by default; this guide does not invent `--with-pcre2`. Optional switches are checked with `./configure --help` before use. If the chosen release does not offer a switch, remove it rather than documenting an unaccepted command.
-
-`PKG_CONFIG_PATH` lets build systems find the user-local installation.
-`LD_LIBRARY_PATH` is only for local development and tests; use a deliberate
-loader configuration or rpath for a durable system installation.
-
-```sh
-test -d "$MODSECURITY_PREFIX/include"
-test -d "$MODSECURITY_PREFIX/lib"
-find "$MODSECURITY_PREFIX" -maxdepth 3 -type f | sort
-pkg-config --modversion libmodsecurity 2>/dev/null || true
-find "$MODSECURITY_PREFIX/lib" -type f \( -name "libmodsecurity.so*" -o -name "libmodsecurity.a" \) -print
-```
+The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.
 
 ## 6. Prepare or build the host or proxy
 
 For the normal local connector route, use Envoy's official release binary and validate it before configuring the ext_proc service. A complete Envoy source build is optional, not the default: the official Bazel route is resource-intensive and must be checked against the selected release's `bazel/README.md` before use.
 
 ```sh
-export HOST_BUILD_BASE="$BUILD_BASE/envoy"
+export HOST_BUILD_BASE="$HOME/src/modsecurity-connectors/envoy"
 export ENVOY_VERSION="1.38.2"
 export ENVOY_BIN="$HOST_BUILD_BASE/bin/envoy"
 export ENVOY_DOWNLOAD_URL="https://github.com/envoyproxy/envoy/releases/download/v$ENVOY_VERSION/envoy-$ENVOY_VERSION-linux-x86_64"
@@ -116,19 +75,15 @@ cd "$CONNECTOR_ROOT"
 
 ```sh
 export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"
-export MODSECURITY_INCLUDE_DIR="$MODSECURITY_PREFIX/include"
-export MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib"
-BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/envoy/build/build_ext_proc.sh
+BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/envoy/build/build_ext_proc.sh
 export EXT_PROC_BIN="$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc"
 test -x "$EXT_PROC_BIN"
-BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/envoy/build/test_ext_proc.sh
+BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/envoy/build/test_ext_proc.sh
 ```
 
 ## 8. Configuration
 
 The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout.
-
-
 
 ```sh
 export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
@@ -212,13 +167,9 @@ NO_CRS_RUN_ID="$run_id" make evidence-check-envoy
 Before an update, recheck the linked upstream documentation, release version, and configure/build options. Then repeat every affected host, connector, ABI, and local HTTP test.
 
 ```sh
-git -C "$MODSECURITY_SRC" fetch --tags origin
-git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
-git -C "$MODSECURITY_SRC" submodule update --init --recursive
-git -C "$MODSECURITY_SRC" rev-parse HEAD
-cd "$MODSECURITY_SRC"
-make clean
-make -j"$jobs"
+git -C "$CONNECTOR_ROOT" pull --ff-only
+git -C "$CONNECTOR_ROOT" submodule update --init --recursive
+# Rebuild the selected host and connector with the commands above.
 ```
 
 ## 14. Uninstall and cleanup
@@ -226,14 +177,13 @@ make -j"$jobs"
 Do not copy files indiscriminately to `/usr/lib` and do not remove global directories. A user prefix does not need `sudo`. Remove evidence or logs only after deliberate review.
 
 ```sh
-find "$BUILD_BASE" -maxdepth 2 -mindepth 1 -print
-# Review the listed paths first; remove only a chosen private prefix or external build directory.
-rmdir "$MODSECURITY_PREFIX" 2>/dev/null || true
+find "$HOME/src/modsecurity-connectors" -maxdepth 2 -mindepth 1 -print
+# Review the listed paths first; remove only a chosen external host-build directory.
 ```
 
 ## 15. Troubleshooting
 
-Common: for missing headers or libraries, first check `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, the selected prefix, and `pkg-config` output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.
+Common: for missing headers or libraries, return to the shared guide's advanced section and check the deliberately selected prefix and pkg-config output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.
 
 An official Envoy binary is only the host. If validation fails, check the generated ext_proc YAML, gRPC port ownership, the ext_proc service configuration, and the libmodsecurity loader path; do not replace ext_proc with the separate ext_authz compatibility service.
 
@@ -241,20 +191,10 @@ An official Envoy binary is only the host. If validation fails, check the genera
 
 | Variable/placeholder | Meaning |
 | --- | --- |
-| BUILD_BASE | Portable source/build parent, for example `$HOME/src/modsecurity-build`. |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
-| HOST_BUILD_BASE | Connector-specific external subtree below BUILD_BASE for sources, builds, configuration, and local logs. |
+| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
 | BUILD_ROOT | External build and runtime root for repository-owned connector components. |
-| MODSECURITY_SRC | Checkout of the ModSecurity v3 engine below BUILD_BASE. |
-| MODSECURITY_PREFIX | Isolated user prefix for headers, libraries, and pkg-config metadata. |
-| MODSECURITY_REF | Fixed engine Git tag, never a moving branch. |
-| MODSECURITY_COMMIT | Expected commit to which MODSECURITY_REF must resolve. |
-| MODSECURITY_INCLUDE_DIR | Include directory below MODSECURITY_PREFIX for repository components. |
-| MODSECURITY_LIB_DIR | Library directory below MODSECURITY_PREFIX for repository components. |
-| PKG_CONFIG_PATH | Temporary search path for the local libmodsecurity pc file. |
-| LD_LIBRARY_PATH | Temporary loader path for local tests only, not a global installation recipe. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
-| jobs | Local parallel-build count from `getconf`; reduce it on low-memory hosts. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |

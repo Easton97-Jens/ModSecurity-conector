@@ -20,72 +20,31 @@ libmodsecurity v3, lighttpd 1.4.84 source, the repository Entity-Body patch, a p
   Official release archives and checksum material. Version scope: The latest upstream release can differ from the repository patch pin.
 - **Source and scope:** [lighttpd Documentation](https://redmine.lighttpd.net/projects/lighttpd/wiki)
   Official configuration and command documentation when applicable to the selected host release. Version scope: Check accessibility and release relevance before relying on a page.
-- **Source and scope:** [ModSecurity repository](https://github.com/owasp-modsecurity/ModSecurity)
-  The libmodsecurity v3 engine source. Version scope: The selected tag/commit is shown in the shared build section.
 
 ## 4. Prerequisites
 
-Required are Git, a C compiler, a C++ compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2 development files, libxml2 development files, YAJL, LMDB, and libcurl. Package names vary by distribution and release: check the official distribution documentation and local availability before installing anything.
+Build libmodsecurity first with the shared guide. Then install the selected host's documented development tools and keep the host, connector, headers, and libraries compatible.
 
 ```sh
-command -v git cc c++ make autoreconf libtool pkg-config
-pkg-config --exists libpcre2-8
-pkg-config --exists libxml-2.0
-pkg-config --exists yajl
-pkg-config --exists lmdb
-pkg-config --exists libcurl
+command -v git cc c++ make
 export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-## 5. Build libmodsecurity v3 from source
+## 5. Prepare libmodsecurity v3
 
-This flow uses a fixed, verifiable Git tag and its resolved commit. `v3/master` is not a reproducible pin and is therefore not presented as one. `build.sh` regenerates or refreshes the Autotools inputs; it does not compile the library yet.
+Build libmodsecurity v3 first with the shared guide:
 
-```sh
-export BUILD_BASE="$HOME/src/modsecurity-build"
-export MODSECURITY_SRC="$BUILD_BASE/ModSecurity"
-export MODSECURITY_PREFIX="$HOME/.local/modsecurity"
-export MODSECURITY_REF="v3.0.16"
-export MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
-mkdir -p "$BUILD_BASE"
-git clone --recurse-submodules https://github.com/owasp-modsecurity/ModSecurity.git "$MODSECURITY_SRC"
-git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
-git -C "$MODSECURITY_SRC" submodule update --init --recursive
-test "$(git -C "$MODSECURITY_SRC" rev-parse HEAD)" = "$MODSECURITY_COMMIT"
-git -C "$MODSECURITY_SRC" rev-parse HEAD
-cd "$MODSECURITY_SRC"
-./build.sh
-./configure --help | grep -E -- "--with-(lmdb|libxml|curl|yajl)"
-./configure --prefix="$MODSECURITY_PREFIX" --with-lmdb --with-libxml --with-curl --with-yajl
-jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"
-make -j"$jobs"
-make check
-make install
-export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-```
+[Build libmodsecurity v3](libmodsecurity.md)
 
-At the selected revision PCRE2 is detected by default; this guide does not invent `--with-pcre2`. Optional switches are checked with `./configure --help` before use. If the chosen release does not offer a switch, remove it rather than documenting an unaccepted command.
-
-`PKG_CONFIG_PATH` lets build systems find the user-local installation.
-`LD_LIBRARY_PATH` is only for local development and tests; use a deliberate
-loader configuration or rpath for a durable system installation.
-
-```sh
-test -d "$MODSECURITY_PREFIX/include"
-test -d "$MODSECURITY_PREFIX/lib"
-find "$MODSECURITY_PREFIX" -maxdepth 3 -type f | sort
-pkg-config --modversion libmodsecurity 2>/dev/null || true
-find "$MODSECURITY_PREFIX/lib" -type f \( -name "libmodsecurity.so*" -o -name "libmodsecurity.a" \) -print
-```
+The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.
 
 ## 6. Prepare or build the host or proxy
 
 The current repository patch and patched-host scripts are pinned to lighttpd 1.4.84. Do not silently substitute a newer upstream archive: for example, a newer upstream release must be treated as an update that requires patch, configure, ABI, and runtime revalidation. Work on a disposable copy so the verified upstream source remains available for comparison.
 
 ```sh
-export HOST_BUILD_BASE="$BUILD_BASE/lighttpd"
+export HOST_BUILD_BASE="$HOME/src/modsecurity-connectors/lighttpd"
 export LIGHTTPD_VERSION="1.4.84"
 export LIGHTTPD_ARCHIVE="lighttpd-$LIGHTTPD_VERSION.tar.xz"
 export LIGHTTPD_URL="https://download.lighttpd.net/lighttpd/releases-1.4.x/$LIGHTTPD_ARCHIVE"
@@ -113,7 +72,7 @@ if test -x ./autogen.sh; then ./autogen.sh; fi
 mkdir -p "$LIGHTTPD_BUILD_DIR"
 cd "$LIGHTTPD_BUILD_DIR"
 "$LIGHTTPD_PATCHED_SRC/configure" --prefix="$LIGHTTPD_PREFIX" --bindir="$LIGHTTPD_PREFIX/bin" --sbindir="$LIGHTTPD_PREFIX/bin" --libdir="$LIGHTTPD_PREFIX/lib"
-make -j"$jobs"
+make -j"2"
 if make -n check >/dev/null 2>&1; then make check; fi
 make install
 "$LIGHTTPD_PREFIX/bin/lighttpd" -V
@@ -130,9 +89,7 @@ cd "$CONNECTOR_ROOT"
 ```sh
 export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"
 export LIGHTTPD_MODULE_DIR="$BUILD_ROOT/modules"
-export MODSECURITY_INCLUDE_DIR="$MODSECURITY_PREFIX/include"
-export MODSECURITY_LIB_DIR="$MODSECURITY_PREFIX/lib"
-BUILD_ROOT="$BUILD_ROOT" LIGHTTPD_CONNECTOR_OUT_DIR="$BUILD_ROOT/connector" LIGHTTPD_MODULE_DIR="$LIGHTTPD_MODULE_DIR" LIGHTTPD_MSCONNECTOR_CORE_MODE=patched LIGHTTPD_SOURCE_DIR="$LIGHTTPD_PATCHED_SRC" LIGHTTPD_BUILD_ROOT="$LIGHTTPD_BUILD_DIR" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh connectors/lighttpd/build/build_module.sh
+BUILD_ROOT="$BUILD_ROOT" LIGHTTPD_CONNECTOR_OUT_DIR="$BUILD_ROOT/connector" LIGHTTPD_MODULE_DIR="$LIGHTTPD_MODULE_DIR" LIGHTTPD_MSCONNECTOR_CORE_MODE=patched LIGHTTPD_SOURCE_DIR="$LIGHTTPD_PATCHED_SRC" LIGHTTPD_BUILD_ROOT="$LIGHTTPD_BUILD_DIR" MODSECURITY_INCLUDE_DIR="/usr/local/include" MODSECURITY_LIB_DIR="/usr/local/lib" sh connectors/lighttpd/build/build_module.sh
 export LIGHTTPD_MODULE="$LIGHTTPD_MODULE_DIR/mod_msconnector.so"
 test -f "$LIGHTTPD_MODULE"
 ```
@@ -140,8 +97,6 @@ test -f "$LIGHTTPD_MODULE"
 ## 8. Configuration
 
 The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout.
-
-
 
 ```sh
 export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"
@@ -188,7 +143,7 @@ grep -F LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION "$LIGHTTPD_PATCHED_SRC/src/
 Run only against loopback. A 200 response on `/` and a 403 response on `/blocked` demonstrate the local rule path; they do not establish a broader claim.
 
 ```sh
-LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$LIGHTTPD_PREFIX/bin/lighttpd" -D -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR" &
+"$LIGHTTPD_PREFIX/bin/lighttpd" -D -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR" &
 lighttpd_pid=$!
 curl -i http://127.0.0.1:8080/
 curl -i http://127.0.0.1:8080/blocked
@@ -237,13 +192,9 @@ NO_CRS_RUN_ID="$run_id" make evidence-check-lighttpd
 Before an update, recheck the linked upstream documentation, release version, and configure/build options. Then repeat every affected host, connector, ABI, and local HTTP test.
 
 ```sh
-git -C "$MODSECURITY_SRC" fetch --tags origin
-git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"
-git -C "$MODSECURITY_SRC" submodule update --init --recursive
-git -C "$MODSECURITY_SRC" rev-parse HEAD
-cd "$MODSECURITY_SRC"
-make clean
-make -j"$jobs"
+git -C "$CONNECTOR_ROOT" pull --ff-only
+git -C "$CONNECTOR_ROOT" submodule update --init --recursive
+# Rebuild the selected host and connector with the commands above.
 ```
 
 ## 14. Uninstall and cleanup
@@ -251,14 +202,13 @@ make -j"$jobs"
 Do not copy files indiscriminately to `/usr/lib` and do not remove global directories. A user prefix does not need `sudo`. Remove evidence or logs only after deliberate review.
 
 ```sh
-find "$BUILD_BASE" -maxdepth 2 -mindepth 1 -print
-# Review the listed paths first; remove only a chosen private prefix or external build directory.
-rmdir "$MODSECURITY_PREFIX" 2>/dev/null || true
+find "$HOME/src/modsecurity-connectors" -maxdepth 2 -mindepth 1 -print
+# Review the listed paths first; remove only a chosen external host-build directory.
 ```
 
 ## 15. Troubleshooting
 
-Common: for missing headers or libraries, first check `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, the selected prefix, and `pkg-config` output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.
+Common: for missing headers or libraries, return to the shared guide's advanced section and check the deliberately selected prefix and pkg-config output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.
 
 If patch dry-run fails, do not force it: verify the exact 1.4.84 source and patch checksum. If the module cannot load, rebuild the patched core and module from the same source/header/configuration set.
 
@@ -266,20 +216,10 @@ If patch dry-run fails, do not force it: verify the exact 1.4.84 source and patc
 
 | Variable/placeholder | Meaning |
 | --- | --- |
-| BUILD_BASE | Portable source/build parent, for example `$HOME/src/modsecurity-build`. |
 | CONNECTOR_ROOT | Git top level of this checkout; connector scripts are called from it. |
-| HOST_BUILD_BASE | Connector-specific external subtree below BUILD_BASE for sources, builds, configuration, and local logs. |
+| HOST_BUILD_BASE | Connector-specific external directory for sources, builds, configuration, and local logs. |
 | BUILD_ROOT | External build and runtime root for repository-owned connector components. |
-| MODSECURITY_SRC | Checkout of the ModSecurity v3 engine below BUILD_BASE. |
-| MODSECURITY_PREFIX | Isolated user prefix for headers, libraries, and pkg-config metadata. |
-| MODSECURITY_REF | Fixed engine Git tag, never a moving branch. |
-| MODSECURITY_COMMIT | Expected commit to which MODSECURITY_REF must resolve. |
-| MODSECURITY_INCLUDE_DIR | Include directory below MODSECURITY_PREFIX for repository components. |
-| MODSECURITY_LIB_DIR | Library directory below MODSECURITY_PREFIX for repository components. |
-| PKG_CONFIG_PATH | Temporary search path for the local libmodsecurity pc file. |
-| LD_LIBRARY_PATH | Temporary loader path for local tests only, not a global installation recipe. |
 | RULES_FILE | Local test-rule file, not a CRS rule file. |
-| jobs | Local parallel-build count from `getconf`; reduce it on low-memory hosts. |
 | VERIFIED_RUN_PARENT | External parent for a fresh repository-test checkout and its test artifacts. |
 | run_id | Unique identifier for one repository-controlled full-lifecycle run. |
 | NO_CRS_RUN_ID | Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated. |

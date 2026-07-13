@@ -1756,14 +1756,14 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
     },
     "nginx": {
         "components": (
-            "libmodsecurity v3, an official NGINX source release, ModSecurity-nginx, the repository NGINX source integration, a dynamic module, a local rule file, and a loopback NGINX instance.",
-            "libmodsecurity v3, ein offizieller NGINX-Source-Release, ModSecurity-nginx, die Repository-NGINX-Source-Integration, ein dynamisches Modul, eine lokale Regeldatei und eine NGINX-Instanz auf Loopback.",
+            "libmodsecurity v3, an official NGINX source release, ModSecurity-nginx, a statically integrated NGINX module, a local rule file, and a loopback NGINX instance.",
+            "libmodsecurity v3, ein offizieller NGINX-Source-Release, ModSecurity-nginx, ein statisch eingebundenes NGINX-Modul, eine lokale Regeldatei und eine NGINX-Instanz auf Loopback.",
         ),
         "official_sources": (
-            ("Building nginx from Sources", "https://nginx.org/en/docs/configure.html", "The official configure options, including prefix paths, dynamic modules, compatibility, compiler, and linker flags.", "Die offiziellen Configure-Optionen einschließlich Prefix-Pfaden, Dynamic Modules, Kompatibilität sowie Compiler- und Linkerflags.", "NGINX options are release-dependent; inspect `./auto/configure --help` for the selected source."),
+            ("Building nginx from Sources", "https://nginx.org/en/docs/configure.html", "The official configure options, including prefix paths, compatibility, compiler, and linker flags.", "Die offiziellen Configure-Optionen einschließlich Prefix-Pfaden, Kompatibilität sowie Compiler- und Linkerflags.", "NGINX options are release-dependent; inspect `./auto/configure --help` for the selected source."),
             ("Official NGINX packages", "https://nginx.org/en/linux_packages.html", "Official distribution package repositories and package-install context; not an ABI-equivalence claim for a source-built module.", "Offizielle Distributionsrepositories und Paketinstallationskontext; kein ABI-Gleichwertigkeitsclaim für ein aus Source gebautes Modul.", "Package layout changes by distribution and release."),
             ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
-            ("ModSecurity-nginx", "https://github.com/owasp-modsecurity/ModSecurity-nginx", "The official NGINX connector source consumed by `--add-dynamic-module`.", "Die offizielle NGINX-Connectorquelle, die durch `--add-dynamic-module` eingebunden wird.", "Pin it to a release tag or commit matching the selected NGINX source."),
+            ("ModSecurity-nginx", "https://github.com/owasp-modsecurity/ModSecurity-nginx", "The official NGINX connector source consumed by the NGINX configure step.", "Die offizielle NGINX-Connectorquelle, die vom NGINX-Configure-Schritt eingebunden wird.", "Pin it to a release tag or commit matching the selected NGINX source."),
         ),
         "host_intro": (
             "This is the deliberately small NGINX-plus-libmodsecurity build extracted from the relevant technical parts of the supplied reference script: isolated directories, compiler/linker paths, pinned sources, the connector, configure, build, installation, ABI checks, and provenance. The external script builds further optional modules and integrations; they are not required for this core build and are not covered here.",
@@ -1839,8 +1839,8 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
         ),
         "package_queries": ('apt-cache search nginx', 'dnf search nginx', 'nginx -V 2>&1 || true'),
         "package_note": (
-            "An official package can provide a host, but a separately compiled dynamic module must match its exact NGINX build options and ABI. It is not interchangeable with this source-built binary/module pair. Check the official NGINX package page and the package's own `nginx -V` output before attempting a package-host module build.",
-            "Ein offizielles Paket kann einen Host bereitstellen, aber ein separat kompiliertes dynamisches Modul muss zu dessen exakten NGINX-Buildoptionen und ABI passen. Es ist nicht mit diesem aus Source gebauten Binary-/Modulpaar austauschbar. Vor einem Paket-Host-Modulbuild die offizielle NGINX-Paketseite und die Ausgabe `nginx -V` des Pakets prüfen.",
+            "An official package can provide a host, but it is not interchangeable with this source-built NGINX/connector pair. Check the official NGINX package page and the package's own `nginx -V` output before choosing a different host build.",
+            "Ein offizielles Paket kann einen Host bereitstellen, ist aber nicht mit diesem aus Source gebauten NGINX-/Connectorpaar austauschbar. Vor der Wahl eines anderen Host-Builds die offizielle NGINX-Paketseite und die Ausgabe `nginx -V` des Pakets prüfen.",
         ),
         "variables": (
             ("NGINX_BUILD_BASE", "External NGINX source/build/provenance directory.", "Externes NGINX-Source-/Build-/Provenienzverzeichnis."),
@@ -1856,8 +1856,8 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("NGINX_CONFIG", "Local NGINX configuration for the loopback test.", "Lokale NGINX-Konfiguration für den Loopback-Test."),
         ),
         "troubleshoot": (
-            "A `load_module` failure normally means the NGINX binary, configure arguments, connector checkout, or module differ. Rebuild the pair together; do not copy the module into an unrelated package installation.",
-            "Ein `load_module`-Fehler bedeutet normalerweise, dass NGINX-Binary, Configure-Argumente, Connector-Checkout oder Modul voneinander abweichen. Das Paar gemeinsam neu bauen; das Modul nicht in eine fremde Paketinstallation kopieren.",
+            "A startup or directive failure normally means the NGINX binary, configure arguments, connector checkout, or installed library differ. Rebuild the pair together; do not combine it with an unrelated package installation.",
+            "Ein Start- oder Direktivenfehler bedeutet normalerweise, dass NGINX-Binary, Configure-Argumente, Connector-Checkout oder installierte Library voneinander abweichen. Das Paar gemeinsam neu bauen; nicht mit einer fremden Paketinstallation kombinieren.",
         ),
     },
     "haproxy": {
@@ -2315,6 +2315,108 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
 }
 
 
+# The common engine guide is deliberately a small, separate model.  The first
+# tuple is the only definition of the official beginner command sequence.
+# Connector renderers consume the reference entries below instead of copying
+# any engine-build command into their own guides.
+COMMON_MODSECURITY: dict[str, object] = {
+    "common_modsecurity_beginner_commands": (
+        "git clone https://github.com/owasp-modsecurity/ModSecurity.git",
+        "cd ModSecurity",
+        "git submodule update --init --recursive",
+        "git submodule status",
+        "./build.sh",
+        "./configure",
+        "make",
+        "sudo make install",
+    ),
+    "common_modsecurity_command_explanations": (
+        (
+            "Downloads the ModSecurity v3 source code.",
+            "Lädt den ModSecurity-v3-Quellcode herunter.",
+        ),
+        (
+            "Changes into the downloaded directory.",
+            "Wechselt in das heruntergeladene Verzeichnis.",
+        ),
+        (
+            "Downloads the additional required subprojects.",
+            "Lädt die zusätzlich benötigten Unterprojekte.",
+        ),
+        (
+            "Checks that the subprojects are present completely.",
+            "Prüft, ob die Unterprojekte vollständig vorhanden sind.",
+        ),
+        (
+            "Creates the required Autotools build files.",
+            "Erzeugt die benötigten Autotools-Builddateien.",
+        ),
+        (
+            "Checks compilers and libraries and creates the Makefiles.",
+            "Prüft Compiler und Bibliotheken und erstellt die Makefiles.",
+        ),
+        (
+            "Compiles libmodsecurity.",
+            "Kompiliert libmodsecurity.",
+        ),
+        (
+            "Installs headers and the library system-wide.",
+            "Installiert Header und Bibliothek systemweit.",
+        ),
+    ),
+    "common_modsecurity_advanced": {
+        "commands": (
+            'MODSECURITY_REF="v3.0.16"',
+            'MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+            'git -C ModSecurity fetch --tags origin',
+            'git -C ModSecurity checkout --detach "$MODSECURITY_REF"',
+            'test "$(git -C ModSecurity rev-parse HEAD)" = "$MODSECURITY_COMMIT"',
+            'git -C ModSecurity verify-tag "$MODSECURITY_REF"',
+            'git -C ModSecurity submodule status',
+            'MODSECURITY_PREFIX="$HOME/.local/modsecurity"',
+            'cd ModSecurity',
+            'export CFLAGS="-O2 -g"',
+            'export CXXFLAGS="-O2 -g"',
+            'export LDFLAGS="-Wl,-rpath,$MODSECURITY_PREFIX/lib"',
+            './configure --prefix="$MODSECURITY_PREFIX"',
+            'JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"',
+            'make -j"$JOBS"',
+            'make check',
+            'make install',
+            'export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"',
+            'export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"',
+            '{ git rev-parse HEAD; git submodule status; cc --version; c++ --version; } > build-provenance.txt',
+        ),
+    },
+    "connector_engine_reference": {
+        "apache": (
+            "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)",
+            "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)",
+        ),
+        "nginx": (
+            "Install libmodsecurity v3 first:\n\n[Simple libmodsecurity v3 build](libmodsecurity.md)\n\nNGINX and ModSecurity-nginx are built afterwards.",
+            "Installiere zuerst libmodsecurity v3:\n\n[Einfacher libmodsecurity-v3-Build](libmodsecurity.de.md)\n\nDanach werden NGINX und ModSecurity-nginx gebaut.",
+        ),
+        "haproxy": (
+            "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)",
+            "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)",
+        ),
+        "envoy": (
+            "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)",
+            "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)",
+        ),
+        "traefik": (
+            "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)",
+            "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)",
+        ),
+        "lighttpd": (
+            "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)",
+            "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)",
+        ),
+    },
+}
+
+
 def manual_localized(value: tuple[str, str], german: bool) -> str:
     return value[1] if german else value[0]
 
@@ -2330,6 +2432,8 @@ def manual_heading(number: int, english: str, german_text: str, german: bool) ->
 def manual_official_sources(info: dict[str, object], german: bool) -> str:
     rows: list[str] = []
     for title, url, english_scope, german_scope, version_scope in info["official_sources"]:
+        if url == "https://github.com/owasp-modsecurity/ModSecurity":
+            continue
         purpose = "Quelle und Umfang" if german else "Source and scope"
         scope = german_scope if german else english_scope
         version_label = "Versionsbezug" if german else "Version scope"
@@ -2345,20 +2449,10 @@ def manual_official_sources(info: dict[str, object], german: bool) -> str:
 def manual_common_variables(german: bool) -> list[tuple[str, str]]:
     if german:
         return [
-            ("BUILD_BASE", "Portabler Source-/Build-Stamm, z. B. `$HOME/src/modsecurity-build`."),
             ("CONNECTOR_ROOT", "Git-Top-Level dieses Repository-Checkouts; die Connector-Skripte werden von dort aus aufgerufen."),
-            ("HOST_BUILD_BASE", "Connector-spezifisches externes Unterverzeichnis unter BUILD_BASE für Quellen, Builds, Konfiguration und lokale Logs."),
+            ("HOST_BUILD_BASE", "Connector-spezifisches externes Verzeichnis für Quellen, Builds, Konfiguration und lokale Logs."),
             ("BUILD_ROOT", "Externer Build- und Laufzeitstamm der repository-eigenen Connector-Komponenten."),
-            ("MODSECURITY_SRC", "Checkout der ModSecurity-v3-Engine unter BUILD_BASE."),
-            ("MODSECURITY_PREFIX", "Isolierter Benutzer-Prefix für Header, Libraries und pkg-config-Metadaten."),
-            ("MODSECURITY_REF", "Fester Git-Tag der Engine; kein beweglicher Branch."),
-            ("MODSECURITY_COMMIT", "Erwarteter Commit, auf den MODSECURITY_REF aufgelöst werden muss."),
-            ("MODSECURITY_INCLUDE_DIR", "Include-Verzeichnis unter MODSECURITY_PREFIX für Repository-Komponenten."),
-            ("MODSECURITY_LIB_DIR", "Library-Verzeichnis unter MODSECURITY_PREFIX für Repository-Komponenten."),
-            ("PKG_CONFIG_PATH", "Temporärer Suchpfad für die lokale libmodsecurity-pc-Datei."),
-            ("LD_LIBRARY_PATH", "Nur temporärer Loaderpfad für lokale Tests, kein globales Installationsrezept."),
             ("RULES_FILE", "Lokale Testregeldatei; keine CRS-Regeldatei."),
-            ("jobs", "Lokale Anzahl paralleler Buildjobs aus `getconf`; bei wenig RAM reduzieren."),
             ("VERIFIED_RUN_PARENT", "Externer Elternordner eines frischen Repository-Testcheckouts und seiner Testartefakte."),
             ("run_id", "Eindeutige Kennung eines repository-gesteuerten Full-Lifecycle-Laufs."),
             ("NO_CRS_RUN_ID", "Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt."),
@@ -2369,20 +2463,10 @@ def manual_common_variables(german: bool) -> list[tuple[str, str]]:
             ("lighttpd_pid", "Lokale Prozess-ID des gestarteten lighttpd aus `$!`; nur im selben Shell-Lauf verwenden."),
         ]
     return [
-        ("BUILD_BASE", "Portable source/build parent, for example `$HOME/src/modsecurity-build`."),
         ("CONNECTOR_ROOT", "Git top level of this checkout; connector scripts are called from it."),
-        ("HOST_BUILD_BASE", "Connector-specific external subtree below BUILD_BASE for sources, builds, configuration, and local logs."),
+        ("HOST_BUILD_BASE", "Connector-specific external directory for sources, builds, configuration, and local logs."),
         ("BUILD_ROOT", "External build and runtime root for repository-owned connector components."),
-        ("MODSECURITY_SRC", "Checkout of the ModSecurity v3 engine below BUILD_BASE."),
-        ("MODSECURITY_PREFIX", "Isolated user prefix for headers, libraries, and pkg-config metadata."),
-        ("MODSECURITY_REF", "Fixed engine Git tag, never a moving branch."),
-        ("MODSECURITY_COMMIT", "Expected commit to which MODSECURITY_REF must resolve."),
-        ("MODSECURITY_INCLUDE_DIR", "Include directory below MODSECURITY_PREFIX for repository components."),
-        ("MODSECURITY_LIB_DIR", "Library directory below MODSECURITY_PREFIX for repository components."),
-        ("PKG_CONFIG_PATH", "Temporary search path for the local libmodsecurity pc file."),
-        ("LD_LIBRARY_PATH", "Temporary loader path for local tests only, not a global installation recipe."),
         ("RULES_FILE", "Local test-rule file, not a CRS rule file."),
-        ("jobs", "Local parallel-build count from `getconf`; reduce it on low-memory hosts."),
         ("VERIFIED_RUN_PARENT", "External parent for a fresh repository-test checkout and its test artifacts."),
         ("run_id", "Unique identifier for one repository-controlled full-lifecycle run."),
         ("NO_CRS_RUN_ID", "Exported full-lifecycle identifier for the following Make invocation; it keeps evidence and runtime data separated."),
@@ -2402,68 +2486,142 @@ def manual_variable_table(info: dict[str, object], german: bool) -> str:
     return markdown_table(headers, rows)
 
 
-def manual_modsecurity_build(german: bool) -> str:
-    intro = (
-        "Dieser Ablauf verwendet einen festen, überprüfbaren Git-Tag und dessen aufgelösten Commit. `v3/master` ist kein reproduzierbarer Pin und wird deshalb nicht als solcher dargestellt. `build.sh` regeneriert beziehungsweise aktualisiert die Autotools-Eingaben; es kompiliert die Bibliothek noch nicht.",
-        "This flow uses a fixed, verifiable Git tag and its resolved commit. `v3/master` is not a reproducible pin and is therefore not presented as one. `build.sh` regenerates or refreshes the Autotools inputs; it does not compile the library yet.",
+def nginx_simple_variable_table(german: bool) -> str:
+    rows = (
+        [
+            ("WORKDIR", "Arbeitsverzeichnis für NGINX-Quelle, Connector und lokale Regeldatei."),
+            ("INSTALL_DIR", "Privates NGINX-Installationsverzeichnis."),
+            ("JOBS", "Bewusst kleine Anzahl paralleler NGINX-Buildjobs."),
+        ]
+        if german
+        else [
+            ("WORKDIR", "Working directory for the NGINX source, connector, and local rule file."),
+            ("INSTALL_DIR", "Private NGINX installation directory."),
+            ("JOBS", "Deliberately modest number of parallel NGINX build jobs."),
+        ]
     )
-    note = (
-        "Beim ausgewählten Stand wird PCRE2 standardmäßig erkannt; `--with-pcre2` wird nicht erfunden. Die optionalen Schalter werden vor der Verwendung mit `./configure --help` geprüft. Wenn der gewählte Release einen Schalter nicht anbietet, ihn aus dem Aufruf entfernen statt einen nicht akzeptierten Befehl zu dokumentieren.",
-        "At the selected revision PCRE2 is detected by default; this guide does not invent `--with-pcre2`. Optional switches are checked with `./configure --help` before use. If the chosen release does not offer a switch, remove it rather than documenting an unaccepted command.",
+    headers = ("Variable", "Bedeutung") if german else ("Variable", "Meaning")
+    return markdown_table(headers, rows)
+
+
+def common_modsecurity_guide(german: bool) -> str:
+    """Render the common engine guide from one shared data model."""
+    beginner_commands = tuple(COMMON_MODSECURITY["common_modsecurity_beginner_commands"])
+    explanations = list(COMMON_MODSECURITY["common_modsecurity_command_explanations"])
+    advanced = COMMON_MODSECURITY["common_modsecurity_advanced"]
+    advanced_commands = tuple(advanced["commands"])
+    if german:
+        explanation_rows = [
+            (f"`{command}`", german_text)
+            for command, (_, german_text) in zip(beginner_commands, explanations, strict=True)
+        ]
+        sections = [
+            f"{MARKER}\n\n# libmodsecurity v3 bauen",
+            language_switch("libmodsecurity", True),
+            "## Offizielle Quellen\n\nDie aktuelle [ModSecurity-README](https://github.com/owasp-modsecurity/ModSecurity) ist die primäre Buildquelle. Die [Compilation Recipes für v3.x](https://github.com/owasp-modsecurity/ModSecurity/wiki/Compilation-recipes-for-v3.x) dienen nur als ergänzender Hinweis für distributionsspezifische Abhängigkeiten. Historische CentOS-, Ubuntu- oder andere Beispiele daraus sind kein aktueller Standard.",
+            "## Voraussetzungen\n\nBenötigt werden unter anderem:\n\n- Git\n- C- und C++-Compiler\n- GNU Make\n- Autoconf und Automake\n- libtool\n- Flex und Bison\n- YAJL\n- PCRE2\n\nDie aktuelle README nennt YAJL als Pflichtabhängigkeit und PCRE2 als Standard für reguläre Ausdrücke. Für einen kompakten Einstieg sind diese gegen aktuelle Paketquellen geprüften Namen geeignet; nur den Block der eigenen Distribution ausführen.\n\n```sh\n# Debian / Ubuntu\nsudo apt update\nsudo apt install build-essential git autoconf automake libtool flex bison pkg-config libyajl-dev libpcre2-dev\n```\n\n```sh\n# Fedora / RHEL\nsudo dnf install gcc gcc-c++ make git autoconf automake libtool flex bison pkgconf-pkg-config yajl-devel pcre2-devel\n```",
+            "## Einfacher offizieller Build\n\nWenn die benötigten Entwicklungspakete bereits installiert sind, besteht der offizielle Unix-Build im Wesentlichen aus diesen acht Befehlen:\n\n"
+            + shell(beginner_commands)
+            + "\n\n## Bedeutung der Befehle\n\n"
+            + markdown_table(("Befehl", "Bedeutung"), explanation_rows)
+            + "\n\n`build.sh` kompiliert die Bibliothek noch nicht. `configure` prüft die Umgebung. `make` kompiliert. `make install` installiert das Ergebnis.",
+            "## Erfolg prüfen\n\n```sh\nls /usr/local/include/modsecurity\nls /usr/local/lib | grep modsecurity\n```\n\nJe nach System kann die Bibliothek unter `/usr/local/lib`, `/usr/local/lib64` oder einem distributionsabhängigen Pfad liegen.",
+            "## Optional: Installation nur für den eigenen Benutzer\n\nNur diese Abweichung vom einfachen Ablauf verwenden:\n\n```sh\n./configure --prefix=\"$HOME/.local/modsecurity\"\nmake\nmake install\n```\n\nDabei wird nicht systemweit installiert und `sudo` ist nicht erforderlich.",
+            "## Fortgeschrittene und reproduzierbare Builds\n\nDieser Abschnitt ist für bewusst gepinnte oder lokale Entwicklungsbuilds. Ein fester Release-Tag und der erwartete Commit machen die Eingabe nachvollziehbar. Eine GPG-Tag-Prüfung setzt einen vertrauenswürdigen Maintainer-Schlüssel voraus; bei Releasearchiven zusätzlich die veröffentlichte SHA-Prüfsumme vor dem Entpacken prüfen.\n\n"
+            + shell(advanced_commands)
+            + "\n\nHier gehören eigener Installationsprefix, `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, parallele Buildjobs, `CFLAGS`, `CXXFLAGS`, `LDFLAGS`, `make check` und die Build-Provenienz hin. Bei `lib64` statt `lib` die Pfadangaben bewusst anpassen; `LD_LIBRARY_PATH` nur für lokale Entwicklung und Tests verwenden, nicht als globale Loader-Konfiguration.",
+        ]
+        return "\n\n".join(sections) + "\n"
+    explanation_rows = [
+        (f"`{command}`", english_text)
+        for command, (english_text, _) in zip(beginner_commands, explanations, strict=True)
+    ]
+    sections = [
+        f"{MARKER}\n\n# Build libmodsecurity v3",
+        language_switch("libmodsecurity", False),
+        "## Official sources\n\nThe current [ModSecurity README](https://github.com/owasp-modsecurity/ModSecurity) is the primary build source. The [v3.x compilation recipes](https://github.com/owasp-modsecurity/ModSecurity/wiki/Compilation-recipes-for-v3.x) are only supplementary context for distribution-specific dependencies. Historical CentOS, Ubuntu, or other examples there are not a current default.",
+        "## Prerequisites\n\nAmong the required tools and development packages are:\n\n- Git\n- C and C++ compilers\n- GNU Make\n- Autoconf and Automake\n- libtool\n- Flex and Bison\n- YAJL\n- PCRE2\n\nThe current README identifies YAJL as mandatory and PCRE2 as the default regex engine. These compact package names were checked against current package sources; run only the block for the distribution in use.\n\n```sh\n# Debian / Ubuntu\nsudo apt update\nsudo apt install build-essential git autoconf automake libtool flex bison pkg-config libyajl-dev libpcre2-dev\n```\n\n```sh\n# Fedora / RHEL\nsudo dnf install gcc gcc-c++ make git autoconf automake libtool flex bison pkgconf-pkg-config yajl-devel pcre2-devel\n```",
+        "## Simple official build\n\nOnce the required development packages are installed, the official Unix build is essentially these eight commands:\n\n"
+        + shell(beginner_commands)
+        + "\n\n## Meaning of the commands\n\n"
+        + markdown_table(("Command", "Meaning"), explanation_rows)
+        + "\n\n`build.sh` does not compile the library yet. `configure` checks the environment. `make` compiles. `make install` installs the result.",
+        "## Check the result\n\n```sh\nls /usr/local/include/modsecurity\nls /usr/local/lib | grep modsecurity\n```\n\nDepending on the system, the library can be under `/usr/local/lib`, `/usr/local/lib64`, or a distribution-specific path.",
+        "## Optional: installation for the current user only\n\nShow only this deviation from the simple flow:\n\n```sh\n./configure --prefix=\"$HOME/.local/modsecurity\"\nmake\nmake install\n```\n\nThis does not install system-wide and does not require `sudo`.",
+        "## Advanced and reproducible builds\n\nUse this section for deliberately pinned or local development builds. A fixed release tag and expected commit make the input traceable. GPG tag verification requires a trusted maintainer key; for release archives, also verify the published SHA checksum before unpacking.\n\n"
+        + shell(advanced_commands)
+        + "\n\nThis is where an own installation prefix, `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, parallel build jobs, `CFLAGS`, `CXXFLAGS`, `LDFLAGS`, `make check`, and build provenance belong. Adjust paths deliberately when the system uses `lib64`; use `LD_LIBRARY_PATH` only for local development and tests, not as global loader configuration.",
+    ]
+    return "\n\n".join(sections) + "\n"
+
+
+def connector_engine_reference(item: dict[str, str], german: bool) -> str:
+    reference = COMMON_MODSECURITY["connector_engine_reference"][item["slug"]]
+    default_paths = (
+        "The following connector commands assume the default system installation under `/usr/local`. For a user-local prefix, use the shared guide's advanced section and pass its include and library paths deliberately.",
+        "Die folgenden Connector-Befehle setzen die Standardinstallation unter `/usr/local` voraus. Für einen benutzerlokalen Prefix den fortgeschrittenen Abschnitt der gemeinsamen Anleitung verwenden und Include- sowie Library-Pfade bewusst übergeben.",
+    )
+    return f"{manual_localized(reference, german)}\n\n{manual_localized(default_paths, german)}"
+
+
+def normalized_connector_commands(commands: tuple[str, ...]) -> tuple[str, ...]:
+    """Keep connector steps usable after moving engine setup to the shared guide."""
+    normalized: list[str] = []
+    replacements = (
+        ("$MODSECURITY_INCLUDE_DIR", "/usr/local/include"),
+        ("$MODSECURITY_LIB_DIR", "/usr/local/lib"),
+        ("$MODSECURITY_PREFIX", "/usr/local"),
+        ("$BUILD_BASE", "$HOME/src/modsecurity-connectors"),
+        ("$jobs", "2"),
+    )
+    for command in commands:
+        command = command.replace('LD_LIBRARY_PATH=\"$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\" ', "")
+        for old, new in replacements:
+            command = command.replace(old, new)
+        if command in {
+            'export MODSECURITY_INCLUDE_DIR=\"/usr/local/include\"',
+            'export MODSECURITY_LIB_DIR=\"/usr/local/lib\"',
+        }:
+            continue
+        normalized.append(command)
+    return tuple(normalized)
+
+
+def nginx_beginner_build(german: bool) -> str:
+    intro = (
+        "The simple NGINX path uses only a work directory, an installation directory, and a deliberately modest number of build jobs. It builds the connector statically with the NGINX binary; it does not rebuild libmodsecurity.",
+        "Der einfache NGINX-Weg verwendet nur ein Arbeitsverzeichnis, ein Installationsverzeichnis und eine bewusst kleine Anzahl Buildjobs. Er baut den Connector statisch mit dem NGINX-Binary; libmodsecurity wird dabei nicht erneut gebaut.",
+    )
+    steps = (
+        "1. Download NGINX.\n2. Clone ModSecurity-nginx.\n3. Run configure.\n4. Run make.\n5. Run make install.\n6. Create nginx.conf.\n7. Run nginx -t.\n8. Run the curl test.",
+        "1. NGINX herunterladen.\n2. ModSecurity-nginx klonen.\n3. configure ausführen.\n4. make ausführen.\n5. make install ausführen.\n6. nginx.conf erstellen.\n7. nginx -t ausführen.\n8. Curl-Test ausführen.",
     )
     commands = (
-        'export BUILD_BASE="$HOME/src/modsecurity-build"',
-        'export MODSECURITY_SRC="$BUILD_BASE/ModSecurity"',
-        'export MODSECURITY_PREFIX="$HOME/.local/modsecurity"',
-        'export MODSECURITY_REF="v3.0.16"',
-        'export MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
-        'mkdir -p "$BUILD_BASE"',
-        'git clone --recurse-submodules https://github.com/owasp-modsecurity/ModSecurity.git "$MODSECURITY_SRC"',
-        'git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"',
-        'git -C "$MODSECURITY_SRC" submodule update --init --recursive',
-        'test "$(git -C "$MODSECURITY_SRC" rev-parse HEAD)" = "$MODSECURITY_COMMIT"',
-        'git -C "$MODSECURITY_SRC" rev-parse HEAD',
-        'cd "$MODSECURITY_SRC"',
-        './build.sh',
-        './configure --help | grep -E -- "--with-(lmdb|libxml|curl|yajl)"',
-        './configure --prefix="$MODSECURITY_PREFIX" --with-lmdb --with-libxml --with-curl --with-yajl',
-        'jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"',
-        'make -j"$jobs"',
-        'make check',
+        'WORKDIR=\"$HOME/nginx-modsecurity\"',
+        'INSTALL_DIR=\"$HOME/.local/nginx-modsecurity\"',
+        'JOBS=2',
+        'mkdir -p \"$WORKDIR\"',
+        'cd \"$WORKDIR\"',
+        'curl -fLO https://nginx.org/download/nginx-1.31.2.tar.gz',
+        'tar -xzf nginx-1.31.2.tar.gz',
+        'git clone https://github.com/owasp-modsecurity/ModSecurity-nginx.git',
+        'cd nginx-1.31.2',
+        './auto/configure --prefix=\"$INSTALL_DIR\" --with-http_ssl_module --add-module=\"$WORKDIR/ModSecurity-nginx\" --with-cc-opt=\"-I/usr/local/include\" --with-ld-opt=\"-L/usr/local/lib\"',
+        'make -j\"$JOBS\"',
         'make install',
-        'export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"',
-        'export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"',
+        'cat > \"$WORKDIR/modsecurity-local.conf\" <<'"'"'EOF'"'"'\nSecRuleEngine On\nSecRule REQUEST_URI \"@streq /blocked\" \"id:100001,phase:1,deny,status:403,log\"\nEOF',
+        'cat > \"$INSTALL_DIR/conf/nginx.conf\" <<EOF\nevents {}\nhttp {\n    server {\n        listen 127.0.0.1:8080;\n        location / {\n            modsecurity on;\n            modsecurity_rules_file \"$WORKDIR/modsecurity-local.conf\";\n            return 200 \"nginx modsecurity test\\n\";\n        }\n    }\n}\nEOF',
+        '\"$INSTALL_DIR/sbin/nginx\" -t -p \"$INSTALL_DIR\" -c conf/nginx.conf',
+        '\"$INSTALL_DIR/sbin/nginx\" -p \"$INSTALL_DIR\" -c conf/nginx.conf',
+        'curl -i http://127.0.0.1:8080/',
+        'curl -i http://127.0.0.1:8080/blocked',
+        '\"$INSTALL_DIR/sbin/nginx\" -p \"$INSTALL_DIR\" -c conf/nginx.conf -s quit',
     )
-    validation = (
-        'test -d "$MODSECURITY_PREFIX/include"',
-        'test -d "$MODSECURITY_PREFIX/lib"',
-        'find "$MODSECURITY_PREFIX" -maxdepth 3 -type f | sort',
-        'pkg-config --modversion libmodsecurity 2>/dev/null || true',
-        'find "$MODSECURITY_PREFIX/lib" -type f \\( -name "libmodsecurity.so*" -o -name "libmodsecurity.a" \\) -print',
-    )
-    if german:
-        return f"""{intro[0]}
+    return f"{manual_localized(intro, german)}\n\n{manual_localized(steps, german)}\n\n{shell(commands)}"
 
-{shell(commands)}
 
-{note[0]}
-
-`PKG_CONFIG_PATH` ermöglicht Buildsystemen, die benutzerlokale Installation zu
-finden. `LD_LIBRARY_PATH` ist nur für lokale Entwicklung und Tests; für eine
-dauerhafte Systeminstallation bewusstes Loader-Setup oder rpath prüfen.
-
-{shell(validation)}"""
-    return f"""{intro[1]}
-
-{shell(commands)}
-
-{note[1]}
-
-`PKG_CONFIG_PATH` lets build systems find the user-local installation.
-`LD_LIBRARY_PATH` is only for local development and tests; use a deliberate
-loader configuration or rpath for a durable system installation.
-
-{shell(validation)}"""
+# The detailed engine build used to live in every connector guide.  It is now
+# rendered only by common_modsecurity_guide() from COMMON_MODSECURITY.
 
 
 def repository_test_path(item: dict[str, str], german: bool) -> str:
@@ -2494,23 +2652,19 @@ def repository_test_path(item: dict[str, str], german: bool) -> str:
 
 
 def source_first_guide(item: dict[str, str], german: bool) -> str:
-    info = MANUAL_GUIDES[item["slug"]]
+    slug = item["slug"]
+    info = MANUAL_GUIDES[slug]
     name = item["name_de"] if german else item["name"]
     purpose = (
         f"This guide describes the manual development and integration build for `{item['profile']}` on {name}. The manual source build is the primary path; the repository test path follows it as an automated verification route.",
         f"Dieser Guide beschreibt den manuellen Entwicklungs- und Integrationsbuild für `{item['profile']}` bei {name}. Der manuelle Source-Build ist der Hauptpfad; der Repository-Testweg folgt danach als automatisierte Prüfstrecke.",
     )
     prereqs = (
-        "Required are Git, a C compiler, a C++ compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2 development files, libxml2 development files, YAJL, LMDB, and libcurl. Package names vary by distribution and release: check the official distribution documentation and local availability before installing anything.",
-        "Benötigt werden Git, ein C-Compiler, ein C++-Compiler, GNU Make, Autotools, libtool, pkg-config, PCRE2-Entwicklungsdateien, libxml2-Entwicklungsdateien, YAJL, LMDB und libcurl. Paketnamen sind distributions- und releaseabhängig: vor einer Installation die offizielle Distributionsdokumentation und die lokale Verfügbarkeit prüfen.",
+        "Build libmodsecurity first with the shared guide. Then install the selected host's documented development tools and keep the host, connector, headers, and libraries compatible.",
+        "Zuerst libmodsecurity mit der gemeinsamen Anleitung bauen. Danach die dokumentierten Entwicklungswerkzeuge des ausgewählten Hosts installieren und Host, Connector, Header sowie Libraries kompatibel halten.",
     )
     prereq_commands = (
-        'command -v git cc c++ make autoreconf libtool pkg-config',
-        'pkg-config --exists libpcre2-8',
-        'pkg-config --exists libxml-2.0',
-        'pkg-config --exists yajl',
-        'pkg-config --exists lmdb',
-        'pkg-config --exists libcurl',
+        'command -v git cc c++ make',
         'export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"',
         'test -f "$CONNECTOR_ROOT/Makefile"',
     )
@@ -2519,18 +2673,13 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
         f"Status: `{DETAILS[item['slug']]['package_status']}`. Paketabfragen sind absichtlich vor einer Installation platziert. Nur die zur Distribution passende Zeile verwenden.",
     )
     update_commands = (
-        'git -C "$MODSECURITY_SRC" fetch --tags origin',
-        'git -C "$MODSECURITY_SRC" checkout --detach "$MODSECURITY_REF"',
-        'git -C "$MODSECURITY_SRC" submodule update --init --recursive',
-        'git -C "$MODSECURITY_SRC" rev-parse HEAD',
-        'cd "$MODSECURITY_SRC"',
-        'make clean',
-        'make -j"$jobs"',
+        'git -C "$CONNECTOR_ROOT" pull --ff-only',
+        'git -C "$CONNECTOR_ROOT" submodule update --init --recursive',
+        '# Rebuild the selected host and connector with the commands above.',
     )
     cleanup_commands = (
-        'find "$BUILD_BASE" -maxdepth 2 -mindepth 1 -print',
-        '# Review the listed paths first; remove only a chosen private prefix or external build directory.',
-        'rmdir "$MODSECURITY_PREFIX" 2>/dev/null || true',
+        'find "$HOME/src/modsecurity-connectors" -maxdepth 2 -mindepth 1 -print',
+        '# Review the listed paths first; remove only a chosen external host-build directory.',
     )
     boundary = (
         "These instructions describe a reproducible development and integration build. They are not a production release. They do not claim complete CRS coverage, a complete protocol or platform matrix, or package-path equivalence when a host patch, module, middleware, or service is absent.",
@@ -2545,9 +2694,43 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
         "Keine Dateien pauschal nach `/usr/lib` kopieren und keine globalen Verzeichnisse entfernen. Bei einem Benutzer-Prefix ist kein `sudo` nötig. Evidence oder Logs erst nach bewusster Prüfung entfernen.",
     )
     trouble_prefix = (
-        "Common: for missing headers or libraries, first check `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, the selected prefix, and `pkg-config` output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.",
-        "Gemeinsam: Bei fehlenden Headern oder Libraries zuerst `PKG_CONFIG_PATH`, `LD_LIBRARY_PATH`, den ausgewählten Prefix und die Ausgabe von `pkg-config` prüfen. Bei einem ABI-Fehler Host, Header und Connector aus demselben ausgewählten Quellensatz neu bauen.",
+        "Common: for missing headers or libraries, return to the shared guide's advanced section and check the deliberately selected prefix and pkg-config output. For an ABI failure, rebuild host, headers, and connector from the same selected source set.",
+        "Gemeinsam: Bei fehlenden Headern oder Libraries zum fortgeschrittenen Abschnitt der gemeinsamen Anleitung zurückkehren und den bewusst gewählten Prefix sowie die pkg-config-Ausgabe prüfen. Bei einem ABI-Fehler Host, Header und Connector aus demselben ausgewählten Quellensatz neu bauen.",
     )
+    if slug == "nginx":
+        host_build = nginx_beginner_build(german)
+        connector_build = (
+            "NGINX and ModSecurity-nginx were cloned, configured, compiled, and installed together in the preceding simple build."
+            if not german
+            else "NGINX und ModSecurity-nginx wurden im vorhergehenden einfachen Build gemeinsam geklont, konfiguriert, kompiliert und installiert."
+        )
+        configuration = (
+            "The simple build above writes the local rule file and nginx.conf, then runs the required nginx configuration test."
+            if not german
+            else "Der einfache Build oben schreibt die lokale Regeldatei und nginx.conf und führt anschließend den erforderlichen NGINX-Konfigurationstest aus."
+        )
+        if "config_note" in info:
+            configuration += "\n\n" + manual_localized(info["config_note"], german)
+        validation = shell(('"$INSTALL_DIR/sbin/nginx" -V',))
+        http_test = (
+            "The simple build starts NGINX on loopback and uses curl for a normal and a blocked request before stopping it."
+            if not german
+            else "Der einfache Build startet NGINX auf Loopback und verwendet curl für eine normale und eine geblockte Anfrage, bevor er ihn beendet."
+        )
+        variables = nginx_simple_variable_table(german)
+    else:
+        host_build = f"{manual_localized(info['host_intro'], german)}\n\n{shell(normalized_connector_commands(info['host_commands']))}"
+        connector_root_command = 'cd "$CONNECTOR_ROOT"'
+        connector_build = f"{manual_localized(info['connector_intro'], german)}\n\n{shell((connector_root_command,))}\n\n{shell(normalized_connector_commands(info['connector_commands']))}"
+        configuration = (
+            ("The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout." if not german else "Die folgende lokale Regel ist eine Testregel und keine CRS-Regel. Konfigurations- und Laufzeitdateien außerhalb des Git-Checkouts halten.")
+            + ("\n\n" + manual_localized(info["config_note"], german) if "config_note" in info else "")
+            + "\n\n"
+            + shell(normalized_connector_commands(info["config_commands"]))
+        )
+        validation = shell(normalized_connector_commands(info["validation"]))
+        http_test = shell(normalized_connector_commands(info["http_commands"]))
+        variables = manual_variable_table(info, german)
     return f"""{MARKER}
 
 # {"Manueller Source-Build" if german else "Manual source build"}: {name}
@@ -2572,43 +2755,33 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
 
 {shell(prereq_commands)}
 
-{manual_heading(5, "Build libmodsecurity v3 from source", "libmodsecurity v3 aus Source bauen", german)}
+{manual_heading(5, "Prepare libmodsecurity v3", "ModSecurity vorbereiten", german)}
 
-{manual_modsecurity_build(german)}
+{connector_engine_reference(item, german)}
 
 {manual_heading(6, "Prepare or build the host or proxy", "Host oder Proxy vorbereiten beziehungsweise bauen", german)}
 
-{manual_localized(info['host_intro'], german)}
-
-{shell(info['host_commands'])}
+{host_build}
 
 {manual_heading(7, "Build and integrate the connector", "Connector bauen und einbinden", german)}
 
-{manual_localized(info['connector_intro'], german)}
-
-{shell(('cd "$CONNECTOR_ROOT"',))}
-
-{shell(info['connector_commands'])}
+{connector_build}
 
 {manual_heading(8, "Configuration", "Konfiguration", german)}
 
-{("The local rule below is a test rule, not a CRS rule. Keep the configuration and runtime files outside the Git checkout." if not german else "Die folgende lokale Regel ist eine Testregel und keine CRS-Regel. Konfigurations- und Laufzeitdateien außerhalb des Git-Checkouts halten.")}
-
-{manual_localized(info['config_note'], german) if 'config_note' in info else ''}
-
-{shell(info['config_commands'])}
+{configuration}
 
 {manual_heading(9, "Build and ABI validation", "Build- und ABI-Validierung", german)}
 
 {("Validate the selected host, connector artifact, dynamic library resolution, and generated configuration before sending traffic." if not german else "Ausgewählten Host, Connector-Artefakt, Auflösung dynamischer Libraries und erzeugte Konfiguration vor dem Senden von Traffic validieren.")}
 
-{shell(info['validation'])}
+{validation}
 
 {manual_heading(10, "Local HTTP/1.1 functional test", "Lokaler HTTP/1.1-Funktionstest", german)}
 
 {manual_localized(info['http_note'], german) if 'http_note' in info else ("Run only against loopback. A 200 response on `/` and a 403 response on `/blocked` demonstrate the local rule path; they do not establish a broader claim." if not german else "Nur gegen Loopback ausführen. Eine 200-Antwort auf `/` und eine 403-Antwort auf `/blocked` zeigen den lokalen Regelweg; sie begründen keinen weitergehenden Claim.")}
 
-{shell(info['http_commands'])}
+{http_test}
 
 {manual_heading(11, "Package-assisted path", "Paketgestützter Weg", german)}
 
@@ -2644,7 +2817,7 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
 
 {manual_heading(16, "Variables and placeholders", "Variablen und Platzhalter", german)}
 
-{manual_variable_table(info, german)}
+{variables}
 
 {manual_heading(17, "Boundaries and non-claims", "Grenzen und nicht erhobene Claims", german)}
 
@@ -2659,6 +2832,8 @@ def rendered_files() -> dict[str, str]:
         "README.de.md": generated_index(True),
         "overview.md": generated_overview(False),
         "overview.de.md": generated_overview(True),
+        "libmodsecurity.md": common_modsecurity_guide(False),
+        "libmodsecurity.de.md": common_modsecurity_guide(True),
     }
     for item in CONNECTORS:
         rendered[f"{item['slug']}.md"] = source_first_guide(item, False)
@@ -2686,6 +2861,12 @@ Jeder Detailguide beschreibt einen repository-gesteuerten Testweg, einen
 lokalen Source-Build und einen ehrlichen Paketweg. Ein Build, Link,
 Config-Check, Start oder Paketinstallationsresultat ist für sich allein keine
 Runtime-, CRS-, Sicherheits-, Produktions- oder Vollmatrix-Evidence.
+
+## Gemeinsamer Einstieg
+
+Vor jedem Connector zuerst [libmodsecurity v3 bauen](libmodsecurity.de.md).
+Der Einsteigerablauf steht nur dort; die Connector-Guides beginnen danach mit
+ihrem jeweiligen Host und Connector.
 
 ## Entscheidungsmatrix
 
@@ -2729,6 +2910,12 @@ Each detailed guide describes a repository-controlled test path, a local source
 build, and an honest package path. A build, link, config check, start, or
 package-install result alone is not runtime, CRS, security, production, or
 full-matrix evidence.
+
+## Shared starting point
+
+Before any connector, [build libmodsecurity v3](libmodsecurity.md). The
+beginner sequence exists only there; the connector guides then start with their
+own host and connector.
 
 ## Decision matrix
 

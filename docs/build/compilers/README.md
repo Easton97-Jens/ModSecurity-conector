@@ -11,6 +11,12 @@ build, and an honest package path. A build, link, config check, start, or
 package-install result alone is not runtime, CRS, security, production, or
 full-matrix evidence.
 
+## Shared starting point
+
+Before any connector, [build libmodsecurity v3](libmodsecurity.md). The
+beginner sequence exists only there; the connector guides then start with their
+own host and connector.
+
 ## Decision matrix
 
 | Connector | Test path | Source build | Package status | Selected core path |

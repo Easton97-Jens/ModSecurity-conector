@@ -11,6 +11,12 @@ lokalen Source-Build und einen ehrlichen Paketweg. Ein Build, Link,
 Config-Check, Start oder Paketinstallationsresultat ist für sich allein keine
 Runtime-, CRS-, Sicherheits-, Produktions- oder Vollmatrix-Evidence.
 
+## Gemeinsamer Einstieg
+
+Vor jedem Connector zuerst [libmodsecurity v3 bauen](libmodsecurity.de.md).
+Der Einsteigerablauf steht nur dort; die Connector-Guides beginnen danach mit
+ihrem jeweiligen Host und Connector.
+
 ## Entscheidungsmatrix
 
 | Connector | Testweg | Source-Build | Paketstatus | Ausgewählter Kernpfad |
