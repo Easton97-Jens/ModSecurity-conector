@@ -45,6 +45,24 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
     def test_license_documents_require_german_companions(self) -> None:
         self.assertTrue(CHECKER.pair_required(Path("licenses/README.md")))
 
+    def test_fenced_code_blocks_must_match(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self.write(
+                root,
+                "docs/example.md",
+                "# Example\n\n**Language:** English | [Deutsch](example.de.md)\n\n```sh\necho English\n```\n",
+            )
+            self.write(
+                root,
+                "docs/example.de.md",
+                "# Beispiel\n\n**Sprache:** [English](example.md) | Deutsch\n\n```sh\necho Deutsch\n```\n",
+            )
+
+            errors = CHECKER.check_pairs_and_switches(root)
+
+        self.assertTrue(any("fenced code-block content differs" in error for error in errors))
+
     def test_rejects_local_german_companions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -101,4 +119,3 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

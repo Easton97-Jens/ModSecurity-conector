@@ -86,15 +86,16 @@ Intentional local, unversioned files are <code>AGENTS.md</code>,
 
 ## Tests added or changed
 
-Added <code>tests/test_bilingual_docs.py</code>. It exercises structural parity
-for <code>docs/</code>, license scope, forbidden local companions, required
-pull-request fields, and matching technical Change-Record identity values.
+Added <code>tests/test_bilingual_docs.py</code>. It exercises structural and
+fenced-code-block parity for <code>docs/</code>, license scope, forbidden local
+companions, required pull-request fields, and matching technical Change-Record
+identity values.
 
 ## Commands executed
 
 | Exact command | Exit code or result | Sanitized relevant summary | Canonical evidence path | Run ID |
 | --- | --- | --- | --- | --- |
-| <code>rtk .venv/bin/python -m unittest -v tests.test_bilingual_docs</code> | 0 | Five focused bilingual-checker tests passed. | None | None |
+| <code>rtk .venv/bin/python -m unittest -v tests.test_bilingual_docs</code> | 0 | Six focused bilingual-checker tests passed. | None | None |
 | <code>rtk make check-bilingual-docs</code> | 0 | Expanded pair, structure, Change-Record, pull-request, and local-companion checks reported <code>bilingual docs ok</code>. | None | None |
 | <code>rtk make check-doc-links</code> | 0 | Repository path references and Framework document links passed. | None | None |
 | <code>rtk git diff --check</code> | 0 | No whitespace diagnostics for tracked changes. | None | None |
@@ -151,4 +152,4 @@ risk.
 The scoped final diff and both language forms were reviewed. The focused unit,
 bilingual-documentation, link, and whitespace checks passed. No commit or pull
 request was created. This record is reconciled with the actual final diff and
-test outcomes; it will be rechecked after this record is added.
+test outcomes and was rechecked after this record update.

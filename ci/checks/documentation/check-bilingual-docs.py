@@ -250,6 +250,28 @@ def table_block_rows(text: str) -> list[int]:
     return blocks
 
 
+def fenced_blocks(text: str) -> list[str]:
+    blocks: list[str] = []
+    current: list[str] = []
+    in_fence = False
+    for line in text.splitlines():
+        if line.strip().startswith(FENCE_PREFIXES):
+            if in_fence:
+                current.append(line)
+                blocks.append("\n".join(current))
+                current = []
+                in_fence = False
+            else:
+                current = [line]
+                in_fence = True
+            continue
+        if in_fence:
+            current.append(line)
+    if in_fence:
+        blocks.append("\n".join(current))
+    return blocks
+
+
 def markdown_table_value(text: str, label: str) -> str | None:
     pattern = re.compile(rf"^\|\s*{re.escape(label)}\s*\|\s*(.*?)\s*\|\s*$", re.MULTILINE)
     match = pattern.search(text)
@@ -363,6 +385,12 @@ def check_pairs_and_switches(repo: Path) -> list[str]:
                     f"{rel_source}: table-row structure differs from {rel_companion} "
                     f"({english_tables!r} != {german_tables!r})"
                 )
+        if needs_structural_parity(rel_source) and (
+            fenced_blocks(source_text) != fenced_blocks(companion_text)
+        ):
+            errors.append(
+                f"{rel_source}: fenced code-block content differs from {rel_companion}"
+            )
         errors.extend(
             check_change_record_pair(
                 rel_source,

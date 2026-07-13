@@ -93,16 +93,16 @@ Absichtliche lokale, unversionierte Dateien sind <code>AGENTS.md</code>,
 
 ## Hinzugefügte oder geänderte Tests
 
-<code>tests/test_bilingual_docs.py</code> hinzugefügt. Der Test prüft
-Strukturparität für <code>docs/</code>, den Lizenz-Geltungsbereich, verbotene
-lokale Begleiter, erforderliche Pull-Request-Felder und übereinstimmende
-technische Change-Record-Identitätswerte.
+<code>tests/test_bilingual_docs.py</code> hinzugefügt. Der Test prüft Struktur-
+und Codeblockparität für <code>docs/</code>, den Lizenz-Geltungsbereich,
+verbotene lokale Begleiter, erforderliche Pull-Request-Felder und
+übereinstimmende technische Change-Record-Identitätswerte.
 
 ## Ausgeführte Befehle
 
 | Exakter Befehl | Exit-Code oder Ergebnis | Sanitisierte relevante Zusammenfassung | Kanonischer Evidence-Pfad | Run-ID |
 | --- | --- | --- | --- | --- |
-| <code>rtk .venv/bin/python -m unittest -v tests.test_bilingual_docs</code> | 0 | Fünf fokussierte Bilingual-Checker-Tests bestanden. | None | None |
+| <code>rtk .venv/bin/python -m unittest -v tests.test_bilingual_docs</code> | 0 | Sechs fokussierte Bilingual-Checker-Tests bestanden. | None | None |
 | <code>rtk make check-bilingual-docs</code> | 0 | Erweiterte Paar-, Struktur-, Change-Record-, Pull-Request- und lokale-Begleiter-Prüfungen meldeten <code>bilingual docs ok</code>. | None | None |
 | <code>rtk make check-doc-links</code> | 0 | Repository-Pfadreferenzen und Framework-Dokumentlinks bestanden. | None | None |
 | <code>rtk git diff --check</code> | 0 | Keine Whitespace-Diagnostik für getrackte Änderungen. | None | None |
@@ -161,5 +161,5 @@ beseitigen dieses Risiko aber nicht vollständig.
 Der abgegrenzte finale Diff und beide Sprachfassungen wurden geprüft. Die
 fokussierten Unit-, Bilingual-Dokumentations-, Link- und Whitespace-Checks
 bestanden. Es wurde kein Commit und kein Pull Request erstellt. Dieser Record
-ist mit tatsächlichem finalem Diff und Testergebnissen abgeglichen und wird
-nach dem Hinzufügen erneut geprüft.
+ist mit tatsächlichem finalem Diff und Testergebnissen abgeglichen und nach
+dieser Record-Aktualisierung erneut geprüft.
