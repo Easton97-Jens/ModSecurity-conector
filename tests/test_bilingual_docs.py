@@ -116,6 +116,86 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
 
         self.assertTrue(any("Base revision" in error and "differs" in error for error in errors))
 
+    def test_common_design_note_current_contract_passes_for_both_languages(self) -> None:
+        self.assertEqual([], CHECKER.check_common_design_note_contract(ROOT))
+
+    def test_common_design_note_rejects_scaffolded_status_and_current_sidecar_route(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            english = (ROOT / "common/docs/design.md").read_text(encoding="utf-8")
+            german = (ROOT / "common/docs/design.de.md").read_text(encoding="utf-8")
+            self.write(
+                root,
+                "common/docs/design.md",
+                english.replace(
+                    "Status: current-boundary reference", "Status: scaffolded"
+                ).replace(
+                    "| lighttpd | `patched-native-lighttpd` |",
+                    "| lighttpd | `sidecar_proxy` |",
+                )
+                + "\nintegration_mode=sidecar_proxy\n",
+            )
+            self.write(
+                root,
+                "common/docs/design.de.md",
+                german.replace(
+                    "Status: aktuelle Grenzreferenz", "Status: eingerüstet"
+                ).replace(
+                    "| lighttpd | `patched-native-lighttpd` |",
+                    "| lighttpd | `sidecar_proxy` |",
+                )
+                + "\nintegration_mode=sidecar_proxy\n",
+            )
+
+            errors = CHECKER.check_common_design_note_contract(root)
+
+        for relative_path in ("common/docs/design.md", "common/docs/design.de.md"):
+            self.assertTrue(
+                any(
+                    error.startswith(f"{relative_path}:")
+                    and "obsolete scaffolded status" in error
+                    for error in errors
+                )
+            )
+            self.assertTrue(
+                any(
+                    error.startswith(f"{relative_path}:")
+                    and "selected route for lighttpd" in error
+                    for error in errors
+                )
+            )
+            self.assertTrue(
+                any(
+                    error.startswith(f"{relative_path}:")
+                    and "historical integration mode" in error
+                    for error in errors
+                )
+            )
+
+    def test_common_design_note_allows_an_explicitly_historical_compatibility_route(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            english = (ROOT / "common/docs/design.md").read_text(encoding="utf-8")
+            german = (ROOT / "common/docs/design.de.md").read_text(encoding="utf-8")
+            self.write(
+                root,
+                "common/docs/design.md",
+                english
+                + "\nHistorical compatibility material: "
+                "integration_mode=sidecar_proxy is compatibility_only.\n",
+            )
+            self.write(
+                root,
+                "common/docs/design.de.md",
+                german
+                + "\nHistorisches Kompatibilitätsmaterial: "
+                "integration_mode=sidecar_proxy ist compatibility_only.\n",
+            )
+
+            errors = CHECKER.check_common_design_note_contract(root)
+
+        self.assertEqual([], errors)
+
 
 if __name__ == "__main__":
     unittest.main()

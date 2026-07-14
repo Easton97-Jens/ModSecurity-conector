@@ -140,3 +140,4 @@ raw data and build output remain outside the checkout.
 | CR-20260713-c-cpp-diagnostics | 2026-07-13 | Reproducible C and C++ diagnostics | [English](CR-20260713-c-cpp-diagnostics.md) / [Deutsch](CR-20260713-c-cpp-diagnostics.de.md) |
 | CR-20260714-clang-analysis-baseline | 2026-07-14 | Advisory Clang analysis baseline | [English](CR-20260714-clang-analysis-baseline.md) / [Deutsch](CR-20260714-clang-analysis-baseline.de.md) |
 | CR-20260714-repository-concept | 2026-07-14 | Repository product-monorepo concept | [English](CR-20260714-repository-concept.md) / [Deutsch](CR-20260714-repository-concept.de.md) |
+| CR-20260714-common-design-note | 2026-07-14 | Current Common design-note boundary | [English](CR-20260714-common-design-note.md) / [Deutsch](CR-20260714-common-design-note.de.md) |

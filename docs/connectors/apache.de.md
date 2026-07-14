@@ -28,6 +28,16 @@ payload-sichere Event-Primitiven; es besitzt keine Apache-Objekte.
 | P4 | Aktuelle Output-Buckets inkrementell aufnehmen und bei EOS abschließen | Kein connector-eigener vollständiger Response-Puffer über Aufrufe hinweg |
 | Logging | Nur Metadaten enthaltende Events ausgeben und Transaktionszustand freigeben | Event-Payloads enthalten keine Response-Bodies |
 
+Jede erfolgreich erzeugte native <code>Transaction</code> gehört der primären
+Apache-Anfrage, die sie erzeugt hat. Der Adapter veröffentlicht sie erst nach
+erfolgreicher Erzeugung, registriert ein normales Cleanup am
+<code>r-&gt;pool</code> dieser Anfrage und löscht die Owner-Notiz sowie den
+nativen Pointer, bevor <code>msc_transaction_cleanup</code> ausgeführt wird.
+Dies ist ein Lifecycle-Vertrag auf Quellcodeebene und kein Runtime-Nachweis.
+Interne Redirects und Subrequests behalten ihre bestehende, absichtliche
+Wiederverwendung des primären Kontexts; getrennte Top-Level-Anfragen auf einer
+Keepalive-Verbindung erhalten getrennte Request-Pools und Transaktionen.
+
 ## Build
 
 Der [Apache-Compiler-Guide](../build/compilers/apache.de.md) beschreibt APXS,
