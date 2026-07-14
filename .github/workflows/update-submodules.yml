@@ -20,11 +20,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: master
           submodules: recursive
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Update submodules recursively
         run: git submodule update --remote --recursive
@@ -47,6 +48,8 @@ jobs:
 
       - name: Commit and push submodule update branch
         if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -60,7 +63,7 @@ jobs:
           fi
 
           git commit -m "chore: update submodules"
-          git push --force-with-lease origin chore/update-submodules
+          git push --force-with-lease "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" chore/update-submodules
 
       - name: Create pull request with GitHub CLI
         if: steps.changes.outputs.changed == 'true'
