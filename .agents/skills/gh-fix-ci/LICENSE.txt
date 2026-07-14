@@ -1,0 +1,6 @@
+Apache License, Version 2.0
+
+The complete, unmodified Apache License 2.0 text is retained in
+`../create-plan/LICENSE.txt`. This adapted skill is distributed under the same
+Apache-2.0 license as its upstream source. The authoritative source copy is
+https://raw.githubusercontent.com/openai/plugins/11c74d6ba24d3a6d48f54a194cd00ef3beea18f9/plugins/github/skills/gh-fix-ci/LICENSE.txt
