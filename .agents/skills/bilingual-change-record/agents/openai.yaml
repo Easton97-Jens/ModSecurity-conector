@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bilingual Change Record"
+  short_description: "Maintain paired EN/DE change records"
+  default_prompt: "Use $bilingual-change-record to reconcile this EN/DE Change Record pair."

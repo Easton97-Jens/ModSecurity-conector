@@ -1,0 +1,4 @@
+interface:
+  display_name: "CI Failure Triage"
+  short_description: "Classify exact-SHA CI failures"
+  default_prompt: "Use $ci-failure-triage to classify this failed CI run against master."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Security Finding Lifecycle"
+  short_description: "Validate and remediate security findings"
+  default_prompt: "Use $security-finding-lifecycle to validate and safely remediate this reported finding."

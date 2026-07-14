@@ -1,0 +1,4 @@
+interface:
+  display_name: "Framework Parent Handoff"
+  short_description: "Coordinate separate Framework delivery"
+  default_prompt: "Use $framework-parent-handoff to plan this Framework-to-Parent handoff."

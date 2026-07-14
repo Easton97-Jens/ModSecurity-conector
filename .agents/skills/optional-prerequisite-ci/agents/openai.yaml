@@ -1,0 +1,4 @@
+interface:
+  display_name: "Optional Prerequisite CI"
+  short_description: "Classify missing CI prerequisites"
+  default_prompt: "Use $optional-prerequisite-ci to classify this optional CI prerequisite."

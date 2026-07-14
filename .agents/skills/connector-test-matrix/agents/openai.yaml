@@ -1,0 +1,4 @@
+interface:
+  display_name: "Connector Test Matrix"
+  short_description: "Plan scoped connector evidence"
+  default_prompt: "Use $connector-test-matrix to disposition connector, CRS/MRTS, and protocol evidence."

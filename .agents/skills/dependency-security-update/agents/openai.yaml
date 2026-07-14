@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dependency Security Update"
+  short_description: "Remediate a validated dependency advisory"
+  default_prompt: "Use $dependency-security-update to assess and safely update this dependency."

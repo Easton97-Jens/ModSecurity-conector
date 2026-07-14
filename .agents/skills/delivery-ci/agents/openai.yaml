@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delivery CI"
+  short_description: "Deliver a verified versioned change"
+  default_prompt: "Use $delivery-ci to deliver this finished change through exact-SHA CI."
