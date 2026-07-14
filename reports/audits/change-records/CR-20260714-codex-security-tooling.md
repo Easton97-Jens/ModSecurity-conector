@@ -11,8 +11,8 @@
 | Date (UTC) | 2026-07-14T00:00:00Z |
 | Author or executing agent | Codex |
 | Base revision | be0356af96ef582c3a7dbc0169c7c8b27b7b6b34 |
-| Related issue or pull request | Draft PR pending |
-| Final revision | Not committed; updated before delivery |
+| Related issue or pull request | [Draft PR #44](https://github.com/Easton97-Jens/ModSecurity-conector/pull/44) |
+| Final revision | Delivery candidate <code>8a3982d29b5007e7c421a193933a18cc1ba3696b</code>; evidence-record commit pending |
 
 ## Motivation and problem statement
 
@@ -41,11 +41,11 @@ diff and do not replace the sandbox, approval policy, or managed requirements.
 | Eight shared skills follow the current documented format and validate | Met locally | Skill validator and focused tests |
 | Local read-only agents and deterministic hooks are syntactically valid and ignored | Met locally | TOML/JSON/Python checks, synthetic hook decisions, <code>git check-ignore</code> |
 | Security metadata records approved upstreams, policy dispositions, releases, immutable SHAs, checksums, permissions, platforms, availability, and status | Met locally | Security-tools manifest validator |
-| actionlint and zizmor analyze all workflows independently | Met locally | Checksum-verified local tools; unsafe fixture rejected and safe fixture accepted |
-| Gitleaks uses redacted PR-range semantics without remediation | Met locally; final task range pending commit | Checksum-verified local CLI run |
+| actionlint and zizmor analyze all workflows independently | Met locally and for the delivery candidate | Checksum-verified local tools; unsafe fixture rejected and safe fixture accepted; run <code>29357810936</code> passed |
+| Gitleaks uses redacted PR-range semantics without remediation | Met locally and for the delivery candidate | 13-commit redacted base-to-candidate range found no leaks; run <code>29357811166</code> passed |
 | Dependency Review is not enabled without the required GitHub feature | Met | <code>blocked_feature_unavailable</code> disposition |
-| CodeQL, Scorecard, and OSV workflows use minimal documented permissions and immutable caller pins | Implemented; remote evidence pending | Workflow review and manifest |
-| Framework and Gitlink remain unchanged | Pending final diff confirmation | Final delivery verification |
+| CodeQL, Scorecard, and OSV workflows use minimal documented permissions and immutable caller pins | Met for the delivery candidate | CodeQL <code>29357810753</code>, Scorecard <code>29357810737</code>, and OSV PR comparison <code>29357812062</code> passed |
+| Framework and Gitlink remain unchanged | Met for the delivery candidate | <code>make check-framework</code>; Framework SHA <code>aac462cf217cdd5d09a56e3029c279459158f3ac</code>; no Gitlink diff |
 
 ## Alternatives investigated
 
@@ -53,7 +53,7 @@ The Gitleaks Action was not selected because its current EULA, organization
 license requirement, default reporting behavior, and potential write surface
 are unnecessary for the official CLI. A direct OSV CLI from a separate
 repository was not installed because the approved integration is the listed
-official reusable Action. Dependency Review was not replaced with a weaker
+official GitHub Action. Dependency Review was not replaced with a weaker
 substitute while the dependency-graph feature is unavailable. Artifact
 attestations were not added because no real release workflow exists.
 
@@ -74,7 +74,7 @@ secrets, and automated-fix behavior.
 | CodeQL | <code>github/codeql-action</code>; <code>github/codeql-action/security/policy</code> | MIT Action; CodeQL CLI terms apply | <code>v4.37.0</code>; <code>99df26d4f13ea111d4ec1a7dddef6063f76b97e9</code> | GitHub-hosted Linux; open-source GitHub repositories supported | SHA-pinned Action; <code>enabled</code> |
 | Dependency Review | <code>actions/dependency-review-action</code>; <code>actions/dependency-review-action/security/policy</code> | MIT | <code>v5.0.0</code>; <code>a1d282b36b6f3519aa1f3fc636f609c47dddb294</code> | GitHub-hosted Linux; required graph/SBOM capability unavailable here | Not enabled; <code>blocked_feature_unavailable</code> |
 | Scorecard | <code>ossf/scorecard-action</code>; <code>ossf/scorecard-action/security/policy</code> | Apache-2.0 | <code>v2.4.3</code>; <code>4eaacf0543bb3f2c246792bd56e8cdeffafb205a</code> | GitHub-hosted Linux; free for public repositories | SHA-pinned Action; <code>enabled</code> |
-| OSV-Scanner | <code>google/osv-scanner-action</code>; <code>google/osv-scanner-action/security/policy</code> | Apache-2.0 | <code>v2.3.8</code>; <code>9a498708959aeaef5ef730655706c5a1df1edbc2</code> | GitHub-hosted Linux; no repository secret | SHA-pinned reusable workflow; <code>enabled</code> |
+| OSV-Scanner | <code>google/osv-scanner-action</code>; <code>google/osv-scanner-action/security/policy</code> | Apache-2.0 | <code>v2.3.8</code>; <code>9a498708959aeaef5ef730655706c5a1df1edbc2</code> | GitHub-hosted Linux; no repository secret | SHA-pinned direct PR leaf actions and scheduled reusable workflow; <code>enabled</code> |
 
 ## Implementation decision and rationale
 
@@ -94,6 +94,15 @@ steps where it is not required.
 The pin validator validates every <code>.yml</code> and <code>.yaml</code>
 workflow recursively against a versioned official-release map, not merely a
 40-character SHA and version-shaped comment.
+
+The published OSV <code>v2.3.8</code> PR reusable workflow exceeded GitHub's
+1 MiB job-output limit while its scanner, reporter, SARIF upload, and
+base-versus-PR comparison all succeeded. The release-pinned PR path therefore
+mirrors its scanner/reporter steps without exporting complete JSON as job
+outputs; the scheduled full scan remains on the official reusable workflow.
+This resolves the task-owned <code>workflow_configuration_failure</code>
+without using an unreleased upstream commit or weakening
+<code>--fail-on-vuln=true</code>.
 
 ## Changed files
 
@@ -127,20 +136,28 @@ They are not staged or committed.
 | <code>make check-codex-skills</code> | 0 | Versioned skill target passed | None | None |
 | <code>python3 ci/checks/security/check_security_tools_manifest.py</code> | 0 | Manifest and workflow pins valid | None | None |
 | <code>make check-security-tools</code> | 0 | Manifest, release map, and all workflow pins valid | None | None |
-| <code>python3 -m unittest -v tests.test_codex_skills tests.test_codex_hook_policy tests.test_security_tools_manifest tests.test_fetch_security_tool</code> | 0 | Eighteen focused tests passed | None | None |
+| <code>python3 -m unittest -v tests.test_codex_skills tests.test_codex_hook_policy tests.test_security_tools_manifest tests.test_fetch_security_tool</code> | 0 | Twenty-two focused tests passed | None | None |
 | <code>actionlint -shellcheck=/usr/bin/shellcheck</code> | 0 | All discovered workflows valid with ShellCheck integration | None | None |
 | <code>zizmor --offline .github/workflows</code> | 0 | All workflows report no findings | None | None |
 | <code>zizmor --offline ci/fixtures/zizmor/insecure.yml</code> | Nonzero as expected | Dangerous trigger and template injection were detected | None | None |
 | <code>zizmor --offline ci/fixtures/zizmor/safe.yml</code> | 0 | Safe fixture accepted | None | None |
 | <code>gitleaks git --redact=100 --log-opts="--all" .</code> | 1 | 83 historical candidates; no baseline was created and this is not treated as a task regression | None | None |
+| <code>gitleaks git --redact=100 --log-opts="be0356af96ef582c3a7dbc0169c7c8b27b7b6b34..HEAD" .</code> | 0 | Thirteen delivery-candidate commits scanned; no leaks found | None | None |
 | <code>make check-bilingual-docs</code> | 0 | Paired documentation valid | None | None |
 | <code>make check-doc-links</code> | 0 | Links and repository path references valid | None | None |
 | <code>make quick-check</code> | 2 | Incomplete: local DNS could not resolve the ModSecurity upstream during provisioning, so the Apache/APXS prerequisite remained unavailable; no task-source defect demonstrated | None | None |
 | <code>make lint</code> | 2 | Incomplete: local Apache/APXS provisioning reported <code>missing_local_httpd_build</code>; no task-source defect demonstrated | None | None |
+| GitHub Actions security workflow lint | 0 | actionlint and zizmor passed | GitHub Actions | <code>29357810936</code> |
+| GitHub Actions secret scan | 0 | Pull-request commit-range scan passed | GitHub Actions | <code>29357811166</code> |
+| GitHub Actions CodeQL | 0 | Actions, Go Envoy, Go Traefik, and bounded C/C++ jobs passed | GitHub Actions | <code>29357810753</code> |
+| GitHub Actions Scorecard | 0 | Same-repository pull-request job passed; default-branch job skipped by design | GitHub Actions | <code>29357810737</code> |
+| GitHub Actions OSV PR comparison | 0 | Base/PR scans, reporter, SARIF, and artifacts passed without job-output export | GitHub Actions | <code>29357812062</code> |
+| SonarCloud quality gate | 0 | New reliability, security, and maintainability ratings passed | SonarCloud PR #44 | None |
 
-The final task-commit Gitleaks range, commit, push, draft PR, and final-SHA CI
-commands are added before delivery; no unexecuted command is represented as
-passed.
+The delivery candidate was pushed to <code>origin</code>; its remote SHA matched
+<code>8a3982d29b5007e7c421a193933a18cc1ba3696b</code>, and Draft PR #44 remains
+open with no merge or auto-merge. The evidence-record commit still requires its
+own exact-SHA verification; no unexecuted command is represented as passed.
 
 ## Security impact
 
@@ -179,9 +196,10 @@ runtime evidence.
 
 ## Known limitations
 
-OSV local execution is <code>not_executed</code> until its approved GitHub
-reusable workflow runs; no unlisted direct CLI was installed. Dependency Review
-is <code>blocked_feature_unavailable</code>. CodeQL does not claim complete
+OSV local execution is <code>not_executed</code>; no unlisted direct CLI was
+installed. Its approved GitHub PR comparison passed for the delivery candidate,
+while the scheduled full scan remains future evidence. Dependency Review is
+<code>blocked_feature_unavailable</code>. CodeQL does not claim complete
 external connector C/C++ coverage. Local hooks require a trusted project,
 <code>/hooks</code> review, and session restart/resume to become active.
 <code>pull_request</code> analysis avoids the unsafe
@@ -193,9 +211,9 @@ is required for that guarantee.
 
 Scorecard and OSV retain nested mutable Docker/action references beyond the
 caller SHA pin. Gitleaks full-history results may need separately reviewed
-baseline handling. CodeQL/OSV/SARIF availability remains subject to actual
-GitHub workflow execution. Scanner reports require reachability and
-false-positive triage before remediation. These risks are documented rather
+baseline handling. Scheduled CodeQL/OSV/SARIF availability remains subject to
+actual future GitHub workflow execution. Scanner reports require reachability
+and false-positive triage before remediation. These risks are documented rather
 than automatically suppressed.
 
 Scorecard's experimental exact-head PR path deliberately runs only for
@@ -205,16 +223,16 @@ retains the SARIF upload.
 
 The redacted local full-history Gitleaks run reported 83 historical candidates.
 No baseline, suppression, deletion, or rotation was created in this task. The
-post-commit base-to-final range is the task-regression evidence and remains
-required before delivery.
+redacted base-to-delivery-candidate range scanned 13 commits and found no leaks.
 
 ## Checks not run and rationale
 
 No large connector build, connector runtime, CRS/MRTS matrix, or H1/H2/H3
 transport test ran because no connector behavior changed. A direct local OSV
-CLI did not run because it is outside the approved upstream integration. Remote
-CodeQL, OSV, Scorecard, and final delivery CI are pending final branch push.
-The requested <code>make check-repository-path-references</code> target does
+CLI did not run because it is outside the approved upstream integration. The
+scheduled OSV and default-branch Scorecard scans did not run for a pull request;
+their skipped status is expected. The requested
+<code>make check-repository-path-references</code> target does
 not exist; <code>make check-doc-links</code> invoked its underlying repository
 path-reference checker and passed. A <code>SKIP_RUNTIME_COMPONENT_PREPARE=1
 make lint</code> retry was not run because that switch does not cover lint's
@@ -223,8 +241,12 @@ reports without adding evidence.
 
 ## Final diff and review status
 
-In progress. Before delivery, reconcile this record with the final diff,
-confirm whitespace and bilingual/link checks, stage only task-owned files,
-commit atomically, push the task branch, verify the remote final SHA, create a
-draft PR, and record exact-SHA CI outcomes. No merge or auto-merge is
-authorized.
+The delivery candidate <code>8a3982d29b5007e7c421a193933a18cc1ba3696b</code>
+is pushed and remote-SHA verified. All task-owned security and quality runs
+passed. Five existing structure/lint jobs failed because the runner lacks
+usable Apache <code>apxs</code>/headers; comparison with <code>master</code>
+confirmed the same independent failure class. They are
+<code>unrelated_repository_failure</code>, so the candidate delivery status is
+<code>ci_blocked_unrelated_failure</code>. This evidence-only record update
+must be committed, pushed, and verified for its own exact SHA. No merge or
+auto-merge is authorized.
