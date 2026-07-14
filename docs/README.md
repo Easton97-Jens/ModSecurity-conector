@@ -12,6 +12,7 @@ complete matrix, or strict behavior for every connector.
 | Need | Canonical document | Source-of-truth boundary |
 | --- | --- | --- |
 | Initialize a checkout | [Getting started](getting-started.md) | Framework setup and the limited first validation path |
+| Target product monorepo concept | [Repository concept](repository-concept.md) | Binding target-state ownership, product, lifecycle, and Parent/Framework boundary |
 | Repository architecture | [Architecture](architecture.md) | Checked-in source ownership and documented lifecycle boundary |
 | Host, runtime, and engine configuration | [Configuration](configuration.md) | Complete per-connector syntax remains in <code>examples/</code> |
 | Variables and terms | [Variables](reference/variables.md) / [Glossary](reference/glossary.md) | Root Makefile, wrappers, and documented contracts |

@@ -156,32 +156,36 @@ ngx_inline char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p)
 int
 ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_request_t *r, ngx_int_t early_log)
 {
-    char *log = NULL;
+    const char *log = NULL;
     ModSecurityIntervention intervention;
-    intervention.status = 200;
-    intervention.url = NULL;
-    intervention.log = NULL;
-    intervention.disruptive = 0;
+    ngx_int_t result = 0;
+    ngx_str_t location_value;
+    ngx_table_elt_t *location = NULL;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_http_modsecurity_conf_t  *mcf;
+
+    ngx_memzero(&intervention, sizeof(intervention));
+    intervention.status = 200;
 
     dd("processing intervention");
 
     ctx = ngx_http_modsecurity_get_module_ctx(r);
     if (ctx == NULL)
     {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        result = NGX_HTTP_INTERNAL_SERVER_ERROR;
+        goto cleanup;
     }
 
     if (msc_intervention(transaction, &intervention) == 0) {
         dd("nothing to do");
-        return 0;
+        goto cleanup;
     }
     ctx->last_intervention_status = intervention.status;
     ctx->last_intervention_rule_id[0] = '\0';
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
     if (mcf == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        result = NGX_HTTP_INTERNAL_SERVER_ERROR;
+        goto cleanup;
     }
 
     /* Extract only the bounded rule ID before libmodsecurity's message is
@@ -202,18 +206,15 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
     }
 
-    if (intervention.log != NULL) {
-        free(intervention.log);
-    }
-
-    if (intervention.url != NULL)
+    if (intervention.url != NULL && intervention.url[0] != '\0')
     {
         dd("intervention -- redirecting to: %s with status code: %d", intervention.url, intervention.status);
 
         if (r->header_sent)
         {
             dd("Headers are already sent. Cannot perform the redirection at this point.");
-            return -1;
+            result = -1;
+            goto cleanup;
         }
 
         /**
@@ -227,16 +228,33 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
          * that location->hash should be set to 1.
          *
          */
-        ngx_http_clear_location(r);
-        ngx_str_t a = ngx_string("");
+        location_value.len = ngx_strlen(intervention.url);
+        if (location_value.len > NGX_MAX_SIZE_T_VALUE - 1) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "modsecurity intervention redirect URL is too long");
+            result = NGX_HTTP_INTERNAL_SERVER_ERROR;
+            goto cleanup;
+        }
+        location_value.data = ngx_pnalloc(r->pool, location_value.len + 1U);
+        if (location_value.data == NULL) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "modsecurity intervention redirect URL allocation failed");
+            result = NGX_HTTP_INTERNAL_SERVER_ERROR;
+            goto cleanup;
+        }
+        ngx_memcpy(location_value.data, intervention.url, location_value.len);
+        location_value.data[location_value.len] = '\0';
 
-        a.data = (unsigned char *)intervention.url;
-        a.len = strlen(intervention.url);
-
-        ngx_table_elt_t *location = NULL;
         location = ngx_list_push(&r->headers_out.headers);
+        if (location == NULL) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "modsecurity intervention Location header allocation failed");
+            result = NGX_HTTP_INTERNAL_SERVER_ERROR;
+            goto cleanup;
+        }
+        ngx_http_clear_location(r);
         ngx_str_set(&location->key, "Location");
-        location->value = a;
+        location->value = location_value;
         r->headers_out.location = location;
         r->headers_out.location->hash = 1;
 
@@ -244,7 +262,8 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         ngx_http_modsecurity_store_ctx_header(r, &location->key, &location->value);
 #endif
 
-        return intervention.status;
+        result = intervention.status;
+        goto cleanup;
     }
 
     if (intervention.status != 200)
@@ -266,12 +285,16 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         if (r->header_sent)
         {
             dd("Headers are already sent. Cannot perform the redirection at this point.");
-            return -1;
+            result = -1;
+            goto cleanup;
         }
         dd("intervention -- returning code: %d", intervention.status);
-        return intervention.status;
+        result = intervention.status;
     }
-    return 0;
+
+cleanup:
+    msc_intervention_cleanup(&intervention);
+    return result;
 }
 
 

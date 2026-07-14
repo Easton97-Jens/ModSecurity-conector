@@ -79,6 +79,7 @@ APACHE_SOURCES="
 connectors/apache/src/msc_apache_mapper.c
 connectors/apache/src/msc_config.c
 connectors/apache/src/msc_filters.c
+connectors/apache/src/msc_utils.c
 "
 COMMON_SOURCES="
 common/src/config.c

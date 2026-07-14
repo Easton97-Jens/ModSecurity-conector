@@ -54,6 +54,10 @@
 typedef struct
 {
     request_rec *r;
+    /* The primary request owns the native transaction.  `r` changes while
+     * sharing the context with redirects and subrequests, so cleanup must
+     * retain this immutable owner separately. */
+    request_rec *owner_request;
     Transaction *t;
     apr_size_t request_body_bytes_seen;
     apr_size_t request_body_bytes_inspected;

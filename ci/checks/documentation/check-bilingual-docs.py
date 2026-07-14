@@ -99,6 +99,62 @@ CHANGE_RECORD_IDENTITY_LABELS = (
     ("Date (UTC)", "Datum (UTC)"),
     ("Base revision", "Basis-Revision"),
 )
+COMMON_DESIGN_NOTE_PATHS = {
+    "English": Path("common/docs/design.md"),
+    "Deutsch": Path("common/docs/design.de.md"),
+}
+COMMON_DESIGN_NOTE_STATUS = {
+    "English": "Status: current-boundary reference",
+    "Deutsch": "Status: aktuelle Grenzreferenz",
+}
+COMMON_DESIGN_NOTE_REQUIRED_CONTENT = {
+    "English": (
+        "[Repository concept](../../docs/repository-concept.md)",
+        "[Architecture](../../docs/architecture.md)",
+        "[Testing and evidence](../../docs/testing-and-evidence.md)",
+        "`common/` is connector-neutral",
+        "must not include or depend on host SDK types",
+        "bounded views or copies",
+        "`connectors/<name>/`",
+        "`modules/ModSecurity-test-Framework/`",
+    ),
+    "Deutsch": (
+        "[Repository-Konzept](../../docs/repository-concept.de.md)",
+        "[Architektur](../../docs/architecture.de.md)",
+        "[Tests und Nachweise](../../docs/testing-and-evidence.de.md)",
+        "`common/` bleibt host-neutral",
+        "keine Host-SDK-Typen",
+        "begrenzte Ansichten oder Kopien",
+        "`connectors/<name>/`",
+        "`modules/ModSecurity-test-Framework/`",
+    ),
+}
+COMMON_DESIGN_SELECTED_ROUTES = {
+    "Apache": "native-httpd-module",
+    "NGINX": "native-nginx-http-module",
+    "HAProxy": "native-htx-filter",
+    "Envoy": "ext_proc",
+    "Traefik": "native-traefik-middleware",
+    "lighttpd": "patched-native-lighttpd",
+}
+COMMON_DESIGN_ROUTE_ROW_RE = re.compile(
+    r"^\|\s*([^|]+?)\s*\|\s*`([^`]+)`\s*\|",
+    re.MULTILINE,
+)
+COMMON_DESIGN_HISTORICAL_TOKENS = (
+    "sidecar_proxy",
+    "http-ext-authz-service",
+    "http-forwardauth-service",
+    "spoe-spop-agent",
+    "ext_authz",
+    "forwardauth",
+)
+COMMON_DESIGN_HISTORICAL_MARKERS = (
+    "historical",
+    "historisch",
+    "compatibility_only",
+    "kompatibilität",
+)
 HEADING_RE = re.compile(r"^(#{1,6})\s+\S", re.MULTILINE)
 TABLE_ROW_RE = re.compile(r"^\|.*\|\s*$")
 
@@ -416,6 +472,63 @@ def check_pairs_and_switches(repo: Path) -> list[str]:
     return errors
 
 
+def check_common_design_note_contract(repo: Path) -> list[str]:
+    """Keep the Common design note aligned with the binding selected routes."""
+    errors: list[str] = []
+    for language, relative_path in COMMON_DESIGN_NOTE_PATHS.items():
+        path = repo / relative_path
+        if not path.is_file():
+            errors.append(f"{relative_path}: missing Common design note")
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        normalized_text = " ".join(text.split())
+        if COMMON_DESIGN_NOTE_STATUS[language] not in text:
+            errors.append(
+                f"{relative_path}: missing current Common design-note status "
+                f"{COMMON_DESIGN_NOTE_STATUS[language]!r}"
+            )
+        for required in COMMON_DESIGN_NOTE_REQUIRED_CONTENT[language]:
+            if required not in normalized_text:
+                errors.append(
+                    f"{relative_path}: missing required Common design-note content "
+                    f"{required!r}"
+                )
+        prohibited_status = "scaffolded" if language == "English" else "eingerüstet"
+        if prohibited_status in text.casefold():
+            errors.append(
+                f"{relative_path}: obsolete scaffolded status is not a current architecture claim"
+            )
+
+        route_rows = [
+            (connector.strip(), route)
+            for connector, route in COMMON_DESIGN_ROUTE_ROW_RE.findall(text)
+        ]
+        routes = dict(route_rows)
+        if len(routes) != len(route_rows):
+            errors.append(f"{relative_path}: selected-route rows must not repeat a connector")
+        for connector, expected_route in COMMON_DESIGN_SELECTED_ROUTES.items():
+            route = routes.get(connector)
+            if route != expected_route:
+                errors.append(
+                    f"{relative_path}: selected route for {connector} must be "
+                    f"{expected_route!r}, found {route!r}"
+                )
+        unexpected_connectors = sorted(set(routes) - set(COMMON_DESIGN_SELECTED_ROUTES))
+        for connector in unexpected_connectors:
+            errors.append(f"{relative_path}: unexpected selected-route row for {connector}")
+
+        for line_number, line in enumerate(text.splitlines(), 1):
+            normalized = line.casefold()
+            if not any(token in normalized for token in COMMON_DESIGN_HISTORICAL_TOKENS):
+                continue
+            if not any(marker in normalized for marker in COMMON_DESIGN_HISTORICAL_MARKERS):
+                errors.append(
+                    f"{relative_path}:{line_number}: historical integration mode must be "
+                    "explicitly marked historical or compatibility_only"
+                )
+    return errors
+
+
 def normalized_targets(line: str) -> list[str]:
     targets = [match.group(1).strip() for match in LINK_RE.finditer(line)]
     reference = REFERENCE_LINK_RE.match(line)
@@ -520,6 +633,7 @@ def main(argv: list[str] | None = None) -> int:
 
     errors: list[str] = []
     errors.extend(check_pairs_and_switches(repo))
+    errors.extend(check_common_design_note_contract(repo))
     errors.extend(check_pr_template(repo))
     errors.extend(check_forbidden_local_language_companions(repo))
     errors.extend(check_generated_german_notes(repo))

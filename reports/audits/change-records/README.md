@@ -138,3 +138,8 @@ raw data and build output remain outside the checkout.
 | CR-20260713-change-traceability-governance | 2026-07-13 | Versioned change-traceability governance | [English](CR-20260713-change-traceability-governance.md) / [Deutsch](CR-20260713-change-traceability-governance.de.md) |
 | CR-20260713-bilingual-policy-enforcement | 2026-07-13 | Bilingual policy enforcement | [English](CR-20260713-bilingual-policy-enforcement.md) / [Deutsch](CR-20260713-bilingual-policy-enforcement.de.md) |
 | CR-20260713-c-cpp-diagnostics | 2026-07-13 | Reproducible C and C++ diagnostics | [English](CR-20260713-c-cpp-diagnostics.md) / [Deutsch](CR-20260713-c-cpp-diagnostics.de.md) |
+| CR-20260714-clang-analysis-baseline | 2026-07-14 | Advisory Clang analysis baseline | [English](CR-20260714-clang-analysis-baseline.md) / [Deutsch](CR-20260714-clang-analysis-baseline.de.md) |
+| CR-20260714-repository-concept | 2026-07-14 | Repository product-monorepo concept | [English](CR-20260714-repository-concept.md) / [Deutsch](CR-20260714-repository-concept.de.md) |
+| CR-20260714-common-design-note | 2026-07-14 | Current Common design-note boundary | [English](CR-20260714-common-design-note.md) / [Deutsch](CR-20260714-common-design-note.de.md) |
+| CR-20260714-apache-request-transaction-cleanup | 2026-07-14 | Apache request transaction cleanup | [English](CR-20260714-apache-request-transaction-cleanup.md) / [Deutsch](CR-20260714-apache-request-transaction-cleanup.de.md) |
+| CR-20260714-grpc-go-2026-4762 | 2026-07-14 | Update gRPC to address GO-2026-4762 | [English](CR-20260714-grpc-go-2026-4762.md) / [Deutsch](CR-20260714-grpc-go-2026-4762.de.md) |

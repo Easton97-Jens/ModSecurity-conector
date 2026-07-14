@@ -24,7 +24,7 @@ matrix, or runtime-verification claim.
 | \`runtime/\` | Reusable local decision-service/runtime support | It must remain host-neutral and must not become a server hook implementation. |
 | \`rules/\` | Checked-in targeted smoke rules | These are repository test inputs, not a statement of complete rule coverage. |
 | \`scripts/\` | Local test/evidence helpers | Add portable helper code here only when it has no host SDK or system-path dependency. |
-| \`docs/\` | Detailed design notes | The [Common architecture](../docs/architecture.md) is the current documentation index for boundaries and ownership. |
+| \`docs/\` | Current Common boundary note | The [Common design note](docs/design.md) summarizes the current Common boundary; the [Common architecture](../docs/architecture.md) remains the current documentation index for boundaries and ownership. |
 
 The checked-in headers and source are authoritative for the shared code
 contract. The root [Makefile](../Makefile) is authoritative for validation

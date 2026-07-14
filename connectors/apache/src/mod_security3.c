@@ -224,6 +224,10 @@ static msc_t *create_tx_context(request_rec *r) {
         msr->t = msc_new_transaction(msc_apache->modsec,
             z->rules_set, (void *)r);
     }
+    if (msr->t == NULL)
+    {
+        return NULL;
+    }
     if (transaction_id != NULL && transaction_id[0] != '\0') {
         msr->event_transaction_id = apr_pstrdup(r->pool, transaction_id);
     } else {
@@ -231,7 +235,10 @@ static msc_t *create_tx_context(request_rec *r) {
             (long)r->request_time, (long)r->connection->id);
     }
 
+    msr->owner_request = r;
     store_tx_context(msr, r);
+    apr_pool_cleanup_register(r->pool, msr,
+        msc_cleanup_request_transaction, apr_pool_cleanup_null);
 
     return msr;
 }

@@ -26,6 +26,15 @@ metadata, and payload-safe event primitives; it does not own Apache objects.
 | P4 | Ingest current output buckets incrementally and finalize at EOS | No connector-owned cross-call full response buffer |
 | Logging | Emit metadata-only events and release transaction state | Event payloads do not contain response bodies |
 
+Each successfully created native <code>Transaction</code> is owned by the
+primary Apache request that created it. The adapter publishes it only after
+creation succeeds, registers normal cleanup on that request's
+<code>r-&gt;pool</code>, and clears the owner note and native pointer before
+<code>msc_transaction_cleanup</code> runs. This is a source-level lifecycle
+contract, not runtime evidence. Internal redirects and subrequests retain their
+existing deliberate reuse of the primary context; separate top-level requests
+on a keepalive connection receive separate request pools and transactions.
+
 ## Build
 
 Use [the Apache compiler guide](../build/compilers/apache.md) for APXS,

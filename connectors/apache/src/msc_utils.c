@@ -32,6 +32,44 @@ int id(const char *fn, const char *format, ...)
 }
 
 
+
+/*
+ * The primary request owns a native transaction for the lifetime of its
+ * request pool.  Redirect and subrequest lookup updates msr->r, so cleanup
+ * must use the captured owner_request rather than the mutable current
+ * request.  Clear every stored native reference before the non-idempotent
+ * libmodsecurity destroy call so repeated cleanup cannot double free it.
+ */
+apr_status_t msc_cleanup_request_transaction(void *data)
+{
+    msc_t *msr = (msc_t *)data;
+    Transaction *transaction;
+    request_rec *owner_request;
+
+    if (msr == NULL)
+    {
+        return APR_SUCCESS;
+    }
+
+    transaction = msr->t;
+    owner_request = msr->owner_request;
+    msr->t = NULL;
+    msr->owner_request = NULL;
+
+    if (owner_request != NULL && owner_request->notes != NULL)
+    {
+        apr_table_unset(owner_request->notes, NOTE_MSR);
+    }
+
+    if (transaction != NULL)
+    {
+        msc_transaction_cleanup(transaction);
+    }
+
+    return APR_SUCCESS;
+}
+
+
 /*
  * Build an error brigade and send it to an explicitly selected output
  * destination.  Input and output filters have distinct chains in Apache;

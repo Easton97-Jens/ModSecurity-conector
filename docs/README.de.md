@@ -12,6 +12,7 @@ vollständige Matrix oder Strict-Verhalten für jeden Connector zu behaupten.
 | Bedarf | Kanonisches Dokument | Source-of-Truth-Grenze |
 | --- | --- | --- |
 | Einen Checkout initialisieren | [Einstieg](getting-started.de.md) | Framework-Setup und begrenzter erster Validierungsweg |
+| Zielkonzept für Produkt-Monorepo | [Repository-Konzept](repository-concept.de.md) | Verbindliche Zielzustands-Ownership, Produkt-, Lifecycle- und Parent-/Framework-Grenze |
 | Repository-Architektur | [Architektur](architecture.de.md) | Eingecheckte Source-Ownership und dokumentierte Lifecycle-Grenze |
 | Host-, Runtime- und Engine-Konfiguration | [Konfiguration](configuration.de.md) | Vollständige Connector-Syntax bleibt in <code>examples/</code> |
 | Variablen und Begriffe | [Variablen](reference/variables.de.md) / [Glossar](reference/glossary.de.md) | Root-Makefile, Wrapper und dokumentierte Verträge |

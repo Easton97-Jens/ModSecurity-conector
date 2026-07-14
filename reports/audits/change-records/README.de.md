@@ -152,3 +152,8 @@ speichern. Runtime-Rohdaten und Build-Ausgaben bleiben außerhalb des Checkouts.
 | CR-20260713-change-traceability-governance | 2026-07-13 | Versionierte Change-Traceability-Governance | English companion / [Deutsch](CR-20260713-change-traceability-governance.de.md) |
 | CR-20260713-bilingual-policy-enforcement | 2026-07-13 | Durchsetzung der zweisprachigen Richtlinie | English companion / [Deutsch](CR-20260713-bilingual-policy-enforcement.de.md) |
 | CR-20260713-c-cpp-diagnostics | 2026-07-13 | Reproduzierbare C- und C++-Diagnostik | English companion / [Deutsch](CR-20260713-c-cpp-diagnostics.de.md) |
+| CR-20260714-clang-analysis-baseline | 2026-07-14 | Advisory-Clang-Analysebaseline | English companion / [Deutsch](CR-20260714-clang-analysis-baseline.de.md) |
+| CR-20260714-repository-concept | 2026-07-14 | Repository-Produktmonorepo-Konzept | English companion / [Deutsch](CR-20260714-repository-concept.de.md) |
+| CR-20260714-common-design-note | 2026-07-14 | Aktuelle Common-Designnotiz-Grenze | English companion / [Deutsch](CR-20260714-common-design-note.de.md) |
+| CR-20260714-apache-request-transaction-cleanup | 2026-07-14 | Apache-Request-Transaktionsbereinigung | English companion / [Deutsch](CR-20260714-apache-request-transaction-cleanup.de.md) |
+| CR-20260714-grpc-go-2026-4762 | 2026-07-14 | gRPC aktualisieren, um GO-2026-4762 zu beheben | English companion / [Deutsch](CR-20260714-grpc-go-2026-4762.de.md) |

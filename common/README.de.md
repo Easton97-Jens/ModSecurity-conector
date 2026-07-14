@@ -25,7 +25,7 @@ ist kein Production-, CRS-, Full-Matrix- oder Runtime-Verification-Claim.
 | \`runtime/\` | Wiederverwendbare lokale Decision-Service-/Runtime-Unterstützung | Muss host-neutral bleiben und darf nicht zu einer Server-Hook-Implementierung werden. |
 | \`rules/\` | Eingecheckte targeted smoke rules | Repository-Testinputs, keine Aussage über vollständige Rule-Coverage. |
 | \`scripts/\` | Lokale Test-/Evidence-Helfer | Nur portable Helfer ohne Host-SDK- oder System-Path-Abhängigkeit ergänzen. |
-| \`docs/\` | Detaillierte Design-Notizen | Die [Common-Architektur](../docs/architecture.de.md) ist der aktuelle Dokumentationsindex für Grenzen und Ownership. |
+| \`docs/\` | Aktuelle Common-Grenznotiz | Die [Common-Designnotiz](docs/design.de.md) fasst die aktuelle Common-Grenze zusammen; die [Common-Architektur](../docs/architecture.de.md) bleibt der aktuelle Dokumentationsindex für Grenzen und Ownership. |
 
 Die eingecheckten Header und der Source sind maßgeblich für den Shared-Code-
 Contract. Das Root-[Makefile](../Makefile) ist maßgeblich für
