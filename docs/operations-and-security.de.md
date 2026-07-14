@@ -118,4 +118,5 @@ statt historische Status-Snapshots in diesem Dokument zu bewahren.
 - [Konfiguration](configuration.de.md)
 - [Tests und Nachweise](testing-and-evidence.de.md)
 - [Build-Dokumentation](build/README.de.md)
+- [Codex-Erweiterungen](development/codex-extensions.de.md) und [externe Agent-Dienste](security/external-agent-services.de.md)
 - Connector-lokale <code>ORIGIN.md</code> und Source-Maps

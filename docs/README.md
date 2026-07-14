@@ -19,6 +19,7 @@ complete matrix, or strict behavior for every connector.
 | Build one host | [Build](build/README.md) | Root/connector build inputs and compiler guides |
 | Test or interpret artifacts | [Testing and evidence](testing-and-evidence.md) | Selected run records and Framework schemas |
 | Operate safely | [Operations and security](operations-and-security.md) | Explicit deployment, limit, privacy, and provenance boundary |
+| Use Codex extensions safely | [Codex extensions](development/codex-extensions.md) / [External agent services](security/external-agent-services.md) | Pinned provenance and explicit secret, data-egress, cost, and tool-boundary controls |
 | Choose a connector | [Connector index](connectors/README.md) | Selected integration mode and connector guide |
 | Trace a material change | [Change traceability](change-traceability.md) / [Change Records](../reports/audits/change-records/README.md) | Binding workflow, paired records, and evidence/data boundary |
 

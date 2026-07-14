@@ -113,4 +113,5 @@ status snapshots in this document.
 - [Configuration](configuration.md)
 - [Testing and evidence](testing-and-evidence.md)
 - [Build documentation](build/README.md)
+- [Codex extensions](development/codex-extensions.md) and [external agent services](security/external-agent-services.md)
 - Connector-local <code>ORIGIN.md</code> and source maps

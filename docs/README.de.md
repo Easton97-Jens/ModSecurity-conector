@@ -19,6 +19,7 @@ vollständige Matrix oder Strict-Verhalten für jeden Connector zu behaupten.
 | Einen Host bauen | [Build](build/README.de.md) | Root-/Connector-Build-Inputs und Compiler-Guides |
 | Tests oder Artefakte deuten | [Tests und Nachweise](testing-and-evidence.de.md) | Ausgewählte Run-Records und Framework-Schemata |
 | Sicher betreiben | [Betrieb und Sicherheit](operations-and-security.de.md) | Explizite Deployment-, Limit-, Datenschutz- und Provenienzgrenze |
+| Codex-Erweiterungen sicher verwenden | [Codex-Erweiterungen](development/codex-extensions.de.md) / [Externe Agent-Dienste](security/external-agent-services.de.md) | Gepinnte Provenienz und explizite Secret-, Data-Egress-, Kosten- und Tool-Grenzen |
 | Einen Connector wählen | [Connector-Index](connectors/README.de.md) | Ausgewählter Integrationsmodus und Connector-Guide |
 | Eine wesentliche Änderung dokumentieren | [Nachvollziehbarkeit von Änderungen](change-traceability.de.md) / [Change Records](../reports/audits/change-records/README.de.md) | Verbindlicher Ablauf, gepaarte Records sowie Evidence-/Datengrenze |
 
