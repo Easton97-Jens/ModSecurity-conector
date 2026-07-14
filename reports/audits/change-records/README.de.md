@@ -155,3 +155,4 @@ speichern. Runtime-Rohdaten und Build-Ausgaben bleiben außerhalb des Checkouts.
 | CR-20260714-clang-analysis-baseline | 2026-07-14 | Advisory-Clang-Analysebaseline | English companion / [Deutsch](CR-20260714-clang-analysis-baseline.de.md) |
 | CR-20260714-repository-concept | 2026-07-14 | Repository-Produktmonorepo-Konzept | English companion / [Deutsch](CR-20260714-repository-concept.de.md) |
 | CR-20260714-common-design-note | 2026-07-14 | Aktuelle Common-Designnotiz-Grenze | English companion / [Deutsch](CR-20260714-common-design-note.de.md) |
+| CR-20260714-apache-request-transaction-cleanup | 2026-07-14 | Apache-Request-Transaktionsbereinigung | English companion / [Deutsch](CR-20260714-apache-request-transaction-cleanup.de.md) |
