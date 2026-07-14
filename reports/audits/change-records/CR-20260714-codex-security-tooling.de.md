@@ -206,6 +206,11 @@ von tatsächlicher GitHub-Workflow-Ausführung abhängig. Scanner-Reports
 benötigen Reachability- und False-Positive-Triage vor Remediation. Diese Risiken
 werden dokumentiert, nicht automatisch unterdrückt.
 
+Der experimentelle Scorecard-PR-Head-Pfad läuft absichtlich nur für Pull
+Requests desselben Repositorys mit <code>contents: read</code>; Fork-PRs
+überspringen ihn, weil die Upstream-Action sie nicht unterstützt. Der
+Default-Branch-Pfad behält den SARIF-Upload.
+
 Der redigierte lokale Gitleaks-Full-History-Lauf meldete 83 historische
 Kandidaten. In dieser Aufgabe wurde keine Baseline, Unterdrückung, Löschung oder
 Rotation angelegt. Die Basis-bis-finale-Commit-Range nach dem Commit ist die

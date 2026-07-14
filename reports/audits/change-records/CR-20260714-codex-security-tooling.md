@@ -198,6 +198,11 @@ GitHub workflow execution. Scanner reports require reachability and
 false-positive triage before remediation. These risks are documented rather
 than automatically suppressed.
 
+Scorecard's experimental exact-head PR path deliberately runs only for
+same-repository pull requests with <code>contents: read</code>; fork PRs skip
+it because the upstream action does not support them. The default-branch path
+retains the SARIF upload.
+
 The redacted local full-history Gitleaks run reported 83 historical candidates.
 No baseline, suppression, deletion, or rotation was created in this task. The
 post-commit base-to-final range is the task-regression evidence and remains

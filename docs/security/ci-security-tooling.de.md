@@ -26,7 +26,7 @@ GitHub-Funktion wird niemals als bestanden berichtet.
 | Gitleaks Action | <code>gitleaks/gitleaks-action</code> | <code>v3.0.0</code> | <code>e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e</code> | Geprüfte Alternative | <code>documented_only</code> |
 | CodeQL | <code>github/codeql-action</code> | <code>v4.37.0</code> | <code>99df26d4f13ea111d4ec1a7dddef6063f76b97e9</code> | Advanced GitHub-Actions-Workflow | <code>enabled</code> |
 | Dependency Review | <code>actions/dependency-review-action</code> | <code>v5.0.0</code> | <code>a1d282b36b6f3519aa1f3fc636f609c47dddb294</code> | PR-only GitHub Action | <code>blocked_feature_unavailable</code> |
-| Scorecard | <code>ossf/scorecard-action</code> | <code>v2.4.3</code> | <code>4eaacf0543bb3f2c246792bd56e8cdeffafb205a</code> | Geplante GitHub Action und SARIF | <code>enabled</code> |
+| Scorecard | <code>ossf/scorecard-action</code> | <code>v2.4.3</code> | <code>4eaacf0543bb3f2c246792bd56e8cdeffafb205a</code> | Experimentelle Same-Repository-PR-Head-Action plus geplanter Default-Branch-SARIF | <code>enabled</code> |
 | OSV-Scanner | <code>google/osv-scanner-action</code> | <code>v2.3.8</code> | <code>9a498708959aeaef5ef730655706c5a1df1edbc2</code> | PR-Diff- und geplante Reusable-Workflows | <code>enabled</code> |
 
 actionlint, zizmor und die Gitleaks CLI sind hier reine Analysewerkzeuge. Ihre
@@ -105,6 +105,13 @@ Caller ist SHA-gepinnt, aber seine Docker-Metadaten können weiterhin einen
 mutablen GHCR-Tag wählen. Der OSV-Reusable-Workflow behält ebenfalls
 verschachtelte Docker-/Action-Referenzen. Diese Rest-Risiken werden zur Prüfung
 dokumentiert statt verborgen.
+
+Der Scorecard-Pull-Request-Pfad ist absichtlich auf Pull Requests desselben
+Repositorys begrenzt. Er checkt den expliziten Head-SHA aus, nutzt nur
+<code>contents: read</code> und lädt kein SARIF hoch. Upstream kennzeichnet
+diesen Pfad als experimentell und unterstützt keine Forks; Fork-Pull-Requests
+überspringen ihn daher absichtlich. Der geplante Default-Branch-Job bleibt der
+dauerhafte SARIF-Publisher.
 
 Artifact Attestations sind
 <code>not_applicable_until_release_workflow_exists</code>: Dieses Repository

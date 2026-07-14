@@ -27,7 +27,7 @@ as passed.
 | Gitleaks Action | <code>gitleaks/gitleaks-action</code> | <code>v3.0.0</code> | <code>e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e</code> | Evaluated alternative | <code>documented_only</code> |
 | CodeQL | <code>github/codeql-action</code> | <code>v4.37.0</code> | <code>99df26d4f13ea111d4ec1a7dddef6063f76b97e9</code> | Advanced GitHub Actions workflow | <code>enabled</code> |
 | Dependency Review | <code>actions/dependency-review-action</code> | <code>v5.0.0</code> | <code>a1d282b36b6f3519aa1f3fc636f609c47dddb294</code> | PR-only GitHub Action | <code>blocked_feature_unavailable</code> |
-| Scorecard | <code>ossf/scorecard-action</code> | <code>v2.4.3</code> | <code>4eaacf0543bb3f2c246792bd56e8cdeffafb205a</code> | Scheduled GitHub Action and SARIF | <code>enabled</code> |
+| Scorecard | <code>ossf/scorecard-action</code> | <code>v2.4.3</code> | <code>4eaacf0543bb3f2c246792bd56e8cdeffafb205a</code> | Experimental same-repository PR-head Action plus scheduled default-branch SARIF | <code>enabled</code> |
 | OSV-Scanner | <code>google/osv-scanner-action</code> | <code>v2.3.8</code> | <code>9a498708959aeaef5ef730655706c5a1df1edbc2</code> | PR-diff and scheduled reusable workflows | <code>enabled</code> |
 
 actionlint, zizmor, and the Gitleaks CLI are analysis-only here. Their release
@@ -98,6 +98,13 @@ Scorecard is heuristic evidence, not a branch-protection decision. Its caller
 is SHA-pinned, but its Docker metadata can still select a mutable GHCR tag.
 The OSV reusable workflow likewise retains nested Docker/action references.
 These residual risks are recorded for review rather than hidden.
+
+The Scorecard pull-request path is intentionally limited to same-repository
+pull requests. It checks out the explicit head SHA, uses only
+<code>contents: read</code>, and does not upload SARIF. Upstream marks that
+path experimental and does not support forks; fork pull requests therefore
+skip it by design. The scheduled/default-branch job remains the durable SARIF
+publisher.
 
 Artifact attestations are
 <code>not_applicable_until_release_workflow_exists</code>: this repository has
