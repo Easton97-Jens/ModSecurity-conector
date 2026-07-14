@@ -27,7 +27,6 @@ jobs:
       upload-sarif: true
       fail-on-vuln: true
       checkout-submodules: false
-
   scheduled-full:
     if: github.event_name != 'pull_request'
     permissions:
@@ -43,4 +42,3 @@ jobs:
       upload-sarif: true
       fail-on-vuln: true
       checkout-submodules: false
-

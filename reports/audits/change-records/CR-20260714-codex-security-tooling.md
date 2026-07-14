@@ -135,6 +135,7 @@ They are not staged or committed.
 | <code>gitleaks git --redact=100 --log-opts="--all" .</code> | 1 | 83 historical candidates; no baseline was created and this is not treated as a task regression | None | None |
 | <code>make check-bilingual-docs</code> | 0 | Paired documentation valid | None | None |
 | <code>make check-doc-links</code> | 0 | Links and repository path references valid | None | None |
+| <code>make quick-check</code> | 2 | Incomplete: local DNS could not resolve the ModSecurity upstream during provisioning, so the Apache/APXS prerequisite remained unavailable; no task-source defect demonstrated | None | None |
 | <code>make lint</code> | 2 | Incomplete: local Apache/APXS provisioning reported <code>missing_local_httpd_build</code>; no task-source defect demonstrated | None | None |
 
 The final task-commit Gitleaks range, commit, push, draft PR, and final-SHA CI

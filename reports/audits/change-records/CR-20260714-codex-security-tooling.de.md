@@ -142,6 +142,7 @@ und die Session-, Pre-Tool- und Permission-Request-Hooks unter
 | <code>gitleaks git --redact=100 --log-opts="--all" .</code> | 1 | 83 historische Kandidaten; keine Baseline angelegt und nicht als Task-Regression gewertet | None | None |
 | <code>make check-bilingual-docs</code> | 0 | Gepaarte Dokumentation valide | None | None |
 | <code>make check-doc-links</code> | 0 | Links und Repository-Pfadreferenzen valide | None | None |
+| <code>make quick-check</code> | 2 | Unvollständig: Lokales DNS konnte den ModSecurity-Upstream während der Provisionierung nicht auflösen; dadurch blieb die Apache/APXS-Voraussetzung nicht verfügbar, kein Task-Source-Defekt nachgewiesen | None | None |
 | <code>make lint</code> | 2 | Unvollständig: lokale Apache/APXS-Provisionierung meldete <code>missing_local_httpd_build</code>; kein Task-Source-Defekt nachgewiesen | None | None |
 
 Die finale Gitleaks-Range von Basis bis Task-Commit sowie die exakten
