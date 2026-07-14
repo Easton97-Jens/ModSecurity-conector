@@ -195,20 +195,17 @@ UNSAFE_AUTOMATION = {
     "destructive reset": re.compile(r"\bgit\s+reset\s+--hard\b", re.IGNORECASE),
     "discarding checkout": re.compile(r"\bgit\s+checkout\s+--(?:\s|$)", re.IGNORECASE),
     "discarding restore": re.compile(r"\bgit\s+restore\b", re.IGNORECASE),
-    "untracked-file deletion": re.compile(
-        r"\bgit\s+clean\b(?=[^\n]*(?:\s--force\b|\s-[A-Za-z]*f[A-Za-z]*\b))",
-        re.IGNORECASE,
-    ),
     "automatic merge": re.compile(r"\bauto[- ]merge\b", re.IGNORECASE),
     "workflow error suppression": re.compile(r"\bcontinue-on-error\b", re.IGNORECASE),
     "shell error suppression": re.compile(r"\|\|\s*true\b", re.IGNORECASE),
     "scanner suppression": re.compile(r"\b(?:NOSONAR|noqa)\b", re.IGNORECASE),
 }
+GIT_CLEAN_COMMAND = re.compile(r"\bgit\s+clean\b", re.IGNORECASE)
 SAFETY_NEGATIONS = ("do not", "never", "forbid", "prohibit", "not allowed")
 ABSOLUTE_USER_PATH_PATTERNS = {
     "Unix root path": re.compile(r"(?<![A-Za-z0-9])/(?:root|home|Users)/"),
     "file URL": re.compile(r"\bfile:///", re.IGNORECASE),
-    "Windows user path": re.compile(r"\b[A-Za-z]:\\Users\\", re.IGNORECASE),
+    "Windows user path": re.compile(r"\b[a-z]:\\Users\\", re.IGNORECASE),
 }
 GH_GUARDRAILS = {
     "gh-fix-ci": (
@@ -255,9 +252,24 @@ def extension_material_paths() -> list[Path]:
     )
 
 
+def has_destructive_git_clean(line: str) -> bool:
+    command = GIT_CLEAN_COMMAND.search(line)
+    if command is None:
+        return False
+    for argument in line[command.end() :].split():
+        option = argument.strip("\x60.,;:()[]{}")
+        if option == "--force":
+            return True
+        if option.startswith("-") and not option.startswith("--") and "f" in option.lower():
+            return True
+    return False
+
+
 def is_unprotected_unsafe_instruction(line: str) -> bool:
     normalized = line.lower()
-    has_unsafe_construct = any(pattern.search(line) for pattern in UNSAFE_AUTOMATION.values())
+    has_unsafe_construct = has_destructive_git_clean(line) or any(
+        pattern.search(line) for pattern in UNSAFE_AUTOMATION.values()
+    )
     has_safety_negation = any(negation in normalized for negation in SAFETY_NEGATIONS)
     return has_unsafe_construct and not has_safety_negation
 

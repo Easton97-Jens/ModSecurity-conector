@@ -121,6 +121,8 @@ Framework-Gitlink, Workflow, generiertes Artefakt oder Secret wird geändert.
 | <code>rtk proxy /bin/bash -lc 'BUILD_ROOT=&lt;task-temp-root&gt;/build ... make lint'</code> | 2 | Durch fehlendes lokales <code>apxs</code>/<code>apxs2</code> bei Vorbereitung des Apache-C17-Checks blockiert |
 | <code>rtk proxy /bin/bash -lc 'CI=true BUILD_ROOT=&lt;task-temp-root&gt;/build ... make lint'</code> | 2 | Der Apache-C17-Check wurde wahrheitsgemäß als <code>SKIPPED</code> markiert, aber das rekursive Apache-Cleanup-Target wandelte seinen dokumentierten <code>77</code>-Blocker in Make-Exit <code>2</code> um |
 | <code>rtk proxy /bin/bash -lc 'CI=true BUILD_ROOT=&lt;task-temp-root&gt;/build ... make quick-check'</code> | 2 | Über <code>lint</code> denselben Apache-Cleanup-Prerequisite-/rekursiven-Make-Blocker erreicht |
+| <code>rtk curl ...sonar PR issue query...</code> | 0 | Vier task-owned Regex-Qualitätsbefunde nach bestandenem Draft-PR-Quality-Gate identifiziert |
+| <code>rtk make check-codex-extension-contract</code> | 0 | Zwölf Tests nach der Sonar-getriebenen Regex-Behebung bestanden |
 
 Der erste fokussierte Contract-Run schlug nur fehl, weil seine Negative-Route-
 Fixture die Formulierung <code>sensitive data</code> suchte, während der Skill
@@ -129,6 +131,14 @@ Test wurde korrigiert; der nachfolgende fokussierte Contract-Run bestand. Full
 Lint und Quick-Check wurden ausgeführt und als blockiert statt bestanden
 gemeldet, weil die lokale Apache-Voraussetzung fehlt und der Cleanup-Lint-
 Wrapper den dokumentierten Blocked-Exit nicht durch rekursives Make erhält.
+
+Nach Erstellung des Draft-PR bestand das SonarQube-Cloud-Quality-Gate, meldete
+aber vier task-owned Regex-Qualitätsbefunde in
+<code>tests/test_codex_extensions.py</code>. Der Follow-up ersetzt den
+backtracking-anfälligen <code>git clean</code>-Ausdruck durch eine begrenzte
+zeilenlokale Optionsprüfung und entfernt einen unter <code>IGNORECASE</code>
+redundanten Zeichenbereich. Der fokussierte Zwölf-Test-Contract-Run bestand
+nach der Behebung; eine Remote-Neuanalyse ist nach seinem Follow-up-Push nötig.
 
 ## Security-Auswirkung
 

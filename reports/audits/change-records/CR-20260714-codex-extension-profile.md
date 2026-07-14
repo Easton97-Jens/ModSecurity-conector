@@ -119,6 +119,8 @@ gitlink, workflow, generated artifact, or secret is changed.
 | <code>rtk proxy /bin/bash -lc 'BUILD_ROOT=&lt;task-temp-root&gt;/build ... make lint'</code> | 2 | Blocked by missing local <code>apxs</code>/<code>apxs2</code> while preparing the Apache C17 check |
 | <code>rtk proxy /bin/bash -lc 'CI=true BUILD_ROOT=&lt;task-temp-root&gt;/build ... make lint'</code> | 2 | Apache C17 check was truthfully marked <code>SKIPPED</code>, but the recursive Apache cleanup target converted its documented <code>77</code> blocker to Make exit <code>2</code> |
 | <code>rtk proxy /bin/bash -lc 'CI=true BUILD_ROOT=&lt;task-temp-root&gt;/build ... make quick-check'</code> | 2 | Reached the same Apache cleanup prerequisite/recursive-Make blocker through <code>lint</code> |
+| <code>rtk curl ...sonar PR issue query...</code> | 0 | Identified four task-owned regex quality findings after the draft-PR quality gate passed |
+| <code>rtk make check-codex-extension-contract</code> | 0 | Twelve tests passed after the Sonar-driven regex remediation |
 
 The initial focused contract run failed only because its negative-route fixture
 looked for the phrase <code>sensitive data</code> while the skill correctly
@@ -127,6 +129,14 @@ and the subsequent focused contract run passed. Full lint and quick-check were
 attempted and are reported as blocked rather than passing because the local
 Apache prerequisite is absent and the cleanup lint wrapper does not preserve
 the documented blocked exit through recursive Make.
+
+After the draft PR was created, the SonarQube Cloud quality gate passed but
+reported four task-owned regex quality findings in
+<code>tests/test_codex_extensions.py</code>. The follow-up replaces the
+backtracking-prone <code>git clean</code> expression with a bounded line-local
+option check and removes an <code>IGNORECASE</code>-redundant character range.
+The focused twelve-test contract run passed after this remediation; remote
+re-analysis is required after its follow-up push.
 
 ## Security impact
 
