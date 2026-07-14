@@ -113,4 +113,6 @@ status snapshots in this document.
 - [Configuration](configuration.md)
 - [Testing and evidence](testing-and-evidence.md)
 - [Build documentation](build/README.md)
+- [Codex extensions](development/codex-extensions.md)
+- [CI security tooling](security/ci-security-tooling.md)
 - Connector-local <code>ORIGIN.md</code> and source maps
