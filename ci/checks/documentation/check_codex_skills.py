@@ -67,32 +67,47 @@ def parse_skill(path: Path) -> tuple[dict | None, str, list[tuple[Path, str]]]:
     return frontmatter, text[end + 5 :], []
 
 
+def validate_local_link(root: Path, path: Path, target: str) -> list[tuple[Path, str]]:
+    candidate = Path(target)
+    if candidate.is_absolute():
+        return [error(path, f"absolute local link is forbidden: {target}")]
+    resolved = (path.parent / candidate).resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        return [error(path, f"link escapes repository root: {target}")]
+    if not resolved.exists():
+        return [error(path, f"linked repository path does not exist: {target}")]
+    return []
+
+
+def validate_link_target(root: Path, path: Path, raw_target: str) -> list[tuple[Path, str]]:
+    target = raw_target.strip()
+    parsed = urlsplit(target)
+    if target.startswith("#") or parsed.scheme in {"https", "mailto"}:
+        return []
+    if parsed.scheme:
+        return [error(path, f"unsupported external link scheme: {parsed.scheme}")]
+    target = target.split("#", 1)[0]
+    if not target:
+        return []
+    return validate_local_link(root, path, target)
+
+
 def validate_links(root: Path, path: Path, text: str) -> list[tuple[Path, str]]:
-    errors: list[tuple[Path, str]] = []
-    for raw_target in LINK_RE.findall(text):
-        target = raw_target.strip()
-        parsed = urlsplit(target)
-        if target.startswith("#") or parsed.scheme in {"https", "mailto"}:
-            continue
-        if parsed.scheme:
-            errors.append(error(path, f"unsupported external link scheme: {parsed.scheme}"))
-            continue
-        target = target.split("#", 1)[0]
-        if not target:
-            continue
-        candidate = Path(target)
-        if candidate.is_absolute():
-            errors.append(error(path, f"absolute local link is forbidden: {target}"))
-            continue
-        resolved = (path.parent / candidate).resolve()
-        try:
-            resolved.relative_to(root)
-        except ValueError:
-            errors.append(error(path, f"link escapes repository root: {target}"))
-        else:
-            if not resolved.exists():
-                errors.append(error(path, f"linked repository path does not exist: {target}"))
-    return errors
+    return [
+        issue
+        for raw_target in LINK_RE.findall(text)
+        for issue in validate_link_target(root, path, raw_target)
+    ]
+
+
+def skill_headings(body: str) -> set[str]:
+    return {
+        line[3:].rstrip()
+        for line in body.splitlines()
+        if line.startswith("## ") and line[3:].strip()
+    }
 
 
 def validate_openai_yaml(skill_dir: Path, name: str) -> list[tuple[Path, str]]:
@@ -135,7 +150,7 @@ def validate_skill(root: Path, skill_dir: Path) -> tuple[list[tuple[Path, str]],
     description = frontmatter.get("description")
     if not isinstance(description, str) or not description.strip() or "TODO" in description:
         errors.append(error(path, "frontmatter description must be complete and non-empty"))
-    headings = set(re.findall(r"^## (.+?)\s*$", body, re.MULTILINE))
+    headings = skill_headings(body)
     for section in sorted(REQUIRED_SECTIONS - headings):
         errors.append(error(path, f"missing required section: {section}"))
     if "TODO" in body:

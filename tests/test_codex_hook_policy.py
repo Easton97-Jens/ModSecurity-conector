@@ -48,7 +48,7 @@ class CodexHookPolicyTest(unittest.TestCase):
                 self.assertIsNone(policy.dangerous_command_reason(command, TEMP_ROOT))
 
     def test_recursive_removal_under_temp_root_is_allowed(self):
-        command = f"rm -rf {TEMP_ROOT}/tmp/task-123"
+        command = f"rm -rf {TEMP_ROOT}/controlled-task-123"
         self.assertIsNone(policy.dangerous_command_reason(command, TEMP_ROOT))
 
     def test_local_and_secret_paths_are_excluded_from_staging(self):
