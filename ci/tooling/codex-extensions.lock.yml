@@ -1,0 +1,381 @@
+schema_version: 1
+reviewed_at: "2026-07-14"
+extensions:
+  - name: create-plan
+    type: skill
+    source_owner: OpenAI
+    source_repository: openai/skills
+    source_url: https://github.com/openai/skills/tree/a5119697b819090e00e5d11ee1d86834d7c1043a/skills/.experimental/create-plan
+    source_path: skills/.experimental/create-plan/
+    source_commit: a5119697b819090e00e5d11ee1d86834d7c1043a
+    upstream_version: historical-source
+    license: Apache-2.0
+    integration_mode: adapted_and_vendored
+    local_name: create-plan
+    requires_network: false
+    requires_secret: false
+    external_data_processing: false
+    write_capabilities: repository files only through local policy
+    approved_tools: []
+    disabled_tools: []
+    update_policy: re-audit a fixed upstream commit before replacing local guidance
+    status: adapted_and_vendored
+    reviewed_at: "2026-07-14"
+
+  - name: gh-fix-ci
+    type: skill
+    source_owner: OpenAI
+    source_repository: openai/plugins
+    source_url: https://github.com/openai/plugins/tree/11c74d6ba24d3a6d48f54a194cd00ef3beea18f9/plugins/github/skills/gh-fix-ci
+    source_path: plugins/github/skills/gh-fix-ci/
+    source_commit: 11c74d6ba24d3a6d48f54a194cd00ef3beea18f9
+    upstream_version: 0.1.6
+    license: Apache-2.0
+    integration_mode: adapted_and_vendored
+    local_name: gh-fix-ci
+    requires_network: true
+    requires_secret: true
+    external_data_processing: true
+    write_capabilities: repository files only through local policy
+    approved_tools: [rtk-gh-read]
+    disabled_tools: [vendored-log-retrieval-script]
+    update_policy: re-audit the fixed plugin commit and omitted helper behavior
+    status: adapted_and_vendored
+    reviewed_at: "2026-07-14"
+
+  - name: gh-address-comments
+    type: skill
+    source_owner: OpenAI
+    source_repository: openai/plugins
+    source_url: https://github.com/openai/plugins/tree/11c74d6ba24d3a6d48f54a194cd00ef3beea18f9/plugins/github/skills/gh-address-comments
+    source_path: plugins/github/skills/gh-address-comments/
+    source_commit: 11c74d6ba24d3a6d48f54a194cd00ef3beea18f9
+    upstream_version: 0.1.6
+    license: Apache-2.0
+    integration_mode: adapted_and_vendored
+    local_name: gh-address-comments
+    requires_network: true
+    requires_secret: true
+    external_data_processing: true
+    write_capabilities: repository files only through local policy
+    approved_tools: [rtk-gh-read]
+    disabled_tools: [vendored-review-graphql-helper]
+    update_policy: re-audit the fixed plugin commit and omitted helper behavior
+    status: adapted_and_vendored
+    reviewed_at: "2026-07-14"
+
+  - name: stop-slop
+    type: skill
+    source_owner: Hardik Pandya
+    source_repository: hardikpandya/stop-slop
+    source_url: https://github.com/hardikpandya/stop-slop/tree/8da1f030185bdfe8471220585162991eaeb970e9
+    source_path: SKILL.md
+    source_commit: 8da1f030185bdfe8471220585162991eaeb970e9
+    upstream_version: untagged-fixed-source
+    license: MIT
+    integration_mode: adapted_and_vendored
+    local_name: stop-slop
+    requires_network: false
+    requires_secret: false
+    external_data_processing: false
+    write_capabilities: repository files only through local policy
+    approved_tools: []
+    disabled_tools: []
+    update_policy: re-audit a fixed upstream commit before replacing local guidance
+    status: adapted_and_vendored
+    reviewed_at: "2026-07-14"
+
+  - name: valyu-research
+    type: skill
+    source_owner: repository
+    source_repository: ModSecurity-conector
+    source_url: https://github.com/Easton97-Jens/ModSecurity-conector
+    source_path: .agents/skills/valyu-research/
+    source_commit: null
+    upstream_version: repository-authored
+    license: repository-owned
+    integration_mode: repository_authored
+    local_name: valyu-research
+    requires_network: true
+    requires_secret: false
+    external_data_processing: true
+    write_capabilities: repository files only through local policy
+    approved_tools: []
+    disabled_tools: [hosted-valyu-mcp]
+    update_policy: review with the external-service boundary and repository policy
+    status: enabled
+    reviewed_at: "2026-07-14"
+
+  - name: modsecurity-codebase-migrate
+    type: skill
+    source_owner: repository
+    source_repository: ModSecurity-conector
+    source_url: https://github.com/Easton97-Jens/ModSecurity-conector
+    source_path: .agents/skills/modsecurity-codebase-migrate/
+    source_commit: null
+    upstream_version: repository-authored
+    license: repository-owned
+    integration_mode: repository_authored
+    local_name: modsecurity-codebase-migrate
+    requires_network: false
+    requires_secret: false
+    external_data_processing: false
+    write_capabilities: repository files only through local policy
+    approved_tools: []
+    disabled_tools: [framework-cross-delivery]
+    update_policy: review whenever repository ownership rules change
+    status: enabled
+    reviewed_at: "2026-07-14"
+
+  - name: bilingual-changelog-generator
+    type: skill
+    source_owner: repository
+    source_repository: ModSecurity-conector
+    source_url: https://github.com/Easton97-Jens/ModSecurity-conector
+    source_path: .agents/skills/bilingual-changelog-generator/
+    source_commit: null
+    upstream_version: repository-authored
+    license: repository-owned
+    integration_mode: repository_authored
+    local_name: bilingual-changelog-generator
+    requires_network: false
+    requires_secret: false
+    external_data_processing: false
+    write_capabilities: paired documentation files through local policy
+    approved_tools: []
+    disabled_tools: [automatic-translation-service]
+    update_policy: review with bilingual documentation policy changes
+    status: enabled
+    reviewed_at: "2026-07-14"
+
+  - name: third-party-skill-audit
+    type: skill
+    source_owner: repository
+    source_repository: ModSecurity-conector
+    source_url: https://github.com/Easton97-Jens/ModSecurity-conector
+    source_path: .agents/skills/third-party-skill-audit/
+    source_commit: null
+    upstream_version: repository-authored
+    license: repository-owned
+    integration_mode: repository_authored
+    local_name: third-party-skill-audit
+    requires_network: true
+    requires_secret: false
+    external_data_processing: true
+    write_capabilities: lock and documentation files through local policy
+    approved_tools: []
+    disabled_tools: [unreviewed-extension-execution]
+    update_policy: review before every third-party extension change
+    status: enabled
+    reviewed_at: "2026-07-14"
+
+  - name: superpowers
+    type: plugin
+    source_owner: OpenAI
+    source_repository: openai/plugins
+    source_url: https://github.com/openai/plugins/tree/bd2122cb92f2ade874d8c2b1d00383976ab9415b/plugins/superpowers
+    source_path: plugins/superpowers/
+    source_commit: bd2122cb92f2ade874d8c2b1d00383976ab9415b
+    upstream_version: 5.1.3
+    license: MIT
+    integration_mode: official_plugin_pinned
+    local_name: superpowers
+    requires_network: true
+    requires_secret: false
+    external_data_processing: false
+    write_capabilities: may create local work state; repository policy remains controlling
+    approved_tools: []
+    disabled_tools: [automatic-publish, destructive-cleanup, unapproved-mcp]
+    update_policy: reinstall only from a reviewed immutable marketplace revision
+    status: installed_pending_reload
+    reviewed_at: "2026-07-14"
+
+  - name: codex-security
+    type: plugin
+    source_owner: OpenAI
+    source_repository: openai/plugins
+    source_url: https://github.com/openai/plugins/tree/bd2122cb92f2ade874d8c2b1d00383976ab9415b/plugins/codex-security
+    source_path: plugins/codex-security/
+    source_commit: bd2122cb92f2ade874d8c2b1d00383976ab9415b
+    upstream_version: 0.1.11
+    license: Proprietary
+    integration_mode: official_plugin_preinstalled
+    local_name: codex-security
+    requires_network: true
+    requires_secret: true
+    external_data_processing: true
+    write_capabilities: tracker and GitHub app actions require separate user authority
+    approved_tools: [security-diff-scan, security-scan, validation]
+    disabled_tools: [automatic-issue-creation, full-security-scan-without-request]
+    update_policy: retain the installed reviewed version unless separately audited
+    status: enabled
+    reviewed_at: "2026-07-14"
+
+  - name: warpgrep-morphmcp
+    type: mcp
+    source_owner: Morph LLM
+    source_repository: npm:@morphllm/morphmcp
+    source_url: https://www.npmjs.com/package/@morphllm/morphmcp/v/0.8.206
+    source_path: package-metadata
+    source_commit: ac38aadb555519751cee042a77f0d2cd5e9b01e1
+    upstream_version: 0.8.206
+    package_integrity: sha512-2yVRtx7NLeTlN6WqQb25UA4dobeZtZ2jQMLSNyeR367VHRP4n6vV4bfNjtfQKyHQiG/6refu12923Rkinf3bpw==
+    license: MIT
+    integration_mode: mcp_not_configured
+    local_name: warpgrep-search
+    requires_network: true
+    requires_secret: true
+    external_data_processing: true
+    write_capabilities: source behavior not independently auditable
+    approved_tools: [codebase_search, github_codebase_search]
+    disabled_tools: [edit_file, write_file, delete_file, execute_command]
+    update_policy: enable only after source and enforceable tool filtering are re-audited
+    status: blocked_source_unverified
+    reviewed_at: "2026-07-14"
+
+  - name: valyu-hosted-mcp
+    type: mcp
+    source_owner: Valyu
+    source_repository: https://docs.valyu.ai/mcp
+    source_url: https://docs.valyu.ai/mcp
+    source_path: hosted-service-documentation
+    source_commit: null
+    upstream_version: hosted-service-unversioned
+    license: unknown
+    integration_mode: documented_only
+    local_name: valyu
+    requires_network: true
+    requires_secret: true
+    external_data_processing: true
+    write_capabilities: no repository write capability approved
+    approved_tools: [valyu_search, valyu_academic_search, valyu_contents]
+    disabled_tools: [knowledge, feedback]
+    update_policy: require safe secret transport and verified tool inventory before configuration
+    status: blocked_source_unverified
+    reviewed_at: "2026-07-14"
+
+  - name: valyu-local-mcp
+    type: mcp
+    source_owner: valyuAI
+    source_repository: valyuAI/valyu-mcp
+    source_url: https://github.com/valyuAI/valyu-mcp/tree/546c3d2f2a113f0c97007eb21da0f168387bbcef
+    source_path: repository-root
+    source_commit: 546c3d2f2a113f0c97007eb21da0f168387bbcef
+    upstream_version: untagged-fixed-source
+    license: unknown
+    integration_mode: not_vendored
+    local_name: valyu-local
+    requires_network: true
+    requires_secret: true
+    external_data_processing: true
+    write_capabilities: setup writes a local environment file and logs query data
+    approved_tools: []
+    disabled_tools: [all]
+    update_policy: require an explicit license and dependency/data-handling audit
+    status: blocked_license_unknown
+    reviewed_at: "2026-07-14"
+
+  - name: composio-pr-review-ci-fix
+    type: skill
+    source_owner: ComposioHQ
+    source_repository: ComposioHQ/awesome-codex-skills
+    source_url: https://github.com/ComposioHQ/awesome-codex-skills/tree/9c9da64cf1bbea611d43dd14a10788d55369b353
+    source_path: discovery-list
+    source_commit: 9c9da64cf1bbea611d43dd14a10788d55369b353
+    upstream_version: discovery-only
+    license: unknown
+    integration_mode: rejected
+    local_name: pr-review-ci-fix
+    requires_network: true
+    requires_secret: true
+    external_data_processing: true
+    write_capabilities: unknown
+    approved_tools: []
+    disabled_tools: [all]
+    update_policy: do not reconsider without a specific non-overlapping need
+    status: rejected_due_to_overlap
+    reviewed_at: "2026-07-14"
+
+  - name: composio-connect-apps
+    type: plugin
+    source_owner: ComposioHQ
+    source_repository: ComposioHQ/awesome-codex-skills
+    source_url: https://github.com/ComposioHQ/awesome-codex-skills/tree/9c9da64cf1bbea611d43dd14a10788d55369b353
+    source_path: discovery-list
+    source_commit: 9c9da64cf1bbea611d43dd14a10788d55369b353
+    upstream_version: discovery-only
+    license: unknown
+    integration_mode: rejected
+    local_name: connect-apps
+    requires_network: true
+    requires_secret: true
+    external_data_processing: true
+    write_capabilities: third-party application actions
+    approved_tools: []
+    disabled_tools: [all]
+    update_policy: require a separately authorized integration design
+    status: rejected_due_to_permissions
+    reviewed_at: "2026-07-14"
+
+  - name: composio-skill-share
+    type: skill
+    source_owner: ComposioHQ
+    source_repository: ComposioHQ/awesome-codex-skills
+    source_url: https://github.com/ComposioHQ/awesome-codex-skills/tree/9c9da64cf1bbea611d43dd14a10788d55369b353
+    source_path: discovery-list
+    source_commit: 9c9da64cf1bbea611d43dd14a10788d55369b353
+    upstream_version: discovery-only
+    license: unknown
+    integration_mode: rejected
+    local_name: skill-share
+    requires_network: true
+    requires_secret: false
+    external_data_processing: true
+    write_capabilities: unknown
+    approved_tools: []
+    disabled_tools: [all]
+    update_policy: retain repository-local skills as the supported sharing boundary
+    status: rejected_due_to_overlap
+    reviewed_at: "2026-07-14"
+
+  - name: composio-mcp-builder
+    type: skill
+    source_owner: ComposioHQ
+    source_repository: ComposioHQ/awesome-codex-skills
+    source_url: https://github.com/ComposioHQ/awesome-codex-skills/tree/9c9da64cf1bbea611d43dd14a10788d55369b353
+    source_path: discovery-list
+    source_commit: 9c9da64cf1bbea611d43dd14a10788d55369b353
+    upstream_version: discovery-only
+    license: unknown
+    integration_mode: documented_only
+    local_name: mcp-builder
+    requires_network: false
+    requires_secret: false
+    external_data_processing: false
+    write_capabilities: none
+    approved_tools: []
+    disabled_tools: [all]
+    update_policy: revisit only for an authorized repository-owned MCP project
+    status: documented_only
+    reviewed_at: "2026-07-14"
+
+  - name: composio-frontend-webapp
+    type: skill
+    source_owner: ComposioHQ
+    source_repository: ComposioHQ/awesome-codex-skills
+    source_url: https://github.com/ComposioHQ/awesome-codex-skills/tree/9c9da64cf1bbea611d43dd14a10788d55369b353
+    source_path: discovery-list
+    source_commit: 9c9da64cf1bbea611d43dd14a10788d55369b353
+    upstream_version: discovery-only
+    license: unknown
+    integration_mode: not_applicable
+    local_name: frontend-webapp
+    requires_network: false
+    requires_secret: false
+    external_data_processing: false
+    write_capabilities: none
+    approved_tools: []
+    disabled_tools: [all]
+    update_policy: not applicable to the current C connector repository scope
+    status: not_applicable
+    reviewed_at: "2026-07-14"
