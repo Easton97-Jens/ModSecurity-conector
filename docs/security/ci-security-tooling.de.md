@@ -27,7 +27,7 @@ GitHub-Funktion wird niemals als bestanden berichtet.
 | CodeQL | <code>github/codeql-action</code> | <code>v4.37.0</code> | <code>99df26d4f13ea111d4ec1a7dddef6063f76b97e9</code> | Advanced GitHub-Actions-Workflow | <code>enabled</code> |
 | Dependency Review | <code>actions/dependency-review-action</code> | <code>v5.0.0</code> | <code>a1d282b36b6f3519aa1f3fc636f609c47dddb294</code> | PR-only GitHub Action | <code>blocked_feature_unavailable</code> |
 | Scorecard | <code>ossf/scorecard-action</code> | <code>v2.4.3</code> | <code>4eaacf0543bb3f2c246792bd56e8cdeffafb205a</code> | Experimentelle Same-Repository-PR-Head-Action plus geplanter Default-Branch-SARIF | <code>enabled</code> |
-| OSV-Scanner | <code>google/osv-scanner-action</code> | <code>v2.3.8</code> | <code>9a498708959aeaef5ef730655706c5a1df1edbc2</code> | PR-Diff- und geplante Reusable-Workflows | <code>enabled</code> |
+| OSV-Scanner | <code>google/osv-scanner-action</code> | <code>v2.3.8</code> | <code>9a498708959aeaef5ef730655706c5a1df1edbc2</code> | Direkte PR-Diff-Actions und geplanter Reusable-Workflow | <code>enabled</code> |
 
 actionlint, zizmor und die Gitleaks CLI sind hier reine Analysewerkzeuge. Ihre
 Release-Assets werden nur nach Verifikation der dokumentierten SHA-256
@@ -55,7 +55,7 @@ die Release-Version und die vollständige Commit-SHA.
 | --- | --- | --- | --- |
 | <code>ci-security-workflow-lint.yml</code> | Pull Request, Push auf geschützten Branch, manuell | <code>contents: read</code> | Getrennte actionlint- und Offline-zizmor-Ergebnisse; synthetische Fixtures beweisen die erwartete Erkennung |
 | <code>ci-security-secrets.yml</code> | Pull-Request-Diff, geplanter Full-History-Scan, manuell | <code>contents: read</code> | Redigierter PR-Commit-Bereich und getrennt geprüfte History |
-| <code>ci-security-osv.yml</code> | Pull-Request-Diff, geplanter Full-Scan, manuell | Job-level <code>actions: read</code>, <code>contents: read</code>, <code>security-events: write</code> | SARIF-Schwachstellenscan ohne Fix-Befehl |
+| <code>ci-security-osv.yml</code> | Pull-Request-Diff, geplanter Full-Scan, manuell | Job-level <code>actions: read</code>, <code>contents: read</code>, <code>security-events: write</code> | Der PR-Job vergleicht Basis- und Pull-Request-JSON über release-gepinnte Leaf-Actions; der geplante Job nutzt den offiziellen Reusable-Workflow; keiner ruft einen Fix-Befehl auf |
 | <code>ci-security-codeql.yml</code> | Pull Request, Push auf geschützten Branch, geplant, manuell | Job-level <code>contents: read</code>, <code>security-events: write</code> | Ein SARIF-Upload pro Sprachanalyse |
 | <code>ci-security-scorecard.yml</code> | Push auf geschützten Branch, geplant, Branch-Protection-Ereignis, manuell | Job-level <code>contents: read</code>, <code>security-events: write</code> | Heuristische SARIF-Bewertung ohne Publishing oder Repository-Änderungen |
 
@@ -84,12 +84,17 @@ abgegrenzten C/C++-Scope, der die repository-eigenen Common-C17-Helper baut. Es
 beansprucht keine vollständige Connector-C/C++-Abdeckung: Externe Host-Header
 und reale Connector-Build-Capture sind eine getrennte Folgeaufgabe.
 
-OSV scannt rekursiv durch den offiziellen Reusable-Workflow und erfasst
+OSV scannt rekursiv durch release-gepinnte offizielle Actions und erfasst
 Go-Moduldateien sowie erkannte unterstützte Lock-, Vendor-, Container- und
-Paketdefinitionen, sofern sie vorhanden sind. Es ersetzt nicht
-<code>govulncheck</code> für Go-Call-Path-Evidenz. Die zugelassene Integration
-ist die aufgeführte GitHub Action; daher wird keine direkte lokale CLI aus
-einem separaten Repository installiert. Der lokale OSV-Status vor der
+Paketdefinitionen, sofern sie vorhanden sind. Der PR-Job spiegelt den
+veröffentlichten <code>v2.3.8</code>-Scanner-/Reporter-Vergleich, exportiert
+jedoch kein vollständiges JSON als Job-Output: Der veröffentlichte
+PR-Reusable-Workflow überschreitet hier GitHubs 1-MiB-Job-Output-Limit
+([Upstream-Issue #129](https://github.com/google/osv-scanner-action/issues/129)).
+Der geplante Full-Scan behält den offiziellen Reusable-Workflow. OSV ersetzt
+nicht <code>govulncheck</code> für Go-Call-Path-Evidenz. Die zugelassene
+Integration ist die aufgeführte GitHub Action; daher wird keine direkte lokale
+CLI aus einem separaten Repository installiert. Der lokale OSV-Status vor der
 GitHub-Ausführung ist <code>not_executed</code>, während der geplante und
 PR-Workflow der aktivierte Ausführungspfad ist. Verwenden Sie in diesem
 Repository niemals einen OSV-Fix-Befehl.
@@ -102,9 +107,9 @@ still übersprungen noch als bestanden berichtet werden.
 
 Scorecard ist heuristische Evidenz, keine Branch-Protection-Entscheidung. Ihr
 Caller ist SHA-gepinnt, aber seine Docker-Metadaten können weiterhin einen
-mutablen GHCR-Tag wählen. Der OSV-Reusable-Workflow behält ebenfalls
-verschachtelte Docker-/Action-Referenzen. Diese Rest-Risiken werden zur Prüfung
-dokumentiert statt verborgen.
+mutablen GHCR-Tag wählen. Der geplante OSV-Reusable-Workflow und die direkten
+Leaf-Actions behalten ebenfalls mutable Upstream-Docker-Image-Referenzen.
+Diese Rest-Risiken werden zur Prüfung dokumentiert statt verborgen.
 
 Der Scorecard-Pull-Request-Pfad ist absichtlich auf Pull Requests desselben
 Repositorys begrenzt. Er checkt den expliziten Head-SHA aus, nutzt nur

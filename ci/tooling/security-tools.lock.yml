@@ -257,25 +257,25 @@ tools:
     security_policy: https://github.com/google/osv-scanner-action/security/policy
     supported_platforms:
       - GitHub-hosted Linux runners
-    public_repository_availability: Public reusable workflow; this integration requires no repository secret.
+    public_repository_availability: Public GitHub Action and reusable workflow; this integration requires no repository secret.
     purpose: Pull-request-diff and scheduled dependency vulnerability scanning without automatic fixes.
     license: Apache-2.0
     release:
       version: v2.3.8
       date: "2026-05-11"
       commit_sha: 9a498708959aeaef5ef730655706c5a1df1edbc2
-    integration: github_reusable_workflow
+    integration: github_action_and_reusable_workflow
     minimal_permissions:
       - actions: read
       - contents: read
       - security-events: write
     secrets: []
     automated_fixes: false
-    update_procedure: Verify reusable-workflow release commit and nested image/action references; retain no-fix scan arguments.
+    update_procedure: Verify the stable release commit for direct PR leaf actions and the scheduled reusable workflow; retain no-fix scan arguments and reassess the published PR reusable workflow output behavior.
     workflows:
       - ci-security-osv.yml
     status: enabled
-    residual_risk: The reusable workflow retains nested mutable Docker image and action references outside the caller pin.
+    residual_risk: The scheduled reusable workflow and direct leaf actions retain nested mutable Docker image references outside the caller pin; the published v2.3.8 PR reusable workflow exceeds the GitHub job-output limit for this repository.
 
 dispositions:
   artifact_attestations:

@@ -43,6 +43,15 @@ class SecurityToolsManifestTest(unittest.TestCase):
         self.assertIsNone(checker.parse_uses_line(f"uses: {action} #"))
         self.assertIsNone(checker.parse_uses_line(f"name: uses: {action}"))
 
+    def test_osv_pr_workflow_avoids_reusable_json_job_outputs(self):
+        workflow = (ROOT / ".github" / "workflows" / "ci-security-osv.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("runs-on: ubuntu-latest", workflow)
+        self.assertNotIn("osv-scanner-reusable-pr.yml", workflow)
+        self.assertIn("osv-reporter-action@9a498708959aeaef5ef730655706c5a1df1edbc2", workflow)
+        self.assertIn("--fail-on-vuln=true", workflow)
+
     def test_rejects_action_sha_that_is_not_the_recorded_release(self):
         pins = checker.pinned_actions_from(checker.load_manifest())
         text = "- uses: actions/checkout@0000000000000000000000000000000000000000 # v7.0.0\n"

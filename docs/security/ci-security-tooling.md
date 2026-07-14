@@ -28,7 +28,7 @@ as passed.
 | CodeQL | <code>github/codeql-action</code> | <code>v4.37.0</code> | <code>99df26d4f13ea111d4ec1a7dddef6063f76b97e9</code> | Advanced GitHub Actions workflow | <code>enabled</code> |
 | Dependency Review | <code>actions/dependency-review-action</code> | <code>v5.0.0</code> | <code>a1d282b36b6f3519aa1f3fc636f609c47dddb294</code> | PR-only GitHub Action | <code>blocked_feature_unavailable</code> |
 | Scorecard | <code>ossf/scorecard-action</code> | <code>v2.4.3</code> | <code>4eaacf0543bb3f2c246792bd56e8cdeffafb205a</code> | Experimental same-repository PR-head Action plus scheduled default-branch SARIF | <code>enabled</code> |
-| OSV-Scanner | <code>google/osv-scanner-action</code> | <code>v2.3.8</code> | <code>9a498708959aeaef5ef730655706c5a1df1edbc2</code> | PR-diff and scheduled reusable workflows | <code>enabled</code> |
+| OSV-Scanner | <code>google/osv-scanner-action</code> | <code>v2.3.8</code> | <code>9a498708959aeaef5ef730655706c5a1df1edbc2</code> | Direct PR-diff actions and scheduled reusable workflow | <code>enabled</code> |
 
 actionlint, zizmor, and the Gitleaks CLI are analysis-only here. Their release
 assets are accepted only after the recorded SHA-256 is verified. Gitleaks runs
@@ -53,7 +53,7 @@ full commit SHA.
 | --- | --- | --- | --- |
 | <code>ci-security-workflow-lint.yml</code> | Pull request, protected branch push, manual | <code>contents: read</code> | Separate actionlint and offline zizmor results; synthetic fixtures prove expected detection |
 | <code>ci-security-secrets.yml</code> | Pull request diff, scheduled full history, manual | <code>contents: read</code> | Redacted PR commit range and separately reviewed history |
-| <code>ci-security-osv.yml</code> | Pull request diff, scheduled full scan, manual | Job-level <code>actions: read</code>, <code>contents: read</code>, <code>security-events: write</code> | SARIF vulnerability scan without a fix command |
+| <code>ci-security-osv.yml</code> | Pull request diff, scheduled full scan, manual | Job-level <code>actions: read</code>, <code>contents: read</code>, <code>security-events: write</code> | The PR job compares base and pull-request JSON through release-pinned leaf actions; the scheduled job uses the official reusable workflow; neither issues a fix command |
 | <code>ci-security-codeql.yml</code> | Pull request, protected branch push, schedule, manual | Job-level <code>contents: read</code>, <code>security-events: write</code> | One SARIF upload per language analysis |
 | <code>ci-security-scorecard.yml</code> | Protected branch push, schedule, branch-protection event, manual | Job-level <code>contents: read</code>, <code>security-events: write</code> | Heuristic SARIF assessment; no publishing or repository changes |
 
@@ -79,14 +79,18 @@ C/C++ scope that builds the repository-owned common C17 helpers. It does not
 claim complete connector C/C++ coverage: external host headers and real
 connector build capture are a separate follow-up requirement.
 
-OSV scans recursively through the reusable official workflow, covering Go
+OSV scans recursively through release-pinned official actions, covering Go
 module files and detected supported lock, vendored, container, and package
-definitions when present. It does not replace <code>govulncheck</code> for Go
-call-path evidence. The approved integration is the listed GitHub Action;
-therefore a direct local CLI from a separate repository is not installed.
-Local OSV status before GitHub execution is <code>not_executed</code>, while
-the scheduled and PR workflow is the enabled execution path. Never use an OSV
-fix command in this repository.
+definitions when present. The PR job mirrors the published <code>v2.3.8</code>
+scanner/reporter comparison without exporting full JSON as job outputs: the
+published PR reusable workflow exceeds GitHub's 1 MiB job-output limit here
+([upstream issue #129](https://github.com/google/osv-scanner-action/issues/129)).
+The scheduled full scan retains the official reusable workflow. OSV does not
+replace <code>govulncheck</code> for Go call-path evidence. The approved
+integration is the listed GitHub Action; therefore a direct local CLI from a
+separate repository is not installed. Local OSV status before GitHub execution
+is <code>not_executed</code>, while the scheduled and PR workflow is the
+enabled execution path. Never use an OSV fix command in this repository.
 
 Dependency Review is intentionally not replaced while the dependency-graph/SBOM
 capability is unavailable. Recheck that GitHub feature before enabling its
@@ -96,8 +100,9 @@ reported as passed.
 
 Scorecard is heuristic evidence, not a branch-protection decision. Its caller
 is SHA-pinned, but its Docker metadata can still select a mutable GHCR tag.
-The OSV reusable workflow likewise retains nested Docker/action references.
-These residual risks are recorded for review rather than hidden.
+The OSV scheduled reusable workflow and direct leaf actions likewise retain
+mutable upstream Docker-image references. These residual risks are recorded for
+review rather than hidden.
 
 The Scorecard pull-request path is intentionally limited to same-repository
 pull requests. It checks out the explicit head SHA, uses only
