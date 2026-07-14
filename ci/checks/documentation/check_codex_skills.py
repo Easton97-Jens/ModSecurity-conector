@@ -7,6 +7,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -70,7 +71,11 @@ def validate_links(root: Path, path: Path, text: str) -> list[tuple[Path, str]]:
     errors: list[tuple[Path, str]] = []
     for raw_target in LINK_RE.findall(text):
         target = raw_target.strip()
-        if target.startswith(("https://", "http://", "mailto:", "#")):
+        parsed = urlsplit(target)
+        if target.startswith("#") or parsed.scheme in {"https", "mailto"}:
+            continue
+        if parsed.scheme:
+            errors.append(error(path, f"unsupported external link scheme: {parsed.scheme}"))
             continue
         target = target.split("#", 1)[0]
         if not target:
@@ -135,7 +140,7 @@ def validate_skill(root: Path, skill_dir: Path) -> tuple[list[tuple[Path, str]],
         errors.append(error(path, f"missing required section: {section}"))
     if "TODO" in body:
         errors.append(error(path, "skill body contains a template TODO"))
-    if re.search(r"(?:^|[\s'\"])/(?:root|home|Users)/", text):
+    if any(marker in text for marker in ("/root/", "/home/", "/Users/")):
         errors.append(error(path, "contains a user-specific absolute path"))
     if SECRET_RE.search(text):
         errors.append(error(path, "contains a token or private-key-shaped value"))

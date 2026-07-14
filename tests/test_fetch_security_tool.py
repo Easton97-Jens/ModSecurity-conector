@@ -58,8 +58,15 @@ class FetchSecurityToolTest(unittest.TestCase):
             ["fetch_security_tool.py", "--tool", "actionlint", "--validate-only"],
         ):
             with redirect_stdout(output):
-                self.assertEqual(fetcher.main(), 0)
+                self.assertIsNone(fetcher.main())
         self.assertEqual(output.getvalue(), "actionlint: manifest metadata valid\n")
+
+    def test_recognizes_only_simple_top_level_tool_headers(self):
+        self.assertTrue(fetcher.is_tool_header("  gitleaks_cli:"))
+        self.assertFalse(fetcher.is_tool_header("gitleaks_cli:"))
+        self.assertFalse(fetcher.is_tool_header("  gitleaks-cli:"))
+        self.assertFalse(fetcher.is_tool_header("  gitleaks_cli: value"))
+        self.assertFalse(fetcher.is_tool_header("  :"))
 
     def test_safe_member_rejects_archive_traversal(self):
         safe = tarfile.TarInfo("release/actionlint")

@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
-import re
 import shutil
 import tarfile
 import tempfile
@@ -16,7 +15,15 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = ROOT / "ci" / "tooling" / "security-tools.lock.yml"
 
 
-TOOL_HEADER = re.compile(r"^  ([a-z0-9_]+):$")
+TOOL_NAME_CHARACTERS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789_")
+
+
+def is_tool_header(line: str) -> bool:
+    """Return whether a line starts a top-level tool record in the lock file."""
+    if not line.startswith("  ") or not line.endswith(":"):
+        return False
+    name = line[2:-1]
+    return bool(name) and all(character in TOOL_NAME_CHARACTERS for character in name)
 
 
 def scalar(value: str) -> str:
@@ -59,7 +66,7 @@ def load_record(manifest_path: Path, name: str) -> dict[str, Any]:
         raise ValueError(f"unknown security tool: {name}")
     end = len(source)
     for index in range(start + 1, len(source)):
-        if TOOL_HEADER.fullmatch(source[index]):
+        if is_tool_header(source[index]):
             end = index
             break
         if source[index] and not source[index].startswith(" "):
@@ -143,7 +150,7 @@ def fetch(record: dict[str, Any], destination: Path) -> Path:
         archive.unlink(missing_ok=True)
 
 
-def main() -> int:
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Fetch a checksum-verified security-tool release asset."
     )
@@ -155,12 +162,12 @@ def main() -> int:
     record = load_record(arguments.manifest.resolve(), arguments.tool)
     if arguments.validate_only:
         print(f"{arguments.tool}: manifest metadata valid")
-        return 0
+        return
     if arguments.destination is None:
         parser.error("--destination is required unless --validate-only")
-    binary = fetch(record, arguments.destination.resolve())
-    print(binary)
-    return 0
+    else:
+        binary = fetch(record, arguments.destination.resolve())
+        print(binary)
 
 
 if __name__ == "__main__":

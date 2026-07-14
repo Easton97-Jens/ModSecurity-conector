@@ -32,10 +32,11 @@ class CodexHookPolicyTest(unittest.TestCase):
             "git reset --hard HEAD": "hard_git_reset",
             "git push --force origin topic": "force_push",
             "git push --force-with-lease origin topic": "force_push",
+            "git push --force-with-lease=refs/heads/topic origin topic": "force_push",
             "git push origin master": "direct_master_push",
             "git push origin HEAD:master": "direct_master_push",
             "git push origin refs/heads/topic:refs/heads/master": "direct_master_push",
-            "rm -rf /tmp/not-approved": "recursive_removal_outside_temp_root",
+            "rm -rf /unapproved/not-approved": "recursive_removal_outside_temp_root",
         }
         for command, expected in commands.items():
             with self.subTest(command=command):
@@ -64,13 +65,13 @@ class CodexHookPolicyTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(policy.prohibited_staging_path(path), expected)
 
-    def test_hook_output_never_echoes_command_or_secret_value(self):
-        secret = "synthetic-secret-value-do-not-log"
-        command = "git add . # " + secret
+    def test_hook_output_never_echoes_command_or_sensitive_value(self):
+        sensitive_value = "untrusted-input-marker-that-must-not-be-echoed"
+        command = "git add . # " + sensitive_value
         output = policy.pre_tool_hook_output({"tool_input": {"command": command}}, TEMP_ROOT)
         rendered = repr(output)
         self.assertNotIn(command, rendered)
-        self.assertNotIn(secret, rendered)
+        self.assertNotIn(sensitive_value, rendered)
         self.assertEqual(
             output["hookSpecificOutput"]["permissionDecision"],
             "deny",

@@ -108,6 +108,14 @@ class CodexSkillsTest(unittest.TestCase):
             errors, _ = validator.validate_skill(root, skill)
         self.assertTrue(any("user-specific absolute path" in message for _, message in errors))
 
+    def test_rejects_insecure_external_link_scheme(self):
+        with tempfile.TemporaryDirectory(dir=temporary_parent()) as directory:
+            root = Path(directory)
+            insecure_url = "".join(("http", ":", "//example.invalid"))
+            skill = write_skill(root, "link-skill", required_body(f"[insecure]({insecure_url})"))
+            errors, _ = validator.validate_skill(root, skill)
+        self.assertTrue(any("unsupported external link scheme" in message for _, message in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

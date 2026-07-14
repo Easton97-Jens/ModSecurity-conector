@@ -33,6 +33,16 @@ class SecurityToolsManifestTest(unittest.TestCase):
         errors = checker.validate_workflow_text(text, "fixture.yaml")
         self.assertTrue(any("not an immutable SHA" in error for error in errors))
 
+    def test_parses_uses_lines_without_a_backtracking_regular_expression(self):
+        action = "actions/checkout@0000000000000000000000000000000000000000"
+        self.assertEqual(
+            checker.parse_uses_line(f"  - uses: {action} # v7.0.0  "),
+            (action, "v7.0.0  "),
+        )
+        self.assertEqual(checker.parse_uses_line(f"uses: {action} #   "), (action, " "))
+        self.assertIsNone(checker.parse_uses_line(f"uses: {action} #"))
+        self.assertIsNone(checker.parse_uses_line(f"name: uses: {action}"))
+
     def test_rejects_action_sha_that_is_not_the_recorded_release(self):
         pins = checker.pinned_actions_from(checker.load_manifest())
         text = "- uses: actions/checkout@0000000000000000000000000000000000000000 # v7.0.0\n"
