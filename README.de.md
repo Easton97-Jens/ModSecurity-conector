@@ -121,6 +121,7 @@ erheben.
 ## Dokumentation
 
 - [Dokumentationsindex](docs/README.de.md)
+- [Repository-Konzept](docs/repository-concept.de.md)
 - [Einstieg](docs/getting-started.de.md)
 - [Konfiguration](docs/configuration.de.md)
 - [Variablen](docs/reference/variables.de.md)

@@ -146,6 +146,7 @@ Buildverhalten und Hostnachweis explizit und prüfbar bleiben.
 
 ## Verwandte Referenzen
 
+- [Zielkonzept für das Produkt-Monorepo](repository-concept.de.md)
 - [Konfigurations- und Laufzeit-Hinweise](configuration.de.md)
 - [Tests und Nachweise](testing-and-evidence.de.md)
 - [Betrieb und Sicherheit](operations-and-security.de.md)

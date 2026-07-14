@@ -80,15 +80,25 @@ production, CRS, or connector-release evidence.
 
 Run <code>make check-analysis-tools</code> before a diagnostic capture. It
 prints the actual selected <code>CC</code>, <code>CXX</code>, <code>clangd</code>,
-and Bear paths and versions. A missing required tool, NGINX header set,
-libmodsecurity header, local library path, or external writable path produces
-<code>BLOCKED</code> and exit code <code>77</code>; the targets do not install,
-download, or prepare a substitute. An absent, relative, or checkout-internal
-required output parameter is a usage error and returns exit code <code>2</code>.
+and Bear paths and versions. Run <code>make check-clang-analysis-tools</code>
+before the advisory baseline; it independently reports the selected
+<code>clang-tidy</code>, <code>clang</code>, and <code>clang++</code> tools.
+Neither target installs, downloads, or prepares a substitute.
 
-<code>clang-tidy</code> is deliberately not invoked. This level adds neither a
-<code>.clang-tidy</code> file nor a <code>.clangd</code> file, static-analyzer
-or sanitizer flags, production binary flags, or a CI gate.
+The advisory baseline requires a marked, writable <code>CODEX_TEMP_ROOT</code>
+with its <code>tmp/</code> child, at least 5 GiB free space, and an external
+C17/C++17 compilation database below that root. It refuses a relative,
+checkout-internal, symlink-escaping, or otherwise unsafe CDB/output path before
+creating output. Missing tools or prerequisites return exit code <code>77</code>;
+invalid or unsafe parameters return exit code <code>2</code>; another non-zero
+exit code means a technical analysis failure.
+
+The baseline adds neither a <code>.clang-tidy</code> file nor a
+<code>.clangd</code> file. It uses an explicit inline Tidy configuration,
+does not apply <code>--fix</code>, <code>--fix-errors</code>,
+<code>--fix-notes</code>, or <code>--export-fixes</code>, and does not add
+<code>NOLINT</code> entries, sanitizer flags, production binary flags, a CI
+gate, or a workflow change.
 
 ### Capture and C++17 evaluator targets
 
@@ -98,6 +108,51 @@ or sanitizer flags, production binary flags, or a CI gate.
 | <code>make check-targeted-evaluator-cpp17</code> | Absolute external <code>CPP_BUILD_ROOT</code>, <code>MODSECURITY_INCLUDE_DIR</code>, and <code>MODSECURITY_LIB_DIR</code>; optional absolute <code>MODSECURITY_LIB_FILE</code> | Compiles only <code>common/scripts/modsecurity_targeted_eval.cc</code> with <code>-std=c++17 -Wall -Wextra -Werror</code>. The local binary is not executed and is not a production artifact. |
 | <code>make compile-db-cpp17</code> | The same C++17 inputs plus the same external <code>COMPDB_OUTPUT</code> | Bear captures the real evaluator compiler process and atomically merges its C++17 entry with a valid existing database. It never invents a compiler command. |
 | <code>make check-clangd-c17</code> | A merged external <code>COMPDB_OUTPUT</code> containing NGINX, Common, and evaluator entries | Validates the database and checks one representative NGINX, Common, and C++17 translation unit with <code>clangd --check</code>. It applies no fixes and disables configuration, background indexing, Clang-Tidy, and clangd tweaks. |
+
+### Advisory Clang analysis baseline
+
+| Target | Required local input | Result and boundary |
+|---|---|---|
+| <code>make check-clang-analysis-tools</code> | Trusted <code>clang-tidy</code>, <code>clang</code>, and <code>clang++</code> on <code>PATH</code>, or the corresponding executable overrides | Reports the selected versions without creating analysis output. A missing tool returns <code>77</code>. |
+| <code>make clang-tidy-baseline</code> | Absolute <code>COMPDB_OUTPUT</code> and absolute <code>ANALYSIS_OUTPUT</code>, both below the marked <code>CODEX_TEMP_ROOT</code> | Runs <code>clang-tidy</code> for every validated C17/C++17 translation unit using the explicit <code>-*,bugprone-*,cert-*</code> profile. Writes raw logs and <code>clang-tidy-baseline.json</code> only below <code>ANALYSIS_OUTPUT</code>. |
+| <code>make clang-analyzer-baseline</code> | The same safe CDB/output paths | Replaces CDB compiler drivers with <code>clang</code> or <code>clang++</code>, strips output-writing arguments, and runs direct <code>clang --analyze</code> with the <code>core,unix,security,cplusplus,deadcode</code> profile and owned SARIF output. Writes <code>clang-analyzer-baseline.json</code>. It does not require <code>scan-build</code>. |
+| <code>make clang-analysis-baseline</code> | The same safe CDB/output paths | Runs both advisory paths and writes one normalized <code>clang-analysis-baseline.json</code> plus run-scoped raw logs below <code>ANALYSIS_OUTPUT</code>. |
+
+The runner validates that CDB entries name unique, tracked repository C/C++
+sources with the required C17/C++17 flag before it writes any result. It stages
+a sanitized compilation database and removes only that runner-owned staging
+child after the invocation; it never recursively removes a caller-supplied
+<code>ANALYSIS_OUTPUT</code>. It snapshots the CDB, analyzed source content, and
+working-tree status before and after each run. A changed snapshot is a technical
+failure, while pre-existing independent worktree changes are allowed to remain
+unchanged.
+
+The normalized JSON always contains the CDB SHA-256, tool paths and versions,
+requested and active Tidy checks, the direct static-analyzer route, translation
+unit counts, raw-artifact references, findings, technical failures, read-only
+verification, and zero-inclusive classification totals. A technically complete
+baseline exits <code>0</code> even when findings are present. The only
+classification values are:
+
+~~~text
+confirmed_bug
+needs_validation
+possible_security_candidate
+false_positive
+third_party_header
+intentional_pattern
+out_of_scope
+~~~
+
+Tool diagnostics are triage input, not automatic proof. Repository diagnostics
+normally start as <code>needs_validation</code>; CERT/security-oriented checks
+may be <code>possible_security_candidate</code>; external headers are
+<code>third_party_header</code>; and external non-header locations are
+<code>out_of_scope</code>. The baseline never automatically labels a finding a
+confirmed bug, false positive, or intentional pattern. A
+<code>possible_security_candidate</code> is explicitly unconfirmed and needs
+separate Codex Security validation before any security conclusion or source
+change.
 
 Every capture filters generated probes and external copied sources, retains only
 tracked checkout translation units, validates C17/C++17 and
@@ -132,9 +187,35 @@ database containing only one language is still valid for its capture target,
 but <code>check-clangd-c17</code> fails clearly until both required coverage
 sets are present.
 
+Use a marked external Codex temporary root for the advisory paths. The CDB is
+an input from the capture steps above; the baseline does not recapture or edit
+it:
+
+~~~sh
+export CODEX_TEMP_ROOT="/abs/marked-codex-temp-root"
+export TMPDIR="$CODEX_TEMP_ROOT/tmp"
+export ANALYSIS_ROOT="$CODEX_TEMP_ROOT/analysis"
+export COMPDB_OUTPUT="$ANALYSIS_ROOT/final-cpp-diagnostics/compile_commands.json"
+
+make check-clang-analysis-tools
+
+make clang-tidy-baseline \
+  COMPDB_OUTPUT="$COMPDB_OUTPUT" \
+  ANALYSIS_OUTPUT="$ANALYSIS_ROOT/clang-baseline/tidy"
+
+make clang-analyzer-baseline \
+  COMPDB_OUTPUT="$COMPDB_OUTPUT" \
+  ANALYSIS_OUTPUT="$ANALYSIS_ROOT/clang-baseline/analyzer"
+
+make clang-analysis-baseline \
+  COMPDB_OUTPUT="$COMPDB_OUTPUT" \
+  ANALYSIS_OUTPUT="$ANALYSIS_ROOT/clang-baseline/combined"
+~~~
+
 This first level has no Apache, HAProxy, Envoy, Traefik, or lighttpd compilation
 database coverage. It does not execute connector traffic, inspect runtime
-artifacts, enable Clang-Tidy, or establish any production or runtime release.
+artifacts, modify product source, alter the Framework or its submodule, or
+establish any production or runtime release.
 
 ## Cache and source provisioning
 

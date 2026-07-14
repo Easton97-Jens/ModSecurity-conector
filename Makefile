@@ -2,6 +2,11 @@ PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 MSCONNECTOR_C_STD ?= c17
 MSCONNECTOR_CFLAGS ?= -std=$(MSCONNECTOR_C_STD) -Wall -Wextra -Werror
 MSCONNECTOR_COMPILER_ID ?= $(notdir $(firstword $(CC)))
+CLANG_TIDY ?= clang-tidy
+CLANG ?= clang
+CLANGXX ?= clang++
+CLANG_TIDY_CHECKS ?= -*,bugprone-*,cert-*
+CLANG_ANALYZER_CHECKS ?= core,unix,security,cplusplus,deadcode
 FRAMEWORK_PYTHON := $(if $(findstring /,$(PYTHON)),$(abspath $(PYTHON)),$(PYTHON))
 VERIFIED_RUN_PARENT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(if $(TMPDIR),$(TMPDIR),/var/tmp))
 VERIFIED_RUN_ROOT ?= $(VERIFIED_RUN_PARENT)/ModSecurity-conector-verified
@@ -228,6 +233,7 @@ export LIGHTTPD_DECISION_BACKEND
 .PHONY: smoke-envoy-request-body smoke-traefik-request-body smoke-lighttpd-request-body smoke-open-connectors-request-body
 .PHONY: check-compiler-guides
 .PHONY: check-analysis-tools compile-db-nginx-c17 check-targeted-evaluator-cpp17 compile-db-cpp17 check-clangd-c17
+.PHONY: check-clang-analysis-tools clang-tidy-baseline clang-analyzer-baseline clang-analysis-baseline
 .PHONY: build-apache build-nginx build-haproxy build-envoy build-traefik build-lighttpd build-all-connectors
 .PHONY: check-config-apache check-config-nginx check-config-haproxy check-config-envoy check-config-traefik check-config-lighttpd check-config-all-connectors
 .PHONY: start-smoke-apache start-smoke-nginx start-smoke-haproxy start-smoke-all-connectors
@@ -322,6 +328,18 @@ check-compiler-guides:
 
 check-analysis-tools:
 	PYTHONDONTWRITEBYTECODE=1 CC="$(CC)" CXX="$(CXX)" sh ci/checks/analysis/check-analysis-tools.sh
+
+check-clang-analysis-tools:
+	PYTHONDONTWRITEBYTECODE=1 PYTHON="$(PYTHON)" CLANG_TIDY="$(CLANG_TIDY)" CLANG="$(CLANG)" CLANGXX="$(CLANGXX)" sh ci/checks/analysis/check-clang-analysis-tools.sh
+
+clang-tidy-baseline:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" ci/checks/analysis/clang_analysis_baseline.py --mode tidy --compdb-output "$(COMPDB_OUTPUT)" --analysis-output "$(ANALYSIS_OUTPUT)" --clang-tidy "$(CLANG_TIDY)" --clang "$(CLANG)" --clangxx "$(CLANGXX)" --tidy-checks="$(CLANG_TIDY_CHECKS)" --analyzer-checks="$(CLANG_ANALYZER_CHECKS)"
+
+clang-analyzer-baseline:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" ci/checks/analysis/clang_analysis_baseline.py --mode analyzer --compdb-output "$(COMPDB_OUTPUT)" --analysis-output "$(ANALYSIS_OUTPUT)" --clang-tidy "$(CLANG_TIDY)" --clang "$(CLANG)" --clangxx "$(CLANGXX)" --tidy-checks="$(CLANG_TIDY_CHECKS)" --analyzer-checks="$(CLANG_ANALYZER_CHECKS)"
+
+clang-analysis-baseline:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" ci/checks/analysis/clang_analysis_baseline.py --mode combined --compdb-output "$(COMPDB_OUTPUT)" --analysis-output "$(ANALYSIS_OUTPUT)" --clang-tidy "$(CLANG_TIDY)" --clang "$(CLANG)" --clangxx "$(CLANGXX)" --tidy-checks="$(CLANG_TIDY_CHECKS)" --analyzer-checks="$(CLANG_ANALYZER_CHECKS)"
 
 compile-db-nginx-c17:
 	PYTHONDONTWRITEBYTECODE=1 CC="$(CC)" PYTHON="$(PYTHON)" COMPDB_OUTPUT="$(COMPDB_OUTPUT)" sh ci/checks/analysis/compile-db-nginx-c17.sh

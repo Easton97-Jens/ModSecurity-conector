@@ -116,6 +116,7 @@ matrices remain separate evidence-gated work. Read the current
 ## Documentation
 
 - [Documentation index](docs/README.md)
+- [Repository concept](docs/repository-concept.md)
 - [Getting started](docs/getting-started.md)
 - [Configuration](docs/configuration.md)
 - [Variables](docs/reference/variables.md)

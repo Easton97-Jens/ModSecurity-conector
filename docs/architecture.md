@@ -137,6 +137,7 @@ explicit and reviewable.
 
 ## Related references
 
+- [Target product-monorepo concept](repository-concept.md)
 - [Configuration and runtime guidance](configuration.md)
 - [Testing and evidence](testing-and-evidence.md)
 - [Operations and security](operations-and-security.md)
