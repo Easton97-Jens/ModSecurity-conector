@@ -25,6 +25,8 @@ RUNTIME_LOG_ROOT ?= $(VERIFIED_RUN_ROOT)/run-logs
 STATE_HOME ?= $(VERIFIED_STATE_ROOT)
 SOURCE_ROOT ?= $(VERIFIED_SOURCE_ROOT)
 BUILD_ROOT ?= $(VERIFIED_BUILD_ROOT)
+CHECK_STATUS_ROOT ?= $(BUILD_ROOT)/check-status
+APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE ?= $(CHECK_STATUS_ROOT)/apache-request-transaction-cleanup.json
 # Host harnesses may create connector-local transient files and require their
 # temporary root to remain below BUILD_ROOT.  Keep the legacy verified tmp
 # root available for callers that need it, but make the standard target
@@ -82,6 +84,8 @@ PYTHONDONTWRITEBYTECODE ?= 1
 WITH_RUNTIME_COMPONENTS = SKIP_RUNTIME_COMPONENT_PREPARE=1 sh ci/provisioning/cache/with-runtime-components.sh
 
 export BUILD_ROOT
+export CHECK_STATUS_ROOT
+export APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE
 export SOURCE_ROOT
 export TMP_ROOT
 export LOG_ROOT
@@ -1005,7 +1009,7 @@ check-no-crs-source-normalization:
 		tests.test_prepare_runtime_components \
 		tests.test_runtime_component_cache_identity
 
-.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-apache-request-transaction-cleanup check-apache-request-transaction-cleanup-lint check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-haproxy-htx-overlay check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-remaining-connectors-common-adoption check-envoy-common-adoption check-traefik-common-adoption check-lighttpd-common-adoption check-remaining-connectors-host-integration check-remaining-connectors-build-wiring check-remaining-connectors-start-wiring check-remaining-connectors-claim-policy check-remaining-connectors-c-standard-wiring check-remaining-connectors-c-standards check-remaining-connectors-c17 check-remaining-connectors-c17-lint check-remaining-connectors-c23 check-remaining-connectors-future-c check-block-status-generator build-envoy-connector check-envoy-config start-smoke-envoy runtime-smoke-envoy build-traefik-connector check-traefik-config start-smoke-traefik runtime-smoke-traefik build-lighttpd-connector build-lighttpd-bridge self-test-lighttpd-bridge check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd build-remaining-connectors start-smoke-remaining-connectors runtime-smoke-remaining-connectors readiness-remaining-connectors
+.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-apache-request-transaction-cleanup check-apache-request-transaction-cleanup-lint check-optional-prerequisite-status check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-haproxy-htx-overlay check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-remaining-connectors-common-adoption check-envoy-common-adoption check-traefik-common-adoption check-lighttpd-common-adoption check-remaining-connectors-host-integration check-remaining-connectors-build-wiring check-remaining-connectors-start-wiring check-remaining-connectors-claim-policy check-remaining-connectors-c-standard-wiring check-remaining-connectors-c-standards check-remaining-connectors-c17 check-remaining-connectors-c17-lint check-remaining-connectors-c23 check-remaining-connectors-future-c check-block-status-generator build-envoy-connector check-envoy-config start-smoke-envoy runtime-smoke-envoy build-traefik-connector check-traefik-config start-smoke-traefik runtime-smoke-traefik build-lighttpd-connector build-lighttpd-bridge self-test-lighttpd-bridge check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd build-remaining-connectors start-smoke-remaining-connectors runtime-smoke-remaining-connectors readiness-remaining-connectors
 
 build-envoy-connector:
 	sh ci/runtime/lifecycle/run-remaining-connector-target.sh envoy build-envoy-connector
@@ -1123,7 +1127,11 @@ check-apache-request-transaction-cleanup:
 	sh ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh
 
 check-apache-request-transaction-cleanup-lint:
-	@$(MAKE) check-apache-request-transaction-cleanup || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: Apache request transaction cleanup APR lifecycle check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_request_transaction_cleanup
+	"$(PYTHON)" ci/tools/run-check-status.py --check apache_request_transaction_cleanup --status-file "$(APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE)" --allow-blocked-reason apache_development_prerequisite -- sh ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh
+
+check-optional-prerequisite-status:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_optional_prerequisite_status
 
 check-apache-c23:
 	APACHE_C_STD_PROFILE=c23 sh ci/checks/connectors/apache/check-apache-c-standards.sh
@@ -1242,6 +1250,7 @@ lint: check-framework
 	$(MAKE) check-apache-c-standard-wiring
 	$(MAKE) check-apache-c17-lint
 	$(MAKE) check-apache-request-transaction-cleanup-lint
+	$(MAKE) check-optional-prerequisite-status
 	$(MAKE) check-nginx-common-adoption
 	$(MAKE) check-nginx-c-standard-wiring
 	$(MAKE) check-nginx-c17-lint
