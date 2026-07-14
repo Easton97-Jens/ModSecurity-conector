@@ -142,3 +142,4 @@ raw data and build output remain outside the checkout.
 | CR-20260714-repository-concept | 2026-07-14 | Repository product-monorepo concept | [English](CR-20260714-repository-concept.md) / [Deutsch](CR-20260714-repository-concept.de.md) |
 | CR-20260714-common-design-note | 2026-07-14 | Current Common design-note boundary | [English](CR-20260714-common-design-note.md) / [Deutsch](CR-20260714-common-design-note.de.md) |
 | CR-20260714-apache-request-transaction-cleanup | 2026-07-14 | Apache request transaction cleanup | [English](CR-20260714-apache-request-transaction-cleanup.md) / [Deutsch](CR-20260714-apache-request-transaction-cleanup.de.md) |
+| CR-20260714-grpc-go-2026-4762 | 2026-07-14 | Update gRPC to address GO-2026-4762 | [English](CR-20260714-grpc-go-2026-4762.md) / [Deutsch](CR-20260714-grpc-go-2026-4762.de.md) |
