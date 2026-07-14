@@ -1,0 +1,284 @@
+schema_version: 1
+checked_at: "2026-07-14"
+pinned_actions:
+  actions/checkout:
+    version: v7.0.0
+    commit_sha: 9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+    upstream: https://github.com/actions/checkout
+  actions/setup-python:
+    version: v6.3.0
+    commit_sha: ece7cb06caefa5fff74198d8649806c4678c61a1
+    upstream: https://github.com/actions/setup-python
+  actions/github-script:
+    version: v9.0.0
+    commit_sha: 3a2844b7e9c422d3c10d287c895573f7108da1b3
+    upstream: https://github.com/actions/github-script
+  actions/upload-artifact:
+    version: v7.0.1
+    commit_sha: 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+    upstream: https://github.com/actions/upload-artifact
+  actions/download-artifact:
+    version: v8.0.1
+    commit_sha: 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+    upstream: https://github.com/actions/download-artifact
+  github/codeql-action:
+    version: v4.37.0
+    commit_sha: 99df26d4f13ea111d4ec1a7dddef6063f76b97e9
+    upstream: https://github.com/github/codeql-action
+  ossf/scorecard-action:
+    version: v2.4.3
+    commit_sha: 4eaacf0543bb3f2c246792bd56e8cdeffafb205a
+    upstream: https://github.com/ossf/scorecard-action
+  google/osv-scanner-action:
+    version: v2.3.8
+    commit_sha: 9a498708959aeaef5ef730655706c5a1df1edbc2
+    upstream: https://github.com/google/osv-scanner-action
+tools:
+  actionlint:
+    display_name: actionlint
+    upstream:
+      owner: rhysd
+      repository: actionlint
+      url: https://github.com/rhysd/actionlint
+    evaluated_at: "2026-07-14"
+    security_policy: https://github.com/rhysd/actionlint/security/policy
+    supported_platforms:
+      - Linux x86_64 release asset verified for this CI integration
+    public_repository_availability: Free official release asset; no credentials are required for this Linux CI integration.
+    purpose: Static validation of GitHub Actions workflow syntax, expressions, action references, and shell integration.
+    license: MIT
+    release:
+      version: v1.7.12
+      date: "2026-03-30"
+      commit_sha: 914e7df21a07ef503a81201c76d2b11c789d3fca
+    integration: downloaded_binary
+    checksum:
+      asset: actionlint_1.7.12_linux_amd64.tar.gz
+      url: https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+      sha256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+      source: https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_checksums.txt
+      executable: actionlint
+    minimal_permissions:
+      - contents: read
+    secrets: []
+    automated_fixes: false
+    update_procedure: Verify the upstream release, commit, asset digest, and ShellCheck compatibility; update this record and rerun the focused workflow checks.
+    workflows:
+      - ci-security-workflow-lint.yml
+    status: enabled
+
+  zizmor:
+    display_name: zizmor
+    upstream:
+      owner: zizmorcore
+      repository: zizmor
+      url: https://github.com/zizmorcore/zizmor
+    evaluated_at: "2026-07-14"
+    security_policy: https://github.com/zizmorcore/zizmor/security/policy
+    supported_platforms:
+      - Linux x86_64 release asset verified for this CI integration
+    public_repository_availability: Free official release asset; no credentials are required for this Linux CI integration.
+    purpose: Static security analysis of GitHub Actions workflows, including token permissions and injection risks.
+    license: MIT
+    release:
+      version: v1.27.0
+      date: "2026-07-14"
+      commit_sha: e2627367eb7c917a90503ce05a66872fd91da6fb
+    integration: downloaded_binary
+    checksum:
+      asset: zizmor-x86_64-unknown-linux-gnu.tar.gz
+      url: https://github.com/zizmorcore/zizmor/releases/download/v1.27.0/zizmor-x86_64-unknown-linux-gnu.tar.gz
+      sha256: 277f2bd8fd37cf60c42ab7afca6faa884e65440fa31e02b44bdaae60f62a358f
+      source: https://github.com/zizmorcore/zizmor/releases/tag/v1.27.0
+      executable: zizmor
+    minimal_permissions:
+      - contents: read
+    secrets: []
+    automated_fixes: false
+    update_procedure: Verify the upstream release and Linux asset digest, keep offline analysis, and update the fixture expectation with the release.
+    workflows:
+      - ci-security-workflow-lint.yml
+    status: enabled
+
+  gitleaks_cli:
+    display_name: Gitleaks CLI
+    upstream:
+      owner: gitleaks
+      repository: gitleaks
+      url: https://github.com/gitleaks/gitleaks
+    evaluated_at: "2026-07-14"
+    security_policy: https://github.com/gitleaks/gitleaks/security/policy
+    supported_platforms:
+      - Linux x86_64 release asset verified for this CI integration
+    public_repository_availability: Free official release asset; no credentials are required for this Linux CI integration.
+    purpose: Redacted scanning of pull-request commit ranges and separately scheduled full history.
+    license: MIT
+    release:
+      version: v8.30.1
+      date: "2026-03-21"
+      commit_sha: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e
+    integration: downloaded_binary
+    checksum:
+      asset: gitleaks_8.30.1_linux_x64.tar.gz
+      url: https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+      sha256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+      source: https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt
+      executable: gitleaks
+    minimal_permissions:
+      - contents: read
+    secrets: []
+    automated_fixes: false
+    update_procedure: Verify release, commit, asset digest, redaction behavior, and diff/full-history scope before advancing the pinned record.
+    workflows:
+      - ci-security-secrets.yml
+    status: enabled
+
+  gitleaks_action:
+    display_name: Gitleaks GitHub Action
+    upstream:
+      owner: gitleaks
+      repository: gitleaks-action
+      url: https://github.com/gitleaks/gitleaks-action
+    evaluated_at: "2026-07-14"
+    security_policy: https://github.com/gitleaks/gitleaks-action/security/policy
+    supported_platforms:
+      - GitHub-hosted Linux runners
+    public_repository_availability: Public source, but organization repositories require a Gitleaks Action license.
+    purpose: Evaluated alternative GitHub Action for secret scanning.
+    license: Gitleaks Action EULA
+    release:
+      version: v3.0.0
+      date: "2026-05-30"
+      commit_sha: e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e
+    integration: github_action
+    minimal_permissions:
+      - contents: read
+      - pull-requests: write
+    secrets:
+      - license_required_for_organization_repositories
+    automated_fixes: false
+    update_procedure: Re-evaluate license terms, reporting defaults, and account ownership before any future use.
+    workflows: []
+    status: documented_only
+    reason: The official CLI avoids the Action EULA, license validation, PR-comment permission, and reporting side effects.
+
+  codeql:
+    display_name: GitHub CodeQL Action
+    upstream:
+      owner: github
+      repository: codeql-action
+      url: https://github.com/github/codeql-action
+    evaluated_at: "2026-07-14"
+    security_policy: https://github.com/github/codeql-action/security/policy
+    supported_platforms:
+      - GitHub-hosted Linux runners
+    public_repository_availability: Open-source repositories hosted on GitHub may use CodeQL; private organization repositories require GitHub Advanced Security.
+    purpose: Advanced code scanning for Actions, selected Go modules, and a bounded C/C++ scope.
+    license: MIT
+    release:
+      version: v4.37.0
+      date: "2026-07-08"
+      commit_sha: 99df26d4f13ea111d4ec1a7dddef6063f76b97e9
+    integration: github_action
+    minimal_permissions:
+      - contents: read
+      - security-events: write
+    secrets: []
+    automated_fixes: false
+    update_procedure: Verify the official release commit and each language build mode; expand C/C++ scope only with real connector build evidence.
+    workflows:
+      - ci-security-codeql.yml
+      - ci-security-scorecard.yml
+    status: enabled
+
+  dependency_review:
+    display_name: GitHub Dependency Review Action
+    upstream:
+      owner: actions
+      repository: dependency-review-action
+      url: https://github.com/actions/dependency-review-action
+    evaluated_at: "2026-07-14"
+    security_policy: https://github.com/actions/dependency-review-action/security/policy
+    supported_platforms:
+      - GitHub-hosted Linux runners
+    public_repository_availability: Public GitHub Action; this repository's required Dependency Graph/SBOM capability is unavailable.
+    purpose: Pull-request dependency-diff review for known vulnerabilities, severity, and license changes.
+    license: MIT
+    release:
+      version: v5.0.0
+      date: "2026-05-08"
+      commit_sha: a1d282b36b6f3519aa1f3fc636f609c47dddb294
+    integration: github_action
+    minimal_permissions:
+      - contents: read
+    secrets: []
+    automated_fixes: false
+    update_procedure: Recheck GitHub dependency-graph availability before enabling the conservative PR-only workflow.
+    workflows: []
+    status: blocked_feature_unavailable
+    reason: The repository dependency-graph/SBOM capability returned unavailable during initial assessment.
+
+  scorecard:
+    display_name: OpenSSF Scorecard Action
+    upstream:
+      owner: ossf
+      repository: scorecard-action
+      url: https://github.com/ossf/scorecard-action
+    evaluated_at: "2026-07-14"
+    security_policy: https://github.com/ossf/scorecard-action/security/policy
+    supported_platforms:
+      - GitHub-hosted Linux runners
+    public_repository_availability: Free for public repositories; private repositories require GitHub Advanced Security.
+    purpose: Heuristic supply-chain assessment with optional SARIF upload.
+    license: Apache-2.0
+    release:
+      version: v2.4.3
+      date: "2025-09-30"
+      commit_sha: 4eaacf0543bb3f2c246792bd56e8cdeffafb205a
+    integration: github_action
+    minimal_permissions:
+      - contents: read
+      - security-events: write
+    secrets: []
+    automated_fixes: false
+    update_procedure: Verify release commit, Docker image provenance, and code-scanning availability; do not add publishing or repository-setting changes.
+    workflows:
+      - ci-security-scorecard.yml
+    status: enabled
+    residual_risk: The Action is SHA-pinned but its Docker metadata references a mutable GHCR image tag.
+
+  osv_scanner:
+    display_name: Google OSV-Scanner Action
+    upstream:
+      owner: google
+      repository: osv-scanner-action
+      url: https://github.com/google/osv-scanner-action
+    evaluated_at: "2026-07-14"
+    security_policy: https://github.com/google/osv-scanner-action/security/policy
+    supported_platforms:
+      - GitHub-hosted Linux runners
+    public_repository_availability: Public reusable workflow; this integration requires no repository secret.
+    purpose: Pull-request-diff and scheduled dependency vulnerability scanning without automatic fixes.
+    license: Apache-2.0
+    release:
+      version: v2.3.8
+      date: "2026-05-11"
+      commit_sha: 9a498708959aeaef5ef730655706c5a1df1edbc2
+    integration: github_reusable_workflow
+    minimal_permissions:
+      - actions: read
+      - contents: read
+      - security-events: write
+    secrets: []
+    automated_fixes: false
+    update_procedure: Verify reusable-workflow release commit and nested image/action references; retain no-fix scan arguments.
+    workflows:
+      - ci-security-osv.yml
+    status: enabled
+    residual_risk: The reusable workflow retains nested mutable Docker image and action references outside the caller pin.
+
+dispositions:
+  artifact_attestations:
+    status: not_applicable
+    reason: not_applicable_until_release_workflow_exists
+    evidence: No release tags, release artifacts, checksums, or documented release workflow exist in this repository.

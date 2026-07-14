@@ -1,0 +1,58 @@
+name: Security workflow lint
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Fetch checksum-verified actionlint
+        run: python3 ci/tools/fetch_security_tool.py --tool actionlint --destination "$RUNNER_TEMP/security-tools"
+      - name: Lint all workflows
+        run: |
+          mapfile -d '' workflow_files < <(find .github/workflows -type f \( -name '*.yml' -o -name '*.yaml' \) -print0)
+          if [ "${#workflow_files[@]}" -eq 0 ]; then
+            echo "No workflow files found."
+            exit 1
+          fi
+          if command -v shellcheck >/dev/null 2>&1; then
+            "$RUNNER_TEMP/security-tools/actionlint" -shellcheck="$(command -v shellcheck)" "${workflow_files[@]}"
+          else
+            "$RUNNER_TEMP/security-tools/actionlint" "${workflow_files[@]}"
+          fi
+
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Fetch checksum-verified zizmor
+        run: python3 ci/tools/fetch_security_tool.py --tool zizmor --destination "$RUNNER_TEMP/security-tools"
+      - name: Analyze all workflows offline
+        run: |
+          "$RUNNER_TEMP/security-tools/zizmor" --offline .github/workflows
+      - name: Assert insecure fixture is detected
+        run: |
+          if "$RUNNER_TEMP/security-tools/zizmor" --offline ci/fixtures/zizmor/insecure.yml; then
+            echo "Expected zizmor to reject the insecure fixture."
+            exit 1
+          fi
+      - name: Assert safe fixture is accepted
+        run: |
+          "$RUNNER_TEMP/security-tools/zizmor" --offline ci/fixtures/zizmor/safe.yml
