@@ -11,8 +11,8 @@
 | Datum (UTC) | 2026-07-14T15:36:31Z |
 | Autor oder ausführender Agent | Codex |
 | Basis-Revision | `be0356af96ef582c3a7dbc0169c7c8b27b7b6b34` |
-| Zugehöriges Issue oder Pull Request | None; der separate reine Dokumentations-PR #42 wird absichtlich nicht verändert. |
-| Finale Revision | Commit, Push und exakte-SHA-CI-Verifikation ausstehend. |
+| Zugehöriges Issue oder Pull Request | [PR #43](https://github.com/Easton97-Jens/ModSecurity-conector/pull/43); PR #42 wird unabhängig geprüft und erst nach grüner Master-CI von PR #43 integriert. |
+| Finale Revision | Geprüfter Implementierungskopf `cd4a1def258a1705dda6f3253334dadc564d60c0`; vor der Lieferung ist ein Evidence-Abgleich-Follow-up erforderlich. Die unveränderlichen finalen Branch- und Merge-Revisionen mit exakten-SHA-CI-Ergebnissen werden in PR #43 festgehalten. |
 
 ## Motivation und Problemstellung
 
@@ -51,7 +51,7 @@ traten auf der Basisrevision auf: [lint](https://github.com/Easton97-Jens/ModSec
 | Rekursives Make kann die Klassifikation nicht stillschweigend verlieren. | lokal erfüllt | Synthetisches verschachteltes Make-Fixture behält JSON-`blocked`-Evidence, während nur der ausdrücklich erlaubte Wrapper `0` liefert. |
 | Andere Common- oder Connector-Checks werden nicht übersprungen. | lokal erfüllt | Separate synthetische `common`- und `connector`-Recipes bleiben nach einem erlaubten optionalen Block nichtnull. |
 | Statusmodell und öffentlicher Make-Vertrag sind in beiden Sprachen dokumentiert. | lokal erfüllt | `ci/README.*`, `docs/testing-and-evidence.*` und `docs/reference/variables.*`. |
-| Erforderliche exakte-SHA-Push- und Pull-Request-Workflow-Ergebnisse sind festgehalten. | Lieferung ausstehend | Erfolgt nach dem Push des Aufgabenbranches. |
+| Erforderliche exakte-SHA-Push- und Pull-Request-Workflow-Ergebnisse sind festgehalten. | in Bearbeitung | Der geprüfte Implementierungskopf bestand seine vorhandenen Push- und Pull-Request-Workflows; dieser Evidence-Abgleich-Follow-up startet vor der Lieferung absichtlich einen frischen exakte-SHA-Zyklus. |
 
 ## Scope- und Workflow-Entscheidung
 
@@ -288,9 +288,11 @@ erforderlich.
 
 ## Finaler Diff- und Review-Status
 
-Zu diesem lokalen Review-Zeitpunkt besteht `git diff --check` und der
+Zu diesem Evidence-Abgleich-Reviewzeitpunkt besteht `git diff --check` und der
 geprüfte Scope ist auf den Parent-CI-Klassifikationsvertrag, seine
 Regressionstests, gepaarte Dokumentation und diesen Record beschränkt. Vor der
-Lieferung wird dieser Record mit Staging-Diff, Commit-SHA, Draft-PR und
-exakten-SHA-GitHub-Actions-Ergebnissen abgeglichen. Kein Framework-Zustand und
-keine Änderung von PR #42 sind enthalten.
+Lieferung werden Staging-Diff, Draft-PR und exakte-SHA-GitHub-Actions-Ergebnisse
+erneut geprüft. Eine unveränderliche finale SHA kann ohne Selbstreferenz nicht
+in diesem committeten Record stehen; PR #43 hält sie nach finalem Push und
+Merge fest. Kein Framework-Zustand und kein Inhalt aus PR #42 sind in diesem
+PR enthalten.

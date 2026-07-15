@@ -11,8 +11,8 @@
 | Date (UTC) | 2026-07-14T15:36:31Z |
 | Author or executing agent | Codex |
 | Base revision | `be0356af96ef582c3a7dbc0169c7c8b27b7b6b34` |
-| Related issue or pull request | None; the separate documentation-only PR #42 is intentionally not modified. |
-| Final revision | Pending commit, push, and exact-SHA CI verification. |
+| Related issue or pull request | [PR #43](https://github.com/Easton97-Jens/ModSecurity-conector/pull/43); PR #42 is independently reviewed for integration only after PR #43's master CI is green. |
+| Final revision | Reviewed implementation head `cd4a1def258a1705dda6f3253334dadc564d60c0`; an evidence-reconciliation follow-up is required before delivery. The immutable final branch and merge revisions, with exact-SHA CI outcomes, are maintained in PR #43. |
 
 ## Motivation and problem statement
 
@@ -50,7 +50,7 @@ occurred on the base revision: [lint](https://github.com/Easton97-Jens/ModSecuri
 | Recursive Make cannot silently erase the classification. | met locally | Synthetic nested Make fixture retains JSON `blocked` evidence while the explicitly allowed wrapper alone returns `0`. |
 | Other Common or connector checks are not skipped. | met locally | Separate synthetic `common` and `connector` recipes remain nonzero after an allowed optional block. |
 | The status model and public Make contract are documented in both languages. | met locally | `ci/README.*`, `docs/testing-and-evidence.*`, and `docs/reference/variables.*`. |
-| Required exact-SHA Push and Pull Request workflow outcomes are recorded. | pending delivery | Performed after the task branch is pushed. |
+| Required exact-SHA Push and Pull Request workflow outcomes are recorded. | in progress | The reviewed implementation head passed its existing Push and Pull Request workflows; this evidence-reconciliation follow-up intentionally starts a fresh exact-SHA cycle before delivery. |
 
 ## Scope and workflow decision
 
@@ -274,8 +274,10 @@ stronger hostile-parent-filesystem model.
 
 ## Final diff and review status
 
-At this local-review point, `git diff --check` passes and the reviewed scope is
-limited to the Parent CI classification contract, its regression tests, paired
-documentation, and this record. Before delivery, this record will be
-reconciled with the staged diff, commit SHA, Draft PR, and exact-SHA GitHub
-Actions outcomes. No Framework state or PR #42 change is included.
+At this evidence-reconciliation review point, `git diff --check` passes and
+the reviewed scope is limited to the Parent CI classification contract, its
+regression tests, paired documentation, and this record. Before delivery, the
+staged diff, Draft PR, and exact-SHA GitHub Actions outcomes are reviewed
+again. An immutable final SHA cannot be placed in this committed record without
+self-reference; PR #43 records it after the final push and merge. No Framework
+state or content from PR #42 is included in this PR.
