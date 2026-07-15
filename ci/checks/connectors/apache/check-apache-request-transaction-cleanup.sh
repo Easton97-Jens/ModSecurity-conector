@@ -26,14 +26,10 @@ esac
 
 require_command_or_blocked "$CC_BIN" "apache_request_transaction_cleanup missing compiler: $CC_BIN"
 
-optional_apache_development_blocked() {
-    echo "CHECK_STATUS_REASON apache_development_prerequisite" >&2
-    skip_blocked "$1"
-}
-
 APXS_BIN=$(framework_find_apxs 2>/dev/null || true)
 if [ -z "$APXS_BIN" ]; then
-    optional_apache_development_blocked "apache_request_transaction_cleanup missing apxs/apxs2 with usable Apache headers"
+    echo "CHECK_STATUS_REASON apache_development_prerequisite" >&2
+    skip_blocked "apache_request_transaction_cleanup missing apxs/apxs2 with usable Apache headers"
 fi
 
 APXS_CFLAGS=$($APXS_BIN -q CFLAGS 2>/dev/null || true)

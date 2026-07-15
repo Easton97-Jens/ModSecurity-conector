@@ -106,6 +106,15 @@ wenn seine direkte Ausgabe exakt den vom Aufrufer erlaubten
 explizite Allow-Option des Aufrufers, und `not_executed` ist nie implizit
 erfolgreich.
 
+Der Runner akzeptiert keinen vom Aufrufer gewählten Statusdateipfad. Er leitet
+den festen Dateinamen im Stil von
+`apache-request-transaction-cleanup.json` aus der validierten Check-Kennung
+unter dem externen Verzeichnis `BUILD_ROOT/check-status` ab. Er weist einen
+fehlenden, relativen, nichtkanonischen, Checkout-lokalen oder symbolisch
+verlinkten Ausgabeort zurück, öffnet das validierte Verzeichnis vor dem Child
+und verwendet diesen verankerten Verzeichnis-Handle für eine exklusiv erzeugte
+temporäre Datei und das finale Ersetzen.
+
 `ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh`
 ermittelt `apxs` jetzt über `framework_find_apxs`, das nutzbares `httpd.h`
 verifiziert, und gibt `CHECK_STATUS_REASON apache_development_prerequisite`
@@ -114,7 +123,7 @@ verpflichtenden Python-Quellvertragstests aus und ruft dann den direkten
 Statusrunner mit `--allow-blocked-reason apache_development_prerequisite` auf.
 Fehlende Framework-, Compiler-, APR- oder libmodsecurity-Voraussetzungen geben
 keinen erlaubten Marker aus und bleiben nichtnull. Das strikte Target wird nicht
-verändert. Die Statusdatei liegt standardmäßig unter
+verändert. Die Statusdatei liegt für diese Prüfung fest unter
 `$(BUILD_ROOT)/check-status/apache-request-transaction-cleanup.json` und muss
 außerhalb des Checkouts bleiben. `CHECK_STATUS` gibt dasselbe JSON in lokalen
 und GitHub-Actions-Logs aus, damit Reviewer `blocked` von `passed`
@@ -152,7 +161,12 @@ Workflow-Trigger und keine Datei von PR #42 wird geändert.
 6. einen unbekannten Exitcode, der `failed` bleibt;
 7. einen nicht erlaubten `framework_unavailable`-Marker, der nichtnull bleibt;
 8. nachfolgende Common- und Connector-Checks, die jeweils nichtnull bleiben; und
-9. explizites `not_applicable`- und `not_executed`-Dispositionsverhalten.
+9. explizites `not_applicable`- und `not_executed`-Dispositionsverhalten; und
+10. die Zurückweisung fehlender, Checkout-lokaler, nichtkanonischer,
+    historischer Schnittstellen für willkürliche Pfade und symbolisch
+    verlinkter Statusausgabeanfragen bei unverändertem Ziel; und
+11. einen vom Child verursachten Austausch von `BUILD_ROOT` nach der
+    Vorbereitung, der die bereits verankerte Statusausgabe nicht umleiten darf.
 
 Er ruft außerdem den echten Lint-Target mit einem ausführbaren synthetischen
 `apxs` auf, dessen Include-Verzeichnis kein `httpd.h` enthält. Dies bestätigt,
@@ -166,7 +180,7 @@ fehlendem Framework-Root bleibt nichtnull mit einem unklassifizierten
 | Exakter Befehl | Exitcode oder Ergebnis | Bereinigte relevante Zusammenfassung | Kanonischer Evidence-Pfad | Run-ID |
 | --- | --- | --- | --- | --- |
 | `make check-apache-request-transaction-cleanup-lint` auf dem Basiscode vor dem Fix | `2` | Fünf Python-Quelltests bestanden; nativer Harness gab `77` aus; rekursives Make meldete `2`. | None | None |
-| `make check-optional-prerequisite-status` | `0` | Zwölf fokussierte Statusvertrags-Regressionstests bestanden. | None | None |
+| `make check-optional-prerequisite-status` | `0` | Sechzehn fokussierte Statusvertrags-Regressionstests einschließlich Statuspfad-Grenz- und Child-Pfadaustausch-Regressionen bestanden. | None | None |
 | `make check-apache-request-transaction-cleanup-lint` nach dem Fix | `0` | Fünf Python-Quelltests bestanden; fehlendes `apxs` schrieb `blocked`, direkten Exit `77` und erlaubten Workflow-Exit `0`. | `$(BUILD_ROOT)/check-status/apache-request-transaction-cleanup.json` | None |
 | `make check-apache-request-transaction-cleanup` nach dem Fix | erwartete Negativkontrolle `2` | Fünf Python-Quelltests bestanden; fehlendes `apxs` blieb `BLOCKED` und nichtnull. | None | None |
 | `make lint` | `failed` (Exit `2`, nur lokal) | Der unveränderte Apache-C17-Preflight versuchte lokale Runtime-Provisionierung und stoppte bei `missing_local_httpd_build`, bevor das geänderte Cleanup-Target lief. | None | None |
@@ -183,12 +197,17 @@ fehlendem Framework-Root bleibt nichtnull mit einem unklassifizierten
 ## Security-Auswirkung
 
 Kein Produktsicherheitsverhalten, keine Host-Aktion, Authentifizierung,
-Autorisierung oder Runtime-Datengrenze ändert sich. Der neue Runner ist für
-jeden unbekannten Nichtnull-Command-Exit und für jedes `77` ohne den exakten
-erlaubten Marker seines Aufrufers fail-closed; außerdem verweigert er das
-Schreiben seines Statusdatensatzes innerhalb des Checkouts. Er persistiert nur
-eine feste Check-Kennung, Status, Command- und Workflow-Exitcodes sowie bei
-Bedarf einen nicht sensitiven Dispositionsgrund.
+Autorisierung oder Runtime-Datengrenze ändert sich. Der Runner ist für jeden
+unbekannten Nichtnull-Command-Exit und jedes `77` ohne den exakten erlaubten
+Marker seines Aufrufers fail-closed. Sein Statusziel hat keine Schnittstelle
+für willkürliche Pfade: Eine validierte Kennung wählt einen festen Dateinamen
+unter einem kanonischen externen Build-Root, während Checkout-lokale,
+nichtkanonische und symbolisch verlinkte Roots oder Ziele zurückgewiesen werden.
+Der Runner verankert das verifizierte Verzeichnis vor dem Ausführen des Child,
+sodass ein Child die temporäre Erstellung oder das finale Ersetzen durch einen
+Austausch des Build-Root-Pfads nicht umleiten kann. Er persistiert nur eine
+feste Check-Kennung, Status, Command- und Workflow-Exitcodes sowie bei Bedarf
+einen nicht sensitiven Dispositionsgrund.
 
 ## Dokumentationsänderungen
 
@@ -242,6 +261,14 @@ nutzbaren `apxs`/`httpd.h`-Paar trägt derzeit
 `not_applicable`-Vertrag dokumentieren, statt ihn als globalen Bypass
 wiederzuverwenden. Exakte-SHA-GitHub-Actions-Verifikation bleibt vor dem
 Lieferabschluss erforderlich.
+
+Die Directory-FD-Abwehr setzt voraus, dass der invocation-eigene `BUILD_ROOT`-
+Pfad nicht vor dem Öffnen seines Statusverzeichnisses gleichzeitig durch einen
+gleichberechtigten externen Prozess ersetzt wird. Nach dem Öffnen beweist die
+Child-Pfadaustausch-Regression, dass das Child den Statusschreibvorgang nicht
+umleiten kann. Für ein stärkeres Modell mit hostile Parent-Dateisystem wären
+komponentenweise Verzeichnisöffnungen ab einer separat vertrauenswürdigen Basis
+erforderlich.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 

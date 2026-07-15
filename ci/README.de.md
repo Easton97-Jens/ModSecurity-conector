@@ -63,11 +63,16 @@ Datensätze verwenden dieses kleingeschriebene Statusmodell:
 | `not_applicable` | Der Aufrufer hält ausdrücklich fest, dass die Prüfung außerhalb des Scope dieses Jobs liegt. | Fehler, außer ihr Aufrufer erlaubt sie ausdrücklich |
 | `not_executed` | Die Prüfung wurde absichtlich nicht gestartet und hat keine gültige Disposition. | Fehler |
 
-Make setzt standardmäßig `CHECK_STATUS_ROOT` auf `$(BUILD_ROOT)/check-status`
-und `APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE` auf
-`$(CHECK_STATUS_ROOT)/apache-request-transaction-cleanup.json`; Aufrufer
-können Letzteres auf einen anderen absoluten externen Pfad setzen. Diese
-Datensätze sind CI-Steuerungs-Evidence, keine kanonische Runtime-Evidence.
+Der Runner leitet aus seiner validierten `--check`-Kennung einen festen
+Dateinamen unter `$(BUILD_ROOT)/check-status` ab; für die Apache-Cleanup-
+Prüfung ist dies `apache-request-transaction-cleanup.json`. Er akzeptiert
+keinen vom Aufrufer gewählten Statusdateipfad. `BUILD_ROOT` muss ein absoluter,
+kanonischer, invocation-eigener externer Pfad sein; der Runner weist Checkout-lokale,
+nichtkanonische und symbolisch verlinkte Roots oder Statusdateien vor dem
+Schreiben zurück. Er öffnet das validierte Statusverzeichnis vor dem Start des
+Child-Befehls und verwendet diesen Verzeichnis-Handle für die temporäre Datei
+und das finale Ersetzen. Diese Datensätze sind CI-Steuerungs-Evidence, keine
+kanonische Runtime-Evidence.
 
 `make check-apache-request-transaction-cleanup` bleibt strikt: Sein
 Python-Quellvertrag und der native Apache/APR-Harness müssen beide vollständig

@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 STATUS_RUNNER = ROOT / "ci" / "tools" / "run-check-status.py"
 MAKEFILE = ROOT / "Makefile"
 MAKE = shutil.which("make")
+SYNTHETIC_CHECK = "synthetic_apache_dependent_check"
 
 
 def temporary_directory() -> tempfile.TemporaryDirectory[str]:
@@ -87,18 +88,20 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
 
     def run_status_runner(
         self,
-        status_file: Path,
+        build_root: Path,
         dependent: Path | None,
         environment: dict[str, str],
         *options: str,
+        check: str = SYNTHETIC_CHECK,
     ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
+        environment = environment.copy()
+        environment["BUILD_ROOT"] = str(build_root)
+        status_file = self.status_file(build_root, check)
         command = [
             sys.executable,
             str(STATUS_RUNNER),
             "--check",
-            "synthetic_apache_dependent_check",
-            "--status-file",
-            str(status_file),
+            check,
             *options,
         ]
         if dependent is not None:
@@ -114,12 +117,38 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         )
         return result, json.loads(status_file.read_text(encoding="utf-8"))
 
+    @staticmethod
+    def status_file(build_root: Path, check: str) -> Path:
+        return build_root / "check-status" / f"{check.replace('_', '-')}.json"
+
+    @staticmethod
+    def status_runner_command(
+        check: str, dependent: Path | None, *options: str
+    ) -> tuple[str, ...]:
+        command = (sys.executable, str(STATUS_RUNNER), "--check", check, *options)
+        if dependent is None:
+            return command
+        return (*command, "--", str(dependent))
+
+    def run_runner_without_record(
+        self, environment: dict[str, str], *arguments: str
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(STATUS_RUNNER), *arguments],
+            cwd=ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=environment,
+        )
+
     def test_present_apxs_and_successful_dependent_check_passes(self) -> None:
         with temporary_directory() as temporary_name:
             temporary = Path(temporary_name)
             dependent, environment = self.make_fixture(temporary, apxs_present=True)
             result, record = self.run_status_runner(
-                temporary / "status.json", dependent, environment
+                temporary / "build", dependent, environment
             )
 
         self.assertEqual(0, result.returncode, result.stderr)
@@ -134,7 +163,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
             dependent, environment = self.make_fixture(temporary, apxs_present=True)
             environment["DEPENDENT_CHECK_MODE"] = "fail"
             result, record = self.run_status_runner(
-                temporary / "status.json", dependent, environment
+                temporary / "build", dependent, environment
             )
 
         self.assertEqual(23, result.returncode, result.stderr)
@@ -148,7 +177,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
             temporary = Path(temporary_name)
             dependent, environment = self.make_fixture(temporary, apxs_present=False)
             result, record = self.run_status_runner(
-                temporary / "status.json",
+                temporary / "build",
                 dependent,
                 environment,
                 "--allow-blocked-reason",
@@ -168,19 +197,14 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         with temporary_directory() as temporary_name:
             temporary = Path(temporary_name)
             dependent, environment = self.make_fixture(temporary, apxs_present=False)
-            status_file = temporary / "mandatory.json"
+            build_root = temporary / "build"
+            environment["BUILD_ROOT"] = str(build_root)
+            status_file = self.status_file(build_root, "mandatory_apache_dependent_check")
             makefile = temporary / "Makefile"
             command = " ".join(
                 shlex.quote(part)
-                for part in (
-                    sys.executable,
-                    str(STATUS_RUNNER),
-                    "--check",
-                    "mandatory_apache_dependent_check",
-                    "--status-file",
-                    str(status_file),
-                    "--",
-                    str(dependent),
+                for part in self.status_runner_command(
+                    "mandatory_apache_dependent_check", dependent
                 )
             )
             makefile.write_text(f"mandatory:\n\t{command}\n", encoding="utf-8")
@@ -207,7 +231,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
             dependent, environment = self.make_fixture(temporary, apxs_present=True)
             environment["DEPENDENT_CHECK_MODE"] = "unapproved-blocked"
             result, record = self.run_status_runner(
-                temporary / "status.json",
+                temporary / "build",
                 dependent,
                 environment,
                 "--allow-blocked-reason",
@@ -225,22 +249,18 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         with temporary_directory() as temporary_name:
             temporary = Path(temporary_name)
             dependent, environment = self.make_fixture(temporary, apxs_present=False)
-            status_file = temporary / "recursive.json"
+            build_root = temporary / "build"
+            environment["BUILD_ROOT"] = str(build_root)
+            status_file = self.status_file(build_root, "optional_apache_dependent_check")
             inner = temporary / "inner.mk"
             outer = temporary / "outer.mk"
             command = " ".join(
                 shlex.quote(part)
-                for part in (
-                    sys.executable,
-                    str(STATUS_RUNNER),
-                    "--check",
+                for part in self.status_runner_command(
                     "optional_apache_dependent_check",
-                    "--status-file",
-                    str(status_file),
+                    dependent,
                     "--allow-blocked-reason",
                     "apache_development_prerequisite",
-                    "--",
-                    str(dependent),
                 )
             )
             inner.write_text(f"optional:\n\t{command}\n", encoding="utf-8")
@@ -268,11 +288,13 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
     def test_lint_target_rejects_an_unclassified_framework_block(self) -> None:
         with temporary_directory() as temporary_name:
             temporary = Path(temporary_name)
-            status_file = temporary / "framework-block.json"
+            build_root = temporary / "build"
+            status_file = self.status_file(
+                build_root, "apache_request_transaction_cleanup"
+            )
             environment = os.environ.copy()
             environment["FRAMEWORK_ROOT"] = str(temporary / "missing-framework")
-            environment["APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE"] = str(status_file)
-            environment["BUILD_ROOT"] = str(temporary / "build")
+            environment["BUILD_ROOT"] = str(build_root)
             environment["PYTHON"] = sys.executable
             result = subprocess.run(
                 [MAKE, "--no-print-directory", "check-apache-request-transaction-cleanup-lint"],
@@ -298,7 +320,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
             dependent, environment = self.make_fixture(temporary, apxs_present=True)
             environment["DEPENDENT_CHECK_MODE"] = "unknown"
             result, record = self.run_status_runner(
-                temporary / "status.json",
+                temporary / "build",
                 dependent,
                 environment,
                 "--allow-blocked-reason",
@@ -312,29 +334,28 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         self.assertFalse(record["allowed_by_contract"])
 
     @unittest.skipIf(MAKE is None, "GNU Make is required by the repository")
-    def test_other_common_check_is_not_skipped_after_optional_block(self) -> None:
+    def assert_independent_recipe_remains_failed(
+        self, recipe_name: str, recipe_exit_code: int
+    ) -> None:
         with temporary_directory() as temporary_name:
             temporary = Path(temporary_name)
             dependent, environment = self.make_fixture(temporary, apxs_present=False)
-            status_file = temporary / "optional.json"
+            build_root = temporary / "build"
+            environment["BUILD_ROOT"] = str(build_root)
+            status_file = self.status_file(build_root, "optional_apache_dependent_check")
             makefile = temporary / "Makefile"
             command = " ".join(
                 shlex.quote(part)
-                for part in (
-                    sys.executable,
-                    str(STATUS_RUNNER),
-                    "--check",
+                for part in self.status_runner_command(
                     "optional_apache_dependent_check",
-                    "--status-file",
-                    str(status_file),
+                    dependent,
                     "--allow-blocked-reason",
                     "apache_development_prerequisite",
-                    "--",
-                    str(dependent),
                 )
             )
             makefile.write_text(
-                f"all: optional common\n\noptional:\n\t{command}\n\ncommon:\n\t@exit 19\n",
+                f"all: optional {recipe_name}\n\noptional:\n\t{command}\n\n"
+                f"{recipe_name}:\n\t@exit {recipe_exit_code}\n",
                 encoding="utf-8",
             )
             result = subprocess.run(
@@ -351,56 +372,22 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual("blocked", record["status"])
         self.assertTrue(record["allowed_by_contract"])
-        self.assertIn("Error 19", result.stderr)
+        self.assertIn(f"Error {recipe_exit_code}", result.stderr)
+
+    @unittest.skipIf(MAKE is None, "GNU Make is required by the repository")
+    def test_other_common_check_is_not_skipped_after_optional_block(self) -> None:
+        self.assert_independent_recipe_remains_failed("common", 19)
 
     @unittest.skipIf(MAKE is None, "GNU Make is required by the repository")
     def test_other_connector_check_is_not_skipped_after_optional_block(self) -> None:
-        with temporary_directory() as temporary_name:
-            temporary = Path(temporary_name)
-            dependent, environment = self.make_fixture(temporary, apxs_present=False)
-            status_file = temporary / "optional.json"
-            makefile = temporary / "Makefile"
-            command = " ".join(
-                shlex.quote(part)
-                for part in (
-                    sys.executable,
-                    str(STATUS_RUNNER),
-                    "--check",
-                    "optional_apache_dependent_check",
-                    "--status-file",
-                    str(status_file),
-                    "--allow-blocked-reason",
-                    "apache_development_prerequisite",
-                    "--",
-                    str(dependent),
-                )
-            )
-            makefile.write_text(
-                f"all: optional connector\n\noptional:\n\t{command}\n\nconnector:\n\t@exit 29\n",
-                encoding="utf-8",
-            )
-            result = subprocess.run(
-                [MAKE, "-f", str(makefile), "all"],
-                cwd=temporary,
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                env=environment,
-            )
-            record = json.loads(status_file.read_text(encoding="utf-8"))
-
-        self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertEqual("blocked", record["status"])
-        self.assertTrue(record["allowed_by_contract"])
-        self.assertIn("Error 29", result.stderr)
+        self.assert_independent_recipe_remains_failed("connector", 29)
 
     def test_explicit_non_execution_statuses_follow_the_documented_contract(self) -> None:
         with temporary_directory() as temporary_name:
             temporary = Path(temporary_name)
             environment = os.environ.copy()
             not_applicable_result, not_applicable_record = self.run_status_runner(
-                temporary / "not-applicable.json",
+                temporary / "not-applicable-build",
                 None,
                 environment,
                 "--allow-not-applicable",
@@ -408,7 +395,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
                 "synthetic scope excludes this path",
             )
             not_executed_result, not_executed_record = self.run_status_runner(
-                temporary / "not-executed.json",
+                temporary / "not-executed-build",
                 None,
                 environment,
                 "--not-executed",
@@ -422,6 +409,153 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         self.assertEqual("not_executed", not_executed_record["status"])
         self.assertFalse(not_executed_record["allowed_by_contract"])
 
+    def test_status_writer_rejects_missing_checkout_and_noncanonical_build_roots(self) -> None:
+        with temporary_directory() as temporary_name:
+            temporary = Path(temporary_name)
+            arguments = (
+                "--check",
+                SYNTHETIC_CHECK,
+                "--not-applicable",
+                "synthetic scope excludes this path",
+            )
+
+            missing_root_environment = os.environ.copy()
+            missing_root_environment.pop("BUILD_ROOT", None)
+            missing_root = self.run_runner_without_record(
+                missing_root_environment, *arguments
+            )
+
+            checkout_root_environment = os.environ.copy()
+            checkout_root_environment["BUILD_ROOT"] = str(ROOT)
+            checkout_root = self.run_runner_without_record(
+                checkout_root_environment, *arguments
+            )
+
+            noncanonical_root_environment = os.environ.copy()
+            noncanonical_root_environment["BUILD_ROOT"] = str(
+                temporary / "build" / ".." / "escaped"
+            )
+            noncanonical_root = self.run_runner_without_record(
+                noncanonical_root_environment, *arguments
+            )
+
+        self.assertEqual(2, missing_root.returncode)
+        self.assertIn("BUILD_ROOT must be set", missing_root.stderr)
+        self.assertEqual(2, checkout_root.returncode)
+        self.assertIn("must stay outside the checkout", checkout_root.stderr)
+        self.assertEqual(2, noncanonical_root.returncode)
+        self.assertIn("absolute canonical path", noncanonical_root.stderr)
+        self.assertFalse((ROOT / "check-status").exists())
+
+    def test_status_writer_rejects_symlinked_root_and_status_file(self) -> None:
+        with temporary_directory() as temporary_name:
+            temporary = Path(temporary_name)
+            arguments = (
+                "--check",
+                SYNTHETIC_CHECK,
+                "--not-applicable",
+                "synthetic scope excludes this path",
+            )
+            external_parent = temporary / "external-parent"
+            external_parent.mkdir()
+            linked_build_root = temporary / "linked-build-root"
+            linked_build_root.symlink_to(external_parent, target_is_directory=True)
+            linked_root_environment = os.environ.copy()
+            linked_root_environment["BUILD_ROOT"] = str(linked_build_root)
+            linked_root = self.run_runner_without_record(
+                linked_root_environment, *arguments
+            )
+
+            build_root = temporary / "build"
+            status_file = self.status_file(build_root, SYNTHETIC_CHECK)
+            status_file.parent.mkdir(parents=True)
+            protected_file = temporary / "protected.json"
+            protected_file.write_text("unchanged\n", encoding="utf-8")
+            status_file.symlink_to(protected_file)
+            target_environment = os.environ.copy()
+            target_environment["BUILD_ROOT"] = str(build_root)
+            symlinked_target = self.run_runner_without_record(
+                target_environment, *arguments
+            )
+            linked_parent_created = (external_parent / "check-status").exists()
+            protected_contents = protected_file.read_text(encoding="utf-8")
+
+        self.assertEqual(2, linked_root.returncode)
+        self.assertIn("must not use symbolic links", linked_root.stderr)
+        self.assertFalse(linked_parent_created)
+        self.assertEqual(2, symlinked_target.returncode)
+        self.assertIn("status file must not be a symlink", symlinked_target.stderr)
+        self.assertEqual("unchanged\n", protected_contents)
+
+    def test_status_writer_has_no_arbitrary_status_file_or_check_path_interface(self) -> None:
+        with temporary_directory() as temporary_name:
+            temporary = Path(temporary_name)
+            protected_file = temporary / "protected.json"
+            protected_file.write_text("unchanged\n", encoding="utf-8")
+            environment = os.environ.copy()
+            environment["BUILD_ROOT"] = str(temporary / "build")
+            legacy_path = self.run_runner_without_record(
+                environment,
+                "--check",
+                SYNTHETIC_CHECK,
+                "--status-file",
+                str(protected_file),
+                "--not-applicable",
+                "synthetic scope excludes this path",
+            )
+            path_like_check = self.run_runner_without_record(
+                environment,
+                "--check",
+                "../../outside",
+                "--not-applicable",
+                "synthetic scope excludes this path",
+            )
+            protected_contents = protected_file.read_text(encoding="utf-8")
+
+        self.assertEqual(2, legacy_path.returncode)
+        self.assertIn("unrecognized arguments: --status-file", legacy_path.stderr)
+        self.assertEqual(2, path_like_check.returncode)
+        self.assertIn("--check must use lowercase letters", path_like_check.stderr)
+        self.assertEqual("unchanged\n", protected_contents)
+
+    def test_status_writer_keeps_its_open_directory_after_child_path_swap(self) -> None:
+        with temporary_directory() as temporary_name:
+            temporary = Path(temporary_name)
+            build_root = temporary / "build"
+            replaced_build_root = temporary / "build-original"
+            external_root = temporary / "external-root"
+            protected_status_file = self.status_file(external_root, SYNTHETIC_CHECK)
+            protected_status_file.parent.mkdir(parents=True)
+            protected_status_file.write_text("unchanged\n", encoding="utf-8")
+            child = temporary / "replace-build-root"
+            write_executable(
+                child,
+                """
+                #!/bin/sh
+                set -eu
+                mv "$BUILD_ROOT" "$REPLACED_BUILD_ROOT"
+                ln -s "$EXTERNAL_BUILD_ROOT" "$BUILD_ROOT"
+                """,
+            )
+            environment = os.environ.copy()
+            environment["BUILD_ROOT"] = str(build_root)
+            environment["REPLACED_BUILD_ROOT"] = str(replaced_build_root)
+            environment["EXTERNAL_BUILD_ROOT"] = str(external_root)
+            result = self.run_runner_without_record(
+                environment, "--check", SYNTHETIC_CHECK, "--", str(child)
+            )
+            anchored_status_file = self.status_file(
+                replaced_build_root, SYNTHETIC_CHECK
+            )
+            build_root_replaced = build_root.is_symlink()
+            protected_contents = protected_status_file.read_text(encoding="utf-8")
+            anchored_record = json.loads(anchored_status_file.read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertTrue(build_root_replaced)
+        self.assertEqual("unchanged\n", protected_contents)
+        self.assertEqual("passed", anchored_record["status"])
+
     @unittest.skipIf(MAKE is None, "GNU Make is required by the repository")
     def test_lint_target_accepts_only_the_direct_apache_preflight_marker(self) -> None:
         makefile = MAKEFILE.read_text(encoding="utf-8")
@@ -432,12 +566,16 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         self.assertIn(
             "--allow-blocked-reason apache_development_prerequisite", target
         )
+        self.assertNotIn("--status-file", target)
         self.assertIn("check-apache-request-transaction-cleanup.sh", target)
         self.assertNotIn("$(MAKE)", target)
 
         with temporary_directory() as temporary_name:
             temporary = Path(temporary_name)
-            status_file = temporary / "actual-target.json"
+            build_root = temporary / "build"
+            status_file = self.status_file(
+                build_root, "apache_request_transaction_cleanup"
+            )
             include_dir = temporary / "apache-include"
             include_dir.mkdir()
             apxs_without_headers = temporary / "apxs-without-headers"
@@ -454,8 +592,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
             environment.pop("APXS_BIN", None)
             environment["APXS"] = str(apxs_without_headers)
             environment["FRAMEWORK_ROOT"] = str(ROOT / "modules" / "ModSecurity-test-Framework")
-            environment["APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE"] = str(status_file)
-            environment["BUILD_ROOT"] = str(temporary / "build")
+            environment["BUILD_ROOT"] = str(build_root)
             environment["CONNECTOR_COMPONENT_CACHE"] = str(temporary / "component-cache")
             environment["CI_APXS_BIN_CANDIDATES"] = "synthetic-no-apxs"
             environment["CC"] = sys.executable

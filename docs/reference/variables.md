@@ -92,7 +92,6 @@ or a target must supply the value.
 | <code>VERIFIED_RUN_PARENT</code> | runtime root | no | <code>RUNNER_TEMP</code>, then <code>TMPDIR</code>, then <code>&lt;system-temporary-root&gt;</code> | absolute directory | Parent of the invocation-owned runtime tree |
 | <code>VERIFIED_RUN_ROOT</code>, <code>VERIFIED_STATE_ROOT</code>, <code>VERIFIED_BUILD_ROOT</code>, <code>VERIFIED_SOURCE_ROOT</code>, <code>VERIFIED_TMP_ROOT</code>, <code>VERIFIED_LOG_ROOT</code> | runtime roots | no | Derived below <code>VERIFIED_RUN_PARENT</code> | absolute directories | Isolated state, build, source, temporary, and log locations |
 | <code>STATE_HOME</code>, <code>SOURCE_ROOT</code>, <code>BUILD_ROOT</code>, <code>TMP_ROOT</code>, <code>LOG_ROOT</code>, <code>MATRIX_ROOT</code>, <code>RESULTS_DIR</code> | build/runtime | target-dependent | Derived from the verified roots; <code>RESULTS_DIR</code> is Framework-forwarded | absolute directories | Working areas passed to builds, harnesses, and report writers |
-| <code>CHECK_STATUS_ROOT</code>, <code>APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE</code> | CI control status | no | <code>$(BUILD_ROOT)/check-status</code>; its <code>apache-request-transaction-cleanup.json</code> child | absolute directories/file outside the checkout | Persists the direct Apache cleanup check's payload-free CI status; does not create runtime evidence |
 | <code>FRAMEWORK_ROOT</code>, <code>CONNECTOR_ROOT</code> | repository paths | <code>FRAMEWORK_ROOT</code>: yes for delegated targets | submodule path; current repository directory | repository-relative or absolute existing directory | Locates the Framework and this repository |
 | <code>CACHE_ROOT</code>, <code>VERIFIED_COMPONENT_CACHE</code>, <code>CONNECTOR_COMPONENT_CACHE</code> | cache | no | <code>cache-v2</code> below the verified root; shared child | absolute directories | Reusable component cache, distinct from a run |
 | <code>VERIFIED_EVIDENCE_ROOT</code>, <code>EVIDENCE_ROOT</code>, <code>RUNTIME_EVIDENCE_ROOT</code> | evidence | no | derived below verified root | absolute directories | Canonical No-CRS and runtime-evidence parent paths |
@@ -132,6 +131,12 @@ or a target must supply the value.
 | Envoy harness variables | connector-local | direct use only | see [Envoy details](#envoy-direct-entrypoint-variables) | paths, ports, booleans | Overrides ext_proc/ext_authz helper entry points |
 | Traefik harness variables | connector-local | direct use only | see [Traefik details](#traefik-direct-entrypoint-variables) | paths, listen addresses, flags | Overrides native-middleware or compatibility helpers |
 | lighttpd harness variables | connector-local | direct use only | see [lighttpd details](#lighttpd-direct-entrypoint-variables) | paths, ports, modes | Overrides the patched host helper |
+
+The optional Apache cleanup status runner derives its fixed payload-free JSON
+file from its validated check identifier under
+<code>$(BUILD_ROOT)/check-status</code>. It accepts no caller-selected status
+path and rejects checkout-local, noncanonical, or symlinked output locations.
+It anchors the output directory before running the child command.
 
 ## Detailed root variables
 

@@ -98,7 +98,6 @@ verlassen; der Aufrufer oder ein Target muss den Wert liefern.
 | <code>VERIFIED_RUN_PARENT</code> | Runtime-Root | nein | <code>RUNNER_TEMP</code>, dann <code>TMPDIR</code>, dann <code>&lt;system-temporary-root&gt;</code> | absolutes Verzeichnis | Elternpfad des invocation-eigenen Runtime-Baums |
 | <code>VERIFIED_RUN_ROOT</code>, <code>VERIFIED_STATE_ROOT</code>, <code>VERIFIED_BUILD_ROOT</code>, <code>VERIFIED_SOURCE_ROOT</code>, <code>VERIFIED_TMP_ROOT</code>, <code>VERIFIED_LOG_ROOT</code> | Runtime-Roots | nein | Unterhalb von <code>VERIFIED_RUN_PARENT</code> abgeleitet | absolute Verzeichnisse | Isolierte State-, Build-, Source-, temporäre und Log-Orte |
 | <code>STATE_HOME</code>, <code>SOURCE_ROOT</code>, <code>BUILD_ROOT</code>, <code>TMP_ROOT</code>, <code>LOG_ROOT</code>, <code>MATRIX_ROOT</code>, <code>RESULTS_DIR</code> | Build/Runtime | target-abhängig | Von den Verified-Roots abgeleitet; <code>RESULTS_DIR</code> ist Framework-weitergereicht | absolute Verzeichnisse | Arbeitsbereiche für Builds, Harnesses und Report-Writer |
-| <code>CHECK_STATUS_ROOT</code>, <code>APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE</code> | CI-Steuerungsstatus | nein | <code>$(BUILD_ROOT)/check-status</code>; dessen Child <code>apache-request-transaction-cleanup.json</code> | absolute Verzeichnisse/Datei außerhalb des Checkouts | Hält den payloadfreien CI-Status der direkten Apache-Cleanup-Prüfung fest; erzeugt keine Runtime-Evidence |
 | <code>FRAMEWORK_ROOT</code>, <code>CONNECTOR_ROOT</code> | Repository-Pfade | <code>FRAMEWORK_ROOT</code>: ja für delegierte Targets | Submodule-Pfad; aktuelles Repository-Verzeichnis | repository-relatives oder absolutes vorhandenes Verzeichnis | Findet Framework und dieses Repository |
 | <code>CACHE_ROOT</code>, <code>VERIFIED_COMPONENT_CACHE</code>, <code>CONNECTOR_COMPONENT_CACHE</code> | Cache | nein | <code>cache-v2</code> unter dem Verified-Root; gemeinsames Kind | absolute Verzeichnisse | Wiederverwendbarer Component-Cache, getrennt von einem Lauf |
 | <code>VERIFIED_EVIDENCE_ROOT</code>, <code>EVIDENCE_ROOT</code>, <code>RUNTIME_EVIDENCE_ROOT</code> | Evidence | nein | Unterhalb des Verified-Root abgeleitet | absolute Verzeichnisse | Elternpfade kanonischer No-CRS- und Runtime-Evidence |
@@ -138,6 +137,13 @@ verlassen; der Aufrufer oder ein Target muss den Wert liefern.
 | Envoy-Harness-Variablen | connector-lokal | nur direkter Aufruf | siehe Abschnitt „Envoy: direkt verwendete Entry-Point-Variablen“ | Pfade, Ports, Booleans | Überschreiben ext_proc-/ext_authz-Helper-Entry-Points |
 | Traefik-Harness-Variablen | connector-lokal | nur direkter Aufruf | siehe Abschnitt „Traefik: direkt verwendete Entry-Point-Variablen“ | Pfade, Listen-Adressen, Flags | Überschreiben Native-Middleware- oder Compatibility-Helper |
 | lighttpd-Harness-Variablen | connector-lokal | nur direkter Aufruf | siehe Abschnitt „lighttpd: direkt verwendete Entry-Point-Variablen“ | Pfade, Ports, Modi | Überschreiben den gepatchten Host-Helper |
+
+Der optionale Apache-Cleanup-Statusrunner leitet seine feste payloadfreie JSON-
+Datei aus seiner validierten Check-Kennung unter
+<code>$(BUILD_ROOT)/check-status</code> ab. Er akzeptiert keinen vom Aufrufer
+gewählten Statuspfad und weist Checkout-lokale, nichtkanonische oder symbolisch
+verlinkte Ausgabeorte zurück. Er verankert das Ausgabeverzeichnis vor dem
+Ausführen des Child-Befehls.
 
 ## Detaillierte Root-Variablen
 

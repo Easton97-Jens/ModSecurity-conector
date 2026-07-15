@@ -62,11 +62,15 @@ replace the child's exit code. Its records use this lowercase status model:
 | `not_applicable` | The caller explicitly records that the check is outside this job's scope. | failure unless its caller explicitly allows it |
 | `not_executed` | The check was deliberately not started and has no valid disposition. | failure |
 
-The Make defaults `CHECK_STATUS_ROOT` to `$(BUILD_ROOT)/check-status` and
-`APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE` to
-`$(CHECK_STATUS_ROOT)/apache-request-transaction-cleanup.json`; callers may
-set the latter to another absolute external path. These records are CI-control
-evidence, not canonical runtime evidence.
+The runner derives a fixed filename from its validated `--check` identifier
+under `$(BUILD_ROOT)/check-status`; for the Apache cleanup check this is
+`apache-request-transaction-cleanup.json`. It accepts no caller-selected
+status-file path. `BUILD_ROOT` must be an absolute, canonical, invocation-owned
+external path. The runner rejects checkout-local, noncanonical, and symlinked roots or status
+files before writing. It opens the validated status directory before starting
+the child command and uses that directory handle for the temporary file and
+final replacement. These records are CI-control evidence, not canonical runtime
+evidence.
 
 `make check-apache-request-transaction-cleanup` remains strict: its Python
 source contract and native Apache/APR harness must both complete, and a missing

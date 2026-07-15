@@ -25,8 +25,6 @@ RUNTIME_LOG_ROOT ?= $(VERIFIED_RUN_ROOT)/run-logs
 STATE_HOME ?= $(VERIFIED_STATE_ROOT)
 SOURCE_ROOT ?= $(VERIFIED_SOURCE_ROOT)
 BUILD_ROOT ?= $(VERIFIED_BUILD_ROOT)
-CHECK_STATUS_ROOT ?= $(BUILD_ROOT)/check-status
-APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE ?= $(CHECK_STATUS_ROOT)/apache-request-transaction-cleanup.json
 # Host harnesses may create connector-local transient files and require their
 # temporary root to remain below BUILD_ROOT.  Keep the legacy verified tmp
 # root available for callers that need it, but make the standard target
@@ -84,8 +82,6 @@ PYTHONDONTWRITEBYTECODE ?= 1
 WITH_RUNTIME_COMPONENTS = SKIP_RUNTIME_COMPONENT_PREPARE=1 sh ci/provisioning/cache/with-runtime-components.sh
 
 export BUILD_ROOT
-export CHECK_STATUS_ROOT
-export APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE
 export SOURCE_ROOT
 export TMP_ROOT
 export LOG_ROOT
@@ -1128,7 +1124,7 @@ check-apache-request-transaction-cleanup:
 
 check-apache-request-transaction-cleanup-lint:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_request_transaction_cleanup
-	"$(PYTHON)" ci/tools/run-check-status.py --check apache_request_transaction_cleanup --status-file "$(APACHE_REQUEST_TRANSACTION_CLEANUP_STATUS_FILE)" --allow-blocked-reason apache_development_prerequisite -- sh ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh
+	"$(PYTHON)" ci/tools/run-check-status.py --check apache_request_transaction_cleanup --allow-blocked-reason apache_development_prerequisite -- sh ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh
 
 check-optional-prerequisite-status:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_optional_prerequisite_status

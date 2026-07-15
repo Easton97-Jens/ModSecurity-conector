@@ -102,6 +102,14 @@ returns success only when its direct output has exactly the caller-approved
 `CHECK_STATUS_REASON` marker; `not_applicable` likewise needs an explicit
 caller allow option, and `not_executed` never succeeds implicitly.
 
+The runner accepts no caller-selected status-file path. It derives the fixed
+`apache-request-transaction-cleanup.json`-style filename from the validated
+check identifier under the external `BUILD_ROOT/check-status` directory. It
+rejects a missing, relative, noncanonical, checkout-local, or symlinked output
+location, opens the validated directory before the child runs, and uses that
+anchored directory handle for an exclusively created temporary file and final
+replacement.
+
 `ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh`
 now obtains `apxs` through `framework_find_apxs`, which verifies a usable
 `httpd.h`, and emits `CHECK_STATUS_REASON apache_development_prerequisite`
@@ -110,10 +118,10 @@ mandatory Python source-contract tests, then invokes the direct status runner
 with `--allow-blocked-reason apache_development_prerequisite`. Missing
 Framework, compiler, APR, or libmodsecurity prerequisites emit no approved
 marker and remain nonzero. The strict target is not changed. The status file
-defaults to `$(BUILD_ROOT)/check-status/apache-request-transaction-cleanup.json`
-and must remain outside the checkout. `CHECK_STATUS` emits the same JSON into
-local and GitHub Actions logs, allowing a reviewer to distinguish `blocked`
-from `passed` even when the aggregation target exits successfully.
+is fixed at `$(BUILD_ROOT)/check-status/apache-request-transaction-cleanup.json`
+for this check and must remain outside the checkout. `CHECK_STATUS` emits the
+same JSON into local and GitHub Actions logs, allowing a reviewer to distinguish
+`blocked` from `passed` even when the aggregation target exits successfully.
 
 The documented status values are `passed`, `failed`, `blocked`,
 `not_applicable`, and `not_executed`. A successful generic workflow may carry
@@ -147,7 +155,12 @@ and temporary direct commands to cover:
 6. an unknown exit code remaining `failed`;
 7. an unapproved `framework_unavailable` marker remaining nonzero;
 8. subsequent Common and connector checks each remaining nonzero; and
-9. explicit `not_applicable` and `not_executed` disposition behavior.
+9. explicit `not_applicable` and `not_executed` disposition behavior; and
+10. rejection of missing, checkout-local, noncanonical, legacy arbitrary-path,
+    and symlinked status-output requests while preserving an untouched target;
+    and
+11. a child-driven `BUILD_ROOT` replacement after preparation, which must not
+    redirect the already anchored status output.
 
 It also invokes the real lint target with an executable synthetic `apxs` whose
 include directory lacks `httpd.h`, confirming that the direct preflight emits
@@ -160,7 +173,7 @@ unclassified `blocked` record.
 | Exact command | Exit code or result | Sanitized relevant summary | Canonical evidence path | Run ID |
 | --- | --- | --- | --- | --- |
 | `make check-apache-request-transaction-cleanup-lint` on the base code before the fix | `2` | Five Python source tests passed; native harness returned `77`; recursive Make reported `2`. | None | None |
-| `make check-optional-prerequisite-status` | `0` | Twelve focused status-contract regression tests passed. | None | None |
+| `make check-optional-prerequisite-status` | `0` | Sixteen focused status-contract regression tests passed, including status-path boundary and child-path-swap regressions. | None | None |
 | `make check-apache-request-transaction-cleanup-lint` after the fix | `0` | Five Python source tests passed; missing `apxs` wrote `blocked`, direct exit `77`, and allowed workflow exit `0`. | `$(BUILD_ROOT)/check-status/apache-request-transaction-cleanup.json` | None |
 | `make check-apache-request-transaction-cleanup` after the fix | `2` expected negative control | Five Python source tests passed; missing `apxs` remained `BLOCKED` and nonzero. | None | None |
 | `make lint` | `failed` (exit `2`, local-only) | The unchanged Apache C17 preflight attempted local runtime provisioning and stopped at `missing_local_httpd_build` before the modified cleanup target. | None | None |
@@ -177,11 +190,15 @@ unclassified `blocked` record.
 ## Security impact
 
 No product security behavior, host action, authentication, authorization, or
-runtime data boundary changes. The new runner is fail-closed for every
-unrecognized nonzero command exit and for every `77` without its caller's exact
-approved marker; it also refuses to write its status record inside the checkout.
-It persists only a fixed check identifier, status, command and workflow exit
-codes, and a non-sensitive disposition reason when applicable.
+runtime data boundary changes. The runner is fail-closed for every unrecognized
+nonzero command exit and every `77` without its caller's exact approved marker.
+Its status sink has no arbitrary-path interface: a validated identifier selects
+a fixed filename below a canonical external build root, while checkout-local,
+noncanonical, and symlinked roots or targets are rejected. The runner anchors
+the verified directory before running the child, so a child cannot redirect the
+temporary creation or final replacement by swapping the build-root path. It
+persists only a fixed check identifier, status, command and workflow exit codes,
+and a non-sensitive disposition reason when applicable.
 
 ## Documentation changes
 
@@ -233,6 +250,13 @@ usable `apxs`/`httpd.h` pair currently carries
 must document their own exact allowed marker or `not_applicable` contract
 rather than reuse it as a global bypass. Exact-SHA GitHub Actions verification
 remains required before delivery completion.
+
+The directory-FD defense assumes the invocation-owned `BUILD_ROOT` path is not
+being concurrently replaced by an equally privileged external process before
+the runner opens its status directory. Once opened, the child-path-swap
+regression proves that the child cannot redirect the status write. Componentwise
+directory opening from a separately trusted base would be required for a
+stronger hostile-parent-filesystem model.
 
 ## Checks not run and rationale
 
