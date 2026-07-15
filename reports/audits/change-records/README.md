@@ -143,3 +143,4 @@ raw data and build output remain outside the checkout.
 | CR-20260714-common-design-note | 2026-07-14 | Current Common design-note boundary | [English](CR-20260714-common-design-note.md) / [Deutsch](CR-20260714-common-design-note.de.md) |
 | CR-20260714-apache-request-transaction-cleanup | 2026-07-14 | Apache request transaction cleanup | [English](CR-20260714-apache-request-transaction-cleanup.md) / [Deutsch](CR-20260714-apache-request-transaction-cleanup.de.md) |
 | CR-20260714-grpc-go-2026-4762 | 2026-07-14 | Update gRPC to address GO-2026-4762 | [English](CR-20260714-grpc-go-2026-4762.md) / [Deutsch](CR-20260714-grpc-go-2026-4762.de.md) |
+| CR-20260714-optional-apache-prerequisite-ci | 2026-07-14 | Preserve optional Apache prerequisite status in CI | [English](CR-20260714-optional-apache-prerequisite-ci.md) / [Deutsch](CR-20260714-optional-apache-prerequisite-ci.de.md) |

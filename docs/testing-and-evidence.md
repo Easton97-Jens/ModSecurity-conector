@@ -79,6 +79,7 @@ certificates, raw request bodies, raw response bodies, or local runtime output.
 | <code>FAIL</code> | A required condition was not met |
 | <code>BLOCKED</code> | A declared prerequisite was unavailable or unsafe |
 | <code>NOT EXECUTED</code> | The case/path was deliberately not run |
+| <code>NOT APPLICABLE</code> | The case/path is outside the documented scope of the selected job or profile |
 | <code>UNSUPPORTED</code> | The selected host model cannot provide the required capability |
 
 Promotion is evidence-gated. A build, configuration load, capability
@@ -86,6 +87,13 @@ manifest, generated report, or static inventory does not turn an unexecuted
 case into PASS. Keep current readiness and run-specific status in the current
 reports; this guide explains the model rather than preserving historical
 status matrices.
+
+CI control records may use the corresponding lowercase values `passed`,
+`failed`, `blocked`, `not_executed`, and `not_applicable`. They preserve the
+direct check result before a recursive orchestration layer can replace its
+exit code; they are not runtime-evidence records. A `blocked` or
+`not_applicable` control record permits workflow success only where that
+specific workflow contract explicitly allows it.
 
 ## Historical context
 
