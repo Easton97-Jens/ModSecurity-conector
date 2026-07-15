@@ -83,6 +83,7 @@ nicht eingecheckt.
 | <code>FAIL</code> | Eine erforderliche Bedingung wurde nicht erfüllt |
 | <code>BLOCKED</code> | Eine deklarierte Voraussetzung war nicht verfügbar oder unsicher |
 | <code>NOT EXECUTED</code> | Der Case/Pfad wurde absichtlich nicht ausgeführt |
+| <code>NOT APPLICABLE</code> | Der Case/Pfad liegt außerhalb des dokumentierten Scope des ausgewählten Jobs oder Profils |
 | <code>UNSUPPORTED</code> | Das ausgewählte Hostmodell kann die erforderliche Fähigkeit nicht bereitstellen |
 
 Promotion ist Evidence-gesteuert. Ein Build, Konfigurationsladen,
@@ -90,6 +91,14 @@ Capability-Manifest, generierter Bericht oder statisches Inventar macht einen
 nicht ausgeführten Case nicht zu PASS. Aktuelle Readiness und laufbezogener
 Status gehören in die aktuellen Reports; dieser Guide erklärt das Modell statt
 historische Statusmatrizen zu bewahren.
+
+CI-Steuerungsdatensätze können die entsprechenden kleingeschriebenen Werte
+`passed`, `failed`, `blocked`, `not_executed` und `not_applicable` verwenden.
+Sie erhalten das Ergebnis der direkten Prüfung, bevor eine rekursive
+Orchestrierungsschicht ihren Exitcode ersetzen kann; sie sind keine
+Runtime-Evidence-Datensätze. Ein `blocked`- oder `not_applicable`-
+Steuerungsdatensatz erlaubt Workflow-Erfolg nur dort, wo der konkrete
+Workflow-Vertrag ihn ausdrücklich zulässt.
 
 ## Historischer Kontext
 

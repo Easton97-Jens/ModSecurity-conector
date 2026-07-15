@@ -19,7 +19,7 @@ This tree contains connector-repository orchestration, contracts, and evidence t
 | `evidence/collectors/` | Capability collection | `make capabilities-*` |
 | `evidence/reports/` | Report generators and refresh orchestration | `make refresh-all-reports` |
 | `lib/` | Common imported Python helpers | not a standalone entry point |
-| `tools/` | Small maintenance inputs | documented caller only |
+| `tools/` | Small CI-status and maintenance inputs | documented caller only |
 
 Python files use `snake_case.py`; established shell names retain their `kebab-case.sh` form. Do not rename a stable file merely for cosmetics.
 
@@ -46,7 +46,42 @@ Use Make targets rather than nested files from an arbitrary working directory. T
 5. `checks/evidence/` decides whether it supports the selected claim.
 6. `evidence/reports/` regenerates tracked reports; never edit generated output.
 
-Exit `0` means technical completion, not that every catalog case is `PASS`. `1` is a general error, `2` is commonly a validation/aggregate error, and `77` means a declared missing optional prerequisite. See [test levels](../docs/testing-and-evidence.md) for status semantics.
+Exit `0` means technical completion, not that every catalog case is `PASS`. `1` is a general error, `2` is commonly a validation/aggregate error, and `77` means a declared missing optional prerequisite. A recursive GNU Make invocation can report its failed recipe as `2` even when the direct child returned `77`; callers must not infer the original status from that recursive exit code. See [test levels](../docs/testing-and-evidence.md) for status semantics.
+
+## Optional-prerequisite status records
+
+`ci/tools/run-check-status.py` runs one direct child command, writes a
+payload-free JSON record, and emits a `CHECK_STATUS` JSON line before Make can
+replace the child's exit code. Its records use this lowercase status model:
+
+| Status | Meaning | Default workflow result |
+| --- | --- | --- |
+| `passed` | The direct check ran and succeeded. | success |
+| `failed` | The direct check returned an error other than the declared blocked code. | failure |
+| `blocked` | The check is relevant but a declared prerequisite is unavailable. | failure unless its caller explicitly allows its exact structured reason |
+| `not_applicable` | The caller explicitly records that the check is outside this job's scope. | failure unless its caller explicitly allows it |
+| `not_executed` | The check was deliberately not started and has no valid disposition. | failure |
+
+The runner derives a fixed filename from its validated `--check` identifier
+under `$(BUILD_ROOT)/check-status`; for the Apache cleanup check this is
+`apache-request-transaction-cleanup.json`. It accepts no caller-selected
+status-file path. `BUILD_ROOT` must be an absolute, canonical, invocation-owned
+external path. The runner rejects checkout-local, noncanonical, and symlinked roots or status
+files before writing. It opens the validated status directory before starting
+the child command and uses that directory handle for the temporary file and
+final replacement. These records are CI-control evidence, not canonical runtime
+evidence.
+
+`make check-apache-request-transaction-cleanup` remains strict: its Python
+source contract and native Apache/APR harness must both complete, and a missing
+prerequisite remains nonzero. In contrast,
+`make check-apache-request-transaction-cleanup-lint` keeps the same mandatory
+Python source contract but explicitly allows only a direct `77` accompanied by
+`CHECK_STATUS_REASON apache_development_prerequisite`; it records that
+`blocked` result and lets every unmarked or differently marked result fail.
+The five documented Push workflows reach this one subcheck through `make lint`
+or `make quick-check`; no other target, Common check, or connector check
+inherits the allowance.
 
 ## Adding a file
 

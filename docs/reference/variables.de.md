@@ -138,6 +138,13 @@ verlassen; der Aufrufer oder ein Target muss den Wert liefern.
 | Traefik-Harness-Variablen | connector-lokal | nur direkter Aufruf | siehe Abschnitt „Traefik: direkt verwendete Entry-Point-Variablen“ | Pfade, Listen-Adressen, Flags | Überschreiben Native-Middleware- oder Compatibility-Helper |
 | lighttpd-Harness-Variablen | connector-lokal | nur direkter Aufruf | siehe Abschnitt „lighttpd: direkt verwendete Entry-Point-Variablen“ | Pfade, Ports, Modi | Überschreiben den gepatchten Host-Helper |
 
+Der optionale Apache-Cleanup-Statusrunner leitet seine feste payloadfreie JSON-
+Datei aus seiner validierten Check-Kennung unter
+<code>$(BUILD_ROOT)/check-status</code> ab. Er akzeptiert keinen vom Aufrufer
+gewählten Statuspfad und weist Checkout-lokale, nichtkanonische oder symbolisch
+verlinkte Ausgabeorte zurück. Er verankert das Ausgabeverzeichnis vor dem
+Ausführen des Child-Befehls.
+
 ## Detaillierte Root-Variablen
 
 ### Runtime- und Repository-Pfade

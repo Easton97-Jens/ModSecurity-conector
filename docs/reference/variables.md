@@ -132,6 +132,12 @@ or a target must supply the value.
 | Traefik harness variables | connector-local | direct use only | see [Traefik details](#traefik-direct-entrypoint-variables) | paths, listen addresses, flags | Overrides native-middleware or compatibility helpers |
 | lighttpd harness variables | connector-local | direct use only | see [lighttpd details](#lighttpd-direct-entrypoint-variables) | paths, ports, modes | Overrides the patched host helper |
 
+The optional Apache cleanup status runner derives its fixed payload-free JSON
+file from its validated check identifier under
+<code>$(BUILD_ROOT)/check-status</code>. It accepts no caller-selected status
+path and rejects checkout-local, noncanonical, or symlinked output locations.
+It anchors the output directory before running the child command.
+
 ## Detailed root variables
 
 ### Runtime and repository paths
