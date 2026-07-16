@@ -1,0 +1,82 @@
+schema_version: 1
+checked_at: "2026-07-16"
+
+# These values are revalidated against official upstream tag or release APIs.
+pinned_actions:
+  actions/checkout:
+    version: v7
+    commit_sha: 9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+    upstream: https://github.com/actions/checkout
+  actions/setup-python:
+    version: v6.3.0
+    commit_sha: ece7cb06caefa5fff74198d8649806c4678c61a1
+    upstream: https://github.com/actions/setup-python
+  actions/setup-go:
+    version: v7.0.0
+    commit_sha: b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+    upstream: https://github.com/actions/setup-go
+  actions/github-script:
+    version: v9
+    commit_sha: 3a2844b7e9c422d3c10d287c895573f7108da1b3
+    upstream: https://github.com/actions/github-script
+  actions/upload-artifact:
+    version: v7.0.1
+    commit_sha: 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+    upstream: https://github.com/actions/upload-artifact
+  actions/download-artifact:
+    version: v8.0.1
+    commit_sha: 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+    upstream: https://github.com/actions/download-artifact
+  github/codeql-action:
+    version: v4.37.0
+    commit_sha: 99df26d4f13ea111d4ec1a7dddef6063f76b97e9
+    upstream: https://github.com/github/codeql-action
+  google/osv-scanner-action:
+    version: v2.3.8
+    commit_sha: 9a498708959aeaef5ef730655706c5a1df1edbc2
+    upstream: https://github.com/google/osv-scanner-action
+  ossf/scorecard-action:
+    version: v2.4.3
+    commit_sha: 4eaacf0543bb3f2c246792bd56e8cdeffafb205a
+    upstream: https://github.com/ossf/scorecard-action
+
+tools:
+  actionlint:
+    version: v1.7.12
+    release_commit: 914e7df21a07ef503a81201c76d2b11c789d3fca
+    asset: actionlint_1.7.12_linux_amd64.tar.gz
+    url: https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+    sha256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+    executable: actionlint
+    upstream: https://github.com/rhysd/actionlint
+    license: MIT
+    purpose: GitHub Actions syntax, expression, and ShellCheck integration.
+    permissions: contents:read
+  zizmor:
+    version: v1.27.0
+    release_commit: e2627367eb7c917a90503ce05a66872fd91da6fb
+    asset: zizmor-x86_64-unknown-linux-gnu.tar.gz
+    url: https://github.com/zizmorcore/zizmor/releases/download/v1.27.0/zizmor-x86_64-unknown-linux-gnu.tar.gz
+    sha256: 277f2bd8fd37cf60c42ab7afca6faa884e65440fa31e02b44bdaae60f62a358f
+    executable: zizmor
+    upstream: https://github.com/zizmorcore/zizmor
+    license: MIT
+    purpose: Offline GitHub Actions security linting.
+    permissions: contents:read
+  gitleaks:
+    version: v8.30.1
+    release_commit: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e
+    asset: gitleaks_8.30.1_linux_x64.tar.gz
+    url: https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+    sha256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    executable: gitleaks
+    upstream: https://github.com/gitleaks/gitleaks
+    license: MIT
+    purpose: Redacted PR-range secret scanning and advisory history scanning.
+    permissions: contents:read
+
+dispositions:
+  full_history_gitleaks: advisory_until_historical_findings_are_triaged
+  dependency_updates: never_automatic
+  scorecard_fork_prs: not_run_without_trusted_same_repository_head
+  codeql_c_cpp: bounded_to_common_helpers_until_full_connector_builds_are_reproducible
