@@ -7,6 +7,7 @@ import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,9 +72,23 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
             errors = CHECKER.check_forbidden_local_language_companions(root)
 
         self.assertEqual(
-            ["AGENTS.de.md: local Codex/RTK configuration must not have a German companion"],
+            ["AGENTS.de.md: local Codex configuration must not have a German companion"],
             errors,
         )
+
+    def test_ignored_local_markdown_is_not_repository_owned_documentation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self.write(root, "local.md", "# Local control file\n")
+
+            with patch.object(
+                CHECKER,
+                "git_ignored_paths",
+                return_value=frozenset({Path("local.md")}),
+            ):
+                sources = CHECKER.english_sources(root)
+
+        self.assertEqual([], sources)
 
     def test_pr_template_requires_all_bilingual_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
