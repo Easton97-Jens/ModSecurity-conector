@@ -85,6 +85,7 @@ def main() -> None:
     destination = args.destination
     if destination is None:
         parser.error("--destination is required unless --validate-only is used")
+        return
     print(fetch(args.tool, destination.resolve()))
 
 
