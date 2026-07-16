@@ -1,0 +1,81 @@
+name: OSV dependency scanning
+
+on:
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: '7 2 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pull-request-diff:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: false
+      - name: Checkout exact base revision
+        env:
+          OSV_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: git checkout --detach "$OSV_BASE_SHA"
+      - name: Scan base revision
+        uses: google/osv-scanner-action/osv-scanner-action@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=old-results.json
+            -r
+            ./
+      - name: Checkout exact pull-request head revision
+        env:
+          OSV_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git checkout --detach "$OSV_HEAD_SHA"
+      - name: Scan pull-request head revision
+        uses: google/osv-scanner-action/osv-scanner-action@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=new-results.json
+            -r
+            ./
+      - name: Compare base and head findings without remediation
+        uses: google/osv-scanner-action/osv-reporter-action@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+        with:
+          scan-args: |-
+            --output=results.sarif
+            --old=old-results.json
+            --new=new-results.json
+            --gh-annotations=true
+            --fail-on-vuln=true
+      - name: Upload OSV SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        with:
+          sarif_file: results.sarif
+
+  scheduled-advisory:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+          submodules: false
+      - name: Scan current dependency manifests without remediation
+        uses: google/osv-scanner-action/osv-scanner-action@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            -r
+            ./
