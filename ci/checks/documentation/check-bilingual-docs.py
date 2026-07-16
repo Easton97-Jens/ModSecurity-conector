@@ -156,6 +156,10 @@ COMMON_DESIGN_HISTORICAL_MARKERS = (
 )
 HEADING_RE = re.compile(r"^(#{1,6})\s+\S", re.MULTILINE)
 TABLE_ROW_RE = re.compile(r"^\|.*\|\s*$")
+ROOT_AGENT_INCLUDE_RE = re.compile(
+    r"^\s*@([A-Za-z0-9][A-Za-z0-9._-]*\.md)\s*$",
+    re.MULTILINE,
+)
 
 
 def is_tools_mrts(path: Path) -> bool:
@@ -163,11 +167,29 @@ def is_tools_mrts(path: Path) -> bool:
     return text.startswith("tools/MRTS/") or text.startswith("modules/ModSecurity-test-Framework/tools/MRTS/")
 
 
-def is_local_codex_path(path: Path) -> bool:
+def agent_referenced_root_markdown(repo: Path) -> frozenset[Path]:
+    """Return root Markdown control files explicitly included by local AGENTS files."""
+    paths: set[Path] = set()
+    for filename in LOCAL_CODEX_ROOT_FILENAMES:
+        source = repo / filename
+        if not source.is_file():
+            continue
+        for match in ROOT_AGENT_INCLUDE_RE.finditer(
+            source.read_text(encoding="utf-8", errors="replace")
+        ):
+            paths.add(Path(match.group(1)))
+    return frozenset(paths)
+
+
+def is_local_codex_path(
+    path: Path,
+    agent_referenced_paths: frozenset[Path] = frozenset(),
+) -> bool:
     """Return true for developer-local Codex configuration only."""
     return (
         (len(path.parts) == 1 and path.name in LOCAL_CODEX_ROOT_FILENAMES)
         or (bool(path.parts) and path.parts[0] in LOCAL_CODEX_ROOT_DIRECTORY_NAMES)
+        or path in agent_referenced_paths
     )
 
 
@@ -263,12 +285,16 @@ def pair_required(path: Path) -> bool:
 
 def english_sources(repo: Path) -> list[Path]:
     ignored_paths = git_ignored_paths(repo)
+    agent_referenced_paths = agent_referenced_root_markdown(repo)
     return sorted(
         path
         for path in repo.rglob("*.md")
         if not is_ignored(path)
         and not is_git_ignored(path.relative_to(repo), ignored_paths)
-        and not is_local_codex_path(path.relative_to(repo))
+        and not is_local_codex_path(
+            path.relative_to(repo),
+            agent_referenced_paths,
+        )
         and pair_required(path.relative_to(repo))
     )
 
@@ -568,6 +594,7 @@ def normalize_local_target(raw_target: str) -> str:
 
 def check_links(repo: Path) -> list[str]:
     errors: list[str] = []
+    agent_referenced_paths = agent_referenced_root_markdown(repo)
     for path in checked_markdown_files(repo):
         rel_path = path.relative_to(repo)
         in_fence = False
@@ -587,7 +614,7 @@ def check_links(repo: Path) -> list[str]:
                 except ValueError:
                     errors.append(f"{rel_path}:{line_number}: link escapes repository: {raw_target}")
                     continue
-                if is_local_codex_path(rel_candidate):
+                if is_local_codex_path(rel_candidate, agent_referenced_paths):
                     continue
                 if not candidate.exists():
                     errors.append(f"{rel_path}:{line_number}: missing local link target: {raw_target}")

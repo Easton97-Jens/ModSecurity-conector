@@ -90,6 +90,16 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
 
         self.assertEqual([], sources)
 
+    def test_agent_referenced_root_markdown_is_not_repository_owned_documentation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self.write(root, "AGENTS.md", "@local-control.md\n")
+            self.write(root, "local-control.md", "# Local control file\n")
+
+            sources = CHECKER.english_sources(root)
+
+        self.assertEqual([], sources)
+
     def test_pr_template_requires_all_bilingual_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

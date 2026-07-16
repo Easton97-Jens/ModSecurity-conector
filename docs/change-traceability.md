@@ -43,10 +43,11 @@ those literals while preserving the literal itself.
 ## Local Codex files
 
 The following local-only configuration does not need a German companion:
-<code>AGENTS.md</code>, <code>AGENTS.override.md</code>, and
-<code>.codex/</code>. Never create <code>AGENTS.de.md</code>. These local instructions
-still require Codex to maintain all versioned, reader-facing content under this
-policy.
+<code>AGENTS.md</code>, <code>AGENTS.override.md</code>, root Markdown control
+files included from them using <code>@...</code>, and <code>.codex/</code>.
+Never create a German companion for an active local control file. These local
+instructions still require Codex to maintain all versioned, reader-facing
+content under this policy.
 
 ## Change workflow
 
@@ -133,7 +134,7 @@ git diff --check
 git status --short
 ~~~
 
-Also manually confirm that no <code>AGENTS.de.md</code> was created, new
-versioned policies and templates have
+Also manually confirm that no German companion was created for an active local
+control file, new versioned policies and templates have
 complete language coverage, both versions contain the same technical facts, and
 unrelated changes were left untouched.

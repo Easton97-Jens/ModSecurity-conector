@@ -47,10 +47,12 @@ selbst bleibt unverändert.
 ## Lokale Codex-Dateien
 
 Die folgende ausschließlich lokale Konfiguration benötigt keine deutsche
-Begleitdatei: <code>AGENTS.md</code>, <code>AGENTS.override.md</code> und
-<code>.codex/</code>. <code>AGENTS.de.md</code> darf nie angelegt werden.
-Diese lokalen Anweisungen verpflichten Codex dennoch dazu, alle
-versionierten, benutzergerichteten Inhalte nach dieser Richtlinie zu pflegen.
+Begleitdatei: <code>AGENTS.md</code>, <code>AGENTS.override.md</code>, von
+ihnen per <code>@...</code> eingebundene Markdown-Steuerdateien auf
+Wurzelebene und <code>.codex/</code>. Für eine aktive lokale Steuerdatei darf
+keine deutsche Begleitdatei angelegt werden. Diese lokalen Anweisungen
+verpflichten Codex dennoch dazu, alle versionierten, benutzergerichteten
+Inhalte nach dieser Richtlinie zu pflegen.
 
 ## Arbeitsablauf bei Änderungen
 
@@ -140,7 +142,7 @@ git diff --check
 git status --short
 ~~~
 
-Zusätzlich manuell bestätigen, dass keine <code>AGENTS.de.md</code> erstellt
-wurde, neue versionierte Richtlinien und
+Zusätzlich manuell bestätigen, dass für keine aktive lokale Steuerdatei eine
+deutsche Begleitdatei erstellt wurde, neue versionierte Richtlinien und
 Vorlagen vollständig zweisprachig sind, beide Fassungen dieselben technischen
 Fakten enthalten und unabhängige Änderungen unberührt blieben.
