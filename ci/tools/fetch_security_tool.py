@@ -15,16 +15,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = ROOT / "ci" / "tooling" / "security-tools.lock.yml"
-SHA256 = re.compile(r"^[0-9a-f]{64}$")
+SHA256 = re.compile(r"^[a-f\d]{64}$")
 
 
-def record(tool: str, lock_path: Path = LOCK) -> dict[str, str]:
+def record(tool: str) -> dict[str, str]:
     """Read the intentionally small downloaded-binary record without PyYAML."""
-    text = lock_path.read_text(encoding="utf-8")
-    match = re.search(rf"^  {re.escape(tool)}:\n(.*?)(?=^  [a-z][a-z0-9_]*:|^dispositions:|\Z)", text, re.MULTILINE | re.DOTALL)
+    text = LOCK.read_text(encoding="utf-8")
+    match = re.search(rf"^ {{2}}{re.escape(tool)}:\n(.*?)(?=^ {{2}}[a-z][a-z\d_]*:|^dispositions:|\Z)", text, re.MULTILINE | re.DOTALL)
     if match is None:
         raise ValueError(f"unknown security tool: {tool}")
-    values = dict(re.findall(r"^    ([a-z0-9_]+): (.+)$", match.group(1), re.MULTILINE))
+    values = dict(re.findall(r"^ {4}([a-z\d_]+): (.+)$", match.group(1), re.MULTILINE))
     required = {"asset", "url", "sha256", "executable", "upstream"}
     if set(values).intersection(required) != required:
         raise ValueError(f"{tool}: incomplete lock record")
@@ -49,8 +49,8 @@ def safe_member(member: tarfile.TarInfo) -> bool:
     return member.isfile() and not path.is_absolute() and ".." not in path.parts
 
 
-def fetch(tool: str, destination: Path, lock_path: Path = LOCK) -> Path:
-    values = record(tool, lock_path)
+def fetch(tool: str, destination: Path) -> Path:
+    values = record(tool)
     destination.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="security-tool-", dir=destination) as temp:
         archive = Path(temp) / values["asset"]
@@ -73,21 +73,20 @@ def fetch(tool: str, destination: Path, lock_path: Path = LOCK) -> Path:
     return target
 
 
-def main() -> int:
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tool", required=True)
     parser.add_argument("--destination", type=Path)
-    parser.add_argument("--lock", type=Path, default=LOCK)
     parser.add_argument("--validate-only", action="store_true")
     args = parser.parse_args()
     if args.validate_only:
-        record(args.tool, args.lock)
-        return 0
-    if args.destination is None:
+        record(args.tool)
+        return
+    destination = args.destination
+    if destination is None:
         parser.error("--destination is required unless --validate-only is used")
-    print(fetch(args.tool, args.destination.resolve(), args.lock))
-    return 0
+    print(fetch(args.tool, destination.resolve()))
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

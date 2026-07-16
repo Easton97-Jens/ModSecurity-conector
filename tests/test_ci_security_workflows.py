@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
-SHA_PIN = re.compile(r"^[a-z0-9_.-]+(?:/[a-z0-9_.-]+)+@[0-9a-f]{40}\s+# v[0-9]", re.MULTILINE)
+SHA_PIN = re.compile(r"^[a-z\d_.-]+(?:/[a-z\d_.-]+)+@[a-f\d]{40}\s+# v\d", re.MULTILINE)
 
 
 class CiSecurityWorkflowTest(unittest.TestCase):
@@ -18,7 +18,7 @@ class CiSecurityWorkflowTest(unittest.TestCase):
 
     def test_all_remote_actions_are_immutable_sha_pins(self) -> None:
         lock_text = (ROOT / "ci" / "tooling" / "security-tools.lock.yml").read_text(encoding="utf-8")
-        recorded_shas = set(re.findall(r"commit_sha: ([0-9a-f]{40})", lock_text))
+        recorded_shas = set(re.findall(r"commit_sha: ([a-f\d]{40})", lock_text))
         for path in sorted(WORKFLOWS.glob("*.yml")):
             for line in path.read_text(encoding="utf-8").splitlines():
                 if "uses:" not in line or "@" not in line or "./" in line:
