@@ -19,6 +19,7 @@ complete matrix, or strict behavior for every connector.
 | Build one host | [Build](build/README.md) | Root/connector build inputs and compiler guides |
 | Test or interpret artifacts | [Testing and evidence](testing-and-evidence.md) | Selected run records and Framework schemas |
 | Operate safely | [Operations and security](operations-and-security.md) | Explicit deployment, limit, privacy, and provenance boundary |
+| Review CI security automation | [CI security tooling](security/ci-security-tooling.md) | Immutable pins, scanners, permissions, and their evidence limits |
 | Choose a connector | [Connector index](connectors/README.md) | Selected integration mode and connector guide |
 | Trace a material change | [Change traceability](change-traceability.md) / [Change Records](../reports/audits/change-records/README.md) | Binding workflow, paired records, and evidence/data boundary |
 

@@ -78,7 +78,7 @@ Gemeinsam genutzte konnektorneutrale Datenformen, die vom Starter verwendet werd
 ## Build-Starter
 
 Für die vollständige Repository-gestützte HAProxy-Kompilierung und lokale Verifizierung
-Flow finden Sie im Root-Leitfaden: [`docs/build/compilers/haproxy.md`](../../docs/build/compilers/haproxy.de.md).
+Flow finden Sie im Root-Leitfaden: [`docs/build/compilers/haproxy.de.md`](../../docs/build/compilers/haproxy.de.md).
 Die folgenden Connector-lokalen Hinweise beschreiben nur den Status und den Zielbereich.
 
 Unterstützte lokale Build-Ziele:

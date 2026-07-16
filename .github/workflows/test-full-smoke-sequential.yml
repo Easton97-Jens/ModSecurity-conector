@@ -30,7 +30,7 @@ jobs:
       SMOKE_LOCK_MODE: wait
       SMOKE_LOCK_TIMEOUT_SECONDS: "1800"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: recursive
           persist-credentials: false
@@ -56,10 +56,12 @@ jobs:
             echo "MODSECURITY_V3_SOURCE_DIR=$source_root/ModSecurity_V3"
             echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
-          echo "verified_root=$verified_root" >> "$GITHUB_OUTPUT"
-          echo "build_root=$build_root" >> "$GITHUB_OUTPUT"
-          echo "build_root_apache=$build_root_apache" >> "$GITHUB_OUTPUT"
-          echo "source_root=$source_root" >> "$GITHUB_OUTPUT"
+          {
+            echo "verified_root=$verified_root"
+            echo "build_root=$build_root"
+            echo "build_root_apache=$build_root_apache"
+            echo "source_root=$source_root"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Lint and py-compile
         run: |
@@ -88,7 +90,7 @@ jobs:
       - name: Cleanup artifacts before upload
         if: always()
         continue-on-error: true
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           ARTIFACT_NAME: full-smoke-sequential-${{ matrix.variant }}-artifacts
         with:
@@ -190,7 +192,7 @@ jobs:
       - name: Upload smoke artifacts
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: full-smoke-sequential-${{ matrix.variant }}-artifacts
           retention-days: 1

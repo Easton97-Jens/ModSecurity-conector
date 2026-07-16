@@ -25,16 +25,15 @@ FENCE_PREFIXES = ("```", "~~~")
 GERMAN_GENERATED_NOTE = "Diese deutsche Datei ist eine übersetzte Begleitdatei"
 SPECIAL_LANGUAGE_INDEXES: tuple[tuple[Path, Path], ...] = ()
 CHANGE_RECORDS_DIRECTORY = Path("reports/audits/change-records")
-LOCAL_CODEX_RTK_ROOT_FILENAMES = frozenset(
+LOCAL_CODEX_ROOT_FILENAMES = frozenset(
     {
         "AGENTS.md",
         "AGENTS.override.md",
-        "RTK.md",
     }
 )
-LOCAL_CODEX_RTK_ROOT_DIRECTORY_NAMES = frozenset({".codex", ".rtk"})
+LOCAL_CODEX_ROOT_DIRECTORY_NAMES = frozenset({".codex"})
 FORBIDDEN_LOCAL_LANGUAGE_COMPANIONS = frozenset(
-    {"AGENTS.de.md", "AGENTS.override.de.md", "RTK.de.md"}
+    {"AGENTS.de.md", "AGENTS.override.de.md"}
 )
 PR_TEMPLATE_REQUIRED_HEADINGS = {
     "English": (
@@ -157,6 +156,10 @@ COMMON_DESIGN_HISTORICAL_MARKERS = (
 )
 HEADING_RE = re.compile(r"^(#{1,6})\s+\S", re.MULTILINE)
 TABLE_ROW_RE = re.compile(r"^\|.*\|\s*$")
+ROOT_AGENT_INCLUDE_RE = re.compile(
+    r"^\s*@([A-Za-z0-9][A-Za-z0-9._-]*\.md)\s*$",
+    re.MULTILINE,
+)
 
 
 def is_tools_mrts(path: Path) -> bool:
@@ -164,11 +167,29 @@ def is_tools_mrts(path: Path) -> bool:
     return text.startswith("tools/MRTS/") or text.startswith("modules/ModSecurity-test-Framework/tools/MRTS/")
 
 
-def is_local_codex_rtk_path(path: Path) -> bool:
-    """Return true for developer-local Codex/RTK configuration only."""
+def agent_referenced_root_markdown(repo: Path) -> frozenset[Path]:
+    """Return root Markdown control files explicitly included by local AGENTS files."""
+    paths: set[Path] = set()
+    for filename in LOCAL_CODEX_ROOT_FILENAMES:
+        source = repo / filename
+        if not source.is_file():
+            continue
+        for match in ROOT_AGENT_INCLUDE_RE.finditer(
+            source.read_text(encoding="utf-8", errors="replace")
+        ):
+            paths.add(Path(match.group(1)))
+    return frozenset(paths)
+
+
+def is_local_codex_path(
+    path: Path,
+    agent_referenced_paths: frozenset[Path] = frozenset(),
+) -> bool:
+    """Return true for developer-local Codex configuration only."""
     return (
-        (len(path.parts) == 1 and path.name in LOCAL_CODEX_RTK_ROOT_FILENAMES)
-        or (bool(path.parts) and path.parts[0] in LOCAL_CODEX_RTK_ROOT_DIRECTORY_NAMES)
+        (len(path.parts) == 1 and path.name in LOCAL_CODEX_ROOT_FILENAMES)
+        or (bool(path.parts) and path.parts[0] in LOCAL_CODEX_ROOT_DIRECTORY_NAMES)
+        or path in agent_referenced_paths
     )
 
 
@@ -178,6 +199,25 @@ def is_ignored(path: Path) -> bool:
         or path.name == "actions-update-report.md"
         or is_tools_mrts(path)
     )
+
+
+def git_ignored_paths(repo: Path) -> frozenset[Path]:
+    """Return local, ignored paths that are not repository-owned documentation."""
+    result = subprocess.run(
+        ["git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z"],
+        cwd=repo,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    if result.returncode != 0:
+        return frozenset()
+    return frozenset(Path(path) for path in result.stdout.split("\0") if path)
+
+
+def is_git_ignored(path: Path, ignored_paths: frozenset[Path]) -> bool:
+    return any(path == ignored or ignored in path.parents for ignored in ignored_paths)
 
 
 def german_counterpart(path: Path) -> Path:
@@ -244,11 +284,17 @@ def pair_required(path: Path) -> bool:
 
 
 def english_sources(repo: Path) -> list[Path]:
+    ignored_paths = git_ignored_paths(repo)
+    agent_referenced_paths = agent_referenced_root_markdown(repo)
     return sorted(
         path
         for path in repo.rglob("*.md")
         if not is_ignored(path)
-        and not is_local_codex_rtk_path(path.relative_to(repo))
+        and not is_git_ignored(path.relative_to(repo), ignored_paths)
+        and not is_local_codex_path(
+            path.relative_to(repo),
+            agent_referenced_paths,
+        )
         and pair_required(path.relative_to(repo))
     )
 
@@ -401,7 +447,7 @@ def check_pr_template(repo: Path) -> list[str]:
 
 def check_forbidden_local_language_companions(repo: Path) -> list[str]:
     return [
-        f"{filename}: local Codex/RTK configuration must not have a German companion"
+        f"{filename}: local Codex configuration must not have a German companion"
         for filename in sorted(FORBIDDEN_LOCAL_LANGUAGE_COMPANIONS)
         if (repo / filename).exists()
     ]
@@ -548,6 +594,7 @@ def normalize_local_target(raw_target: str) -> str:
 
 def check_links(repo: Path) -> list[str]:
     errors: list[str] = []
+    agent_referenced_paths = agent_referenced_root_markdown(repo)
     for path in checked_markdown_files(repo):
         rel_path = path.relative_to(repo)
         in_fence = False
@@ -567,7 +614,7 @@ def check_links(repo: Path) -> list[str]:
                 except ValueError:
                     errors.append(f"{rel_path}:{line_number}: link escapes repository: {raw_target}")
                     continue
-                if is_local_codex_rtk_path(rel_candidate):
+                if is_local_codex_path(rel_candidate, agent_referenced_paths):
                     continue
                 if not candidate.exists():
                     errors.append(f"{rel_path}:{line_number}: missing local link target: {raw_target}")
