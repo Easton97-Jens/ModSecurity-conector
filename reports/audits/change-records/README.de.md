@@ -8,3 +8,4 @@ englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
 - [CI-Sicherheits-Härtung](CR-20260716-ci-security-hardening.de.md)
+- [Traefik-UDS- und C++-Evaluator-Härtung](CR-20260717-traefik-uds-cpp17-hardening.de.md)

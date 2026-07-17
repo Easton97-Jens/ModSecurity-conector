@@ -7,6 +7,7 @@ BUILD_ROOT="${BUILD_ROOT:-${TMPDIR:-/var/tmp}/ModSecurity-conector-verified/buil
 OUT_DIR="${TRAEFIK_ENGINE_SERVICE_BUILD_DIR:-$BUILD_ROOT/traefik-engine-service}"
 ENGINE_BIN="${TRAEFIK_ENGINE_SERVICE_BIN:-$OUT_DIR/traefik-engine-service}"
 PYTHON_BIN="${PYTHON:-python3}"
+SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_TEST_PARENT:-/var/tmp}"
 SOCKET_DIR=""
 SOCKET_PATH=""
 CONFIG_PATH="$REPO_ROOT/connectors/traefik/config/traefik-engine-service.conf"
@@ -29,14 +30,25 @@ command -v "$PYTHON_BIN" >/dev/null 2>&1 || {
     echo "BLOCKED: missing Python interpreter for local Unix-socket protocol test" >&2
     exit 77
 }
+case "$SOCKET_PARENT" in
+    /*) ;;
+    *) echo "BLOCKED: TRAEFIK_ENGINE_SOCKET_TEST_PARENT must be absolute" >&2; exit 77 ;;
+esac
+if [ ! -d "$SOCKET_PARENT" ] || [ -L "$SOCKET_PARENT" ]; then
+    echo "BLOCKED: engine-service socket parent must be a real directory" >&2
+    exit 77
+fi
+if [ "$SOCKET_PARENT" != /var/tmp ] &&
+    { [ "$(stat -c '%u' "$SOCKET_PARENT")" != "$(id -u)" ] ||
+      [ "$(stat -c '%a' "$SOCKET_PARENT")" != 700 ]; }; then
+    echo "BLOCKED: explicit engine-service socket parent must be current-user owned and 0700" >&2
+    exit 77
+fi
 
 cleanup() {
     if [ -n "$SERVICE_PID" ]; then
         kill "$SERVICE_PID" 2>/dev/null || true
         wait "$SERVICE_PID" 2>/dev/null || true
-    fi
-    if [ -n "$SOCKET_PATH" ]; then
-        rm -f "$SOCKET_PATH"
     fi
     if [ -n "$SOCKET_DIR" ] && [ ! -L "$SOCKET_DIR" ]; then
         rmdir "$SOCKET_DIR" 2>/dev/null || true
@@ -47,12 +59,12 @@ trap cleanup EXIT HUP INT TERM
 # The durable test build root can be far beyond Unix-domain pathname limits.
 # Keep this transient transport socket in a short, private directory instead;
 # it is neither a runtime artifact nor an evidence destination.
-SOCKET_DIR=$(mktemp -d /var/tmp/msconnector-traefik-engine-test.XXXXXX) || {
+SOCKET_DIR=$(mktemp -d "$SOCKET_PARENT"/msconnector-traefik-engine-test.XXXXXX) || {
     echo "BLOCKED: unable to create private engine-service socket directory" >&2
     exit 77
 }
 case "$SOCKET_DIR" in
-    /var/tmp/msconnector-traefik-engine-test.*) ;;
+    "$SOCKET_PARENT"/msconnector-traefik-engine-test.*) ;;
     *)
         echo "BLOCKED: unexpected private engine-service socket directory: $SOCKET_DIR" >&2
         exit 77
@@ -169,6 +181,48 @@ if [ -e "$SOCKET_PATH" ]; then
     echo "FAIL: engine service did not remove its Unix socket" >&2
     exit 1
 fi
+
+# A pathname replacement after a successful bind belongs to neither the
+# service nor this cleanup trap. The service must preserve it and report an
+# incomplete cleanup instead of unlinking it on shutdown.
+(
+    cd "$REPO_ROOT"
+    "$ENGINE_BIN" --serve --config "$CONFIG_PATH" --socket "$SOCKET_PATH"
+) &
+SERVICE_PID=$!
+SOCKET_PATH="$SOCKET_PATH" "$PYTHON_BIN" -c '
+import os
+import socket
+import time
+
+path = os.environ["SOCKET_PATH"]
+def stat_is_socket(path):
+    import stat
+    return stat.S_ISSOCK(os.lstat(path).st_mode)
+
+for _ in range(250):
+    if os.path.exists(path) and stat_is_socket(path):
+        break
+    time.sleep(0.02)
+else:
+    raise SystemExit("engine service socket did not appear for ownership regression")
+'
+
+rm -- "$SOCKET_PATH"
+printf '%s\n' 'replacement-sentinel' > "$SOCKET_PATH"
+kill -TERM "$SERVICE_PID"
+if wait "$SERVICE_PID"; then
+    echo "FAIL: engine service did not report replaced-socket cleanup refusal" >&2
+    exit 1
+fi
+SERVICE_PID=""
+if [ ! -f "$SOCKET_PATH" ] || [ -L "$SOCKET_PATH" ] ||
+    [ "$(cat "$SOCKET_PATH")" != 'replacement-sentinel' ]; then
+    echo "FAIL: engine service removed or changed the replacement sentinel" >&2
+    exit 1
+fi
+rm -- "$SOCKET_PATH"
+
 rmdir "$SOCKET_DIR"
 SOCKET_DIR=""
 printf 'traefik_engine_service_protocol_negative_test=pass\n'
