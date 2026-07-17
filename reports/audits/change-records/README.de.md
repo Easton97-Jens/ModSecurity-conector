@@ -8,3 +8,4 @@ englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
 - [CI-Sicherheits-Härtung](CR-20260716-ci-security-hardening.de.md)
+- [CodeQL-Action-4.37.1-Batch](CR-20260717-codeql-action-4-37-1-batch.de.md)
