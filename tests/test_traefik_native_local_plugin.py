@@ -98,38 +98,30 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         self.assertIn("resolve_engine_socket_parent", source)
         self.assertNotIn('dir="/var/tmp"', source)
         self.assertNotIn("ENGINE_SOCKET_FALLBACK_ALLOCATION_ROOT", source)
+        self.assertNotIn("TMPDIR", source)
         self.assertIn("ENGINE_SOCKET_PATH_MAX_BYTES", source)
         self.assertIn("engine_socket_dir = create_private_engine_socket_dir(engine_socket_parent)", source)
         self.assertIn('"host_runtime_cleanup_incomplete"', source)
         self.assertIn("DirectoryIdentity", source)
 
-    def test_engine_socket_parent_resolution_prefers_explicit_then_tmpdir_and_requires_private_input(self) -> None:
+    def test_engine_socket_parent_resolution_requires_explicit_private_input(self) -> None:
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-test-") as temporary:
             root = Path(temporary)
             explicit = root / "explicit"
-            tmpdir = root / "tmpdir"
             explicit.mkdir(mode=0o700)
-            tmpdir.mkdir(mode=0o700)
             with mock.patch.dict(
                 os.environ,
-                {
-                    runner.ENGINE_SOCKET_PARENT_ENV: str(explicit),
-                    "TMPDIR": str(tmpdir),
-                },
+                {runner.ENGINE_SOCKET_PARENT_ENV: str(explicit)},
                 clear=False,
             ):
                 selected = runner.resolve_engine_socket_parent()
                 self.assertEqual(selected.path, explicit)
             with mock.patch.dict(
                 os.environ,
-                {runner.ENGINE_SOCKET_PARENT_ENV: "", "TMPDIR": str(tmpdir)},
-                clear=False,
-            ):
-                selected = runner.resolve_engine_socket_parent()
-                self.assertEqual(selected.path, tmpdir)
-            with mock.patch.dict(
-                os.environ,
-                {runner.ENGINE_SOCKET_PARENT_ENV: "", "TMPDIR": ""},
+                {
+                    runner.ENGINE_SOCKET_PARENT_ENV: "",
+                    "TMPDIR": str(explicit),
+                },
                 clear=False,
             ):
                 with self.assertRaisesRegex(runner.MissingDependency, "TRAEFIK_ENGINE_SOCKET_PARENT"):
@@ -195,7 +187,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             control_parent.mkdir(mode=0o700)
             with mock.patch.dict(
                 os.environ,
-                {runner.ENGINE_SOCKET_PARENT_ENV: str(control_parent), "TMPDIR": ""},
+                {runner.ENGINE_SOCKET_PARENT_ENV: str(control_parent)},
                 clear=False,
             ):
                 with self.assertRaisesRegex(runner.MissingDependency, "control characters"):
@@ -329,13 +321,16 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
 
     def test_missing_engine_socket_parent_fails_before_runtime_root_setup(self) -> None:
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-test-") as temporary:
-            runtime_root = Path(temporary) / "runtime"
+            temporary_root = Path(temporary)
+            runtime_root = temporary_root / "runtime"
+            inherited_tmpdir = temporary_root / "valid-inherited-tmpdir"
+            inherited_tmpdir.mkdir(mode=0o700)
             with mock.patch.dict(
                 os.environ,
                 {
                     "TRAEFIK_NATIVE_RUNTIME_ROOT": str(runtime_root),
                     runner.ENGINE_SOCKET_PARENT_ENV: "",
-                    "TMPDIR": "",
+                    "TMPDIR": str(inherited_tmpdir),
                 },
                 clear=False,
             ):

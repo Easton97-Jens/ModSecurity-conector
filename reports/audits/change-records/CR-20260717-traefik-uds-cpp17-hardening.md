@@ -15,7 +15,7 @@ awaits its own exact-head analysis.
 | Date (UTC) | `2026-07-17` |
 | Base revision | `02f9f98cdbbdd70bbc530ac1399974e53884f4e9` |
 | Scope | Parent repository only |
-| Related findings | `FND-FRAMEWORK-0008`, `FND-PARENT-0012`, `FND-PARENT-0013`, `FND-PARENT-0014`, `FND-PARENT-0015`, `FND-PARENT-0016`, `FND-PARENT-0017` |
+| Related findings | `FND-FRAMEWORK-0008`, `FND-PARENT-0012`, `FND-PARENT-0013`, `FND-PARENT-0014`, `FND-PARENT-0015`, `FND-PARENT-0016`, `FND-PARENT-0017`, `FND-PARENT-0019` |
 
 ## Motivation and problem statement
 
@@ -27,9 +27,10 @@ interfaces that made future argument-order errors unnecessarily easy.
 
 ## Acceptance criteria
 
-- A native runner selects a short task-owned UDS parent through an explicit
-  value or `TMPDIR`, and fails closed before host setup when neither supplies a
-  valid private parent with a cross-UID-safe ancestor chain.
+- A native runner requires a short task-owned UDS parent through the explicit
+  `TRAEFIK_ENGINE_SOCKET_PARENT` value and fails closed before host setup when
+  it does not supply a valid private parent with a cross-UID-safe ancestor
+  chain.
 - Focused tests cover length, relative paths, symlinks, existing sockets,
   parallel allocation, setup failure, YAML quoting, and cleanup refusal.
 - The C17 service refuses an unsafe private-parent topology and pre-bind,
@@ -38,21 +39,36 @@ interfaces that made future argument-order errors unnecessarily easy.
 - The existing protocol lifecycle retains Allow and Blocking controls; ordinary
   focused cleanup is covered without claiming same-UID race-proof deletion or
   live endpoint identity.
+- Named caller-provided Traefik lifecycle values cross GNU Make as raw
+  environment data: no Make function or recipe shell assignment may interpret
+  them before private-parent validation or a fixed script entrypoint.
 - The evaluator compiles under C++17 `-Wall -Wextra -Werror` and preserves the
   direct Allow/Block result while making internal inputs less swappable.
 
 ## Implementation decision and rationale
 
-The Python runner gives `TRAEFIK_ENGINE_SOCKET_PARENT` precedence over
-`TMPDIR`. It validates an existing absolute, canonical, current-user-owned,
-exact-`0700` parent outside the checkout, rejects symlink components/control
-characters, and verifies every ancestor to root against cross-UID replacement.
+The Python runner requires `TRAEFIK_ENGINE_SOCKET_PARENT`; it intentionally
+does not inherit a generic temporary-directory selector. It validates an
+existing absolute, canonical, current-user-owned, exact-`0700` parent outside
+the checkout, rejects symlink components/control characters, and verifies every
+ancestor to root against cross-UID replacement.
 A group- or other-writable ancestor is accepted only when it is sticky and its
 next child entry belongs to the effective UID. It fails before host setup if
-neither source supplies that boundary. It JSON-quotes generated YAML and
+the explicit value does not supply that boundary. It JSON-quotes generated YAML and
 records directory identity before cleanup checks. Those checks refuse observed
 mismatch or residual contents; they are not an atomic same-UID deletion
 guarantee.
+
+The central remaining-connector dispatcher carries the caller-supplied
+TRAEFIK_ENGINE_SOCKET_PARENT as process-environment data. The native Make
+target freezes the named Traefik, `BUILD_ROOT`, and ModSecurity values with raw
+GNU Make value transport, exports them, and invokes fixed script paths without
+inline shell assignments. The lifecycle target runner likewise exports its
+Traefik and ModSecurity values rather than passing them as Make command-line
+assignments. The target does not derive a parent from a runtime or temporary
+root because canonical runtime paths can exceed the UDS budget. A CI or direct
+caller must create a short protected parent explicitly; an absent value remains
+a fail-closed BLOCKED prerequisite.
 
 The C service independently enforces the same immediate-private-parent and
 cross-UID-safe ancestor-chain contract, so it needs no process-global `umask`
@@ -75,6 +91,10 @@ interfaces only; it does not change public APIs or emitted decision behavior.
 - `connectors/traefik/build/build-engine-service.sh`
 - `connectors/traefik/build/test-engine-service-runtime.sh`
 - `tests/test_traefik_native_local_plugin.py`
+- `tests/test_no_crs_selected_runner_wiring.py`
+- `connectors/traefik/Makefile`
+- `ci/runtime/lifecycle/run-connector-stage.sh`
+- `ci/runtime/lifecycle/run-remaining-connector-target.sh`
 - `connectors/traefik/README.md` and `connectors/traefik/README.de.md`
 - `docs/connectors/README.md` and `docs/connectors/README.de.md`
 - `docs/reference/variables.md` and `docs/reference/variables.de.md`
@@ -136,6 +156,34 @@ under `/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-run
   Hardened diagnostic (`126`), ASan+UBSan build/runtime (`127`/`128`), and
   GCC `-fanalyzer` (`129`) all passed; their exact command, CWD, UTC timing,
   exit result, and raw output are retained in the named run.
+- The final explicit-parent follow-up passed all 16 focused Python contracts
+  (`144`, SHA-256
+  `712fa2f1ac323a17d9c569fd8f8396eafceda7f6e28b18df61a6a502580dbc37`).
+  The full bilingual checker exceeded this command interface's observed
+  30-second foreground limit before it produced an exit result; its prior full
+  run remains retained as `133`, but is not claimed to cover this follow-up.
+  The selected changed English/German pairs instead ran the same structural,
+  language-switch, local-link, and Change-Record routines in `148` and passed
+  (SHA-256 `a26471edca192db542c117efe00e6aaae1ed44ea2518e5b2b3d59b6aaa17bdf8`).
+  The current forwarding validation then passed 22 focused Python/wiring
+  contracts, shell syntax, the same changed-pair checker routines, the
+  no-`TMPDIR` source assertion, and a native Make dry run with an explicit
+  parent in `150` (SHA-256
+  `139dba675ef96bf6c8c3e0bb2b0624949f208ba5cd14f982933fde80fb244221`).
+- Log 150 is retained as historical non-hostile forwarding evidence only; it
+  predates the discovery that recipe interpolation could evaluate caller text.
+  The controlled pre-fix dry-run and runtime proofs are logs 154 and 155. The
+  earlier four-value raw-forwarding security validation is log 159 (SHA-256
+  `faab9a431c6964e40f0aab0731884dd049b22a998935fffa2ff436a05f63e51d`,
+  exit `0`): all four literal Make-function probes stayed literal, a
+  quote/comment payload created no sentinel and was rejected by Python before
+  runtime setup, and 22 focused contracts passed. Final named-value closure is
+  log 160 (SHA-256
+  `8be26ef3b432fc17c6bb8a6b6127c7199ebe114d8b5bc0a668fd7b10dcee4d7a`,
+  exit `0`): `BUILD_ROOT`, all three ModSecurity values, and the four Traefik
+  values remained literal; the ordinary default remained correct; the sibling
+  `test-engine-service` dry run rendered no hostile `PYTHON` assignment; and
+  diff/shell checks plus 22 focused contracts passed.
 
 ## Security impact
 
@@ -149,6 +197,25 @@ first Draft-PR head. The remediation removes public-root/default allocation,
 requires validated private parents and safe ancestor chains at the Python,
 shell, and C boundaries, and removes process-global `umask` state. It does not
 claim that the separate same-UID endpoint or cleanup races are fixed.
+
+The first exact-head reanalysis after that remediation closed 14 task-owned
+issues. Its only open vulnerability was `python:S5443` at the runner's generic
+inherited temporary-directory fallback. This follow-up removes that fallback:
+the runner now requires `TRAEFIK_ENGINE_SOCKET_PARENT` and fails before host
+setup when it is absent or invalid. No Sonar rule, Quality-Gate configuration,
+or risk disposition was changed; a new exact-head analysis remains required.
+The canonical lifecycle dispatcher and native Make target now forward only the
+caller-supplied exact parent; they deliberately do not derive a path below a
+runtime or temporary root because doing so can exceed the UDS path budget.
+
+`FND-PARENT-0019` records the distinct pre-validation Make/shell boundary:
+the former native recipe executed a controlled quote/comment payload before
+Python validation. The repair uses raw Make-value environment transport for the
+named lifecycle values, fixed script recipes, and no Make command-line
+assignments in the Traefik lifecycle route; log 160 verifies the final named
+controls. No remote untrusted-workflow mapping is claimed, and this does not
+claim to change GNU Make handling of arbitrary unrelated direct command-line
+variables. Exact-head Sonar evidence for FND-PARENT-0016 remains pending.
 
 `FND-PARENT-0017` records the independently reproduced cross-UID ancestor
 replacement gap: an exact-`0700` child below a non-sticky writable ancestor
@@ -218,6 +285,12 @@ current verified fixes.
 - The repository CI lane uses Python 3.13, which is unavailable in this host.
   The focused Python contracts passed with the available interpreter, but that
   is not claimed as a Python-3.13 CI-lane result.
+- A fresh full `make PYTHON=python3 check-bilingual-docs` result was not
+  observed because this command interface terminates its foreground process at
+  approximately 30 seconds. The prior complete run is retained as `133`; the
+  changed pairs passed the checker-equivalent focused structural/link/
+  Change-Record validation in `148`, which is the strongest available local
+  substitute and is not represented as a full-check result.
 - H3 was intentionally not investigated in this remediation task because no approved compatible client solution is currently available.
 
 ## Final diff and review status

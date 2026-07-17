@@ -15,7 +15,7 @@ abgegrenzte Folge-Revision wartet auf ihre eigene exakte Head-Analyse.
 | Datum (UTC) | `2026-07-17` |
 | Basis-Revision | `02f9f98cdbbdd70bbc530ac1399974e53884f4e9` |
 | Scope | Nur Parent-Repository |
-| Zugehörige Findings | `FND-FRAMEWORK-0008`, `FND-PARENT-0012`, `FND-PARENT-0013`, `FND-PARENT-0014`, `FND-PARENT-0015`, `FND-PARENT-0016`, `FND-PARENT-0017` |
+| Zugehörige Findings | `FND-FRAMEWORK-0008`, `FND-PARENT-0012`, `FND-PARENT-0013`, `FND-PARENT-0014`, `FND-PARENT-0015`, `FND-PARENT-0016`, `FND-PARENT-0017`, `FND-PARENT-0019` |
 
 ## Motivation und Problemstellung
 
@@ -28,10 +28,10 @@ Argumenten unnötig leicht gemacht.
 
 ## Akzeptanzkriterien
 
-- Ein nativer Runner wählt einen kurzen task-owned UDS-Parent über einen
-  expliziten Wert oder `TMPDIR` und scheitert vor dem Host-Setup geschlossen,
-  wenn keine valide private Vorfahrenkette gegen UID-übergreifende Ersetzung
-  bereitsteht.
+- Ein nativer Runner verlangt einen kurzen task-owned UDS-Parent über den
+  expliziten Wert `TRAEFIK_ENGINE_SOCKET_PARENT` und scheitert vor dem
+  Host-Setup geschlossen, wenn dieser keine valide private Vorfahrenkette gegen
+  UID-übergreifende Ersetzung bereitstellt.
 - Fokussierte Tests decken Länge, relative Pfade, Symlinks, vorhandene Sockets,
   parallele Allokation, Setup-Fehler, YAML-Quoting und Cleanup-Refusal ab.
 - Der C17-Service lehnt eine unsichere Private-Parent-Topologie sowie Pre-Bind-,
@@ -40,21 +40,38 @@ Argumenten unnötig leicht gemacht.
 - Der bestehende Protocol-Lifecycle behält Allow- und Blocking-Controls;
   gewöhnliches fokussiertes Cleanup ist abgedeckt, ohne Same-UID-Race-Proof-
   Deletion oder Live-Endpoint-Identity zu behaupten.
+- Benannte vom Aufrufer bereitgestellte Traefik-Lifecycle-Werte passieren GNU
+  Make als rohe Environment-Daten: keine Make-Funktion und kein Recipe-Shell-
+  Assignment darf sie vor Private-Parent-Validierung oder festem Skript-
+  Entry-Point interpretieren.
 - Der Evaluator kompiliert mit C++17 `-Wall -Wextra -Werror` und erhält das
   direkte Allow/Block-Ergebnis bei weniger vertauschbaren internen Eingaben.
 
 ## Implementierungsentscheidung und Begründung
 
-Der Python-Runner priorisiert `TRAEFIK_ENGINE_SOCKET_PARENT` vor `TMPDIR`. Er
-validiert einen bestehenden absoluten, kanonischen, dem aktuellen Benutzer
-gehörenden Parent mit exakt `0700` außerhalb des Checkouts, lehnt Symlink-
-Komponenten und Steuerzeichen ab und prüft jeden Vorfahren bis root gegen UID-
-übergreifende Ersetzung. Ein gruppen- oder weltbeschreibbarer Vorfahr ist nur
-zulässig, wenn er sticky ist und sein nächster Kindeintrag der effektiven UID
-gehört. Wenn keine Quelle diese Grenze liefert, scheitert der Runner vor dem
+Der Python-Runner verlangt `TRAEFIK_ENGINE_SOCKET_PARENT`; er erbt absichtlich
+keinen allgemeinen Temporary-Directory-Selector. Er validiert einen bestehenden
+absoluten, kanonischen, dem aktuellen Benutzer gehörenden Parent mit exakt
+`0700` außerhalb des Checkouts, lehnt Symlink-Komponenten und Steuerzeichen ab
+und prüft jeden Vorfahren bis root gegen UID-übergreifende Ersetzung. Ein
+gruppen- oder weltbeschreibbarer Vorfahr ist nur zulässig, wenn er sticky ist
+und sein nächster Kindeintrag der effektiven UID
+gehört. Wenn der explizite Wert diese Grenze nicht liefert, scheitert der Runner vor dem
 Host-Setup. Er JSON-quotiert die erzeugte YAML und speichert Directory-Identity
 vor Cleanup-Checks. Diese Checks verweigern beobachtete Abweichung oder
 Restinhalte; sie sind keine atomare Same-UID-Deletion-Garantie.
+
+Der zentrale Remaining-Connector-Dispatcher übergibt den vom Aufrufer
+gelieferten TRAEFIK_ENGINE_SOCKET_PARENT als Prozess-Environment-Daten. Das
+native Make-Target friert die benannten Traefik-, `BUILD_ROOT`- und ModSecurity-
+Werte mit Raw-GNU-Make-Value-Transport ein, exportiert sie und startet feste
+Skriptpfade ohne Inline-Shell-Assignments. Der Lifecycle-Target-Runner
+exportiert seine Traefik- und ModSecurity-Werte ebenfalls, statt sie als Make-
+Kommandozeilenassignments zu übergeben. Das Target leitet keinen Wert aus einem
+Runtime- oder Temporary-Root ab, weil kanonische Runtime-Pfade das UDS-Budget
+überschreiten können. Ein CI- oder direkter Aufrufer muss einen kurzen
+geschützten Parent explizit erzeugen; ein fehlender Wert bleibt eine fail-
+closed BLOCKED-Voraussetzung.
 
 Der C-Service erzwingt unabhängig denselben Vertrag aus unmittelbarem privatem
 Parent und UID-übergreifend sicherer Vorfahrenkette und benötigt daher keine
@@ -79,6 +96,10 @@ API und kein ausgegebenes Decision-Verhalten.
 - `connectors/traefik/build/build-engine-service.sh`
 - `connectors/traefik/build/test-engine-service-runtime.sh`
 - `tests/test_traefik_native_local_plugin.py`
+- `tests/test_no_crs_selected_runner_wiring.py`
+- `connectors/traefik/Makefile`
+- `ci/runtime/lifecycle/run-connector-stage.sh`
+- `ci/runtime/lifecycle/run-remaining-connector-target.sh`
 - `connectors/traefik/README.md` und `connectors/traefik/README.de.md`
 - `docs/connectors/README.md` und `docs/connectors/README.de.md`
 - `docs/reference/variables.md` und `docs/reference/variables.de.md`
@@ -126,6 +147,35 @@ unter `/var/tmp/codex/ModSecurity-conector/runs/20260717T114213Z-feasibility-run
   Gehärteter Diagnosebuild (`126`), ASan+UBSan-Build/Runtime (`127`/`128`) und
   GCC `-fanalyzer` (`129`) bestanden. Die genannten Rohlogs enthalten jeweils
   exakten Befehl, CWD, UTC-Timing und Exit.
+- Der finale Explicit-Parent-Follow-up bestand alle 16 fokussierten Python-
+  Contracts (`144`, SHA-256
+  `712fa2f1ac323a17d9c569fd8f8396eafceda7f6e28b18df61a6a502580dbc37`). Der
+  vollständige bilinguale Checker überschritt die beobachtete 30-Sekunden-
+  Foreground-Grenze dieser Befehlschnittstelle, bevor er ein Exit-Ergebnis
+  erzeugte; sein früherer vollständiger Lauf bleibt als `133` erhalten, wird
+  aber nicht für diesen Follow-up behauptet. Die ausgewählten geänderten
+  English/German-Paare führten stattdessen dieselben Structural-, Language-
+  Switch-, Local-Link- und Change-Record-Routinen in `148` aus und bestanden
+  (SHA-256 `a26471edca192db542c117efe00e6aaae1ed44ea2518e5b2b3d59b6aaa17bdf8`).
+  Die aktuelle Forwarding-Validierung bestand anschließend 22 fokussierte
+  Python-/Wiring-Contracts, Shell-Syntax, dieselben Changed-Pair-Checker-
+  Routinen, die No-`TMPDIR`-Source-Assertion und einen nativen Make-Dry-
+  Run mit explizitem Parent in `150` (SHA-256
+  `139dba675ef96bf6c8c3e0bb2b0624949f208ba5cd14f982933fde80fb244221`).
+- Log 150 bleibt historische nicht feindliche Forwarding-Evidence; es liegt
+  vor der Entdeckung, dass Recipe-Interpolation Aufrufertext auswerten konnte.
+  Die kontrollierten Pre-Fix-Dry-Run- und Runtime-Beweise sind Logs 154 und
+  155. Die frühere Raw-Forwarding-Security-Validierung für vier Werte ist Log 159 (SHA-256
+  `faab9a431c6964e40f0aab0731884dd049b22a998935fffa2ff436a05f63e51d`,
+  Exit `0`): alle vier literalen Make-Function-Probes blieben literal, ein
+  Quote/Kommentar-Payload erzeugte keinen Sentinel und wurde vor Runtime-Setup
+  von Python abgelehnt, und 22 fokussierte Contracts bestanden. Die finale
+  Named-Value-Closure ist Log 160 (SHA-256
+  `8be26ef3b432fc17c6bb8a6b6127c7199ebe114d8b5bc0a668fd7b10dcee4d7a`,
+  Exit `0`): `BUILD_ROOT`, alle drei ModSecurity-Werte und die vier Traefik-
+  Werte blieben literal; der gewöhnliche Standard blieb korrekt; der
+  `test-engine-service`-Dry-Run renderte kein feindliches `PYTHON`-Assignment;
+  und Diff-/Shell-Checks sowie 22 fokussierte Contracts bestanden.
 
 ## Security-Auswirkung
 
@@ -140,6 +190,28 @@ ersten Draft-PR-Head. Die Remediation entfernt Public-Root-/Default-Allokation,
 fordert validierte private Parents und sichere Vorfahrenketten an Python-,
 Shell- und C-Grenzen und entfernt prozessglobalen `umask`-State. Sie behauptet
 nicht, dass getrennte Same-UID-Endpoint- oder Cleanup-Races behoben sind.
+
+Die erste Exact-Head-Reanalyse nach dieser Remediation schloss 14 task-owned
+Issues. Ihre einzige offene Vulnerability war `python:S5443` am generischen
+geerbten Temporary-Directory-Fallback des Runners. Dieser Follow-up entfernt
+den Fallback: Der Runner verlangt nun `TRAEFIK_ENGINE_SOCKET_PARENT` und
+scheitert vor dem Host-Setup, wenn er fehlt oder ungültig ist. Weder Sonar-
+Regel, Quality-Gate-Konfiguration noch Risikodisposition wurden geändert; eine
+neue Exact-Head-Analyse bleibt erforderlich.
+Der kanonische Lifecycle-Dispatcher und das native Make-Target reichen nun nur
+den exakten Parent des Aufrufers weiter; sie leiten bewusst keinen Pfad unter
+einem Runtime- oder Temporary-Root ab, weil dieser das UDS-Pfadbudget
+überschreiten kann.
+
+`FND-PARENT-0019` erfasst die getrennte Pre-Validation-Make-/Shell-Grenze:
+Das frühere native Rezept führte ein kontrolliertes Quote/Kommentar-Payload vor
+Python-Validierung aus. Die Reparatur verwendet Raw-Make-Value-Environment-
+Transport für die benannten Lifecycle-Werte, feste Skriptrezepte und keine Make-
+Kommandozeilenassignments im Traefik-Lifecycle-Pfad; Log 160 verifiziert die
+finalen benannten Controls. Es wird kein Remote-Untrusted-Workflow-Mapping
+behauptet, und es wird nicht behauptet, die GNU-Make-Behandlung beliebiger
+nicht verwandter direkter Kommandozeilenvariablen zu ändern. Exact-Head-Sonar-
+Evidence für FND-PARENT-0016 steht weiter aus.
 
 `FND-PARENT-0017` erfasst die unabhängig reproduzierte Cross-UID-
 Ancestor-Replacement-Lücke: Ein Kind mit exakt `0700` unter einem nicht-sticky
@@ -214,6 +286,13 @@ Fixes.
 - Die Repository-CI-Lane nutzt Python 3.13, das auf diesem Host nicht verfügbar
   ist. Die fokussierten Python-Contracts bestanden mit dem vorhandenen
   Interpreter, werden aber nicht als Python-3.13-CI-Lane-Ergebnis behauptet.
+- Ein frisches vollständiges Ergebnis von `make PYTHON=python3
+  check-bilingual-docs` wurde nicht beobachtet, weil diese Befehlschnittstelle
+  ihren Foreground-Prozess nach ungefähr 30 Sekunden beendet. Der frühere
+  vollständige Lauf ist als `133` erhalten; die geänderten Paare bestanden die
+  checker-äquivalente fokussierte Structural-/Link-/Change-Record-Validierung
+  in `148`. Das ist der stärkste verfügbare lokale Ersatz und wird nicht als
+  vollständiges Checker-Ergebnis dargestellt.
 - H3 was intentionally not investigated in this remediation task because no approved compatible client solution is currently available.
 
 ## Finaler Diff- und Review-Status

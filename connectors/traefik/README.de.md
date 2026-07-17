@@ -98,9 +98,9 @@ make -C connectors/traefik runtime-smoke-traefik-native
 ```
 
 `TRAEFIK_ENGINE_SOCKET_PARENT` ist der private Elternpfad für das kurzlebige
-Engine-UDS-Kind der nativen Probe. Der Runner wählt zuerst diesen expliziten
-Wert, dann `TMPDIR`; wenn keiner davon einen gültigen Parent benennt, scheitert
-er vor dem Erzeugen von Host-State. Der ausgewählte Parent muss ein bestehendes
+Engine-UDS-Kind der nativen Probe. Der Runner verlangt diesen expliziten Wert
+und scheitert vor dem Erzeugen von Host-State, wenn er fehlt oder ungültig ist.
+Der ausgewählte Parent muss ein bestehendes
 absolutes, dem aktuellen Benutzer gehörendes, exakt mit `0700` privates
 Verzeichnis außerhalb des Checkouts ohne Symlink-Komponente und mit einer
 vollständigen Vorfahrenkette sein, die UID-übergreifende Ersetzung verhindert.
@@ -108,8 +108,17 @@ Ein gruppen- oder weltbeschreibbarer Vorfahr ist nur sicher, wenn er sticky ist
 und sein nächster Kindeintrag der effektiven UID gehört; breite Wurzeln wie `/`,
 `/tmp`, `/var` und `/var/tmp` erfüllen diesen Vertrag nicht. Steuerzeichen
 werden vor der Pfadverarbeitung abgelehnt und die erzeugte YAML serialisiert
-den Socket-Pfad als quotierten Skalar. Der Runner erzeugt ein eindeutiges
-privates Kind unter dem ausgewählten Parent, erzwingt die Socket-Pfadgrenze von
+den Socket-Pfad als quotierten Skalar. Der zentrale Remaining-Connector-
+Dispatcher übergibt nur den exakten Wert des Aufrufers als Prozess-Environment-
+Daten, und das native Make-Target bewahrt ihn mit Raw-GNU-Make-Value-Transport
+und Export statt mit einem Recipe-Shell-Assignment. Quotes, Semikolons und
+Make-Ausdrücke werden daher nicht vor der Python-Validierung ausgewertet. Es
+wird kein Parent aus einem Runtime- oder Temporary-Root abgeleitet. Ein CI-
+oder direkter Aufrufer muss daher vor dem nativen Target einen ausreichend
+kurzen geschützten Parent erzeugen und bereitstellen; ein fehlender Wert ist
+eine fail-closed BLOCKED-Voraussetzung und kein Fallback.
+Der Runner erzeugt ein eindeutiges privates Kind unter dem ausgewählten Parent,
+erzwingt die Socket-Pfadgrenze von
 100 Byte vor und nach der Allokation und entfernt dieses Kind nach dem Stoppen
 der Host-Prozesse nur dann, wenn es unverändert und leer ist. Die C-Engine
 validiert unabhängig denselben Private-Parent- und Vorfahrenketten-Vertrag; sie

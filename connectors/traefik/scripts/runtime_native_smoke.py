@@ -194,27 +194,19 @@ def assert_engine_socket_parent_text_is_safe(value: str, label: str) -> None:
 
 
 def resolve_engine_socket_parent() -> EngineSocketParent:
-    """Resolve the supported parent selection without accepting broad overrides."""
+    """Resolve the required explicit private parent before host setup."""
 
     explicit = os.environ.get(ENGINE_SOCKET_PARENT_ENV, "")
-    if explicit:
-        assert_engine_socket_parent_text_is_safe(explicit, ENGINE_SOCKET_PARENT_ENV)
-        parent = assert_private_engine_socket_parent(Path(explicit), ENGINE_SOCKET_PARENT_ENV)
-        return EngineSocketParent(
-            path=parent,
-            identity=private_directory_identity(parent, ENGINE_SOCKET_PARENT_ENV),
+    if not explicit:
+        raise MissingDependency(
+            f"set {ENGINE_SOCKET_PARENT_ENV} to an existing private "
+            f"{ENGINE_SOCKET_PARENT_LABEL}"
         )
-    tmpdir = os.environ.get("TMPDIR", "")
-    if tmpdir:
-        assert_engine_socket_parent_text_is_safe(tmpdir, "TMPDIR")
-        parent = assert_private_engine_socket_parent(Path(tmpdir), "TMPDIR")
-        return EngineSocketParent(
-            path=parent,
-            identity=private_directory_identity(parent, "TMPDIR"),
-        )
-    raise MissingDependency(
-        "set TRAEFIK_ENGINE_SOCKET_PARENT or TMPDIR to an existing private "
-        f"{ENGINE_SOCKET_PARENT_LABEL}"
+    assert_engine_socket_parent_text_is_safe(explicit, ENGINE_SOCKET_PARENT_ENV)
+    parent = assert_private_engine_socket_parent(Path(explicit), ENGINE_SOCKET_PARENT_ENV)
+    return EngineSocketParent(
+        path=parent,
+        identity=private_directory_identity(parent, ENGINE_SOCKET_PARENT_ENV),
     )
 
 

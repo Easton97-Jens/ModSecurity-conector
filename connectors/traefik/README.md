@@ -97,15 +97,23 @@ make -C connectors/traefik runtime-smoke-traefik-native
 ```
 
 `TRAEFIK_ENGINE_SOCKET_PARENT` is the private parent for the native probe's
-short-lived engine UDS child. The runner chooses this explicit value first,
-then `TMPDIR`; if neither names a valid parent, it fails before creating host
-state. The selected parent must be an existing absolute, current-user-owned,
+short-lived engine UDS child. The runner requires this explicit value and fails
+before creating host state when it is absent or invalid. The selected parent
+must be an existing absolute, current-user-owned,
 exact-`0700` directory outside the checkout with no symlink component and a
 complete ancestor chain that prevents cross-UID replacement. A group- or
 other-writable ancestor is safe only when it is sticky and its next child entry
 belongs to the effective UID; broad roots such as `/`, `/tmp`, `/var`, and
 `/var/tmp` fail that contract. Control characters are rejected before path
 handling, and the generated YAML serializes the socket path as a quoted scalar.
+The central remaining-connector dispatcher carries only the caller's exact
+value as process-environment data, and the native Make target preserves it with
+raw GNU Make value transport and export rather than a recipe shell assignment.
+Quotes, semicolons, and Make expressions are therefore not evaluated before
+Python validates the value. No parent is derived from a runtime or temporary
+root. A CI or direct caller must therefore create and provide a sufficiently
+short protected parent before invoking the native target; an absent value is a
+fail-closed BLOCKED prerequisite, not a fallback.
 The runner creates one unique private child below the selected parent, enforces
 the 100-byte socket-path limit before and after allocation, and removes that
 child after its host processes stop only if it is unchanged and empty. The C
