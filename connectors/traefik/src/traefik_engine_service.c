@@ -7,6 +7,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
@@ -1360,6 +1361,101 @@ static int traefik_engine_path_is_absolute(const char *path)
     return path != NULL && path[0] == '/';
 }
 
+static int traefik_engine_directory_is_current_user_private(
+    const struct stat *path_stat)
+{
+    return path_stat != NULL && S_ISDIR(path_stat->st_mode) &&
+        path_stat->st_uid == geteuid() && (path_stat->st_mode & 07777) == 0700;
+}
+
+static int traefik_engine_parent_protects_child_from_cross_uid_replacement(
+    const struct stat *parent_stat, const struct stat *child_stat)
+{
+    if (parent_stat == NULL || child_stat == NULL ||
+        !S_ISDIR(parent_stat->st_mode)) {
+        return 0;
+    }
+    if ((parent_stat->st_mode & (S_IWGRP | S_IWOTH)) == 0) {
+        return 1;
+    }
+    return (parent_stat->st_mode & S_ISVTX) != 0 &&
+        child_stat->st_uid == geteuid();
+}
+
+static int traefik_engine_private_directory_ancestors_are_safe(const char *path)
+{
+    char child_path[PATH_MAX];
+    char *separator;
+    struct stat child_stat;
+    struct stat parent_stat;
+    size_t path_size;
+
+    if (!traefik_engine_path_is_absolute(path)) {
+        return 0;
+    }
+    path_size = strlen(path);
+    if (path_size == 0U || path_size >= sizeof(child_path)) {
+        return 0;
+    }
+    memcpy(child_path, path, path_size + 1U);
+    if (lstat(child_path, &child_stat) != 0 || !S_ISDIR(child_stat.st_mode)) {
+        return 0;
+    }
+    while (strcmp(child_path, "/") != 0) {
+        separator = strrchr(child_path, '/');
+        if (separator == NULL) {
+            return 0;
+        }
+        if (separator == child_path) {
+            child_path[1] = '\0';
+        } else {
+            *separator = '\0';
+        }
+        if (lstat(child_path, &parent_stat) != 0 ||
+            !traefik_engine_parent_protects_child_from_cross_uid_replacement(
+                &parent_stat, &child_stat)) {
+            return 0;
+        }
+        child_stat = parent_stat;
+    }
+    return 1;
+}
+
+static int traefik_engine_private_directory_is_safe(const char *path)
+{
+    char canonical[PATH_MAX];
+    struct stat path_stat;
+
+    if (!traefik_engine_path_is_absolute(path) || realpath(path, canonical) == NULL ||
+        strcmp(path, canonical) != 0 || lstat(path, &path_stat) != 0 ||
+        !traefik_engine_directory_is_current_user_private(&path_stat)) {
+        return 0;
+    }
+    return traefik_engine_private_directory_ancestors_are_safe(path);
+}
+
+static int traefik_engine_socket_parent_is_safe(const char *socket_path)
+{
+    char parent[sizeof(((struct sockaddr_un *)0)->sun_path)];
+    char *separator;
+    size_t path_size;
+
+    if (!traefik_engine_path_is_absolute(socket_path)) {
+        return 0;
+    }
+    path_size = strlen(socket_path);
+    if (path_size == 0U || path_size >= sizeof(parent)) {
+        return 0;
+    }
+    memcpy(parent, socket_path, path_size + 1U);
+    separator = strrchr(parent, '/');
+    if (separator == NULL || separator == parent) {
+        return 0;
+    }
+    *separator = '\0';
+    return traefik_engine_private_directory_is_safe(parent);
+}
+
 /*
  * Verify that a connection made through socket_path reaches socket_fd itself.
  *
@@ -1370,87 +1466,96 @@ static int traefik_engine_path_is_absolute(const char *path)
  * be this process.  That makes a replacement between bind() and identity
  * capture fail closed instead of recording the replacement as service-owned.
  */
-static int traefik_engine_listener_accepts_self_probe(int socket_fd,
-    const char *socket_path)
-{
 #if defined(__linux__)
+static int traefik_engine_connect_self_probe(int client, const char *socket_path)
+{
     struct sockaddr_un address;
-    struct ucred credentials;
-    socklen_t credentials_size;
-    int client = -1;
-    int accepted = -1;
-    int result = 0;
-    int flags;
-    int connection_error;
     struct pollfd probe;
     socklen_t connection_error_size;
+    int connection_error;
+    int flags;
     size_t path_size;
-    size_t accepted_count = 0U;
 
-    if (socket_fd < 0 || !traefik_engine_path_is_absolute(socket_path)) {
+    if (client < 0 || !traefik_engine_path_is_absolute(socket_path)) {
         return 0;
     }
     path_size = strlen(socket_path);
     if (path_size == 0U || path_size >= sizeof(address.sun_path)) {
         return 0;
     }
-    client = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (client < 0) {
-        return 0;
-    }
     flags = fcntl(client, F_GETFL, 0);
     if (flags < 0 || fcntl(client, F_SETFL, flags | O_NONBLOCK) != 0) {
-        goto cleanup;
+        return 0;
     }
     memset(&address, 0, sizeof(address));
     address.sun_family = AF_UNIX;
     memcpy(address.sun_path, socket_path, path_size + 1U);
-    if (connect(client, (const struct sockaddr *)&address, sizeof(address)) != 0) {
-        if (errno != EINPROGRESS) {
-            goto cleanup;
-        }
-        memset(&probe, 0, sizeof(probe));
-        probe.fd = client;
-        probe.events = POLLOUT;
-        if (poll(&probe, 1U, TRAEFIK_ENGINE_ACCEPT_POLL_MILLISECONDS) <= 0) {
-            goto cleanup;
-        }
-        connection_error = 0;
-        connection_error_size = sizeof(connection_error);
-        if (getsockopt(client, SOL_SOCKET, SO_ERROR, &connection_error,
-                &connection_error_size) != 0 || connection_error_size !=
-                sizeof(connection_error) || connection_error != 0) {
-            goto cleanup;
-        }
+    if (connect(client, (const struct sockaddr *)&address, sizeof(address)) == 0) {
+        return 1;
     }
+    if (errno != EINPROGRESS) {
+        return 0;
+    }
+    memset(&probe, 0, sizeof(probe));
+    probe.fd = client;
+    probe.events = POLLOUT;
+    if (poll(&probe, 1U, TRAEFIK_ENGINE_ACCEPT_POLL_MILLISECONDS) <= 0) {
+        return 0;
+    }
+    connection_error = 0;
+    connection_error_size = sizeof(connection_error);
+    return getsockopt(client, SOL_SOCKET, SO_ERROR, &connection_error,
+        &connection_error_size) == 0 && connection_error_size ==
+        sizeof(connection_error) && connection_error == 0;
+}
+
+static int traefik_engine_accepts_self_probe(int socket_fd)
+{
+    struct ucred credentials;
+    socklen_t credentials_size;
+    int accepted;
+    size_t accepted_count = 0U;
+
     while (accepted_count <= TRAEFIK_ENGINE_LISTEN_BACKLOG) {
         accepted = accept(socket_fd, NULL, NULL);
         if (accepted < 0) {
             if (errno == EINTR) {
                 continue;
             }
-            break;
+            return 0;
         }
         ++accepted_count;
         memset(&credentials, 0, sizeof(credentials));
         credentials_size = sizeof(credentials);
         if (getsockopt(accepted, SOL_SOCKET, SO_PEERCRED, &credentials,
-                &credentials_size) == 0 &&
-            credentials_size == sizeof(credentials) &&
-            credentials.pid == getpid() && credentials.uid == geteuid()) {
-            result = 1;
+                &credentials_size) == 0 && credentials_size ==
+                sizeof(credentials) && credentials.pid == getpid() &&
+            credentials.uid == geteuid()) {
+            (void)close(accepted);
+            return 1;
         }
         (void)close(accepted);
-        accepted = -1;
-        if (result) {
-            break;
-        }
     }
+    return 0;
+}
+#endif
 
-cleanup:
-    if (accepted >= 0) {
-        (void)close(accepted);
+static int traefik_engine_listener_accepts_self_probe(int socket_fd,
+    const char *socket_path)
+{
+#if defined(__linux__)
+    int client;
+    int result;
+
+    if (socket_fd < 0 || !traefik_engine_path_is_absolute(socket_path)) {
+        return 0;
     }
+    client = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (client < 0) {
+        return 0;
+    }
+    result = traefik_engine_connect_self_probe(client, socket_path) &&
+        traefik_engine_accepts_self_probe(socket_fd);
     (void)close(client);
     return result;
 #else
@@ -1511,7 +1616,8 @@ static int traefik_engine_create_listener(const char *socket_path,
     size_t path_size;
     int flags;
 
-    if (!traefik_engine_path_is_absolute(socket_path) || identity == NULL) {
+    if (!traefik_engine_path_is_absolute(socket_path) || identity == NULL ||
+        !traefik_engine_socket_parent_is_safe(socket_path)) {
         return -1;
     }
     memset(identity, 0, sizeof(*identity));
@@ -1540,9 +1646,11 @@ static int traefik_engine_create_listener(const char *socket_path,
         (void)close(socket_fd);
         return -1;
     }
+    /* The socket pathname is reachable only through the current-user-owned
+     * exact-0700 parent verified above. Do not use a process-global umask or
+     * path-based chmod: neither adds cross-UID access control at this boundary. */
     if ((traefik_engine_listener_post_bind_hook != NULL &&
             !traefik_engine_listener_post_bind_hook(socket_path)) ||
-        fchmod(socket_fd, S_IRUSR | S_IWUSR) != 0 ||
         listen(socket_fd, TRAEFIK_ENGINE_LISTEN_BACKLOG) != 0 ||
         !traefik_engine_capture_bound_socket_identity(socket_fd, socket_path,
             identity)) {
@@ -1574,7 +1682,6 @@ static int traefik_engine_serve(const char *config_path, const char *socket_path
     int status = 1;
     traefik_engine_socket_identity listener_identity;
     struct sigaction action;
-    mode_t old_umask;
     const char *failure_stage = "initialization";
 
     memset(&service, 0, sizeof(service));
@@ -1609,9 +1716,9 @@ static int traefik_engine_serve(const char *config_path, const char *socket_path
         failure_stage = "signal_setup";
         goto cleanup;
     }
-    old_umask = umask(S_IXUSR | S_IRWXG | S_IRWXO);
+    /* create_listener requires a private 0700 parent before bind(), so no
+     * process-global umask state is needed for the listener boundary. */
     listener = traefik_engine_create_listener(socket_path, &listener_identity);
-    (void)umask(old_umask);
     if (listener < 0) {
         failure_stage = "socket_listener";
         goto cleanup;
@@ -1822,13 +1929,12 @@ static int traefik_engine_self_test_post_bind_foreign_socket(const char *socket_
     return traefik_engine_self_test_bind_foreign_socket(socket_path);
 }
 
-static int traefik_engine_socket_ownership_self_test(void)
+static int traefik_engine_socket_ownership_self_test(const char *socket_parent)
 {
     char directory[sizeof(((struct sockaddr_un *)0)->sun_path)];
     char socket_path[sizeof(directory) + 16U];
     traefik_engine_socket_identity identity;
     struct stat path;
-    const char *temporary_root = getenv("TMPDIR");
     int listener = -1;
     int result = 1;
     int written;
@@ -1836,11 +1942,11 @@ static int traefik_engine_socket_ownership_self_test(void)
     memset(directory, 0, sizeof(directory));
     memset(socket_path, 0, sizeof(socket_path));
     memset(&identity, 0, sizeof(identity));
-    if (!traefik_engine_path_is_absolute(temporary_root)) {
-        temporary_root = "/var/tmp";
+    if (!traefik_engine_private_directory_is_safe(socket_parent)) {
+        return 1;
     }
     written = snprintf(directory, sizeof(directory),
-        "%s/mct-engine-ownership.XXXXXX", temporary_root);
+        "%s/mct-engine-ownership.XXXXXX", socket_parent);
     if (written < 0 || (size_t)written >= sizeof(directory) ||
         mkdtemp(directory) == NULL || snprintf(socket_path, sizeof(socket_path),
             "%s/engine.sock", directory) < 0 ||
@@ -1924,59 +2030,120 @@ static int traefik_engine_parse_positive_size(const char *value, size_t *out)
 static void traefik_engine_usage(const char *program)
 {
     (void)fprintf(stderr,
-        "usage: %s --self-test | --check-config --config PATH | "
+        "usage: %s --self-test --socket-parent PATH | --check-config --config PATH | "
         "--serve --config PATH --socket PATH [--max-connections N]\n",
         program == NULL ? "traefik-engine-service" : program);
 }
 
-int main(int argc, char **argv)
+typedef struct traefik_engine_cli_options {
+    const char *config_path;
+    const char *socket_path;
+    const char *self_test_socket_parent;
+    size_t max_connections;
+    int serve;
+    int check_config;
+    int self_test;
+} traefik_engine_cli_options;
+
+static int traefik_engine_consume_option_value(int argc, char **argv,
+    int *index, const char **value)
 {
-    const char *config_path = NULL;
-    const char *socket_path = NULL;
-    size_t max_connections = 0U;
-    int serve = 0;
-    int check_config = 0;
+    if (index == NULL || value == NULL || *index + 1 >= argc) {
+        return 0;
+    }
+    ++*index;
+    *value = argv[*index];
+    return 1;
+}
+
+static int traefik_engine_parse_cli(int argc, char **argv,
+    traefik_engine_cli_options *options)
+{
     int index;
 
-    if (argc == 2 && strcmp(argv[1], "--self-test") == 0) {
-        return traefik_engine_protocol_self_test() == 0 &&
-            traefik_engine_socket_ownership_self_test() == 0 ? 0 : 1;
+    if (argv == NULL || options == NULL) {
+        return 0;
     }
     for (index = 1; index < argc; ++index) {
-        if (strcmp(argv[index], "--serve") == 0) {
-            serve = 1;
+        if (strcmp(argv[index], "--self-test") == 0) {
+            options->self_test = 1;
+        } else if (strcmp(argv[index], "--serve") == 0) {
+            options->serve = 1;
         } else if (strcmp(argv[index], "--check-config") == 0) {
-            check_config = 1;
-        } else if (strcmp(argv[index], "--config") == 0 && index + 1 < argc) {
-            config_path = argv[++index];
-        } else if (strcmp(argv[index], "--socket") == 0 && index + 1 < argc) {
-            socket_path = argv[++index];
+            options->check_config = 1;
+        } else if (strcmp(argv[index], "--config") == 0) {
+            if (!traefik_engine_consume_option_value(argc, argv, &index,
+                    &options->config_path)) {
+                return 0;
+            }
+        } else if (strcmp(argv[index], "--socket") == 0) {
+            if (!traefik_engine_consume_option_value(argc, argv, &index,
+                    &options->socket_path)) {
+                return 0;
+            }
+        } else if (strcmp(argv[index], "--socket-parent") == 0) {
+            if (!traefik_engine_consume_option_value(argc, argv, &index,
+                    &options->self_test_socket_parent)) {
+                return 0;
+            }
         } else if (strcmp(argv[index], "--max-connections") == 0) {
             if (index + 1 >= argc || !traefik_engine_parse_positive_size(
-                    argv[++index], &max_connections)) {
-                traefik_engine_usage(argv[0]);
-                return 2;
+                    argv[++index], &options->max_connections)) {
+                return 0;
             }
         } else {
-            traefik_engine_usage(argv[0]);
-            return 2;
+            return 0;
         }
     }
-    if (check_config && !serve && config_path != NULL && socket_path == NULL) {
-        if (!traefik_engine_check_config(config_path)) {
+    return 1;
+}
+
+static int traefik_engine_dispatch_cli(const char *program,
+    const traefik_engine_cli_options *options)
+{
+    if (options == NULL) {
+        return 2;
+    }
+    if (options->self_test) {
+        if (options->serve || options->check_config || options->config_path != NULL ||
+            options->socket_path != NULL || options->self_test_socket_parent == NULL) {
+            traefik_engine_usage(program);
+            return 2;
+        }
+        return traefik_engine_protocol_self_test() == 0 &&
+            traefik_engine_socket_ownership_self_test(
+                options->self_test_socket_parent) == 0 ? 0 : 1;
+    }
+    if (options->check_config && !options->serve && options->config_path != NULL &&
+        options->socket_path == NULL && options->self_test_socket_parent == NULL) {
+        if (!traefik_engine_check_config(options->config_path)) {
             (void)fprintf(stderr, "traefik_engine_config_check=fail\n");
             return 1;
         }
         (void)printf("traefik_engine_config_check=pass\n");
         return 0;
     }
-    if (serve && !check_config && config_path != NULL && socket_path != NULL) {
-        if (traefik_engine_serve(config_path, socket_path, max_connections) != 0) {
+    if (options->serve && !options->check_config && options->config_path != NULL &&
+        options->socket_path != NULL && options->self_test_socket_parent == NULL) {
+        if (traefik_engine_serve(options->config_path, options->socket_path,
+                options->max_connections) != 0) {
             (void)fprintf(stderr, "traefik_engine_service=fail\n");
             return 1;
         }
         return 0;
     }
-    traefik_engine_usage(argv[0]);
+    traefik_engine_usage(program);
     return 2;
+}
+
+int main(int argc, char **argv)
+{
+    traefik_engine_cli_options options;
+
+    memset(&options, 0, sizeof(options));
+    if (!traefik_engine_parse_cli(argc, argv, &options)) {
+        traefik_engine_usage(argc > 0 ? argv[0] : NULL);
+        return 2;
+    }
+    return traefik_engine_dispatch_cli(argc > 0 ? argv[0] : NULL, &options);
 }

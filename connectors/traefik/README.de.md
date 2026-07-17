@@ -48,6 +48,7 @@ Aktion gelingt. Nach der Reaktionszusage erfolgt eine P4-disruptive Entscheidung
 wird nur als `LOG_ONLY` mit dem tatsächlich sichtbaren Status akzeptiert.
 
 ```sh
+TRAEFIK_ENGINE_SOCKET_TEST_PARENT=/absolute/private/short-socket-parent \
 MODSECURITY_INCLUDE_DIR=/local/include \
 MODSECURITY_LIB_DIR=/local/lib \
 make -C connectors/traefik test-engine-service
@@ -56,10 +57,13 @@ make -C connectors/traefik test-engine-service
 Der fokussierte Test startet nur den lokalen Motorservice und ist kein Traefik
 Host-Laufzeittest. Siehe den [kanonischen Traefik-Guide](../../docs/connectors/traefik.de.md)
 für Lebenszyklus, Konfiguration, kanonische Regelauswahl und Ergebnisgrenzen.
-Nur für einen lokalen Sandbox-Test kann `TRAEFIK_ENGINE_SOCKET_TEST_PARENT`
-anstelle der erzeugten `/var/tmp`-Allokationswurzel einen bestehenden,
-dem aktuellen Benutzer gehörenden `0700`-Elternpfad wählen; dies ändert nicht
-die Konfiguration der Host-Probe.
+Nur für einen lokalen Sandbox-Test ist `TRAEFIK_ENGINE_SOCKET_TEST_PARENT`
+erforderlich und muss einen bestehenden kanonischen, symlinkfreien, dem
+aktuellen Benutzer gehörenden `0700`-Elternpfad benennen, dessen vollständige
+Vorfahrenkette nicht von einer anderen UID ersetzt werden kann. Ein gruppen-
+oder weltbeschreibbarer Vorfahr ist nur zulässig, wenn er sticky ist und der
+nächste Kindeintrag der effektiven UID gehört. Dies ändert die Konfiguration
+der Host-Probe nicht und besitzt keinen öffentlich beschreibbaren Fallback.
 
 ## Native Go-Streaming-Host-Probe (nicht beworben)
 
@@ -93,31 +97,36 @@ MSCONNECTOR_RULES_FILE=/absolute/no-crs-baseline.conf \
 make -C connectors/traefik runtime-smoke-traefik-native
 ```
 
-`TRAEFIK_ENGINE_SOCKET_PARENT` ist der optionale private Elternpfad für das
-kurzlebige Engine-UDS-Kind der nativen Probe. Der Runner wählt zuerst diesen
-expliziten Wert, dann `TMPDIR`; wenn keiner der beiden Werte gesetzt ist,
-erzeugt er unter `/var/tmp` einen kurzen, dem aktuellen Benutzer gehörenden und
-mit `0700` privaten Fallback-Elternpfad. Ein expliziter Wert oder `TMPDIR` muss
-ein bestehendes absolutes, mit `0700` privates Verzeichnis außerhalb des
-Checkouts ohne Symlink-Komponente sein; die breiten Wurzeln `/`, `/tmp`, `/var`
-und `/var/tmp` werden als konfigurierte Elternpfade abgelehnt. Steuerzeichen
-werden vor der Pfadverarbeitung abgelehnt und die erzeugte YAML serialisiert den
-Socket-Pfad als quotierten Skalar. Der Runner erzeugt ein eindeutiges privates
-Kind unter dem ausgewählten Elternpfad, erzwingt die Socket-Pfadgrenze von 100
-Byte vor und nach der Allokation und entfernt dieses Kind nach dem Stoppen der
-Host-Prozesse nur dann, wenn es unverändert und leer ist. Der Engine-Service
-führt unter Linux vor der Bereitschaft über den konfigurierten Pfad eine lokale
-Selbstprüfung aus und verlangt, dass PID und UID des akzeptierten
-`SO_PEERCRED`-Peers den Engine-Prozess bezeichnen. Ein Ersatz nach `bind`
-innerhalb dieser begrenzten Pre-Readiness-Capture-Sequenz scheitert damit beim
-Start, statt als service-owned erfasst zu werden. Diese Capture bindet spätere
-Middleware-Dials nicht an den erfassten Listener: Ein bösartiger Prozess mit
-derselben UID kann den live Pfad nach Bereitschaft weiterhin ersetzen; dieser
-Pfad ist daher keine Same-UID-Endpoint-Integrity-Grenze. Der Engine-Service
-prüft beim Cleanup die erfasste Socket-Identität und meldet einen beobachteten
-Ersatz als unvollständiges Cleanup, statt ihn zu entfernen. Ein privates
-`0700`-Verzeichnis ist eine UID-übergreifende Grenze, jedoch keine Isolation
-gegenüber einem bösartigen Prozess mit derselben UID: POSIX kennt kein atomares
+`TRAEFIK_ENGINE_SOCKET_PARENT` ist der private Elternpfad für das kurzlebige
+Engine-UDS-Kind der nativen Probe. Der Runner wählt zuerst diesen expliziten
+Wert, dann `TMPDIR`; wenn keiner davon einen gültigen Parent benennt, scheitert
+er vor dem Erzeugen von Host-State. Der ausgewählte Parent muss ein bestehendes
+absolutes, dem aktuellen Benutzer gehörendes, exakt mit `0700` privates
+Verzeichnis außerhalb des Checkouts ohne Symlink-Komponente und mit einer
+vollständigen Vorfahrenkette sein, die UID-übergreifende Ersetzung verhindert.
+Ein gruppen- oder weltbeschreibbarer Vorfahr ist nur sicher, wenn er sticky ist
+und sein nächster Kindeintrag der effektiven UID gehört; breite Wurzeln wie `/`,
+`/tmp`, `/var` und `/var/tmp` erfüllen diesen Vertrag nicht. Steuerzeichen
+werden vor der Pfadverarbeitung abgelehnt und die erzeugte YAML serialisiert
+den Socket-Pfad als quotierten Skalar. Der Runner erzeugt ein eindeutiges
+privates Kind unter dem ausgewählten Parent, erzwingt die Socket-Pfadgrenze von
+100 Byte vor und nach der Allokation und entfernt dieses Kind nach dem Stoppen
+der Host-Prozesse nur dann, wenn es unverändert und leer ist. Die C-Engine
+validiert unabhängig denselben Private-Parent- und Vorfahrenketten-Vertrag; sie
+stützt sich auf diese Directory-Grenze statt auf eine prozessglobale `umask`
+oder eine pfadbasierte Socket-Berechtigungsänderung. Der Engine-Service führt unter Linux vor der
+Bereitschaft über den konfigurierten Pfad eine lokale Selbstprüfung aus und
+verlangt, dass PID und UID des akzeptierten `SO_PEERCRED`-Peers den
+Engine-Prozess bezeichnen. Ein Ersatz nach `bind` innerhalb dieser begrenzten
+Pre-Readiness-Capture-Sequenz scheitert damit beim Start, statt als service-
+owned erfasst zu werden. Diese Capture bindet spätere Middleware-Dials nicht an
+den erfassten Listener: Ein bösartiger Prozess mit derselben UID kann den live
+Pfad nach Bereitschaft weiterhin ersetzen; dieser Pfad ist daher keine
+Same-UID-Endpoint-Integrity-Grenze. Der Engine-Service prüft beim Cleanup die
+erfasste Socket-Identität und meldet einen beobachteten Ersatz als
+unvollständiges Cleanup, statt ihn zu entfernen. Ein privates `0700`-
+Verzeichnis ist eine UID-übergreifende Grenze, jedoch keine Isolation gegenüber
+einem bösartigen Prozess mit derselben UID: POSIX kennt kein atomares
 „unlink nur bei dieser Inode“, und auch die Directory-Identity-/Leerheitschecks
 des Runners vor `rmdir()` sind nicht atomar. Der Native-Pfadlistener scheitert
 auf einer Plattform ohne die erforderliche Linux-Peer-Credential-Primitive

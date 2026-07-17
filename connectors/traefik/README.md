@@ -47,6 +47,7 @@ action succeeds. After response commitment, a P4 disruptive decision is
 accepted only as `LOG_ONLY` with the actual visible status.
 
 ```sh
+TRAEFIK_ENGINE_SOCKET_TEST_PARENT=/absolute/private/short-socket-parent \
 MODSECURITY_INCLUDE_DIR=/local/include \
 MODSECURITY_LIB_DIR=/local/lib \
 make -C connectors/traefik test-engine-service
@@ -55,9 +56,13 @@ make -C connectors/traefik test-engine-service
 The focused test starts only the local engine service and is not a Traefik
 host-runtime test. See the [canonical Traefik guide](../../docs/connectors/traefik.md)
 for lifecycle, configuration, canonical-rule selection, and outcome boundaries.
-For a sandboxed local test only, `TRAEFIK_ENGINE_SOCKET_TEST_PARENT` can select
-an existing current-user-owned `0700` parent instead of the generated
-`/var/tmp` allocation root; it does not change the host-probe configuration.
+For a sandboxed local test only, `TRAEFIK_ENGINE_SOCKET_TEST_PARENT` is
+required and must name an existing canonical, symlink-free,
+current-user-owned `0700` parent whose complete ancestor chain cannot be
+replaced by another UID. A group- or other-writable ancestor is accepted only
+when it is sticky and the next child entry belongs to the effective UID. It
+does not change the host-probe configuration and has no public-writable
+fallback.
 
 ## Native Go streaming host probe (non-promoted)
 
@@ -91,21 +96,26 @@ MSCONNECTOR_RULES_FILE=/absolute/no-crs-baseline.conf \
 make -C connectors/traefik runtime-smoke-traefik-native
 ```
 
-`TRAEFIK_ENGINE_SOCKET_PARENT` is the optional private parent for the native
-probe's short-lived engine UDS child. The runner chooses this explicit value
-first, then `TMPDIR`; when neither is set it creates a short, current-user
-owned, `0700`-private fallback parent below `/var/tmp`. An explicit value or
-`TMPDIR` must be an existing absolute, `0700`-private directory outside the
-checkout with no symlink component; the broad roots `/`, `/tmp`, `/var`, and
-`/var/tmp` are rejected as configured parents. Control characters are rejected
-before path handling, and the generated YAML serializes the socket path as a
-quoted scalar. The runner creates one unique private child below the selected
-parent, enforces the 100-byte socket-path limit before and after allocation,
-and removes that child after its host processes stop only if it is unchanged
-and empty. Before reporting readiness on Linux, the engine makes a local
-self-probe through the configured pathname and requires the accepted peer's
-`SO_PEERCRED` PID and UID to identify the engine process. A replacement after
-`bind` during that bounded pre-readiness capture sequence therefore fails
+`TRAEFIK_ENGINE_SOCKET_PARENT` is the private parent for the native probe's
+short-lived engine UDS child. The runner chooses this explicit value first,
+then `TMPDIR`; if neither names a valid parent, it fails before creating host
+state. The selected parent must be an existing absolute, current-user-owned,
+exact-`0700` directory outside the checkout with no symlink component and a
+complete ancestor chain that prevents cross-UID replacement. A group- or
+other-writable ancestor is safe only when it is sticky and its next child entry
+belongs to the effective UID; broad roots such as `/`, `/tmp`, `/var`, and
+`/var/tmp` fail that contract. Control characters are rejected before path
+handling, and the generated YAML serializes the socket path as a quoted scalar.
+The runner creates one unique private child below the selected parent, enforces
+the 100-byte socket-path limit before and after allocation, and removes that
+child after its host processes stop only if it is unchanged and empty. The C
+engine independently validates the same private-parent and ancestor-chain
+contract; it relies on that directory boundary rather than a process-global
+`umask` or path-based socket permission change. Before reporting readiness on
+Linux, the engine makes a
+local self-probe through the configured pathname and requires the accepted
+peer's `SO_PEERCRED` PID and UID to identify the engine process. A replacement
+after `bind` during that bounded pre-readiness capture sequence therefore fails
 startup instead of being captured as service-owned. This capture does not bind
 later middleware dials to the captured listener: a hostile process sharing the
 UID can still replace the live pathname after readiness, so this path is not a

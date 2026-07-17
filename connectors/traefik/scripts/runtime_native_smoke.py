@@ -59,14 +59,8 @@ STANDALONE_RULE_IDS = {
 }
 ENGINE_SOCKET_DIRECTORY_PREFIX = "msconnector-traefik-uds-"
 ENGINE_SOCKET_PARENT_ENV = "TRAEFIK_ENGINE_SOCKET_PARENT"
-ENGINE_SOCKET_FALLBACK_ALLOCATION_ROOT = Path("/var/tmp")
-ENGINE_SOCKET_FALLBACK_PARENT_PREFIX = "mct-"
-ENGINE_SOCKET_PARENT_RESERVED_ROOTS = {
-    Path("/"),
-    Path("/tmp"),
-    Path("/var"),
-    ENGINE_SOCKET_FALLBACK_ALLOCATION_ROOT,
-}
+ENGINE_SOCKET_FILENAME = "engine.sock"
+ENGINE_SOCKET_PARENT_LABEL = "Traefik engine socket parent"
 ENGINE_SOCKET_DIRECTORY_RANDOM_HEX_LENGTH = 16
 # Linux sockaddr_un traditionally permits 107 pathname bytes plus NUL. Keep a
 # margin so a pinned host with a shorter implementation cannot silently turn
@@ -90,7 +84,6 @@ class EngineSocketParent:
 
     path: Path
     identity: DirectoryIdentity
-    generated: bool
 
 
 @dataclass(frozen=True)
@@ -110,6 +103,39 @@ def assert_no_symlink_components(path: Path) -> None:
             raise MissingDependency(f"runtime path contains a symlink: {current}")
         if not current.exists():
             break
+
+
+def directory_entry_is_protected_from_cross_user_replacement(
+    parent_stat: os.stat_result, child_stat: os.stat_result
+) -> bool:
+    """Return whether an ancestor prevents another UID replacing its child."""
+
+    if not stat.S_ISDIR(parent_stat.st_mode):
+        return False
+    parent_mode = stat.S_IMODE(parent_stat.st_mode)
+    if parent_mode & (stat.S_IWGRP | stat.S_IWOTH) == 0:
+        return True
+    return bool(parent_mode & stat.S_ISVTX) and child_stat.st_uid == os.geteuid()
+
+
+def assert_private_engine_socket_parent_ancestors_are_safe(parent: Path, label: str) -> None:
+    """Reject a parent replaceable through a cross-user writable ancestor."""
+
+    child = parent
+    while child != child.parent:
+        child_stat = child.lstat()
+        ancestor = child.parent
+        try:
+            ancestor_stat = ancestor.lstat()
+        except OSError as exc:
+            raise MissingDependency(f"{label} ancestor is unavailable: {ancestor}") from exc
+        if not directory_entry_is_protected_from_cross_user_replacement(
+            ancestor_stat, child_stat
+        ):
+            raise MissingDependency(
+                f"{label} has an ancestor that permits cross-user replacement: {ancestor}"
+            )
+        child = ancestor
 
 
 def assert_runtime_root(path: Path) -> Path:
@@ -134,7 +160,7 @@ def assert_private_engine_socket_parent(path: Path, label: str) -> Path:
     if not path.is_absolute():
         raise MissingDependency(f"{label} must be an existing absolute directory")
     parent = Path(os.path.abspath(path))
-    if parent in ENGINE_SOCKET_PARENT_RESERVED_ROOTS:
+    if parent == Path(parent.anchor):
         raise MissingDependency(f"{label} is too broad: {parent}")
     try:
         parent.relative_to(REPO_ROOT)
@@ -154,6 +180,7 @@ def assert_private_engine_socket_parent(path: Path, label: str) -> Path:
         or stat.S_IMODE(parent_stat.st_mode) != 0o700
     ):
         raise MissingDependency(f"{label} must be private and owned by the current user: {parent}")
+    assert_private_engine_socket_parent_ancestors_are_safe(parent, label)
     if not os.access(parent, os.W_OK | os.X_OK):
         raise MissingDependency(f"{label} is not writable by the current user: {parent}")
     return parent
@@ -176,7 +203,6 @@ def resolve_engine_socket_parent() -> EngineSocketParent:
         return EngineSocketParent(
             path=parent,
             identity=private_directory_identity(parent, ENGINE_SOCKET_PARENT_ENV),
-            generated=False,
         )
     tmpdir = os.environ.get("TMPDIR", "")
     if tmpdir:
@@ -185,47 +211,21 @@ def resolve_engine_socket_parent() -> EngineSocketParent:
         return EngineSocketParent(
             path=parent,
             identity=private_directory_identity(parent, "TMPDIR"),
-            generated=False,
         )
-    return create_private_engine_socket_fallback_parent()
+    raise MissingDependency(
+        "set TRAEFIK_ENGINE_SOCKET_PARENT or TMPDIR to an existing private "
+        f"{ENGINE_SOCKET_PARENT_LABEL}"
+    )
 
 
 def assert_engine_socket_path_length(parent: Path) -> None:
     candidate = (
         parent
         / f"{ENGINE_SOCKET_DIRECTORY_PREFIX}{'f' * ENGINE_SOCKET_DIRECTORY_RANDOM_HEX_LENGTH}"
-        / "engine.sock"
+        / ENGINE_SOCKET_FILENAME
     )
     if len(os.fsencode(str(candidate))) > ENGINE_SOCKET_PATH_MAX_BYTES:
         raise MissingDependency("private Traefik engine socket path is too long")
-
-
-def create_private_engine_socket_fallback_parent() -> EngineSocketParent:
-    """Allocate a short private parent when no caller-selected parent exists."""
-
-    assert_no_symlink_components(ENGINE_SOCKET_FALLBACK_ALLOCATION_ROOT)
-    fallback: EngineSocketParent | None = None
-    try:
-        parent = Path(
-            tempfile.mkdtemp(
-                prefix=ENGINE_SOCKET_FALLBACK_PARENT_PREFIX,
-                dir=ENGINE_SOCKET_FALLBACK_ALLOCATION_ROOT,
-            )
-        )
-    except OSError as exc:
-        raise MissingDependency("cannot allocate a private Traefik engine socket parent") from exc
-    try:
-        assert_private_engine_socket_parent(parent, "generated Traefik engine socket parent")
-        fallback = EngineSocketParent(
-            path=parent,
-            identity=private_directory_identity(parent, "generated Traefik engine socket parent"),
-            generated=True,
-        )
-        assert_engine_socket_path_length(parent)
-        return fallback
-    except Exception:
-        remove_private_engine_socket_fallback_parent(fallback)
-        raise
 
 
 def private_directory_identity(path: Path, label: str) -> DirectoryIdentity:
@@ -247,10 +247,10 @@ def create_private_engine_socket_dir(parent: EngineSocketParent) -> EngineSocket
     child. All durable events, configs, logs, and results remain under the
     connector's isolated runtime root.
     """
-    assert_private_engine_socket_parent(parent.path, "Traefik engine socket parent")
+    assert_private_engine_socket_parent(parent.path, ENGINE_SOCKET_PARENT_LABEL)
     assert_engine_socket_path_length(parent.path)
-    if private_directory_identity(parent.path, "Traefik engine socket parent") != parent.identity:
-        raise MissingDependency("Traefik engine socket parent changed before allocation")
+    if private_directory_identity(parent.path, ENGINE_SOCKET_PARENT_LABEL) != parent.identity:
+        raise MissingDependency(f"{ENGINE_SOCKET_PARENT_LABEL} changed before allocation")
     try:
         root = Path(tempfile.mkdtemp(prefix=ENGINE_SOCKET_DIRECTORY_PREFIX, dir=parent.path))
     except OSError as exc:
@@ -258,11 +258,11 @@ def create_private_engine_socket_dir(parent: EngineSocketParent) -> EngineSocket
             f"cannot create private Traefik engine socket directory below {parent.path}"
         ) from exc
     child: EngineSocketDirectory | None = None
-    socket_path = root / "engine.sock"
+    socket_path = root / ENGINE_SOCKET_FILENAME
     try:
         assert_no_symlink_components(root)
-        if private_directory_identity(parent.path, "Traefik engine socket parent") != parent.identity:
-            raise MissingDependency("Traefik engine socket parent changed during allocation")
+        if private_directory_identity(parent.path, ENGINE_SOCKET_PARENT_LABEL) != parent.identity:
+            raise MissingDependency(f"{ENGINE_SOCKET_PARENT_LABEL} changed during allocation")
         root_stat = root.lstat()
         if (
             not stat.S_ISDIR(root_stat.st_mode)
@@ -300,7 +300,7 @@ def remove_private_engine_socket_dir(
             ENGINE_SOCKET_DIRECTORY_PREFIX
         ):
             return False
-        if private_directory_identity(parent.path, "Traefik engine socket parent") != parent.identity:
+        if private_directory_identity(parent.path, ENGINE_SOCKET_PARENT_LABEL) != parent.identity:
             return False
         assert_no_symlink_components(directory.path)
         path_stat = directory.path.lstat()
@@ -314,34 +314,6 @@ def remove_private_engine_socket_dir(
         if any(directory.path.iterdir()):
             return False
         directory.path.rmdir()
-        return True
-    except FileNotFoundError:
-        return True
-    except (OSError, MissingDependency):
-        return False
-
-
-def remove_private_engine_socket_fallback_parent(parent: EngineSocketParent | None) -> bool:
-    """Remove only an empty, runner-created fallback parent beneath /var/tmp."""
-
-    if parent is None:
-        return True
-    try:
-        if (
-            not parent.generated
-            or parent.path.parent != ENGINE_SOCKET_FALLBACK_ALLOCATION_ROOT
-            or not parent.path.name.startswith(ENGINE_SOCKET_FALLBACK_PARENT_PREFIX)
-        ):
-            return False
-        assert_private_engine_socket_parent(parent.path, "generated Traefik engine socket parent")
-        if (
-            private_directory_identity(parent.path, "generated Traefik engine socket parent")
-            != parent.identity
-        ):
-            return False
-        if any(parent.path.iterdir()):
-            return False
-        parent.path.rmdir()
         return True
     except FileNotFoundError:
         return True
@@ -1156,6 +1128,7 @@ def append_first_byte_host_event(
 
 def run() -> int:
     runtime_root = assert_runtime_root(Path(os.environ.get("TRAEFIK_NATIVE_RUNTIME_ROOT", "")))
+    engine_socket_parent = resolve_engine_socket_parent()
     run_id = optional_canonical_run_id()
     first_byte_output_text = os.environ.get("FULL_LIFECYCLE_EVIDENCE_OUTPUT", "").strip()
     first_byte_output = Path(first_byte_output_text) if first_byte_output_text else None
@@ -1185,13 +1158,9 @@ def run() -> int:
     event_path = logs_dir / "events.jsonl"
     engine_socket_dir: EngineSocketDirectory | None = None
     upstream: http.server.ThreadingHTTPServer | None = None
-    engine_socket_parent = resolve_engine_socket_parent()
-    engine_socket_fallback_parent = (
-        engine_socket_parent if engine_socket_parent.generated else None
-    )
     try:
         engine_socket_dir = create_private_engine_socket_dir(engine_socket_parent)
-        engine_socket = engine_socket_dir.path / "engine.sock"
+        engine_socket = engine_socket_dir.path / ENGINE_SOCKET_FILENAME
         upstream_port = free_port()
         traefik_port = free_port()
         write_static_config(static_config, dynamic_config, traefik_port, module_name)
@@ -1211,10 +1180,7 @@ def run() -> int:
         child_removed = remove_private_engine_socket_dir(
             engine_socket_dir, engine_socket_parent
         )
-        fallback_removed = remove_private_engine_socket_fallback_parent(
-            engine_socket_fallback_parent
-        )
-        if not child_removed or not fallback_removed:
+        if not child_removed:
             raise RuntimeError(
                 "Traefik engine socket setup failed and safe cleanup was refused"
             ) from exc
@@ -1448,10 +1414,7 @@ def run() -> int:
         child_removed = remove_private_engine_socket_dir(
             engine_socket_dir, engine_socket_parent
         )
-        fallback_removed = remove_private_engine_socket_fallback_parent(
-            engine_socket_fallback_parent
-        )
-        if not child_removed or not fallback_removed:
+        if not child_removed:
             write_json(
                 result_path,
                 {

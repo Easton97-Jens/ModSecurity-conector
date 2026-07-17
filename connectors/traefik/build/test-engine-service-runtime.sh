@@ -7,7 +7,7 @@ BUILD_ROOT="${BUILD_ROOT:-${TMPDIR:-/var/tmp}/ModSecurity-conector-verified/buil
 OUT_DIR="${TRAEFIK_ENGINE_SERVICE_BUILD_DIR:-$BUILD_ROOT/traefik-engine-service}"
 ENGINE_BIN="${TRAEFIK_ENGINE_SERVICE_BIN:-$OUT_DIR/traefik-engine-service}"
 PYTHON_BIN="${PYTHON:-python3}"
-SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_TEST_PARENT:-/var/tmp}"
+SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_TEST_PARENT:-}"
 SOCKET_DIR=""
 SOCKET_PATH=""
 CONFIG_PATH="$REPO_ROOT/connectors/traefik/config/traefik-engine-service.conf"
@@ -31,6 +31,7 @@ command -v "$PYTHON_BIN" >/dev/null 2>&1 || {
     exit 77
 }
 case "$SOCKET_PARENT" in
+    "") echo "BLOCKED: TRAEFIK_ENGINE_SOCKET_TEST_PARENT must name an existing private 0700 directory" >&2; exit 77 ;;
     /*) ;;
     *) echo "BLOCKED: TRAEFIK_ENGINE_SOCKET_TEST_PARENT must be absolute" >&2; exit 77 ;;
 esac
@@ -38,12 +39,43 @@ if [ ! -d "$SOCKET_PARENT" ] || [ -L "$SOCKET_PARENT" ]; then
     echo "BLOCKED: engine-service socket parent must be a real directory" >&2
     exit 77
 fi
-if [ "$SOCKET_PARENT" != /var/tmp ] &&
-    { [ "$(stat -c '%u' "$SOCKET_PARENT")" != "$(id -u)" ] ||
-      [ "$(stat -c '%a' "$SOCKET_PARENT")" != 700 ]; }; then
-    echo "BLOCKED: explicit engine-service socket parent must be current-user owned and 0700" >&2
+if [ "$(stat -c '%u' "$SOCKET_PARENT")" != "$(id -u)" ] ||
+   [ "$(stat -c '%a' "$SOCKET_PARENT")" != 700 ]; then
+    echo "BLOCKED: TRAEFIK_ENGINE_SOCKET_TEST_PARENT must name an existing private 0700 directory" >&2
     exit 77
 fi
+SOCKET_PARENT_CANONICAL=$("$PYTHON_BIN" -c '
+import os
+import stat
+import sys
+
+candidate = sys.argv[1]
+if any(ord(character) < 0x20 or ord(character) == 0x7F for character in candidate):
+    raise SystemExit(1)
+canonical = os.path.realpath(candidate)
+if canonical != candidate:
+    raise SystemExit(1)
+child = candidate
+while child != os.path.dirname(child):
+    child_stat = os.lstat(child)
+    ancestor = os.path.dirname(child)
+    ancestor_stat = os.lstat(ancestor)
+    parent_mode = stat.S_IMODE(ancestor_stat.st_mode)
+    if not stat.S_ISDIR(ancestor_stat.st_mode):
+        raise SystemExit(1)
+    if parent_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        if not (parent_mode & stat.S_ISVTX and child_stat.st_uid == os.geteuid()):
+            raise SystemExit(1)
+    child = ancestor
+print(canonical)
+' "$SOCKET_PARENT") || {
+    echo "BLOCKED: TRAEFIK_ENGINE_SOCKET_TEST_PARENT must be canonical, symlink-free, and protected from cross-user ancestor replacement" >&2
+    exit 77
+}
+[ "$SOCKET_PARENT_CANONICAL" = "$SOCKET_PARENT" ] || {
+    echo "BLOCKED: TRAEFIK_ENGINE_SOCKET_TEST_PARENT must be canonical, symlink-free, and protected from cross-user ancestor replacement" >&2
+    exit 77
+}
 
 cleanup() {
     if [ -n "$SERVICE_PID" ]; then
@@ -98,6 +130,7 @@ SERVICE_PID=$!
 SOCKET_PATH="$SOCKET_PATH" "$PYTHON_BIN" -c '
 import os
 import socket
+import stat
 import time
 
 path = os.environ["SOCKET_PATH"]
@@ -107,6 +140,13 @@ for _ in range(250):
     time.sleep(0.02)
 else:
     raise SystemExit("engine service socket did not appear")
+
+socket_stat = os.stat(path)
+assert stat.S_ISSOCK(socket_stat.st_mode)
+assert socket_stat.st_uid == os.geteuid()
+parent_stat = os.stat(os.path.dirname(path))
+assert parent_stat.st_uid == os.geteuid()
+assert stat.S_IMODE(parent_stat.st_mode) == 0o700
 
 def text(value):
     raw = value.encode("ascii")

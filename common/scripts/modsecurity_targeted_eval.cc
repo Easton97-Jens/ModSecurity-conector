@@ -81,7 +81,7 @@ std::map<std::string, std::string> parse_args(int argc, char **argv) {
     return args;
 }
 
-std::string bracket_value(const std::string &intervention_log, std::string_view field_key) {
+std::string bracket_value(std::string_view intervention_log, std::string_view field_key) {
     const std::string marker = "[" + std::string(field_key) + " \"";
     const std::size_t start = intervention_log.find(marker);
     if (start == std::string::npos) {
@@ -92,7 +92,7 @@ std::string bracket_value(const std::string &intervention_log, std::string_view 
     if (end == std::string::npos || end <= value_start) {
         return "";
     }
-    return intervention_log.substr(value_start, end - value_start);
+    return std::string(intervention_log.substr(value_start, end - value_start));
 }
 
 struct DecisionLogInput {
