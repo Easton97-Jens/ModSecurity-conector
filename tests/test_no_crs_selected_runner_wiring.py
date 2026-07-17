@@ -140,7 +140,12 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             "\tbuild/build-engine-service.sh test\n\tbuild/test-engine-service-runtime.sh",
             engine_service_recipe,
         )
-        safe_parent = "/tmp/traefik-private-parent"
+        temporary_directory = tempfile.TemporaryDirectory(
+            prefix="msconnector-traefik-make-values-"
+        )
+        self.addCleanup(temporary_directory.cleanup)
+        temporary_root = Path(temporary_directory.name)
+        safe_parent = str(temporary_root / "traefik-private-parent")
         show_exported_parent = (
             "--eval=show-exported-parent:; @printf '%s\\n' \"$$TRAEFIK_ENGINE_SOCKET_PARENT\""
         )
@@ -162,7 +167,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         )
         self.assertEqual(0, exported_parent.returncode, exported_parent.stderr)
         self.assertEqual(safe_parent, exported_parent.stdout.strip())
-        expected_build_root = "/tmp/expected-traefik-build-root"
+        expected_build_root = str(temporary_root / "expected-traefik-build-root")
         show_exported_default_root = (
             "--eval=show-exported-default-root:; @printf '%s\\n' \"$$TRAEFIK_NATIVE_RUNTIME_ROOT\""
         )
@@ -190,7 +195,9 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             f"{expected_build_root}/traefik-native-middleware/runtime-smoke",
             exported_default_root.stdout.strip(),
         )
-        hostile_build_root = "/tmp/$(shell printf BUILD_ROOT_MAKE_INJECTION_REACHED >&2)"
+        hostile_build_root = (
+            f"{temporary_root}/$(shell printf BUILD_ROOT_MAKE_INJECTION_REACHED >&2)"
+        )
         hostile_default_root = subprocess.run(
             [
                 "make",
@@ -215,27 +222,33 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         )
         self.assertNotIn("BUILD_ROOT_MAKE_INJECTION_REACHED", hostile_default_root.stderr)
         make_function_values = (
-            ("TRAEFIK_BIN", "/tmp/$(shell printf MAKE_BIN_INJECTION_REACHED >&2)"),
+            (
+                "TRAEFIK_BIN",
+                f"{temporary_root}/$(shell printf MAKE_BIN_INJECTION_REACHED >&2)",
+            ),
             (
                 "TRAEFIK_NATIVE_RUNTIME_ROOT",
-                "/tmp/$(shell printf MAKE_ROOT_INJECTION_REACHED >&2)",
+                f"{temporary_root}/$(shell printf MAKE_ROOT_INJECTION_REACHED >&2)",
             ),
             (
                 "TRAEFIK_ENGINE_SOCKET_PARENT",
-                "/tmp/$(shell printf MAKE_PARENT_INJECTION_REACHED >&2)",
+                f"{temporary_root}/$(shell printf MAKE_PARENT_INJECTION_REACHED >&2)",
             ),
-            ("PYTHON", "/tmp/$(shell printf MAKE_PYTHON_INJECTION_REACHED >&2)"),
+            (
+                "PYTHON",
+                f"{temporary_root}/$(shell printf MAKE_PYTHON_INJECTION_REACHED >&2)",
+            ),
             (
                 "MODSECURITY_INCLUDE_DIR",
-                "/tmp/$(shell printf MAKE_INCLUDE_INJECTION_REACHED >&2)",
+                f"{temporary_root}/$(shell printf MAKE_INCLUDE_INJECTION_REACHED >&2)",
             ),
             (
                 "MODSECURITY_LIB_DIR",
-                "/tmp/$(shell printf MAKE_LIBRARY_INJECTION_REACHED >&2)",
+                f"{temporary_root}/$(shell printf MAKE_LIBRARY_INJECTION_REACHED >&2)",
             ),
             (
                 "MODSECURITY_PREFIX",
-                "/tmp/$(shell printf MAKE_PREFIX_INJECTION_REACHED >&2)",
+                f"{temporary_root}/$(shell printf MAKE_PREFIX_INJECTION_REACHED >&2)",
             ),
         )
         show_exported_values = (
@@ -281,7 +294,9 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             "MAKE_PREFIX_INJECTION_REACHED",
         ):
             self.assertNotIn(marker, function_values.stderr)
-        python_recipe_payload = '/tmp/unsafe"; printf PYTHON_RECIPE_INJECTION_REACHED; #'
+        python_recipe_payload = (
+            f'{temporary_root}/unsafe"; printf PYTHON_RECIPE_INJECTION_REACHED; #'
+        )
         engine_service_dry_run = subprocess.run(
             [
                 "make",
@@ -304,7 +319,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-make-test-") as temporary:
             runtime_root = Path(temporary) / "runtime"
             shell_sentinel = Path(temporary) / "shell-injection-sentinel"
-            injected_parent = f'/tmp/unsafe"; : > "{shell_sentinel}"; #'
+            injected_parent = f'{Path(temporary) / "unsafe"}"; : > "{shell_sentinel}"; #'
             native_make_dry_run = subprocess.run(
                 [
                     "make",
