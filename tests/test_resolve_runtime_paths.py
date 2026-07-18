@@ -151,20 +151,18 @@ class ResolveRuntimePathsTest(unittest.TestCase):
                 "log_root": root / "logs",
                 "cache_root": root / "cache",
             }
-            for escaped_base in (
-                Path("/"),
-                Path("/var/tmp"),
+            for escaped_base in resolver.FORBIDDEN_BASE_ROOTS | {
                 Path("/etc/evidence-escape"),
                 Path("/root/evidence-escape"),
-            ):
+            }:
                 with self.subTest(escaped_base=escaped_base):
+                    escaped_request = {**common, "build_root": escaped_base}
                     with self.assertRaises(resolver.RuntimePathError):
-                        resolver.resolve_runtime_paths(**{**common, "build_root": escaped_base})
+                        resolver.resolve_runtime_paths(**escaped_request)
 
+            unsafe_invocation = {**common, "invocation_root": Path("/runtime-escape")}
             with self.assertRaises(resolver.RuntimePathError):
-                resolver.resolve_runtime_paths(
-                    **{**common, "invocation_root": Path("/runtime-escape")}
-                )
+                resolver.resolve_runtime_paths(**unsafe_invocation)
 
             root_link = root / "root-link"
             root_link.symlink_to("/root", target_is_directory=True)

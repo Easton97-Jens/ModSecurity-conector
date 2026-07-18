@@ -41,7 +41,7 @@ def _matches_path_prefix(path: Path, prefix: str) -> bool:
     return text == prefix or text.startswith(prefix + "/")
 
 
-def canonical_project_roots() -> tuple[Path, ...]:
+def canonical_project_roots() -> tuple[Path, Path]:
     """Return repository-owned source roots without consulting mutable environment values."""
     module_path = Path(__file__).resolve(strict=False)
     connector_root = next(
@@ -49,17 +49,27 @@ def canonical_project_roots() -> tuple[Path, ...]:
         None,
     )
     if connector_root is None:
-        return ()
+        raise RuntimeError("unable to locate the canonical connector repository root")
     framework_root = connector_root / "modules" / "ModSecurity-test-Framework"
     return (connector_root, framework_root)
+
+
+def fixed_runtime_temp_parent() -> Path:
+    """Return the fixed policy temp parent, never a writable run root.
+
+    The environment cannot select this fallback. Callers must derive and
+    validate a narrow child before using it for runtime artifacts.
+    """
+    return Path(SYSTEM_WRITE_VAR_ALLOWLIST[0])
 
 
 def default_verified_run_root(env: Mapping[str, str] | None = None) -> Path:
     values = env or os.environ
     parent_value = _env_value(values, "RUNNER_TEMP") or _env_value(values, "TMPDIR")
-    parent = Path(parent_value).resolve(strict=False) if parent_value else Path("/var/tmp")
+    fallback_parent = fixed_runtime_temp_parent()
+    parent = Path(parent_value).resolve(strict=False) if parent_value else fallback_parent
     if not is_safe_runtime_parent(parent):
-        parent = Path("/var/tmp")
+        parent = fallback_parent
     return parent / DEFAULT_RUN_BASENAME
 
 
@@ -105,7 +115,8 @@ def is_safe_runtime_parent(path: Path) -> bool:
         return False
     text = str(resolved)
     if text == "/var" or text.startswith("/var/"):
-        return resolved == Path("/var/tmp") or is_under(resolved, Path("/var/tmp"))
+        fixed_parent = fixed_runtime_temp_parent()
+        return resolved == fixed_parent or is_under(resolved, fixed_parent)
     return not any(_matches_path_prefix(resolved, prefix) for prefix in SYSTEM_WRITE_PREFIXES)
 
 
