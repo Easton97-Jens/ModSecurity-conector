@@ -71,12 +71,18 @@ class RuntimePathPolicyTest(unittest.TestCase):
                 "VERIFIED_RUN_ROOT": str(safe_run_root),
                 "BUILD_ROOT": "/etc/evidence-escape",
             }
+            system_source_env = {
+                "VERIFIED_RUN_ROOT": str(safe_run_root),
+                "SOURCE_ROOT": "/etc/evidence-escape",
+            }
             with self.assertRaises(ValueError):
                 verified_runtime_paths(broad_root_env)
             with self.assertRaises(ValueError):
                 verified_runtime_paths(direct_root_env)
             with self.assertRaises(ValueError):
                 verified_runtime_paths(system_build_env)
+            with self.assertRaises(ValueError):
+                verified_runtime_paths(system_source_env)
 
             external_build_root = safe_run_root.parent / "separate-safe-build-root"
             external_matrix_root = fixed_runtime_temp_parent() / "codex/ModSecurity-conector/matrix"

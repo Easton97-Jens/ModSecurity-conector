@@ -267,6 +267,10 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path) 
         "verified_run_root": Path(defaults["VERIFIED_RUN_ROOT"]),
         "state_home": state_home,
         "build_root": Path(defaults["BUILD_ROOT"]),
+        # These paths have already passed verified_runtime_paths() validation.
+        # Do not replace them with a later runtime-env SOURCE_ROOT override.
+        "verified_source_root": Path(defaults["VERIFIED_SOURCE_ROOT"]),
+        "source_root": Path(defaults["SOURCE_ROOT"]),
         "cache_root": cache_root,
         "tmp_root": Path(defaults["TMP_ROOT"]),
         "log_root": Path(defaults["LOG_ROOT"]),

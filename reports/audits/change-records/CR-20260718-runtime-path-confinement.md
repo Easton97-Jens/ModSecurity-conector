@@ -55,6 +55,12 @@ runtime root below `VERIFIED_RUN_ROOT`. Repository evidence shows that
 narrow external configuration. Generic runtime roots are still individually
 validated as non-broad, non-system, and non-source locations.
 
+The readiness reporter derives its accepted source roots from the already
+validated `VERIFIED_SOURCE_ROOT` and `SOURCE_ROOT` defaults. A later
+`runtime-env.sh` value is checked against those roots; it cannot mint an
+additional source location. This preserves the documented narrow external
+source-root control without restoring a mutable-project-root exception.
+
 ## Changed files
 
 - `ci/lib/runtime_path_utils.py`
@@ -77,6 +83,8 @@ validated as non-broad, non-system, and non-source locations.
 | `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_runtime_path_policy.RuntimePathPolicyTest.test_mutable_project_roots_cannot_authorize_system_runtime_paths tests.test_runtime_path_policy.RuntimePathPolicyTest.test_broad_runner_parent_cannot_expand_runtime_allowlist tests.test_resolve_runtime_paths.ResolveRuntimePathsTest.test_rejects_broad_system_and_symlink_base_escapes` | failed before the fix as expected: mutable `/` project roots, broad `RUNNER_TEMP`, system bases, and a symlink resolving under `/root` were accepted. |
 | `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_runtime_producer_readiness_path_policy` | failed before the readiness-report fix as expected: `connector_root=/` authorized `/etc/evidence-escape`. |
 | Focused 13-test Parent `unittest` selection covering `tests.test_runtime_producer_readiness_path_policy`, `tests.test_resolve_runtime_paths`, and the new runtime-path-policy tests | passed after the fix. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_runtime_producer_readiness_path_policy tests.test_runtime_path_policy.RuntimePathPolicyTest.test_mutable_project_roots_cannot_authorize_system_runtime_paths tests.test_runtime_path_policy.RuntimePathPolicyTest.test_broad_runner_parent_cannot_expand_runtime_allowlist tests.test_runtime_path_policy.RuntimePathPolicyTest.test_verified_runtime_paths_reject_broad_or_system_writable_roots tests.test_runtime_path_policy.RuntimePathPolicyTest.test_python_path_policy_selftest_accepts_only_writable_run_paths tests.test_resolve_runtime_paths` | passed: 16 focused tests. The new control accepts a canonical narrow external source root; a system override and a different safe sibling remain blocked. |
+| `rtk make check-runtime-producer-readiness` | expected `BLOCKED` because required NGINX, Apache, and HAProxy components and caches are absent; every reported runtime path, including `SOURCE_ROOT=/var/tmp/codex/ModSecurity-conector/source`, passed confinement. |
 | `rtk env TMPDIR=<task-owned-temp-root> PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_bilingual_docs` | passed: 11 bilingual-documentation checker tests. |
 | `rtk sh -n ci/runtime/lifecycle/run-no-crs-baseline.sh` and `rtk git diff --check` | passed. |
 | `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_runtime_path_policy` | blocked by the isolated worktree: `modules/ModSecurity-test-Framework/ci/lib/common.sh` is absent, so the existing shell half of the checker cannot run. The Python-only self-test passed. |
@@ -88,6 +96,9 @@ temporary parents, system-root descendants, and symlink escapes from being
 treated as writable runtime evidence locations. A structured resolver output
 now carries the selected invocation root, and a readiness report no longer
 accepts a caller-provided project root as a write exception.
+It also cannot turn its false rejection of a canonical narrow source root into
+a reason to bypass runtime readiness: only canonical validated source roots
+are accepted, while later overrides remain fail-closed.
 
 ## Runtime evidence
 
@@ -99,8 +110,11 @@ started or claimed.
 
 The existing full shell policy self-test cannot run in this isolated worktree
 until the separate Framework checkout is available at its recorded path. This
-does not authorize a Framework modification. CodeQL, SonarQube Cloud, and PR
-checks require a future exact PR head SHA.
+does not authorize a Framework modification. The original draft PR #58 head
+`4f028f911807def8b771faaa3b16c58a513e0385` had 33 passing GitHub checks,
+including CodeQL and SonarQube Cloud. This record accompanies a focused
+follow-up, so its new exact head requires a fresh CI/quality review before any
+`verified_pr` claim.
 
 ## Remaining risks
 
@@ -111,15 +125,17 @@ canonical lifecycle resolver retains the stricter invocation-root binding.
 
 ## Checks not run and rationale
 
-No connector build, host runtime, protocol run, CRS/MRTS matrix, Framework
-check, CodeQL, SonarQube Cloud, commit, push, or pull request is run by this
-isolated remediation task. These actions are outside its authority or require
-the exact future PR head SHA.
+No connector build, host runtime, protocol run, CRS/MRTS matrix, or Framework
+change was run by this remediation. The original draft PR #58 was committed,
+pushed, and checked; the current follow-up is intentionally not treated as
+delivered until its own exact-head CI, CodeQL, SonarQube Cloud, and review
+cycle completes. No merge is authorized.
 
 ## Final diff and review status
 
 Focused local regression coverage, the 11-test bilingual checker, shell syntax,
 and final whitespace-diff validation passed. The full shell policy check remains
-blocked only by the absent Framework checkout. Delivery evidence remains pending
-at the time of this record update; no commit, push, pull request, or merge has
-occurred.
+blocked only by the absent Framework checkout. The original implementation was
+delivered through draft PR #58; this source-root follow-up remains
+`remediation_required` until the new exact PR head is pushed and independently
+verified. No merge occurred.

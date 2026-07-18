@@ -59,6 +59,13 @@ Repository-Evidence zeigt, dass
 schmale externe Konfiguration ist. Generische Runtime-Roots werden weiterhin
 einzeln als nicht-breite, nicht-System- und nicht-Quell-Orte validiert.
 
+Der Readiness-Reporter leitet seine akzeptierten Quell-Roots aus den bereits
+validierten Defaults `VERIFIED_SOURCE_ROOT` und `SOURCE_ROOT` ab. Ein späterer
+Wert aus `runtime-env.sh` wird gegen diese Roots geprüft; er kann keinen
+zusätzlichen Quellort erzeugen. Dies bewahrt den dokumentierten schmalen
+externen Source-Root-Kontrollfall, ohne die Ausnahme für veränderliche
+Projekt-Roots wiederherzustellen.
+
 ## Geänderte Dateien
 
 - `ci/lib/runtime_path_utils.py`
@@ -81,6 +88,8 @@ einzeln als nicht-breite, nicht-System- und nicht-Quell-Orte validiert.
 | `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_runtime_path_policy.RuntimePathPolicyTest.test_mutable_project_roots_cannot_authorize_system_runtime_paths tests.test_runtime_path_policy.RuntimePathPolicyTest.test_broad_runner_parent_cannot_expand_runtime_allowlist tests.test_resolve_runtime_paths.ResolveRuntimePathsTest.test_rejects_broad_system_and_symlink_base_escapes` | vor dem Fix erwartungsgemäß fehlgeschlagen: veränderliche `/`-Projekt-Roots, breites `RUNNER_TEMP`, System-Bases und ein nach `/root` aufgelöster Symlink wurden akzeptiert. |
 | `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_runtime_producer_readiness_path_policy` | vor dem Readiness-Report-Fix erwartungsgemäß fehlgeschlagen: `connector_root=/` autorisierte `/etc/evidence-escape`. |
 | Fokussierte 13-Test-Parent-`unittest`-Auswahl für `tests.test_runtime_producer_readiness_path_policy`, `tests.test_resolve_runtime_paths` und die neuen Runtime-Path-Policy-Tests | nach dem Fix bestanden. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_runtime_producer_readiness_path_policy tests.test_runtime_path_policy.RuntimePathPolicyTest.test_mutable_project_roots_cannot_authorize_system_runtime_paths tests.test_runtime_path_policy.RuntimePathPolicyTest.test_broad_runner_parent_cannot_expand_runtime_allowlist tests.test_runtime_path_policy.RuntimePathPolicyTest.test_verified_runtime_paths_reject_broad_or_system_writable_roots tests.test_runtime_path_policy.RuntimePathPolicyTest.test_python_path_policy_selftest_accepts_only_writable_run_paths tests.test_resolve_runtime_paths` | bestanden: 16 fokussierte Tests. Die neue Kontrolle akzeptiert einen kanonischen schmalen externen Source-Root; ein System-Override und ein anderer sicherer Sibling bleiben blockiert. |
+| `rtk make check-runtime-producer-readiness` | erwartetes `BLOCKED`, weil erforderliche NGINX-, Apache- und HAProxy-Komponenten sowie Caches fehlen; jeder gemeldete Runtime-Pfad, einschließlich `SOURCE_ROOT=/var/tmp/codex/ModSecurity-conector/source`, bestand die Containment-Prüfung. |
 | `rtk env TMPDIR=<task-owned-temp-root> PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_bilingual_docs` | bestanden: 11 Tests des Bilingual-Dokumentationscheckers. |
 | `rtk sh -n ci/runtime/lifecycle/run-no-crs-baseline.sh` und `rtk git diff --check` | bestanden. |
 | `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_runtime_path_policy` | durch den isolierten Worktree blockiert: `modules/ModSecurity-test-Framework/ci/lib/common.sh` fehlt, daher kann die bestehende Shell-Hälfte des Checkers nicht laufen. Der reine Python-Selbsttest bestand. |
@@ -93,6 +102,10 @@ beschreibbare Runtime-Evidence-Orte behandelt werden. Eine strukturierte
 Resolver-Ausgabe enthält nun den gewählten Invocation-Root und ein
 Readiness-Report akzeptiert keinen Caller-bereitgestellten Projekt-Root mehr
 als Schreibausnahme.
+Er kann seine falsche Ablehnung eines kanonischen schmalen Source-Roots auch
+nicht in einen Grund verwandeln, die Runtime-Readiness zu umgehen: Nur
+kanonisch validierte Source-Roots werden akzeptiert, während spätere Overrides
+fail-closed bleiben.
 
 ## Runtime-Evidence
 
@@ -104,8 +117,11 @@ Protokoll-Runtime-Run wurde gestartet oder behauptet.
 
 Der bestehende vollständige Shell-Policy-Selbsttest kann in diesem isolierten
 Worktree nicht laufen, bis der separate Framework-Checkout am aufgezeichneten
-Pfad verfügbar ist. Dies autorisiert keine Framework-Änderung. CodeQL,
-SonarQube Cloud und PR-Checks benötigen einen zukünftigen exakten PR-Head-SHA.
+Pfad verfügbar ist. Dies autorisiert keine Framework-Änderung. Der ursprüngliche
+Draft-PR-#58-Head `4f028f911807def8b771faaa3b16c58a513e0385` hatte 33
+bestandene GitHub-Checks, einschließlich CodeQL und SonarQube Cloud. Dieser
+Record begleitet einen fokussierten Follow-up; sein neuer exakter Head benötigt
+eine frische CI-/Quality-Prüfung vor jeder `verified_pr`-Behauptung.
 
 ## Verbleibende Risiken
 
@@ -117,15 +133,18 @@ Invocation-Root-Bindung behält.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Kein Connector-Build, Host-Runtime-, Protokoll-Run, CRS/MRTS-Matrix-,
-Framework-Check, CodeQL, SonarQube Cloud, Commit, Push oder Pull Request läuft
-in diesem isolierten Remediation-Task. Diese Aktionen liegen außerhalb seiner
-Autorisierung oder benötigen den exakten zukünftigen PR-Head-SHA.
+Kein Connector-Build, Host-Runtime-, Protokoll-Run, CRS/MRTS-Matrix- oder
+Framework-Change lief in dieser Remediation. Der ursprüngliche Draft-PR #58
+wurde committed, gepusht und geprüft; der aktuelle Follow-up wird absichtlich
+nicht als geliefert behandelt, bis sein eigener Exact-Head-CI-, CodeQL-,
+SonarQube-Cloud- und Review-Zyklus abgeschlossen ist. Kein Merge ist
+autorisiert.
 
 ## Finaler Diff- und Review-Status
 
 Fokussierte lokale Regression-Coverage, der 11-Test-Bilingual-Checker, Shell-
 Syntax und finale Whitespace-Diff-Validierung bestanden. Der vollständige
 Shell-Policy-Check bleibt nur durch den fehlenden Framework-Checkout blockiert.
-Delivery-Evidence steht zum Zeitpunkt dieses Change-Record-Updates noch aus;
-kein Commit, Push, Pull Request oder Merge ist erfolgt.
+Die ursprüngliche Implementierung wurde über Draft-PR #58 geliefert; dieser
+Source-Root-Follow-up bleibt `remediation_required`, bis der neue exakte
+PR-Head gepusht und unabhängig verifiziert ist. Kein Merge erfolgte.
