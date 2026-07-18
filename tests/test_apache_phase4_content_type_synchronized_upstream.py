@@ -87,13 +87,12 @@ class ApachePhase4ContentTypeSynchronizedUpstreamTest(unittest.TestCase):
 
     def test_control_paths_reject_a_file_outside_the_control_root(self) -> None:
         outside = Path(self._temporary_directory.name) / "outside-release.json"
+        args = self.control_args(release_file=str(outside))
 
         with self.assertRaisesRegex(
             ValueError, "release file must resolve beneath control root"
         ):
-            self._module.resolve_control_paths(
-                self.control_args(release_file=str(outside))
-            )
+            self._module.resolve_control_paths(args)
 
     def test_control_writer_rejects_an_outside_root_path_before_creation(self) -> None:
         outside = Path(self._temporary_directory.name) / "outside" / "control.json"
@@ -112,13 +111,12 @@ class ApachePhase4ContentTypeSynchronizedUpstreamTest(unittest.TestCase):
         outside.mkdir()
         escape = self._control_root / "escape"
         escape.symlink_to(outside, target_is_directory=True)
+        args = self.control_args(ready_file=str(escape / "ready.json"))
 
         with self.assertRaisesRegex(
             ValueError, "ready file must resolve beneath control root"
         ):
-            self._module.resolve_control_paths(
-                self.control_args(ready_file=str(escape / "ready.json"))
-            )
+            self._module.resolve_control_paths(args)
 
     def test_missing_listener_is_recorded_as_a_server_failure(self) -> None:
         upstream = object.__new__(
