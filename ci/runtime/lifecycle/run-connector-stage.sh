@@ -135,6 +135,7 @@ run_remaining_connector() {
         RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
         RUNTIME_COMPONENT_TARGET="$RUNTIME_COMPONENT_TARGET" \
         RUNTIME_COMPONENT_ENV_SNAPSHOT="${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" \
+        TRAEFIK_ENGINE_SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_PARENT:-}" \
         sh "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-remaining-connector-target.sh" "$connector" "$target"
 }
 

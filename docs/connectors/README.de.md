@@ -86,7 +86,7 @@ und direkte Harness-Controls. Die kompakten connector-spezifischen Gruppen sind:
 | NGINX | <code>NGINX_BINARY</code>, <code>NGINX_MODULE</code>, <code>NGINX_PREFIX</code>, <code>NGINX_HARNESS_PARENT</code>, <code>NGINX_WORKER_USER</code> | Modul-/Binary-Kompatibilität und Worker-Zugriff auf Runtime-Pfade |
 | HAProxy | <code>HAPROXY_BIN</code>, <code>SPOA_RUNTIME_BIN</code>, <code>HAPROXY_HTX_CANONICAL_RULES_FILE</code>, Port-Offsets | Vertrauenswürdige Host-/Agent-Binaries und konfliktfreie Loopback-Ports |
 | Envoy | <code>ENVOY_BIN</code>, <code>EXT_PROC_BIN</code>, <code>ENVOY_CONFIG</code>, <code>EXT_PROC_PORT</code> | Generierte Config außerhalb des Checkouts und gültige lokale Ports |
-| Traefik | <code>TRAEFIK_BIN</code>, <code>TRAEFIK_NATIVE_RUNTIME_ROOT</code>, <code>TRAEFIK_CONNECTOR_CONFIG</code>, <code>TRAEFIK_CONNECTOR_LISTEN</code> | Vertrauenswürdiges Binary, privater Runtime-Root, Loopback-Listen-Adressen |
+| Traefik | <code>TRAEFIK_BIN</code>, <code>TRAEFIK_NATIVE_RUNTIME_ROOT</code>, <code>TRAEFIK_ENGINE_SOCKET_PARENT</code>, <code>TRAEFIK_CONNECTOR_CONFIG</code>, <code>TRAEFIK_CONNECTOR_LISTEN</code> | Vertrauenswürdiges Binary, privater Runtime-/Socket-Elternpfad, Loopback-Listen-Adressen |
 | lighttpd | <code>LIGHTTPD_BIN</code>, <code>LIGHTTPD_PATCHED_ROOT</code>, <code>LIGHTTPD_CONNECTOR_MODULE</code>, <code>LIGHTTPD_SMOKE_PORT</code> | Passender gepatchter Host/Modul, absolute externe Pfade, gültiger Loopback-Port |
 
 Namen in dieser Tabelle versprechen nicht, dass jeder direkte Override für CI

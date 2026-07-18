@@ -180,12 +180,11 @@ case "$connector" in
             export TRAEFIK_BIN
         fi
         traefik_native_runtime_root=${TRAEFIK_NATIVE_RUNTIME_ROOT:-${TRAEFIK_RESULT_ROOT:-${RUNTIME_ROOT:-$BUILD_ROOT/traefik-native-middleware/runtime-smoke}}}
-        run_make_target -C "$CONNECTOR_ROOT/connectors/traefik" "$target" \
-            BUILD_ROOT="$BUILD_ROOT" TRAEFIK_BIN="$TRAEFIK_BIN" \
-            TRAEFIK_NATIVE_RUNTIME_ROOT="$traefik_native_runtime_root" \
-            MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" \
-            MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" \
-            MODSECURITY_PREFIX="${MODSECURITY_PREFIX:-}"
+        TRAEFIK_NATIVE_RUNTIME_ROOT=$traefik_native_runtime_root
+        MODSECURITY_PREFIX=${MODSECURITY_PREFIX:-}
+        export TRAEFIK_BIN TRAEFIK_NATIVE_RUNTIME_ROOT
+        export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR MODSECURITY_PREFIX
+        run_make_target -C "$CONNECTOR_ROOT/connectors/traefik" "$target"
         ;;
     lighttpd)
         lighttpd_build_paths >/dev/null
