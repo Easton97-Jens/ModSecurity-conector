@@ -60,6 +60,7 @@ benutzergerichtete Repository-Dokumentation.
 | Zielgerichtete bestehende Bilingual-/Link-Kontrolle | bestanden: Die Pair- und Link-Funktionen des Repository-`check-bilingual-docs.py` melden keinen Fehler für `SECURITY.md`, `SECURITY.de.md` oder dieses Change-Record-Paar. |
 | `make check-bilingual-docs` | blockiert: Der Full-Tree-Checker lief, meldete aber nur vorbestehende fehlende Framework-Gitlink-Ziele im isolierten Clone; kein Task-eigener Dokumentationsfehler wurde gemeldet. |
 | `make check-doc-links` | durch denselben nicht populierten Framework-Gitlink blockiert; seine gemeldeten Pfade enthalten kein Task-eigenes Dokument. |
+| GitHub-PR [#53](https://github.com/Easton97-Jens/ModSecurity-conector/pull/53) am initialen Head `002299a09bd2d9b6f640e9d29c2d8b5068700652` | bestanden: `mergeable=MERGEABLE`, `mergeStateStatus=CLEAN`, null Review-Threads und alle sechs exakten Required Checks (`actions`, `bounded-c-cpp`, `envoy-go`, `traefik-go`, `actionlint`, `zizmor`) vom GitHub-Actions-App `15368` erfolgreich abgeschlossen. Kein Review, Bypass oder Merge erfolgte. |
 
 ## Security-Auswirkung
 
@@ -71,17 +72,19 @@ Abhängigkeitsversionen noch Scanner-Konfiguration.
 
 ## Runtime-Evidence
 
-Es ändert sich kein Connector-Runtime-Verhalten. Dieser PR ist die geplante
-Kontroll-Evidence für GitHubs `pull_request`-Regel und die sechs exakten
-Required Checks; Runtime-Evidence ist nicht anwendbar.
+Es ändert sich kein Connector-Runtime-Verhalten. PR #53 lieferte die
+beobachtete Kontroll-Evidence für GitHubs `pull_request`-Regel und die sechs
+exakten Required Checks: Der initiale Delivery-Head war clean und mergeable
+ohne ungelöste Review-Threads. Runtime-Evidence ist nicht anwendbar.
 
 ## Bekannte Einschränkungen
 
 Das Repository hat einen direkten Administrator und keinen unabhängigen
 Reviewer. Daher wird keine One-Approval-Anforderung ohne automatischen Bypass
-eingeschaltet. Der aktuelle SonarCloud-Check ist fehlgeschlagen und kein
-Required Check. Automatisierte Security Fixes bleiben aufgrund einer bewussten
-Scope-Entscheidung deaktiviert.
+eingeschaltet. Während des Required-Check-Preflights war das SonarCloud-
+Ergebnis auf `master` fehlgeschlagen, auch wenn PR #53 später ein erfolgreiches
+SonarCloud-Ergebnis meldete. Es ist deshalb kein Required Check. Automatisierte
+Security Fixes bleiben aufgrund einer bewussten Scope-Entscheidung deaktiviert.
 
 ## Verbleibende Risiken
 
@@ -96,15 +99,19 @@ Scorecard-Vulnerability-Leads erfordern getrennte evidenzbasierte Arbeit.
 Full-Tree-Dokumentations-Checks können in diesem isolierten Clone nicht
 bestehen, bis der vorbestehende Framework-Gitlink populiert ist; eine
 Framework-Materialisierung gehört nicht zum Scope dieser Aufgabe. Die
-Pull-Request-Erstellung, die exakten Required-Check-Läufe, der Review-/Thread-
-Status und die SonarCloud-Dispositon sind noch offen und werden erst erfasst,
-wenn sie auf dem relevanten Branch oder Pull Request beobachtet wurden.
+Pull-Request-Erstellung, die exakten Required-Check-Läufe und der Review-/
+Thread-Status wurden auf PR #53 erfasst; die finale Task-Receipt verifiziert
+den finalen Branch-Head nach diesem Change-Record-Update.
 
 ## Finaler Diff- und Review-Status
 
 Die zielgerichtete Bilingual-/Link-Kontrolle und der staged Scoped-Diff-
-Whitespace-Review bestanden. Die Full-Tree-Dokumentations-Checks sind nur
-durch den nicht populierten Framework-Gitlink umgebungsbedingt blockiert. Bis
-zu diesem Zeitpunkt ist keine `master`-Änderung, kein Merge, kein Bypass und
-kein Pull Request erfolgt; der dedizierte Branch ist für seinen ersten Push
-bereit.
+Whitespace-Review bestanden. Die initiale Six-File-Delivery wurde bei
+`002299a09bd2d9b6f640e9d29c2d8b5068700652` committet, auf den dedizierten
+Branch gepusht und als PR #53 geöffnet. Seine exakten Required Checks waren
+erfolgreich, der PR wurde clean und mergeable, und es erfolgten weder
+Review-Thread, Bypass, Merge noch eine `master`-Änderung. Dieses Change-
+Record-Update hält diese beobachtete Delivery-Evidence fest; der finale
+Branch-Head-Status wird getrennt in der Task-Receipt aufbewahrt. Die Full-
+Tree-Dokumentations-Checks sind weiterhin nur durch den nicht populierten
+Framework-Gitlink umgebungsbedingt blockiert.

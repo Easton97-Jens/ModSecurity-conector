@@ -57,6 +57,7 @@ companion follows the repository's reader-facing documentation policy.
 | Targeted existing bilingual/link control | passed: the repository's `check-bilingual-docs.py` pair and link functions report no error for `SECURITY.md`, `SECURITY.de.md`, or this Change Record pair. |
 | `make check-bilingual-docs` | blocked: the full-tree checker ran but reported only pre-existing missing Framework-gitlink targets in the isolated clone; no task-owned document error was reported. |
 | `make check-doc-links` | blocked by the same unpopulated Framework gitlink; its reported paths do not include a task-owned document. |
+| GitHub PR [#53](https://github.com/Easton97-Jens/ModSecurity-conector/pull/53) at initial head `002299a09bd2d9b6f640e9d29c2d8b5068700652` | passed: `mergeable=MERGEABLE`, `mergeStateStatus=CLEAN`, zero review threads, and all six exact required checks (`actions`, `bounded-c-cpp`, `envoy-go`, `traefik-go`, `actionlint`, `zizmor`) completed successfully from GitHub Actions app `15368`. No review, bypass, or merge occurred. |
 
 ## Security impact
 
@@ -68,16 +69,19 @@ configuration.
 
 ## Runtime evidence
 
-No connector runtime behavior changes. This PR is the planned control evidence
-for GitHub's `pull_request` rule and the six exact required checks; runtime
-evidence is not applicable.
+No connector runtime behavior changes. PR #53 supplied the observed control
+evidence for GitHub's `pull_request` rule and its six exact required checks:
+the initial delivery head was clean and mergeable with zero unresolved review
+threads. Runtime evidence is not applicable.
 
 ## Known limitations
 
 The repository has one direct administrator and no independent reviewer, so a
 one-approval requirement is not enabled without an automatic bypass. The
-current SonarCloud check is failed and is not a required check. Automated
-security fixes remain disabled by deliberate scope decision.
+SonarCloud result on `master` was failed during required-check preflight, so
+it is not a required check even though PR #53 later reported a passing
+SonarCloud result. Automated security fixes remain disabled by deliberate
+scope decision.
 
 ## Remaining risks
 
@@ -90,14 +94,18 @@ and Scorecard vulnerability-lead triage require separate evidence-backed work.
 
 Full-tree documentation checks cannot pass in this isolated clone until the
 pre-existing Framework gitlink is populated; no Framework materialization is
-in this task's scope. Pull-request creation, exact required-check runs,
-review/thread state, and SonarCloud disposition remain pending and will be
-recorded only after they are observed on the relevant branch or pull request.
+in this task's scope. Pull-request creation, exact required-check runs, and
+review/thread state were recorded on PR #53; the final task receipt verifies
+the final branch head after this Change Record update.
 
 ## Final diff and review status
 
 Targeted bilingual/link control and the staged scoped-diff whitespace review
-passed. The full-tree documentation checks are environment-blocked only by the
-unpopulated Framework gitlink. No `master` change, merge, bypass, or Pull
-Request has occurred at this point; the dedicated branch is ready for its
-initial push.
+passed. The initial six-file delivery was committed at
+`002299a09bd2d9b6f640e9d29c2d8b5068700652`, pushed to the dedicated branch,
+and opened as PR #53. Its exact required checks succeeded, the PR became
+clean and mergeable, and no review-thread, bypass, merge, or `master` change
+occurred. This Change Record update preserves that observed delivery evidence;
+the final branch-head status is retained separately in the task receipt. The
+full-tree documentation checks remain environment-blocked only by the
+unpopulated Framework gitlink.
