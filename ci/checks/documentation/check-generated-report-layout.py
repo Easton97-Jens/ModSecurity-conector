@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 
@@ -25,7 +26,9 @@ from generated_report_utils import (
     read_report_metadata,
     report_relpath,
     report_path,
+    sha256_file,
 )
+from runtime_path_utils import verified_runtime_paths
 
 INSECURE_REPO_URL_PATTERNS = (
     "http://github.com",
@@ -48,6 +51,14 @@ allowed_examples = (
     "https://github.com/coreruleset/go-ftw",
     "https://github.com/coreruleset/go-ftw.git",
 )
+
+FULL_MATRIX_CONNECTORS = ("apache", "nginx", "haproxy")
+FULL_MATRIX_CRS_VARIANTS = ("no-crs", "with-crs")
+FULL_MATRIX_MRTS_VARIANTS = ("no-mrts", "with-mrts")
+VERIFIED_RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+VERIFIED_CRITICAL_INPUT_STATUSES = {"complete"}
+VERIFIED_CRITICAL_INPUT_RECORD_STATUSES = {"present"}
+SELF_GENERATED_CRITICAL_INPUT_STATUS = "self_generated_no_direct_input"
 
 
 def rel(path: Path, root: Path) -> str:
@@ -78,6 +89,89 @@ def load_json(path: Path, errors: list[str], connector_root: Path) -> dict[str, 
         errors.append(f"{rel(path, connector_root)}: JSON root must be an object")
         return {}
     return data
+
+
+def is_unverified_critical_input_status(value: object, *, report_name: str | None = None) -> bool:
+    status = str(value or "unknown").strip().lower()
+    if status in VERIFIED_CRITICAL_INPUT_STATUSES:
+        return False
+    return not (
+        status == SELF_GENERATED_CRITICAL_INPUT_STATUS
+        and report_name == "report_refresh_manifest"
+    )
+
+
+def is_unverified_critical_input_record_status(value: object) -> bool:
+    return str(value or "unknown").strip().lower() not in VERIFIED_CRITICAL_INPUT_RECORD_STATUSES
+
+
+def expected_full_matrix_job_ids() -> set[str]:
+    return {
+        f"{connector}:{crs}:{mrts}"
+        for connector in FULL_MATRIX_CONNECTORS
+        for crs in FULL_MATRIX_CRS_VARIANTS
+        for mrts in FULL_MATRIX_MRTS_VARIANTS
+    }
+
+
+def is_within(path: Path, root: Path) -> bool:
+    try:
+        path.absolute().relative_to(root.absolute())
+        return True
+    except ValueError:
+        return False
+
+
+def has_symlink_component(path: Path, root: Path) -> bool:
+    try:
+        relative = path.absolute().relative_to(root.absolute())
+    except ValueError:
+        return True
+    current = root.absolute()
+    try:
+        if current.is_symlink():
+            return True
+        for component in relative.parts:
+            current = current / component
+            if current.is_symlink():
+                return True
+    except OSError:
+        return True
+    return False
+
+
+def is_regular_file(path: Path, *, root: Path | None = None) -> bool:
+    try:
+        if root is not None and (not is_within(path, root) or has_symlink_component(path, root)):
+            return False
+        return path.is_file() and not path.is_symlink() and stat.S_ISREG(path.stat().st_mode)
+    except OSError:
+        return False
+
+
+def read_jsonl_objects(path: Path, errors: list[str], connector_root: Path) -> list[dict[str, Any]]:
+    if not is_regular_file(path):
+        errors.append(f"{rel(path, connector_root)}: expected a regular JSONL file")
+        return []
+    rows: list[dict[str, Any]] = []
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        errors.append(f"{rel(path, connector_root)}: cannot read JSONL: {exc}")
+        return rows
+    for line_number, raw in enumerate(lines, start=1):
+        if not raw.strip():
+            continue
+        try:
+            row = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            errors.append(f"{rel(path, connector_root)}:{line_number}: invalid JSONL: {exc.msg}")
+            continue
+        if not isinstance(row, dict):
+            errors.append(f"{rel(path, connector_root)}:{line_number}: JSONL record must be an object")
+            continue
+        rows.append(row)
+    return rows
 
 
 def check_json_metadata(path: Path, errors: list[str], connector_root: Path) -> None:
@@ -212,10 +306,35 @@ def check_manifest(connector_root: Path, errors: list[str], *, strict_evidence: 
         for key in ("category", "kind", "owner", "severity", "input_status", "inputs", "missing_inputs", "empty_inputs", "unknown_inputs"):
             if key not in record:
                 errors.append(f"{rel(manifest_path, connector_root)}: report {record.get('report_name', '<unknown>')} missing {key}")
-        if strict_evidence and record.get("severity") == "critical" and record.get("input_status") in {"stale", "blocked"}:
-            errors.append(f"{rel(manifest_path, connector_root)}: critical report {record.get('report_name', '<unknown>')} has {record.get('input_status')} input_status")
-        if strict_evidence and record.get("severity") == "critical" and record.get("stale_inputs"):
-            errors.append(f"{rel(manifest_path, connector_root)}: critical report {record.get('report_name', '<unknown>')} has stale inputs")
+        if strict_evidence and record.get("severity") == "critical":
+            report_name = record.get("report_name", "<unknown>")
+            if is_unverified_critical_input_status(record.get("input_status"), report_name=str(report_name)):
+                errors.append(
+                    f"{rel(manifest_path, connector_root)}: critical report {report_name} has {record.get('input_status') or 'unknown'} input_status"
+                )
+            for key in ("missing_inputs", "empty_inputs", "unknown_inputs", "stale_inputs"):
+                values = record.get(key)
+                if not isinstance(values, list):
+                    errors.append(
+                        f"{rel(manifest_path, connector_root)}: critical report {report_name} {key} must be a list"
+                    )
+                elif values:
+                    errors.append(
+                        f"{rel(manifest_path, connector_root)}: critical report {report_name} has {key}"
+                    )
+            inputs = record.get("inputs")
+            if not isinstance(inputs, list):
+                errors.append(f"{rel(manifest_path, connector_root)}: critical report {report_name} inputs must be a list")
+            for item in inputs if isinstance(inputs, list) else []:
+                if not isinstance(item, dict):
+                    errors.append(f"{rel(manifest_path, connector_root)}: critical report {report_name} input must be an object")
+                elif not isinstance(item.get("path"), str) or not item.get("path"):
+                    errors.append(f"{rel(manifest_path, connector_root)}: critical report {report_name} input path is invalid")
+                elif is_unverified_critical_input_record_status(item.get("status")):
+                    errors.append(
+                        f"{rel(manifest_path, connector_root)}: critical report {report_name} has unverified input status "
+                        f"{item.get('status') or 'unknown'}: {item.get('path', 'unknown')}"
+                    )
 
 
 def check_system_environment_proof(connector_root: Path, errors: list[str]) -> None:
@@ -468,14 +587,272 @@ def check_critical_report_run_consistency(connector_root: Path, errors: list[str
             if path.suffix == ".json":
                 data = load_json(path, errors, connector_root)
                 metadata_obj = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
-                if strict_evidence and metadata_obj.get("input_status") in {"stale", "blocked"}:
-                    errors.append(f"{rel(path, connector_root)}: critical report metadata.input_status is {metadata_obj.get('input_status')}")
-                for item in metadata_obj.get("inputs", []) if isinstance(metadata_obj.get("inputs"), list) else []:
-                    if strict_evidence and isinstance(item, dict) and item.get("status") in {"stale", "blocked"}:
-                        errors.append(f"{rel(path, connector_root)}: critical report input is {item.get('status')}: {item.get('path', 'unknown')}")
+                if strict_evidence and is_unverified_critical_input_status(metadata_obj.get("input_status"), report_name=key):
+                    errors.append(
+                        f"{rel(path, connector_root)}: critical report metadata.input_status is {metadata_obj.get('input_status') or 'unknown'}"
+                    )
+                if strict_evidence:
+                    inputs = metadata_obj.get("inputs")
+                    if not isinstance(inputs, list):
+                        errors.append(f"{rel(path, connector_root)}: critical report metadata.inputs must be a list")
+                    for item in inputs if isinstance(inputs, list) else []:
+                        if not isinstance(item, dict):
+                            errors.append(f"{rel(path, connector_root)}: critical report input must be an object")
+                        elif not isinstance(item.get("path"), str) or not item.get("path"):
+                            errors.append(f"{rel(path, connector_root)}: critical report input path is invalid")
+                        elif is_unverified_critical_input_record_status(item.get("status")):
+                            errors.append(
+                                f"{rel(path, connector_root)}: critical report input is {item.get('status') or 'unknown'}: {item.get('path', 'unknown')}"
+                            )
     if len(run_ids) > 1:
         summary = "; ".join(f"{run_id}: {', '.join(sorted(items))}" for run_id, items in sorted(run_ids.items()))
         errors.append(f"critical generated reports use multiple verified_run_id values: {summary}")
+
+
+def exact_canonical_path(value: object, expected: Path) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    candidate = Path(value)
+    return candidate.is_absolute() and candidate.absolute() == expected.absolute()
+
+
+def check_job_artifact(
+    *,
+    job_id: str,
+    label: str,
+    expected_path: Path,
+    declared_path: object,
+    declared_hash: object,
+    job_root: Path,
+    errors: list[str],
+    connector_root: Path,
+) -> None:
+    if not exact_canonical_path(declared_path, expected_path):
+        errors.append(f"{job_id}: {label} path is not canonical")
+    if not is_within(expected_path, job_root) or has_symlink_component(expected_path, job_root):
+        errors.append(f"{job_id}: {label} path escapes the job root")
+    if not is_regular_file(expected_path, root=job_root):
+        errors.append(f"{job_id}: {label} is not a regular file")
+        return
+    actual_hash = sha256_file(expected_path)
+    if not isinstance(declared_hash, str) or declared_hash != actual_hash:
+        errors.append(f"{job_id}: {label} hash mismatch")
+
+
+def check_verified_runtime_artifact_chain(
+    connector_root: Path,
+    errors: list[str],
+    *,
+    build_root: Path | None = None,
+) -> None:
+    """Validate detached full-matrix receipts rather than derived report claims."""
+    manifest_path = report_path(connector_root, "verified_run_manifest", "json")
+    if not is_regular_file(manifest_path, root=connector_root):
+        errors.append(f"{rel(manifest_path, connector_root)}: verified run manifest is missing or not regular")
+        return
+    verified_manifest = load_json(manifest_path, errors, connector_root)
+    run_id = str(verified_manifest.get("verified_run_id") or "")
+    if not VERIFIED_RUN_ID_PATTERN.fullmatch(run_id):
+        errors.append(f"{rel(manifest_path, connector_root)}: verified_run_id is invalid")
+        return
+    if verified_manifest.get("profile") != "full":
+        errors.append(f"{rel(manifest_path, connector_root)}: verified run profile is not full")
+        return
+
+    selected_build_root = (build_root or Path(verified_runtime_paths()["BUILD_ROOT"])).absolute()
+    command_path = selected_build_root / "verified-runs" / run_id / "verified-commands.json"
+    command_record = verified_manifest.get("command_file")
+    if not isinstance(command_record, dict):
+        errors.append(f"{rel(manifest_path, connector_root)}: command_file receipt is missing")
+        return
+    if not exact_canonical_path(command_record.get("path"), command_path):
+        errors.append(f"{rel(manifest_path, connector_root)}: command_file path is not canonical")
+    if command_record.get("status") != "present" or not is_regular_file(command_path, root=selected_build_root):
+        errors.append(f"{rel(command_path, connector_root)}: verified command receipt is missing or not regular")
+        return
+    if command_record.get("sha256") != sha256_file(command_path):
+        errors.append(f"{rel(command_path, connector_root)}: verified command receipt hash mismatch")
+    if command_record.get("bytes") != command_path.stat().st_size:
+        errors.append(f"{rel(command_path, connector_root)}: verified command receipt byte count mismatch")
+
+    commands = load_json(command_path, errors, connector_root)
+    if commands.get("verified_run_id") != run_id:
+        errors.append(f"{rel(command_path, connector_root)}: verified_run_id mismatch")
+    command_rows = commands.get("commands")
+    if not isinstance(command_rows, list):
+        errors.append(f"{rel(command_path, connector_root)}: commands list is missing")
+    else:
+        full_matrix_commands = [
+            row
+            for row in command_rows
+            if isinstance(row, dict)
+            and row.get("logical_target") == "full-matrix-parallel"
+            and row.get("phase") == "runtime-producers"
+            and row.get("required") is True
+        ]
+        if len(full_matrix_commands) != 1:
+            errors.append(f"{rel(command_path, connector_root)}: expected one required full-matrix producer command")
+        elif not (
+            full_matrix_commands[0].get("runtime_complete") is True
+            and full_matrix_commands[0].get("runtime_status") in {"completed", "completed_with_mismatches"}
+        ):
+            errors.append(f"{rel(command_path, connector_root)}: full-matrix producer command is not runtime complete")
+
+    matrix_root = selected_build_root / "full-matrix"
+    matrix_manifest = matrix_root / "full-runtime-matrix-runs.jsonl"
+    if not is_regular_file(matrix_manifest, root=selected_build_root):
+        errors.append(f"{rel(matrix_manifest, connector_root)}: full runtime matrix manifest is missing or not regular")
+        return
+    rows = read_jsonl_objects(matrix_manifest, errors, connector_root)
+    expected_ids = expected_full_matrix_job_ids()
+    raw_rows: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        connector = str(row.get("connector") or "")
+        crs = str(row.get("test_variant") or "")
+        mrts = str(row.get("mrts_variant") or "")
+        job_id = str(row.get("job_id") or "")
+        expected_job_id = f"{connector}:{crs}:{mrts}"
+        if job_id != expected_job_id or job_id not in expected_ids:
+            errors.append(f"{rel(matrix_manifest, connector_root)}: raw matrix record has invalid job identity {job_id or '<missing>'}")
+            continue
+        if row.get("verified_run_id") != run_id:
+            errors.append(f"{rel(matrix_manifest, connector_root)}: {job_id} verified_run_id mismatch")
+        if job_id in raw_rows:
+            errors.append(f"{rel(matrix_manifest, connector_root)}: duplicate raw matrix job {job_id}")
+            continue
+        raw_rows[job_id] = row
+    if len(rows) != len(expected_ids) or set(raw_rows) != expected_ids:
+        missing = sorted(expected_ids - set(raw_rows))
+        errors.append(
+            f"{rel(matrix_manifest, connector_root)}: full runtime matrix is incomplete: "
+            + (", ".join(missing) if missing else "invalid or duplicate records")
+        )
+
+    completeness = verified_manifest.get("full_matrix_job_completeness")
+    if not isinstance(completeness, dict) or completeness.get("complete_jobs") != len(expected_ids) or completeness.get("missing_jobs") not in ([], None):
+        errors.append(f"{rel(manifest_path, connector_root)}: derived full-matrix completeness does not match the required raw job set")
+
+    for connector in FULL_MATRIX_CONNECTORS:
+        for crs in FULL_MATRIX_CRS_VARIANTS:
+            for mrts in FULL_MATRIX_MRTS_VARIANTS:
+                job_id = f"{connector}:{crs}:{mrts}"
+                job_root = matrix_root / crs / mrts / connector
+                job_path = job_root / "job.json"
+                if not is_regular_file(job_path, root=selected_build_root):
+                    errors.append(f"{job_id}: job receipt is missing or not regular")
+                    continue
+                job = load_json(job_path, errors, connector_root)
+                for key, expected in (
+                    ("connector", connector),
+                    ("job_id", job_id),
+                    ("verified_run_id", run_id),
+                    ("test_variant", crs),
+                    ("mrts_variant", mrts),
+                ):
+                    if job.get(key) != expected:
+                        errors.append(f"{job_id}: {key} mismatch")
+                if job.get("status") not in {"completed", "completed_with_mismatches"}:
+                    errors.append(f"{job_id}: status is not a completed runtime state")
+                if not isinstance(job.get("return_code"), int) or isinstance(job.get("return_code"), bool):
+                    errors.append(f"{job_id}: return_code is missing or invalid")
+                for key in ("started_at", "ended_at"):
+                    if not isinstance(job.get(key), str) or not job.get(key):
+                        errors.append(f"{job_id}: missing {key}")
+                if not isinstance(job.get("duration_seconds"), (int, float)) or isinstance(job.get("duration_seconds"), bool) or job.get("duration_seconds") < 0:
+                    errors.append(f"{job_id}: duration_seconds is missing or invalid")
+
+                results_dir = job_root / "results"
+                if (
+                    not exact_canonical_path(job.get("results_dir"), results_dir)
+                    or not is_within(results_dir, job_root)
+                    or has_symlink_component(results_dir, job_root)
+                    or not results_dir.is_dir()
+                    or results_dir.is_symlink()
+                ):
+                    errors.append(f"{job_id}: results_dir is not canonical")
+                hashes = job.get("hashes") if isinstance(job.get("hashes"), dict) else {}
+                outputs = job.get("outputs") if isinstance(job.get("outputs"), dict) else {}
+                inputs = job.get("inputs") if isinstance(job.get("inputs"), dict) else {}
+                log_path = job_root / "run.log"
+                build_manifest_path = job_root / "build-manifest.json"
+                results_jsonl_path = results_dir / "force-all" / f"{connector}-results.jsonl"
+                summary_candidates = (
+                    results_dir / f"{connector}-summary.json",
+                    results_dir / "force-all" / f"{connector}-summary.json",
+                )
+                summary_path = Path(str(job.get("summary_path") or ""))
+                if not summary_path.is_absolute() or all(summary_path.absolute() != candidate.absolute() for candidate in summary_candidates):
+                    errors.append(f"{job_id}: summary path is not canonical")
+                    summary_path = summary_candidates[-1]
+                check_job_artifact(
+                    job_id=job_id,
+                    label="log",
+                    expected_path=log_path,
+                    declared_path=job.get("log_path"),
+                    declared_hash=hashes.get("log"),
+                    job_root=job_root,
+                    errors=errors,
+                    connector_root=connector_root,
+                )
+                check_job_artifact(
+                    job_id=job_id,
+                    label="build_manifest",
+                    expected_path=build_manifest_path,
+                    declared_path=inputs.get("build_manifest"),
+                    declared_hash=hashes.get("build_manifest"),
+                    job_root=job_root,
+                    errors=errors,
+                    connector_root=connector_root,
+                )
+                check_job_artifact(
+                    job_id=job_id,
+                    label="summary",
+                    expected_path=summary_path,
+                    declared_path=outputs.get("summary"),
+                    declared_hash=hashes.get("summary"),
+                    job_root=job_root,
+                    errors=errors,
+                    connector_root=connector_root,
+                )
+                check_job_artifact(
+                    job_id=job_id,
+                    label="results_jsonl",
+                    expected_path=results_jsonl_path,
+                    declared_path=outputs.get("results_jsonl"),
+                    declared_hash=hashes.get("results_jsonl"),
+                    job_root=job_root,
+                    errors=errors,
+                    connector_root=connector_root,
+                )
+                if not exact_canonical_path(outputs.get("job_json"), job_path):
+                    errors.append(f"{job_id}: job_json output path is not canonical")
+                if not exact_canonical_path(outputs.get("log"), log_path):
+                    errors.append(f"{job_id}: log output path is not canonical")
+                if not exact_canonical_path(outputs.get("results_dir"), results_dir):
+                    errors.append(f"{job_id}: results_dir output path is not canonical")
+
+                summary = (
+                    load_json(summary_path, errors, connector_root)
+                    if is_regular_file(summary_path, root=job_root)
+                    else {}
+                )
+                connector_summary = summary.get(connector) if isinstance(summary.get(connector), dict) else {}
+                if not isinstance(connector_summary.get("cases"), dict) or not connector_summary.get("cases"):
+                    errors.append(f"{job_id}: summary lacks structured connector cases")
+                result_rows = (
+                    read_jsonl_objects(results_jsonl_path, errors, connector_root)
+                    if is_regular_file(results_jsonl_path, root=job_root)
+                    else []
+                )
+                if not result_rows:
+                    errors.append(f"{job_id}: results_jsonl lacks structured result records")
+
+                raw = raw_rows.get(job_id)
+                if raw is None:
+                    continue
+                for key in ("connector", "job_id", "verified_run_id", "test_variant", "mrts_variant", "return_code", "status", "hashes", "inputs", "outputs"):
+                    if raw.get(key) != job.get(key):
+                        errors.append(f"{job_id}: raw matrix {key} does not match job receipt")
 
 
 def check_verified_runtime_diagnostics(connector_root: Path, errors: list[str], *, strict_evidence: bool) -> None:
@@ -537,6 +914,8 @@ def main() -> int:
     check_existing_generated_reports(connector_root, errors)
     check_generated_markdown_portability(connector_root, errors)
     check_critical_report_run_consistency(connector_root, errors, strict_evidence=strict_evidence)
+    if strict_evidence:
+        check_verified_runtime_artifact_chain(connector_root, errors)
     check_verified_runtime_diagnostics(connector_root, errors, strict_evidence=strict_evidence)
     check_system_environment_proof(connector_root, errors)
     check_no_legacy_references(connector_root, errors)

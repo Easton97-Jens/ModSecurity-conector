@@ -237,6 +237,7 @@ def collect_jobs(matrix_root: Path, manifest_path: Path) -> list[dict[str, Any]]
                     "connector": connector,
                     "crs": crs,
                     "mrts": mrts,
+                    "verified_run_id": job.get("verified_run_id", ""),
                     "status": status,
                     "reason": reason,
                     "manifest_recorded": bool(manifest_row),
@@ -257,6 +258,9 @@ def collect_jobs(matrix_root: Path, manifest_path: Path) -> list[dict[str, Any]]
                     "summary_path": str(summary),
                     "results_jsonl": str(jsonl),
                     "result_path": str(summary if summary.is_file() else jsonl),
+                    "hashes": job.get("hashes") if isinstance(job.get("hashes"), dict) else {},
+                    "inputs": job.get("inputs") if isinstance(job.get("inputs"), dict) else {},
+                    "outputs": job.get("outputs") if isinstance(job.get("outputs"), dict) else {},
                     "input_hashes": [
                         file_record(job_path, "job_json"),
                         file_record(log_path, "run_log"),
@@ -277,15 +281,21 @@ def rewrite_manifest(path: Path, jobs: list[dict[str, Any]]) -> None:
     for job in completed:
         row = {
             "connector": job["connector"],
+            "job_id": job["job_id"],
+            "verified_run_id": job["verified_run_id"],
             "test_variant": job["crs"],
             "mrts_variant": job["mrts"],
             "return_code": job["return_code"],
+            "status": job["status"],
             "started_at": job["started_at"],
             "ended_at": job["ended_at"],
             "duration_seconds": job["duration_seconds"],
             "results_dir": str(Path(job["job_path"]).parent / "results"),
             "summary_path": job["summary_path"],
             "log_path": job["log_path"],
+            "hashes": job["hashes"],
+            "inputs": job["inputs"],
+            "outputs": job["outputs"],
         }
         lines.append(json.dumps(row, sort_keys=True))
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")

@@ -38,6 +38,12 @@ from runtime_path_utils import (
 )
 
 
+SELF_GENERATED_VERIFIED_MANIFESTS = {
+    "verified-run-manifest.generated.json",
+    "verified-run-manifest.generated.md",
+}
+
+
 def git_output(args: list[str], cwd: Path) -> str:
     try:
         result = subprocess.run(
@@ -318,7 +324,11 @@ def generated_output_records(connector_root: Path) -> list[dict[str, Any]]:
     generated_root = connector_root / "reports/testing/generated"
     if not generated_root.is_dir():
         return []
-    return [file_record(path, connector_root) for path in sorted(generated_root.rglob("*.generated.*")) if path.is_file()]
+    return [
+        file_record(path, connector_root)
+        for path in sorted(generated_root.rglob("*.generated.*"))
+        if path.is_file() and path.name not in SELF_GENERATED_VERIFIED_MANIFESTS
+    ]
 
 
 def manifest_report_records(connector_root: Path) -> list[dict[str, Any]]:
