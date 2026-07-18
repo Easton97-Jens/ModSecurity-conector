@@ -10,7 +10,7 @@
 | Datum (UTC) | `2026-07-18` |
 | Basis-Revision | `c8ca0d92b630c18232b881855c4f5d1482568ea6` |
 | Finding | `FND-PARENT-0027` |
-| Grenze | Nur Parent-Phase-4-Evidence-Validator und Parent-Tests; Framework und MRTS unverändert. |
+| Grenze | Parent-Phase-4-Evidence-Validator, Parent-Makefile-Promotion-Verdrahtung und Parent-Tests; Framework und MRTS unverändert. |
 
 ## Motivation und Problemstellung
 
@@ -33,36 +33,46 @@ gehörte.
   Integrationsmodus und fremder Transaktion werden sowohl für First-Byte- als
   auch No-Full-Buffer-Prüfungen abgelehnt.
 - Ein nativer Apache-Kontrollfall desselben Runs bleibt akzeptiert.
+- Die tatsächlichen Parent-Targets für First-Byte, No-Full-Buffering und
+  Promotion rufen zusätzlich zum Framework-Check die entsprechenden
+  Parent-Identitätsprüfungen auf.
 - Englische/deutsche Change Records und ihre README-Links nennen nur
   beobachtete lokale Evidence; es erfolgen keine Framework-, MRTS-, Git- oder
   Delivery-Aktionen.
 
 ## Implementierungsentscheidung und Begründung
 
-Der Parent-Checker leitet die erwartete native Identität jetzt aus
+Der Parent-Checker leitet die erwartete native Identität aus
 `FULL_LIFECYCLE_IDENTITIES` ab, bindet das kanonische Resultat an ausgewählten
 Connector und CLI-Run-ID und verlangt `transaction_ids`, die bereits vom
 kanonischen Resultatfall getragen werden. Der Matcher lehnt jedes Event ab,
 das in einem dieser Felder fehlt oder abweicht. Dies nutzt das Identitätsmodell
 des bestehenden Parent-Six-Connector-Core-Checkers und ändert weder einen
-Framework-Producer-Vertrag noch das Evidence-Schema.
-`host_profile` ist Metadatum auf Resultat-Ebene und wird vor diesem Matcher
-validiert; das Event-Schema führt den kanonischen `integration_mode`, auf den
-das ausgewählte native Profil abgebildet wird.
+Framework-Producer-Vertrag noch das Evidence-Schema. Ein dedizierter
+Parent-Makefile-Helper führt den Profil-Check für jedes strikte Gate aus und
+führt zusätzlich für das entsprechende Target den passenden First-Byte-,
+No-Full-Buffer- oder Promotion-Check aus. `host_profile` ist Metadatum auf
+Resultat-Ebene und wird vor diesem Matcher validiert; das Event-Schema führt
+den kanonischen `integration_mode`, auf den das ausgewählte native Profil
+abgebildet wird.
 
 ## Security-Auswirkung
 
-Die korrigierte Trust Boundary verhindert, dass ein Rule-und-Phase-Lookalike
-als Phase-4-Runtime-Evidence des aktuell ausgewählten Hosts promoted wird. Die
-Resultatgrenze validiert das ausgewählte `host_profile`; die Event-Grenze
-validiert seinen kanonischen nativen `integration_mode`. Sie schließt den
-validierten Parent-Matching-Bypass für `FND-PARENT-0027` und behält für
-unvollständige Identitätsmetadaten ein geschlossenes Fehlverhalten bei.
+Die korrigierte Parent-Trust-Boundary verhindert, dass ein Rule-und-Phase-
+Lookalike durch ein Parent-Target für First-Byte, No-Full-Buffer oder
+Promotion als Phase-4-Runtime-Evidence des aktuell ausgewählten Hosts
+promoted wird. Die Resultatgrenze validiert das ausgewählte `host_profile`;
+die Event-Grenze validiert seinen kanonischen nativen `integration_mode`.
+Dieser Record behauptet nicht, dass `FND-PARENT-0027` geschlossen ist: Der
+Framework-autoritative Checker benötigt einen separaten Framework-eigenen
+Identitätsbindungsauftrag.
 
 ## Geänderte Dateien
 
+- `Makefile`
 - `ci/checks/evidence/check-full-lifecycle-evidence.py`
 - `tests/test_full_lifecycle_evidence.py`
+- `tests/test_full_lifecycle_gate_wiring.py`
 - `reports/audits/change-records/README.md`
 - `reports/audits/change-records/README.de.md`
 - `reports/audits/change-records/CR-20260718-phase4-evidence-identity-binding.md`
@@ -75,6 +85,8 @@ unvollständige Identitätsmetadaten ein geschlossenes Fehlverhalten bei.
 | `rtk env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_full_lifecycle_evidence` vor der Matcher-Korrektur | Erwarteter Fehlschlag: Die fünf verlangten Spoofing-Klassen und die alternative Klasse fremde Transaktion wurden akzeptiert; der legitime Apache-Kontrollfall bestand. |
 | `rtk env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_full_lifecycle_evidence` nach der Matcher-Korrektur | bestanden: 17 Tests einschließlich aller negativen Fixtures und des legitimen Apache-Kontrollfalls. |
 | `rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_full_lifecycle_evidence tests.test_six_connector_core_completion` | bestanden: 19 fokussierte Parent-Tests. |
+| `rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_full_lifecycle_gate_wiring tests.test_full_lifecycle_evidence tests.test_six_connector_core_completion` | bestanden: 20 fokussierte Parent-Tests einschließlich des statischen Makefile-Contracts, der die Parent-Checks für First-Byte, No-Full-Buffer und Promotion erreicht. |
+| `rtk make -n check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-promotion NO_CRS_RUN_ID=phase4-wiring-control ...` | bestanden: gab den Parent-Profil-Check sowie die target-spezifischen Parent-Kommandos für First-Byte, No-Full-Buffer und Promotion aus. |
 | `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -c '<check_change_record_pair(...)>'` gegen dieses englische/deutsche Paar | bestanden: erforderliche Überschriften, Identitätsmetadaten und bilinguale Paarinvarianten. |
 | `rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHON=/root/git/ModSecurity-conector/.venv/bin/python make check-bilingual-docs` | durch fehlende Framework-Dokumentationsziele in diesem dedizierten Worktree blockiert; nach der Korrektur der Record-Überschriften meldete die Ausgabe keinen Fehler in diesem Change-Record-Paar. |
 | `rtk git diff --check` | bestanden. |
@@ -118,8 +130,10 @@ Identitäts-Evidence behandelt.
 
 ## Finaler Diff- und Review-Status
 
-Fokussierte Post-Fix-Tests, Change-Record-Paarvalidierung und finale
-Whitespace-Diff-Validierung bestanden. Das vollständige Bilingual-Target ist
-nur durch fehlende Framework-Linkziele in diesem Worktree extern blockiert.
-Delivery-Status ist nur lokal: kein Staging, Commit, Push, Pull-Request oder
-Merge erfolgte.
+Der erste Identity-Matcher-Commit verdrahtete die Parent-Checks noch nicht in
+die tatsächlichen Make-Targets für First-Byte und Promotion; eine unabhängige
+Security-Review identifizierte diese Reachability-Lücke. Dieser Change Record
+ist um die Parent-Verdrahtungs-Remediation und ihren statischen Contract-Test
+ergänzt. Der Framework-Checker bleibt eine separat verantwortete Boundary.
+Exact-PR-Head-, CI- und Review-Evidence wird im kanonischen Finding erfasst
+und hier nicht behauptet.
