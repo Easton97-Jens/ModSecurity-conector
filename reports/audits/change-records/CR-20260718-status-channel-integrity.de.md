@@ -1,0 +1,117 @@
+# Change Record: Integrität des CI-Statuskanals
+
+**Sprache:** [English](CR-20260718-status-channel-integrity.md) | Deutsch
+
+## Identität
+
+| Feld | Wert |
+| --- | --- |
+| Change-ID | `CR-20260718-status-channel-integrity` |
+| Datum (UTC) | `2026-07-18` |
+| Basis-Revision | `c8ca0d92b630c18232b881855c4f5d1482568ea6` |
+| Finding | `FND-PARENT-0025` |
+| Grenze | Nur Parent-CI-Statusrunner, Apache-Lint-Wiring, Tests und Dokumentation; Framework und MRTS bleiben unverändert. |
+
+## Motivation und Problemstellung
+
+`ci/tools/run-check-status.py` hat zuvor eine `CHECK_STATUS_REASON`-Zeile aus
+kombiniertem Child-`stdout` und Child-`stderr` geparst. Ein Child mit Exit `77`
+konnte daher den erlaubten Apache-Prerequisite-String ausgeben und aus einem
+erlaubten Lint-Ergebnis Erfolg machen. Der Ausgabestream fungierte damit als
+nicht authentifizierter Statuskanal.
+
+## Akzeptanzkriterien
+
+- Ein vom Child erzeugter erlaubter Marker in `stdout` oder `stderr` kann kein
+  Blocked-Ergebnis autorisieren.
+- Die fehlende Apache-Entwicklungs-Prerequisite bleibt nur dann eine erlaubte,
+  strukturierte Lint-Disposition, wenn der Parent-Runner sie vor dem Start des
+  Childs erkennt.
+- Ein Kontrollpfad mit nutzbarem APXS/Header startet das Child weiterhin und
+  bewahrt Erfolgs- oder Fehlersemantik.
+- Direkte, nicht klassifizierte Exit-`77`-Ergebnisse bleiben nichtnull.
+- Parent-Regressionstests und zweisprachige Dokumentation beschreiben die
+  resultierende Kontrollgrenze wahrheitsgemäß.
+
+## Implementierungsentscheidung und Begründung
+
+Der Runner parst keinen Child-Text mehr als Grund. Er persistiert einen
+Version-2-Datensatz mit `status_source`; nur sein
+`--blocked-if-missing-apache-development`-Preflight kann die erlaubte
+`apache_development_prerequisite`-Disposition ausgeben. Dieser Preflight löst
+`APXS_BIN`, `APXS`, `CI_APXS_BIN_CANDIDATES` oder `apxs`/`apxs2` auf und
+verlangt dann ein ausführbares APXS, dessen Ergebnis von `-q INCLUDEDIR`
+absolut ist und `httpd.h` enthält. Bei Erfolg läuft das Child normal; jeder
+spätere Child-Exit `77` bleibt nicht klassifiziert und nichtnull. Das
+Apache-Child-Skript gibt keinen Status-Steuerungsmarker mehr aus.
+
+## Security-Auswirkung
+
+Die kontrollierten Eingaben sind direktes Child-`stdout`, Child-`stderr` und
+der Exit-Status. Das Schutzobjekt ist die CI-Entscheidung, einen optionalen
+Apache-Prerequisite-Block zu erlauben. Der Parent-Runner besitzt diese
+Autorisierung jetzt über einen separaten persistierten Datensatz und einen
+Parent-Preflight. Child-Ausgabe bleibt nur diagnostisch. Dieser Patch ändert
+weder Runtime-Host-Evidence noch Report-Governance, Framework-Verhalten, MRTS
+oder einen Connector-Runtime-Claim.
+
+## Geänderte Dateien
+
+- `ci/tools/run-check-status.py`
+- `Makefile`
+- `ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh`
+- `tests/test_optional_prerequisite_status.py`
+- `ci/README.md` und `ci/README.de.md`
+- dieses englische/deutsche Change-Record-Paar und seine README-Indexlinks
+
+## Ausgeführte Befehle
+
+| Befehl | Ergebnis |
+| --- | --- |
+| `rtk env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 CODEX_TEMP_ROOT=<task-owned-build-root> /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_optional_prerequisite_status` vor dem Source-Fix | erwartungsgemäß fehlgeschlagen: Die neue Suite der Nachbedingung meldete fünf Failures und sechs Errors, einschließlich beider vom alten Runner fälschlich erlaubten gefälschten Marker-Fälle. |
+| `rtk env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 CODEX_TEMP_ROOT=<task-owned-build-root> make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-optional-prerequisite-status` nach dem Source-Fix | bestanden: 18 fokussierte Tests, einschließlich gefälschter `stdout`-/`stderr`-Marker, eines nicht erlaubten Markers, eines echten Missing-APXS/Header-Preflights, eines nutzbaren-APXS-Kontrollfalls, rekursivem Make und des tatsächlichen Apache-Lint-Targets. |
+| Retained original stderr and stdout spoof probes durch den gepatchten Runner | bestanden: Jede Probe lieferte `77` mit `allowed_by_contract: false`, `reason: "unclassified direct blocked exit code 77"` und `status_source: "child_exit_code"`. |
+| `rtk env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -c '<compile selected files>'` | bestanden: `ci/tools/run-check-status.py` und `tests/test_optional_prerequisite_status.py` wurden ohne Checkout-Bytecode-Ausgabe im Speicher kompiliert. |
+| `rtk shellcheck -x ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh` | fehlgeschlagen an bestehenden Diagnosen in den Zeilen 4 und 86–87 (`SC1007` und `SC2086`); diese Änderung entfernt nur den Statusmarker in Zeile 31 und ändert diese nicht zugehörigen Command-Construction-Zeilen nicht. |
+| `rtk env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-bilingual-docs` | fehlgeschlagen, weil dieser Sparse-Worktree verlinkte Framework-Dokumentation nicht materialisiert; nach Korrektur der Change-Record-Überschriften meldete die Prüfung keinen Fehler für dieses Change-Record-Paar oder seine README-Links. |
+| `rtk git diff --check` | bestanden. |
+
+## Runtime-Evidence
+
+Nicht anwendbar. Dies ist eine Korrektur des CI-Statuskanals. Sie startet
+weder einen Connector-Host noch etabliert sie HTTP-, CRS-, MRTS- oder
+Lifecycle-Evidence.
+
+## Nicht ausgeführte Prüfungen mit Begründung
+
+`rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile ci/tools/run-check-status.py tests/test_optional_prerequisite_status.py` war blockiert, weil `py_compile` trotz `PYTHONDONTWRITEBYTECODE=1` versucht, Checkout-lokale `__pycache__` zu erzeugen, und dieser Worktree diese Schreiboperation korrekt zurückweist. Die fokussierten Import- und Ausführungstests oben bestanden ohne Bytecode-Ausgabe.
+
+Vollständiges Linting, Connector-Builds, Runtime-Harnesses, Generator-/Report-
+Tests, CodeQL, SonarQube Cloud, GitHub Actions, Review, Commit, Push und
+Pull-Request-Verifikation wurden in diesem isolierten Remediation-Worktree
+nicht ausgeführt. Sie benötigen den Parent-Delivery-Workflow und, soweit
+anwendbar, den exakten späteren PR-Head.
+
+## Bekannte Einschränkungen
+
+Der Apache-Preflight deckt absichtlich nur diese Lint-Erlaubnis ab. Andere
+Status-Wrapper-Aufrufer sind separate Root Causes und werden hier nicht
+geändert.
+
+## Verbleibende Risiken
+
+Der Preflight vertraut den konfigurierten APXS-Kandidaten des Jobs,
+vertraut jedoch nie einem Child-Ergebnis zur Autorisierung eines Blocks. Ein
+nutzbares APXS kann weiterhin zu einem späteren echten Child-Fehler oder einem
+nicht klassifizierten `77` führen, das rot bleibt.
+
+## Finaler Diff- und Review-Status
+
+Fokussierte Regression-Coverage, In-Memory-Syntaxvalidierung und `git diff
+--check` bestanden. Verpflichtende Change-Record-Überschriften,
+wechselseitige Sprachlinks und beide README-Indexlinks wurden manuell
+validiert. Das zweisprachige Target schlägt weiterhin nur fehl, weil diesem
+Sparse-Worktree verlinkte Framework-Dokumentation fehlt; es meldet keinen
+Fehler für dieses Change-Record-Paar. Delivery-Prüfungen stehen weiterhin aus;
+es wurde kein Commit, Push, Pull Request, Merge oder Runtime-Evidence-Claim
+erzeugt.

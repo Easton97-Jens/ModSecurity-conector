@@ -52,13 +52,17 @@ Exit `0` means technical completion, not that every catalog case is `PASS`. `1` 
 
 `ci/tools/run-check-status.py` runs one direct child command, writes a
 payload-free JSON record, and emits a `CHECK_STATUS` JSON line before Make can
-replace the child's exit code. Its records use this lowercase status model:
+replace the child's exit code. The persisted record is the status channel: its
+`schema_version` is `2` and `status_source` is either `child_exit_code`,
+`parent_preflight`, or `parent_explicit`. Child `stdout` and `stderr` are
+forwarded only for diagnostics; neither stream can supply a reason or
+authorize a workflow result. Its records use this lowercase status model:
 
 | Status | Meaning | Default workflow result |
 | --- | --- | --- |
 | `passed` | The direct check ran and succeeded. | success |
 | `failed` | The direct check returned an error other than the declared blocked code. | failure |
-| `blocked` | The check is relevant but a declared prerequisite is unavailable. | failure unless its caller explicitly allows its exact structured reason |
+| `blocked` | The check is relevant but a declared prerequisite is unavailable. | failure unless this runner's `parent_preflight` records an allowed structured reason |
 | `not_applicable` | The caller explicitly records that the check is outside this job's scope. | failure unless its caller explicitly allows it |
 | `not_executed` | The check was deliberately not started and has no valid disposition. | failure |
 
@@ -76,12 +80,18 @@ evidence.
 source contract and native Apache/APR harness must both complete, and a missing
 prerequisite remains nonzero. In contrast,
 `make check-apache-request-transaction-cleanup-lint` keeps the same mandatory
-Python source contract but explicitly allows only a direct `77` accompanied by
-`CHECK_STATUS_REASON apache_development_prerequisite`; it records that
-`blocked` result and lets every unmarked or differently marked result fail.
-The five documented Push workflows reach this one subcheck through `make lint`
-or `make quick-check`; no other target, Common check, or connector check
-inherits the allowance.
+Python source contract but uses the parent-owned
+`--blocked-if-missing-apache-development` preflight. Before the child starts,
+the runner resolves `APXS_BIN`, then `APXS`, then
+`CI_APXS_BIN_CANDIDATES` (or `apxs`/`apxs2`), and requires an executable APXS
+whose `-q INCLUDEDIR` result is an absolute directory containing `httpd.h`.
+Only when that preflight fails does the runner record the structured
+`apache_development_prerequisite` `blocked` result and allow it for this lint
+target. If the preflight passes, the child runs; every child `77`, including a
+copied or forged `CHECK_STATUS_REASON` string in either output stream, remains
+an unclassified nonzero result. The five documented Push workflows reach this
+one subcheck through `make lint` or `make quick-check`; no other target,
+Common check, or connector check inherits the allowance.
 
 ## Adding a file
 

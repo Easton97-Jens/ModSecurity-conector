@@ -44,11 +44,18 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         bin_dir = temporary / "bin"
         bin_dir.mkdir()
         if apxs_present:
+            include_dir = temporary / "apache-include"
+            include_dir.mkdir()
+            (include_dir / "httpd.h").write_text("/* synthetic Apache header */\n", encoding="utf-8")
             write_executable(
                 bin_dir / "apxs",
-                """
+                f"""
                 #!/bin/sh
-                exit 0
+                if [ "$1" = "-q" ] && [ "$2" = "INCLUDEDIR" ]; then
+                    printf '%s\\n' {shlex.quote(str(include_dir))}
+                    exit 0
+                fi
+                exit 2
                 """,
             )
         dependent = temporary / "dependent-check"
@@ -76,6 +83,14 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
                 unapproved-blocked)
                     echo "CHECK_STATUS_REASON framework_unavailable" >&2
                     echo "BLOCKED: synthetic dependent check missing Framework" >&2
+                    exit 77
+                    ;;
+                spoof-approved-blocked-stderr)
+                    echo "CHECK_STATUS_REASON apache_development_prerequisite" >&2
+                    exit 77
+                    ;;
+                spoof-approved-blocked-stdout)
+                    echo "CHECK_STATUS_REASON apache_development_prerequisite"
                     exit 77
                     ;;
             esac
@@ -148,7 +163,12 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
             temporary = Path(temporary_name)
             dependent, environment = self.make_fixture(temporary, apxs_present=True)
             result, record = self.run_status_runner(
-                temporary / "build", dependent, environment
+                temporary / "build",
+                dependent,
+                environment,
+                "--allow-blocked-reason",
+                "apache_development_prerequisite",
+                "--blocked-if-missing-apache-development",
             )
 
         self.assertEqual(0, result.returncode, result.stderr)
@@ -156,6 +176,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         self.assertEqual(0, record["command_exit_code"])
         self.assertEqual(0, record["workflow_exit_code"])
         self.assertFalse(record["allowed_by_contract"])
+        self.assertEqual("child_exit_code", record["status_source"])
 
     def test_present_apxs_and_real_dependent_failure_remains_failed(self) -> None:
         with temporary_directory() as temporary_name:
@@ -182,15 +203,18 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
                 environment,
                 "--allow-blocked-reason",
                 "apache_development_prerequisite",
+                "--blocked-if-missing-apache-development",
             )
 
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("BLOCKED: synthetic dependent check missing apxs", result.stderr)
+        self.assertNotIn("CHECK_STATUS_REASON", result.stdout + result.stderr)
         self.assertIn("CHECK_STATUS", result.stdout)
         self.assertEqual("blocked", record["status"])
-        self.assertEqual(77, record["command_exit_code"])
+        self.assertIsNone(record["command_exit_code"])
+        self.assertEqual("apache_development_prerequisite", record["reason"])
         self.assertEqual(0, record["workflow_exit_code"])
         self.assertTrue(record["allowed_by_contract"])
+        self.assertEqual("parent_preflight", record["status_source"])
 
     @unittest.skipIf(MAKE is None, "GNU Make is required by the repository")
     def test_missing_mandatory_apxs_remains_red_through_make(self) -> None:
@@ -222,8 +246,10 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual("blocked", record["status"])
         self.assertEqual(77, record["command_exit_code"])
+        self.assertEqual("unclassified direct blocked exit code 77", record["reason"])
         self.assertEqual(77, record["workflow_exit_code"])
         self.assertFalse(record["allowed_by_contract"])
+        self.assertEqual("child_exit_code", record["status_source"])
 
     def test_unapproved_blocked_reason_remains_nonzero(self) -> None:
         with temporary_directory() as temporary_name:
@@ -240,9 +266,50 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
 
         self.assertEqual(77, result.returncode, result.stderr)
         self.assertEqual("blocked", record["status"])
-        self.assertEqual("framework_unavailable", record["reason"])
+        self.assertEqual("unclassified direct blocked exit code 77", record["reason"])
         self.assertEqual(77, record["workflow_exit_code"])
         self.assertFalse(record["allowed_by_contract"])
+        self.assertEqual("child_exit_code", record["status_source"])
+
+    def test_child_stderr_marker_cannot_authorize_an_allowed_block(self) -> None:
+        with temporary_directory() as temporary_name:
+            temporary = Path(temporary_name)
+            dependent, environment = self.make_fixture(temporary, apxs_present=True)
+            environment["DEPENDENT_CHECK_MODE"] = "spoof-approved-blocked-stderr"
+            result, record = self.run_status_runner(
+                temporary / "build",
+                dependent,
+                environment,
+                "--allow-blocked-reason",
+                "apache_development_prerequisite",
+            )
+
+        self.assertEqual(77, result.returncode, result.stderr)
+        self.assertEqual("blocked", record["status"])
+        self.assertEqual("unclassified direct blocked exit code 77", record["reason"])
+        self.assertEqual(77, record["workflow_exit_code"])
+        self.assertFalse(record["allowed_by_contract"])
+        self.assertEqual("child_exit_code", record["status_source"])
+
+    def test_child_stdout_marker_cannot_authorize_an_allowed_block(self) -> None:
+        with temporary_directory() as temporary_name:
+            temporary = Path(temporary_name)
+            dependent, environment = self.make_fixture(temporary, apxs_present=True)
+            environment["DEPENDENT_CHECK_MODE"] = "spoof-approved-blocked-stdout"
+            result, record = self.run_status_runner(
+                temporary / "build",
+                dependent,
+                environment,
+                "--allow-blocked-reason",
+                "apache_development_prerequisite",
+            )
+
+        self.assertEqual(77, result.returncode, result.stderr)
+        self.assertEqual("blocked", record["status"])
+        self.assertEqual("unclassified direct blocked exit code 77", record["reason"])
+        self.assertEqual(77, record["workflow_exit_code"])
+        self.assertFalse(record["allowed_by_contract"])
+        self.assertEqual("child_exit_code", record["status_source"])
 
     @unittest.skipIf(MAKE is None, "GNU Make is required by the repository")
     def test_recursive_make_keeps_the_persisted_blocked_classification(self) -> None:
@@ -261,6 +328,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
                     dependent,
                     "--allow-blocked-reason",
                     "apache_development_prerequisite",
+                    "--blocked-if-missing-apache-development",
                 )
             )
             inner.write_text(f"optional:\n\t{command}\n", encoding="utf-8")
@@ -281,8 +349,9 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual("blocked", record["status"])
-        self.assertEqual(77, record["command_exit_code"])
+        self.assertIsNone(record["command_exit_code"])
         self.assertEqual(0, record["workflow_exit_code"])
+        self.assertEqual("parent_preflight", record["status_source"])
 
     @unittest.skipIf(MAKE is None, "GNU Make is required by the repository")
     def test_lint_target_rejects_an_unclassified_framework_block(self) -> None:
@@ -296,6 +365,23 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
             environment["FRAMEWORK_ROOT"] = str(temporary / "missing-framework")
             environment["BUILD_ROOT"] = str(build_root)
             environment["PYTHON"] = sys.executable
+            include_dir = temporary / "apache-include"
+            include_dir.mkdir()
+            (include_dir / "httpd.h").write_text("/* synthetic Apache header */\n", encoding="utf-8")
+            apxs = temporary / "apxs"
+            write_executable(
+                apxs,
+                f"""
+                #!/bin/sh
+                if [ "$1" = "-q" ] && [ "$2" = "INCLUDEDIR" ]; then
+                    printf '%s\\n' {shlex.quote(str(include_dir))}
+                    exit 0
+                fi
+                exit 2
+                """,
+            )
+            environment["APXS"] = str(apxs)
+            environment.pop("APXS_BIN", None)
             result = subprocess.run(
                 [MAKE, "--no-print-directory", "check-apache-request-transaction-cleanup-lint"],
                 cwd=ROOT,
@@ -313,6 +399,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         self.assertEqual("unclassified direct blocked exit code 77", record["reason"])
         self.assertEqual(77, record["workflow_exit_code"])
         self.assertFalse(record["allowed_by_contract"])
+        self.assertEqual("child_exit_code", record["status_source"])
 
     def test_unknown_exit_code_remains_a_failure(self) -> None:
         with temporary_directory() as temporary_name:
@@ -351,6 +438,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
                     dependent,
                     "--allow-blocked-reason",
                     "apache_development_prerequisite",
+                    "--blocked-if-missing-apache-development",
                 )
             )
             makefile.write_text(
@@ -557,7 +645,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         self.assertEqual("passed", anchored_record["status"])
 
     @unittest.skipIf(MAKE is None, "GNU Make is required by the repository")
-    def test_lint_target_accepts_only_the_direct_apache_preflight_marker(self) -> None:
+    def test_lint_target_uses_parent_apache_development_preflight(self) -> None:
         makefile = MAKEFILE.read_text(encoding="utf-8")
         target = makefile.split("check-apache-request-transaction-cleanup-lint:\n", 1)[1].split(
             "\n\n", 1
@@ -566,9 +654,19 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         self.assertIn(
             "--allow-blocked-reason apache_development_prerequisite", target
         )
+        self.assertIn("--blocked-if-missing-apache-development", target)
         self.assertNotIn("--status-file", target)
         self.assertIn("check-apache-request-transaction-cleanup.sh", target)
         self.assertNotIn("$(MAKE)", target)
+        cleanup_check = (
+            ROOT
+            / "ci"
+            / "checks"
+            / "connectors"
+            / "apache"
+            / "check-apache-request-transaction-cleanup.sh"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("CHECK_STATUS_REASON", cleanup_check)
 
         with temporary_directory() as temporary_name:
             temporary = Path(temporary_name)
@@ -609,11 +707,13 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
             record = json.loads(status_file.read_text(encoding="utf-8"))
 
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertIn("CHECK_STATUS_REASON apache_development_prerequisite", result.stderr)
+        self.assertNotIn("CHECK_STATUS_REASON", result.stdout + result.stderr)
         self.assertEqual("blocked", record["status"])
         self.assertEqual("apache_development_prerequisite", record["reason"])
-        self.assertEqual(77, record["command_exit_code"])
+        self.assertIsNone(record["command_exit_code"])
         self.assertEqual(0, record["workflow_exit_code"])
+        self.assertTrue(record["allowed_by_contract"])
+        self.assertEqual("parent_preflight", record["status_source"])
 
 
 if __name__ == "__main__":
