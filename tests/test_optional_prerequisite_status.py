@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 from pathlib import Path
@@ -157,6 +158,51 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
             text=True,
             env=environment,
         )
+
+    def test_parent_apache_candidate_resolution_has_one_canonical_return(
+        self,
+    ) -> None:
+        module = ast.parse(STATUS_RUNNER.read_text(encoding="utf-8"))
+        functions = [
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "apache_development_candidates"
+        ]
+
+        self.assertEqual(1, len(functions))
+        returns = [
+            node
+            for node in ast.walk(functions[0])
+            if isinstance(node, ast.Return)
+        ]
+
+        self.assertEqual(1, len(returns))
+        self.assertIsInstance(returns[0].value, ast.Name)
+        self.assertEqual("candidates", returns[0].value.id)
+
+    def test_configured_apxs_candidate_is_a_valid_parent_preflight(self) -> None:
+        with temporary_directory() as temporary_name:
+            temporary = Path(temporary_name)
+            _, environment = self.make_fixture(temporary, apxs_present=True)
+            dependent = temporary / "dependent-pass"
+            write_executable(dependent, "#!/bin/sh\nexit 0\n")
+            environment["PATH"] = ""
+            environment.pop("APXS_BIN", None)
+            environment.pop("APXS", None)
+            environment["CI_APXS_BIN_CANDIDATES"] = str(temporary / "bin" / "apxs")
+            result, record = self.run_status_runner(
+                temporary / "build",
+                dependent,
+                environment,
+                "--allow-blocked-reason",
+                "apache_development_prerequisite",
+                "--blocked-if-missing-apache-development",
+            )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("passed", record["status"])
+        self.assertEqual("child_exit_code", record["status_source"])
 
     def test_present_apxs_and_successful_dependent_check_passes(self) -> None:
         with temporary_directory() as temporary_name:

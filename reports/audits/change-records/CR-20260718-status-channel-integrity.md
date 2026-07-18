@@ -45,6 +45,11 @@ an executable APXS whose `-q INCLUDEDIR` result is absolute and contains
 `77` remains unclassified and nonzero. The Apache child script no longer emits
 a status-control marker.
 
+The SonarCloud follow-up keeps that decision boundary unchanged. It assigns
+the resolved APXS candidates to one explicitly typed `tuple[str, ...]` value
+and returns it once, preserving the existing priority and malformed-config
+behavior without adding a second status channel.
+
 ## Security impact
 
 The controlled inputs are direct-child `stdout`, `stderr`, and exit status.
@@ -74,6 +79,7 @@ MRTS, or a connector runtime claim.
 | `rtk shellcheck -x ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh` | failed on existing diagnostics at lines 4 and 86–87 (`SC1007` and `SC2086`); this change removes only the status marker at line 31 and does not alter those unrelated command-construction lines. |
 | `rtk env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-bilingual-docs` | failed because this sparse worktree does not materialize linked Framework documentation; after the Change Record headings were corrected, the checker reported no error for this Change Record pair or its README links. |
 | `rtk git diff --check` | passed. |
+| `rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 CODEX_TEMP_ROOT=/var/tmp/codex/ModSecurity-conector /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_optional_prerequisite_status` | passed: 20 focused tests. The SonarCloud `python:S8495` follow-up preserves `APXS_BIN` → `APXS` → `CI_APXS_BIN_CANDIDATES` → fallback priority, has one candidate-return path, and exercises an absolute configured APXS with an empty `PATH`. |
 
 ## Runtime evidence
 
@@ -84,10 +90,14 @@ connector host nor establishes HTTP, CRS, MRTS, or lifecycle evidence.
 
 `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile ci/tools/run-check-status.py tests/test_optional_prerequisite_status.py` was blocked because `py_compile` attempts to create checkout-local `__pycache__` despite `PYTHONDONTWRITEBYTECODE=1`, and this worktree correctly rejects that write. The focused import-and-execution tests above passed without bytecode output.
 
-Full lint, connector builds, runtime harnesses, generator/report tests,
-CodeQL, SonarQube Cloud, GitHub Actions, review, commit, push, and pull-request
-verification were not run in this isolated remediation worktree. They require
-the parent delivery workflow and, where applicable, the exact eventual PR head.
+Full lint, connector builds, runtime harnesses, and generator/report tests were
+not run in this isolated remediation worktree. The original draft PR #56 head
+`63f4c9694f3f1c1372ce6db86ea1f88a38f01a92` was committed, pushed, and had 33
+passing GitHub checks with CodeQL and the SonarQube Cloud Quality Gate passing.
+The SonarCloud API nevertheless reports task-owned open issue
+`AZ90uTmr7VSiD7VvMb8Y` (`python:S8495`) at this function, so this follow-up
+requires a fresh exact-head CI, CodeQL, SonarQube Cloud, and review cycle
+before any `verified_pr` claim. No merge is authorized.
 
 ## Known limitations
 
@@ -106,6 +116,7 @@ Focused regression coverage, in-memory syntax validation, and `git diff
 --check` passed. Required Change Record headings, reciprocal language links,
 and both README index links were manually validated. The bilingual target still
 fails only because this sparse worktree lacks linked Framework documentation;
-it reports no error for this Change Record pair. Delivery checks remain
-pending; no commit, push, pull request, merge, or runtime-evidence claim has
-been made.
+it reports no error for this Change Record pair. The initial implementation was
+delivered through draft PR #56; this SonarCloud follow-up remains
+`remediation_required` until its new exact PR head is pushed and independently
+verified. No merge or runtime-evidence claim was made.

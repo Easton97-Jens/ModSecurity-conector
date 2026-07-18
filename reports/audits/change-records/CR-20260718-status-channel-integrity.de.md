@@ -45,6 +45,12 @@ absolut ist und `httpd.h` enthält. Bei Erfolg läuft das Child normal; jeder
 spätere Child-Exit `77` bleibt nicht klassifiziert und nichtnull. Das
 Apache-Child-Skript gibt keinen Status-Steuerungsmarker mehr aus.
 
+Der SonarQube-Cloud-Follow-up lässt diese Entscheidungsgrenze unverändert. Er
+weist die aufgelösten APXS-Kandidaten genau einem explizit typisierten
+`tuple[str, ...]`-Wert zu und gibt ihn einmal zurück. Damit bleiben bestehende
+Priorität und das Verhalten bei fehlerhafter Konfiguration erhalten, ohne
+einen zweiten Statuskanal hinzuzufügen.
+
 ## Security-Auswirkung
 
 Die kontrollierten Eingaben sind direktes Child-`stdout`, Child-`stderr` und
@@ -75,6 +81,7 @@ oder einen Connector-Runtime-Claim.
 | `rtk shellcheck -x ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh` | fehlgeschlagen an bestehenden Diagnosen in den Zeilen 4 und 86–87 (`SC1007` und `SC2086`); diese Änderung entfernt nur den Statusmarker in Zeile 31 und ändert diese nicht zugehörigen Command-Construction-Zeilen nicht. |
 | `rtk env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-bilingual-docs` | fehlgeschlagen, weil dieser Sparse-Worktree verlinkte Framework-Dokumentation nicht materialisiert; nach Korrektur der Change-Record-Überschriften meldete die Prüfung keinen Fehler für dieses Change-Record-Paar oder seine README-Links. |
 | `rtk git diff --check` | bestanden. |
+| `rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 CODEX_TEMP_ROOT=/var/tmp/codex/ModSecurity-conector /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_optional_prerequisite_status` | bestanden: 20 fokussierte Tests. Der SonarQube-Cloud-`python:S8495`-Follow-up bewahrt die Priorität `APXS_BIN` → `APXS` → `CI_APXS_BIN_CANDIDATES` → Fallback, besitzt genau einen Kandidaten-Rückgabepfad und prüft ein absolutes konfiguriertes APXS bei leerem `PATH`. |
 
 ## Runtime-Evidence
 
@@ -86,11 +93,15 @@ Lifecycle-Evidence.
 
 `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile ci/tools/run-check-status.py tests/test_optional_prerequisite_status.py` war blockiert, weil `py_compile` trotz `PYTHONDONTWRITEBYTECODE=1` versucht, Checkout-lokale `__pycache__` zu erzeugen, und dieser Worktree diese Schreiboperation korrekt zurückweist. Die fokussierten Import- und Ausführungstests oben bestanden ohne Bytecode-Ausgabe.
 
-Vollständiges Linting, Connector-Builds, Runtime-Harnesses, Generator-/Report-
-Tests, CodeQL, SonarQube Cloud, GitHub Actions, Review, Commit, Push und
-Pull-Request-Verifikation wurden in diesem isolierten Remediation-Worktree
-nicht ausgeführt. Sie benötigen den Parent-Delivery-Workflow und, soweit
-anwendbar, den exakten späteren PR-Head.
+Vollständiges Linting, Connector-Builds, Runtime-Harnesses und Generator-/Report-
+Tests wurden in diesem isolierten Remediation-Worktree nicht ausgeführt. Der
+ursprüngliche Draft-PR-#56-Head `63f4c9694f3f1c1372ce6db86ea1f88a38f01a92`
+wurde committed und gepusht und hatte 33 bestandene GitHub-Checks mit
+bestandenem CodeQL und SonarQube-Cloud-Quality-Gate. Die SonarQube-Cloud-API
+meldet dennoch den task-eigenen offenen Befund `AZ90uTmr7VSiD7VvMb8Y`
+(`python:S8495`) an dieser Funktion. Daher benötigt dieser Follow-up einen
+frischen Exact-Head-CI-, CodeQL-, SonarQube-Cloud- und Review-Zyklus vor jeder
+`verified_pr`-Behauptung. Kein Merge ist autorisiert.
 
 ## Bekannte Einschränkungen
 
@@ -112,6 +123,7 @@ Fokussierte Regression-Coverage, In-Memory-Syntaxvalidierung und `git diff
 wechselseitige Sprachlinks und beide README-Indexlinks wurden manuell
 validiert. Das zweisprachige Target schlägt weiterhin nur fehl, weil diesem
 Sparse-Worktree verlinkte Framework-Dokumentation fehlt; es meldet keinen
-Fehler für dieses Change-Record-Paar. Delivery-Prüfungen stehen weiterhin aus;
-es wurde kein Commit, Push, Pull Request, Merge oder Runtime-Evidence-Claim
-erzeugt.
+Fehler für dieses Change-Record-Paar. Die ursprüngliche Implementierung wurde
+über Draft-PR #56 geliefert; dieser SonarQube-Cloud-Follow-up bleibt
+`remediation_required`, bis sein neuer exakter PR-Head gepusht und unabhängig
+verifiziert ist. Kein Merge oder Runtime-Evidence-Claim wurde erzeugt.

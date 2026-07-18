@@ -221,17 +221,20 @@ def run_command(command: Sequence[str]) -> int:
 
 def apache_development_candidates() -> tuple[str, ...]:
     """Return the parent-controlled APXS candidate order for the lint preflight."""
+    candidates: tuple[str, ...] = ("apxs", "apxs2")
     for variable in ("APXS_BIN", "APXS"):
         value = os.environ.get(variable)
         if value:
-            return (value,)
-    configured_candidates = os.environ.get("CI_APXS_BIN_CANDIDATES")
-    if configured_candidates:
-        try:
-            return tuple(shlex.split(configured_candidates))
-        except ValueError:
-            return ()
-    return ("apxs", "apxs2")
+            candidates = (value,)
+            break
+    else:
+        configured_candidates = os.environ.get("CI_APXS_BIN_CANDIDATES")
+        if configured_candidates:
+            try:
+                candidates = tuple(shlex.split(configured_candidates))
+            except ValueError:
+                candidates = ()
+    return candidates
 
 
 def resolve_executable(candidate: str) -> Path | None:
