@@ -308,9 +308,20 @@ Connector-Features.
 |---|---|---|---|
 | <code>TRAEFIK_BIN</code>, <code>TRAEFIK_CONNECTOR_BIN</code>, <code>TRAEFIK_ENGINE_SERVICE_BIN</code> | Absolute Executable-Pfade | Prepared-Cache-/Build-Pfad | Wählt vertrauenswürdiges Traefik-, Connector- oder Engine-Service-Binary |
 | <code>TRAEFIK_NATIVE_RUNTIME_ROOT</code>, <code>TRAEFIK_RESULT_ROOT</code>, <code>TRAEFIK_LOG_ROOT</code>, <code>TRAEFIK_CONNECTOR_START_ROOT</code>, <code>TRAEFIK_ENGINE_SERVICE_BUILD_DIR</code> | Absolute Runtime-/Build-/Ausgabe-Pfade | Von Build-Root abgeleitet | Steuert direkte Host-Ausgabe; muss absolut, beschreibbar und außerhalb des Checkouts sein |
+| <code>TRAEFIK_ENGINE_SOCKET_PARENT</code> | Bestehendes privates absolutes Elternverzeichnis für das native Engine-UDS-Kind | Erforderlicher expliziter Wert; fehlende/ungültige Eingabe scheitert geschlossen | Der ausgewählte Parent muss dem aktuellen Benutzer gehören, exakt <code>0700</code> haben, außerhalb des Checkouts liegen, frei von Symlink-Komponenten sein und über jeden Vorfahren gegen UID-übergreifende Ersetzung geschützt sein. Ein gruppen- oder weltbeschreibbarer Vorfahr ist nur zulässig, wenn er sticky ist und sein nächster Kindeintrag der effektiven UID gehört; breite Wurzeln und Steuerzeichen werden abgelehnt. Unter Linux erzwingt die C-Engine unabhängig denselben Vertrag, führt dann vor der Bereitschaft eine Pfad-Selbstprüfung mit <code>SO_PEERCRED</code> durch und vergleicht die Identität auf beiden Seiten dieser begrenzten Capture, sodass ein Ersatz in diesem Pre-Readiness-Fenster geschlossen scheitert. Dies bindet spätere Middleware-Dials nicht an den erfassten Listener: <code>0700</code> trennt UIDs, nicht bösartige Prozesse mit derselben UID. Der Runner entfernt nur sein unverändertes leeres Kind und nie einen aufrufergewählten Parent oder Socket-Pfad; POSIX kennt jedoch kein atomares bedingtes unlink/rmdir, daher sind weder Cleanup noch Live-Endpoint-Identity Same-UID-Race-Proof. |
+| <code>TRAEFIK_ENGINE_SOCKET_TEST_PARENT</code> | Bestehender privater Parent nur für fokussierten Engine-Service-Runtime-/Selbsttest | Für diesen fokussierten Test erforderlich | Muss absolut, dem aktuellen Benutzer gehörend, exakt <code>0700</code>, kanonisch, symlinkfrei und nach derselben Sticky-Directory-Regel gegen UID-übergreifende Vorfahrenersetzung geschützt sein. Es gibt keinen öffentlich beschreibbaren Standard und es konfiguriert keine Host-Probe. |
 | <code>TRAEFIK_CONNECTOR_CONFIG</code>, <code>TRAEFIK_CONNECTOR_TRAEFIK_CONFIG</code>, <code>TRAEFIK_CONFIG_ROOT</code> | Konfigurationsdatei-/Template-/Root-Pfade | Connector-Konfigurations-Defaults oder Runtime-Root-abgeleitet | Wählt erzeugte File-Provider-/Connector-Konfiguration |
 | <code>TRAEFIK_CONNECTOR_LISTEN</code>, <code>TRAEFIK_START_LISTEN</code>, <code>TRAEFIK_START_UPSTREAM</code> | Loopback-Host:Port-Werte | <code>127.0.0.1:19090</code>, <code>127.0.0.1:19080</code>, <code>127.0.0.1:19091</code> | Direkte Start-Smoke-Topologie; nur Loopback-Adressen werden akzeptiert |
 | <code>TRAEFIK_ENGINE_SERVICE_CFLAGS</code>, <code>TRAEFIK_ENGINE_SERVICE_LDFLAGS</code>, <code>MSCONNECTOR_RULES_FILE</code> | Compiler-/Linker-Flags und absolute Regeldatei | Leer; Framework-Baseline, wenn ein Runner sie liefert | Fortgeschrittene direkte Build-/Regel-Eingabe; Shell-Quoting und vertrauenswürdige Pfade erhalten |
+
+Der zentrale Remaining-Connector-Dispatcher übergibt
+TRAEFIK_ENGINE_SOCKET_PARENT als Prozess-Environment-Daten. Das native Make-
+Target bewahrt ihn mit Raw-GNU-Make-Value-Transport und Export statt mit einem
+Recipe-Shell-Assignment, sodass Quotes, Semikolons und Make-Ausdrücke nicht
+vor der Runner-Validierung ausgewertet werden. Kein Runtime- oder Temporary-
+Root leitet einen Parent ab: CI- und direkte Aufrufer müssen einen ausreichend
+kurzen geschützten Parent explizit erzeugen; das Fehlen dieses Werts ist eine
+fail-closed BLOCKED-Voraussetzung.
 
 ### lighttpd: direkt verwendete Entry-Point-Variablen
 

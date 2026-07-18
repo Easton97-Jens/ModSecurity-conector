@@ -167,5 +167,9 @@ printf 'artifact=%s\n' "$ENGINE_BIN"
 printf 'modsecurity_library=%s\n' "$modsecurity_library"
 
 if [ "$MODE" = test ]; then
-    "$ENGINE_BIN" --self-test
+    if [ -z "${TRAEFIK_ENGINE_SOCKET_TEST_PARENT:-}" ]; then
+        echo "BLOCKED: TRAEFIK_ENGINE_SOCKET_TEST_PARENT is required for the private UDS self-test" >&2
+        exit 77
+    fi
+    "$ENGINE_BIN" --self-test --socket-parent "$TRAEFIK_ENGINE_SOCKET_TEST_PARENT"
 fi

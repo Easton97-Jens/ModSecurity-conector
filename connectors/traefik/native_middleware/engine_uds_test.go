@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -32,9 +33,23 @@ type udsTestServer struct {
 	err      error
 }
 
+func newUDSTestSocketPath(t *testing.T) string {
+	t.Helper()
+	directory, err := os.MkdirTemp("", "uds-")
+	if err != nil {
+		t.Fatalf("create short UDS test directory: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(directory); err != nil {
+			t.Errorf("remove UDS test directory: %v", err)
+		}
+	})
+	return filepath.Join(directory, "engine.sock")
+}
+
 func startUDSTestServer(t *testing.T, results map[byte]udsTestResult) (string, *udsTestServer) {
 	t.Helper()
-	socketPath := filepath.Join(t.TempDir(), "engine.sock")
+	socketPath := newUDSTestSocketPath(t)
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		t.Fatalf("listen Unix socket: %v", err)

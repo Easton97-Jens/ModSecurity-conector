@@ -8,6 +8,7 @@
 #include <iostream>
 #include <map>
 #include <string>
+#include <string_view>
 
 namespace {
 
@@ -80,69 +81,72 @@ std::map<std::string, std::string> parse_args(int argc, char **argv) {
     return args;
 }
 
-std::string bracket_value(const std::string &log, const std::string &key) {
-    const std::string marker = "[" + key + " \"";
-    const std::size_t start = log.find(marker);
+std::string bracket_value(std::string_view intervention_log, std::string_view field_key) {
+    const std::string marker = "[" + std::string(field_key) + " \"";
+    const std::size_t start = intervention_log.find(marker);
     if (start == std::string::npos) {
         return "";
     }
     const std::size_t value_start = start + marker.size();
-    const std::size_t end = log.find("\"]", value_start);
+    const std::size_t end = intervention_log.find("\"]", value_start);
     if (end == std::string::npos || end <= value_start) {
         return "";
     }
-    return log.substr(value_start, end - value_start);
+    return std::string(intervention_log.substr(value_start, end - value_start));
 }
 
-void append_decision_log(
-    const std::string &path,
-    const std::string &ruleset,
-    const std::string &whoami,
-    const std::string &rule_file,
-    const std::string &header_value,
-    const std::string &smoke_case,
-    const std::string &method,
-    const std::string &content_type,
-    const std::string &request_body_marker,
-    bool request_body_access_enabled,
-    bool request_body_marker_present,
-    bool rule_loaded,
-    bool disruptive,
-    int intervention_status,
-    const std::string &intervention_log,
-    const std::string &rule_id,
-    const std::string &rule_message) {
-    if (path.empty()) {
+struct DecisionLogInput {
+    std::string path;
+    std::string ruleset;
+    std::string whoami;
+    std::string rule_file;
+    std::string header_value;
+    std::string smoke_case;
+    std::string method;
+    std::string content_type;
+    std::string request_body_marker;
+    bool request_body_access_enabled = false;
+    bool request_body_marker_present = false;
+    bool rule_loaded = false;
+    bool disruptive = false;
+    int intervention_status = 200;
+    std::string intervention_log;
+    std::string rule_id;
+    std::string rule_message;
+};
+
+void append_decision_log(const DecisionLogInput &input) {
+    if (input.path.empty()) {
         return;
     }
-    std::ofstream out(path, std::ios::app);
+    std::ofstream out(input.path, std::ios::app);
     out << "decision_backend=libmodsecurity\n";
-    out << "modsecurity_ruleset=" << ruleset << "\n";
-    out << "libmodsecurity=" << whoami << "\n";
-    out << "rule_file=" << rule_file << "\n";
-    out << "rule_id=" << rule_id << "\n";
-    out << "modsecurity_smoke_case=" << smoke_case << "\n";
-    out << "request_method=" << method << "\n";
-    if (!content_type.empty()) {
-        out << "request_content_type=" << content_type << "\n";
+    out << "modsecurity_ruleset=" << input.ruleset << "\n";
+    out << "libmodsecurity=" << input.whoami << "\n";
+    out << "rule_file=" << input.rule_file << "\n";
+    out << "rule_id=" << input.rule_id << "\n";
+    out << "modsecurity_smoke_case=" << input.smoke_case << "\n";
+    out << "request_method=" << input.method << "\n";
+    if (!input.content_type.empty()) {
+        out << "request_content_type=" << input.content_type << "\n";
     }
-    if (smoke_case == "request_body") {
-        out << "request_body_access_enabled=" << (request_body_access_enabled ? "true" : "false") << "\n";
+    if (input.smoke_case == "request_body") {
+        out << "request_body_access_enabled=" << (input.request_body_access_enabled ? "true" : "false") << "\n";
         out << "request_body_rule_id=" << kRequestBodyRuleId << "\n";
-        out << "request_body_rule_loaded=" << (rule_loaded ? "true" : "false") << "\n";
-        out << "blocked_body_marker=" << request_body_marker << "\n";
-        out << "blocked_body_marker_present=" << (request_body_marker_present ? "true" : "false") << "\n";
+        out << "request_body_rule_loaded=" << (input.rule_loaded ? "true" : "false") << "\n";
+        out << "blocked_body_marker=" << input.request_body_marker << "\n";
+        out << "blocked_body_marker_present=" << (input.request_body_marker_present ? "true" : "false") << "\n";
     }
-    if (ruleset == "crs") {
-        out << "crs_rule_id=" << rule_id << "\n";
-        out << "crs_rule_message=" << rule_message << "\n";
+    if (input.ruleset == "crs") {
+        out << "crs_rule_id=" << input.rule_id << "\n";
+        out << "crs_rule_message=" << input.rule_message << "\n";
     }
-    out << "rule_loaded=" << (rule_loaded ? "true" : "false") << "\n";
-    out << "request_header_x_modsec_smoke=" << header_value << "\n";
-    out << "intervention_disruptive=" << (disruptive ? "true" : "false") << "\n";
-    out << "intervention_status=" << intervention_status << "\n";
-    if (!intervention_log.empty()) {
-        out << "intervention_log=" << intervention_log << "\n";
+    out << "rule_loaded=" << (input.rule_loaded ? "true" : "false") << "\n";
+    out << "request_header_x_modsec_smoke=" << input.header_value << "\n";
+    out << "intervention_disruptive=" << (input.disruptive ? "true" : "false") << "\n";
+    out << "intervention_status=" << input.intervention_status << "\n";
+    if (!input.intervention_log.empty()) {
+        out << "intervention_log=" << input.intervention_log << "\n";
     }
     out << "\n";
 }
@@ -281,24 +285,25 @@ int main(int argc, char **argv) {
                                              && body.find(request_body_marker) != std::string::npos;
 
     modsecurity::msc_process_logging(tx);
-    append_decision_log(
-        decision_log,
-        ruleset,
-        whoami,
-        rule_file,
-        header_value,
-        smoke_case,
-        method,
-        content_type,
-        request_body_marker,
-        request_body_access_enabled,
-        request_body_marker_present,
-        rule_loaded,
-        disruptive,
-        intervention_status,
-        intervention_log,
-        observed_rule_id,
-        observed_rule_message);
+    DecisionLogInput decision_log_input;
+    decision_log_input.path = decision_log;
+    decision_log_input.ruleset = ruleset;
+    decision_log_input.whoami = whoami;
+    decision_log_input.rule_file = rule_file;
+    decision_log_input.header_value = header_value;
+    decision_log_input.smoke_case = smoke_case;
+    decision_log_input.method = method;
+    decision_log_input.content_type = content_type;
+    decision_log_input.request_body_marker = request_body_marker;
+    decision_log_input.request_body_access_enabled = request_body_access_enabled;
+    decision_log_input.request_body_marker_present = request_body_marker_present;
+    decision_log_input.rule_loaded = rule_loaded;
+    decision_log_input.disruptive = disruptive;
+    decision_log_input.intervention_status = intervention_status;
+    decision_log_input.intervention_log = intervention_log;
+    decision_log_input.rule_id = observed_rule_id;
+    decision_log_input.rule_message = observed_rule_message;
+    append_decision_log(decision_log_input);
 
     std::cout << "{";
     json_bool(std::cout, "ok", true);

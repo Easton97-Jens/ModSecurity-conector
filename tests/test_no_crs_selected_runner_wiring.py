@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import subprocess
+import tempfile
 import unittest
 
 
@@ -69,7 +70,300 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         self.assertIn("no-crs-baseline-*", target_runner)
         self.assertIn("EXT_PROC_RUNTIME_ROOT", target_runner)
         self.assertIn("TRAEFIK_NATIVE_RUNTIME_ROOT", target_runner)
+        self.assertNotIn('TRAEFIK_ENGINE_SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_PARENT:-}"', target_runner)
+        self.assertNotIn('TRAEFIK_BIN="$TRAEFIK_BIN"', target_runner)
+        self.assertNotIn(
+            'TRAEFIK_NATIVE_RUNTIME_ROOT="$traefik_native_runtime_root"',
+            target_runner,
+        )
+        self.assertIn("export TRAEFIK_BIN TRAEFIK_NATIVE_RUNTIME_ROOT", target_runner)
+        self.assertIn(
+            "export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR MODSECURITY_PREFIX",
+            target_runner,
+        )
+        for variable in (
+            "BUILD_ROOT",
+            "MODSECURITY_INCLUDE_DIR",
+            "MODSECURITY_LIB_DIR",
+            "MODSECURITY_PREFIX",
+        ):
+            with self.subTest(lifecycle_environment_variable=variable):
+                self.assertNotIn(f'{variable}="${{{variable}}}"', target_runner)
         self.assertIn("LIGHTTPD_PATCHED_SMOKE_DIR", target_runner)
+
+        self.assertIn(
+            'TRAEFIK_ENGINE_SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_PARENT:-}"',
+            stage,
+        )
+        native_makefile = (ROOT / "connectors/traefik/Makefile").read_text(encoding="utf-8")
+        native_recipe = native_makefile.split("runtime-smoke-traefik-native:\n", 1)[1].split(
+            "\n\nno-crs-baseline-traefik",
+            1,
+        )[0]
+        for variable in (
+            "TRAEFIK_BIN",
+            "TRAEFIK_NATIVE_RUNTIME_ROOT",
+            "TRAEFIK_ENGINE_SOCKET_PARENT",
+            "PYTHON",
+            "BUILD_ROOT",
+            "MODSECURITY_INCLUDE_DIR",
+            "MODSECURITY_LIB_DIR",
+            "MODSECURITY_PREFIX",
+        ):
+            with self.subTest(variable=variable):
+                self.assertIn(f"override {variable} := $(value {variable})", native_makefile)
+                self.assertNotIn(f'{variable}="$({variable})"', native_recipe)
+        self.assertIn(
+            "ifeq ($(origin TRAEFIK_NATIVE_RUNTIME_ROOT), undefined)",
+            native_makefile,
+        )
+        self.assertIn(
+            "TRAEFIK_NATIVE_RUNTIME_ROOT := $(value BUILD_ROOT)/traefik-native-middleware/runtime-smoke",
+            native_makefile,
+        )
+        self.assertIn("override BUILD_ROOT := $(value BUILD_ROOT)", native_makefile)
+        self.assertIn(
+            "export BUILD_ROOT MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR MODSECURITY_PREFIX",
+            native_makefile,
+        )
+        self.assertIn(
+            "export TRAEFIK_BIN TRAEFIK_NATIVE_RUNTIME_ROOT TRAEFIK_ENGINE_SOCKET_PARENT PYTHON",
+            native_makefile,
+        )
+        self.assertEqual("\tsh scripts/runtime-native-middleware.sh", native_recipe)
+        engine_service_recipe = native_makefile.split("test-engine-service:\n", 1)[1].split(
+            "\n\nclean:",
+            1,
+        )[0]
+        self.assertNotIn('PYTHON="$(PYTHON)"', engine_service_recipe)
+        self.assertEqual(
+            "\tbuild/build-engine-service.sh test\n\tbuild/test-engine-service-runtime.sh",
+            engine_service_recipe,
+        )
+        temporary_directory = tempfile.TemporaryDirectory(
+            prefix="msconnector-traefik-make-values-"
+        )
+        self.addCleanup(temporary_directory.cleanup)
+        temporary_root = Path(temporary_directory.name)
+        safe_parent = str(temporary_root / "traefik-private-parent")
+        show_exported_parent = (
+            "--eval=show-exported-parent:; @printf '%s\\n' \"$$TRAEFIK_ENGINE_SOCKET_PARENT\""
+        )
+        exported_parent = subprocess.run(
+            [
+                "make",
+                "-s",
+                "-C",
+                str(ROOT / "connectors" / "traefik"),
+                show_exported_parent,
+                f"TRAEFIK_ENGINE_SOCKET_PARENT={safe_parent}",
+                "show-exported-parent",
+            ],
+            cwd=ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.assertEqual(0, exported_parent.returncode, exported_parent.stderr)
+        self.assertEqual(safe_parent, exported_parent.stdout.strip())
+        expected_build_root = str(temporary_root / "expected-traefik-build-root")
+        show_exported_default_root = (
+            "--eval=show-exported-default-root:; @printf '%s\\n' \"$$TRAEFIK_NATIVE_RUNTIME_ROOT\""
+        )
+        default_environment = os.environ.copy()
+        default_environment.pop("TRAEFIK_NATIVE_RUNTIME_ROOT", None)
+        exported_default_root = subprocess.run(
+            [
+                "make",
+                "-s",
+                "-C",
+                str(ROOT / "connectors" / "traefik"),
+                f"BUILD_ROOT={expected_build_root}",
+                show_exported_default_root,
+                "show-exported-default-root",
+            ],
+            cwd=ROOT,
+            env=default_environment,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.assertEqual(0, exported_default_root.returncode, exported_default_root.stderr)
+        self.assertEqual(
+            f"{expected_build_root}/traefik-native-middleware/runtime-smoke",
+            exported_default_root.stdout.strip(),
+        )
+        hostile_build_root = (
+            f"{temporary_root}/$(shell printf BUILD_ROOT_MAKE_INJECTION_REACHED >&2)"
+        )
+        hostile_default_root = subprocess.run(
+            [
+                "make",
+                "-s",
+                "-C",
+                str(ROOT / "connectors" / "traefik"),
+                f"BUILD_ROOT={hostile_build_root}",
+                show_exported_default_root,
+                "show-exported-default-root",
+            ],
+            cwd=ROOT,
+            env=default_environment,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.assertEqual(0, hostile_default_root.returncode, hostile_default_root.stderr)
+        self.assertEqual(
+            f"{hostile_build_root}/traefik-native-middleware/runtime-smoke",
+            hostile_default_root.stdout.strip(),
+        )
+        self.assertNotIn("BUILD_ROOT_MAKE_INJECTION_REACHED", hostile_default_root.stderr)
+        make_function_values = (
+            (
+                "TRAEFIK_BIN",
+                f"{temporary_root}/$(shell printf MAKE_BIN_INJECTION_REACHED >&2)",
+            ),
+            (
+                "TRAEFIK_NATIVE_RUNTIME_ROOT",
+                f"{temporary_root}/$(shell printf MAKE_ROOT_INJECTION_REACHED >&2)",
+            ),
+            (
+                "TRAEFIK_ENGINE_SOCKET_PARENT",
+                f"{temporary_root}/$(shell printf MAKE_PARENT_INJECTION_REACHED >&2)",
+            ),
+            (
+                "PYTHON",
+                f"{temporary_root}/$(shell printf MAKE_PYTHON_INJECTION_REACHED >&2)",
+            ),
+            (
+                "MODSECURITY_INCLUDE_DIR",
+                f"{temporary_root}/$(shell printf MAKE_INCLUDE_INJECTION_REACHED >&2)",
+            ),
+            (
+                "MODSECURITY_LIB_DIR",
+                f"{temporary_root}/$(shell printf MAKE_LIBRARY_INJECTION_REACHED >&2)",
+            ),
+            (
+                "MODSECURITY_PREFIX",
+                f"{temporary_root}/$(shell printf MAKE_PREFIX_INJECTION_REACHED >&2)",
+            ),
+        )
+        show_exported_values = (
+            "--eval=show-exported-values:; @printf '%s\\n' \"$$TRAEFIK_BIN\"; "
+            "printf '%s\\n' \"$$TRAEFIK_NATIVE_RUNTIME_ROOT\"; "
+            "printf '%s\\n' \"$$TRAEFIK_ENGINE_SOCKET_PARENT\"; "
+            "printf '%s\\n' \"$$PYTHON\"; "
+            "printf '%s\\n' \"$$MODSECURITY_INCLUDE_DIR\"; "
+            "printf '%s\\n' \"$$MODSECURITY_LIB_DIR\"; "
+            "printf '%s\\n' \"$$MODSECURITY_PREFIX\""
+        )
+        function_command = [
+            "make",
+            "-s",
+            "-C",
+            str(ROOT / "connectors" / "traefik"),
+            show_exported_values,
+        ]
+        function_command.extend(
+            f"{variable}={value}" for variable, value in make_function_values
+        )
+        function_command.append("show-exported-values")
+        function_values = subprocess.run(
+            function_command,
+            cwd=ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.assertEqual(0, function_values.returncode, function_values.stderr)
+        self.assertEqual(
+            [value for _, value in make_function_values],
+            function_values.stdout.splitlines(),
+        )
+        for marker in (
+            "MAKE_BIN_INJECTION_REACHED",
+            "MAKE_ROOT_INJECTION_REACHED",
+            "MAKE_PARENT_INJECTION_REACHED",
+            "MAKE_PYTHON_INJECTION_REACHED",
+            "MAKE_INCLUDE_INJECTION_REACHED",
+            "MAKE_LIBRARY_INJECTION_REACHED",
+            "MAKE_PREFIX_INJECTION_REACHED",
+        ):
+            self.assertNotIn(marker, function_values.stderr)
+        python_recipe_payload = (
+            f'{temporary_root}/unsafe"; printf PYTHON_RECIPE_INJECTION_REACHED; #'
+        )
+        engine_service_dry_run = subprocess.run(
+            [
+                "make",
+                "-n",
+                "-C",
+                str(ROOT / "connectors" / "traefik"),
+                f"PYTHON={python_recipe_payload}",
+                "test-engine-service",
+            ],
+            cwd=ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        engine_service_output = engine_service_dry_run.stdout + engine_service_dry_run.stderr
+        self.assertEqual(0, engine_service_dry_run.returncode, engine_service_output)
+        self.assertNotIn("PYTHON_RECIPE_INJECTION_REACHED", engine_service_output)
+        self.assertNotIn(python_recipe_payload, engine_service_output)
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-make-test-") as temporary:
+            runtime_root = Path(temporary) / "runtime"
+            shell_sentinel = Path(temporary) / "shell-injection-sentinel"
+            injected_parent = f'{Path(temporary) / "unsafe"}"; : > "{shell_sentinel}"; #'
+            native_make_dry_run = subprocess.run(
+                [
+                    "make",
+                    "-n",
+                    "-C",
+                    str(ROOT / "connectors" / "traefik"),
+                    "TRAEFIK_BIN=/bin/true",
+                    f"TRAEFIK_NATIVE_RUNTIME_ROOT={runtime_root}",
+                    f"TRAEFIK_ENGINE_SOCKET_PARENT={injected_parent}",
+                    "runtime-smoke-traefik-native",
+                ],
+                cwd=ROOT,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            self.assertEqual(0, native_make_dry_run.returncode, native_make_dry_run.stderr)
+            self.assertFalse(shell_sentinel.exists())
+            native_make_runtime = subprocess.run(
+                [
+                    "make",
+                    "-s",
+                    "-C",
+                    str(ROOT / "connectors" / "traefik"),
+                    "TRAEFIK_BIN=/bin/true",
+                    f"TRAEFIK_NATIVE_RUNTIME_ROOT={runtime_root}",
+                    f"TRAEFIK_ENGINE_SOCKET_PARENT={injected_parent}",
+                    "runtime-smoke-traefik-native",
+                ],
+                cwd=ROOT,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            native_make_output = native_make_runtime.stdout + native_make_runtime.stderr
+            self.assertEqual(2, native_make_runtime.returncode, native_make_output)
+            self.assertIn("BLOCKED: TRAEFIK_ENGINE_SOCKET_PARENT is unavailable", native_make_output)
+            self.assertIn("Error 77", native_make_output)
+            self.assertIn(injected_parent, native_make_output)
+            self.assertFalse(shell_sentinel.exists())
+            self.assertFalse(runtime_root.exists())
+        self.assertNotIn("traefik-engine-socket-parent.XXXXXX", target_runner)
 
     def test_each_connector_baseline_target_enables_the_selection_consumer(self) -> None:
         contracts = {
