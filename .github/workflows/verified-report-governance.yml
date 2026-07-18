@@ -42,3 +42,8 @@ jobs:
         run: |
           set -eu
           make report-governance
+
+      - name: Verified runtime evidence gate
+        run: |
+          set -eu
+          make verified-report-evidence-gate

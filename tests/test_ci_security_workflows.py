@@ -57,6 +57,15 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertGreaterEqual(text.count("sha256:"), 3)
         self.assertIn("full_history_gitleaks: advisory_until_historical_findings_are_triaged", text)
 
+    def test_verified_report_workflow_runs_the_strict_evidence_gate(self) -> None:
+        text = self.workflow("verified-report-governance.yml")
+        self.assertIn("make report-governance", text)
+        self.assertIn("make verified-report-evidence-gate", text)
+        self.assertLess(
+            text.index("make report-governance"),
+            text.index("make verified-report-evidence-gate"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
