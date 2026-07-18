@@ -69,29 +69,59 @@ Manifest-, Pfad- oder Runtime-Diagnose-Checks ab.
 Es wurde keine Connector-Runtime ausgeführt oder promotet. Die Änderung setzt
 Evidence-Validierung durch; sie erzeugt keine Runtime-Evidence.
 
+## Delivery-Evidence (beobachtet am 2026-07-18 UTC)
+
+- Die Implementierung wurde auf `agent/harden-evidence-integrity` als
+  `42b31f1c84c0c915a5cb65119714613fbf3e0c40`
+  (`ci: enforce verified runtime evidence gate`) committed und gepusht.
+- Draft-PR [#55](https://github.com/Easton97-Jens/ModSecurity-conector/pull/55)
+  war zum Beobachtungszeitpunkt gegen `master` `OPEN`. Zu dieser Beobachtung lösten lokales `HEAD`,
+  `origin/agent/harden-evidence-integrity` und der PR-Head alle auf
+  `42b31f1c84c0c915a5cb65119714613fbf3e0c40` auf.
+- CodeQL bestand (Check-Run `88069241639`); SonarCloud Code Analysis bestand
+  (Check-Run `88069255373`).
+- Die Check-Ansicht zu dieser Beobachtung enthielt zwei `report-governance`-Fehler:
+  [Job `88069138522`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/29640117282/job/88069138522)
+  und [Job `88069198804`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/29640140820/job/88069198804).
+  Im zweiten Job bestanden Setup und `Generated report governance`, während
+  `Verified runtime evidence gate` fehlschlug. Andere beobachtete Checks
+  bestanden oder wurden gemäß ihrem dokumentierten Scope übersprungen; kein
+  ausstehendes oder abgebrochenes Ergebnis wurde beobachtet.
+- Der Delivery-Status am beobachteten Head war `not_verified_pr`. Dies ist beabsichtigtes
+  Fail-Closed-Verhalten: Ein Fehler des strikten Gates darf nicht als Erfolg
+  der Runtime-Evidence gelten.
+
 ## Bekannte Einschränkungen
 
 Der aktuelle strikte Checker scheitert korrekt, weil kritische bestehende
-Reports veraltet sind. Das ist als Cross-Repository-Evidence-Arbeit erfasst
-und darf durch diese reine Workflow-Änderung weder unterdrückt, manuell
-regeneriert noch umklassifiziert werden.
+Reports veraltet sind. `FND-CROSS-0001` (`Evidence freshness manifest contains
+stale entries and SHA mismatches`) bleibt `validated`; seine aktuelle
+Bewertung erfasst 58 veraltete Einträge und 9 SHA-Mismatches. Diese
+Cross-Repository-Evidence-Arbeit darf durch diese reine Workflow-Änderung
+weder unterdrückt, manuell regeneriert noch umklassifiziert werden.
 
 ## Verbleibende Risiken
 
-Die exakten Ergebnisse von GitHub Actions, CodeQL, SonarQube Cloud, Review und
-PR-Head-SHA stehen bis zum
-separaten Delivery-Schritt für diesen Branch aus.
+Der fehlgeschlagene strikte Gate bleibt ein Delivery-Blocker, bis der Owner von
+`FND-CROSS-0001` die veralteten Freshness-Einträge und die Checksum-Mismatch-
+Evidence über den etablierten Runtime-Evidence-Pfad abgleicht. Er ist
+Gegen-Evidence zu einem gefälschten Governance-only-Erfolg, nicht ein Defekt
+dieses Gates.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Kein Generator-Refresh, Connector-Build, Runtime-Harness, Framework-Change
 oder MRTS-Vorgang lief. Ein Refresh überschritte die etablierte Evidence-
-Generator-Grenze und ersetzt keinen verifizierten Runtime-Run. Delivery-Checks
-sind nur für den finalen exakten PR-Head-SHA aussagekräftig.
+Generator-Grenze und ersetzt keinen verifizierten Runtime-Run. Die aktuellen
+GitHub-Actions-, CodeQL- und SonarCloud-Ergebnisse für den beobachteten
+exakten PR-Head-SHA sind oben festgehalten.
 
 ## Finaler Diff- und Review-Status
 
-Der fokussierte lokale Regressionstest und der Whitespace-Diff-Check bestanden.
-Security-Review, Commit, Push, Pull Request, GitHub Actions, CodeQL, SonarQube
-Cloud und Exact-Head-Verifikation stehen aus; kein Merge ist autorisiert oder
-ausgeführt.
+Der fokussierte lokale Regressionstest, YAML-Parse und Whitespace-Diff-Check
+bestanden. Commit, Push, Erstellung des Draft-PRs, Exact-Head-Gleichheit,
+GitHub Actions, CodeQL und SonarCloud sind oben beobachtet. GitHub meldet
+keine Review-Entscheidung. Der Fehler des strikten Evidence-Gates hielt den
+beobachteten Head auf `not_verified_pr`; diese Dokumentationskorrektur benötigt
+vor einer neuen Delivery-Behauptung einen frischen Exact-Head-Zyklus. Kein
+Merge ist autorisiert oder ausgeführt.
