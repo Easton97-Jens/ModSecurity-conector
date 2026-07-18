@@ -1,9 +1,10 @@
 # Change Record: Apache-Phase-4-Response-Enforcement
 
-**Status:** Lokale Remediation, fokussierte Native-Runtime-Validierung und
-Codex-Security-Revalidation sind abgeschlossen. Delivery wartet auf einen
-Parent-only-Draft-PR; dieser Record behauptet keinen Commit, Push, Pull Request,
-CI-, CodeQL-, SonarQube-Cloud-Erfolg oder Merge.
+**Status:** Die Phase-4-Remediation liegt in Parent-only-Draft-PR #60. Sein
+initialer Head `783c024b8cb90c783adfa7a18e85de170a28e1b5` bestand CI und
+CodeQL, aber SonarQube Cloud schlug bei task-eigenem Regression-Control-Code
+fehl. Die fokussierte Remediation von `FND-SONAR-0001` läuft; dieser Record
+behauptet keinen finalen SonarQube-Cloud-Erfolg oder Merge.
 
 **Sprache:** [English](CR-20260718-apache-phase4-response.md) | Deutsch
 
@@ -16,6 +17,7 @@ CI-, CodeQL-, SonarQube-Cloud-Erfolg oder Merge.
 | Basis-Revision | c8ca0d92b630c18232b881855c4f5d1482568ea6 |
 | Scope | Nur Parent-Repository |
 | Zugehöriges Finding | FND-PARENT-0038 |
+| Zugehöriges Delivery-Quality-Finding | FND-SONAR-0001 |
 | Framework- / MRTS-Status | read-only, clean bei cdc91a398d6c156eaff927d742b23018a3817fb6 / 13aa91291adea12d5c607fdd165d010fcfb1da78 |
 
 ## Motivation und Problemstellung
@@ -126,6 +128,7 @@ Fokussierte Regression und statisches Wiring:
 - ci/runtime/lifecycle/apache_phase4_content_type_synchronized_upstream.py
 - ci/runtime/lifecycle/cases/apache-phase4-response/
 - tests/test_apache_phase4_response_regression_wiring.py
+- tests/test_apache_phase4_content_type_synchronized_upstream.py
 - tests/test_nginx_phase4_runner_wiring.py
 - ci/checks/connectors/apache/check-apache-common-adoption.py
 - ci/checks/documentation/connector_config_reference.py
@@ -188,6 +191,16 @@ Alle aufbewahrte Runtime-/Build-Evidenz liegt unter
     RESPONSE_BODY-Nicht-Disruptive-Control mit HTTP 200.
 11. Unabhängiger Codex-Security-Source-to-Sink- und Bypass-Review fand keinen
     verbleibenden bestätigten Bypass des ursprünglichen Held-Response-Body-Pfads.
+12. Nachdem SonarQube Cloud den initialen PR-Head beanstandete, bestanden die
+    fokussierte Control-Path-Härtung, die Shell-Syntax, die Apache-
+    Response-Wiring-Tests zusammen mit den neuen Content-Type-Synchronized-
+    Upstream-Unit-Tests (14 Tests), check-apache-common-adoption und
+    git diff --check. Der Helper akzeptiert Control-Dateien nun nur unter einem
+    existierenden harness-eigenen Control-Root.
+13. Der geänderte Helper bestand auch die native Custom-MIME-synchronisierte
+    Phase-4-Deny-Regression mit Apache-Konfigurationsprüfung. Er hielt die
+    Upstream-Response bis EOS zurück und lieferte das erwartete HTTP 403 ohne
+    den geschützten Original-Body.
 
 ## Runtime-Evidence
 
@@ -239,11 +252,16 @@ aktualisiert. Framework- und MRTS-Source/Gitlinks bleiben unverändert.
 ## Verbleibende Risiken
 
 - Die volle CRS/MRTS-Matrix lief nicht; fokussierte anwendbare Profile liefen.
-- Exact-Head-externe Delivery-Evidenz steht noch aus.
+- Exact-Head-externe Delivery-Evidenz für den SonarQube-Cloud-Remediation-
+  Follow-up steht noch aus.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Draft-PR-CI, CodeQL und SonarQube Cloud: Es existiert noch kein Draft PR/Head.
+- Draft-PR #60, initialer Head `783c024b8cb90c783adfa7a18e85de170a28e1b5`:
+  CI und CodeQL bestanden, aber SonarQube Cloud schlug beim Quality Gate mit
+  C Security Rating und D Reliability Rating auf neuem Code fehl. Der
+  betroffene task-eigene Helper, Harness und statische Checker sind als
+  `FND-SONAR-0001` getrackt; der Follow-up-Exact-Head ist noch nicht verifiziert.
 - Volle CRS/MRTS-Matrix: Für diesen fokussierten Parent-Fix nicht erforderlich;
   eine fokussierte CRS-Kompatibilitäts-Control und die exakte
   MRTS-RESPONSE_BODY-Phase-4-Control liefen.
@@ -260,8 +278,8 @@ aktualisiert. Framework- und MRTS-Source/Gitlinks bleiben unverändert.
 ## Finaler Diff- und Review-Status
 
 Der User autorisierte einen fokussierten Parent-Branch, Commit, Push und Draft
-PR, verbot aber explizit einen Merge. Bei dieser Record-Revision ist der
-Delivery-Status pending. Das nächste Update darf nur beobachtete Branch-,
-Commit-, Remote-, Draft-PR-, Exact-Head-, CI-, CodeQL-, SonarQube-Cloud-,
-Review- und Revalidation-Fakten erfassen. Der gewünschte Terminal-Status ist
+PR, verbot aber explizit einen Merge. PR #60 bleibt ein Draft. Der
+Delivery-Status ist pending, bis lokaler, Remote- und PR-Head des SonarQube-
+Follow-up exakt übereinstimmen und CI-, CodeQL-, SonarQube-Cloud-, Review- und
+Revalidation-Fakten beobachtet sind. Der gewünschte Terminal-Status ist
 verified_pr, nicht Merge.

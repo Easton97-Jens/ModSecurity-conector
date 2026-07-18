@@ -1,9 +1,10 @@
 # Change Record: Apache Phase-4 response enforcement
 
-**Status:** Local remediation, focused native runtime validation, and Codex
-Security revalidation are complete. Delivery is pending on a Parent-only Draft
-PR; no commit, push, pull request, CI, CodeQL, SonarQube Cloud result, or merge
-is claimed by this record.
+**Status:** The Phase-4 remediation is in Parent-only Draft PR #60. Its initial
+head `783c024b8cb90c783adfa7a18e85de170a28e1b5` passed CI and CodeQL, but
+SonarQube Cloud failed on task-owned regression-control code. Focused
+remediation of `FND-SONAR-0001` is in progress; no final SonarQube Cloud
+success or merge is claimed by this record.
 
 **Language:** English | [Deutsch](CR-20260718-apache-phase4-response.de.md)
 
@@ -16,6 +17,7 @@ is claimed by this record.
 | Base revision | c8ca0d92b630c18232b881855c4f5d1482568ea6 |
 | Scope | Parent repository only |
 | Related finding | FND-PARENT-0038 |
+| Related delivery-quality finding | FND-SONAR-0001 |
 | Framework / MRTS state | read-only, clean at cdc91a398d6c156eaff927d742b23018a3817fb6 / 13aa91291adea12d5c607fdd165d010fcfb1da78 |
 
 ## Motivation and problem statement
@@ -116,6 +118,7 @@ Focused regression and static wiring:
 - ci/runtime/lifecycle/apache_phase4_content_type_synchronized_upstream.py
 - ci/runtime/lifecycle/cases/apache-phase4-response/
 - tests/test_apache_phase4_response_regression_wiring.py
+- tests/test_apache_phase4_content_type_synchronized_upstream.py
 - tests/test_nginx_phase4_runner_wiring.py
 - ci/checks/connectors/apache/check-apache-common-adoption.py
 - ci/checks/documentation/connector_config_reference.py
@@ -179,6 +182,15 @@ All retained runtime/build evidence is under
     RESPONSE_BODY non-disruptive control with HTTP 200.
 11. Independent Codex Security source-to-sink and bypass review found no
     remaining confirmed bypass of the original held response-body path.
+12. After SonarQube Cloud flagged the initial PR head, the focused control-path
+    hardening passed shell syntax, the Apache response-wiring tests plus the new
+    content-type synchronized-upstream unit tests (14 tests),
+    check-apache-common-adoption, and git diff --check. The helper now accepts
+    control files only beneath one existing harness-owned control root.
+13. The modified helper also passed the native custom-MIME synchronized
+    Phase-4 deny regression with Apache configuration validation. It held the
+    upstream response until EOS and returned the expected HTTP 403 without the
+    protected original body.
 
 ## Runtime evidence
 
@@ -228,11 +240,16 @@ checks. Framework and MRTS source/gitlinks remain unchanged.
 ## Remaining risks
 
 - The full CRS/MRTS matrix was not run; focused applicable profiles were run.
-- Exact-head external delivery evidence remains outstanding.
+- Exact-head external delivery evidence remains outstanding for the SonarQube
+  Cloud remediation follow-up.
 
 ## Checks not run and rationale
 
-- Draft-PR CI, CodeQL, and SonarQube Cloud: no Draft PR/head exists yet.
+- Draft PR #60 initial head `783c024b8cb90c783adfa7a18e85de170a28e1b5`:
+  CI and CodeQL passed, but SonarQube Cloud failed the Quality Gate with C
+  Security Rating and D Reliability Rating on new code. The affected
+  task-owned helper, harness, and static checker are tracked as
+  `FND-SONAR-0001`; the follow-up exact head is not yet verified.
 - Full CRS/MRTS matrix: not required for this focused Parent fix; a focused CRS
   compatibility control and the exact MRTS RESPONSE_BODY Phase-4 control ran.
 - Whole-source strict Clang C17: blocked by the unchanged origin/master
@@ -246,7 +263,7 @@ checks. Framework and MRTS source/gitlinks remain unchanged.
 ## Final diff and review status
 
 The user authorized a focused Parent branch, commit, push, and Draft PR, but
-explicitly prohibited a merge. At this record revision the delivery state is
-pending. The next update must record only observed branch, commit, remote,
-Draft-PR, exact-head, CI, CodeQL, SonarQube Cloud, review, and revalidation
-facts. The requested terminal status is verified_pr, not merge.
+explicitly prohibited a merge. PR #60 remains a Draft. The delivery state is
+pending until the SonarQube follow-up's exact local, remote, and PR head match
+and CI, CodeQL, SonarQube Cloud, review, and revalidation facts are observed.
+The requested terminal status is verified_pr, not merge.

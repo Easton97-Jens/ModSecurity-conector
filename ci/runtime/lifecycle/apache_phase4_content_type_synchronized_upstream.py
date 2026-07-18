@@ -49,8 +49,10 @@ class ContentTypedSynchronizedStreamingUpstream(
 
     def _serve_once(self) -> None:
         try:
-            assert self._listener is not None
-            connection, _peer = self._listener.accept()
+            listener = self._listener
+            if listener is None:
+                raise RuntimeError("synchronized upstream listener is unavailable")
+            connection, _peer = listener.accept()
             self._connection = connection
             connection.settimeout(self._timeout)
             self._recv_request_headers(connection)
@@ -70,7 +72,7 @@ class ContentTypedSynchronizedStreamingUpstream(
             connection.sendall(self._chunk(self._later_chunk))
             connection.sendall(b"0\r\n\r\n")
             self._eos_sent.set()
-        except BaseException as exc:  # surface server failures in the parent loop
+        except Exception as exc:  # surface server failures in the parent loop
             self._error = exc
         finally:
             if self._connection is not None:
@@ -86,21 +88,101 @@ class ContentTypedSynchronizedStreamingUpstream(
             self._closed.set()
 
 
-def write_control_json(path: Path, payload: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
+def write_control_json(
+    path: Path, payload: dict[str, object], *, control_root: Path
+) -> None:
+    control_path = resolve_control_path(
+        str(path), control_root, "control file", required=True
+    )
+    if control_path is None:
+        raise RuntimeError("required control path validation returned no path")
+    control_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = control_path.with_name(f".{control_path.name}.tmp")
     temporary.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    temporary.replace(path)
+    temporary.replace(control_path)
+
+
+def resolve_control_root(value: str) -> Path:
+    root = Path(value).resolve()
+    if not root.is_dir():
+        raise ValueError(f"control root must be an existing directory: {root}")
+    return root
+
+
+def resolve_control_path(
+    value: str | None, control_root: Path, label: str, *, required: bool
+) -> Path | None:
+    if not value:
+        if required:
+            raise ValueError(f"{label} is required")
+        return None
+    path = Path(value).resolve()
+    try:
+        relative = path.relative_to(control_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"{label} must resolve beneath control root: {control_root}"
+        ) from exc
+    if not relative.parts:
+        raise ValueError(f"{label} must name a file beneath control root")
+    return path
+
+
+def resolve_control_paths(
+    args: argparse.Namespace,
+) -> tuple[Path, Path, Path, Path | None, Path | None]:
+    control_root = resolve_control_root(args.control_root)
+    ready = resolve_control_path(
+        args.ready_file, control_root, "ready file", required=True
+    )
+    release = resolve_control_path(
+        args.release_file, control_root, "release file", required=True
+    )
+    paused = resolve_control_path(
+        args.paused_file, control_root, "paused file", required=False
+    )
+    evidence = resolve_control_path(
+        args.server_evidence_file, control_root, "server evidence file", required=False
+    )
+    paths = [
+        path for path in (ready, release, paused, evidence) if path is not None
+    ]
+    if len(paths) != len(set(paths)):
+        raise ValueError("control file paths must be distinct")
+    return control_root, ready, release, paused, evidence
+
+
+def publish_paused_control(
+    path: Path | None,
+    upstream: ContentTypedSynchronizedStreamingUpstream,
+    *,
+    control_root: Path,
+) -> None:
+    if path is None:
+        return
+    write_control_json(
+        path,
+        {
+            "schema_version": 1,
+            "evidence_type": "synchronized_upstream_paused",
+            "first_chunk_size": upstream.first_chunk_size,
+            "upstream_paused": True,
+            "upstream_eos_sent": False,
+            "body_payload_persisted": False,
+        },
+        control_root=control_root,
+    )
 
 
 def serve_with_control_files(args: argparse.Namespace) -> None:
-    ready = Path(args.ready_file)
-    release = Path(args.release_file)
-    paused = Path(args.paused_file) if args.paused_file else None
-    evidence = Path(args.server_evidence_file) if args.server_evidence_file else None
-    stale = [path for path in (ready, release, paused) if path is not None and path.exists()]
+    control_root, ready, release, paused, evidence = resolve_control_paths(args)
+    stale = [
+        path
+        for path in (ready, release, paused)
+        if path is not None and path.exists()
+    ]
     if stale:
         raise ValueError(
             "control-file daemon requires fresh paths: "
@@ -117,25 +199,23 @@ def serve_with_control_files(args: argparse.Namespace) -> None:
         port=args.listen_port, timeout=timeout
     ) as upstream:
         address = upstream.address
-        write_control_json(ready, {
-            "schema_version": 1,
-            "evidence_type": "synchronized_upstream_ready",
-            "upstream_host": address.host,
-            "upstream_port": address.port,
-            "body_payload_persisted": False,
-        })
+        write_control_json(
+            ready,
+            {
+                "schema_version": 1,
+                "evidence_type": "synchronized_upstream_ready",
+                "upstream_host": address.host,
+                "upstream_port": address.port,
+                "body_payload_persisted": False,
+            },
+            control_root=control_root,
+        )
         while not upstream.eos_sent:
             upstream._raise_if_failed()
             if upstream.paused and not paused_published:
-                if paused is not None:
-                    write_control_json(paused, {
-                        "schema_version": 1,
-                        "evidence_type": "synchronized_upstream_paused",
-                        "first_chunk_size": upstream.first_chunk_size,
-                        "upstream_paused": True,
-                        "upstream_eos_sent": False,
-                        "body_payload_persisted": False,
-                    })
+                publish_paused_control(
+                    paused, upstream, control_root=control_root
+                )
                 paused_published = True
             if release.exists():
                 upstream.release()
@@ -146,14 +226,18 @@ def serve_with_control_files(args: argparse.Namespace) -> None:
             time.sleep(0.01)
         upstream._raise_if_failed()
         if evidence is not None:
-            write_control_json(evidence, {
-                "schema_version": 1,
-                "evidence_type": "synchronized_upstream_server",
-                "first_chunk_size": upstream.first_chunk_size,
-                "upstream_paused": paused_published,
-                "upstream_eos_sent": True,
-                "body_payload_persisted": False,
-            })
+            write_control_json(
+                evidence,
+                {
+                    "schema_version": 1,
+                    "evidence_type": "synchronized_upstream_server",
+                    "first_chunk_size": upstream.first_chunk_size,
+                    "upstream_paused": paused_published,
+                    "upstream_eos_sent": True,
+                    "body_payload_persisted": False,
+                },
+                control_root=control_root,
+            )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -161,6 +245,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--serve", action="store_true")
     parser.add_argument("--listen-host", default="127.0.0.1")
     parser.add_argument("--listen-port", type=int, default=0)
+    parser.add_argument("--control-root")
     parser.add_argument("--ready-file")
     parser.add_argument("--paused-file")
     parser.add_argument("--release-file")
@@ -172,8 +257,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not args.serve:
         parser.error("--serve is required")
-    if not args.ready_file or not args.release_file:
-        parser.error("--serve requires --ready-file and --release-file")
+    if not args.control_root or not args.ready_file or not args.release_file:
+        parser.error(
+            "--serve requires --control-root, --ready-file, and --release-file"
+        )
     serve_with_control_files(args)
     return 0
 

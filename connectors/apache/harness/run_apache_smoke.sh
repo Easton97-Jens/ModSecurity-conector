@@ -447,6 +447,7 @@ render_config() {
     esac
     case "$APACHE_PHASE4_BODY_LIMIT" in
         ""|*[!0-9]*) fail "APACHE_PHASE4_BODY_LIMIT must be a positive integer" ;;
+        *) ;;
     esac
     [ "$APACHE_PHASE4_BODY_LIMIT" -gt 0 ] || \
         fail "APACHE_PHASE4_BODY_LIMIT must be a positive integer"
@@ -562,6 +563,7 @@ start_synchronized_upstream() {
     rm -rf "$SYNCHRONIZED_DIR"
     mkdir -p "$SYNCHRONIZED_DIR"
     "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
+        --control-root "$SYNCHRONIZED_DIR" \
         --ready-file "$SYNCHRONIZED_READY_FILE" \
         --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
         --release-file "$SYNCHRONIZED_RELEASE_FILE" \
@@ -628,6 +630,7 @@ send_synchronized_first_byte_request() {
                     # A P4 gate must not release original body bytes here.
                     [ "$i" -ge 10 ] && break
                     ;;
+                *) fail "unsupported MSCONNECTOR_PHASE4_SYNC_EXPECTATION=$MSCONNECTOR_PHASE4_SYNC_EXPECTATION" ;;
             esac
         fi
         if ! kill -0 "$FIRST_BYTE_CLIENT_PID" >/dev/null 2>&1; then
@@ -835,6 +838,7 @@ PY
                 fail "client-abort test caused the Apache host to exit"
             fi
             ;;
+        *) fail "unsupported MSCONNECTOR_PHASE4_SYNC_EXPECTATION=$MSCONNECTOR_PHASE4_SYNC_EXPECTATION" ;;
     esac
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
     printf '%s\n' "http_status" > "$LOG_DIR/observed-transport-result.txt"
@@ -1302,6 +1306,7 @@ send_phase4_internal_redirect_request() {
             case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
                 http1) assert_single_h1_status 200 ;;
                 h2) assert_single_h2_status 200 ;;
+                *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
             esac
             cmp -s "$redirect_expected" "$RESPONSE_BODY" || \
                 fail "Phase-4 internal redirect bypass did not expose the original marker body"
@@ -1444,6 +1449,7 @@ send_phase4_downstream_error_request() {
     case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
         http1) assert_single_h1_status 500 ;;
         h2) assert_single_h2_status 500 ;;
+        *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
     esac
     cmp -s "$downstream_error_expected" "$RESPONSE_BODY" || \
         fail "Phase-4 downstream error did not produce the sole configured ErrorDocument body"
@@ -1520,6 +1526,7 @@ send_phase4_upstream_error_request() {
     case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
         http1) assert_single_h1_status 500 ;;
         h2) assert_single_h2_status 500 ;;
+        *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
     esac
     cmp -s "$upstream_error_expected" "$RESPONSE_BODY" || \
         fail "Phase-4 upstream error did not produce the sole configured ErrorDocument body"
@@ -1971,6 +1978,8 @@ write_phase4_terminal_test_support() {
             [ "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" = "1" ] || \
                 fail "URI policy redirect expectation requires its URI policy test"
             ;;
+        bypass|abort) ;;
+        *) fail "unsupported APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT=$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" ;;
     esac
     if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ] || \
         [ "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" = "1" ]; then

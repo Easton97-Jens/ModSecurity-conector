@@ -22,6 +22,7 @@ mapper_h = read(SRC / "msc_apache_mapper.h") if (SRC / "msc_apache_mapper.h").ex
 mapper_c = read(SRC / "msc_apache_mapper.c") if (SRC / "msc_apache_mapper.c").exists() else ""
 apache_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in SRC.glob("*.c")) + "\n" + "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in SRC.glob("*.h"))
 docs_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in [APACHE / "README.md", APACHE / "README.de.md", ROOT / "docs/connectors/apache.md", ROOT / "reports/audits/architecture-and-evidence.md"] if p.exists())
+DISCARD_RESPONSE_BRIGADE_CALL = "msc_discard_response_brigade(msr);"
 
 
 def source_section(text: str, start: str, end: str) -> str:
@@ -121,8 +122,8 @@ checks.append((
     and "APR_BUCKET_IS_FLUSH(bucket)" in filters_c
     and "bucket->length == 0" in filters_c
     and "No later\n         * bucket belongs to this response" in filters_c
-    and "msc_discard_response_brigade(msr);" in filters_c
-    and "msc_discard_response_brigade(msr);" in utils_c
+    and DISCARD_RESPONSE_BRIGADE_CALL in filters_c
+    and DISCARD_RESPONSE_BRIGADE_CALL in utils_c
     and "MSCONNECTOR_BODY_LIMIT_ACTION_REJECT" in filters_c
     and "apache_phase4_in_scope" not in filters_c
     and "SecResponseBodyMimeType selection" in filters_c
@@ -135,7 +136,7 @@ checks.append((
     and "r->connection->aborted = 1" in filters_c
     and "phase4_terminal_guard_filter" in filters_c
     and "apache_send_precommit_terminal_error" in filters_c
-    and "msc_discard_response_brigade(msr);" in filters_c
+    and DISCARD_RESPONSE_BRIGADE_CALL in filters_c
     and "MSC_PHASE4_TERMINAL_OUTPUT_EMITTING" in filters_c
     and "MSC_PHASE4_TERMINAL_OUTPUT_SEALED" in filters_c
     and 'ap_register_output_filter("MODSECURITY_PHASE4_GUARD"' in module_c
