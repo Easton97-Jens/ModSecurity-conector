@@ -103,7 +103,8 @@ Framework-, MRTS- oder Host-Runtime-Evidence.
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 OSV, Scorecard, CodeQL/SARIF-Upload, GitHub Secret Scanning und Fork-Runtime-
-Verhalten benötigen den exakten Head-SHA des fokussierten Pull Requests.
+Verhalten werden nur vom aktuellen exakten Head des fokussierten Pull Requests
+behauptet; dieser statische Change Record beansprucht sie nicht.
 `make check-doc-links` läuft nicht, weil es Framework-Validierung außerhalb
 des Parent-only-Scopes aufruft. Kein Connector-Build, keine Runtime-,
 Protokoll-, Sanitizer-, CRS-, Framework- oder MRTS-Prüfung ist für diese
@@ -131,6 +132,8 @@ gibt keine Risikoakzeptanz.
 
 Die lokale Implementierung, der finale gestagete Diff-Review und redigiertes
 gestagetes Gitleaks sind vollständig. Der Bilingual-Checker ist durch
-vorbestehende fehlende Framework-Ziele in diesem Worktree blockiert. Erstellung
-des fokussierten PRs und exakte-Head-GitHub-Validierung stehen aus und
-aktualisieren diesen Record, falls sie die finale Disposition ändern.
+vorbestehende fehlende Framework-Ziele in diesem Worktree blockiert.
+Delivery-Evidence ist absichtlich auf den aktuellen Head des fokussierten PRs
+begrenzt, weil jeder Follow-up-Commit ältere Ergebnisse invalidiert; für den
+aktuellen Delivery-Status den PR und `FND-PARENT-0023` konsultieren. Kein Merge
+ist autorisiert oder durchgeführt.

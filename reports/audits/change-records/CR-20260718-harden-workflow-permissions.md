@@ -99,10 +99,11 @@ or host-runtime evidence.
 ## Checks not run and rationale
 
 OSV, Scorecard, CodeQL/SARIF upload, GitHub secret scanning, and fork-runtime
-behavior require the focused pull request's exact head SHA. `make check-doc-links`
-is not run because it invokes Framework validation outside the Parent-only
-scope. No connector build, runtime, protocol, sanitizer, CRS, Framework, or
-MRTS check applies to this workflow-only change.
+behavior are asserted only from the focused pull request's current exact head;
+they are not claimed by this static Change Record. `make check-doc-links` is
+not run because it invokes Framework validation outside the Parent-only scope.
+No connector build, runtime, protocol, sanitizer, CRS, Framework, or MRTS
+check applies to this workflow-only change.
 
 ## Known limitations
 
@@ -124,6 +125,7 @@ PR checks and ongoing review. No risk acceptance is recorded.
 
 Local implementation, final staged diff review, and redacted staged Gitleaks
 are complete. The bilingual checker is blocked by pre-existing missing
-Framework targets in this worktree. Focused PR creation and exact-head GitHub
-verification remain pending and will update this record if they change the
-final disposition.
+Framework targets in this worktree. Delivery evidence is deliberately bounded
+to the focused PR's current head because any follow-up commit invalidates older
+results; consult that PR and `FND-PARENT-0023` for the current delivery state.
+No merge is authorized or performed.
