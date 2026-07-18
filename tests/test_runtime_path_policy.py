@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 from pathlib import Path
 import subprocess
@@ -10,9 +11,90 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER = ROOT / "ci" / "checks" / "security" / "check-runtime-path-policy.py"
+CI_LIB = ROOT / "ci" / "lib"
+if str(CI_LIB) not in sys.path:
+    sys.path.insert(0, str(CI_LIB))
+
+from runtime_path_utils import (
+    default_verified_run_root,
+    is_allowed_runtime_path,
+    is_system_write_path,
+    verified_runtime_paths,
+)
 
 
 class RuntimePathPolicyTest(unittest.TestCase):
+    def test_mutable_project_roots_cannot_authorize_system_runtime_paths(self) -> None:
+        """Project-location inputs must never turn system paths into runtime roots."""
+        safe_run_root = Path("/var/tmp/codex/runtime-path-policy-control/verified-run")
+        poisoned_env = {
+            "VERIFIED_RUN_ROOT": str(safe_run_root),
+            "REPO_ROOT": "/",
+            "CONNECTOR_ROOT": "/",
+            "FRAMEWORK_ROOT": "/",
+        }
+
+        for attempted_path in (Path("/etc/evidence-escape"), Path("/root/evidence-escape")):
+            with self.subTest(attempted_path=attempted_path):
+                self.assertTrue(is_system_write_path(attempted_path, poisoned_env))
+                self.assertFalse(is_allowed_runtime_path(attempted_path, poisoned_env))
+
+        safe_control = safe_run_root / "build" / "apache" / "control-run"
+        self.assertFalse(is_system_write_path(safe_control, poisoned_env))
+        self.assertTrue(is_allowed_runtime_path(safe_control, poisoned_env))
+
+    def test_broad_runner_parent_cannot_expand_runtime_allowlist(self) -> None:
+        """A broad RUNNER_TEMP or TMPDIR value must not authorize arbitrary descendants."""
+        env = {
+            "VERIFIED_RUN_ROOT": "/var/tmp/codex/runtime-path-policy-control/verified-run",
+            "RUNNER_TEMP": "/",
+            "TMPDIR": "/",
+        }
+
+        self.assertFalse(is_allowed_runtime_path(Path("/etc/evidence-escape"), env))
+        self.assertFalse(is_allowed_runtime_path(Path("/root/evidence-escape"), env))
+        self.assertEqual(
+            Path("/var/tmp/ModSecurity-conector-verified"),
+            default_verified_run_root(env),
+        )
+
+    def test_verified_runtime_paths_reject_broad_or_system_writable_roots(self) -> None:
+        """Runtime paths must remain narrow external locations, never broad/system roots."""
+        safe_run_root = Path("/var/tmp/codex/runtime-path-policy-control/verified-run")
+        with self.assertRaises(ValueError):
+            verified_runtime_paths({"VERIFIED_RUN_ROOT": "/"})
+        with self.assertRaises(ValueError):
+            verified_runtime_paths({"VERIFIED_RUN_ROOT": "/runtime-escape"})
+        with self.assertRaises(ValueError):
+            verified_runtime_paths(
+                {
+                    "VERIFIED_RUN_ROOT": str(safe_run_root),
+                    "BUILD_ROOT": "/etc/evidence-escape",
+                }
+            )
+
+        external_build_root = safe_run_root.parent / "separate-safe-build-root"
+        external_matrix_root = Path("/var/tmp/codex/ModSecurity-conector/matrix")
+        paths = verified_runtime_paths(
+            {
+                "VERIFIED_RUN_ROOT": str(safe_run_root),
+                "BUILD_ROOT": str(external_build_root),
+                "MATRIX_ROOT": str(external_matrix_root),
+            }
+        )
+        self.assertEqual(str(external_build_root), paths["BUILD_ROOT"])
+        self.assertEqual(str(external_matrix_root), paths["MATRIX_ROOT"])
+
+    def test_python_path_policy_selftest_accepts_only_writable_run_paths(self) -> None:
+        """The reusable Python policy distinguishes runtime writes from source reads."""
+        spec = importlib.util.spec_from_file_location("runtime_path_policy_checker", CHECKER)
+        assert spec is not None and spec.loader is not None
+        checker = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = checker
+        spec.loader.exec_module(checker)
+
+        checker.check_python_policy()
+
     def test_default_policy_selftest_ignores_caller_cache_overrides(self) -> None:
         """A custom verified root must not poison the checker’s default probe."""
         with tempfile.TemporaryDirectory(prefix="runtime-path-policy-") as temporary:

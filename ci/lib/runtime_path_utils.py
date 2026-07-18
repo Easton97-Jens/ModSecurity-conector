@@ -23,16 +23,44 @@ SYSTEM_WRITE_PREFIXES = (
 SYSTEM_WRITE_VAR_ALLOWLIST = (
     "/var/tmp",
 )
+READ_ONLY_SOURCE_MOUNT_ROOTS = (Path("/src"),)
+BROAD_RUNTIME_ROOTS = (
+    Path("/"),
+    Path("/tmp"),
+    Path("/var/tmp"),
+    Path("/home"),
+)
 
 
 def _env_value(env: Mapping[str, str], name: str) -> str:
     return str(env.get(name) or "").strip()
 
 
+def _matches_path_prefix(path: Path, prefix: str) -> bool:
+    text = str(path)
+    return text == prefix or text.startswith(prefix + "/")
+
+
+def canonical_project_roots() -> tuple[Path, ...]:
+    """Return repository-owned source roots without consulting mutable environment values."""
+    module_path = Path(__file__).resolve(strict=False)
+    connector_root = next(
+        (parent for parent in module_path.parents if (parent / "Makefile").is_file()),
+        None,
+    )
+    if connector_root is None:
+        return ()
+    framework_root = connector_root / "modules" / "ModSecurity-test-Framework"
+    return (connector_root, framework_root)
+
+
 def default_verified_run_root(env: Mapping[str, str] | None = None) -> Path:
     values = env or os.environ
-    parent = _env_value(values, "RUNNER_TEMP") or _env_value(values, "TMPDIR") or "/var/tmp"
-    return Path(parent) / DEFAULT_RUN_BASENAME
+    parent_value = _env_value(values, "RUNNER_TEMP") or _env_value(values, "TMPDIR")
+    parent = Path(parent_value).resolve(strict=False) if parent_value else Path("/var/tmp")
+    if not is_safe_runtime_parent(parent):
+        parent = Path("/var/tmp")
+    return parent / DEFAULT_RUN_BASENAME
 
 
 def is_under(path: Path, root: Path) -> bool:
@@ -47,23 +75,51 @@ def is_under_root_home(path: Path) -> bool:
     return is_under(path, Path("/root"))
 
 
-def is_configured_project_path(path: Path, env: Mapping[str, str] | None = None) -> bool:
-    values = env or {}
+def is_read_only_source_path(path: Path) -> bool:
     resolved = path.resolve(strict=False)
-    for name in ("REPO_ROOT", "CONNECTOR_ROOT", "FRAMEWORK_ROOT"):
-        value = _env_value(values, name)
-        if not value:
-            continue
-        root = Path(value).resolve(strict=False)
-        if resolved == root or is_under(resolved, root):
-            return True
-    return False
+    return any(
+        resolved == root.resolve(strict=False) or is_under(resolved, root)
+        for root in (*READ_ONLY_SOURCE_MOUNT_ROOTS, *canonical_project_roots())
+    )
+
+
+def is_configured_project_path(path: Path, env: Mapping[str, str] | None = None) -> bool:
+    """Compatibility helper that deliberately ignores mutable project-root inputs.
+
+    ``REPO_ROOT``, ``CONNECTOR_ROOT``, and ``FRAMEWORK_ROOT`` are location
+    hints.  They are not write authorization.  Known source locations remain
+    recognizable only for callers that need to preserve read-only source use.
+    """
+    del env
+    return is_read_only_source_path(path)
+
+
+def is_safe_runtime_parent(path: Path) -> bool:
+    """Return whether an invocation parent is safe to derive a child run root."""
+    resolved = path.resolve(strict=False)
+    if (
+        resolved == Path("/")
+        or resolved.parent == Path("/")
+        or is_read_only_source_path(resolved)
+    ):
+        return False
+    text = str(resolved)
+    if text == "/var" or text.startswith("/var/"):
+        return resolved == Path("/var/tmp") or is_under(resolved, Path("/var/tmp"))
+    return not any(_matches_path_prefix(resolved, prefix) for prefix in SYSTEM_WRITE_PREFIXES)
+
+
+def is_safe_runtime_root(path: Path) -> bool:
+    """Return whether an exact invocation root is narrow enough for writes."""
+    resolved = path.resolve(strict=False)
+    return resolved not in BROAD_RUNTIME_ROOTS and is_safe_runtime_parent(resolved)
 
 
 def is_system_write_path(path: Path, env: Mapping[str, str] | None = None) -> bool:
+    del env
     resolved = path.resolve(strict=False)
-    if is_configured_project_path(resolved, env):
-        return False
+    if is_read_only_source_path(resolved):
+        return True
     text = str(resolved)
     if text == "/var":
         return True
@@ -77,20 +133,20 @@ def is_system_write_path(path: Path, env: Mapping[str, str] | None = None) -> bo
 
 def allowed_runtime_roots(env: Mapping[str, str] | None = None) -> list[Path]:
     values = env or os.environ
-    paths = verified_runtime_paths(values)
-    roots = [
-        Path(paths["VERIFIED_RUN_ROOT"]),
-        Path("/src"),
-        Path(_env_value(values, "RUNNER_TEMP")) if _env_value(values, "RUNNER_TEMP") else None,
-        Path(_env_value(values, "TMPDIR")) if _env_value(values, "TMPDIR") else None,
-        Path("/tmp"),
-        Path("/var/tmp"),
-    ]
-    for name in ("REPO_ROOT", "CONNECTOR_ROOT", "FRAMEWORK_ROOT"):
-        value = _env_value(values, name)
-        if value:
-            roots.append(Path(value))
-    return [root.resolve(strict=False) for root in roots if root is not None and str(root)]
+    try:
+        paths = verified_runtime_paths(values)
+    except ValueError:
+        paths = {}
+    roots = [Path(paths["VERIFIED_RUN_ROOT"])] if paths else []
+    roots.extend((*READ_ONLY_SOURCE_MOUNT_ROOTS, *canonical_project_roots()))
+    normalized: list[Path] = []
+    for root in roots:
+        resolved = root.resolve(strict=False)
+        if not (is_safe_runtime_root(resolved) or is_read_only_source_path(resolved)):
+            continue
+        if resolved not in normalized:
+            normalized.append(resolved)
+    return normalized
 
 
 def is_allowed_runtime_path(path: Path, env: Mapping[str, str] | None = None) -> bool:
@@ -105,6 +161,8 @@ def verified_runtime_paths(
 ) -> dict[str, str]:
     values = env or os.environ
     run_root = Path(_env_value(values, "VERIFIED_RUN_ROOT") or default_verified_run_root(values)).resolve()
+    if not is_safe_runtime_root(run_root):
+        raise ValueError(f"VERIFIED_RUN_ROOT is unsafe for runtime writes: {run_root}")
     state_root = Path(_env_value(values, "VERIFIED_STATE_ROOT") or run_root / "state").resolve()
     verified_build_root = Path(_env_value(values, "VERIFIED_BUILD_ROOT") or run_root / "build").resolve()
     verified_source_root = Path(_env_value(values, "VERIFIED_SOURCE_ROOT") or run_root / "src").resolve()
@@ -126,6 +184,29 @@ def verified_runtime_paths(
     matrix_root = Path(_env_value(values, "MATRIX_ROOT") or build_root / "full-matrix").resolve()
     mrts_build_root = Path(_env_value(values, "MRTS_BUILD_ROOT") or build_root / "mrts").resolve()
     mrts_native_root = Path(_env_value(values, "MRTS_NATIVE_ROOT") or build_root / "mrts-native").resolve()
+
+    for label, path in (
+        ("VERIFIED_STATE_ROOT", state_root),
+        ("VERIFIED_BUILD_ROOT", verified_build_root),
+        ("VERIFIED_SOURCE_ROOT", verified_source_root),
+        ("VERIFIED_TMP_ROOT", verified_tmp_root),
+        ("VERIFIED_LOG_ROOT", verified_log_root),
+        ("CACHE_ROOT", cache_root),
+        ("VERIFIED_COMPONENT_CACHE", verified_component_cache),
+        ("NGINX_HARNESS_PARENT", nginx_harness_parent),
+        ("BUILD_ROOT", build_root),
+        ("SOURCE_ROOT", source_root),
+        ("TMP_ROOT", tmp_root),
+        ("LOG_ROOT", log_root),
+        ("CONNECTOR_COMPONENT_CACHE", component_cache),
+        ("MATRIX_ROOT", matrix_root),
+        ("MRTS_BUILD_ROOT", mrts_build_root),
+        ("MRTS_NATIVE_ROOT", mrts_native_root),
+    ):
+        if label == "SOURCE_ROOT" and is_read_only_source_path(path):
+            continue
+        if not is_safe_runtime_root(path):
+            raise ValueError(f"{label} is unsafe for runtime writes: {path}")
 
     return {
         "VERIFIED_RUN_ROOT": str(run_root),
@@ -160,26 +241,27 @@ def path_status(
     resolved = Path(path).resolve(strict=False)
     status = "PASS"
     notes: list[str] = []
-    project_roots = [
-        connector_root.resolve(strict=False),
-        framework_root.resolve(strict=False),
-    ]
-    project_path_allowed = any(
-        resolved == root or is_under(resolved, root)
-        for root in project_roots
-    )
+    del connector_root, framework_root
+    read_only_source = label == "SOURCE_ROOT" and is_read_only_source_path(resolved)
     if not resolved.is_absolute():
         status = "BLOCKED"
         notes.append("path is not absolute")
-    if is_system_write_path(resolved) and not project_path_allowed:
+    if is_system_write_path(resolved) and not read_only_source:
         status = "BLOCKED"
         notes.append("system write path is forbidden")
-    if worker_compatible and is_under_root_home(resolved) and not project_path_allowed:
+    if worker_compatible and is_under_root_home(resolved) and not read_only_source:
         status = "BLOCKED"
         notes.append("path is under /root and is not worker-traversable")
-    if not project_path_allowed and not any(resolved == root.resolve(strict=False) or is_under(resolved, root) for root in allowed_roots):
+    safe_allowed_roots = [
+        root.resolve(strict=False)
+        for root in allowed_roots
+        if is_safe_runtime_root(root.resolve(strict=False))
+    ]
+    if not read_only_source and not any(resolved == root or is_under(resolved, root) for root in safe_allowed_roots):
         status = "BLOCKED"
         notes.append("path is outside verified runtime roots")
+    if read_only_source:
+        notes.append("read-only source path")
     return {"variable": label, "value": str(resolved), "status": status, "notes": "; ".join(notes) or "ok"}
 
 
@@ -189,18 +271,7 @@ def runtime_path_rows(
     connector_root: Path,
     framework_root: Path,
 ) -> list[dict[str, Any]]:
-    allowed = [
-        Path(paths["VERIFIED_RUN_ROOT"]),
-        Path(paths["VERIFIED_STATE_ROOT"]),
-        Path(paths["VERIFIED_BUILD_ROOT"]),
-        Path(paths["VERIFIED_SOURCE_ROOT"]),
-        Path(paths["VERIFIED_TMP_ROOT"]),
-        Path(paths["VERIFIED_LOG_ROOT"]),
-        Path(paths["VERIFIED_COMPONENT_CACHE"]),
-        Path("/src"),
-        connector_root,
-        framework_root,
-    ]
+    allowed = [Path(value) for value in paths.values()]
     order = (
         "VERIFIED_RUN_ROOT",
         "VERIFIED_BUILD_ROOT",

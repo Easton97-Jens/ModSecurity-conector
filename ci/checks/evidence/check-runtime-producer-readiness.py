@@ -16,7 +16,13 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
-from runtime_path_utils import is_system_write_path, is_under, verified_runtime_paths
+from runtime_path_utils import (
+    is_read_only_source_path,
+    is_safe_runtime_root,
+    is_system_write_path,
+    is_under,
+    verified_runtime_paths,
+)
 
 
 def default_state_home() -> Path:
@@ -133,27 +139,27 @@ def component(
 
 
 def check_safe_path(path: Path, label: str, roots: dict[str, Path], connector_root: Path, framework_root: Path) -> dict[str, Any]:
+    resolved = path.resolve(strict=False)
     status = "PASS"
     notes: list[str] = []
-    project_path_allowed = any(
-        is_within(path, root) or path == root
-        for root in (connector_root, framework_root)
-    )
-    if not path.is_absolute():
+    del connector_root, framework_root
+    read_only_source = label == "SOURCE_ROOT" and is_read_only_source_path(resolved)
+    if not resolved.is_absolute():
         status = "BLOCKED"
         notes.append("path is not absolute")
-    if is_system_write_path(path) and not project_path_allowed:
+    if is_system_write_path(resolved) and not read_only_source:
         status = "BLOCKED"
         notes.append("system write path is forbidden")
-    allowed = any(is_within(path, root) or path == root for root in roots.values())
-    if project_path_allowed:
-        allowed = True
-    if not allowed and str(path).startswith("/tmp/"):
-        allowed = True
-    if not allowed:
+    allowed = any(
+        is_safe_runtime_root(root) and (is_within(resolved, root) or resolved == root)
+        for root in roots.values()
+    )
+    if not read_only_source and not allowed:
         status = "BLOCKED"
         notes.append("path is outside allowed runtime/cache roots")
-    return {"label": label, "path": str(path), "status": status, "notes": "; ".join(notes) or "ok"}
+    if read_only_source:
+        notes.append("read-only source path")
+    return {"label": label, "path": str(resolved), "status": status, "notes": "; ".join(notes) or "ok"}
 
 
 def network_cache_status(env: dict[str, str], cache_root: Path) -> list[dict[str, Any]]:
@@ -183,7 +189,7 @@ def network_cache_status(env: dict[str, str], cache_root: Path) -> list[dict[str
 def build_payload(connector_root: Path, framework_root: Path, build_root: Path) -> dict[str, Any]:
     defaults = verified_runtime_paths(os.environ, build_root_override=build_root)
     state_home = Path(defaults["VERIFIED_STATE_ROOT"])
-    cache_root = Path(os.environ.get("CONNECTOR_COMPONENT_CACHE", defaults["CONNECTOR_COMPONENT_CACHE"])).resolve()
+    cache_root = Path(defaults["CONNECTOR_COMPONENT_CACHE"])
     base_env = dict(os.environ)
     base_env.update(
         {
@@ -258,13 +264,13 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path) 
         component("albedo", file_status(albedo, executable_required=True), albedo, "optional native MRTS: install or cache albedo", required=False),
     ]
     roots = {
-        "verified_run_root": Path(effective_env["VERIFIED_RUN_ROOT"]).resolve(),
+        "verified_run_root": Path(defaults["VERIFIED_RUN_ROOT"]),
         "state_home": state_home,
-        "build_root": build_root,
+        "build_root": Path(defaults["BUILD_ROOT"]),
         "cache_root": cache_root,
-        "tmp_root": Path(effective_env["TMP_ROOT"]).resolve(),
-        "log_root": Path(effective_env["LOG_ROOT"]).resolve(),
-        "mrts_native_root": Path(effective_env["MRTS_NATIVE_ROOT"]).resolve(),
+        "tmp_root": Path(defaults["TMP_ROOT"]),
+        "log_root": Path(defaults["LOG_ROOT"]),
+        "mrts_native_root": Path(defaults["MRTS_NATIVE_ROOT"]),
     }
     path_checks = [
         check_safe_path(Path(effective_env[key]).resolve(), key, roots, connector_root, framework_root)
