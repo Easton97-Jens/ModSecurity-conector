@@ -16,7 +16,7 @@ Implemented now:
 - A local runtime smoke harness under `connectors/apache/harness/`.
 - Use of all shared minimal cases under `modules/ModSecurity-test-Framework/tests/cases/`.
 - Use of source-derived shared imported cases, including raw JSON body,
-  simple multipart text-field, and response-body pass-through smokes.
+  simple multipart text-field, and response-body Allow-control smokes.
 - A historical local source-built httpd run observed the YAML-expected HTTP
   status for all current shared minimal cases on 2026-05-15. It is not current
   canonical Phase-4 facet evidence.
@@ -60,9 +60,12 @@ libmodsecurity log callback only. It does not change audit logging,
 intervention behavior, request or response handling, hooks, filters, buckets,
 or transaction ownership.
 
-The Phase 4 directives are bounded runtime controls. Phase 4 / RESPONSE_BODY
-remains non-promoted; source-level strict-mode wiring does not establish a
-late-abort result.
+The Phase 4 directives are bounded runtime controls. In particular,
+`modsecurity_phase4_content_types_file` is a deprecated compatibility parser:
+it cannot narrow the Apache all-response pre-commit gate. Use
+`SecResponseBodyMimeType` to select libModSecurity inspection instead. Phase 4
+/ RESPONSE_BODY remains non-promoted; source-level strict-mode wiring does not
+establish a late-abort result.
 
 Primary local reference: `<external-source-root>/ModSecurity-apache`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache.
@@ -129,32 +132,54 @@ full-matrix coverage, or new runtime verification behavior.
 
 ## Canonical Phase-4 boundary
 
-Apache uses a native httpd output-filter path that borrows the current bucket,
-passes the current brigade onward before EOS, and finishes Phase 4 at EOS.
-That is incremental ingestion with end-of-stream evaluation, not per-chunk
-rule evaluation. The checked-in manifest intentionally declares
-`response_body_buffered`, `phase4`,
-`phase4_rule_evaluation`, `late_intervention`,
-`late_intervention_log_only`, `late_intervention_abort`, and
-`late_intervention_status_metadata` as `implemented_not_asserted`.  No current
-canonical real-host evidence promotes any of those facets.
+Apache's output filter is an EOS-only all-response enforcement gate. It
+incrementally appends every data bucket to libModSecurity and saves the
+normalized Apache brigade in the request pool across filter calls. It forwards
+no original response byte, including a response that has no data buckets and
+only EOS, until the first EOS has arrived, `msc_process_response_body` has
+completed, and the intervention has been resolved. This deliberately trades
+client-visible progressive response streaming for a complete Phase-4 decision;
+it is not per-chunk rule evaluation.
 
-`phase4_pre_commit_deny` is deliberately `not_implemented`: the body decision
-is made at EOS after the response-header path, so the native host has no
-deterministic uncommitted response-body decision point. A denial branch in
-source is not a basis for claiming a visible Phase-4 HTTP status rewrite.
+The connector cannot safely query libModSecurity's effective
+`SecResponseBodyMimeType` selection through the C API. It consequently gates
+every response MIME type. `SecResponseBodyMimeType` still selects engine
+inspection, while the deprecated
+`modsecurity_phase4_content_types_file` cannot create an uninspected
+pass-through route. The default `modsecurity_phase4_body_limit` is 1048576
+bytes (1 MiB). A response that exceeds it fails closed before any original
+response byte is released; it is not processed partially and then streamed.
 
-A Phase-4 rule match is not evidence of a client-visible 403.  A canonical
-event must keep `original_http_status`, requested WAF status,
-`visible_http_status`, `requested_action`, `actual_action`, response-commit
-metadata, and `connection_aborted` separate.  Before commitment a deny may be
-possible; after commitment the common policy can only record `log_only` in
-safe mode or `abort_connection` in strict mode.  Neither outcome may be
-reported as a successful pre-commit deny without matching host evidence.
+At the normal decision boundary, Apache's `r->sent_bodyct` and `eos_sent` are
+not commit proof: upstream modules can set them before this filter has released
+anything. The gate instead uses its own released-EOS state and Apache's
+`r->bytes_sent`. A normal Phase-4 deny discards the saved original brigade,
+preserves the relevant P3 response state, and emits exactly one terminal error
+response before original output can be released. On an allow, the retained
+brigade (including its EOS) is passed once synchronously and the terminal
+output guard is sealed, preventing a later producer from duplicating body or
+EOS output. Errors while saving, appending, or finishing the response discard
+the retained brigade and fail closed; a genuinely post-commit failure aborts
+the connection.
 
-The required applicable cases are `phase4_rule_observed`,
-`phase4_deny_after_commit_log_only`, `phase4_deny_after_commit_abort`, and the
-two metadata cases. `phase4_deny_before_commit` remains unselected for this
-host model. All cases remain evidence-gated rather than inferred from this
-source description, and events contain metadata only—never response-body
-payloads.
+`log_only` in safe/minimal mode and `abort_connection` in strict mode are
+defensive late-intervention fallbacks only when independent commit proof already
+exists. They do not reinterpret a normal, still-gated Phase-4 deny as log-only
+or remove the pre-release deny path.
+
+A normal `r->prev` internal redirect, including a pre-output ErrorDocument,
+fails closed because a transaction that processed the source URI, headers, and
+body cannot be safely rebound to a different target/ruleset through the public
+libModSecurity C API. The sole exception is one synchronous, Apache-core-marked
+local ErrorDocument hop while the terminal guard is `EMITTING`; it requires the
+Apache `no_local_copy` marker and an immediate predecessor status matching
+`REDIRECT_STATUS`, and the guard admits no second hop. This lets the one
+legitimate terminal error body be emitted without
+opening a normal redirect bypass.
+
+The checked-in manifest intentionally declares the source-wired Phase-4 and
+late-intervention facets `implemented_not_asserted` until current real-host
+evidence exists. The focused H1/H2 evidence placeholder is
+`ci/runtime/lifecycle/run-apache-phase4-response-regression.sh`; record only
+its run-scoped artifacts after execution. This source contract does not label
+either H1 or H2 as passed.

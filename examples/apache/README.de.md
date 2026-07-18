@@ -9,14 +9,17 @@ ist Request-orientiert; die [Safe-Referenz](safe/httpd.conf) wählt die native
 HTTP/1.1-P1--P4-Konfigurationsform. P1 sind Request-Header, P2 Request-Body,
 P3 Response-Header und P4 Response-Body.
 
-Safe ist eine Policy nach dem Commit, keine Garantie eines sichtbaren Status.
-Der Filter gibt aktuelle Daten weiter und beendet die Response-Body-Verarbeitung
-bei EOS. Das verspricht weder Regelbewertung pro Chunk noch einen
-Connector-eigenen vollständigen Response-Buffer. Eine späte P4-Entscheidung
-muss als Log-only aufgezeichnet werden, solange passende Host-Evidence nichts
-Weiteres belegt. Die [Strict-Profilgrenze](#strict-profilgrenze) dokumentiert den
-parserunterstützten optionalen Wert, behauptet aber keinen client-sichtbaren
-Abbruch.
+Safe ist die ausgewählte Konfiguration für Apaches EOS-only-All-Response-
+Phase-4-Gate. Der Filter hängt Daten-Buckets inkrementell an, hält aber jede
+normalisierte Response-Brigade bis zum ersten EOS zurück, bevor er ein
+ursprüngliches Byte freigibt. Danach schließt er die Response-Body-Verarbeitung
+ab und löst die Intervention genau einmal auf. Das verspricht weder
+Regelauswertung pro Chunk noch für Clients sichtbares progressives Response-
+Streaming. Ein normaler Deny wird vor der Freigabe der ursprünglichen Ausgabe
+aufgelöst; Safe-<code>log_only</code> ist nur ein defensiver Fallback für eine
+getrennt als bereits committed nachgewiesene Response. Die
+[Strict-Profilgrenze](#strict-profilgrenze) dokumentiert den parserunterstützten
+optionalen Fallback-Wert, behauptet aber keinen client-sichtbaren Abbruch.
 
 ## Dateien
 
@@ -43,12 +46,12 @@ in der Konfiguration, einschließlich /usr/lib/apache2/modules/mod_security3.so,
 | --- | --- | --- | --- |
 | security3_module | Von LoadModule geladenes Modul | Pflicht; kein Repository-Default; Apache-Paket oder lokaler Build; Server-Scope | mod_security3.so an installiertem Modulpfad. Falsche ABI oder falscher Pfad verhindert den Start. |
 | modsecurity_rules_file | Lesbare libmodsecurity-Regeldatei | Pflicht; kein Repository-Default; Host-Konfiguration; Modul-Scope | /etc/modsecurity/modsecurity-phase4.conf. Ein geprüftes Ruleset kann Traffic blockieren. |
-| modsecurity_phase4_mode | Late-P4-Policy: minimal, safe oder strict | Nur Safe-Datei; Host-Konfiguration; Modul-Scope | safe. Eine späte Entscheidung wird nicht als erfundener Status dargestellt. |
-| modsecurity_phase4_content_types_file | Datei expliziter Response-MIME-Typen | Optional; Host-Konfiguration; Modul-Scope | /etc/modsecurity/phase4-content-types.conf. Eng halten; unlesbare Datei lässt Validierung fehlschlagen. |
+| modsecurity_phase4_mode | Defensiver Late-P4-Fallback: minimal, safe oder strict | Nur Safe-Datei; Host-Konfiguration; Modul-Scope | safe. Ein normaler gegateter Deny wird vor Release aufgelöst; diese Einstellung wählt nur einen unerwarteten bereits-committed Fallback. |
+| modsecurity_phase4_content_types_file | Veraltete Legacy-Datei für Response-MIME-Typen | Optionaler Kompatibilitätsparser; Host-Konfiguration; Modul-Scope | Für neue Apache-Profile nicht konfigurieren: Sie kann das All-Response-Gate nicht einschränken. `SecResponseBodyMimeType` wählt die Engine-Inspektion. |
 | modsecurity_phase4_log | Ziel für Decision-JSONL | Optional; Host-Konfiguration; Modul-Scope | /var/log/modsecurity/apache-phase4.jsonl. Request-Metadaten schützen und rotieren. |
-| modsecurity_phase4_body_limit und SecResponseBodyLimit | Positive P4-Byte-Limits | Für begrenztes Safe Pflicht; Host- und Regeldatei; keine automatische Angleichung | 1048576 Bytes. Abweichungen ändern den P4-Input; nie unbegrenzt setzen. |
+| modsecurity_phase4_body_limit und SecResponseBodyLimit | Positive P4-Byte-Limits | Für begrenztes Safe Pflicht; Host- und Regeldatei; keine automatische Angleichung | Connector-Standard sind 1048576 Byte. Das ist ein hartes fail-closed-All-Response-Gate-Limit; eine libModSecurity-`ProcessPartial`-Policy gibt keinen uninspektierten Connector-Tail frei. |
 | SecRequestBodyAccess und SecResponseBodyAccess | Request-/Response-Body-Schalter | In passenden Regeln Pflicht; Rule-Engine-Scope | On in Safe-Regeln; Response Access ist bei Request-only Off. |
-| SecResponseBodyMimeType und SecResponseBodyLimitAction | P4-Scope und Policy über dem Limit | In Safe-Regeln Pflicht; Rule-Engine-Scope | Explizite Text-/JSON-Typen und ProcessPartial. Kein Binary-Verhalten ableiten. |
+| SecResponseBodyMimeType und SecResponseBodyLimitAction | Engine-P4-Scope und Policy über dem Limit | In Safe-Regeln Pflicht; Rule-Engine-Scope | Explizite Text-/JSON-Typen wählen die Engine-Inspektion; sie schränken Apaches All-Response-Gate nicht ein. Kein Binary-Verhalten ableiten. |
 | SecAuditLog | Audit-Log-Ziel | Optional; Regeldatei; Rule-Engine-Scope | /var/log/modsecurity/apache-audit.log. Zugriff und Aufbewahrung steuern. |
 
 Regel-ID 9002801 gehört nur zu p1-p4-safe.conf. Sie ist weder eine OWASP-CRS-
@@ -66,7 +69,7 @@ Hostfelder und ihre Parser-/Default-/Merge-Anker.
 | `SecRuleEngine` | ModSecurity Engine | Wertet geladene Regeln aus und wählt Enforcement, DetectionOnly oder Off. |
 | `SecRequestBodyAccess` | ModSecurity Engine | Stellt dem Engine-P2-Request-Body-Eingaben bereit. |
 | `SecResponseBodyAccess` | ModSecurity Engine | Stellt berechtigte P4-Response-Body-Eingaben bereit. |
-| `modsecurity_phase4_mode` | Connector / Common Policy | Wählt die gewünschte Late-P4-Policy; Safe verspricht keine späte 403. |
+| `modsecurity_phase4_mode` | Connector / Common Policy | Wählt nur einen defensiven bereits-committed Fallback; ein gewöhnlicher gegateter P4-Deny wird vor der Freigabe der ursprünglichen Ausgabe aufgelöst. |
 
 `modsecurity on` mit `SecRuleEngine Off` erzeugt den Connector-Pfad, schaltet
 aber die Engine-Regelauswertung ab. `modsecurity off` verhindert eine
@@ -97,15 +100,23 @@ P1--P4-Verhalten ableiten.
 ## P1--P4-Safe-Absicht
 
 Die Safe-Referenz konfiguriert die Verarbeitung des nativen httpd-Moduls für
-P1 bis P4 und begrenzt den Response-Body-Input auf 1048576 Bytes. Eine
-P4-Entscheidung nach dem Response-Commit soll als Safe-Log-only behandelt
-werden; ohne passende Host-Evidence darf sie nicht als sichtbarer HTTP-403
-dokumentiert werden.
+P1 bis P4 und ein All-Response-Gate von 1048576 Byte. Apache speichert alle
+normalisierten Output-Brigades bis zum ersten EOS, einschließlich des EOS einer
+leeren Response; ein normaler P4-Deny verwirft diese gespeicherte ursprüngliche
+Response und sendet den terminalen Fehler, bevor sie freigegeben werden kann.
+Die C-API macht die wirksame MIME-Entscheidung von libModSecurity für den
+Connector opak; `SecResponseBodyMimeType` wählt daher Engine-Inspektion, ohne
+einen Gate-Bypass zu erzeugen. Das veraltete
+`modsecurity_phase4_content_types_file` fehlt absichtlich in der Safe-
+Konfiguration.
 
-Dieser Abschnitt beschreibt Konfigurationsabsicht, kein Laufergebnis. Der
-native Pfad verspricht weder Regelbewertung pro Chunk noch einen vollständigen
-Connector-Response-Buffer oder einen Strict-Abbruch nach dem Commit. Dafür
-gibt es hier kein Strict-Beispiel.
+Dieser Abschnitt beschreibt Konfigurationsabsicht, kein Laufergebnis. Die
+Input-Aufnahme bleibt über mehrere Brigades hinweg inkrementell, der native
+Pfad verspricht aber bewusst kein für Clients sichtbares progressives Response-
+Streaming. Fehler beim Anhängen, Speichern oder Abschließen des Bodys verwerfen
+die gespeicherte Response und schlagen fail-closed fehl. Nur eine tatsächlich
+bereits committed Response kann Safe-Log-only- oder Strict-Abort-Fallback-
+Verhalten verwenden. Dafür gibt es hier kein Strict-Beispiel.
 
 ## No-CRS-Regeln
 
@@ -144,11 +155,18 @@ client-sichtbaren P4-Status, CRS-Abdeckung oder Produktionsreife.
 `modsecurity_phase4_mode strict` wird vom Parser unterstützt, aber dieses
 Repository besitzt keinen Apache-Hostnachweis für einen client-sichtbaren
 späten Abbruch. Strict ist deshalb optional und enthält hier absichtlich keine
-ausführbare Konfiguration.
+ausführbare Konfiguration. Es gilt nur, wenn der Commit unabhängig nachgewiesen
+ist; es wandelt einen normalen P4-Deny vor Release nicht in einen späten Abbruch
+um.
 
 Von `safe/httpd.conf` ausgehen, `modsecurity_phase4_mode strict` setzen,
 mit `apachectl -t` validieren und host-spezifische Evidenz erfassen, bevor auf
 eine Post-Commit-Aktion vertraut wird.
+
+Der fokussierte H1/H2-Evidence-Platzhalter ist
+`ci/runtime/lifecycle/run-apache-phase4-response-regression.sh`. Erst nach
+seiner Ausführung werden laufbezogene Artefakte erfasst; diese
+Konfigurationsdokumentation behauptet keinen Pass für eines der Protokolle.
 
 ## Verwandtes Material
 

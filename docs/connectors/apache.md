@@ -23,7 +23,7 @@ metadata, and payload-safe event primitives; it does not own Apache objects.
 | --- | --- | --- |
 | P1/P2 | Map request metadata and process request bodies through the input path | Finalize request-body processing at EOS |
 | P3 | Map response headers before the committed response boundary | Preserve original and visible status context |
-| P4 | Ingest current output buckets incrementally and finalize at EOS | No connector-owned cross-call full response buffer |
+| P4 | Append data buckets incrementally, retain the normalized response through first EOS, then finalize once | Apache-owned request-pool all-response gate; no original byte is released before the Phase-4 decision |
 | Logging | Emit metadata-only events and release transaction state | Event payloads do not contain response bodies |
 
 Each successfully created native <code>Transaction</code> is owned by the
@@ -31,9 +31,16 @@ primary Apache request that created it. The adapter publishes it only after
 creation succeeds, registers normal cleanup on that request's
 <code>r-&gt;pool</code>, and clears the owner note and native pointer before
 <code>msc_transaction_cleanup</code> runs. This is a source-level lifecycle
-contract, not runtime evidence. Internal redirects and subrequests retain their
-existing deliberate reuse of the primary context; separate top-level requests
-on a keepalive connection receive separate request pools and transactions.
+contract, not runtime evidence. Separate top-level requests on a keepalive
+connection receive separate request pools and transactions. Subrequests retain
+their existing deliberate reuse of the primary context. Normal internal
+redirects and pre-output ErrorDocuments fail closed: the transaction cannot
+safely be rebound from the source URI, headers, and body to a target request
+through the public libModSecurity C API. The only exception is one synchronous,
+Apache-core-marked local ErrorDocument hop while the terminal output guard is
+<code>EMITTING</code>, with the Apache <code>no_local_copy</code> marker and a
+matching immediate predecessor status/<code>REDIRECT_STATUS</code>; the guard
+rejects a second hop.
 
 ## Build
 
@@ -56,16 +63,37 @@ same as the Apache connector enable/disable directive.
 
 ## P1--P4 lifecycle and late behavior
 
-The native module processes P1 through P4 on its host hooks and filters.
-P3 can act before the response is committed when the selected case and host
-state permit it. P4 is different: Safe behavior after commitment is recorded
-conservatively as metadata and must preserve the actual visible outcome.
-Strict source wiring is not proof of a client-visible abort.
+The native module processes P1 through P4 on its host hooks and filters. P3 can
+act before the response is committed when the selected case and host state
+permit it. P4 is an EOS-only all-response gate: every normalized response
+brigade, including an empty response's EOS, stays in the Apache request pool
+until <code>msc_process_response_body</code> and intervention resolution are
+complete. This permits a normal Phase-4 deny to discard the saved original
+brigade and emit one terminal error before original output is released. It also
+means the selected Apache path deliberately does not provide client-visible
+progressive response streaming.
+
+The C API does not expose a safe answer to libModSecurity's effective
+<code>SecResponseBodyMimeType</code> selection. Apache therefore gates every
+response MIME type; the engine directive still selects inspection, but the
+deprecated <code>modsecurity_phase4_content_types_file</code> cannot open a
+pass-through route. The connector default is a 1048576-byte (1 MiB) hard limit;
+an over-limit response fails closed before its original bytes are released.
+<code>r-&gt;sent_bodyct</code> and <code>eos_sent</code> are not used as commit
+proof because upstream/core paths can set them before this filter releases
+output. The gate uses its own released-EOS marker and Apache
+<code>r-&gt;bytes_sent</code> instead.
+
+Safe/minimal <code>log_only</code> and strict
+<code>abort_connection</code> remain defensive fallbacks only for an
+independently proven already-committed response. They do not change a normal
+still-gated deny into log-only. Source wiring for a strict fallback remains no
+proof of a client-visible abort.
 
 | P4 question | Required observation |
 | --- | --- |
 | Rule observed | Real host phase-4 rule observation with the selected rule/profile |
-| Pre-commit deny | Requested deny, uncommitted headers, and matching visible status |
+| Pre-commit deny | Requested deny, no released original EOS/bytes, matching visible terminal status, and no original body output |
 | Safe late result | Requested action, actual <code>log_only</code>, unchanged visible status, and late flag |
 | Strict late result | Actual abort action and host/client evidence of the recorded abort |
 
@@ -74,7 +102,11 @@ Strict source wiring is not proof of a client-visible abort.
 Use <code>make check-config-apache</code> for the selected configuration and
 <code>make full-lifecycle-apache</code> for a selected lifecycle run. Inspect
 the run-scoped result, assertion, host-log, and metadata-only phase event
-artifacts rather than inferring runtime behavior from source or a build.
+artifacts rather than inferring runtime behavior from source or a build. The
+focused H1/H2 evidence placeholder is
+<code>ci/runtime/lifecycle/run-apache-phase4-response-regression.sh</code>;
+record its run-scoped output only after execution. This guide does not claim an
+H1 or H2 pass merely because the source contract or runner exists.
 
 The shared test model, status vocabulary, privacy rules, and aggregate
 boundaries are in [Testing and evidence](../testing-and-evidence.md).
@@ -93,7 +125,9 @@ Apache v2-style names are not automatically native Apache v3 connector
 directives. Use the registered module syntax and the complete reference rather
 than assuming a legacy directive, merge rule, or expression is portable. P4
 response-body and post-commit behavior remain evidence-gated; a rule match,
-source branch, or historical matrix is not a promotion.
+source branch, or historical matrix is not a promotion. The Apache all-response
+gate is intentional compatibility behavior for this security boundary, not a
+generic connector buffering model.
 
 ## Related references
 

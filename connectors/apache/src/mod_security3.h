@@ -50,6 +50,16 @@
 
 #define N_INTERVENTION_STATUS 200
 
+/* The protocol-level Phase-4 guard must allow Apache's synchronous terminal
+ * error response (including a local ErrorDocument) before it seals the
+ * request against an invalid later producer brigade. */
+enum msc_phase4_terminal_output_state
+{
+    MSC_PHASE4_TERMINAL_OUTPUT_OPEN = 0,
+    MSC_PHASE4_TERMINAL_OUTPUT_EMITTING,
+    MSC_PHASE4_TERMINAL_OUTPUT_SEALED
+};
+
 
 typedef struct
 {
@@ -69,6 +79,57 @@ typedef struct
     int response_headers_seen;
     int response_body_seen;
     int response_body_truncated;
+    /* Apache normally commits this state when the first response brigade
+     * reaches HTTP_HEADER. The Phase-4 gate delays that pass until EOS, so
+     * retain the P3-inspected snapshot and restore it before release. */
+    int response_headers_snapshot_taken;
+    apr_table_t *response_headers_snapshot;
+    apr_table_t *response_err_headers_snapshot;
+    int response_status_snapshot;
+    const char *response_status_line_snapshot;
+    const char *response_content_type_snapshot;
+    const char *response_content_encoding_snapshot;
+    apr_array_header_t *response_content_languages_snapshot;
+    apr_off_t response_clength_snapshot;
+    int response_chunked_snapshot;
+    int response_no_cache_snapshot;
+    /* HTTP_HEADER derives further visible response behavior from these
+     * request controls when it finally runs. Retain the P3-era values rather
+     * than a whole notes/environment table so unrelated late request state is
+     * not discarded by the Phase-4 response gate. */
+    int response_note_no_etag_snapshot_set;
+    const char *response_note_no_etag_snapshot;
+    int response_env_force_no_vary_snapshot_set;
+    const char *response_env_force_no_vary_snapshot;
+    int response_env_downgrade_1_0_snapshot_set;
+    const char *response_env_downgrade_1_0_snapshot;
+    int response_env_force_response_1_0_snapshot_set;
+    const char *response_env_force_response_1_0_snapshot;
+    int response_env_nokeepalive_snapshot_set;
+    const char *response_env_nokeepalive_snapshot;
+    int response_proto_num_snapshot;
+    int response_header_only_snapshot;
+    int response_assbackwards_snapshot;
+    int response_proxyreq_snapshot;
+    int response_expecting_100_snapshot;
+    apr_time_t response_request_time_snapshot;
+    /* LibModSecurity's effective MIME policy is opaque to the C connector.
+     * Every Apache response is set aside until EOS so a disruptive
+     * response-body decision is made before Apache can commit it. */
+    apr_bucket_brigade *response_brigade;
+    /* A terminal Phase-4 error, deny, or late abort must keep this filter
+     * authoritative for the remainder of the request. A producer that ignores
+     * the returned error must not bypass the gate with another brigade. */
+    int response_phase4_gate_failed;
+    enum msc_phase4_terminal_output_state response_phase4_terminal_output;
+    /* At most one Apache-core local ErrorDocument redirect may use the
+     * bounded terminal-emission exception. Nested redirects would otherwise
+     * turn this exception into a path around the Phase-4 request boundary. */
+    int response_phase4_terminal_error_redirect_seen;
+    /* This filter has passed its retained EOS to the next output filter. Any
+     * later producer brigade is invalid and must not create a second response
+     * sequence. */
+    int response_phase4_eos_released;
     int response_committed;
     int response_headers_processed;
     int response_body_processed;

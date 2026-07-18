@@ -49,7 +49,25 @@ MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
 MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
-SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"
+MSCONNECTOR_PHASE4_SYNC_EXPECTATION="${MSCONNECTOR_PHASE4_SYNC_EXPECTATION:-first_byte}"
+APACHE_PHASE4_BODY_LIMIT="${APACHE_PHASE4_BODY_LIMIT:-1048576}"
+SYNCHRONIZED_UPSTREAM="${SYNCHRONIZED_UPSTREAM:-$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py}"
+APACHE_PHASE4_ROGUE_TEST="${APACHE_PHASE4_ROGUE_TEST:-0}"
+APACHE_PHASE4_ROGUE_PROTOCOL="${APACHE_PHASE4_ROGUE_PROTOCOL:-http1}"
+APACHE_PHASE4_ERROR_DOCUMENT="${APACHE_PHASE4_ERROR_DOCUMENT:-0}"
+APACHE_PHASE4_ROGUE_EXPECT="${APACHE_PHASE4_ROGUE_EXPECT:-deny}"
+APACHE_PHASE4_ROGUE_PHASE="${APACHE_PHASE4_ROGUE_PHASE:-p4}"
+APACHE_PHASE4_ROGUE_HEADER_MUTATION="${APACHE_PHASE4_ROGUE_HEADER_MUTATION:-0}"
+APACHE_PHASE4_INTERNAL_REDIRECT_TEST="${APACHE_PHASE4_INTERNAL_REDIRECT_TEST:-0}"
+APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT="${APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT:-abort}"
+APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST="${APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST:-0}"
+APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST="${APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST:-0}"
+APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID="${APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID:-}"
+APACHE_PHASE4_DOWNSTREAM_ERROR_TEST="${APACHE_PHASE4_DOWNSTREAM_ERROR_TEST:-0}"
+APACHE_PHASE4_UPSTREAM_ERROR_TEST="${APACHE_PHASE4_UPSTREAM_ERROR_TEST:-0}"
+APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST="${APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST:-0}"
+APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST="${APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST:-0}"
+OPENSSL_BIN="${OPENSSL:-openssl}"
 
 load_connector_adapter_metadata() {
     eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell apache --prefix CONNECTOR_ADAPTER)"
@@ -427,6 +445,11 @@ render_config() {
         minimal|safe|strict) ;;
         *) fail "unsupported resolved APACHE_PHASE4_MODE=${APACHE_PHASE4_MODE:-}" ;;
     esac
+    case "$APACHE_PHASE4_BODY_LIMIT" in
+        ""|*[!0-9]*) fail "APACHE_PHASE4_BODY_LIMIT must be a positive integer" ;;
+    esac
+    [ "$APACHE_PHASE4_BODY_LIMIT" -gt 0 ] || \
+        fail "APACHE_PHASE4_BODY_LIMIT must be a positive integer"
     sed \
         -e "s|@@RUNTIME_ROOT@@|$(escape_sed "$RUNTIME_ROOT")|g" \
         -e "s|@@LOG_DIR@@|$(escape_sed "$LOG_DIR")|g" \
@@ -438,6 +461,8 @@ render_config() {
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@APACHE_PHASE4_LOG@@|$(escape_sed "$APACHE_PHASE4_LOG_FILE")|g" \
         -e "s|@@APACHE_PHASE4_MODE@@|$(escape_sed "$APACHE_PHASE4_MODE")|g" \
+        -e "s|@@APACHE_PHASE4_BODY_LIMIT@@|$(escape_sed "$APACHE_PHASE4_BODY_LIMIT")|g" \
+        -e "s|@@APACHE_PHASE4_EXTRA_CONFIG@@|$(escape_sed "$APACHE_PHASE4_EXTRA_CONFIG")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
@@ -457,6 +482,9 @@ cleanup() {
     fi
     if [ -n "${RUNTIME_PID_FILE:-}" ]; then
         rm -f "$RUNTIME_PID_FILE"
+    fi
+    if [ -n "${PHASE4_ROGUE_TLS_KEY:-}" ]; then
+        rm -f "$PHASE4_ROGUE_TLS_KEY"
     fi
 }
 
@@ -567,19 +595,40 @@ PY
 
 send_synchronized_first_byte_request() {
     [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] || return 1
-    [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ] || fail "FULL_LIFECYCLE_EVIDENCE_OUTPUT is required for synchronized lifecycle mode"
+    case "$MSCONNECTOR_PHASE4_SYNC_EXPECTATION" in
+        first_byte|bypass|precommit_deny|custom_mime_deny|allow|log_only|client_abort|engine_append_failure) ;;
+        *) fail "unsupported MSCONNECTOR_PHASE4_SYNC_EXPECTATION=$MSCONNECTOR_PHASE4_SYNC_EXPECTATION" ;;
+    esac
+    if [ "$MSCONNECTOR_PHASE4_SYNC_EXPECTATION" = "first_byte" ]; then
+        [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ] || \
+            fail "FULL_LIFECYCLE_EVIDENCE_OUTPUT is required for first_byte synchronization"
+    fi
     request_url_path=$(quote_request_path "$REQUEST_PATH")
     : > "$RESPONSE_BODY"
-    "$CURL_BIN" -sS --no-buffer -X GET -o "$RESPONSE_BODY" -w "%{http_code}" \
+    "$CURL_BIN" -sS --http1.1 --no-buffer -D "$RESPONSE_HEADERS" -X GET -o "$RESPONSE_BODY" -w "%{http_code}" \
         "http://127.0.0.1:$PORT$request_url_path" >"$LOG_DIR/first-byte-status.txt" \
         2>"$LOG_DIR/first-byte-client.err" &
     FIRST_BYTE_CLIENT_PID=$!
     observed_first_byte=0
+    upstream_paused=0
     i=0
     while [ "$i" -lt 300 ]; do
-        if [ -f "$SYNCHRONIZED_PAUSED_FILE" ] && [ -s "$RESPONSE_BODY" ]; then
-            observed_first_byte=1
-            break
+        if [ -f "$SYNCHRONIZED_PAUSED_FILE" ]; then
+            upstream_paused=1
+            if [ -s "$RESPONSE_BODY" ]; then
+                observed_first_byte=1
+            fi
+            case "$MSCONNECTOR_PHASE4_SYNC_EXPECTATION" in
+                first_byte|bypass)
+                    [ "$observed_first_byte" -eq 1 ] && break
+                    ;;
+                precommit_deny|custom_mime_deny|allow|log_only|client_abort|engine_append_failure)
+                    # Keep a bounded observation window after the upstream has
+                    # confirmed that its first chunk is sent but EOS is absent.
+                    # A P4 gate must not release original body bytes here.
+                    [ "$i" -ge 10 ] && break
+                    ;;
+            esac
         fi
         if ! kill -0 "$FIRST_BYTE_CLIENT_PID" >/dev/null 2>&1; then
             break
@@ -587,27 +636,206 @@ send_synchronized_first_byte_request() {
         i=$((i + 1))
         sleep 0.1
     done
-    : > "$SYNCHRONIZED_RELEASE_FILE"
-    set +e
-    wait "$FIRST_BYTE_CLIENT_PID"
-    client_rc=$?
-    set -e
-    [ "$observed_first_byte" -eq 1 ] || fail "client did not receive a first response byte while upstream was paused"
-    [ "$client_rc" -eq 0 ] || fail "synchronized client failed after upstream release rc=$client_rc"
+    if [ "$MSCONNECTOR_PHASE4_SYNC_EXPECTATION" = "client_abort" ]; then
+        [ "$upstream_paused" -eq 1 ] || \
+            fail "client-abort test did not reach the paused-before-EOS barrier"
+        [ "$observed_first_byte" -eq 0 ] || \
+            fail "client-abort test released an in-scope response byte before EOS"
+        if ! kill -0 "$FIRST_BYTE_CLIENT_PID" >/dev/null 2>&1; then
+            fail "client-abort test client exited before the upstream barrier"
+        fi
+        kill "$FIRST_BYTE_CLIENT_PID" >/dev/null 2>&1 || \
+            fail "client-abort test could not stop its task-owned client"
+        set +e
+        wait "$FIRST_BYTE_CLIENT_PID"
+        client_rc=$?
+        set -e
+        : > "$SYNCHRONIZED_RELEASE_FILE"
+        set +e
+        wait "$SYNCHRONIZED_UPSTREAM_PID"
+        upstream_rc=$?
+        set -e
+    else
+        : > "$SYNCHRONIZED_RELEASE_FILE"
+        set +e
+        wait "$FIRST_BYTE_CLIENT_PID"
+        client_rc=$?
+        set -e
+        upstream_rc=0
+    fi
+    [ "$upstream_paused" -eq 1 ] || \
+        fail "synchronized upstream did not publish its paused-before-EOS barrier"
     http_status=$(cat "$LOG_DIR/first-byte-status.txt" 2>/dev/null || true)
-    [ "$http_status" = "200" ] || fail "synchronized safe response status was not 200: $http_status"
-    [ -s "$APACHE_PHASE4_LOG_FILE" ] || fail "Phase-4 host log is missing after synchronized response"
-    FIRST_BYTE_HOST_METADATA="$SYNCHRONIZED_DIR/host-metadata.json"
-    "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/lifecycle/write-first-byte-host-metadata.py" \
-        --phase4-log "$APACHE_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" || \
-        fail "could not derive bounded host metadata from the Phase-4 event"
-    "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
-        --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
-        --client-first-byte-file "$RESPONSE_BODY" \
-        --host-metadata-json "$FIRST_BYTE_HOST_METADATA" \
-        --evidence-origin real_host \
-        --output "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" || \
-        fail "could not write synchronized first-byte evidence"
+    case "$MSCONNECTOR_PHASE4_SYNC_EXPECTATION" in
+        first_byte)
+            [ "$observed_first_byte" -eq 1 ] || \
+                fail "client did not receive a first response byte while upstream was paused"
+            [ "$client_rc" -eq 0 ] || \
+                fail "synchronized client failed after upstream release rc=$client_rc"
+            [ "$http_status" = "200" ] || \
+                fail "synchronized safe response status was not 200: $http_status"
+            [ -s "$APACHE_PHASE4_LOG_FILE" ] || \
+                fail "Phase-4 host log is missing after synchronized response"
+            FIRST_BYTE_HOST_METADATA="$SYNCHRONIZED_DIR/host-metadata.json"
+            "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/lifecycle/write-first-byte-host-metadata.py" \
+                --phase4-log "$APACHE_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" || \
+                fail "could not derive bounded host metadata from the Phase-4 event"
+            "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
+                --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
+                --client-first-byte-file "$RESPONSE_BODY" \
+                --host-metadata-json "$FIRST_BYTE_HOST_METADATA" \
+                --evidence-origin real_host \
+                --output "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" || \
+                fail "could not write synchronized first-byte evidence"
+            ;;
+        bypass)
+            [ "$observed_first_byte" -eq 1 ] || \
+                fail "bypass reproduction did not expose a body byte before EOS"
+            [ "$client_rc" -eq 0 ] || \
+                fail "bypass reproduction client failed after release rc=$client_rc"
+            [ "$http_status" = "200" ] || \
+                fail "bypass reproduction expected status 200, observed $http_status"
+            grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+                fail "bypass reproduction body omitted the pre-EOS prefix"
+            grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+                fail "bypass reproduction body omitted the Phase-4 marker"
+            [ -s "$APACHE_PHASE4_LOG_FILE" ] || \
+                fail "bypass reproduction Phase-4 intervention log is missing"
+            grep -F '"rule_id":"2190401"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "bypass reproduction did not record Phase-4 rule 2190401"
+            grep -F '"actual_action":"log_only"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "bypass reproduction did not take the Safe log_only fallback"
+            grep -F '"reason":"response_committed_safe"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "bypass reproduction did not record a committed response"
+            [ -s "$AUDIT_LOG_FILE" ] && \
+                grep -F '2190401' "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
+                fail "bypass reproduction audit log lacks rule 2190401"
+            ;;
+        precommit_deny)
+            [ "$observed_first_byte" -eq 0 ] || \
+                fail "pre-commit deny released original response bytes before EOS"
+            [ "$client_rc" -eq 0 ] || \
+                fail "pre-commit deny client failed after release rc=$client_rc"
+            [ "$http_status" = "403" ] || \
+                fail "pre-commit deny expected status 403, observed $http_status"
+            assert_single_h1_status 403
+            if grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+                grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+                fail "pre-commit deny leaked original response bytes"
+            fi
+            [ -s "$APACHE_PHASE4_LOG_FILE" ] || \
+                fail "pre-commit deny Phase-4 intervention log is missing"
+            grep -F '"rule_id":"2190401"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "pre-commit deny did not record Phase-4 rule 2190401"
+            grep -F '"actual_action":"deny"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "pre-commit deny did not retain the disruptive action"
+            grep -F '"reason":"response_not_committed"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "pre-commit deny did not record the uncommitted boundary"
+            grep -F '"response_committed":false' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "pre-commit deny recorded an already-committed response"
+            grep -F '"eos_seen":true' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "pre-commit deny did not record the EOS decision boundary"
+            [ -s "$AUDIT_LOG_FILE" ] && \
+                grep -F '2190401' "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
+                fail "pre-commit deny audit log lacks rule 2190401"
+            ;;
+        custom_mime_deny)
+            [ "$observed_first_byte" -eq 0 ] || \
+                fail "custom-MIME pre-commit deny released original response bytes before EOS"
+            [ "$client_rc" -eq 0 ] || \
+                fail "custom-MIME pre-commit deny client failed after release rc=$client_rc"
+            [ "$http_status" = "403" ] || \
+                fail "custom-MIME pre-commit deny expected status 403, observed $http_status"
+            assert_single_h1_status 403
+            if grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+                grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+                fail "custom-MIME pre-commit deny leaked original response bytes"
+            fi
+            [ -s "$APACHE_PHASE4_LOG_FILE" ] || \
+                fail "custom-MIME pre-commit deny Phase-4 intervention log is missing"
+            grep -F '"rule_id":"2190404"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "custom-MIME pre-commit deny did not record Phase-4 rule 2190404"
+            grep -F '"actual_action":"deny"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "custom-MIME pre-commit deny did not retain the disruptive action"
+            grep -F '"reason":"response_not_committed"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "custom-MIME pre-commit deny did not record the uncommitted boundary"
+            grep -F '"response_committed":false' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+                fail "custom-MIME pre-commit deny recorded an already-committed response"
+            [ -s "$AUDIT_LOG_FILE" ] && \
+                grep -F '2190404' "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
+                fail "custom-MIME pre-commit deny audit log lacks rule 2190404"
+            ;;
+        engine_append_failure)
+            [ "$client_rc" -eq 0 ] || \
+                fail "engine ProcessPartial failure client failed rc=$client_rc"
+            [ "$http_status" = "500" ] || \
+                fail "engine ProcessPartial failure expected status 500, observed $http_status"
+            assert_single_h1_status 500
+            if grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+                grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+                fail "engine ProcessPartial failure released an uninspected original response byte"
+            fi
+            grep -F 'failed to append response body to libmodsecurity' "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+                fail "engine ProcessPartial failure did not take the connector fail-closed path"
+            ;;
+        allow)
+            [ "$observed_first_byte" -eq 0 ] || \
+                fail "in-scope allow released bytes before its Phase-4 EOS boundary"
+            [ "$client_rc" -eq 0 ] || \
+                fail "in-scope allow client failed after release rc=$client_rc"
+            [ "$http_status" = "200" ] || \
+                fail "in-scope allow expected status 200, observed $http_status"
+            assert_text_response_headers 200 44
+            expected_body='first-byte-prefixno-crs-response-body-marker'
+            actual_body=$(cat "$RESPONSE_BODY")
+            [ "$actual_body" = "$expected_body" ] || \
+                fail "in-scope allow body was lost, reordered, or emitted more than once"
+            [ ! -s "$APACHE_PHASE4_LOG_FILE" ] || \
+                fail "in-scope allow unexpectedly emitted a disruptive Phase-4 event"
+            ;;
+        log_only)
+            [ "$observed_first_byte" -eq 0 ] || \
+                fail "Phase-4 log-only control released bytes before EOS"
+            [ "$client_rc" -eq 0 ] || \
+                fail "Phase-4 log-only client failed after release rc=$client_rc"
+            [ "$http_status" = "200" ] || \
+                fail "Phase-4 log-only expected status 200, observed $http_status"
+            assert_text_response_headers 200 44
+            expected_body='first-byte-prefixno-crs-response-body-marker'
+            actual_body=$(cat "$RESPONSE_BODY")
+            [ "$actual_body" = "$expected_body" ] || \
+                fail "Phase-4 log-only body was lost, reordered, or emitted more than once"
+            [ -s "$AUDIT_LOG_FILE" ] && \
+                grep -F '2190402' "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
+                fail "Phase-4 log-only audit log lacks rule 2190402"
+            [ ! -s "$APACHE_PHASE4_LOG_FILE" ] || \
+                fail "Phase-4 log-only unexpectedly emitted a disruptive intervention event"
+            ;;
+        client_abort)
+            [ "$client_rc" -ne 0 ] || \
+                fail "client-abort test client unexpectedly completed normally"
+            [ "$upstream_rc" -eq 0 ] || \
+                fail "client-abort test upstream did not complete after release rc=$upstream_rc"
+            [ ! -s "$RESPONSE_BODY" ] || \
+                fail "client-abort test retained a protected response byte after client disconnect"
+            [ -s "$SYNCHRONIZED_SERVER_EVIDENCE_FILE" ] || \
+                fail "client-abort test upstream did not publish terminal evidence"
+            "$PYTHON_BIN" - "$SYNCHRONIZED_SERVER_EVIDENCE_FILE" <<'PY' || \
+                fail "client-abort test upstream terminal evidence is invalid"
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+if payload.get("upstream_eos_sent") is not True:
+    raise SystemExit(1)
+if payload.get("body_payload_persisted") is not False:
+    raise SystemExit(1)
+PY
+            if ! kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
+                fail "client-abort test caused the Apache host to exit"
+            fi
+            ;;
+    esac
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
     printf '%s\n' "http_status" > "$LOG_DIR/observed-transport-result.txt"
     return 0
@@ -707,7 +935,14 @@ start_server() {
                 fi
                 fail "Apache exited before request; see $LOG_DIR/httpd.log"
             fi
-            if "$CURL_BIN" -sS -o /dev/null "http://127.0.0.1:$PORT/__modsec_smoke_ready" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
+            if phase4_terminal_test_uses_h2; then
+                ready_url="https://127.0.0.1:$PORT/__modsec_smoke_ready"
+                set -- "$CURL_BIN" -sS -k --http1.1 -o /dev/null "$ready_url"
+            else
+                ready_url="http://127.0.0.1:$PORT/__modsec_smoke_ready"
+                set -- "$CURL_BIN" -sS -o /dev/null "$ready_url"
+            fi
+            if "$@" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
                 ready=1
                 break
             fi
@@ -723,7 +958,7 @@ start_server() {
 }
 
 send_case_request() {
-    set -- "$CURL_BIN" -sS -X "$REQUEST_METHOD" -o "$RESPONSE_BODY" -w "%{http_code}"
+    set -- "$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" -X "$REQUEST_METHOD" -o "$RESPONSE_BODY" -w "%{http_code}"
     if [ -n "${REQUEST_HEADERS_FILE:-}" ] && [ -s "$REQUEST_HEADERS_FILE" ]; then
         while IFS= read -r header_line || [ -n "$header_line" ]; do
             [ -n "$header_line" ] || continue
@@ -736,6 +971,825 @@ send_case_request() {
     request_url_path=$(quote_request_path "$REQUEST_PATH")
     set -- "$@" "http://127.0.0.1:$PORT$request_url_path"
     "$@" 2>"$LOG_DIR/curl-attack.err"
+}
+
+assert_single_h1_status() {
+    expected_status=$1
+    [ -s "$RESPONSE_HEADERS" ] || \
+        fail "response headers are missing for expected HTTP/1 status $expected_status"
+    status_count=$(grep -Ec "^HTTP/1\\.[01] $expected_status " "$RESPONSE_HEADERS" || true)
+    [ "$status_count" -eq 1 ] || \
+        fail "expected exactly one HTTP/1 $expected_status status line, observed $status_count"
+    total_status_count=$(grep -Ec '^HTTP/1\.[01] [0-9][0-9][0-9] ' "$RESPONSE_HEADERS" || true)
+    [ "$total_status_count" -eq 1 ] || \
+        fail "expected exactly one total HTTP/1 response status line, observed $total_status_count"
+}
+
+assert_single_h2_status() {
+    expected_status=$1
+    [ -s "$RESPONSE_HEADERS" ] || \
+        fail "response headers are missing for expected HTTP/2 status $expected_status"
+    status_count=$(grep -Ec "^HTTP/2 $expected_status([[:space:]]|$)" "$RESPONSE_HEADERS" || true)
+    [ "$status_count" -eq 1 ] || \
+        fail "expected exactly one HTTP/2 $expected_status status line, observed $status_count"
+    total_status_count=$(grep -Ec '^HTTP/2 [0-9][0-9][0-9]([[:space:]]|$)' "$RESPONSE_HEADERS" || true)
+    [ "$total_status_count" -eq 1 ] || \
+        fail "expected exactly one total HTTP/2 response status line, observed $total_status_count"
+}
+
+assert_text_response_headers() {
+    expected_status=$1
+    expected_bytes=$2
+    body_bytes=$(wc -c < "$RESPONSE_BODY")
+
+    assert_single_h1_status "$expected_status"
+    grep -Eqi '^Content-Type:[[:space:]]*text/plain([;[:space:]]|$)' "$RESPONSE_HEADERS" || \
+        fail "expected text/plain response content type"
+    [ "$body_bytes" -eq "$expected_bytes" ] || \
+        fail "response body length $body_bytes does not match expected $expected_bytes"
+    content_length=$(awk '/^[Cc][Oo][Nn][Tt][Ee][Nn][Tt]-[Ll][Ee][Nn][Gg][Tt][Hh]:/ { gsub(/\r/, "", $2); print $2; exit }' "$RESPONSE_HEADERS")
+    if [ -n "$content_length" ]; then
+        [ "$content_length" -eq "$body_bytes" ] || \
+            fail "Content-Length $content_length does not match response body length $body_bytes"
+    fi
+}
+
+assert_phase4_rogue_no_leak() {
+    body_file=$1
+    for forbidden in \
+        phase4-rogue-prefix- \
+        no-crs-response-body-marker \
+        phase4-rogue-suffix-after-eos \
+        phase4-rogue-late-after-deny
+    do
+        if grep -F "$forbidden" "$body_file" >/dev/null 2>&1; then
+            fail "Phase-4 rogue terminal test leaked protected marker: $forbidden"
+        fi
+    done
+}
+
+assert_phase4_rogue_error_document() {
+    body_file=$1
+    expected_file="$LOG_DIR/phase4-rogue-error-document.expected"
+
+    printf '%s\n' 'phase4-custom-deny-body' > "$expected_file"
+    cmp -s "$expected_file" "$body_file" || \
+        fail "local ErrorDocument body was not the sole terminal Phase-4 response"
+    assert_phase4_error_document_headers "$expected_file" 403
+}
+
+
+assert_phase4_error_document_headers() {
+    expected_file=$1
+    expected_status=$2
+    expected_bytes=$(wc -c < "$expected_file")
+
+    if [ "$APACHE_PHASE4_ROGUE_PROTOCOL" = "http1" ]; then
+        assert_text_response_headers "$expected_status" "$expected_bytes"
+    fi
+    if [ -s "$RESPONSE_HEADERS" ] && \
+        grep -Eqi '^X-Phase4-Original-Response:' "$RESPONSE_HEADERS"; then
+        fail "local ErrorDocument retained an original response header"
+    fi
+}
+
+assert_phase4_rogue_allow_body() {
+    body_file=$1
+    expected_file="$LOG_DIR/phase4-rogue-allow.expected"
+
+    printf '%s' 'phase4-rogue-prefix-no-crs-response-body-marker' > "$expected_file"
+    cmp -s "$expected_file" "$body_file" || \
+        fail "Phase-4 rogue allow response lost, duplicated, or retained an invalid suffix"
+    for forbidden in phase4-rogue-suffix-after-eos phase4-rogue-late-after-deny
+    do
+        if grep -F "$forbidden" "$body_file" >/dev/null 2>&1; then
+            fail "Phase-4 rogue allow response leaked invalid marker: $forbidden"
+        fi
+    done
+}
+
+assert_phase3_header_freeze_headers() {
+    headers_file=$1
+
+    grep -F 'header_mutation=1' "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "Phase-3 header-freeze rogue producer did not mutate the header after P3"
+    if grep -Eqi '^X-Phase3-Late:' "$headers_file"; then
+        fail "Phase-3 header-freeze response emitted a header not inspected by Phase 3"
+    fi
+    grep -Eqi '^ETag:[[:space:]]*"phase3-inspected-etag"' "$headers_file" || \
+        fail "Phase-3 header-freeze response lost the P3-inspected ETag through a late no-etag note"
+}
+
+assert_phase4_rogue_producer_trace() {
+    case "$APACHE_PHASE4_ROGUE_PHASE:$APACHE_PHASE4_ROGUE_EXPECT" in
+        p4:deny)
+            expected_trace='first_rc=0 deny_rc=-?[1-9][0-9]* late_rc=-?[1-9][0-9]*'
+            ;;
+        p4:allow)
+            expected_trace='first_rc=0 deny_rc=0 late_rc=-?[1-9][0-9]*'
+            ;;
+        p3:deny)
+            expected_trace='first_rc=-?[1-9][0-9]* deny_rc=-?[1-9][0-9]* late_rc=-?[1-9][0-9]*'
+            ;;
+        p3:allow)
+            expected_trace='first_rc=0 deny_rc=0 late_rc=-?[1-9][0-9]*'
+            ;;
+        *) fail "unsupported Phase-4 rogue phase/expectation combination: $APACHE_PHASE4_ROGUE_PHASE/$APACHE_PHASE4_ROGUE_EXPECT" ;;
+    esac
+    grep -E "$expected_trace" "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "Phase-4 rogue producer did not follow the required first/EOS/late sequence"
+}
+
+assert_phase4_rogue_evidence() {
+    case "$APACHE_PHASE4_ROGUE_EXPECT" in
+        deny)
+            case "$APACHE_PHASE4_ROGUE_PHASE" in
+                p4)
+                    rogue_rule_id=2190401
+                    rogue_reason=response_not_committed
+                    ;;
+                p3)
+                    rogue_rule_id=2190406
+                    rogue_reason=response_headers_before_commit
+                    ;;
+                *) fail "unsupported APACHE_PHASE4_ROGUE_PHASE=$APACHE_PHASE4_ROGUE_PHASE" ;;
+            esac
+            [ -s "$APACHE_PHASE4_LOG_FILE" ] || \
+                fail "Phase-4 rogue terminal test intervention log is missing"
+            "$PYTHON_BIN" - "$APACHE_PHASE4_LOG_FILE" "$rogue_rule_id" "$rogue_reason" <<'PY'
+import json
+import sys
+
+rule_id = sys.argv[2]
+reason = sys.argv[3]
+for line in open(sys.argv[1], encoding="utf-8"):
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    if (str(event.get("rule_id")) == rule_id
+            and event.get("actual_action") == "deny"
+            and event.get("reason") == reason
+            and event.get("response_committed") is False):
+        sys.exit(0)
+raise SystemExit(
+    "Phase-4 rogue terminal test lacks one matching pre-commit deny event")
+PY
+            [ -s "$AUDIT_LOG_FILE" ] && \
+                grep -F "$rogue_rule_id" "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
+                fail "Phase-4 rogue terminal test audit log lacks the matching rule"
+            ;;
+        allow) ;;
+        *) fail "unsupported APACHE_PHASE4_ROGUE_EXPECT=$APACHE_PHASE4_ROGUE_EXPECT" ;;
+    esac
+    if [ "$APACHE_PHASE4_ROGUE_PHASE:$APACHE_PHASE4_ROGUE_EXPECT" = "p3:deny" ] && \
+        ! grep -F 'ModSecurity Phase4 rogue test issued late response brigade' \
+            "$LOG_DIR/error.log" >/dev/null 2>&1; then
+        # ap_die() can synchronously finish Apache's header-stage denial and
+        # not return to the handler at all. The observed 403 plus the native
+        # P3 event/audit above is stronger than a synthetic late write in that
+        # path; P4 deny still requires the explicit late-producer attempt.
+        return 0
+    fi
+    grep -F 'ModSecurity Phase4 rogue test issued late response brigade' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "Phase-4 rogue handler did not attempt the required late brigade"
+    if grep -F 'late_rc=0' "$LOG_DIR/error.log" >/dev/null 2>&1; then
+        fail "Phase-4 terminal guard accepted the required late brigade"
+    fi
+    assert_phase4_rogue_producer_trace
+}
+
+phase4_redirect_direct_rule_event_count() {
+    direct_rule_id=$1
+    if [ ! -s "$APACHE_PHASE4_LOG_FILE" ]; then
+        printf '%s\n' 0
+        return 0
+    fi
+    "$PYTHON_BIN" - "$APACHE_PHASE4_LOG_FILE" "$direct_rule_id" <<'PY'
+import json
+import sys
+
+count = 0
+for line in open(sys.argv[1], encoding="utf-8"):
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    if (str(event.get("rule_id")) == sys.argv[2]
+            and event.get("actual_action") == "deny"
+            and event.get("reason") == "response_not_committed"
+            and event.get("response_committed") is False):
+        count += 1
+print(count)
+PY
+}
+
+assert_phase4_redirect_direct_control() {
+    direct_headers="$LOG_DIR/phase4-redirect-target-direct.headers"
+    direct_body="$LOG_DIR/phase4-redirect-target-direct.body"
+
+    [ "$APACHE_PHASE4_ROGUE_PROTOCOL" = "http1" ] || \
+        fail "Phase-4 internal redirect direct control currently requires H1"
+    : > "$direct_body"
+    set +e
+    direct_status=$("$CURL_BIN" -sS --http1.1 -D "$direct_headers" \
+        -o "$direct_body" -w '%{http_code}' \
+        "http://127.0.0.1:$PORT/__phase4_internal_redirect_target.txt")
+    direct_curl_rc=$?
+    set -e
+    [ "$direct_curl_rc" -eq 0 ] || \
+        fail "Phase-4 internal redirect direct control client failed rc=$direct_curl_rc"
+    [ "$direct_status" = "403" ] || \
+        fail "Phase-4 internal redirect direct control expected 403, observed $direct_status"
+    status_count=$(grep -Ec '^HTTP/1\.[01] 403 ' "$direct_headers" || true)
+    [ "$status_count" -eq 1 ] || \
+        fail "Phase-4 internal redirect direct control did not return exactly one H1 403"
+    if grep -F 'no-crs-response-body-marker' "$direct_body" >/dev/null 2>&1; then
+        fail "Phase-4 internal redirect direct control leaked the marker body"
+    fi
+    redirect_direct_rule_events_before=$(phase4_redirect_direct_rule_event_count \
+        "$APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID")
+    [ "$redirect_direct_rule_events_before" -ge 1 ] || \
+        fail "Phase-4 internal redirect direct control lacks rule $APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID evidence"
+    [ -s "$AUDIT_LOG_FILE" ] && \
+        grep -F "$APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID" "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
+        fail "Phase-4 internal redirect direct control lacks audit rule $APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID"
+}
+
+send_phase4_internal_redirect_request() {
+    redirect_expected="$LOG_DIR/phase4-internal-redirect.expected"
+
+    printf '%s' 'no-crs-response-body-marker' > "$redirect_expected"
+    if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ] || \
+        [ "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" = "1" ]; then
+        assert_phase4_redirect_direct_control
+    fi
+    case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
+        http1)
+            : > "$RESPONSE_BODY"
+            set +e
+            http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
+                -o "$RESPONSE_BODY" -w '%{http_code}' \
+                "http://127.0.0.1:$PORT/__phase4_internal_redirect")
+            curl_rc=$?
+            set -e
+            case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
+                abort|target_config_abort|uri_policy_abort) ;;
+                *)
+                    [ "$curl_rc" -eq 0 ] || \
+                        fail "Phase-4 internal redirect H1 client failed rc=$curl_rc"
+                    ;;
+            esac
+            ;;
+        h2)
+            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+                blocked "curl lacks HTTP/2 support required for the Phase-4 internal redirect H2 test"
+            : > "$RESPONSE_BODY"
+            : > "$RESPONSE_HEADERS"
+            set +e
+            "$CURL_BIN" -sS -k --http2 --trace-ids \
+                --trace-ascii "$PHASE4_ROGUE_TRACE" \
+                -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
+                -w '%{http_code}\t%{http_version}\n' \
+                "https://127.0.0.1:$PORT/__phase4_internal_redirect" \
+                > "$PHASE4_ROGUE_TRANSFERS" \
+                2> "$LOG_DIR/phase4-internal-redirect-h2-client.err"
+            curl_rc=$?
+            set -e
+            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+                "$PHASE4_ROGUE_TRANSFERS")
+            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+                "$PHASE4_ROGUE_TRANSFERS")
+            case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
+                abort|target_config_abort|uri_policy_abort)
+                    # The enforced normal-redirect boundary closes the
+                    # connection/stream after keeping all response bytes
+                    # private. curl can therefore report a transport error;
+                    # it is evidence of the expected fail-closed result, not
+                    # a test failure. A successful curl transfer must still
+                    # have negotiated H2 and produced a concrete outcome.
+                    if [ "$curl_rc" -eq 0 ]; then
+                        [ -n "$http_status" ] || \
+                            fail "Phase-4 internal redirect H2 abort returned no status despite curl success"
+                        [ "$http_version" = "2" ] || \
+                            fail "Phase-4 internal redirect H2 abort fell back from HTTP/2"
+                    fi
+                    ;;
+                *)
+                    [ "$curl_rc" -eq 0 ] || \
+                        fail "Phase-4 internal redirect H2 client failed rc=$curl_rc"
+                    [ "$http_version" = "2" ] || \
+                        fail "Phase-4 internal redirect TLS client did not negotiate HTTP/2"
+                    ;;
+            esac
+            grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                fail "Phase-4 internal redirect H2 trace lacks HTTP/2 evidence"
+            grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+                "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                fail "Phase-4 internal redirect H2 trace lacks ALPN h2 acceptance evidence"
+            ;;
+        *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
+    esac
+    grep -F 'ModSecurity Phase4 redirect test issued an internal redirect' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "Phase-4 internal redirect test handler did not issue its redirect"
+
+    case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
+        bypass)
+            [ "$http_status" = "200" ] || \
+                fail "Phase-4 internal redirect bypass expected status 200, observed $http_status"
+            case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
+                http1) assert_single_h1_status 200 ;;
+                h2) assert_single_h2_status 200 ;;
+            esac
+            cmp -s "$redirect_expected" "$RESPONSE_BODY" || \
+                fail "Phase-4 internal redirect bypass did not expose the original marker body"
+            if [ -s "$APACHE_PHASE4_LOG_FILE" ] && \
+                grep -F '"rule_id":"2190401"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1; then
+                fail "Phase-4 internal redirect bypass unexpectedly recorded a Phase-4 rule decision"
+            fi
+            if [ -s "$AUDIT_LOG_FILE" ] && \
+                grep -F '2190401' "$AUDIT_LOG_FILE" >/dev/null 2>&1; then
+                fail "Phase-4 internal redirect bypass unexpectedly audited Phase-4 rule 2190401"
+            fi
+            ;;
+        target_config_bypass)
+            [ "$http_status" = "200" ] || \
+                fail "Phase-4 target configuration redirect bypass expected status 200, observed $http_status"
+            assert_single_h1_status 200
+            cmp -s "$redirect_expected" "$RESPONSE_BODY" || \
+                fail "Phase-4 target configuration redirect bypass did not expose the marker body"
+            redirect_direct_rule_events_after=$(phase4_redirect_direct_rule_event_count \
+                "$APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID")
+            [ "$redirect_direct_rule_events_after" -eq \
+                "$redirect_direct_rule_events_before" ] || \
+                fail "Phase-4 target configuration redirect bypass unexpectedly evaluated rule 2190410"
+            ;;
+        target_config_abort)
+            case "$http_status" in
+                2*) fail "Phase-4 target configuration redirect was released as successful status $http_status" ;;
+                *) ;;
+            esac
+            if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+                fail "Phase-4 target configuration redirect abort leaked the marker body"
+            fi
+            grep -F 'request transaction cannot be safely rebound to the target URI' \
+                "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+                fail "Phase-4 target configuration redirect lacks the transaction-rebind refusal"
+            redirect_direct_rule_events_after=$(phase4_redirect_direct_rule_event_count \
+                "$APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID")
+            [ "$redirect_direct_rule_events_after" -eq \
+                "$redirect_direct_rule_events_before" ] || \
+                fail "Phase-4 target configuration redirect incorrectly ran rule $APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID on a rebound transaction"
+            ;;
+        uri_policy_bypass)
+            [ "$http_status" = "200" ] || \
+                fail "Phase-4 URI policy redirect bypass expected status 200, observed $http_status"
+            assert_single_h1_status 200
+            cmp -s "$redirect_expected" "$RESPONSE_BODY" || \
+                fail "Phase-4 URI policy redirect bypass did not expose the marker body"
+            redirect_direct_rule_events_after=$(phase4_redirect_direct_rule_event_count \
+                "$APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID")
+            [ "$redirect_direct_rule_events_after" -eq \
+                "$redirect_direct_rule_events_before" ] || \
+                fail "Phase-4 URI policy redirect bypass unexpectedly evaluated rule $APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID"
+            ;;
+        uri_policy_abort)
+            case "$http_status" in
+                2*) fail "Phase-4 URI policy redirect was released as successful status $http_status" ;;
+                *) ;;
+            esac
+            if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+                fail "Phase-4 URI policy redirect abort leaked the marker body"
+            fi
+            grep -F 'request transaction cannot be safely rebound to the target URI' \
+                "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+                fail "Phase-4 URI policy redirect lacks the transaction-rebind refusal"
+            redirect_direct_rule_events_after=$(phase4_redirect_direct_rule_event_count \
+                "$APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID")
+            [ "$redirect_direct_rule_events_after" -eq \
+                "$redirect_direct_rule_events_before" ] || \
+                fail "Phase-4 URI policy redirect incorrectly ran rule $APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID on a rebound transaction"
+            ;;
+        abort)
+            case "$http_status" in
+                2*) fail "Phase-4 internal redirect was released as successful status $http_status" ;;
+                *) ;;
+            esac
+            if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+                fail "Phase-4 internal redirect abort leaked the marker body"
+            fi
+            grep -F 'request transaction cannot be safely rebound to the target URI' \
+                "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+                fail "Phase-4 internal redirect abort lacks the transaction-rebind refusal"
+            ;;
+        *) fail "unsupported APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT=$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" ;;
+    esac
+    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+    printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+}
+
+send_phase4_downstream_error_request() {
+    downstream_error_expected="$LOG_DIR/phase4-downstream-error.expected"
+
+    printf '%s' 'phase4-downstream-error-document' > \
+        "$downstream_error_expected"
+    case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
+        http1)
+            : > "$RESPONSE_BODY"
+            set +e
+            http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
+                -o "$RESPONSE_BODY" -w '%{http_code}' \
+                "http://127.0.0.1:$PORT/__phase4_downstream_error")
+            curl_rc=$?
+            set -e
+            [ "$curl_rc" -eq 0 ] || \
+                fail "Phase-4 downstream error H1 client failed rc=$curl_rc"
+            ;;
+        h2)
+            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+                blocked "curl lacks HTTP/2 support required for the Phase-4 downstream error H2 test"
+            : > "$RESPONSE_BODY"
+            : > "$RESPONSE_HEADERS"
+            set +e
+            "$CURL_BIN" -sS -k --http2 --trace-ids \
+                --trace-ascii "$PHASE4_ROGUE_TRACE" \
+                -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
+                -w '%{http_code}\t%{http_version}\n' \
+                "https://127.0.0.1:$PORT/__phase4_downstream_error" \
+                > "$PHASE4_ROGUE_TRANSFERS" \
+                2> "$LOG_DIR/phase4-downstream-error-h2-client.err"
+            curl_rc=$?
+            set -e
+            [ "$curl_rc" -eq 0 ] || \
+                fail "Phase-4 downstream error H2 client failed rc=$curl_rc"
+            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+                "$PHASE4_ROGUE_TRANSFERS")
+            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+                "$PHASE4_ROGUE_TRANSFERS")
+            [ "$http_version" = "2" ] || \
+                fail "Phase-4 downstream error TLS client did not negotiate HTTP/2"
+            grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                fail "Phase-4 downstream error H2 trace lacks HTTP/2 evidence"
+            grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+                "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                fail "Phase-4 downstream error H2 trace lacks ALPN h2 acceptance evidence"
+            ;;
+        *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
+    esac
+
+    [ "$http_status" = "500" ] || \
+        fail "Phase-4 downstream error expected status 500, observed $http_status"
+    case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
+        http1) assert_single_h1_status 500 ;;
+        h2) assert_single_h2_status 500 ;;
+    esac
+    cmp -s "$downstream_error_expected" "$RESPONSE_BODY" || \
+        fail "Phase-4 downstream error did not produce the sole configured ErrorDocument body"
+    assert_phase4_error_document_headers "$downstream_error_expected" 500
+    if grep -F 'phase4-allow-before-downstream-error' \
+        "$RESPONSE_BODY" >/dev/null 2>&1; then
+        fail "Phase-4 downstream error leaked the allowed pre-error response body"
+    fi
+    grep -F 'ModSecurity Phase4 downstream error test replaced the released response with an error bucket' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "Phase-4 downstream error filter did not replace the released response"
+    [ -s "$AUDIT_LOG_FILE" ] && \
+        grep -F '2190402' "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
+        fail "Phase-4 downstream error did not complete the log-only P4 control before the downstream failure"
+    if grep -F 'refusing normal internal redirect across the Phase 4 response boundary' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1; then
+        fail "Phase-4 downstream ErrorDocument was mistaken for a normal redirect"
+    fi
+    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+    printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+}
+
+
+send_phase4_upstream_error_request() {
+    upstream_error_expected="$LOG_DIR/phase4-upstream-error.expected"
+
+    printf '%s' 'phase4-downstream-error-document' > "$upstream_error_expected"
+    case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
+        http1)
+            : > "$RESPONSE_BODY"
+            set +e
+            http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
+                -o "$RESPONSE_BODY" -w '%{http_code}' \
+                "http://127.0.0.1:$PORT/__phase4_upstream_error")
+            curl_rc=$?
+            set -e
+            [ "$curl_rc" -eq 0 ] || \
+                fail "Phase-4 upstream error H1 client failed rc=$curl_rc"
+            ;;
+        h2)
+            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+                blocked "curl lacks HTTP/2 support required for the Phase-4 upstream error H2 test"
+            : > "$RESPONSE_BODY"
+            : > "$RESPONSE_HEADERS"
+            set +e
+            "$CURL_BIN" -sS -k --http2 --trace-ids \
+                --trace-ascii "$PHASE4_ROGUE_TRACE" \
+                -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
+                -w '%{http_code}\t%{http_version}\n' \
+                "https://127.0.0.1:$PORT/__phase4_upstream_error" \
+                > "$PHASE4_ROGUE_TRANSFERS" \
+                2> "$LOG_DIR/phase4-upstream-error-h2-client.err"
+            curl_rc=$?
+            set -e
+            [ "$curl_rc" -eq 0 ] || \
+                fail "Phase-4 upstream error H2 client failed rc=$curl_rc"
+            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+                "$PHASE4_ROGUE_TRANSFERS")
+            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+                "$PHASE4_ROGUE_TRANSFERS")
+            [ "$http_version" = "2" ] || \
+                fail "Phase-4 upstream error TLS client did not negotiate HTTP/2"
+            grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                fail "Phase-4 upstream error H2 trace lacks HTTP/2 evidence"
+            grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+                "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                fail "Phase-4 upstream error H2 trace lacks ALPN h2 acceptance evidence"
+            ;;
+        *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
+    esac
+
+    [ "$http_status" = "500" ] || \
+        fail "Phase-4 upstream error expected status 500, observed $http_status"
+    case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
+        http1) assert_single_h1_status 500 ;;
+        h2) assert_single_h2_status 500 ;;
+    esac
+    cmp -s "$upstream_error_expected" "$RESPONSE_BODY" || \
+        fail "Phase-4 upstream error did not produce the sole configured ErrorDocument body"
+    assert_phase4_error_document_headers "$upstream_error_expected" 500
+    grep -F 'ModSecurity Phase4 upstream error test issued a first error bucket' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "Phase-4 upstream error handler did not issue its first error bucket"
+    if grep -F 'failed to set aside response brigade' "$LOG_DIR/error.log" >/dev/null 2>&1; then
+        fail "Phase-4 upstream error reached the generic setaside failure instead of the first-error branch"
+    fi
+    if grep -F 'refusing normal internal redirect across the Phase 4 response boundary' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1; then
+        fail "Phase-4 upstream ErrorDocument was mistaken for a normal redirect"
+    fi
+    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+    printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+}
+
+
+send_phase4_nested_error_document_redirect_request() {
+    : > "$RESPONSE_BODY"
+    set +e
+    http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
+        -o "$RESPONSE_BODY" -w '%{http_code}' \
+        "http://127.0.0.1:$PORT/__phase4_rogue")
+    curl_rc=$?
+    set -e
+
+    # The second redirect crosses back into an unbound producer target. It
+    # may therefore terminate H1 before a status line is completed; a curl
+    # transport error is the expected fail-closed result, while any completed
+    # response must not be successful or carry either protected body.
+    case "$http_status" in
+        2*) fail "nested ErrorDocument redirect was released as successful status $http_status" ;;
+        *) ;;
+    esac
+    if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+        grep -F 'phase4-rogue-prefix-' "$RESPONSE_BODY" >/dev/null 2>&1; then
+        fail "nested ErrorDocument redirect leaked a protected response body"
+    fi
+    grep -F 'ModSecurity Phase4 nested ErrorDocument test issued a second internal redirect' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "nested ErrorDocument test handler did not issue its second redirect"
+    grep -F 'request transaction cannot be safely rebound to the target URI' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "nested ErrorDocument redirect lacks the transaction-rebind refusal"
+    assert_phase4_rogue_evidence
+    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+    if [ "$curl_rc" -eq 0 ]; then
+        printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+    else
+        printf '%s\n' 'client_abort' > "$LOG_DIR/observed-transport-result.txt"
+    fi
+}
+
+
+send_phase4_preoutput_error_document_request() {
+    preoutput_private_body='phase4-preoutput-error-document-private'
+
+    case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
+        http1)
+            : > "$RESPONSE_BODY"
+            set +e
+            http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
+                -o "$RESPONSE_BODY" -w '%{http_code}' \
+                "http://127.0.0.1:$PORT/__phase4_preoutput_error")
+            curl_rc=$?
+            set -e
+            ;;
+        h2)
+            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+                blocked "curl lacks HTTP/2 support required for the pre-output ErrorDocument H2 test"
+            : > "$RESPONSE_BODY"
+            : > "$RESPONSE_HEADERS"
+            set +e
+            "$CURL_BIN" -sS -k --http2 --trace-ids \
+                --trace-ascii "$PHASE4_ROGUE_TRACE" \
+                -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
+                -w '%{http_code}\t%{http_version}\n' \
+                "https://127.0.0.1:$PORT/__phase4_preoutput_error" \
+                > "$PHASE4_ROGUE_TRANSFERS" \
+                2> "$LOG_DIR/phase4-preoutput-error-document-h2-client.err"
+            curl_rc=$?
+            set -e
+            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+                "$PHASE4_ROGUE_TRANSFERS")
+            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+                "$PHASE4_ROGUE_TRANSFERS")
+            if [ "$curl_rc" -eq 0 ]; then
+                [ "$http_version" = "2" ] || \
+                    fail "pre-output ErrorDocument abort fell back from HTTP/2"
+            fi
+            grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                fail "pre-output ErrorDocument H2 trace lacks HTTP/2 evidence"
+            grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+                "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                fail "pre-output ErrorDocument H2 trace lacks ALPN h2 acceptance evidence"
+            ;;
+        *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
+    esac
+
+    case "$http_status" in
+        2*) fail "pre-output ErrorDocument redirect was released as successful status $http_status" ;;
+        *) ;;
+    esac
+    if grep -F "$preoutput_private_body" "$RESPONSE_BODY" >/dev/null 2>&1; then
+        fail "pre-output ErrorDocument redirect leaked its private target body"
+    fi
+    grep -F 'ModSecurity Phase4 preoutput ErrorDocument test returned HTTP_NOT_FOUND before any response brigade' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "pre-output ErrorDocument test handler did not return HTTP_NOT_FOUND"
+    grep -F 'request transaction cannot be safely rebound to the target URI' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "pre-output ErrorDocument redirect lacks the transaction-rebind refusal"
+    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+    if [ "$curl_rc" -eq 0 ]; then
+        printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+    else
+        printf '%s\n' 'client_abort' > "$LOG_DIR/observed-transport-result.txt"
+    fi
+}
+
+
+phase4_terminal_test_uses_h2() {
+    [ "$APACHE_PHASE4_ROGUE_PROTOCOL" = "h2" ] || return 1
+    [ "$APACHE_PHASE4_ROGUE_TEST" = "1" ] || \
+        [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TEST" = "1" ] || \
+        [ "$APACHE_PHASE4_DOWNSTREAM_ERROR_TEST" = "1" ] || \
+        [ "$APACHE_PHASE4_UPSTREAM_ERROR_TEST" = "1" ] || \
+        [ "$APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST" = "1" ]
+}
+
+send_phase4_rogue_request() {
+    rogue_path=/__phase4_rogue
+    if [ "$APACHE_PHASE4_ROGUE_HEADER_MUTATION" = "1" ]; then
+        rogue_path=/__phase4_rogue_header
+    fi
+    case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
+        http1)
+            : > "$RESPONSE_BODY"
+            set +e
+            http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
+                -o "$RESPONSE_BODY" -w '%{http_code}' \
+                "http://127.0.0.1:$PORT$rogue_path")
+            curl_rc=$?
+            set -e
+            [ "$curl_rc" -eq 0 ] || \
+                fail "Phase-4 rogue H1 client failed rc=$curl_rc"
+            case "$APACHE_PHASE4_ROGUE_EXPECT" in
+                deny)
+                    [ "$http_status" = "403" ] || \
+                        fail "Phase-4 rogue H1 expected status 403, observed $http_status"
+                    assert_single_h1_status 403
+                    assert_phase4_rogue_no_leak "$RESPONSE_BODY"
+                    if [ "$APACHE_PHASE4_ERROR_DOCUMENT" = "1" ]; then
+                        assert_phase4_rogue_error_document "$RESPONSE_BODY"
+                    fi
+                    ;;
+                allow)
+                    [ "$http_status" = "200" ] || \
+                        fail "Phase-4 rogue H1 allow expected status 200, observed $http_status"
+                    assert_single_h1_status 200
+                    assert_phase4_rogue_allow_body "$RESPONSE_BODY"
+                    if [ "$APACHE_PHASE4_ROGUE_HEADER_MUTATION" = "1" ]; then
+                        assert_phase3_header_freeze_headers "$RESPONSE_HEADERS"
+                    fi
+                    ;;
+                *) fail "unsupported APACHE_PHASE4_ROGUE_EXPECT=$APACHE_PHASE4_ROGUE_EXPECT" ;;
+            esac
+            assert_phase4_rogue_evidence
+            printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+            printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+            ;;
+        h2)
+            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+                blocked "curl lacks HTTP/2 support required for the Phase-4 rogue H2 test"
+            if [ "$APACHE_PHASE4_ROGUE_HEADER_MUTATION" = "1" ]; then
+                [ "$APACHE_PHASE4_ROGUE_EXPECT" = "allow" ] || \
+                    fail "Phase-3 header-freeze H2 requires allow expectation"
+                [ "$APACHE_PHASE4_ROGUE_PHASE" = "p3" ] || \
+                    fail "Phase-3 header-freeze H2 requires a Phase-3 rule"
+                : > "$RESPONSE_BODY"
+                : > "$RESPONSE_HEADERS"
+                set +e
+                "$CURL_BIN" -sS -k --http2 --trace-ids \
+                    --trace-ascii "$PHASE4_ROGUE_TRACE" \
+                    -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
+                    -w '%{http_code}\t%{http_version}\n' \
+                    "https://127.0.0.1:$PORT$rogue_path" \
+                    > "$PHASE4_ROGUE_TRANSFERS" \
+                    2> "$LOG_DIR/phase4-rogue-h2-client.err"
+                curl_rc=$?
+                set -e
+                [ "$curl_rc" -eq 0 ] || \
+                    fail "Phase-3 header-freeze H2 client failed rc=$curl_rc"
+                rogue_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+                    "$PHASE4_ROGUE_TRANSFERS")
+                rogue_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+                    "$PHASE4_ROGUE_TRANSFERS")
+                [ "$rogue_status" = "200" ] || \
+                    fail "Phase-3 header-freeze H2 expected status 200, observed ${rogue_status:-missing}"
+                [ "$rogue_version" = "2" ] || \
+                    fail "Phase-3 header-freeze TLS client did not negotiate HTTP/2"
+                grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                    fail "Phase-3 header-freeze H2 trace lacks HTTP/2 evidence"
+                grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+                    "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                    fail "Phase-3 header-freeze H2 trace lacks ALPN h2 acceptance evidence"
+                assert_phase4_rogue_allow_body "$RESPONSE_BODY"
+                assert_phase3_header_freeze_headers "$RESPONSE_HEADERS"
+                assert_phase4_rogue_evidence
+                printf '%s\n' "$rogue_status" > "$LOG_DIR/observed-status.txt"
+                printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+                return 0
+            fi
+            [ "$APACHE_PHASE4_ROGUE_EXPECT" = "deny" ] || \
+                fail "Phase-4 rogue H2 currently requires deny expectation"
+            [ "$APACHE_PHASE4_ROGUE_PHASE" = "p4" ] || \
+                fail "Phase-4 rogue H2 currently requires a Phase-4 rule"
+            rogue_url="https://127.0.0.1:$PORT/__phase4_rogue"
+            allow_url="https://127.0.0.1:$PORT/__phase4_rogue_allow.txt"
+            : > "$PHASE4_ROGUE_RESPONSE_BODY"
+            : > "$PHASE4_ROGUE_ALLOW_BODY"
+            set +e
+            # Keep the allow URL after the denied producer URL in one curl
+            # transfer.  Matching conn_id values then prove that a Phase-4
+            # terminal denial did not poison the physical H2 connection or a
+            # later independent request after the denial completed.
+            "$CURL_BIN" -sS -k --http2 --trace-ids --trace-ascii "$PHASE4_ROGUE_TRACE" \
+                -o "$PHASE4_ROGUE_RESPONSE_BODY" \
+                -o "$PHASE4_ROGUE_ALLOW_BODY" \
+                -w '%{url_effective}\t%{http_code}\t%{http_version}\t%{conn_id}\n' \
+                "$rogue_url" "$allow_url" > "$PHASE4_ROGUE_TRANSFERS" \
+                2> "$LOG_DIR/phase4-rogue-h2-client.err"
+            curl_rc=$?
+            set -e
+            [ "$curl_rc" -eq 0 ] || \
+                fail "Phase-4 rogue H2 client failed rc=$curl_rc"
+            rogue_status=$(awk -F '\t' '$1 ~ /\/__phase4_rogue$/ { print $2; exit }' "$PHASE4_ROGUE_TRANSFERS")
+            rogue_version=$(awk -F '\t' '$1 ~ /\/__phase4_rogue$/ { print $3; exit }' "$PHASE4_ROGUE_TRANSFERS")
+            rogue_connection=$(awk -F '\t' '$1 ~ /\/__phase4_rogue$/ { print $4; exit }' "$PHASE4_ROGUE_TRANSFERS")
+            allow_status=$(awk -F '\t' '$1 ~ /\/__phase4_rogue_allow\.txt$/ { print $2; exit }' "$PHASE4_ROGUE_TRANSFERS")
+            allow_version=$(awk -F '\t' '$1 ~ /\/__phase4_rogue_allow\.txt$/ { print $3; exit }' "$PHASE4_ROGUE_TRANSFERS")
+            allow_connection=$(awk -F '\t' '$1 ~ /\/__phase4_rogue_allow\.txt$/ { print $4; exit }' "$PHASE4_ROGUE_TRANSFERS")
+            [ "$rogue_status" = "403" ] || \
+                fail "Phase-4 rogue H2 expected denied stream status 403, observed ${rogue_status:-missing}"
+            [ "$allow_status" = "200" ] || \
+                fail "Phase-4 rogue H2 independent allow stream expected 200, observed ${allow_status:-missing}"
+            [ "$rogue_version" = "2" ] && [ "$allow_version" = "2" ] || \
+                fail "Phase-4 rogue TLS client did not negotiate HTTP/2 for both streams"
+            [ -n "$rogue_connection" ] && [ "$rogue_connection" = "$allow_connection" ] || \
+                fail "Phase-4 rogue H2 allow request did not reuse the connection after denial"
+            grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                fail "Phase-4 rogue H2 trace lacks HTTP/2 evidence"
+            grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+                "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                fail "Phase-4 rogue H2 trace lacks ALPN h2 acceptance evidence"
+            assert_phase4_rogue_no_leak "$PHASE4_ROGUE_RESPONSE_BODY"
+            allow_body=$(cat "$PHASE4_ROGUE_ALLOW_BODY")
+            [ "$allow_body" = 'phase4-rogue-allow-body' ] || \
+                fail "Phase-4 rogue H2 allow stream body was lost or changed"
+            if [ "$APACHE_PHASE4_ERROR_DOCUMENT" = "1" ]; then
+                assert_phase4_rogue_error_document "$PHASE4_ROGUE_RESPONSE_BODY"
+            fi
+            assert_phase4_rogue_evidence
+            printf '%s\n' "$rogue_status" > "$LOG_DIR/observed-status.txt"
+            printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+            ;;
+        *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
+    esac
 }
 
 quote_request_path() {
@@ -781,11 +1835,242 @@ write_backend_proxy_directives() {
         echo "<IfModule proxy_module>"
         echo "<IfModule proxy_http_module>"
         echo "ProxyPass \"/__modsec_smoke_ready\" \"!\""
+        # Keep terminal-response test handlers and their local ErrorDocument
+        # fixtures out of the catch-all response-header backend route. Apache
+        # applies these exclusions by complete local route, rather than by a
+        # synthetic prefix used only by this harness.
+        echo "ProxyPass \"/__phase4_rogue_header\" \"!\""
+        echo "ProxyPass \"/__phase4_rogue\" \"!\""
+        echo "ProxyPass \"/__phase4_internal_redirect\" \"!\""
+        echo "ProxyPass \"/__phase4_internal_redirect_target.txt\" \"!\""
+        echo "ProxyPass \"/__phase4_nested_error_document_redirect\" \"!\""
+        echo "ProxyPass \"/__phase4_preoutput_error\" \"!\""
+        echo "ProxyPass \"/__phase4_preoutput_error_document.txt\" \"!\""
+        echo "ProxyPass \"/__phase4_downstream_error\" \"!\""
+        echo "ProxyPass \"/__phase4_upstream_error\" \"!\""
+        echo "ProxyPass \"/__phase4_error_document.txt\" \"!\""
+        echo "ProxyPass \"/__phase4_rogue_allow.txt\" \"!\""
         echo "ProxyPass \"/\" \"http://127.0.0.1:$RESPONSE_HEADER_BACKEND_PORT/\""
         echo "ProxyPassReverse \"/\" \"http://127.0.0.1:$RESPONSE_HEADER_BACKEND_PORT/\""
         echo "$IFMODULE_END"
         echo "$IFMODULE_END"
     } > "$output"
+}
+
+write_phase4_terminal_test_support() {
+    : > "$APACHE_PHASE4_EXTRA_CONFIG"
+
+    case "$APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST must be 0 or 1" ;;
+    esac
+    case "$APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST must be 0 or 1" ;;
+    esac
+    if [ "$APACHE_PHASE4_ERROR_DOCUMENT" = "1" ] && \
+        [ "$APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST" = "1" ]; then
+        fail "normal and nested Phase-4 ErrorDocument tests are mutually exclusive"
+    fi
+
+    case "$APACHE_PHASE4_ERROR_DOCUMENT" in
+        0) ;;
+        1)
+            printf '%s\n' 'phase4-custom-deny-body' > \
+                "$DOCROOT/__phase4_error_document.txt"
+            printf '%s\n' \
+                'ErrorDocument 403 /__phase4_error_document.txt' \
+                >> "$APACHE_PHASE4_EXTRA_CONFIG"
+            ;;
+        *) fail "APACHE_PHASE4_ERROR_DOCUMENT must be 0 or 1" ;;
+    esac
+
+    if [ "$APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST" = "1" ]; then
+        printf '%s\n' \
+            'ErrorDocument 403 /__phase4_nested_error_document_redirect' \
+            >> "$APACHE_PHASE4_EXTRA_CONFIG"
+    fi
+    if [ "$APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST" = "1" ]; then
+        printf '%s' 'phase4-preoutput-error-document-private' > \
+            "$DOCROOT/__phase4_preoutput_error_document.txt"
+        printf '%s\n' \
+            'ErrorDocument 404 /__phase4_preoutput_error_document.txt' \
+            >> "$APACHE_PHASE4_EXTRA_CONFIG"
+    fi
+
+    case "$APACHE_PHASE4_ROGUE_TEST" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_ROGUE_TEST must be 0 or 1" ;;
+    esac
+    case "$APACHE_PHASE4_INTERNAL_REDIRECT_TEST" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_INTERNAL_REDIRECT_TEST must be 0 or 1" ;;
+    esac
+    case "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST must be 0 or 1" ;;
+    esac
+    case "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST must be 0 or 1" ;;
+    esac
+    case "$APACHE_PHASE4_DOWNSTREAM_ERROR_TEST" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_DOWNSTREAM_ERROR_TEST must be 0 or 1" ;;
+    esac
+    case "$APACHE_PHASE4_UPSTREAM_ERROR_TEST" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_UPSTREAM_ERROR_TEST must be 0 or 1" ;;
+    esac
+    if [ "$APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST" = "1" ] && \
+        [ "$APACHE_PHASE4_ROGUE_TEST" != "1" ]; then
+        fail "nested Phase-4 ErrorDocument test requires APACHE_PHASE4_ROGUE_TEST=1"
+    fi
+    if [ "$APACHE_PHASE4_ROGUE_TEST" = "0" ] && \
+        [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TEST" = "0" ] && \
+        [ "$APACHE_PHASE4_DOWNSTREAM_ERROR_TEST" = "0" ] && \
+        [ "$APACHE_PHASE4_UPSTREAM_ERROR_TEST" = "0" ] && \
+        [ "$APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST" = "0" ] && \
+        [ "$APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST" = "0" ]; then
+        return 0
+    fi
+    case "$APACHE_PHASE4_ROGUE_EXPECT" in
+        deny|allow) ;;
+        *) fail "APACHE_PHASE4_ROGUE_EXPECT must be deny or allow" ;;
+    esac
+    case "$APACHE_PHASE4_ROGUE_PHASE" in
+        p3|p4) ;;
+        *) fail "APACHE_PHASE4_ROGUE_PHASE must be p3 or p4" ;;
+    esac
+    case "$APACHE_PHASE4_ROGUE_HEADER_MUTATION" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_ROGUE_HEADER_MUTATION must be 0 or 1" ;;
+    esac
+    case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
+        bypass|abort|target_config_bypass|target_config_abort|uri_policy_bypass|uri_policy_abort) ;;
+        *) fail "unsupported APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT=$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" ;;
+    esac
+    if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ] && \
+        [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TEST" != "1" ]; then
+        fail "target configuration redirect test requires APACHE_PHASE4_INTERNAL_REDIRECT_TEST=1"
+    fi
+    if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" = "1" ] && \
+        [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TEST" != "1" ]; then
+        fail "URI policy redirect test requires APACHE_PHASE4_INTERNAL_REDIRECT_TEST=1"
+    fi
+    if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ] && \
+        [ "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" = "1" ]; then
+        fail "target configuration and URI policy redirect controls are mutually exclusive"
+    fi
+    case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
+        target_config_bypass|target_config_abort)
+            [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ] || \
+                fail "target configuration redirect expectation requires its target config test"
+            ;;
+        uri_policy_bypass|uri_policy_abort)
+            [ "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" = "1" ] || \
+                fail "URI policy redirect expectation requires its URI policy test"
+            ;;
+    esac
+    if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ] || \
+        [ "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" = "1" ]; then
+        case "$APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID" in
+            ''|*[!0-9]*) fail "APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID must be a numeric rule ID" ;;
+            *) ;;
+        esac
+    fi
+
+    if [ "$APACHE_PHASE4_DOWNSTREAM_ERROR_TEST" = "1" ] || \
+        [ "$APACHE_PHASE4_UPSTREAM_ERROR_TEST" = "1" ]; then
+        printf '%s' 'phase4-downstream-error-document' > \
+            "$DOCROOT/__phase4_downstream_error_document.txt"
+        printf '%s\n' \
+            'ErrorDocument 500 /__phase4_downstream_error_document.txt' \
+            >> "$APACHE_PHASE4_EXTRA_CONFIG"
+    fi
+
+    if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ]; then
+        {
+            printf '%s\n' 'SecAuditEngine On'
+            printf 'SecAuditLog "%s"\n' "$AUDIT_LOG_FILE"
+            printf '%s\n' \
+                "SecRule RESPONSE_BODY \"@contains no-crs-response-body-marker\" \"id:2190410,phase:4,deny,status:403,log,t:none,msg:'Apache Phase-4 target configuration redirect deny regression'\""
+        } > "$APACHE_PHASE4_REDIRECT_TARGET_RULES_FILE"
+    fi
+
+    [ -x "$APXS_BIN" ] || blocked "missing APXS for Phase-4 rogue test: $APXS_BIN"
+    [ -f "$SCRIPT_DIR/mod_phase4_terminal_rogue.c" ] || \
+        blocked "missing Phase-4 rogue test source"
+    mkdir -p "$RUNTIME_ROOT/modules"
+    cp "$SCRIPT_DIR/mod_phase4_terminal_rogue.c" "$PHASE4_ROGUE_SOURCE" || \
+        not_executable "could not stage Phase-4 rogue test source"
+    if ! "$APXS_BIN" -c -o "$PHASE4_ROGUE_OUTPUT" \
+        "$PHASE4_ROGUE_SOURCE" \
+        > "$LOG_DIR/phase4-rogue-apxs.log" 2>&1; then
+        not_executable "could not build Phase-4 rogue test module; see $LOG_DIR/phase4-rogue-apxs.log"
+    fi
+    [ -f "$PHASE4_ROGUE_MODULE" ] || \
+        not_executable "APXS did not produce the Phase-4 rogue test module"
+    printf '%s\n' 'phase4-rogue-allow-body' > \
+        "$DOCROOT/__phase4_rogue_allow.txt"
+    printf '%s' 'no-crs-response-body-marker' > \
+        "$DOCROOT/__phase4_internal_redirect_target.txt"
+    {
+        printf 'LoadModule phase4_terminal_rogue_module "%s"\n' "$PHASE4_ROGUE_MODULE"
+        printf '%s\n' '<Location "/__phase4_rogue">'
+        printf '%s\n' '    SetHandler phase4-terminal-rogue'
+        printf '%s\n' '</Location>'
+        printf '%s\n' '<Location "/__phase4_rogue_header">'
+        printf '%s\n' '    SetHandler phase4-terminal-rogue'
+        printf '%s\n' '</Location>'
+        printf '%s\n' '<Location "/__phase4_internal_redirect">'
+        printf '%s\n' '    SetHandler phase4-internal-redirect'
+        printf '%s\n' '</Location>'
+        printf '%s\n' '<Location "/__phase4_nested_error_document_redirect">'
+        printf '%s\n' '    SetHandler phase4-nested-error-document-redirect'
+        printf '%s\n' '</Location>'
+        printf '%s\n' '<Location "/__phase4_preoutput_error">'
+        printf '%s\n' '    SetHandler phase4-preoutput-error-document'
+        printf '%s\n' '</Location>'
+        if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ]; then
+            printf '%s\n' '<Location "/__phase4_internal_redirect_target.txt">'
+            printf '%s\n' '    modsecurity on'
+            printf '    modsecurity_rules_file "%s"\n' \
+                "$APACHE_PHASE4_REDIRECT_TARGET_RULES_FILE"
+            printf '    modsecurity_phase4_log "%s"\n' \
+                "$APACHE_PHASE4_LOG_FILE"
+            printf '%s\n' '</Location>'
+        fi
+        printf '%s\n' '<Location "/__phase4_downstream_error">'
+        printf '%s\n' '    SetHandler phase4-downstream-error'
+        printf '%s\n' '</Location>'
+        printf '%s\n' '<Location "/__phase4_upstream_error">'
+        printf '%s\n' '    SetHandler phase4-upstream-error'
+        printf '%s\n' '</Location>'
+    } >> "$APACHE_PHASE4_EXTRA_CONFIG"
+
+    case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
+        http1) ;;
+        h2)
+            command -v "$OPENSSL_BIN" >/dev/null 2>&1 || \
+                blocked "missing openssl for TLS H2 Phase-4 rogue test"
+            "$OPENSSL_BIN" req -x509 -newkey rsa:2048 -nodes -days 1 \
+                -subj '/CN=127.0.0.1' \
+                -keyout "$PHASE4_ROGUE_TLS_KEY" \
+                -out "$RUNTIME_ROOT/conf/phase4-rogue.crt" \
+                > "$LOG_DIR/phase4-rogue-openssl.log" 2>&1 || \
+                not_executable "could not create task-local TLS certificate for H2 rogue test"
+            chmod 600 "$PHASE4_ROGUE_TLS_KEY" || \
+                not_executable "could not restrict the task-local H2 private key"
+            {
+                printf '%s\n' 'Protocols h2 http/1.1'
+                printf '%s\n' 'SSLEngine on'
+                printf 'SSLCertificateFile "%s"\n' "$RUNTIME_ROOT/conf/phase4-rogue.crt"
+                printf 'SSLCertificateKeyFile "%s"\n' "$PHASE4_ROGUE_TLS_KEY"
+            } >> "$APACHE_PHASE4_EXTRA_CONFIG"
+            ;;
+        *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
+    esac
 }
 
 require_crs_preamble_if_needed() {
@@ -864,6 +2149,7 @@ rm -f "$RUNTIME_ROOT/logs/"* \
     "$LOG_DIR/error.log" \
     "$LOG_DIR/phase4.log" \
     "$LOG_DIR/response-body.txt" \
+    "$LOG_DIR/response-headers.txt" \
     "$LOG_DIR/audit.log"
 rm -f "$LOG_DIR/audit/"*
 
@@ -903,6 +2189,7 @@ MIME_TYPES_FILE="$RUNTIME_ROOT/conf/mime.types"
 DOCROOT="$RUNTIME_ROOT/htdocs"
 APACHE_BACKEND_PROXY_FILE="$RUNTIME_ROOT/conf/backend-proxy.conf"
 RESPONSE_BODY="$LOG_DIR/response-body.txt"
+RESPONSE_HEADERS="$LOG_DIR/response-headers.txt"
 CASE_ENV_FILE="$RUNTIME_ROOT/conf/case.env"
 REQUEST_HEADERS_FILE="$RUNTIME_ROOT/conf/request-headers.txt"
 REQUEST_BODY_FILE="$RUNTIME_ROOT/conf/request-body.bin"
@@ -910,6 +2197,16 @@ AUDIT_LOG_FILE="$LOG_DIR/audit.log"
 AUDIT_LOG_DIR="$LOG_DIR/audit"
 APACHE_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
 RESPONSE_HEADER_FIXTURE_FILE="$RUNTIME_ROOT/conf/response-header-fixture.json"
+APACHE_PHASE4_EXTRA_CONFIG="$RUNTIME_ROOT/conf/phase4-extra.conf"
+PHASE4_ROGUE_OUTPUT="$RUNTIME_ROOT/modules/mod_phase4_terminal_rogue.so"
+PHASE4_ROGUE_MODULE="$RUNTIME_ROOT/modules/.libs/mod_phase4_terminal_rogue.so"
+PHASE4_ROGUE_SOURCE="$RUNTIME_ROOT/modules/mod_phase4_terminal_rogue.c"
+PHASE4_ROGUE_RESPONSE_BODY="$LOG_DIR/phase4-rogue-response-body.txt"
+PHASE4_ROGUE_ALLOW_BODY="$LOG_DIR/phase4-rogue-allow-body.txt"
+PHASE4_ROGUE_TRANSFERS="$LOG_DIR/phase4-rogue-transfers.txt"
+PHASE4_ROGUE_TRACE="$LOG_DIR/phase4-rogue-trace.txt"
+PHASE4_ROGUE_TLS_KEY="$RUNTIME_ROOT/conf/phase4-rogue.key"
+APACHE_PHASE4_REDIRECT_TARGET_RULES_FILE="$RUNTIME_ROOT/conf/phase4-redirect-target-rules.conf"
 
 if [ -f "$HTTPD_PREFIX/conf/mime.types" ]; then
     cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_FILE"
@@ -951,7 +2248,19 @@ if modules_dir=$(apache_modules_dir); then
     append_load_if_exists "proxy_module" "mod_proxy.so" "$modules_dir" "$MODULES_FILE"
     append_load_if_exists "proxy_http_module" "mod_proxy_http.so" "$modules_dir" "$MODULES_FILE"
     append_load_if_exists "log_config_module" "mod_log_config.so" "$modules_dir" "$MODULES_FILE"
+    if phase4_terminal_test_uses_h2; then
+        [ -f "$modules_dir/mod_socache_shmcb.so" ] || \
+            blocked "Apache build has no mod_socache_shmcb required for TLS H2 rogue test"
+        [ -f "$modules_dir/mod_ssl.so" ] || \
+            blocked "Apache build has no mod_ssl required for TLS H2 rogue test"
+        [ -f "$modules_dir/mod_http2.so" ] || \
+            blocked "Apache build has no mod_http2 required for H2 rogue test"
+        append_load_if_exists "socache_shmcb_module" "mod_socache_shmcb.so" "$modules_dir" "$MODULES_FILE"
+        append_load_if_exists "ssl_module" "mod_ssl.so" "$modules_dir" "$MODULES_FILE"
+        append_load_if_exists "http2_module" "mod_http2.so" "$modules_dir" "$MODULES_FILE"
+    fi
 fi
+write_phase4_terminal_test_support
 
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$HTTPD_PREFIX/lib:$PCRE2_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH
@@ -965,6 +2274,42 @@ if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
 fi
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
     echo "apache_smoke: pass start_smoke (request-free host liveness verified)"
+    exit 0
+fi
+
+if [ "$APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST" = "1" ]; then
+    send_phase4_nested_error_document_redirect_request
+    echo "apache_smoke: pass phase4-nested-error-document-redirect"
+    exit 0
+fi
+
+if [ "$APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST" = "1" ]; then
+    send_phase4_preoutput_error_document_request
+    echo "apache_smoke: pass phase4-preoutput-error-document"
+    exit 0
+fi
+
+if [ "$APACHE_PHASE4_ROGUE_TEST" = "1" ]; then
+    send_phase4_rogue_request
+    echo "apache_smoke: pass phase4-terminal-rogue"
+    exit 0
+fi
+
+if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TEST" = "1" ]; then
+    send_phase4_internal_redirect_request
+    echo "apache_smoke: pass phase4-internal-redirect"
+    exit 0
+fi
+
+if [ "$APACHE_PHASE4_DOWNSTREAM_ERROR_TEST" = "1" ]; then
+    send_phase4_downstream_error_request
+    echo "apache_smoke: pass phase4-downstream-error"
+    exit 0
+fi
+
+if [ "$APACHE_PHASE4_UPSTREAM_ERROR_TEST" = "1" ]; then
+    send_phase4_upstream_error_request
+    echo "apache_smoke: pass phase4-upstream-error"
     exit 0
 fi
 

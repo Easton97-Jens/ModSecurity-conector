@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-12T13:40:05Z`
+> Generated at: `2026-07-18T16:37:38Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
-> Generator: `ci/connector_capabilities.py`
+> Generator: `ci/evidence/collectors/connector_capabilities.py`
 > Make target: `capabilities-all-connectors`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `3315963a5616f666e52ebbf9e53f79494f93d9cb`
-> Framework SHA: `088e520052dcdb25ffa2d29bebcdf20ba0e066eb`
+> Connector SHA: `c8ca0d92b630c18232b881855c4f5d1482568ea6`
+> Framework SHA: `c8ca0d92b630c18232b881855c4f5d1482568ea6`
 > Input status: `complete`
 
 # Canonical connector capabilities
@@ -37,7 +37,7 @@ This file is rendered deterministically from the six connector-local manifests. 
 | `phase4` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `phase4_rule_evaluation` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `phase4_end_of_stream_evaluation` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
-| `phase4_pre_commit_deny` | `not_implemented` | `not_implemented` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
+| `phase4_pre_commit_deny` | `implemented_not_asserted` | `not_implemented` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `late_intervention` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `late_intervention_log_only` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `late_intervention_abort` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
@@ -46,8 +46,8 @@ This file is rendered deterministically from the six connector-local manifests. 
 | `header_limits` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `implemented_not_asserted` |
 | `request_body_limits` | `not_implemented` | `not_implemented` | `configured_not_exercised` | `configured_not_exercised` | `not_implemented` | `not_implemented` |
 | `response_body_limits` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
-| `no_full_response_buffering` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
-| `first_byte_before_response_end` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
+| `no_full_response_buffering` | `not_implemented` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
+| `first_byte_before_response_end` | `not_implemented` | `implemented_not_asserted` | `not_implemented` | `unsupported_by_host_model` | `unsupported_by_host_model` | `not_implemented` |
 | `http1_content_length` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` |
 | `http1_chunked` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` |
 | `keep_alive` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` | `configured_not_exercised` |
@@ -103,13 +103,15 @@ This file is rendered deterministically from the six connector-local manifests. 
 - Host: `apache`
 - Integration: `native-httpd-module`
 - Metadata: `connectors/apache/metadata.c`
-- Source contract: `connectors/apache/metadata.c`, `connectors/apache/src/mod_security3.c`, `connectors/apache/src/msc_filters.c`, `connectors/apache/src/msc_config.c`, `connectors/apache/harness/run_apache_smoke.sh`
+- Source contract: `connectors/apache/metadata.c`, `connectors/apache/src/mod_security3.c`, `connectors/apache/src/msc_filters.c`, `connectors/apache/src/msc_config.c`, `connectors/apache/harness/run_apache_smoke.sh`, `ci/runtime/lifecycle/run-apache-phase4-response-regression.sh`
 
 Host-model constraints:
 
-- Apache filters borrow the current request/response buckets and pass them onward; libmodsecurity body-rule evaluation may still complete only at EOS, so this is incremental ingestion rather than per-chunk rule execution.
+- Apache incrementally appends response data buckets but saves every normalized response brigade in the request pool through first EOS; no original response byte is released before msc_process_response_body and intervention resolution complete.
+- libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the default 1048576-byte gate limit fails closed rather than releasing an uninspected tail.
+- Normal r->prev and pre-output ErrorDocument redirects fail closed because the connector cannot safely rebind a source transaction to a target URI/ruleset. During terminal output EMITTING, exactly one Apache-core-marked local ErrorDocument hop is allowed with no_local_copy plus matching immediate predecessor status and REDIRECT_STATUS.
 - The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.
-- A Phase-4 disruptive result can occur after response commitment and is handled by the configured late-intervention policy.
+- A normal Phase-4 deny discards the saved original brigade and emits a terminal error before release. log_only and abort_connection remain defensive fallbacks only when independent commit proof already exists.
 
 | Capability | State | Canonical reason (from manifest) |
 |---|---|---|
@@ -120,31 +122,31 @@ Host-model constraints:
 | `request_body_streaming` | `not_implemented` | The connector appends body chunks but completes the ModSecurity body phase as a buffered phase rather than exposing streaming phase semantics. |
 | `request_body_incremental_ingest` | `implemented_not_asserted` | The input filter borrows and appends each Apache bucket and finalizes Phase 2 only at EOS; a real-host capability run is pending. |
 | `response_headers` | `implemented_not_asserted` | The Apache output filter maps response headers and invokes the response-header phase; canonical Phase-3 evidence is pending. |
-| `response_body_buffered` | `implemented_not_asserted` | The output filter appends bounded current response bytes and invokes response-body processing at EOS without retaining a cross-call brigade; canonical Phase-4 evidence is pending. |
-| `response_body_streaming` | `not_implemented` | The connector does not claim per-chunk Phase-4 rule evaluation: libmodsecurity may evaluate when the EOS finish call occurs. |
-| `response_body_incremental_ingest` | `implemented_not_asserted` | The output filter inspects only the current bucket and passes each brigade onward without retaining a response body; runtime evidence is pending. |
+| `response_body_buffered` | `implemented_not_asserted` | The output filter appends response bytes incrementally and retains the normalized Apache response brigade through first EOS before it resolves Phase 4; canonical Phase-4 evidence is pending. |
+| `response_body_streaming` | `not_implemented` | Apache deliberately withholds original response output until first EOS and the Phase-4 decision, so it does not provide client-visible progressive response streaming. |
+| `response_body_incremental_ingest` | `implemented_not_asserted` | The output filter appends each data bucket incrementally while retaining the normalized brigade across filter calls through first EOS; runtime evidence is pending. |
 | `phase1` | `implemented_not_asserted` | The early request hook processes URI and request headers before request handling; the canonical Phase-1 baseline has not been run here. |
 | `phase2` | `implemented_not_asserted` | The late request hook and input filter complete request-body processing; canonical Phase-2 evidence is pending. |
 | `phase3` | `implemented_not_asserted` | The output filter invokes response-header processing before body processing; canonical Phase-3 evidence is pending. |
-| `phase4` | `implemented_not_asserted` | The output filter incrementally ingests current body buckets and invokes response-body processing once at EOS; canonical Phase-4 evidence is pending. |
-| `phase4_rule_evaluation` | `implemented_not_asserted` | The native output-filter path is wired for incremental ingestion and EOS response-body processing, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated. |
-| `phase4_end_of_stream_evaluation` | `implemented_not_asserted` | The output filter invokes response-body processing once after its EOS bucket; canonical Phase-4 evidence is pending. |
-| `phase4_pre_commit_deny` | `not_implemented` | The native response-body decision is finalized at EOS after the response-header path. The real host run reaches the safe late log_only path after commitment, so this connector has no deterministic pre-commit Phase-4 decision point and must not claim a visible Phase-4 HTTP status rewrite. |
-| `late_intervention` | `implemented_not_asserted` | Phase-4 minimal, safe, and strict policy branches distinguish log-only, status denial, and post-commit connection abort; behavioral evidence is pending. |
-| `late_intervention_log_only` | `implemented_not_asserted` | The configured safe late-intervention branch is intended to preserve the committed response and record a log-only result, but no canonical event proves requested deny, actual log_only, and an unchanged visible status. |
-| `late_intervention_abort` | `implemented_not_asserted` | The configured strict late-intervention branch has a controlled connection-abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true. |
+| `phase4` | `implemented_not_asserted` | The output filter incrementally ingests body buckets, retains the complete normalized response through first EOS, and invokes response-body processing once before releasing or discarding original output; canonical evidence is pending. |
+| `phase4_rule_evaluation` | `implemented_not_asserted` | The native output-filter path is wired for incremental ingestion, retained-brigade EOS processing, and a pre-release decision, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated. |
+| `phase4_end_of_stream_evaluation` | `implemented_not_asserted` | The output filter invokes response-body processing once after the first retained EOS and resolves intervention before its saved original brigade is released; canonical Phase-4 evidence is pending. |
+| `phase4_pre_commit_deny` | `implemented_not_asserted` | The output filter retains original response bytes and EOS until msc_process_response_body and intervention resolution complete; a normal deny discards the saved brigade and enters one terminal error path before release. Current real-host evidence is pending. |
+| `late_intervention` | `implemented_not_asserted` | Late-intervention policy remains a defensive branch for independently proven already-committed output; normal Phase-4 enforcement occurs before original response release. Behavioral evidence is pending. |
+| `late_intervention_log_only` | `implemented_not_asserted` | The configured safe late-intervention branch preserves independently committed output and records a log-only result, but it is not the normal all-response-gate deny path; canonical event evidence is pending. |
+| `late_intervention_abort` | `implemented_not_asserted` | The configured strict late-intervention branch has a controlled connection-abort path for independently committed output, but no canonical real-host event proves actual abort_connection and connection_aborted=true. |
 | `late_intervention_status_metadata` | `implemented_not_asserted` | Phase-4 metadata wiring exists, but no canonical event yet proves separate requested WAF status, original host status, visible client status, requested action, and actual action. |
-| `content_type_scope` | `implemented_not_asserted` | The native Phase-4 path checks configured response Content-Type scope before it appends body bytes; evidence is pending. |
+| `content_type_scope` | `implemented_not_asserted` | SecResponseBodyMimeType selects libModSecurity inspection, but the connector gates every response because the C API cannot expose the effective MIME decision; the deprecated legacy MIME file cannot narrow the gate. Evidence is pending. |
 | `header_limits` | `not_implemented` | No canonical Apache host-header-limit enforcement case is implemented in the full-lifecycle catalog. |
 | `request_body_limits` | `not_implemented` | No connector-local configurable request-body limit action is implemented for the Apache streaming filter. |
-| `response_body_limits` | `implemented_not_asserted` | The Phase-4 body limit bounds bytes passed to libmodsecurity, but no canonical limit evidence is attached. |
-| `no_full_response_buffering` | `implemented_not_asserted` | The output filter no longer keeps a connector-owned brigade across calls, but a synchronized host runtime proof is pending. |
-| `first_byte_before_response_end` | `implemented_not_asserted` | Pass-through source wiring exists, but the canonical synchronized first-byte proof has not run. |
-| `http1_content_length` | `configured_not_exercised` | Apache can serve HTTP/1.1 responses; this transport case has not been exercised by the canonical catalog. |
+| `response_body_limits` | `implemented_not_asserted` | The default 1048576-byte Phase-4 gate limit rejects an over-limit response before any original byte is released rather than forwarding an uninspected tail; canonical limit evidence is pending. |
+| `no_full_response_buffering` | `not_implemented` | Apache intentionally retains the normalized response brigade across calls through first EOS to enforce the all-response Phase-4 decision before original output release. |
+| `first_byte_before_response_end` | `not_implemented` | Apache intentionally does not release an original first byte before first EOS because the all-response Phase-4 decision must complete before output release. |
+| `http1_content_length` | `configured_not_exercised` | Apache can serve HTTP/1.1 responses through the all-response Phase-4 gate; the focused H1 run has not yet produced canonical run-scoped evidence. |
 | `http1_chunked` | `configured_not_exercised` | Apache filter wiring can receive chunked output, but no canonical transport result is attached. |
 | `keep_alive` | `configured_not_exercised` | No canonical sequential-request keep-alive run is attached. |
 | `parallel_requests` | `not_implemented` | The full-lifecycle parallel-request evidence path is not implemented. |
-| `http2` | `configured_not_exercised` | No Apache HTTP/2 full-lifecycle run is attached. |
+| `http2` | `configured_not_exercised` | No Apache HTTP/2 full-lifecycle result is attached; ci/runtime/lifecycle/run-apache-phase4-response-regression.sh is the task-local H1/H2 evidence placeholder, not a pass claim. |
 | `http2_downstream` | `not_implemented` | The pinned Apache native-host profile does not yet build and exercise mod_http2 on the connector path. |
 | `http2_upstream` | `not_implemented` | No Apache native connector upstream HTTP/2 profile is implemented. |
 | `http2_tls_alpn` | `not_implemented` | The pinned Apache harness has no TLS/ALPN h2 listener. |
@@ -158,8 +160,8 @@ Host-model constraints:
 | `http3_multiplexing` | `not_implemented` | No native Apache HTTP/3 stream-isolation evidence path is implemented. |
 | `http3_stream_reset` | `not_implemented` | No Apache H3 stream-reset API has been audited or wired. |
 | `protocol_transaction_isolation` | `not_implemented` | Protocol-specific multiplexed transaction-isolation evidence is not implemented. |
-| `protocol_first_byte_before_response_end` | `not_implemented` | The existing first-byte proof is HTTP/1.1-only and is not protocol-profile evidence. |
-| `protocol_no_full_response_buffering` | `not_implemented` | The existing no-buffer reasoning is not yet proven separately for a negotiated modern protocol. |
+| `protocol_first_byte_before_response_end` | `not_implemented` | The all-response Phase-4 gate intentionally prevents original first-byte release before EOS on every protocol profile; no progressive-output protocol capability is claimed. |
+| `protocol_no_full_response_buffering` | `not_implemented` | The all-response Phase-4 gate intentionally retains the normalized response brigade through EOS; no no-full-buffer protocol capability is claimed. |
 | `client_abort` | `not_implemented` | No canonical Apache client-abort lifecycle case is implemented. |
 | `upstream_abort` | `not_implemented` | No canonical Apache upstream-abort lifecycle case is implemented. |
 | `response_body_decompression` | `not_implemented` | The connector has no verified response-body decompression contract. |
@@ -564,7 +566,7 @@ Host-model constraints:
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `connectors/apache/capabilities.json` | `95ba425551d9261bbbf4693c989f55468da78f7a2a6efa6eca8dc0ad69833a59` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/apache/capabilities.json` | `2903382825d8d4661a06630e0e4602edca6434246806ba26716e93dc037f512c` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `connectors/nginx/capabilities.json` | `70fa6bb202c0ac3ea8292fa654a98586852b238e1885e43e7d5235e7daa0a982` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `connectors/haproxy/capabilities.json` | `b8e3ca621904e925580604d5b7af1c97cf0a4c01a4c7a42cc7c58fae4c9d599c` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `connectors/envoy/capabilities.json` | `b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216` | `2026-06-16T19-12-00Z-614c8049` | present |

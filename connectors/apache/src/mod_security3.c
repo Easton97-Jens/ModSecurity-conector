@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "mod_security3.h"
 #include "msc_utils.h"
@@ -25,6 +26,75 @@ static int hook_request_early(request_rec *r);
 static int hook_log_transaction(request_rec *r);
 static void hook_insert_filter(request_rec *r);
 static int process_request_headers(request_rec *r, msc_t *msr);
+
+
+static int apache_phase4_redirect_has_local_error_document_proof(
+    const msc_t *msr, request_rec *r)
+{
+    const char *redirect_status;
+    const char *previous_status;
+
+    if (msr == NULL || r == NULL || r->prev == NULL)
+    {
+        return 0;
+    }
+
+    /* ap_die() marks a local ErrorDocument predecessor no_local_copy and
+     * records its status in REDIRECT_STATUS. Require that Apache-core-derived
+     * pair, even when the Phase-4 gate itself initiated the error. 3xx is
+     * included for a legitimate redirect intervention with a local
+     * ErrorDocument; 1xx/2xx cannot be a terminal intervention. An
+     * unconditional gate-failed exception would let a nested or unrelated
+     * producer redirect escape while the protocol guard is EMITTING. */
+    if (!r->prev->no_local_copy || r->subprocess_env == NULL ||
+        !(ap_is_HTTP_ERROR(r->prev->status) ||
+            (r->prev->status >= HTTP_MULTIPLE_CHOICES &&
+                r->prev->status < HTTP_BAD_REQUEST)))
+    {
+        return 0;
+    }
+    redirect_status = apr_table_get(r->subprocess_env, "REDIRECT_STATUS");
+    previous_status = apr_itoa(r->pool, r->prev->status);
+    return redirect_status != NULL && previous_status != NULL &&
+        strcmp(redirect_status, previous_status) == 0 &&
+        !msr->response_phase4_terminal_error_redirect_seen;
+}
+
+
+static int apache_phase4_redirect_is_terminal_error_emission(msc_t *msr,
+    request_rec *r)
+{
+    if (msr == NULL || msr->response_phase4_terminal_output !=
+            MSC_PHASE4_TERMINAL_OUTPUT_EMITTING ||
+        !apache_phase4_redirect_has_local_error_document_proof(msr, r))
+    {
+        return 0;
+    }
+    msr->response_phase4_terminal_error_redirect_seen = 1;
+    return 1;
+}
+
+
+static void apache_phase4_fail_normal_redirect(msc_t *msr,
+    request_rec *r, const char *reason)
+{
+    if (msr != NULL)
+    {
+        msc_discard_response_brigade(msr);
+        msr->response_phase4_gate_failed = 1;
+        msr->response_phase4_terminal_output =
+            MSC_PHASE4_TERMINAL_OUTPUT_SEALED;
+    }
+    if (r == NULL || r->connection == NULL)
+    {
+        return;
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+        "ModSecurity: refusing normal internal redirect across the Phase 4 response boundary: %s",
+        reason != NULL ? reason : "request transaction cannot be safely rebound");
+    r->connection->keepalive = AP_CONN_CLOSE;
+    r->connection->aborted = 1;
+}
 
 
 void modsecurity_log_cb(void *log, const void* data)
@@ -575,16 +645,59 @@ static void hook_insert_filter(request_rec *r)
     ap_add_input_filter("MODSECURITY_IN", msr, r, r->connection);
 #endif
 
-    /* The output filters only need to be added only once per transaction
-     * (i.e. subrequests and redirects are excluded).
-     */
-    if ((r->main != NULL) || (r->prev != NULL))
+    /* A subrequest must not share the primary response lifecycle. */
+    if (r->main != NULL)
     {
         return;
     }
 
+    /* Apache internal redirects preserve protocol filters but replace the
+     * resource/content chain and request target. The native transaction has
+     * already processed the source URI, request headers, and body; the C API
+     * cannot rewind or safely rebind it to the target request. Reattaching
+     * MODSECURITY_OUT would therefore evaluate target response bytes against
+     * stale request variables or a stale RulesSet. Fail closed for every
+     * normal redirect. Apache's own synchronous ErrorDocument is the only
+     * exception: it is a bounded terminal emission already protected by the
+     * existing protocol guard while it is EMITTING. */
+    if (r->prev != NULL)
+    {
+        if (!apache_phase4_redirect_is_terminal_error_emission(msr, r))
+        {
+            apache_phase4_fail_normal_redirect(msr, r,
+                "request transaction cannot be safely rebound to the target URI");
+        }
+        return;
+    }
 
-    ap_add_output_filter("MODSECURITY_OUT", msr, r, r->connection);
+
+    /* Keep a terminal Phase-4 guard in the protocol chain as well as the
+     * body filter in the content chain. Apache discards resource filters when
+     * it emits an error response, while the protocol guard remains attached
+     * to this request and seals invalid later producer output. */
+    if (ap_add_output_filter("MODSECURITY_PHASE4_GUARD", msr, r,
+            r->connection) == NULL)
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+            "ModSecurity: unable to install the mandatory Phase 4 terminal guard; aborting request");
+        r->connection->aborted = 1;
+        return;
+    }
+    if (ap_add_output_filter("MODSECURITY_OUT", msr, r,
+            r->connection) == NULL)
+    {
+        /* The protocol guard alone cannot perform the Phase-4 body decision.
+         * Keep it sealed and fail closed rather than allowing an unavailable
+         * content filter to turn the response path into an uninspected pass. */
+        msr->response_phase4_gate_failed = 1;
+        msr->response_phase4_terminal_output =
+            MSC_PHASE4_TERMINAL_OUTPUT_SEALED;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+            "ModSecurity: unable to install the mandatory Phase 4 content filter; aborting request");
+        r->connection->keepalive = AP_CONN_CLOSE;
+        r->connection->aborted = 1;
+        return;
+    }
 }
 
 
@@ -734,6 +847,8 @@ static void msc_register_hooks(apr_pool_t *pool)
     /* response body */
     ap_register_output_filter("MODSECURITY_OUT", output_filter,
         NULL, AP_FTYPE_CONTENT_SET - 3);
+    ap_register_output_filter("MODSECURITY_PHASE4_GUARD",
+        phase4_terminal_guard_filter, NULL, AP_FTYPE_PROTOCOL);
 }
 
 

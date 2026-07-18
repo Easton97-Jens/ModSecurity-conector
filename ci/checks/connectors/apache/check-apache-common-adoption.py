@@ -112,7 +112,41 @@ checks.append((
 ))
 checks.append(("msconnector_late_intervention_policy_init" in filters_c and "msconnector_late_intervention_resolve" in filters_c and "msconnector_late_intervention_action_name" in filters_c, "Apache Phase4 handling uses the Common late-intervention policy"))
 checks.append(("strcmp(actual, \"deny\")" in filters_c and "event.http.visible_http_status = msr->last_intervention_status" in filters_c and "response_not_committed" in filters_c, "Pre-commit deny events report the deny status as visible"))
-checks.append(("response_brigade" not in filters_c and "apache_phase4_append_bucket" in filters_c and "ap_pass_brigade(f->next, bb_in)" in filters_c, "Apache Phase4 passes each host brigade onward without connector-owned full-response buffering"))
+checks.append((
+    "apr_bucket_brigade *response_brigade;" in config_h
+    and "response_body_scope_decided" not in config_h
+    and "ap_save_brigade(f, &msr->response_brigade, &bb_in, r->pool)" in filters_c
+    and "apache_phase4_release_response_brigade" in filters_c
+    and "apache_phase4_normalize_response_brigade" in filters_c
+    and "APR_BUCKET_IS_FLUSH(bucket)" in filters_c
+    and "bucket->length == 0" in filters_c
+    and "No later\n         * bucket belongs to this response" in filters_c
+    and "msc_discard_response_brigade(msr);" in filters_c
+    and "msc_discard_response_brigade(msr);" in utils_c
+    and "MSCONNECTOR_BODY_LIMIT_ACTION_REJECT" in filters_c
+    and "apache_phase4_in_scope" not in filters_c
+    and "SecResponseBodyMimeType selection" in filters_c
+    and "plan.append_size) != 1" in filters_c
+    and "msc_process_response_body(msr->t) != 1" in filters_c
+    and "r->bytes_sent > 0" in filters_c
+    and "response_phase4_eos_released" in filters_c
+    and "missing saved response brigade" in filters_c
+    and "response_phase4_gate_failed" in filters_c
+    and "r->connection->aborted = 1" in filters_c
+    and "phase4_terminal_guard_filter" in filters_c
+    and "apache_send_precommit_terminal_error" in filters_c
+    and "msc_discard_response_brigade(msr);" in filters_c
+    and "MSC_PHASE4_TERMINAL_OUTPUT_EMITTING" in filters_c
+    and "MSC_PHASE4_TERMINAL_OUTPUT_SEALED" in filters_c
+    and 'ap_register_output_filter("MODSECURITY_PHASE4_GUARD"' in module_c
+    and 'ap_add_output_filter("MODSECURITY_PHASE4_GUARD"' in module_c
+    and 'ap_add_output_filter("MODSECURITY_OUT", msr, r,' in module_c
+    and "mandatory Phase 4 content filter; aborting request" in module_c
+    and "ap_bucket_eoc_create" not in filters_c
+    and "ap_flush_conn(r->connection)" not in filters_c
+    and "if (!eos_seen)\n    {\n        return APR_SUCCESS;" in filters_c,
+    "Apache Phase4 sets aside every response through EOS, treats C API failures as fail-closed, uses downstream-safe commit evidence, and seals terminal request output",
+))
 checks.append(("msc_finalize_request_body" in filters_c and "request_body_processed" in filters_c and "APR_BUCKET_REMOVE(pbktIn)" in filters_c, "Apache request chunks are borrowed and phase 2 finalizes once at EOS"))
 input_filter_c = filters_c.split("apr_status_t input_filter", 1)[1].split("static const char *apache_response_content_type", 1)[0]
 checks.append((input_filter_c.count("send_input_error_bucket") == 3 and "send_error_bucket(msr, f" not in input_filter_c, "Apache input-filter errors use the input-specific output-chain bridge"))

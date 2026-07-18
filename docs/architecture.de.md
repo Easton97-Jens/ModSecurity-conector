@@ -26,7 +26,7 @@ Dokument hält die beabsichtigte Ownership- und Sicherheitsgrenze fest.
 
 | Connector | Ausgewählter Integrationsmodus | Grenze für Response-Body |
 | --- | --- | --- |
-| Apache | Natives HTTPD-Modul | Output-Filter-/EOS-Behandlung |
+| Apache | Natives HTTPD-Modul | EOS-only-All-Response-Output-Gate; normalisierte Brigades werden bis zum ersten EOS vor Release zurückgehalten |
 | NGINX | Natives HTTP-Modul | Response-Filter und Request-/Subrequest-End-of-Stream |
 | HAProxy | Nativer HTX-Filter | HTX-End-of-Stream |
 | Envoy | Gestreamter <code>ext_proc</code>-Dienst | Stream-Abschluss im ausgewählten Service-Protokoll |
@@ -46,7 +46,7 @@ Buildpfad, Grenzen, Kompatibilitätspfade, Betrieb und Validierung:
 | P1 | Verbindungs-, URI- und Request-Header-Verarbeitung | Verbindungs-/Request-Metadaten mappen und einen zulässigen Eingriff vor Commit anwenden | Ein Request-Ergebnis belegt keine anderen Phasen |
 | P2 | Request-Body anhängen und abschließen | Nur wie vom ausgewählten Hostpfad erlaubt streamen oder puffern; einmal bei Request-EOS abschließen | Body-Unterstützung ist profilspezifisch |
 | P3 | Response-Header-Verarbeitung | Ursprungsstatus erhalten und feststellen, ob Header noch veränderbar sind | Ein P3-Ergebnis belegt kein P4-Verhalten |
-| P4 | Response-Body anhängen und abschließen | Begrenzte Chunks verarbeiten, First-Byte-/No-Full-Buffer-Grenzen erhalten und späten Eingriff sicher auflösen | Aktion nach Commit bleibt host- und nachweisabhängig |
+| P4 | Response-Body anhängen und abschließen | Begrenzte Chunks verarbeiten, die ausgewählte Host-Release-Grenze einhalten und späten Eingriff sicher auflösen; Apache hält alle normalisierten Outputs bis zum ersten EOS vor Release zurück | Aktion nach Commit bleibt host- und nachweisabhängig |
 | Logging | Transaktionslogging und Cleanup | Payload-sichere Metadaten ausgeben und Host-/Engine-Zustand genau einmal freigeben | Logs sind laufbezogene Nachweise, keine Laufzeitgarantie |
 
 Die Engine-seitige öffentliche Reihenfolge basiert auf libmodsecurity-v3-Aufrufen
@@ -79,7 +79,11 @@ Das ausgewählte Safe-P4-Verhalten ist konservativ: Eine Bedingung nach Commit
 wird als begrenzte, payload-sichere Beobachtung aufgezeichnet, sofern der
 ausgewählte Hostpfad und Laufzeitnachweis keine client-sichtbare Aktion
 belegen. Ein Dokumentationslabel wie <code>strict</code> ist kein Nachweis für
-einen Abbruch oder HTTP-Fehler.
+einen Abbruch oder HTTP-Fehler. Apache ist eine beabsichtigte Pre-Commit-
+Ausnahme: Sein P4-All-Response-Gate hält ursprüngliche Ausgabe bis zum ersten
+EOS zurück, sodass ein normaler Deny diese Ausgabe verwirft und seinen
+terminalen Fehler vor Release sendet. Apache-Safe-/Strict-Late-Verhalten gilt
+nur für einen unabhängig als bereits committed nachgewiesenen Pfad.
 
 ## Fähigkeits-, Status- und Nachweismodell
 

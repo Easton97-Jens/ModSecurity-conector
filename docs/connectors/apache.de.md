@@ -25,7 +25,7 @@ payload-sichere Event-Primitiven; es besitzt keine Apache-Objekte.
 | --- | --- | --- |
 | P1/P2 | Request-Metadaten mappen und Request-Bodies über den Inputpfad verarbeiten | Request-Body-Verarbeitung bei EOS abschließen |
 | P3 | Response-Header vor der Commit-Grenze mappen | Ursprungs- und sichtbaren Statuskontext erhalten |
-| P4 | Aktuelle Output-Buckets inkrementell aufnehmen und bei EOS abschließen | Kein connector-eigener vollständiger Response-Puffer über Aufrufe hinweg |
+| P4 | Daten-Buckets inkrementell anhängen, normalisierte Response bis zum ersten EOS zurückhalten und dann einmal abschließen | Apache-eigenes All-Response-Gate im Request-Pool; kein ursprüngliches Byte wird vor der Phase-4-Entscheidung freigegeben |
 | Logging | Nur Metadaten enthaltende Events ausgeben und Transaktionszustand freigeben | Event-Payloads enthalten keine Response-Bodies |
 
 Jede erfolgreich erzeugte native <code>Transaction</code> gehört der primären
@@ -34,9 +34,17 @@ erfolgreicher Erzeugung, registriert ein normales Cleanup am
 <code>r-&gt;pool</code> dieser Anfrage und löscht die Owner-Notiz sowie den
 nativen Pointer, bevor <code>msc_transaction_cleanup</code> ausgeführt wird.
 Dies ist ein Lifecycle-Vertrag auf Quellcodeebene und kein Runtime-Nachweis.
-Interne Redirects und Subrequests behalten ihre bestehende, absichtliche
-Wiederverwendung des primären Kontexts; getrennte Top-Level-Anfragen auf einer
-Keepalive-Verbindung erhalten getrennte Request-Pools und Transaktionen.
+Getrennte Top-Level-Anfragen auf einer Keepalive-Verbindung erhalten getrennte
+Request-Pools und Transaktionen. Subrequests behalten ihre bestehende
+absichtliche Wiederverwendung des primären Kontexts. Normale interne Redirects
+und ErrorDocuments vor Output schlagen fail-closed fehl: Die Transaktion kann von Quell-URI,
+Headern und Body nicht über die öffentliche libModSecurity-C-API sicher an eine
+Target-Anfrage gebunden werden. Die einzige Ausnahme ist genau ein synchroner,
+von Apache Core markierter lokaler ErrorDocument-Hop, während der Terminal-
+Output-Guard <code>EMITTING</code> ist, mit Apache-Marker
+<code>no_local_copy</code> und passendem unmittelbaren
+Vorgängerstatus/<code>REDIRECT_STATUS</code>; der Guard weist einen zweiten Hop
+ab.
 
 ## Build
 
@@ -62,15 +70,36 @@ Enable/Disable-Direktive.
 
 Das native Modul verarbeitet P1 bis P4 in seinen Host-Hooks und Filtern. P3
 kann handeln, bevor die Response committed ist, wenn ausgewählter Case und
-Hostzustand es erlauben. P4 ist anders: Safe-Verhalten nach Commit wird
-konservativ als Metadatum aufgezeichnet und muss das tatsächlich sichtbare
-Ergebnis erhalten. Strict-Source-Wiring beweist keinen client-sichtbaren
-Abbruch.
+Hostzustand es erlauben. P4 ist ein EOS-only-All-Response-Gate: Jede
+normalisierte Response-Brigade, einschließlich des EOS einer leeren Response,
+bleibt im Apache-Request-Pool, bis `msc_process_response_body` und die
+Interventionsauflösung abgeschlossen sind. Dadurch kann ein normaler
+Phase-4-Deny die gespeicherte ursprüngliche Brigade verwerfen und genau eine
+terminale Error-Response ausgeben, bevor die ursprüngliche Ausgabe freigegeben
+wird. Der ausgewählte Apache-Pfad bietet deshalb bewusst kein für Clients
+sichtbares progressives Response-Streaming.
+
+Die C-API gibt keine sichere Antwort auf die wirksame
+`SecResponseBodyMimeType`-Auswahl von libModSecurity. Apache gate't deshalb
+jeden Response-MIME-Typ; die Engine-Direktive wählt weiterhin die Inspektion,
+aber das veraltete `modsecurity_phase4_content_types_file` kann keinen
+Pass-through-Pfad öffnen. Das Connector-Standardlimit ist ein hartes Limit von
+1048576 Byte (1 MiB); eine übergroße Response schlägt fail-closed fehl, bevor
+ihre ursprünglichen Bytes freigegeben werden. `r->sent_bodyct` und `eos_sent`
+sind kein Commit-Nachweis, weil Upstream-/Core-Pfade sie setzen können, bevor
+dieser Filter Ausgabe freigibt. Das Gate verwendet stattdessen seinen eigenen
+Released-EOS-Marker und Apaches `r->bytes_sent`.
+
+Safe-/Minimal-`log_only` und Strict-`abort_connection` bleiben defensive
+Fallbacks nur für eine unabhängig als bereits committed nachgewiesene Response.
+Sie wandeln einen normalen noch gegateten Deny nicht in Log-only um.
+Source-Wiring für einen Strict-Fallback beweist weiterhin keinen
+client-sichtbaren Abbruch.
 
 | P4-Frage | Erforderliche Beobachtung |
 | --- | --- |
 | Regel beobachtet | Reale Host-Phase-4-Regelbeobachtung mit ausgewählter Regel/Profil |
-| Deny vor Commit | Angeforderter Deny, nicht committe Header und passender sichtbarer Status |
+| Deny vor Commit | Angeforderter Deny, kein freigegebenes ursprüngliches EOS/Byte, passender sichtbarer terminaler Status und keine ursprüngliche Body-Ausgabe |
 | Safe Late Result | Angeforderte Aktion, tatsächliches <code>log_only</code>, unveränderter sichtbarer Status und Late-Flag |
 | Strict Late Result | Tatsächliche Abort-Aktion und Host-/Client-Nachweis des aufgezeichneten Abbruchs |
 
@@ -80,7 +109,11 @@ Abbruch.
 <code>make full-lifecycle-apache</code> führt einen ausgewählten Lifecycle-Lauf
 aus. Laufbezogene Result-, Assertion-, Hostlog- und nur Metadaten enthaltende
 Phase-Event-Artefakte sind zu prüfen, statt Laufzeitverhalten aus Quelle oder
-Build abzuleiten.
+Build abzuleiten. Der fokussierte H1/H2-Evidence-Platzhalter ist
+<code>ci/runtime/lifecycle/run-apache-phase4-response-regression.sh</code>;
+erst nach der Ausführung wird dessen laufbezogene Ausgabe erfasst. Dieser Guide
+behauptet keinen H1- oder H2-Pass, nur weil Source-Contract oder Runner
+vorhanden sind.
 
 Testmodell, Statusvokabular, Datenschutzregeln und Aggregatgrenzen stehen unter
 [Tests und Nachweise](../testing-and-evidence.de.md).
@@ -100,7 +133,9 @@ Direktiven. Verwenden Sie die registrierte Modulsyntax und die vollständige
 Referenz, statt eine Legacy-Direktive, Merge-Regel oder Ausdruckssyntax als
 portabel anzunehmen. P4-Response-Body- und Post-Commit-Verhalten bleiben
 evidence-gesteuert; ein Regelmatch, Quellzweig oder historische Matrix ist
-keine Promotion.
+keine Promotion. Das Apache-All-Response-Gate ist beabsichtigtes
+Kompatibilitätsverhalten für diese Sicherheitsgrenze, kein generisches
+Connector-Buffering-Modell.
 
 ## Verwandte Referenzen
 

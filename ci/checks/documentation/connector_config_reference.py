@@ -233,6 +233,64 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
 }
 
 
+# Apache's Phase-4 all-response gate intentionally differs from the shared
+# late-intervention descriptions used by other native hosts. Keep the override
+# local so a connector-specific security invariant cannot silently rewrite the
+# NGINX/HTX documentation contract.
+APACHE_DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
+    "modsecurity_phase4_mode": {
+        "effect": (
+            "Apache retains every normalized response brigade through first EOS and resolves "
+            "the normal P4 decision before original output release. This mode selects only the "
+            "defensive fallback for independently proven already-committed output: minimal/safe "
+            "record log_only and strict requests abort_connection."
+        ),
+        "security": (
+            "A normal Phase-4 deny must not be reinterpreted as log_only: Apache discards the "
+            "saved original brigade and emits one terminal error before release. strict is not a "
+            "guaranteed later 403; host-specific abort evidence is still required."
+        ),
+        "phase_relevance": (
+            "P4 only. Apache's EOS-only all-response gate resolves intervention before original "
+            "output release; this setting applies only if independent commit proof already exists."
+        ),
+    },
+    "modsecurity_phase4_content_types_file": {
+        "type": "deprecated path",
+        "values": "one readable legacy file with MIME tokens",
+        "default": "none; deprecated Apache compatibility input",
+        "default_source": "Apache compatibility parser; deprecated",
+        "effect": (
+            "Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow "
+            "the all-response Phase-4 gate; use SecResponseBodyMimeType to select libModSecurity "
+            "inspection."
+        ),
+        "security": (
+            "Do not use this legacy list to permit a pass-through route. The connector cannot safely "
+            "query libModSecurity's effective MIME selection, so every response remains gated through EOS."
+        ),
+        "phase_relevance": (
+            "P4 only. The parser is retained for compatibility but cannot select which Apache "
+            "responses bypass the EOS-only enforcement gate."
+        ),
+    },
+    "modsecurity_phase4_body_limit": {
+        "effect": (
+            "Bounds Apache's saved all-response brigade before Phase-4 completion. The default is "
+            "1048576 bytes; an over-limit response fails closed before any original response byte is released."
+        ),
+        "security": (
+            "The finite limit bounds memory and CPU exposure. Do not process a prefix and release "
+            "an uninspected tail: exceeding this connector limit must fail closed."
+        ),
+        "phase_relevance": (
+            "P4 only. The limit applies while normalized brigades are retained through first EOS "
+            "for the all-response enforcement decision."
+        ),
+    },
+}
+
+
 def _directive_option(
     connector: str,
     name: str,
@@ -245,7 +303,9 @@ def _directive_option(
     validation: str,
     example: str,
 ) -> dict[str, Any]:
-    detail = DIRECTIVE_DETAILS[name]
+    detail = dict(DIRECTIVE_DETAILS[name])
+    if connector == "apache":
+        detail.update(APACHE_DIRECTIVE_DETAILS.get(name, {}))
     return _option(
         connector,
         name,
@@ -262,11 +322,15 @@ def _directive_option(
         inheritance=inheritance,
         merge_behavior=merge,
         validation=validation,
-        phase_relevance="P1 controls integration; rules and P4 controls affect the stated phase only.",
+        phase_relevance=detail.get(
+            "phase_relevance",
+            "P1 controls integration; rules and P4 controls affect the stated phase only.",
+        ),
         security_relevance=detail["security"],
         runtime_effect=detail["effect"],
         example_file=example,
         description=detail["effect"],
+        deprecated=(connector == "apache" and name == "modsecurity_phase4_content_types_file"),
     )
 
 
@@ -295,13 +359,20 @@ def extract_apache(root: Path) -> list[dict[str, Any]]:
             syntax = "modsecurity_phase4_body_limit <positive-bytes>"
         elif name == "modsecurity_transaction_id_expr":
             syntax = "modsecurity_transaction_id_expr <apache-string-expression>"
+        example = (
+            "connectors/apache/src/msc_config.c"
+            if name == "modsecurity_phase4_content_types_file"
+            else "examples/apache/minimal/httpd.conf"
+            if name in {"modsecurity", "modsecurity_rules_file", "modsecurity_use_error_log"}
+            else "examples/apache/safe/httpd.conf"
+        )
         result.append(_directive_option(
             "apache", name, source, f"module_directives[] / {handler}", syntax,
             "Apache RSRC_CONF | ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules)",
             "Parent value is available to the child unless a child value is set; see the Apache directory-config merge function.",
             "Common scalar values use child-over-parent merge; rule sets are merged through msc_rules_merge. Transaction-id expression/static-id are mutually exclusive.",
             f"{handler} returns an Apache configuration error for its documented invalid input; validate the installed configuration with apachectl -t.",
-            "examples/apache/minimal/httpd.conf" if name in {"modsecurity", "modsecurity_rules_file", "modsecurity_use_error_log"} else "examples/apache/safe/httpd.conf",
+            example,
         ))
     return result
 
@@ -3018,6 +3089,19 @@ GERMAN_TEXT: dict[str, str] = {
     "Required native HTX rule-file argument.": "Erforderliches rules-file-Argument des nativen HTX.",
     "Template placeholder, not an Envoy configuration field.": "Template-Platzhalter, kein Envoy-Konfigurationsfeld.",
     "ext_proc service CLI flag.": "Kommandozeilenoption des ext_proc-Service.",
+    "deprecated path": "veralteter Pfad",
+    "one readable legacy file with MIME tokens": "eine lesbare Legacy-Datei mit MIME-Token",
+    "none; deprecated Apache compatibility input": "kein Wert; veraltete Apache-Kompatibilitätseingabe",
+    "Apache compatibility parser; deprecated": "Apache-Kompatibilitätsparser; veraltet",
+    "Apache retains every normalized response brigade through first EOS and resolves the normal P4 decision before original output release. This mode selects only the defensive fallback for independently proven already-committed output: minimal/safe record log_only and strict requests abort_connection.": "Apache hält jede normalisierte Response-Brigade bis zum ersten EOS zurück und löst die normale P4-Entscheidung vor der Freigabe der ursprünglichen Ausgabe auf. Dieser Modus wählt nur den defensiven Fallback für unabhängig als bereits committed nachgewiesene Ausgabe: minimal/safe zeichnen log_only auf und strict fordert abort_connection an.",
+    "A normal Phase-4 deny must not be reinterpreted as log_only: Apache discards the saved original brigade and emits one terminal error before release. strict is not a guaranteed later 403; host-specific abort evidence is still required.": "Ein normaler Phase-4-Deny darf nicht als log_only umgedeutet werden: Apache verwirft die gespeicherte ursprüngliche Brigade und gibt vor dem Release genau einen terminalen Fehler aus. strict ist keine garantierte spätere 403; hostspezifische Abort-Evidence ist weiterhin erforderlich.",
+    "P4 only. Apache's EOS-only all-response gate resolves intervention before original output release; this setting applies only if independent commit proof already exists.": "Nur P4. Apaches EOS-only-All-Response-Gate löst die Intervention vor der Freigabe der ursprünglichen Ausgabe auf; diese Einstellung gilt nur, wenn ein unabhängiger Commit-Nachweis bereits existiert.",
+    "Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the all-response Phase-4 gate; use SecResponseBodyMimeType to select libModSecurity inspection.": "Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt das All-Response-Phase-4-Gate nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion.",
+    "Do not use this legacy list to permit a pass-through route. The connector cannot safely query libModSecurity's effective MIME selection, so every response remains gated through EOS.": "Diese Legacy-Liste darf keinen Pass-through-Pfad erlauben. Der Connector kann die wirksame MIME-Auswahl von libModSecurity nicht sicher abfragen, daher bleibt jede Response bis EOS gegatet.",
+    "P4 only. The parser is retained for compatibility but cannot select which Apache responses bypass the EOS-only enforcement gate.": "Nur P4. Der Parser bleibt aus Kompatibilitätsgründen erhalten, kann aber nicht auswählen, welche Apache-Responses das EOS-only-Enforcement-Gate umgehen.",
+    "Bounds Apache's saved all-response brigade before Phase-4 completion. The default is 1048576 bytes; an over-limit response fails closed before any original response byte is released.": "Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der Standardwert ist 1048576 Byte; eine Response über dem Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird.",
+    "The finite limit bounds memory and CPU exposure. Do not process a prefix and release an uninspected tail: exceeding this connector limit must fail closed.": "Das endliche Limit begrenzt Speicher- und CPU-Exposition. Keinen Präfix verarbeiten und einen uninspektierten Tail freigeben: Das Überschreiten dieses Connector-Limits muss fail-closed fehlschlagen.",
+    "P4 only. The limit applies while normalized brigades are retained through first EOS for the all-response enforcement decision.": "Nur P4. Das Limit gilt, während normalisierte Brigades für die All-Response-Enforcement-Entscheidung bis zum ersten EOS zurückgehalten werden.",
 }
 
 
