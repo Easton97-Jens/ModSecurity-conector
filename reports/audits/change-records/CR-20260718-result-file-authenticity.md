@@ -29,6 +29,9 @@ to a report without a strict source-of-truth receipt check.
   interrupted, skipped, and invented positive-looking values are rejected.
 - A verified full run has one valid run ID, one required full-matrix producer
   command, and exactly the twelve connector/CRS/MRTS job identities.
+- The strict consumer accepts only the Parent runner's emitted terminal
+  full-matrix states `runtime_completed` and
+  `runtime_completed_with_mismatches`, never a similarly named ad-hoc state.
 - Every job receipt is bound to the selected run ID, connector, CRS variant,
   MRTS variant, canonical job root, and structured completion state.
 - Logs, build manifests, summaries, and result JSONL files are regular,

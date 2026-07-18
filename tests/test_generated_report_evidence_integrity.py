@@ -59,7 +59,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                     "phase": "runtime-producers",
                     "required": True,
                     "runtime_complete": True,
-                    "runtime_status": "completed",
+                    "runtime_status": "runtime_completed",
                 }
             ],
         }

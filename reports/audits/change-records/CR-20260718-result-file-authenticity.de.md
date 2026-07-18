@@ -32,6 +32,10 @@ beitragen, ohne dass ein strikter Source-of-Truth-Receipt geprüft wurde.
 - Ein verifizierter Full-Run besitzt eine gültige Run-ID, genau einen
   erforderlichen Full-Matrix-Producer-Command und exakt die zwölf
   Connector/CRS/MRTS-Job-Identitäten.
+- Der strikte Consumer akzeptiert nur die vom Parent-Runner ausgegebenen
+  terminalen Full-Matrix-Zustände `runtime_completed` und
+  `runtime_completed_with_mismatches`, nie einen ähnlich benannten ad-hoc
+  Zustand.
 - Jeder Job-Receipt ist an ausgewählte Run-ID, Connector, CRS-Variante,
   MRTS-Variante, kanonischen Job-Root und strukturierten Completion-Status
   gebunden.

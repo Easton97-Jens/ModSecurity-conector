@@ -694,7 +694,8 @@ def check_verified_runtime_artifact_chain(
             errors.append(f"{rel(command_path, connector_root)}: expected one required full-matrix producer command")
         elif not (
             full_matrix_commands[0].get("runtime_complete") is True
-            and full_matrix_commands[0].get("runtime_status") in {"completed", "completed_with_mismatches"}
+            and full_matrix_commands[0].get("runtime_status")
+            in {"runtime_completed", "runtime_completed_with_mismatches"}
         ):
             errors.append(f"{rel(command_path, connector_root)}: full-matrix producer command is not runtime complete")
 
