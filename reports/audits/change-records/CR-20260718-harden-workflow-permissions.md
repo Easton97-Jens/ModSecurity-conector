@@ -89,6 +89,9 @@ write permission is added.
 | `make check-bilingual-docs` | blocked: the worktree lacks existing Framework documentation-link targets; the checker reports those pre-existing missing targets before completion. |
 | `PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile tests/test_ci_security_workflows.py` | blocked: `py_compile` attempts to create `tests/__pycache__`, which is read-only in this worktree. The bytecode-disabled unit suite passed. |
 | `git diff --check` | passed at the current local change set. |
+| SonarCloud `python:S6326` remediation in `JOB_HEADER` | passed locally: replacing the equivalent two-space literal with `{2}` preserved all 13 workflow-permission contract tests and the safe/unsafe legitimate controls. |
+| GitHub PR #54 source-remediation head `b65d28414afed6e639000c5ca720cfdd6324f8e2` | passed: all six required checks, CodeQL, OSV, report-governance, and SonarCloud completed successfully; Sonar Quality Gate is `OK` with zero open pull-request issues and zero security hotspots. |
+| GitHub Actions workflow-permission readback | passed: `default_workflow_permissions` currently reads `read`; explicit workflow defaults remain the versioned defense-in-depth control. |
 
 ## Runtime evidence
 
@@ -107,9 +110,9 @@ check applies to this workflow-only change.
 
 ## Known limitations
 
-The external Actions default remains `write`; explicit workflow defaults cover
-the current workflows but cannot protect a future workflow that omits one.
-Changing the setting needs separate administrator authorization. The trusted
+The external Actions default currently reads `read`; explicit workflow defaults
+still cover every current workflow and protect the repository if a future
+workflow would otherwise rely on a broad default. The trusted
 `update-actions-versions.yml` maintenance job still needs its existing
 `SUBMODULE_UPDATE_TOKEN` for module publishing; this change does not alter or
 expose it.
@@ -124,8 +127,10 @@ PR checks and ongoing review. No risk acceptance is recorded.
 ## Final diff and review status
 
 Local implementation, final staged diff review, and redacted staged Gitleaks
-are complete. The bilingual checker is blocked by pre-existing missing
-Framework targets in this worktree. Delivery evidence is deliberately bounded
-to the focused PR's current head because any follow-up commit invalidates older
-results; consult that PR and `FND-PARENT-0023` for the current delivery state.
-No merge is authorized or performed.
+are complete. The Sonar `python:S6326` source remediation at
+`b65d28414afed6e639000c5ca720cfdd6324f8e2` passed its exact-head required
+checks and Sonar with zero open PR issues. The bilingual checker is blocked by
+pre-existing missing Framework targets in this worktree. This documented
+follow-up itself requires a fresh exact-head delivery round; the final PR head
+and merge evidence are retained separately in the task receipt and
+`FND-PARENT-0023`. No merge is authorized or performed.

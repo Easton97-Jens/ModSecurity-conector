@@ -93,6 +93,9 @@ Schreibrechte ergänzt.
 | `make check-bilingual-docs` | blockiert: Dem Worktree fehlen bestehende Framework-Dokumentationslink-Ziele; der Checker meldet diese vorbestehenden fehlenden Ziele vor Abschluss. |
 | `PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile tests/test_ci_security_workflows.py` | blockiert: `py_compile` versucht `tests/__pycache__` anzulegen, das in diesem Worktree read-only ist. Die Bytecode-deaktivierte Unit-Suite bestand. |
 | `git diff --check` | bestanden im aktuellen lokalen Change-Set. |
+| SonarCloud-`python:S6326`-Remediation in `JOB_HEADER` | lokal bestanden: Das Ersetzen des äquivalenten Zwei-Leerzeichen-Literals durch `{2}` erhielt alle 13 Workflow-Permission-Contract-Tests sowie die sichere/unsichere legitime Kontrolle. |
+| GitHub-PR-#54-Source-Remediation-Head `b65d28414afed6e639000c5ca720cfdd6324f8e2` | bestanden: Alle sechs Required Checks, CodeQL, OSV, report-governance und SonarCloud wurden erfolgreich abgeschlossen; das Sonar-Quality-Gate ist `OK` mit null offenen Pull-Request-Issues und null Security Hotspots. |
+| GitHub-Actions-Workflow-Permission-Readback | bestanden: `default_workflow_permissions` liest aktuell `read`; explizite Workflow-Defaults bleiben der versionierte Defense-in-Depth-Control. |
 
 ## Runtime-Evidence
 
@@ -112,10 +115,10 @@ Workflow-only-Änderung anwendbar.
 
 ## Bekannte Einschränkungen
 
-Der externe Actions-Default bleibt `write`; explizite Workflow-Defaults decken
-die aktuellen Workflows ab, können aber keinen künftigen Workflow schützen,
-der ihn auslässt. Das Ändern der Einstellung benötigt separate
-Administrator-Autorisierung. Der vertrauenswürdige Maintenance-Job
+Der externe Actions-Default liest aktuell `read`; explizite Workflow-Defaults
+decken weiterhin jeden aktuellen Workflow ab und schützen das Repository, wenn
+ein künftiger Workflow andernfalls von einem zu breiten Default abhängen würde.
+Der vertrauenswürdige Maintenance-Job
 `update-actions-versions.yml` benötigt weiterhin sein bestehendes
 `SUBMODULE_UPDATE_TOKEN` für Module-Publishing; diese Änderung verändert oder
 exponiert es nicht.
@@ -131,9 +134,11 @@ gibt keine Risikoakzeptanz.
 ## Finaler Diff- und Review-Status
 
 Die lokale Implementierung, der finale gestagete Diff-Review und redigiertes
-gestagetes Gitleaks sind vollständig. Der Bilingual-Checker ist durch
-vorbestehende fehlende Framework-Ziele in diesem Worktree blockiert.
-Delivery-Evidence ist absichtlich auf den aktuellen Head des fokussierten PRs
-begrenzt, weil jeder Follow-up-Commit ältere Ergebnisse invalidiert; für den
-aktuellen Delivery-Status den PR und `FND-PARENT-0023` konsultieren. Kein Merge
-ist autorisiert oder durchgeführt.
+gestagetes Gitleaks sind vollständig. Die Sonar-`python:S6326`-Source-
+Remediation bei `b65d28414afed6e639000c5ca720cfdd6324f8e2` bestand ihre
+Exact-Head-Required-Checks und Sonar mit null offenen PR-Issues. Der
+Bilingual-Checker ist durch vorbestehende fehlende Framework-Ziele in diesem
+Worktree blockiert. Dieser dokumentierte Follow-up benötigt selbst eine frische
+Exact-Head-Delivery-Runde; der finale PR-Head und Merge-Evidence werden getrennt
+im Task-Receipt und in `FND-PARENT-0023` aufbewahrt. Kein Merge ist autorisiert
+oder durchgeführt.
