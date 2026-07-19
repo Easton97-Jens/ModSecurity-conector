@@ -12,7 +12,7 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 WORKFLOW_PATTERNS = ("*.yml", "*.yaml")
 PERMISSION_FIXTURES = ROOT / "ci" / "fixtures" / "workflow-permission-contract"
 SHA_PIN = re.compile(r"^[a-z\d_.-]+(?:/[a-z\d_.-]+)+@[a-f\d]{40}\s+# v\d", re.MULTILINE)
-JOB_HEADER = re.compile(r"^  (?P<name>[A-Za-z0-9_-]+):\s*$")
+JOB_HEADER = re.compile(r"^ {2}(?P<name>[A-Za-z0-9_-]+):\s*$")
 STEP_HEADER = re.compile(r"^(?P<indent>\s*)-\s")
 
 WRITE_PERMISSION_KEYS = {
