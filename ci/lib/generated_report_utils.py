@@ -777,12 +777,45 @@ def current_verified_run_id(connector_root: Path | None = None) -> str:
     return f"{stamp}-{sha[:8]}"
 
 
-def git_sha(root: Path | None) -> str:
+def git_worktree_root(root: Path | None) -> Path | None:
+    """Return ``root`` only when it is itself a checked-out Git worktree.
+
+    ``git -C <empty-submodule-directory>`` silently walks upward to the Parent
+    repository.  Generated evidence must never relabel that Parent revision as
+    Framework provenance, so callers first require Git's reported worktree
+    root to equal the requested path.
+    """
+
     if root is None:
+        return None
+    try:
+        expected_root = root.resolve(strict=True)
+        result = subprocess.run(
+            ["git", "-C", str(expected_root), "rev-parse", "--show-toplevel"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=10,
+        )
+    except Exception:
+        return None
+    try:
+        actual_root = Path(result.stdout.strip()).resolve(strict=True)
+    except (OSError, ValueError):
+        return None
+    if actual_root != expected_root:
+        return None
+    return expected_root
+
+
+def git_sha(root: Path | None) -> str:
+    checkout_root = git_worktree_root(root)
+    if checkout_root is None:
         return "unknown"
     try:
         result = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            ["git", "-C", str(checkout_root), "rev-parse", "HEAD"],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -795,11 +828,12 @@ def git_sha(root: Path | None) -> str:
 
 
 def git_dirty(root: Path | None) -> str:
-    if root is None:
+    checkout_root = git_worktree_root(root)
+    if checkout_root is None:
         return "unknown"
     try:
         result = subprocess.run(
-            ["git", "-C", str(root), "status", "--short"],
+            ["git", "-C", str(checkout_root), "status", "--short"],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -811,13 +845,85 @@ def git_dirty(root: Path | None) -> str:
     return "dirty" if result.stdout.strip() else "clean"
 
 
+def gitlink_sha(connector_root: Path, nested_root: Path | None) -> str:
+    """Read a nested repository's recorded gitlink without checking it out."""
+
+    parent_root = git_worktree_root(connector_root)
+    if parent_root is None or nested_root is None:
+        return "unknown"
+    try:
+        relative = nested_root.resolve(strict=False).relative_to(parent_root)
+    except (OSError, ValueError):
+        return "unknown"
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(parent_root), "ls-tree", "HEAD", "--", relative.as_posix()],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=10,
+        )
+    except Exception:
+        return "unknown"
+    fields = result.stdout.strip().split(None, 2)
+    if len(fields) != 3 or fields[0] != "160000" or fields[1] != "commit":
+        return "unknown"
+    candidate = fields[2].split("\t", 1)[0]
+    return candidate if re.fullmatch(r"[0-9a-f]{40}", candidate) else "unknown"
+
+
+def framework_provenance(
+    connector_root: Path,
+    framework_root: Path | None,
+) -> dict[str, str]:
+    """Describe Framework provenance without a Parent-worktree fallback."""
+
+    if framework_root is None:
+        return {
+            "sha": "unknown",
+            "gitlink_sha": "unknown",
+            "checkout_status": "not_configured",
+            "gitlink_status": "unknown",
+            "working_tree_dirty": "unknown",
+        }
+    recorded_gitlink = gitlink_sha(connector_root, framework_root)
+    if git_worktree_root(framework_root) is not None:
+        checkout_sha = git_sha(framework_root)
+        return {
+            "sha": checkout_sha,
+            "gitlink_sha": recorded_gitlink,
+            "checkout_status": "checked_out",
+            "gitlink_status": (
+                "matches_checkout"
+                if recorded_gitlink != "unknown" and recorded_gitlink == checkout_sha
+                else "checkout_mismatch"
+                if recorded_gitlink != "unknown"
+                else "not_a_gitlink"
+            ),
+            "working_tree_dirty": git_dirty(framework_root),
+        }
+    if recorded_gitlink != "unknown":
+        return {
+            "sha": "unknown",
+            "gitlink_sha": recorded_gitlink,
+            "checkout_status": "not_checked_out",
+            "gitlink_status": "not_checked_out",
+            "working_tree_dirty": "unknown",
+        }
+    return {
+        "sha": "unknown",
+        "gitlink_sha": "unknown",
+        "checkout_status": "unavailable",
+        "gitlink_status": "unknown",
+        "working_tree_dirty": "unknown",
+    }
+
+
 def infer_framework_root(connector_root: Path, framework_root: Path | None = None) -> Path | None:
     if framework_root is not None:
         return framework_root
-    candidate = connector_root / "modules/ModSecurity-test-Framework"
-    if candidate.exists():
-        return candidate
-    return None
+    return connector_root / "modules/ModSecurity-test-Framework"
 
 
 def is_regular_file(path: Path) -> bool:
@@ -989,11 +1095,12 @@ def input_record(
     build_root: Path | None = None,
 ) -> dict[str, str]:
     expected_verified_run_id = current_verified_run_id(connector_root)
+    effective_framework_root = infer_framework_root(connector_root, framework_root)
     try:
-        path = resolve_input_reference(raw, connector_root, framework_root, build_root)
+        path = resolve_input_reference(raw, connector_root, effective_framework_root, build_root)
     except Exception as exc:
         return {"path": str(raw), "status": "unknown", "notes": f"could not resolve input: {exc}"}
-    shown = display_path(path, connector_root, framework_root, build_root)
+    shown = display_path(path, connector_root, effective_framework_root, build_root)
     if not path.exists():
         return {"path": shown, "status": "missing", "notes": "input file missing"}
     if is_regular_file(path):
@@ -1035,19 +1142,77 @@ def input_record(
                 record["verified_run_id"] = source_run_id
             source_connector_sha = str(report_metadata.get("connector_sha") or "")
             source_framework_sha = str(report_metadata.get("framework_sha") or "")
+            source_framework_gitlink_sha = str(report_metadata.get("framework_gitlink_sha") or "")
+            source_framework_checkout_status = str(
+                report_metadata.get("framework_checkout_status") or ""
+            )
+            source_framework_gitlink_status = str(
+                report_metadata.get("framework_gitlink_status") or ""
+            )
             if source_connector_sha:
                 record["connector_sha"] = source_connector_sha
             if source_framework_sha:
                 record["framework_sha"] = source_framework_sha
+            if source_framework_gitlink_sha:
+                record["framework_gitlink_sha"] = source_framework_gitlink_sha
+            if source_framework_checkout_status:
+                record["framework_checkout_status"] = source_framework_checkout_status
+            if source_framework_gitlink_status:
+                record["framework_gitlink_status"] = source_framework_gitlink_status
             stale_reasons: list[str] = []
             if source_run_id and source_run_id != expected_verified_run_id:
                 stale_reasons.append("verified_run_id differs")
             current_connector_sha = git_sha(connector_root)
-            current_framework_sha = git_sha(framework_root)
+            current_framework = framework_provenance(
+                connector_root, effective_framework_root
+            )
+            current_framework_sha = current_framework["sha"]
             if source_connector_sha and current_connector_sha != "unknown" and source_connector_sha != current_connector_sha:
                 stale_reasons.append("connector_sha differs")
-            if source_framework_sha and current_framework_sha != "unknown" and source_framework_sha != current_framework_sha:
-                stale_reasons.append("framework_sha differs")
+            source_framework_expected = (
+                source_framework_sha not in {"", "unknown"}
+                or source_framework_gitlink_sha not in {"", "unknown"}
+                or source_framework_checkout_status in {"checked_out", "not_checked_out"}
+                or source_framework_gitlink_status
+                in {"matches_checkout", "checkout_mismatch", "not_checked_out"}
+            )
+            if source_framework_expected:
+                if source_framework_checkout_status and source_framework_checkout_status != "checked_out":
+                    stale_reasons.append(
+                        "source framework checkout is not verified "
+                        f"({source_framework_checkout_status})"
+                    )
+                if source_framework_gitlink_status == "checkout_mismatch":
+                    stale_reasons.append(
+                        "source framework checkout differs from its recorded gitlink"
+                    )
+                if current_framework["checkout_status"] != "checked_out":
+                    stale_reasons.append(
+                        "framework checkout is not verified "
+                        f"({current_framework['checkout_status']})"
+                    )
+                elif current_framework["gitlink_status"] == "checkout_mismatch":
+                    stale_reasons.append(
+                        "framework checkout differs from its recorded gitlink"
+                    )
+                elif (
+                    source_framework_gitlink_sha not in {"", "unknown"}
+                    and current_framework["gitlink_status"] != "matches_checkout"
+                ):
+                    stale_reasons.append("framework gitlink is not verified")
+                if (
+                    source_framework_sha not in {"", "unknown"}
+                    and current_framework_sha != "unknown"
+                    and source_framework_sha != current_framework_sha
+                ):
+                    stale_reasons.append("framework_sha differs")
+                if (
+                    source_framework_gitlink_sha not in {"", "unknown"}
+                    and current_framework["gitlink_sha"] not in {"", "unknown"}
+                    and source_framework_gitlink_sha
+                    != current_framework["gitlink_sha"]
+                ):
+                    stale_reasons.append("framework_gitlink_sha differs")
             if stale_reasons:
                 record["status"] = "stale"
                 record["notes"] = "generated report input is stale: " + "; ".join(stale_reasons)
@@ -1113,6 +1278,7 @@ def build_metadata(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     framework_root = infer_framework_root(connector_root, framework_root)
+    framework = framework_provenance(connector_root, framework_root)
     records = input_records(inputs, connector_root, framework_root)
     registry_key = report_key or infer_report_key(generated_by, make_target)
     registry = registry_record(registry_key) if registry_key else {}
@@ -1131,9 +1297,12 @@ def build_metadata(
         "data_kind": registry.get("data_kind", "unknown"),
         "commit_policy": registry.get("commit_policy", "unknown"),
         "connector_sha": git_sha(connector_root),
-        "framework_sha": git_sha(framework_root),
+        "framework_sha": framework["sha"],
+        "framework_gitlink_sha": framework["gitlink_sha"],
+        "framework_checkout_status": framework["checkout_status"],
+        "framework_gitlink_status": framework["gitlink_status"],
         "working_tree_dirty": git_dirty(connector_root),
-        "framework_working_tree_dirty": git_dirty(framework_root),
+        "framework_working_tree_dirty": framework["working_tree_dirty"],
         "input_status": input_status_summary(records),
         "inputs": records,
         "missing_inputs": [record["path"] for record in records if record["status"] == "missing"],
@@ -1175,6 +1344,9 @@ def metadata_block(metadata: dict[str, Any]) -> str:
             f"> Severity: `{metadata.get('severity', 'unknown')}`",
             f"> Connector SHA: `{metadata.get('connector_sha', 'unknown')}`",
             f"> Framework SHA: `{metadata.get('framework_sha', 'unknown')}`",
+            f"> Framework gitlink SHA: `{metadata.get('framework_gitlink_sha', 'unknown')}`",
+            f"> Framework checkout: `{metadata.get('framework_checkout_status', 'unknown')}`",
+            f"> Framework gitlink status: `{metadata.get('framework_gitlink_status', 'unknown')}`",
             *([f"> MRTS SHA: `{metadata.get('mrts_sha', 'unknown')}`"] if metadata.get("mrts_sha") else []),
             f"> Input status: `{metadata.get('input_status', 'unknown')}`",
         ]
@@ -1374,4 +1546,10 @@ def read_report_metadata(path: Path) -> dict[str, Any]:
                 metadata["connector_sha"] = stripped.split("Connector SHA:", 1)[1].strip().strip("` ")
             elif "Framework SHA:" in stripped:
                 metadata["framework_sha"] = stripped.split("Framework SHA:", 1)[1].strip().strip("` ")
+            elif "Framework gitlink SHA:" in stripped:
+                metadata["framework_gitlink_sha"] = stripped.split("Framework gitlink SHA:", 1)[1].strip().strip("` ")
+            elif "Framework checkout:" in stripped:
+                metadata["framework_checkout_status"] = stripped.split("Framework checkout:", 1)[1].strip().strip("` ")
+            elif "Framework gitlink status:" in stripped:
+                metadata["framework_gitlink_status"] = stripped.split("Framework gitlink status:", 1)[1].strip().strip("` ")
     return metadata

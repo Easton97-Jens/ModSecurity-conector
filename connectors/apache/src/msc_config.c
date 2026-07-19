@@ -88,7 +88,7 @@ const command_rec module_directives[] =
         msc_config_phase4_content_types_file,
         NULL,
         RSRC_CONF | ACCESS_CONF,
-        "Load Phase 4 response body MIME types from a file"
+        "Deprecated: legacy MIME list; does not narrow the Phase 4 pre-commit gate"
     ),
 
     AP_INIT_TAKE1(
@@ -292,6 +292,10 @@ static const char *msc_config_phase4_content_types_file(cmd_parms *cmd,
     }
 
     cnf->common_config.phase4_content_types_file = apr_pstrdup(cmd->pool, p1);
+    ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_NOERRNO, 0, cmd->server,
+        "ModSecurity: modsecurity_phase4_content_types_file is deprecated and "
+        "does not narrow the Apache Phase 4 pre-commit gate; use "
+        "SecResponseBodyMimeType to select libModSecurity inspection");
     cnf->phase4_content_types = apr_array_make(cmd->pool, 8,
         sizeof(const char *));
     if (cnf->phase4_content_types == NULL)

@@ -5,90 +5,21 @@ on:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
-  manual-heavy-runtime-validation:
+  cleanup-artifacts:
+    name: Cleanup old smoke artifacts (${{ matrix.variant }})
+    permissions:
+      actions: write
     runs-on: ubuntu-latest
-    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         variant:
           - no-crs
           - with-crs
-    env:
-      MODSECURITY_REPO_URL: https://github.com/owasp-modsecurity/ModSecurity.git
-      MODSECURITY_GIT_REF: v3/master
-      BUILD_HTTPD_FROM_SOURCE: "1"
-      BUILD_PCRE2_FROM_SOURCE: "1"
-      BUILD_NGINX_FROM_SOURCE: "1"
-      NGINX_SOURCE_MODE: github-release
-      NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
-      NGINX_RELEASE_TAG: latest
-      SMOKE_PREPARE_TIMEOUT_SECONDS: "3600"
-      SMOKE_LOCK_MODE: wait
-      SMOKE_LOCK_TIMEOUT_SECONDS: "1800"
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Initialize paths
-        id: paths
-        run: |
-          set -eu
-          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
-          build_root="$verified_root/build"
-          build_root_apache="$verified_root/apache-build"
-          source_root="$verified_root/src"
-          {
-            echo "VERIFIED_RUN_ROOT=$verified_root"
-            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
-            echo "SOURCE_ROOT=$source_root"
-            echo "BUILD_ROOT=$build_root"
-            echo "TMP_ROOT=$verified_root/tmp"
-            echo "LOG_ROOT=$verified_root/logs"
-            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
-            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
-            echo "MODSECURITY_SOURCE_DIR=$source_root/ModSecurity_V3"
-            echo "MODSECURITY_V3_SOURCE_DIR=$source_root/ModSecurity_V3"
-            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
-          } >> "$GITHUB_ENV"
-          {
-            echo "verified_root=$verified_root"
-            echo "build_root=$build_root"
-            echo "build_root_apache=$build_root_apache"
-            echo "source_root=$source_root"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Lint and py-compile
-        run: |
-          make setup-dev
-          make lint
-          find modules/ModSecurity-test-Framework/tests/normalizers modules/ModSecurity-test-Framework/tests/runners modules/ModSecurity-test-Framework/ci -type f -name '*.py' -print0 | xargs -0 -r .venv/bin/python -P -m py_compile
-          git diff --check
-
-      - name: Sequential full smoke
-        run: |
-          set -eu
-          make fetch-deps
-          case "${{ matrix.variant }}" in
-            no-crs)
-              SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-no-crs
-              ;;
-            with-crs)
-              SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-with-crs
-              ;;
-            *)
-              echo "unknown test variant: ${{ matrix.variant }}" >&2
-              exit 1
-              ;;
-          esac
-
       - name: Cleanup artifacts before upload
-        if: always()
         continue-on-error: true
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
@@ -188,6 +119,88 @@ jobs:
                 core.warning(`Could not delete artifact ${entry.artifact.name} (${entry.artifact.id}) from group ${entry.group}: ${message}`);
               }
             }
+
+  manual-heavy-runtime-validation:
+    needs: cleanup-artifacts
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - no-crs
+          - with-crs
+    env:
+      MODSECURITY_REPO_URL: https://github.com/owasp-modsecurity/ModSecurity.git
+      MODSECURITY_GIT_REF: v3/master
+      BUILD_HTTPD_FROM_SOURCE: "1"
+      BUILD_PCRE2_FROM_SOURCE: "1"
+      BUILD_NGINX_FROM_SOURCE: "1"
+      NGINX_SOURCE_MODE: github-release
+      NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
+      NGINX_RELEASE_TAG: latest
+      SMOKE_PREPARE_TIMEOUT_SECONDS: "3600"
+      SMOKE_LOCK_MODE: wait
+      SMOKE_LOCK_TIMEOUT_SECONDS: "1800"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Initialize paths
+        id: paths
+        run: |
+          set -eu
+          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
+          build_root="$verified_root/build"
+          build_root_apache="$verified_root/apache-build"
+          source_root="$verified_root/src"
+          {
+            echo "VERIFIED_RUN_ROOT=$verified_root"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+            echo "SOURCE_ROOT=$source_root"
+            echo "BUILD_ROOT=$build_root"
+            echo "TMP_ROOT=$verified_root/tmp"
+            echo "LOG_ROOT=$verified_root/logs"
+            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
+            echo "MODSECURITY_SOURCE_DIR=$source_root/ModSecurity_V3"
+            echo "MODSECURITY_V3_SOURCE_DIR=$source_root/ModSecurity_V3"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
+          {
+            echo "verified_root=$verified_root"
+            echo "build_root=$build_root"
+            echo "build_root_apache=$build_root_apache"
+            echo "source_root=$source_root"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Lint and py-compile
+        run: |
+          make setup-dev
+          make lint
+          find modules/ModSecurity-test-Framework/tests/normalizers modules/ModSecurity-test-Framework/tests/runners modules/ModSecurity-test-Framework/ci -type f -name '*.py' -print0 | xargs -0 -r .venv/bin/python -P -m py_compile
+          git diff --check
+
+      - name: Sequential full smoke
+        run: |
+          set -eu
+          make fetch-deps
+          case "${{ matrix.variant }}" in
+            no-crs)
+              SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-no-crs
+              ;;
+            with-crs)
+              SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-with-crs
+              ;;
+            *)
+              echo "unknown test variant: ${{ matrix.variant }}" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Upload smoke artifacts
         if: always()

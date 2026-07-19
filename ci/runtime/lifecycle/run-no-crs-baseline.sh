@@ -155,6 +155,7 @@ fi
 runtime_paths=$("$PYTHON" "$RUNTIME_PATH_RESOLVER" \
     --connector "$connector" \
     --run-id "$NO_CRS_RUN_ID" \
+    --invocation-root "$CANONICAL_VERIFIED_RUN_ROOT" \
     --evidence-root "$EVIDENCE_ROOT" \
     --build-root "$BUILD_ROOT" \
     --run-root "$RUNTIME_RUN_ROOT" \

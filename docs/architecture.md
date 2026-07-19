@@ -26,7 +26,7 @@ document records the intended ownership and safety boundary around them.
 
 | Connector | Selected integration mode | Response-body boundary |
 | --- | --- | --- |
-| Apache | Native HTTPD module | Output-filter/EOS handling |
+| Apache | Native HTTPD module | EOS-only all-response output gate; normalized brigades are retained through first EOS before release |
 | NGINX | Native HTTP module | Response filter and request/subrequest end-of-stream |
 | HAProxy | Native HTX filter | HTX end-of-stream |
 | Envoy | Streamed <code>ext_proc</code> service | Stream completion in the selected service protocol |
@@ -46,7 +46,7 @@ limitations, compatibility paths, operations, and validation:
 | P1 | Connection, URI, and request-header processing | Map connection/request metadata and apply an eligible pre-commit intervention | A request result is not proof of other phases |
 | P2 | Request-body append and finalization | Stream or buffer only as the selected host route permits; finalize once at request EOS | Body support is profile-specific |
 | P3 | Response-header processing | Preserve original status and determine whether headers are still mutable | A P3 result does not establish P4 behavior |
-| P4 | Response-body append and finalization | Process bounded chunks, preserve first-byte/no-full-buffer boundaries, and resolve late intervention safely | Post-commit action remains host- and evidence-dependent |
+| P4 | Response-body append and finalization | Process bounded chunks, honor the selected host release boundary, and resolve late intervention safely; Apache retains all normalized output through first EOS before release | Post-commit action remains host- and evidence-dependent |
 | Logging | Transaction logging and cleanup | Emit payload-safe metadata and release host/engine state exactly once | Logs are run-scoped evidence, not a runtime guarantee |
 
 The engine-facing public sequence is based on libmodsecurity v3 calls for
@@ -77,7 +77,11 @@ must have a documented lifetime at every adapter boundary.
 The selected Safe P4 behavior is conservative: a post-commit condition is
 recorded as a bounded, payload-safe observation unless the selected host route
 and run evidence prove a client-visible action. A documentation label such as
-<code>strict</code> is not proof of an abort or HTTP error.
+<code>strict</code> is not proof of an abort or HTTP error. Apache is a
+deliberate pre-commit exception: its P4 all-response gate retains original
+output through first EOS, so a normal deny discards that output and sends its
+terminal error before release. Apache Safe/Strict late behavior applies only to
+an independently proven already-committed path.
 
 ## Capability, status, and evidence model
 

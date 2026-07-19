@@ -22,7 +22,7 @@ jobs:
       - name: Lint workflows with ShellCheck when present
         run: |
           set -eu
-          mapfile -d '' workflows < <(find .github/workflows -type f \( -name '*.yml' -o -name '*.yaml' \) -print0)
+          mapfile -d '' workflows < <(find .github/workflows ci/fixtures/workflow-permission-contract -type f \( -name '*.yml' -o -name '*.yaml' \) -print0)
           test "${#workflows[@]}" -gt 0
           if command -v shellcheck >/dev/null 2>&1; then
             "$RUNNER_TEMP/security-tools/actionlint" -shellcheck="$(command -v shellcheck)" "${workflows[@]}"
@@ -52,3 +52,12 @@ jobs:
       - name: Require safe fixture acceptance
         run: |
           "$RUNNER_TEMP/security-tools/zizmor" --offline ci/fixtures/zizmor/safe.yml
+      - name: Require workflow-permission unsafe fixture rejection
+        run: |
+          if "$RUNNER_TEMP/security-tools/zizmor" --offline ci/fixtures/workflow-permission-contract/unsafe.yml; then
+            echo 'Expected zizmor to reject the unsafe workflow-permission fixture.'
+            exit 1
+          fi
+      - name: Require workflow-permission safe fixture acceptance
+        run: |
+          "$RUNNER_TEMP/security-tools/zizmor" --offline ci/fixtures/workflow-permission-contract/safe.yml

@@ -5,21 +5,72 @@ on:
     - cron: '0 3 * * 1'
   workflow_dispatch:
 
-# Repository settings must also allow this workflow to open pull requests:
+# The isolated publisher job must be allowed to create pull requests:
 # Settings -> Actions -> General -> Workflow permissions:
 # - enable Read and write permissions
 # - enable "Allow GitHub Actions to create and approve pull requests"
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+
+env:
+  SUBMODULE_PATH: modules/ModSecurity-test-Framework
+  SUBMODULE_URL: https://github.com/Easton97-Jens/ModSecurity-test-Framework.git
+  SUBMODULE_REF: refs/heads/master
 
 jobs:
-  update-submodules:
-    name: Update submodules
+  resolve-submodule-update:
+    name: Resolve submodule update
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
-
+    outputs:
+      candidate_sha: ${{ steps.resolve.outputs.candidate_sha }}
+      changed: ${{ steps.resolve.outputs.changed }}
     steps:
-      - name: Checkout repository
+      - name: Checkout Parent metadata
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: master
+          submodules: false
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve the official submodule commit
+        id: resolve
+        run: |
+          set -euo pipefail
+          candidate_sha="$(git ls-remote --exit-code "$SUBMODULE_URL" "$SUBMODULE_REF" | awk 'NR == 1 { print $1 }')"
+          current_sha="$(git ls-tree HEAD -- "$SUBMODULE_PATH" | awk '{ print $3 }')"
+
+          if ! printf '%s\n' "$candidate_sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Resolved submodule revision is not a full SHA-1: $candidate_sha" >&2
+            exit 1
+          fi
+          if ! printf '%s\n' "$current_sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Current gitlink is not a full SHA-1: $current_sha" >&2
+            exit 1
+          fi
+
+          printf 'candidate_sha=%s\n' "$candidate_sha" >> "$GITHUB_OUTPUT"
+          if [ "$candidate_sha" = "$current_sha" ]; then
+            printf 'changed=false\n' >> "$GITHUB_OUTPUT"
+            echo "No submodule changes detected."
+          else
+            printf 'changed=true\n' >> "$GITHUB_OUTPUT"
+            echo "Resolved submodule update: $current_sha -> $candidate_sha"
+          fi
+
+  validate-submodule-update:
+    name: Validate submodule update
+    needs: resolve-submodule-update
+    if: needs.resolve-submodule-update.outputs.changed == 'true'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
+    steps:
+      - name: Checkout candidate for read-only validation
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           ref: master
@@ -27,35 +78,63 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Update submodules recursively
-        run: git submodule update --remote --recursive
+      - name: Check out the resolved submodule revision
+        run: |
+          set -euo pipefail
+          if ! printf '%s\n' "$CANDIDATE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Candidate revision is not a full SHA-1: $CANDIDATE_SHA" >&2
+            exit 1
+          fi
+          git -C "$SUBMODULE_PATH" fetch --no-tags origin "$CANDIDATE_SHA"
+          git -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"
+          git -C "$SUBMODULE_PATH" submodule update --init --recursive
 
-      - name: Run quick check
-        id: quick_check
-        continue-on-error: true
+      - name: Run quick check without write permissions
         run: make quick-check
 
-      - name: Check for submodule changes
-        id: changes
+  create-submodule-update-pr:
+    name: Create submodule update pull request
+    needs:
+      - resolve-submodule-update
+      - validate-submodule-update
+    if: ${{ needs.resolve-submodule-update.outputs.changed == 'true' && needs.validate-submodule-update.result == 'success' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
+    steps:
+      - name: Checkout Parent repository without submodules
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: master
+          submodules: false
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Revalidate the official submodule revision
         run: |
-          if git diff --quiet -- modules/ModSecurity-test-Framework; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No submodule changes detected."
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Submodule changes detected."
+          set -euo pipefail
+          if ! printf '%s\n' "$CANDIDATE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Candidate revision is not a full SHA-1: $CANDIDATE_SHA" >&2
+            exit 1
+          fi
+          expected_sha="$(git ls-remote --exit-code "$SUBMODULE_URL" "$SUBMODULE_REF" | awk 'NR == 1 { print $1 }')"
+          if [ "$expected_sha" != "$CANDIDATE_SHA" ]; then
+            echo "Official submodule branch changed after validation; refusing to publish $CANDIDATE_SHA." >&2
+            exit 1
           fi
 
       - name: Commit and push submodule update branch
-        if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git checkout -B chore/update-submodules
-          git add modules/ModSecurity-test-Framework
+          git update-index --add --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"
 
           if git diff --cached --quiet; then
             echo "No staged submodule changes."
@@ -67,10 +146,10 @@ jobs:
           git push --force-with-lease origin chore/update-submodules
 
       - name: Create pull request with GitHub CLI
-        if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           existing_pr_count=$(gh pr list \
             --repo "$GITHUB_REPOSITORY" \
             --base master \
@@ -81,29 +160,15 @@ jobs:
 
           if [ "$existing_pr_count" -gt 0 ]; then
             echo "Pull request already exists for chore/update-submodules -> master."
-          else
-            cat > pr-body.md <<'EOF'
-          Automated recursive submodule update.
+          elif ! gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base master \
+            --head chore/update-submodules \
+            --title "chore: update submodules" \
+            --body "Automated recursive submodule update.
 
           Validation:
-          - make quick-check was executed in this workflow.
-
-          If the workflow failed, inspect the check output before merging.
-          EOF
-
-            if ! gh pr create \
-              --repo "$GITHUB_REPOSITORY" \
-              --base master \
-              --head chore/update-submodules \
-              --title "chore: update submodules" \
-              --body-file pr-body.md; then
-              echo "::error::GitHub CLI could not create the pull request with github.token. Enable the repository setting: Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests."
-              exit 1
-            fi
+          - the isolated read-only validation job completed successfully."; then
+            echo "::error::GitHub CLI could not create the pull request with github.token. Enable the repository setting: Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests."
+            exit 1
           fi
-
-      - name: Fail if quick check failed
-        if: steps.quick_check.outcome == 'failure'
-        run: |
-          echo "make quick-check failed after updating submodules. Review the generated pull request."
-          exit 1

@@ -17,7 +17,7 @@ Jetzt implementiert:
 - Ein lokaler Runtime-Smoke-Harness unter `connectors/apache/harness/`.
 - Verwendung aller gemeinsam genutzten Minimalfälle unter `modules/ModSecurity-test-Framework/tests/cases/`.
 - Verwendung von aus der Quelle abgeleiteten, gemeinsam importierten Fällen, einschließlich rohem JSON-Text,
-  Einfaches mehrteiliges Textfeld und Pass-Through-Smokes für den Antworttext.
+  einfachem mehrteiligem Textfeld und Response-Body-Allow-Control-Smokes.
 - Bei einem historischen, von der lokalen Quelle erstellten httpd-Lauf wurde das von YAML erwartete HTTP beobachtet
   Status für alle aktuellen gemeinsamen Minimalfälle am 15.05.2026. Es ist nicht aktuell
   kanonische Phase-4-Facettenbeweise.
@@ -61,9 +61,12 @@ Nur libmodsecurity-Protokollrückruf. Es ändert nichts an der Überwachungsprot
 Interventionsverhalten, Anfrage- oder Antwortbehandlung, Hooks, Filter, Buckets,
 oder Transaktionseigentum.
 
-Die Anweisungen der Phase 4 sind begrenzte Laufzeitsteuerungen. Phase 4 / RESPONSE_BODY
-bleibt nicht befördert; Die Strict-Mode-Verkabelung auf Quellebene stellt keine Verbindung her
-Ergebnis eines späten Abbruchs.
+Die Phase-4-Direktiven sind begrenzte Laufzeitsteuerungen. Insbesondere ist
+`modsecurity_phase4_content_types_file` ein veralteter Kompatibilitätsparser:
+Er kann das Apache-Pre-Commit-Gate für alle Responses nicht einschränken.
+`SecResponseBodyMimeType` wählt stattdessen die libModSecurity-Inspektion.
+Phase 4 / RESPONSE_BODY bleibt nicht hochgestuft; Strict-Mode-Verkabelung auf
+Quellebene beweist keinen späten Abbruch.
 
 Primäre lokale Referenz: `<external-source-root>/ModSecurity-apache`.
 Upstream-Quelle: https://github.com/owasp-modsecurity/ModSecurity-apache.
@@ -130,32 +133,66 @@ vollständige Matrixabdeckung oder neues Laufzeitüberprüfungsverhalten.
 
 ## Kanonische Phase-4-Grenze
 
-Apache verwendet einen nativen httpd-Ausgabefilterpfad, der den aktuellen Bucket ausleiht.
-leitet die aktuelle Brigade vor EOS weiter und beendet Phase 4 bei EOS.
-Dabei handelt es sich um eine inkrementelle Aufnahme mit End-of-Stream-Auswertung, nicht pro Chunk
-Regelauswertung. Das eingecheckte Manifest deklariert absichtlich
-`response_body_buffered`, `phase4`,
-`phase4_rule_evaluation`, `late_intervention`,
-`late_intervention_log_only`, `late_intervention_abort` und
-`late_intervention_status_metadata` als `implemented_not_asserted`.  Kein Strom
-Kanonische Beweise für den realen Wirt fördern jede dieser Facetten.
+Der Apache-Ausgabefilter ist ein EOS-only-All-Response-Enforcement-Gate. Er
+hängt jeden Daten-Bucket inkrementell an libModSecurity an und speichert die
+normalisierte Apache-Brigade über Filteraufrufe hinweg im Request-Pool. Kein
+ursprüngliches Response-Byte wird weitergegeben — auch nicht bei einer leeren
+Response, die nur aus EOS besteht — bevor das erste EOS eingetroffen ist,
+`msc_process_response_body` abgeschlossen und die Intervention aufgelöst ist.
+Das tauscht sichtbares progressives Response-Streaming bewusst gegen eine
+vollständige Phase-4-Entscheidung ein; es ist keine Regelauswertung pro Chunk.
 
-`phase4_pre_commit_deny` ist bewusst `not_implemented`: die Körperentscheidung
-wird bei EOS nach dem Antwort-Header-Pfad erstellt, sodass der native Host keinen hat
-deterministischer, nicht festgeschriebener Antwortkörper-Entscheidungspunkt. Ein Verleugnungszweig in
-Die Quelle ist keine Grundlage für den Anspruch auf eine sichtbare Phase-4-HTTP-Statusumschreibung.
+Der Connector kann die wirksame `SecResponseBodyMimeType`-Auswahl von
+libModSecurity über die C-API nicht sicher abfragen. Deshalb gate't er jeden
+Response-MIME-Typ. `SecResponseBodyMimeType` wählt weiterhin die Engine-
+Inspektion, während das veraltete
+`modsecurity_phase4_content_types_file` keinen uninspektierten Pass-through-
+Pfad erzeugen kann. Das Standardlimit von
+`modsecurity_phase4_body_limit` beträgt 1048576 Byte (1 MiB). Eine Response,
+die es überschreitet, schlägt fail-closed fehl, bevor ein ursprüngliches
+Response-Byte freigegeben wird; sie wird nicht teilweise verarbeitet und dann
+gestreamt.
+Die Byte-Grenze ist nicht die einzige Ressourcengrenze für zurückgehaltene
+Ausgabe: Apache erzwingt zusätzlich eine feste, nicht konfigurierbare Obergrenze
+von 4.096 normalisierten, über Filter-Aufrufe hinweg zurückgehaltenen Buckets.
+Vor dem Zurückhalten des nächsten Buckets schlägt sie fail-closed fehl; daher
+kann eine stark fragmentierte Response schon unterhalb des Byte-Limits
+abgelehnt werden.
 
-Eine Phase-4-Regelübereinstimmung ist kein Beweis für einen für den Client sichtbaren 403. Ein kanonischer Fehler
-Ereignis muss `original_http_status` behalten, angeforderter WAF-Status,
-`visible_http_status`, `requested_action`, `actual_action`, Antwort-Commit
-Metadaten und `connection_aborted` getrennt.  Vor der Zusage kann eine Ablehnung erfolgen
-möglich; Nach der Festschreibung kann die gemeinsame Richtlinie nur noch `log_only` aufzeichnen
-abgesicherten Modus oder `abort_connection` im strikten Modus.  Keines der beiden Ergebnisse kann sein
-als erfolgreiche Pre-Commit-Verweigerung ohne übereinstimmende Host-Beweise gemeldet.
+An der normalen Entscheidungsgrenze sind Apaches `r->sent_bodyct` und
+`eos_sent` kein Commit-Nachweis: Upstream-Module können sie setzen, bevor
+dieser Filter etwas freigegeben hat. Das Gate verwendet stattdessen seinen
+eigenen Released-EOS-Zustand und Apaches `r->bytes_sent`. Ein normaler
+Phase-4-Deny verwirft die gespeicherte ursprüngliche Brigade, erhält den
+relevanten P3-Response-Zustand und gibt genau eine terminale Error-Response
+aus, bevor ursprüngliche Ausgabe freigegeben werden kann. Bei Allow wird die
+zurückgehaltene Brigade einschließlich EOS genau einmal synchron weitergereicht
+und der Terminal-Output-Guard versiegelt; dadurch kann ein späterer Producer
+weder Body noch EOS doppelt ausgeben. Fehler beim Speichern, Anhängen oder
+Abschließen der Response verwerfen die zurückgehaltene Brigade und schlagen
+fail-closed fehl; ein tatsächlich nach Commit auftretender Fehler bricht die
+Verbindung ab.
 
-Die erforderlichen anwendbaren Fälle sind `phase4_rule_observed`,
-`phase4_deny_after_commit_log_only`, `phase4_deny_after_commit_abort` und die
-zwei Metadatenfälle. `phase4_deny_before_commit` bleibt hierfür unmarkiert
-Host-Modell. Alle Fälle bleiben evidenzbasiert und werden nicht daraus abgeleitet
-Quellenbeschreibung und Ereignisse enthalten nur Metadaten – niemals Antworttext
-Nutzlasten.
+`log_only` im Safe-/Minimal-Modus und `abort_connection` im Strict-Modus sind
+nur defensive Late-Intervention-Fallbacks, wenn ein unabhängiger Commit-
+Nachweis bereits existiert. Sie deuten einen normalen, noch gegateten
+Phase-4-Deny nicht zu Log-only um und entfernen den Deny-Pfad vor Release
+nicht.
+
+Ein normaler `r->prev`-interner Redirect, einschließlich eines ErrorDocument
+vor Output, schlägt fail-closed fehl, weil eine Transaktion, die Quell-URI,
+Header und Body verarbeitet hat, über die öffentliche libModSecurity-C-API
+nicht sicher an ein anderes Target/Ruleset gebunden werden kann. Die einzige
+Ausnahme ist genau ein synchroner, von Apache Core markierter lokaler
+ErrorDocument-Hop, während der Terminal-Guard `EMITTING` ist; er erfordert den
+Apache-Marker `no_local_copy` und einen zu `REDIRECT_STATUS` passenden Status
+des unmittelbaren Vorgängers, und der Guard lässt keinen zweiten Hop zu. So
+kann genau ein legitimer terminaler Error-Body
+ausgegeben werden, ohne einen gewöhnlichen Redirect-Bypass zu öffnen.
+
+Das eingecheckte Manifest deklariert die quellenverkabelten Phase-4- und
+Late-Intervention-Facetten bis zu aktueller Real-Host-Evidence als
+`implemented_not_asserted`. Der fokussierte H1/H2-Evidence-Platzhalter ist
+`ci/runtime/lifecycle/run-apache-phase4-response-regression.sh`; erst nach der
+Ausführung werden dessen laufbezogene Artefakte erfasst. Dieser Source-Contract
+bezeichnet weder H1 noch H2 als bestanden.

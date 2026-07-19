@@ -42,7 +42,8 @@ promoted to `verified` until a current canonical result exists under
 - [ ] Phase 4 response-body runtime evidence documented.
 - [ ] RESPONSE_BODY blocking verified.
 - [ ] Audit/log evidence documented.
-- [ ] Negative/pass-through case documented.
+- [ ] Legitimate Allow control documented; it must release the one retained
+      original brigade only after first EOS and Phase-4 completion.
 - [x] Connector status remains `partial` until matrix is complete.
 - [ ] `make no-crs-baseline-apache` produces current canonical evidence.
 - [ ] `make evidence-check-apache` validates schema, claims, layout, events, and
@@ -56,10 +57,12 @@ a source inspection cannot promote them.
 
 - [ ] Record `phase4_rule_observed` with rule `1100301` through the real
       Apache output-filter path; a visible 200 is valid for this observation.
-- [ ] Record `phase4_deny_before_commit` only when headers were not committed
-      and the client receives the requested deny status.
-- [ ] Record the safe late case only with requested `deny`, actual `log_only`,
-      unchanged visible status, and late-intervention metadata.
+- [ ] Record `phase4_deny_before_commit` only when no original response EOS or
+      body byte was released and the client receives the requested deny status.
+- [ ] Record the safe late case only when independent commit proof already
+      exists, with requested `deny`, actual `log_only`, unchanged visible
+      status, and late-intervention metadata; it is not normal all-response-
+      gate behavior.
 - [ ] Record the strict late case only with actual `abort_connection` and
       `connection_aborted=true`.
 - [ ] Verify separate original host status, requested WAF status, visible
@@ -67,3 +70,6 @@ a source inspection cannot promote them.
       event.
 - [ ] Keep an unavailable current run as `NOT EXECUTED`; never convert a rule
       match, log-only result, or abort into a synthetic 403 `PASS`.
+- [ ] Execute `ci/runtime/lifecycle/run-apache-phase4-response-regression.sh`
+      for the focused H1/H2 evidence placeholder. Its existence is not an H1
+      or H2 pass claim.

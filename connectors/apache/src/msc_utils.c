@@ -33,6 +33,22 @@ int id(const char *fn, const char *format, ...)
 
 
 
+void msc_discard_response_brigade(msc_t *msr)
+{
+    if (msr == NULL)
+    {
+        return;
+    }
+    if (msr->response_brigade != NULL)
+    {
+        apr_brigade_cleanup(msr->response_brigade);
+        msr->response_brigade = NULL;
+    }
+    msr->response_brigade_bucket_count = 0U;
+}
+
+
+
 /*
  * The primary request owns a native transaction for the lifetime of its
  * request pool.  Redirect and subrequest lookup updates msr->r, so cleanup
@@ -51,6 +67,7 @@ apr_status_t msc_cleanup_request_transaction(void *data)
         return APR_SUCCESS;
     }
 
+    msc_discard_response_brigade(msr);
     transaction = msr->t;
     owner_request = msr->owner_request;
     msr->t = NULL;

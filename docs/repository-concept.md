@@ -190,12 +190,12 @@ and committed-response semantics.
 | P1 | Connection metadata, URI, and request headers before an eligible request action. | Process connection/URI/headers once per transaction; do not reuse a completed request context. | A pre-request decision can be host-actionable only before that host commits the relevant response. |
 | P2 | Bounded request-body chunks; the phase finishes at the selected request EOS. | Chunks may repeat; `finish_request_body` is exactly once and no append follows it. | A selected P2 result does not prove general host streaming or forwarding behavior. |
 | P3 | Response status and headers before or at the host's header-commit boundary. | Process response headers once before P4. | A requested action is only client-visible when the host can still change the response. |
-| P4 | Bounded response-body chunks after P3; the phase finishes at selected response EOS. | Chunks may repeat; `finish_response_body` or unobserved completion is exactly once and no append follows it. | Post-commit action is host-specific; Safe records a conservative actual result rather than rewriting a committed response. |
+| P4 | Bounded response-body chunks after P3; the phase finishes at selected response EOS. Apache incrementally appends data but retains its normalized response brigade through first EOS before release. | Chunks may repeat; `finish_response_body` or unobserved completion is exactly once and no append follows it. Apache releases or discards its saved brigade exactly once after the P4 decision. | Post-commit action is host-specific; Safe records a conservative actual result rather than rewriting a committed response. Apache's normal all-response-gate deny is resolved before original output release. |
 | Logging and cleanup | Final transaction state, bounded metadata, actual host action, and artifact provenance. | `finish` freezes the Common flow; destroy is idempotent at the ownership boundary. | Logs/events are payload-safe scoped artifacts, not a general runtime guarantee. |
 
 | Host distinction | Selected documented behavior | Status |
 | --- | --- | --- |
-| Apache | Request/output filters borrow APR buckets; P2/P4 finish at EOS; response decisions depend on output commitment. | `verified` source contract; selected core evidence is scoped. |
+| Apache | Request/output filters borrow APR buckets; P2 finishes at EOS; P4 incrementally appends data but retains the normalized response brigade through first EOS before decision/release. `r->sent_bodyct`/`eos_sent` are not commit proof for this filter. | `verified` source contract; selected core evidence is scoped. |
 | NGINX | The host first supplies the request body; the connector iterates it, so P2 is not end-to-end request streaming. Response chains use filter/EOS handling. | `verified` source contract; do not claim request streaming. |
 | HAProxy | Native HTX forwards current blocks and finalizes at HTTP end; native HTX and SPOP are separate. | `verified` source contract. |
 | Envoy | `ext_proc` maps a streamed gRPC exchange; request/response EOS or trailers close the relevant phase. | `verified` source contract; `ext_authz` is `compatibility_only`. |
@@ -205,12 +205,15 @@ and committed-response semantics.
 For the recorded selected core, `reports/current/core-completion.md` says P1,
 P2, P3, P4 rule evaluation, Safe late action, first byte before upstream EOS,
 no connector-owned full response buffer, and cleanup passed for run
-`six-connectors-core-final-20260712T164725Z-e16e7f1`. That is a
-`documented_not_runtime_verified` report claim here because this task did not
-independently revalidate raw canonical artifacts. It remains limited to the
-listed HTTP/1.1 core paths and cases. It does not assert
-per-chunk P4 decisions, HTTP/2/HTTP/3, CRS, a complete catalog, strict
-post-commit enforcement, or production readiness.
+`six-connectors-core-final-20260712T164725Z-e16e7f1`. That is a historical,
+`documented_not_runtime_verified` cross-connector report claim here because
+this task did not independently revalidate raw canonical artifacts. It does
+not describe the current Apache Phase-4 all-response gate: Apache deliberately
+retains normalized output through first EOS and does not claim first-byte-
+before-EOS or no-full-buffer behavior. The report remains limited to the listed
+HTTP/1.1 core paths and cases. It does not assert per-chunk P4 decisions,
+HTTP/2/HTTP/3, CRS, a complete catalog, strict post-commit enforcement, or
+production readiness.
 
 ## Ownership and cleanup invariants
 
@@ -221,13 +224,13 @@ failure without retaining a host pointer past its valid callback.
 | Resource | Owner | Borrower or consumer | Required cleanup invariant |
 | --- | --- | --- | --- |
 | Host request/response object | Selected host | Connector mapper and Common call boundary | Never retain the host object in `common/`; release it by the host's lifecycle. |
-| Apache APR pools, request context, and brigades | Apache/request pool | Apache adapter during hook/filter execution | Allocate request-lifetime state in the request pool; copy redirect data into that pool; release transaction at request cleanup. |
+| Apache APR pools, request context, and brigades | Apache/request pool | Apache adapter during hook/filter execution | Allocate request-lifetime state in the request pool; retain the normalized P4 response brigade through first EOS only for the documented all-response gate; discard it on deny/error and release the transaction at request cleanup. |
 | NGINX request pool, location configuration, and chains | NGINX | NGINX adapter and Common call boundary | Store request context/redirect copy in `r->pool`; do not retain chain-buffer pointers after the filter call; clean transaction with request pool cleanup. |
 | HAProxy HTX blocks and filter context | HAProxy owns HTX; filter owns its own context/snapshots | HTX adapter and Common call boundary | Borrow only current HTX data; free transaction and bounded snapshots on detach, reset, reply, and error. |
 | ModSecurity/Common transaction | Common runtime transaction object and native engine transaction | Connector invokes phase APIs | Finish only after required EOS state, then destroy exactly once; cleanup native transaction even on an error path. |
 | Engine/runtime, rules, and runtime configuration strings | `common/` runtime | Connector setup/shutdown | Create once for the configured owner scope; close event file, engine, rules, and copied configuration during runtime destroy. |
 | Intervention and redirect URL | Host adapter owns host materialization; Common decision only carries bounded data | Host action mapper | Copy redirect/location into the host-owned request lifetime before use; do not retain caller-owned URL pointers. |
-| Request/response body buffers | Host | Common append call | Pass bounded views/copies only for the call; track counters and truncation, never a connector-owned cross-callback full response buffer. |
+| Request/response body buffers | Host | Common append call | Pass bounded views/copies only for the call and track counters/truncation. A connector must not retain a cross-callback full response buffer except for a documented host enforcement boundary: Apache's request-pool P4 gate retains normalized output through EOS under a finite fail-closed limit. |
 | Go request state and CGo slices | Envoy/Traefik service or middleware request scope | Common/libmodsecurity bridge | Copy transient Go slice data for a CGo call when needed; remove stream/request map state and finish/destroy transaction on EOF, error, or normal completion. |
 | UDS listener, connection, and service session | Traefik native service process | Middleware and per-request protocol | Restrict socket permissions and locality; close connection/session and server-side transaction on normal finish, client EOF, protocol error, or startup failure. |
 | Raw evidence and logs | Invocation-selected external evidence/log root | Parent producer and Framework consumer | Keep payload-free, scoped by connector/profile/run ID, redact secrets, and do not commit runtime outputs. |
@@ -246,7 +249,7 @@ profile or stale capability manifest.
 
 | Connector | Selected product path | Compatibility path | Host integration and engine boundary | Supported selected phase scope | Runtime/evidence status | Known boundary | Build, check, smoke, and lifecycle targets |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Apache | `native-httpd-module` | No separate named alternate route is selected; legacy directive expectations are not a selected route. | Native httpd module with Common/libmodsecurity mapping. | P1--P4, EOS-based P2/P4. | Current report says `PASS`; it is `documented_not_runtime_verified` here, as are capability declarations. | Safe post-commit is conservative; strict client-visible behavior is not broadly claimed. | `build-apache`, `check-config-apache`, `start-smoke-apache`, `runtime-smoke-apache`, `full-lifecycle-apache`, `evidence-check-apache` |
+| Apache | `native-httpd-module` | No separate named alternate route is selected; the deprecated legacy MIME directive is not a gate-bypass route. | Native httpd module with Common/libmodsecurity mapping. | P1--P4; P4 is an EOS-only all-response gate. | Current report says `PASS`; it is `documented_not_runtime_verified` here, as are capability declarations. | Normal P4 deny is pre-release; only independently committed output can use Safe log-only or Strict abort fallback. H1/H2 runner existence is not evidence. | `build-apache`, `check-config-apache`, `start-smoke-apache`, `runtime-smoke-apache`, `full-lifecycle-apache`, `evidence-check-apache` |
 | NGINX | `native-nginx-http-module` | No separate named alternate route is selected; Apache syntax is not compatible. | Native NGINX HTTP module with Common/libmodsecurity mapping. | P1--P4; host-prepared P2 body and filter/EOS P4. | Current report says `PASS`; it is `documented_not_runtime_verified` here, as are capability declarations. | Request body is not end-to-end streamed by the selected adapter; strict/protocol claims remain separate. | `build-nginx`, `check-config-nginx`, `start-smoke-nginx`, `runtime-smoke-nginx`, `full-lifecycle-nginx`, `evidence-check-nginx` |
 | HAProxy | `native-htx-filter` | `spoe-spop-agent` is `compatibility_only`. | Native HTX filter and Common/libmodsecurity mapping. | P1--P4 on HTX/EOS selected core. | Current report says `PASS`; it is `documented_not_runtime_verified`; manifest mode divergence is also `documented_not_runtime_verified`. | Safe P4 is `log_only`; strict post-commit action is `not_attempted` in the selected guide. | `build-haproxy`, `check-config-haproxy`, `start-smoke-haproxy`, `runtime-smoke-haproxy`, `full-lifecycle-haproxy-htx`, `evidence-check-haproxy` |
 | Envoy | `ext_proc` | `ext_authz` / `http-ext-authz-service` is `compatibility_only`. | Streamed Envoy external processor service maps gRPC messages to Common/libmodsecurity. | P1--P4 through selected stream/EOS boundary. | Current report says `PASS`; it is `documented_not_runtime_verified`; manifest mode divergence and generated capability status are also so labeled. | Strict reset/cancellation is not established by a service decision alone. | `build-envoy`, `check-config-envoy`, `start-smoke-envoy`, `runtime-smoke-envoy`, `full-lifecycle-envoy-ext-proc`, `evidence-check-envoy` |
@@ -279,14 +282,15 @@ Engine layers. A value at one layer does not implicitly configure another.
 | `request_body_limit`, `response_body_limit`, header limits, and `max_event_json_bytes` | Common Runtime defaults bound body/header/event input. | Bound resource and metadata exposure; a higher value is not safe-buffering proof. |
 | `body_limit_action` | Common Runtime default `reject`. | Rejects an over-limit chunk before engine input; the resulting host response remains connector-specific. |
 | `default_block_status` and `default_error_status` | Common Runtime defaults `403` and `500`. | Define fallback status values where a host maps them; they do not prove a uniform fail-closed response. |
-| `response_body_mode` and `phase4_mode` | Common Runtime defaults `none` and `safe`. | No P4 input is processed by default; Safe late behavior is conservative and after commit can be `log_only`, not a universal fail-open/fail-closed policy. |
+| `response_body_mode` and `phase4_mode` | Common Runtime defaults `none` and `safe`. | No P4 input is processed by default; Safe late behavior is conservative and after commit can be `log_only`, not a universal fail-open/fail-closed policy. Apache is an explicit exception for normal P4 enforcement: its all-response gate decides before original output release. |
 | Envoy `failure_mode_allow` | Selected `ext_proc` templates set `failure_mode_allow: false`. | Selected configuration documents fail-closed processor-reachability handling; it is not evidence for every Envoy deployment. |
 | `rules_remote_url` and external downloads | Optional rule/source inputs. | Treat as an external trust boundary: require declared origin, checksum/pin where applicable, and no silent fallback. |
 
 The documented selected core reports Safe P4 as requested `deny`, actual
 `log_only`, visible HTTP 200, and no connection abort after a committed
 response. This is a bounded late-intervention observation, not a global
-availability or security default.
+availability or security default, and it must not be used to characterize the
+current Apache pre-release all-response gate.
 
 ## Test, evidence, and report model
 
@@ -331,7 +335,7 @@ available.
 | Boundary | Required rule |
 | --- | --- |
 | Untrusted HTTP data | Treat request/response method, URI, headers, body ranges, status, and protocol metadata as untrusted; validate bounded neutral mappings before Common/runtime use. |
-| Limits and buffering | Enforce documented header/body/event limits and preserve no connector-owned complete response buffer across callbacks. |
+| Limits and buffering | Enforce documented header/body/event limits and preserve no connector-owned complete response buffer across callbacks, except for a documented host security gate such as Apache P4's finite all-response EOS retention. |
 | Paths and symlinks | Use safe external roots; validate artifact/config paths and do not let generated/runtime output escape the selected root. |
 | Downloads and provenance | Use explicit workflows, declared source/pins/checksums where provided, and no silent system-binary or network fallback. |
 | Intervention ownership | Separate requested engine decision from confirmed host action; copy redirect data into the host owner; do not fabricate a client-visible result after commit. |

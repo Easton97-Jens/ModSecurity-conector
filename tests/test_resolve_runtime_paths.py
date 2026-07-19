@@ -23,6 +23,7 @@ class ResolveRuntimePathsTest(unittest.TestCase):
         return resolver.resolve_runtime_paths(
             connector=connector,
             run_id=run_id,
+            invocation_root=root,
             evidence_root=root / "evidence",
             build_root=root / "build",
             run_root=root / "runs",
@@ -40,6 +41,7 @@ class ResolveRuntimePathsTest(unittest.TestCase):
             self.assertEqual(root / "runs/traefik/run-20260711", paths.connector_run_root)
             self.assertEqual(root / "logs/traefik/run-20260711", paths.connector_log_root)
             self.assertEqual(root / "cache/shared", paths.shared_component_cache)
+            self.assertEqual(root, paths.invocation_root)
             self.assertEqual(
                 {
                     "EVIDENCE_RUN_ROOT",
@@ -77,6 +79,7 @@ class ResolveRuntimePathsTest(unittest.TestCase):
             paths = resolver.resolve_runtime_paths(
                 connector="envoy",
                 run_id="relative-run",
+                invocation_root=root,
                 evidence_root="evidence/./canonical",
                 build_root="build",
                 run_root="runs",
@@ -94,6 +97,7 @@ class ResolveRuntimePathsTest(unittest.TestCase):
             root = Path(temporary)
             kwargs = {
                 "run_id": "valid-run",
+                "invocation_root": root,
                 "evidence_root": root / "evidence",
                 "build_root": root / "build",
                 "run_root": root / "runs",
@@ -117,6 +121,7 @@ class ResolveRuntimePathsTest(unittest.TestCase):
             common = {
                 "connector": "traefik",
                 "run_id": "run-1",
+                "invocation_root": root,
                 "evidence_root": root / "evidence",
                 "build_root": root / "build",
                 "run_root": root / "runs",
@@ -132,12 +137,63 @@ class ResolveRuntimePathsTest(unittest.TestCase):
             with self.assertRaisesRegex(resolver.RuntimePathError, "root overlap"):
                 resolver.resolve_runtime_paths(**{**common, "cache_root": root / "build/cache"})
 
+    def test_rejects_broad_system_and_symlink_base_escapes(self) -> None:
+        """Writable lifecycle bases cannot resolve to broad or system-owned locations."""
+        with tempfile.TemporaryDirectory(prefix="runtime-path-resolver-") as temporary:
+            root = Path(temporary)
+            common = {
+                "connector": "traefik",
+                "run_id": "run-escape",
+                "invocation_root": root,
+                "evidence_root": root / "evidence",
+                "build_root": root / "build",
+                "run_root": root / "runs",
+                "log_root": root / "logs",
+                "cache_root": root / "cache",
+            }
+            for escaped_base in resolver.FORBIDDEN_BASE_ROOTS | {
+                Path("/etc/evidence-escape"),
+                Path("/root/evidence-escape"),
+            }:
+                with self.subTest(escaped_base=escaped_base):
+                    escaped_request = {**common, "build_root": escaped_base}
+                    with self.assertRaises(resolver.RuntimePathError):
+                        resolver.resolve_runtime_paths(**escaped_request)
+
+            unsafe_invocation = {**common, "invocation_root": Path("/runtime-escape")}
+            with self.assertRaises(resolver.RuntimePathError):
+                resolver.resolve_runtime_paths(**unsafe_invocation)
+
+            root_link = root / "root-link"
+            root_link.symlink_to("/root", target_is_directory=True)
+            with self.assertRaises(resolver.RuntimePathError):
+                resolver.resolve_runtime_paths(**{**common, "build_root": root_link / "evidence-escape"})
+
+    def test_rejects_safe_base_outside_validated_invocation_root(self) -> None:
+        """A safe-looking sibling directory cannot escape the selected run root."""
+        with tempfile.TemporaryDirectory(prefix="runtime-path-resolver-") as temporary:
+            root = Path(temporary)
+            outside = root.parent / "outside-invocation"
+            common = {
+                "connector": "traefik",
+                "run_id": "run-escape",
+                "invocation_root": root,
+                "evidence_root": root / "evidence",
+                "build_root": root / "build",
+                "run_root": root / "runs",
+                "log_root": root / "logs",
+                "cache_root": root / "cache",
+            }
+            with self.assertRaisesRegex(resolver.RuntimePathError, "inside invocation_root"):
+                resolver.resolve_runtime_paths(**{**common, "build_root": outside / "build"})
+
     def test_cli_emits_json_and_shell_assignments(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-path-resolver-") as temporary:
             root = Path(temporary)
             arguments = [
                 "--connector", "traefik",
                 "--run-id", "cli-run",
+                "--invocation-root", str(root),
                 "--evidence-root", str(root / "evidence"),
                 "--build-root", str(root / "build"),
                 "--run-root", str(root / "runs"),

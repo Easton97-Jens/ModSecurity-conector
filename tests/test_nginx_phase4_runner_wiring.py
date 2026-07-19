@@ -96,15 +96,16 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
         self.assertEqual("not_implemented", declaration["state"])
         self.assertIn("body filter", declaration["reason"])
 
-    def test_apache_does_not_declare_a_deterministic_precommit_phase4_deny(self) -> None:
+    def test_apache_declares_a_gate_backed_precommit_phase4_deny(self) -> None:
         import json
 
         manifest = json.loads(
             (ROOT / "connectors" / "apache" / "capabilities.json").read_text(encoding="utf-8")
         )
         declaration = manifest["capabilities"]["phase4_pre_commit_deny"]
-        self.assertEqual("not_implemented", declaration["state"])
-        self.assertIn("EOS", declaration["reason"])
+        self.assertEqual("implemented_not_asserted", declaration["state"])
+        self.assertIn("retains original response bytes", declaration["reason"])
+        self.assertIn("terminal error", declaration["reason"])
 
 
 if __name__ == "__main__":

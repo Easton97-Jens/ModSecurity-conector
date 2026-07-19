@@ -46,7 +46,9 @@ aktuelles kanonisches Ergebnis unter `$EVIDENCE_ROOT/apache/<run-id>/` vorliegt.
 - [ ] Phase-4-Response-Body-Runtime-Evidence dokumentiert.
 - [ ] RESPONSE_BODY-Blockierung verifiziert.
 - [ ] Audit-/Log-Evidence dokumentiert.
-- [ ] Negativer Pass-through-Case dokumentiert.
+- [ ] Legitime Allow-Kontrolle dokumentiert; sie darf die eine zurückgehaltene
+      ursprüngliche Brigade erst nach erstem EOS und Phase-4-Abschluss
+      freigeben.
 - [x] Connector-Status bleibt `partial`, bis die Matrix vollständig ist.
 - [ ] `make no-crs-baseline-apache` erzeugt aktuelle kanonische Evidence.
 - [ ] `make evidence-check-apache` validiert Schema, Claims, Layout, Events und
@@ -61,11 +63,13 @@ Smoke nur mit Status oder eine Source-Inspektion kann sie nicht hochstufen.
 - [ ] `phase4_rule_observed` mit Regel `1100301` über den echten Apache-
       Output-Filter-Pfad aufzeichnen; eine sichtbare 200 ist für diese
       Beobachtung gültig.
-- [ ] `phase4_deny_before_commit` nur aufzeichnen, wenn Headers nicht committed
-      waren und der Client den angeforderten Deny-Status erhält.
-- [ ] Den sicheren späten Case nur mit angefordertem `deny`, tatsächlichem
-      `log_only`, unverändertem sichtbaren Status und Late-Intervention-Metadata
-      aufzeichnen.
+- [ ] `phase4_deny_before_commit` nur aufzeichnen, wenn kein ursprüngliches
+      Response-EOS oder Body-Byte freigegeben war und der Client den
+      angeforderten Deny-Status erhält.
+- [ ] Den Safe-Late-Case nur dann mit angefordertem `deny`, tatsächlichem
+      `log_only`, unverändertem sichtbaren Status und Late-Intervention-
+      Metadata aufzeichnen, wenn unabhängiger Commit-Nachweis bereits existiert;
+      er ist kein normales All-Response-Gate-Verhalten.
 - [ ] Den strikten späten Case nur mit tatsächlichem `abort_connection` und
       `connection_aborted=true` aufzeichnen.
 - [ ] Separaten ursprünglichen Host-Status, angeforderten WAF-Status, sichtbaren
@@ -74,3 +78,6 @@ Smoke nur mit Status oder eine Source-Inspektion kann sie nicht hochstufen.
 - [ ] Einen nicht verfügbaren aktuellen Run als `NOT EXECUTED` beibehalten;
       niemals einen Regel-Match, ein Log-only-Ergebnis oder einen Abbruch in
       einen synthetischen 403-`PASS` umwandeln.
+- [ ] `ci/runtime/lifecycle/run-apache-phase4-response-regression.sh` für den
+      fokussierten H1/H2-Evidence-Platzhalter ausführen. Seine Existenz ist
+      kein H1- oder H2-Pass-Claim.

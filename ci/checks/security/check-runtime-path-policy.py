@@ -34,6 +34,9 @@ RUNTIME_PATH_OVERRIDES = (
     "NGINX_HARNESS_PARENT",
     "RUNTIME_RUN_ROOT",
     "RUNTIME_LOG_ROOT",
+    "MATRIX_ROOT",
+    "MRTS_BUILD_ROOT",
+    "MRTS_NATIVE_ROOT",
 )
 
 
@@ -68,12 +71,12 @@ def policy_environment() -> dict[str, str]:
 
 def check_python_policy() -> None:
     env = policy_environment()
-    allowed = (
+    writable_allowed = (
         VERIFIED_ROOT,
         VERIFIED_ROOT / "cache-v2",
         VERIFIED_ROOT / "cache-v2" / "shared",
-        Path("/tmp/ModSecurity-conector-verified"),
-        Path("/tmp/runner-temp/ModSecurity-conector-verified"),
+    )
+    read_only_sources = (
         Path("/src"),
         Path("/src/ModSecurity-conector-build"),
         CONNECTOR_ROOT,
@@ -88,11 +91,16 @@ def check_python_policy() -> None:
         Path("/usr/local/foo"),
         Path("/root/.local/state/foo"),
     )
-    for path in allowed:
+    for path in writable_allowed:
         if is_system_write_path(path, env):
             fail(f"python marked allowed runtime path as system write path: {path}")
         if not is_allowed_runtime_path(path, env):
             fail(f"python rejected allowed runtime path: {path}")
+    for path in read_only_sources:
+        if not is_system_write_path(path, env):
+            fail(f"python accepted read-only source path as writable: {path}")
+        if not is_allowed_runtime_path(path, env):
+            fail(f"python rejected read-only source path: {path}")
     for path in blocked:
         if not is_system_write_path(path):
             fail(f"python did not block system/runtime path: {path}")

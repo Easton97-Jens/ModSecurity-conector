@@ -9,12 +9,15 @@
     "connectors/apache/src/mod_security3.c",
     "connectors/apache/src/msc_filters.c",
     "connectors/apache/src/msc_config.c",
-    "connectors/apache/harness/run_apache_smoke.sh"
+    "connectors/apache/harness/run_apache_smoke.sh",
+    "ci/runtime/lifecycle/run-apache-phase4-response-regression.sh"
   ],
   "host_model_constraints": [
-    "Apache filters borrow the current request/response buckets and pass them onward; libmodsecurity body-rule evaluation may still complete only at EOS, so this is incremental ingestion rather than per-chunk rule execution.",
+    "Apache incrementally appends response data buckets but saves every normalized response brigade in the request pool through first EOS; no original response byte is released before msc_process_response_body and intervention resolution complete.",
+    "libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the configurable default 1048576-byte gate limit and a fixed non-configurable 4096-normalized-bucket cap across filter calls fail closed rather than releasing an uninspected tail.",
+    "Normal r->prev and pre-output ErrorDocument redirects fail closed because the connector cannot safely rebind a source transaction to a target URI/ruleset. During terminal output EMITTING, exactly one Apache-core-marked local ErrorDocument hop is allowed with no_local_copy plus matching immediate predecessor status and REDIRECT_STATUS.",
     "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
-    "A Phase-4 disruptive result can occur after response commitment and is handled by the configured late-intervention policy."
+    "A normal Phase-4 deny discards the saved original brigade and emits a terminal error before release. log_only and abort_connection remain defensive fallbacks only when independent commit proof already exists."
   ],
   "capabilities": {
     "connection_metadata": {
@@ -39,11 +42,11 @@
     },
     "response_body_buffered": {
       "state": "implemented_not_asserted",
-      "reason": "The output filter appends bounded current response bytes and invokes response-body processing at EOS without retaining a cross-call brigade; canonical Phase-4 evidence is pending."
+      "reason": "The output filter appends response bytes incrementally and retains the normalized Apache response brigade through first EOS before it resolves Phase 4; canonical Phase-4 evidence is pending."
     },
     "response_body_streaming": {
       "state": "not_implemented",
-      "reason": "The connector does not claim per-chunk Phase-4 rule evaluation: libmodsecurity may evaluate when the EOS finish call occurs."
+      "reason": "Apache deliberately withholds original response output until first EOS and the Phase-4 decision, so it does not provide client-visible progressive response streaming."
     },
     "phase1": {
       "state": "implemented_not_asserted",
@@ -59,27 +62,27 @@
     },
     "phase4": {
       "state": "implemented_not_asserted",
-      "reason": "The output filter incrementally ingests current body buckets and invokes response-body processing once at EOS; canonical Phase-4 evidence is pending."
+      "reason": "The output filter incrementally ingests body buckets, retains the complete normalized response through first EOS, and invokes response-body processing once before releasing or discarding original output; canonical evidence is pending."
     },
     "phase4_rule_evaluation": {
       "state": "implemented_not_asserted",
-      "reason": "The native output-filter path is wired for incremental ingestion and EOS response-body processing, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated."
+      "reason": "The native output-filter path is wired for incremental ingestion, retained-brigade EOS processing, and a pre-release decision, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated."
     },
     "phase4_pre_commit_deny": {
-      "state": "not_implemented",
-      "reason": "The native response-body decision is finalized at EOS after the response-header path. The real host run reaches the safe late log_only path after commitment, so this connector has no deterministic pre-commit Phase-4 decision point and must not claim a visible Phase-4 HTTP status rewrite."
+      "state": "implemented_not_asserted",
+      "reason": "The output filter retains original response bytes and EOS until msc_process_response_body and intervention resolution complete; a normal deny discards the saved brigade and enters one terminal error path before release. Current real-host evidence is pending."
     },
     "late_intervention": {
       "state": "implemented_not_asserted",
-      "reason": "Phase-4 minimal, safe, and strict policy branches distinguish log-only, status denial, and post-commit connection abort; behavioral evidence is pending."
+      "reason": "Late-intervention policy remains a defensive branch for independently proven already-committed output; normal Phase-4 enforcement occurs before original response release. Behavioral evidence is pending."
     },
     "late_intervention_log_only": {
       "state": "implemented_not_asserted",
-      "reason": "The configured safe late-intervention branch is intended to preserve the committed response and record a log-only result, but no canonical event proves requested deny, actual log_only, and an unchanged visible status."
+      "reason": "The configured safe late-intervention branch preserves independently committed output and records a log-only result, but it is not the normal all-response-gate deny path; canonical event evidence is pending."
     },
     "late_intervention_abort": {
       "state": "implemented_not_asserted",
-      "reason": "The configured strict late-intervention branch has a controlled connection-abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true."
+      "reason": "The configured strict late-intervention branch has a controlled connection-abort path for independently committed output, but no canonical real-host event proves actual abort_connection and connection_aborted=true."
     },
     "late_intervention_status_metadata": {
       "state": "implemented_not_asserted",
@@ -135,15 +138,15 @@
     },
     "response_body_incremental_ingest": {
       "state": "implemented_not_asserted",
-      "reason": "The output filter inspects only the current bucket and passes each brigade onward without retaining a response body; runtime evidence is pending."
+      "reason": "The output filter appends each data bucket incrementally while retaining the normalized brigade across filter calls through first EOS; runtime evidence is pending."
     },
     "phase4_end_of_stream_evaluation": {
       "state": "implemented_not_asserted",
-      "reason": "The output filter invokes response-body processing once after its EOS bucket; canonical Phase-4 evidence is pending."
+      "reason": "The output filter invokes response-body processing once after the first retained EOS and resolves intervention before its saved original brigade is released; canonical Phase-4 evidence is pending."
     },
     "content_type_scope": {
       "state": "implemented_not_asserted",
-      "reason": "The native Phase-4 path checks configured response Content-Type scope before it appends body bytes; evidence is pending."
+      "reason": "SecResponseBodyMimeType selects libModSecurity inspection, but the connector gates every response because the C API cannot expose the effective MIME decision; the deprecated legacy MIME file cannot narrow the gate. Evidence is pending."
     },
     "header_limits": {
       "state": "not_implemented",
@@ -155,19 +158,19 @@
     },
     "response_body_limits": {
       "state": "implemented_not_asserted",
-      "reason": "The Phase-4 body limit bounds bytes passed to libmodsecurity, but no canonical limit evidence is attached."
+      "reason": "The configurable default 1048576-byte Phase-4 gate limit and fixed non-configurable 4096-normalized-bucket cap across filter calls reject their respective excess before any original byte is released rather than forwarding an uninspected tail; canonical limit evidence is pending."
     },
     "no_full_response_buffering": {
-      "state": "implemented_not_asserted",
-      "reason": "The output filter no longer keeps a connector-owned brigade across calls, but a synchronized host runtime proof is pending."
+      "state": "not_implemented",
+      "reason": "Apache intentionally retains the normalized response brigade across calls through first EOS to enforce the all-response Phase-4 decision before original output release."
     },
     "first_byte_before_response_end": {
-      "state": "implemented_not_asserted",
-      "reason": "Pass-through source wiring exists, but the canonical synchronized first-byte proof has not run."
+      "state": "not_implemented",
+      "reason": "Apache intentionally does not release an original first byte before first EOS because the all-response Phase-4 decision must complete before output release."
     },
     "http1_content_length": {
       "state": "configured_not_exercised",
-      "reason": "Apache can serve HTTP/1.1 responses; this transport case has not been exercised by the canonical catalog."
+      "reason": "Apache can serve HTTP/1.1 responses through the all-response Phase-4 gate; the focused H1 run has not yet produced canonical run-scoped evidence."
     },
     "http1_chunked": {
       "state": "configured_not_exercised",
@@ -183,7 +186,7 @@
     },
     "http2": {
       "state": "configured_not_exercised",
-      "reason": "No Apache HTTP/2 full-lifecycle run is attached."
+      "reason": "No Apache HTTP/2 full-lifecycle result is attached; ci/runtime/lifecycle/run-apache-phase4-response-regression.sh is the task-local H1/H2 evidence placeholder, not a pass claim."
     },
     "http2_downstream": {
       "state": "not_implemented",
@@ -239,11 +242,11 @@
     },
     "protocol_first_byte_before_response_end": {
       "state": "not_implemented",
-      "reason": "The existing first-byte proof is HTTP/1.1-only and is not protocol-profile evidence."
+      "reason": "The all-response Phase-4 gate intentionally prevents original first-byte release before EOS on every protocol profile; no progressive-output protocol capability is claimed."
     },
     "protocol_no_full_response_buffering": {
       "state": "not_implemented",
-      "reason": "The existing no-buffer reasoning is not yet proven separately for a negotiated modern protocol."
+      "reason": "The all-response Phase-4 gate intentionally retains the normalized response brigade through EOS; no no-full-buffer protocol capability is claimed."
     },
     "client_abort": {
       "state": "not_implemented",
