@@ -19,6 +19,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
+# Keep lifecycle-base validation aligned with the Parent runtime-path policy.
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import is_safe_runtime_root
+
 
 CONNECTORS = frozenset(("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"))
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -106,6 +113,17 @@ def normalize_base(
     return resolved
 
 
+def normalize_invocation_root(value: str | Path, *, cwd: Path | None = None) -> Path:
+    """Return one narrow external root that owns all writable lifecycle bases."""
+    raw = _raw_string(value, "invocation_root")
+    if not Path(raw).is_absolute():
+        raise RuntimePathError("invocation_root must be absolute")
+    root = normalize_base(raw, label="invocation_root", cwd=cwd)
+    if not is_safe_runtime_root(root):
+        raise RuntimePathError(f"invocation_root is unsafe for runtime writes: {root}")
+    return root
+
+
 def _is_within(path: Path, root: Path) -> bool:
     try:
         path.relative_to(root)
@@ -151,6 +169,7 @@ class RuntimePaths:
 
     connector: str
     run_id: str
+    invocation_root: Path
     evidence_base: Path
     build_base: Path
     run_base: Path
@@ -167,6 +186,7 @@ class RuntimePaths:
             "schema_version": 1,
             "connector": self.connector,
             "run_id": self.run_id,
+            "invocation_root": str(self.invocation_root),
             "bases": {
                 "evidence_root": str(self.evidence_base),
                 "build_root": str(self.build_base),
@@ -206,6 +226,7 @@ def resolve_runtime_paths(
     *,
     connector: str,
     run_id: str,
+    invocation_root: str | Path,
     evidence_root: str | Path,
     build_root: str | Path,
     run_root: str | Path,
@@ -217,6 +238,7 @@ def resolve_runtime_paths(
 
     selected_connector = validate_connector(connector)
     selected_run_id = validate_run_id(run_id)
+    selected_invocation_root = normalize_invocation_root(invocation_root, cwd=cwd)
     bases = {
         "evidence_root": normalize_base(evidence_root, label="evidence_root", cwd=cwd),
         "build_root": normalize_base(build_root, label="build_root", cwd=cwd),
@@ -225,6 +247,10 @@ def resolve_runtime_paths(
         "cache_root": normalize_base(cache_root, label="cache_root", cwd=cwd),
     }
     for label, path in bases.items():
+        if not _is_within(path, selected_invocation_root):
+            raise RuntimePathError(
+                f"{label} must remain inside invocation_root={selected_invocation_root}: {path}"
+            )
         reject_foreign_connector_path(path, selected_connector, label)
     _require_distinct_bases(bases)
 
@@ -249,6 +275,7 @@ def resolve_runtime_paths(
     return RuntimePaths(
         connector=selected_connector,
         run_id=selected_run_id,
+        invocation_root=selected_invocation_root,
         evidence_base=bases["evidence_root"],
         build_base=bases["build_root"],
         run_base=bases["run_root"],
@@ -266,6 +293,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--connector", required=True, choices=sorted(CONNECTORS))
     parser.add_argument("--run-id", required=True)
+    parser.add_argument(
+        "--invocation-root",
+        required=True,
+        help="narrow external root that owns every writable lifecycle base",
+    )
     parser.add_argument("--evidence-root", required=True, help="base directory for canonical evidence")
     parser.add_argument("--build-root", required=True, help="base directory for connector build artifacts")
     parser.add_argument("--run-root", required=True, help="base directory for connector host runs")
@@ -286,6 +318,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         paths = resolve_runtime_paths(
             connector=args.connector,
             run_id=args.run_id,
+            invocation_root=args.invocation_root,
             evidence_root=args.evidence_root,
             build_root=args.build_root,
             run_root=args.run_root,

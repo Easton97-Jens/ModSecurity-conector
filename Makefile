@@ -1138,7 +1138,7 @@ check-apache-request-transaction-cleanup:
 
 check-apache-request-transaction-cleanup-lint:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_request_transaction_cleanup
-	"$(PYTHON)" ci/tools/run-check-status.py --check apache_request_transaction_cleanup --allow-blocked-reason apache_development_prerequisite -- sh ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh
+	"$(PYTHON)" ci/tools/run-check-status.py --check apache_request_transaction_cleanup --allow-blocked-reason apache_development_prerequisite --blocked-if-missing-apache-development -- sh ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh
 
 check-optional-prerequisite-status:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_optional_prerequisite_status
