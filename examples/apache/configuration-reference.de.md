@@ -15,10 +15,10 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`ErrorLog`](#errorlog) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`LoadModule`](#loadmodule) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes. |
-| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | Pfad | nein | Host-Standardwerte bei Auslassung | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Beschränkt die P4-Response-Body-Inspektion auf konfigurierte MIME-Typen. |
+| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Response über dem Byte- oder Bucket-Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird. |
+| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | veralteter Pfad | nein | kein Wert; veraltete Apache-Kompatibilitätseingabe | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt das All-Response-Phase-4-Gate nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | none | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Setzt einen Connector-Ereignispfad; aktuelle Apache- und NGINX-Pfade verwenden ihn auch für frühere Regel-/Interventionsmetadaten, nicht nur für P4. |
-| [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | safe | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Wählt die angeforderte späte P4-Policy. Vor dem Response-Commit kann ein deny angewendet werden; nach dem Commit unterscheiden die aktuellen Apache-/NGINX-/HTX-Pfade nur strict von nicht-strict. Minimal und safe teilen daher den aktuellen nicht-strict-log_only-Pfad. |
+| [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | safe | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Apache hält jede normalisierte Response-Brigade bis zum ersten EOS zurück und löst die normale P4-Entscheidung vor der Freigabe der ursprünglichen Ausgabe auf. Dieser Modus wählt nur den defensiven Fallback für unabhängig als bereits committed nachgewiesene Ausgabe: minimal/safe zeichnen log_only auf und strict fordert abort_connection an. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | Pfad | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Lädt während des Konfigurationsladens eine lokale Regeldatei über libmodsecurity. |
 | [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | zwei Zeichenketten | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Übergibt das Schlüssel-/URL-Paar an den Remote-Regel-Loader von libmodsecurity. |
@@ -302,7 +302,7 @@ off umgeht die Connector-Verarbeitung P1–P4, auch wenn eine Regeldatei konfigu
 
 ### Kurzbeschreibung
 
-Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes.
+Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Response über dem Byte- oder Bucket-Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird.
 
 ### Syntax
 
@@ -334,9 +334,9 @@ Zusammenführung: Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Rege
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: P1 steuert die Integration; Regeln und P4-Steuerungen betreffen nur die genannte Phase.
+P1–P4-Relevanz: Nur P4. Das Byte-Limit und die feste Bucket-Obergrenze gelten, während normalisierte Brigades für die All-Response-Enforcement-Entscheidung bis zum ersten EOS zurückgehalten werden; der Bucket-Zähler gilt über Filter-Aufrufe hinweg und wird bei Release oder Discard zurückgesetzt.
 
-Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes.
+Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Response über dem Byte- oder Bucket-Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird.
 
 ### Validierung und Fehler
 
@@ -350,14 +350,14 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 ### Sicherheit und Betrieb
 
-Ein größeres Limit erhöht die Speicher-/CPU-Exposition; null ist in den nativen Settern ungültig.
+Die Byte- und feste Bucket-Obergrenze begrenzen Payload- sowie zurückgehaltene APR-Objekt-/Setaside-Speicher-/CPU-Exposition. Keinen Präfix verarbeiten und einen uninspektierten Tail freigeben: Das Überschreiten einer der Connector-Grenzen muss fail-closed fehlschlagen.
 
 <a id="modsecurity-phase4-content-types-file"></a>
 ## `modsecurity_phase4_content_types_file`
 
 ### Kurzbeschreibung
 
-Beschränkt die P4-Response-Body-Inspektion auf konfigurierte MIME-Typen.
+Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt das All-Response-Phase-4-Gate nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion.
 
 ### Syntax
 
@@ -373,13 +373,13 @@ modsecurity_phase4_content_types_file <value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Pfad | eine lesbare Datei mit MIME-Token | nein |
+| veralteter Pfad | eine lesbare Legacy-Datei mit MIME-Token | nein |
 
 ### Standardwert
 
-Host-Standardwerte bei Auslassung
+kein Wert; veraltete Apache-Kompatibilitätseingabe
 
-Quelle: `connectorspezifischer Standard-Content-Type-Loader`.
+Quelle: `Apache-Kompatibilitätsparser; veraltet`.
 
 ### Vererbung und Zusammenführung
 
@@ -389,9 +389,9 @@ Zusammenführung: Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Rege
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: P1 steuert die Integration; Regeln und P4-Steuerungen betreffen nur die genannte Phase.
+P1–P4-Relevanz: Nur P4. Der Parser bleibt aus Kompatibilitätsgründen erhalten, kann aber nicht auswählen, welche Apache-Responses das EOS-only-Enforcement-Gate umgehen.
 
-Beschränkt die P4-Response-Body-Inspektion auf konfigurierte MIME-Typen.
+Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt das All-Response-Phase-4-Gate nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion.
 
 ### Validierung und Fehler
 
@@ -401,11 +401,11 @@ msc_config_phase4_content_types_file liefert für die dokumentierte ungültige E
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apache/safe/httpd.conf).
+Quellenbasiertes Beispiel: `connectors/apache/src/msc_config.c`.
 
 ### Sicherheit und Betrieb
 
-Den Geltungsbereich eng halten und validieren, dass der Host die beabsichtigte Repräsentation der Response-Bytes bereitstellt.
+Diese Legacy-Liste darf keinen Pass-through-Pfad erlauben. Der Connector kann die wirksame MIME-Auswahl von libModSecurity nicht sicher abfragen, daher bleibt jede Response bis EOS gegatet.
 
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
@@ -467,7 +467,7 @@ JSONL-Metadaten als sensible Betriebsdaten behandeln und sichere Eigentümerscha
 
 ### Kurzbeschreibung
 
-Wählt die angeforderte späte P4-Policy. Vor dem Response-Commit kann ein deny angewendet werden; nach dem Commit unterscheiden die aktuellen Apache-/NGINX-/HTX-Pfade nur strict von nicht-strict. Minimal und safe teilen daher den aktuellen nicht-strict-log_only-Pfad.
+Apache hält jede normalisierte Response-Brigade bis zum ersten EOS zurück und löst die normale P4-Entscheidung vor der Freigabe der ursprünglichen Ausgabe auf. Dieser Modus wählt nur den defensiven Fallback für unabhängig als bereits committed nachgewiesene Ausgabe: minimal/safe zeichnen log_only auf und strict fordert abort_connection an.
 
 ### Syntax
 
@@ -499,9 +499,9 @@ Zusammenführung: Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Rege
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: P1 steuert die Integration; Regeln und P4-Steuerungen betreffen nur die genannte Phase.
+P1–P4-Relevanz: Nur P4. Apaches EOS-only-All-Response-Gate löst die Intervention vor der Freigabe der ursprünglichen Ausgabe auf; diese Einstellung gilt nur, wenn ein unabhängiger Commit-Nachweis bereits existiert.
 
-Wählt die angeforderte späte P4-Policy. Vor dem Response-Commit kann ein deny angewendet werden; nach dem Commit unterscheiden die aktuellen Apache-/NGINX-/HTX-Pfade nur strict von nicht-strict. Minimal und safe teilen daher den aktuellen nicht-strict-log_only-Pfad.
+Apache hält jede normalisierte Response-Brigade bis zum ersten EOS zurück und löst die normale P4-Entscheidung vor der Freigabe der ursprünglichen Ausgabe auf. Dieser Modus wählt nur den defensiven Fallback für unabhängig als bereits committed nachgewiesene Ausgabe: minimal/safe zeichnen log_only auf und strict fordert abort_connection an.
 
 ### Validierung und Fehler
 
@@ -515,7 +515,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 ### Sicherheit und Betrieb
 
-strict darf nicht als garantierte spätere 403 beschrieben werden; hostspezifische Nachweise für den Abbruch sind erforderlich.
+Ein normaler Phase-4-Deny darf nicht als log_only umgedeutet werden: Apache verwirft die gespeicherte ursprüngliche Brigade und gibt vor dem Release genau einen terminalen Fehler aus. strict ist keine garantierte spätere 403; hostspezifische Abort-Evidence ist weiterhin erforderlich.
 
 <a id="modsecurity-rules"></a>
 ## `modsecurity_rules`

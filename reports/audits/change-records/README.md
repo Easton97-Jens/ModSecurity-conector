@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Apache Phase-4 response enforcement](CR-20260718-apache-phase4-response.md)
 - [Runtime path-confinement hardening](CR-20260718-runtime-path-confinement.md)
 - [Strict runtime result-file authenticity](CR-20260718-result-file-authenticity.md)
 - [Security policy and governance baseline](CR-20260718-security-policy-governance.md)

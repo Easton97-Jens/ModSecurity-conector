@@ -44,7 +44,7 @@ erfordert.
 | --- | --- | --- |
 | Header- und Body-Limits | Ressourcenverbrauch vor der Verarbeitung begrenzen | Ein höheres Limit ist kein Nachweis für sicheres Buffering |
 | Request-/Response-Timeouts | Host- oder Bridge-Wartezeit begrenzen | Eine Timeout-Einstellung beweist keine Cancellation-Semantik |
-| Response-Body-Scope | Untersuchte Content-Types und Bytes beschränken | Keinen connector-eigenen vollständigen Response-Puffer einführen |
+| Response-Body-Scope | Engine-Inspektion und Bytes beschränken | Keinen connector-eigenen vollständigen Response-Puffer einführen, außer ein dokumentiertes Host-Sicherheitsgate erfordert ihn; Apache hält normalisierte Ausgabe unter einem endlichen fail-closed Limit bis EOS zurück |
 | Event-/Log-Limits | Diagnostik begrenzt und payload-sicher halten | Trunkierung muss wahrheitsgemäß dargestellt werden |
 
 Exakte Parser-Defaults und Hostkontexte stehen in den vollständigen
