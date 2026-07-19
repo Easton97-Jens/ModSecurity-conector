@@ -79,6 +79,9 @@ response MIME type; the engine directive still selects inspection, but the
 deprecated <code>modsecurity_phase4_content_types_file</code> cannot open a
 pass-through route. The connector default is a 1048576-byte (1 MiB) hard limit;
 an over-limit response fails closed before its original bytes are released.
+It also has a fixed, non-configurable ceiling of 4,096 normalized buckets
+retained across filter calls; it fails closed before retaining the next bucket,
+so a highly fragmented response can be rejected below the byte limit.
 <code>r-&gt;sent_bodyct</code> and <code>eos_sent</code> are not used as commit
 proof because upstream/core paths can set them before this filter releases
 output. The gate uses its own released-EOS marker and Apache

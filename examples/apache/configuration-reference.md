@@ -15,7 +15,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`ErrorLog`](#errorlog) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`LoadModule`](#loadmodule) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | boolean | no | off | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Gates connector transaction creation; it is not SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Bounds Apache's saved all-response brigade before Phase-4 completion. The default is 1048576 bytes; an over-limit response fails closed before any original response byte is released. |
+| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails closed before any original response byte is released. |
 | [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | deprecated path | no | none; deprecated Apache compatibility input | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the all-response Phase-4 gate; use SecResponseBodyMimeType to select libModSecurity inspection. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | path | no | none | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | safe | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Apache retains every normalized response brigade through first EOS and resolves the normal P4 decision before original output release. This mode selects only the defensive fallback for independently proven already-committed output: minimal/safe record log_only and strict requests abort_connection. |
@@ -302,7 +302,7 @@ off bypasses connector P1–P4 processing even if a rule file is configured.
 
 ### Short description
 
-Bounds Apache's saved all-response brigade before Phase-4 completion. The default is 1048576 bytes; an over-limit response fails closed before any original response byte is released.
+Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails closed before any original response byte is released.
 
 ### Syntax
 
@@ -334,9 +334,9 @@ Merge: Common scalar values use child-over-parent merge; rule sets are merged th
 
 ### Phases and runtime effect
 
-P4 only. The limit applies while normalized brigades are retained through first EOS for the all-response enforcement decision.
+P4 only. The byte limit and the fixed bucket ceiling apply while normalized brigades are retained through first EOS for the all-response enforcement decision; the bucket count spans filter calls and resets on release or discard.
 
-Bounds Apache's saved all-response brigade before Phase-4 completion. The default is 1048576 bytes; an over-limit response fails closed before any original response byte is released.
+Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails closed before any original response byte is released.
 
 ### Validation and errors
 
@@ -350,7 +350,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 ### Safety and operations
 
-The finite limit bounds memory and CPU exposure. Do not process a prefix and release an uninspected tail: exceeding this connector limit must fail closed.
+The byte and fixed bucket ceilings bound payload and retained APR-object/setaside memory/CPU exposure. Do not process a prefix and release an uninspected tail: exceeding either connector limit must fail closed.
 
 <a id="modsecurity-phase4-content-types-file"></a>
 ## `modsecurity_phase4_content_types_file`

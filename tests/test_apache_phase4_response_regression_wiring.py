@@ -28,6 +28,23 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertIn("assert_text_response_headers", source)
         self.assertIn("--http1.1", source)
 
+    def test_synchronized_upstream_cli_contract_selects_only_supported_arguments(self) -> None:
+        source = HARNESS.read_text(encoding="utf-8")
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT", source)
+        self.assertIn("APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT", runner)
+        self.assertIn('if [ "$APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT" = "1" ]; then', source)
+        self.assertIn('set -- "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve', source)
+        self.assertIn('--control-root "$SYNCHRONIZED_DIR"', source)
+        self.assertIn("synchronized_upstream_control_root=1", runner)
+        for argument in (
+            "--ready-file",
+            "--paused-file",
+            "--release-file",
+            "--server-evidence-file",
+        ):
+            self.assertIn(argument, source)
+
     def test_parent_runner_keeps_framework_catalog_unchanged(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")
         self.assertIn("EXTRA_CASE_ROOTS", source)
@@ -35,9 +52,11 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertIn("FORCE_ALL_CASES=1", source)
         for mode in (
             "bypass|deny|allow|log-only|client-abort|empty|empty-deny|limit|custom-mime-deny|engine-limit",
+            "fragmented-buckets",
             "redirect-bypass-h1|redirect-abort-h1|redirect-bypass-h2|redirect-abort-h2",
             "redirect-target-config-bypass-h1|redirect-target-config-abort-h1",
             "redirect-uri-bypass-h1|redirect-uri-abort-h1",
+            "redirect-target-handler-abort-h1|redirect-target-handler-abort-h2",
             "downstream-error-document-h1|downstream-error-document-h2|upstream-error-document-h1|upstream-error-document-h2",
             "nested-error-document-redirect-h1|preoutput-error-document-h1|preoutput-error-document-h2",
             "rogue-h1|rogue-allow-h1|rogue-p3-h1|rogue-p3-header-freeze-h1|rogue-p3-header-freeze-h2|rogue-error-document-h1|rogue-h2|rogue-error-document-h2",
@@ -76,6 +95,18 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertIn("APR_BUCKET_IS_FLUSH(bucket)", filters)
         self.assertIn("bucket->length == 0", filters)
         self.assertIn("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT", filters)
+        self.assertIn("MSCONNECTOR_PHASE4_MAX_HELD_BUCKETS 4096U", filters)
+        self.assertIn("response_brigade_bucket_count", filters)
+        self.assertIn("response brigade exceeds modsecurity_phase4_bucket_limit", filters)
+        self.assertIn("response_brigade_bucket_count = 0U;", utils)
+        self.assertIn("APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST", HARNESS.read_text(encoding="utf-8"))
+        self.assertIn("APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST", HARNESS.read_text(encoding="utf-8"))
+        self.assertIn("fragmented-buckets", RUNNER.read_text(encoding="utf-8"))
+        self.assertIn("fragmented-buckets-boundary", RUNNER.read_text(encoding="utf-8"))
+        self.assertIn("phase4-fragmented-bucket", ROGUE_HANDLER.read_text(encoding="utf-8"))
+        self.assertIn("PHASE4_FRAGMENTED_BUCKET_COUNT 4097U", ROGUE_HANDLER.read_text(encoding="utf-8"))
+        self.assertIn("PHASE4_FRAGMENTED_BUCKET_BOUNDARY_COUNT 4095U", ROGUE_HANDLER.read_text(encoding="utf-8"))
+        self.assertIn("PHASE4_FRAGMENTED_BUCKET_SPLIT_COUNT 2048U", ROGUE_HANDLER.read_text(encoding="utf-8"))
         self.assertNotIn("apache_phase4_in_scope", filters)
         self.assertNotIn("response_body_scope_decided", filters)
         self.assertIn("SecResponseBodyMimeType selection", filters)
@@ -162,6 +193,26 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertIn("2190410", harness)
         self.assertIn("2190411", (CASE_ROOT / "redirect-uri-policy.yaml").read_text(encoding="utf-8"))
         self.assertNotIn("effective ModSecurity configuration changed", harness)
+
+    def test_normal_internal_redirect_refuses_the_target_handler_before_it_runs(self) -> None:
+        harness = HARNESS.read_text(encoding="utf-8")
+        handler = ROGUE_HANDLER.read_text(encoding="utf-8")
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("redirect-target-handler-abort-h1", runner)
+        self.assertIn("redirect-target-handler-abort-h2", runner)
+        self.assertIn("APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST", harness)
+        self.assertIn("target_handler_abort", harness)
+        self.assertIn("assert_phase4_internal_redirect_target_handler_was_not_run", harness)
+        self.assertIn("ModSecurity Phase4 redirect target handler executed", harness)
+        self.assertIn("phase4-internal-redirect-target-handler-test", handler)
+        self.assertIn("phase4-internal-redirect-target-handler-marker", handler)
+        self.assertIn("/__phase4_internal_redirect_target_handler_target", handler)
+        connector = (ROOT / "connectors/apache/src/mod_security3.c").read_text(encoding="utf-8")
+        self.assertIn("hook_phase4_redirect_quick_handler", connector)
+        self.assertIn("hook_phase4_redirect_handler", connector)
+        self.assertIn("ap_hook_quick_handler(hook_phase4_redirect_quick_handler", connector)
+        self.assertIn("ap_hook_handler(hook_phase4_redirect_handler", connector)
+        self.assertIn("apache_phase4_terminal_error_redirect_note", connector)
 
     def test_downstream_apache_error_document_is_a_bounded_allow_path(self) -> None:
         harness = HARNESS.read_text(encoding="utf-8")

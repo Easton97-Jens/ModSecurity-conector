@@ -15,6 +15,12 @@
  */
 msc_global *msc_apache;
 
+/* Apache creates a new notes table for every internal redirect. Keep the
+ * one permitted ErrorDocument transition bound to the exact request that
+ * passed the core-derived proof below. */
+static const char apache_phase4_terminal_error_redirect_note[] =
+    "modsecurity-phase4-terminal-error-redirect";
+
 static apr_status_t msc_module_cleanup(void *data);
 static int hook_connection_early(conn_rec *conn);
 static int msc_hook_pre_config(apr_pool_t *mp, apr_pool_t *mp_log,
@@ -64,13 +70,24 @@ static int apache_phase4_redirect_has_local_error_document_proof(
 static int apache_phase4_redirect_is_terminal_error_emission(msc_t *msr,
     request_rec *r)
 {
-    if (msr == NULL || msr->response_phase4_terminal_output !=
-            MSC_PHASE4_TERMINAL_OUTPUT_EMITTING ||
-        !apache_phase4_redirect_has_local_error_document_proof(msr, r))
+    if (msr == NULL || r == NULL || r->notes == NULL ||
+        msr->response_phase4_terminal_output !=
+            MSC_PHASE4_TERMINAL_OUTPUT_EMITTING)
+    {
+        return 0;
+    }
+    if (apr_table_get(r->notes,
+            apache_phase4_terminal_error_redirect_note) != NULL)
+    {
+        return 1;
+    }
+    if (!apache_phase4_redirect_has_local_error_document_proof(msr, r))
     {
         return 0;
     }
     msr->response_phase4_terminal_error_redirect_seen = 1;
+    apr_table_setn(r->notes, apache_phase4_terminal_error_redirect_note,
+        "1");
     return 1;
 }
 
@@ -355,6 +372,64 @@ static msc_t *retrieve_tx_context(request_rec *r) {
     }
 
     return NULL;
+}
+
+
+/* ap_internal_redirect() runs quick handlers before request processing and
+ * before ap_invoke_handler(). Refuse unsafe redirected requests here so a
+ * target quick handler cannot perform side effects before the normal handler
+ * guard has a chance to run. */
+static int hook_phase4_redirect_quick_handler(request_rec *r, int lookup)
+{
+    msc_t *msr = NULL;
+
+    (void)lookup;
+    if (r == NULL || r->main != NULL || r->prev == NULL)
+    {
+        return DECLINED;
+    }
+    msr = retrieve_tx_context(r);
+    if (msr == NULL)
+    {
+        return DECLINED;
+    }
+    if (apache_phase4_redirect_is_terminal_error_emission(msr, r))
+    {
+        return DECLINED;
+    }
+    apache_phase4_fail_normal_redirect(msr, r,
+        "request transaction cannot be safely rebound to the target URI");
+    return DONE;
+}
+
+
+/* insert_filter is void, so sealing and aborting a connection there does not
+ * stop ap_run_handler(). This hook is the final guard for paths that enter
+ * ap_invoke_handler() without first reaching the quick-handler hook. */
+static int hook_phase4_redirect_handler(request_rec *r)
+{
+    msc_t *msr = NULL;
+
+    if (r == NULL || r->main != NULL || r->prev == NULL)
+    {
+        return DECLINED;
+    }
+    msr = retrieve_tx_context(r);
+    if (msr == NULL)
+    {
+        return DECLINED;
+    }
+    if (apache_phase4_redirect_is_terminal_error_emission(msr, r))
+    {
+        return DECLINED;
+    }
+    if (msr->response_phase4_terminal_output !=
+        MSC_PHASE4_TERMINAL_OUTPUT_SEALED)
+    {
+        apache_phase4_fail_normal_redirect(msr, r,
+            "request transaction cannot be safely rebound to the target URI");
+    }
+    return DONE;
 }
 
 
@@ -829,7 +904,11 @@ static void msc_register_hooks(apr_pool_t *pool)
     ap_hook_fixups(hook_request_late, fixups_beforeme_list, NULL, APR_HOOK_REALLY_FIRST);
 
     /* Lets add the remaining hooks */
+    ap_hook_quick_handler(hook_phase4_redirect_quick_handler, NULL, NULL,
+        APR_HOOK_REALLY_FIRST);
     ap_hook_insert_filter(hook_insert_filter, NULL, NULL, APR_HOOK_FIRST);
+    ap_hook_handler(hook_phase4_redirect_handler, NULL, NULL,
+        APR_HOOK_REALLY_FIRST);
 
     /* Logging */
     /* ap_hook_error_log is called for every error log entry that apache writes.

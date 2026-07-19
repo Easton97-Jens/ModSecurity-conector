@@ -48,7 +48,7 @@ the configuration, including /usr/lib/apache2/modules/mod_security3.so,
 | modsecurity_phase4_mode | Defensive late-P4 fallback: minimal, safe, or strict | Safe file only; host config; module scope | safe. A normal gated deny is resolved before release; this setting only selects an unexpected, already-committed fallback. |
 | modsecurity_phase4_content_types_file | Deprecated legacy response-MIME file | Optional compatibility parser; host config; module scope | Do not configure it for new Apache profiles: it cannot narrow the all-response gate. Use `SecResponseBodyMimeType` to select engine inspection. |
 | modsecurity_phase4_log | Decision JSONL destination | Optional; host config; module scope | /var/log/modsecurity/apache-phase4.jsonl. Protect and rotate request metadata. |
-| modsecurity_phase4_body_limit and SecResponseBodyLimit | Positive P4 byte limits | Required for bounded Safe use; host and rules files; no automatic alignment | The connector default is 1048576 bytes. It is a hard fail-closed all-response-gate limit; a libModSecurity `ProcessPartial` policy does not release an uninspected connector tail. |
+| modsecurity_phase4_body_limit and SecResponseBodyLimit | Positive P4 byte limits | Required for bounded Safe use; host and rules files; no automatic alignment | The connector default is 1048576 bytes. It is a hard fail-closed all-response-gate limit. A separate fixed, non-configurable 4,096-normalized-bucket ceiling across filter calls can reject a highly fragmented response below that byte limit; a libModSecurity `ProcessPartial` policy does not release an uninspected connector tail. |
 | SecRequestBodyAccess and SecResponseBodyAccess | Request/response body switches | Required in matching rules; rule-engine scope | On in Safe rules; response access is Off in request-only. |
 | SecResponseBodyMimeType and SecResponseBodyLimitAction | Engine P4 scope and over-limit policy | Required in Safe rules; rule-engine scope | Explicit text/JSON types select engine inspection; they do not narrow Apache's all-response gate. Do not infer binary behavior. |
 | SecAuditLog | Audit-log destination | Optional; rules file; rule-engine scope | /var/log/modsecurity/apache-audit.log. Apply access control and retention policy. |
@@ -105,6 +105,11 @@ opaque to the connector, so `SecResponseBodyMimeType` selects engine inspection
 without creating a gate bypass. The deprecated
 `modsecurity_phase4_content_types_file` is intentionally absent from the Safe
 configuration.
+
+The configurable byte limit is complemented by a fixed, non-configurable
+4,096-normalized-bucket ceiling across filter calls. The connector fails closed
+before retaining the next bucket, so this resource bound can reject a highly
+fragmented response below 1048576 bytes.
 
 This section records configuration intent, not a run result. Input ingestion
 remains incremental across multiple brigades, but the native path deliberately

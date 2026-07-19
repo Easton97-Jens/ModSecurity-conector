@@ -90,6 +90,68 @@ static apr_status_t phase4_rogue_pass(request_rec *r, const char *payload,
 }
 
 
+#define PHASE4_FRAGMENTED_BUCKET_COUNT 4097U
+#define PHASE4_FRAGMENTED_BUCKET_BOUNDARY_COUNT 4095U
+#define PHASE4_FRAGMENTED_BUCKET_SPLIT_COUNT 2048U
+
+
+static apr_status_t phase4_fragmented_bucket_pass(request_rec *r,
+    unsigned int bucket_count)
+{
+    static const char payload[] = "f";
+    apr_bucket_brigade *brigade;
+    apr_bucket *bucket;
+    apr_status_t rc;
+    unsigned int index;
+
+    brigade = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    if (brigade == NULL)
+    {
+        return APR_ENOMEM;
+    }
+    /* The first pass deliberately has no EOS.  The second pass provides the
+     * remaining data and EOS, exercising the persistent counter across
+     * separate Apache output-filter invocations. */
+    for (index = 0U; index < bucket_count; ++index)
+    {
+        bucket = apr_bucket_immortal_create(payload, 1U,
+            r->connection->bucket_alloc);
+        if (bucket == NULL)
+        {
+            apr_brigade_destroy(brigade);
+            return APR_ENOMEM;
+        }
+        APR_BRIGADE_INSERT_TAIL(brigade, bucket);
+        if (index + 1U == PHASE4_FRAGMENTED_BUCKET_SPLIT_COUNT &&
+            index + 1U < bucket_count)
+        {
+            rc = ap_pass_brigade(r->output_filters, brigade);
+            apr_brigade_cleanup(brigade);
+            if (rc != APR_SUCCESS)
+            {
+                return rc;
+            }
+            brigade = apr_brigade_create(r->pool,
+                r->connection->bucket_alloc);
+            if (brigade == NULL)
+            {
+                return APR_ENOMEM;
+            }
+        }
+    }
+    bucket = apr_bucket_eos_create(r->connection->bucket_alloc);
+    if (bucket == NULL)
+    {
+        apr_brigade_destroy(brigade);
+        return APR_ENOMEM;
+    }
+    APR_BRIGADE_INSERT_TAIL(brigade, bucket);
+    rc = ap_pass_brigade(r->output_filters, brigade);
+    apr_brigade_cleanup(brigade);
+    return rc;
+}
+
+
 static apr_status_t phase4_downstream_error_filter(ap_filter_t *f,
     apr_bucket_brigade *bb_in)
 {
@@ -248,20 +310,78 @@ static int phase4_terminal_rogue_handler(request_rec *r)
 }
 
 
+static int phase4_fragmented_bucket_handler(request_rec *r)
+{
+    apr_status_t rc;
+    unsigned int bucket_count;
+
+    if (r->handler == NULL ||
+        (strcmp(r->handler, "phase4-fragmented-bucket") != 0 &&
+         strcmp(r->handler, "phase4-fragmented-bucket-boundary") != 0))
+    {
+        return DECLINED;
+    }
+
+    r->status = HTTP_OK;
+    ap_set_content_type(r, "text/plain");
+    bucket_count = strcmp(r->handler,
+        "phase4-fragmented-bucket-boundary") == 0
+        ? PHASE4_FRAGMENTED_BUCKET_BOUNDARY_COUNT
+        : PHASE4_FRAGMENTED_BUCKET_COUNT;
+    rc = phase4_fragmented_bucket_pass(r, bucket_count);
+    ap_log_rerror(APLOG_MARK, APLOG_NOTICE | APLOG_NOERRNO, 0, r,
+        "ModSecurity Phase4 fragmented-bucket test emitted %u one-byte buckets in two brigades rc=%d",
+        bucket_count, (int)rc);
+    /* The connector owns the terminal error path when it rejects the
+     * withheld brigade. Returning OK avoids creating a second Apache error
+     * sequence after that fail-closed decision. */
+    return OK;
+}
+
+
 static int phase4_internal_redirect_handler(request_rec *r)
 {
+    const char *target_uri;
+
     if (r->handler == NULL ||
-        strcmp(r->handler, "phase4-internal-redirect") != 0)
+        (strcmp(r->handler, "phase4-internal-redirect") != 0 &&
+         strcmp(r->handler,
+             "phase4-internal-redirect-target-handler-test") != 0))
     {
         return DECLINED;
     }
 
     /* Exercise Apache's normal internal redirect machinery before any
-     * response brigade is emitted by this request. The target is a static
-     * file whose body matches the Phase-4 deny fixture. */
-    ap_internal_redirect("/__phase4_internal_redirect_target.txt", r);
+     * response brigade is emitted by this request. The marker-target route
+     * is deliberately a handler rather than a static file: the harness must
+     * prove that the connector rejects the redirect before Apache invokes an
+     * arbitrary target handler with potential side effects. */
+    target_uri = "/__phase4_internal_redirect_target.txt";
+    if (strcmp(r->handler,
+            "phase4-internal-redirect-target-handler-test") == 0)
+    {
+        target_uri = "/__phase4_internal_redirect_target_handler_target";
+    }
+    ap_internal_redirect(target_uri, r);
     ap_log_rerror(APLOG_MARK, APLOG_NOTICE | APLOG_NOERRNO, 0, r,
         "ModSecurity Phase4 redirect test issued an internal redirect");
+    return OK;
+}
+
+
+static int phase4_internal_redirect_target_handler(request_rec *r)
+{
+    if (r->handler == NULL ||
+        strcmp(r->handler,
+            "phase4-internal-redirect-target-handler-marker") != 0)
+    {
+        return DECLINED;
+    }
+
+    /* This marker is intentionally emitted before any response brigade. A
+     * normal P4 redirect must be rejected before this handler can run. */
+    ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+        "ModSecurity Phase4 redirect target handler executed");
     return OK;
 }
 
@@ -354,7 +474,11 @@ static void phase4_terminal_rogue_register_hooks(apr_pool_t *pool)
     (void)pool;
     ap_hook_handler(phase4_terminal_rogue_handler, NULL, NULL,
         APR_HOOK_MIDDLE);
+    ap_hook_handler(phase4_fragmented_bucket_handler, NULL, NULL,
+        APR_HOOK_MIDDLE);
     ap_hook_handler(phase4_internal_redirect_handler, NULL, NULL,
+        APR_HOOK_MIDDLE);
+    ap_hook_handler(phase4_internal_redirect_target_handler, NULL, NULL,
         APR_HOOK_MIDDLE);
     ap_hook_handler(phase4_nested_error_document_redirect_handler, NULL, NULL,
         APR_HOOK_MIDDLE);

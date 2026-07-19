@@ -152,6 +152,12 @@ Pfad erzeugen kann. Das Standardlimit von
 die es überschreitet, schlägt fail-closed fehl, bevor ein ursprüngliches
 Response-Byte freigegeben wird; sie wird nicht teilweise verarbeitet und dann
 gestreamt.
+Die Byte-Grenze ist nicht die einzige Ressourcengrenze für zurückgehaltene
+Ausgabe: Apache erzwingt zusätzlich eine feste, nicht konfigurierbare Obergrenze
+von 4.096 normalisierten, über Filter-Aufrufe hinweg zurückgehaltenen Buckets.
+Vor dem Zurückhalten des nächsten Buckets schlägt sie fail-closed fehl; daher
+kann eine stark fragmentierte Response schon unterhalb des Byte-Limits
+abgelehnt werden.
 
 An der normalen Entscheidungsgrenze sind Apaches `r->sent_bodyct` und
 `eos_sent` kein Commit-Nachweis: Upstream-Module können sie setzen, bevor

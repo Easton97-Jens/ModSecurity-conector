@@ -15,7 +15,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`ErrorLog`](#errorlog) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`LoadModule`](#loadmodule) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der Standardwert ist 1048576 Byte; eine Response über dem Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird. |
+| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Response über dem Byte- oder Bucket-Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird. |
 | [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | veralteter Pfad | nein | kein Wert; veraltete Apache-Kompatibilitätseingabe | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt das All-Response-Phase-4-Gate nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | none | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Setzt einen Connector-Ereignispfad; aktuelle Apache- und NGINX-Pfade verwenden ihn auch für frühere Regel-/Interventionsmetadaten, nicht nur für P4. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | safe | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Apache hält jede normalisierte Response-Brigade bis zum ersten EOS zurück und löst die normale P4-Entscheidung vor der Freigabe der ursprünglichen Ausgabe auf. Dieser Modus wählt nur den defensiven Fallback für unabhängig als bereits committed nachgewiesene Ausgabe: minimal/safe zeichnen log_only auf und strict fordert abort_connection an. |
@@ -302,7 +302,7 @@ off umgeht die Connector-Verarbeitung P1–P4, auch wenn eine Regeldatei konfigu
 
 ### Kurzbeschreibung
 
-Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der Standardwert ist 1048576 Byte; eine Response über dem Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird.
+Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Response über dem Byte- oder Bucket-Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird.
 
 ### Syntax
 
@@ -334,9 +334,9 @@ Zusammenführung: Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Rege
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Nur P4. Das Limit gilt, während normalisierte Brigades für die All-Response-Enforcement-Entscheidung bis zum ersten EOS zurückgehalten werden.
+P1–P4-Relevanz: Nur P4. Das Byte-Limit und die feste Bucket-Obergrenze gelten, während normalisierte Brigades für die All-Response-Enforcement-Entscheidung bis zum ersten EOS zurückgehalten werden; der Bucket-Zähler gilt über Filter-Aufrufe hinweg und wird bei Release oder Discard zurückgesetzt.
 
-Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der Standardwert ist 1048576 Byte; eine Response über dem Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird.
+Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Response über dem Byte- oder Bucket-Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird.
 
 ### Validierung und Fehler
 
@@ -350,7 +350,7 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 ### Sicherheit und Betrieb
 
-Das endliche Limit begrenzt Speicher- und CPU-Exposition. Keinen Präfix verarbeiten und einen uninspektierten Tail freigeben: Das Überschreiten dieses Connector-Limits muss fail-closed fehlschlagen.
+Die Byte- und feste Bucket-Obergrenze begrenzen Payload- sowie zurückgehaltene APR-Objekt-/Setaside-Speicher-/CPU-Exposition. Keinen Präfix verarbeiten und einen uninspektierten Tail freigeben: Das Überschreiten einer der Connector-Grenzen muss fail-closed fehlschlagen.
 
 <a id="modsecurity-phase4-content-types-file"></a>
 ## `modsecurity_phase4_content_types_file`

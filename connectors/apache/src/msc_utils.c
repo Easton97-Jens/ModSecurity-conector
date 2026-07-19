@@ -44,6 +44,7 @@ void msc_discard_response_brigade(msc_t *msr)
         apr_brigade_cleanup(msr->response_brigade);
         msr->response_brigade = NULL;
     }
+    msr->response_brigade_bucket_count = 0U;
 }
 
 

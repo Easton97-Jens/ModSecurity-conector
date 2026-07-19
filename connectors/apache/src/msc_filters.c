@@ -12,6 +12,12 @@
 #include <string.h>
 
 
+/* A one-megabyte payload can still be represented as one million individual
+ * one-byte APR buckets. Hold a bounded number of normalized buckets pending
+ * EOS so the Phase-4 byte cap also has a bounded object/setaside cost. */
+#define MSCONNECTOR_PHASE4_MAX_HELD_BUCKETS 4096U
+
+
 /* Kept private to this translation unit; Phase 2 reaches it before the
  * implementation below because input-filter EOS is handled near the start
  * of this file. */
@@ -918,6 +924,7 @@ static apr_status_t apache_phase4_release_response_brigade(msc_t *msr,
     msr->response_phase4_terminal_output =
         MSC_PHASE4_TERMINAL_OUTPUT_SEALED;
     apr_brigade_cleanup(held);
+    msr->response_brigade_bucket_count = 0U;
     return rc;
 }
 
@@ -1306,6 +1313,16 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
         pbktIn != APR_BRIGADE_SENTINEL(bb_in);
         pbktIn = APR_BUCKET_NEXT(pbktIn))
     {
+        /* ap_save_brigade() sets aside and concatenates each retained APR
+         * bucket. The payload byte limit therefore cannot bound the object
+         * cost of a response fragmented into tiny data or metadata buckets. */
+        if (msr->response_brigade_bucket_count >=
+            MSCONNECTOR_PHASE4_MAX_HELD_BUCKETS)
+        {
+            return apache_phase4_fail_closed(msr, f, bb_in,
+                "response brigade exceeds modsecurity_phase4_bucket_limit");
+        }
+        msr->response_brigade_bucket_count++;
         rc = apache_phase4_append_bucket(msr, conf, pbktIn);
         if (rc != APR_SUCCESS)
         {

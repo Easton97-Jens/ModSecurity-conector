@@ -73,6 +73,9 @@ typedef struct
     apr_size_t request_body_bytes_inspected;
     apr_size_t response_body_bytes_seen;
     apr_size_t response_body_bytes_inspected;
+    /* The Phase-4 payload cap does not by itself bound Apache bucket-object
+     * overhead. Count every normalized bucket retained pending EOS. */
+    apr_size_t response_brigade_bucket_count;
     int request_body_truncated;
     int request_body_processed;
     int request_body_intervention_sent;

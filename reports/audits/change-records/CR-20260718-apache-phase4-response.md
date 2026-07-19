@@ -1,10 +1,10 @@
 # Change Record: Apache Phase-4 response enforcement
 
-**Status:** The Phase-4 remediation is in Parent-only Draft PR #60. Its initial
-head `783c024b8cb90c783adfa7a18e85de170a28e1b5` passed CI and CodeQL, but
-SonarQube Cloud failed on task-owned regression-control code. Focused
-remediation of `FND-SONAR-0001` is in progress; no final SonarQube Cloud
-success or merge is claimed by this record.
+**Status:** PR #60 remains open and Draft. Its remote head is
+`7c83583b4e208b8945daeec226d04abe364cbc8e`. The local delivery candidate is
+based on the normal current-master merge
+`93c5f30c181710f5c2cecf207fb92aaecb215035` and contains unpushed focused
+Parent remediation. Historical remote checks apply only to `7c83583b4e208b8945daeec226d04abe364cbc8e`, not to the local candidate. Current exact-native validation has passed, but exact pushed-head CI, CodeQL, SonarCloud, review, thread, and protected-merge checks remain required. No merge is claimed.
 
 **Language:** English | [Deutsch](CR-20260718-apache-phase4-response.de.md)
 
@@ -13,257 +13,112 @@ success or merge is claimed by this record.
 | Field | Value |
 | --- | --- |
 | Change ID | CR-20260718-apache-phase4-response |
-| Date (UTC) | 2026-07-18 |
-| Base revision | c8ca0d92b630c18232b881855c4f5d1482568ea6 |
+| Date (UTC) | 2026-07-18; current evidence refreshed 2026-07-19 |
+| Base revision | aabde81a9a315bf3e494e595ab0399357c596f9c |
 | Scope | Parent repository only |
 | Related finding | FND-PARENT-0038 |
-| Related delivery-quality finding | FND-SONAR-0001 |
-| Framework / MRTS state | read-only, clean at cdc91a398d6c156eaff927d742b23018a3817fb6 / 13aa91291adea12d5c607fdd165d010fcfb1da78 |
+| Related harness finding | FND-PARENT-0041 |
+| Related capacity finding | FND-PARENT-0042 (locally fixed; delivery verification pending) |
+| Framework / MRTS state | Parent gitlink `cdc91a398d6c156eaff927d742b23018a3817fb6`; MRTS gitlink `13aa91291adea12d5c607fdd165d010fcfb1da78`; no Framework, MRTS, or gitlink change |
 
-## Motivation and problem statement
+## Problem and security invariant
 
-Apache could forward response buckets before libModSecurity ran the EOS-only
-Phase-4 RESPONSE_BODY decision. A disruptive deny could therefore occur after
-the protected bytes had passed the downstream commit boundary. The retained
-pre-fix internal-redirect reproducer shows the direct target denied by rule
-2190411 while the redirect returned HTTP 200 and the response marker.
+Apache must not release a byte that Phase 4 can consider before
+`msc_process_response_body` and its intervention resolve. A normal internal
+redirect also cannot safely rebind the native transaction to the target URI,
+rules, or request variables. Therefore an unsafe redirect must neither release
+the protected response nor execute a target quick-handler or normal handler.
 
-This record remediates only the Apache/libModSecurity Phase-4 response path.
-It does not alter another connector, Framework, or MRTS.
+The only permitted redirect is one bounded local `ErrorDocument` transition:
+Apache-core-derived `no_local_copy` and `REDIRECT_STATUS` evidence must match,
+the shared Phase-4 state must be `EMITTING`, and the one-time permission is
+bound to that exact request's fresh notes table.
 
-## Acceptance criteria
+## Current implementation
 
-The broken-control chain was:
+- `MODSECURITY_OUT` retains and normalizes every pre-EOS response brigade,
+  performs the Phase-4 decision at EOS, and makes only one downstream release.
+- `MODSECURITY_PHASE4_GUARD` remains in the protocol chain to seal later
+  producer output after denial, EOS, or terminal failure.
+- The redirect remediation adds an `APR_HOOK_REALLY_FIRST` quick-handler guard
+  before Apache can invoke a target quick handler and an equally early normal
+  handler fallback. Both return `DONE` for an unsafe `r->prev` request.
+- The source sets a request-local permission note only after the existing
+  core-shaped local-`ErrorDocument` proof succeeds. A later nested or normal
+  redirect receives a new notes table and cannot inherit that allowance.
+- To bound retained APR-object/setaside overhead as well as payload bytes, it
+  counts normalized buckets across filter invocations; at 4,096 held buckets it
+  fails closed before retaining another bucket, and resets the count on release
+  or discard.
+- No Framework, MRTS, or gitlink change is part of this repair.
 
-~~~
-upstream response bucket
-  -> MODSECURITY_OUT append/forward
-  -> downstream ap_pass_brigade before EOS
-  -> msc_process_response_body + process_intervention at EOS
-~~~
+## Current exact-native evidence
 
-Attacker prerequisites are a reachable response whose body matches a deployed
-disruptive Phase-4 SecRule RESPONSE_BODY rule before EOS; normal internal
-redirects and multiple brigades make the old escape easier to demonstrate. No
-local privilege is assumed.
+The task-owned external read-only copy of the Parent-recorded Framework commit
+`cdc91a398d6c156eaff927d742b23018a3817fb6` built Apache connector component
+`904cb576c6a344cb38f330d5842fe750fafc81041c459ce0dfcda4a75eabfbc3`.
 
-The security invariant is that a response byte which Phase 4 can consider must
-not reach downstream before msc_process_response_body and the resulting
-intervention have resolved. The last blocking point is therefore the first and
-only downstream release, not sent_bodyct-like Apache state that can be marked
-upstream of the connector.
+The first exact target-handler control reproduced the incomplete redirect
+closure: its H1 run exited `1`, and the retained log recorded both the
+connector refusal and `ModSecurity Phase4 redirect target handler executed`.
+The focused source repair was then rebuilt against the same exact Framework
+revision.
 
-The smallest complete enforcement boundary is an EOS gate for every response
-that reaches the Apache output filter. libModSecurity's C API does not expose a
-safe query for the effective SecResponseBodyMimeType decision. Narrowing the
-gate by the connector's legacy MIME list, forwarding an inspected prefix, or
-releasing an uninspected tail would recreate the bypass.
+The post-fix `redirect-target-handler-abort-h1` and
+`redirect-target-handler-abort-h2` controls both passed. Their logs retain the
+expected connector refusal and no target-handler marker. A serial 30-control
+exact native matrix then exited `0`, covering deny, allow, log-only,
+client-abort, empty responses, body limits, custom MIME, ProcessPartial,
+redirect refusal, target configuration and URI variants, target-handler H1/H2,
+upstream/downstream/nested/pre-output `ErrorDocument`, and H1/H2 late-producer
+and Phase-3-header controls.
 
-The completed repair must therefore demonstrate all of the following:
+The final local security-diff validation additionally reproduced a distinct
+availability condition: before the focused capacity repair, an actual Apache
+handler released 4,097 one-byte response buckets (4,097 bytes, far below the
+one MiB payload cap) as HTTP 200. The current rebuilt module rejects the same
+4,097 buckets split over two filter calls with a pre-release HTTP 500 and a
+specific bucket-limit diagnostic. Its 4,095-data-bucket-plus-EOS boundary
+releases HTTP 200 with exactly 4,095 bytes. The serial safe matrix was rerun
+with those two new controls and all 32 modes passed.
 
-- a Phase-4 deny suppresses the matching body before the first downstream
-  commit;
-- allow and log-only retain one complete normalized response, including empty
-  and multiple-brigade responses;
-- late output, pre-commit errors, unsafe redirects, and cleanup cannot leak
-  held original bytes or duplicate EOS; and
-- native Apache H1/H2, focused CRS/MRTS controls, and current-source security
-  checks produce retained evidence without changing Framework or MRTS.
+The earlier sealed 30-mode redirect receipt is
+`/var/tmp/codex/ModSecurity-conector/runs/20260719T162259Z-pr60-exact-head-revalidation-dfba422e/evidence/pr60-exact-native-phase4-manifest.json`
+with SHA-256
+`1f44c2817676ef2952f70573917657d67645d8d85d57e829a47c9d67ee2ea548`.
+It records the pre-fix log, post-fix H1/H2 logs, component manifest, rebuilt
+module, command result, source state, and its 30-mode matrix scope.
 
-## Implementation decision and rationale
+The retained local security-diff validation for the 32-mode bucket rerun is
+`/var/tmp/codex/ModSecurity-conector/runs/20260719T183551Z-pr60-final-security-diff-93404fdd/evidence/security-diff/artifacts/05_findings/CAND-PR60-001/validation_report.md`
+with SHA-256
+`79e7e1b3fcca6acdf8d02ed941eaadcea566258656abe269a54289a59e88db8c`.
+It records the split-overflow and boundary logs and the 32-mode matrix driver;
+it is retained local validation, not a sealed receipt.
 
-- The output filter normalizes every pre-EOS brigade and holds it with
-  ap_save_brigade while appending the complete bounded body to libModSecurity.
-- At EOS it runs msc_process_response_body and process_intervention before the
-  only release. Allow restores the Phase-3 snapshot and releases saved brigades
-  once; deny discards the original brigades and enters the terminal error path.
-- Connector-owned release state and observed commit state replace sent_bodyct
-  as the evidence of a connector release.
-- MODSECURITY_PHASE4_GUARD remains in the protocol filter chain to discard
-  producer output after EOS or terminal deny, including a second body or EOS.
-- Oversize, append, bucket-read, setaside, missing-context, and unsafe
-  redirect conditions fail closed before original bytes are released.
-- The existing unread-request-body route uses that same pre-commit terminal
-  bridge only when a Phase-2/error response reaches MODSECURITY_OUT. This is a
-  necessary compatibility part of the new output boundary: the protocol guard
-  otherwise changes error emission underneath that route. It does not alter
-  Phase-2 rule evaluation or add a second response body path.
-- A valid first Apache error bucket uses the pre-commit terminal bridge.
-  Apache-core-marked local ErrorDocument emission is bounded to one hop while
-  terminal output is emitting; ordinary r->prev redirects fail closed because a
-  native transaction cannot safely rebind to the target request.
-- Cleanup discards held brigades. The patch does not disable Phase 4 and does
-  not reinterpret deny as log-only.
+Focused static validation also passed:
 
-Legitimate response delivery after an allowed EOS remains intact. Progressive
-delivery before a Phase-4 decision is intentionally unavailable for this
-security boundary; the implementation preserves response semantics after the
-decision rather than exposing bytes before it.
+- `tests.test_apache_phase4_response_regression_wiring`: 10/10;
+- shell syntax for the Phase-4 runner and Apache harness;
+- `git diff --check`; and
+- a full uninstalled Apache-module build against the exact Apache, APR, and
+  libModSecurity headers.
 
-## Changed files
+## Evidence limits and remaining delivery gates
 
-Production and Apache harness:
+Historical prior-head runtime observations are not current exact-head evidence:
+central artifacts were missing or unsealed and remain described only in
+FND-PARENT-0038. The current matrix is the authoritative local native result.
 
-- connectors/apache/src/mod_security3.c and mod_security3.h
-- connectors/apache/src/msc_filters.c and msc_filters.h
-- connectors/apache/src/msc_config.c
-- connectors/apache/src/msc_utils.c and msc_utils.h
-- connectors/apache/harness/apache_smoke.conf
-- connectors/apache/harness/run_apache_smoke.sh
-- connectors/apache/harness/mod_phase4_terminal_rogue.c
+There is no repository-native Apache Phase-4 ASan/UBSan route; the Common
+allocator micro-smoke is not presented as Apache sanitizer evidence. The CRS
+control is blocked by the current Framework provenance guard after it detects
+the approved source's `.gitmodules`; that control was not bypassed. The MRTS
+profile is not claimed as current until it runs from a task-owned read-only
+materialization.
 
-Focused regression and static wiring:
-
-- ci/runtime/lifecycle/run-apache-phase4-response-regression.sh
-- ci/runtime/lifecycle/apache_phase4_content_type_synchronized_upstream.py
-- ci/runtime/lifecycle/cases/apache-phase4-response/
-- tests/test_apache_phase4_response_regression_wiring.py
-- tests/test_apache_phase4_content_type_synchronized_upstream.py
-- tests/test_nginx_phase4_runner_wiring.py
-- ci/checks/connectors/apache/check-apache-common-adoption.py
-- ci/checks/documentation/connector_config_reference.py
-
-Documentation and generated contracts:
-
-- connectors/apache/README.md and README.de.md
-- connectors/apache/TODO.md and TODO.de.md
-- connectors/apache/capabilities.json
-- docs/architecture.md and architecture.de.md
-- docs/connectors/apache.md and apache.de.md
-- docs/operations-and-security.md and operations-and-security.de.md
-- docs/repository-concept.md and repository-concept.de.md
-- examples/apache/README.md and README.de.md
-- examples/apache/configuration-reference.md and configuration-reference.de.md
-- examples/apache/rules/p1-p4-safe.conf and examples/apache/safe/httpd.conf
-- reports/connector-configuration-inventory.json
-- reports/testing/generated/canonical/connector-capabilities.generated.json,
-  connector-capabilities.generated.md, and connector-capabilities.generated.de.md
-
-## Commands executed
-
-All retained runtime/build evidence is under
-/var/tmp/codex/ModSecurity-conector/runs/20260718T075119Z-apache-phase4-response-098df329.
-
-1. Pre-fix reproduction passed as an observation: the direct URI target logged
-   rule 2190411 with HTTP 403, but the retained internal redirect returned HTTP
-   200 plus no-crs-response-body-marker.
-2. Current focused native cases passed: deny, allow, log-only, rogue H1 deny,
-   rogue H1 allow, rogue H2 deny, empty allow/deny, connector limit,
-   ProcessPartial, custom MIME, client abort, P3 deny/header-freeze, valid
-   upstream/downstream ErrorDocument H1/H2, nested/pre-output ErrorDocument
-   fail-closed controls, and normal/target/URI redirect fail-closed controls.
-3. The current H1/H2 multi-brigade denies logged rule 2190401 with HTTP 403,
-   response_not_committed, headers_sent false, and eos_seen true.
-4. make build-apache passed using component
-   696a153ff197a6c939ce29034a59291e7694674f16ff20af7efe3a591e273a3d.
-   make check-config-apache passed; every native harness invocation performs
-   httpd -t before startup.
-5. Static checks passed: shell syntax for the harness and focused runner,
-   tests.test_apache_phase4_response_regression_wiring (8 tests),
-   check-apache-common-adoption, generated configuration-reference checks, and
-   git diff --check.
-6. GCC C17 and strict focused GCC/Clang C17 checks passed. Whole-source strict
-   Clang remains blocked only by the unchanged origin/master msc_config.c:110
-   initializer from commit cfc8b487.
-7. Fresh v12 APXS ASan and UBSan DSOs passed native rogue-h1, deny, and
-   rogue-h2. The H2 transfer was negotiated as HTTP/2; six diagnostic scans
-   had no AddressSanitizer or UndefinedBehaviorSanitizer finding. Apache httpd
-   and libModSecurity themselves were not instrumented, and ASan used
-   detect_leaks=0.
-8. make clang-analysis-baseline passed. The current harness clang analyzer
-   produced no findings; clang-tidy produced only non-security advisory
-   warnings.
-9. The focused Apache CRS profile passed
-   crs_sqli_anomaly_block with HTTP 403. The canonical no-CRS Phase-4 fixture
-   intentionally rejects a CRS preamble, so it was not treated as a failed CRS
-   test.
-10. The focused Apache MRTS profile
-    mrts_100152_mrts_069_response_body_100152_1 passed as a live Phase-4
-    RESPONSE_BODY non-disruptive control with HTTP 200.
-11. Independent Codex Security source-to-sink and bypass review found no
-    remaining confirmed bypass of the original held response-body path.
-12. After SonarQube Cloud flagged the initial PR head, the focused control-path
-    hardening passed shell syntax, the Apache response-wiring tests plus the new
-    content-type synchronized-upstream unit tests (14 tests),
-    check-apache-common-adoption, and git diff --check. The helper now accepts
-    control files only beneath one existing harness-owned control root.
-13. The modified helper also passed the native custom-MIME synchronized
-    Phase-4 deny regression with Apache configuration validation. It held the
-    upstream response until EOS and returned the expected HTTP 403 without the
-    protected original body.
-
-## Runtime evidence
-
-Pre-fix and post-fix evidence is hash-addressed in
-FND-PARENT-0038. The central retained artifacts are:
-
-| Evidence | SHA-256 |
-| --- | --- |
-| Pre-fix HTTP 200 redirect status | c11e3f4837efde2441e23a7b9da02131f53bf59fddeb7147c4ab81afe400460f |
-| Pre-fix marker body | b186cc3103543b398e617165a51528ccae430b063105434b29a0b01aea28c9ee |
-| Current deny Phase-4 log | 45732d58de3644852c63c4d20d29118d7c6cae3f667407efdf3c3654ff03be41 |
-| Current H2 rogue Phase-4 log | bd18170c8e4b3a3dae42abaa03af232f7f2b452f2b6e88556e0e23c95904516d |
-| Fresh v12 ASan H2 rogue transfer | e4f4ac5699d92415b1de480cf593d029b8d3185b025db81e0662de40532dd8fe |
-| Fresh v12 UBSan H2 rogue transfer | ab569dde9d18e2e942792e39100dd0bebe3ca292c819172b8d051e24689e181a |
-| CRS compatibility result | 8c7de5d36446759e0753874937565dd13808098e70cbe16e5096ae84bbd9ecd8 |
-| MRTS Phase-4 result | d77175c27bd56ad0a08c4945aa1a2e56e6628df55a3f5c5154d48154582f5444 |
-
-## Security impact
-
-The repair converts an EOS-only decision that was formerly downstream of the
-first response release into a pre-commit gate. It explicitly covers late
-intervention, duplicated output, empty responses, body-limit failures, error
-buckets, cleanup, redirects, and ErrorDocument behavior. It retains a
-deliberate fail-closed policy where Apache/libModSecurity transaction semantics
-cannot safely be preserved.
-
-## Documentation and compatibility
-
-The English/German Apache documentation and examples describe the EOS gate,
-opaque libModSecurity MIME decision, bounded response-body limit, terminal
-guard, fail-closed redirect policy, and evidence limitations. Generated
-configuration/capability artifacts were refreshed through their configured
-checks. Framework and MRTS source/gitlinks remain unchanged.
-
-## Known limitations
-
-- The bounded local ErrorDocument exception uses Apache-core no_local_copy and
-  REDIRECT_STATUS correlation. It is strong Apache-core evidence but not an
-  unforgeable provenance primitive; no request-only exploit was demonstrated.
-- The Phase-3 snapshot covers normal response headers, not an all-purpose
-  guarantee over HTTP/2 trailers or downstream filters that mutate state after
-  release. This cannot leak the held original body after deny.
-- Response bytes subject to Phase 4 are held through EOS. This is the smallest
-  safe boundary with the available libModSecurity C API and trades progressive
-  Phase-4 streaming for enforcement.
-
-## Remaining risks
-
-- The full CRS/MRTS matrix was not run; focused applicable profiles were run.
-- Exact-head external delivery evidence remains outstanding for the SonarQube
-  Cloud remediation follow-up.
-
-## Checks not run and rationale
-
-- Draft PR #60 initial head `783c024b8cb90c783adfa7a18e85de170a28e1b5`:
-  CI and CodeQL passed, but SonarQube Cloud failed the Quality Gate with C
-  Security Rating and D Reliability Rating on new code. The affected
-  task-owned helper, harness, and static checker are tracked as
-  `FND-SONAR-0001`; the follow-up exact head is not yet verified.
-- Full CRS/MRTS matrix: not required for this focused Parent fix; a focused CRS
-  compatibility control and the exact MRTS RESPONSE_BODY Phase-4 control ran.
-- Whole-source strict Clang C17: blocked by the unchanged origin/master
-  msc_config.c:110 baseline warning, not by the Phase-4 patch.
-- Full repository bilingual-docs link check: the new Change Record's EN/DE
-  structure passed, but the dedicated worktree intentionally leaves its
-  Framework gitlink unpopulated. The remaining checker output is limited to
-  pre-existing links into that read-only Framework checkout; the external
-  Framework and MRTS checkouts were separately confirmed clean.
-
-## Final diff and review status
-
-The user authorized a focused Parent branch, commit, push, and Draft PR, but
-explicitly prohibited a merge. PR #60 remains a Draft. The delivery state is
-pending until the SonarQube follow-up's exact local, remote, and PR head match
-and CI, CodeQL, SonarQube Cloud, review, and revalidation facts are observed.
-The requested terminal status is verified_pr, not merge.
+Before PR #60 can be readied or merged, the final local diff requires a fresh
+Codex Security diff scan, and the pushed exact head requires terminal required
+checks, CodeQL, SonarCloud, review/thread evidence, protected merge, and
+resulting-master verification. The user authorized safe master integration,
+not a bypass of any of these gates.

@@ -1,14 +1,17 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-18T16:37:38Z`
-> Verified run id: `2026-06-16T19-12-00Z-614c8049`
+> Generated at: `2026-07-19T20:10:07Z`
+> Verified run id: `2026-07-19T20-10-07Z-93c5f30c`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/evidence/collectors/connector_capabilities.py`
 > Make target: `capabilities-all-connectors`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `c8ca0d92b630c18232b881855c4f5d1482568ea6`
-> Framework SHA: `c8ca0d92b630c18232b881855c4f5d1482568ea6`
+> Connector SHA: `93c5f30c181710f5c2cecf207fb92aaecb215035`
+> Framework SHA: `unknown`
+> Framework gitlink SHA: `cdc91a398d6c156eaff927d742b23018a3817fb6`
+> Framework checkout: `not_checked_out`
+> Framework gitlink status: `not_checked_out`
 > Input status: `complete`
 
 > Generierte Datei – nicht manuell bearbeiten.
@@ -112,7 +115,7 @@ Diese Datei wird deterministisch aus den sechs connector-lokalen Manifesten erze
 Host-Modell-Grenzen:
 
 - Apache incrementally appends response data buckets but saves every normalized response brigade in the request pool through first EOS; no original response byte is released before msc_process_response_body and intervention resolution complete.
-- libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the default 1048576-byte gate limit fails closed rather than releasing an uninspected tail.
+- libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the configurable default 1048576-byte gate limit and a fixed non-configurable 4096-normalized-bucket cap across filter calls fail closed rather than releasing an uninspected tail.
 - Normal r->prev and pre-output ErrorDocument redirects fail closed because the connector cannot safely rebind a source transaction to a target URI/ruleset. During terminal output EMITTING, exactly one Apache-core-marked local ErrorDocument hop is allowed with no_local_copy plus matching immediate predecessor status and REDIRECT_STATUS.
 - The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.
 - A normal Phase-4 deny discards the saved original brigade and emits a terminal error before release. log_only and abort_connection remain defensive fallbacks only when independent commit proof already exists.
@@ -143,7 +146,7 @@ Host-Modell-Grenzen:
 | `content_type_scope` | `implemented_not_asserted` | SecResponseBodyMimeType selects libModSecurity inspection, but the connector gates every response because the C API cannot expose the effective MIME decision; the deprecated legacy MIME file cannot narrow the gate. Evidence is pending. |
 | `header_limits` | `not_implemented` | No canonical Apache host-header-limit enforcement case is implemented in the full-lifecycle catalog. |
 | `request_body_limits` | `not_implemented` | No connector-local configurable request-body limit action is implemented for the Apache streaming filter. |
-| `response_body_limits` | `implemented_not_asserted` | The default 1048576-byte Phase-4 gate limit rejects an over-limit response before any original byte is released rather than forwarding an uninspected tail; canonical limit evidence is pending. |
+| `response_body_limits` | `implemented_not_asserted` | The configurable default 1048576-byte Phase-4 gate limit and fixed non-configurable 4096-normalized-bucket cap across filter calls reject their respective excess before any original byte is released rather than forwarding an uninspected tail; canonical limit evidence is pending. |
 | `no_full_response_buffering` | `not_implemented` | Apache intentionally retains the normalized response brigade across calls through first EOS to enforce the all-response Phase-4 decision before original output release. |
 | `first_byte_before_response_end` | `not_implemented` | Apache intentionally does not release an original first byte before first EOS because the all-response Phase-4 decision must complete before output release. |
 | `http1_content_length` | `configured_not_exercised` | Apache can serve HTTP/1.1 responses through the all-response Phase-4 gate; the focused H1 run has not yet produced canonical run-scoped evidence. |
@@ -570,12 +573,12 @@ Host-Modell-Grenzen:
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `connectors/apache/capabilities.json` | `2903382825d8d4661a06630e0e4602edca6434246806ba26716e93dc037f512c` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/nginx/capabilities.json` | `70fa6bb202c0ac3ea8292fa654a98586852b238e1885e43e7d5235e7daa0a982` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/haproxy/capabilities.json` | `b8e3ca621904e925580604d5b7af1c97cf0a4c01a4c7a42cc7c58fae4c9d599c` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/envoy/capabilities.json` | `b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/traefik/capabilities.json` | `04dbf29b4ed7085f1db172619b0957e6dc740964b9741c736b70e158fe904adc` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/lighttpd/capabilities.json` | `4aac60435527d7a17ddc11deb14ae49f5a48e15c8a357c0ea45627fa4dc82995` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/apache/capabilities.json` | `425d709d77eb545c980e4fd5a58aad1c8a7909edf92f392ff59682880da3ee01` | `2026-07-19T20-10-07Z-93c5f30c` | present |
+| Declared input | `connectors/nginx/capabilities.json` | `70fa6bb202c0ac3ea8292fa654a98586852b238e1885e43e7d5235e7daa0a982` | `2026-07-19T20-10-07Z-93c5f30c` | present |
+| Declared input | `connectors/haproxy/capabilities.json` | `b8e3ca621904e925580604d5b7af1c97cf0a4c01a4c7a42cc7c58fae4c9d599c` | `2026-07-19T20-10-07Z-93c5f30c` | present |
+| Declared input | `connectors/envoy/capabilities.json` | `b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216` | `2026-07-19T20-10-07Z-93c5f30c` | present |
+| Declared input | `connectors/traefik/capabilities.json` | `04dbf29b4ed7085f1db172619b0957e6dc740964b9741c736b70e158fe904adc` | `2026-07-19T20-10-07Z-93c5f30c` | present |
+| Declared input | `connectors/lighttpd/capabilities.json` | `4aac60435527d7a17ddc11deb14ae49f5a48e15c8a357c0ea45627fa4dc82995` | `2026-07-19T20-10-07Z-93c5f30c` | present |
 
 ## Data Availability / Missing Information
 

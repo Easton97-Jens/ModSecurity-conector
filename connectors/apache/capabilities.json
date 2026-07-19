@@ -14,7 +14,7 @@
   ],
   "host_model_constraints": [
     "Apache incrementally appends response data buckets but saves every normalized response brigade in the request pool through first EOS; no original response byte is released before msc_process_response_body and intervention resolution complete.",
-    "libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the default 1048576-byte gate limit fails closed rather than releasing an uninspected tail.",
+    "libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the configurable default 1048576-byte gate limit and a fixed non-configurable 4096-normalized-bucket cap across filter calls fail closed rather than releasing an uninspected tail.",
     "Normal r->prev and pre-output ErrorDocument redirects fail closed because the connector cannot safely rebind a source transaction to a target URI/ruleset. During terminal output EMITTING, exactly one Apache-core-marked local ErrorDocument hop is allowed with no_local_copy plus matching immediate predecessor status and REDIRECT_STATUS.",
     "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
     "A normal Phase-4 deny discards the saved original brigade and emits a terminal error before release. log_only and abort_connection remain defensive fallbacks only when independent commit proof already exists."
@@ -158,7 +158,7 @@
     },
     "response_body_limits": {
       "state": "implemented_not_asserted",
-      "reason": "The default 1048576-byte Phase-4 gate limit rejects an over-limit response before any original byte is released rather than forwarding an uninspected tail; canonical limit evidence is pending."
+      "reason": "The configurable default 1048576-byte Phase-4 gate limit and fixed non-configurable 4096-normalized-bucket cap across filter calls reject their respective excess before any original byte is released rather than forwarding an uninspected tail; canonical limit evidence is pending."
     },
     "no_full_response_buffering": {
       "state": "not_implemented",

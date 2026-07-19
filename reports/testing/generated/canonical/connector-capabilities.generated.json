@@ -281,7 +281,7 @@
           "state": "implemented_not_asserted"
         },
         "response_body_limits": {
-          "reason": "The default 1048576-byte Phase-4 gate limit rejects an over-limit response before any original byte is released rather than forwarding an uninspected tail; canonical limit evidence is pending.",
+          "reason": "The configurable default 1048576-byte Phase-4 gate limit and fixed non-configurable 4096-normalized-bucket cap across filter calls reject their respective excess before any original byte is released rather than forwarding an uninspected tail; canonical limit evidence is pending.",
           "state": "implemented_not_asserted"
         },
         "response_body_streaming": {
@@ -346,7 +346,7 @@
       },
       "host_model_constraints": [
         "Apache incrementally appends response data buckets but saves every normalized response brigade in the request pool through first EOS; no original response byte is released before msc_process_response_body and intervention resolution complete.",
-        "libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the default 1048576-byte gate limit fails closed rather than releasing an uninspected tail.",
+        "libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the configurable default 1048576-byte gate limit and a fixed non-configurable 4096-normalized-bucket cap across filter calls fail closed rather than releasing an uninspected tail.",
         "Normal r->prev and pre-output ErrorDocument redirects fail closed because the connector cannot safely rebind a source transaction to a target URI/ruleset. During terminal output EMITTING, exactly one Apache-core-marked local ErrorDocument hop is allowed with no_local_copy plus matching immediate predecessor status and REDIRECT_STATUS.",
         "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
         "A normal Phase-4 deny discards the saved original brigade and emits a terminal error before release. log_only and abort_connection remain defensive fallbacks only when independent commit proof already exists."
@@ -1893,7 +1893,7 @@
     "crs_smoke",
     "extended_matrix"
   ],
-  "generated_at": "2026-07-18T16:37:38Z",
+  "generated_at": "2026-07-19T20:10:07Z",
   "generated_from": [
     "connectors/apache/capabilities.json",
     "connectors/nginx/capabilities.json",
@@ -1906,14 +1906,17 @@
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "c8ca0d92b630c18232b881855c4f5d1482568ea6",
+    "connector_sha": "93c5f30c181710f5c2cecf207fb92aaecb215035",
     "data_kind": "capability-catalog",
     "data_origin": "repository",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "c8ca0d92b630c18232b881855c4f5d1482568ea6",
-    "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-07-18T16:37:38Z",
+    "framework_checkout_status": "not_checked_out",
+    "framework_gitlink_sha": "cdc91a398d6c156eaff927d742b23018a3817fb6",
+    "framework_gitlink_status": "not_checked_out",
+    "framework_sha": "unknown",
+    "framework_working_tree_dirty": "unknown",
+    "generated_at": "2026-07-19T20:10:07Z",
     "generated_by": "ci/evidence/collectors/connector_capabilities.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -1921,8 +1924,8 @@
       {
         "notes": "input file available",
         "path": "connectors/apache/capabilities.json",
-        "sha256": "2903382825d8d4661a06630e0e4602edca6434246806ba26716e93dc037f512c",
-        "source_hash": "2903382825d8d4661a06630e0e4602edca6434246806ba26716e93dc037f512c",
+        "sha256": "425d709d77eb545c980e4fd5a58aad1c8a7909edf92f392ff59682880da3ee01",
+        "source_hash": "425d709d77eb545c980e4fd5a58aad1c8a7909edf92f392ff59682880da3ee01",
         "status": "present"
       },
       {
@@ -1969,7 +1972,7 @@
     "schema_version": 1,
     "severity": "informational",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
+    "verified_run_id": "2026-07-19T20-10-07Z-93c5f30c",
     "working_tree_dirty": "dirty"
   },
   "runtime_promotion": false,

@@ -137,14 +137,14 @@
       "inheritance": "Parent value is available to the child unless a child value is set; see the Apache directory-config merge function.",
       "merge_behavior": "Common scalar values use child-over-parent merge; rule sets are merged through msc_rules_merge. Transaction-id expression/static-id are mutually exclusive.",
       "validation": "msc_config_phase4_body_limit returns an Apache configuration error for its documented invalid input; validate the installed configuration with apachectl -t.",
-      "phase_relevance": "P4 only. The limit applies while normalized brigades are retained through first EOS for the all-response enforcement decision.",
-      "security_relevance": "The finite limit bounds memory and CPU exposure. Do not process a prefix and release an uninspected tail: exceeding this connector limit must fail closed.",
-      "runtime_effect": "Bounds Apache's saved all-response brigade before Phase-4 completion. The default is 1048576 bytes; an over-limit response fails closed before any original response byte is released.",
+      "phase_relevance": "P4 only. The byte limit and the fixed bucket ceiling apply while normalized brigades are retained through first EOS for the all-response enforcement decision; the bucket count spans filter calls and resets on release or discard.",
+      "security_relevance": "The byte and fixed bucket ceilings bound payload and retained APR-object/setaside memory/CPU exposure. Do not process a prefix and release an uninspected tail: exceeding either connector limit must fail closed.",
+      "runtime_effect": "Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails closed before any original response byte is released.",
       "example_file": "examples/apache/safe/httpd.conf",
       "example_value": "",
       "compatibility_only": false,
       "deprecated": false,
-      "description": "Bounds Apache's saved all-response brigade before Phase-4 completion. The default is 1048576 bytes; an over-limit response fails closed before any original response byte is released."
+      "description": "Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails closed before any original response byte is released."
     },
     {
       "connector": "apache",

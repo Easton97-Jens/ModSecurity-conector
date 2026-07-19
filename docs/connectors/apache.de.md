@@ -85,7 +85,12 @@ jeden Response-MIME-Typ; die Engine-Direktive wählt weiterhin die Inspektion,
 aber das veraltete `modsecurity_phase4_content_types_file` kann keinen
 Pass-through-Pfad öffnen. Das Connector-Standardlimit ist ein hartes Limit von
 1048576 Byte (1 MiB); eine übergroße Response schlägt fail-closed fehl, bevor
-ihre ursprünglichen Bytes freigegeben werden. `r->sent_bodyct` und `eos_sent`
+ihre ursprünglichen Bytes freigegeben werden.
+Zusätzlich gilt eine feste, nicht konfigurierbare Obergrenze von 4.096
+normalisierten, über Filter-Aufrufe hinweg zurückgehaltenen Buckets; vor dem
+Zurückhalten des nächsten Buckets schlägt sie fail-closed fehl, sodass eine
+stark fragmentierte Response schon unterhalb des Byte-Limits abgelehnt werden
+kann. `r->sent_bodyct` und `eos_sent`
 sind kein Commit-Nachweis, weil Upstream-/Core-Pfade sie setzen können, bevor
 dieser Filter Ausgabe freigibt. Das Gate verwendet stattdessen seinen eigenen
 Released-EOS-Marker und Apaches `r->bytes_sent`.

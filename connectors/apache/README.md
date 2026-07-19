@@ -149,6 +149,10 @@ inspection, while the deprecated
 pass-through route. The default `modsecurity_phase4_body_limit` is 1048576
 bytes (1 MiB). A response that exceeds it fails closed before any original
 response byte is released; it is not processed partially and then streamed.
+The byte bound is not the only retained-resource bound: Apache also enforces a
+fixed, non-configurable ceiling of 4,096 normalized buckets retained across
+filter calls. It fails closed before retaining the next bucket, so a highly
+fragmented response can be rejected below the byte limit.
 
 At the normal decision boundary, Apache's `r->sent_bodyct` and `eos_sent` are
 not commit proof: upstream modules can set them before this filter has released

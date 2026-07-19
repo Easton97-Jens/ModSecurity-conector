@@ -49,7 +49,7 @@ in der Konfiguration, einschließlich /usr/lib/apache2/modules/mod_security3.so,
 | modsecurity_phase4_mode | Defensiver Late-P4-Fallback: minimal, safe oder strict | Nur Safe-Datei; Host-Konfiguration; Modul-Scope | safe. Ein normaler gegateter Deny wird vor Release aufgelöst; diese Einstellung wählt nur einen unerwarteten bereits-committed Fallback. |
 | modsecurity_phase4_content_types_file | Veraltete Legacy-Datei für Response-MIME-Typen | Optionaler Kompatibilitätsparser; Host-Konfiguration; Modul-Scope | Für neue Apache-Profile nicht konfigurieren: Sie kann das All-Response-Gate nicht einschränken. `SecResponseBodyMimeType` wählt die Engine-Inspektion. |
 | modsecurity_phase4_log | Ziel für Decision-JSONL | Optional; Host-Konfiguration; Modul-Scope | /var/log/modsecurity/apache-phase4.jsonl. Request-Metadaten schützen und rotieren. |
-| modsecurity_phase4_body_limit und SecResponseBodyLimit | Positive P4-Byte-Limits | Für begrenztes Safe Pflicht; Host- und Regeldatei; keine automatische Angleichung | Connector-Standard sind 1048576 Byte. Das ist ein hartes fail-closed-All-Response-Gate-Limit; eine libModSecurity-`ProcessPartial`-Policy gibt keinen uninspektierten Connector-Tail frei. |
+| modsecurity_phase4_body_limit und SecResponseBodyLimit | Positive P4-Byte-Limits | Für begrenztes Safe Pflicht; Host- und Regeldatei; keine automatische Angleichung | Connector-Standard sind 1048576 Byte. Das ist ein hartes fail-closed-All-Response-Gate-Limit. Eine getrennte feste, nicht konfigurierbare Obergrenze von 4.096 normalisierten Buckets über Filter-Aufrufe hinweg kann eine stark fragmentierte Response schon unterhalb dieses Byte-Limits ablehnen; eine libModSecurity-`ProcessPartial`-Policy gibt keinen uninspektierten Connector-Tail frei. |
 | SecRequestBodyAccess und SecResponseBodyAccess | Request-/Response-Body-Schalter | In passenden Regeln Pflicht; Rule-Engine-Scope | On in Safe-Regeln; Response Access ist bei Request-only Off. |
 | SecResponseBodyMimeType und SecResponseBodyLimitAction | Engine-P4-Scope und Policy über dem Limit | In Safe-Regeln Pflicht; Rule-Engine-Scope | Explizite Text-/JSON-Typen wählen die Engine-Inspektion; sie schränken Apaches All-Response-Gate nicht ein. Kein Binary-Verhalten ableiten. |
 | SecAuditLog | Audit-Log-Ziel | Optional; Regeldatei; Rule-Engine-Scope | /var/log/modsecurity/apache-audit.log. Zugriff und Aufbewahrung steuern. |
@@ -109,6 +109,12 @@ Connector opak; `SecResponseBodyMimeType` wählt daher Engine-Inspektion, ohne
 einen Gate-Bypass zu erzeugen. Das veraltete
 `modsecurity_phase4_content_types_file` fehlt absichtlich in der Safe-
 Konfiguration.
+
+Das konfigurierbare Byte-Limit wird durch eine feste, nicht konfigurierbare
+Obergrenze von 4.096 normalisierten Buckets über Filter-Aufrufe hinweg ergänzt.
+Der Connector schlägt fail-closed fehl, bevor er den nächsten Bucket
+zurückhält; daher kann diese Ressourcengrenze eine stark fragmentierte Response
+schon unterhalb von 1048576 Byte ablehnen.
 
 Dieser Abschnitt beschreibt Konfigurationsabsicht, kein Laufergebnis. Die
 Input-Aufnahme bleibt über mehrere Brigades hinweg inkrementell, der native

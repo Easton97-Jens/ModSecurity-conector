@@ -276,16 +276,20 @@ APACHE_DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
     },
     "modsecurity_phase4_body_limit": {
         "effect": (
-            "Bounds Apache's saved all-response brigade before Phase-4 completion. The default is "
-            "1048576 bytes; an over-limit response fails closed before any original response byte is released."
+            "Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable "
+            "default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket "
+            "ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails "
+            "closed before any original response byte is released."
         ),
         "security": (
-            "The finite limit bounds memory and CPU exposure. Do not process a prefix and release "
-            "an uninspected tail: exceeding this connector limit must fail closed."
+            "The byte and fixed bucket ceilings bound payload and retained APR-object/setaside memory/CPU "
+            "exposure. Do not process a prefix and release an uninspected tail: exceeding either connector "
+            "limit must fail closed."
         ),
         "phase_relevance": (
-            "P4 only. The limit applies while normalized brigades are retained through first EOS "
-            "for the all-response enforcement decision."
+            "P4 only. The byte limit and the fixed bucket ceiling apply while normalized brigades are "
+            "retained through first EOS for the all-response enforcement decision; the bucket count spans "
+            "filter calls and resets on release or discard."
         ),
     },
 }
@@ -3099,9 +3103,9 @@ GERMAN_TEXT: dict[str, str] = {
     "Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the all-response Phase-4 gate; use SecResponseBodyMimeType to select libModSecurity inspection.": "Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt das All-Response-Phase-4-Gate nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion.",
     "Do not use this legacy list to permit a pass-through route. The connector cannot safely query libModSecurity's effective MIME selection, so every response remains gated through EOS.": "Diese Legacy-Liste darf keinen Pass-through-Pfad erlauben. Der Connector kann die wirksame MIME-Auswahl von libModSecurity nicht sicher abfragen, daher bleibt jede Response bis EOS gegatet.",
     "P4 only. The parser is retained for compatibility but cannot select which Apache responses bypass the EOS-only enforcement gate.": "Nur P4. Der Parser bleibt aus Kompatibilitätsgründen erhalten, kann aber nicht auswählen, welche Apache-Responses das EOS-only-Enforcement-Gate umgehen.",
-    "Bounds Apache's saved all-response brigade before Phase-4 completion. The default is 1048576 bytes; an over-limit response fails closed before any original response byte is released.": "Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der Standardwert ist 1048576 Byte; eine Response über dem Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird.",
-    "The finite limit bounds memory and CPU exposure. Do not process a prefix and release an uninspected tail: exceeding this connector limit must fail closed.": "Das endliche Limit begrenzt Speicher- und CPU-Exposition. Keinen Präfix verarbeiten und einen uninspektierten Tail freigeben: Das Überschreiten dieses Connector-Limits muss fail-closed fehlschlagen.",
-    "P4 only. The limit applies while normalized brigades are retained through first EOS for the all-response enforcement decision.": "Nur P4. Das Limit gilt, während normalisierte Brigades für die All-Response-Enforcement-Entscheidung bis zum ersten EOS zurückgehalten werden.",
+    "Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails closed before any original response byte is released.": "Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Response über dem Byte- oder Bucket-Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird.",
+    "The byte and fixed bucket ceilings bound payload and retained APR-object/setaside memory/CPU exposure. Do not process a prefix and release an uninspected tail: exceeding either connector limit must fail closed.": "Die Byte- und feste Bucket-Obergrenze begrenzen Payload- sowie zurückgehaltene APR-Objekt-/Setaside-Speicher-/CPU-Exposition. Keinen Präfix verarbeiten und einen uninspektierten Tail freigeben: Das Überschreiten einer der Connector-Grenzen muss fail-closed fehlschlagen.",
+    "P4 only. The byte limit and the fixed bucket ceiling apply while normalized brigades are retained through first EOS for the all-response enforcement decision; the bucket count spans filter calls and resets on release or discard.": "Nur P4. Das Byte-Limit und die feste Bucket-Obergrenze gelten, während normalisierte Brigades für die All-Response-Enforcement-Entscheidung bis zum ersten EOS zurückgehalten werden; der Bucket-Zähler gilt über Filter-Aufrufe hinweg und wird bei Release oder Discard zurückgesetzt.",
 }
 
 

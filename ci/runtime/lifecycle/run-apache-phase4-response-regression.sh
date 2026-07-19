@@ -3,7 +3,7 @@
 # Framework case catalog. The caller supplies a task-owned runtime environment.
 set -eu
 
-mode=${1:?usage: run-apache-phase4-response-regression.sh bypass|deny|allow|log-only|client-abort|empty|empty-deny|limit|custom-mime-deny|engine-limit|redirect-bypass-h1|redirect-abort-h1|redirect-bypass-h2|redirect-abort-h2|redirect-target-config-bypass-h1|redirect-target-config-abort-h1|redirect-uri-bypass-h1|redirect-uri-abort-h1|downstream-error-document-h1|downstream-error-document-h2|upstream-error-document-h1|upstream-error-document-h2|nested-error-document-redirect-h1|preoutput-error-document-h1|preoutput-error-document-h2|rogue-h1|rogue-allow-h1|rogue-p3-h1|rogue-p3-header-freeze-h1|rogue-p3-header-freeze-h2|rogue-error-document-h1|rogue-h2|rogue-error-document-h2}
+mode=${1:?usage: run-apache-phase4-response-regression.sh bypass|deny|allow|log-only|client-abort|empty|empty-deny|limit|custom-mime-deny|engine-limit|fragmented-buckets|fragmented-buckets-boundary|redirect-bypass-h1|redirect-abort-h1|redirect-bypass-h2|redirect-abort-h2|redirect-target-config-bypass-h1|redirect-target-config-abort-h1|redirect-uri-bypass-h1|redirect-uri-abort-h1|redirect-target-handler-abort-h1|redirect-target-handler-abort-h2|downstream-error-document-h1|downstream-error-document-h2|upstream-error-document-h1|upstream-error-document-h2|nested-error-document-redirect-h1|preoutput-error-document-h1|preoutput-error-document-h2|rogue-h1|rogue-allow-h1|rogue-p3-h1|rogue-p3-header-freeze-h1|rogue-p3-header-freeze-h2|rogue-error-document-h1|rogue-h2|rogue-error-document-h2}
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT=${CONNECTOR_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)}
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}
@@ -60,11 +60,24 @@ case "$mode" in
         sync_expectation=custom_mime_deny
         sync=1
         synchronized_upstream=$SCRIPT_DIR/apache_phase4_content_type_synchronized_upstream.py
+        synchronized_upstream_control_root=1
         ;;
     engine-limit)
         case_file=$CASE_ROOT/engine-limit-process-partial.yaml
         sync_expectation=engine_append_failure
         sync=1
+        ;;
+    fragmented-buckets)
+        case_file=$CASE_ROOT/allow.yaml
+        sync_expectation=first_byte
+        sync=0
+        fragmented_buckets_test=1
+        ;;
+    fragmented-buckets-boundary)
+        case_file=$CASE_ROOT/allow.yaml
+        sync_expectation=first_byte
+        sync=0
+        fragmented_bucket_boundary_test=1
         ;;
     redirect-bypass-h1)
         case_file=$CASE_ROOT/precommit-deny.yaml
@@ -131,6 +144,23 @@ case "$mode" in
         internal_redirect_expect=uri_policy_abort
         internal_redirect_uri_policy_test=1
         internal_redirect_direct_rule_id=2190411
+        ;;
+    redirect-target-handler-abort-h1)
+        case_file=$CASE_ROOT/precommit-deny.yaml
+        sync_expectation=first_byte
+        sync=0
+        internal_redirect_test=1
+        internal_redirect_expect=target_handler_abort
+        internal_redirect_target_handler_test=1
+        ;;
+    redirect-target-handler-abort-h2)
+        case_file=$CASE_ROOT/precommit-deny.yaml
+        sync_expectation=first_byte
+        sync=0
+        internal_redirect_test=1
+        internal_redirect_expect=target_handler_abort
+        internal_redirect_target_handler_test=1
+        rogue_protocol=h2
         ;;
     downstream-error-document-h1)
         case_file=$CASE_ROOT/log-only.yaml
@@ -249,7 +279,7 @@ case "$mode" in
         error_document=1
         ;;
     *)
-        echo "usage: run-apache-phase4-response-regression.sh bypass|deny|allow|log-only|client-abort|empty|empty-deny|limit|custom-mime-deny|engine-limit|redirect-bypass-h1|redirect-abort-h1|redirect-bypass-h2|redirect-abort-h2|redirect-target-config-bypass-h1|redirect-target-config-abort-h1|redirect-uri-bypass-h1|redirect-uri-abort-h1|downstream-error-document-h1|downstream-error-document-h2|upstream-error-document-h1|upstream-error-document-h2|nested-error-document-redirect-h1|preoutput-error-document-h1|preoutput-error-document-h2|rogue-h1|rogue-allow-h1|rogue-p3-h1|rogue-p3-header-freeze-h1|rogue-p3-header-freeze-h2|rogue-error-document-h1|rogue-h2|rogue-error-document-h2" >&2
+        echo "usage: run-apache-phase4-response-regression.sh bypass|deny|allow|log-only|client-abort|empty|empty-deny|limit|custom-mime-deny|engine-limit|fragmented-buckets|fragmented-buckets-boundary|redirect-bypass-h1|redirect-abort-h1|redirect-bypass-h2|redirect-abort-h2|redirect-target-config-bypass-h1|redirect-target-config-abort-h1|redirect-uri-bypass-h1|redirect-uri-abort-h1|redirect-target-handler-abort-h1|redirect-target-handler-abort-h2|downstream-error-document-h1|downstream-error-document-h2|upstream-error-document-h1|upstream-error-document-h2|nested-error-document-redirect-h1|preoutput-error-document-h1|preoutput-error-document-h2|rogue-h1|rogue-allow-h1|rogue-p3-h1|rogue-p3-header-freeze-h1|rogue-p3-header-freeze-h2|rogue-error-document-h1|rogue-h2|rogue-error-document-h2" >&2
         exit 2
         ;;
 esac
@@ -284,7 +314,10 @@ exec env \
     MSCONNECTOR_FULL_LIFECYCLE_SYNC="$sync" \
     MSCONNECTOR_PHASE4_SYNC_EXPECTATION="$sync_expectation" \
     SYNCHRONIZED_UPSTREAM="${synchronized_upstream:-}" \
+    APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="${synchronized_upstream_control_root:-0}" \
     APACHE_PHASE4_SYNC_CONTENT_TYPE="${APACHE_PHASE4_SYNC_CONTENT_TYPE:-application/vnd.apache-phase4+json}" \
+    APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST="${fragmented_buckets_test:-0}" \
+    APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST="${fragmented_bucket_boundary_test:-0}" \
     APACHE_PHASE4_ROGUE_TEST="${rogue_test:-0}" \
     APACHE_PHASE4_ROGUE_PROTOCOL="${rogue_protocol:-http1}" \
     APACHE_PHASE4_ERROR_DOCUMENT="${error_document:-0}" \
@@ -295,6 +328,7 @@ exec env \
     APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT="${internal_redirect_expect:-abort}" \
     APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST="${internal_redirect_target_config_test:-0}" \
     APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST="${internal_redirect_uri_policy_test:-0}" \
+    APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST="${internal_redirect_target_handler_test:-0}" \
     APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID="${internal_redirect_direct_rule_id:-}" \
     APACHE_PHASE4_DOWNSTREAM_ERROR_TEST="${downstream_error_test:-0}" \
     APACHE_PHASE4_UPSTREAM_ERROR_TEST="${upstream_error_test:-0}" \

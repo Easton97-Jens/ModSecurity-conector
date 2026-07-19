@@ -52,6 +52,7 @@ FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
 MSCONNECTOR_PHASE4_SYNC_EXPECTATION="${MSCONNECTOR_PHASE4_SYNC_EXPECTATION:-first_byte}"
 APACHE_PHASE4_BODY_LIMIT="${APACHE_PHASE4_BODY_LIMIT:-1048576}"
 SYNCHRONIZED_UPSTREAM="${SYNCHRONIZED_UPSTREAM:-$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py}"
+APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="${APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT:-0}"
 APACHE_PHASE4_ROGUE_TEST="${APACHE_PHASE4_ROGUE_TEST:-0}"
 APACHE_PHASE4_ROGUE_PROTOCOL="${APACHE_PHASE4_ROGUE_PROTOCOL:-http1}"
 APACHE_PHASE4_ERROR_DOCUMENT="${APACHE_PHASE4_ERROR_DOCUMENT:-0}"
@@ -62,11 +63,14 @@ APACHE_PHASE4_INTERNAL_REDIRECT_TEST="${APACHE_PHASE4_INTERNAL_REDIRECT_TEST:-0}
 APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT="${APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT:-abort}"
 APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST="${APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST:-0}"
 APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST="${APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST:-0}"
+APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST="${APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST:-0}"
 APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID="${APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID:-}"
 APACHE_PHASE4_DOWNSTREAM_ERROR_TEST="${APACHE_PHASE4_DOWNSTREAM_ERROR_TEST:-0}"
 APACHE_PHASE4_UPSTREAM_ERROR_TEST="${APACHE_PHASE4_UPSTREAM_ERROR_TEST:-0}"
 APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST="${APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST:-0}"
 APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST="${APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST:-0}"
+APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST:-0}"
+APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST:-0}"
 OPENSSL_BIN="${OPENSSL:-openssl}"
 
 load_connector_adapter_metadata() {
@@ -562,8 +566,17 @@ start_synchronized_upstream() {
     SYNCHRONIZED_SERVER_EVIDENCE_FILE="$SYNCHRONIZED_DIR/upstream-server.json"
     rm -rf "$SYNCHRONIZED_DIR"
     mkdir -p "$SYNCHRONIZED_DIR"
-    "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
-        --control-root "$SYNCHRONIZED_DIR" \
+    case "$APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT must be 0 or 1" ;;
+    esac
+    if [ "$APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT" = "1" ]; then
+        set -- "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
+            --control-root "$SYNCHRONIZED_DIR"
+    else
+        set -- "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve
+    fi
+    "$@" \
         --ready-file "$SYNCHRONIZED_READY_FILE" \
         --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
         --release-file "$SYNCHRONIZED_RELEASE_FILE" \
@@ -1221,10 +1234,22 @@ assert_phase4_redirect_direct_control() {
         fail "Phase-4 internal redirect direct control lacks audit rule $APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID"
 }
 
+assert_phase4_internal_redirect_target_handler_was_not_run() {
+    [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" = "1" ] || return 0
+    if grep -F 'ModSecurity Phase4 redirect target handler executed' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1; then
+        fail "Phase-4 normal redirect invoked the target handler before fail-closed refusal"
+    fi
+}
+
 send_phase4_internal_redirect_request() {
     redirect_expected="$LOG_DIR/phase4-internal-redirect.expected"
+    redirect_request_uri=/__phase4_internal_redirect
 
     printf '%s' 'no-crs-response-body-marker' > "$redirect_expected"
+    if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" = "1" ]; then
+        redirect_request_uri=/__phase4_internal_redirect_target_handler_test
+    fi
     if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ] || \
         [ "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" = "1" ]; then
         assert_phase4_redirect_direct_control
@@ -1235,11 +1260,11 @@ send_phase4_internal_redirect_request() {
             set +e
             http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
                 -o "$RESPONSE_BODY" -w '%{http_code}' \
-                "http://127.0.0.1:$PORT/__phase4_internal_redirect")
+                "http://127.0.0.1:$PORT$redirect_request_uri")
             curl_rc=$?
             set -e
             case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
-                abort|target_config_abort|uri_policy_abort) ;;
+                abort|target_config_abort|uri_policy_abort|target_handler_abort) ;;
                 *)
                     [ "$curl_rc" -eq 0 ] || \
                         fail "Phase-4 internal redirect H1 client failed rc=$curl_rc"
@@ -1256,7 +1281,7 @@ send_phase4_internal_redirect_request() {
                 --trace-ascii "$PHASE4_ROGUE_TRACE" \
                 -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
                 -w '%{http_code}\t%{http_version}\n' \
-                "https://127.0.0.1:$PORT/__phase4_internal_redirect" \
+                "https://127.0.0.1:$PORT$redirect_request_uri" \
                 > "$PHASE4_ROGUE_TRANSFERS" \
                 2> "$LOG_DIR/phase4-internal-redirect-h2-client.err"
             curl_rc=$?
@@ -1266,7 +1291,7 @@ send_phase4_internal_redirect_request() {
             http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
                 "$PHASE4_ROGUE_TRANSFERS")
             case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
-                abort|target_config_abort|uri_policy_abort)
+                abort|target_config_abort|uri_policy_abort|target_handler_abort)
                     # The enforced normal-redirect boundary closes the
                     # connection/stream after keeping all response bytes
                     # private. curl can therefore report a transport error;
@@ -1298,6 +1323,7 @@ send_phase4_internal_redirect_request() {
     grep -F 'ModSecurity Phase4 redirect test issued an internal redirect' \
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "Phase-4 internal redirect test handler did not issue its redirect"
+    assert_phase4_internal_redirect_target_handler_was_not_run
 
     case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
         bypass)
@@ -1376,6 +1402,19 @@ send_phase4_internal_redirect_request() {
             [ "$redirect_direct_rule_events_after" -eq \
                 "$redirect_direct_rule_events_before" ] || \
                 fail "Phase-4 URI policy redirect incorrectly ran rule $APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID on a rebound transaction"
+            ;;
+        target_handler_abort)
+            case "$http_status" in
+                2*) fail "Phase-4 target-handler redirect was released as successful status $http_status" ;;
+                *) ;;
+            esac
+            if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+                fail "Phase-4 target-handler redirect abort leaked the marker body"
+            fi
+            grep -F 'request transaction cannot be safely rebound to the target URI' \
+                "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+                fail "Phase-4 target-handler redirect lacks the transaction-rebind refusal"
+            assert_phase4_internal_redirect_target_handler_was_not_run
             ;;
         abort)
             case "$http_status" in
@@ -1650,6 +1689,66 @@ send_phase4_preoutput_error_document_request() {
 }
 
 
+send_phase4_fragmented_buckets_request() {
+    : > "$RESPONSE_BODY"
+    set +e
+    http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
+        -o "$RESPONSE_BODY" -w '%{http_code}' \
+        "http://127.0.0.1:$PORT/__phase4_fragmented_buckets")
+    curl_rc=$?
+    set -e
+
+    [ "$curl_rc" -eq 0 ] || \
+        fail "Phase-4 fragmented-bucket H1 client failed rc=$curl_rc"
+    [ "$http_status" = "500" ] || \
+        fail "Phase-4 fragmented-bucket limit expected status 500, observed $http_status"
+    assert_single_h1_status 500
+    if grep -F 'ffffffffffffffff' "$RESPONSE_BODY" >/dev/null 2>&1; then
+        fail "Phase-4 fragmented-bucket limit leaked the retained response body"
+    fi
+    grep -F 'response brigade exceeds modsecurity_phase4_bucket_limit' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "Phase-4 fragmented-bucket limit did not record its fail-closed reason"
+    grep -F 'ModSecurity Phase4 fragmented-bucket test emitted 4097 one-byte buckets' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "Phase-4 fragmented-bucket handler did not execute"
+    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+    printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+}
+
+
+send_phase4_fragmented_bucket_boundary_request() {
+    : > "$RESPONSE_BODY"
+    set +e
+    http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
+        -o "$RESPONSE_BODY" -w '%{http_code}' \
+        "http://127.0.0.1:$PORT/__phase4_fragmented_buckets_boundary")
+    curl_rc=$?
+    set -e
+
+    [ "$curl_rc" -eq 0 ] || \
+        fail "Phase-4 fragmented-bucket boundary H1 client failed rc=$curl_rc"
+    [ "$http_status" = "200" ] || \
+        fail "Phase-4 fragmented-bucket boundary expected status 200, observed $http_status"
+    assert_single_h1_status 200
+    body_size=$(wc -c < "$RESPONSE_BODY" | tr -d '[:space:]')
+    [ "$body_size" = "4095" ] || \
+        fail "Phase-4 fragmented-bucket boundary expected 4095 bytes, observed $body_size"
+    if LC_ALL=C tr -d 'f' < "$RESPONSE_BODY" | grep . >/dev/null 2>&1; then
+        fail "Phase-4 fragmented-bucket boundary returned a non-fragment marker byte"
+    fi
+    if grep -F 'response brigade exceeds modsecurity_phase4_bucket_limit' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1; then
+        fail "Phase-4 fragmented-bucket boundary unexpectedly hit the limit"
+    fi
+    grep -F 'ModSecurity Phase4 fragmented-bucket test emitted 4095 one-byte buckets in two brigades rc=0' \
+        "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+        fail "Phase-4 fragmented-bucket boundary handler did not complete"
+    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+    printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+}
+
+
 phase4_terminal_test_uses_h2() {
     [ "$APACHE_PHASE4_ROGUE_PROTOCOL" = "h2" ] || return 1
     [ "$APACHE_PHASE4_ROGUE_TEST" = "1" ] || \
@@ -1848,8 +1947,12 @@ write_backend_proxy_directives() {
         # synthetic prefix used only by this harness.
         echo "ProxyPass \"/__phase4_rogue_header\" \"!\""
         echo "ProxyPass \"/__phase4_rogue\" \"!\""
+        echo "ProxyPass \"/__phase4_fragmented_buckets\" \"!\""
+        echo "ProxyPass \"/__phase4_fragmented_buckets_boundary\" \"!\""
         echo "ProxyPass \"/__phase4_internal_redirect\" \"!\""
         echo "ProxyPass \"/__phase4_internal_redirect_target.txt\" \"!\""
+        echo "ProxyPass \"/__phase4_internal_redirect_target_handler_test\" \"!\""
+        echo "ProxyPass \"/__phase4_internal_redirect_target_handler_target\" \"!\""
         echo "ProxyPass \"/__phase4_nested_error_document_redirect\" \"!\""
         echo "ProxyPass \"/__phase4_preoutput_error\" \"!\""
         echo "ProxyPass \"/__phase4_preoutput_error_document.txt\" \"!\""
@@ -1921,6 +2024,10 @@ write_phase4_terminal_test_support() {
         0|1) ;;
         *) fail "APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST must be 0 or 1" ;;
     esac
+    case "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST must be 0 or 1" ;;
+    esac
     case "$APACHE_PHASE4_DOWNSTREAM_ERROR_TEST" in
         0|1) ;;
         *) fail "APACHE_PHASE4_DOWNSTREAM_ERROR_TEST must be 0 or 1" ;;
@@ -1928,6 +2035,14 @@ write_phase4_terminal_test_support() {
     case "$APACHE_PHASE4_UPSTREAM_ERROR_TEST" in
         0|1) ;;
         *) fail "APACHE_PHASE4_UPSTREAM_ERROR_TEST must be 0 or 1" ;;
+    esac
+    case "$APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST must be 0 or 1" ;;
+    esac
+    case "$APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST" in
+        0|1) ;;
+        *) fail "APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST must be 0 or 1" ;;
     esac
     if [ "$APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST" = "1" ] && \
         [ "$APACHE_PHASE4_ROGUE_TEST" != "1" ]; then
@@ -1938,7 +2053,10 @@ write_phase4_terminal_test_support() {
         [ "$APACHE_PHASE4_DOWNSTREAM_ERROR_TEST" = "0" ] && \
         [ "$APACHE_PHASE4_UPSTREAM_ERROR_TEST" = "0" ] && \
         [ "$APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST" = "0" ] && \
-        [ "$APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST" = "0" ]; then
+        [ "$APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST" = "0" ] && \
+        [ "$APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST" = "0" ] && \
+        [ "$APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST" = "0" ] && \
+        [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" = "0" ]; then
         return 0
     fi
     case "$APACHE_PHASE4_ROGUE_EXPECT" in
@@ -1954,7 +2072,7 @@ write_phase4_terminal_test_support() {
         *) fail "APACHE_PHASE4_ROGUE_HEADER_MUTATION must be 0 or 1" ;;
     esac
     case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
-        bypass|abort|target_config_bypass|target_config_abort|uri_policy_bypass|uri_policy_abort) ;;
+        bypass|abort|target_config_bypass|target_config_abort|uri_policy_bypass|uri_policy_abort|target_handler_abort) ;;
         *) fail "unsupported APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT=$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" ;;
     esac
     if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ] && \
@@ -1965,9 +2083,18 @@ write_phase4_terminal_test_support() {
         [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TEST" != "1" ]; then
         fail "URI policy redirect test requires APACHE_PHASE4_INTERNAL_REDIRECT_TEST=1"
     fi
+    if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" = "1" ] && \
+        [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TEST" != "1" ]; then
+        fail "target-handler redirect test requires APACHE_PHASE4_INTERNAL_REDIRECT_TEST=1"
+    fi
     if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ] && \
         [ "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" = "1" ]; then
         fail "target configuration and URI policy redirect controls are mutually exclusive"
+    fi
+    if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" = "1" ] && \
+        { [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ] || \
+          [ "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" = "1" ]; }; then
+        fail "target-handler redirect test is mutually exclusive with target configuration and URI policy controls"
     fi
     case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
         target_config_bypass|target_config_abort)
@@ -1977,6 +2104,10 @@ write_phase4_terminal_test_support() {
         uri_policy_bypass|uri_policy_abort)
             [ "$APACHE_PHASE4_INTERNAL_REDIRECT_URI_POLICY_TEST" = "1" ] || \
                 fail "URI policy redirect expectation requires its URI policy test"
+            ;;
+        target_handler_abort)
+            [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" = "1" ] || \
+                fail "target-handler redirect expectation requires its target-handler test"
             ;;
         bypass|abort) ;;
         *) fail "unsupported APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT=$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" ;;
@@ -2032,9 +2163,26 @@ write_phase4_terminal_test_support() {
         printf '%s\n' '<Location "/__phase4_rogue_header">'
         printf '%s\n' '    SetHandler phase4-terminal-rogue'
         printf '%s\n' '</Location>'
+        if [ "$APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST" = "1" ] || \
+            [ "$APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST" = "1" ]; then
+            printf '%s\n' '<Location "/__phase4_fragmented_buckets">'
+            printf '%s\n' '    SetHandler phase4-fragmented-bucket'
+            printf '%s\n' '</Location>'
+            printf '%s\n' '<Location "/__phase4_fragmented_buckets_boundary">'
+            printf '%s\n' '    SetHandler phase4-fragmented-bucket-boundary'
+            printf '%s\n' '</Location>'
+        fi
         printf '%s\n' '<Location "/__phase4_internal_redirect">'
         printf '%s\n' '    SetHandler phase4-internal-redirect'
         printf '%s\n' '</Location>'
+        if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" = "1" ]; then
+            printf '%s\n' '<Location "/__phase4_internal_redirect_target_handler_test">'
+            printf '%s\n' '    SetHandler phase4-internal-redirect-target-handler-test'
+            printf '%s\n' '</Location>'
+            printf '%s\n' '<Location "/__phase4_internal_redirect_target_handler_target">'
+            printf '%s\n' '    SetHandler phase4-internal-redirect-target-handler-marker'
+            printf '%s\n' '</Location>'
+        fi
         printf '%s\n' '<Location "/__phase4_nested_error_document_redirect">'
         printf '%s\n' '    SetHandler phase4-nested-error-document-redirect'
         printf '%s\n' '</Location>'
@@ -2295,6 +2443,18 @@ fi
 if [ "$APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST" = "1" ]; then
     send_phase4_preoutput_error_document_request
     echo "apache_smoke: pass phase4-preoutput-error-document"
+    exit 0
+fi
+
+if [ "$APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST" = "1" ]; then
+    send_phase4_fragmented_buckets_request
+    echo "apache_smoke: pass phase4-fragmented-buckets"
+    exit 0
+fi
+
+if [ "$APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST" = "1" ]; then
+    send_phase4_fragmented_bucket_boundary_request
+    echo "apache_smoke: pass phase4-fragmented-buckets-boundary"
     exit 0
 fi
 
