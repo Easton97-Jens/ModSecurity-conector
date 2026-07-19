@@ -156,12 +156,10 @@ static int compare_strings(const void *left, const void *right) {
 }
 
 static void free_string_list(char **items, size_t count) {
-    size_t i;
-
     if (items == 0) {
         return;
     }
-    for (i = 0; i < count; ++i) {
+    for (size_t i = 0; i < count; ++i) {
         free(items[i]);
     }
     free(items);

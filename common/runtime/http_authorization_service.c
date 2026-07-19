@@ -114,7 +114,6 @@ static int parse_cli(int argc, char **argv, authorization_cli *cli) {
 }
 
 static int validate_profile(const msconnector_http_authorization_profile *profile) {
-    size_t index;
     if (profile == NULL || profile->connector_name == NULL ||
         profile->connector_name[0] == '\0' || profile->integration_mode == NULL ||
         profile->integration_mode[0] == '\0' || profile->map_request == NULL) {
@@ -123,7 +122,7 @@ static int validate_profile(const msconnector_http_authorization_profile *profil
     if (profile->original_uri_header_count > 0U && profile->original_uri_headers == NULL) {
         return 0;
     }
-    for (index = 0U; index < profile->original_uri_header_count; ++index) {
+    for (size_t index = 0U; index < profile->original_uri_header_count; ++index) {
         if (profile->original_uri_headers[index] == NULL ||
             profile->original_uri_headers[index][0] == '\0') {
             return 0;
@@ -176,11 +175,10 @@ static void parsed_request_destroy(parsed_http_request *request) {
 }
 
 static char *find_header_end(char *buffer, size_t size) {
-    size_t index;
     if (buffer == NULL || size < 4U) {
         return NULL;
     }
-    for (index = 0U; index + 3U < size; ++index) {
+    for (size_t index = 0U; index + 3U < size; ++index) {
         if (buffer[index] == '\r' && buffer[index + 1U] == '\n' &&
             buffer[index + 2U] == '\r' && buffer[index + 3U] == '\n') {
             return buffer + index;
@@ -268,11 +266,10 @@ static int http_token_character(unsigned char value) {
 }
 
 static int valid_header_name(const char *name) {
-    size_t index;
     if (name == NULL || name[0] == '\0') {
         return 0;
     }
-    for (index = 0U; name[index] != '\0'; ++index) {
+    for (size_t index = 0U; name[index] != '\0'; ++index) {
         if (!http_token_character((unsigned char)name[index])) {
             return 0;
         }
@@ -281,11 +278,10 @@ static int valid_header_name(const char *name) {
 }
 
 static int valid_header_value(const char *value) {
-    size_t index;
     if (value == NULL) {
         return 0;
     }
-    for (index = 0U; value[index] != '\0'; ++index) {
+    for (size_t index = 0U; value[index] != '\0'; ++index) {
         unsigned char current = (unsigned char)value[index];
         if ((current < 0x20U && current != (unsigned char)'\t') ||
             current == 0x7fU) {
@@ -513,8 +509,7 @@ static int copy_slice(
 static const char *request_uri(
     parsed_http_request *request,
     const msconnector_http_authorization_profile *profile) {
-    size_t index;
-    for (index = 0U; index < profile->original_uri_header_count; ++index) {
+    for (size_t index = 0U; index < profile->original_uri_header_count; ++index) {
         const msconnector_header *header = msconnector_headers_find_first(
             request->headers, request->header_count,
             profile->original_uri_headers[index]);

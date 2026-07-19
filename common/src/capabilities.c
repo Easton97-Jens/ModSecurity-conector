@@ -30,8 +30,7 @@ static const capability_name_entry capability_names[] = {
 };
 
 const char *msconnector_capability_name(enum msconnector_capability_flag flag) {
-    unsigned int index;
-    for (index = 0; index < sizeof(capability_names) / sizeof(capability_names[0]); ++index) {
+    for (unsigned int index = 0; index < sizeof(capability_names) / sizeof(capability_names[0]); ++index) {
         if (capability_names[index].flag == flag) {
             return capability_names[index].name;
         }
@@ -40,11 +39,10 @@ const char *msconnector_capability_name(enum msconnector_capability_flag flag) {
 }
 
 enum msconnector_capability_flag msconnector_capability_from_name(const char *name) {
-    unsigned int index;
     if (name == 0) {
         return MSCONNECTOR_CAPABILITY_NONE;
     }
-    for (index = 0; index < sizeof(capability_names) / sizeof(capability_names[0]); ++index) {
+    for (unsigned int index = 0; index < sizeof(capability_names) / sizeof(capability_names[0]); ++index) {
         if (strcmp(capability_names[index].name, name) == 0) {
             return capability_names[index].flag;
         }
