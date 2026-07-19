@@ -9,6 +9,8 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Apache-Phase-4-Response-Enforcement](CR-20260718-apache-phase4-response.de.md)
 - [Runtime-Pfad-Containment-Härtung](CR-20260718-runtime-path-confinement.de.md)
+- [Abgekoppelter Parent-Aggregate-Receipt für Full-Matrix-Evidence](CR-20260718-detached-aggregate-receipt.de.md)
+- [Descriptor-begrenzte Aggregate-Receipt-Veröffentlichung](CR-20260719-aggregate-receipt-toctou-confinement.de.md)
 - [Authentizität strikter Runtime-Result-Dateien](CR-20260718-result-file-authenticity.de.md)
 - [Sicherheitsrichtlinie und Governance-Baseline](CR-20260718-security-policy-governance.de.md)
 - [Traefik-UDS- und C++-Evaluator-Härtung](CR-20260717-traefik-uds-cpp17-hardening.de.md)

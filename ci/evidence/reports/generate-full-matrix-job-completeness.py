@@ -26,6 +26,7 @@ from generated_report_utils import (
     utc_now,
 )
 from runtime_path_utils import verified_runtime_paths
+from verified_full_matrix_receipt import AggregateReceiptError, aggregate_receipt_path
 
 
 CONNECTORS = ("apache", "nginx", "haproxy")
@@ -287,9 +288,8 @@ def collect_jobs(matrix_root: Path, manifest_path: Path) -> list[dict[str, Any]]
     ]
 
 
-def rewrite_manifest(path: Path, jobs: list[dict[str, Any]]) -> None:
+def rewritten_manifest_text(jobs: list[dict[str, Any]]) -> str:
     completed = [job for job in jobs if job["status"] in {"completed", "completed_with_mismatches"}]
-    path.parent.mkdir(parents=True, exist_ok=True)
     lines = []
     for job in completed:
         row = {
@@ -311,7 +311,69 @@ def rewrite_manifest(path: Path, jobs: list[dict[str, Any]]) -> None:
             "outputs": job["outputs"],
         }
         lines.append(json.dumps(row, sort_keys=True))
-    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def source_manifest_run_ids(path: Path, build_root: Path) -> set[str]:
+    """Return the validated run identities that own the current raw source.
+
+    The full-matrix raw manifest is shared source material.  A report caller
+    must not select an arbitrary different run ID to evade the aggregate
+    receipt that governs the source it is about to rewrite.
+    """
+
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return set()
+    except OSError as exc:
+        raise ValueError(f"refusing to rewrite full-matrix manifest: cannot read existing source: {exc}") from exc
+    run_ids: set[str] = set()
+    for line_number, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"refusing to rewrite full-matrix manifest: source row {line_number} is not valid JSON"
+            ) from exc
+        if not isinstance(row, dict) or not isinstance(row.get("verified_run_id"), str):
+            raise ValueError(
+                f"refusing to rewrite full-matrix manifest: source row {line_number} has no verified_run_id"
+            )
+        run_id = row["verified_run_id"]
+        try:
+            aggregate_receipt_path(build_root, run_id)
+        except AggregateReceiptError as exc:
+            raise ValueError(
+                f"refusing to rewrite full-matrix manifest: source row {line_number} has an invalid verified_run_id"
+            ) from exc
+        run_ids.add(run_id)
+    return run_ids
+
+
+def rewrite_manifest(
+    path: Path,
+    jobs: list[dict[str, Any]],
+    *,
+    sealed_receipt_path: Path | None = None,
+) -> None:
+    content = rewritten_manifest_text(jobs)
+    if sealed_receipt_path is not None and (sealed_receipt_path.exists() or sealed_receipt_path.is_symlink()):
+        if sealed_receipt_path.is_symlink() or not sealed_receipt_path.is_file():
+            raise ValueError("refusing to rewrite full-matrix manifest: aggregate receipt is not a regular file")
+        try:
+            existing = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ValueError(f"refusing to rewrite sealed full-matrix manifest: {exc}") from exc
+        if existing != content:
+            raise ValueError(
+                "refusing to rewrite sealed full-matrix manifest: proposed bytes do not match the sealed source"
+            )
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 def markdown_table(rows: list[list[Any]]) -> list[str]:
@@ -462,7 +524,19 @@ def main() -> int:
 
     jobs = collect_jobs(matrix_root, manifest_path)
     if args.rewrite_manifest:
-        rewrite_manifest(manifest_path, jobs)
+        try:
+            source_run_ids = source_manifest_run_ids(manifest_path, build_root)
+            if source_run_ids and source_run_ids != {verified_run_id}:
+                raise ValueError(
+                    "refusing to rewrite full-matrix manifest: source verified_run_id does not match --verified-run-id"
+                )
+            sealed_receipt_path = aggregate_receipt_path(build_root, verified_run_id)
+        except (AggregateReceiptError, ValueError) as exc:
+            parser.error(str(exc))
+        try:
+            rewrite_manifest(manifest_path, jobs, sealed_receipt_path=sealed_receipt_path)
+        except ValueError as exc:
+            parser.error(str(exc))
         jobs = collect_jobs(matrix_root, manifest_path)
     complete = sum(1 for job in jobs if job["status"] in {"completed", "completed_with_mismatches"})
     manifest_recorded = sum(1 for job in jobs if job["manifest_recorded"])

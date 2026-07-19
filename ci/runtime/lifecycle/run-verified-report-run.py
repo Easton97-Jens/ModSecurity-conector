@@ -36,6 +36,13 @@ from runtime_path_utils import (
     runtime_path_rows,
     verified_runtime_paths,
 )
+from verified_full_matrix_receipt import (
+    AggregateReceiptError,
+    aggregate_receipt_path,
+    full_matrix_aggregate_receipt_record,
+    seal_full_matrix_aggregate_receipt_record,
+    validate_full_matrix_aggregate_receipt,
+)
 
 
 SELF_GENERATED_VERIFIED_MANIFESTS = {
@@ -320,6 +327,50 @@ def file_record(path: Path, root: Path) -> dict[str, Any]:
     return {"path": shown, "status": "present", "sha256": sha256_file(path), "bytes": path.stat().st_size}
 
 
+def aggregate_receipt_manifest_record(
+    *,
+    commands: list[dict[str, Any]],
+    build_root: Path,
+    verified_run_id: str,
+) -> dict[str, Any]:
+    """Use sealed descriptor metadata instead of reopening a mutable receipt path."""
+
+    for command in reversed(commands):
+        candidate = command.get("aggregate_receipt")
+        if not isinstance(candidate, dict) or candidate.get("status") not in {"sealed", "already_sealed"}:
+            continue
+        path = candidate.get("path")
+        digest = candidate.get("sha256")
+        byte_count = candidate.get("bytes")
+        if isinstance(path, str) and isinstance(digest, str) and isinstance(byte_count, int):
+            return {
+                "path": path,
+                "status": "present",
+                "sha256": digest,
+                "bytes": byte_count,
+            }
+    try:
+        receipt = full_matrix_aggregate_receipt_record(
+            build_root=build_root,
+            verified_run_id=verified_run_id,
+            missing_ok=True,
+        )
+    except AggregateReceiptError:
+        return {"path": "invalid", "status": "missing", "sha256": "missing"}
+    if receipt is None:
+        try:
+            path = str(aggregate_receipt_path(build_root, verified_run_id))
+        except AggregateReceiptError:
+            path = "invalid"
+        return {"path": path, "status": "missing", "sha256": "missing"}
+    return {
+        "path": receipt["path"],
+        "status": "present",
+        "sha256": receipt["sha256"],
+        "bytes": receipt["bytes"],
+    }
+
+
 def generated_output_records(connector_root: Path) -> list[dict[str, Any]]:
     generated_root = connector_root / "reports/testing/generated"
     if not generated_root.is_dir():
@@ -582,14 +633,28 @@ def parse_time(value: str | None) -> float | None:
         return None
 
 
-def full_matrix_runtime_state(record: dict[str, Any], env: dict[str, str], profile: str) -> dict[str, Any]:
+def full_matrix_runtime_state(
+    record: dict[str, Any],
+    env: dict[str, str],
+    profile: str,
+    *,
+    include_existing_run_rows: bool = False,
+) -> dict[str, Any]:
     manifest = Path(env.get("FULL_MATRIX_MANIFEST", ""))
     rows = read_jsonl(manifest)
     started_ts = parse_time(str(record.get("started_at") or ""))
+    verified_run_id = str(env.get("VERIFIED_RUN_ID") or "")
     fresh_rows = []
     for row in rows:
+        if verified_run_id and row.get("verified_run_id") != verified_run_id:
+            continue
         row_started = parse_time(str(row.get("started_at") or ""))
-        if started_ts is not None and row_started is not None and row_started + 1 < started_ts:
+        if (
+            not include_existing_run_rows
+            and started_ts is not None
+            and row_started is not None
+            and row_started + 1 < started_ts
+        ):
             continue
         fresh_rows.append(row)
     expected = 0 if profile == "smoke" else 12
@@ -730,10 +795,23 @@ def refresh_state(record: dict[str, Any]) -> dict[str, Any]:
     return {"refresh_status": status, "overall_status": overall}
 
 
-def apply_command_semantics(record: dict[str, Any], env: dict[str, str], profile: str) -> dict[str, Any]:
+def apply_command_semantics(
+    record: dict[str, Any],
+    env: dict[str, str],
+    profile: str,
+    *,
+    preserve_persisted_runtime_state: bool = False,
+) -> dict[str, Any]:
     target = str(record.get("logical_target") or "")
     if target == "full-matrix-parallel":
-        record.update(full_matrix_runtime_state(record, env, profile))
+        if preserve_persisted_runtime_state:
+            # A later resume appends rows for the same run.  Re-evaluating an
+            # earlier parent command against those rows would incorrectly turn
+            # a recorded incomplete attempt into a second completed producer.
+            record.setdefault("runtime_complete", False)
+            record.setdefault("runtime_status", "runtime_state_unavailable")
+        else:
+            record.update(full_matrix_runtime_state(record, env, profile))
         record["overall_status"] = record["runtime_status"]
     elif target == "runtime-matrix-all":
         record.update(simple_runtime_state(record))
@@ -741,7 +819,14 @@ def apply_command_semantics(record: dict[str, Any], env: dict[str, str], profile
     elif target == "mrts-native-full-run":
         record.update(native_runtime_state(record, env))
         record["overall_status"] = record["runtime_status"]
-    elif target.startswith("full-matrix-job:") or target == "full-matrix-resume":
+    elif target == "full-matrix-resume":
+        if preserve_persisted_runtime_state:
+            record.setdefault("runtime_complete", False)
+            record.setdefault("runtime_status", "runtime_state_unavailable")
+        else:
+            record.update(full_matrix_runtime_state(record, env, profile, include_existing_run_rows=True))
+        record["overall_status"] = record["runtime_status"]
+    elif target.startswith("full-matrix-job:"):
         record.update(full_matrix_job_state(record, env))
         record["overall_status"] = record.get("overall_job_status") or record["runtime_status"]
     elif target in {"refresh-all-reports", "generate-system-environment-proof"}:
@@ -752,6 +837,113 @@ def apply_command_semantics(record: dict[str, Any], env: dict[str, str], profile
         else:
             record["overall_status"] = "layout_failed"
     return record
+
+
+def normalize_existing_command_records(
+    records: list[dict[str, Any]],
+    env: dict[str, str],
+    profile: str,
+) -> list[dict[str, Any]]:
+    """Preserve immutable parent semantics while an append phase adds records.
+
+    Existing records describe what their Parent invocation observed at the time.
+    They are history, not fresh evidence to be recalculated from artifacts that
+    may have been produced by a later resume invocation.
+    """
+
+    return [
+        apply_command_semantics(
+            dict(record),
+            env,
+            profile,
+            preserve_persisted_runtime_state=True,
+        )
+        for record in records
+        if isinstance(record, dict)
+    ]
+
+
+def full_matrix_receipt_revisions(connector_root: Path, framework_root: Path) -> dict[str, str]:
+    mrts_root = framework_root / "tools/MRTS"
+    return {
+        "connector_sha": git_sha(connector_root),
+        "framework_sha": git_sha(framework_root),
+        "mrts_sha": git_sha(mrts_root),
+    }
+
+
+def qualifies_for_full_matrix_receipt(record: dict[str, Any], profile: str) -> bool:
+    return (
+        profile == "full"
+        and record.get("required") is True
+        and record.get("logical_target") in {"full-matrix-parallel", "full-matrix-resume"}
+        and record.get("runtime_complete") is True
+        and record.get("runtime_status") in {"runtime_completed", "runtime_completed_with_mismatches"}
+    )
+
+
+def has_completed_full_matrix_producer(records: list[dict[str, Any]]) -> bool:
+    return any(
+        record.get("required") is True
+        and record.get("logical_target") in {"full-matrix-parallel", "full-matrix-resume"}
+        and record.get("runtime_complete") is True
+        and record.get("runtime_status") in {"runtime_completed", "runtime_completed_with_mismatches"}
+        for record in records
+    )
+
+
+def seal_full_matrix_receipt_for_record(
+    *,
+    record: dict[str, Any],
+    connector_root: Path,
+    framework_root: Path,
+    build_root: Path,
+    verified_run_id: str,
+    profile: str,
+) -> bool:
+    """Seal the full-matrix child outputs only from the Parent runner path."""
+
+    revisions = full_matrix_receipt_revisions(connector_root, framework_root)
+    try:
+        receipt_record = full_matrix_aggregate_receipt_record(
+            build_root=build_root,
+            verified_run_id=verified_run_id,
+            missing_ok=True,
+        )
+        if receipt_record is not None:
+            _, errors = validate_full_matrix_aggregate_receipt(
+                build_root=build_root,
+                verified_run_id=verified_run_id,
+                expected_profile=profile,
+                expected_revisions=revisions,
+            )
+            if errors:
+                record["aggregate_receipt"] = {
+                    "status": "invalid_existing_receipt",
+                    "path": receipt_record["path"],
+                    "errors": errors,
+                }
+                return False
+            record["aggregate_receipt"] = {
+                "status": "already_sealed",
+                **receipt_record,
+            }
+            return True
+        sealed_record = seal_full_matrix_aggregate_receipt_record(
+            build_root=build_root,
+            verified_run_id=verified_run_id,
+            profile=profile,
+            parent_command=record,
+            revisions=revisions,
+        )
+        record["aggregate_receipt"] = sealed_record
+        return True
+    except AggregateReceiptError as exc:
+        record["aggregate_receipt"] = {
+            "status": "seal_failed",
+            "error": str(exc),
+        }
+        return False
 
 
 def command_plan(
@@ -1166,6 +1358,11 @@ def write_verified_manifest(
     timeout_budgets: dict[str, int],
 ) -> None:
     mrts_root = framework_root / "tools/MRTS"
+    aggregate_receipt = aggregate_receipt_manifest_record(
+        commands=commands,
+        build_root=build_root,
+        verified_run_id=verified_run_id,
+    )
     proof = system_proof_summary(connector_root)
     reports = manifest_report_records(connector_root)
     runtime_path_records = runtime_path_report_rows(runtime_paths(env, build_root, verified_run_id), connector_root, framework_root)
@@ -1197,6 +1394,7 @@ def write_verified_manifest(
         },
         "commands": commands,
         "command_file": file_record(commands_file, connector_root),
+        "full_matrix_aggregate_receipt": aggregate_receipt,
         "input_files": input_files,
         "output_files": generated_output_records(connector_root),
         "missing_inputs": [
@@ -1439,7 +1637,7 @@ def main() -> int:
     existing_commands = existing_payload.get("commands") if isinstance(existing_payload.get("commands"), list) else []
     append_phases = {"report-refresh", "consumers", "checks", "full-matrix-job", "full-matrix-resume"}
     command_records: list[dict[str, Any]] = (
-        [apply_command_semantics(dict(record), env, args.profile) for record in existing_commands]
+        normalize_existing_command_records(existing_commands, env, args.profile)
         if args.manifest_only or args.phase in append_phases
         else []
     )
@@ -1487,15 +1685,39 @@ def main() -> int:
         timeout_budgets=timeout_budgets,
     )
     next_log_index = len(command_records) + 1
+    aggregate_receipt_failed = False
     for index, item in enumerate(plan, start=next_log_index):
         command = list(item["command"])
         target = str(item.get("logical_target") or (command[1] if len(command) == 2 and command[0] == "make" else ""))
+        redundant_full_matrix_resume = (
+            target == "full-matrix-resume" and has_completed_full_matrix_producer(command_records)
+        )
         readiness_blocked = any(
             record.get("logical_target") == "check-runtime-producer-readiness"
             and record.get("return_code") != 0
             for record in command_records
         )
-        if readiness_blocked and target in {"runtime-matrix-all", "full-matrix-parallel", "mrts-native-full-run"}:
+        if redundant_full_matrix_resume:
+            record = skipped_command_record(
+                command,
+                logs_dir=logs_dir,
+                index=index,
+                phase=str(item["phase"]),
+                required=False,
+                optional=True,
+                affected_reports=list(item.get("affected_reports", [])),
+                reason="a completed required full-matrix producer already exists for this verified run",
+                logical_target=target,
+            )
+            record.update(
+                {
+                    "runtime_complete": False,
+                    "runtime_status": "runtime_not_required",
+                    "overall_status": "runtime_not_required",
+                }
+            )
+            print(f"verified-report-run: {record['status']} {target}: {record['notes']} log={record['log_path']}", flush=True)
+        elif readiness_blocked and target in {"runtime-matrix-all", "full-matrix-parallel", "mrts-native-full-run"}:
             record = skipped_command_record(
                 command,
                 logs_dir=logs_dir,
@@ -1523,7 +1745,18 @@ def main() -> int:
                 affected_reports=list(item.get("affected_reports", [])),
                 logical_target=target,
             )
-        record = apply_command_semantics(record, env, args.profile)
+        if not redundant_full_matrix_resume:
+            record = apply_command_semantics(record, env, args.profile)
+        if qualifies_for_full_matrix_receipt(record, args.profile):
+            if not seal_full_matrix_receipt_for_record(
+                record=record,
+                connector_root=connector_root,
+                framework_root=framework_root,
+                build_root=build_root,
+                verified_run_id=verified_run_id,
+                profile=args.profile,
+            ):
+                aggregate_receipt_failed = True
         command_records.append(record)
         last_updated = utc_now()
         write_commands_file(
@@ -1587,7 +1820,7 @@ def main() -> int:
         if record["return_code"] != 0 and record.get("required") and not record.get("optional")
     ]
     soft_mode = args.soft or args.mode == "soft"
-    if failed and not soft_mode:
+    if (failed or aggregate_receipt_failed) and not soft_mode:
         return 1
     return 0
 

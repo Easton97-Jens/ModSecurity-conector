@@ -8,6 +8,8 @@ must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Apache Phase-4 response enforcement](CR-20260718-apache-phase4-response.md)
 - [Runtime path-confinement hardening](CR-20260718-runtime-path-confinement.md)
+- [Detached Parent aggregate receipt for full-matrix evidence](CR-20260718-detached-aggregate-receipt.md)
+- [Descriptor-confined aggregate receipt publication](CR-20260719-aggregate-receipt-toctou-confinement.md)
 - [Strict runtime result-file authenticity](CR-20260718-result-file-authenticity.md)
 - [Security policy and governance baseline](CR-20260718-security-policy-governance.md)
 - [Traefik UDS and C++ evaluator hardening](CR-20260717-traefik-uds-cpp17-hardening.md)

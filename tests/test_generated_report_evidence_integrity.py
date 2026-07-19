@@ -1,12 +1,17 @@
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
+import os
+import shutil
 import sys
 import tempfile
 import unittest
 from copy import deepcopy
 from itertools import product
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +36,12 @@ RUNNER_SPEC = importlib.util.spec_from_file_location("verified_report_runner", R
 assert RUNNER_SPEC is not None and RUNNER_SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(RUNNER_SPEC)
 RUNNER_SPEC.loader.exec_module(RUNNER)
+RECEIPT_PATH = ROOT / "ci/lib/verified_full_matrix_receipt.py"
+RECEIPT_SPEC = importlib.util.spec_from_file_location("verified_full_matrix_receipt_test", RECEIPT_PATH)
+assert RECEIPT_SPEC is not None and RECEIPT_SPEC.loader is not None
+RECEIPT = importlib.util.module_from_spec(RECEIPT_SPEC)
+sys.modules[RECEIPT_SPEC.name] = RECEIPT
+RECEIPT_SPEC.loader.exec_module(RECEIPT)
 
 CONNECTORS = ("apache", "nginx", "haproxy")
 CRS_VARIANTS = ("no-crs", "with-crs")
@@ -73,8 +84,12 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                     "logical_target": "full-matrix-parallel",
                     "phase": "runtime-producers",
                     "required": True,
+                    "return_code": 0,
+                    "classification": "success",
                     "runtime_complete": True,
                     "runtime_status": "runtime_completed",
+                    "started_at": "2026-07-18T00:00:00Z",
+                    "finished_at": "2026-07-18T00:00:01Z",
                 }
             ],
         }
@@ -82,52 +97,53 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
 
         rows = []
         matrix_root = build_root / "full-matrix"
-        for connector, crs, mrts in product(CONNECTORS, CRS_VARIANTS, MRTS_VARIANTS):
-            job_root = matrix_root / crs / mrts / connector
-            log_path = job_root / "run.log"
-            build_manifest = job_root / "build-manifest.json"
-            summary_path = job_root / "results" / "force-all" / f"{connector}-summary.json"
-            results_jsonl = job_root / "results" / "force-all" / f"{connector}-results.jsonl"
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            log_path.write_text("runtime process and traffic receipt\n", encoding="utf-8")
-            write_json(build_manifest, {"connector": connector, "verified_run_id": run_id})
-            write_json(summary_path, {connector: {"cases": {"control": {"status": "pass"}}}})
-            results_jsonl.write_text(
-                json.dumps({"connector": connector, "verified_run_id": run_id, "status": "pass"}) + "\n",
-                encoding="utf-8",
-            )
-            job_path = job_root / "job.json"
-            job = {
-                "connector": connector,
-                "job_id": f"{connector}:{crs}:{mrts}",
-                "verified_run_id": run_id,
-                "test_variant": crs,
-                "mrts_variant": mrts,
-                "return_code": 0,
-                "status": "completed",
-                "started_at": "2026-07-18T00:00:00Z",
-                "ended_at": "2026-07-18T00:00:01Z",
-                "duration_seconds": 1,
-                "results_dir": str(job_root / "results"),
-                "summary_path": str(summary_path),
-                "log_path": str(log_path),
-                "hashes": {
-                    "log": sha256(log_path),
-                    "summary": sha256(summary_path),
-                    "build_manifest": sha256(build_manifest),
-                    "results_jsonl": sha256(results_jsonl),
-                },
-                "inputs": {"build_manifest": str(build_manifest)},
-                "outputs": {
-                    "job_json": str(job_path),
-                    "log": str(log_path),
-                    "summary": str(summary_path),
+        for crs, mrts in product(CRS_VARIANTS, MRTS_VARIANTS):
+            for connector in CONNECTORS:
+                job_root = matrix_root / crs / mrts / connector
+                log_path = job_root / "run.log"
+                build_manifest = job_root / "build-manifest.json"
+                summary_path = job_root / "results" / "force-all" / f"{connector}-summary.json"
+                results_jsonl = job_root / "results" / "force-all" / f"{connector}-results.jsonl"
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_path.write_text("runtime process and traffic receipt\n", encoding="utf-8")
+                write_json(build_manifest, {"connector": connector, "verified_run_id": run_id})
+                write_json(summary_path, {connector: {"cases": {"control": {"status": "pass"}}}})
+                results_jsonl.write_text(
+                    json.dumps({"connector": connector, "verified_run_id": run_id, "status": "pass"}) + "\n",
+                    encoding="utf-8",
+                )
+                job_path = job_root / "job.json"
+                job = {
+                    "connector": connector,
+                    "job_id": f"{connector}:{crs}:{mrts}",
+                    "verified_run_id": run_id,
+                    "test_variant": crs,
+                    "mrts_variant": mrts,
+                    "return_code": 0,
+                    "status": "completed",
+                    "started_at": "2026-07-18T00:00:00Z",
+                    "ended_at": "2026-07-18T00:00:01Z",
+                    "duration_seconds": 1,
                     "results_dir": str(job_root / "results"),
-                    "results_jsonl": str(results_jsonl),
-                },
-            }
-            write_json(job_path, job)
-            rows.append(job)
+                    "summary_path": str(summary_path),
+                    "log_path": str(log_path),
+                    "hashes": {
+                        "log": sha256(log_path),
+                        "summary": sha256(summary_path),
+                        "build_manifest": sha256(build_manifest),
+                        "results_jsonl": sha256(results_jsonl),
+                    },
+                    "inputs": {"build_manifest": str(build_manifest)},
+                    "outputs": {
+                        "job_json": str(job_path),
+                        "log": str(log_path),
+                        "summary": str(summary_path),
+                        "results_dir": str(job_root / "results"),
+                        "results_jsonl": str(results_jsonl),
+                    },
+                }
+                write_json(job_path, job)
+                rows.append(job)
 
         raw_manifest = matrix_root / "full-runtime-matrix-runs.jsonl"
         raw_manifest.parent.mkdir(parents=True, exist_ok=True)
@@ -136,14 +152,33 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.raw_matrix_rows = rows
+        revisions = {
+            "connector_sha": "a" * 40,
+            "framework_sha": "b" * 40,
+            "mrts_sha": "c" * 40,
+        }
+        aggregate_path = RECEIPT.seal_full_matrix_aggregate_receipt(
+            build_root=build_root,
+            verified_run_id=run_id,
+            profile="full",
+            parent_command=commands["commands"][0],
+            revisions=revisions,
+        )
         verified_manifest = {
             "verified_run_id": run_id,
             "profile": "full",
+            **revisions,
             "command_file": {
                 "path": str(commands_path),
                 "status": "present",
                 "sha256": sha256(commands_path),
                 "bytes": commands_path.stat().st_size,
+            },
+            "full_matrix_aggregate_receipt": {
+                "path": str(aggregate_path),
+                "status": "present",
+                "sha256": sha256(aggregate_path),
+                "bytes": aggregate_path.stat().st_size,
             },
             "full_matrix_job_completeness": {"complete_jobs": 12, "missing_jobs": []},
         }
@@ -169,6 +204,35 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
         self.assertTrue(errors, "expected strict artifact-chain rejection")
         self.assertTrue(any(expected in error for error in errors), errors)
 
+    def reseal_aggregate_receipt(self, connector_root: Path, build_root: Path, run_id: str) -> Path:
+        receipt_path = RECEIPT.aggregate_receipt_path(build_root, run_id)
+        receipt_path.unlink()
+        commands_path = build_root / "verified-runs" / run_id / "verified-commands.json"
+        parent_command = json.loads(commands_path.read_text(encoding="utf-8"))["commands"][-1]
+        sealed_path = RECEIPT.seal_full_matrix_aggregate_receipt(
+            build_root=build_root,
+            verified_run_id=run_id,
+            profile="full",
+            parent_command=parent_command,
+            revisions={"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40},
+        )
+        manifest_path = connector_root / "reports/testing/generated/manifest/verified-run-manifest.generated.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["full_matrix_aggregate_receipt"].update(
+            {"path": str(sealed_path), "sha256": sha256(sealed_path), "bytes": sealed_path.stat().st_size}
+        )
+        write_json(manifest_path, manifest)
+        return sealed_path
+
+    def rewrite_raw_job_row(self, build_root: Path, replacement: dict[str, object]) -> None:
+        raw_path = build_root / "full-matrix" / "full-runtime-matrix-runs.jsonl"
+        rows = [json.loads(line) for line in raw_path.read_text(encoding="utf-8").splitlines() if line]
+        rewritten = [replacement if row.get("job_id") == replacement["job_id"] else row for row in rows]
+        raw_path.write_text(
+            "".join(json.dumps(row, sort_keys=True) + "\n" for row in rewritten),
+            encoding="utf-8",
+        )
+
     def test_valid_full_matrix_control_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             connector_root, build_root, _ = self.build_valid_run(Path(temporary))
@@ -180,11 +244,561 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             )
         self.assertEqual([], errors)
 
+    def test_valid_full_matrix_control_uses_default_runtime_build_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, _ = self.build_valid_run(Path(temporary))
+            errors: list[str] = []
+            with mock.patch.object(CHECKER, "verified_runtime_paths", return_value={"BUILD_ROOT": str(build_root)}):
+                CHECKER.check_verified_runtime_artifact_chain(connector_root, errors)
+        self.assertEqual([], errors)
+
+    def test_paired_mutable_result_job_and_raw_forgery_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, _ = self.build_valid_run(Path(temporary))
+            job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+            results_path = build_root / "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-results.jsonl"
+            results_path.write_text(
+                '{"connector":"apache","status":"pass","forged":true}\n',
+                encoding="utf-8",
+            )
+            job = json.loads(job_path.read_text(encoding="utf-8"))
+            job["hashes"]["results_jsonl"] = sha256(results_path)
+            write_json(job_path, job)
+            self.rewrite_raw_job_row(build_root, job)
+            self.assert_chain_rejected(connector_root, build_root, "aggregate receipt")
+
+    def test_post_receipt_validation_artifact_swap_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, _ = self.build_valid_run(Path(temporary))
+            original_validate = CHECKER.validate_full_matrix_aggregate_receipt
+            validation_calls = 0
+
+            def validate_then_swap(*args: object, **kwargs: object) -> tuple[dict[str, object], list[str]]:
+                nonlocal validation_calls
+                result = original_validate(*args, **kwargs)
+                validation_calls += 1
+                if validation_calls == 1:
+                    job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+                    log_path = job_path.parent / "run.log"
+                    log_path.write_text("forged after initial receipt validation\n", encoding="utf-8")
+                    job = json.loads(job_path.read_text(encoding="utf-8"))
+                    job["hashes"]["log"] = sha256(log_path)
+                    write_json(job_path, job)
+                    self.rewrite_raw_job_row(build_root, job)
+                return result
+
+            errors: list[str] = []
+            with mock.patch.object(CHECKER, "validate_full_matrix_aggregate_receipt", side_effect=validate_then_swap):
+                CHECKER.check_verified_runtime_artifact_chain(
+                    connector_root,
+                    errors,
+                    build_root=build_root,
+                )
+        self.assertEqual(2, validation_calls)
+        self.assertTrue(any("final aggregate receipt validation failed" in error for error in errors), errors)
+
+    def test_post_validation_command_receipt_swap_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, run_id = self.build_valid_run(Path(temporary))
+            original_validate = CHECKER.validate_full_matrix_aggregate_receipt
+            validation_calls = 0
+
+            def validate_then_swap_command(*args: object, **kwargs: object) -> tuple[dict[str, object], list[str]]:
+                nonlocal validation_calls
+                result = original_validate(*args, **kwargs)
+                validation_calls += 1
+                if validation_calls == 1:
+                    commands_path = build_root / "verified-runs" / run_id / "verified-commands.json"
+                    commands = json.loads(commands_path.read_text(encoding="utf-8"))
+                    commands["commands"][0]["return_code"] = 99
+                    write_json(commands_path, commands)
+                return result
+
+            errors: list[str] = []
+            with mock.patch.object(
+                CHECKER,
+                "validate_full_matrix_aggregate_receipt",
+                side_effect=validate_then_swap_command,
+            ):
+                CHECKER.check_verified_runtime_artifact_chain(
+                    connector_root,
+                    errors,
+                    build_root=build_root,
+                )
+        self.assertEqual(2, validation_calls)
+        self.assertTrue(any("verified command receipt hash mismatch" in error for error in errors), errors)
+
+    def test_paired_mutable_job_and_raw_rewrite_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, _ = self.build_valid_run(Path(temporary))
+            job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+            job = json.loads(job_path.read_text(encoding="utf-8"))
+            job["untrusted_child_note"] = "forged after the job completed"
+            write_json(job_path, job)
+            self.rewrite_raw_job_row(build_root, job)
+            self.assert_chain_rejected(connector_root, build_root, "aggregate receipt")
+
+    def test_raw_matrix_only_rewrite_is_rejected_by_aggregate_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, _ = self.build_valid_run(Path(temporary))
+            raw_path = build_root / "full-matrix/full-runtime-matrix-runs.jsonl"
+            rows = [json.loads(line) for line in raw_path.read_text(encoding="utf-8").splitlines() if line]
+            raw_path.write_text(
+                "".join(json.dumps(row, sort_keys=True) + "\n" for row in reversed(rows)),
+                encoding="utf-8",
+            )
+            self.assert_chain_rejected(connector_root, build_root, "aggregate receipt")
+
+    def test_aggregate_receipt_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, run_id = self.build_valid_run(root)
+            receipt_path = RECEIPT.aggregate_receipt_path(build_root, run_id)
+            escaped_receipt = root / "escaped-aggregate-receipt.json"
+            receipt_path.rename(escaped_receipt)
+            receipt_path.symlink_to(escaped_receipt)
+            self.assert_chain_rejected(connector_root, build_root, "aggregate receipt")
+
+    def test_intermediate_read_swap_fails_closed_without_hashing_external_matrix(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _, build_root, run_id = self.build_valid_run(root)
+            matrix_root = build_root / "full-matrix"
+            external_matrix = root / "external-matrix"
+            shutil.copytree(matrix_root, external_matrix)
+            external_log = external_matrix / "no-crs/no-mrts/apache/run.log"
+            external_log.write_text("external bytes must never be sealed\n", encoding="utf-8")
+            external_job_path = external_matrix / "no-crs/no-mrts/apache/job.json"
+            external_job = json.loads(external_job_path.read_text(encoding="utf-8"))
+            external_job["hashes"]["log"] = sha256(external_log)
+            write_json(external_job_path, external_job)
+            external_raw_path = external_matrix / "full-runtime-matrix-runs.jsonl"
+            external_rows = [
+                json.loads(line) for line in external_raw_path.read_text(encoding="utf-8").splitlines() if line
+            ]
+            for index, row in enumerate(external_rows):
+                if row["job_id"] == external_job["job_id"]:
+                    external_rows[index] = external_job
+                    break
+            external_raw_path.write_text(
+                "".join(json.dumps(row, sort_keys=True) + "\n" for row in external_rows),
+                encoding="utf-8",
+            )
+            moved_matrix = root / "moved-matrix"
+            original_open = RECEIPT.os.open
+            swapped = False
+
+            def open_with_read_swap(path: object, flags: int, mode: int = 0o777, *, dir_fd: int | None = None) -> int:
+                nonlocal swapped
+                if not swapped and Path(path).name == "full-runtime-matrix-runs.jsonl":
+                    matrix_root.rename(moved_matrix)
+                    matrix_root.symlink_to(external_matrix, target_is_directory=True)
+                    swapped = True
+                if dir_fd is None:
+                    return original_open(path, flags, mode)
+                return original_open(path, flags, mode, dir_fd=dir_fd)
+
+            commands_path = build_root / "verified-runs" / run_id / "verified-commands.json"
+            parent_command = json.loads(commands_path.read_text(encoding="utf-8"))["commands"][0]
+            with mock.patch.object(RECEIPT.os, "open", side_effect=open_with_read_swap):
+                with self.assertRaises(RECEIPT.AggregateReceiptError):
+                    RECEIPT.build_full_matrix_aggregate_receipt(
+                        build_root=build_root,
+                        verified_run_id=run_id,
+                        profile="full",
+                        parent_command=parent_command,
+                        revisions={"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40},
+                    )
+            self.assertTrue(swapped)
+            self.assertEqual("external bytes must never be sealed\n", external_log.read_text(encoding="utf-8"))
+
+    def test_oversized_structured_receipt_input_is_rejected_before_materialization(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, build_root, run_id = self.build_valid_run(Path(temporary))
+            raw_path = build_root / "full-matrix/full-runtime-matrix-runs.jsonl"
+            raw_path.write_bytes(b" " * (RECEIPT.MAX_STRUCTURED_RECEIPT_BYTES + 1))
+            commands_path = build_root / "verified-runs" / run_id / "verified-commands.json"
+            parent_command = json.loads(commands_path.read_text(encoding="utf-8"))["commands"][0]
+            with self.assertRaisesRegex(RECEIPT.AggregateReceiptError, "receipt limit"):
+                RECEIPT.build_full_matrix_aggregate_receipt(
+                    build_root=build_root,
+                    verified_run_id=run_id,
+                    profile="full",
+                    parent_command=parent_command,
+                    revisions={"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40},
+                )
+
+    def test_verified_runs_publication_swap_fails_closed_without_external_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _, build_root, run_id = self.build_valid_run(root)
+            receipt_path = RECEIPT.aggregate_receipt_path(build_root, run_id)
+            receipt_path.unlink()
+            verified_runs = build_root / "verified-runs"
+            moved_runs = root / "moved-verified-runs"
+            external_runs = root / "external-verified-runs"
+            (external_runs / run_id).mkdir(parents=True)
+            sentinel = external_runs / "sentinel.txt"
+            sentinel.write_text("must remain untouched\n", encoding="utf-8")
+            original_open = RECEIPT.os.open
+            swapped = False
+
+            def open_with_publication_swap(path: object, flags: int, mode: int = 0o777, *, dir_fd: int | None = None) -> int:
+                nonlocal swapped
+                if not swapped and Path(path).name == RECEIPT.RECEIPT_FILENAME and flags & os.O_CREAT:
+                    verified_runs.rename(moved_runs)
+                    verified_runs.symlink_to(external_runs, target_is_directory=True)
+                    swapped = True
+                if dir_fd is None:
+                    return original_open(path, flags, mode)
+                return original_open(path, flags, mode, dir_fd=dir_fd)
+
+            commands_path = verified_runs / run_id / "verified-commands.json"
+            parent_command = json.loads(commands_path.read_text(encoding="utf-8"))["commands"][0]
+            with mock.patch.object(RECEIPT.os, "open", side_effect=open_with_publication_swap):
+                with self.assertRaises(RECEIPT.AggregateReceiptError):
+                    RECEIPT.seal_full_matrix_aggregate_receipt(
+                        build_root=build_root,
+                        verified_run_id=run_id,
+                        profile="full",
+                        parent_command=parent_command,
+                        revisions={"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40},
+                    )
+            self.assertTrue(swapped)
+            self.assertFalse((external_runs / run_id / RECEIPT.RECEIPT_FILENAME).exists())
+            self.assertEqual("must remain untouched\n", sentinel.read_text(encoding="utf-8"))
+
+    def test_runner_uses_sealed_descriptor_record_without_path_rehash(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, run_id = self.build_valid_run(Path(temporary))
+            receipt_path = RECEIPT.aggregate_receipt_path(build_root, run_id)
+            receipt_path.unlink()
+            commands_path = build_root / "verified-runs" / run_id / "verified-commands.json"
+            record = json.loads(commands_path.read_text(encoding="utf-8"))["commands"][0]
+            revisions = {"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40}
+            with mock.patch.object(RUNNER, "full_matrix_receipt_revisions", return_value=revisions), mock.patch.object(
+                RUNNER, "sha256_file", side_effect=AssertionError("aggregate receipt must not be reopened by pathname")
+            ):
+                self.assertTrue(
+                    RUNNER.seal_full_matrix_receipt_for_record(
+                        record=record,
+                        connector_root=connector_root,
+                        framework_root=connector_root / "framework",
+                        build_root=build_root,
+                        verified_run_id=run_id,
+                        profile="full",
+                    )
+                )
+                expected = dict(record["aggregate_receipt"])
+                receipt_path.unlink()
+                receipt_path.write_text("attacker replacement\n", encoding="utf-8")
+                manifest_record = RUNNER.aggregate_receipt_manifest_record(
+                    commands=[record],
+                    build_root=build_root,
+                    verified_run_id=run_id,
+                )
+            self.assertEqual("present", manifest_record["status"])
+            self.assertEqual(expected["sha256"], manifest_record["sha256"])
+            self.assertEqual(expected["bytes"], manifest_record["bytes"])
+
+    def test_aggregate_receipt_revision_binding_mismatch_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, _ = self.build_valid_run(Path(temporary))
+            manifest_path = connector_root / "reports/testing/generated/manifest/verified-run-manifest.generated.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["connector_sha"] = "d" * 40
+            write_json(manifest_path, manifest)
+            self.assert_chain_rejected(connector_root, build_root, "revision binding")
+
+    def test_incomplete_matrix_cannot_be_sealed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, run_id = self.build_valid_run(Path(temporary))
+            receipt_path = RECEIPT.aggregate_receipt_path(build_root, run_id)
+            receipt_path.unlink()
+            job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+            job_path.unlink()
+            commands_path = build_root / "verified-runs" / run_id / "verified-commands.json"
+            parent_command = json.loads(commands_path.read_text(encoding="utf-8"))["commands"][0]
+            with self.assertRaises(RECEIPT.AggregateReceiptError):
+                RECEIPT.seal_full_matrix_aggregate_receipt(
+                    build_root=build_root,
+                    verified_run_id=run_id,
+                    profile="full",
+                    parent_command=parent_command,
+                    revisions={"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40},
+                )
+            self.assert_chain_rejected(connector_root, build_root, "aggregate receipt")
+
+    def test_full_matrix_receipt_seals_only_once_after_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, build_root, run_id = self.build_valid_run(Path(temporary))
+            receipt_path = RECEIPT.aggregate_receipt_path(build_root, run_id)
+            receipt_path.unlink()
+            commands_path = build_root / "verified-runs" / run_id / "verified-commands.json"
+            parent_command = json.loads(commands_path.read_text(encoding="utf-8"))["commands"][0]
+            parent_command.update({"logical_target": "full-matrix-resume", "phase": "full-matrix-resume"})
+            sealed_path = RECEIPT.seal_full_matrix_aggregate_receipt(
+                build_root=build_root,
+                verified_run_id=run_id,
+                profile="full",
+                parent_command=parent_command,
+                revisions={"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40},
+            )
+            self.assertEqual(receipt_path, sealed_path)
+            with self.assertRaises(RECEIPT.AggregateReceiptError):
+                RECEIPT.seal_full_matrix_aggregate_receipt(
+                    build_root=build_root,
+                    verified_run_id=run_id,
+                    profile="full",
+                    parent_command=parent_command,
+                    revisions={"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40},
+                )
+
+    def test_completed_resume_is_accepted_after_an_incomplete_parallel_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, run_id = self.build_valid_run(Path(temporary))
+            receipt_path = RECEIPT.aggregate_receipt_path(build_root, run_id)
+            receipt_path.unlink()
+            commands_path = build_root / "verified-runs" / run_id / "verified-commands.json"
+            commands = json.loads(commands_path.read_text(encoding="utf-8"))
+            commands["commands"][0].update(
+                {
+                    "return_code": 1,
+                    "classification": "failure",
+                    "runtime_complete": False,
+                    "runtime_status": "runtime_failed",
+                    "started_at": "2026-07-17T00:00:00Z",
+                    "finished_at": "2026-07-17T00:00:01Z",
+                }
+            )
+            env = {
+                "FULL_MATRIX_MANIFEST": str(build_root / "full-matrix/full-runtime-matrix-runs.jsonl"),
+                "VERIFIED_RUN_ID": run_id,
+            }
+            # This is the same append path that main() takes before it runs a
+            # new resume command.  Completed resume rows must not rewrite the
+            # historic failed parallel attempt.
+            commands["commands"] = RUNNER.normalize_existing_command_records(
+                commands["commands"],
+                env,
+                "full",
+            )
+            self.assertFalse(commands["commands"][0]["runtime_complete"])
+            self.assertEqual("runtime_failed", commands["commands"][0]["runtime_status"])
+            resumed = RUNNER.apply_command_semantics(
+                {
+                    "logical_target": "full-matrix-resume",
+                    "phase": "full-matrix-resume",
+                    "required": True,
+                    "return_code": 0,
+                    "classification": "success",
+                    "started_at": "2026-07-18T02:00:00Z",
+                    "finished_at": "2026-07-18T02:00:01Z",
+                },
+                env,
+                "full",
+            )
+            self.assertTrue(resumed["runtime_complete"])
+            commands["commands"].append(resumed)
+            completed = [
+                command
+                for command in commands["commands"]
+                if command.get("runtime_complete") is True
+                and command.get("runtime_status") in {"runtime_completed", "runtime_completed_with_mismatches"}
+            ]
+            self.assertEqual(1, len(completed))
+            write_json(commands_path, commands)
+            receipt_path = RECEIPT.seal_full_matrix_aggregate_receipt(
+                build_root=build_root,
+                verified_run_id=run_id,
+                profile="full",
+                parent_command=resumed,
+                revisions={"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40},
+            )
+            manifest_path = connector_root / "reports/testing/generated/manifest/verified-run-manifest.generated.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["command_file"].update({"sha256": sha256(commands_path), "bytes": commands_path.stat().st_size})
+            manifest["full_matrix_aggregate_receipt"].update(
+                {"sha256": sha256(receipt_path), "bytes": receipt_path.stat().st_size}
+            )
+            write_json(manifest_path, manifest)
+            errors: list[str] = []
+            CHECKER.check_verified_runtime_artifact_chain(connector_root, errors, build_root=build_root)
+        self.assertEqual([], errors)
+
+    def test_redundant_resume_is_not_a_second_required_full_matrix_producer(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, run_id = self.build_valid_run(Path(temporary))
+            commands_path = build_root / "verified-runs" / run_id / "verified-commands.json"
+            commands = json.loads(commands_path.read_text(encoding="utf-8"))
+            redundant_resume = {
+                **commands["commands"][0],
+                "logical_target": "full-matrix-resume",
+                "phase": "full-matrix-resume",
+                "required": False,
+                "optional": True,
+                "return_code": 77,
+                "runtime_complete": False,
+                "runtime_status": "runtime_not_required",
+            }
+            commands["commands"].append(redundant_resume)
+            write_json(commands_path, commands)
+            manifest_path = connector_root / "reports/testing/generated/manifest/verified-run-manifest.generated.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["command_file"].update({"sha256": sha256(commands_path), "bytes": commands_path.stat().st_size})
+            write_json(manifest_path, manifest)
+            errors: list[str] = []
+            CHECKER.check_verified_runtime_artifact_chain(
+                connector_root,
+                errors,
+                build_root=build_root,
+            )
+        self.assertTrue(RUNNER.has_completed_full_matrix_producer(commands["commands"]))
+        self.assertFalse(RUNNER.qualifies_for_full_matrix_receipt(redundant_resume, "full"))
+        self.assertEqual([], errors)
+
+    def test_resume_completion_uses_all_and_only_current_run_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, build_root, run_id = self.build_valid_run(Path(temporary))
+            raw_path = build_root / "full-matrix/full-runtime-matrix-runs.jsonl"
+            record = {"started_at": "2026-07-18T01:00:00Z", "return_code": 0}
+            env = {"FULL_MATRIX_MANIFEST": str(raw_path), "VERIFIED_RUN_ID": run_id}
+            initial_state = RUNNER.full_matrix_runtime_state(record, env, "full")
+            resumed_state = RUNNER.full_matrix_runtime_state(
+                record,
+                env,
+                "full",
+                include_existing_run_rows=True,
+            )
+            self.assertFalse(initial_state["runtime_complete"])
+            self.assertTrue(resumed_state["runtime_complete"])
+            rows = [json.loads(line) for line in raw_path.read_text(encoding="utf-8").splitlines() if line]
+            rows[0]["verified_run_id"] = "foreign-run"
+            raw_path.write_text(
+                "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
+                encoding="utf-8",
+            )
+            foreign_state = RUNNER.full_matrix_runtime_state(
+                record,
+                env,
+                "full",
+                include_existing_run_rows=True,
+            )
+            self.assertFalse(foreign_state["runtime_complete"])
+
+    def test_parent_runner_seals_only_a_qualified_full_matrix_record(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root, build_root, run_id = self.build_valid_run(Path(temporary))
+            receipt_path = RECEIPT.aggregate_receipt_path(build_root, run_id)
+            receipt_path.unlink()
+            commands_path = build_root / "verified-runs" / run_id / "verified-commands.json"
+            record = json.loads(commands_path.read_text(encoding="utf-8"))["commands"][0]
+            revisions = {"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40}
+            self.assertTrue(RUNNER.qualifies_for_full_matrix_receipt(record, "full"))
+            self.assertFalse(RUNNER.qualifies_for_full_matrix_receipt(record, "smoke"))
+            with mock.patch.object(RUNNER, "full_matrix_receipt_revisions", return_value=revisions):
+                self.assertTrue(
+                    RUNNER.seal_full_matrix_receipt_for_record(
+                        record=record,
+                        connector_root=connector_root,
+                        framework_root=connector_root / "framework",
+                        build_root=build_root,
+                        verified_run_id=run_id,
+                        profile="full",
+                    )
+                )
+            self.assertEqual("sealed", record["aggregate_receipt"]["status"])
+            self.assertTrue(receipt_path.is_file())
+
+    def test_sealed_manifest_rewrite_must_be_byte_identical(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, build_root, run_id = self.build_valid_run(Path(temporary))
+            matrix_root = build_root / "full-matrix"
+            raw_path = matrix_root / "full-runtime-matrix-runs.jsonl"
+            receipt_path = RECEIPT.aggregate_receipt_path(build_root, run_id)
+            original = raw_path.read_text(encoding="utf-8")
+            jobs = GENERATOR.collect_jobs(matrix_root, raw_path)
+            GENERATOR.rewrite_manifest(raw_path, jobs, sealed_receipt_path=receipt_path)
+            self.assertEqual(original, raw_path.read_text(encoding="utf-8"))
+            job_path = matrix_root / "no-crs/no-mrts/apache/job.json"
+            job = json.loads(job_path.read_text(encoding="utf-8"))
+            job["return_code"] = 1
+            write_json(job_path, job)
+            with self.assertRaisesRegex(ValueError, "sealed full-matrix manifest"):
+                GENERATOR.rewrite_manifest(
+                    raw_path,
+                    GENERATOR.collect_jobs(matrix_root, raw_path),
+                    sealed_receipt_path=receipt_path,
+                )
+
+    def test_generator_cannot_select_a_foreign_run_to_rewrite_a_sealed_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, run_id = self.build_valid_run(root)
+            raw_path = build_root / "full-matrix/full-runtime-matrix-runs.jsonl"
+            receipt_path = RECEIPT.aggregate_receipt_path(build_root, run_id)
+            raw_before = raw_path.read_bytes()
+            receipt_before = receipt_path.read_bytes()
+            job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+            job = json.loads(job_path.read_text(encoding="utf-8"))
+            job["return_code"] = 1
+            write_json(job_path, job)
+            argv = [
+                "generate-full-matrix-job-completeness.py",
+                "--connector-root",
+                str(connector_root),
+                "--build-root",
+                str(build_root),
+                "--output-dir",
+                str(root / "generated"),
+                "--verified-run-id",
+                "foreign-run",
+                "--rewrite-manifest",
+            ]
+            with mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as raised:
+                    GENERATOR.main()
+            self.assertEqual(2, raised.exception.code)
+            self.assertEqual(raw_before, raw_path.read_bytes())
+            self.assertEqual(receipt_before, receipt_path.read_bytes())
+
+    def test_manifest_writer_cannot_mint_an_aggregate_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root = root / "connector"
+            build_root = root / "build"
+            build_root.mkdir(parents=True)
+            run_id = "verified-run-20260718"
+            commands_path = build_root / "verified-runs" / run_id / "verified-commands.json"
+            write_json(commands_path, {"verified_run_id": run_id, "commands": []})
+            RUNNER.write_verified_manifest(
+                connector_root=connector_root,
+                framework_root=connector_root / "framework",
+                build_root=build_root,
+                verified_run_id=run_id,
+                started_at="2026-07-18T00:00:00Z",
+                finished_at="2026-07-18T00:00:01Z",
+                commands=[],
+                commands_file=commands_path,
+                env={},
+                profile="full",
+                full_matrix_timeout=1,
+                timeout_budgets={},
+            )
+            self.assertFalse(RECEIPT.aggregate_receipt_path(build_root, run_id).exists())
+
+    def test_aggregate_receipt_has_no_self_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, build_root, run_id = self.build_valid_run(Path(temporary))
+            receipt_path = RECEIPT.aggregate_receipt_path(build_root, run_id)
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            self.assertNotIn(RECEIPT.RECEIPT_FILENAME, json.dumps(receipt, sort_keys=True))
+
     def test_report_without_runtime_manifest_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             connector_root, build_root, _ = self.build_valid_run(Path(temporary))
             (build_root / "full-matrix" / "full-runtime-matrix-runs.jsonl").unlink()
-            self.assert_chain_rejected(connector_root, build_root, "full runtime matrix manifest is missing")
+            self.assert_chain_rejected(connector_root, build_root, "file is unavailable")
 
     def test_tampered_result_file_checksum_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -200,7 +814,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             job = json.loads(job_path.read_text(encoding="utf-8"))
             job.pop("ended_at")
             write_json(job_path, job)
-            self.assert_chain_rejected(connector_root, build_root, "missing ended_at")
+            self.assert_chain_rejected(connector_root, build_root, "ended_at is missing or invalid")
 
     def test_foreign_run_id_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -241,7 +855,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             job["outputs"]["summary"] = str(escaped)
             job["hashes"]["summary"] = sha256(escaped)
             write_json(job_path, job)
-            self.assert_chain_rejected(connector_root, build_root, "summary path is not canonical")
+            self.assert_chain_rejected(connector_root, build_root, "summary_path is not canonical")
 
     def test_direct_summary_path_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -260,6 +874,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 build_root / "full-matrix/full-runtime-matrix-runs.jsonl",
                 job,
             )
+            self.reseal_aggregate_receipt(connector_root, build_root, "verified-run-20260718")
             errors: list[str] = []
             CHECKER.check_verified_runtime_artifact_chain(
                 connector_root,
@@ -311,7 +926,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             escaped_results = root / "escaped-results"
             results_dir.rename(escaped_results)
             results_dir.symlink_to(escaped_results, target_is_directory=True)
-            self.assert_chain_rejected(connector_root, build_root, "results_dir is not canonical")
+            self.assert_chain_rejected(connector_root, build_root, "directory is unavailable or unsafe")
 
     def test_intermediate_full_matrix_symlink_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -321,7 +936,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             escaped_matrix = root / "escaped-matrix"
             matrix_root.rename(escaped_matrix)
             matrix_root.symlink_to(escaped_matrix, target_is_directory=True)
-            self.assert_chain_rejected(connector_root, build_root, "full runtime matrix manifest is missing or not regular")
+            self.assert_chain_rejected(connector_root, build_root, "directory is unavailable or unsafe")
 
     def test_intermediate_verified_runs_symlink_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -331,7 +946,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             escaped_runs = root / "escaped-verified-runs"
             verified_runs.rename(escaped_runs)
             verified_runs.symlink_to(escaped_runs, target_is_directory=True)
-            self.assert_chain_rejected(connector_root, build_root, "verified command receipt is missing or not regular")
+            self.assert_chain_rejected(connector_root, build_root, "verified command receipt is missing or unsafe")
 
     def test_critical_missing_report_input_is_rejected_in_strict_mode(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
