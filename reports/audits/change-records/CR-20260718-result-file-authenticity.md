@@ -37,6 +37,9 @@ to a report without a strict source-of-truth receipt check.
 - Logs, build manifests, summaries, and result JSONL files are regular,
   canonical files with matching receipt hashes; leaf and intermediate escaped
   paths or symlinks fail closed.
+- A receipt-provided summary path can select only one of the two prebuilt
+  canonical summary locations; it never becomes a filesystem path used for a
+  read, `stat`, or hash operation.
 - Critical input receipts are canonically resolved before root containment is
   compared, so `BUILD_ROOT:../...`, `framework:../...`, and unprefixed
   `../...` cannot authenticate an external regular file even when its declared
@@ -57,6 +60,13 @@ root, then verifies the run ID, profile, required full-matrix command, raw
 artifact’s SHA-256 value. Free-form receipt paths cannot redirect the checker:
 they must equal the expected lexical canonical location and be regular files
 without a symlink component below the evidence root.
+
+For summary artifacts, the checker derives both allowed locations from the
+enumerated connector and canonical job root before it examines receipt data.
+The receipt can only select the direct or `force-all` canonical branch; it
+cannot construct the path that is read, stat'ed, or hashed. This preserves the
+two supported producer layouts while removing receipt-to-filesystem-path data
+flow.
 
 Critical-input receipts use the same fail-closed boundary: the checker resolves
 the claimed path and trusted root before containment comparison, then still
@@ -104,7 +114,7 @@ worktree does not create or own a second virtual environment.
 | --- | --- |
 | Initial fixture-first `unittest` run before the strict-chain implementation | Failed as expected: eight fixtures reached the absent strict-chain control and the critical missing-input status was not rejected. |
 | Fixture-first critical-input traversal control before canonical containment | Failed as expected: `BUILD_ROOT:../...`, `framework:../...`, and unprefixed `../...` each accepted a correctly hashed external regular file without a strict-check error. |
-| `rtk proxy /usr/bin/env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 "$PARENT_PYTHON" -m unittest -v tests.test_generated_report_evidence_integrity` after the implementation | Passed: 32 tests cover forged `PASS` result content/checksum mismatch, missing raw manifest, incomplete receipt, foreign run ID, copied connector/profile receipt, leaf and intermediate escaped/symlinked paths, canonicalized critical-input traversal, missing/invented/malformed critical input status, manifest and metadata input digest mismatch, summary/JSONL fallback selection, typed producer arrays, raw-manifest preservation, self-reference prevention, and a valid twelve-cell control. |
+| `rtk proxy /usr/bin/env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 "$PARENT_PYTHON" -m unittest -v tests.test_generated_report_evidence_integrity` after the implementation | Passed: 35 tests cover forged `PASS` result content/checksum mismatch, missing raw manifest, incomplete receipt, foreign run ID, copied connector/profile receipt, leaf and intermediate escaped/symlinked paths, canonicalized critical-input traversal, missing/invented/malformed critical input status, manifest and metadata input digest mismatch, direct and `force-all` summary selection plus hash rejection, summary/JSONL fallback selection, typed producer arrays, raw-manifest preservation, self-reference prevention, and a valid twelve-cell control. |
 | `rtk sh -n ci/runtime/lifecycle/run-full-matrix-parallel.sh` | Passed. |
 | In-memory `compile()` validation of the three changed Python sources | Passed without attempting checkout-local bytecode writes. |
 | Strict `make verified-report-evidence-gate` against retained evidence | Expected failure: it rejects critical missing input states and noncanonical/missing command receipts. Existing `FND-CROSS-0001` stale Cross evidence remains a separate fail-closed blocker. |

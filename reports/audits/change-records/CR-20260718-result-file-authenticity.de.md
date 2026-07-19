@@ -42,6 +42,9 @@ beitragen, ohne dass ein strikter Source-of-Truth-Receipt geprüft wurde.
 - Logs, Build-Manifeste, Zusammenfassungen und Result-JSONL-Dateien sind
   reguläre, kanonische Dateien mit passenden Receipt-Hashes; Leaf- und
   Zwischenpfad-Escapes oder Symlinks schlagen fail-closed fehl.
+- Ein vom Receipt bereitgestellter Summary-Pfad kann nur eine der zwei vorab
+  aufgebauten kanonischen Summary-Positionen auswählen; er wird nie zu einem
+  Dateisystempfad für Lesen, `stat` oder Hash-Operationen.
 - Kritische Input-Receipts werden vor dem Root-Containment-Vergleich kanonisch
   aufgelöst, sodass `BUILD_ROOT:../...`, `framework:../...` und unpräfixiertes
   `../...` keine externe reguläre Datei authentifizieren können, auch wenn ihr
@@ -83,6 +86,13 @@ Der Report-Refresh-Producer gibt jede aggregierte Input-Status-Sammlung als
 typisierte Liste aus, damit ein zukünftiger gültiger Record dasselbe Schema
 besitzt, das der strikte Consumer verlangt.
 
+Für Summary-Artefakte leitet der Checker beide erlaubten Positionen aus dem
+enumerierten Connector und dem kanonischen Job-Root ab, bevor er Receipt-Daten
+auswertet. Das Receipt kann nur den direkten oder den kanonischen
+`force-all`-Zweig auswählen; es kann den Pfad für Lesen, `stat` oder Hashen
+nicht konstruieren. Damit bleiben die zwei unterstützten Producer-Layouts
+erhalten, während der Datenfluss vom Receipt zum Dateisystempfad entfällt.
+
 ## Security-Auswirkung
 
 Diese Härtung der Parent-Result-Datei-Authentizität und des Report-Consumers
@@ -114,7 +124,7 @@ PR-Worktree erstellt oder besitzt keine zweite Virtualenv.
 | --- | --- |
 | Initialer fixture-first-`unittest`-Lauf vor der Strict-Chain-Implementierung | Erwartet fehlgeschlagen: Acht Fixtures erreichten die fehlende Strict-Chain-Kontrolle, und der kritische Missing-Input-Status wurde nicht abgelehnt. |
 | Fixture-first-Kontrolle für kritische Input-Traversal vor kanonischem Containment | Erwartet fehlgeschlagen: `BUILD_ROOT:../...`, `framework:../...` und unpräfixiertes `../...` akzeptierten jeweils eine korrekt gehashte externe reguläre Datei ohne Strict-Check-Fehler. |
-| `rtk proxy /usr/bin/env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 "$PARENT_PYTHON" -m unittest -v tests.test_generated_report_evidence_integrity` nach der Implementierung | Bestanden: 32 Tests decken gefälschten `PASS`-Result-Inhalt/Checksum-Mismatch, fehlendes Raw-Manifest, unvollständigen Receipt, fremde Run-ID, kopierten Connector/Profile-Receipt, Leaf- und Zwischenpfad-Escapes/Symlinks, kanonisiertes Critical-Input-Traversal, fehlenden/erfundenen/malformatierten kritischen Input-Status, Manifest- und Metadata-Input-Digest-Mismatch, Summary/JSONL-Fallback-Auswahl, typisierte Producer-Arrays, Raw-Manifest-Erhalt, Verhinderung der Selbstreferenz und einen gültigen Zwölf-Zellen-Kontrollfall ab. |
+| `rtk proxy /usr/bin/env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 "$PARENT_PYTHON" -m unittest -v tests.test_generated_report_evidence_integrity` nach der Implementierung | Bestanden: 35 Tests decken gefälschten `PASS`-Result-Inhalt/Checksum-Mismatch, fehlendes Raw-Manifest, unvollständigen Receipt, fremde Run-ID, kopierten Connector/Profile-Receipt, Leaf- und Zwischenpfad-Escapes/Symlinks, kanonisiertes Critical-Input-Traversal, fehlenden/erfundenen/malformatierten kritischen Input-Status, Manifest- und Metadata-Input-Digest-Mismatch, direkte und `force-all`-Summary-Auswahl samt Hash-Ablehnung, Summary/JSONL-Fallback-Auswahl, typisierte Producer-Arrays, Raw-Manifest-Erhalt, Verhinderung der Selbstreferenz und einen gültigen Zwölf-Zellen-Kontrollfall ab. |
 | `rtk sh -n ci/runtime/lifecycle/run-full-matrix-parallel.sh` | Bestanden. |
 | In-Memory-`compile()`-Validierung der drei geänderten Python-Quellen | Bestanden ohne Versuch checkout-lokaler Bytecode-Schreibvorgänge. |
 | Striktes `make verified-report-evidence-gate` gegen aufbewahrte Evidence | Erwarteter Fehler: Es lehnt kritische Missing-Input-Zustände und nichtkanonische/fehlende Command-Receipts ab. Die bestehende stale Cross-Evidence `FND-CROSS-0001` bleibt ein separater fail-closed Blocker. |

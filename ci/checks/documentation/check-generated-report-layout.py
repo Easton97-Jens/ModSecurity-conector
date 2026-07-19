@@ -126,6 +126,39 @@ def input_root_for_path(path: Path, roots: tuple[Path, ...]) -> Path | None:
     return next((root for root in roots if is_within(path, root)), None)
 
 
+def validate_critical_input_record(
+    item: object,
+    *,
+    connector_root: Path,
+    roots: tuple[Path, ...],
+    errors: list[str],
+    context: str,
+    build_root: Path | None,
+    framework_root: Path | None,
+) -> None:
+    if not isinstance(item, dict):
+        errors.append(f"{context}: critical report input must be an object")
+        return
+    value = item.get("path")
+    if not isinstance(value, str) or not value:
+        errors.append(f"{context}: critical report input path is invalid")
+        return
+    if is_unverified_critical_input_record_status(item.get("status")):
+        errors.append(f"{context}: critical report input is {item.get('status') or 'unknown'}: {value}")
+        return
+    declared_hash = item.get("sha256")
+    if not isinstance(declared_hash, str) or not SHA256_PATTERN.fullmatch(declared_hash):
+        errors.append(f"{context}: critical report input has invalid sha256: {value}")
+        return
+    path = resolve_input_reference(value, connector_root, framework_root, build_root)
+    root = input_root_for_path(path, roots)
+    if root is None or not is_regular_file(path, root=root):
+        errors.append(f"{context}: critical report input is not a trusted regular file: {value}")
+        return
+    if sha256_file(path) != declared_hash:
+        errors.append(f"{context}: critical report input hash mismatch: {value}")
+
+
 def validate_critical_input_records(
     inputs: object,
     *,
@@ -146,27 +179,15 @@ def validate_critical_input_records(
         return
     roots = trusted_input_roots(connector_root, build_root=build_root, framework_root=framework_root)
     for item in inputs:
-        if not isinstance(item, dict):
-            errors.append(f"{context}: critical report input must be an object")
-            continue
-        value = item.get("path")
-        if not isinstance(value, str) or not value:
-            errors.append(f"{context}: critical report input path is invalid")
-            continue
-        if is_unverified_critical_input_record_status(item.get("status")):
-            errors.append(f"{context}: critical report input is {item.get('status') or 'unknown'}: {value}")
-            continue
-        declared_hash = item.get("sha256")
-        if not isinstance(declared_hash, str) or not SHA256_PATTERN.fullmatch(declared_hash):
-            errors.append(f"{context}: critical report input has invalid sha256: {value}")
-            continue
-        path = resolve_input_reference(value, connector_root, framework_root, build_root)
-        root = input_root_for_path(path, roots)
-        if root is None or not is_regular_file(path, root=root):
-            errors.append(f"{context}: critical report input is not a trusted regular file: {value}")
-            continue
-        if sha256_file(path) != declared_hash:
-            errors.append(f"{context}: critical report input hash mismatch: {value}")
+        validate_critical_input_record(
+            item,
+            connector_root=connector_root,
+            roots=roots,
+            errors=errors,
+            context=context,
+            build_root=build_root,
+            framework_root=framework_root,
+        )
 
 
 def expected_full_matrix_job_ids() -> set[str]:
@@ -351,6 +372,81 @@ def check_no_flat_reports(connector_root: Path, errors: list[str]) -> None:
             errors.append(f"{rel(path, connector_root)}: stale flat generated report remains")
 
 
+def check_manifest_output_files(
+    record: dict[str, Any],
+    *,
+    manifest_path: Path,
+    connector_root: Path,
+    errors: list[str],
+) -> bool:
+    outputs = record.get("output_files")
+    if not isinstance(outputs, list):
+        errors.append(f"{rel(manifest_path, connector_root)}: report record missing output_files")
+        return False
+    for output in outputs:
+        path = connector_root / str(output)
+        if record.get("status") == "generated" and not path.is_file():
+            errors.append(f"{output}: manifest says generated but file is missing")
+    return True
+
+
+def check_manifest_required_fields(
+    record: dict[str, Any],
+    *,
+    manifest_path: Path,
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    for key in (
+        "category",
+        "kind",
+        "owner",
+        "severity",
+        "input_status",
+        "inputs",
+        "missing_inputs",
+        "empty_inputs",
+        "unknown_inputs",
+    ):
+        if key not in record:
+            errors.append(
+                f"{rel(manifest_path, connector_root)}: report {record.get('report_name', '<unknown>')} missing {key}"
+            )
+
+
+def check_strict_manifest_critical_record(
+    record: dict[str, Any],
+    *,
+    manifest_path: Path,
+    connector_root: Path,
+    errors: list[str],
+    build_root: Path | None,
+    framework_root: Path | None,
+) -> None:
+    report_name = str(record.get("report_name", "<unknown>"))
+    if is_unverified_critical_input_status(record.get("input_status"), report_name=report_name):
+        errors.append(
+            f"{rel(manifest_path, connector_root)}: critical report {report_name} has {record.get('input_status') or 'unknown'} input_status"
+        )
+    for key in ("missing_inputs", "empty_inputs", "unknown_inputs", "stale_inputs"):
+        values = record.get(key)
+        if not isinstance(values, list):
+            errors.append(
+                f"{rel(manifest_path, connector_root)}: critical report {report_name} {key} must be a list"
+            )
+        elif values:
+            errors.append(f"{rel(manifest_path, connector_root)}: critical report {report_name} has {key}")
+    validate_critical_input_records(
+        record.get("inputs"),
+        connector_root=connector_root,
+        errors=errors,
+        context=f"{rel(manifest_path, connector_root)}: critical report {report_name}",
+        report_name=report_name,
+        build_root=build_root,
+        framework_root=framework_root,
+    )
+
+
 def check_manifest(
     connector_root: Path,
     errors: list[str],
@@ -372,40 +468,25 @@ def check_manifest(
         if not isinstance(record, dict):
             errors.append(f"{rel(manifest_path, connector_root)}: report record must be an object")
             continue
-        status = record.get("status")
-        outputs = record.get("output_files")
-        if not isinstance(outputs, list):
-            errors.append(f"{rel(manifest_path, connector_root)}: report record missing output_files")
+        if not check_manifest_output_files(
+            record,
+            manifest_path=manifest_path,
+            connector_root=connector_root,
+            errors=errors,
+        ):
             continue
-        for output in outputs:
-            path = connector_root / str(output)
-            if status == "generated" and not path.is_file():
-                errors.append(f"{output}: manifest says generated but file is missing")
-        for key in ("category", "kind", "owner", "severity", "input_status", "inputs", "missing_inputs", "empty_inputs", "unknown_inputs"):
-            if key not in record:
-                errors.append(f"{rel(manifest_path, connector_root)}: report {record.get('report_name', '<unknown>')} missing {key}")
+        check_manifest_required_fields(
+            record,
+            manifest_path=manifest_path,
+            connector_root=connector_root,
+            errors=errors,
+        )
         if strict_evidence and record.get("severity") == "critical":
-            report_name = record.get("report_name", "<unknown>")
-            if is_unverified_critical_input_status(record.get("input_status"), report_name=str(report_name)):
-                errors.append(
-                    f"{rel(manifest_path, connector_root)}: critical report {report_name} has {record.get('input_status') or 'unknown'} input_status"
-                )
-            for key in ("missing_inputs", "empty_inputs", "unknown_inputs", "stale_inputs"):
-                values = record.get(key)
-                if not isinstance(values, list):
-                    errors.append(
-                        f"{rel(manifest_path, connector_root)}: critical report {report_name} {key} must be a list"
-                    )
-                elif values:
-                    errors.append(
-                        f"{rel(manifest_path, connector_root)}: critical report {report_name} has {key}"
-                    )
-            validate_critical_input_records(
-                record.get("inputs"),
+            check_strict_manifest_critical_record(
+                record,
+                manifest_path=manifest_path,
                 connector_root=connector_root,
                 errors=errors,
-                context=f"{rel(manifest_path, connector_root)}: critical report {report_name}",
-                report_name=str(report_name),
                 build_root=build_root,
                 framework_root=framework_root,
             )
@@ -638,6 +719,46 @@ def critical_run_keys() -> set[str]:
     } | {"system_environment_proof"}
 
 
+def check_critical_report_artifact(
+    path: Path,
+    *,
+    key: str,
+    connector_root: Path,
+    errors: list[str],
+    strict_evidence: bool,
+    build_root: Path | None,
+    framework_root: Path | None,
+    run_ids: dict[str, set[str]],
+) -> None:
+    metadata = read_report_metadata(path)
+    run_id = str(metadata.get("verified_run_id") or "")
+    if not run_id or run_id == "unknown":
+        errors.append(f"{rel(path, connector_root)}: critical report has unknown verified_run_id")
+    else:
+        run_ids.setdefault(run_id, set()).add(f"{key}.{path.suffix.removeprefix('.')}")
+    for sha_key in ("connector_sha", "framework_sha"):
+        if str(metadata.get(sha_key) or "unknown") == "unknown":
+            errors.append(f"{rel(path, connector_root)}: critical report has unknown {sha_key}")
+    if path.suffix != ".json":
+        return
+    data = load_json(path, errors, connector_root)
+    metadata_obj = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    if strict_evidence and is_unverified_critical_input_status(metadata_obj.get("input_status"), report_name=key):
+        errors.append(
+            f"{rel(path, connector_root)}: critical report metadata.input_status is {metadata_obj.get('input_status') or 'unknown'}"
+        )
+    if strict_evidence:
+        validate_critical_input_records(
+            metadata_obj.get("inputs"),
+            connector_root=connector_root,
+            errors=errors,
+            context=f"{rel(path, connector_root)}: critical report metadata",
+            report_name=key,
+            build_root=build_root,
+            framework_root=framework_root,
+        )
+
+
 def check_critical_report_run_consistency(
     connector_root: Path,
     errors: list[str],
@@ -656,32 +777,16 @@ def check_critical_report_run_consistency(
             path = report_path(connector_root, key, ext)
             if not path.is_file():
                 continue
-            metadata = read_report_metadata(path)
-            run_id = str(metadata.get("verified_run_id") or "")
-            if not run_id or run_id == "unknown":
-                errors.append(f"{rel(path, connector_root)}: critical report has unknown verified_run_id")
-            else:
-                run_ids.setdefault(run_id, set()).add(f"{key}.{ext}")
-            for sha_key in ("connector_sha", "framework_sha"):
-                if str(metadata.get(sha_key) or "unknown") == "unknown":
-                    errors.append(f"{rel(path, connector_root)}: critical report has unknown {sha_key}")
-            if path.suffix == ".json":
-                data = load_json(path, errors, connector_root)
-                metadata_obj = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
-                if strict_evidence and is_unverified_critical_input_status(metadata_obj.get("input_status"), report_name=key):
-                    errors.append(
-                        f"{rel(path, connector_root)}: critical report metadata.input_status is {metadata_obj.get('input_status') or 'unknown'}"
-                    )
-                if strict_evidence:
-                    validate_critical_input_records(
-                        metadata_obj.get("inputs"),
-                        connector_root=connector_root,
-                        errors=errors,
-                        context=f"{rel(path, connector_root)}: critical report metadata",
-                        report_name=key,
-                        build_root=build_root,
-                        framework_root=framework_root,
-                    )
+            check_critical_report_artifact(
+                path,
+                key=key,
+                connector_root=connector_root,
+                errors=errors,
+                strict_evidence=strict_evidence,
+                build_root=build_root,
+                framework_root=framework_root,
+                run_ids=run_ids,
+            )
     if len(run_ids) > 1:
         summary = "; ".join(f"{run_id}: {', '.join(sorted(items))}" for run_id, items in sorted(run_ids.items()))
         errors.append(f"critical generated reports use multiple verified_run_id values: {summary}")
@@ -703,7 +808,6 @@ def check_job_artifact(
     declared_hash: object,
     job_root: Path,
     errors: list[str],
-    connector_root: Path,
 ) -> None:
     if not exact_canonical_path(declared_path, expected_path):
         errors.append(f"{job_id}: {label} path is not canonical")
@@ -822,13 +926,81 @@ def check_job_identity_and_state(job: dict[str, Any], *, job_id: str, connector:
         errors.append(f"{job_id}: duration_seconds is missing or invalid")
 
 
-def expected_summary_path(job: dict[str, Any], *, job_id: str, results_dir: Path, errors: list[str]) -> Path:
-    candidates = (results_dir / f"{job_id.split(':', 1)[0]}-summary.json", results_dir / "force-all" / f"{job_id.split(':', 1)[0]}-summary.json")
-    candidate = Path(str(job.get("summary_path") or ""))
-    if candidate.is_absolute() and any(candidate.absolute() == path.absolute() for path in candidates):
-        return candidate
-    errors.append(f"{job_id}: summary path is not canonical")
-    return candidates[-1]
+def canonical_summary_paths(*, connector: str, results_dir: Path) -> tuple[Path, Path]:
+    return (
+        results_dir / f"{connector}-summary.json",
+        results_dir / "force-all" / f"{connector}-summary.json",
+    )
+
+
+def check_summary_content(
+    summary_path: Path,
+    *,
+    job_id: str,
+    connector: str,
+    job_root: Path,
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    summary = load_json(summary_path, errors, connector_root, root=job_root) if is_regular_file(summary_path, root=job_root) else {}
+    connector_summary = summary.get(connector) if isinstance(summary.get(connector), dict) else {}
+    if not isinstance(connector_summary.get("cases"), dict) or not connector_summary.get("cases"):
+        errors.append(f"{job_id}: summary lacks structured connector cases")
+
+
+def check_results_jsonl_content(
+    results_jsonl_path: Path,
+    *,
+    job_id: str,
+    job_root: Path,
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    rows = read_jsonl_objects(results_jsonl_path, errors, connector_root, root=job_root) if is_regular_file(results_jsonl_path, root=job_root) else []
+    if not rows:
+        errors.append(f"{job_id}: results_jsonl lacks structured result records")
+
+
+def check_summary_artifact_and_content(
+    *,
+    job_id: str,
+    connector: str,
+    results_dir: Path,
+    declared_summary_path: object,
+    declared_output_path: object,
+    declared_hash: object,
+    job_root: Path,
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    direct_summary_path, force_all_summary_path = canonical_summary_paths(
+        connector=connector,
+        results_dir=results_dir,
+    )
+    if exact_canonical_path(declared_summary_path, direct_summary_path):
+        summary_path = direct_summary_path
+    elif exact_canonical_path(declared_summary_path, force_all_summary_path):
+        summary_path = force_all_summary_path
+    else:
+        errors.append(f"{job_id}: summary path is not canonical")
+        return
+    check_job_artifact(
+        job_id=job_id,
+        label="summary",
+        expected_path=summary_path,
+        declared_path=declared_output_path,
+        declared_hash=declared_hash,
+        job_root=job_root,
+        errors=errors,
+    )
+    check_summary_content(
+        summary_path,
+        job_id=job_id,
+        connector=connector,
+        job_root=job_root,
+        connector_root=connector_root,
+        errors=errors,
+    )
 
 
 def check_job_artifacts(
@@ -839,7 +1011,7 @@ def check_job_artifacts(
     job_root: Path,
     connector_root: Path,
     errors: list[str],
-) -> tuple[Path, Path]:
+) -> None:
     results_dir = job_root / "results"
     if not exact_canonical_path(job.get("results_dir"), results_dir) or not is_within(results_dir, job_root) or has_symlink_component(results_dir, job_root) or not results_dir.is_dir() or results_dir.is_symlink():
         errors.append(f"{job_id}: results_dir is not canonical")
@@ -849,26 +1021,49 @@ def check_job_artifacts(
     paths = (
         ("log", job_root / "run.log", job.get("log_path"), hashes.get("log")),
         ("build_manifest", job_root / "build-manifest.json", inputs.get("build_manifest"), hashes.get("build_manifest")),
-        ("summary", expected_summary_path(job, job_id=job_id, results_dir=results_dir, errors=errors), outputs.get("summary"), hashes.get("summary")),
-        ("results_jsonl", results_dir / "force-all" / f"{connector}-results.jsonl", outputs.get("results_jsonl"), hashes.get("results_jsonl")),
     )
     for label, path, declared_path, declared_hash in paths:
-        check_job_artifact(job_id=job_id, label=label, expected_path=path, declared_path=declared_path, declared_hash=declared_hash, job_root=job_root, errors=errors, connector_root=connector_root)
+        check_job_artifact(
+            job_id=job_id,
+            label=label,
+            expected_path=path,
+            declared_path=declared_path,
+            declared_hash=declared_hash,
+            job_root=job_root,
+            errors=errors,
+        )
+    check_summary_artifact_and_content(
+        job_id=job_id,
+        connector=connector,
+        results_dir=results_dir,
+        declared_summary_path=job.get("summary_path"),
+        declared_output_path=outputs.get("summary"),
+        declared_hash=hashes.get("summary"),
+        job_root=job_root,
+        connector_root=connector_root,
+        errors=errors,
+    )
+    results_jsonl_path = results_dir / "force-all" / f"{connector}-results.jsonl"
+    check_job_artifact(
+        job_id=job_id,
+        label="results_jsonl",
+        expected_path=results_jsonl_path,
+        declared_path=outputs.get("results_jsonl"),
+        declared_hash=hashes.get("results_jsonl"),
+        job_root=job_root,
+        errors=errors,
+    )
+    check_results_jsonl_content(
+        results_jsonl_path,
+        job_id=job_id,
+        job_root=job_root,
+        connector_root=connector_root,
+        errors=errors,
+    )
     expected_outputs = (("job_json", job_root / "job.json"), ("log", job_root / "run.log"), ("results_dir", results_dir))
     for label, path in expected_outputs:
         if not exact_canonical_path(outputs.get(label), path):
             errors.append(f"{job_id}: {label} output path is not canonical")
-    return paths[2][1], paths[3][1]
-
-
-def check_job_result_content(summary_path: Path, results_jsonl_path: Path, *, job_id: str, connector: str, job_root: Path, connector_root: Path, errors: list[str]) -> None:
-    summary = load_json(summary_path, errors, connector_root, root=job_root) if is_regular_file(summary_path, root=job_root) else {}
-    connector_summary = summary.get(connector) if isinstance(summary.get(connector), dict) else {}
-    if not isinstance(connector_summary.get("cases"), dict) or not connector_summary.get("cases"):
-        errors.append(f"{job_id}: summary lacks structured connector cases")
-    rows = read_jsonl_objects(results_jsonl_path, errors, connector_root, root=job_root) if is_regular_file(results_jsonl_path, root=job_root) else []
-    if not rows:
-        errors.append(f"{job_id}: results_jsonl lacks structured result records")
 
 
 def check_raw_job_consistency(raw: dict[str, Any] | None, job: dict[str, Any], *, job_id: str, errors: list[str]) -> None:
@@ -899,8 +1094,14 @@ def check_matrix_job(
         return
     job = load_json(job_path, errors, connector_root, root=build_root)
     check_job_identity_and_state(job, job_id=job_id, connector=connector, crs=crs, mrts=mrts, run_id=run_id, errors=errors)
-    summary_path, results_jsonl_path = check_job_artifacts(job, job_id=job_id, connector=connector, job_root=job_root, connector_root=connector_root, errors=errors)
-    check_job_result_content(summary_path, results_jsonl_path, job_id=job_id, connector=connector, job_root=job_root, connector_root=connector_root, errors=errors)
+    check_job_artifacts(
+        job,
+        job_id=job_id,
+        connector=connector,
+        job_root=job_root,
+        connector_root=connector_root,
+        errors=errors,
+    )
     check_raw_job_consistency(raw, job, job_id=job_id, errors=errors)
 
 

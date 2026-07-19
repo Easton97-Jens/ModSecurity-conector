@@ -45,6 +45,19 @@ def write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def replace_raw_matrix_job(matrix_manifest: Path, job: dict[str, object]) -> None:
+    rows = [json.loads(line) for line in matrix_manifest.read_text(encoding="utf-8").splitlines() if line]
+    for index, row in enumerate(rows):
+        if row.get("job_id") == job["job_id"]:
+            rows[index] = job
+            matrix_manifest.write_text(
+                "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
+                encoding="utf-8",
+            )
+            return
+    raise AssertionError(f"raw matrix job not found: {job['job_id']}")
+
+
 class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
     def build_valid_run(self, root: Path) -> tuple[Path, Path, str]:
         connector_root = root / "connector"
@@ -220,6 +233,58 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             job["hashes"]["summary"] = sha256(escaped)
             write_json(job_path, job)
             self.assert_chain_rejected(connector_root, build_root, "summary path is not canonical")
+
+    def test_direct_summary_path_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, _ = self.build_valid_run(root)
+            job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+            direct_summary_path = job_path.parent / "results/apache-summary.json"
+            write_json(direct_summary_path, {"apache": {"cases": {"direct": {"status": "pass"}}}})
+            job = json.loads(job_path.read_text(encoding="utf-8"))
+            job["summary_path"] = str(direct_summary_path)
+            job["outputs"]["summary"] = str(direct_summary_path)
+            job["hashes"]["summary"] = sha256(direct_summary_path)
+            write_json(job_path, job)
+            replace_raw_matrix_job(build_root / "full-matrix/full-runtime-matrix-runs.jsonl", job)
+            errors: list[str] = []
+            CHECKER.check_verified_runtime_artifact_chain(
+                connector_root,
+                errors,
+                build_root=build_root,
+            )
+        self.assertEqual([], errors)
+
+    def test_force_all_summary_is_selected_when_direct_summary_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, _ = self.build_valid_run(root)
+            direct_summary_path = build_root / "full-matrix/no-crs/no-mrts/apache/results/apache-summary.json"
+            write_json(direct_summary_path, {"apache": {"cases": {}}})
+            errors: list[str] = []
+            CHECKER.check_verified_runtime_artifact_chain(
+                connector_root,
+                errors,
+                build_root=build_root,
+            )
+        self.assertEqual([], errors)
+
+    def test_summary_hash_mismatch_is_rejected_for_each_canonical_path(self) -> None:
+        for location in ("direct", "force-all"):
+            with self.subTest(location=location), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                connector_root, build_root, _ = self.build_valid_run(root)
+                job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+                job = json.loads(job_path.read_text(encoding="utf-8"))
+                if location == "direct":
+                    direct_summary_path = job_path.parent / "results/apache-summary.json"
+                    write_json(direct_summary_path, {"apache": {"cases": {"direct": {"status": "pass"}}}})
+                    job["summary_path"] = str(direct_summary_path)
+                    job["outputs"]["summary"] = str(direct_summary_path)
+                job["hashes"]["summary"] = "a" * 64
+                write_json(job_path, job)
+                replace_raw_matrix_job(build_root / "full-matrix/full-runtime-matrix-runs.jsonl", job)
+                self.assert_chain_rejected(connector_root, build_root, "summary hash mismatch")
 
     def test_symlinked_result_directory_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
