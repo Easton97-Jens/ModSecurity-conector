@@ -218,10 +218,10 @@ static int is_nonreversible_quic_connection_id(const char *value) {
     return 1;
 }
 
-static int is_bounded_transport_case_id(const char *value) {
+static int is_bounded_transport_token(const char *value, int allow_empty) {
     size_t length;
     if (value == NULL || value[0] == '\0') {
-        return 0;
+        return allow_empty != 0;
     }
     length = strlen(value);
     if (length > 128U) {
@@ -240,26 +240,12 @@ static int is_bounded_transport_case_id(const char *value) {
     return 1;
 }
 
+static int is_bounded_transport_case_id(const char *value) {
+    return is_bounded_transport_token(value, 0);
+}
+
 static int is_bounded_transport_value(const char *value) {
-    size_t length;
-    if (value == NULL || value[0] == '\0') {
-        return 1;
-    }
-    length = strlen(value);
-    if (length > 128U) {
-        return 0;
-    }
-    for (size_t index = 0U; index < length; ++index) {
-        const char character = value[index];
-        if (!((character >= 'a' && character <= 'z') ||
-                (character >= 'A' && character <= 'Z') ||
-                (character >= '0' && character <= '9') ||
-                character == ':' || character == '.' || character == '_' ||
-                character == '-')) {
-            return 0;
-        }
-    }
-    return 1;
+    return is_bounded_transport_token(value, 1);
 }
 
 const char *msconnector_event_default_message(const char *message_id) {

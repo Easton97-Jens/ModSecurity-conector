@@ -1257,6 +1257,25 @@ int main(void) {
         event.meta.transport_case_id = "request body must not persist";
         assert(!msconnector_event_write_json(&event, json, sizeof(json)));
         assert(strstr(json, "request body must not persist") == 0);
+        msconnector_event_init(&event);
+        event.meta.event = "smoke";
+        event.protocol.reset_by = "invalid reset actor";
+        event.protocol.reset_code = "valid-code";
+        assert(!msconnector_event_write_json_ex(&event, json, sizeof(json), &truncated));
+        assert(truncated);
+        assert(strstr(json, "\"truncated\":true") != 0);
+        assert(strstr(json, "\"reset_by\":") == 0);
+        assert(strstr(json, "\"reset_code\":") == 0);
+        assert(strstr(json, "invalid reset actor") == 0);
+        msconnector_event_init(&event);
+        event.meta.event = "smoke";
+        event.protocol.reset_by = "peer";
+        event.protocol.reset_code = "valid-code";
+        assert(msconnector_event_write_json_ex(&event, json, sizeof(json), &truncated));
+        assert(!truncated);
+        assert(strstr(json, "\"reset_by\":\"peer\"") != 0);
+        assert(strstr(json, "\"reset_code\":\"valid-code\"") != 0);
+        assert(strstr(json, "\"truncated\":false") != 0);
         assert(strcmp(msconnector_decision_action_name(
             MSCONNECTOR_DECISION_ACTION_STREAM_RESET), "stream_reset") == 0);
         assert(msconnector_decision_action_is_disruptive(

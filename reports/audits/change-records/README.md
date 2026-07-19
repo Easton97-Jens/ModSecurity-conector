@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [SonarQube Cloud new-code duplication remediation](CR-20260719-sonar-new-code-duplication.md)
 - [Runtime path-confinement hardening](CR-20260718-runtime-path-confinement.md)
 - [Security policy and governance baseline](CR-20260718-security-policy-governance.md)
 - [Traefik UDS and C++ evaluator hardening](CR-20260717-traefik-uds-cpp17-hardening.md)
