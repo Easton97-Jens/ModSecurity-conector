@@ -149,13 +149,17 @@ not claim to close that producer-authenticity boundary.
 A full connector/runtime matrix needs the separately provisioned runtime
 components and authoritative Framework harness, which are unavailable in this
 isolated worktree. That absence does not authorize a synthetic success or a
-governance-only substitute. Full exact-head CI, CodeQL, SonarQube Cloud, and
-review verification are required after the next PR-head push; no merge has
-occurred and no check may be bypassed.
+governance-only substitute. Source-remediation head
+`03e5088d8202a4eb14d891b31d149aa2f6081289` was pushed. This documentation
+correction creates the subsequent draft-PR head; full exact-head CI, CodeQL,
+SonarQube Cloud, and review verification are required for that subsequent head
+after it is pushed. No merge has occurred and no check may be bypassed.
 
 ## Final diff and review status
 
-The source change has focused negative/control tests, shell syntax validation,
-and whitespace-diff validation. It remains `remediation_required` until its
-own exact draft-PR head has been pushed and independently verified. No runtime
-evidence or merge claim is made.
+The source changes before this record correction have focused negative/control
+tests, shell syntax validation, and whitespace-diff validation, and were
+pushed as `03e5088d8202a4eb14d891b31d149aa2f6081289`. This record correction
+creates the subsequent draft-PR head; it remains `remediation_required` until
+that exact head has been independently verified. No runtime evidence or merge
+claim is made.

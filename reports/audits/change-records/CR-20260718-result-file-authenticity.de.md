@@ -160,15 +160,18 @@ nicht, diese Producer-Authentizitätsgrenze zu schließen.
 Eine vollständige Connector-/Runtime-Matrix benötigt separat bereitgestellte
 Runtime-Komponenten und den autoritativen Framework-Harness, die in diesem
 isolierten Worktree nicht verfügbar sind. Dieses Fehlen autorisiert weder
-einen synthetischen Erfolg noch einen Governance-only-Ersatz. Vollständige
-Exact-Head-CI-, CodeQL-, SonarQube-Cloud- und Review-Verifikation sind nach
-dem nächsten PR-Head-Push erforderlich; kein Merge ist erfolgt und keine
+einen synthetischen Erfolg noch einen Governance-only-Ersatz. Der
+Source-Remediation-Head `03e5088d8202a4eb14d891b31d149aa2f6081289` wurde
+gepusht. Diese Dokumentationskorrektur erzeugt den nachfolgenden Draft-PR-Head;
+vollständige Exact-Head-CI-, CodeQL-, SonarQube-Cloud- und Review-Verifikation
+sind für diesen nach seinem Push erforderlich. Kein Merge ist erfolgt und keine
 Prüfung darf umgangen werden.
 
 ## Finaler Diff- und Review-Status
 
-Die Source-Änderung besitzt fokussierte Negativ-/Kontrolltests,
-Shell-Syntaxvalidierung und Whitespace-Diff-Validierung. Sie bleibt
-`remediation_required`, bis ihr eigener exakter Draft-PR-Head gepusht und
-unabhängig verifiziert ist. Es wird keine Runtime-Evidence oder Merge
-behauptet.
+Die Source-Änderungen vor dieser Record-Korrektur besitzen fokussierte
+Negativ-/Kontrolltests, Shell-Syntaxvalidierung und Whitespace-Diff-Validierung
+und wurden als `03e5088d8202a4eb14d891b31d149aa2f6081289` gepusht. Diese
+Record-Korrektur erzeugt den nachfolgenden Draft-PR-Head; sie bleibt
+`remediation_required`, bis dieser exakte Head unabhängig verifiziert ist. Es
+wird keine Runtime-Evidence oder Merge behauptet.
