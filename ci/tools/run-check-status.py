@@ -10,6 +10,8 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shlex
+import shutil
 import stat
 import subprocess
 import sys
@@ -20,8 +22,8 @@ VALID_STATUSES = frozenset(
     {"passed", "failed", "blocked", "not_applicable", "not_executed"}
 )
 BLOCKED_EXIT_CODE = 77
-BLOCK_REASON_RE = re.compile(r"^CHECK_STATUS_REASON ([a-z0-9_]+)$")
 CHECK_IDENTIFIER_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+APACHE_DEVELOPMENT_REASON = "apache_development_prerequisite"
 
 
 @dataclass(frozen=True)
@@ -44,8 +46,17 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=[],
         metavar="REASON",
         help=(
-            "return success only for exit 77 with this exact CHECK_STATUS_REASON "
-            "marker"
+            "return success only for an exact parent-issued blocked disposition "
+            "with this reason"
+        ),
+    )
+    parser.add_argument(
+        "--blocked-if-missing-apache-development",
+        action="store_true",
+        help=(
+            "do not run the child when this parent process cannot resolve an "
+            "executable APXS with a usable httpd.h; record the structured "
+            f"{APACHE_DEVELOPMENT_REASON} disposition instead"
         ),
     )
     parser.add_argument(
@@ -72,6 +83,15 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if CHECK_IDENTIFIER_RE.fullmatch(args.check) is None:
         parser.error("--check must use lowercase letters, digits, and underscores")
+    for reason in args.allow_blocked_reason:
+        if CHECK_IDENTIFIER_RE.fullmatch(reason) is None:
+            parser.error("--allow-blocked-reason must use lowercase letters, digits, and underscores")
+    if args.blocked_if_missing_apache_development and (
+        args.not_applicable is not None or args.not_executed is not None
+    ):
+        parser.error(
+            "--blocked-if-missing-apache-development cannot be combined with an explicit disposition"
+        )
     if args.not_applicable is None and args.not_executed is None:
         if args.command[:1] == ["--"]:
             args.command = args.command[1:]
@@ -183,18 +203,7 @@ def write_status(status_output: StatusOutput, record: dict[str, object]) -> None
                 pass
 
 
-def block_reason(output: str) -> str | None:
-    reasons = {
-        match.group(1)
-        for line in output.splitlines()
-        if (match := BLOCK_REASON_RE.fullmatch(line)) is not None
-    }
-    if len(reasons) == 1:
-        return reasons.pop()
-    return None
-
-
-def run_command(command: Sequence[str]) -> tuple[int, str | None]:
+def run_command(command: Sequence[str]) -> int:
     try:
         completed = subprocess.run(
             command,
@@ -204,10 +213,79 @@ def run_command(command: Sequence[str]) -> tuple[int, str | None]:
             text=True,
         )
     except FileNotFoundError:
-        return 127, None
+        return 127
     sys.stdout.write(completed.stdout)
     sys.stderr.write(completed.stderr)
-    return completed.returncode, block_reason(completed.stdout + "\n" + completed.stderr)
+    return completed.returncode
+
+
+def apache_development_candidates() -> tuple[str, ...]:
+    """Return the parent-controlled APXS candidate order for the lint preflight."""
+    candidates: tuple[str, ...] = ("apxs", "apxs2")
+    for variable in ("APXS_BIN", "APXS"):
+        value = os.environ.get(variable)
+        if value:
+            candidates = (value,)
+            break
+    else:
+        configured_candidates = os.environ.get("CI_APXS_BIN_CANDIDATES")
+        if configured_candidates:
+            try:
+                candidates = tuple(shlex.split(configured_candidates))
+            except ValueError:
+                candidates = ()
+    return candidates
+
+
+def resolve_executable(candidate: str) -> Path | None:
+    """Resolve one APXS candidate without treating child output as input."""
+    expanded = os.path.expanduser(os.path.expandvars(candidate))
+    if "/" in expanded:
+        path = Path(expanded)
+        if not path.is_absolute():
+            path = Path.cwd() / path
+    else:
+        resolved = shutil.which(expanded)
+        if resolved is None:
+            return None
+        path = Path(resolved)
+    if not path.is_file() or not os.access(path, os.X_OK):
+        return None
+    return path
+
+
+def apache_development_available() -> bool:
+    """Check the Apache development prerequisite before the child starts.
+
+    The runner owns this classification.  It accepts only an executable APXS
+    candidate that resolves an absolute include directory containing ``httpd.h``.
+    Diagnostic output from the later child command is never part of this
+    decision.
+    """
+    for candidate in apache_development_candidates():
+        apxs = resolve_executable(candidate)
+        if apxs is None:
+            continue
+        try:
+            completed = subprocess.run(
+                [str(apxs), "-q", "INCLUDEDIR"],
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        include_directory = Path(completed.stdout.strip())
+        if (
+            completed.returncode == 0
+            and include_directory.is_absolute()
+            and include_directory.is_dir()
+            and (include_directory / "httpd.h").is_file()
+        ):
+            return True
+    return False
 
 
 def status_for_exit_code(exit_code: int) -> str:
@@ -248,33 +326,47 @@ def main(argv: Sequence[str]) -> int:
     try:
         command_exit_code: int | None
         reason: str | None = None
-        direct_block_reason: str | None = None
+        status_source: str
         if args.not_applicable is not None:
             status = "not_applicable"
             command_exit_code = None
             reason = args.not_applicable
+            status_source = "parent_explicit"
         elif args.not_executed is not None:
             status = "not_executed"
             command_exit_code = None
             reason = args.not_executed
+            status_source = "parent_explicit"
+        elif (
+            args.blocked_if_missing_apache_development
+            and not apache_development_available()
+        ):
+            status = "blocked"
+            command_exit_code = None
+            reason = APACHE_DEVELOPMENT_REASON
+            status_source = "parent_preflight"
         else:
-            command_exit_code, direct_block_reason = run_command(args.command)
+            command_exit_code = run_command(args.command)
             status = status_for_exit_code(command_exit_code)
+            status_source = "child_exit_code"
             if status == "blocked":
-                reason = direct_block_reason or "unclassified direct blocked exit code 77"
+                reason = "unclassified direct blocked exit code 77"
 
         if status not in VALID_STATUSES:
             raise AssertionError(f"unsupported status: {status}")
         exit_code = workflow_exit_code(
             status,
             command_exit_code,
-            status == "blocked" and direct_block_reason in args.allow_blocked_reason,
+            status == "blocked"
+            and status_source == "parent_preflight"
+            and reason in args.allow_blocked_reason,
             args.allow_not_applicable,
         )
         record: dict[str, object] = {
-            "schema_version": 1,
+            "schema_version": 2,
             "check": args.check,
             "status": status,
+            "status_source": status_source,
             "command_exit_code": command_exit_code,
             "workflow_exit_code": exit_code,
             "allowed_by_contract": exit_code == 0

@@ -11,3 +11,4 @@ must not claim unobserved CI, runtime, review, or delivery results.
 - [CI security hardening](CR-20260716-ci-security-hardening.md)
 - [CodeQL Action 4.37.1 batch](CR-20260717-codeql-action-4-37-1-batch.md)
 - [GitHub workflow permission hardening](CR-20260718-harden-workflow-permissions.md)
+- [CI status-channel integrity](CR-20260718-status-channel-integrity.md)
