@@ -117,11 +117,12 @@ Protokoll-Runtime-Run wurde gestartet oder behauptet.
 
 Der bestehende vollständige Shell-Policy-Selbsttest kann in diesem isolierten
 Worktree nicht laufen, bis der separate Framework-Checkout am aufgezeichneten
-Pfad verfügbar ist. Dies autorisiert keine Framework-Änderung. Der ursprüngliche
-Draft-PR-#58-Head `4f028f911807def8b771faaa3b16c58a513e0385` hatte 33
-bestandene GitHub-Checks, einschließlich CodeQL und SonarQube Cloud. Dieser
-Record begleitet einen fokussierten Follow-up; sein neuer exakter Head benötigt
-eine frische CI-/Quality-Prüfung vor jeder `verified_pr`-Behauptung.
+Pfad verfügbar ist. Dies autorisiert keine Framework-Änderung. Bei Erstellung
+dieses Records hatte der ursprüngliche Draft-PR-#58-Head
+`4f028f911807def8b771faaa3b16c58a513e0385` 33 bestandene GitHub-Checks,
+einschließlich CodeQL und SonarQube Cloud. Dieses historische Ergebnis trägt
+keinen späteren Push: Jede Auslieferungsentscheidung muss die CI-, Quality- und
+Review-Nachweise des dann aktuellen exakten PR-Heads verwenden.
 
 ## Verbleibende Risiken
 
@@ -134,17 +135,17 @@ Invocation-Root-Bindung behält.
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Kein Connector-Build, Host-Runtime-, Protokoll-Run, CRS/MRTS-Matrix- oder
-Framework-Change lief in dieser Remediation. Der ursprüngliche Draft-PR #58
-wurde committed, gepusht und geprüft; der aktuelle Follow-up wird absichtlich
-nicht als geliefert behandelt, bis sein eigener Exact-Head-CI-, CodeQL-,
-SonarQube-Cloud- und Review-Zyklus abgeschlossen ist. Kein Merge ist
-autorisiert.
+Framework-Change lief in dieser Remediation. Ein geschützter Merge muss einen
+explizit autorisierten, dann aktuellen PR-Head und dessen eigene Exact-Head-
+CI-, CodeQL-, SonarQube-Cloud- und Review-Nachweise verwenden. Bei Erstellung
+dieses Records hatte kein Merge stattgefunden.
 
 ## Finaler Diff- und Review-Status
 
-Fokussierte lokale Regression-Coverage, der 11-Test-Bilingual-Checker, Shell-
-Syntax und finale Whitespace-Diff-Validierung bestanden. Der vollständige
-Shell-Policy-Check bleibt nur durch den fehlenden Framework-Checkout blockiert.
-Die ursprüngliche Implementierung wurde über Draft-PR #58 geliefert; dieser
-Source-Root-Follow-up bleibt `remediation_required`, bis der neue exakte
-PR-Head gepusht und unabhängig verifiziert ist. Kein Merge erfolgte.
+Bei Erstellung dieses Records bestanden fokussierte lokale
+Regression-Coverage, der 11-Test-Bilingual-Checker, Shell-Syntax und finale
+Whitespace-Diff-Validierung. Der vollständige Shell-Policy-Check bleibt nur
+durch den fehlenden Framework-Checkout blockiert. Dieser Record behauptet
+bewusst keinen späteren PR-Auslieferungs- oder Merge-Status; dieser muss aus
+dem aktuellen exakten Head ermittelt werden. Bei Erstellung dieses Records
+hatte kein Merge stattgefunden.

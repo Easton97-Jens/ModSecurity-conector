@@ -110,11 +110,11 @@ started or claimed.
 
 The existing full shell policy self-test cannot run in this isolated worktree
 until the separate Framework checkout is available at its recorded path. This
-does not authorize a Framework modification. The original draft PR #58 head
-`4f028f911807def8b771faaa3b16c58a513e0385` had 33 passing GitHub checks,
-including CodeQL and SonarQube Cloud. This record accompanies a focused
-follow-up, so its new exact head requires a fresh CI/quality review before any
-`verified_pr` claim.
+does not authorize a Framework modification. At record authoring, the original
+draft PR #58 head `4f028f911807def8b771faaa3b16c58a513e0385` had 33 passing
+GitHub checks, including CodeQL and SonarQube Cloud. That historical result
+does not support a later push: any delivery decision must use the then-current
+exact PR head's CI, quality, and review evidence.
 
 ## Remaining risks
 
@@ -126,16 +126,16 @@ canonical lifecycle resolver retains the stricter invocation-root binding.
 ## Checks not run and rationale
 
 No connector build, host runtime, protocol run, CRS/MRTS matrix, or Framework
-change was run by this remediation. The original draft PR #58 was committed,
-pushed, and checked; the current follow-up is intentionally not treated as
-delivered until its own exact-head CI, CodeQL, SonarQube Cloud, and review
-cycle completes. No merge is authorized.
+change was run by this remediation. A protected merge must use an explicitly
+authorized, then-current PR head and its own exact-head CI, CodeQL, SonarQube
+Cloud, and review evidence. No merge had occurred when this record was
+authored.
 
 ## Final diff and review status
 
-Focused local regression coverage, the 11-test bilingual checker, shell syntax,
-and final whitespace-diff validation passed. The full shell policy check remains
-blocked only by the absent Framework checkout. The original implementation was
-delivered through draft PR #58; this source-root follow-up remains
-`remediation_required` until the new exact PR head is pushed and independently
-verified. No merge occurred.
+At record authoring, focused local regression coverage, the 11-test bilingual
+checker, shell syntax, and final whitespace-diff validation passed. The full
+shell policy check remains blocked only by the absent Framework checkout. This
+record intentionally does not assert a later PR delivery or merge state; that
+state must be determined from the current exact head. No merge had occurred
+when this record was authored.
