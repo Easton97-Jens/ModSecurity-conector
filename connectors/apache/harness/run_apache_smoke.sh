@@ -100,6 +100,15 @@ fail() {
     exit 1
 }
 
+require_audit_rule() {
+    audit_rule_id=$1
+    audit_failure=$2
+    if [ ! -s "$AUDIT_LOG_FILE" ] || \
+        ! grep -F "$audit_rule_id" "$AUDIT_LOG_FILE" >/dev/null 2>&1; then
+        fail "$audit_failure"
+    fi
+}
+
 not_executable() {
     echo "apache_smoke: not_executable $*"
     mkdir -p "$LOG_DIR"
@@ -723,9 +732,8 @@ send_synchronized_first_byte_request() {
                 fail "bypass reproduction did not take the Safe log_only fallback"
             grep -F '"reason":"response_committed_safe"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
                 fail "bypass reproduction did not record a committed response"
-            [ -s "$AUDIT_LOG_FILE" ] && \
-                grep -F '2190401' "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
-                fail "bypass reproduction audit log lacks rule 2190401"
+            require_audit_rule 2190401 \
+                "bypass reproduction audit log lacks rule 2190401"
             ;;
         precommit_deny)
             [ "$observed_first_byte" -eq 0 ] || \
@@ -751,9 +759,8 @@ send_synchronized_first_byte_request() {
                 fail "pre-commit deny recorded an already-committed response"
             grep -F '"eos_seen":true' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
                 fail "pre-commit deny did not record the EOS decision boundary"
-            [ -s "$AUDIT_LOG_FILE" ] && \
-                grep -F '2190401' "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
-                fail "pre-commit deny audit log lacks rule 2190401"
+            require_audit_rule 2190401 \
+                "pre-commit deny audit log lacks rule 2190401"
             ;;
         custom_mime_deny)
             [ "$observed_first_byte" -eq 0 ] || \
@@ -777,9 +784,8 @@ send_synchronized_first_byte_request() {
                 fail "custom-MIME pre-commit deny did not record the uncommitted boundary"
             grep -F '"response_committed":false' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
                 fail "custom-MIME pre-commit deny recorded an already-committed response"
-            [ -s "$AUDIT_LOG_FILE" ] && \
-                grep -F '2190404' "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
-                fail "custom-MIME pre-commit deny audit log lacks rule 2190404"
+            require_audit_rule 2190404 \
+                "custom-MIME pre-commit deny audit log lacks rule 2190404"
             ;;
         engine_append_failure)
             [ "$client_rc" -eq 0 ] || \
@@ -821,9 +827,8 @@ send_synchronized_first_byte_request() {
             actual_body=$(cat "$RESPONSE_BODY")
             [ "$actual_body" = "$expected_body" ] || \
                 fail "Phase-4 log-only body was lost, reordered, or emitted more than once"
-            [ -s "$AUDIT_LOG_FILE" ] && \
-                grep -F '2190402' "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
-                fail "Phase-4 log-only audit log lacks rule 2190402"
+            require_audit_rule 2190402 \
+                "Phase-4 log-only audit log lacks rule 2190402"
             [ ! -s "$APACHE_PHASE4_LOG_FILE" ] || \
                 fail "Phase-4 log-only unexpectedly emitted a disruptive intervention event"
             ;;
@@ -1152,9 +1157,8 @@ for line in open(sys.argv[1], encoding="utf-8"):
 raise SystemExit(
     "Phase-4 rogue terminal test lacks one matching pre-commit deny event")
 PY
-            [ -s "$AUDIT_LOG_FILE" ] && \
-                grep -F "$rogue_rule_id" "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
-                fail "Phase-4 rogue terminal test audit log lacks the matching rule"
+            require_audit_rule "$rogue_rule_id" \
+                "Phase-4 rogue terminal test audit log lacks the matching rule"
             ;;
         allow) ;;
         *) fail "unsupported APACHE_PHASE4_ROGUE_EXPECT=$APACHE_PHASE4_ROGUE_EXPECT" ;;
@@ -1229,9 +1233,8 @@ assert_phase4_redirect_direct_control() {
         "$APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID")
     [ "$redirect_direct_rule_events_before" -ge 1 ] || \
         fail "Phase-4 internal redirect direct control lacks rule $APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID evidence"
-    [ -s "$AUDIT_LOG_FILE" ] && \
-        grep -F "$APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID" "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
-        fail "Phase-4 internal redirect direct control lacks audit rule $APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID"
+    require_audit_rule "$APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID" \
+        "Phase-4 internal redirect direct control lacks audit rule $APACHE_PHASE4_INTERNAL_REDIRECT_DIRECT_RULE_ID"
 }
 
 assert_phase4_internal_redirect_target_handler_was_not_run() {
@@ -1500,9 +1503,8 @@ send_phase4_downstream_error_request() {
     grep -F 'ModSecurity Phase4 downstream error test replaced the released response with an error bucket' \
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "Phase-4 downstream error filter did not replace the released response"
-    [ -s "$AUDIT_LOG_FILE" ] && \
-        grep -F '2190402' "$AUDIT_LOG_FILE" >/dev/null 2>&1 || \
-        fail "Phase-4 downstream error did not complete the log-only P4 control before the downstream failure"
+    require_audit_rule 2190402 \
+        "Phase-4 downstream error did not complete the log-only P4 control before the downstream failure"
     if grep -F 'refusing normal internal redirect across the Phase 4 response boundary' \
         "$LOG_DIR/error.log" >/dev/null 2>&1; then
         fail "Phase-4 downstream ErrorDocument was mistaken for a normal redirect"

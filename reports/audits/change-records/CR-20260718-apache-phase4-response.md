@@ -107,6 +107,8 @@ Change Record README pair.
 - `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-connector-config-reference` passed: 21 generated files current.
 - `rtk proxy env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python ci/evidence/collectors/connector_capabilities.py check` passed: 6 connectors and 60 capabilities.
 - `rtk proxy bash -n connectors/apache/harness/run_apache_smoke.sh ci/runtime/lifecycle/run-apache-phase4-response-regression.sh` passed.
+- `rtk proxy shellcheck ci/runtime/lifecycle/run-apache-phase4-response-regression.sh` passed. The full harness still reports only seven pre-existing baseline diagnostics; the focused audit-log assertion cleanup introduced none.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_apache_phase4_response_regression_wiring` passed: 10 tests after the focused shell cleanup.
 - `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` reproduced the Change Record schema failure before this correction; the local rerun remains blocked only by pre-existing links into the unpopulated Framework gitlink and the populated Framework CI rerun is required.
 - `rtk proxy git diff --check` passed before the documentation remediation and is rerun for the corrected candidate.
 
@@ -166,4 +168,6 @@ exact head `418465645e2ceae60e842d1c3d7994d8bed93fa6` had the six required
 protected contexts, CodeQL, and SonarCloud passing, while Change Record schema
 checks failed. This correction produces a new candidate head and restarts the
 exact-head CI, review/conversation, and current-base verification cycle. The
-PR is not merged at record authoring.
+PR is not merged at record authoring. A subsequent focused shell-lint cleanup
+keeps the audit-log assertions fail closed and requires the same exact-head
+verification cycle.

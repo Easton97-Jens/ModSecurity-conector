@@ -112,6 +112,8 @@ Change-Record-Paar und das Change-Record-README-Paar.
 - `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-connector-config-reference` bestand: 21 generierte Dateien aktuell.
 - `rtk proxy env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python ci/evidence/collectors/connector_capabilities.py check` bestand: 6 Connectors und 60 Capabilities.
 - `rtk proxy bash -n connectors/apache/harness/run_apache_smoke.sh ci/runtime/lifecycle/run-apache-phase4-response-regression.sh` bestand.
+- `rtk proxy shellcheck ci/runtime/lifecycle/run-apache-phase4-response-regression.sh` bestand. Der vollständige Harness meldet weiterhin nur sieben bereits vorhandene Baseline-Diagnosen; die fokussierte Bereinigung der Audit-Log-Assertions fügt keine hinzu.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_apache_phase4_response_regression_wiring` bestand nach der fokussierten Shell-Bereinigung: 10 Tests.
 - `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` reproduzierte vor dieser Korrektur den Change-Record-Schema-Fehler; der lokale Rerun bleibt nur durch bereits vorhandene Links in den nicht ausgecheckten Framework-Gitlink blockiert und der CI-Rerun mit populiertem Framework ist erforderlich.
 - `rtk proxy git diff --check` bestand vor der Dokumentations-Remediation und wird für den korrigierten Kandidaten erneut ausgeführt.
 
@@ -175,3 +177,5 @@ Required Contexts, CodeQL und SonarCloud bestanden, während Change-Record-
 Schema-Checks fehlschlugen. Diese Korrektur erzeugt einen neuen Kandidaten-Head
 und startet den Exact-Head-CI-, Review-/Conversation- und Current-Base-
 Verifikationszyklus erneut. Der PR ist bei Record-Autorenschaft nicht gemergt.
+Eine nachfolgende fokussierte Shell-Lint-Bereinigung erhält die Audit-Log-
+Assertions fail-closed und benötigt denselben Exact-Head-Verifikationszyklus.

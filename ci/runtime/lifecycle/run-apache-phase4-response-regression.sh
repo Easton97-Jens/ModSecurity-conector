@@ -4,7 +4,7 @@
 set -eu
 
 mode=${1:?usage: run-apache-phase4-response-regression.sh bypass|deny|allow|log-only|client-abort|empty|empty-deny|limit|custom-mime-deny|engine-limit|fragmented-buckets|fragmented-buckets-boundary|redirect-bypass-h1|redirect-abort-h1|redirect-bypass-h2|redirect-abort-h2|redirect-target-config-bypass-h1|redirect-target-config-abort-h1|redirect-uri-bypass-h1|redirect-uri-abort-h1|redirect-target-handler-abort-h1|redirect-target-handler-abort-h2|downstream-error-document-h1|downstream-error-document-h2|upstream-error-document-h1|upstream-error-document-h2|nested-error-document-redirect-h1|preoutput-error-document-h1|preoutput-error-document-h2|rogue-h1|rogue-allow-h1|rogue-p3-h1|rogue-p3-header-freeze-h1|rogue-p3-header-freeze-h2|rogue-error-document-h1|rogue-h2|rogue-error-document-h2}
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT=${CONNECTOR_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)}
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}
 HARNESS=$CONNECTOR_ROOT/connectors/apache/harness/run_apache_smoke.sh
