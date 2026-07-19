@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Runtime-Pfad-Containment-Härtung](CR-20260718-runtime-path-confinement.de.md)
 - [Sicherheitsrichtlinie und Governance-Baseline](CR-20260718-security-policy-governance.de.md)
 - [Traefik-UDS- und C++-Evaluator-Härtung](CR-20260717-traefik-uds-cpp17-hardening.de.md)
 - [CI-Sicherheits-Härtung](CR-20260716-ci-security-hardening.de.md)
