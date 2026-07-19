@@ -86,6 +86,12 @@ Der Report-Refresh-Producer gibt jede aggregierte Input-Status-Sammlung als
 typisierte Liste aus, damit ein zukünftiger gültiger Record dasselbe Schema
 besitzt, das der strikte Consumer verlangt.
 
+Das fokussierte Raw-Matrix-Fixture aktualisiert seinen JSONL-Record aus der
+vollständigen In-Memory-Zwölf-Job-Sammlung, die es konstruiert hat; es liest
+keinen serialisierten Fixture-Record erneut, bevor es das feste Fixture-Manifest
+umschreibt. Dadurch bleiben die Direct-Summary- und Hash-Mismatch-Controls
+erhalten, während die Fixture-Rewrite-Grenze explizit bleibt.
+
 Für Summary-Artefakte leitet der Checker beide erlaubten Positionen aus dem
 enumerierten Connector und dem kanonischen Job-Root ab, bevor er Receipt-Daten
 auswertet. Das Receipt kann nur den direkten oder den kanonischen
@@ -162,16 +168,15 @@ Runtime-Komponenten und den autoritativen Framework-Harness, die in diesem
 isolierten Worktree nicht verfügbar sind. Dieses Fehlen autorisiert weder
 einen synthetischen Erfolg noch einen Governance-only-Ersatz. Der
 Source-Remediation-Head `03e5088d8202a4eb14d891b31d149aa2f6081289` wurde
-gepusht. Diese Dokumentationskorrektur erzeugt den nachfolgenden Draft-PR-Head;
-vollständige Exact-Head-CI-, CodeQL-, SonarQube-Cloud- und Review-Verifikation
-sind für diesen nach seinem Push erforderlich. Kein Merge ist erfolgt und keine
-Prüfung darf umgangen werden.
+gepusht. Der aktuelle Draft-PR-Head enthält diese Dokumentationskorrektur.
+Vollständige Exact-Head-CI-, CodeQL-, SonarQube-Cloud- und Review-Verifikation
+sind für den aktuellen exakten PR-Head erforderlich. Kein Merge ist erfolgt und
+keine Prüfung darf umgangen werden.
 
 ## Finaler Diff- und Review-Status
 
-Die Source-Änderungen vor dieser Record-Korrektur besitzen fokussierte
-Negativ-/Kontrolltests, Shell-Syntaxvalidierung und Whitespace-Diff-Validierung
-und wurden als `03e5088d8202a4eb14d891b31d149aa2f6081289` gepusht. Diese
-Record-Korrektur erzeugt den nachfolgenden Draft-PR-Head; sie bleibt
+Der ursprüngliche Source-Remediation-Head
+`03e5088d8202a4eb14d891b31d149aa2f6081289` wurde gepusht. Der aktuelle
+Draft-PR-Head enthält diese Record-Korrektur und bleibt
 `remediation_required`, bis dieser exakte Head unabhängig verifiziert ist. Es
 wird keine Runtime-Evidence oder Merge behauptet.

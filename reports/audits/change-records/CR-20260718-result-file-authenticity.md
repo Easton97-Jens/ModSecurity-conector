@@ -84,6 +84,12 @@ The report-refresh producer emits every aggregate input-status collection as a
 typed list, so a future valid record has the same schema the strict consumer
 requires.
 
+The focused raw-matrix fixture updates its JSONL record from the complete
+in-memory twelve-job collection it constructed; it does not reread a serialized
+fixture record before rewriting the fixed fixture manifest. This keeps the
+direct-summary and hash-mismatch controls intact while keeping the fixture
+rewrite boundary explicit.
+
 ## Security impact
 
 This Parent result-file-authenticity and report-consumer hardening turns report
@@ -150,16 +156,15 @@ A full connector/runtime matrix needs the separately provisioned runtime
 components and authoritative Framework harness, which are unavailable in this
 isolated worktree. That absence does not authorize a synthetic success or a
 governance-only substitute. Source-remediation head
-`03e5088d8202a4eb14d891b31d149aa2f6081289` was pushed. This documentation
-correction creates the subsequent draft-PR head; full exact-head CI, CodeQL,
-SonarQube Cloud, and review verification are required for that subsequent head
-after it is pushed. No merge has occurred and no check may be bypassed.
+`03e5088d8202a4eb14d891b31d149aa2f6081289` was pushed. The current draft PR
+head retains this documentation correction. Full exact-head CI, CodeQL,
+SonarQube Cloud, and review verification are required for the current exact PR
+head. No merge has occurred and no check may be bypassed.
 
 ## Final diff and review status
 
-The source changes before this record correction have focused negative/control
-tests, shell syntax validation, and whitespace-diff validation, and were
-pushed as `03e5088d8202a4eb14d891b31d149aa2f6081289`. This record correction
-creates the subsequent draft-PR head; it remains `remediation_required` until
+The original source-remediation head
+`03e5088d8202a4eb14d891b31d149aa2f6081289` was pushed. The current draft PR
+head retains this record correction and remains `remediation_required` until
 that exact head has been independently verified. No runtime evidence or merge
 claim is made.

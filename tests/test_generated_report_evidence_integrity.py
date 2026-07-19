@@ -4,6 +4,7 @@ import json
 import sys
 import tempfile
 import unittest
+from copy import deepcopy
 from itertools import product
 from pathlib import Path
 
@@ -45,8 +46,9 @@ def write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def replace_raw_matrix_job(matrix_manifest: Path, job: dict[str, object]) -> None:
-    rows = [json.loads(line) for line in matrix_manifest.read_text(encoding="utf-8").splitlines() if line]
+def replace_raw_matrix_job(
+    rows: list[dict[str, object]], matrix_manifest: Path, job: dict[str, object]
+) -> None:
     for index, row in enumerate(rows):
         if row.get("job_id") == job["job_id"]:
             rows[index] = job
@@ -133,6 +135,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
             encoding="utf-8",
         )
+        self.raw_matrix_rows = rows
         verified_manifest = {
             "verified_run_id": run_id,
             "profile": "full",
@@ -149,6 +152,12 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             verified_manifest,
         )
         return connector_root, build_root, run_id
+
+    def raw_matrix_job(self, job_id: str) -> dict[str, object]:
+        for row in self.raw_matrix_rows:
+            if row["job_id"] == job_id:
+                return deepcopy(row)
+        raise AssertionError(f"raw matrix job not found: {job_id}")
 
     def assert_chain_rejected(self, connector_root: Path, build_root: Path, expected: str) -> None:
         errors: list[str] = []
@@ -241,12 +250,16 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
             direct_summary_path = job_path.parent / "results/apache-summary.json"
             write_json(direct_summary_path, {"apache": {"cases": {"direct": {"status": "pass"}}}})
-            job = json.loads(job_path.read_text(encoding="utf-8"))
+            job = self.raw_matrix_job("apache:no-crs:no-mrts")
             job["summary_path"] = str(direct_summary_path)
             job["outputs"]["summary"] = str(direct_summary_path)
             job["hashes"]["summary"] = sha256(direct_summary_path)
             write_json(job_path, job)
-            replace_raw_matrix_job(build_root / "full-matrix/full-runtime-matrix-runs.jsonl", job)
+            replace_raw_matrix_job(
+                self.raw_matrix_rows,
+                build_root / "full-matrix/full-runtime-matrix-runs.jsonl",
+                job,
+            )
             errors: list[str] = []
             CHECKER.check_verified_runtime_artifact_chain(
                 connector_root,
@@ -275,7 +288,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 root = Path(temporary)
                 connector_root, build_root, _ = self.build_valid_run(root)
                 job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
-                job = json.loads(job_path.read_text(encoding="utf-8"))
+                job = self.raw_matrix_job("apache:no-crs:no-mrts")
                 if location == "direct":
                     direct_summary_path = job_path.parent / "results/apache-summary.json"
                     write_json(direct_summary_path, {"apache": {"cases": {"direct": {"status": "pass"}}}})
@@ -283,7 +296,11 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                     job["outputs"]["summary"] = str(direct_summary_path)
                 job["hashes"]["summary"] = "a" * 64
                 write_json(job_path, job)
-                replace_raw_matrix_job(build_root / "full-matrix/full-runtime-matrix-runs.jsonl", job)
+                replace_raw_matrix_job(
+                    self.raw_matrix_rows,
+                    build_root / "full-matrix/full-runtime-matrix-runs.jsonl",
+                    job,
+                )
                 self.assert_chain_rejected(connector_root, build_root, "summary hash mismatch")
 
     def test_symlinked_result_directory_is_rejected(self) -> None:
