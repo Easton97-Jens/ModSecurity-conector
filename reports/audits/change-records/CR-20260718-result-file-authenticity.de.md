@@ -42,6 +42,10 @@ beitragen, ohne dass ein strikter Source-of-Truth-Receipt geprüft wurde.
 - Logs, Build-Manifeste, Zusammenfassungen und Result-JSONL-Dateien sind
   reguläre, kanonische Dateien mit passenden Receipt-Hashes; Leaf- und
   Zwischenpfad-Escapes oder Symlinks schlagen fail-closed fehl.
+- Kritische Input-Receipts werden vor dem Root-Containment-Vergleich kanonisch
+  aufgelöst, sodass `BUILD_ROOT:../...`, `framework:../...` und unpräfixiertes
+  `../...` keine externe reguläre Datei authentifizieren können, auch wenn ihr
+  deklarierter SHA-256-Wert übereinstimmt.
 - Das Raw-Full-Matrix-Manifest bewahrt Receipt-Identität und Hash-Felder und
   stimmt exakt mit den Job-Receipts überein.
 - Eine gefälschte Result-Datei, fremde Run-ID, kopierter
@@ -60,6 +64,13 @@ und die SHA-256-Werte jedes strukturierten Artefakts. Frei formatierte Pfade in
 den Receipts können den Checker nicht umleiten: Sie müssen dem erwarteten
 lexikalisch kanonischen Ort entsprechen und reguläre Dateien ohne
 Symlink-Komponente unterhalb des Evidence-Roots sein.
+
+Kritische Input-Receipts verwenden dieselbe fail-closed Grenze: Der Checker
+löst den beanspruchten Pfad und den vertrauenswürdigen Root vor dem
+Containment-Vergleich auf und weist danach weiterhin Leaf- und
+Zwischen-Symlink-Komponenten zurück. Dadurch kann eine lexikalische
+`..`-Komponente keinen vertrauenswürdigen Präfix bewahren, während die
+Filesystem-Operation eine externe Datei erreicht.
 
 Der Full-Matrix-Generator bewahrt beim Umschreiben des Raw-Manifests `job_id`,
 `verified_run_id`, Status, Hashes, Inputs und Outputs, damit der strikte
@@ -94,10 +105,16 @@ eigene Grenzen und werden hier nicht geändert.
 
 ## Ausgeführte Befehle
 
+Für die fokussierten Python-Befehle bezeichnet `PARENT_PYTHON` den explizit
+ausgewählten Parent-Virtualenv-Interpreter unter
+`/absolute/path/to/ModSecurity-conector/.venv/bin/python`; der isolierte
+PR-Worktree erstellt oder besitzt keine zweite Virtualenv.
+
 | Befehl | Ergebnis |
 | --- | --- |
 | Initialer fixture-first-`unittest`-Lauf vor der Strict-Chain-Implementierung | Erwartet fehlgeschlagen: Acht Fixtures erreichten die fehlende Strict-Chain-Kontrolle, und der kritische Missing-Input-Status wurde nicht abgelehnt. |
-| `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_generated_report_evidence_integrity` nach der Implementierung | Bestanden: Gefälschter `PASS`-Result-Inhalt/Checksum-Mismatch, fehlendes Raw-Manifest, unvollständiger Receipt, fremde Run-ID, kopierter Connector/Profile-Receipt, Leaf- und Zwischenpfad-Escapes/Symlinks, fehlender/erfundener/malformatierter kritischer Input-Status, typisierte Producer-Arrays, Raw-Manifest-Erhalt, Verhinderung der Selbstreferenz und ein gültiger Zwölf-Zellen-Kontrollfall sind abgedeckt. |
+| Fixture-first-Kontrolle für kritische Input-Traversal vor kanonischem Containment | Erwartet fehlgeschlagen: `BUILD_ROOT:../...`, `framework:../...` und unpräfixiertes `../...` akzeptierten jeweils eine korrekt gehashte externe reguläre Datei ohne Strict-Check-Fehler. |
+| `rtk proxy /usr/bin/env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 "$PARENT_PYTHON" -m unittest -v tests.test_generated_report_evidence_integrity` nach der Implementierung | Bestanden: 32 Tests decken gefälschten `PASS`-Result-Inhalt/Checksum-Mismatch, fehlendes Raw-Manifest, unvollständigen Receipt, fremde Run-ID, kopierten Connector/Profile-Receipt, Leaf- und Zwischenpfad-Escapes/Symlinks, kanonisiertes Critical-Input-Traversal, fehlenden/erfundenen/malformatierten kritischen Input-Status, Manifest- und Metadata-Input-Digest-Mismatch, Summary/JSONL-Fallback-Auswahl, typisierte Producer-Arrays, Raw-Manifest-Erhalt, Verhinderung der Selbstreferenz und einen gültigen Zwölf-Zellen-Kontrollfall ab. |
 | `rtk sh -n ci/runtime/lifecycle/run-full-matrix-parallel.sh` | Bestanden. |
 | In-Memory-`compile()`-Validierung der drei geänderten Python-Quellen | Bestanden ohne Versuch checkout-lokaler Bytecode-Schreibvorgänge. |
 | Striktes `make verified-report-evidence-gate` gegen aufbewahrte Evidence | Erwarteter Fehler: Es lehnt kritische Missing-Input-Zustände und nichtkanonische/fehlende Command-Receipts ab. Die bestehende stale Cross-Evidence `FND-CROSS-0001` bleibt ein separater fail-closed Blocker. |
@@ -135,7 +152,8 @@ Runtime-Komponenten und den autoritativen Framework-Harness, die in diesem
 isolierten Worktree nicht verfügbar sind. Dieses Fehlen autorisiert weder
 einen synthetischen Erfolg noch einen Governance-only-Ersatz. Vollständige
 Exact-Head-CI-, CodeQL-, SonarQube-Cloud- und Review-Verifikation sind nach
-Erstellung des Draft-PR erforderlich. Kein Merge ist autorisiert.
+dem nächsten PR-Head-Push erforderlich; kein Merge ist erfolgt und keine
+Prüfung darf umgangen werden.
 
 ## Finaler Diff- und Review-Status
 

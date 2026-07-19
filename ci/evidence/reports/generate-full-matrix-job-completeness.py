@@ -209,69 +209,82 @@ def analyze_nginx_with_crs_mrts(matrix_root: Path) -> dict[str, Any]:
     }
 
 
+def job_case_counts(summary: Path, jsonl: Path, connector: str) -> tuple[dict[str, Any], Path]:
+    if summary.is_file():
+        return count_summary_cases(summary, connector), summary
+    if jsonl.is_file():
+        return count_jsonl_cases(jsonl), jsonl
+    return {}, jsonl
+
+
+def collect_job(
+    matrix_root: Path,
+    manifest: dict[str, dict[str, Any]],
+    *,
+    connector: str,
+    crs: str,
+    mrts: str,
+) -> dict[str, Any]:
+    jid = job_id(connector, crs, mrts)
+    job_root = matrix_root / crs / mrts / connector
+    job_path = job_root / "job.json"
+    log_path = job_root / "run.log"
+    build_manifest = job_root / "build-manifest.json"
+    summary = summary_path(job_root, connector)
+    jsonl = result_jsonl_path(job_root, connector)
+    preamble = job_root / "preambles" / f"{connector}-{crs}-{mrts}.load"
+    job = read_json(job_path)
+    status, reason = detect_job_status(job, log_path, jsonl)
+    counts, result_path = job_case_counts(summary, jsonl, connector)
+    manifest_row = manifest.get(jid, {})
+    duration = job.get("duration_seconds", manifest_row.get("duration_seconds"))
+    return {
+        "job_id": jid,
+        "connector": connector,
+        "crs": crs,
+        "mrts": mrts,
+        "verified_run_id": job.get("verified_run_id", ""),
+        "status": status,
+        "reason": reason,
+        "manifest_recorded": bool(manifest_row),
+        "return_code": job.get("return_code", manifest_row.get("return_code")),
+        "started_at": job.get("started_at", manifest_row.get("started_at", "")),
+        "ended_at": job.get("ended_at", manifest_row.get("ended_at", "")),
+        "duration_seconds": duration if isinstance(duration, int) else None,
+        "cases": counts.get("cases", 0),
+        "attempted": counts.get("attempted", 0),
+        "pass": counts.get("pass", 0),
+        "fail": counts.get("fail", 0),
+        "blocked": counts.get("blocked", 0),
+        "not_executable": counts.get("not_executable", 0),
+        "status_counts": counts.get("status_counts", {}),
+        "actual_status_counts": counts.get("actual_status_counts", {}),
+        "job_path": str(job_path),
+        "log_path": str(log_path),
+        "summary_path": str(summary),
+        "results_jsonl": str(jsonl),
+        "result_path": str(result_path),
+        "hashes": job.get("hashes") if isinstance(job.get("hashes"), dict) else {},
+        "inputs": job.get("inputs") if isinstance(job.get("inputs"), dict) else {},
+        "outputs": job.get("outputs") if isinstance(job.get("outputs"), dict) else {},
+        "input_hashes": [
+            file_record(job_path, "job_json"),
+            file_record(log_path, "run_log"),
+            file_record(summary, "summary_json"),
+            file_record(jsonl, "results_jsonl"),
+            file_record(build_manifest, "build_manifest"),
+            file_record(preamble, "rule_preamble"),
+        ],
+    }
+
+
 def collect_jobs(matrix_root: Path, manifest_path: Path) -> list[dict[str, Any]]:
     manifest = read_manifest_rows(manifest_path)
-    rows: list[dict[str, Any]] = []
-    for crs, mrts in VARIANTS:
-        for connector in CONNECTORS:
-            jid = job_id(connector, crs, mrts)
-            job_root = matrix_root / crs / mrts / connector
-            job_path = job_root / "job.json"
-            log_path = job_root / "run.log"
-            build_manifest = job_root / "build-manifest.json"
-            summary = summary_path(job_root, connector)
-            jsonl = result_jsonl_path(job_root, connector)
-            preamble = job_root / "preambles" / f"{connector}-{crs}-{mrts}.load"
-            job = read_json(job_path)
-            status, reason = detect_job_status(job, log_path, jsonl)
-            counts = {}
-            if summary.is_file():
-                counts = count_summary_cases(summary, connector)
-            elif jsonl.is_file():
-                counts = count_jsonl_cases(jsonl)
-            manifest_row = manifest.get(jid, {})
-            duration = job.get("duration_seconds", manifest_row.get("duration_seconds"))
-            rows.append(
-                {
-                    "job_id": jid,
-                    "connector": connector,
-                    "crs": crs,
-                    "mrts": mrts,
-                    "verified_run_id": job.get("verified_run_id", ""),
-                    "status": status,
-                    "reason": reason,
-                    "manifest_recorded": bool(manifest_row),
-                    "return_code": job.get("return_code", manifest_row.get("return_code")),
-                    "started_at": job.get("started_at", manifest_row.get("started_at", "")),
-                    "ended_at": job.get("ended_at", manifest_row.get("ended_at", "")),
-                    "duration_seconds": duration if isinstance(duration, int) else None,
-                    "cases": counts.get("cases", 0),
-                    "attempted": counts.get("attempted", 0),
-                    "pass": counts.get("pass", 0),
-                    "fail": counts.get("fail", 0),
-                    "blocked": counts.get("blocked", 0),
-                    "not_executable": counts.get("not_executable", 0),
-                    "status_counts": counts.get("status_counts", {}),
-                    "actual_status_counts": counts.get("actual_status_counts", {}),
-                    "job_path": str(job_path),
-                    "log_path": str(log_path),
-                    "summary_path": str(summary),
-                    "results_jsonl": str(jsonl),
-                    "result_path": str(summary if summary.is_file() else jsonl),
-                    "hashes": job.get("hashes") if isinstance(job.get("hashes"), dict) else {},
-                    "inputs": job.get("inputs") if isinstance(job.get("inputs"), dict) else {},
-                    "outputs": job.get("outputs") if isinstance(job.get("outputs"), dict) else {},
-                    "input_hashes": [
-                        file_record(job_path, "job_json"),
-                        file_record(log_path, "run_log"),
-                        file_record(summary, "summary_json"),
-                        file_record(jsonl, "results_jsonl"),
-                        file_record(build_manifest, "build_manifest"),
-                        file_record(preamble, "rule_preamble"),
-                    ],
-                }
-            )
-    return rows
+    return [
+        collect_job(matrix_root, manifest, connector=connector, crs=crs, mrts=mrts)
+        for crs, mrts in VARIANTS
+        for connector in CONNECTORS
+    ]
 
 
 def rewrite_manifest(path: Path, jobs: list[dict[str, Any]]) -> None:

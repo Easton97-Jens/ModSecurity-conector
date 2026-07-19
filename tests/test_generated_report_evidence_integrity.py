@@ -339,11 +339,13 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             )
             errors: list[str] = []
             CHECKER.check_manifest(connector_root, errors, strict_evidence=True)
-        self.assertTrue(any("has unverified input status forged-success" in error for error in errors), errors)
+        self.assertTrue(any("critical report input is forged-success" in error for error in errors), errors)
 
     def test_critical_manifest_present_input_record_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             connector_root = Path(temporary)
+            input_path = connector_root / "runtime.json"
+            write_json(input_path, {"runtime": "receipt"})
             refresh_manifest = {
                 "reports": [
                     {
@@ -355,7 +357,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                         "owner": "parent",
                         "severity": "critical",
                         "input_status": "complete",
-                        "inputs": [{"path": "runtime.json", "status": "present"}],
+                        "inputs": [{"path": "runtime.json", "status": "present", "sha256": sha256(input_path)}],
                         "missing_inputs": [],
                         "empty_inputs": [],
                         "unknown_inputs": [],
@@ -370,6 +372,193 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             errors: list[str] = []
             CHECKER.check_manifest(connector_root, errors, strict_evidence=True)
         self.assertEqual([], errors)
+
+    def test_critical_manifest_parent_traversal_receipts_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root = root / "connector"
+            build_root = root / "build"
+            framework_root = root / "framework"
+            external_input = root / "outside-runtime.json"
+            connector_root.mkdir()
+            build_root.mkdir()
+            framework_root.mkdir()
+            write_json(external_input, {"runtime": "outside trusted roots"})
+            for input_reference in (
+                "BUILD_ROOT:../outside-runtime.json",
+                "framework:../outside-runtime.json",
+                "../outside-runtime.json",
+            ):
+                with self.subTest(input_reference=input_reference):
+                    refresh_manifest = {
+                        "reports": [
+                            {
+                                "report_name": "full_runtime_matrix",
+                                "status": "generated",
+                                "output_files": [],
+                                "category": "runtime",
+                                "kind": "report",
+                                "owner": "parent",
+                                "severity": "critical",
+                                "input_status": "complete",
+                                "inputs": [
+                                    {
+                                        "path": input_reference,
+                                        "status": "present",
+                                        "sha256": sha256(external_input),
+                                    }
+                                ],
+                                "missing_inputs": [],
+                                "empty_inputs": [],
+                                "unknown_inputs": [],
+                                "stale_inputs": [],
+                            }
+                        ]
+                    }
+                    write_json(
+                        connector_root / "reports/testing/generated/manifest/report-refresh-manifest.generated.json",
+                        refresh_manifest,
+                    )
+                    errors: list[str] = []
+                    CHECKER.check_manifest(
+                        connector_root,
+                        errors,
+                        strict_evidence=True,
+                        build_root=build_root,
+                        framework_root=framework_root,
+                    )
+                    self.assertTrue(
+                        any("input is not a trusted regular file" in error for error in errors),
+                        errors,
+                    )
+
+    def test_critical_manifest_present_input_hash_mismatch_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary)
+            input_path = connector_root / "runtime.json"
+            write_json(input_path, {"runtime": "original receipt"})
+            declared_hash = sha256(input_path)
+            write_json(input_path, {"runtime": "substituted receipt"})
+            refresh_manifest = {
+                "reports": [
+                    {
+                        "report_name": "full_runtime_matrix",
+                        "status": "generated",
+                        "output_files": [],
+                        "category": "runtime",
+                        "kind": "report",
+                        "owner": "parent",
+                        "severity": "critical",
+                        "input_status": "complete",
+                        "inputs": [{"path": "runtime.json", "status": "present", "sha256": declared_hash}],
+                        "missing_inputs": [],
+                        "empty_inputs": [],
+                        "unknown_inputs": [],
+                        "stale_inputs": [],
+                    }
+                ]
+            }
+            write_json(
+                connector_root / "reports/testing/generated/manifest/report-refresh-manifest.generated.json",
+                refresh_manifest,
+            )
+            errors: list[str] = []
+            CHECKER.check_manifest(connector_root, errors, strict_evidence=True)
+        self.assertTrue(any("critical report input hash mismatch: runtime.json" in error for error in errors), errors)
+
+    def test_critical_manifest_missing_present_input_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary)
+            refresh_manifest = {
+                "reports": [
+                    {
+                        "report_name": "full_runtime_matrix",
+                        "status": "generated",
+                        "output_files": [],
+                        "category": "runtime",
+                        "kind": "report",
+                        "owner": "parent",
+                        "severity": "critical",
+                        "input_status": "complete",
+                        "inputs": [{"path": "missing-runtime.json", "status": "present", "sha256": "a" * 64}],
+                        "missing_inputs": [],
+                        "empty_inputs": [],
+                        "unknown_inputs": [],
+                        "stale_inputs": [],
+                    }
+                ]
+            }
+            write_json(
+                connector_root / "reports/testing/generated/manifest/report-refresh-manifest.generated.json",
+                refresh_manifest,
+            )
+            errors: list[str] = []
+            CHECKER.check_manifest(connector_root, errors, strict_evidence=True)
+        self.assertTrue(any("input is not a trusted regular file" in error for error in errors), errors)
+
+    def test_critical_manifest_empty_input_receipts_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary)
+            refresh_manifest = {
+                "reports": [
+                    {
+                        "report_name": "full_runtime_matrix",
+                        "status": "generated",
+                        "output_files": [],
+                        "category": "runtime",
+                        "kind": "report",
+                        "owner": "parent",
+                        "severity": "critical",
+                        "input_status": "complete",
+                        "inputs": [],
+                        "missing_inputs": [],
+                        "empty_inputs": [],
+                        "unknown_inputs": [],
+                        "stale_inputs": [],
+                    }
+                ]
+            }
+            write_json(
+                connector_root / "reports/testing/generated/manifest/report-refresh-manifest.generated.json",
+                refresh_manifest,
+            )
+            errors: list[str] = []
+            CHECKER.check_manifest(connector_root, errors, strict_evidence=True)
+        self.assertTrue(any("has no direct input receipts" in error for error in errors), errors)
+
+    def test_critical_manifest_symlinked_input_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            external_input = Path(temporary) / "external-runtime.json"
+            write_json(external_input, {"runtime": "receipt"})
+            connector_root.mkdir(parents=True)
+            (connector_root / "runtime.json").symlink_to(external_input)
+            refresh_manifest = {
+                "reports": [
+                    {
+                        "report_name": "full_runtime_matrix",
+                        "status": "generated",
+                        "output_files": [],
+                        "category": "runtime",
+                        "kind": "report",
+                        "owner": "parent",
+                        "severity": "critical",
+                        "input_status": "complete",
+                        "inputs": [{"path": "runtime.json", "status": "present", "sha256": sha256(external_input)}],
+                        "missing_inputs": [],
+                        "empty_inputs": [],
+                        "unknown_inputs": [],
+                        "stale_inputs": [],
+                    }
+                ]
+            }
+            write_json(
+                connector_root / "reports/testing/generated/manifest/report-refresh-manifest.generated.json",
+                refresh_manifest,
+            )
+            errors: list[str] = []
+            CHECKER.check_manifest(connector_root, errors, strict_evidence=True)
+        self.assertTrue(any("input is not a trusted regular file" in error for error in errors), errors)
 
     def test_critical_manifest_non_list_inputs_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -474,6 +663,8 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
     def test_critical_metadata_present_input_record_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             connector_root = Path(temporary)
+            input_path = connector_root / "runtime-receipt.json"
+            write_json(input_path, {"runtime": "receipt"})
             report_path = CHECKER.report_path(connector_root, "full_runtime_matrix", "json")
             write_json(
                 report_path,
@@ -483,13 +674,35 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                         "connector_sha": "a" * 40,
                         "framework_sha": "b" * 40,
                         "input_status": "complete",
-                        "inputs": [{"path": "runtime-receipt.json", "status": "present"}],
+                        "inputs": [{"path": "runtime-receipt.json", "status": "present", "sha256": sha256(input_path)}],
                     }
                 },
             )
             errors: list[str] = []
             CHECKER.check_critical_report_run_consistency(connector_root, errors, strict_evidence=True)
         self.assertEqual([], errors)
+
+    def test_critical_metadata_input_hash_mismatch_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary)
+            input_path = connector_root / "runtime-receipt.json"
+            write_json(input_path, {"runtime": "receipt"})
+            report_path = CHECKER.report_path(connector_root, "full_runtime_matrix", "json")
+            write_json(
+                report_path,
+                {
+                    "metadata": {
+                        "verified_run_id": "verified-run-20260718",
+                        "connector_sha": "a" * 40,
+                        "framework_sha": "b" * 40,
+                        "input_status": "complete",
+                        "inputs": [{"path": "runtime-receipt.json", "status": "present", "sha256": "a" * 64}],
+                    }
+                },
+            )
+            errors: list[str] = []
+            CHECKER.check_critical_report_run_consistency(connector_root, errors, strict_evidence=True)
+        self.assertTrue(any("input hash mismatch" in error for error in errors), errors)
 
     def test_critical_metadata_non_list_inputs_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -509,7 +722,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             )
             errors: list[str] = []
             CHECKER.check_critical_report_run_consistency(connector_root, errors, strict_evidence=True)
-        self.assertTrue(any("metadata.inputs must be a list" in error for error in errors), errors)
+        self.assertTrue(any("critical report metadata: inputs must be a list" in error for error in errors), errors)
 
     def test_self_generated_refresh_status_is_the_only_non_complete_exception(self) -> None:
         self.assertFalse(
@@ -524,6 +737,22 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 report_name="full_runtime_matrix",
             )
         )
+
+    def test_full_matrix_job_counts_prefer_summary_and_fall_back_to_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            summary_path = root / "apache-summary.json"
+            jsonl_path = root / "apache-results.jsonl"
+            write_json(summary_path, {"apache": {"attempted": 1, "cases": {"control": {"status": "pass"}}}})
+            jsonl_path.write_text(json.dumps({"status": "fail"}) + "\n", encoding="utf-8")
+            summary_counts, selected_summary = GENERATOR.job_case_counts(summary_path, jsonl_path, "apache")
+            summary_path.unlink()
+            jsonl_counts, selected_jsonl = GENERATOR.job_case_counts(summary_path, jsonl_path, "apache")
+
+        self.assertEqual(summary_path, selected_summary)
+        self.assertEqual("summary_json", summary_counts["source"])
+        self.assertEqual(jsonl_path, selected_jsonl)
+        self.assertEqual("results_jsonl", jsonl_counts["source"])
 
     def test_rewritten_raw_manifest_preserves_identity_and_artifact_hashes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -543,8 +772,8 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 "summary_path": str(Path(temporary) / "no-crs/no-mrts/apache/results/force-all/apache-summary.json"),
                 "log_path": str(Path(temporary) / "no-crs/no-mrts/apache/run.log"),
                 "hashes": {"log": "log", "summary": "summary", "build_manifest": "build", "results_jsonl": "results"},
-                "inputs": {"build_manifest": "/tmp/build-manifest.json"},
-                "outputs": {"results_jsonl": "/tmp/results.jsonl"},
+                "inputs": {"build_manifest": str(Path(temporary) / "build-manifest.json")},
+                "outputs": {"results_jsonl": str(Path(temporary) / "results.jsonl")},
             }
             GENERATOR.rewrite_manifest(manifest_path, [job])
             row = json.loads(manifest_path.read_text(encoding="utf-8"))

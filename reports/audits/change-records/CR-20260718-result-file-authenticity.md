@@ -37,6 +37,10 @@ to a report without a strict source-of-truth receipt check.
 - Logs, build manifests, summaries, and result JSONL files are regular,
   canonical files with matching receipt hashes; leaf and intermediate escaped
   paths or symlinks fail closed.
+- Critical input receipts are canonically resolved before root containment is
+  compared, so `BUILD_ROOT:../...`, `framework:../...`, and unprefixed
+  `../...` cannot authenticate an external regular file even when its declared
+  SHA-256 matches.
 - The raw full-matrix manifest preserves receipt identity and hash fields and
   exactly matches the per-job receipts.
 - A forged result file, foreign run, copied connector/profile receipt,
@@ -53,6 +57,12 @@ root, then verifies the run ID, profile, required full-matrix command, raw
 artifact’s SHA-256 value. Free-form receipt paths cannot redirect the checker:
 they must equal the expected lexical canonical location and be regular files
 without a symlink component below the evidence root.
+
+Critical-input receipts use the same fail-closed boundary: the checker resolves
+the claimed path and trusted root before containment comparison, then still
+rejects leaf and intermediate symlink components. This prevents a lexical
+`..` component from retaining a trusted prefix while the filesystem operation
+reaches an external file.
 
 The full-matrix generator retains `job_id`, `verified_run_id`, status, hashes,
 inputs, and outputs when it rewrites the raw manifest so the strict consumer
@@ -85,10 +95,16 @@ bindings remain separate boundaries and are unchanged here.
 
 ## Commands executed
 
+For the focused Python commands, `PARENT_PYTHON` denotes the explicitly
+selected Parent virtual-environment interpreter at
+`/absolute/path/to/ModSecurity-conector/.venv/bin/python`; the isolated PR
+worktree does not create or own a second virtual environment.
+
 | Command | Result |
 | --- | --- |
 | Initial fixture-first `unittest` run before the strict-chain implementation | Failed as expected: eight fixtures reached the absent strict-chain control and the critical missing-input status was not rejected. |
-| `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_generated_report_evidence_integrity` after the implementation | Passed: forged `PASS` result content/checksum mismatch, missing raw manifest, incomplete receipt, foreign run ID, copied connector/profile receipt, leaf and intermediate escaped/symlinked paths, missing/invented/malformed critical input status, typed producer arrays, raw-manifest preservation, self-reference prevention, and a valid twelve-cell control are covered. |
+| Fixture-first critical-input traversal control before canonical containment | Failed as expected: `BUILD_ROOT:../...`, `framework:../...`, and unprefixed `../...` each accepted a correctly hashed external regular file without a strict-check error. |
+| `rtk proxy /usr/bin/env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 "$PARENT_PYTHON" -m unittest -v tests.test_generated_report_evidence_integrity` after the implementation | Passed: 32 tests cover forged `PASS` result content/checksum mismatch, missing raw manifest, incomplete receipt, foreign run ID, copied connector/profile receipt, leaf and intermediate escaped/symlinked paths, canonicalized critical-input traversal, missing/invented/malformed critical input status, manifest and metadata input digest mismatch, summary/JSONL fallback selection, typed producer arrays, raw-manifest preservation, self-reference prevention, and a valid twelve-cell control. |
 | `rtk sh -n ci/runtime/lifecycle/run-full-matrix-parallel.sh` | Passed. |
 | In-memory `compile()` validation of the three changed Python sources | Passed without attempting checkout-local bytecode writes. |
 | Strict `make verified-report-evidence-gate` against retained evidence | Expected failure: it rejects critical missing input states and noncanonical/missing command receipts. Existing `FND-CROSS-0001` stale Cross evidence remains a separate fail-closed blocker. |
@@ -124,8 +140,8 @@ A full connector/runtime matrix needs the separately provisioned runtime
 components and authoritative Framework harness, which are unavailable in this
 isolated worktree. That absence does not authorize a synthetic success or a
 governance-only substitute. Full exact-head CI, CodeQL, SonarQube Cloud, and
-review verification are required after the draft PR is created. No merge is
-authorized.
+review verification are required after the next PR-head push; no merge has
+occurred and no check may be bypassed.
 
 ## Final diff and review status
 
