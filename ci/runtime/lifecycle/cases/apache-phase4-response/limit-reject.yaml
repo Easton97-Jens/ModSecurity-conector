@@ -1,0 +1,23 @@
+name: apache_phase4_response_limit_reject
+title: Apache Phase-4 response budget rejection control
+category: apache-phase4-response
+portable: false
+connector: apache
+status: pending
+phase: 4
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/plain
+request:
+  method: GET
+  path: /apache-phase4/limit-reject
+response:
+  body: body-exceeds-eight-byte-phase4-limit
+  content_type: text/plain
+expect:
+  status: 500
+  transport: http_status
+  # The Apache gate itself fails closed before the response commits; this is
+  # a connector block rather than a libModSecurity rule intervention.
+  intervention: block

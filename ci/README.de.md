@@ -52,14 +52,19 @@ Exit `0` bedeutet technische Beendigung, nicht dass jeder Katalogfall `PASS` ist
 
 `ci/tools/run-check-status.py` führt einen direkten Child-Befehl aus,
 schreibt einen payloadfreien JSON-Datensatz und gibt eine `CHECK_STATUS`-JSON-
-Zeile aus, bevor Make den Exitcode des Child-Prozesses ersetzen kann. Seine
-Datensätze verwenden dieses kleingeschriebene Statusmodell:
+Zeile aus, bevor Make den Exitcode des Child-Prozesses ersetzen kann. Der
+persistierte Datensatz ist der Statuskanal: Seine `schema_version` ist `2` und
+`status_source` ist entweder `child_exit_code`, `parent_preflight` oder
+`parent_explicit`. Child-`stdout` und Child-`stderr` werden nur zur Diagnose
+weitergeleitet; keiner der beiden Streams kann einen Grund liefern oder ein
+Workflow-Ergebnis autorisieren. Seine Datensätze verwenden dieses
+kleingeschriebene Statusmodell:
 
 | Status | Bedeutung | Standard-Workflow-Ergebnis |
 | --- | --- | --- |
 | `passed` | Die direkte Prüfung lief und war erfolgreich. | erfolgreich |
 | `failed` | Die direkte Prüfung lieferte einen anderen Fehler als den deklarierten Blocked-Code. | Fehler |
-| `blocked` | Die Prüfung ist relevant, aber eine deklarierte Voraussetzung ist nicht verfügbar. | Fehler, außer ihr Aufrufer erlaubt ihren exakten strukturierten Grund ausdrücklich |
+| `blocked` | Die Prüfung ist relevant, aber eine deklarierte Voraussetzung ist nicht verfügbar. | Fehler, außer der `parent_preflight` dieses Runners zeichnet einen erlaubten strukturierten Grund auf |
 | `not_applicable` | Der Aufrufer hält ausdrücklich fest, dass die Prüfung außerhalb des Scope dieses Jobs liegt. | Fehler, außer ihr Aufrufer erlaubt sie ausdrücklich |
 | `not_executed` | Die Prüfung wurde absichtlich nicht gestartet und hat keine gültige Disposition. | Fehler |
 
@@ -78,12 +83,19 @@ kanonische Runtime-Evidence.
 Python-Quellvertrag und der native Apache/APR-Harness müssen beide vollständig
 sein, und eine fehlende Voraussetzung bleibt nichtnull. Dagegen behält
 `make check-apache-request-transaction-cleanup-lint` denselben verpflichtenden
-Python-Quellvertrag bei, erlaubt aber nur ein direktes `77` zusammen mit
-`CHECK_STATUS_REASON apache_development_prerequisite`; es zeichnet dieses
-`blocked`-Ergebnis auf und lässt jedes unmarkierte oder anders markierte
-Ergebnis fehlschlagen. Die fünf dokumentierten Push-Workflows erreichen diese
-eine Subprüfung über `make lint` oder `make quick-check`; kein anderes Target,
-kein Common-Check und kein Connector-Check erbt diese Erlaubnis.
+Python-Quellvertrag bei, verwendet jedoch den Parent-eigenen Preflight
+`--blocked-if-missing-apache-development`. Bevor das Child startet, löst der
+Runner `APXS_BIN`, dann `APXS`, dann `CI_APXS_BIN_CANDIDATES` (oder
+`apxs`/`apxs2`) auf und verlangt ein ausführbares APXS, dessen Ergebnis von
+`-q INCLUDEDIR` ein absolutes Verzeichnis mit `httpd.h` ist. Nur wenn dieser
+Preflight fehlschlägt, zeichnet der Runner das strukturierte
+`apache_development_prerequisite`-`blocked`-Ergebnis auf und erlaubt es für
+dieses Lint-Target. Besteht der Preflight, läuft das Child; jedes Child-`77`,
+einschließlich eines kopierten oder gefälschten `CHECK_STATUS_REASON`-Strings
+in einem der beiden Ausgabestreams, bleibt ein nicht klassifiziertes Ergebnis
+ungleich null. Die fünf dokumentierten Push-Workflows erreichen diese eine
+Subprüfung über `make lint` oder `make quick-check`; kein anderes Target, kein
+Common-Check und kein Connector-Check erbt diese Erlaubnis.
 
 ## Neue Datei hinzufügen
 
