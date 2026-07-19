@@ -94,14 +94,22 @@ Lifecycle-Evidence.
 `rtk env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m py_compile ci/tools/run-check-status.py tests/test_optional_prerequisite_status.py` war blockiert, weil `py_compile` trotz `PYTHONDONTWRITEBYTECODE=1` versucht, Checkout-lokale `__pycache__` zu erzeugen, und dieser Worktree diese Schreiboperation korrekt zurückweist. Die fokussierten Import- und Ausführungstests oben bestanden ohne Bytecode-Ausgabe.
 
 Vollständiges Linting, Connector-Builds, Runtime-Harnesses und Generator-/Report-
-Tests wurden in diesem isolierten Remediation-Worktree nicht ausgeführt. Der
-ursprüngliche Draft-PR-#56-Head `63f4c9694f3f1c1372ce6db86ea1f88a38f01a92`
-wurde committed und gepusht und hatte 33 bestandene GitHub-Checks mit
-bestandenem CodeQL und SonarQube-Cloud-Quality-Gate. Die SonarQube-Cloud-API
-meldet dennoch den task-eigenen offenen Befund `AZ90uTmr7VSiD7VvMb8Y`
-(`python:S8495`) an dieser Funktion. Daher benötigt dieser Follow-up einen
-frischen Exact-Head-CI-, CodeQL-, SonarQube-Cloud- und Review-Zyklus vor jeder
-`verified_pr`-Behauptung. Kein Merge ist autorisiert.
+Tests wurden in diesem isolierten Remediation-Worktree nicht ausgeführt. Dem
+ursprünglichen Draft-PR-#56-Head `63f4c9694f3f1c1372ce6db86ea1f88a38f01a92`
+folgte der exakte Head `6195e177fa159654e6c30ef732cc7211b1a1385b`, der 33
+bestandene GitHub-Checks mit bestandenem CodeQL und SonarQube-Cloud-Quality-Gate
+erhielt. Der SonarQube-Cloud-Follow-up für `python:S8495` bewahrte die
+APXS-Priorität und den kanonischen Rückgabepfad; das aktuelle PR-Quality-Gate
+meldet null neue Issues, null akzeptierte Issues und null Security Hotspots.
+
+Nach dem normalen Merge von Parent-Master
+`63819e416984294792bbbe68aa5d84503791baab` erzeugte der
+Synchronisations-Commit `35d21bffcde4cf97ab2970b36d42dff2f7d4a128` einen neuen
+Delivery-Stand. Seine lokalen fokussierten Status- und
+Workflow-Permission-Controls bestehen, aber seine künftige Exact-Head-CI-,
+CodeQL-, SonarQube-Cloud- und Review-Evidence muss vor einer `verified_pr`-
+Behauptung über das PR-Delivery-Gate beobachtet werden. Dieser Record behauptet
+keinen Live-PR-Status und autorisiert keinen Merge ohne diese Evidence.
 
 ## Bekannte Einschränkungen
 
@@ -123,7 +131,7 @@ Fokussierte Regression-Coverage, In-Memory-Syntaxvalidierung und `git diff
 wechselseitige Sprachlinks und beide README-Indexlinks wurden manuell
 validiert. Das zweisprachige Target schlägt weiterhin nur fehl, weil diesem
 Sparse-Worktree verlinkte Framework-Dokumentation fehlt; es meldet keinen
-Fehler für dieses Change-Record-Paar. Die ursprüngliche Implementierung wurde
-über Draft-PR #56 geliefert; dieser SonarQube-Cloud-Follow-up bleibt
-`remediation_required`, bis sein neuer exakter PR-Head gepusht und unabhängig
-verifiziert ist. Kein Merge oder Runtime-Evidence-Claim wurde erzeugt.
+Fehler für dieses Change-Record-Paar. Der historische exakte Head
+`6195e177fa159654e6c30ef732cc7211b1a1385b` ist validiert; der aktuelle
+Post-Master-Sync-Delivery-Head benötigt eigene Evidence und wird hier bewusst
+nicht behauptet. Es wurde kein Runtime-Evidence-Claim erzeugt.

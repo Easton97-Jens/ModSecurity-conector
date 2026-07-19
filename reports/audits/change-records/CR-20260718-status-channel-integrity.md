@@ -92,12 +92,20 @@ connector host nor establishes HTTP, CRS, MRTS, or lifecycle evidence.
 
 Full lint, connector builds, runtime harnesses, and generator/report tests were
 not run in this isolated remediation worktree. The original draft PR #56 head
-`63f4c9694f3f1c1372ce6db86ea1f88a38f01a92` was committed, pushed, and had 33
-passing GitHub checks with CodeQL and the SonarQube Cloud Quality Gate passing.
-The SonarCloud API nevertheless reports task-owned open issue
-`AZ90uTmr7VSiD7VvMb8Y` (`python:S8495`) at this function, so this follow-up
-requires a fresh exact-head CI, CodeQL, SonarQube Cloud, and review cycle
-before any `verified_pr` claim. No merge is authorized.
+`63f4c9694f3f1c1372ce6db86ea1f88a38f01a92` was followed by exact head
+`6195e177fa159654e6c30ef732cc7211b1a1385b`, which received 33 passing GitHub
+checks with CodeQL and the SonarQube Cloud Quality Gate passing. The SonarCloud
+follow-up for `python:S8495` preserved the APXS priority and canonical return
+path; the current PR-level Quality Gate reports zero new issues, zero accepted
+issues, and zero security hotspots.
+
+After the normal merge of Parent master
+`63819e416984294792bbbe68aa5d84503791baab`, synchronization commit
+`35d21bffcde4cf97ab2970b36d42dff2f7d4a128` created a new delivery state. Its
+local focused status and workflow-permission controls pass, but its future
+exact-head CI, CodeQL, SonarQube Cloud, and review evidence must be observed
+through the PR delivery gate before a `verified_pr` claim. This record does not
+claim a live PR status or authorize a merge without that evidence.
 
 ## Known limitations
 
@@ -116,7 +124,7 @@ Focused regression coverage, in-memory syntax validation, and `git diff
 --check` passed. Required Change Record headings, reciprocal language links,
 and both README index links were manually validated. The bilingual target still
 fails only because this sparse worktree lacks linked Framework documentation;
-it reports no error for this Change Record pair. The initial implementation was
-delivered through draft PR #56; this SonarCloud follow-up remains
-`remediation_required` until its new exact PR head is pushed and independently
-verified. No merge or runtime-evidence claim was made.
+it reports no error for this Change Record pair. The historical exact head
+`6195e177fa159654e6c30ef732cc7211b1a1385b` is validated; the current
+post-master-sync delivery head requires its own evidence and is deliberately
+not asserted here. No runtime-evidence claim was made.
