@@ -43,7 +43,8 @@ BARRIER_PID=
 BARRIER_RELEASE_FILE=
 
 blocked() {
-    printf 'lighttpd_patched_full_lifecycle: BLOCKED: %s\n' "$1" >&2
+    reason=$1
+    printf 'lighttpd_patched_full_lifecycle: BLOCKED: %s\n' "$reason" >&2
     exit 77
 }
 

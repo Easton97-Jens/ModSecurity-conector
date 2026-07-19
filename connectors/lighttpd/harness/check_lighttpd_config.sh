@@ -6,7 +6,8 @@ BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecuri
 MODULE_PATH=${LIGHTTPD_CONNECTOR_MODULE:-${LIGHTTPD_MODULE_DIR:-$BUILD_ROOT/lighttpd-connector/modules}/mod_msconnector.so}
 
 blocked() {
-    printf 'lighttpd_config_check: BLOCKED: %s\n' "$1"
+    reason=$1
+    printf 'lighttpd_config_check: BLOCKED: %s\n' "$reason"
     exit 77
 }
 

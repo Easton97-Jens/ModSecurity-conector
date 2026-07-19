@@ -8,7 +8,8 @@ PATCH_FILE=$CONNECTOR_DIR/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 
 blocked() {
-    printf 'lighttpd_core_patch: BLOCKED: %s\n' "$1"
+    reason=$1
+    printf 'lighttpd_core_patch: BLOCKED: %s\n' "$reason"
     exit 77
 }
 

@@ -17,7 +17,8 @@ NM_BIN=${NM:-nm}
 MAKE_JOBS=${LIGHTTPD_MAKE_JOBS:-2}
 
 blocked() {
-    printf 'lighttpd_patched_core_build: BLOCKED: %s\n' "$1" >&2
+    reason=$1
+    printf 'lighttpd_patched_core_build: BLOCKED: %s\n' "$reason" >&2
     exit 77
 }
 
