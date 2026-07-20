@@ -175,12 +175,13 @@ frühere Exact-Head-Validierung des Draft-Parent-PR #59 bei
 `d4f88b886dac6fd5f483940015d6310bc239f814` hatte 33 erfolgreiche und sechs
 übersprungene Checks; CodeQL und das SonarQube-Cloud-Quality-Gate bestanden.
 Diese Evidenz gilt nur für `d4f88b886dac6fd5f483940015d6310bc239f814`. Der
-Draft liegt hinter aktuellem Parent-`master`
-`9ef0619b9c00729c16b7056943d7843785223095`, daher muss auf ein reguläres Update
-frische Exact-Head-CI, CodeQL, SonarQube Cloud und PR-Review vor der Readiness
-folgen; die ursprüngliche Reproduktion ist nach einem Merge zu wiederholen.
-Kein Framework- oder MRTS-Test, keine Gitlink-Änderung und kein Merge erfolgte,
-und keine Prüfung darf umgangen werden.
+Kandidat enthält nun eine normale lokale Synchronisierung von Parent-`master`
+`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` und bleibt ein Draft. Sein nächster
+gepushter Exact Head muss vor der Readiness frische Exact-Head-CI, CodeQL,
+SonarQube Cloud und PR-Review erhalten; die ursprüngliche Reproduktion ist nach
+einem Merge zu wiederholen. Kein Framework- oder MRTS-Test, keine task-eigene
+Gitlink-Änderung und keine Parent-master-Integration erfolgten, und keine
+Prüfung darf umgangen werden.
 
 ## Finaler Diff- und Review-Status
 
@@ -188,8 +189,9 @@ Der Draft-Parent-PR #59 ist der user-autorisierte gemeinsame/gestaffelte,
 Parent-only-Delivery-Kandidat für `FND-PARENT-0030`, `FND-PARENT-0031` und
 `FND-PARENT-0037`. Alle drei sind auf diesem Kandidaten fixed, aber keines ist
 verified, closed oder risk-accepted. Sein zuvor validierter Head ist
-`d4f88b886dac6fd5f483940015d6310bc239f814`; der Draft liegt hinter aktuellem
-Parent-`master` `9ef0619b9c00729c16b7056943d7843785223095`. Ein reguläres
-Update, frische Exact-Head-Checks und Review sowie die ursprüngliche
-Reproduktion nach dem Merge bleiben erforderlich. Es wird keine Framework-,
-MRTS- oder Gitlink-Änderung und kein Merge behauptet.
+`d4f88b886dac6fd5f483940015d6310bc239f814`; dieser Kandidat enthält nun eine
+normale lokale Synchronisierung von Parent-`master`
+`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` und bleibt ein Draft. Frische
+Exact-Head-Checks und Review sowie die ursprüngliche Reproduktion nach dem
+Merge bleiben erforderlich. Es wird keine Framework-, MRTS- oder task-eigene
+Gitlink-Änderung und keine Parent-master-Integration behauptet.

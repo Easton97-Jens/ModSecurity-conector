@@ -68,7 +68,11 @@ Not established. Focused temporary fixtures prove affected Parent I/O behavior b
 
 ## Known limitations
 
-Strict report evidence remains separately blocked by stale Cross-evidence finding `FND-CROSS-0001`. The Framework-owned Phase-4 identity finding `FND-CROSS-0006` is outside this Parent-only record and needs separate explicit Framework delivery authority.
+Strict report evidence remains separately blocked by stale Cross-evidence finding
+`FND-CROSS-0001`. The Framework-owned Phase-4 identity finding
+`FND-CROSS-0006` is already verified on Framework master and remains outside
+this Parent-only record; it neither requires nor authorizes a Framework, MRTS,
+or Gitlink action for this PR.
 
 ## Remaining risks
 
@@ -82,11 +86,13 @@ be replaced by governance-only validation. The observed prior exact-head
 validation for Draft Parent PR #59 at
 `d4f88b886dac6fd5f483940015d6310bc239f814` had 33 successful and six skipped
 checks, with CodeQL and the SonarQube Cloud Quality Gate passed. That evidence
-applies only to `d4f88b886dac6fd5f483940015d6310bc239f814`. The draft is behind
-current Parent `master` `9ef0619b9c00729c16b7056943d7843785223095`, so a normal
-update must be followed by fresh exact-head CI, CodeQL, SonarQube Cloud, and PR
-review before readiness; the original reproduction must be repeated after a
-merge. No Gitlink change or merge occurred, and no check may be bypassed.
+applies only to `d4f88b886dac6fd5f483940015d6310bc239f814`. This candidate now
+includes a normal local synchronization from Parent `master`
+`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` and remains a Draft. Its next
+pushed exact head must receive fresh exact-head CI, CodeQL, SonarQube Cloud,
+and PR review before readiness; the original reproduction must be repeated
+after a merge. No task-owned Gitlink change or Parent-master integration
+occurred, and no check may be bypassed.
 
 ## Final diff and review status
 
@@ -95,7 +101,9 @@ delivery candidate for `FND-PARENT-0030`, `FND-PARENT-0031`, and
 `FND-PARENT-0037`. All three are fixed on that candidate, but none is verified,
 closed, or risk-accepted. It includes the `0400` sealed-receipt hardening
 follow-up at its previously validated head
-`d4f88b886dac6fd5f483940015d6310bc239f814`; the draft is behind current Parent
-`master` `9ef0619b9c00729c16b7056943d7843785223095`. A normal update, fresh
+`d4f88b886dac6fd5f483940015d6310bc239f814`; this candidate now includes a
+normal local synchronization from Parent `master`
+`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` and remains a Draft. Fresh
 exact-head checks and review, and post-merge original reproduction remain
-required. No Framework, MRTS, or Gitlink change and no merge is claimed.
+required. No Framework, MRTS, or task-owned Gitlink change and no
+Parent-master integration is claimed.

@@ -162,12 +162,13 @@ governance-only substitute. The observed prior exact-head validation for Draft
 Parent PR #59 at `d4f88b886dac6fd5f483940015d6310bc239f814` had 33 successful
 and six skipped checks, with CodeQL and the SonarQube Cloud Quality Gate
 passed. That evidence applies only to
-`d4f88b886dac6fd5f483940015d6310bc239f814`. The draft is behind current Parent
-`master` `9ef0619b9c00729c16b7056943d7843785223095`, so a normal update must be
-followed by fresh exact-head CI, CodeQL, SonarQube Cloud, and PR review before
-readiness; the original reproduction must be repeated after a merge. No
-Framework or MRTS test, Gitlink change, or merge occurred, and no check may be
-bypassed.
+`d4f88b886dac6fd5f483940015d6310bc239f814`. This candidate now includes a
+normal local synchronization from Parent `master`
+`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` and remains a Draft. Its next
+pushed exact head must receive fresh exact-head CI, CodeQL, SonarQube Cloud,
+and PR review before readiness; the original reproduction must be repeated
+after a merge. No Framework or MRTS test, task-owned Gitlink change, or
+Parent-master integration occurred, and no check may be bypassed.
 
 ## Final diff and review status
 
@@ -175,7 +176,9 @@ Draft Parent PR #59 is the user-authorized combined/stacked, Parent-only
 delivery candidate for `FND-PARENT-0030`, `FND-PARENT-0031`, and
 `FND-PARENT-0037`. All three are fixed on that candidate, but none is verified,
 closed, or risk-accepted. Its previously validated head is
-`d4f88b886dac6fd5f483940015d6310bc239f814`; the draft is behind current Parent
-`master` `9ef0619b9c00729c16b7056943d7843785223095`. A normal update, fresh
+`d4f88b886dac6fd5f483940015d6310bc239f814`; this candidate now includes a
+normal local synchronization from Parent `master`
+`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` and remains a Draft. Fresh
 exact-head checks and review, and post-merge original reproduction remain
-required. No Framework, MRTS, or Gitlink change and no merge is claimed.
+required. No Framework, MRTS, or task-owned Gitlink change and no
+Parent-master integration is claimed.

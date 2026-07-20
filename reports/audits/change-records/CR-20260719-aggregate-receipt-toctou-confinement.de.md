@@ -68,7 +68,11 @@ Nicht etabliert. Fokussierte temporäre Fixtures belegen betroffenes Parent-I/O-
 
 ## Bekannte Einschränkungen
 
-Strikte Report-Evidence bleibt unabhängig durch das stale Cross-Evidence-Finding `FND-CROSS-0001` blockiert. Das Framework-eigene Phase-4-Identity-Finding `FND-CROSS-0006` liegt außerhalb dieses Parent-only Records und benötigt separate ausdrückliche Framework-Delivery-Autorisation.
+Strikte Report-Evidence bleibt unabhängig durch das stale Cross-Evidence-Finding
+`FND-CROSS-0001` blockiert. Das Framework-eigene Phase-4-Identity-Finding
+`FND-CROSS-0006` ist bereits auf Framework-`master` verifiziert und bleibt außerhalb
+dieses Parent-only Records; es benötigt und autorisiert für diesen PR keine
+Framework-, MRTS- oder Gitlink-Aktion.
 
 ## Verbleibende Risiken
 
@@ -83,12 +87,13 @@ Validierung ersetzt werden. Die beobachtete frühere Exact-Head-Validierung des
 Draft-Parent-PR #59 bei `d4f88b886dac6fd5f483940015d6310bc239f814` hatte 33
 erfolgreiche und sechs übersprungene Checks; CodeQL und das SonarQube-Cloud-
 Quality-Gate bestanden. Diese Evidenz gilt nur für
-`d4f88b886dac6fd5f483940015d6310bc239f814`. Der Draft liegt hinter aktuellem
-Parent-`master` `9ef0619b9c00729c16b7056943d7843785223095`, daher muss auf ein
-reguläres Update frische Exact-Head-CI, CodeQL, SonarQube Cloud und PR-Review
-vor der Readiness folgen; die ursprüngliche Reproduktion ist nach einem Merge
-zu wiederholen. Keine Gitlink-Änderung und kein Merge erfolgten, und keine
-Prüfung darf umgangen werden.
+`d4f88b886dac6fd5f483940015d6310bc239f814`. Dieser Kandidat enthält nun eine
+normale lokale Synchronisierung von Parent-`master`
+`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` und bleibt ein Draft. Sein nächster
+gepushter Exact Head muss vor der Readiness frische Exact-Head-CI, CodeQL,
+SonarQube Cloud und PR-Review erhalten; die ursprüngliche Reproduktion ist nach
+einem Merge zu wiederholen. Keine task-eigene Gitlink-Änderung und keine
+Parent-master-Integration erfolgten, und keine Prüfung darf umgangen werden.
 
 ## Finaler Diff- und Review-Status
 
@@ -97,8 +102,9 @@ Parent-only-Delivery-Kandidat für `FND-PARENT-0030`, `FND-PARENT-0031` und
 `FND-PARENT-0037`. Alle drei sind auf diesem Kandidaten fixed, aber keines ist
 verified, closed oder risk-accepted. Er enthält das `0400`-
 Sealed-Receipt-Hardening-Follow-up bei seinem zuvor validierten Head
-`d4f88b886dac6fd5f483940015d6310bc239f814`; der Draft liegt hinter aktuellem
-Parent-`master` `9ef0619b9c00729c16b7056943d7843785223095`. Ein reguläres
-Update, frische Exact-Head-Checks und Review sowie die ursprüngliche
-Reproduktion nach dem Merge bleiben erforderlich. Es wird keine Framework-,
-MRTS- oder Gitlink-Änderung und kein Merge behauptet.
+`d4f88b886dac6fd5f483940015d6310bc239f814`; dieser Kandidat enthält nun eine
+normale lokale Synchronisierung von Parent-`master`
+`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` und bleibt ein Draft. Frische
+Exact-Head-Checks und Review sowie die ursprüngliche Reproduktion nach dem
+Merge bleiben erforderlich. Es wird keine Framework-, MRTS- oder task-eigene
+Gitlink-Änderung und keine Parent-master-Integration behauptet.
