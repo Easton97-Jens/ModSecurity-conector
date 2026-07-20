@@ -103,7 +103,7 @@ accepted and no external issue is closed by this local commit.
 ## Final diff and review status
 
 The source/test correction is commit
-9415510c135a021c9c119d73f68fde4d621c49b1 on the isolated Parent branch
+941551080c9c9bc764b2db140288570f7c147499 on the isolated Parent branch
 codex/sonar-json-string-null-guard-20260720. It is not yet pushed, in a pull
 request, merged, or represented as a fixed external alert. The next delivery
 gate is normal push, Draft PR creation, exact-head checks, review/thread

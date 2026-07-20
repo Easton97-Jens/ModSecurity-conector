@@ -106,7 +106,7 @@ geschlossen.
 ## Finaler Diff- und Review-Status
 
 Die Source-/Test-Korrektur ist Commit
-9415510c135a021c9c119d73f68fde4d621c49b1 auf dem isolierten Parent-Branch
+941551080c9c9bc764b2db140288570f7c147499 auf dem isolierten Parent-Branch
 codex/sonar-json-string-null-guard-20260720. Sie ist noch nicht gepusht, in
 keinem Pull Request, nicht gemergt und nicht als gefixter externer Alert
 dargestellt. Der nächste Delivery-Gate ist ein normaler Push, Draft-PR,
