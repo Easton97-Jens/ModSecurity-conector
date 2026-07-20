@@ -44,7 +44,7 @@ class ApacheInterventionCleanupTests(unittest.TestCase):
         self.assertNotIn("intervention.log", self.source[cleanup:])
         self.assertLess(cleanup, self.source.index("return result;"))
 
-        returns = re.findall(r"\breturn\s+[^;]+;", self.source)
+        returns = re.findall(r"\breturn(?:\s+[^;\s][^;]*|\s{2,});", self.source)
         self.assertEqual(["return N_INTERVENTION_STATUS;", "return result;"], returns)
 
     def test_log_fallback_does_not_overwrite_the_cleanup_owned_field(self) -> None:
