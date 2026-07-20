@@ -66,6 +66,8 @@ class SonarReliabilityContractTests(unittest.TestCase):
         self.assertIn("if (value == NULL)", source)
         self.assertIn('fputs("\\\"\\\"", out);', source)
         self.assertIn("cursor = (const unsigned char *)value;", source)
+        self.assertIn("json_string(out, whoami);", source)
+        self.assertNotIn('json_string(out, whoami ? whoami : "");', source)
 
     def test_haproxy_startup_diagnostics_guard_the_standard_error_stream(self) -> None:
         source = (
