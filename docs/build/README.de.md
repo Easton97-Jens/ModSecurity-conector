@@ -52,6 +52,165 @@ Fehler, <code>2</code> ungültige Eingabe/Contract-Validierung und
 Umgebungsvoraussetzung. Das Statusvokabular steht unter
 [Testing](../testing-and-evidence.de.md).
 
+## Parent-CI-Python-Versionsvertrag
+
+**Change Record:** [CR-20260720-python-313-workflow-contract](../../reports/audits/change-records/CR-20260720-python-313-workflow-contract.de.md)
+
+Dieser eingecheckte Parent-GitHub-Actions-Vertrag hält die implementierte
+Interpreterstrategie, Workflow-Grenzen und lokale statische
+Validierungsevidenz fest. Er stellt keine GitHub-Actions-Ausführung, keinen
+Remote-CI-Lauf, Pull Request, Review oder Delivery-Erfolg dar.
+
+### Kanonischer Interpreter und Strategie
+
+Die eingecheckte Root-[`.python-version`](../../.python-version) ist die
+einzige maschinenlesbare Interpreterquelle. Ihr erforderlicher Inhalt ist das
+exakte stabile Release <code>3.13.14</code>. Jeder Python-ausführende Job aus
+der folgenden Inventarisierung muss vor seiner ersten direkten oder indirekten
+Python-Nutzung `actions/setup-python` ausführen mit:
+
+~~~yaml
+python-version-file: .python-version
+check-latest: false
+~~~
+
+Das Versionsliteral darf nicht in Workflow-YAML dupliziert werden. Die
+Setup-Action wird separat Action-gepinnt; ein Action-Lock-Record ist keine
+Interpreterversionsquelle. Nach dem Setup muss der Workflow-Vertrag
+validieren, dass `python` und `python3` äquivalente konfigurierte Python-
+<code>3.13.14</code>-Interpreter auswählen, bevor einer der Namen, ein
+Python-gestütztes Make-Target oder eine indirekte Framework-Prüfung verwendet
+wird. Kein aufgelisteter Job darf auf einen ambienten Runner-, Bootstrap-,
+Virtual-Environment- oder System-`python3`-Interpreter zurückfallen.
+
+| Alternative | Entscheidung | Begründung |
+| --- | --- | --- |
+| Floating `3.13` | Abgelehnt | Eine spätere Runner-/Tool-Cache-Auflösung kann stillschweigend ein anderes Patch-Release auswählen und Patch Drift erzeugen. |
+| Exaktes `3.13.14` aus einer eingecheckten `.python-version` | Ausgewählt | Der exakte stabile Patch ist reviewbar und reproduzierbar, während `python-version-file` allen abgedeckten Jobs dieselbe Quelle gibt. |
+| Exakte Version plus permanenter Canary-Workflow | Abgelehnt | Die unabhängige schreibgeschützte Candidate-Validierungs-Stage unten validiert einen vorgeschlagenen Patch vor der Veröffentlichung; ein zusätzlicher Canary würde diese Kontrolle duplizieren, ohne die Publisher-Trust-Grenze zu ändern. |
+
+### Vollständige Parent-Workflow-/Job-Inventarisierung
+
+Diese 22-Job-Baseline-Inventarisierung ist die maßgebliche
+Dokumentationstabelle für den verlinkten Change Record. „Vorhandenes
+Minor-only-Setup“ beschreibt die Live-Baseline vor dieser Implementierung: Sie
+hatte einen `3.13`-Setup-Schritt. „Ambientes oder Bootstrap-Python“ beschreibt
+entsprechend einen Baseline-Pfad ohne explizites Setup vor der gezeigten
+Ausführungskette. Im eingecheckten Workflow-Vertrag hat jede Zeile dasselbe
+explizite Setup und dieselbe `python`/`python3`-Äquivalenzvalidierung.
+
+| Workflow | Job | Python-Ausführungskette | Baseline-Zustand |
+| --- | --- | --- | --- |
+| `all-connectors-no-crs.yml` | `no-crs` | Direktes `python3`, Framework-Skripte und Python-gestützte Make-Targets | Vorhandenes Minor-only-Setup |
+| `all-connectors-no-crs.yml` | `aggregate` | Direkte `python3`-Validierung und -Zusammenfassung | Ambientes oder Bootstrap-Python |
+| `check-actions-versions.yml` | `check-actions-versions` | `python3 scripts/check-github-actions-versions.py` | Vorhandenes Minor-only-Setup |
+| `ci-security-secrets.yml` | `pull-request-range` | `python3 ci/tools/fetch_security_tool.py` | Ambientes oder Bootstrap-Python |
+| `ci-security-secrets.yml` | `advisory-full-history` | `python3 ci/tools/fetch_security_tool.py` | Ambientes oder Bootstrap-Python |
+| `ci-security-workflow-lint.yml` | `actionlint` | Python-Tool-Fetcher und `python3 -m unittest` | Ambientes oder Bootstrap-Python |
+| `ci-security-workflow-lint.yml` | `zizmor` | Python-Tool-Fetcher | Ambientes oder Bootstrap-Python |
+| `lint.yml` | `scaffold-lint` | Python-Dokumentationscheck und nicht-PR-Python-gestütztes Setup/Lint | Vorhandenes Minor-only-Setup |
+| `open-connectors-smoke.yml` | `open-connectors-smoke` | Direkte Zusammenfassung plus indirekte Python-Make-Targets | Vorhandenes Minor-only-Setup |
+| `protocol-contract.yml` | `protocol-contract` | `python3 -m unittest` und Protocol-Client-Target | Vorhandenes Minor-only-Setup |
+| `protocol-contract.yml` | `nginx-profile-and-client-preflight` | Inline-`python3` und Client-Make-Target | Vorhandenes Minor-only-Setup |
+| `quick-framework-check.yml` | `quick-check` | Indirekte Setup-, Matrix- und Quick-Check-Python-Arbeit | Vorhandenes Minor-only-Setup |
+| `test-apache.yml` | `apache-structure` | Bedingtes nicht-PR-Python-Setup und Quick-Check | Vorhandenes Minor-only-Setup |
+| `test-common.yml` | `common-structure` | Bedingtes nicht-PR-Python-Setup und Quick-Check | Vorhandenes Minor-only-Setup |
+| `test-envoy.yml` | `envoy-contract` | Indirektes Python in Connector-Checks | Ambientes oder Bootstrap-Python |
+| `test-full-smoke-sequential.yml` | `manual-heavy-runtime-validation` | `.venv/bin/python -m py_compile` und Python-Make-Pfade | Ambientes oder Bootstrap-Python |
+| `test-lighttpd.yml` | `lighttpd-contract` | Indirektes Python in Connector- und Shared-Checks | Ambientes oder Bootstrap-Python |
+| `test-nginx.yml` | `nginx-structure` | Bedingtes nicht-PR-Python-Setup und Quick-Check | Vorhandenes Minor-only-Setup |
+| `test-traefik.yml` | `traefik-contract` | Indirektes Python in Connector- und Shared-Checks | Ambientes oder Bootstrap-Python |
+| `update-actions-versions.yml` | `update-actions-versions` | `python3 scripts/update-github-actions-versions.py --write` | Vorhandenes Minor-only-Setup |
+| `update-submodules.yml` | `validate-submodule-update` | Indirektes Python über `make quick-check` | Ambientes oder Bootstrap-Python |
+| `verified-report-governance.yml` | `report-governance` | Indirektes Python über `make report-governance` | Vorhandenes Minor-only-Setup |
+
+Die Inventarisierung schließt Jobs ohne nachgewiesene Python-
+Ausführungskette absichtlich aus, etwa Action-only-Security-Scans, Inline-
+JavaScript-Cleanup und Shell-only-Checks. Ein neuer Python-ausführender Job
+muss diesem Vertrag beitreten, bevor er Python verwenden darf. Der statische
+Validator deckt die Workflow-Dateinamen `.yml` und `.yaml` ab.
+
+### Vertrag für den sicheren Stable-Patch-Updater
+
+Der Updater ist von den 22 Baseline-Jobs getrennt. Der eingecheckte Workflow
+`.github/workflows/update-python-version.yml` hat genau drei Jobs:
+
+| Job | Interpreter und Trust-Grenze | Erforderliches Verhalten |
+| --- | --- | --- |
+| `resolve-python-patch` | Läuft mit der aktuellen kanonischen `.python-version`; schreibgeschützt | Ruft nur die feste offizielle strukturierte Python-Release-API `https://www.python.org/api/v2/downloads/release/?is_published=true` über HTTPS mit exaktem Host `www.python.org`, ohne Redirects, mit `application/json`, begrenzter Response-Verarbeitung und Schema-Validierung auf. `--check` parst veröffentlichte, nicht-prerelease stabile `3.13.N`-Werte strikt, meldet einen Candidate nur bei einem höheren Patch und kann weder downgraden noch eine Minor-Serie überqueren. |
+| `validate-python-patch` | Richtet den unabhängig aufgelösten Candidate-Patch ein; schreibgeschützt | Wiederholt die Kompatibilitätsvalidierung mit dem Candidate-Interpreter vor der Veröffentlichung. Sie ist unabhängig vom Current-Version-Interpreter des Resolvers und führt keine Source- oder Branch-Mutation aus. |
+| `create-python-update-pr` | Läuft mit der aktuellen kanonischen `.python-version`; Default-Branch-gated Publisher | Löst den Candidate mit `--expected-version` vor `--update` erneut auf; nur dieser Job erhält `contents: write` und `pull-requests: write` und nur, um einen vorgeschlagenen Update-Pull-Request zu erstellen. |
+
+Die einzigen Trigger sind der geplante Montagslauf und ein manueller
+`workflow_dispatch`; es gibt keinen Push- oder Pull-Request-Trigger. Jeder Job
+ist auf die Ref des Repository-Default-Branch gegatet und checkt diesen
+vertrauenswürdigen Default-Branch ohne Submodules oder persistierte Checkout-
+Credentials aus. Der Validierungsjob richtet die unabhängig aufgelöste
+Candidate-Version ein, löst sie erneut auf, führt den fail-closed statischen
+Vertrag aus, kompiliert die eingecheckten Python-Pfade und führt die fokussierten
+Parent-nativen Contract-Tests aus, bevor der Publisher starten kann.
+
+`--check` löst und validiert einen Candidate ohne Dateien zu ändern. `--update`
+ist dem Publisher vorbehalten, nachdem die unabhängige Validierung und die
+Expected-Version-Neuauflösung bestanden haben. Der Publisher ist kein Updater
+für beliebige Python-Versionen: Er akzeptiert nur das strikte stabile
+<code>3.13.N</code>-Format, niemals einen niedrigeren Patch, Prerelease,
+alternative Minor-Serie oder unstrukturierte/HTML-Release-Daten.
+
+Der Publisher verwendet den konstanten Branch
+`automation/update-python-313` und den stabilen Titel
+`chore(ci): propose Python 3.13 patch update`. Er erstellt einen Draft Pull
+Request, wenn dieser Branch nicht existiert, oder aktualisiert einen bestehenden
+repository-eigenen Draft-Update-Pull-Request erst nach Prüfung seines Head-
+Repository, Default-Base und deaktivierten automatischen Merge sowie der
+Beschränkung seines Merge-Base-Diffs auf `.python-version`; einen Branch ohne
+diesen exakten Pull Request überschreibt er nicht. Damit erstellt er keine
+doppelten Update-Pull-Requests und führt nie einen Force-Push aus. Sein englisch/deutscher Pull-
+Request-Body enthält vorherige und vorgeschlagene Version, offizielle Release-
+Identität, Metadatenquelle, Validierungsworkflow/-Run-URL,
+`.python-version` als einzige geänderte Datei, die beibehaltene Python-3.13-
+Minor-Version und das Fehlen eines automatischen Merge.
+
+Der Updater darf nicht auto-mergen, den Default-Branch beschreiben, force-
+pushen, Repository- oder benutzerbereitgestellte `secrets.*` konsumieren,
+Submodules initialisieren oder eine beliebige Project-Workload ausführen. Der
+Publisher darf nur GitHubs automatisch bereitgestelltes Job-Token verwenden,
+das durch seine zwei job-begrenzten Schreibrechte eingeschränkt ist, um den
+Draft Pull Request zu erstellen oder den vorhandenen offenen Update-Pull-
+Request zu aktualisieren; seine Repository-
+Ausführung ist auf die festen Interpreter-Verifikations- und Updater-Pfade
+begrenzt. Resolver und Validator bleiben schreibgeschützt. Die begrenzten
+Schreibrechte des Publishers, das Default-Branch-Gate, die Neuvalidierung an
+der Schreibgrenze und die ausschließlich PR-basierte Ausgabe verhindern, dass
+Metadaten den Default-Branch direkt verändern.
+
+Die unabhängige Validierungs-Stage ist die Evidence-Grenze für einen
+vorgeschlagenen Patch; sie behauptet nicht, dass ein geplanter Lauf, Candidate,
+Pull Request oder Merge stattgefunden hat. Solche Ergebnisse benötigen separat
+beobachtete CI- und Delivery-Evidence.
+
+### Beobachtete lokale Implementierungsvalidierung
+
+Für die lokalen Implementierungsprüfungen wurde ein isolierter Python-
+<code>3.13.14</code>-Interpreter verwendet. Der fail-closed
+Workflow-Versionsvertrag und der Interpreter-Identity-Verifier bestanden; eine
+Live-`--check --json`-Abfrage der festen offiziellen API meldete die
+eingecheckte Version <code>3.13.14</code> als aktuell, und die Updater-
+Unit-Suite bestand mit 21 Tests. `actionlint` (mit ShellCheck) bestand für das
+Workflow-Set und die Security-Fixtures, und
+`zizmor --offline .github/workflows` meldete keine Findings.
+
+Der vollständige lokale Discovery-Lauf ist in diesem Sparse-Worktree nicht
+grün: `python3 -m unittest discover -s tests -v` unter Python
+<code>3.13.14</code> führte 355 Tests aus und endete mit 13 Failures und vier
+Errors, weil erforderliche Framework-Skripte fehlen. `make setup-dev` endete
+mit 2, als sein Framework-Bootstrap versuchte, die nicht verfügbare lokale
+Entwicklungsumgebung zu erstellen; `make lint` erreichte die Shell- und
+Python-Kompilierungsprüfungen, endete dann jedoch mit 2, weil die Framework-
+Prüfung `no_crs_baseline.py` fehlt. Dies sind festgehaltene Cross-Repository- /
+Umgebungsblocker, keine erfolgreiche Runtime- oder Remote-CI-Evidence; der
+verlinkte Change Record enthält die Details auf Kommandoebene.
+
 ## Compiler- und Linker-Variablen
 
 Verwenden Sie Standard-Compiler-Umgebungsvariablen nur, wenn die lokale

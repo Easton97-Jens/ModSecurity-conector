@@ -1,0 +1,308 @@
+name: Update Python 3.13 patch
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-python-patch:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      current_version: ${{ steps.resolve.outputs.current_version }}
+      version: ${{ steps.resolve.outputs.version }}
+      update_available: ${{ steps.resolve.outputs.update_available }}
+    steps:
+      - name: Check out trusted default branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
+          persist-credentials: false
+
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Resolve latest stable Python 3.13 patch
+        id: resolve
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          report="$(python3 scripts/update-python-version.py --check --json)"
+          printf '%s\n' "$report"
+          REPORT="$report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          import re
+
+          data = json.loads(os.environ["REPORT"])
+          current = data.get("current_version")
+          latest = data.get("latest_version")
+          available = data.get("update_available")
+          status = data.get("status")
+          pattern = re.compile(r"^3\\.13\\.(?:0|[1-9][0-9]*)$")
+          if not isinstance(current, str) or not pattern.fullmatch(current):
+              raise SystemExit("resolver returned an invalid current_version")
+          if not isinstance(latest, str) or not pattern.fullmatch(latest):
+              raise SystemExit("resolver returned an invalid latest_version")
+          if not isinstance(available, bool):
+              raise SystemExit("resolver returned a non-boolean update_available")
+          if status not in {"current", "update_available"}:
+              raise SystemExit("resolver returned an invalid status")
+          if available != (latest != current):
+              raise SystemExit("resolver returned inconsistent update availability")
+          if status != ("update_available" if available else "current"):
+              raise SystemExit("resolver returned an inconsistent status")
+          print(f"current_version={current}")
+          print(f"version={latest}")
+          print(f"update_available={str(available).lower()}")
+          PY
+
+  validate-python-patch:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-python-patch.outputs.update_available == 'true' }}
+    needs: resolve-python-patch
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE_VERSION: ${{ needs.resolve-python-patch.outputs.version }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out trusted default branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
+          persist-credentials: false
+
+      - name: Set up candidate Python
+        id: setup-python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ needs.resolve-python-patch.outputs.version }}
+          check-latest: false
+
+      - name: Verify Python candidate interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+          EXPECTED_VERSION: ${{ needs.resolve-python-patch.outputs.version }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --expected-version "$EXPECTED_VERSION" --expected-python "$EXPECTED_PYTHON"
+
+      - name: Re-resolve and validate candidate metadata
+        run: python3 scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json
+
+      - name: Run focused Python version contracts
+        env:
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/python-pycache
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q ci scripts tests
+          python3 ci/checks/common/check-python-version-contract.py --json
+          python3 -m unittest -v \
+            tests.test_update_python_version \
+            tests.test_python_interpreter_contract \
+            tests.test_python_version_contract \
+            tests.test_ci_security_workflows
+          git diff --check
+
+  create-python-update-pr:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-python-patch.outputs.update_available == 'true' && needs.validate-python-patch.result == 'success' }}
+    needs:
+      - resolve-python-patch
+      - validate-python-patch
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE_VERSION: ${{ needs.resolve-python-patch.outputs.version }}
+      CURRENT_VERSION: ${{ needs.resolve-python-patch.outputs.current_version }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      UPDATE_BRANCH: automation/update-python-313
+      PR_TITLE: "chore(ci): propose Python 3.13 patch update"
+      WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out trusted default branch without submodules
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Re-resolve and update only the canonical version file
+        id: update
+        run: |
+          set -euo pipefail
+          if ! printf '%s\n' "$CANDIDATE_VERSION" | grep -Eq '^3\.13\.(0|[1-9][0-9]*)$'; then
+            echo "Candidate version is not an exact stable Python 3.13 patch." >&2
+            exit 1
+          fi
+          if ! printf '%s\n' "$CURRENT_VERSION" | grep -Eq '^3\.13\.(0|[1-9][0-9]*)$'; then
+            echo "Current version is not an exact stable Python 3.13 patch." >&2
+            exit 1
+          fi
+          if [ "$CANDIDATE_VERSION" = "$CURRENT_VERSION" ]; then
+            echo "Resolver reported an update without a version change." >&2
+            exit 1
+          fi
+          python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json
+          if git diff --quiet -- .python-version; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed_paths="$(git diff --name-only)"
+          if [ "$changed_paths" != ".python-version" ]; then
+            echo "Updater changed a path outside .python-version: $changed_paths" >&2
+            exit 1
+          fi
+          git diff --check
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update a draft pull request without force push
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pr_query="$RUNNER_TEMP/python-update-prs.json"
+          gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+            -f state=open \
+            -f base="$DEFAULT_BRANCH" \
+            -f head="${GITHUB_REPOSITORY_OWNER}:$UPDATE_BRANCH" \
+            -f per_page=100 > "$pr_query"
+          existing_pr="$(python3 scripts/select-python-update-pr.py \
+            --input "$pr_query" \
+            --repository "$GITHUB_REPOSITORY" \
+            --owner "$GITHUB_REPOSITORY_OWNER" \
+            --base "$DEFAULT_BRANCH" \
+            --branch "$UPDATE_BRANCH")"
+
+          remote_branch=false
+          if git ls-remote --exit-code --heads origin "$UPDATE_BRANCH" >/dev/null 2>&1; then
+            remote_branch=true
+          fi
+          gh auth setup-git
+          pr_body="$RUNNER_TEMP/python-update-pr-body.md"
+          cat > "$pr_body" <<EOF
+          ## English
+
+          - Previous version: $CURRENT_VERSION
+          - Proposed version: $CANDIDATE_VERSION
+          - Official release identity: Python $CANDIDATE_VERSION
+          - Metadata source: https://www.python.org/api/v2/downloads/release/?is_published=true
+          - Validation workflow and run: validate-python-patch ($WORKFLOW_RUN_URL)
+          - Changed files: .python-version only
+          - Minor version: remains Python 3.13
+          - Merge: no automatic merge
+
+          ## Deutsch
+
+          - Vorherige Version: $CURRENT_VERSION
+          - Vorgeschlagene Version: $CANDIDATE_VERSION
+          - Offizielle Release-Identität: Python $CANDIDATE_VERSION
+          - Metadatenquelle: https://www.python.org/api/v2/downloads/release/?is_published=true
+          - Validierungsworkflow und Run: validate-python-patch ($WORKFLOW_RUN_URL)
+          - Geänderte Dateien: nur .python-version
+          - Minor-Version: bleibt Python 3.13
+          - Merge: kein automatischer Merge
+          EOF
+
+          if [ -n "$existing_pr" ]; then
+            if [ "$remote_branch" != true ]; then
+              echo "Open update pull request lacks its expected branch $UPDATE_BRANCH." >&2
+              exit 1
+            fi
+            auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq '.auto_merge')"
+            if [ "$auto_merge" != "null" ]; then
+              echo "Existing update pull request has automatic merge enabled or an unverifiable merge state." >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$UPDATE_BRANCH"
+            merge_base="$(git merge-base "origin/$DEFAULT_BRANCH" "origin/$UPDATE_BRANCH")"
+            if [ -z "$merge_base" ]; then
+              echo "Update branch has no trusted default-branch merge base." >&2
+              exit 1
+            fi
+            branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"
+            if [ "$branch_paths" != ".python-version" ]; then
+              echo "Existing update branch changes paths outside .python-version: $branch_paths" >&2
+              exit 1
+            fi
+            candidate_blob="$(git hash-object -w .python-version)"
+            if ! printf '%s\n' "$candidate_blob" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "Candidate version-file blob is malformed." >&2
+              exit 1
+            fi
+            git read-tree "origin/$UPDATE_BRANCH"
+            git update-index --add --cacheinfo 100644 "$candidate_blob" .python-version
+            if git diff-index --quiet "origin/$UPDATE_BRANCH" --; then
+              echo "The existing update pull request already contains $CANDIDATE_VERSION."
+              exit 0
+            fi
+            changed_paths="$(git diff-index --name-only "origin/$UPDATE_BRANCH" --)"
+            if [ "$changed_paths" != ".python-version" ]; then
+              echo "Existing update branch would change paths outside .python-version: $changed_paths" >&2
+              exit 1
+            fi
+            git diff-index --check "origin/$UPDATE_BRANCH" --
+            tree="$(git write-tree)"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            commit="$(git commit-tree "$tree" -p "origin/$UPDATE_BRANCH" -m "$PR_TITLE")"
+            git update-ref "refs/heads/$UPDATE_BRANCH" "$commit" "origin/$UPDATE_BRANCH"
+            git push origin "$UPDATE_BRANCH"
+            gh pr edit "$existing_pr" \
+              --title "$PR_TITLE" \
+              --body-file "$pr_body"
+            exit 0
+          fi
+
+          if [ "$remote_branch" = true ]; then
+            echo "Refusing to overwrite the existing remote branch $UPDATE_BRANCH without an open update pull request." >&2
+            exit 1
+          fi
+          git switch -c "$UPDATE_BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .python-version
+          git commit -m "chore(ci): update Python to $CANDIDATE_VERSION"
+          git push origin "$UPDATE_BRANCH"
+          gh pr create \
+            --draft \
+            --base "$DEFAULT_BRANCH" \
+            --head "$UPDATE_BRANCH" \
+            --title "$PR_TITLE" \
+            --body-file "$pr_body"

@@ -1,0 +1,38 @@
+name: multiple Python jobs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  python-one:
+    runs-on: ubuntu-latest
+    steps:
+      - id: setup-python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: '.python-version'
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: First Python job
+        run: python3 -c 'print("one")'
+  python-two:
+    runs-on: ubuntu-latest
+    steps:
+      - id: setup-python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: '.python-version'
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Second Python job
+        run: python -c 'print("two")'
+  shell-only:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This job does not execute Python."
