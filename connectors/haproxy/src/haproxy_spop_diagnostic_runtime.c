@@ -2663,14 +2663,19 @@ static int run_agent_server(const agent_config *config) {
     state.config = *config;
     log = open_append_file_or_standard(config->log_file, stderr);
     if (log == 0) {
-        fprintf(stderr, "failed to open log: %s\n", config->log_file);
+        if (stderr != NULL) {
+            fprintf(stderr, "failed to open log: %s\n", config->log_file);
+        }
         return 77;
     }
     log_owned = log != stderr;
     if (config->decision_log[0] != '\0') {
         decision_log = open_append_file_or_standard(config->decision_log, stdout);
         if (decision_log == 0) {
-            fprintf(stderr, "failed to open decision log: %s\n", config->decision_log);
+            if (stderr != NULL) {
+                fprintf(stderr, "failed to open decision log: %s\n",
+                    config->decision_log);
+            }
             close_owned_stream(&log, log_owned);
             return 77;
         }
