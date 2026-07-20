@@ -633,18 +633,14 @@ def parse_time(value: str | None) -> float | None:
         return None
 
 
-def full_matrix_runtime_state(
-    record: dict[str, Any],
-    env: dict[str, str],
-    profile: str,
+def fresh_full_matrix_rows(
+    rows: list[dict[str, Any]],
+    verified_run_id: str,
+    started_ts: float | None,
     *,
-    include_existing_run_rows: bool = False,
-) -> dict[str, Any]:
-    manifest = Path(env.get("FULL_MATRIX_MANIFEST", ""))
-    rows = read_jsonl(manifest)
-    started_ts = parse_time(str(record.get("started_at") or ""))
-    verified_run_id = str(env.get("VERIFIED_RUN_ID") or "")
-    fresh_rows = []
+    include_existing_run_rows: bool,
+) -> list[dict[str, Any]]:
+    fresh_rows: list[dict[str, Any]] = []
     for row in rows:
         if verified_run_id and row.get("verified_run_id") != verified_run_id:
             continue
@@ -657,6 +653,26 @@ def full_matrix_runtime_state(
         ):
             continue
         fresh_rows.append(row)
+    return fresh_rows
+
+
+def full_matrix_runtime_state(
+    record: dict[str, Any],
+    env: dict[str, str],
+    profile: str,
+    *,
+    include_existing_run_rows: bool = False,
+) -> dict[str, Any]:
+    manifest = Path(env.get("FULL_MATRIX_MANIFEST", ""))
+    rows = read_jsonl(manifest)
+    started_ts = parse_time(str(record.get("started_at") or ""))
+    verified_run_id = str(env.get("VERIFIED_RUN_ID") or "")
+    fresh_rows = fresh_full_matrix_rows(
+        rows,
+        verified_run_id,
+        started_ts,
+        include_existing_run_rows=include_existing_run_rows,
+    )
     expected = 0 if profile == "smoke" else 12
     complete = expected > 0 and len(fresh_rows) >= expected
     return_codes = [row.get("return_code") for row in fresh_rows]
@@ -795,6 +811,32 @@ def refresh_state(record: dict[str, Any]) -> dict[str, Any]:
     return {"refresh_status": status, "overall_status": overall}
 
 
+def apply_full_matrix_command_state(
+    record: dict[str, Any],
+    env: dict[str, str],
+    profile: str,
+    *,
+    include_existing_run_rows: bool,
+    preserve_persisted_runtime_state: bool,
+) -> None:
+    if preserve_persisted_runtime_state:
+        # A later resume appends rows for the same run. Re-evaluating an
+        # earlier parent command against those rows would incorrectly turn
+        # a recorded incomplete attempt into a second completed producer.
+        record.setdefault("runtime_complete", False)
+        record.setdefault("runtime_status", "runtime_state_unavailable")
+    else:
+        record.update(
+            full_matrix_runtime_state(
+                record,
+                env,
+                profile,
+                include_existing_run_rows=include_existing_run_rows,
+            )
+        )
+    record["overall_status"] = record["runtime_status"]
+
+
 def apply_command_semantics(
     record: dict[str, Any],
     env: dict[str, str],
@@ -803,28 +845,19 @@ def apply_command_semantics(
     preserve_persisted_runtime_state: bool = False,
 ) -> dict[str, Any]:
     target = str(record.get("logical_target") or "")
-    if target == "full-matrix-parallel":
-        if preserve_persisted_runtime_state:
-            # A later resume appends rows for the same run.  Re-evaluating an
-            # earlier parent command against those rows would incorrectly turn
-            # a recorded incomplete attempt into a second completed producer.
-            record.setdefault("runtime_complete", False)
-            record.setdefault("runtime_status", "runtime_state_unavailable")
-        else:
-            record.update(full_matrix_runtime_state(record, env, profile))
-        record["overall_status"] = record["runtime_status"]
+    if target in {"full-matrix-parallel", "full-matrix-resume"}:
+        apply_full_matrix_command_state(
+            record,
+            env,
+            profile,
+            include_existing_run_rows=target == "full-matrix-resume",
+            preserve_persisted_runtime_state=preserve_persisted_runtime_state,
+        )
     elif target == "runtime-matrix-all":
         record.update(simple_runtime_state(record))
         record["overall_status"] = record["runtime_status"]
     elif target == "mrts-native-full-run":
         record.update(native_runtime_state(record, env))
-        record["overall_status"] = record["runtime_status"]
-    elif target == "full-matrix-resume":
-        if preserve_persisted_runtime_state:
-            record.setdefault("runtime_complete", False)
-            record.setdefault("runtime_status", "runtime_state_unavailable")
-        else:
-            record.update(full_matrix_runtime_state(record, env, profile, include_existing_run_rows=True))
         record["overall_status"] = record["runtime_status"]
     elif target.startswith("full-matrix-job:"):
         record.update(full_matrix_job_state(record, env))
@@ -1747,16 +1780,18 @@ def main() -> int:
             )
         if not redundant_full_matrix_resume:
             record = apply_command_semantics(record, env, args.profile)
-        if qualifies_for_full_matrix_receipt(record, args.profile):
-            if not seal_full_matrix_receipt_for_record(
+        if (
+            qualifies_for_full_matrix_receipt(record, args.profile)
+            and not seal_full_matrix_receipt_for_record(
                 record=record,
                 connector_root=connector_root,
                 framework_root=framework_root,
                 build_root=build_root,
                 verified_run_id=verified_run_id,
                 profile=args.profile,
-            ):
-                aggregate_receipt_failed = True
+            )
+        ):
+            aggregate_receipt_failed = True
         command_records.append(record)
         last_updated = utc_now()
         write_commands_file(

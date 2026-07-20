@@ -33,6 +33,7 @@ COMPLETE_RUNTIME_STATUSES = {"runtime_completed", "runtime_completed_with_mismat
 COMPLETE_JOB_STATUSES = {"completed", "completed_with_mismatches"}
 MAX_STRUCTURED_RECEIPT_BYTES = 1024 * 1024
 SEALED_RECEIPT_MODE = stat.S_IRUSR
+INVALID_VERIFIED_RUN_ID_MESSAGE = "verified_run_id is invalid"
 
 
 class AggregateReceiptError(ValueError):
@@ -54,7 +55,7 @@ def expected_full_matrix_job_ids() -> tuple[str, ...]:
 
 def aggregate_receipt_path(build_root: Path, verified_run_id: str) -> Path:
     if not RUN_ID_PATTERN.fullmatch(verified_run_id):
-        raise AggregateReceiptError("verified_run_id is invalid")
+        raise AggregateReceiptError(INVALID_VERIFIED_RUN_ID_MESSAGE)
     return build_root.absolute() / "verified-runs" / verified_run_id / RECEIPT_FILENAME
 
 
@@ -454,6 +455,82 @@ def _raw_rows_by_job(
     return matrix_manifest, by_job
 
 
+def _build_full_matrix_job_record(
+    *,
+    root: Path,
+    root_descriptor: int,
+    verified_run_id: str,
+    connector: str,
+    crs: str,
+    mrts: str,
+    raw_rows: Mapping[str, dict[str, Any]],
+) -> dict[str, Any]:
+    job_id = f"{connector}:{crs}:{mrts}"
+    paths = _expected_job_paths(root, connector, crs, mrts)
+    job_path = paths["job_receipt"]
+    job = _load_json(
+        job_path,
+        root,
+        label=f"{job_id} job receipt",
+        root_descriptor=root_descriptor,
+    )
+    summary_path, declarations = _validate_job_payload(
+        job,
+        connector=connector,
+        crs=crs,
+        mrts=mrts,
+        verified_run_id=verified_run_id,
+        paths=paths,
+        build_root=root,
+        root_descriptor=root_descriptor,
+    )
+    artifacts = {
+        "log": _relative_file_record(paths["log"], root, root_descriptor=root_descriptor),
+        "build_manifest": _relative_file_record(paths["build_manifest"], root, root_descriptor=root_descriptor),
+        "summary": _relative_file_record(summary_path, root, root_descriptor=root_descriptor),
+        "results_jsonl": _relative_file_record(paths["results_jsonl"], root, root_descriptor=root_descriptor),
+    }
+    for label, entry in artifacts.items():
+        declared_hash = declarations["hashes"].get(label)
+        if declared_hash != entry["sha256"]:
+            raise AggregateReceiptError(f"{job_id}: {label} hash mismatch")
+    raw = raw_rows[job_id]
+    for key in (
+        "connector",
+        "job_id",
+        "verified_run_id",
+        "test_variant",
+        "mrts_variant",
+        "return_code",
+        "status",
+        "started_at",
+        "ended_at",
+        "duration_seconds",
+        "results_dir",
+        "summary_path",
+        "log_path",
+        "hashes",
+        "inputs",
+        "outputs",
+    ):
+        if raw.get(key) != job.get(key):
+            raise AggregateReceiptError(f"{job_id}: raw matrix {key} does not match job receipt")
+    return {
+        "job_id": job_id,
+        "connector": connector,
+        "test_variant": crs,
+        "mrts_variant": mrts,
+        "verified_run_id": verified_run_id,
+        "return_code": job["return_code"],
+        "status": job["status"],
+        "started_at": job["started_at"],
+        "ended_at": job["ended_at"],
+        "duration_seconds": job["duration_seconds"],
+        "job_receipt": _relative_file_record(job_path, root, root_descriptor=root_descriptor),
+        "artifacts": artifacts,
+    }
+
+
 def _build_full_matrix_aggregate_receipt_from_root(
     *,
     root: Path,
@@ -471,77 +548,16 @@ def _build_full_matrix_aggregate_receipt_from_root(
     for connector in FULL_MATRIX_CONNECTORS:
         for crs in FULL_MATRIX_CRS_VARIANTS:
             for mrts in FULL_MATRIX_MRTS_VARIANTS:
-                job_id = f"{connector}:{crs}:{mrts}"
-                paths = _expected_job_paths(root, connector, crs, mrts)
-                job_path = paths["job_receipt"]
-                job = _load_json(
-                    job_path,
-                    root,
-                    label=f"{job_id} job receipt",
-                    root_descriptor=root_descriptor,
-                )
-                summary_path, declarations = _validate_job_payload(
-                    job,
-                    connector=connector,
-                    crs=crs,
-                    mrts=mrts,
-                    verified_run_id=verified_run_id,
-                    paths=paths,
-                    build_root=root,
-                    root_descriptor=root_descriptor,
-                )
-                artifacts = {
-                    "log": _relative_file_record(paths["log"], root, root_descriptor=root_descriptor),
-                    "build_manifest": _relative_file_record(
-                        paths["build_manifest"], root, root_descriptor=root_descriptor
-                    ),
-                    "summary": _relative_file_record(summary_path, root, root_descriptor=root_descriptor),
-                    "results_jsonl": _relative_file_record(
-                        paths["results_jsonl"], root, root_descriptor=root_descriptor
-                    ),
-                }
-                for label, entry in artifacts.items():
-                    declared_hash = declarations["hashes"].get(label)
-                    if declared_hash != entry["sha256"]:
-                        raise AggregateReceiptError(f"{job_id}: {label} hash mismatch")
-                raw = raw_rows[job_id]
-                for key in (
-                    "connector",
-                    "job_id",
-                    "verified_run_id",
-                    "test_variant",
-                    "mrts_variant",
-                    "return_code",
-                    "status",
-                    "started_at",
-                    "ended_at",
-                    "duration_seconds",
-                    "results_dir",
-                    "summary_path",
-                    "log_path",
-                    "hashes",
-                    "inputs",
-                    "outputs",
-                ):
-                    if raw.get(key) != job.get(key):
-                        raise AggregateReceiptError(f"{job_id}: raw matrix {key} does not match job receipt")
                 jobs.append(
-                    {
-                        "job_id": job_id,
-                        "connector": connector,
-                        "test_variant": crs,
-                        "mrts_variant": mrts,
-                        "verified_run_id": verified_run_id,
-                        "return_code": job["return_code"],
-                        "status": job["status"],
-                        "started_at": job["started_at"],
-                        "ended_at": job["ended_at"],
-                        "duration_seconds": job["duration_seconds"],
-                        "job_receipt": _relative_file_record(
-                            job_path, root, root_descriptor=root_descriptor
-                        ),
-                        "artifacts": artifacts,
-                    }
+                    _build_full_matrix_job_record(
+                        root=root,
+                        root_descriptor=root_descriptor,
+                        verified_run_id=verified_run_id,
+                        connector=connector,
+                        crs=crs,
+                        mrts=mrts,
+                        raw_rows=raw_rows,
+                    )
                 )
     return {
         "schema_version": RECEIPT_SCHEMA_VERSION,
@@ -576,7 +592,7 @@ def build_full_matrix_aggregate_receipt(
     """
 
     if not RUN_ID_PATTERN.fullmatch(verified_run_id):
-        raise AggregateReceiptError("verified_run_id is invalid")
+        raise AggregateReceiptError(INVALID_VERIFIED_RUN_ID_MESSAGE)
     if profile != "full":
         raise AggregateReceiptError("aggregate receipt requires profile full")
     root = build_root.absolute()
@@ -626,7 +642,7 @@ def full_matrix_aggregate_receipt_record(
     """Read an aggregate-receipt record through a pinned BUILD_ROOT descriptor."""
 
     if not RUN_ID_PATTERN.fullmatch(verified_run_id):
-        raise AggregateReceiptError("verified_run_id is invalid")
+        raise AggregateReceiptError(INVALID_VERIFIED_RUN_ID_MESSAGE)
     root = build_root.absolute()
     with _open_root_directory(root) as root_descriptor:
         return _receipt_record_from_root(
@@ -645,7 +661,7 @@ def verified_command_receipt(
     """Read the Parent command receipt and its record through BUILD_ROOT's descriptor."""
 
     if not RUN_ID_PATTERN.fullmatch(verified_run_id):
-        raise AggregateReceiptError("verified_run_id is invalid")
+        raise AggregateReceiptError(INVALID_VERIFIED_RUN_ID_MESSAGE)
     root = build_root.absolute()
     path = root / "verified-runs" / verified_run_id / "verified-commands.json"
     with _open_root_directory(root) as root_descriptor:
@@ -702,7 +718,7 @@ def seal_full_matrix_aggregate_receipt_record(
     """Create one immutable receipt and return metadata from its open descriptor."""
 
     if not RUN_ID_PATTERN.fullmatch(verified_run_id):
-        raise AggregateReceiptError("verified_run_id is invalid")
+        raise AggregateReceiptError(INVALID_VERIFIED_RUN_ID_MESSAGE)
     if profile != "full":
         raise AggregateReceiptError("aggregate receipt requires profile full")
 

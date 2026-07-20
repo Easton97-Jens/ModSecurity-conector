@@ -726,10 +726,11 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             job = json.loads(job_path.read_text(encoding="utf-8"))
             job["return_code"] = 1
             write_json(job_path, job)
+            updated_jobs = GENERATOR.collect_jobs(matrix_root, raw_path)
             with self.assertRaisesRegex(ValueError, "sealed full-matrix manifest"):
                 GENERATOR.rewrite_manifest(
                     raw_path,
-                    GENERATOR.collect_jobs(matrix_root, raw_path),
+                    updated_jobs,
                     sealed_receipt_path=receipt_path,
                 )
 

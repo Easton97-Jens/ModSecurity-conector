@@ -157,6 +157,15 @@ and PR review before readiness; the original reproduction must be repeated
 after a merge. No Framework or MRTS test, task-owned Gitlink change, or
 Parent-master integration occurred, and no check may be bypassed.
 
+This candidate also contains the narrow, behavior-preserving `FND-SONAR-0006`
+remediation for all eight then-current PR SonarQube Cloud maintainability code
+smells: helper extraction in the strict consumer, aggregate-receipt generator
+and runner, a constant for repeated run-ID diagnostics, and a more precise
+tamper assertion. The fresh local 57-test receipt-integrity suite, `sh -n`,
+the bilingual check, and `git diff --check` passed. No receipt, path, hash, or
+TOCTOU control is changed or suppressed; a new exact head must receive fresh
+SonarQube Cloud analysis before readiness.
+
 ## Final diff and review status
 
 Draft Parent PR #59 is the user-authorized combined/stacked, Parent-only

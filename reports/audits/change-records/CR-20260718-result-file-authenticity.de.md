@@ -183,6 +183,16 @@ einem Merge zu wiederholen. Kein Framework- oder MRTS-Test, keine task-eigene
 Gitlink-Änderung und keine Parent-master-Integration erfolgten, und keine
 Prüfung darf umgangen werden.
 
+Dieser Kandidat enthält außerdem die eng begrenzte, verhaltensgleiche
+`FND-SONAR-0006`-Nacharbeit für alle acht bei diesem Stand ermittelten
+PR-SonarQube-Cloud-Maintainability-Code-Smells: Helper-Extraktionen im strikten
+Consumer, Aggregate-Receipt-Generator und Runner, eine Konstante für
+wiederholte Run-ID-Diagnostik und eine präzisere Tamper-Assertion. Die neue
+lokale 57-Test-Receipt-Integrity-Suite, `sh -n`, der Bilingual-Check und
+`git diff --check` bestanden. Keine Receipt-, Pfad-, Hash- oder
+TOCTOU-Kontrolle wird geändert oder unterdrückt; ein neuer exakter Head muss
+vor der Readiness erneut SonarQube Cloud durchlaufen.
+
 ## Finaler Diff- und Review-Status
 
 Der Draft-Parent-PR #59 ist der user-autorisierte gemeinsame/gestaffelte,

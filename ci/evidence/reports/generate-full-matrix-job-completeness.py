@@ -493,7 +493,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> int:
+def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", default=".")
     parser.add_argument("--framework-root", default=None)
@@ -502,8 +502,12 @@ def main() -> int:
     parser.add_argument("--verified-run-id", default="")
     parser.add_argument("--verified-commands-file", default="")
     parser.add_argument("--rewrite-manifest", action="store_true")
-    args = parser.parse_args()
+    return parser
 
+
+def resolve_generation_context(
+    args: argparse.Namespace,
+) -> tuple[Path, Path, Path, Path, Path, Path, str, Path]:
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     default_paths = verified_runtime_paths()
@@ -511,7 +515,6 @@ def main() -> int:
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / "reports/testing/generated/manifest"
     matrix_root = build_root / "full-matrix"
     manifest_path = matrix_root / "full-runtime-matrix-runs.jsonl"
-    commands_path = Path(args.verified_commands_file) if args.verified_commands_file else build_root / "verified-runs/current-run-id"
     verified_run_id = args.verified_run_id
     if not verified_run_id:
         current = build_root / "verified-runs" / "current-run-id"
@@ -521,23 +524,56 @@ def main() -> int:
     verified_commands = build_root / "verified-runs" / verified_run_id / "verified-commands.json"
     if args.verified_commands_file:
         verified_commands = Path(args.verified_commands_file)
+    return (
+        connector_root,
+        framework_root,
+        build_root,
+        output_dir,
+        matrix_root,
+        manifest_path,
+        verified_run_id,
+        verified_commands,
+    )
 
-    jobs = collect_jobs(matrix_root, manifest_path)
-    if args.rewrite_manifest:
-        try:
-            source_run_ids = source_manifest_run_ids(manifest_path, build_root)
-            if source_run_ids and source_run_ids != {verified_run_id}:
-                raise ValueError(
-                    "refusing to rewrite full-matrix manifest: source verified_run_id does not match --verified-run-id"
-                )
-            sealed_receipt_path = aggregate_receipt_path(build_root, verified_run_id)
-        except (AggregateReceiptError, ValueError) as exc:
-            parser.error(str(exc))
-        try:
-            rewrite_manifest(manifest_path, jobs, sealed_receipt_path=sealed_receipt_path)
-        except ValueError as exc:
-            parser.error(str(exc))
-        jobs = collect_jobs(matrix_root, manifest_path)
+
+def rewrite_manifest_when_requested(
+    parser: argparse.ArgumentParser,
+    *,
+    rewrite_manifest_requested: bool,
+    manifest_path: Path,
+    jobs: list[dict[str, Any]],
+    build_root: Path,
+    verified_run_id: str,
+    matrix_root: Path,
+) -> list[dict[str, Any]]:
+    if not rewrite_manifest_requested:
+        return jobs
+    try:
+        source_run_ids = source_manifest_run_ids(manifest_path, build_root)
+        if source_run_ids and source_run_ids != {verified_run_id}:
+            raise ValueError(
+                "refusing to rewrite full-matrix manifest: source verified_run_id does not match --verified-run-id"
+            )
+        sealed_receipt_path = aggregate_receipt_path(build_root, verified_run_id)
+    except (AggregateReceiptError, ValueError) as exc:
+        parser.error(str(exc))
+    try:
+        rewrite_manifest(manifest_path, jobs, sealed_receipt_path=sealed_receipt_path)
+    except ValueError as exc:
+        parser.error(str(exc))
+    return collect_jobs(matrix_root, manifest_path)
+
+
+def build_report_payload(
+    *,
+    connector_root: Path,
+    framework_root: Path,
+    matrix_root: Path,
+    manifest_path: Path,
+    verified_run_id: str,
+    verified_commands: Path,
+    jobs: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     complete = sum(1 for job in jobs if job["status"] in {"completed", "completed_with_mismatches"})
     manifest_recorded = sum(1 for job in jobs if job["manifest_recorded"])
     missing = [job for job in jobs if job["status"] not in {"completed", "completed_with_mismatches"}]
@@ -573,6 +609,50 @@ def main() -> int:
         "nginx_with_crs_with_mrts_analysis": analyze_nginx_with_crs_mrts(matrix_root),
         "inputs": list(dedup_inputs.values()),
     }
+    return payload, dedup_inputs
+
+
+def write_generated_report(output_dir: Path, payload: dict[str, Any], metadata: dict[str, Any]) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / GENERATED_REPORTS["full_matrix_job_completeness"].filename("json")
+    md_path = output_dir / GENERATED_REPORTS["full_matrix_job_completeness"].filename("md")
+    json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
+    md_path.write_text(generated_markdown_text(render_markdown(payload), metadata), encoding="utf-8")
+    return md_path
+
+
+def main() -> int:
+    parser = build_argument_parser()
+    args = parser.parse_args()
+    (
+        connector_root,
+        framework_root,
+        build_root,
+        output_dir,
+        matrix_root,
+        manifest_path,
+        verified_run_id,
+        verified_commands,
+    ) = resolve_generation_context(args)
+    jobs = collect_jobs(matrix_root, manifest_path)
+    jobs = rewrite_manifest_when_requested(
+        parser,
+        rewrite_manifest_requested=args.rewrite_manifest,
+        manifest_path=manifest_path,
+        jobs=jobs,
+        build_root=build_root,
+        verified_run_id=verified_run_id,
+        matrix_root=matrix_root,
+    )
+    payload, dedup_inputs = build_report_payload(
+        connector_root=connector_root,
+        framework_root=framework_root,
+        matrix_root=matrix_root,
+        manifest_path=manifest_path,
+        verified_run_id=verified_run_id,
+        verified_commands=verified_commands,
+        jobs=jobs,
+    )
     metadata = build_metadata(
         generated_by=GENERATED_REPORTS["full_matrix_job_completeness"].generator,
         make_target=GENERATED_REPORTS["full_matrix_job_completeness"].make_target,
@@ -582,12 +662,7 @@ def main() -> int:
         inputs=[item["path"] for item in dedup_inputs.values()],
         extra={"verified_run_id": verified_run_id},
     )
-    output_dir.mkdir(parents=True, exist_ok=True)
-    json_path = output_dir / GENERATED_REPORTS["full_matrix_job_completeness"].filename("json")
-    md_path = output_dir / GENERATED_REPORTS["full_matrix_job_completeness"].filename("md")
-    json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
-    md_path.write_text(generated_markdown_text(render_markdown(payload), metadata), encoding="utf-8")
-    print(md_path)
+    print(write_generated_report(output_dir, payload, metadata))
     return 0
 
 

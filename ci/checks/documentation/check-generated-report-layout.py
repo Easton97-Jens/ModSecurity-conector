@@ -1125,6 +1125,138 @@ def check_matrix_job(
     check_raw_job_consistency(raw, job, job_id=job_id, errors=errors)
 
 
+def load_verified_full_matrix_manifest(
+    connector_root: Path,
+    errors: list[str],
+) -> tuple[Path, dict[str, Any], str] | None:
+    manifest_path = report_path(connector_root, "verified_run_manifest", "json")
+    if not is_regular_file(manifest_path, root=connector_root):
+        errors.append(f"{rel(manifest_path, connector_root)}: verified run manifest is missing or not regular")
+        return None
+    verified_manifest = load_json(manifest_path, errors, connector_root)
+    run_id = str(verified_manifest.get("verified_run_id") or "")
+    if not VERIFIED_RUN_ID_PATTERN.fullmatch(run_id):
+        errors.append(f"{rel(manifest_path, connector_root)}: verified_run_id is invalid")
+        return None
+    if verified_manifest.get("profile") != "full":
+        errors.append(f"{rel(manifest_path, connector_root)}: verified run profile is not full")
+        return None
+    return manifest_path, verified_manifest, run_id
+
+
+def aggregate_receipt_path_or_error(
+    *,
+    build_root: Path,
+    run_id: str,
+    manifest_path: Path,
+    connector_root: Path,
+    errors: list[str],
+) -> Path:
+    try:
+        return aggregate_receipt_path(build_root, run_id)
+    except AggregateReceiptError as exc:
+        errors.append(f"{rel(manifest_path, connector_root)}: aggregate receipt path is invalid: {exc}")
+        return build_root / "verified-runs" / run_id / "full-matrix-aggregate-receipt.json"
+
+
+def check_aggregate_receipt_record(
+    verified_manifest: dict[str, Any],
+    *,
+    build_root: Path,
+    run_id: str,
+    receipt_path: Path,
+    manifest_path: Path,
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    try:
+        receipt_file_record = full_matrix_aggregate_receipt_record(
+            build_root=build_root,
+            verified_run_id=run_id,
+            missing_ok=True,
+        )
+    except AggregateReceiptError as exc:
+        errors.append(f"{rel(manifest_path, connector_root)}: aggregate receipt is unsafe: {exc}")
+        receipt_file_record = None
+    receipt_record = verified_manifest.get("full_matrix_aggregate_receipt")
+    if not isinstance(receipt_record, dict):
+        errors.append(f"{rel(manifest_path, connector_root)}: aggregate receipt record is missing")
+        return
+    if not exact_canonical_path(receipt_record.get("path"), receipt_path):
+        errors.append(f"{rel(manifest_path, connector_root)}: aggregate receipt path is not canonical")
+    if receipt_record.get("status") != "present" or receipt_file_record is None:
+        errors.append(f"{rel(receipt_path, connector_root)}: aggregate receipt is missing or not regular")
+    elif receipt_record.get("sha256") != receipt_file_record["sha256"]:
+        errors.append(f"{rel(receipt_path, connector_root)}: aggregate receipt hash mismatch")
+    elif receipt_record.get("bytes") != receipt_file_record["bytes"]:
+        errors.append(f"{rel(receipt_path, connector_root)}: aggregate receipt byte count mismatch")
+
+
+def check_aggregate_receipt_parent_command(
+    receipt: dict[str, Any],
+    receipt_errors: list[str],
+    full_matrix_command: dict[str, Any] | None,
+    *,
+    receipt_path: Path,
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    producer = receipt.get("producer") if isinstance(receipt, dict) else {}
+    parent_command = producer.get("parent_command") if isinstance(producer, dict) else {}
+    if full_matrix_command is None or receipt_errors:
+        return
+    if not isinstance(parent_command, dict):
+        errors.append(f"{rel(receipt_path, connector_root)}: aggregate receipt parent command is missing")
+        return
+    for key in (
+        "logical_target",
+        "phase",
+        "required",
+        "return_code",
+        "classification",
+        "runtime_complete",
+        "runtime_status",
+        "started_at",
+        "finished_at",
+    ):
+        if parent_command.get(key) != full_matrix_command.get(key):
+            errors.append(f"{rel(receipt_path, connector_root)}: aggregate receipt parent command {key} mismatch")
+
+
+def check_stable_aggregate_receipt(
+    verified_manifest: dict[str, Any],
+    *,
+    build_root: Path,
+    run_id: str,
+    expected_revisions: dict[str, Any],
+    receipt: dict[str, Any],
+    full_matrix_command: dict[str, Any] | None,
+    manifest_path: Path,
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    final_receipt, final_receipt_errors = validate_full_matrix_aggregate_receipt(
+        build_root=build_root,
+        verified_run_id=run_id,
+        expected_profile="full",
+        expected_revisions=expected_revisions,
+    )
+    for error in final_receipt_errors:
+        errors.append(f"{rel(manifest_path, connector_root)}: final aggregate receipt validation failed: {error}")
+    if not final_receipt_errors and final_receipt != receipt:
+        errors.append(f"{rel(manifest_path, connector_root)}: aggregate receipt changed during verification")
+    final_full_matrix_command = check_verified_command_receipt(
+        verified_manifest,
+        manifest_path=manifest_path,
+        connector_root=connector_root,
+        build_root=build_root,
+        run_id=run_id,
+        errors=errors,
+    )
+    if full_matrix_command is not None and final_full_matrix_command != full_matrix_command:
+        errors.append(f"{rel(manifest_path, connector_root)}: verified command receipt changed during verification")
+
+
 def check_verified_runtime_artifact_chain(
     connector_root: Path,
     errors: list[str],
@@ -1132,18 +1264,10 @@ def check_verified_runtime_artifact_chain(
     build_root: Path | None = None,
 ) -> None:
     """Validate detached full-matrix receipts rather than derived report claims."""
-    manifest_path = report_path(connector_root, "verified_run_manifest", "json")
-    if not is_regular_file(manifest_path, root=connector_root):
-        errors.append(f"{rel(manifest_path, connector_root)}: verified run manifest is missing or not regular")
+    manifest_context = load_verified_full_matrix_manifest(connector_root, errors)
+    if manifest_context is None:
         return
-    verified_manifest = load_json(manifest_path, errors, connector_root)
-    run_id = str(verified_manifest.get("verified_run_id") or "")
-    if not VERIFIED_RUN_ID_PATTERN.fullmatch(run_id):
-        errors.append(f"{rel(manifest_path, connector_root)}: verified_run_id is invalid")
-        return
-    if verified_manifest.get("profile") != "full":
-        errors.append(f"{rel(manifest_path, connector_root)}: verified run profile is not full")
-        return
+    manifest_path, verified_manifest, run_id = manifest_context
     selected_build_root = (build_root or Path(verified_runtime_paths()["BUILD_ROOT"])).absolute()
     full_matrix_command = check_verified_command_receipt(
         verified_manifest,
@@ -1153,11 +1277,13 @@ def check_verified_runtime_artifact_chain(
         run_id=run_id,
         errors=errors,
     )
-    try:
-        receipt_path = aggregate_receipt_path(selected_build_root, run_id)
-    except AggregateReceiptError as exc:
-        errors.append(f"{rel(manifest_path, connector_root)}: aggregate receipt path is invalid: {exc}")
-        receipt_path = selected_build_root / "verified-runs" / run_id / "full-matrix-aggregate-receipt.json"
+    receipt_path = aggregate_receipt_path_or_error(
+        build_root=selected_build_root,
+        run_id=run_id,
+        manifest_path=manifest_path,
+        connector_root=connector_root,
+        errors=errors,
+    )
     expected_revisions = {
         "connector_sha": verified_manifest.get("connector_sha"),
         "framework_sha": verified_manifest.get("framework_sha"),
@@ -1171,67 +1297,34 @@ def check_verified_runtime_artifact_chain(
     )
     for error in receipt_errors:
         errors.append(f"{rel(manifest_path, connector_root)}: {error}")
-    try:
-        receipt_file_record = full_matrix_aggregate_receipt_record(
-            build_root=selected_build_root,
-            verified_run_id=run_id,
-            missing_ok=True,
-        )
-    except AggregateReceiptError as exc:
-        errors.append(f"{rel(manifest_path, connector_root)}: aggregate receipt is unsafe: {exc}")
-        receipt_file_record = None
-    receipt_record = verified_manifest.get("full_matrix_aggregate_receipt")
-    if not isinstance(receipt_record, dict):
-        errors.append(f"{rel(manifest_path, connector_root)}: aggregate receipt record is missing")
-    else:
-        if not exact_canonical_path(receipt_record.get("path"), receipt_path):
-            errors.append(f"{rel(manifest_path, connector_root)}: aggregate receipt path is not canonical")
-        if receipt_record.get("status") != "present" or receipt_file_record is None:
-            errors.append(f"{rel(receipt_path, connector_root)}: aggregate receipt is missing or not regular")
-        elif receipt_record.get("sha256") != receipt_file_record["sha256"]:
-            errors.append(f"{rel(receipt_path, connector_root)}: aggregate receipt hash mismatch")
-        elif receipt_record.get("bytes") != receipt_file_record["bytes"]:
-            errors.append(f"{rel(receipt_path, connector_root)}: aggregate receipt byte count mismatch")
-
-    producer = receipt.get("producer") if isinstance(receipt, dict) else {}
-    parent_command = producer.get("parent_command") if isinstance(producer, dict) else {}
-    if full_matrix_command is not None and not receipt_errors:
-        if not isinstance(parent_command, dict):
-            errors.append(f"{rel(receipt_path, connector_root)}: aggregate receipt parent command is missing")
-        else:
-            for key in (
-                "logical_target",
-                "phase",
-                "required",
-                "return_code",
-                "classification",
-                "runtime_complete",
-                "runtime_status",
-                "started_at",
-                "finished_at",
-            ):
-                if parent_command.get(key) != full_matrix_command.get(key):
-                    errors.append(f"{rel(receipt_path, connector_root)}: aggregate receipt parent command {key} mismatch")
-    final_receipt, final_receipt_errors = validate_full_matrix_aggregate_receipt(
-        build_root=selected_build_root,
-        verified_run_id=run_id,
-        expected_profile="full",
-        expected_revisions=expected_revisions,
-    )
-    for error in final_receipt_errors:
-        errors.append(f"{rel(manifest_path, connector_root)}: final aggregate receipt validation failed: {error}")
-    if not final_receipt_errors and final_receipt != receipt:
-        errors.append(f"{rel(manifest_path, connector_root)}: aggregate receipt changed during verification")
-    final_full_matrix_command = check_verified_command_receipt(
+    check_aggregate_receipt_record(
         verified_manifest,
-        manifest_path=manifest_path,
-        connector_root=connector_root,
         build_root=selected_build_root,
         run_id=run_id,
+        receipt_path=receipt_path,
+        manifest_path=manifest_path,
+        connector_root=connector_root,
         errors=errors,
     )
-    if full_matrix_command is not None and final_full_matrix_command != full_matrix_command:
-        errors.append(f"{rel(manifest_path, connector_root)}: verified command receipt changed during verification")
+    check_aggregate_receipt_parent_command(
+        receipt,
+        receipt_errors,
+        full_matrix_command,
+        receipt_path=receipt_path,
+        connector_root=connector_root,
+        errors=errors,
+    )
+    check_stable_aggregate_receipt(
+        verified_manifest,
+        build_root=selected_build_root,
+        run_id=run_id,
+        expected_revisions=expected_revisions,
+        receipt=receipt,
+        full_matrix_command=full_matrix_command,
+        manifest_path=manifest_path,
+        connector_root=connector_root,
+        errors=errors,
+    )
 
 
 def check_verified_runtime_diagnostics(connector_root: Path, errors: list[str], *, strict_evidence: bool) -> None:
