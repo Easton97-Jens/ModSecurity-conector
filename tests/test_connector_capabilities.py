@@ -13,6 +13,9 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ci" / "evidence" / "collectors"))
+sys.path.insert(0, str(ROOT / "ci" / "lib"))
+import generated_report_utils
+
 SPEC = importlib.util.spec_from_file_location(
     "connector_capabilities", ROOT / "ci/evidence/collectors/connector_capabilities.py"
 )
@@ -47,6 +50,243 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
                 "sha256": "a" * 64,
             }
         return results
+
+    def _git(self, root: Path, *arguments: str) -> str:
+        result = subprocess.run(
+            ["git", "-C", str(root), *arguments],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return result.stdout.strip()
+
+    def _init_repository(self, root: Path) -> str:
+        root.mkdir(parents=True)
+        self._git(root, "init", "--quiet")
+        self._git(root, "config", "user.email", "tests@example.invalid")
+        self._git(root, "config", "user.name", "Connector tests")
+        (root / "tracked.txt").write_text(f"{root.name}\n", encoding="utf-8")
+        self._git(root, "add", "tracked.txt")
+        self._git(root, "commit", "--quiet", "-m", "fixture")
+        return self._git(root, "rev-parse", "HEAD")
+
+    def _record_framework_gitlink(self, connector_root: Path, framework_sha: str) -> None:
+        self._git(
+            connector_root,
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            f"160000,{framework_sha},modules/ModSecurity-test-Framework",
+        )
+        self._git(connector_root, "commit", "--quiet", "-m", "record framework gitlink")
+
+    def _write_generated_framework_input(
+        self,
+        connector_root: Path,
+        *,
+        run_id: str,
+        connector_sha: str,
+        framework_sha: str,
+    ) -> Path:
+        report = (
+            connector_root
+            / "reports/testing/generated/canonical/connector-capabilities.generated.json"
+        )
+        report.parent.mkdir(parents=True)
+        report.write_text(
+            json.dumps(
+                {
+                    "status": "generated",
+                    "metadata": {
+                        "verified_run_id": run_id,
+                        "connector_sha": connector_sha,
+                        "framework_sha": framework_sha,
+                        "framework_gitlink_sha": framework_sha,
+                        "framework_checkout_status": "checked_out",
+                        "framework_gitlink_status": "matches_checkout",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return report
+
+    def test_metadata_uses_gitlink_when_framework_is_not_checked_out(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="framework-provenance-") as temporary:
+            root = Path(temporary)
+            framework_source = root / "framework-source"
+            framework_sha = self._init_repository(framework_source)
+            connector_root = root / "connector"
+            connector_sha = self._init_repository(connector_root)
+            framework_root = connector_root / "modules" / "ModSecurity-test-Framework"
+            self._record_framework_gitlink(connector_root, framework_sha)
+            framework_root.mkdir(parents=True)
+
+            metadata = generated_report_utils.build_metadata(
+                generated_by="tests/test_connector_capabilities.py",
+                make_target="test-framework-provenance",
+                connector_root=connector_root,
+                framework_root=framework_root,
+            )
+            checked_out_framework = connector_root / "modules" / "checked-out-framework"
+            checked_out_sha = self._init_repository(checked_out_framework)
+            checked_out_metadata = generated_report_utils.build_metadata(
+                generated_by="tests/test_connector_capabilities.py",
+                make_target="test-framework-provenance",
+                connector_root=connector_root,
+                framework_root=checked_out_framework,
+            )
+
+        self.assertNotEqual(connector_sha, framework_sha)
+        self.assertEqual("unknown", metadata["framework_sha"])
+        self.assertEqual(framework_sha, metadata["framework_gitlink_sha"])
+        self.assertEqual("not_checked_out", metadata["framework_checkout_status"])
+        self.assertEqual("not_checked_out", metadata["framework_gitlink_status"])
+        self.assertEqual("unknown", metadata["framework_working_tree_dirty"])
+        self.assertEqual(checked_out_sha, checked_out_metadata["framework_sha"])
+        self.assertEqual("unknown", checked_out_metadata["framework_gitlink_sha"])
+        self.assertEqual("checked_out", checked_out_metadata["framework_checkout_status"])
+        self.assertEqual("not_a_gitlink", checked_out_metadata["framework_gitlink_status"])
+        self.assertEqual("clean", checked_out_metadata["framework_working_tree_dirty"])
+
+    def test_framework_provenance_marks_a_matching_gitlink_checkout(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="framework-provenance-match-") as temporary:
+            root = Path(temporary)
+            framework_source = root / "framework-source"
+            framework_sha = self._init_repository(framework_source)
+            connector_root = root / "connector"
+            self._init_repository(connector_root)
+            framework_root = connector_root / "modules" / "ModSecurity-test-Framework"
+            self._git(
+                connector_root,
+                "clone",
+                "--quiet",
+                str(framework_source),
+                str(framework_root),
+            )
+            self._record_framework_gitlink(connector_root, framework_sha)
+
+            provenance = generated_report_utils.framework_provenance(
+                connector_root, framework_root
+            )
+
+        self.assertEqual(framework_sha, provenance["sha"])
+        self.assertEqual(framework_sha, provenance["gitlink_sha"])
+        self.assertEqual("checked_out", provenance["checkout_status"])
+        self.assertEqual("matches_checkout", provenance["gitlink_status"])
+        self.assertEqual("clean", provenance["working_tree_dirty"])
+
+    def test_framework_provenance_marks_a_checkout_that_differs_from_its_gitlink(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="framework-provenance-mismatch-") as temporary:
+            root = Path(temporary)
+            framework_source = root / "framework-source"
+            framework_sha = self._init_repository(framework_source)
+            connector_root = root / "connector"
+            self._init_repository(connector_root)
+            framework_root = connector_root / "modules" / "ModSecurity-test-Framework"
+            self._git(
+                connector_root,
+                "clone",
+                "--quiet",
+                str(framework_source),
+                str(framework_root),
+            )
+            self._record_framework_gitlink(connector_root, framework_sha)
+            self._git(framework_root, "config", "user.email", "tests@example.invalid")
+            self._git(framework_root, "config", "user.name", "Connector tests")
+            (framework_root / "tracked.txt").write_text("mismatch\n", encoding="utf-8")
+            self._git(framework_root, "add", "tracked.txt")
+            self._git(framework_root, "commit", "--quiet", "-m", "advance checkout")
+            checkout_sha = self._git(framework_root, "rev-parse", "HEAD")
+
+            provenance = generated_report_utils.framework_provenance(
+                connector_root, framework_root
+            )
+
+        self.assertNotEqual(framework_sha, checkout_sha)
+        self.assertEqual(checkout_sha, provenance["sha"])
+        self.assertEqual(framework_sha, provenance["gitlink_sha"])
+        self.assertEqual("checked_out", provenance["checkout_status"])
+        self.assertEqual("checkout_mismatch", provenance["gitlink_status"])
+        self.assertEqual("clean", provenance["working_tree_dirty"])
+
+    def test_input_record_marks_a_missing_framework_checkout_stale(self) -> None:
+        run_id = "framework-provenance-fixture"
+        with tempfile.TemporaryDirectory(prefix="framework-input-unpopulated-") as temporary:
+            root = Path(temporary)
+            framework_source = root / "framework-source"
+            framework_sha = self._init_repository(framework_source)
+            connector_root = root / "connector"
+            self._init_repository(connector_root)
+            framework_root = connector_root / "modules" / "ModSecurity-test-Framework"
+            self._record_framework_gitlink(connector_root, framework_sha)
+            connector_sha = self._git(connector_root, "rev-parse", "HEAD")
+            report = self._write_generated_framework_input(
+                connector_root,
+                run_id=run_id,
+                connector_sha=connector_sha,
+                framework_sha=framework_sha,
+            )
+            provenance = generated_report_utils.framework_provenance(
+                connector_root, framework_root
+            )
+
+            with mock.patch.dict("os.environ", {"VERIFIED_RUN_ID": run_id}):
+                record = generated_report_utils.input_record(
+                    report, connector_root, framework_root
+                )
+
+        self.assertEqual("stale", record["status"])
+        self.assertEqual("unknown", provenance["sha"])
+        self.assertEqual(framework_sha, provenance["gitlink_sha"])
+        self.assertEqual("not_checked_out", provenance["checkout_status"])
+        self.assertEqual("not_checked_out", provenance["gitlink_status"])
+        self.assertEqual(framework_sha, record["framework_sha"])
+        self.assertEqual(framework_sha, record["framework_gitlink_sha"])
+        self.assertEqual("checked_out", record["framework_checkout_status"])
+        self.assertEqual("matches_checkout", record["framework_gitlink_status"])
+        self.assertIn("framework checkout is not verified (not_checked_out)", record["notes"])
+
+    def test_input_record_marks_a_framework_gitlink_mismatch_stale(self) -> None:
+        run_id = "framework-provenance-fixture"
+        with tempfile.TemporaryDirectory(prefix="framework-input-mismatch-") as temporary:
+            root = Path(temporary)
+            framework_source = root / "framework-source"
+            framework_sha = self._init_repository(framework_source)
+            connector_root = root / "connector"
+            self._init_repository(connector_root)
+            framework_root = connector_root / "modules" / "ModSecurity-test-Framework"
+            self._git(
+                connector_root,
+                "clone",
+                "--quiet",
+                str(framework_source),
+                str(framework_root),
+            )
+            self._record_framework_gitlink(connector_root, framework_sha)
+            self._git(framework_root, "config", "user.email", "tests@example.invalid")
+            self._git(framework_root, "config", "user.name", "Connector tests")
+            (framework_root / "tracked.txt").write_text("mismatch\n", encoding="utf-8")
+            self._git(framework_root, "add", "tracked.txt")
+            self._git(framework_root, "commit", "--quiet", "-m", "advance checkout")
+            connector_sha = self._git(connector_root, "rev-parse", "HEAD")
+            report = self._write_generated_framework_input(
+                connector_root,
+                run_id=run_id,
+                connector_sha=connector_sha,
+                framework_sha=framework_sha,
+            )
+
+            with mock.patch.dict("os.environ", {"VERIFIED_RUN_ID": run_id}):
+                record = generated_report_utils.input_record(
+                    report, connector_root, framework_root
+                )
+
+        self.assertEqual("stale", record["status"])
+        self.assertIn(
+            "framework checkout differs from its recorded gitlink", record["notes"]
+        )
 
     def test_static_payload_remains_source_contract_only(self) -> None:
         payload = connector_capabilities.aggregate_payload(self.manifests)

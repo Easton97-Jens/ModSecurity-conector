@@ -8,6 +8,8 @@ englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
 - [Behebung der SonarQube-Cloud-New-Code-Duplizierung](CR-20260719-sonar-new-code-duplication.de.md)
+- [Phase-4-Evidence-Identitätsbindung](CR-20260718-phase4-evidence-identity-binding.de.md)
+- [Apache-Phase-4-Response-Enforcement](CR-20260718-apache-phase4-response.de.md)
 - [Runtime-Pfad-Containment-Härtung](CR-20260718-runtime-path-confinement.de.md)
 - [Sicherheitsrichtlinie und Governance-Baseline](CR-20260718-security-policy-governance.de.md)
 - [Traefik-UDS- und C++-Evaluator-Härtung](CR-20260717-traefik-uds-cpp17-hardening.de.md)

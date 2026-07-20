@@ -41,7 +41,7 @@ artifact provenance required by the applicable validator.
 | --- | --- | --- |
 | Header and body limits | Bound resource consumption before processing | A higher limit is not evidence of safe buffering |
 | Request/response timeouts | Bound a host or bridge wait | A timeout setting does not prove cancellation semantics |
-| Response-body scope | Restrict inspected content types and bytes | Do not introduce a connector-owned complete response buffer |
+| Response-body scope | Restrict engine inspection and bytes | Do not introduce a connector-owned complete response buffer except where a documented host security gate requires it; Apache retains normalized output through EOS under a finite fail-closed limit |
 | Event/log limits | Keep diagnostics bounded and payload-safe | Truncation must be represented truthfully |
 
 The exact parser defaults and host contexts belong in the complete connector
