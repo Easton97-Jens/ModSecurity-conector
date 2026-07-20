@@ -32,6 +32,7 @@ GIT_SHA_PATTERN = re.compile(r"[0-9a-f]{40,64}\Z")
 COMPLETE_RUNTIME_STATUSES = {"runtime_completed", "runtime_completed_with_mismatches"}
 COMPLETE_JOB_STATUSES = {"completed", "completed_with_mismatches"}
 MAX_STRUCTURED_RECEIPT_BYTES = 1024 * 1024
+SEALED_RECEIPT_MODE = stat.S_IRUSR
 
 
 class AggregateReceiptError(ValueError):
@@ -753,7 +754,7 @@ def seal_full_matrix_aggregate_receipt_record(
                 if os.fstat(descriptor).st_size != len(content):
                     raise AggregateReceiptError("aggregate receipt byte count changed while publishing")
                 os.fsync(descriptor)
-                os.fchmod(descriptor, 0o444)
+                os.fchmod(descriptor, SEALED_RECEIPT_MODE)
                 os.fsync(descriptor)
                 _assert_directory_binding(
                     root_descriptor=root_descriptor,

@@ -5,6 +5,7 @@ import io
 import json
 import os
 import shutil
+import stat
 import sys
 import tempfile
 import unittest
@@ -545,6 +546,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 revisions={"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40},
             )
             self.assertEqual(receipt_path, sealed_path)
+            self.assertEqual(stat.S_IRUSR, stat.S_IMODE(sealed_path.stat().st_mode))
             with self.assertRaises(RECEIPT.AggregateReceiptError):
                 RECEIPT.seal_full_matrix_aggregate_receipt(
                     build_root=build_root,
