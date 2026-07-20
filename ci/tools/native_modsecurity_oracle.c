@@ -119,7 +119,13 @@ static int read_file_bytes(const char *path, struct byte_buffer *buffer)
 
 static void json_string(FILE *out, const char *value)
 {
-    const unsigned char *cursor = (const unsigned char *)(value ? value : "");
+    const unsigned char *cursor;
+
+    if (value == NULL) {
+        fputs("\"\"", out);
+        return;
+    }
+    cursor = (const unsigned char *)value;
 
     fputc('"', out);
     while (*cursor != '\0') {
