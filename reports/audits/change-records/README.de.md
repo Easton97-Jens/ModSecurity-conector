@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Phase-4-Evidence-Identitätsbindung](CR-20260718-phase4-evidence-identity-binding.de.md)
 - [Apache-Phase-4-Response-Enforcement](CR-20260718-apache-phase4-response.de.md)
 - [Runtime-Pfad-Containment-Härtung](CR-20260718-runtime-path-confinement.de.md)
 - [Sicherheitsrichtlinie und Governance-Baseline](CR-20260718-security-policy-governance.de.md)

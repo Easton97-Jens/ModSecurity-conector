@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -25,6 +26,134 @@ CHECKER_SPEC.loader.exec_module(checker)
 
 
 class FullLifecycleEvidenceTest(unittest.TestCase):
+    def phase4_identity_fixture(
+        self,
+        event_overrides: dict[str, object] | None = None,
+        result_overrides: dict[str, object] | None = None,
+    ) -> tuple[Path, dict[str, object], dict[str, object], tempfile.TemporaryDirectory[str]]:
+        """Create one canonical Apache P4 fixture with a replaceable raw event.
+
+        The result rows model the existing canonical case-to-transaction
+        binding.  Each negative test changes only the raw-event identity so a
+        matching rule ID and phase cannot stand in for producer/run identity.
+        """
+        temporary = tempfile.TemporaryDirectory(prefix="full-lifecycle-identity-")
+        run = Path(temporary.name)
+        event: dict[str, object] = {
+            "connector": "apache",
+            "run_id": "apache-current-run",
+            "integration_mode": "native-httpd-module",
+            "transaction_id": "apache-phase4-transaction",
+            "rule_id": 1100301,
+            "phase": 4,
+            "first_byte_before_response_end": True,
+            "upstream_response_finished_at_first_byte": False,
+            "upstream_paused": True,
+            "first_chunk_size": 1,
+            "no_full_response_buffering": True,
+        }
+        if event_overrides:
+            event.update(event_overrides)
+        (run / "events.jsonl").write_text(json.dumps(event) + "\n", encoding="utf-8")
+        records = (
+            {
+                "case_id": "phase4_first_byte_before_response_end",
+                "status": "PASS",
+                "expected_rule_id": 1100301,
+                "transaction_ids": ["apache-phase4-transaction"],
+            },
+            {
+                "case_id": "phase4_no_full_response_buffering",
+                "status": "PASS",
+                "expected_rule_id": 1100301,
+                "transaction_ids": ["apache-phase4-transaction"],
+            },
+        )
+        (run / "results.jsonl").write_text(
+            "".join(json.dumps(record) + "\n" for record in records), encoding="utf-8"
+        )
+        manifest: dict[str, object] = {
+            "capabilities": {
+                "first_byte_before_response_end": {"state": "verified"},
+                "no_full_response_buffering": {"state": "verified"},
+            }
+        }
+        result: dict[str, object] = {
+            "artifact_profile": "full_lifecycle",
+            "connector": "apache",
+            "run_id": "apache-current-run",
+            "host_profile": "native-httpd-module",
+            "integration_mode": "native-httpd-module",
+            "executed_targets": ["full-lifecycle-apache"],
+            "capabilities_verified": [
+                "first_byte_before_response_end",
+                "no_full_response_buffering",
+            ],
+        }
+        if result_overrides:
+            result.update(result_overrides)
+        return run, manifest, result, temporary
+
+    def assert_phase4_identity_rejected(
+        self,
+        event_overrides: dict[str, object] | None = None,
+        result_overrides: dict[str, object] | None = None,
+    ) -> None:
+        run, manifest, result, temporary = self.phase4_identity_fixture(
+            event_overrides,
+            result_overrides,
+        )
+        with temporary:
+            self.assertEqual(
+                [
+                    "phase4_first_byte_before_response_end: "
+                    "missing synchronized first-byte event metadata",
+                    "phase4_no_full_response_buffering: "
+                    "missing synchronized first-byte event metadata",
+                ],
+                checker.first_byte_errors(run, manifest, result),
+            )
+            self.assertEqual(
+                ["no-full-response-buffering PASS lacks the causal first-byte metadata"],
+                checker.no_buffer_errors(run, manifest, result),
+            )
+
+    def test_phase4_events_reject_foreign_run_identity(self) -> None:
+        self.assert_phase4_identity_rejected({"run_id": "apache-foreign-run"})
+
+    def test_phase4_events_reject_foreign_result_run_identity(self) -> None:
+        self.assert_phase4_identity_rejected(result_overrides={"run_id": "apache-foreign-run"})
+
+    def test_phase4_events_reject_copied_connector_evidence(self) -> None:
+        self.assert_phase4_identity_rejected({"connector": "nginx"})
+
+    def test_phase4_events_reject_copied_result_connector_evidence(self) -> None:
+        self.assert_phase4_identity_rejected(result_overrides={"connector": "nginx"})
+
+    def test_phase4_events_reject_copied_native_integration_mode_evidence(self) -> None:
+        self.assert_phase4_identity_rejected({"integration_mode": "native-nginx-http-module"})
+
+    def test_phase4_events_reject_copied_result_host_profile_evidence(self) -> None:
+        self.assert_phase4_identity_rejected(result_overrides={"host_profile": "native-nginx-http-module"})
+
+    def test_phase4_events_reject_wrong_integration_mode(self) -> None:
+        self.assert_phase4_identity_rejected({"integration_mode": "compatibility-proxy"})
+
+    def test_phase4_events_reject_foreign_transaction_identity(self) -> None:
+        self.assert_phase4_identity_rejected({"transaction_id": "foreign-phase4-transaction"})
+
+    def test_phase4_events_reject_missing_identity(self) -> None:
+        for missing_field in ("connector", "run_id", "integration_mode", "transaction_id"):
+            with self.subTest(missing_field=missing_field):
+                self.assert_phase4_identity_rejected({missing_field: ""})
+
+    def test_phase4_events_accept_same_run_apache_control(self) -> None:
+        run, manifest, result, temporary = self.phase4_identity_fixture()
+        with temporary:
+            self.assertEqual([], checker.profile_errors(result, "apache"))
+            self.assertEqual([], checker.first_byte_errors(run, manifest, result))
+            self.assertEqual([], checker.no_buffer_errors(run, manifest, result))
+
     def test_log_sanitizer_drops_fixture_bodies_and_credentials(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-lifecycle-log-") as temporary:
             root = Path(temporary)
