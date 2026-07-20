@@ -160,28 +160,34 @@ int process_intervention (Transaction *t, request_rec *r)
 {
     ModSecurityIntervention intervention;
     msc_t *msr = NULL;
+    const char *log;
+    const char *location;
+    int z;
+    int result = N_INTERVENTION_STATUS;
+
     intervention.status = N_INTERVENTION_STATUS;
     intervention.url = NULL;
     intervention.log = NULL;
     intervention.disruptive = 0;
 
-    int z = msc_intervention(t, &intervention);
+    z = msc_intervention(t, &intervention);
 
     if (z == 0)
     {
         return N_INTERVENTION_STATUS;
     }
 
-    if (intervention.log == NULL)
+    log = intervention.log;
+    if (log == NULL)
     {
-        intervention.log = "(no log message was specified)";
+        log = "(no log message was specified)";
     }
 
     msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
     if (msr != NULL)
     {
         msr->last_intervention_status = intervention.status;
-        msr->last_intervention_log = apr_pstrdup(r->pool, intervention.log);
+        msr->last_intervention_log = apr_pstrdup(r->pool, log);
         msr->phase4_intervention = intervention.disruptive ? 1 : msr->phase4_intervention;
     }
 
@@ -190,17 +196,21 @@ int process_intervention (Transaction *t, request_rec *r)
     {
         if (intervention.url != NULL)
         {
-            apr_table_setn(r->headers_out, "Location", intervention.url);
-            return HTTP_MOVED_TEMPORARILY;
+            location = apr_pstrdup(r->pool, intervention.url);
+            apr_table_setn(r->headers_out, "Location", location);
+            result = HTTP_MOVED_TEMPORARILY;
+            goto cleanup;
         }
     }
 
     if (intervention.status != N_INTERVENTION_STATUS)
     {
-        return intervention.status;
+        result = intervention.status;
     }
 
-    return N_INTERVENTION_STATUS;
+cleanup:
+    msc_intervention_cleanup(&intervention);
+    return result;
 }
 
 
