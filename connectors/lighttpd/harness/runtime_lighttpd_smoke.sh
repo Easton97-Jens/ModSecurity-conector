@@ -9,7 +9,8 @@ SMOKE_PORT=${LIGHTTPD_SMOKE_PORT:-18084}
 EXPECTED_RULE_ID=${MSCONNECTOR_EXPECTED_RULE_ID:-1000001}
 
 blocked() {
-    printf 'lighttpd_runtime_smoke: BLOCKED: %s\n' "$1"
+    reason=$1
+    printf 'lighttpd_runtime_smoke: BLOCKED: %s\n' "$reason"
     exit 77
 }
 

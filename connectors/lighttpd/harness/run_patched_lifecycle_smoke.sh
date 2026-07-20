@@ -18,7 +18,8 @@ if [ "${NO_CRS_ARTIFACT_PROFILE:-}" = full_lifecycle ]; then
 fi
 
 blocked() {
-    printf 'lighttpd_patched_lifecycle_smoke: BLOCKED: %s\n' "$1" >&2
+    reason=$1
+    printf 'lighttpd_patched_lifecycle_smoke: BLOCKED: %s\n' "$reason" >&2
     exit 77
 }
 

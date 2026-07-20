@@ -13,7 +13,8 @@ MSCONNECTOR_C_STD=${MSCONNECTOR_C_STD:-c17}
 LIGHTTPD_MSCONNECTOR_CORE_MODE=${LIGHTTPD_MSCONNECTOR_CORE_MODE:-stock}
 
 blocked() {
-    printf 'lighttpd_connector_build: BLOCKED: %s\n' "$1"
+    reason=$1
+    printf 'lighttpd_connector_build: BLOCKED: %s\n' "$reason"
     exit 77
 }
 

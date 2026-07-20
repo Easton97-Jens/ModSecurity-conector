@@ -248,7 +248,7 @@ def lifecycle_errors(
     try:
         counters = load_json(path)
         events = load_jsonl(run_dir / "events.jsonl")
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         return [f"cannot read lifecycle inventory: {exc}"]
     errors: list[str] = []
     if counters.get("connector") != connector:
@@ -281,7 +281,7 @@ def lifecycle_errors(
         return errors
     try:
         lifecycle = load_json(run_dir / "inventory/connection-lifecycle.json")
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         return [*errors, f"cannot read bound connection lifecycle inventory: {exc}"]
     records = lifecycle.get("records")
     if not isinstance(records, list) or any(not isinstance(record, dict) for record in records):
@@ -351,7 +351,7 @@ def transport_artifact_errors(run_dir: Path, connector: str) -> list[str]:
         connections = load_json(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["connection_lifecycle"])
         effective_config = load_json(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["effective_config"])
         barriers = load_jsonl(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["barrier_events"])
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         return [f"cannot read transport artifacts: {exc}"]
     for label, document in (("transport observations", observations), ("connection lifecycle", connections)):
         if document.get("connector") != connector:
@@ -540,7 +540,7 @@ def main(argv: list[str] | None = None) -> int:
                 connector_errors += lifecycle_errors(run_dir, connector, result)
                 connector_errors += transport_artifact_errors(run_dir, connector)
             errors.extend(f"{connector}: {error}" for error in connector_errors)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:
             errors.append(f"{connector}: cannot read canonical evidence: {exc}")
     if errors:
         for error in errors:

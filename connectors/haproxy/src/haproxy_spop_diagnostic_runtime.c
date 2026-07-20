@@ -250,7 +250,6 @@ static FILE *open_private_file(const char *path, int append) {
 
 static int mkdir_p(const char *path) {
     char tmp[4096];
-    char *p;
     size_t len;
 
     if (path == 0 || path[0] == '\0') {
@@ -266,7 +265,7 @@ static int mkdir_p(const char *path) {
     if (tmp[len - 1] == '/') {
         tmp[len - 1] = '\0';
     }
-    for (p = tmp + 1; *p != '\0'; ++p) {
+    for (char *p = tmp + 1; *p != '\0'; ++p) {
         if (*p == '/') {
             *p = '\0';
             if (mkdir(tmp, S_IRWXU) != 0 && errno != EEXIST) {
@@ -1744,10 +1743,8 @@ static const char *safe_decision_name(
     static const char *const allowed[] = {
         "pass", "deny", "redirect", "drop", "fail-closed", "fail-open"
     };
-    size_t index;
-
     if (decision_text != 0) {
-        for (index = 0U; index < sizeof(allowed) / sizeof(allowed[0]); ++index) {
+        for (size_t index = 0U; index < sizeof(allowed) / sizeof(allowed[0]); ++index) {
             if (strcmp(decision_text, allowed[index]) == 0) {
                 return allowed[index];
             }

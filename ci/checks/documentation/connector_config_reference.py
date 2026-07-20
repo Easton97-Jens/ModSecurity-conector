@@ -499,12 +499,12 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
     required = ("modsecurity-htx", "rules-file", "phase4-mode")
     if any(token not in text for token in required):
         raise ValueError("HAProxy HTX parser surface is incomplete")
-    common = dict(
-        contexts="The selected and checked-in native use is a HAProxy frontend. The local parser does not assert additional host scopes.",
-        inheritance="No connector-local inheritance callback is registered; each filter declaration owns one filter configuration.",
-        merge_behavior="No connector-local merge; filter arguments initialise a per-filter common configuration.",
-        example="examples/haproxy/safe/haproxy-htx.cfg",
-    )
+    common = {
+        "contexts": "The selected and checked-in native use is a HAProxy frontend. The local parser does not assert additional host scopes.",
+        "inheritance": "No connector-local inheritance callback is registered; each filter declaration owns one filter configuration.",
+        "merge_behavior": "No connector-local merge; filter arguments initialise a per-filter common configuration.",
+        "example": "examples/haproxy/safe/haproxy-htx.cfg",
+    }
     result = [
         _option("haproxy", "filter modsecurity-htx", "host_connector_directive", source,
                 "haproxy_modsecurity_htx_filter_keywords / haproxy_modsecurity_htx_filter_parse",
@@ -898,7 +898,7 @@ def extract_yaml_fields(path: Path) -> list[tuple[str, str]]:
     """
     result: list[tuple[str, str]] = []
     stack: list[StackEntry] = []
-    key_re = re.compile(r'(?:(?:"([^\"]+)")|([A-Za-z_@][A-Za-z0-9_@-]*))\s*:\s*(.*)$')
+    key_re = re.compile(r'(?:"([^\"]+)"|([A-Za-z_@][A-Za-z0-9_@-]*))\s*:\s*(.*)$')
     for raw in path.read_text(encoding="utf-8").splitlines():
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
@@ -3416,9 +3416,9 @@ def _render_option(option: dict[str, Any], german: bool) -> list[str]:
     else:
         example_value_line = ("Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden." if german else "Selected value: use the syntax above and the source-backed file below.")
     source_example_line = (
-        f"Quellenbasiertes Beispiel: [{option['example_file']}](../../{option['example_file'] if option['example_file'].startswith('examples/') else option['example_file']})."
+        f"Quellenbasiertes Beispiel: [{option['example_file']}](../../{option['example_file']})."
         if german and option["example_file"].startswith("examples/")
-        else f"Source-backed example: [{option['example_file']}](../../{option['example_file'] if option['example_file'].startswith('examples/') else option['example_file']})."
+        else f"Source-backed example: [{option['example_file']}](../../{option['example_file']})."
         if option["example_file"].startswith("examples/")
         else f"Quellenbasiertes Beispiel: `{option['example_file']}`." if german else f"Source-backed example: `{option['example_file']}`."
     )
