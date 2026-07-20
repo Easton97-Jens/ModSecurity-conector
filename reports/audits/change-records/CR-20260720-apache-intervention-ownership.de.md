@@ -25,11 +25,11 @@ dieses Feld freigibt.
 
 ## Akzeptanzkriterien
 
-- Jedes `msc_intervention()`-Ergebnis erreicht genau einen
-  `msc_intervention_cleanup()`-Aufruf, nachdem Apache die Werte kopiert hat,
-  die es behält.
-- Der No-Intervention-Pfad (`z == 0`) bewahrt das bestehende Allow-Ergebnis
-  über denselben Cleanup-Funnel.
+- Jedes von null verschiedene `msc_intervention()`-Ergebnis erreicht genau
+  einen `msc_intervention_cleanup()`-Aufruf, nachdem Apache die Werte kopiert
+  hat, die es behält.
+- Der No-Intervention-Pfad (`z == 0`) bewahrt die bestehende direkte
+  Allow-Rückgabe und ruft keinen nativen Cleanup auf.
 - Der gecachte Intervention-Log und die Redirect-URL werden in `r->pool`
   kopiert, bevor Apache sie behält; `Location` behält niemals den
   native-eigenen URL-Zeiger.
@@ -47,15 +47,16 @@ dieses Feld freigibt.
 Die Korrektur verwendet lokale Variablen `log`, `location`, `result` und `z`
 in `process_intervention()`. Sie kopiert den Log in `r->pool`, kopiert eine
 Redirect-URL in `r->pool` vor `apr_table_setn()` und verwendet einen
-`cleanup:`-Pfad für jedes Ergebnis. Die vorinitialisierte
-`ModSecurityIntervention` erreicht damit den Library-Cleanup auch auf dem
-No-Intervention-Pfad, während `result` den bestehenden Allow-Status bewahrt.
+`cleanup:`-Pfad für jedes von null verschiedene Ergebnis. Der `z == 0`-Zweig
+behält die bestehende direkte Allow-Rückgabe vor dem Behalten eines Apache-Werts,
+während Nichtnull-Pfade `result` nach dem nativen Cleanup zurückgeben.
 
-Der neue Source-Contract-Test verhindert, dass ein späterer Return-Pfad den
-Cleanup umgeht, verhindert das direkte Behalten von `intervention.url`,
-verhindert die Mutation von `intervention.log` zum Fallback-Literal und fordert
-die geänderte Translation Unit in der Apache-C17-Compilation-Liste. Der Test
-ist in ein eigenes Make-Target und das `lint`-Aggregate eingebunden.
+Der neue Source-Contract-Test verhindert, dass ein späterer Nichtnull-Return-
+Pfad den Cleanup umgeht, fordert die direkte Null-Ergebnis-Rückgabe, verhindert
+das direkte Behalten von `intervention.url`, verhindert die Mutation von
+`intervention.log` zum Fallback-Literal und fordert die geänderte Translation
+Unit in der Apache-C17-Compilation-Liste. Der Test ist in ein eigenes
+Make-Target und das `lint`-Aggregate eingebunden.
 
 ## Geänderte Dateien
 
@@ -121,9 +122,13 @@ Intervention-Ownership-Verhalten hinaus keine H1/H2/H3-Kompatibilität.
   libmodsecurity-Runtime-/Build-Voraussetzungen blockiert. Die fail-closed
   Runtime-Preparation wurde als Environment-Evidence aufbewahrt und nicht
   umgangen.
-- Exact-Pull-Request-CI, CodeQL, OSV, Secret-Range, Scorecard, SonarQube Cloud,
-  Review und Resulting-Master-Scans existieren erst, nachdem dieser Patch
-  gestaged, gepusht und für geschützte Delivery vorgeschlagen wurde.
+- Beim Readback `2026-07-20T23:43:04Z` hatte der exakte PR-#72-Head
+  `c761a13cb5b4dd3717018960aa03d928758fd21d` sechs erforderliche bestandene
+  GitHub-Checks, ein bestehendes SonarQube-Cloud-Quality-Gate, null neue
+  Issues, null neue Hotspots und `0,0 %` Duplikation. Der PR war Draft/offen
+  und hatte kein eingereichtes Review. Diese Fakten werden nicht auf eine
+  spätere SHA übertragen; diese benötigt eigene CI-, Sonar-, Review- und
+  Resulting-Master-Evidence.
 - Das vollständige `lint`-Aggregate wurde nicht ausgeführt, weil seine
   bestehenden Framework- und nativen Apache-Voraussetzungen in diesem
   isolierten Worktree fehlen; der neu eingebundene Target-Check wurde direkt
@@ -136,8 +141,9 @@ Intervention-Ownership-Verhalten hinaus keine H1/H2/H3-Kompatibilität.
 Die Regression ist strukturell und kein nativer Apache-Prozesstest. Sie kann
 kein Allokationsverhalten messen oder die Abwesenheit von Leaks unter
 wiederholten Anfragen beweisen. Das kanonische Finding bleibt offen, bis ein
-exakter PR-Head und der Resulting Master revalidiert sind; native
-Sanitizer-Evidence bleibt eine umgebungsabhängige Folgeanforderung.
+exakter PR-Head mit allen erforderlichen Reviews und der Resulting Master
+revalidiert sind; native Sanitizer-Evidence bleibt eine umgebungsabhängige
+Folgeanforderung.
 
 ## Verbleibende Risiken
 
@@ -149,9 +155,12 @@ Risiko akzeptiert, kein Alert dismissed und kein Scanner-Control geschwächt.
 
 ## Finaler Diff- und Review-Status
 
-Die Source-Korrektur und fokussierten statischen Controls sind lokal geprüft,
-aber der Branch ist zum Zeitpunkt dieses Records nicht gestaged, committed,
-gepusht oder einem Pull Request zugeordnet. Zur Completion sind ein Security-
-Diff-Review, geschützte Pull-Request-Validierung, normaler Merge und exakte
+Die Source-Korrektur ist als
+`23b84324e1db8fe13af48ddcc8bf04caae26e30c` auf
+`agent/apache-intervention-ownership-20260720` committed und gepusht; ihr
+test-only-Sonar-Follow-up ist `c761a13cb5b4dd3717018960aa03d928758fd21d`.
+Letzterer ist der beobachtete Head von Draft-PR #72 und bewahrt die direkte
+Null-Ergebnis-Rückgabe. Zur Completion sind ein Security-Diff-Review,
+geschützte Pull-Request-Validierung, normaler Merge und exakte
 Resulting-Master-Revalidierung erforderlich. Die fehlenden nativen
 Voraussetzungen sind als Blocker, nicht als bestandener Test erfasst.

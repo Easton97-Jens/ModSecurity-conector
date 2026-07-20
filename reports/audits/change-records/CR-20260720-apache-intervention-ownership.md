@@ -24,10 +24,10 @@ the native cleanup releases that field.
 
 ## Acceptance criteria
 
-- Every `msc_intervention()` result reaches exactly one
+- Every nonzero `msc_intervention()` result reaches exactly one
   `msc_intervention_cleanup()` call after Apache has copied values it retains.
-- The no-intervention (`z == 0`) path preserves the existing allow result
-  through the same cleanup funnel.
+- The no-intervention (`z == 0`) path preserves the existing direct allow
+  return and does not call native cleanup.
 - The cached intervention log and redirect URL are copied into `r->pool` before
   Apache retains them; `Location` never retains the native-owned URL pointer.
 - A null log uses a local fallback pointer without overwriting the native-owned
@@ -42,15 +42,16 @@ the native cleanup releases that field.
 The correction uses local `log`, `location`, `result`, and `z` variables in
 `process_intervention()`. It copies the log into `r->pool`, copies a redirect
 URL into `r->pool` before `apr_table_setn()`, and uses one `cleanup:` path for
-every result. The pre-initialized `ModSecurityIntervention` therefore reaches
-the library cleanup even on the no-intervention path, while `result` retains
-the existing allow status.
+every nonzero result. The `z == 0` branch keeps the existing direct allow
+return before any Apache value is retained, while nonzero paths return
+`result` after native cleanup.
 
-The new source-contract test prevents a later return path from bypassing
-cleanup, prevents direct retention of `intervention.url`, prevents mutation of
-`intervention.log` to the fallback literal, and requires the changed
-translation unit in the Apache C17 compilation list. The test is wired into a
-dedicated Make target and the `lint` aggregate.
+The new source-contract test prevents a later nonzero return path from
+bypassing cleanup, requires the direct zero-result return, prevents direct
+retention of `intervention.url`, prevents mutation of `intervention.log` to the
+fallback literal, and requires the changed translation unit in the Apache C17
+compilation list. The test is wired into a dedicated Make target and the
+`lint` aggregate.
 
 ## Changed files
 
@@ -114,9 +115,12 @@ level intervention ownership behavior.
   blocked by missing `apxs`, usable Apache/APR headers, and libmodsecurity
   runtime/build prerequisites. Failed-closed runtime preparation was retained
   as environment evidence; it was not bypassed.
-- Exact pull-request CI, CodeQL, OSV, secret-range, Scorecard, SonarQube Cloud,
-  review, and resulting-master scans do not exist until this patch is staged,
-  pushed, and proposed for protected delivery.
+- At the `2026-07-20T23:43:04Z` readback, exact PR #72 head
+  `c761a13cb5b4dd3717018960aa03d928758fd21d` had six required GitHub checks
+  passed, a passing SonarQube Cloud Quality Gate, zero new issues, zero new
+  hotspots, and `0.0%` duplication. The PR was Draft/open with no submitted
+  review. These facts do not transfer to a subsequent SHA; that SHA requires
+  its own CI, Sonar, review, and resulting-master evidence.
 - The full `lint` aggregate was not run because its existing Framework and
   native Apache prerequisites are absent in this isolated worktree; the newly
   wired targeted control was run directly and passed.
@@ -127,9 +131,9 @@ level intervention ownership behavior.
 
 The regression is structural rather than a native Apache process test. It
 cannot measure allocation behavior or prove an absence of leaks under repeated
-requests. The canonical finding remains open until an exact PR head and
-resulting master are revalidated; native sanitizer evidence remains an
-environment-dependent follow-up requirement.
+requests. The canonical finding remains open until an exact PR head with all
+required review and the resulting master are revalidated; native sanitizer
+evidence remains an environment-dependent follow-up requirement.
 
 ## Remaining risks
 
@@ -141,9 +145,11 @@ weakened.
 
 ## Final diff and review status
 
-The source correction and focused static controls are locally reviewed, but
-the branch is not staged, committed, pushed, or associated with a pull request
-at the time of this record. Completion requires a security diff review,
-protected pull-request validation, normal merge, and exact resulting-master
-revalidation. The absent native prerequisites are recorded as a blocker, not a
-passing test result.
+The source correction is committed and pushed as
+`23b84324e1db8fe13af48ddcc8bf04caae26e30c` on
+`agent/apache-intervention-ownership-20260720`; its test-only Sonar follow-up
+is `c761a13cb5b4dd3717018960aa03d928758fd21d`. The latter is Draft PR #72's
+observed head and preserves the direct zero-result return. Completion requires
+a security diff review, protected pull-request validation, normal merge, and
+exact resulting-master revalidation. The absent native prerequisites are
+recorded as a blocker, not a passing test result.
