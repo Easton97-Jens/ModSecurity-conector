@@ -54,6 +54,10 @@ boundary.
   Draft update pull request for that branch after checking its head, default
   base, and disabled automatic merge; it refuses an existing branch without
   that exact pull request, so it neither duplicates proposals nor force-pushes.
+- Existing-PR selection receives its bounded REST response directly from
+  `gh api` on stdin and has no caller-controlled response-file path. Strict
+  duplicate-key JSON validation therefore has no response-file or
+  symlink/TOCTOU boundary to cross.
 - The generated English/German pull-request body records the prior and
   proposed versions, official release identity, metadata source, validation
   workflow/run URL, `.python-version` as the only changed file, retained

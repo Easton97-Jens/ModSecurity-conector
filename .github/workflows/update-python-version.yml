@@ -197,18 +197,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          pr_query="$RUNNER_TEMP/python-update-prs.json"
-          gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
-            -f state=open \
-            -f base="$DEFAULT_BRANCH" \
-            -f head="${GITHUB_REPOSITORY_OWNER}:$UPDATE_BRANCH" \
-            -f per_page=100 > "$pr_query"
-          existing_pr="$(python3 scripts/select-python-update-pr.py \
-            --input "$pr_query" \
-            --repository "$GITHUB_REPOSITORY" \
-            --owner "$GITHUB_REPOSITORY_OWNER" \
-            --base "$DEFAULT_BRANCH" \
-            --branch "$UPDATE_BRANCH")"
+          set -o pipefail
+          existing_pr="$(
+            gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+              -f state=open \
+              -f base="$DEFAULT_BRANCH" \
+              -f head="${GITHUB_REPOSITORY_OWNER}:$UPDATE_BRANCH" \
+              -f per_page=100 | \
+              python3 scripts/select-python-update-pr.py \
+                --repository "$GITHUB_REPOSITORY" \
+                --owner "$GITHUB_REPOSITORY_OWNER" \
+                --base "$DEFAULT_BRANCH" \
+                --branch "$UPDATE_BRANCH"
+          )"
 
           remote_branch=false
           if git ls-remote --exit-code --heads origin "$UPDATE_BRANCH" >/dev/null 2>&1; then

@@ -60,6 +60,10 @@ teilen.
   nachdem Head, Default-Base und deaktivierter automatischer Merge geprüft
   wurden; einen vorhandenen Branch ohne diesen exakten Pull Request weist er
   zurück, sodass er weder doppelte Vorschläge erzeugt noch force-pusht.
+- Die Auswahl eines bestehenden PR empfängt ihre begrenzte REST-Antwort direkt
+  von `gh api` auf stdin und hat keinen aufrufergesteuerten Response-Dateipfad.
+  Die strikte Duplicate-Key-JSON-Validierung überschreitet daher keine
+  Response-Datei- oder Symlink/TOCTOU-Grenze.
 - Der erzeugte englisch/deutsche Pull-Request-Body dokumentiert vorherige und
   vorgeschlagene Version, offizielle Release-Identität, Metadatenquelle,
   Validierungsworkflow/-Run-URL, `.python-version` als einzige geänderte Datei,

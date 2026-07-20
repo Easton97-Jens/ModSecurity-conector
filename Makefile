@@ -1251,7 +1251,7 @@ check-directive-parity:
 	$(PYTHON) ci/checks/common/check-directive-parity.py
 
 check-python-version-contract:
-	$(PYTHON) ci/checks/common/check-python-version-contract.py --version-file .python-version
+	$(PYTHON) ci/checks/common/check-python-version-contract.py
 
 lint: check-framework
 	find ci -type f -name '*.sh' -print0 | xargs -0 -r sh -n

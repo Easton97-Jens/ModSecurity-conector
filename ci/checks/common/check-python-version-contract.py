@@ -11,15 +11,16 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import json
-import os
 from pathlib import Path
 import re
+import stat
 import sys
 import textwrap
 from typing import Iterable, Sequence
 
 
 EXACT_PYTHON_313 = re.compile(r"3\.13\.(?:0|[1-9][0-9]*)\Z")
+CANONICAL_VERSION_FILE = ".python-version"
 SETUP_PYTHON_ACTION = "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
 SETUP_PYTHON_RELEASE_COMMENT = "# v6.3.0"
 SETUP_PYTHON_REFERENCE = f"{SETUP_PYTHON_ACTION} {SETUP_PYTHON_RELEASE_COMMENT}"
@@ -119,8 +120,6 @@ KNOWN_PYTHON_MAKE_TARGETS = frozenset(
     }
 )
 
-JOB_HEADER = re.compile(r"^(?P<name>[A-Za-z0-9_-]+):\s*(?:#.*)?$")
-MAPPING_ENTRY = re.compile(r"^(?P<key>[A-Za-z0-9_-]+):(?:\s*(?P<value>.*))?$")
 # Match executable basenames after a shell command boundary.  The code below
 # deliberately does not search arbitrary shell text: `echo python3`, comments,
 # and here-document bodies are not interpreter executions.  Versioned and
@@ -128,40 +127,46 @@ MAPPING_ENTRY = re.compile(r"^(?P<key>[A-Za-z0-9_-]+):(?:\s*(?P<value>.*))?$")
 PYTHON_OR_PIP_BASENAME = re.compile(
     r"(?:python(?:[0-9]+(?:\.[0-9]+)*)?|pip(?:[0-9]+(?:\.[0-9]+)*)?)\Z"
 )
-# A deliberately small source-only shell recognizer.  It identifies command
-# heads after ordinary shell separators, command substitutions, and leading
-# environment assignments.  Unsupported indirection is not considered safe:
-# job-level reusable workflows and Python-related matrices are separately
-# classified below instead of being silently ignored.
-SHELL_COMMAND_HEAD = re.compile(
-    r"""(?mx)
-    (?:^|(?<=[;\n])|&&|\|\||(?<!\|)\|(?!\|)|\$\()
-    [ \t]*
-    (?:(?:[A-Za-z_][A-Za-z0-9_]*=(?:\"[^\"\n(]*\"|'[^'\n]*'|[^\s;|&()]+))[ \t]+)*
-    (?:(?:if|then|do|while|until)[ \t]+(?:![ \t]+)?)?
-    (?:(?:command|sudo)[ \t]+
-      | env(?:[ \t]+(?:-[A-Za-z][A-Za-z0-9_-]*
-                       | [A-Za-z_][A-Za-z0-9_]*=[^\s;|&()]+))*[ \t]+
-    )*
-    (?P<command>\$\(MAKE\)|[^\s;|&()$]+)
-    """
+MAX_SHELL_SOURCE_LENGTH = 131_072
+MAX_SHELL_NESTING = 32
+SHELL_CONTROL_WORDS = frozenset(
+    {
+        "!",
+        "{",
+        "}",
+        "do",
+        "done",
+        "elif",
+        "else",
+        "esac",
+        "fi",
+        "for",
+        "function",
+        "if",
+        "in",
+        "then",
+        "time",
+        "until",
+        "while",
+    }
 )
-SHELL_MAKE_COMMAND = re.compile(
-    r"""(?mx)
-    (?:^|(?<=[;\n])|&&|\|\||(?<!\|)\|(?!\|)|\$\()
-    [ \t]*
-    (?:(?:[A-Za-z_][A-Za-z0-9_]*=(?:\"[^\"\n(]*\"|'[^'\n]*'|[^\s;|&()]+))[ \t]+)*
-    (?:(?:if|then|do|while|until)[ \t]+(?:![ \t]+)?)?
-    (?:(?:command|sudo)[ \t]+
-      | env(?:[ \t]+(?:-[A-Za-z][A-Za-z0-9_-]*
-                       | [A-Za-z_][A-Za-z0-9_]*=[^\s;|&()]+))*[ \t]+
-    )*
-    (?P<command>\$\(MAKE\)|(?:[^\s;|&()$]+/)?make)
-    (?P<arguments>[^\n;|&]*)
-    """
-)
-HEREDOC_OPEN = re.compile(
-    r"<<-?[ \t]*(?:(['\"])([A-Za-z_][A-Za-z0-9_]*)\1|([A-Za-z_][A-Za-z0-9_]*))"
+SHELL_COMMAND_OPTION_ONLY = frozenset({"-v", "-V"})
+SHELL_OPTIONS_WITH_VALUE = frozenset(
+    {
+        "-C",
+        "-g",
+        "-h",
+        "-p",
+        "-r",
+        "-t",
+        "-u",
+        "--chdir",
+        "--group",
+        "--host",
+        "--prompt",
+        "--role",
+        "--user",
+    }
 )
 PYTHON_MATRIX_KEY = re.compile(
     r"^\s*(?:-\s*)?python(?:[-_]?versions?)?\s*:", re.IGNORECASE
@@ -320,11 +325,43 @@ def indentation(line: str) -> int:
     return len(line) - len(line.lstrip(" "))
 
 
+def is_mapping_key(value: str) -> bool:
+    """Return whether *value* is in the deliberately narrow YAML key subset."""
+
+    return bool(value) and all(
+        character.isascii() and (character.isalnum() or character in "_-")
+        for character in value
+    )
+
+
 def mapping_entry(value: str) -> tuple[str, str] | None:
-    matched = MAPPING_ENTRY.match(value)
-    if matched is None:
+    """Parse the small ``key: value`` YAML shape used by this checker.
+
+    This deliberately avoids a general YAML parser and regular-expression
+    backtracking.  It accepts exactly the former contract's ASCII key subset,
+    keeps colons in the value, and leaves scalar normalization to
+    :func:`clean_scalar`.
+    """
+
+    separator = value.find(":")
+    if separator <= 0:
         return None
-    return matched.group("key"), matched.group("value") or ""
+    key = value[:separator]
+    if not is_mapping_key(key):
+        return None
+    return key, value[separator + 1 :].lstrip()
+
+
+def job_header(value: str) -> str | None:
+    """Return a narrow job key when *value* is a YAML job header."""
+
+    entry = mapping_entry(value)
+    if entry is None:
+        return None
+    key, remainder = entry
+    if not remainder or remainder.startswith("#"):
+        return key
+    return None
 
 
 def clean_scalar(value: str) -> str:
@@ -350,20 +387,37 @@ def parse_exact_version(value: str, source: str) -> str:
     return value
 
 
-def resolve_version_file(root: Path, value: str) -> Path:
-    candidate = Path(value)
-    if not candidate.is_absolute():
-        candidate = root / candidate
+def canonical_version_file(root: Path) -> Path:
+    """Return the one regular, non-symlink canonical version file.
+
+    The public CLI intentionally does not accept a user-selected root or
+    version-file path.  This helper is kept separate so in-process tests can
+    supply an isolated repository root without widening the command boundary.
+    """
+
+    candidate = root / CANONICAL_VERSION_FILE
     try:
-        candidate.resolve().relative_to(root.resolve())
-    except ValueError as exc:
+        metadata = candidate.lstat()
+    except OSError as exc:
         raise ContractInputError(
-            f"version file must remain inside the repository root: {candidate}"
+            f"cannot inspect canonical version file {candidate}: {exc}"
         ) from exc
+    if stat.S_ISLNK(metadata.st_mode):
+        raise ContractInputError(f"canonical version file must not be a symlink: {candidate}")
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ContractInputError(f"canonical version file must be a regular file: {candidate}")
     return candidate
 
 
 def read_canonical_version(path: Path) -> str:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise ContractInputError(f"cannot inspect canonical version file {path}: {exc}") from exc
+    if stat.S_ISLNK(metadata.st_mode):
+        raise ContractInputError(f"canonical version file must not be a symlink: {path}")
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ContractInputError(f"canonical version file must be a regular file: {path}")
     try:
         content = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -439,12 +493,12 @@ def parse_jobs(path: Path) -> tuple[dict[JobIdentity, Job], list[str]]:
         indent = indentation(line)
         if indent <= 0:
             continue
-        header = JOB_HEADER.match(line[indent:])
+        header = job_header(line[indent:])
         if job_indent is None and header is not None:
             job_indent = indent
         if job_indent is not None and indent == job_indent and header is not None:
             finish_current()
-            current_identity = JobIdentity(path.name, header.group("name"))
+            current_identity = JobIdentity(path.name, header)
             current_lines = [(line_number, line)]
         elif current_identity is not None:
             current_lines.append((line_number, line))
@@ -456,35 +510,61 @@ def run_without_verifier_command(run: str) -> str:
     return VERIFIER_COMMAND_LINE.sub("", run)
 
 
-def shell_source_without_heredoc_bodies(run: str) -> str:
-    """Keep shell command lines while excluding literal here-document bodies.
+def is_shell_name(value: str) -> bool:
+    """Return whether *value* is a POSIX-style variable name."""
 
-    A here-document can legitimately contain words such as ``python3`` or
-    ``pip`` without invoking either executable.  The opening command remains
-    in the returned source, so ``python3 - <<'PY'`` is still detected.
+    if not value or not (value[0].isalpha() or value[0] == "_"):
+        return False
+    return all(character.isalnum() or character == "_" for character in value[1:])
+
+
+def is_shell_assignment(word: "ShellWord") -> bool:
+    separator = word.value.find("=")
+    return (
+        not word.redirection_target
+        and separator > 0
+        and is_shell_name(word.value[:separator])
+    )
+
+
+@dataclass(frozen=True)
+class ShellWord:
+    """One bounded, source-only shell word.
+
+    ``dynamic`` means that the word contains a shell expansion.  A static
+    basename can still be safely classified (for example
+    ``$RUNNER_TEMP/tool/actionlint``); an expansion in the executable basename
+    is rejected rather than silently treated as non-Python.
     """
 
-    result: list[str] = []
-    pending_delimiters: list[str] = []
-    for line in run.splitlines():
-        if pending_delimiters:
-            if line.strip() == pending_delimiters[0]:
-                pending_delimiters.pop(0)
-            continue
-        result.append(line)
-        for match in HEREDOC_OPEN.finditer(line):
-            pending_delimiters.append(match.group(2) or match.group(3))
-    return "\n".join(result)
+    value: str
+    dynamic: bool = False
+    redirection_target: bool = False
 
 
-def shell_command_heads(run: str) -> Iterable[re.Match[str]]:
-    """Yield statically recognizable shell command heads in *run*."""
+@dataclass(frozen=True)
+class ShellCommand:
+    command: ShellWord
+    arguments: tuple[ShellWord, ...]
 
-    return SHELL_COMMAND_HEAD.finditer(shell_source_without_heredoc_bodies(run))
+
+@dataclass(frozen=True)
+class ShellAnalysis:
+    commands: tuple[ShellCommand, ...]
+    errors: tuple[str, ...]
 
 
 def command_basename(command: str) -> str:
     return command.rsplit("/", 1)[-1]
+
+
+def static_command_basename(word: ShellWord) -> str | None:
+    """Return a statically known executable basename, if one is available."""
+
+    basename = command_basename(word.value)
+    if word.dynamic and "$" in basename:
+        return None
+    return basename
 
 
 def is_python_or_pip_command(command: str) -> bool:
@@ -497,36 +577,530 @@ def is_bare_pip_command(command: str) -> bool:
     )
 
 
+def read_heredoc_delimiter(
+    line: str, start: int
+) -> tuple[str | None, bool, int, str | None]:
+    """Read a narrow, static here-document delimiter after ``<<``.
+
+    Dynamic and malformed delimiters are not safe to skip: their bodies could
+    contain a hidden command.  They are therefore reported as scanner errors.
+    """
+
+    cursor = start + 2
+    if cursor < len(line) and line[cursor] == "<":
+        # ``<<<`` is a here-string, not a here-document.
+        return None, False, cursor + 1, None
+    strip_tabs = cursor < len(line) and line[cursor] == "-"
+    if strip_tabs:
+        cursor += 1
+    while cursor < len(line) and line[cursor] in " \t":
+        cursor += 1
+    if cursor >= len(line):
+        return None, strip_tabs, cursor, "here-document has no delimiter"
+
+    quote = line[cursor]
+    if quote in {"'", '"'}:
+        closing = line.find(quote, cursor + 1)
+        if closing < 0:
+            return None, strip_tabs, len(line), "unterminated here-document delimiter"
+        delimiter = line[cursor + 1 : closing]
+        cursor = closing + 1
+    else:
+        delimiter_start = cursor
+        while cursor < len(line) and line[cursor] not in " \t;|&<>":
+            cursor += 1
+        delimiter = line[delimiter_start:cursor]
+
+    if not is_shell_name(delimiter):
+        return (
+            None,
+            strip_tabs,
+            cursor,
+            "here-document delimiter must be a static shell identifier",
+        )
+    return delimiter, strip_tabs, cursor, None
+
+
+def heredoc_openings(line: str) -> tuple[list[tuple[str, bool]], list[str]]:
+    """Find static here-document openings outside comments and shell quotes."""
+
+    openings: list[tuple[str, bool]] = []
+    errors: list[str] = []
+    cursor = 0
+    quote: str | None = None
+    while cursor < len(line):
+        character = line[cursor]
+        if quote is not None:
+            if character == "\\" and quote == '"':
+                cursor += 2
+            elif character == quote:
+                quote = None
+                cursor += 1
+            else:
+                cursor += 1
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            cursor += 1
+            continue
+        if character == "\\":
+            cursor += 2
+            continue
+        if character == "#" and (
+            cursor == 0 or line[cursor - 1].isspace() or line[cursor - 1] in ";|&"
+        ):
+            break
+        if character == "<" and cursor + 1 < len(line) and line[cursor + 1] == "<":
+            delimiter, strip_tabs, cursor, error = read_heredoc_delimiter(line, cursor)
+            if error is not None:
+                errors.append(error)
+            elif delimiter is not None:
+                openings.append((delimiter, strip_tabs))
+            continue
+        cursor += 1
+    return openings, errors
+
+
+def shell_source_without_heredoc_bodies(run: str) -> tuple[str, tuple[str, ...]]:
+    """Keep command lines while excluding only statically delimited bodies."""
+
+    result: list[str] = []
+    pending_delimiters: list[tuple[str, bool]] = []
+    errors: list[str] = []
+    for line in run.splitlines():
+        if pending_delimiters:
+            delimiter, strip_tabs = pending_delimiters[0]
+            candidate = line.lstrip("\t") if strip_tabs else line
+            if candidate.strip() == delimiter:
+                pending_delimiters.pop(0)
+            continue
+        result.append(line)
+        openings, line_errors = heredoc_openings(line)
+        pending_delimiters.extend(openings)
+        errors.extend(line_errors)
+    if pending_delimiters:
+        errors.append("unterminated here-document body")
+    return "\n".join(result), tuple(errors)
+
+
+class ShellScanner:
+    """A bounded linear scanner for the contract's intentionally small shell subset."""
+
+    def __init__(self, source: str, depth: int = 0) -> None:
+        self.source = source
+        self.depth = depth
+        self.commands: list[ShellCommand] = []
+        self.errors: list[str] = []
+
+    def scan(self) -> ShellAnalysis:
+        if len(self.source) > MAX_SHELL_SOURCE_LENGTH:
+            return ShellAnalysis(
+                (),
+                (
+                    f"shell source exceeds {MAX_SHELL_SOURCE_LENGTH} byte scanner limit",
+                ),
+            )
+        if self.depth > MAX_SHELL_NESTING:
+            return ShellAnalysis(
+                (),
+                (f"shell nesting exceeds {MAX_SHELL_NESTING} levels",),
+            )
+
+        words: list[ShellWord] = []
+        redirection_target = False
+        cursor = 0
+        while cursor < len(self.source):
+            character = self.source[cursor]
+            if character in " \t\r":
+                cursor += 1
+                continue
+            if character == "#" and (
+                cursor == 0
+                or self.source[cursor - 1].isspace()
+                or self.source[cursor - 1] in ";|&"
+            ):
+                while cursor < len(self.source) and self.source[cursor] != "\n":
+                    cursor += 1
+                continue
+            if character == "\n" or character in ";|&":
+                if redirection_target:
+                    self.errors.append("redirection has no target")
+                    redirection_target = False
+                self._finish_segment(words)
+                words = []
+                if character in "|&" and cursor + 1 < len(self.source):
+                    if self.source[cursor + 1] == character:
+                        cursor += 1
+                cursor += 1
+                continue
+            redirection_start = self._redirection_start(cursor)
+            if redirection_start is not None:
+                cursor, redirection_target = self._consume_redirection(redirection_start)
+                continue
+            if character == "(":
+                # A function declaration has the narrow ``name()`` form.  It
+                # declares a shell function; it is not an invocation of a
+                # similarly named executable.  Other parenthesized forms are
+                # command lists or process substitutions, whose contents are
+                # scanned normally after this structural delimiter.
+                if (
+                    cursor + 1 < len(self.source)
+                    and self.source[cursor + 1] == ")"
+                    and len(words) == 1
+                    and not words[0].dynamic
+                ):
+                    words = []
+                    cursor += 2
+                    continue
+                if redirection_target:
+                    redirection_target = False
+                self._finish_segment(words)
+                words = []
+                cursor += 1
+                continue
+            if character == ")":
+                # Case-arm terminators and closing command lists both end a
+                # segment.  The contained command has already been scanned.
+                self._finish_segment(words)
+                words = []
+                cursor += 1
+                continue
+
+            word, cursor = self._read_word(cursor)
+            if redirection_target:
+                word = ShellWord(word.value, word.dynamic, redirection_target=True)
+                redirection_target = False
+            words.append(word)
+
+        if redirection_target:
+            self.errors.append("redirection has no target")
+        self._finish_segment(words)
+        return ShellAnalysis(tuple(self.commands), tuple(self.errors))
+
+    def _redirection_start(self, cursor: int) -> int | None:
+        character = self.source[cursor]
+        if character in "<>":
+            return cursor
+        if not character.isdigit():
+            return None
+        end = cursor
+        while end < len(self.source) and self.source[end].isdigit():
+            end += 1
+        return end if end < len(self.source) and self.source[end] in "<>" else None
+
+    def _consume_redirection(self, cursor: int) -> tuple[int, bool]:
+        operator = self.source[cursor]
+        cursor += 1
+        if cursor < len(self.source) and self.source[cursor] == operator:
+            cursor += 1
+        if operator == "<" and cursor < len(self.source) and self.source[cursor] == "-":
+            cursor += 1
+        if cursor < len(self.source) and self.source[cursor] == "&":
+            cursor += 1
+            while cursor < len(self.source) and (
+                self.source[cursor].isdigit() or self.source[cursor] == "-"
+            ):
+                cursor += 1
+            return cursor, False
+        return cursor, True
+
+    def _read_word(self, cursor: int) -> tuple[ShellWord, int]:
+        characters: list[str] = []
+        dynamic = False
+        quote: str | None = None
+        while cursor < len(self.source):
+            character = self.source[cursor]
+            if quote is None and character in " \t\r\n;|&<>()":
+                break
+            if quote is not None:
+                if character == quote:
+                    quote = None
+                    cursor += 1
+                    continue
+                if character == "\\" and quote == '"':
+                    if cursor + 1 >= len(self.source):
+                        self.errors.append("dangling shell escape")
+                        return ShellWord("".join(characters), dynamic), len(self.source)
+                    characters.append(self.source[cursor + 1])
+                    cursor += 2
+                    continue
+                if character == "$" and quote == '"':
+                    cursor, expansion_dynamic = self._read_expansion(cursor, characters)
+                    dynamic = dynamic or expansion_dynamic
+                    continue
+                if character == "`" and quote == '"':
+                    self.errors.append("backtick command substitution is unsupported")
+                characters.append(character)
+                cursor += 1
+                continue
+
+            if character in {"'", '"'}:
+                quote = character
+                cursor += 1
+                continue
+            if character == "\\":
+                if cursor + 1 >= len(self.source):
+                    self.errors.append("dangling shell escape")
+                    return ShellWord("".join(characters), dynamic), len(self.source)
+                if self.source[cursor + 1] == "\n":
+                    cursor += 2
+                else:
+                    characters.append(self.source[cursor + 1])
+                    cursor += 2
+                continue
+            if character == "$":
+                cursor, expansion_dynamic = self._read_expansion(cursor, characters)
+                dynamic = dynamic or expansion_dynamic
+                continue
+            if character == "`":
+                self.errors.append("backtick command substitution is unsupported")
+            characters.append(character)
+            cursor += 1
+
+        if quote is not None:
+            self.errors.append("unterminated shell quote")
+        return ShellWord("".join(characters), dynamic), cursor
+
+    def _read_expansion(self, cursor: int, characters: list[str]) -> tuple[int, bool]:
+        if cursor + 1 >= len(self.source):
+            characters.append("$")
+            return cursor + 1, True
+        marker = self.source[cursor + 1]
+        if marker == "(":
+            content, end = self._command_substitution(cursor)
+            if content is None:
+                self.errors.append("unterminated command substitution")
+                return len(self.source), True
+            if content.startswith("("):
+                # ``$((...))`` is a normal non-executing arithmetic expansion.
+                # Its only executable nested form is command substitution;
+                # reject that form rather than overlooking a hidden Python
+                # invocation.  Backticks are rejected for the same reason.
+                if "$(" in content[1:]:
+                    self.errors.append(
+                        "arithmetic expansion with command substitution is unsupported"
+                    )
+                if "`" in content:
+                    self.errors.append(
+                        "arithmetic expansion with backtick substitution is unsupported"
+                    )
+            else:
+                nested = ShellScanner(content, self.depth + 1).scan()
+                self.commands.extend(nested.commands)
+                self.errors.extend(nested.errors)
+            characters.append("$()")
+            return end, True
+        if marker == "{":
+            end = self._braced_expansion_end(cursor)
+            if end is None:
+                self.errors.append("unterminated braced shell expansion")
+                return len(self.source), True
+            characters.append("${}")
+            return end, True
+        if marker.isalpha() or marker == "_":
+            end = cursor + 2
+            while end < len(self.source) and (
+                self.source[end].isalnum() or self.source[end] == "_"
+            ):
+                end += 1
+            characters.append(self.source[cursor:end])
+            return end, True
+        characters.append(self.source[cursor : cursor + 2])
+        return cursor + 2, True
+
+    def _command_substitution(self, start: int) -> tuple[str | None, int]:
+        cursor = start + 2
+        content_start = cursor
+        depth = 1
+        quote: str | None = None
+        while cursor < len(self.source):
+            character = self.source[cursor]
+            if quote is not None:
+                if character == "\\" and quote == '"':
+                    cursor += 2
+                elif character == quote:
+                    quote = None
+                    cursor += 1
+                else:
+                    cursor += 1
+                continue
+            if character in {"'", '"'}:
+                quote = character
+                cursor += 1
+                continue
+            if character == "\\":
+                cursor += 2
+                continue
+            if character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+                if depth == 0:
+                    return self.source[content_start:cursor], cursor + 1
+            cursor += 1
+        return None, len(self.source)
+
+    def _braced_expansion_end(self, start: int) -> int | None:
+        cursor = start + 2
+        depth = 1
+        while cursor < len(self.source):
+            character = self.source[cursor]
+            if character == "\\":
+                cursor += 2
+                continue
+            if character == "{":
+                depth += 1
+            elif character == "}":
+                depth -= 1
+                if depth == 0:
+                    return cursor + 1
+            cursor += 1
+        return None
+
+    def _finish_segment(self, words: list[ShellWord]) -> None:
+        command, error = self._command_from_words(words)
+        if error is not None:
+            self.errors.append(error)
+            return
+        if command is None:
+            return
+        self.commands.append(command)
+        self._scan_shell_script_argument(command)
+
+    def _command_from_words(
+        self, words: list[ShellWord]
+    ) -> tuple[ShellCommand | None, str | None]:
+        usable = [word for word in words if not word.redirection_target]
+        cursor = 0
+        while cursor < len(usable) and is_shell_assignment(usable[cursor]):
+            cursor += 1
+        while cursor < len(usable):
+            word = usable[cursor]
+            value = word.value if not word.dynamic else None
+            if value in {"case", "for", "function"}:
+                return None, None
+            if value in SHELL_CONTROL_WORDS:
+                cursor += 1
+                continue
+            if value == "command":
+                cursor += 1
+                if cursor < len(usable) and usable[cursor].value in SHELL_COMMAND_OPTION_ONLY:
+                    return None, None
+                cursor, error = self._skip_wrapper_options(usable, cursor)
+                if error is not None:
+                    return None, error
+                continue
+            if value == "env":
+                cursor, error = self._skip_env_options(usable, cursor + 1)
+                if error is not None:
+                    return None, error
+                continue
+            if value == "sudo":
+                cursor, error = self._skip_wrapper_options(usable, cursor + 1)
+                if error is not None:
+                    return None, error
+                continue
+            basename = static_command_basename(word)
+            if basename is None:
+                return None, "dynamic shell command head is unsupported"
+            return ShellCommand(word, tuple(usable[cursor + 1 :])), None
+        return None, None
+
+    def _skip_wrapper_options(
+        self, words: list[ShellWord], cursor: int
+    ) -> tuple[int, str | None]:
+        while cursor < len(words):
+            word = words[cursor]
+            if word.dynamic:
+                return cursor, "dynamic shell wrapper option is unsupported"
+            if word.value == "--":
+                return cursor + 1, None
+            if not word.value.startswith("-") or word.value == "-":
+                return cursor, None
+            cursor += 1
+            if word.value in SHELL_OPTIONS_WITH_VALUE:
+                if cursor >= len(words):
+                    return cursor, "shell wrapper option has no value"
+                cursor += 1
+        return cursor, None
+
+    def _skip_env_options(
+        self, words: list[ShellWord], cursor: int
+    ) -> tuple[int, str | None]:
+        while cursor < len(words):
+            word = words[cursor]
+            if word.value == "--" and not word.dynamic:
+                return cursor + 1, None
+            if is_shell_assignment(word):
+                cursor += 1
+                continue
+            if word.dynamic:
+                return cursor, "dynamic env command head is unsupported"
+            if not word.value.startswith("-") or word.value == "-":
+                return cursor, None
+            cursor += 1
+            if word.value in {"-C", "-u", "--chdir", "--unset"}:
+                if cursor >= len(words):
+                    return cursor, "env option has no value"
+                cursor += 1
+        return cursor, None
+
+    def _scan_shell_script_argument(self, command: ShellCommand) -> None:
+        basename = static_command_basename(command.command)
+        if basename not in {"bash", "dash", "ksh", "sh", "zsh"}:
+            return
+        for index, argument in enumerate(command.arguments):
+            if argument.value != "-c" or argument.dynamic:
+                continue
+            if index + 1 >= len(command.arguments):
+                self.errors.append("shell -c has no script argument")
+                return
+            script = command.arguments[index + 1]
+            if script.dynamic:
+                self.errors.append("dynamic shell -c script is unsupported")
+                return
+            nested = ShellScanner(script.value, self.depth + 1).scan()
+            self.commands.extend(nested.commands)
+            self.errors.extend(nested.errors)
+            return
+
+
+def analyze_shell_source(run: str) -> ShellAnalysis:
+    source, heredoc_errors = shell_source_without_heredoc_bodies(run)
+    scanned = ShellScanner(source).scan()
+    return ShellAnalysis(scanned.commands, heredoc_errors + scanned.errors)
+
+
 def direct_python_or_pip_command(run: str) -> str | None:
-    for match in shell_command_heads(run):
-        command = match.group("command")
-        if is_python_or_pip_command(command):
+    for shell_command in analyze_shell_source(run).commands:
+        command = static_command_basename(shell_command.command)
+        if command is not None and is_python_or_pip_command(command):
             return command
     return None
 
 
 def bare_pip_command(run: str) -> str | None:
-    for match in shell_command_heads(run):
-        command = match.group("command")
-        if is_bare_pip_command(command):
+    for shell_command in analyze_shell_source(run).commands:
+        command = static_command_basename(shell_command.command)
+        if command is not None and is_bare_pip_command(command):
             return command
     return None
 
 
 def python_make_target(run: str) -> str | None:
-    source = shell_source_without_heredoc_bodies(run)
-    for match in SHELL_MAKE_COMMAND.finditer(source):
-        command = command_basename(match.group("command"))
-        if command not in {"make", "$(MAKE)"}:
+    for shell_command in analyze_shell_source(run).commands:
+        command = static_command_basename(shell_command.command)
+        if command != "make":
             continue
-        arguments = match.group("arguments")
-        for target in sorted(KNOWN_PYTHON_MAKE_TARGETS):
-            pattern = re.compile(
-                rf"(?<![A-Za-z0-9_-]){re.escape(target)}(?![A-Za-z0-9_-])"
-            )
-            if pattern.search(arguments):
-                return target
+        for argument in shell_command.arguments:
+            if not argument.dynamic and argument.value in KNOWN_PYTHON_MAKE_TARGETS:
+                return argument.value
     return None
+
+
+def shell_syntax_error(run: str) -> str | None:
+    analysis = analyze_shell_source(run)
+    return analysis.errors[0] if analysis.errors else None
 
 
 def actual_python_use(step: Step) -> str | None:
@@ -545,6 +1119,16 @@ def first_python_use(steps: Iterable[Step]) -> tuple[Step, str] | None:
         use = actual_python_use(step)
         if use is not None:
             return step, use
+    return None
+
+
+def first_shell_syntax_error(steps: Iterable[Step]) -> tuple[Step, str] | None:
+    """Return a fail-closed shell-recognition error, if a step has one."""
+
+    for step in steps:
+        error = shell_syntax_error(run_without_verifier_command(step.run()))
+        if error is not None:
+            return step, error
     return None
 
 
@@ -580,6 +1164,9 @@ def python_job_reason(job: Job) -> str | None:
     direct = first_python_use(job.steps())
     if direct is not None:
         return direct[1]
+    syntax_error = first_shell_syntax_error(job.steps())
+    if syntax_error is not None:
+        return f"unsupported/malformed shell syntax: {syntax_error[1]}"
     if job.scalar("uses") is not None:
         return "job-level reusable workflow invocation"
     if has_python_matrix_selector(job):
@@ -680,6 +1267,20 @@ def validate_no_bare_pip(identity: JobIdentity, steps: Iterable[Step]) -> list[s
     return errors
 
 
+def validate_shell_syntax(identity: JobIdentity, steps: Iterable[Step]) -> list[str]:
+    """Reject unsupported shell forms instead of silently missing Python use."""
+
+    errors: list[str] = []
+    for step in steps:
+        error = shell_syntax_error(run_without_verifier_command(step.run()))
+        if error is not None:
+            errors.append(
+                f"{identity.display()} step at workflow line {step.start_line} "
+                f"contains unsupported/malformed shell syntax: {error}"
+            )
+    return errors
+
+
 def validate_normal_job(job: Job) -> list[str]:
     steps = job.steps()
     setup, errors = pinned_setup_step(steps)
@@ -712,7 +1313,11 @@ def validate_normal_job(job: Job) -> list[str]:
             )
     errors.extend(validate_order(job.identity, steps, setup, verifier))
     prefixed = [f"{job.identity.display()}: {error}" for error in errors]
-    return prefixed + validate_no_bare_pip(job.identity, steps)
+    return (
+        prefixed
+        + validate_no_bare_pip(job.identity, steps)
+        + validate_shell_syntax(job.identity, steps)
+    )
 
 
 def validate_candidate_job(job: Job) -> list[str]:
@@ -766,7 +1371,11 @@ def validate_candidate_job(job: Job) -> list[str]:
         )
     )
     prefixed = [f"{job.identity.display()}: {error}" for error in errors]
-    return prefixed + validate_no_bare_pip(job.identity, steps)
+    return (
+        prefixed
+        + validate_no_bare_pip(job.identity, steps)
+        + validate_shell_syntax(job.identity, steps)
+    )
 
 
 def evaluate_workflow_contract(
@@ -851,16 +1460,10 @@ def parser() -> argparse.ArgumentParser:
         description="Validate Parent GitHub Actions Python setup and interpreter checks."
     )
     argument_parser.add_argument(
-        "--root",
-        metavar="PATH",
-        default=None,
-        help="repository root to scan (default: inferred from this script)",
-    )
-    argument_parser.add_argument(
         "--version-file",
         metavar="PATH",
-        default=".python-version",
-        help="canonical version file relative to --root (default: .python-version)",
+        default=CANONICAL_VERSION_FILE,
+        help="must be the literal canonical path .python-version",
     )
     argument_parser.add_argument(
         "--previous-version",
@@ -908,11 +1511,18 @@ def report(
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    root = Path(args.root).resolve() if args.root is not None else repository_root()
     try:
+        # Validate the only remaining path-shaped argument before resolving or
+        # reading any filesystem path.  The public command has no caller-
+        # controlled repository boundary.
+        if args.version_file != CANONICAL_VERSION_FILE:
+            raise ContractInputError(
+                "--version-file must be exactly the literal '.python-version'"
+            )
+        root = repository_root()
         if not root.is_dir():
             raise ContractInputError(f"repository root is not a directory: {root}")
-        version_file = resolve_version_file(root, args.version_file)
+        version_file = canonical_version_file(root)
         canonical_version, violations, detected = evaluate_workflow_contract(
             root,
             version_file,

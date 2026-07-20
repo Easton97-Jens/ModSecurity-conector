@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -85,42 +84,56 @@ class SelectPythonUpdatePullRequestTests(unittest.TestCase):
         with self.assertRaises(MODULE.SelectionError):
             self.select([{ "number": "123" }])
 
-    def test_cli_emits_only_a_numeric_identifier_and_rejects_bad_json(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="python-update-pr-selection-") as directory:
-            path = Path(directory) / "pulls.json"
-            path.write_text(json.dumps(self.response()), encoding="utf-8")
-            output = io.StringIO()
-            errors = io.StringIO()
-            self.assertEqual(
-                MODULE.main(
-                    [
-                        "--input", str(path), "--repository", self.repository,
-                        "--owner", self.owner, "--base", self.base, "--branch", self.branch,
-                    ],
-                    output=output,
-                    error_output=errors,
-                ),
-                0,
-            )
-            self.assertEqual(output.getvalue(), "123\n")
-            self.assertEqual(errors.getvalue(), "")
+    def cli_arguments(self) -> list[str]:
+        return [
+            "--repository", self.repository,
+            "--owner", self.owner, "--base", self.base, "--branch", self.branch,
+        ]
 
-            path.write_text("{not json", encoding="utf-8")
-            output = io.StringIO()
-            errors = io.StringIO()
-            self.assertEqual(
-                MODULE.main(
-                    [
-                        "--input", str(path), "--repository", self.repository,
-                        "--owner", self.owner, "--base", self.base, "--branch", self.branch,
-                    ],
-                    output=output,
-                    error_output=errors,
-                ),
-                1,
-            )
-            self.assertEqual(output.getvalue(), "")
-            self.assertIn("selection failed", errors.getvalue())
+    def test_cli_emits_only_a_numeric_identifier_and_rejects_bad_json(self) -> None:
+        output = io.StringIO()
+        errors = io.StringIO()
+        self.assertEqual(
+            MODULE.main(
+                self.cli_arguments(),
+                input_stream=io.BytesIO(json.dumps(self.response()).encode("utf-8")),
+                output=output,
+                error_output=errors,
+            ),
+            0,
+        )
+        self.assertEqual(output.getvalue(), "123\n")
+        self.assertEqual(errors.getvalue(), "")
+
+        output = io.StringIO()
+        errors = io.StringIO()
+        self.assertEqual(
+            MODULE.main(
+                self.cli_arguments(),
+                input_stream=io.BytesIO(b"{not json"),
+                output=output,
+                error_output=errors,
+            ),
+            1,
+        )
+        self.assertEqual(output.getvalue(), "")
+        self.assertIn("selection failed", errors.getvalue())
+
+    def test_cli_rejects_an_oversized_response_before_parsing(self) -> None:
+        output = io.StringIO()
+        errors = io.StringIO()
+        response = b"[" + (b" " * MODULE.MAX_RESPONSE_BYTES) + b"]"
+        self.assertEqual(
+            MODULE.main(
+                self.cli_arguments(),
+                input_stream=io.BytesIO(response),
+                output=output,
+                error_output=errors,
+            ),
+            1,
+        )
+        self.assertEqual(output.getvalue(), "")
+        self.assertIn("size limit", errors.getvalue())
 
 
 if __name__ == "__main__":

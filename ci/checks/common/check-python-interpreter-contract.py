@@ -9,17 +9,15 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from typing import Sequence
 
 
+CANONICAL_VERSION_FILENAME = ".python-version"
+MAX_VERSION_FILE_BYTES = 64
 EXACT_PYTHON_313 = re.compile(r"3\.13\.(?:0|[1-9][0-9]*)\Z")
-PROBE_SCRIPT = (
-    "import sys; "
-    "print(sys.executable); "
-    "print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
-)
 
 
 class ContractInputError(ValueError):
@@ -31,26 +29,58 @@ def exact_version(value: str, source: str) -> str:
 
     if not EXACT_PYTHON_313.fullmatch(value):
         raise ContractInputError(
-            f"{source} must contain an exact Python 3.13.N version; got {value!r}"
+            f"{source} must contain an exact Python 3.13.N version"
         )
     return value
 
 
-def read_version_file(path: Path) -> str:
-    """Read one exact version, permitting only the conventional final newline."""
+def read_canonical_version_file() -> str:
+    """Read the fixed repository-root version file without following links."""
 
     try:
-        content = path.read_text(encoding="utf-8")
+        before = os.lstat(CANONICAL_VERSION_FILENAME)
     except OSError as exc:
-        raise ContractInputError(f"cannot read version file {path}: {exc}") from exc
+        raise ContractInputError("cannot inspect canonical .python-version file") from exc
+    if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
+        raise ContractInputError("canonical .python-version file must be a regular non-symlink")
+    if before.st_size > MAX_VERSION_FILE_BYTES:
+        raise ContractInputError("canonical .python-version file exceeds the size limit")
+
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(CANONICAL_VERSION_FILENAME, flags)
+    except OSError as exc:
+        raise ContractInputError("cannot open canonical .python-version file safely") from exc
+    try:
+        after = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(after.st_mode)
+            or after.st_dev != before.st_dev
+            or after.st_ino != before.st_ino
+            or after.st_size > MAX_VERSION_FILE_BYTES
+        ):
+            raise ContractInputError("canonical .python-version file changed or is unsafe")
+        with os.fdopen(descriptor, "rb", closefd=False) as handle:
+            content_bytes = handle.read(MAX_VERSION_FILE_BYTES + 1)
+    except OSError as exc:
+        raise ContractInputError("cannot read canonical .python-version file") from exc
+    finally:
+        os.close(descriptor)
+
+    if len(content_bytes) > MAX_VERSION_FILE_BYTES:
+        raise ContractInputError("canonical .python-version file exceeds the size limit")
+    try:
+        content = content_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ContractInputError("canonical .python-version file is not UTF-8") from exc
 
     if content.endswith("\n"):
         content = content[:-1]
     if "\n" in content or "\r" in content:
         raise ContractInputError(
-            f"version file {path} must contain one exact version and an optional final newline"
+            "canonical .python-version file must contain one exact version and an optional final newline"
         )
-    return exact_version(content, f"version file {path}")
+    return exact_version(content, "canonical .python-version file")
 
 
 def version_from_info(info: object) -> str:
@@ -86,55 +116,12 @@ def executable_path(argument: str, label: str, violations: list[str]) -> Path | 
     return candidate
 
 
-def probe_interpreter(
-    executable: Path,
-    label: str,
-    expected_version: str,
-    reference: Path,
-    violations: list[str],
-) -> None:
-    """Run a bounded, argument-vector-only interpreter identity probe."""
-
-    try:
-        completed = subprocess.run(
-            [str(executable), "-c", PROBE_SCRIPT],
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=20,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        violations.append(f"{label} could not be executed safely: {exc}")
-        return
-
-    if completed.returncode != 0:
-        violations.append(f"{label} probe exited with status {completed.returncode}")
-        return
-
-    lines = completed.stdout.splitlines()
-    if len(lines) != 2:
-        violations.append(f"{label} probe returned an unexpected identity record")
-        return
-
-    reported_executable, reported_version = lines
-    if reported_version != expected_version:
-        violations.append(
-            f"{label} reports Python {reported_version}, expected {expected_version}"
-        )
-    if not reported_executable or not same_interpreter(reported_executable, reference):
-        violations.append(
-            f"{label} runs {reported_executable or '<empty>'}, not {reference}"
-        )
-
-
 def check_command_alias(
     command: str,
-    expected_version: str,
     reference: Path,
     violations: list[str],
 ) -> None:
-    """Verify that a PATH command points at and runs the current interpreter."""
+    """Verify a PATH alias by identity only; never execute the alias itself."""
 
     resolved = shutil.which(command)
     if not resolved:
@@ -144,15 +131,14 @@ def check_command_alias(
     resolved_path = Path(resolved)
     if not same_interpreter(resolved_path, reference):
         violations.append(f"{command} resolves to {resolved_path}, not {reference}")
-    probe_interpreter(resolved_path, command, expected_version, reference, violations)
 
 
-def check_pip(reference: Path, violations: list[str]) -> None:
+def check_pip(violations: list[str]) -> None:
     """Require the selected interpreter's pip module without using a bare pip command."""
 
     try:
         completed = subprocess.run(
-            [str(reference), "-m", "pip", "--version"],
+            [sys.executable, "-m", "pip", "--version"],
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -160,10 +146,12 @@ def check_pip(reference: Path, violations: list[str]) -> None:
             timeout=20,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        violations.append(f"{reference} -m pip --version could not run: {exc}")
+        violations.append(f"{sys.executable} -m pip --version could not run: {exc}")
         return
     if completed.returncode != 0:
-        violations.append(f"{reference} -m pip --version exited with status {completed.returncode}")
+        violations.append(
+            f"{sys.executable} -m pip --version exited with status {completed.returncode}"
+        )
 
 
 def evaluate_contract(expected_version: str, expected_python: str | None) -> list[str]:
@@ -181,7 +169,7 @@ def evaluate_contract(expected_version: str, expected_python: str | None) -> lis
         return violations
 
     for command in ("python", "python3"):
-        check_command_alias(command, expected_version, reference, violations)
+        check_command_alias(command, reference, violations)
 
     if expected_python is not None:
         action_python = executable_path(expected_python, "--expected-python", violations)
@@ -190,15 +178,8 @@ def evaluate_contract(expected_version: str, expected_python: str | None) -> lis
                 violations.append(
                     f"--expected-python is {action_python}, not the current {reference}"
                 )
-            probe_interpreter(
-                action_python,
-                "--expected-python",
-                expected_version,
-                reference,
-                violations,
-            )
 
-    check_pip(reference, violations)
+    check_pip(violations)
     return violations
 
 
@@ -210,7 +191,7 @@ def parser() -> argparse.ArgumentParser:
     version_source.add_argument(
         "--version-file",
         metavar="PATH",
-        help="canonical exact Python version file (default: .python-version)",
+        help="only the literal .python-version is accepted (the default)",
     )
     version_source.add_argument(
         "--expected-version",
@@ -259,8 +240,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.expected_version is not None:
             expected_version = exact_version(args.expected_version, "--expected-version")
         else:
-            version_file = Path(args.version_file or ".python-version")
-            expected_version = read_version_file(version_file)
+            if args.version_file not in (None, CANONICAL_VERSION_FILENAME):
+                raise ContractInputError(
+                    "--version-file must be the literal .python-version"
+                )
+            expected_version = read_canonical_version_file()
     except ContractInputError as exc:
         report("error", None, [str(exc)], args.json)
         return 2

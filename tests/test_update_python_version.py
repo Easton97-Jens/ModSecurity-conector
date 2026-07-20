@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 import urllib.error
+import urllib.parse
 from pathlib import Path
 from unittest import mock
 
@@ -301,7 +302,10 @@ class UpdatePythonVersionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = self._root_with_version(Path(temporary))
             opener = FakeOpener(FakeResponse(b"[]"))
-            with mock.patch.object(updater, "RELEASE_API_URL", "http://www.python.org/api/v2/downloads/release/?is_published=true"):
+            invalid_url = urllib.parse.urlunsplit(
+                ("http", "www.python.org", "/api/v2/downloads/release/", "is_published=true", "")
+            )
+            with mock.patch.object(updater, "RELEASE_API_URL", invalid_url):
                 result, record = self._run_cli(root, ["--check", "--json"], opener=opener)
 
         self.assertEqual(result, 1)

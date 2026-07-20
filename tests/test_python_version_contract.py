@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
-import os
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,9 +35,18 @@ CHECKER = load_checker()
 
 class PythonVersionContractTest(unittest.TestCase):
     def temporary_root(self) -> tempfile.TemporaryDirectory[str]:
-        return tempfile.TemporaryDirectory(
-            prefix="python-version-contract-", dir=os.environ.get("TMPDIR")
-        )
+        return tempfile.TemporaryDirectory(prefix="python-version-contract-")
+
+    def cli_json_result(
+        self, root: Path, *arguments: str
+    ) -> tuple[int, dict[str, object]]:
+        output = io.StringIO()
+        with (
+            mock.patch.object(CHECKER, "repository_root", return_value=root),
+            contextlib.redirect_stdout(output),
+        ):
+            exit_code = CHECKER.main((*arguments, "--json"))
+        return exit_code, json.loads(output.getvalue())
 
     def fixture_root_result(
         self,
@@ -140,6 +150,66 @@ class PythonVersionContractTest(unittest.TestCase):
         self.assertEqual(
             {CHECKER.JobIdentity("valid-control.yaml", "fixture-job")}, detected
         )
+
+    def test_manual_mapping_parser_preserves_the_narrow_contract_shapes(self) -> None:
+        self.assertEqual(("with", ""), CHECKER.mapping_entry("with:"))
+        self.assertEqual(
+            ("run", "python3 -c 'print(\"value: preserved\")'"),
+            CHECKER.mapping_entry("run: python3 -c 'print(\"value: preserved\")'"),
+        )
+        self.assertEqual("fixture-job", CHECKER.job_header("fixture-job: # comment"))
+        self.assertIsNone(CHECKER.job_header("fixture-job: unexpected-value"))
+        self.assertIsNone(CHECKER.mapping_entry("not a mapping"))
+
+    def test_linear_shell_parser_detects_commands_without_text_false_positives(self) -> None:
+        self.assertEqual(
+            "python3.13",
+            CHECKER.direct_python_or_pip_command(
+                "/opt/toolchains/python3.13 -c 'print(\"direct\")'"
+            ),
+        )
+        self.assertEqual(
+            "pip3",
+            CHECKER.bare_pip_command("env TOOLCHAIN=checked pip3 --version"),
+        )
+        self.assertEqual("quick-check", CHECKER.python_make_target("make quick-check"))
+        self.assertEqual(
+            "python3",
+            CHECKER.direct_python_or_pip_command(
+                "status=$(python3 -c 'print(\"substitution\")')"
+            ),
+        )
+        self.assertIsNone(CHECKER.shell_syntax_error("count=$((count + 1))"))
+
+        harmless = CHECKER.analyze_shell_source(
+            """# python3 and pip are comments, not commands.
+echo \"python3 -m pip --version\"
+cat <<'TEXT'
+python3 -m pip --version
+TEXT
+printf '%s\\n' 'make quick-check'
+"""
+        )
+        self.assertEqual((), harmless.errors)
+        command_names = [
+            CHECKER.static_command_basename(command.command)
+            for command in harmless.commands
+        ]
+        self.assertEqual(["echo", "cat", "printf"], command_names)
+
+    def test_unsupported_or_malformed_shell_syntax_fails_closed(self) -> None:
+        self.assertEqual(
+            "dynamic shell command head is unsupported",
+            CHECKER.shell_syntax_error('"$PYTHON" --version'),
+        )
+        malformed_error = CHECKER.shell_syntax_error("python3 -c 'unterminated")
+        self.assertIsNotNone(malformed_error)
+        self.assertIn("unterminated", malformed_error)
+        arithmetic_error = CHECKER.shell_syntax_error(
+            "count=$(( $(python3 --version) + 1 ))"
+        )
+        self.assertIsNotNone(arithmetic_error)
+        self.assertIn("arithmetic expansion", arithmetic_error)
 
     def test_missing_setup_is_rejected(self) -> None:
         self.assert_fixture_violation("missing-setup.yml", "must contain exactly one")
@@ -271,21 +341,8 @@ class PythonVersionContractTest(unittest.TestCase):
             root = Path(directory)
             (root / ".github" / "workflows").mkdir(parents=True)
             shutil.copy2(FIXTURES / "malformed-version.txt", root / ".python-version")
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(CHECKER_PATH),
-                    "--root",
-                    str(root),
-                    "--json",
-                ],
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-        self.assertEqual(2, completed.returncode)
-        payload = json.loads(completed.stdout)
+            exit_code, payload = self.cli_json_result(root)
+        self.assertEqual(2, exit_code)
         self.assertEqual("error", payload["status"])
         self.assertIn("exact Python 3.13.N", payload["violations"][0])
 
@@ -296,23 +353,50 @@ class PythonVersionContractTest(unittest.TestCase):
             workflows.mkdir(parents=True)
             shutil.copy2(FIXTURES / "missing-setup.yml", workflows / "missing-setup.yml")
             (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(CHECKER_PATH),
-                    "--root",
-                    str(root),
-                    "--json",
-                ],
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-        self.assertEqual(1, completed.returncode)
-        payload = json.loads(completed.stdout)
+            exit_code, payload = self.cli_json_result(root)
+        self.assertEqual(1, exit_code)
         self.assertEqual("violations", payload["status"])
         self.assertTrue(payload["violations"])
+
+    def test_public_cli_rejects_user_controlled_root_and_nonliteral_version_file(self) -> None:
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as context:
+            CHECKER.parser().parse_args(["--root", "/tmp/not-the-repository"])
+        self.assertEqual(2, context.exception.code)
+
+        output = io.StringIO()
+        with (
+            mock.patch.object(
+                CHECKER,
+                "repository_root",
+                side_effect=AssertionError("repository root must not be resolved"),
+            ),
+            contextlib.redirect_stdout(output),
+        ):
+            exit_code = CHECKER.main(
+                ["--version-file", "../untrusted-version", "--json"]
+            )
+        self.assertEqual(2, exit_code)
+        payload = json.loads(output.getvalue())
+        self.assertEqual("error", payload["status"])
+        self.assertIn("must be exactly", payload["violations"][0])
+
+    def test_public_cli_requires_a_regular_nonsymlink_canonical_version_file(self) -> None:
+        with self.temporary_root() as directory:
+            root = Path(directory)
+            target = root / "version-source"
+            target.write_text("3.13.14\n", encoding="utf-8")
+            (root / ".python-version").symlink_to(target)
+            exit_code, payload = self.cli_json_result(root)
+        self.assertEqual(2, exit_code)
+        self.assertIn("must not be a symlink", payload["violations"][0])
+
+        with self.temporary_root() as directory:
+            root = Path(directory)
+            (root / ".python-version").mkdir()
+            exit_code, payload = self.cli_json_result(root)
+        self.assertEqual(2, exit_code)
+        self.assertIn("must be a regular file", payload["violations"][0])
 
     def test_downgrade_requires_explicit_authorization(self) -> None:
         with self.temporary_root() as directory:
@@ -359,21 +443,8 @@ class PythonVersionContractTest(unittest.TestCase):
         with self.temporary_root() as directory:
             root = Path(directory)
             self.write_complete_contract_root(root)
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(CHECKER_PATH),
-                    "--root",
-                    str(root),
-                    "--json",
-                ],
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-        self.assertEqual(0, completed.returncode, completed.stderr)
-        payload = json.loads(completed.stdout)
+            exit_code, payload = self.cli_json_result(root)
+        self.assertEqual(0, exit_code)
         self.assertEqual("valid", payload["status"])
         self.assertEqual(25, len(payload["detected_python_jobs"]))
 

@@ -171,6 +171,12 @@ Identität, Metadatenquelle, Validierungsworkflow/-Run-URL,
 `.python-version` als einzige geänderte Datei, die beibehaltene Python-3.13-
 Minor-Version und das Fehlen eines automatischen Merge.
 
+Der Publisher streamt die begrenzte REST-Pull-List-Antwort direkt von `gh api`
+in seinen strikten Duplicate-Key-JSON-Selector. Der Selector besitzt keinen
+aufrufergesteuerten Response-Dateipfad; beim Wiederverwenden eines bestehenden
+Draft Pull Request überschreitet der Publisher daher keine Response-Datei- oder
+Symlink/TOCTOU-Grenze.
+
 Der Updater darf nicht auto-mergen, den Default-Branch beschreiben, force-
 pushen, Repository- oder benutzerbereitgestellte `secrets.*` konsumieren,
 Submodules initialisieren oder eine beliebige Project-Workload ausführen. Der

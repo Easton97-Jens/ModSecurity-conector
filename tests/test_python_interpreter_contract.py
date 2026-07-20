@@ -17,9 +17,7 @@ CHECKER_PATH = ROOT / "ci" / "checks" / "common" / "check-python-interpreter-con
 
 class PythonInterpreterContractTest(unittest.TestCase):
     def temporary_root(self) -> tempfile.TemporaryDirectory[str]:
-        return tempfile.TemporaryDirectory(
-            prefix="python-interpreter-contract-", dir=os.environ.get("TMPDIR")
-        )
+        return tempfile.TemporaryDirectory(prefix="python-interpreter-contract-")
 
     def checker_environment(self, root: Path) -> dict[str, str]:
         bin_dir = root / "bin"
@@ -31,7 +29,12 @@ class PythonInterpreterContractTest(unittest.TestCase):
         environment["PYTHONNOUSERSITE"] = "1"
         return environment
 
-    def run_checker(self, arguments: list[str], environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    def run_checker(
+        self,
+        root: Path,
+        arguments: list[str],
+        environment: dict[str, str],
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(CHECKER_PATH), *arguments],
             check=False,
@@ -39,17 +42,19 @@ class PythonInterpreterContractTest(unittest.TestCase):
             stderr=subprocess.PIPE,
             text=True,
             env=environment,
+            cwd=root,
         )
 
-    def test_available_host_python_and_expected_path_are_probed_safely(self) -> None:
+    def test_available_host_python_and_expected_path_are_validated_safely(self) -> None:
         with self.temporary_root() as directory:
             root = Path(directory)
             version_file = root / ".python-version"
             version_file.write_text("3.13.0\n", encoding="utf-8")
             completed = self.run_checker(
+                root,
                 [
                     "--version-file",
-                    str(version_file),
+                    ".python-version",
                     "--expected-python",
                     sys.executable,
                     "--json",
@@ -82,9 +87,10 @@ class PythonInterpreterContractTest(unittest.TestCase):
             version_file = root / ".python-version"
             version_file.write_text("3.13.0\n", encoding="utf-8")
             completed = self.run_checker(
+                root,
                 [
                     "--version-file",
-                    str(version_file),
+                    ".python-version",
                     "--expected-python",
                     str(root / "missing-python"),
                     "--json",
@@ -102,6 +108,7 @@ class PythonInterpreterContractTest(unittest.TestCase):
         with self.temporary_root() as directory:
             root = Path(directory)
             completed = self.run_checker(
+                root,
                 [
                     "--expected-version",
                     "3.13",
@@ -122,9 +129,10 @@ class PythonInterpreterContractTest(unittest.TestCase):
             version_file = root / ".python-version"
             version_file.write_text("3.13.0\n", encoding="utf-8")
             completed = self.run_checker(
+                root,
                 [
                     "--version-file",
-                    str(version_file),
+                    ".python-version",
                     "--expected-version",
                     "3.13.0",
                 ],
@@ -132,6 +140,53 @@ class PythonInterpreterContractTest(unittest.TestCase):
             )
         self.assertEqual(2, completed.returncode)
         self.assertIn("not allowed with argument", completed.stderr)
+
+    def test_noncanonical_version_file_is_rejected_before_any_file_read(self) -> None:
+        with self.temporary_root() as directory:
+            root = Path(directory)
+            (root / ".python-version").write_text("3.13.0\n", encoding="utf-8")
+            completed = self.run_checker(
+                root,
+                ["--version-file", "/dev/null", "--json"],
+                self.checker_environment(root),
+            )
+
+        self.assertEqual(2, completed.returncode)
+        payload = json.loads(completed.stdout)
+        self.assertEqual("error", payload["status"])
+        self.assertIn("literal .python-version", payload["violations"][0])
+
+    def test_foreign_expected_executable_is_not_invoked(self) -> None:
+        with self.temporary_root() as directory:
+            root = Path(directory)
+            (root / ".python-version").write_text("3.13.0\n", encoding="utf-8")
+            marker = root / "unexpected-execution"
+            foreign = root / "foreign-python"
+            foreign.write_text(
+                f"#!{sys.executable}\nfrom pathlib import Path\nPath({str(marker)!r}).write_text('ran')\n",
+                encoding="utf-8",
+            )
+            foreign.chmod(0o755)
+            completed = self.run_checker(
+                root,
+                [
+                    "--version-file",
+                    ".python-version",
+                    "--expected-python",
+                    str(foreign),
+                    "--json",
+                ],
+                self.checker_environment(root),
+            )
+            marker_was_created = marker.exists()
+
+        self.assertEqual(1, completed.returncode)
+        payload = json.loads(completed.stdout)
+        self.assertTrue(
+            any("--expected-python is" in violation for violation in payload["violations"]),
+            payload,
+        )
+        self.assertFalse(marker_was_created)
 
 
 if __name__ == "__main__":

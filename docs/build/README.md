@@ -166,6 +166,11 @@ proposed versions, official release identity, metadata source, validation
 workflow/run URL, `.python-version` as the only changed file, retained Python
 3.13 minor version, and absence of automatic merge.
 
+The publisher streams the bounded REST pull-list response directly from
+`gh api` into its strict duplicate-key JSON selector. The selector has no
+caller-controlled response-file path, so the publisher does not cross a
+response-file or symlink/TOCTOU boundary while reusing an existing Draft PR.
+
 The updater must not auto-merge, write the default branch, force-push, consume
 repository or user-provided `secrets.*`, initialize submodules, or execute an
 arbitrary project workload. The publisher may use only GitHub’s automatically
