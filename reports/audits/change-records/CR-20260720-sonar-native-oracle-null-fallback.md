@@ -104,7 +104,8 @@ accepted and no external issue is closed by this local commit.
 
 The source/test correction is commit
 941551080c9c9bc764b2db140288570f7c147499 on the isolated Parent branch
-codex/sonar-json-string-null-guard-20260720. It is not yet pushed, in a pull
-request, merged, or represented as a fixed external alert. The next delivery
+codex/sonar-json-string-null-guard-20260720. This record preserves only
+source-level pre-delivery evidence; it neither claims nor substitutes for a
+normal push, pull request, merge, or external-alert resolution. The delivery
 gate is normal push, Draft PR creation, exact-head checks, review/thread
 readback, and protected merge only if those gates pass.

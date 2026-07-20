@@ -107,8 +107,8 @@ geschlossen.
 
 Die Source-/Test-Korrektur ist Commit
 941551080c9c9bc764b2db140288570f7c147499 auf dem isolierten Parent-Branch
-codex/sonar-json-string-null-guard-20260720. Sie ist noch nicht gepusht, in
-keinem Pull Request, nicht gemergt und nicht als gefixter externer Alert
-dargestellt. Der nächste Delivery-Gate ist ein normaler Push, Draft-PR,
-Exact-Head-Checks, Review-/Thread-Readback und ein geschützter Merge nur bei
-bestehenden Gates.
+codex/sonar-json-string-null-guard-20260720. Dieser Record bewahrt nur
+Source-Level-Pre-Delivery-Evidence; er behauptet keinen normalen Push, Pull
+Request, Merge oder eine externe Alert-Auflösung und ersetzt sie nicht. Das
+Delivery-Gate sind normaler Push, Draft-PR, Exact-Head-Checks,
+Review-/Thread-Readback und ein geschützter Merge nur bei bestehenden Gates.
