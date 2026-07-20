@@ -97,8 +97,9 @@ accepted and no external issue is closed by this local commit.
   and a linkable runtime are absent.
 - Full connector/runtime matrices are outside this two-file Parent scope and
   require the unavailable native prerequisites.
-- PR, CodeQL, OSV, secret-scanning, Scorecard, and SonarQube Cloud checks have
-  not yet run for this exact source commit.
+- Exact-head PR, CodeQL, OSV, secret-scanning, Scorecard, and SonarQube Cloud
+  checks are required delivery evidence. This record claims no passing result;
+  the authoritative outcome is the exact current PR-head readback.
 
 ## Final diff and review status
 

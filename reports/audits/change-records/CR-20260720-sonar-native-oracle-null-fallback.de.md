@@ -100,8 +100,10 @@ geschlossen.
   pkg-config-Metadaten und eine linkbare Runtime fehlen.
 - Vollständige Connector-/Runtime-Matrizen liegen außerhalb dieses Zwei-Datei-
   Parent-Scopes und benötigen die fehlenden nativen Voraussetzungen.
-- PR-, CodeQL-, OSV-, Secret-Scanning-, Scorecard- und SonarQube-Cloud-Checks
-  sind noch nicht für diesen exakten Source-Commit gelaufen.
+- Exact-Head-PR-, CodeQL-, OSV-, Secret-Scanning-, Scorecard- und
+  SonarQube-Cloud-Checks sind erforderliche Delivery-Evidence. Dieser Record
+  beansprucht kein bestandenes Ergebnis; maßgeblich ist der Readback des
+  exakten aktuellen PR-Heads.
 
 ## Finaler Diff- und Review-Status
 
