@@ -26,6 +26,7 @@ from generated_report_utils import (
     utc_now,
 )
 from runtime_path_utils import verified_runtime_paths
+from verified_full_matrix_receipt import AggregateReceiptError, aggregate_receipt_path
 
 
 CONNECTORS = ("apache", "nginx", "haproxy")
@@ -209,86 +210,170 @@ def analyze_nginx_with_crs_mrts(matrix_root: Path) -> dict[str, Any]:
     }
 
 
+def job_case_counts(summary: Path, jsonl: Path, connector: str) -> tuple[dict[str, Any], Path]:
+    if summary.is_file():
+        return count_summary_cases(summary, connector), summary
+    if jsonl.is_file():
+        return count_jsonl_cases(jsonl), jsonl
+    return {}, jsonl
+
+
+def collect_job(
+    matrix_root: Path,
+    manifest: dict[str, dict[str, Any]],
+    *,
+    connector: str,
+    crs: str,
+    mrts: str,
+) -> dict[str, Any]:
+    jid = job_id(connector, crs, mrts)
+    job_root = matrix_root / crs / mrts / connector
+    job_path = job_root / "job.json"
+    log_path = job_root / "run.log"
+    build_manifest = job_root / "build-manifest.json"
+    summary = summary_path(job_root, connector)
+    jsonl = result_jsonl_path(job_root, connector)
+    preamble = job_root / "preambles" / f"{connector}-{crs}-{mrts}.load"
+    job = read_json(job_path)
+    status, reason = detect_job_status(job, log_path, jsonl)
+    counts, result_path = job_case_counts(summary, jsonl, connector)
+    manifest_row = manifest.get(jid, {})
+    duration = job.get("duration_seconds", manifest_row.get("duration_seconds"))
+    return {
+        "job_id": jid,
+        "connector": connector,
+        "crs": crs,
+        "mrts": mrts,
+        "verified_run_id": job.get("verified_run_id", ""),
+        "status": status,
+        "reason": reason,
+        "manifest_recorded": bool(manifest_row),
+        "return_code": job.get("return_code", manifest_row.get("return_code")),
+        "started_at": job.get("started_at", manifest_row.get("started_at", "")),
+        "ended_at": job.get("ended_at", manifest_row.get("ended_at", "")),
+        "duration_seconds": duration if isinstance(duration, int) else None,
+        "cases": counts.get("cases", 0),
+        "attempted": counts.get("attempted", 0),
+        "pass": counts.get("pass", 0),
+        "fail": counts.get("fail", 0),
+        "blocked": counts.get("blocked", 0),
+        "not_executable": counts.get("not_executable", 0),
+        "status_counts": counts.get("status_counts", {}),
+        "actual_status_counts": counts.get("actual_status_counts", {}),
+        "job_path": str(job_path),
+        "log_path": str(log_path),
+        "summary_path": str(summary),
+        "results_jsonl": str(jsonl),
+        "result_path": str(result_path),
+        "hashes": job.get("hashes") if isinstance(job.get("hashes"), dict) else {},
+        "inputs": job.get("inputs") if isinstance(job.get("inputs"), dict) else {},
+        "outputs": job.get("outputs") if isinstance(job.get("outputs"), dict) else {},
+        "input_hashes": [
+            file_record(job_path, "job_json"),
+            file_record(log_path, "run_log"),
+            file_record(summary, "summary_json"),
+            file_record(jsonl, "results_jsonl"),
+            file_record(build_manifest, "build_manifest"),
+            file_record(preamble, "rule_preamble"),
+        ],
+    }
+
+
 def collect_jobs(matrix_root: Path, manifest_path: Path) -> list[dict[str, Any]]:
     manifest = read_manifest_rows(manifest_path)
-    rows: list[dict[str, Any]] = []
-    for crs, mrts in VARIANTS:
-        for connector in CONNECTORS:
-            jid = job_id(connector, crs, mrts)
-            job_root = matrix_root / crs / mrts / connector
-            job_path = job_root / "job.json"
-            log_path = job_root / "run.log"
-            build_manifest = job_root / "build-manifest.json"
-            summary = summary_path(job_root, connector)
-            jsonl = result_jsonl_path(job_root, connector)
-            preamble = job_root / "preambles" / f"{connector}-{crs}-{mrts}.load"
-            job = read_json(job_path)
-            status, reason = detect_job_status(job, log_path, jsonl)
-            counts = {}
-            if summary.is_file():
-                counts = count_summary_cases(summary, connector)
-            elif jsonl.is_file():
-                counts = count_jsonl_cases(jsonl)
-            manifest_row = manifest.get(jid, {})
-            duration = job.get("duration_seconds", manifest_row.get("duration_seconds"))
-            rows.append(
-                {
-                    "job_id": jid,
-                    "connector": connector,
-                    "crs": crs,
-                    "mrts": mrts,
-                    "status": status,
-                    "reason": reason,
-                    "manifest_recorded": bool(manifest_row),
-                    "return_code": job.get("return_code", manifest_row.get("return_code")),
-                    "started_at": job.get("started_at", manifest_row.get("started_at", "")),
-                    "ended_at": job.get("ended_at", manifest_row.get("ended_at", "")),
-                    "duration_seconds": duration if isinstance(duration, int) else None,
-                    "cases": counts.get("cases", 0),
-                    "attempted": counts.get("attempted", 0),
-                    "pass": counts.get("pass", 0),
-                    "fail": counts.get("fail", 0),
-                    "blocked": counts.get("blocked", 0),
-                    "not_executable": counts.get("not_executable", 0),
-                    "status_counts": counts.get("status_counts", {}),
-                    "actual_status_counts": counts.get("actual_status_counts", {}),
-                    "job_path": str(job_path),
-                    "log_path": str(log_path),
-                    "summary_path": str(summary),
-                    "results_jsonl": str(jsonl),
-                    "result_path": str(summary if summary.is_file() else jsonl),
-                    "input_hashes": [
-                        file_record(job_path, "job_json"),
-                        file_record(log_path, "run_log"),
-                        file_record(summary, "summary_json"),
-                        file_record(jsonl, "results_jsonl"),
-                        file_record(build_manifest, "build_manifest"),
-                        file_record(preamble, "rule_preamble"),
-                    ],
-                }
-            )
-    return rows
+    return [
+        collect_job(matrix_root, manifest, connector=connector, crs=crs, mrts=mrts)
+        for crs, mrts in VARIANTS
+        for connector in CONNECTORS
+    ]
 
 
-def rewrite_manifest(path: Path, jobs: list[dict[str, Any]]) -> None:
+def rewritten_manifest_text(jobs: list[dict[str, Any]]) -> str:
     completed = [job for job in jobs if job["status"] in {"completed", "completed_with_mismatches"}]
-    path.parent.mkdir(parents=True, exist_ok=True)
     lines = []
     for job in completed:
         row = {
             "connector": job["connector"],
+            "job_id": job["job_id"],
+            "verified_run_id": job["verified_run_id"],
             "test_variant": job["crs"],
             "mrts_variant": job["mrts"],
             "return_code": job["return_code"],
+            "status": job["status"],
             "started_at": job["started_at"],
             "ended_at": job["ended_at"],
             "duration_seconds": job["duration_seconds"],
             "results_dir": str(Path(job["job_path"]).parent / "results"),
             "summary_path": job["summary_path"],
             "log_path": job["log_path"],
+            "hashes": job["hashes"],
+            "inputs": job["inputs"],
+            "outputs": job["outputs"],
         }
         lines.append(json.dumps(row, sort_keys=True))
-    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def source_manifest_run_ids(path: Path, build_root: Path) -> set[str]:
+    """Return the validated run identities that own the current raw source.
+
+    The full-matrix raw manifest is shared source material.  A report caller
+    must not select an arbitrary different run ID to evade the aggregate
+    receipt that governs the source it is about to rewrite.
+    """
+
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return set()
+    except OSError as exc:
+        raise ValueError(f"refusing to rewrite full-matrix manifest: cannot read existing source: {exc}") from exc
+    run_ids: set[str] = set()
+    for line_number, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"refusing to rewrite full-matrix manifest: source row {line_number} is not valid JSON"
+            ) from exc
+        if not isinstance(row, dict) or not isinstance(row.get("verified_run_id"), str):
+            raise ValueError(
+                f"refusing to rewrite full-matrix manifest: source row {line_number} has no verified_run_id"
+            )
+        run_id = row["verified_run_id"]
+        try:
+            aggregate_receipt_path(build_root, run_id)
+        except AggregateReceiptError as exc:
+            raise ValueError(
+                f"refusing to rewrite full-matrix manifest: source row {line_number} has an invalid verified_run_id"
+            ) from exc
+        run_ids.add(run_id)
+    return run_ids
+
+
+def rewrite_manifest(
+    path: Path,
+    jobs: list[dict[str, Any]],
+    *,
+    sealed_receipt_path: Path | None = None,
+) -> None:
+    content = rewritten_manifest_text(jobs)
+    if sealed_receipt_path is not None and (sealed_receipt_path.exists() or sealed_receipt_path.is_symlink()):
+        if sealed_receipt_path.is_symlink() or not sealed_receipt_path.is_file():
+            raise ValueError("refusing to rewrite full-matrix manifest: aggregate receipt is not a regular file")
+        try:
+            existing = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ValueError(f"refusing to rewrite sealed full-matrix manifest: {exc}") from exc
+        if existing != content:
+            raise ValueError(
+                "refusing to rewrite sealed full-matrix manifest: proposed bytes do not match the sealed source"
+            )
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 def markdown_table(rows: list[list[Any]]) -> list[str]:
@@ -408,7 +493,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> int:
+def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", default=".")
     parser.add_argument("--framework-root", default=None)
@@ -417,8 +502,12 @@ def main() -> int:
     parser.add_argument("--verified-run-id", default="")
     parser.add_argument("--verified-commands-file", default="")
     parser.add_argument("--rewrite-manifest", action="store_true")
-    args = parser.parse_args()
+    return parser
 
+
+def resolve_generation_context(
+    args: argparse.Namespace,
+) -> tuple[Path, Path, Path, Path, Path, Path, str, Path]:
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     default_paths = verified_runtime_paths()
@@ -426,7 +515,6 @@ def main() -> int:
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / "reports/testing/generated/manifest"
     matrix_root = build_root / "full-matrix"
     manifest_path = matrix_root / "full-runtime-matrix-runs.jsonl"
-    commands_path = Path(args.verified_commands_file) if args.verified_commands_file else build_root / "verified-runs/current-run-id"
     verified_run_id = args.verified_run_id
     if not verified_run_id:
         current = build_root / "verified-runs" / "current-run-id"
@@ -436,11 +524,56 @@ def main() -> int:
     verified_commands = build_root / "verified-runs" / verified_run_id / "verified-commands.json"
     if args.verified_commands_file:
         verified_commands = Path(args.verified_commands_file)
+    return (
+        connector_root,
+        framework_root,
+        build_root,
+        output_dir,
+        matrix_root,
+        manifest_path,
+        verified_run_id,
+        verified_commands,
+    )
 
-    jobs = collect_jobs(matrix_root, manifest_path)
-    if args.rewrite_manifest:
-        rewrite_manifest(manifest_path, jobs)
-        jobs = collect_jobs(matrix_root, manifest_path)
+
+def rewrite_manifest_when_requested(
+    parser: argparse.ArgumentParser,
+    *,
+    rewrite_manifest_requested: bool,
+    manifest_path: Path,
+    jobs: list[dict[str, Any]],
+    build_root: Path,
+    verified_run_id: str,
+    matrix_root: Path,
+) -> list[dict[str, Any]]:
+    if not rewrite_manifest_requested:
+        return jobs
+    try:
+        source_run_ids = source_manifest_run_ids(manifest_path, build_root)
+        if source_run_ids and source_run_ids != {verified_run_id}:
+            raise ValueError(
+                "refusing to rewrite full-matrix manifest: source verified_run_id does not match --verified-run-id"
+            )
+        sealed_receipt_path = aggregate_receipt_path(build_root, verified_run_id)
+    except (AggregateReceiptError, ValueError) as exc:
+        parser.error(str(exc))
+    try:
+        rewrite_manifest(manifest_path, jobs, sealed_receipt_path=sealed_receipt_path)
+    except ValueError as exc:
+        parser.error(str(exc))
+    return collect_jobs(matrix_root, manifest_path)
+
+
+def build_report_payload(
+    *,
+    connector_root: Path,
+    framework_root: Path,
+    matrix_root: Path,
+    manifest_path: Path,
+    verified_run_id: str,
+    verified_commands: Path,
+    jobs: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     complete = sum(1 for job in jobs if job["status"] in {"completed", "completed_with_mismatches"})
     manifest_recorded = sum(1 for job in jobs if job["manifest_recorded"])
     missing = [job for job in jobs if job["status"] not in {"completed", "completed_with_mismatches"}]
@@ -476,6 +609,50 @@ def main() -> int:
         "nginx_with_crs_with_mrts_analysis": analyze_nginx_with_crs_mrts(matrix_root),
         "inputs": list(dedup_inputs.values()),
     }
+    return payload, dedup_inputs
+
+
+def write_generated_report(output_dir: Path, payload: dict[str, Any], metadata: dict[str, Any]) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / GENERATED_REPORTS["full_matrix_job_completeness"].filename("json")
+    md_path = output_dir / GENERATED_REPORTS["full_matrix_job_completeness"].filename("md")
+    json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
+    md_path.write_text(generated_markdown_text(render_markdown(payload), metadata), encoding="utf-8")
+    return md_path
+
+
+def main() -> int:
+    parser = build_argument_parser()
+    args = parser.parse_args()
+    (
+        connector_root,
+        framework_root,
+        build_root,
+        output_dir,
+        matrix_root,
+        manifest_path,
+        verified_run_id,
+        verified_commands,
+    ) = resolve_generation_context(args)
+    jobs = collect_jobs(matrix_root, manifest_path)
+    jobs = rewrite_manifest_when_requested(
+        parser,
+        rewrite_manifest_requested=args.rewrite_manifest,
+        manifest_path=manifest_path,
+        jobs=jobs,
+        build_root=build_root,
+        verified_run_id=verified_run_id,
+        matrix_root=matrix_root,
+    )
+    payload, dedup_inputs = build_report_payload(
+        connector_root=connector_root,
+        framework_root=framework_root,
+        matrix_root=matrix_root,
+        manifest_path=manifest_path,
+        verified_run_id=verified_run_id,
+        verified_commands=verified_commands,
+        jobs=jobs,
+    )
     metadata = build_metadata(
         generated_by=GENERATED_REPORTS["full_matrix_job_completeness"].generator,
         make_target=GENERATED_REPORTS["full_matrix_job_completeness"].make_target,
@@ -485,12 +662,7 @@ def main() -> int:
         inputs=[item["path"] for item in dedup_inputs.values()],
         extra={"verified_run_id": verified_run_id},
     )
-    output_dir.mkdir(parents=True, exist_ok=True)
-    json_path = output_dir / GENERATED_REPORTS["full_matrix_job_completeness"].filename("json")
-    md_path = output_dir / GENERATED_REPORTS["full_matrix_job_completeness"].filename("md")
-    json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
-    md_path.write_text(generated_markdown_text(render_markdown(payload), metadata), encoding="utf-8")
-    print(md_path)
+    print(write_generated_report(output_dir, payload, metadata))
     return 0
 
 
