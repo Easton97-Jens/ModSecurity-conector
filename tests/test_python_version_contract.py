@@ -361,7 +361,7 @@ printf '%s\\n' 'make quick-check'
     def test_public_cli_rejects_user_controlled_root_and_nonliteral_version_file(self) -> None:
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as context:
-            CHECKER.parser().parse_args(["--root", "/tmp/not-the-repository"])
+            CHECKER.parser().parse_args(["--root", "/not-a-repository"])
         self.assertEqual(2, context.exception.code)
 
         output = io.StringIO()
