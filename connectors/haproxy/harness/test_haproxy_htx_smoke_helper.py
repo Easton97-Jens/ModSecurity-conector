@@ -190,9 +190,12 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
                 }) + "\n",
                 encoding="utf-8",
             )
+            events_path = str(events)
+            probe_path = str(probe)
+            upstream_path = str(upstream)
             with self.assertRaisesRegex(ValueError, "preserve HTTP 200"):
                 HELPER.write_allow_event(
-                    str(events), str(probe), str(upstream), "haproxy-htx-allow",
+                    events_path, probe_path, upstream_path, "haproxy-htx-allow",
                 )
 
             probe.write_text(
@@ -205,11 +208,11 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "not observed exactly once upstream"):
                 HELPER.write_allow_event(
-                    str(events), str(probe), str(upstream), "haproxy-htx-allow",
+                    events_path, probe_path, upstream_path, "haproxy-htx-allow",
                 )
             with self.assertRaisesRegex(ValueError, "invalid HTX transaction id"):
                 HELPER.write_allow_event(
-                    str(events), str(probe), str(upstream), "haproxy:htx-allow",
+                    events_path, probe_path, upstream_path, "haproxy:htx-allow",
                 )
 
     def test_first_byte_evidence_binds_client_byte_to_paused_upstream(self) -> None:

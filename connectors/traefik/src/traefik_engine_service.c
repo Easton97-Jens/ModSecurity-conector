@@ -329,11 +329,10 @@ static int traefik_engine_reader_text(traefik_engine_reader *reader,
 
 static void traefik_engine_headers_free(traefik_engine_headers *headers)
 {
-    size_t index;
     if (headers == NULL) {
         return;
     }
-    for (index = 0U; index < headers->count; ++index) {
+    for (size_t index = 0U; index < headers->count; ++index) {
         free(headers->names == NULL ? NULL : headers->names[index]);
         free(headers->values == NULL ? NULL : headers->values[index]);
     }
@@ -346,8 +345,6 @@ static void traefik_engine_headers_free(traefik_engine_headers *headers)
 static int traefik_engine_reader_headers(traefik_engine_reader *reader,
     uint16_t header_count, traefik_engine_headers *out)
 {
-    size_t index;
-
     if (reader == NULL || out == NULL ||
         header_count > TRAEFIK_ENGINE_PROTOCOL_MAX_HEADERS) {
         return 0;
@@ -364,7 +361,7 @@ static int traefik_engine_reader_headers(traefik_engine_reader *reader,
         traefik_engine_headers_free(out);
         return 0;
     }
-    for (index = 0U; index < (size_t)header_count; ++index) {
+    for (size_t index = 0U; index < (size_t)header_count; ++index) {
         if (!traefik_engine_reader_text(reader,
                 TRAEFIK_ENGINE_PROTOCOL_MAX_HEADER_NAME, 1,
                 &out->names[index]) ||

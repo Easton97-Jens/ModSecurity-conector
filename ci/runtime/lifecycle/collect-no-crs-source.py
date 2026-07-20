@@ -625,7 +625,6 @@ def sanitized_event(record: dict[str, Any]) -> dict[str, Any]:
         "connection_reused": ("connection_reused",),
         "quic_connection_id_present": ("quic_connection_id_present",),
         "quic_version": ("quic_version",),
-        "quic_version": ("quic_version",),
         "fallback_used": ("fallback_used",),
         "stream_reset": ("stream_reset",),
         "stream_reset_code": ("stream_reset_code",),
@@ -800,7 +799,7 @@ def first_byte_evidence_record(
         return None
     try:
         value = load_json(path)
-    except (OSError, ValueError, json.JSONDecodeError):
+    except (OSError, ValueError):
         return None
     if (
         value.get("evidence_type") != "synchronized_first_byte"
@@ -1024,7 +1023,7 @@ def event_evidence(
                     forbidden.append(f"{path}:{index + 1}:payload-sentinel")
                     continue
                 add_record(record)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:
             invalid.append(f"{path}: {exc}")
 
     observed_rule_ids: set[str] = set()

@@ -300,11 +300,14 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 }) + "\n",
                 encoding="utf-8",
             )
+            event_log = str(events)
+            probe_evidence_path = str(probe)
+            completion_log = str(completions)
             with self.assertRaisesRegex(ValueError, "HTTP 200"):
                 helper.write_allow_event(
-                    event_log=str(events),
-                    probe_evidence_path=str(probe),
-                    completion_log=str(completions),
+                    event_log=event_log,
+                    probe_evidence_path=probe_evidence_path,
+                    completion_log=completion_log,
                     transaction_id="envoy-ext-proc-allow-1",
                 )
 
@@ -318,9 +321,9 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             completions.write_text("\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "exactly one ext_proc completion"):
                 helper.write_allow_event(
-                    event_log=str(events),
-                    probe_evidence_path=str(probe),
-                    completion_log=str(completions),
+                    event_log=event_log,
+                    probe_evidence_path=probe_evidence_path,
+                    completion_log=completion_log,
                     transaction_id="envoy-ext-proc-allow-1",
                 )
 
