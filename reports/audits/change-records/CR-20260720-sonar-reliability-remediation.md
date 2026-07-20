@@ -82,6 +82,15 @@ limit, weaken validation, or hide a scanner result.
 | `rtk proxy cc -std=c17 -Wall -Wextra -Werror -fsyntax-only ...` for each touched C translation unit | passed for Traefik engine service, Common authorization service, native oracle, and HAProxy SPOP diagnostic runtime. |
 | `rtk git diff --check` | passed after the documentation pair. |
 
+## Runtime evidence
+
+No complete native connector runtime was exercised in this isolated worktree.
+The retained local evidence is C17 syntax validation of all four touched C
+translation units plus focused contracts for the Envoy receive boundary,
+Traefik mutex/serialization boundaries, provisioning guard, and bilingual
+documentation. Fresh PR-head GitHub and SonarQube Cloud evidence remains
+required before claiming the original Bug keys are resolved.
+
 ## Checks not run and rationale
 
 - A broader `tests.test_prepare_runtime_components` run exercised 38 tests;
@@ -93,21 +102,31 @@ limit, weaken validation, or hide a scanner result.
 - Full native connector builds and runtime harnesses require a linkable local
   libmodsecurity installation and/or host source; only C17 syntax validation
   was available in this worktree.
+- The repository-wide bilingual checker reached the link phase without a
+  Change-Record heading error, then stopped at unrelated missing Framework
+  link targets because this isolated Parent worktree has no initialized
+  Framework checkout. The exact PR-head CI checker is the pending full-scope
+  evidence.
 - Fresh GitHub Actions, CodeQL, SonarQube Cloud, review, and PR evidence remain
   delivery checks and have not yet been observed for these local changes.
 
-## Known limitations and remaining risks
+## Known limitations
 
 The C17 checks and focused contracts prove source-level safety and compatibility
 at the touched boundaries, but they are not a fresh SonarQube Cloud result.
+
+## Remaining risks
+
 The current master also contains independent unreviewed security hotspots and
-vulnerability backlog tracked separately; this record does not claim to resolve
-them. The final delivery state remains local and uncommitted until the scoped
-diff, documentation checks, commit, PR, and exact-head checks are completed.
+a vulnerability backlog tracked separately; this record does not claim to
+resolve them. Delivery is an open Draft PR (#66) whose exact current head,
+GitHub checks, CodeQL result, review, and SonarQube Cloud analysis remain
+required before this work can reach `verified_pr`.
 
 ## Final diff and review status
 
-At creation time the implementation has focused regression/control evidence
-and C17 syntax checks. The Change Record pair is intentionally explicit about
-the missing Framework prerequisite and pending remote checks. This record does
-not authorize a merge.
+The initial local commit is
+`d1ec42d0ebf713b3e898538ea125c8d6e5b8bf6d`; it is delivered through Draft PR
+#66. The Change Record pair is intentionally explicit about the missing
+Framework prerequisite and pending remote checks. This record does not
+authorize a merge.

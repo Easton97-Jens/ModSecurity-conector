@@ -88,6 +88,16 @@ keine Validierung und verbergen kein Scanner-Ergebnis.
 | `rtk proxy cc -std=c17 -Wall -Wextra -Werror -fsyntax-only ...` für jede berührte C-Translation-Unit | bestanden für Traefik-Engine-Service, Common-Authorization-Service, Native Oracle und HAProxy-SPOP-Diagnostik. |
 | `rtk git diff --check` | nach dem Dokumentationspaar bestanden. |
 
+## Runtime-Evidence
+
+In diesem isolierten Worktree wurde keine vollständige native Connector-Runtime
+ausgeführt. Die aufbewahrte lokale Evidence besteht aus C17-Syntaxvalidierung
+aller vier berührten C-Translation-Units sowie fokussierten Contracts für die
+Envoy-Receive-Grenze, Traefik-Mutex-/Serialisierungsgrenzen, den
+Provisioning-Guard und die zweisprachige Dokumentation. Frische GitHub- und
+SonarQube-Cloud-Evidence für den PR-Head ist weiterhin erforderlich, bevor die
+ursprünglichen Bug-Keys als behoben behauptet werden.
+
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - Ein breiterer Lauf von `tests.test_prepare_runtime_components` führte 38
@@ -99,23 +109,34 @@ keine Validierung und verbergen kein Scanner-Ergebnis.
 - Vollständige native Connector-Builds und Runtime-Harnesses benötigen eine
   linkbare lokale libmodsecurity-Installation und/oder Host-Source; verfügbar
   war nur die C17-Syntaxvalidierung.
+- Der repositoryweite Bilingual-Checker erreichte die Link-Phase ohne
+  Change-Record-Heading-Fehler und stoppte dann an unabhängigen fehlenden
+  Framework-Link-Targets, weil dieser isolierte Parent-Worktree keinen
+  initialisierten Framework-Checkout besitzt. Der CI-Checker für den exakten
+  PR-Head bleibt die ausstehende Full-Scope-Evidence.
 - Frische GitHub-Actions-, CodeQL-, SonarQube-Cloud-, Review- und PR-Evidence
   bleiben Delivery-Prüfungen und wurden für diese lokalen Änderungen noch nicht
   beobachtet.
 
-## Bekannte Einschränkungen und verbleibende Risiken
+## Bekannte Einschränkungen
 
 Die C17-Prüfungen und fokussierten Contracts belegen Source-Level-Sicherheit
 und Kompatibilität an den berührten Grenzen, sind aber kein frisches
-SonarQube-Cloud-Ergebnis. Der aktuelle Master enthält außerdem unabhängige
-unreviewte Security-Hotspots und einen Vulnerability-Backlog, die getrennt
-getrackt werden; dieser Record behauptet nicht, sie zu lösen. Der finale
-Delivery-Status bleibt lokal und uncommitted, bis Scoped-Diff,
-Dokumentationsprüfungen, Commit, PR und Exact-Head-Checks abgeschlossen sind.
+SonarQube-Cloud-Ergebnis.
+
+## Verbleibende Risiken
+
+Der aktuelle Master enthält außerdem unabhängige unreviewte Security-Hotspots
+und einen getrennt getrackten Vulnerability-Backlog; dieser Record behauptet
+nicht, sie zu lösen. Die Delivery ist ein offener Draft-PR (#66), dessen
+exakter aktueller Head, GitHub-Checks, CodeQL-Ergebnis, Review und
+SonarQube-Cloud-Analyse weiterhin erforderlich sind, bevor diese Arbeit
+`verified_pr` erreichen kann.
 
 ## Finaler Diff- und Review-Status
 
-Zum Erstellzeitpunkt besitzt die Implementierung fokussierte
-Regression-/Control-Evidence und C17-Syntaxprüfungen. Das Change-Record-Paar
-benennt die fehlende Framework-Prerequisite und ausstehende Remote-Checks
-bewusst explizit. Dieser Record autorisiert keinen Merge.
+Der erste lokale Commit ist
+`d1ec42d0ebf713b3e898538ea125c8d6e5b8bf6d`; er wird über Draft-PR #66
+ausgeliefert. Das Change-Record-Paar benennt die fehlende
+Framework-Prerequisite und ausstehende Remote-Checks bewusst explizit. Dieser
+Record autorisiert keinen Merge.
