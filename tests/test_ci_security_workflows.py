@@ -211,7 +211,7 @@ class CiSecurityWorkflowTest(unittest.TestCase):
 
     def test_codeql_has_fixed_go_and_bounded_cpp_scope(self) -> None:
         text = self.workflow("ci-security-codeql.yml")
-        self.assertEqual(text.count("go-version: '1.24.0'"), 2)
+        self.assertEqual(text.count("go-version: '1.24.13'"), 2)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
         self.assertIn("make check-common-helpers-c17", text)
