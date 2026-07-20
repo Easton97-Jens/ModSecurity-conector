@@ -714,13 +714,16 @@ static int traefik_engine_record_host_outcome(traefik_engine_session *session,
 
 static void traefik_engine_session_destroy(traefik_engine_session *session)
 {
+    traefik_engine_service *service;
+
     if (session == NULL || session->transaction == NULL) {
         return;
     }
-    if (session->service != NULL &&
-        pthread_mutex_lock(&session->service->runtime_lock) == 0) {
+    service = session->service;
+    if (service != NULL &&
+        pthread_mutex_lock(&service->runtime_lock) == 0) {
         msconnector_runtime_transaction_destroy(&session->transaction);
-        (void)pthread_mutex_unlock(&session->service->runtime_lock);
+        (void)pthread_mutex_unlock(&service->runtime_lock);
     }
     session->destroyed = 1;
 }
@@ -730,6 +733,7 @@ static int traefik_engine_handle_begin(traefik_engine_session *session,
     uint8_t *result_code)
 {
     traefik_engine_request_input input;
+    traefik_engine_service *service;
     msconnector_error error;
     int success;
 
@@ -740,16 +744,17 @@ static int traefik_engine_handle_begin(traefik_engine_session *session,
         return 0;
     }
     msconnector_error_init(&error);
-    if (session->service == NULL ||
-        pthread_mutex_lock(&session->service->runtime_lock) != 0) {
+    service = session->service;
+    if (service == NULL ||
+        pthread_mutex_lock(&service->runtime_lock) != 0) {
         traefik_engine_request_input_free(&input);
         *result_code = TRAEFIK_ENGINE_PROTOCOL_RESULT_INTERNAL;
         return -1;
     }
-    success = msconnector_runtime_transaction_begin(session->service->runtime,
+    success = msconnector_runtime_transaction_begin(service->runtime,
         &input.request, input.host_request_id, &session->transaction, decision,
         &error);
-    (void)pthread_mutex_unlock(&session->service->runtime_lock);
+    (void)pthread_mutex_unlock(&service->runtime_lock);
     traefik_engine_request_input_free(&input);
     if (!success) {
         *result_code = traefik_engine_result_for_runtime_error(&error);

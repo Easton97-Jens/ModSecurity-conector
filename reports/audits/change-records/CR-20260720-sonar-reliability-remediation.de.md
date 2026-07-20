@@ -9,7 +9,7 @@
 | Change-ID | `CR-20260720-sonar-reliability-remediation` |
 | Datum (UTC) | `2026-07-20` |
 | Basis-Revision | `5a22cbf5206dbc2b7f53a9f961d72e37d567e188` |
-| Tracking | Aktuelle Parent-Master-SonarQube-Cloud-Bug-Records: `python:S5779`, `python:S1751`, drei `c:S2637`-Stellen, `c:S5489`, `c:S836` und `c:S3519`. |
+| Tracking | Neun aktuelle Parent-Master-SonarQube-Cloud-Bug-Records: `python:S5779`, `python:S1751`, drei `c:S2637`-Stellen, `c:S5489`, `c:S836` und `c:S3519`; zusätzlich die exakten PR-#66-Follow-ups für `c:S5489`-Lock-Identität und einen sichtbar gewordenen `c:S3519`-HAProxy-Quelllängenpfad. |
 | Grenze | Nur Parent-Provisioning, Envoy-Smoke-Helper, Traefik-Engine-Service, Common-Authorization-Service, Native Oracle und HAProxy-SPOP-Diagnostik; Framework und MRTS bleiben unverändert. |
 
 ## Motivation und Problemstellung
@@ -22,6 +22,10 @@ Size-Helper impliziert ist, ein durch Wrapper verdecktes Lock-Paar, einen
 uninitialisierten Socket-Address-Analysepfad, einen nullable JSON-String-
 Fallback und Diagnostik, die den Standard-Error-Stream ohne expliziten Guard
 übergibt.
+Die erste Analyse des exakten PR-Heads beseitigte diese neun Keys, meldete dann
+aber zwei neue direkte-Mutex-`c:S5489`-Pfade und machte einen bereits
+existierenden HAProxy-`append_bytes`-`c:S3519`-Quelllängenpfad sichtbar, weil
+die Diagnostikdatei geändert wurde.
 
 ## Akzeptanzkriterien
 
@@ -48,6 +52,14 @@ akzeptierte und lokale
 Socket-Address-Objekte. Der Native Oracle gibt für einen null optionalen Wert
 einen leeren JSON-String aus, bevor er einen Byte-Cursor bezieht, und die
 HAProxy-Diagnostik prüft den Standard-Error-Stream explizit.
+
+Die fehlgeschlagene PR-Analyse erforderte anschließend zwei enge Follow-ups:
+Die zwei gemeldeten Traefik-Funktionen halten einen lokalen Service-Zeiger von
+Lock bis Unlock, sodass sie keinen potenziell geänderten `session->service`
+entsperren können; und HAProxy `append_bytes` erhält und validiert eine
+explizite Quelllänge vor dem Kopieren. Die aktuellen direkten Caller übergeben
+ihre tatsächliche `uint32_t`-, begrenzte String- oder SPOP-Payload-Länge;
+abweichende Quell-/Kopierlängen liefern nun vor der Kopie `-1`.
 
 Dies sind enge, verhaltenserhaltende Änderungen an den vorhandenen
 Enforcement- oder Diagnostik-Grenzen; weder öffentliche API noch
@@ -81,12 +93,14 @@ keine Validierung und verbergen kein Scanner-Ergebnis.
 
 | Befehl | Ergebnis |
 | --- | --- |
-| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_sonar_reliability_contract` | bestanden: 5 fokussierte Source-Contract-Tests. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_sonar_reliability_contract` | bestanden: 6 fokussierte Source-Contract-Tests nach dem PR-Follow-up. |
 | `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_envoy_transport_hardening_contract` | bestanden: 8 Envoy-Transport-Controls. |
 | `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_traefik_native_local_plugin` | bestanden: 16 Traefik-Native-Plugin-/UDS-Controls. |
 | `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_require_staging_path_rejects_absence_and_preserves_path` | bestanden. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_sonar_reliability_contract tests.test_envoy_transport_hardening_contract tests.test_traefik_native_local_plugin tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_require_staging_path_rejects_absence_and_preserves_path tests.test_bilingual_docs` | bestanden: 42 fokussierte Source-, Transport-, Connector-, Provisioning- und Dokumentationstests nach dem PR-Follow-up. |
 | `rtk proxy cc -std=c17 -Wall -Wextra -Werror -fsyntax-only ...` für jede berührte C-Translation-Unit | bestanden für Traefik-Engine-Service, Common-Authorization-Service, Native Oracle und HAProxy-SPOP-Diagnostik. |
-| `rtk git diff --check` | nach dem Dokumentationspaar bestanden. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python ci/checks/connectors/haproxy/check-haproxy-common-adoption.py` | nach dem Quelllängen-Follow-up bestanden. |
+| `rtk git diff --check` | nach dem finalen PR-Follow-up-Dokumentationsupdate bestanden. |
 
 ## Runtime-Evidence
 
@@ -96,7 +110,10 @@ aller vier berührten C-Translation-Units sowie fokussierten Contracts für die
 Envoy-Receive-Grenze, Traefik-Mutex-/Serialisierungsgrenzen, den
 Provisioning-Guard und die zweisprachige Dokumentation. Frische GitHub- und
 SonarQube-Cloud-Evidence für den PR-Head ist weiterhin erforderlich, bevor die
-ursprünglichen Bug-Keys als behoben behauptet werden.
+ursprünglichen Bug-Keys als behoben behauptet werden. PR-#66-Head
+`97c24192268d567575f0c1417872e1d79911e0dc` beseitigte die ursprünglichen neun
+Keys, scheiterte aber mit drei Reliability-Follow-up-Bugs; dieser Record
+dokumentiert die Source-Level-Reparatur bis zu ihrer Nachfolgeanalyse.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -114,9 +131,11 @@ ursprünglichen Bug-Keys als behoben behauptet werden.
   Framework-Link-Targets, weil dieser isolierte Parent-Worktree keinen
   initialisierten Framework-Checkout besitzt. Der CI-Checker für den exakten
   PR-Head bleibt die ausstehende Full-Scope-Evidence.
-- Frische GitHub-Actions-, CodeQL-, SonarQube-Cloud-, Review- und PR-Evidence
-  bleiben Delivery-Prüfungen und wurden für diese lokalen Änderungen noch nicht
-  beobachtet.
+- Die erste Runde exakter PR-Head-GitHub-Actions, CodeQL, OSV, Secret-Scanning,
+  actionlint und zizmor bestand; SonarQube-Cloud-Analyse
+  `29add8e9-7fb9-41a6-a250-29a9fbf53e7c` scheiterte allein am Reliability Rating
+  mit drei Bugs. Der Nachfolgepush benötigt erneut eine vollständige
+  Exact-Head-Runde einschließlich SonarQube Cloud, Review und PR-Evidence.
 
 ## Bekannte Einschränkungen
 
@@ -128,15 +147,18 @@ SonarQube-Cloud-Ergebnis.
 
 Der aktuelle Master enthält außerdem unabhängige unreviewte Security-Hotspots
 und einen getrennt getrackten Vulnerability-Backlog; dieser Record behauptet
-nicht, sie zu lösen. Die Delivery ist ein offener Draft-PR (#66), dessen
-exakter aktueller Head, GitHub-Checks, CodeQL-Ergebnis, Review und
-SonarQube-Cloud-Analyse weiterhin erforderlich sind, bevor diese Arbeit
-`verified_pr` erreichen kann.
+nicht, sie zu lösen. Der nach dem Dokumentations-Follow-up erzeugte Head des
+Draft-PR #66 scheiterte am SonarQube-Cloud-Reliability-Gate; die Follow-up-
+Source-Änderungen sind keine verifizierte Schließung, bis ein neuer exakter Head
+null PR-Bugs und ein bestehendes Quality Gate zeigt.
 
 ## Finaler Diff- und Review-Status
 
 Der erste lokale Commit ist
-`d1ec42d0ebf713b3e898538ea125c8d6e5b8bf6d`; er wird über Draft-PR #66
-ausgeliefert. Das Change-Record-Paar benennt die fehlende
-Framework-Prerequisite und ausstehende Remote-Checks bewusst explizit. Dieser
-Record autorisiert keinen Merge.
+`d1ec42d0ebf713b3e898538ea125c8d6e5b8bf6d`, gefolgt vom Dokumentationscommit
+`97c24192268d567575f0c1417872e1d79911e0dc`; letzterer machte die drei
+SonarQube-Cloud-Follow-up-Bugs in Draft-PR #66 sichtbar. Dieses Change-Record-
+Paar enthält nun die lokale Source-Remediation für diese Bugs. Ein
+Nachfolge-PR-Head sowie dessen exakte Check-Runde und Quality Gate sind noch
+erforderlich, bevor diese Arbeit verifiziert ist; dieser Record autorisiert
+keinen Merge.

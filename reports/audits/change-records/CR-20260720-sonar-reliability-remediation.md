@@ -9,7 +9,7 @@
 | Change ID | `CR-20260720-sonar-reliability-remediation` |
 | Date (UTC) | `2026-07-20` |
 | Base revision | `5a22cbf5206dbc2b7f53a9f961d72e37d567e188` |
-| Tracking | Current Parent-master SonarQube Cloud Bug records: `python:S5779`, `python:S1751`, three `c:S2637` locations, `c:S5489`, `c:S836`, and `c:S3519`. |
+| Tracking | Nine current Parent-master SonarQube Cloud Bug records: `python:S5779`, `python:S1751`, three `c:S2637` locations, `c:S5489`, `c:S836`, and `c:S3519`; plus the exact PR #66 follow-up `c:S5489` lock-identity paths and a surfaced `c:S3519` HAProxy source-extent path. |
 | Boundary | Parent provisioning, Envoy smoke helper, Traefik engine service, Common authorization service, native oracle, and HAProxy SPOP diagnostics only; Framework and MRTS remain unchanged. |
 
 ## Motivation and problem statement
@@ -20,6 +20,9 @@ single-iteration loop. The native records include optional pointer copies whose
 null-safety is only implied by a size helper, a wrapper-obscured lock pair, an
 uninitialized socket-address analysis path, a nullable JSON-string fallback,
 and diagnostics that pass the standard-error stream without an explicit guard.
+The first exact PR-head analysis eliminated those nine keys, but then reported
+two new direct-mutex `c:S5489` paths and surfaced a pre-existing HAProxy
+`append_bytes` `c:S3519` source-extent path because the diagnostic file changed.
 
 ## Acceptance criteria
 
@@ -44,6 +47,14 @@ lock/unlock relation visible at each call site. Common
 initializes accepted and local socket-address objects. The native oracle emits
 an empty JSON string for a null optional value before obtaining a byte cursor,
 and HAProxy diagnostics explicitly verify the standard-error stream.
+
+The failed PR analysis then required two narrow follow-ups: the two reported
+Traefik functions retain one local service pointer from lock through unlock, so
+they cannot unlock a potentially changed `session->service`; and HAProxy
+`append_bytes` receives and validates an explicit source extent before copying.
+The current direct callers supply their actual `uint32_t`, bounded-string, or
+SPOP-payload extent; mismatched source-length pairs now return `-1` before the
+copy.
 
 These are narrow, behavior-preserving changes at the existing enforcement or
 diagnostic boundaries; no public API, connector protocol, Framework source,
@@ -75,12 +86,14 @@ limit, weaken validation, or hide a scanner result.
 
 | Command | Result |
 | --- | --- |
-| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_sonar_reliability_contract` | passed: 5 focused source-contract tests. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_sonar_reliability_contract` | passed: 6 focused source-contract tests after the PR follow-up. |
 | `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_envoy_transport_hardening_contract` | passed: 8 Envoy transport controls. |
 | `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_traefik_native_local_plugin` | passed: 16 Traefik native-plugin/UDS controls. |
 | `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_require_staging_path_rejects_absence_and_preserves_path` | passed. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_sonar_reliability_contract tests.test_envoy_transport_hardening_contract tests.test_traefik_native_local_plugin tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_require_staging_path_rejects_absence_and_preserves_path tests.test_bilingual_docs` | passed: 42 focused source, transport, connector, provisioning, and documentation tests after the PR follow-up. |
 | `rtk proxy cc -std=c17 -Wall -Wextra -Werror -fsyntax-only ...` for each touched C translation unit | passed for Traefik engine service, Common authorization service, native oracle, and HAProxy SPOP diagnostic runtime. |
-| `rtk git diff --check` | passed after the documentation pair. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python ci/checks/connectors/haproxy/check-haproxy-common-adoption.py` | passed after the source-extent follow-up. |
+| `rtk git diff --check` | passed after the final PR-follow-up documentation update. |
 
 ## Runtime evidence
 
@@ -89,7 +102,10 @@ The retained local evidence is C17 syntax validation of all four touched C
 translation units plus focused contracts for the Envoy receive boundary,
 Traefik mutex/serialization boundaries, provisioning guard, and bilingual
 documentation. Fresh PR-head GitHub and SonarQube Cloud evidence remains
-required before claiming the original Bug keys are resolved.
+required before claiming the original Bug keys are resolved. PR #66 head
+`97c24192268d567575f0c1417872e1d79911e0dc` did eliminate the original nine
+keys but failed with three follow-up Reliability Bugs; this record documents
+the source-level repair pending its successor analysis.
 
 ## Checks not run and rationale
 
@@ -107,8 +123,11 @@ required before claiming the original Bug keys are resolved.
   link targets because this isolated Parent worktree has no initialized
   Framework checkout. The exact PR-head CI checker is the pending full-scope
   evidence.
-- Fresh GitHub Actions, CodeQL, SonarQube Cloud, review, and PR evidence remain
-  delivery checks and have not yet been observed for these local changes.
+- The first exact PR-head GitHub Actions, CodeQL, OSV, secret-scanning,
+  actionlint, and zizmor checks passed; SonarQube Cloud analysis
+  `29add8e9-7fb9-41a6-a250-29a9fbf53e7c` failed only its Reliability Rating with
+  three Bugs. The successor push requires a complete fresh exact-head round,
+  including SonarQube Cloud, review, and PR evidence.
 
 ## Known limitations
 
@@ -119,14 +138,17 @@ at the touched boundaries, but they are not a fresh SonarQube Cloud result.
 
 The current master also contains independent unreviewed security hotspots and
 a vulnerability backlog tracked separately; this record does not claim to
-resolve them. Delivery is an open Draft PR (#66) whose exact current head,
-GitHub checks, CodeQL result, review, and SonarQube Cloud analysis remain
-required before this work can reach `verified_pr`.
+resolve them. Draft PR #66's initial post-documentation head failed its
+SonarQube Cloud Reliability Gate; the follow-up source changes are not a
+verified closure until a new exact head receives zero PR Bugs and a passing
+Quality Gate.
 
 ## Final diff and review status
 
 The initial local commit is
-`d1ec42d0ebf713b3e898538ea125c8d6e5b8bf6d`; it is delivered through Draft PR
-#66. The Change Record pair is intentionally explicit about the missing
-Framework prerequisite and pending remote checks. This record does not
-authorize a merge.
+`d1ec42d0ebf713b3e898538ea125c8d6e5b8bf6d`, followed by documentation commit
+`97c24192268d567575f0c1417872e1d79911e0dc`; the latter exposed the three
+SonarQube Cloud follow-up Bugs in Draft PR #66. This Change Record pair now
+includes the local source remediation for those Bugs. A successor PR head and
+its exact check round and Quality Gate are still required before this work is
+verified; this record does not authorize a merge.

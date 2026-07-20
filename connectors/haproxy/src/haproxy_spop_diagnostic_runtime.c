@@ -372,11 +372,11 @@ static int append_byte(spop_buffer *buf, unsigned int value) {
     return 0;
 }
 
-static int append_bytes(spop_buffer *buf, const void *data, size_t len) {
+static int append_bytes(spop_buffer *buf, const void *data, size_t data_len, size_t len) {
     if (buf == 0) {
         return -1;
     }
-    if (buf->len > sizeof(buf->data) || len > sizeof(buf->data) - buf->len) {
+    if (len > data_len || buf->len > sizeof(buf->data) || len > sizeof(buf->data) - buf->len) {
         return -1;
     }
     if (len == 0U) {
@@ -392,7 +392,7 @@ static int append_bytes(spop_buffer *buf, const void *data, size_t len) {
 
 static int append_uint32(spop_buffer *buf, uint32_t value) {
     uint32_t net = htonl(value);
-    return append_bytes(buf, &net, sizeof(net));
+    return append_bytes(buf, &net, sizeof(net), sizeof(net));
 }
 
 static int append_varint(spop_buffer *buf, uint64_t value) {
@@ -447,7 +447,7 @@ static int append_string(spop_buffer *buf, const char *value) {
     if (append_varint(buf, len) != 0) {
         return -1;
     }
-    return append_bytes(buf, value, len);
+    return append_bytes(buf, value, len, len);
 }
 
 static int append_typed_string(spop_buffer *buf, const char *value) {
@@ -1413,7 +1413,7 @@ static int build_frame(unsigned int type, uint64_t stream_id, uint64_t frame_id,
         append_varint(frame, frame_id) != 0) {
         return -1;
     }
-    if (payload != 0 && append_bytes(frame, payload->data, payload->len) != 0) {
+    if (payload != 0 && append_bytes(frame, payload->data, sizeof(payload->data), payload->len) != 0) {
         return -1;
     }
     return 0;
