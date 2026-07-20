@@ -174,7 +174,7 @@ static void write_result(const char *path, const char *status,
     fputs(",\n  \"reason\": ", out);
     json_string(out, reason);
     fputs(",\n  \"libmodsecurity\": ", out);
-    json_string(out, whoami ? whoami : "");
+    json_string(out, whoami);
     fprintf(out, ",\n  \"expected_status\": %d", expected_status);
     fprintf(out, ",\n  \"actual_status\": %d", actual_status);
     fputs(",\n  \"native_match\": ", out);
