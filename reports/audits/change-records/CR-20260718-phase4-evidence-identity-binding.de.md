@@ -63,10 +63,16 @@ Lookalike durch ein Parent-Target für First-Byte, No-Full-Buffer oder
 Promotion als Phase-4-Runtime-Evidence des aktuell ausgewählten Hosts
 promoted wird. Die Resultatgrenze validiert das ausgewählte `host_profile`;
 die Event-Grenze validiert seinen kanonischen nativen `integration_mode`.
-Die Parent-Consumer-Disposition von `FND-PARENT-0027` ist `fixed`; dieser
-Record behauptet keinen Cross-Repository-Abschluss, weil der
-Framework-autoritative Checker die separate Framework-eigene
-Identitätsbindungs-Remediation `FND-CROSS-0006` benötigt.
+Die Parent-Consumer-Disposition von `FND-PARENT-0027` ist `fixed`, aber nicht
+`verified` oder geschlossen. Die zuvor getrennte Framework-autoritative
+Identitätslücke `FND-CROSS-0006` wurde unabhängig durch Framework-PR #34
+remediert und auf Framework-Master
+`3d6f51a2a2eeff6f3bcecff203f1e6ed1e240e4f` verifiziert. Der aktuelle
+Parent-Master referenziert die spätere Framework-Master-Revision
+`efdbcbd98afeed0f39f8912ce1140aaa5742f507`; PR #57 enthält keinen
+Framework-Gitlink-Delta. Dieser Parent-Record behauptet weder eine
+Framework-/MRTS-Aktion noch ändert er den separaten Default-Branch-
+SonarQube-Backlog `FND-SONAR-0002`.
 
 ## Geänderte Dateien
 
@@ -98,7 +104,9 @@ Nicht ausgeführt. Die verifizierte Evidence ist ein fokussierter
 Parent-Unit-/Contract-Test der Validator-Grenze; sie ist keine Connector-
 Runtime- oder Traffic-Behauptung.
 
-## Delivery-Evidence (beobachtet am 2026-07-18 UTC)
+## Delivery-Evidence
+
+### Historische Erstbeobachtung — 2026-07-18 UTC
 
 - Die Implementierungs-Commits wurden auf
   `agent/harden-evidence-phase4-binding` gepusht:
@@ -106,34 +114,56 @@ Runtime- oder Traffic-Behauptung.
   (`ci: bind phase4 evidence identity`) und
   `0124b0d685c69129d4aeace8eff75ccc288e7a8e`
   (`ci: wire phase4 identity checks into promotion gates`).
-- Draft-PR [#57](https://github.com/Easton97-Jens/ModSecurity-conector/pull/57)
-  war zum Beobachtungszeitpunkt gegen `master` `OPEN`. Zu dieser Beobachtung lösten lokales `HEAD`,
-  `origin/agent/harden-evidence-phase4-binding` und der PR-Head alle auf
-  `0124b0d685c69129d4aeace8eff75ccc288e7a8e` auf.
-- Die PR-Check-Zusammenfassung zu dieser Beobachtung meldete 33 bestandene und 0
-  fehlgeschlagene Checks. CodeQL war erfolgreich (Check-Run `88073814250`);
-  SonarCloud Code Analysis war erfolgreich (Check-Run `88073815941`, Quality
-  Gate bestanden mit 0 neuen Issues und 0 Security Hotspots).
-- Die Delivery-Disposition am beobachteten Head war
-  `verified_pr_parent_consumer_scope`: Der Parent-Consumer-PR-Head ist
-  verifiziert, dieses eingegrenzte Ergebnis ist aber kein
-  repository-weites `verified_pr`, solange das hohe, Framework-eigene
-  `FND-CROSS-0006` `validated` bleibt. GitHub meldet keine
-  Review-Entscheidung, und kein Merge ist autorisiert oder ausgeführt.
+- Die anfängliche Draft-PR-Beobachtung war an
+  `0124b0d685c69129d4aeace8eff75ccc288e7a8e` gebunden; sie ist nur
+  historisch und keine Evidence für einen späteren PR-Head.
+
+### Aktuelle Basis-Update-Beobachtung — 2026-07-20 UTC
+
+- Die aktuelle Task-Anweisung autorisiert eine Parent-Master-Integration nur
+  bedingt nach jeder Protection- und Exact-Head-Gate. Sie autorisiert keinen
+  Framework-Master-Merge, keine MRTS-Aktion, keinen direkten Master-Write und
+  keinen Bypass.
+- GitHub aktualisierte Draft-PR
+  [#57](https://github.com/Easton97-Jens/ModSecurity-conector/pull/57) regulär
+  mit aktuellem Parent-Master `9ef0619b9c00729c16b7056943d7843785223095`.
+  Der resultierende PR-Head ist der signierte reguläre Merge-Commit
+  `7a36393797cc7ec7b1659e6823b74e0a58ec9f6e`; der Branch liegt fünf Commits
+  vor und null hinter dieser Basis. Der task-eigene Worktree wurde danach
+  sicher fast-forwarded, sodass lokales `HEAD`, Remote-Branch und PR-Head bei
+  dieser Beobachtung übereinstimmten.
+- An diesem exakten beobachteten Head waren alle 39 GitHub-Check-Runs terminal:
+  33 bestanden, sechs waren scope-gestützte Skips, kein Run war fehlgeschlagen,
+  abgebrochen oder ausstehend. Die sechs strikten Ruleset-Kontexte bestanden;
+  CodeQL bestand mit null offenen Code-Scanning-Alerts, und SonarClouds Quality
+  Gate bestand mit null neuen Issues und null Security Hotspots.
+- GitHub meldete `OPEN`, `DRAFT`, `MERGEABLE` und `CLEAN`; es gab null
+  eingereichte Reviews, Review-Threads, Inline-Kommentare und angeforderte
+  Reviewer. Der aktuelle PR-Diff enthält nur acht Parent-Dateien. Er enthält
+  keinen Framework-, MRTS- oder Gitlink-Pfad-Delta; sowohl Basis als auch Head
+  referenzieren Framework `efdbcbd98afeed0f39f8912ce1140aaa5742f507`. Damit
+  enthält er nicht den separaten Framework-Draft-PR #36.
+- Diese Change-Record-Korrektur erzeugt beim Commit und Push absichtlich einen
+  neuen PR-Head. Die vorhergehenden Exact-Head-Checks und das Review sind dann
+  nur historische Evidence: Der neue Head benötigt vor einer Ready- oder
+  Merge-Entscheidung wieder einen vollständigen Zyklus aus GitHub-Checks,
+  CodeQL, SonarCloud, Review/Threads und finalem Diff. Es wurde kein Merge
+  durchgeführt.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Kein Connector-Build, kein Runtime-Harness, keine CRS/MRTS-Matrix und keine
 Framework-Änderung wurden ausgeführt. Sie liegen weiter außerhalb des
 Parent-Consumer-Validierungs-Scopes. `make check-doc-links` wurde nicht
-ausgeführt, weil sein Target den Framework-Dokumentationschecker aufruft; die
-aktuelle Aufgabe schließt Framework-Arbeit aus und dieser Worktree enthält
-keine befüllten Framework-Dokumentationsziele. Der umfassende
-`security-diff-scan`-Worker-Workflow wurde nicht ausgeführt, weil alle
-verfügbaren Delegations-Slots bereits belegt waren; sein Capability-Preflight
-lieferte `ready`. Die aktuellen Fakten zu CodeQL, SonarCloud, GitHub Actions,
-Commit, Push und Draft-PR sind oben für den beobachteten exakten PR-Head-SHA
-festgehalten; kein Merge erfolgte.
+ausgeführt, weil sein Target den Framework-Dokumentationschecker aufruft;
+dieser dedizierte Worktree enthält keine befüllten
+Framework-Dokumentationsziele. Der umfassende `security-diff-scan`-
+Worker-Workflow wird für die aktuelle Basis-Update-Beobachtung nicht
+behauptet; eine fokussierte unabhängige Diff-Review fand an
+`7a36393797cc7ec7b1659e6823b74e0a58ec9f6e` keinen konkreten neuen Bypass.
+Für den noch zu erzeugenden Dokumentations-Commit existiert kein Exact-Head-
+Remote-Check; sein vollständiger frischer Delivery-Zyklus bleibt erforderlich.
+Es erfolgte kein Merge.
 
 ## Bekannte Einschränkungen
 
@@ -142,10 +172,10 @@ Parent-Eventmodell vorhanden sind. Sie erstellt, signiert oder verändert
 bewusst keinen Framework-Producer-Vertrag. Ein Runtime-Producer, der ein
 erforderliches Feld auslässt, schlägt nun geschlossen fehl und benötigt eine
 separat begrenzte Producer-Remediation, falls dies in einem tatsächlichen
-Harness-Run auftritt. `FND-CROSS-0006` (`Framework authoritative Phase-4
-checker does not bind promoted events to selected workload identity`) bleibt
-ein hohes, `validated`, Framework-eigenes Finding und verhindert eine
-Cross-Repository-Abschlussbehauptung.
+Harness-Run auftritt. `FND-CROSS-0006` ist jetzt unabhängig auf
+Framework-Master verifiziert; dieser Parent-only PR schließt weder
+`FND-PARENT-0027` noch bearbeitet er den separaten Framework-Default-Branch-
+SonarQube-Backlog `FND-SONAR-0002`.
 
 ## Verbleibende Risiken
 
@@ -153,9 +183,10 @@ Diese Änderung liefert keine Signatur oder unveränderliche Manifestkette für
 einen bösartigen Producer oder eine Resultatdatei; das sind getrennte
 Evidence-Authentizitätsgrenzen. Sie stellt sicher, dass dieser Validator eine
 übereinstimmende `rule_id` und Phase nicht mehr als ausreichende
-Identitäts-Evidence behandelt. Der Framework-autoritative Checker bleibt eine
-getrennte High-Risk-Boundary, bis `FND-CROSS-0006` im owning Repository
-remediert und verifiziert ist.
+Identitäts-Evidence behandelt. Die Framework-autoritative Checker-
+Identitätsgrenze wurde separat durch Framework-PR #34 verifiziert; das
+Restrisiko behauptet nicht, dass #57 oder dieser Record den separaten
+Framework-Default-Branch-SonarQube-Backlog verändert.
 
 ## Finaler Diff- und Review-Status
 
@@ -163,10 +194,12 @@ Der erste Identity-Matcher-Commit verdrahtete die Parent-Checks noch nicht in
 die tatsächlichen Make-Targets für First-Byte und Promotion; eine unabhängige
 Security-Review identifizierte diese Reachability-Lücke. Dieser Change Record
 enthält die Parent-Verdrahtungs-Remediation und ihren statischen Contract-Test
-aus dem Follow-up-Commit `0124b0d685c69129d4aeace8eff75ccc288e7a8e`. Die
-Exact-Head-Delivery-Evidence steht oben: Das Parent-Consumer-Ergebnis ist
-`verified_pr_parent_consumer_scope`, während `FND-CROSS-0006` eine
-repository-weite Abschlussbehauptung verhindert. Der PR blieb zu dieser
-Beobachtung Draft; diese Dokumentationskorrektur benötigt vor einer neuen
-Delivery-Behauptung einen frischen Exact-Head-Review. Kein Merge ist autorisiert
-oder ausgeführt.
+aus dem Follow-up-Commit `0124b0d685c69129d4aeace8eff75ccc288e7a8e`. Eine
+fokussierte unabhängige Review des regulär aktualisierten Heads
+`7a36393797cc7ec7b1659e6823b74e0a58ec9f6e` fand keinen konkreten neuen
+Security-Bypass; die beobachtete Exact-Head-CI/CodeQL/Sonar-Evidence steht
+oben. Diese Dokumentationskorrektur macht diesen Head historisch; nach eigenem
+Commit und Push müssen ein frisches Exact-Head-Review und alle erforderlichen
+Checks bestehen, bevor #57 Draft verlassen oder in den bedingten
+Parent-Master-Integrationsablauf eintreten kann. Es wurde kein Merge
+durchgeführt.
