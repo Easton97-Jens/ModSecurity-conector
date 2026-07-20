@@ -61,9 +61,13 @@ Producer und Consumer. Er leitet jeden Ort aus Build-Root und der festen
 weist statisch beobachtete escapte, symlinkte, nichtreguläre, sich ändernde
 oder malformatierte Dateien beim Hashing zurück und schreibt das finale JSON
 mit exklusiver Erstellung plus `fsync`. Existierende Receipts werden validiert,
-niemals überschrieben. Die getrennte `FND-PARENT-0032`-Remediation ist nötig,
-bevor Resistenz gegen einen konkurrierenden Zwischenverzeichnis-Swap zwischen
-Pfadprüfung und Nutzung behauptet werden kann.
+niemals überschrieben. Der speziell validierte Aggregate-Receipt-
+Zwischenverzeichnis-Swap wird durch die descriptor-relative
+Traversal-/Publikations-Remediation in `FND-PARENT-0037` adressiert, die im
+selben gemeinsamen Parent-Kandidaten enthalten ist. Dieser Record behauptet
+keine unabhängige Verifikation dieser Remediation. `FND-PARENT-0032` bleibt ein
+eigenständiges historisches Finding und wird hier weder umbenannt noch
+geschlossen.
 
 Der Parent-Lifecycle-Runner ruft den Sealer nur auf, nachdem er seine eigene
 Runtime-Completion-Semantik auf `full-matrix-parallel` oder
@@ -95,9 +99,12 @@ Dies etabliert für sich keinen realen Connector-Host/Prozess/Traffic-Nachweis;
 diese Grenzen bleiben separat verfolgt. Es behauptet auch keine kryptografische
 Signatur oder Privileggrenze gegenüber beliebigem Same-UID-Code, der den
 Receipt nach Parent-Sealing umschreiben kann. Ebenso wird nicht behauptet,
-dass die aktuelle pfadnamenbasierte Implementierung einem konkurrierenden
-Zwischenverzeichnis-Swap widersteht; dieses getrennte Path-Confinement-Finding
-wird als `FND-PARENT-0032` verfolgt.
+dass dieser Record Resistenz gegen einen konkurrierenden
+Zwischenverzeichnis-Swap unabhängig verifiziert. Die zugehörige
+descriptor-relative Reparatur wird als `FND-PARENT-0037` im selben gemeinsamen
+Kandidaten verfolgt und benötigt weiter frische Exact-Head-Validierung.
+`FND-PARENT-0032` bleibt ein eigenständiges historisches Finding und wird durch
+diese Arbeit weder umbenannt noch geschlossen.
 
 ## Runtime-Evidence
 
@@ -124,11 +131,13 @@ eine getrennte Runner-eigene Storage-, ACL-, Identitäts- oder
 External-Attestation-Kontrolle. Dieses Risiko wird weder akzeptiert noch durch
 diese Änderung verborgen.
 
-Ein konkurrierendes Matrix-Child kann außerdem die gegenwärtigen lexikalischen
-Pfadprüfungen durch Austauschen eines Zwischenverzeichnisses nach dessen
-Prüfung rennen. `FND-PARENT-0032` verfolgt die notwendige
-Descriptor-relative Traversal-/Publikations-Reparatur auf einem getrennten
-Path-Confinement-Branch; dieser Record überhöht diese Kontrolle nicht.
+Die speziell validierte Zwischenverzeichnis-Swap-Klasse wird durch die
+descriptor-relative Traversal-/Publikations-Reparatur in `FND-PARENT-0037`
+adressiert, die im selben gemeinsamen Kandidaten enthalten ist und weiter
+frische Exact-Head-Validierung erwartet. `FND-PARENT-0032` bleibt ein
+eigenständiges historisches Finding; es ist weder gleichbedeutend mit noch
+durch `FND-PARENT-0037` geschlossen. Dieser Record überhöht keine der beiden
+Kontrollen.
 
 ## Geänderte Dateien
 
@@ -150,15 +159,28 @@ Path-Confinement-Branch; dieser Record überhöht diese Kontrolle nicht.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Der reale Connector-/Runtime-Harness, die vollständige externe
-Komponentenmatrix, Exact-Head-CI, CodeQL, SonarQube Cloud und PR-Review
-benötigen die separat provisionierte Umgebung oder den zukünftigen Draft-PR.
-Ihr Fehlen autorisiert keinen synthetischen Erfolg, Governance-only-Ersatz,
-Framework/MRTS-Change oder Merge.
+Der reale Connector-/Runtime-Harness und die vollständige externe
+Komponentenmatrix benötigen die separat provisionierte Umgebung. Ihr Fehlen
+autorisiert keinen synthetischen Erfolg oder Governance-only-Ersatz. Die
+beobachtete frühere Exact-Head-Validierung des Draft-Parent-PR #59 bei
+`d4f88b886dac6fd5f483940015d6310bc239f814` hatte 33 erfolgreiche und sechs
+übersprungene Checks; CodeQL und das SonarQube-Cloud-Quality-Gate bestanden.
+Diese Evidenz gilt nur für `d4f88b886dac6fd5f483940015d6310bc239f814`. Der
+Draft liegt hinter aktuellem Parent-`master`
+`9ef0619b9c00729c16b7056943d7843785223095`, daher muss auf ein reguläres Update
+frische Exact-Head-CI, CodeQL, SonarQube Cloud und PR-Review vor der Readiness
+folgen; die ursprüngliche Reproduktion ist nach einem Merge zu wiederholen.
+Kein Framework- oder MRTS-Test, keine Gitlink-Änderung und kein Merge erfolgte,
+und keine Prüfung darf umgangen werden.
 
 ## Finaler Diff- und Review-Status
 
-Die Fixture-first-Implementierung läuft auf ihrem eigenen gestapelten
-Parent-Branch. Unabhängiges Security-Review, finale lokale Checks,
-Exact-Head-Delivery-Checks und ein separater Draft-PR bleiben erforderlich.
-Kein Merge ist autorisiert.
+Der Draft-Parent-PR #59 ist der user-autorisierte gemeinsame/gestaffelte,
+Parent-only-Delivery-Kandidat für `FND-PARENT-0030`, `FND-PARENT-0031` und
+`FND-PARENT-0037`. Alle drei sind auf diesem Kandidaten fixed, aber keines ist
+verified, closed oder risk-accepted. Sein zuvor validierter Head ist
+`d4f88b886dac6fd5f483940015d6310bc239f814`; der Draft liegt hinter aktuellem
+Parent-`master` `9ef0619b9c00729c16b7056943d7843785223095`. Ein reguläres
+Update, frische Exact-Head-Checks und Review sowie die ursprüngliche
+Reproduktion nach dem Merge bleiben erforderlich. Es wird keine Framework-,
+MRTS- oder Gitlink-Änderung und kein Merge behauptet.

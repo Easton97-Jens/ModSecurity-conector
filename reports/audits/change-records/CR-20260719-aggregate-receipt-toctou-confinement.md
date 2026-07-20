@@ -54,6 +54,14 @@ Structured JSON and JSONL receipt inputs have a 1 MiB limit; log and result reco
 
 The validated intermediate-symlink time-of-check/time-of-use path is closed for receipt-helper reads and publication: a directory descriptor, not a later pathname lookup, names every traversed object. The runner no longer converts a post-seal mutable pathname into new purported receipt metadata. The strict consumer additionally revalidates the aggregate receipt and command receipt immediately before success, so deterministic post-validation artifact and command replacements fail closed. This preserves the `FND-PARENT-0031` producer-authenticity binding and the `FND-PARENT-0030` consumer-confinement checks.
 
+The follow-up at the previously validated PR #59 head
+`d4f88b886dac6fd5f483940015d6310bc239f814` sets
+`SEALED_RECEIPT_MODE = stat.S_IRUSR`, making the sealed aggregate receipt
+owner-read-only (mode `0400`) and testing that mode. It narrows ordinary
+file-mode access after sealing, but does not establish an ACL, identity,
+signature, or same-UID isolation boundary. It is neither risk acceptance nor
+`risk-accepted`, `verified`, or `closed` for this finding.
+
 ## Runtime evidence
 
 Not established. Focused temporary fixtures prove affected Parent I/O behavior but do not claim a connector host, request traffic, CRS, Framework, MRTS, or twelve-cell runtime execution.
@@ -68,8 +76,26 @@ Descriptor-relative traversal and the final strict-consumer rereads eliminate th
 
 ## Checks not run and rationale
 
-No real connector/runtime matrix, external component download, Framework or MRTS test, exact-head CI, CodeQL, SonarQube Cloud, PR review, push, or merge is claimed. Those checks require their isolated or delivery workflows and cannot be replaced by governance-only validation.
+No real connector/runtime matrix, external component download, Framework, or
+MRTS test is claimed. Those checks require their isolated workflows and cannot
+be replaced by governance-only validation. The observed prior exact-head
+validation for Draft Parent PR #59 at
+`d4f88b886dac6fd5f483940015d6310bc239f814` had 33 successful and six skipped
+checks, with CodeQL and the SonarQube Cloud Quality Gate passed. That evidence
+applies only to `d4f88b886dac6fd5f483940015d6310bc239f814`. The draft is behind
+current Parent `master` `9ef0619b9c00729c16b7056943d7843785223095`, so a normal
+update must be followed by fresh exact-head CI, CodeQL, SonarQube Cloud, and PR
+review before readiness; the original reproduction must be repeated after a
+merge. No Gitlink change or merge occurred, and no check may be bypassed.
 
 ## Final diff and review status
 
-The Parent-only remediation is locally implemented and covered by focused controls. The source-level security review found no remaining high-impact bypass in this boundary. Exact-head delivery validation and the open Parent/Framework blockers remain prerequisites for any master-integration decision.
+Draft Parent PR #59 is the user-authorized combined/stacked, Parent-only
+delivery candidate for `FND-PARENT-0030`, `FND-PARENT-0031`, and
+`FND-PARENT-0037`. All three are fixed on that candidate, but none is verified,
+closed, or risk-accepted. It includes the `0400` sealed-receipt hardening
+follow-up at its previously validated head
+`d4f88b886dac6fd5f483940015d6310bc239f814`; the draft is behind current Parent
+`master` `9ef0619b9c00729c16b7056943d7843785223095`. A normal update, fresh
+exact-head checks and review, and post-merge original reproduction remain
+required. No Framework, MRTS, or Gitlink change and no merge is claimed.

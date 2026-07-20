@@ -54,9 +54,12 @@ consumer helper. It derives every location from the build root and the fixed
 3 × 2 × 2 matrix; it does not trust a child-provided artifact path. It rejects
 statically observed escaped, symlinked, nonregular, changing, or malformed
 files while hashing, and writes the final JSON with exclusive creation plus
-`fsync`. Existing receipts are validated, never overwritten. The separate
-`FND-PARENT-0032` remediation is required before claiming resistance to a
-concurrent intermediate-directory swap between a pathname check and use.
+`fsync`. Existing receipts are validated, never overwritten. The specifically
+validated aggregate-receipt intermediate-directory swap is addressed by the
+descriptor-relative traversal/publication remediation in `FND-PARENT-0037`,
+which is carried in the same combined Parent candidate. This record does not
+claim independent verification of that remediation. `FND-PARENT-0032` remains
+a separate historical finding and is neither renamed nor closed here.
 
 The Parent lifecycle runner calls the sealer only after applying its own
 runtime completion semantics to `full-matrix-parallel` or
@@ -85,9 +88,11 @@ This does not establish real connector-host/process/traffic evidence by
 itself; those boundaries remain separately tracked. It also does not claim a
 cryptographic signature or a privilege boundary against arbitrary same-UID
 code that can rewrite the receipt after the Parent seals it. It likewise does
-not claim that the current pathname-based implementation resists a concurrent
-intermediate-directory swap; that distinct path-confinement finding is tracked
-as `FND-PARENT-0032`.
+not claim that this record independently verifies resistance to a concurrent
+intermediate-directory swap. The corresponding descriptor-relative repair is
+tracked as `FND-PARENT-0037` in the same combined candidate and still requires
+fresh exact-head validation. `FND-PARENT-0032` remains a distinct historical
+finding and is neither renamed nor closed by this work.
 
 ## Runtime evidence
 
@@ -111,10 +116,12 @@ can also replace an unsigned receipt; that requires a distinct runner-owned
 storage, ACL, identity, or external-attestation control. No such risk is
 accepted or hidden by this change.
 
-A concurrent matrix child can also race the present lexical path checks by
-swapping an intermediate directory after it was inspected. `FND-PARENT-0032`
-tracks the required descriptor-relative traversal/publication repair on a
-separate path-confinement branch; this record does not overstate that control.
+The specifically validated intermediate-directory-swap class is addressed by
+the descriptor-relative traversal/publication repair in `FND-PARENT-0037`,
+which is in the same combined candidate and still awaits fresh exact-head
+validation. `FND-PARENT-0032` remains a distinct historical finding; it is
+neither equivalent to nor closed by `FND-PARENT-0037`. This record does not
+overstate either control.
 
 ## Changed files
 
@@ -136,14 +143,26 @@ separate path-confinement branch; this record does not overstate that control.
 
 ## Checks not run and rationale
 
-The real connector/runtime harness, full external component matrix, exact-head
-CI, CodeQL, SonarQube Cloud, and PR review require the separate provisioned
-environment or the future draft PR. Their absence does not authorize a
-synthetic success, governance-only substitute, Framework/MRTS change, or
-merge.
+The real connector/runtime harness and full external component matrix require
+the separately provisioned environment. Their absence does not authorize a
+synthetic success or governance-only substitute. The observed prior exact-head
+validation for Draft Parent PR #59 at
+`d4f88b886dac6fd5f483940015d6310bc239f814` had 33 successful and six skipped
+checks, with CodeQL and the SonarQube Cloud Quality Gate passed. That evidence
+applies only to `d4f88b886dac6fd5f483940015d6310bc239f814`. The draft is behind
+current Parent `master` `9ef0619b9c00729c16b7056943d7843785223095`, so a normal
+update must be followed by fresh exact-head CI, CodeQL, SonarQube Cloud, and PR
+review before readiness; the original reproduction must be repeated after a
+merge. No Framework or MRTS test, Gitlink change, or merge occurred, and no
+check may be bypassed.
 
 ## Final diff and review status
 
-Fixture-first implementation is in progress on its own stacked Parent branch.
-Independent security review, final local checks, exact-head delivery checks,
-and a separate draft PR remain required. No merge is authorized.
+Draft Parent PR #59 is the user-authorized combined/stacked, Parent-only
+delivery candidate for `FND-PARENT-0030`, `FND-PARENT-0031`, and
+`FND-PARENT-0037`. All three are fixed on that candidate, but none is verified,
+closed, or risk-accepted. Its previously validated head is
+`d4f88b886dac6fd5f483940015d6310bc239f814`; the draft is behind current Parent
+`master` `9ef0619b9c00729c16b7056943d7843785223095`. A normal update, fresh
+exact-head checks and review, and post-merge original reproduction remain
+required. No Framework, MRTS, or Gitlink change and no merge is claimed.

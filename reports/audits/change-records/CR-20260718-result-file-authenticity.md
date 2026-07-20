@@ -146,25 +146,36 @@ runtime evidence is stale.
 
 Independent review also reproduced a paired rewrite of a result JSONL, its
 mutable job receipt, and its mutable raw-matrix row. That requires a detached
-trusted producer aggregate receipt and is tracked separately as
-`FND-PARENT-0031` on its own stacked Parent branch; this Change Record does
-not claim to close that producer-authenticity boundary.
+trusted producer aggregate receipt and is addressed by `FND-PARENT-0031`; the
+aggregate-receipt intermediate-directory follow-up is `FND-PARENT-0037`.
+Both are carried with `FND-PARENT-0030` in the user-authorized
+combined/stacked, Parent-only candidate in Draft Parent PR #59. They are fixed
+in that candidate, but none is verified, closed, or risk-accepted; this Change
+Record does not claim that P0030 alone closes either boundary.
 
 ## Checks not run and rationale
 
 A full connector/runtime matrix needs the separately provisioned runtime
 components and authoritative Framework harness, which are unavailable in this
 isolated worktree. That absence does not authorize a synthetic success or a
-governance-only substitute. Source-remediation head
-`03e5088d8202a4eb14d891b31d149aa2f6081289` was pushed. The current draft PR
-head retains this documentation correction. Full exact-head CI, CodeQL,
-SonarQube Cloud, and review verification are required for the current exact PR
-head. No merge has occurred and no check may be bypassed.
+governance-only substitute. The observed prior exact-head validation for Draft
+Parent PR #59 at `d4f88b886dac6fd5f483940015d6310bc239f814` had 33 successful
+and six skipped checks, with CodeQL and the SonarQube Cloud Quality Gate
+passed. That evidence applies only to
+`d4f88b886dac6fd5f483940015d6310bc239f814`. The draft is behind current Parent
+`master` `9ef0619b9c00729c16b7056943d7843785223095`, so a normal update must be
+followed by fresh exact-head CI, CodeQL, SonarQube Cloud, and PR review before
+readiness; the original reproduction must be repeated after a merge. No
+Framework or MRTS test, Gitlink change, or merge occurred, and no check may be
+bypassed.
 
 ## Final diff and review status
 
-The original source-remediation head
-`03e5088d8202a4eb14d891b31d149aa2f6081289` was pushed. The current draft PR
-head retains this record correction and remains `remediation_required` until
-that exact head has been independently verified. No runtime evidence or merge
-claim is made.
+Draft Parent PR #59 is the user-authorized combined/stacked, Parent-only
+delivery candidate for `FND-PARENT-0030`, `FND-PARENT-0031`, and
+`FND-PARENT-0037`. All three are fixed on that candidate, but none is verified,
+closed, or risk-accepted. Its previously validated head is
+`d4f88b886dac6fd5f483940015d6310bc239f814`; the draft is behind current Parent
+`master` `9ef0619b9c00729c16b7056943d7843785223095`. A normal update, fresh
+exact-head checks and review, and post-merge original reproduction remain
+required. No Framework, MRTS, or Gitlink change and no merge is claimed.

@@ -54,6 +54,14 @@ Strukturierte JSON- und JSONL-Receipt-Inputs haben ein Limit von 1 MiB; Log- und
 
 Der validierte Intermediate-Symlink-Time-of-Check/Time-of-Use-Pfad ist für Receipt-Helper-Lesungen und Veröffentlichung geschlossen: Ein Directory-Descriptor und keine spätere Pfadnamenauflösung benennt jedes traversierte Objekt. Der Runner kann einen veränderbaren Pfad nach dem Sealen nicht mehr in neue angebliche Receipt-Metadaten umwandeln. Der strikte Consumer validiert Aggregate-Receipt und Command-Receipt außerdem unmittelbar vor Erfolg erneut, sodass deterministische Artefakt- und Command-Pfadersatzversuche nach der Validierung fail-closed fehlschlagen. Die `FND-PARENT-0031`-Producer-Authentizitätsbindung und `FND-PARENT-0030`-Consumer-Containment-Prüfungen bleiben erhalten.
 
+Das Follow-up beim zuvor validierten PR-#59-Head
+`d4f88b886dac6fd5f483940015d6310bc239f814` setzt
+`SEALED_RECEIPT_MODE = stat.S_IRUSR`, macht den versiegelten Aggregate-Receipt
+owner-read-only (Modus `0400`) und testet diesen Modus. Das begrenzt regulären
+File-Mode-Zugriff nach dem Sealen, etabliert aber keine ACL-, Identitäts-,
+Signatur- oder Same-UID-Isolationsgrenze. Es ist weder risk acceptance noch
+`risk-accepted`, `verified` oder `closed` für dieses Finding.
+
 ## Runtime-Evidence
 
 Nicht etabliert. Fokussierte temporäre Fixtures belegen betroffenes Parent-I/O-Verhalten, behaupten aber keinen Connector-Host, Request-Traffic, CRS-, Framework-, MRTS- oder Zwölf-Zellen-Runtime-Lauf.
@@ -68,8 +76,29 @@ Descriptor-relative Traversal und die finalen Rereads des strikten Consumers bes
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Es werden kein echter Connector-/Runtime-Matrixlauf, kein externer Komponentendownload, kein Framework- oder MRTS-Test, keine Exact-Head-CI, kein CodeQL, keine SonarQube Cloud, kein PR-Review, Push oder Merge behauptet. Diese Prüfungen benötigen ihre isolierten oder Delivery-Workflows und dürfen nicht durch Governance-only-Validierung ersetzt werden.
+Es werden kein echter Connector-/Runtime-Matrixlauf, kein externer
+Komponentendownload, kein Framework- oder MRTS-Test behauptet. Diese Prüfungen
+benötigen ihre isolierten Workflows und dürfen nicht durch Governance-only-
+Validierung ersetzt werden. Die beobachtete frühere Exact-Head-Validierung des
+Draft-Parent-PR #59 bei `d4f88b886dac6fd5f483940015d6310bc239f814` hatte 33
+erfolgreiche und sechs übersprungene Checks; CodeQL und das SonarQube-Cloud-
+Quality-Gate bestanden. Diese Evidenz gilt nur für
+`d4f88b886dac6fd5f483940015d6310bc239f814`. Der Draft liegt hinter aktuellem
+Parent-`master` `9ef0619b9c00729c16b7056943d7843785223095`, daher muss auf ein
+reguläres Update frische Exact-Head-CI, CodeQL, SonarQube Cloud und PR-Review
+vor der Readiness folgen; die ursprüngliche Reproduktion ist nach einem Merge
+zu wiederholen. Keine Gitlink-Änderung und kein Merge erfolgten, und keine
+Prüfung darf umgangen werden.
 
 ## Finaler Diff- und Review-Status
 
-Die Parent-only-Remediation ist lokal implementiert und durch fokussierte Kontrollen abgedeckt. Der Source-Level-Security-Review fand in dieser Grenze keinen verbleibenden High-Impact-Bypass. Exact-Head-Delivery-Validierung und die offenen Parent-/Framework-Blocker bleiben Voraussetzungen für jede Master-Integrationsentscheidung.
+Der Draft-Parent-PR #59 ist der user-autorisierte gemeinsame/gestaffelte,
+Parent-only-Delivery-Kandidat für `FND-PARENT-0030`, `FND-PARENT-0031` und
+`FND-PARENT-0037`. Alle drei sind auf diesem Kandidaten fixed, aber keines ist
+verified, closed oder risk-accepted. Er enthält das `0400`-
+Sealed-Receipt-Hardening-Follow-up bei seinem zuvor validierten Head
+`d4f88b886dac6fd5f483940015d6310bc239f814`; der Draft liegt hinter aktuellem
+Parent-`master` `9ef0619b9c00729c16b7056943d7843785223095`. Ein reguläres
+Update, frische Exact-Head-Checks und Review sowie die ursprüngliche
+Reproduktion nach dem Merge bleiben erforderlich. Es wird keine Framework-,
+MRTS- oder Gitlink-Änderung und kein Merge behauptet.

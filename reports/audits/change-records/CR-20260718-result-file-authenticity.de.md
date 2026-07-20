@@ -157,26 +157,39 @@ Gate-Fehler, weil Cross-Runtime-Evidence stale ist.
 Ein unabhängiges Review reproduzierte außerdem eine gekoppelte Umschreibung
 einer Result-JSONL, ihres veränderbaren Job-Receipts und ihrer veränderbaren
 Raw-Matrix-Zeile. Dies erfordert einen abgekoppelten vertrauenswürdigen
-Producer-Aggregate-Receipt und ist separat als `FND-PARENT-0031` auf einem
-eigenen gestapelten Parent-Branch nachverfolgt; dieser Change Record behauptet
-nicht, diese Producer-Authentizitätsgrenze zu schließen.
+Producer-Aggregate-Receipt und wird durch `FND-PARENT-0031` adressiert; das
+Aggregate-Receipt-Zwischenverzeichnis-Follow-up ist `FND-PARENT-0037`. Beide
+werden zusammen mit `FND-PARENT-0030` im user-autorisierten gemeinsamen/
+gestaffelten, Parent-only-Kandidaten im Draft-Parent-PR #59 geliefert. Sie sind
+in diesem Kandidaten fixed, aber keines ist verified, closed oder
+risk-accepted; dieser Change Record behauptet nicht, dass P0030 allein eine
+der beiden Grenzen schließt.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Eine vollständige Connector-/Runtime-Matrix benötigt separat bereitgestellte
 Runtime-Komponenten und den autoritativen Framework-Harness, die in diesem
 isolierten Worktree nicht verfügbar sind. Dieses Fehlen autorisiert weder
-einen synthetischen Erfolg noch einen Governance-only-Ersatz. Der
-Source-Remediation-Head `03e5088d8202a4eb14d891b31d149aa2f6081289` wurde
-gepusht. Der aktuelle Draft-PR-Head enthält diese Dokumentationskorrektur.
-Vollständige Exact-Head-CI-, CodeQL-, SonarQube-Cloud- und Review-Verifikation
-sind für den aktuellen exakten PR-Head erforderlich. Kein Merge ist erfolgt und
-keine Prüfung darf umgangen werden.
+einen synthetischen Erfolg noch einen Governance-only-Ersatz. Die beobachtete
+frühere Exact-Head-Validierung des Draft-Parent-PR #59 bei
+`d4f88b886dac6fd5f483940015d6310bc239f814` hatte 33 erfolgreiche und sechs
+übersprungene Checks; CodeQL und das SonarQube-Cloud-Quality-Gate bestanden.
+Diese Evidenz gilt nur für `d4f88b886dac6fd5f483940015d6310bc239f814`. Der
+Draft liegt hinter aktuellem Parent-`master`
+`9ef0619b9c00729c16b7056943d7843785223095`, daher muss auf ein reguläres Update
+frische Exact-Head-CI, CodeQL, SonarQube Cloud und PR-Review vor der Readiness
+folgen; die ursprüngliche Reproduktion ist nach einem Merge zu wiederholen.
+Kein Framework- oder MRTS-Test, keine Gitlink-Änderung und kein Merge erfolgte,
+und keine Prüfung darf umgangen werden.
 
 ## Finaler Diff- und Review-Status
 
-Der ursprüngliche Source-Remediation-Head
-`03e5088d8202a4eb14d891b31d149aa2f6081289` wurde gepusht. Der aktuelle
-Draft-PR-Head enthält diese Record-Korrektur und bleibt
-`remediation_required`, bis dieser exakte Head unabhängig verifiziert ist. Es
-wird keine Runtime-Evidence oder Merge behauptet.
+Der Draft-Parent-PR #59 ist der user-autorisierte gemeinsame/gestaffelte,
+Parent-only-Delivery-Kandidat für `FND-PARENT-0030`, `FND-PARENT-0031` und
+`FND-PARENT-0037`. Alle drei sind auf diesem Kandidaten fixed, aber keines ist
+verified, closed oder risk-accepted. Sein zuvor validierter Head ist
+`d4f88b886dac6fd5f483940015d6310bc239f814`; der Draft liegt hinter aktuellem
+Parent-`master` `9ef0619b9c00729c16b7056943d7843785223095`. Ein reguläres
+Update, frische Exact-Head-Checks und Review sowie die ursprüngliche
+Reproduktion nach dem Merge bleiben erforderlich. Es wird keine Framework-,
+MRTS- oder Gitlink-Änderung und kein Merge behauptet.
