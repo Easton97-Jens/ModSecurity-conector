@@ -23,7 +23,8 @@ envoy_pid=
 service_pid=
 
 missing_dependency() {
-    echo "envoy_start_smoke: BLOCKED - $1" >&2
+    reason=$1
+    echo "envoy_start_smoke: BLOCKED - $reason" >&2
     exit 77
 }
 

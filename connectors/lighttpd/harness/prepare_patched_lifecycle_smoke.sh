@@ -8,7 +8,8 @@ PATCHED_SOURCE_DIR=${LIGHTTPD_PATCHED_SOURCE_DIR:-$PATCHED_ROOT/lighttpd-1.4.84}
 SMOKE_DIR=${LIGHTTPD_PATCHED_SMOKE_DIR:-${LIGHTTPD_SMOKE_DIR:-$PATCHED_ROOT/smoke}}
 
 blocked() {
-    printf 'lighttpd_patched_lifecycle_config: BLOCKED: %s\n' "$1" >&2
+    reason=$1
+    printf 'lighttpd_patched_lifecycle_config: BLOCKED: %s\n' "$reason" >&2
     exit 77
 }
 

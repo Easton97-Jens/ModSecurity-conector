@@ -12,7 +12,8 @@ SMOKE_DIR=${LIGHTTPD_PATCHED_SMOKE_DIR:-$PATCHED_ROOT/smoke}
 NM_BIN=${NM:-nm}
 
 blocked() {
-    printf 'lighttpd_patched_host_check: BLOCKED: %s\n' "$1" >&2
+    reason=$1
+    printf 'lighttpd_patched_host_check: BLOCKED: %s\n' "$reason" >&2
     exit 77
 }
 

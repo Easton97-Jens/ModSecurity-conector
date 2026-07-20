@@ -25,7 +25,8 @@ sync_upstream_pid=
 streaming_client_pid=
 
 missing_dependency() {
-    echo "haproxy_htx_runtime: BLOCKED - $1" >&2
+    reason=$1
+    echo "haproxy_htx_runtime: BLOCKED - $reason" >&2
     exit 77
 }
 

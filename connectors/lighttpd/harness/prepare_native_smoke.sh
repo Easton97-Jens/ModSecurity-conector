@@ -18,7 +18,8 @@ LIGHTTPD_CONFIG=$SMOKE_DIR/lighttpd.conf
 EVENT_PATH=$SMOKE_DIR/events.jsonl
 
 blocked() {
-    printf 'lighttpd_native_smoke_config: BLOCKED: %s\n' "$1" >&2
+    reason=$1
+    printf 'lighttpd_native_smoke_config: BLOCKED: %s\n' "$reason" >&2
     exit 77
 }
 

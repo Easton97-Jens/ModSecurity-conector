@@ -190,11 +190,10 @@ static int bounded_c_string(
     const char *value,
     size_t capacity,
     int required) {
-    size_t index;
     if (value == NULL) {
         return required == 0;
     }
-    for (index = 0U; index < capacity; ++index) {
+    for (size_t index = 0U; index < capacity; ++index) {
         if (value[index] == '\0') {
             return required == 0 || index > 0U;
         }

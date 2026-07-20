@@ -151,8 +151,68 @@ def profile_errors(result: dict[str, Any], connector: str) -> list[str]:
     return errors
 
 
-def matching_events(events: list[dict[str, Any]], rule_id: object) -> list[dict[str, Any]]:
-    return [event for event in events if event.get("rule_id") == rule_id and event.get("phase") == 4]
+def expected_event_identity(
+    result: dict[str, Any], connector: str | None, run_id: str | None,
+) -> tuple[str, str, str] | None:
+    """Return the selected native P4 identity or reject incomplete evidence.
+
+    The run directory and command select the connector/run; the canonical
+    result confirms the expected native integration mode.  A raw P4 event is
+    evidence only when it carries every part of that same identity.  This is
+    deliberately fail-closed: a rule ID and phase are not a producer or run
+    identity, and absent identity metadata cannot be promoted.
+    """
+    selected_connector = connector if connector is not None else result.get("connector")
+    selected_run_id = run_id if run_id is not None else result.get("run_id")
+    if (
+        not isinstance(selected_connector, str)
+        or selected_connector not in FULL_LIFECYCLE_IDENTITIES
+        or not isinstance(selected_run_id, str)
+        or not selected_run_id
+    ):
+        return None
+    expected = FULL_LIFECYCLE_IDENTITIES[selected_connector]
+    integration_mode = expected["integration_mode"]
+    if (
+        result.get("connector") != selected_connector
+        or result.get("run_id") != selected_run_id
+        or result.get("host_profile") != expected["host_profile"]
+        or result.get("integration_mode") != integration_mode
+    ):
+        return None
+    return selected_connector, selected_run_id, integration_mode
+
+
+def record_transaction_ids(record: dict[str, Any]) -> set[str]:
+    """Return canonical result-to-event transaction IDs, rejecting omissions."""
+    values = record.get("transaction_ids")
+    if not isinstance(values, list):
+        return set()
+    return {
+        str(value)
+        for value in values
+        if isinstance(value, (str, int)) and not isinstance(value, bool) and str(value)
+    }
+
+
+def matching_events(
+    events: list[dict[str, Any]], rule_id: object, identity: tuple[str, str, str] | None,
+    transaction_ids: set[str],
+) -> list[dict[str, Any]]:
+    """Select only same-run, same-host, same-transaction canonical P4 events."""
+    if identity is None or not transaction_ids:
+        return []
+    connector, run_id, integration_mode = identity
+    return [
+        event
+        for event in events
+        if event.get("connector") == connector
+        and event.get("run_id") == run_id
+        and event.get("integration_mode") == integration_mode
+        and str(event.get("transaction_id") or "") in transaction_ids
+        and event.get("rule_id") == rule_id
+        and event.get("phase") == 4
+    ]
 
 
 def nonnegative_integer(value: object) -> bool:
@@ -188,7 +248,7 @@ def lifecycle_errors(
     try:
         counters = load_json(path)
         events = load_jsonl(run_dir / "events.jsonl")
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         return [f"cannot read lifecycle inventory: {exc}"]
     errors: list[str] = []
     if counters.get("connector") != connector:
@@ -221,7 +281,7 @@ def lifecycle_errors(
         return errors
     try:
         lifecycle = load_json(run_dir / "inventory/connection-lifecycle.json")
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         return [*errors, f"cannot read bound connection lifecycle inventory: {exc}"]
     records = lifecycle.get("records")
     if not isinstance(records, list) or any(not isinstance(record, dict) for record in records):
@@ -291,7 +351,7 @@ def transport_artifact_errors(run_dir: Path, connector: str) -> list[str]:
         connections = load_json(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["connection_lifecycle"])
         effective_config = load_json(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["effective_config"])
         barriers = load_jsonl(run_dir / TRANSPORT_LIFECYCLE_ARTIFACTS["barrier_events"])
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         return [f"cannot read transport artifacts: {exc}"]
     for label, document in (("transport observations", observations), ("connection lifecycle", connections)):
         if document.get("connector") != connector:
@@ -330,7 +390,14 @@ def transport_artifact_errors(run_dir: Path, connector: str) -> list[str]:
     return errors
 
 
-def first_byte_errors(run_dir: Path, manifest: dict[str, Any], result: dict[str, Any]) -> list[str]:
+def first_byte_errors(
+    run_dir: Path,
+    manifest: dict[str, Any],
+    result: dict[str, Any],
+    *,
+    connector: str | None = None,
+    run_id: str | None = None,
+) -> list[str]:
     claimed = capability_state(manifest, "first_byte_before_response_end") == "verified"
     verified = set(result.get("capabilities_verified") or [])
     claimed = claimed or "first_byte_before_response_end" in verified
@@ -340,6 +407,7 @@ def first_byte_errors(run_dir: Path, manifest: dict[str, Any], result: dict[str,
         return ["first-byte promotion requires a full_lifecycle artifact profile"]
     events = load_jsonl(run_dir / "events.jsonl")
     records = load_jsonl(run_dir / "results.jsonl")
+    identity = expected_event_identity(result, connector, run_id)
     expected = {"phase4_first_byte_before_response_end", "phase4_no_full_response_buffering"}
     passed = {str(record.get("case_id")) for record in records if record.get("status") == "PASS"}
     missing = expected - passed
@@ -349,7 +417,12 @@ def first_byte_errors(run_dir: Path, manifest: dict[str, Any], result: dict[str,
     for record in records:
         if record.get("case_id") not in expected or record.get("status") != "PASS":
             continue
-        candidates = matching_events(events, record.get("expected_rule_id"))
+        candidates = matching_events(
+            events,
+            record.get("expected_rule_id"),
+            identity,
+            record_transaction_ids(record),
+        )
         if not any(
             event.get("first_byte_before_response_end") is True
             and event.get("upstream_response_finished_at_first_byte") is False
@@ -362,18 +435,31 @@ def first_byte_errors(run_dir: Path, manifest: dict[str, Any], result: dict[str,
     return errors
 
 
-def no_buffer_errors(run_dir: Path, manifest: dict[str, Any], result: dict[str, Any]) -> list[str]:
+def no_buffer_errors(
+    run_dir: Path,
+    manifest: dict[str, Any],
+    result: dict[str, Any],
+    *,
+    connector: str | None = None,
+    run_id: str | None = None,
+) -> list[str]:
     claimed = capability_state(manifest, "no_full_response_buffering") == "verified"
     claimed = claimed or "no_full_response_buffering" in set(result.get("capabilities_verified") or [])
     if not claimed:
         return []
     events = load_jsonl(run_dir / "events.jsonl")
     records = load_jsonl(run_dir / "results.jsonl")
+    identity = expected_event_identity(result, connector, run_id)
     records = [record for record in records if record.get("case_id") == "phase4_no_full_response_buffering" and record.get("status") == "PASS"]
     if not records:
         return ["no-full-response-buffering promotion lacks a PASS case"]
     for record in records:
-        candidates = matching_events(events, record.get("expected_rule_id"))
+        candidates = matching_events(
+            events,
+            record.get("expected_rule_id"),
+            identity,
+            record_transaction_ids(record),
+        )
         if not any(
             event.get("no_full_response_buffering") is True
             and event.get("first_byte_before_response_end") is True
@@ -432,21 +518,29 @@ def main(argv: list[str] | None = None) -> int:
             if args.check == "profile":
                 pass
             elif args.check == "first-byte":
-                connector_errors += first_byte_errors(run_dir, manifest, result)
+                connector_errors += first_byte_errors(
+                    run_dir, manifest, result, connector=connector, run_id=args.run_id,
+                )
             elif args.check == "no-full-buffer":
-                connector_errors += no_buffer_errors(run_dir, manifest, result)
+                connector_errors += no_buffer_errors(
+                    run_dir, manifest, result, connector=connector, run_id=args.run_id,
+                )
             elif args.check == "lifecycle":
                 connector_errors += lifecycle_errors(run_dir, connector, result)
             elif args.check == "transport":
                 connector_errors += transport_artifact_errors(run_dir, connector)
             else:
                 connector_errors += promotion_errors(run_dir, manifest, result)
-                connector_errors += first_byte_errors(run_dir, manifest, result)
-                connector_errors += no_buffer_errors(run_dir, manifest, result)
+                connector_errors += first_byte_errors(
+                    run_dir, manifest, result, connector=connector, run_id=args.run_id,
+                )
+                connector_errors += no_buffer_errors(
+                    run_dir, manifest, result, connector=connector, run_id=args.run_id,
+                )
                 connector_errors += lifecycle_errors(run_dir, connector, result)
                 connector_errors += transport_artifact_errors(run_dir, connector)
             errors.extend(f"{connector}: {error}" for error in connector_errors)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:
             errors.append(f"{connector}: cannot read canonical evidence: {exc}")
     if errors:
         for error in errors:

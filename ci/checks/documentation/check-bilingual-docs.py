@@ -164,7 +164,7 @@ ROOT_AGENT_INCLUDE_RE = re.compile(
 
 def is_tools_mrts(path: Path) -> bool:
     text = path.as_posix()
-    return text.startswith("tools/MRTS/") or text.startswith("modules/ModSecurity-test-Framework/tools/MRTS/")
+    return text.startswith(("tools/MRTS/", "modules/ModSecurity-test-Framework/tools/MRTS/"))
 
 
 def agent_referenced_root_markdown(repo: Path) -> frozenset[Path]:

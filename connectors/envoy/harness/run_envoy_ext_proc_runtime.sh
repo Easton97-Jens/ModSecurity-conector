@@ -53,7 +53,8 @@ service_pid=
 upstream_pid=
 
 missing_dependency() {
-    echo "envoy_ext_proc_runtime: BLOCKED - $1" >&2
+    reason=$1
+    echo "envoy_ext_proc_runtime: BLOCKED - $reason" >&2
     exit 77
 }
 

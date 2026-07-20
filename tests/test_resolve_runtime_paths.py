@@ -108,12 +108,15 @@ class ResolveRuntimePathsTest(unittest.TestCase):
                 with self.subTest(connector=connector):
                     with self.assertRaises(resolver.RuntimePathError):
                         resolver.resolve_runtime_paths(connector=connector, **kwargs)
+            kwargs_without_run_id = {
+                key: value for key, value in kwargs.items() if key != "run_id"
+            }
             for run_id in ("", "../escape", "run/escape", "run..escape", "-bad"):
                 with self.subTest(run_id=run_id):
                     with self.assertRaises(resolver.RuntimePathError):
-                        resolver.resolve_runtime_paths(connector="traefik", run_id=run_id, **{
-                            key: value for key, value in kwargs.items() if key != "run_id"
-                        })
+                        resolver.resolve_runtime_paths(
+                            connector="traefik", run_id=run_id, **kwargs_without_run_id
+                        )
 
     def test_rejects_base_traversal_foreign_connector_and_overlaps(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-path-resolver-") as temporary:

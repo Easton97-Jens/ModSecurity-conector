@@ -935,15 +935,19 @@ check-no-crs-protocol-client: check-framework
 check-no-crs-status-consistency: check-framework
 	$(call RUN_NO_CRS_EVIDENCE_CHECK,status)
 
+define RUN_PARENT_FULL_LIFECYCLE_EVIDENCE_CHECK
+	"$(PYTHON)" ci/checks/evidence/check-full-lifecycle-evidence.py \
+		--connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" \
+		--run-id "$(NO_CRS_RUN_ID)" --check $(1) --connectors $(NO_CRS_CONNECTORS)
+endef
+
 define RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK
 	@set -eu; \
 	for connector in $(NO_CRS_CONNECTORS); do \
 		"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/checks/evidence/check_full_lifecycle_evidence.py" \
 			--run-dir "$(EVIDENCE_ROOT)/$$connector/$(NO_CRS_RUN_ID)" --check $(1); \
 	done; \
-	"$(PYTHON)" ci/checks/evidence/check-full-lifecycle-evidence.py \
-		--connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" \
-		--run-id "$(NO_CRS_RUN_ID)" --check profile --connectors $(NO_CRS_CONNECTORS)
+	$(call RUN_PARENT_FULL_LIFECYCLE_EVIDENCE_CHECK,profile)
 endef
 
 # Transport sidecars are inventory only until a case is promoted.  The
@@ -963,10 +967,12 @@ endef
 check-first-byte-before-response-end: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
 	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,first-byte)
+	$(call RUN_PARENT_FULL_LIFECYCLE_EVIDENCE_CHECK,first-byte)
 
 check-no-full-response-buffering: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
 	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,no-full-response-buffering)
+	$(call RUN_PARENT_FULL_LIFECYCLE_EVIDENCE_CHECK,no-full-buffer)
 
 check-full-lifecycle-event-privacy: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
@@ -992,6 +998,7 @@ check-full-lifecycle-transport-hardening: check-framework
 check-full-lifecycle-promotion: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
 	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,promotion)
+	$(call RUN_PARENT_FULL_LIFECYCLE_EVIDENCE_CHECK,promotion)
 	$(call RUN_TRANSPORT_HARDENING_EVIDENCE_CHECK)
 
 # Read-only compact acceptance gate.  It consumes one already finalized

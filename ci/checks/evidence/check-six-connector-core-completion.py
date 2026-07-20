@@ -218,7 +218,7 @@ def check_connector(run_dir: Path, connector: str) -> list[str]:
         rows = load_jsonl(run_dir / "results.jsonl")
         first_byte = load_json(run_dir / "inventory/first-byte-evidence.json")
         lifecycle = load_json(run_dir / "lifecycle-counters.json")
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         return [f"{connector}: cannot read canonical core artifacts: {exc}"]
 
     host_profile, integration_mode, target = IDENTITIES[connector]

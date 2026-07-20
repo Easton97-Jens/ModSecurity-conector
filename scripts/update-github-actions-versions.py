@@ -131,7 +131,7 @@ def is_dynamic_uses(value: str) -> bool:
 
 
 def is_local_uses(value: str) -> bool:
-    return value.startswith("./") or value.startswith("../")
+    return value.startswith(("./", "../"))
 
 
 def is_docker_uses(value: str) -> bool:
@@ -456,7 +456,7 @@ def render_report(rows: list[ReportRow], module_submodule: bool) -> str:
         "Unknown",
         "Error",
     ]
-    counts = {status: 0 for status in statuses}
+    counts = dict.fromkeys(statuses, 0)
     for row in rows:
         counts[row.status] = counts.get(row.status, 0) + 1
 

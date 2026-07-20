@@ -463,14 +463,7 @@ def sanitize_arguments(entry: CdbEntry, compiler: str) -> list[str]:
         if argument in dependency_only or argument == "-Werror" or argument.startswith("-Werror="):
             index += 1
             continue
-        if (
-            argument.startswith("-o")
-            or argument.startswith("-MF")
-            or argument.startswith("-MT")
-            or argument.startswith("-MQ")
-            or argument.startswith("-MJ")
-            or argument.startswith("--output=")
-        ):
+        if argument.startswith(("-o", "-MF", "-MT", "-MQ", "-MJ", "--output=")):
             index += 1
             continue
         if source_argument(argument, entry):
@@ -849,7 +842,7 @@ def run_tidy(
     active_checks = [
         line.strip()
         for line in active_stdout.read_text(encoding="utf-8").splitlines()
-        if line.startswith("    ") or line.startswith("  ")
+        if line.startswith(("    ", "  "))
     ]
     findings: list[dict[str, Any]] = []
     system_paths = tuple(

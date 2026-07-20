@@ -250,7 +250,6 @@ static FILE *open_private_file(const char *path, int append) {
 
 static int mkdir_p(const char *path) {
     char tmp[4096];
-    char *p;
     size_t len;
 
     if (path == 0 || path[0] == '\0') {
@@ -266,7 +265,7 @@ static int mkdir_p(const char *path) {
     if (tmp[len - 1] == '/') {
         tmp[len - 1] = '\0';
     }
-    for (p = tmp + 1; *p != '\0'; ++p) {
+    for (char *p = tmp + 1; *p != '\0'; ++p) {
         if (*p == '/') {
             *p = '\0';
             if (mkdir(tmp, S_IRWXU) != 0 && errno != EEXIST) {
@@ -373,11 +372,11 @@ static int append_byte(spop_buffer *buf, unsigned int value) {
     return 0;
 }
 
-static int append_bytes(spop_buffer *buf, const void *data, size_t len) {
+static int append_bytes(spop_buffer *buf, const void *data, size_t data_len, size_t len) {
     if (buf == 0) {
         return -1;
     }
-    if (buf->len > sizeof(buf->data) || len > sizeof(buf->data) - buf->len) {
+    if (len > data_len || buf->len > sizeof(buf->data) || len > sizeof(buf->data) - buf->len) {
         return -1;
     }
     if (len == 0U) {
@@ -393,7 +392,7 @@ static int append_bytes(spop_buffer *buf, const void *data, size_t len) {
 
 static int append_uint32(spop_buffer *buf, uint32_t value) {
     uint32_t net = htonl(value);
-    return append_bytes(buf, &net, sizeof(net));
+    return append_bytes(buf, &net, sizeof(net), sizeof(net));
 }
 
 static int append_varint(spop_buffer *buf, uint64_t value) {
@@ -448,7 +447,7 @@ static int append_string(spop_buffer *buf, const char *value) {
     if (append_varint(buf, len) != 0) {
         return -1;
     }
-    return append_bytes(buf, value, len);
+    return append_bytes(buf, value, len, len);
 }
 
 static int append_typed_string(spop_buffer *buf, const char *value) {
@@ -1414,7 +1413,7 @@ static int build_frame(unsigned int type, uint64_t stream_id, uint64_t frame_id,
         append_varint(frame, frame_id) != 0) {
         return -1;
     }
-    if (payload != 0 && append_bytes(frame, payload->data, payload->len) != 0) {
+    if (payload != 0 && append_bytes(frame, payload->data, sizeof(payload->data), payload->len) != 0) {
         return -1;
     }
     return 0;
@@ -1744,10 +1743,8 @@ static const char *safe_decision_name(
     static const char *const allowed[] = {
         "pass", "deny", "redirect", "drop", "fail-closed", "fail-open"
     };
-    size_t index;
-
     if (decision_text != 0) {
-        for (index = 0U; index < sizeof(allowed) / sizeof(allowed[0]); ++index) {
+        for (size_t index = 0U; index < sizeof(allowed) / sizeof(allowed[0]); ++index) {
             if (strcmp(decision_text, allowed[index]) == 0) {
                 return allowed[index];
             }
@@ -2666,14 +2663,19 @@ static int run_agent_server(const agent_config *config) {
     state.config = *config;
     log = open_append_file_or_standard(config->log_file, stderr);
     if (log == 0) {
-        fprintf(stderr, "failed to open log: %s\n", config->log_file);
+        if (stderr != NULL) {
+            fprintf(stderr, "failed to open log: %s\n", config->log_file);
+        }
         return 77;
     }
     log_owned = log != stderr;
     if (config->decision_log[0] != '\0') {
         decision_log = open_append_file_or_standard(config->decision_log, stdout);
         if (decision_log == 0) {
-            fprintf(stderr, "failed to open decision log: %s\n", config->decision_log);
+            if (stderr != NULL) {
+                fprintf(stderr, "failed to open decision log: %s\n",
+                    config->decision_log);
+            }
             close_owned_stream(&log, log_owned);
             return 77;
         }

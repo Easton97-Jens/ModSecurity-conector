@@ -17,7 +17,8 @@ HOST_MANIFEST=$PATCHED_ROOT/patched-host-build-info.txt
 NM_BIN=${NM:-nm}
 
 blocked() {
-    printf 'lighttpd_patched_host_build: BLOCKED: %s\n' "$1" >&2
+    reason=$1
+    printf 'lighttpd_patched_host_build: BLOCKED: %s\n' "$reason" >&2
     exit 77
 }
 

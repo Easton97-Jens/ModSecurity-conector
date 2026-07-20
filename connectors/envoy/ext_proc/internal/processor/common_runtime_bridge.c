@@ -104,7 +104,6 @@ static int msc_envoy_ext_proc_headers(
     char *error,
     size_t error_len)
 {
-    size_t index;
     msconnector_header *headers;
 
     if (out == NULL) {
@@ -127,7 +126,7 @@ static int msc_envoy_ext_proc_headers(
             "Common header allocation failed");
         return 0;
     }
-    for (index = 0U; index < count; ++index) {
+    for (size_t index = 0U; index < count; ++index) {
         if (source[index].name == NULL || source[index].name_size == 0U ||
             (source[index].value == NULL && source[index].value_size != 0U)) {
             free(headers);

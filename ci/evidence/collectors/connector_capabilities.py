@@ -370,7 +370,7 @@ def _validate_source_map(connector: str, errors: list[str]) -> None:
         return
     try:
         source_map = _read_json(source_map_path)
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         errors.append(f"{connector}: cannot parse SOURCE_MAP.json: {exc}")
         return
     if source_map.get("connector") != connector:
@@ -561,7 +561,7 @@ def load_manifests() -> tuple[dict[str, dict[str, Any]], list[str]]:
             continue
         try:
             data = _read_json(path)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:
             errors.append(f"{connector}: cannot parse {path.relative_to(ROOT)}: {exc}")
             continue
         manifests[connector] = data
@@ -767,7 +767,7 @@ def load_validated_runtime_results(
             continue
         try:
             result = _read_json(result_path)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:
             errors.append(f"{connector}: cannot parse canonical result.json: {exc}")
             continue
         shape_errors = _validated_result_shape_errors(

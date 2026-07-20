@@ -20,11 +20,10 @@ static int uri_contains_bridge_block_query(const char *uri) {
 }
 
 static int request_has_bridge_block_header(const msconnector_request *request) {
-    size_t index;
     if (request == 0 || request->headers == 0) {
         return 0;
     }
-    for (index = 0; index < request->header_count; ++index) {
+    for (size_t index = 0; index < request->header_count; ++index) {
         const msconnector_header *header = &request->headers[index];
         if (string_equals(header->name, header->name_size,
                 MSCONNECTOR_ENVOY_BRIDGE_BLOCK_HEADER,

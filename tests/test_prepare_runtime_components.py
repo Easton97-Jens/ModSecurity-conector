@@ -23,6 +23,13 @@ SPEC.loader.exec_module(components)
 
 
 class PrepareRuntimeComponentsTest(unittest.TestCase):
+    def test_require_staging_path_rejects_absence_and_preserves_path(self) -> None:
+        staging_path = Path("staging")
+
+        self.assertEqual(staging_path, components.require_staging_path(staging_path))
+        with self.assertRaisesRegex(RuntimeError, "staging cache entry is required"):
+            components.require_staging_path(None)
+
     def test_apache_blocker_does_not_misclassify_expat_include_path(self) -> None:
         compiler_error = (
             "gcc -I/cache/builds/expat/cache-key/prefix/include -c src/msc_filters.c\n"

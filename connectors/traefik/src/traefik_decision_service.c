@@ -22,13 +22,11 @@ static int header_matches(
 }
 
 static int has_block_header(const msconnector_request *request) {
-    size_t index;
-
     if (request == 0 || request->headers == 0) {
         return 0;
     }
 
-    for (index = 0; index < request->header_count; ++index) {
+    for (size_t index = 0; index < request->header_count; ++index) {
         if (header_matches(
                 &request->headers[index],
                 "X-ModSecurity-Connector-Decision",

@@ -278,7 +278,8 @@ ngx_http_modsecurity_resolv_header_last_modified(ngx_http_request_t *r, ngx_str_
 {
     (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
-    u_char buf[1024], *p;
+    u_char buf[1024];
+    u_char *p;
     ngx_str_t value;
 
     ctx = ngx_http_modsecurity_get_module_ctx(r);

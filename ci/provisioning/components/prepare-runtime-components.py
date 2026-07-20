@@ -206,6 +206,12 @@ def require_env_value(env: dict[str, str], key: str) -> str:
     return value
 
 
+def require_staging_path(staging_path: Path | None) -> Path:
+    if staging_path is None:
+        raise RuntimeError("staging cache entry is required")
+    return staging_path
+
+
 def require_https_url(url: str, label: str) -> str:
     raw = url.strip()
     if not raw.startswith("https://"):
@@ -1413,7 +1419,7 @@ def prepare_git_component(
                     previous_path=str(checkout_path),
                 )
 
-            assert staging_path is not None
+            staging_path = require_staging_path(staging_path)
             retag_staging_cache_entry(
                 staging_path,
                 managed_root,
@@ -2208,7 +2214,7 @@ def prepare_expat_managed_overrides(
                 return failed_record
 
             for component, staging_path in staging_entries.items():
-                assert staging_path is not None
+                staging_path = require_staging_path(staging_path)
                 write_cache_entry_completion(
                     staging_path,
                     cache_root,
@@ -2223,7 +2229,7 @@ def prepare_expat_managed_overrides(
                     safe_remove_dir(final_path, cache_root)
             for component, final_path in resolved_entries:
                 staging_path = staging_entries[component]
-                assert staging_path is not None
+                staging_path = require_staging_path(staging_path)
                 atomic_publish_dir(staging_path, final_path, cache_root, require_complete=True)
                 staging_entries[component] = None
 

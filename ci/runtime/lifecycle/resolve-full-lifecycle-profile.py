@@ -194,7 +194,7 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
 def load_manifest(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         raise ValueError(f"cannot read capability manifest {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"capability manifest must be an object: {path}")

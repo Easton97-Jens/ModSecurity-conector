@@ -26,6 +26,31 @@ def load_helper() -> object:
 
 
 class EnvoyTransportHardeningContractTest(unittest.TestCase):
+    def test_first_body_byte_is_read_once_without_header_remainder(self) -> None:
+        helper = load_helper()
+
+        class Connection:
+            def __init__(self) -> None:
+                self.recv_limits: list[int] = []
+                self.timeouts: list[float] = []
+                self.responses = [
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\n",
+                    b"x",
+                ]
+
+            def settimeout(self, timeout: float) -> None:
+                self.timeouts.append(timeout)
+
+            def recv(self, limit: int) -> bytes:
+                self.recv_limits.append(limit)
+                return self.responses.pop(0)
+
+        connection = Connection()
+
+        self.assertEqual((200, 1), helper._read_chunked_first_body(connection, timeout=1.0))
+        self.assertEqual([4096, 1], connection.recv_limits)
+        self.assertTrue(all(timeout > 0 for timeout in connection.timeouts))
+
     def test_client_cancel_waits_for_one_real_body_byte_then_closes(self) -> None:
         helper = load_helper()
 
@@ -300,11 +325,14 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 }) + "\n",
                 encoding="utf-8",
             )
+            event_log = str(events)
+            probe_evidence_path = str(probe)
+            completion_log = str(completions)
             with self.assertRaisesRegex(ValueError, "HTTP 200"):
                 helper.write_allow_event(
-                    event_log=str(events),
-                    probe_evidence_path=str(probe),
-                    completion_log=str(completions),
+                    event_log=event_log,
+                    probe_evidence_path=probe_evidence_path,
+                    completion_log=completion_log,
                     transaction_id="envoy-ext-proc-allow-1",
                 )
 
@@ -318,9 +346,9 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             completions.write_text("\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "exactly one ext_proc completion"):
                 helper.write_allow_event(
-                    event_log=str(events),
-                    probe_evidence_path=str(probe),
-                    completion_log=str(completions),
+                    event_log=event_log,
+                    probe_evidence_path=probe_evidence_path,
+                    completion_log=completion_log,
                     transaction_id="envoy-ext-proc-allow-1",
                 )
 

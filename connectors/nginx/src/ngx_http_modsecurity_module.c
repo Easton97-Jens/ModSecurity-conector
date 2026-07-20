@@ -502,7 +502,8 @@ ngx_conf_set_rules_remote(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     int                                res;
     ngx_str_t                         *value;
     const char                        *error;
-    const char                        *rules_remote_key, *rules_remote_server;
+    const char                        *rules_remote_key;
+    const char                        *rules_remote_server;
     ngx_pool_t                        *old_pool;
     ngx_http_modsecurity_conf_t       *mcf = conf;
     ngx_http_modsecurity_main_conf_t  *mmcf;

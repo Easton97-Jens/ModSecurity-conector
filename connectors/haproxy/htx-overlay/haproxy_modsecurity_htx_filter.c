@@ -101,12 +101,10 @@ static char *haproxy_modsecurity_htx_dup_ist(const struct ist value, size_t limi
 static void haproxy_modsecurity_htx_owned_headers_free(
     struct haproxy_modsecurity_htx_owned_headers *headers)
 {
-    unsigned int i;
-
     if (!headers) {
         return;
     }
-    for (i = 0; i < headers->count; ++i) {
+    for (unsigned int i = 0; i < headers->count; ++i) {
         free((char *)headers->items[i].name);
         free((char *)headers->items[i].value);
     }
@@ -130,7 +128,6 @@ static void haproxy_modsecurity_htx_request_snapshot_free(
 
 static int haproxy_modsecurity_htx_transaction_id_is_safe(const char *value)
 {
-    size_t index;
     size_t length;
 
     if (!value) {
@@ -140,7 +137,7 @@ static int haproxy_modsecurity_htx_transaction_id_is_safe(const char *value)
     if (length == 0U || length >= sizeof(((struct haproxy_modsecurity_htx_filter_context *)0)->transaction_id)) {
         return 0;
     }
-    for (index = 0U; index < length; ++index) {
+    for (size_t index = 0U; index < length; ++index) {
         unsigned char character = (unsigned char)value[index];
 
         if (!(character >= 'a' && character <= 'z') &&
