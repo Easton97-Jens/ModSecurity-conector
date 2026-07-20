@@ -101,11 +101,22 @@ No complete native connector runtime was exercised in this isolated worktree.
 The retained local evidence is C17 syntax validation of all four touched C
 translation units plus focused contracts for the Envoy receive boundary,
 Traefik mutex/serialization boundaries, provisioning guard, and bilingual
-documentation. Fresh PR-head GitHub and SonarQube Cloud evidence remains
-required before claiming the original Bug keys are resolved. PR #66 head
-`97c24192268d567575f0c1417872e1d79911e0dc` did eliminate the original nine
-keys but failed with three follow-up Reliability Bugs; this record documents
-the source-level repair pending its successor analysis.
+documentation. The earlier PR #66 head
+97c24192268d567575f0c1417872e1d79911e0dc did eliminate the original nine
+keys but failed with three follow-up Reliability Bugs. The source-repair head
+91fea6d05850cc5aeef8ce7fb66a4123ac14e190 then received the exact-head
+GitHub and SonarQube Cloud evidence recorded below.
+
+## Exact PR-head delivery evidence
+
+For source-repair head 91fea6d05850cc5aeef8ce7fb66a4123ac14e190, the
+applicable GitHub Actions, CodeQL, OSV, secret-scanning, actionlint, zizmor,
+and required branch-rule checks passed. SonarQube Cloud completed successfully
+at 2026-07-20T19:31:39Z with Quality Gate passed, zero new issues, and zero new
+security hotspots. This proves the repaired source head, not a native runtime
+that was not executed and not any later documentation-only commit. The current
+PR head must always receive its own review and exact-head delivery evidence
+before ready-for-review or merge.
 
 ## Checks not run and rationale
 
@@ -125,9 +136,11 @@ the source-level repair pending its successor analysis.
   evidence.
 - The first exact PR-head GitHub Actions, CodeQL, OSV, secret-scanning,
   actionlint, and zizmor checks passed; SonarQube Cloud analysis
-  `29add8e9-7fb9-41a6-a250-29a9fbf53e7c` failed only its Reliability Rating with
-  three Bugs. The successor push requires a complete fresh exact-head round,
-  including SonarQube Cloud, review, and PR evidence.
+  29add8e9-7fb9-41a6-a250-29a9fbf53e7c failed only its Reliability Rating with
+  three Bugs. The later source-repair head
+  91fea6d05850cc5aeef8ce7fb66a4123ac14e190 completed a fresh exact-head round
+  with passing GitHub checks and a passing SonarQube Cloud Quality Gate. Any
+  later commit remains subject to the same fresh review and exact-head cycle.
 
 ## Known limitations
 
@@ -138,17 +151,19 @@ at the touched boundaries, but they are not a fresh SonarQube Cloud result.
 
 The current master also contains independent unreviewed security hotspots and
 a vulnerability backlog tracked separately; this record does not claim to
-resolve them. Draft PR #66's initial post-documentation head failed its
-SonarQube Cloud Reliability Gate; the follow-up source changes are not a
-verified closure until a new exact head receives zero PR Bugs and a passing
-Quality Gate.
+resolve them. The historical Draft PR #66 head failed its SonarQube Cloud
+Reliability Gate, while source-repair head
+91fea6d05850cc5aeef8ce7fb66a4123ac14e190 passed its exact-head Quality Gate
+with zero new issues and hotspots. Delivery remains governed by the current
+PR-head review and check state, not by this record alone.
 
 ## Final diff and review status
 
 The initial local commit is
 `d1ec42d0ebf713b3e898538ea125c8d6e5b8bf6d`, followed by documentation commit
 `97c24192268d567575f0c1417872e1d79911e0dc`; the latter exposed the three
-SonarQube Cloud follow-up Bugs in Draft PR #66. This Change Record pair now
-includes the local source remediation for those Bugs. A successor PR head and
-its exact check round and Quality Gate are still required before this work is
-verified; this record does not authorize a merge.
+SonarQube Cloud follow-up Bugs in Draft PR #66. Source follow-up commit
+`91fea6d05850cc5aeef8ce7fb66a4123ac14e190` repaired those paths and passed its
+exact GitHub/SonarQube Cloud round. This Change Record pair documents that
+observed evidence but does not authorize a merge; any current head is still
+subject to the repository-required review and exact-head verification cycle.

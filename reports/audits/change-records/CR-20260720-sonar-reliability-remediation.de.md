@@ -108,12 +108,23 @@ In diesem isolierten Worktree wurde keine vollständige native Connector-Runtime
 ausgeführt. Die aufbewahrte lokale Evidence besteht aus C17-Syntaxvalidierung
 aller vier berührten C-Translation-Units sowie fokussierten Contracts für die
 Envoy-Receive-Grenze, Traefik-Mutex-/Serialisierungsgrenzen, den
-Provisioning-Guard und die zweisprachige Dokumentation. Frische GitHub- und
-SonarQube-Cloud-Evidence für den PR-Head ist weiterhin erforderlich, bevor die
-ursprünglichen Bug-Keys als behoben behauptet werden. PR-#66-Head
-`97c24192268d567575f0c1417872e1d79911e0dc` beseitigte die ursprünglichen neun
-Keys, scheiterte aber mit drei Reliability-Follow-up-Bugs; dieser Record
-dokumentiert die Source-Level-Reparatur bis zu ihrer Nachfolgeanalyse.
+Provisioning-Guard und die zweisprachige Dokumentation. Der frühere PR-#66-Head
+97c24192268d567575f0c1417872e1d79911e0dc beseitigte die ursprünglichen neun
+Keys, scheiterte aber mit drei Reliability-Follow-up-Bugs. Der Source-Repair-
+Head 91fea6d05850cc5aeef8ce7fb66a4123ac14e190 erhielt anschließend die unten
+dokumentierte Exact-Head-GitHub- und SonarQube-Cloud-Evidence.
+
+## Exact-PR-Head-Delivery-Evidence
+
+Für den Source-Repair-Head 91fea6d05850cc5aeef8ce7fb66a4123ac14e190 bestanden
+die anwendbaren GitHub Actions, CodeQL, OSV, Secret-Scanning, actionlint,
+zizmor und die erforderlichen Branch-Rule-Checks. SonarQube Cloud endete am
+2026-07-20T19:31:39Z erfolgreich mit bestandenem Quality Gate, null neuen
+Issues und null neuen Security Hotspots. Dies belegt den reparierten
+Source-Head, nicht eine nicht ausgeführte native Runtime und nicht einen
+späteren reinen Dokumentationscommit. Der aktuelle PR-Head benötigt vor Ready
+for Review oder Merge stets seine eigene Review- und Exact-Head-Delivery-
+Evidence.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -133,9 +144,12 @@ dokumentiert die Source-Level-Reparatur bis zu ihrer Nachfolgeanalyse.
   PR-Head bleibt die ausstehende Full-Scope-Evidence.
 - Die erste Runde exakter PR-Head-GitHub-Actions, CodeQL, OSV, Secret-Scanning,
   actionlint und zizmor bestand; SonarQube-Cloud-Analyse
-  `29add8e9-7fb9-41a6-a250-29a9fbf53e7c` scheiterte allein am Reliability Rating
-  mit drei Bugs. Der Nachfolgepush benötigt erneut eine vollständige
-  Exact-Head-Runde einschließlich SonarQube Cloud, Review und PR-Evidence.
+  29add8e9-7fb9-41a6-a250-29a9fbf53e7c scheiterte allein am Reliability Rating
+  mit drei Bugs. Der spätere Source-Repair-Head
+  91fea6d05850cc5aeef8ce7fb66a4123ac14e190 absolvierte eine frische Exact-Head-
+  Runde mit bestandenen GitHub-Checks und bestandenem SonarQube-Cloud-Quality-
+  Gate. Jeder spätere Commit unterliegt weiterhin derselben frischen Review-
+  und Exact-Head-Runde.
 
 ## Bekannte Einschränkungen
 
@@ -147,18 +161,20 @@ SonarQube-Cloud-Ergebnis.
 
 Der aktuelle Master enthält außerdem unabhängige unreviewte Security-Hotspots
 und einen getrennt getrackten Vulnerability-Backlog; dieser Record behauptet
-nicht, sie zu lösen. Der nach dem Dokumentations-Follow-up erzeugte Head des
-Draft-PR #66 scheiterte am SonarQube-Cloud-Reliability-Gate; die Follow-up-
-Source-Änderungen sind keine verifizierte Schließung, bis ein neuer exakter Head
-null PR-Bugs und ein bestehendes Quality Gate zeigt.
+nicht, sie zu lösen. Der historische Draft-PR-#66-Head scheiterte am
+SonarQube-Cloud-Reliability-Gate, während Source-Repair-Head
+91fea6d05850cc5aeef8ce7fb66a4123ac14e190 sein Exact-Head-Quality-Gate mit null
+neuen Issues und Hotspots bestand. Die Delivery richtet sich nach dem aktuellen
+PR-Head mit Review- und Check-Status, nicht allein nach diesem Record.
 
 ## Finaler Diff- und Review-Status
 
 Der erste lokale Commit ist
 `d1ec42d0ebf713b3e898538ea125c8d6e5b8bf6d`, gefolgt vom Dokumentationscommit
 `97c24192268d567575f0c1417872e1d79911e0dc`; letzterer machte die drei
-SonarQube-Cloud-Follow-up-Bugs in Draft-PR #66 sichtbar. Dieses Change-Record-
-Paar enthält nun die lokale Source-Remediation für diese Bugs. Ein
-Nachfolge-PR-Head sowie dessen exakte Check-Runde und Quality Gate sind noch
-erforderlich, bevor diese Arbeit verifiziert ist; dieser Record autorisiert
-keinen Merge.
+SonarQube-Cloud-Follow-up-Bugs in Draft-PR #66 sichtbar. Source-Follow-up-
+Commit `91fea6d05850cc5aeef8ce7fb66a4123ac14e190` reparierte diese Pfade und
+bestand seine exakte GitHub-/SonarQube-Cloud-Runde. Dieses Change-Record-Paar
+dokumentiert diese beobachtete Evidence, autorisiert aber keinen Merge; jeder
+aktuelle Head unterliegt weiterhin der repository-erforderlichen Review- und
+Exact-Head-Verifikation.
