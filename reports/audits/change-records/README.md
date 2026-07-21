@@ -7,12 +7,12 @@ limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
 - [GitHub Actions checkout v7.0.1 immutable-lock synchronization](CR-20260721-actions-checkout-v7-lock.md)
-- [Portable C secure-zero hardening for SonarQube Cloud c:S5798](CR-20260721-sonar-c-s5798-zeroization.md)
 - [GitHub Actions setup-python v7 immutable-lock synchronization](CR-20260721-actions-setup-python-v7-lock.md)
 - [Parent Python 3.13 workflow contract and safe patch updater](CR-20260720-python-313-workflow-contract.md)
 - [Apache intervention ownership cleanup](CR-20260720-apache-intervention-ownership.md)
 - [Go 1.24.13 security baseline](CR-20260720-go12413-security-baseline.md)
 - [SonarQube Cloud reliability bug remediation](CR-20260720-sonar-reliability-remediation.md)
+- [Portable C secure-zero hardening for SonarQube Cloud c:S5798](CR-20260721-sonar-c-s5798-zeroization.md)
 - [SonarQube Cloud new-code duplication remediation](CR-20260719-sonar-new-code-duplication.md)
 - [Phase-4 evidence identity binding](CR-20260718-phase4-evidence-identity-binding.md)
 - [Apache Phase-4 response enforcement](CR-20260718-apache-phase4-response.md)
