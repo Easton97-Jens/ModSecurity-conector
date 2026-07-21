@@ -163,9 +163,8 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
             self.assertFalse(test_root.exists())
 
     def test_external_output_requests_continue_to_dependency_checks(self) -> None:
-        temporary_parent = os.environ.get("TMPDIR")
         with tempfile.TemporaryDirectory(
-            prefix="c-cpp-diagnostics-external-output-", dir=temporary_parent
+            prefix="c-cpp-diagnostics-external-output-"
         ) as temporary_directory:
             temporary_root = Path(temporary_directory)
             for script, variable, target, tool_variable, expected_message, defaults in (

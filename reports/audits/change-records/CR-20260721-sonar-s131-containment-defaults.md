@@ -56,6 +56,16 @@ continues. It adds no suppression, rule disablement, Quality-Gate change,
 NOSONAR marker, authentication change, authorization change, runtime protocol
 behavior, or Framework/MRTS change.
 
+The first hosted analysis of the Draft PR closed the five S131 observations but
+reported a new `python:S5443` issue in the newly added contract test. The test
+had directly forwarded its mutable `TMPDIR` value to
+`TemporaryDirectory(dir=...)`. The follow-up removes that explicit
+source-to-sink edge and keeps the standard library's randomized,
+process-owner-only `TemporaryDirectory` primitive. This is a narrowly scoped
+scanner/security-hygiene remediation for a contract test, not a claim that the
+test provisions a generally trusted parent or a change to a deployed connector
+trust boundary.
+
 ## Changed files
 
 - ci/checks/analysis/compile-db-cpp17.sh
@@ -73,6 +83,7 @@ behavior, or Framework/MRTS change.
 | rtk proxy sh -n ci/checks/analysis/compile-db-nginx-c17.sh | passed. |
 | rtk proxy sh -n ci/checks/analysis/check-targeted-evaluator-cpp17.sh | passed. |
 | rtk proxy env TMPDIR=<task-owned external path> PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 python3 -m unittest -v tests.test_c_cpp_diagnostics | passed: 6 tests, including checkout rejection and external-output continuation controls. |
+| rtk proxy env TMPDIR=<task-owned path> PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_c_cpp_diagnostics tests.test_bilingual_docs | passed after the S5443 follow-up: 17 tests, including the external-output continuation, checkout rejection, and documentation controls. |
 | rtk proxy git diff --check | passed after the source and contract change. |
 
 ## Runtime evidence
@@ -120,7 +131,9 @@ record does not authorize a merge.
 ## Final diff and review status
 
 The intended diff consists of five explicit no-op default arms, one focused
-contract test, and this traceability pair/index. Before any Draft PR is
-considered verified, the final diff, exact local/remote/PR SHA equality,
-GitHub Actions, SonarQube Cloud Quality Gate, five-key issue query, and review
-state must be rechecked for the current head.
+contract test that relies on the standard secure temporary-directory API
+without manually forwarding `TMPDIR`, and this traceability pair/index.
+Before any Draft PR is considered verified, the final diff, exact
+local/remote/PR SHA equality, GitHub Actions, SonarQube Cloud Quality Gate,
+five-key and S5443 issue queries, and review state must be rechecked for the
+current head.

@@ -59,6 +59,17 @@ Quality-Gate-Änderung, NOSONAR-Markierung, Authentifizierungsänderung,
 Autorisierungsänderung, Runtime-Protokollverhalten oder Framework-/MRTS-Änderung
 hinzu.
 
+Die erste Hosted-Analyse des Draft-PR schloss die fünf S131-Beobachtungen,
+meldete jedoch ein neues `python:S5443` im neu hinzugefügten Contract-Test.
+Der Test hatte seinen veränderlichen `TMPDIR`-Wert direkt an
+`TemporaryDirectory(dir=...)` weitergereicht. Das Follow-up entfernt diese
+explizite Source-to-Sink-Kante und behält die randomisierte,
+prozessbesitzergeschützte `TemporaryDirectory`-Primitive der Standardbibliothek
+bei. Dies ist eine eng begrenzte Scanner-/Security-Hygiene-Remediation für
+einen Contract-Test, keine Behauptung, dass der Test einen allgemein
+vertrauenswürdigen Parent bereitstellt, und keine Änderung einer deployten
+Connector-Trust-Boundary.
+
 ## Geänderte Dateien
 
 - ci/checks/analysis/compile-db-cpp17.sh
@@ -76,6 +87,7 @@ hinzu.
 | rtk proxy sh -n ci/checks/analysis/compile-db-nginx-c17.sh | bestanden. |
 | rtk proxy sh -n ci/checks/analysis/check-targeted-evaluator-cpp17.sh | bestanden. |
 | rtk proxy env TMPDIR=<task-owned external path> PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 python3 -m unittest -v tests.test_c_cpp_diagnostics | bestanden: 6 Tests, einschließlich Checkout-Rejection- und External-Output-Continuation-Controls. |
+| rtk proxy env TMPDIR=<task-owned path> PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_c_cpp_diagnostics tests.test_bilingual_docs | nach dem S5443-Follow-up bestanden: 17 Tests, einschließlich External-Output-Continuation-, Checkout-Rejection- und Dokumentations-Controls. |
 | rtk proxy git diff --check | nach der Source- und Contract-Änderung bestanden. |
 
 ## Runtime-Evidence
@@ -126,7 +138,9 @@ getrennt getrackt. Dieser Record autorisiert keinen Merge.
 ## Finaler Diff- und Review-Status
 
 Der beabsichtigte Diff besteht aus fünf expliziten no-op-Default-Armen, einem
-fokussierten Contract-Test und diesem Traceability-Paar/Index. Bevor ein
-Draft-PR als verifiziert gilt, müssen finaler Diff, exakte lokale/Remote/PR-SHA-
-Gleichheit, GitHub Actions, SonarQube-Cloud-Quality-Gate, Five-Key-Issue-Query
-und Review-Status für den aktuellen Head erneut geprüft werden.
+fokussierten Contract-Test, der die sichere Temporary-Directory-API der
+Standardbibliothek ohne manuelles Weiterreichen von `TMPDIR` nutzt, und diesem
+Traceability-Paar/Index. Bevor ein Draft-PR als verifiziert gilt, müssen
+finaler Diff, exakte lokale/Remote/PR-SHA-Gleichheit, GitHub Actions,
+SonarQube-Cloud-Quality-Gate, Five-Key- und S5443-Issue-Queries sowie
+Review-Status für den aktuellen Head erneut geprüft werden.
