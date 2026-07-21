@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [NGINX Server header byte-length correction](CR-20260721-nginx-server-header-length.md)
 - [Apache intervention ownership cleanup](CR-20260720-apache-intervention-ownership.md)
 - [Go 1.24.13 security baseline](CR-20260720-go12413-security-baseline.md)
 - [SonarQube Cloud reliability bug remediation](CR-20260720-sonar-reliability-remediation.md)

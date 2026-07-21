@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [NGINX-Korrektur der Server-Header-Bytelänge](CR-20260721-nginx-server-header-length.de.md)
 - [Apache-Intervention-Ownership-Cleanup](CR-20260720-apache-intervention-ownership.de.md)
 - [Go-1.24.13-Sicherheitsbaseline](CR-20260720-go12413-security-baseline.de.md)
 - [Behebung der SonarQube-Cloud-Reliability-Bugs](CR-20260720-sonar-reliability-remediation.de.md)
