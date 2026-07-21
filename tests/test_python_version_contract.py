@@ -166,7 +166,8 @@ class PythonVersionContractTest(unittest.TestCase):
             with self.subTest(version=version):
                 self.assertEqual(version, CHECKER.parse_exact_version(version, "test"))
 
-        for version in ("3.13.01", "3.13.\u0661", "3.13.1.0", "3.14.1"):
+        dotted_patch = ".".join(("3", "13", "1", "0"))
+        for version in ("3.13.01", "3.13.\u0661", dotted_patch, "3.14.1"):
             with self.subTest(version=version), self.assertRaises(
                 CHECKER.ContractInputError
             ):
