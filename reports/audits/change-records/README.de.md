@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [GitHub-Actions-checkout-v7.0.1-Immutable-Lock-Synchronisierung](CR-20260721-actions-checkout-v7-lock.de.md)
 - [Portable C-secure-zero-Härtung für SonarQube Cloud c:S5798](CR-20260721-sonar-c-s5798-zeroization.de.md)
 - [GitHub-Actions-setup-python-v7-Immutable-Lock-Synchronisierung](CR-20260721-actions-setup-python-v7-lock.de.md)
 - [Parent-Python-3.13-Workflow-Vertrag und sicherer Patch-Updater](CR-20260720-python-313-workflow-contract.de.md)
