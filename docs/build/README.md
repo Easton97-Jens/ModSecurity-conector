@@ -113,11 +113,11 @@ validation.
 | `test-apache.yml` | `apache-structure` | Conditional non-PR Python setup and quick-check | Existing minor-only setup |
 | `test-common.yml` | `common-structure` | Conditional non-PR Python setup and quick-check | Existing minor-only setup |
 | `test-envoy.yml` | `envoy-contract` | Indirect Python in connector checks | Ambient or bootstrapped Python |
-| `test-full-smoke-sequential.yml` | `manual-heavy-runtime-validation` | `.venv/bin/python -m py_compile` and Python Make paths | Ambient or bootstrapped Python |
+| `test-full-smoke-sequential.yml` | `manual-heavy-runtime-validation` | Verified `python3 -m py_compile` and Python Make paths | Ambient or bootstrapped Python |
 | `test-lighttpd.yml` | `lighttpd-contract` | Indirect Python in connector and shared checks | Ambient or bootstrapped Python |
 | `test-nginx.yml` | `nginx-structure` | Conditional non-PR Python setup and quick-check | Existing minor-only setup |
 | `test-traefik.yml` | `traefik-contract` | Indirect Python in connector and shared checks | Ambient or bootstrapped Python |
-| `update-actions-versions.yml` | `update-actions-versions` | `python3 scripts/update-github-actions-versions.py --write` | Existing minor-only setup |
+| `update-actions-versions.yml` | `resolve-ci-tool-updates` | `python3 scripts/update-github-actions-versions.py --resolve --json` | Existing minor-only setup |
 | `update-submodules.yml` | `validate-submodule-update` | Indirect Python through `make quick-check` | Ambient or bootstrapped Python |
 | `verified-report-governance.yml` | `report-governance` | Indirect Python through `make report-governance` | Existing minor-only setup |
 

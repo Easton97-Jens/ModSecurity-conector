@@ -21,7 +21,7 @@ jobs:
       update_available: ${{ steps.resolve.outputs.update_available }}
     steps:
       - name: Check out trusted default branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           submodules: false
@@ -29,7 +29,7 @@ jobs:
 
       - name: Set up canonical Python
         id: setup-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -87,7 +87,7 @@ jobs:
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Check out trusted default branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           submodules: false
@@ -95,7 +95,7 @@ jobs:
 
       - name: Set up candidate Python
         id: setup-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ needs.resolve-python-patch.outputs.version }}
           check-latest: false
@@ -105,6 +105,23 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
           EXPECTED_VERSION: ${{ needs.resolve-python-patch.outputs.version }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --expected-version "$EXPECTED_VERSION" --expected-python "$EXPECTED_PYTHON"
+
+      - name: Install hash-locked YAML parser
+        run: |
+          set -euo pipefail
+          dependency_dir="$RUNNER_TEMP/parent-ci-yaml-parser"
+          python3 -m pip install \
+            --isolated \
+            --disable-pip-version-check \
+            --no-deps \
+            --no-input \
+            --require-hashes \
+            --only-binary=:all: \
+            --index-url https://pypi.org/simple \
+            --target "$dependency_dir" \
+            -r ci/tooling/python-ci-requirements.lock
+          PYTHONPATH="$dependency_dir" python3 -c 'import yaml; assert yaml.__version__ == "6.0.3"'
+          printf 'PYTHONPATH=%s\n' "$dependency_dir" >> "$GITHUB_ENV"
 
       - name: Re-resolve and validate candidate metadata
         run: python3 scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json
@@ -143,7 +160,7 @@ jobs:
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Check out trusted default branch without submodules
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           submodules: false
@@ -152,7 +169,7 @@ jobs:
 
       - name: Set up canonical Python
         id: setup-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -166,6 +183,8 @@ jobs:
         id: update
         run: |
           set -euo pipefail
+          candidate_base_sha="$(git rev-parse HEAD)"
+          printf 'base_sha=%s\n' "$candidate_base_sha" >> "$GITHUB_OUTPUT"
           if ! printf '%s\n' "$CANDIDATE_VERSION" | grep -Eq '^3\.13\.(0|[1-9][0-9]*)$'; then
             echo "Candidate version is not an exact stable Python 3.13 patch." >&2
             exit 1
@@ -195,9 +214,36 @@ jobs:
         if: steps.update.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          CANDIDATE_BASE_SHA: ${{ steps.update.outputs.base_sha }}
         run: |
           set -euo pipefail
           set -o pipefail
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "Publisher branch binding is invalid." >&2
+            exit 1
+          fi
+          if [ "$UPDATE_BRANCH" != "automation/update-python-313" ]; then
+            echo "Publisher branch binding is invalid." >&2
+            exit 1
+          fi
+          if [ "$UPDATE_BRANCH" = "$DEFAULT_BRANCH" ]; then
+            echo "Publisher branch binding is invalid." >&2
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+            echo "Publisher branch binding is invalid." >&2
+            exit 1
+          fi
+          if ! printf '%s\n' "$CANDIDATE_BASE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Candidate base revision is invalid." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin "$DEFAULT_BRANCH"
+          verified_default_sha="$(git rev-parse --verify --quiet "origin/$DEFAULT_BRANCH^{commit}")"
+          if [ "$verified_default_sha" != "$CANDIDATE_BASE_SHA" ]; then
+            echo "Trusted default branch changed after candidate application; rerun resolution and validation." >&2
+            exit 1
+          fi
           existing_pr="$(
             gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
               -f state=open \
@@ -246,12 +292,22 @@ jobs:
               echo "Open update pull request lacks its expected branch $UPDATE_BRANCH." >&2
               exit 1
             fi
+            is_draft="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq '.draft')"
+            if [ "$is_draft" != "true" ]; then
+              echo "Existing update pull request is not a draft." >&2
+              exit 1
+            fi
             auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq '.auto_merge')"
             if [ "$auto_merge" != "null" ]; then
               echo "Existing update pull request has automatic merge enabled or an unverifiable merge state." >&2
               exit 1
             fi
-            git fetch --no-tags origin "$UPDATE_BRANCH"
+            git fetch --no-tags origin "$DEFAULT_BRANCH" "$UPDATE_BRANCH"
+            verified_default_sha="$(git rev-parse --verify --quiet "origin/$DEFAULT_BRANCH^{commit}")"
+            if [ "$verified_default_sha" != "$CANDIDATE_BASE_SHA" ]; then
+              echo "Trusted default branch changed while preparing the existing update branch; rerun resolution and validation." >&2
+              exit 1
+            fi
             merge_base="$(git merge-base "origin/$DEFAULT_BRANCH" "origin/$UPDATE_BRANCH")"
             if [ -z "$merge_base" ]; then
               echo "Update branch has no trusted default-branch merge base." >&2
@@ -295,7 +351,11 @@ jobs:
             echo "Refusing to overwrite the existing remote branch $UPDATE_BRANCH without an open update pull request." >&2
             exit 1
           fi
-          git switch -c "$UPDATE_BRANCH"
+          git switch --no-track -c "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/$DEFAULT_BRANCH")" ]; then
+            echo "Fresh update branch is not based on the verified default branch." >&2
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .python-version

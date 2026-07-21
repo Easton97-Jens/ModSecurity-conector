@@ -323,6 +323,7 @@ check-bilingual-docs:
 
 check-ci-security-contract:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/update-github-actions-versions.py --verify --json
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool actionlint --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool zizmor --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool gitleaks --validate-only

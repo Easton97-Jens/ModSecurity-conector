@@ -1,0 +1,520 @@
+name: Update Go 1.26 patch
+
+on:
+  schedule:
+    - cron: '29 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-go-patch:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      current_version: ${{ steps.resolve.outputs.current_version }}
+      version: ${{ steps.resolve.outputs.version }}
+      update_available: ${{ steps.resolve.outputs.update_available }}
+    steps:
+      - name: Check out trusted default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
+          persist-credentials: false
+
+      - name: Set up canonical Python for Go resolution
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Resolve latest stable Go 1.26 patch
+        id: resolve
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          report="$(python3 scripts/update-go-version.py --check --json)"
+          printf '%s\n' "$report"
+          REPORT="$report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          import re
+
+          data = json.loads(os.environ["REPORT"])
+          current = data.get("current_version")
+          latest = data.get("latest_version")
+          available = data.get("update_available")
+          newer_minor_available = data.get("newer_minor_available")
+          newer_minor_version = data.get("newer_minor_version")
+          status = data.get("status")
+          pattern = re.compile(r"^1\.26\.(?:0|[1-9][0-9]*)$", re.ASCII)
+          release_pattern = re.compile(
+              r"^[1-9][0-9]*\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$",
+              re.ASCII,
+          )
+          if not isinstance(current, str) or not pattern.fullmatch(current):
+              raise SystemExit("resolver returned an invalid current_version")
+          if not isinstance(latest, str) or not pattern.fullmatch(latest):
+              raise SystemExit("resolver returned an invalid latest_version")
+          if not isinstance(available, bool):
+              raise SystemExit("resolver returned a non-boolean update_available")
+          if not isinstance(newer_minor_available, bool):
+              raise SystemExit("resolver returned a non-boolean newer_minor_available")
+          if newer_minor_available:
+              if not isinstance(newer_minor_version, str) or not release_pattern.fullmatch(newer_minor_version):
+                  raise SystemExit("resolver returned an invalid newer_minor_version")
+              if tuple(map(int, newer_minor_version.split("."))) <= (1, 26, 0):
+                  raise SystemExit("resolver returned a non-newer minor version")
+          elif newer_minor_version is not None:
+              raise SystemExit("resolver returned a newer_minor_version without availability")
+          if status not in {"current", "patch_update_available", "newer_minor_available"}:
+              raise SystemExit("resolver returned an invalid status")
+          if available != (latest != current):
+              raise SystemExit("resolver returned inconsistent update availability")
+          expected_status = (
+              "patch_update_available"
+              if available
+              else "newer_minor_available"
+              if newer_minor_available
+              else "current"
+          )
+          if status != expected_status:
+              raise SystemExit("resolver returned an inconsistent status")
+          print(f"current_version={current}")
+          print(f"version={latest}")
+          print(f"update_available={str(available).lower()}")
+          PY
+
+  validate-go-patch:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-go-patch.outputs.update_available == 'true' }}
+    needs: resolve-go-patch
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CANDIDATE_VERSION: ${{ needs.resolve-go-patch.outputs.version }}
+      GOTOOLCHAIN: local
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out trusted default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
+          persist-credentials: false
+
+      - name: Set up candidate Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ needs.resolve-go-patch.outputs.version }}
+          check-latest: false
+
+      - name: Set up canonical Python for workflow contracts
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Install hash-locked YAML parser
+        run: |
+          set -euo pipefail
+          dependency_dir="$RUNNER_TEMP/parent-ci-yaml-parser"
+          python3 -m pip install \
+            --isolated \
+            --disable-pip-version-check \
+            --no-deps \
+            --no-input \
+            --require-hashes \
+            --only-binary=:all: \
+            --index-url https://pypi.org/simple \
+            --target "$dependency_dir" \
+            -r ci/tooling/python-ci-requirements.lock
+          PYTHONPATH="$dependency_dir" python3 -c 'import yaml; assert yaml.__version__ == "6.0.3"'
+          printf 'PYTHONPATH=%s\n' "$dependency_dir" >> "$GITHUB_ENV"
+
+      - name: Re-resolve and validate candidate metadata
+        run: python3 scripts/update-go-version.py --check --expected-version "$CANDIDATE_VERSION" --json
+
+      - name: Apply and validate candidate in a disposable repository copy
+        run: |
+          set -euo pipefail
+          case "$CANDIDATE_VERSION" in
+            1.26.[0-9]*) ;;
+            *)
+              echo "Candidate version is not an exact stable Go 1.26 patch." >&2
+              exit 1
+              ;;
+          esac
+          candidate_root="$(mktemp -d "$RUNNER_TEMP/go-candidate-validation.XXXXXX")"
+          git archive --format=tar HEAD | tar -x -C "$candidate_root"
+          (
+            cd "$candidate_root"
+            update_report="$(python3 scripts/update-go-version.py --update --expected-version "$CANDIDATE_VERSION" --json)"
+            printf '%s\n' "$update_report"
+            REPORT="$update_report" CANDIDATE_VERSION="$CANDIDATE_VERSION" python3 - <<'PY'
+          import json
+          import os
+
+          report = json.loads(os.environ["REPORT"])
+          candidate = os.environ["CANDIDATE_VERSION"]
+          if report.get("expected_version") != candidate:
+              raise SystemExit("candidate updater did not preserve the expected version")
+          if report.get("latest_version") != candidate:
+              raise SystemExit("candidate updater did not apply the resolved version")
+          if report.get("changed") is not True:
+              raise SystemExit("candidate updater did not modify its disposable copy")
+          PY
+          for module in connectors/envoy/ext_proc connectors/traefik/native_middleware; do
+            (
+              cd "$module"
+              if grep -Eq '^toolchain[[:space:]]+' go.mod; then
+                echo "Explicit toolchain directive is not allowed: $module/go.mod" >&2
+                exit 1
+              fi
+              grep -Fx "go $CANDIDATE_VERSION" go.mod
+              cp go.mod go.mod.expected
+              had_go_sum=false
+              if [ -f go.sum ]; then
+                cp go.sum go.sum.expected
+                had_go_sum=true
+              fi
+              assert_no_module_metadata_drift() {
+                if ! cmp -s go.mod go.mod.expected; then
+                  echo "Go module metadata drifted beyond the intended go directive: $module/go.mod" >&2
+                  return 1
+                fi
+                if [ "$had_go_sum" = true ]; then
+                  if ! cmp -s go.sum go.sum.expected; then
+                    echo "Go module metadata drifted beyond the intended go directive: $module/go.sum" >&2
+                    return 1
+                  fi
+                elif [ -e go.sum ]; then
+                  echo "Go module metadata drifted beyond the intended go directive: $module/go.sum was created" >&2
+                  return 1
+                fi
+              }
+              go mod tidy
+              assert_no_module_metadata_drift
+              go mod verify
+              go list -m all >/dev/null
+              go list -buildvcs=false -deps ./... >/dev/null
+              go test ./...
+              go vet ./...
+              assert_no_module_metadata_drift
+              if grep -Eq '^toolchain[[:space:]]+' go.mod; then
+                echo "Go commands introduced an explicit toolchain directive: $module/go.mod" >&2
+                exit 1
+              fi
+              grep -Fx "go $CANDIDATE_VERSION" go.mod
+            )
+          done
+            python3 -m unittest -v \
+            tests.test_update_go_version \
+            tests.test_ci_security_workflows \
+            tests.test_compiler_guides
+          )
+          git diff --check
+
+  create-go-update-pr:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-go-patch.outputs.update_available == 'true' && needs.validate-go-patch.result == 'success' }}
+    needs:
+      - resolve-go-patch
+      - validate-go-patch
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE_VERSION: ${{ needs.resolve-go-patch.outputs.version }}
+      CURRENT_VERSION: ${{ needs.resolve-go-patch.outputs.current_version }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      UPDATE_BRANCH: automation/update-go-126
+      PR_TITLE: "chore(ci): propose Go 1.26 patch update"
+      WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out trusted default branch without submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up canonical Python for Go publication
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Re-resolve and update only the Go contract fields
+        id: update
+        run: |
+          set -euo pipefail
+          candidate_base_sha="$(git rev-parse HEAD)"
+          printf 'base_sha=%s\n' "$candidate_base_sha" >> "$GITHUB_OUTPUT"
+          case "$CANDIDATE_VERSION" in
+            1.26.[0-9]*) ;;
+            *)
+              echo "Candidate version is not an exact stable Go 1.26 patch." >&2
+              exit 1
+              ;;
+          esac
+          case "$CURRENT_VERSION" in
+            1.26.[0-9]*) ;;
+            *)
+              echo "Current version is not an exact stable Go 1.26 patch." >&2
+              exit 1
+              ;;
+          esac
+          if [ "$CANDIDATE_VERSION" = "$CURRENT_VERSION" ]; then
+            echo "Resolver reported an update without a version change." >&2
+            exit 1
+          fi
+          python3 scripts/update-go-version.py --update --expected-version "$CANDIDATE_VERSION" --json
+          changed_paths="$(git diff --name-only)"
+          if [ -z "$changed_paths" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          expected_paths=$'.github/workflows/ci-security-codeql.yml\nconnectors/envoy/ext_proc/go.mod\nconnectors/traefik/native_middleware/go.mod'
+          if [ "$changed_paths" != "$expected_paths" ]; then
+            echo "Updater changed paths outside the strict Go contract: $changed_paths" >&2
+            exit 1
+          fi
+          git diff --check
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update a draft pull request without force push
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_BASE_SHA: ${{ steps.update.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          set -o pipefail
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "Refusing to publish outside the exact Go updater default-branch contract." >&2
+            exit 1
+          fi
+          if [ "$UPDATE_BRANCH" != "automation/update-go-126" ]; then
+            echo "Refusing to publish outside the exact Go updater default-branch contract." >&2
+            exit 1
+          fi
+          if [ "$UPDATE_BRANCH" = "$DEFAULT_BRANCH" ]; then
+            echo "Refusing to publish outside the exact Go updater default-branch contract." >&2
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+            echo "Refusing to publish outside the exact Go updater default-branch contract." >&2
+            exit 1
+          fi
+          if ! printf '%s\n' "$CANDIDATE_BASE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Candidate base revision is invalid." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin "$DEFAULT_BRANCH"
+          verified_default_sha="$(git rev-parse --verify --quiet "origin/$DEFAULT_BRANCH^{commit}")"
+          if [ "$verified_default_sha" != "$CANDIDATE_BASE_SHA" ]; then
+            echo "Trusted default branch changed after candidate application; rerun resolution and validation." >&2
+            exit 1
+          fi
+          assert_exact_modified_go_paths() {
+            local status_file="$1" status path count=0
+            local codeql_seen=false envoy_seen=false traefik_seen=false
+            while IFS= read -r -d '' status && IFS= read -r -d '' path; do
+              if [ "$status" != "M" ]; then
+                echo "Refusing non-modification change status $status for $path." >&2
+                return 1
+              fi
+              case "$path" in
+                .github/workflows/ci-security-codeql.yml)
+                  if [ "$codeql_seen" = true ]; then
+                    echo "Duplicate strict Go contract path: $path" >&2
+                    return 1
+                  fi
+                  codeql_seen=true
+                  ;;
+                connectors/envoy/ext_proc/go.mod)
+                  if [ "$envoy_seen" = true ]; then
+                    echo "Duplicate strict Go contract path: $path" >&2
+                    return 1
+                  fi
+                  envoy_seen=true
+                  ;;
+                connectors/traefik/native_middleware/go.mod)
+                  if [ "$traefik_seen" = true ]; then
+                    echo "Duplicate strict Go contract path: $path" >&2
+                    return 1
+                  fi
+                  traefik_seen=true
+                  ;;
+                *)
+                  echo "Path is outside the strict Go contract: $path" >&2
+                  return 1
+                  ;;
+              esac
+              count=$((count + 1))
+            done < "$status_file"
+            if [ "$count" -ne 3 ] || [ "$codeql_seen" != true ] || [ "$envoy_seen" != true ] || [ "$traefik_seen" != true ]; then
+              echo "Expected exactly the three modified strict Go contract paths." >&2
+              return 1
+            fi
+          }
+          current_status_file="$RUNNER_TEMP/go-update-current-status.z"
+          git diff --name-status -z --no-renames > "$current_status_file"
+          assert_exact_modified_go_paths "$current_status_file"
+          existing_pr="$(
+            gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+              -f state=open \
+              -f base="$DEFAULT_BRANCH" \
+              -f head="$GITHUB_REPOSITORY_OWNER:$UPDATE_BRANCH" \
+              -f per_page=100 | \
+              python3 scripts/select-python-update-pr.py \
+                --repository "$GITHUB_REPOSITORY" \
+                --owner "$GITHUB_REPOSITORY_OWNER" \
+                --base "$DEFAULT_BRANCH" \
+                --branch "$UPDATE_BRANCH"
+          )"
+
+          remote_branch=false
+          if git ls-remote --exit-code --heads origin "$UPDATE_BRANCH" >/dev/null 2>&1; then
+            remote_branch=true
+          fi
+          gh auth setup-git
+          pr_body="$RUNNER_TEMP/go-update-pr-body.md"
+          cat > "$pr_body" <<EOF
+          ## English
+
+          - Previous version: $CURRENT_VERSION
+          - Proposed version: $CANDIDATE_VERSION
+          - Official release identity: Go $CANDIDATE_VERSION
+          - Metadata source: https://go.dev/dl/?mode=json&include=all
+          - Validation workflow and run: validate-go-patch ($WORKFLOW_RUN_URL)
+          - Changed files: .github/workflows/ci-security-codeql.yml, connectors/envoy/ext_proc/go.mod, and connectors/traefik/native_middleware/go.mod
+          - Minor version: remains Go 1.26
+          - Merge: no automatic merge
+
+          ## Deutsch
+
+          - Vorherige Version: $CURRENT_VERSION
+          - Vorgeschlagene Version: $CANDIDATE_VERSION
+          - Offizielle Release-Identität: Go $CANDIDATE_VERSION
+          - Metadatenquelle: https://go.dev/dl/?mode=json&include=all
+          - Validierungsworkflow und Run: validate-go-patch ($WORKFLOW_RUN_URL)
+          - Geänderte Dateien: .github/workflows/ci-security-codeql.yml, connectors/envoy/ext_proc/go.mod und connectors/traefik/native_middleware/go.mod
+          - Minor-Version: bleibt Go 1.26
+          - Merge: kein automatischer Merge
+          EOF
+
+          if [ -n "$existing_pr" ]; then
+            if [ "$remote_branch" != true ]; then
+              echo "Open update pull request lacks its expected branch $UPDATE_BRANCH." >&2
+              exit 1
+            fi
+            is_draft="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq '.draft')"
+            if [ "$is_draft" != "true" ]; then
+              echo "Existing update pull request is not a draft." >&2
+              exit 1
+            fi
+            auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq '.auto_merge')"
+            if [ "$auto_merge" != "null" ]; then
+              echo "Existing update pull request has automatic merge enabled or an unverifiable merge state." >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$DEFAULT_BRANCH" "$UPDATE_BRANCH"
+            verified_default_sha="$(git rev-parse --verify --quiet "origin/$DEFAULT_BRANCH^{commit}")"
+            if [ "$verified_default_sha" != "$CANDIDATE_BASE_SHA" ]; then
+              echo "Trusted default branch changed while preparing the existing update branch; rerun resolution and validation." >&2
+              exit 1
+            fi
+            merge_base="$(git merge-base "origin/$DEFAULT_BRANCH" "origin/$UPDATE_BRANCH")"
+            if [ -z "$merge_base" ]; then
+              echo "Update branch has no trusted default-branch merge base." >&2
+              exit 1
+            fi
+            existing_branch_status_file="$RUNNER_TEMP/go-update-existing-branch-status.z"
+            git diff --name-status -z --no-renames "$merge_base" "origin/$UPDATE_BRANCH" > "$existing_branch_status_file"
+            assert_exact_modified_go_paths "$existing_branch_status_file"
+            codeql_blob="$(git hash-object -w .github/workflows/ci-security-codeql.yml)"
+            envoy_blob="$(git hash-object -w connectors/envoy/ext_proc/go.mod)"
+            traefik_blob="$(git hash-object -w connectors/traefik/native_middleware/go.mod)"
+            for blob in "$codeql_blob" "$envoy_blob" "$traefik_blob"; do
+              if ! printf '%s\n' "$blob" | grep -Eq '^[0-9a-f]{40}$'; then
+                echo "Candidate contract blob is malformed." >&2
+                exit 1
+              fi
+            done
+            git read-tree "origin/$UPDATE_BRANCH"
+            git update-index --add --cacheinfo 100644 "$codeql_blob" .github/workflows/ci-security-codeql.yml
+            git update-index --add --cacheinfo 100644 "$envoy_blob" connectors/envoy/ext_proc/go.mod
+            git update-index --add --cacheinfo 100644 "$traefik_blob" connectors/traefik/native_middleware/go.mod
+            if git diff-index --quiet "origin/$UPDATE_BRANCH" --; then
+              echo "The existing update pull request already contains $CANDIDATE_VERSION."
+              exit 0
+            fi
+            reconstructed_status_file="$RUNNER_TEMP/go-update-reconstructed-status.z"
+            git diff --cached --name-status -z --no-renames "origin/$UPDATE_BRANCH" > "$reconstructed_status_file"
+            assert_exact_modified_go_paths "$reconstructed_status_file"
+            git diff-index --check "origin/$UPDATE_BRANCH" --
+            tree="$(git write-tree)"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            commit="$(git commit-tree "$tree" -p "origin/$UPDATE_BRANCH" -m "$PR_TITLE")"
+            git update-ref "refs/heads/$UPDATE_BRANCH" "$commit" "origin/$UPDATE_BRANCH"
+            git push origin "$UPDATE_BRANCH"
+            gh pr edit "$existing_pr" \
+              --title "$PR_TITLE" \
+              --body-file "$pr_body"
+            exit 0
+          fi
+
+          if [ "$remote_branch" = true ]; then
+            echo "Refusing to overwrite the existing remote branch $UPDATE_BRANCH without an open update pull request." >&2
+            exit 1
+          fi
+          git switch --no-track -c "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/$DEFAULT_BRANCH")" ]; then
+            echo "Fresh update branch is not based on the verified default branch." >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            .github/workflows/ci-security-codeql.yml \
+            connectors/envoy/ext_proc/go.mod \
+            connectors/traefik/native_middleware/go.mod
+          git commit -m "chore(ci): update Go to $CANDIDATE_VERSION"
+          git push origin "$UPDATE_BRANCH"
+          gh pr create \
+            --draft \
+            --base "$DEFAULT_BRANCH" \
+            --head "$UPDATE_BRANCH" \
+            --title "$PR_TITLE" \
+            --body-file "$pr_body"

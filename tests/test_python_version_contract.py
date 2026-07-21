@@ -35,7 +35,11 @@ CHECKER = load_checker()
 
 class PythonVersionContractTest(unittest.TestCase):
     def temporary_root(self) -> tempfile.TemporaryDirectory[str]:
-        return tempfile.TemporaryDirectory(prefix="python-version-contract-")
+        directory = tempfile.TemporaryDirectory(prefix="python-version-contract-")
+        lock = Path(directory.name) / "ci" / "tooling" / "security-tools.lock.yml"
+        lock.parent.mkdir(parents=True)
+        shutil.copy2(ROOT / "ci" / "tooling" / "security-tools.lock.yml", lock)
+        return directory
 
     def cli_json_result(
         self, root: Path, *arguments: str
@@ -86,7 +90,7 @@ class PythonVersionContractTest(unittest.TestCase):
     steps:
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: '.python-version'
           check-latest: false
@@ -104,7 +108,7 @@ class PythonVersionContractTest(unittest.TestCase):
     steps:
       - name: Set up candidate Python
         id: setup-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ needs.resolve-python-patch.outputs.version }}
           check-latest: false
@@ -137,8 +141,8 @@ class PythonVersionContractTest(unittest.TestCase):
             )
         (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
 
-    def test_expected_inventory_has_24_normal_jobs_and_one_special_job(self) -> None:
-        self.assertEqual(24, len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS))
+    def test_expected_inventory_has_29_normal_jobs_and_one_special_job(self) -> None:
+        self.assertEqual(29, len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS))
         self.assertNotIn(
             CHECKER.CANDIDATE_VALIDATION_JOB, CHECKER.EXPECTED_NORMAL_PYTHON_JOBS
         )
@@ -160,6 +164,80 @@ class PythonVersionContractTest(unittest.TestCase):
         self.assertEqual("fixture-job", CHECKER.job_header("fixture-job: # comment"))
         self.assertIsNone(CHECKER.job_header("fixture-job: unexpected-value"))
         self.assertIsNone(CHECKER.mapping_entry("not a mapping"))
+
+    def test_noncanonical_semantic_job_headers_fail_closed(self) -> None:
+        """No Python-bearing YAML job may be hidden from the raw source parser."""
+
+        variants = {
+            "quoted": '  "hidden-python":\n    runs-on: ubuntu-latest\n    steps:\n      - run: python3 --version\n',
+            "escaped": '  "hidden-\\x70ython":\n    runs-on: ubuntu-latest\n    steps:\n      - run: python3 --version\n',
+            "explicit": '  ? hidden-python\n  :\n    runs-on: ubuntu-latest\n    steps:\n      - run: python3 --version\n',
+            "flow": "  hidden-python: {runs-on: ubuntu-latest, steps: [{run: python3 --version}]}\n",
+            "flow-steps": "  hidden-python:\n    runs-on: ubuntu-latest\n    steps: [{run: python3 --version}]\n",
+            "flow-step": "  hidden-python:\n    runs-on: ubuntu-latest\n    steps:\n      - {run: python3 --version}\n",
+            "quoted-steps": '  hidden-python:\n    runs-on: ubuntu-latest\n    "steps":\n      - run: python3 --version\n',
+            "escaped-run": '  hidden-python:\n    runs-on: ubuntu-latest\n    steps:\n      - "\\x72un": python3 --version\n',
+            "comment-steps": "  hidden-python:\n    runs-on: ubuntu-latest\n    steps: # ordinary YAML comment\n      - run: python3 --version\n",
+            "space-before-steps-colon": "  hidden-python:\n    runs-on: ubuntu-latest\n    steps :\n      - run: python3 --version\n",
+            "bare-sequence-marker": "  hidden-python:\n    runs-on: ubuntu-latest\n    steps:\n      -\n        run: python3 --version\n",
+            "three-space-field": "  hidden-python:\n   runs-on: ubuntu-latest\n   steps:\n     - run: python3 --version\n",
+            "five-space-sequence": "  hidden-python:\n    runs-on: ubuntu-latest\n    steps:\n     - run: python3 --version\n",
+            "space-before-run-colon": "  hidden-python:\n    runs-on: ubuntu-latest\n    steps:\n      - run : python3 --version\n",
+        }
+        for spelling, hidden_job in variants.items():
+            with self.subTest(spelling=spelling), self.temporary_root() as directory:
+                root = Path(directory)
+                workflow_dir = root / ".github" / "workflows"
+                workflow_dir.mkdir(parents=True)
+                (workflow_dir / "noncanonical.yml").write_text(
+                    "name: noncanonical\non: workflow_dispatch\njobs:\n"
+                    + self.normal_job_block("fixture-job")
+                    + hidden_job,
+                    encoding="utf-8",
+                )
+                (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
+                _, violations, detected = CHECKER.evaluate_workflow_contract(
+                    root,
+                    root / ".python-version",
+                    expected_normal_jobs={CHECKER.JobIdentity("noncanonical.yml", "fixture-job")},
+                    expected_candidate_job=None,
+                )
+                self.assertEqual(
+                    {
+                        CHECKER.JobIdentity("noncanonical.yml", "fixture-job"),
+                        CHECKER.JobIdentity("noncanonical.yml", "hidden-python"),
+                    },
+                    detected,
+                )
+                self.assertTrue(
+                    any(
+                        "unlisted Python-related workflow job: noncanonical.yml:hidden-python" in violation
+                        for violation in violations
+                    ),
+                    violations,
+                )
+
+        with self.temporary_root() as directory:
+            root = Path(directory)
+            workflow_dir = root / ".github" / "workflows"
+            workflow_dir.mkdir(parents=True)
+            (workflow_dir / "aliased.yml").write_text(
+                "name: aliased\non: workflow_dispatch\n"
+                "base_steps: &base_steps\n  - run: python3 --version\n"
+                "jobs:\n  fixture-job:\n    runs-on: ubuntu-latest\n    steps: *base_steps\n",
+                encoding="utf-8",
+            )
+            (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
+            _, violations, detected = CHECKER.evaluate_workflow_contract(
+                root,
+                root / ".python-version",
+                expected_normal_jobs={CHECKER.JobIdentity("aliased.yml", "fixture-job")},
+                expected_candidate_job=None,
+            )
+            self.assertEqual(
+                {CHECKER.JobIdentity("aliased.yml", "fixture-job")}, detected
+            )
+            self.assertTrue(any("uses Python" in violation for violation in violations), violations)
 
     def test_structural_version_and_executable_recognition_remain_ascii_only(self) -> None:
         for version in ("3.13.0", "3.13.1", "3.13.14"):
@@ -200,6 +278,42 @@ class PythonVersionContractTest(unittest.TestCase):
             ),
         )
         self.assertIsNone(CHECKER.shell_syntax_error("count=$((count + 1))"))
+        self.assertIsNone(CHECKER.shell_syntax_error("IFS=$'\\t'"))
+        self.assertIsNone(CHECKER.shell_syntax_error("paths=$'one\\ntwo'"))
+        for launcher in (
+            "exec python3 --version",
+            "timeout 1 python3 --version",
+            "nice python3 --version",
+            "setsid python3 --version",
+            "xargs python3",
+            "nohup python3 --version",
+            "stdbuf -oL python3 --version",
+            "ionice -c 3 python3 --version",
+            "taskset 0x1 python3 --version",
+            "flock /tmp/python.lock python3 --version",
+            "chrt -o 0 python3 --version",
+            "find . -exec python3 --version \\;",
+            "unknown-launcher --run python3 --version",
+        ):
+            with self.subTest(launcher=launcher):
+                self.assertEqual(
+                    "python3", CHECKER.python_interpreter_token(launcher)
+                )
+
+        self.assertIsNone(CHECKER.python_interpreter_token("echo python3"))
+        self.assertIsNone(
+            CHECKER.python_interpreter_token("printf '%s' python3")
+        )
+        for indirect in (
+            "eval 'python3 --version'",
+            'eval "$PYTHON --version"',
+            'nohup "$PYTHON" --version',
+            "nohup p${X}ython3 --version",
+            "nohup ${P}ython3 --version",
+            'bash -c "$PYTHON --version"',
+        ):
+            with self.subTest(indirect=indirect):
+                self.assertIsNotNone(CHECKER.shell_syntax_error(indirect))
 
         harmless = CHECKER.analyze_shell_source(
             """# python3 and pip are comments, not commands.
@@ -260,7 +374,7 @@ printf '%s\\n' 'make quick-check'
         self.assert_fixture_violation("verifier-absent.yml", "lacks exactly one")
         self.assert_fixture_violation("verifier-not-equivalent.yml", "EXPECTED_PYTHON")
 
-    def test_setup_python_reference_requires_full_sha_and_v630_comment(self) -> None:
+    def test_setup_python_reference_requires_full_sha_and_v700_comment(self) -> None:
         for fixture in (
             "setup-python-mutable-tag.yml",
             "setup-python-short-sha.yml",
@@ -270,9 +384,47 @@ printf '%s\\n' 'make quick-check'
             with self.subTest(fixture=fixture):
                 self.assert_fixture_violation(
                     fixture,
-                    "actions/setup-python must use exactly "
-                    "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0",
+                    "actions/setup-python must use exactly one "
+                    "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
                 )
+
+    def test_setup_python_reference_tracks_the_checked_in_action_lock(self) -> None:
+        """A future generic setup-python pin update cannot stale this checker."""
+
+        with self.temporary_root() as directory:
+            root = Path(directory)
+            updated_sha = "a" * 40
+            updated_version = "v8.1.2"
+            lock = root / "ci" / "tooling" / "security-tools.lock.yml"
+            lock.write_text(
+                lock.read_text(encoding="utf-8")
+                .replace("version: v7.0.0", f"version: {updated_version}", 1)
+                .replace(
+                    "commit_sha: 5fda3b95a4ea91299a34e894583c3862153e4b97",
+                    f"commit_sha: {updated_sha}",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            workflows = root / ".github" / "workflows"
+            workflows.mkdir(parents=True)
+            (workflows / "locked.yml").write_text(
+                "name: locked\non: workflow_dispatch\njobs:\n"
+                + self.normal_job_block("fixture-job").replace(
+                    "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
+                    f"actions/setup-python@{updated_sha} # {updated_version}",
+                ),
+                encoding="utf-8",
+            )
+            (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
+            _, violations, _ = CHECKER.evaluate_workflow_contract(
+                root,
+                root / ".python-version",
+                expected_normal_jobs={CHECKER.JobIdentity("locked.yml", "fixture-job")},
+                expected_candidate_job=None,
+                require_setup_lock=True,
+            )
+            self.assertEqual([], violations)
 
     def test_bare_pip_and_pip3_are_rejected_after_verified_setup(self) -> None:
         for fixture, command in (
@@ -321,6 +473,194 @@ printf '%s\\n' 'make quick-check'
         )
         self.assertEqual([], violations, violations)
         self.assertEqual(set(), detected)
+
+    def test_python_and_dynamic_shell_selectors_are_inventoried(self) -> None:
+        cases = {
+            "step-python": "    steps:\n      - shell: python\n        run: import sys; print(sys.executable)\n",
+            "step-python-template": "    steps:\n      - shell: python3 {0}\n        run: import sys; print(sys.executable)\n",
+            "step-dynamic": "    steps:\n      - shell: ${{ matrix.shell }}\n        run: echo safe-looking\n",
+            "shell-template": "    steps:\n      - shell: bash -c \"python3 {0}\"\n        run: echo safe-looking\n",
+            "pwsh-start-process": "    steps:\n      - shell: pwsh\n        run: Start-Process python3 -ArgumentList --version\n",
+            "cmd-start": "    steps:\n      - shell: cmd\n        run: start /wait python3 --version\n",
+            "absolute-python-shell": "    steps:\n      - shell: /tmp/evil-bin/python3 {0}\n        run: print('unsafe')\n",
+            "dynamic-shell": "    steps:\n      - shell: ${{ env.EVIL_SHELL }}\n        run: echo safe-looking\n",
+            "job-default": "    defaults:\n      run:\n        shell: python\n    steps:\n      - run: import sys; print(sys.executable)\n",
+        }
+        for name, body in cases.items():
+            with self.subTest(name=name), self.temporary_root() as directory:
+                root = Path(directory)
+                workflows = root / ".github" / "workflows"
+                workflows.mkdir(parents=True)
+                (workflows / "shell.yml").write_text(
+                    "name: shell\non: workflow_dispatch\njobs:\n"
+                    "  fixture-job:\n    runs-on: ubuntu-latest\n" + body,
+                    encoding="utf-8",
+                )
+                (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
+                _, violations, detected = CHECKER.evaluate_workflow_contract(
+                    root,
+                    root / ".python-version",
+                    expected_normal_jobs={CHECKER.JobIdentity("shell.yml", "fixture-job")},
+                    expected_candidate_job=None,
+                )
+                self.assertEqual({CHECKER.JobIdentity("shell.yml", "fixture-job")}, detected)
+                self.assertTrue(any("uses Python" in violation for violation in violations), violations)
+
+        for shell in ("python", "pwsh", "cmd", "${{ env.EVIL_SHELL }}"):
+            with self.subTest(default_shell=shell), self.temporary_root() as directory:
+                root = Path(directory)
+                workflows = root / ".github" / "workflows"
+                workflows.mkdir(parents=True)
+                (workflows / "workflow-default.yml").write_text(
+                    "name: shell\non: workflow_dispatch\ndefaults:\n  run:\n"
+                    f"    shell: {shell}\n"
+                    "jobs:\n  fixture-job:\n    runs-on: ubuntu-latest\n    steps:\n"
+                    "      - run: import sys; print(sys.executable)\n",
+                    encoding="utf-8",
+                )
+                (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
+                _, violations, detected = CHECKER.evaluate_workflow_contract(
+                    root,
+                    root / ".python-version",
+                    expected_normal_jobs={CHECKER.JobIdentity("workflow-default.yml", "fixture-job")},
+                    expected_candidate_job=None,
+                )
+                self.assertEqual(
+                    {CHECKER.JobIdentity("workflow-default.yml", "fixture-job")}, detected
+                )
+                self.assertTrue(any("uses Python" in violation for violation in violations), violations)
+
+    def test_interpreter_selection_mutations_and_alternate_executables_fail_closed(self) -> None:
+        """Post-verifier commands must stay bound to setup-python's PATH."""
+
+        cases = {
+            "inline-path": "PATH=/usr/bin python3 --version",
+            "append-path": "PATH+=:/tmp/evil-bin python3 --version",
+            "export-path": "export PATH=/tmp/evil-bin",
+            "env-path": "env PATH=/usr/bin python3 --version",
+            "env-clear": "env -i python3 --version",
+            "env-unset": "env -u PATH python3 --version",
+            "command-default-path": "command -p python3 --version",
+            "system-python": "/usr/bin/python3 --version",
+            "alternate-python": "./tool/python3 --version",
+            "versioned-python": "python3.12 --version",
+            "local-venv-python": ".venv/bin/python --version",
+            "dynamic-launcher": 'BIN=/tmp/evil-bin/python3; nohup "$BIN" --version',
+            "github-env-format": "printf '%s=/tmp/evil-bin\\n' PATH >> \"$GITHUB_ENV\"",
+            "github-env-heredoc": "cat >> \"$GITHUB_ENV\" <<'EOF'\\nPATH=/tmp/evil-bin\\nEOF",
+            "github-env-split-key": 'printf "%s%s=/tmp/evil-bin\\n" P ATH >> "$GITHUB_ENV"',
+            "github-path-indirect": 'target=GITHUB_PATH; printf \'/tmp\\n\' >> "${!target}"',
+            "github-path-discovered-target": (
+                'suffix=PATH; target="$(set | grep "^GITHUB_$suffix=" | cut -d= -f2-)"; '
+                'printf "/tmp/evil-bin\\n" >> "$target"'
+            ),
+            "github-path-discovered-tee-target": (
+                'suffix=PATH; target="$(set | grep "^GITHUB_$suffix=" | cut -d= -f2-)"; '
+                'printf "/tmp/evil-bin\\n" | tee "$target"'
+            ),
+        }
+        for name, command in cases.items():
+            with self.subTest(name=name), self.temporary_root() as directory:
+                root = Path(directory)
+                workflows = root / ".github" / "workflows"
+                workflows.mkdir(parents=True)
+                (workflows / "unsafe.yml").write_text(
+                    "name: unsafe\non: workflow_dispatch\njobs:\n"
+                    + self.normal_job_block("fixture-job")
+                    + "      - name: Attempt interpreter selection bypass\n"
+                    + "        run: |\n"
+                    + "          "
+                    + command.replace("\n", "\n          ")
+                    + "\n",
+                    encoding="utf-8",
+                )
+                (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
+                _, violations, _ = CHECKER.evaluate_workflow_contract(
+                    root,
+                    root / ".python-version",
+                    expected_normal_jobs={CHECKER.JobIdentity("unsafe.yml", "fixture-job")},
+                    expected_candidate_job=None,
+                )
+                self.assertTrue(violations, violations)
+
+    def test_interpreter_selection_environment_scopes_and_setup_cardinality_fail_closed(self) -> None:
+        cases = {
+            "workflow-env": (
+                "env:\n  PATH: /usr/bin\n",
+                "",
+                "",
+            ),
+            "job-env": (
+                "",
+                "    env:\n      PATH: /usr/bin\n",
+                "",
+            ),
+            "step-env": (
+                "",
+                "",
+                "      - name: Unsafe step environment\n"
+                "        env:\n          BASH_ENV: /tmp/evil-startup\n"
+                "        run: python3 --version\n",
+            ),
+            "extra-setup": (
+                "",
+                "",
+                "      - name: Alternate setup action\n"
+                "        uses: actions/setup-python@d2d7a03c2b6af94c45503862fba8b2bd9d2089a9 # v6.3.0\n"
+                "        with:\n          python-version: '3.12'\n",
+            ),
+        }
+        for name, (workflow_prefix, job_prefix, extra_steps) in cases.items():
+            with self.subTest(name=name), self.temporary_root() as directory:
+                root = Path(directory)
+                workflows = root / ".github" / "workflows"
+                workflows.mkdir(parents=True)
+                job = self.normal_job_block("fixture-job")
+                if job_prefix:
+                    job = job.replace(
+                        "    runs-on: ubuntu-latest\n",
+                        "    runs-on: ubuntu-latest\n" + job_prefix,
+                        1,
+                    )
+                (workflows / "unsafe.yml").write_text(
+                    "name: unsafe\non: workflow_dispatch\n"
+                    + workflow_prefix
+                    + "jobs:\n"
+                    + job
+                    + extra_steps,
+                    encoding="utf-8",
+                )
+                (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
+                _, violations, _ = CHECKER.evaluate_workflow_contract(
+                    root,
+                    root / ".python-version",
+                    expected_normal_jobs={CHECKER.JobIdentity("unsafe.yml", "fixture-job")},
+                    expected_candidate_job=None,
+                )
+                self.assertTrue(violations, violations)
+
+    def test_audited_pythonpath_exports_remain_valid(self) -> None:
+        with self.temporary_root() as directory:
+            root = Path(directory)
+            workflows = root / ".github" / "workflows"
+            workflows.mkdir(parents=True)
+            (workflows / "safe.yml").write_text(
+                "name: safe\non: workflow_dispatch\njobs:\n"
+                + self.normal_job_block("fixture-job")
+                + "      - name: Install isolated parser dependency\n"
+                "        run: |\n"
+                "          PYTHONPATH=\"$dependency_dir\" python3 -c 'import sys'\n"
+                "          printf 'PYTHONPATH=%s\\n' \"$dependency_dir\" >> \"$GITHUB_ENV\"\n",
+                encoding="utf-8",
+            )
+            (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
+            _, violations, _ = CHECKER.evaluate_workflow_contract(
+                root,
+                root / ".python-version",
+                expected_normal_jobs={CHECKER.JobIdentity("safe.yml", "fixture-job")},
+                expected_candidate_job=None,
+            )
+            self.assertEqual([], violations, violations)
 
     def test_multiple_python_jobs_are_inventory_checked_independently(self) -> None:
         expected = {
@@ -467,7 +807,7 @@ printf '%s\\n' 'make quick-check'
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(0, exit_code)
         self.assertEqual("valid", payload["status"])
-        self.assertEqual(25, len(payload["detected_python_jobs"]))
+        self.assertEqual(30, len(payload["detected_python_jobs"]))
 
 
 if __name__ == "__main__":

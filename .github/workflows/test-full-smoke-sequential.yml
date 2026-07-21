@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Cleanup artifacts before upload
         continue-on-error: true
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           ARTIFACT_NAME: full-smoke-sequential-${{ matrix.variant }}-artifacts
         with:
@@ -145,14 +145,14 @@ jobs:
       SMOKE_LOCK_MODE: wait
       SMOKE_LOCK_TIMEOUT_SECONDS: "1800"
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
 
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -194,7 +194,7 @@ jobs:
         run: |
           make setup-dev
           make lint
-          find modules/ModSecurity-test-Framework/tests/normalizers modules/ModSecurity-test-Framework/tests/runners modules/ModSecurity-test-Framework/ci -type f -name '*.py' -print0 | xargs -0 -r .venv/bin/python -P -m py_compile
+          find modules/ModSecurity-test-Framework/tests/normalizers modules/ModSecurity-test-Framework/tests/runners modules/ModSecurity-test-Framework/ci -type f -name '*.py' -print0 | xargs -0 -r python3 -P -m py_compile
           git diff --check
 
       - name: Sequential full smoke

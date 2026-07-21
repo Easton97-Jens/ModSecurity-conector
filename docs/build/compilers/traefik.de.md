@@ -58,11 +58,11 @@ export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-Das repository-eigene native Middleware-Modul verlangt Go 1.24.13; dies unterscheidet sich von der optionalen Traefik-v3.7.5-Host-Source-Anforderung in Abschnitt 6.
+Das repository-eigene native Middleware-Modul verlangt den exakt gepinnten Go-1.26-Patch aus seinem go.mod; dies unterscheidet sich von der optionalen Traefik-v3.7.5-Host-Source-Anforderung in Abschnitt 6.
 
 ```sh
 go version
-grep -Fx "go 1.24.13" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"
+grep -Ex "go 1\.26\.[0-9]+" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"
 ```
 
 ## 5. ModSecurity vorbereiten

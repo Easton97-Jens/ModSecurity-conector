@@ -1,0 +1,4 @@
+# GitHub-hosted Ubuntu x86_64 / CPython 3.13 only.  Workflows install this with
+# --isolated --require-hashes --only-binary=:all: from the fixed PyPI index.
+PyYAML==6.0.3 \
+    --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6

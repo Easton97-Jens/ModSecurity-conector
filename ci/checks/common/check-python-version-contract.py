@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Statically enforce the Parent's Python workflow-selection contract.
 
-This intentionally understands only the small, stable YAML shape used by the
-checked-in GitHub Actions workflows.  It does not deserialize YAML or execute
-workflow content; unsupported/ambiguous contract shapes fail closed.
+This parses workflow YAML into ``yaml.BaseLoader`` semantic nodes to inspect
+the same job and step structure GitHub Actions receives; it never executes
+workflow content.  Unsupported or ambiguous mappings, shell indirection, and
+non-POSIX shell selectors fail closed.
 """
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import re
@@ -18,10 +19,20 @@ import sys
 import textwrap
 from typing import Iterable, Sequence
 
+import yaml
+from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
+from yaml.tokens import (
+    AliasToken,
+    AnchorToken,
+    FlowMappingStartToken,
+    FlowSequenceStartToken,
+    TagToken,
+)
+
 
 CANONICAL_VERSION_FILE = ".python-version"
-SETUP_PYTHON_ACTION = "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
-SETUP_PYTHON_RELEASE_COMMENT = "# v6.3.0"
+SETUP_PYTHON_ACTION = "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97"
+SETUP_PYTHON_RELEASE_COMMENT = "# v7.0.0"
 SETUP_PYTHON_REFERENCE = f"{SETUP_PYTHON_ACTION} {SETUP_PYTHON_RELEASE_COMMENT}"
 VERIFIER_NAME = "Verify Python interpreter contract"
 CANDIDATE_VERIFIER_NAME = "Verify Python candidate interpreter contract"
@@ -37,6 +48,8 @@ CANDIDATE_VERIFIER_COMMAND = (
     '--expected-python "$EXPECTED_PYTHON"'
 )
 UPDATE_PYTHON_VERSION_WORKFLOW = "update-python-version.yml"
+SECURITY_TOOL_LOCK = Path("ci/tooling/security-tools.lock.yml")
+_ACTIVE_SETUP_PYTHON_REFERENCE: str | None = None
 
 
 @dataclass(frozen=True, order=True)
@@ -50,15 +63,102 @@ class JobIdentity:
         return f"{self.workflow}:{self.job}"
 
 
-# These are the final Parent-native Python jobs: the current 22 jobs plus the
-# resolver and publisher in update-python-version.yml.  The one candidate job
+def semantic_mapping_items(node: MappingNode, *, context: str) -> dict[str, Node]:
+    """Decode a YAML mapping with duplicate and merge keys rejected."""
+
+    result: dict[str, Node] = {}
+    for key, value in node.value:
+        if not isinstance(key, ScalarNode):
+            raise ContractInputError(f"{context} has a non-scalar mapping key")
+        if key.value == "<<":
+            raise ContractInputError(f"{context} uses an unsupported YAML merge key")
+        if key.value in result:
+            raise ContractInputError(f"{context} has a duplicate mapping key {key.value!r}")
+        result[key.value] = value
+    return result
+
+
+def scalar_environment_values(
+    fields: dict[str, Node], *, context: str
+) -> dict[str, str]:
+    """Return scalar GitHub Actions environment values at one scope.
+
+    A non-scalar environment value cannot be safely reasoned about for
+    interpreter selection, so it is rejected before shell validation.
+    """
+
+    environment = fields.get("env")
+    if environment is None:
+        return {}
+    if not isinstance(environment, MappingNode):
+        raise ContractInputError(f"{context}.env is not a mapping")
+    values: dict[str, str] = {}
+    for key, value in semantic_mapping_items(
+        environment, context=f"{context}.env"
+    ).items():
+        if not isinstance(value, ScalarNode):
+            raise ContractInputError(f"{context}.env.{key} is not a scalar")
+        values[key] = value.value
+    return values
+
+
+def setup_python_reference_from_lock(root: Path, *, require_lock: bool) -> str:
+    """Bind setup-python provenance to the updater-owned action lock.
+
+    The generic action updater intentionally changes the immutable setup-python
+    SHA and release comment.  Reading the same checked-in lock avoids a stale
+    hardcoded checker pin while retaining strict tag/commit shape validation.
+    Isolated unit fixtures may opt out only when they intentionally omit the
+    production lock; the public CLI always requires it.
+    """
+
+    lock_path = root / SECURITY_TOOL_LOCK
+    if not lock_path.is_file():
+        if require_lock:
+            raise ContractInputError(f"security tool lock is missing: {lock_path}")
+        return SETUP_PYTHON_REFERENCE
+    try:
+        document = yaml.compose(lock_path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    except (OSError, RecursionError, yaml.YAMLError) as error:
+        raise ContractInputError(f"cannot parse security tool lock {lock_path}: {error}") from error
+    if not isinstance(document, MappingNode):
+        raise ContractInputError(f"security tool lock is not a mapping: {lock_path}")
+    lock = semantic_mapping_items(document, context="security tool lock")
+    actions = lock.get("pinned_actions")
+    if not isinstance(actions, MappingNode):
+        raise ContractInputError("security tool lock has no pinned_actions mapping")
+    record = semantic_mapping_items(actions, context="security tool lock.pinned_actions").get(
+        "actions/setup-python"
+    )
+    if not isinstance(record, MappingNode):
+        raise ContractInputError("security tool lock has no actions/setup-python record")
+    values = semantic_mapping_items(record, context="security tool lock.actions/setup-python")
+    version = values.get("version")
+    commit = values.get("commit_sha")
+    if not isinstance(version, ScalarNode) or not re.fullmatch(r"v[1-9][0-9]*(?:\.[0-9]+){0,2}", version.value):
+        raise ContractInputError("actions/setup-python lock version is invalid")
+    if not isinstance(commit, ScalarNode) or not re.fullmatch(r"[a-f0-9]{40}", commit.value):
+        raise ContractInputError("actions/setup-python lock commit_sha is invalid")
+    return f"actions/setup-python@{commit.value} # {version.value}"
+
+
+def active_setup_python_reference() -> str:
+    return _ACTIVE_SETUP_PYTHON_REFERENCE or SETUP_PYTHON_REFERENCE
+
+
+def active_setup_python_action() -> str:
+    return active_setup_python_reference().split(" # ", 1)[0]
+
+
+# These are the final Parent-native Python jobs, including the read-only and
+# publisher stages for the Python and CI-tool updaters.  The one candidate job
 # below is deliberately separate because it must validate a prospective patch
 # before the canonical .python-version file is changed.
 EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
     {
         JobIdentity("all-connectors-no-crs.yml", "aggregate"),
         JobIdentity("all-connectors-no-crs.yml", "no-crs"),
-        JobIdentity("check-actions-versions.yml", "check-actions-versions"),
+        JobIdentity("check-actions-versions.yml", "check-ci-tool-updates"),
         JobIdentity("ci-security-secrets.yml", "advisory-full-history"),
         JobIdentity("ci-security-secrets.yml", "pull-request-range"),
         JobIdentity("ci-security-workflow-lint.yml", "actionlint"),
@@ -75,7 +175,12 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("test-lighttpd.yml", "lighttpd-contract"),
         JobIdentity("test-nginx.yml", "nginx-structure"),
         JobIdentity("test-traefik.yml", "traefik-contract"),
-        JobIdentity("update-actions-versions.yml", "update-actions-versions"),
+        JobIdentity("update-actions-versions.yml", "create-ci-tool-update-pr"),
+        JobIdentity("update-actions-versions.yml", "resolve-ci-tool-updates"),
+        JobIdentity("update-actions-versions.yml", "validate-ci-tool-updates"),
+        JobIdentity("update-go-version.yml", "create-go-update-pr"),
+        JobIdentity("update-go-version.yml", "resolve-go-patch"),
+        JobIdentity("update-go-version.yml", "validate-go-patch"),
         JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "create-python-update-pr"),
         JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "resolve-python-patch"),
         JobIdentity("update-submodules.yml", "validate-submodule-update"),
@@ -121,10 +226,11 @@ KNOWN_PYTHON_MAKE_TARGETS = frozenset(
 )
 
 # Executable basenames are recognized structurally below rather than with a
-# regular expression.  The scanner deliberately does not search arbitrary
-# shell text: `echo python3`, comments, and here-document bodies are not
-# interpreter executions.  Versioned and absolute/venv forms remain covered
-# through `is_python_or_pip_command()`.
+# regular expression.  The scanner does not search arbitrary substrings:
+# comments and here-document bodies are excluded.  A standalone literal
+# interpreter *token*, however, is conservatively contract-relevant even in
+# an unknown command's argument list: arbitrary launchers can execute such a
+# token, and maintaining a launcher allowlist would be bypassable.
 MAX_SHELL_SOURCE_LENGTH = 131_072
 MAX_SHELL_NESTING = 32
 SHELL_CONTROL_WORDS = frozenset(
@@ -149,6 +255,78 @@ SHELL_CONTROL_WORDS = frozenset(
     }
 )
 SHELL_COMMAND_OPTION_ONLY = frozenset({"-v", "-V"})
+NON_POSIX_WORKFLOW_SHELLS = frozenset({"pwsh", "powershell", "cmd"})
+SHELL_INDIRECTION_BUILTINS = frozenset({"alias", "eval"})
+# These commands cannot execute an argument as a program.  Their data tokens
+# are deliberately excluded from the generic launcher scan so that
+# ``echo python3`` remains text rather than a false execution finding.  Every
+# other command is conservatively treated as a possible launcher; this is a
+# closed list of data-only semantics, not an open-ended launcher allowlist.
+NON_EXECUTING_ARGUMENT_COMMANDS = frozenset(
+    {
+        ":",
+        "basename",
+        "cat",
+        "cd",
+        "chmod",
+        "chown",
+        "cmp",
+        "cp",
+        "cut",
+        "date",
+        "dirname",
+        "echo",
+        "exit",
+        "export",
+        "false",
+        "git",
+        "grep",
+        "head",
+        "ln",
+        "local",
+        "ls",
+        "make",
+        "mkdir",
+        "mv",
+        "printf",
+        "pwd",
+        "read",
+        "rm",
+        "return",
+        "sed",
+        "set",
+        "sha256sum",
+        "sort",
+        "test",
+        "touch",
+        "tr",
+        "true",
+        "uname",
+        "uniq",
+        "unset",
+        "wc",
+        "[",
+        "[[",
+    }
+)
+# Dynamic arguments are allowed only for commands whose argument grammar is
+# audited not to choose an executable.  Any unknown command remains fail
+# closed, which catches arbitrary launchers without keeping an allowlist of
+# launchers.  Shell-local functions are added separately only when their
+# declaration is present in the same static run block.
+DYNAMIC_ARGUMENT_SAFE_COMMANDS = NON_EXECUTING_ARGUMENT_COMMANDS | frozenset(
+    {
+        "actionlint",
+        "gh",
+        "gitleaks",
+        "mktemp",
+        "nginx_protocol_profile_configure_flags",
+        "nginx_protocol_profile_valid",
+        "tar",
+        "tee",
+        "zizmor",
+    }
+)
 SHELL_OPTIONS_WITH_VALUE = frozenset(
     {
         "-C",
@@ -175,6 +353,63 @@ PYTHON_MATRIX_REFERENCE = re.compile(
 VERIFIER_COMMAND_LINE = re.compile(
     rf"(?m)^\s*python3\s+{re.escape(VERIFIER_PATH)}\b[^\n]*$"
 )
+UNSAFE_INTERPRETER_ENV_KEYS = frozenset(
+    {"PATH", "BASH_ENV", "ENV", "PYTHONHOME", "PYTHONEXECUTABLE", "VIRTUAL_ENV"}
+)
+UNSAFE_INTERPRETER_ENV_ASSIGNMENT = re.compile(
+    r"(?<![A-Za-z0-9_])"
+    r"(?:PATH|BASH_ENV|ENV|PYTHONHOME|PYTHONEXECUTABLE|VIRTUAL_ENV)"
+    r"(?:\+?=|<<)"
+)
+GITHUB_ENV_REDIRECT = re.compile(
+    r'>>?\s*(?:"\$GITHUB_ENV"|\$\{GITHUB_ENV\}|\$GITHUB_ENV)'
+    r"\s*(?:#.*)?$"
+)
+STATIC_GITHUB_ENV_ECHO = re.compile(
+    r'^\s*echo\s+"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=[^"\n]*"\s*$'
+)
+STATIC_GITHUB_ENV_PRINTF = re.compile(
+    r"^\s*printf\s+'(?P<key>[A-Za-z_][A-Za-z0-9_]*)=%s\\n'\s+\"[^\"\n]*\"\s*$"
+)
+# A Python-contract job may persist only this deliberately small set of
+# non-interpreter state.  The source grammar below requires the assignment key
+# itself to be literal, so a shell expression cannot splice together PATH (or
+# another interpreter-selection key) for a later step.
+ALLOWED_GITHUB_ENV_KEYS = frozenset(
+    {
+        "BUILD_ROOT",
+        "CANDIDATE_PATH",
+        "CONNECTOR_COMPONENT_CACHE",
+        "EVIDENCE_ROOT",
+        "LOG_ROOT",
+        "MODSECURITY_SOURCE_DIR",
+        "MODSECURITY_V3_SOURCE_DIR",
+        "NGINX_HARNESS_PARENT",
+        "NGINX_PHASE4_MODE",
+        "NO_CRS_EVIDENCE_ROOT",
+        "NO_CRS_RUN_ID",
+        "PYTHONPATH",
+        "PYTHONPYCACHEPREFIX",
+        "RUNTIME_REPORT_OUTPUT_ROOT",
+        "SOURCE_ROOT",
+        "TMP_ROOT",
+        "VERIFIED_RUN_ROOT",
+        "XDG_STATE_HOME",
+    }
+)
+SIMPLE_REDIRECT_PATH_VALUE = re.compile(
+    r"(?:"
+    r"(?:\$RUNNER_TEMP|\$GITHUB_WORKSPACE)(?:/[A-Za-z0-9._/-]+)*"
+    r"|[A-Za-z0-9][A-Za-z0-9._/-]*"
+    r")"
+)
+SIMPLE_REDIRECT_PATH_ASSIGNMENT = re.compile(
+    r"(?m)^\s*(?:local\s+)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)"
+    r"\s*=\s*(?P<value>[^#\n]+?)\s*(?:#.*)?$"
+)
+DYNAMIC_OUTPUT_REDIRECT_VARIABLE = re.compile(
+    r"^\$(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?:/[A-Za-z0-9._/-]+)*$"
+)
 
 
 class ContractInputError(ValueError):
@@ -187,8 +422,27 @@ class Step:
     start_line: int
     indent: int
     lines: list[tuple[int, str]]
+    node: MappingNode | None = None
+    source: str = ""
+    default_shell: str | None = None
+
+    def semantic_fields(self) -> dict[str, Node]:
+        if self.node is None:
+            return {}
+        return semantic_mapping_items(self.node, context="workflow step")
+
+    def semantic_entry(self, key: str) -> tuple[ScalarNode, Node] | None:
+        if self.node is None:
+            return None
+        for key_node, value in self.node.value:
+            if isinstance(key_node, ScalarNode) and key_node.value == key:
+                return key_node, value
+        return None
 
     def scalar(self, key: str) -> str | None:
+        if self.node is not None:
+            value = self.semantic_fields().get(key)
+            return value.value if isinstance(value, ScalarNode) else None
         for _, _, entry in direct_step_entries(self.lines, self.indent):
             if entry[0] == key:
                 return clean_scalar(entry[1])
@@ -201,12 +455,31 @@ class Step:
         must be checked before `clean_scalar()` removes a YAML comment.
         """
 
+        if self.node is not None:
+            entry = self.semantic_entry(key)
+            if entry is None:
+                return None
+            key_node, value = entry
+            line = self.source.splitlines()[key_node.start_mark.line]
+            separator = line.find(":", key_node.end_mark.column)
+            return line[separator + 1 :].strip() if separator >= 0 else None
         for _, _, entry in direct_step_entries(self.lines, self.indent):
             if entry[0] == key:
                 return entry[1].strip()
         return None
 
     def nested_mapping(self, key: str) -> dict[str, str]:
+        if self.node is not None:
+            value = self.semantic_fields().get(key)
+            if not isinstance(value, MappingNode):
+                return {}
+            return {
+                child_key: child_value.value
+                for child_key, child_value in semantic_mapping_items(
+                    value, context=f"workflow step.{key}"
+                ).items()
+                if isinstance(child_value, ScalarNode)
+            }
         for position, parent_indent, entry in direct_step_entries(
             self.lines, self.indent
         ):
@@ -215,6 +488,9 @@ class Step:
         return {}
 
     def run(self) -> str:
+        if self.node is not None:
+            value = self.semantic_fields().get("run")
+            return value.value if isinstance(value, ScalarNode) else ""
         for position, parent_indent, entry in direct_step_entries(
             self.lines, self.indent
         ):
@@ -230,9 +506,22 @@ class Job:
     identity: JobIdentity
     indent: int
     lines: list[tuple[int, str]]
+    node: MappingNode | None = None
+    source: str = ""
+    default_shell: str | None = None
+    inherited_environment: dict[str, str] = field(default_factory=dict)
+
+    def semantic_fields(self) -> dict[str, Node]:
+        if self.node is None:
+            return {}
+        return semantic_mapping_items(self.node, context=f"workflow job {self.identity.display()}")
 
     def scalar(self, key: str) -> str | None:
         """Return a direct job-level scalar without descending into steps."""
+
+        if self.node is not None:
+            value = self.semantic_fields().get(key)
+            return value.value if isinstance(value, ScalarNode) else None
 
         for _, line in self.lines[1:]:
             indent = indentation(line)
@@ -244,6 +533,29 @@ class Job:
         return None
 
     def steps(self) -> list[Step]:
+        if self.node is not None:
+            steps = self.semantic_fields().get("steps")
+            if not isinstance(steps, SequenceNode):
+                return []
+            result: list[Step] = []
+            source_lines = self.source.splitlines()
+            for index, step in enumerate(steps.value):
+                if not isinstance(step, MappingNode):
+                    continue
+                start = step.start_mark.line
+                end = step.end_mark.line + 1
+                result.append(
+                    Step(
+                        index,
+                        start + 1,
+                        step.start_mark.column,
+                        [(line_number + 1, line) for line_number, line in enumerate(source_lines[start:end], start=start)],
+                        step,
+                        self.source,
+                        self.default_shell,
+                    )
+                )
+            return result
         steps_line = steps_mapping_index(self.lines, self.indent)
         if steps_line is None:
             return []
@@ -580,6 +892,151 @@ def workflow_job_blocks(
         yield current_identity, job_indent, current_lines
 
 
+def semantic_job_header_violations(path: Path, text: str) -> tuple[set[str], list[str]]:
+    """Return canonical semantic job IDs or fail closed on YAML indirection.
+
+    The source-level job/step parser below intentionally stays narrow because
+    it also records exact shell source.  It must never silently omit a YAML
+    job that GitHub can execute, though.  Parse the *job inventory* with
+    PyYAML's node tree first, then accept only the canonical block mapping
+    syntax that the narrow parser understands.  Quoted/escaped, explicit,
+    alias/merge, duplicate, and flow-style job declarations are rejected
+    instead of being invisible to the Python-use inventory.
+    """
+
+    try:
+        for token in yaml.scan(text, Loader=yaml.BaseLoader):
+            if isinstance(token, (AliasToken, AnchorToken)):
+                return set(), [
+                    f"workflow must not use YAML anchors or aliases: {path.name}"
+                ]
+            if isinstance(token, (FlowMappingStartToken, FlowSequenceStartToken)):
+                return set(), [
+                    f"workflow must not use YAML flow collections: {path.name}"
+                ]
+            if isinstance(token, TagToken):
+                return set(), [f"workflow must not use YAML tags: {path.name}"]
+        document = yaml.compose(text, Loader=yaml.BaseLoader)
+    except (RecursionError, yaml.YAMLError) as error:
+        return set(), [f"workflow is not valid YAML: {path.name}: {error}"]
+    if not isinstance(document, MappingNode):
+        return set(), [f"workflow root is not a mapping: {path.name}"]
+
+    lines = text.splitlines()
+    shape_violations: list[str] = []
+    visited: set[int] = set()
+
+    def visit(node: Node, *, context: str) -> None:
+        identity = id(node)
+        if identity in visited:
+            return
+        visited.add(identity)
+        if isinstance(node, MappingNode):
+            if node.flow_style:
+                shape_violations.append(
+                    f"workflow must not use YAML flow collections: {path.name}"
+                )
+                return
+            keys: set[str] = set()
+            for key, value in node.value:
+                if not isinstance(key, ScalarNode):
+                    shape_violations.append(
+                        f"workflow has a non-scalar mapping key: {path.name}"
+                    )
+                    continue
+                try:
+                    source_line = lines[key.start_mark.line]
+                except IndexError:
+                    shape_violations.append(
+                        f"workflow key has an invalid source mark: {path.name}"
+                    )
+                    continue
+                if (
+                    key.style is not None
+                    or key.value == "<<"
+                    or key.value in keys
+                    or source_line.lstrip().startswith("?")
+                ):
+                    shape_violations.append(
+                        f"workflow must use canonical unquoted mapping keys: {path.name}"
+                    )
+                    continue
+                keys.add(key.value)
+                visit(value, context=f"{context}.{key.value}")
+            return
+        if isinstance(node, SequenceNode):
+            if node.flow_style:
+                shape_violations.append(
+                    f"workflow must not use YAML flow collections: {path.name}"
+                )
+                return
+            for index, value in enumerate(node.value):
+                visit(value, context=f"{context}[{index}]")
+            return
+        if isinstance(node, ScalarNode):
+            source = text[node.start_mark.index : node.end_mark.index]
+            if node.style == '"' and "\\" in source:
+                shape_violations.append(
+                    f"workflow must not use escaped double-quoted scalars: {path.name}"
+                )
+            return
+        shape_violations.append(f"workflow has an unsupported YAML node: {path.name}")
+
+    visit(document, context="workflow")
+    if shape_violations:
+        return set(), sorted(set(shape_violations))
+
+    top_level: dict[str, Node] = {}
+    for key, value in document.value:
+        if not isinstance(key, ScalarNode):
+            return set(), [f"workflow has a non-scalar top-level key: {path.name}"]
+        if key.value == "<<":
+            return set(), [f"workflow uses an unsupported top-level merge key: {path.name}"]
+        if key.value in top_level:
+            return set(), [f"workflow has a duplicate top-level key {key.value!r}: {path.name}"]
+        top_level[key.value] = value
+
+    jobs = top_level.get("jobs")
+    if jobs is None:
+        return set(), []
+    if not isinstance(jobs, MappingNode) or jobs.flow_style:
+        return set(), [f"workflow jobs must use a canonical block mapping: {path.name}"]
+
+    identities: set[str] = set()
+    violations: list[str] = []
+    for key, value in jobs.value:
+        if not isinstance(key, ScalarNode):
+            violations.append(f"workflow job key is not a scalar: {path.name}")
+            continue
+        name = key.value
+        if (
+            key.style is not None
+            or not is_mapping_key(name)
+            or not isinstance(value, MappingNode)
+            or value.flow_style
+        ):
+            violations.append(
+                f"workflow job must use a canonical unquoted block header: {path.name}:{name!r}"
+            )
+            continue
+        if name in identities:
+            violations.append(f"duplicate workflow job: {path.name}:{name}")
+            continue
+        try:
+            source_line = lines[key.start_mark.line]
+        except IndexError:
+            violations.append(f"workflow job has an invalid source mark: {path.name}:{name}")
+            continue
+        expected_header = re.compile(rf"^  {re.escape(name)}:\s*(?:#.*)?$")
+        if expected_header.fullmatch(source_line) is None:
+            violations.append(
+                f"workflow job must use a canonical unquoted block header: {path.name}:{name!r}"
+            )
+            continue
+        identities.add(name)
+    return identities, violations
+
+
 def add_job_block(
     result: dict[JobIdentity, Job],
     violations: list[str],
@@ -595,19 +1052,171 @@ def add_job_block(
     result[identity] = Job(identity, job_indent, list(lines))
 
 
+def semantic_workflow_jobs(
+    path: Path, source: str
+) -> tuple[
+    list[tuple[str, ScalarNode, MappingNode, str | None, dict[str, str]]],
+    list[str],
+]:
+    """Return every executable job from the YAML node tree.
+
+    The contract needs exact shell source for a few provenance checks, but its
+    job/step inventory must use the same decoded YAML structure GitHub sees.
+    This accepts valid aliases, comments, quoted keys, and flow collections
+    while rejecting only ambiguous duplicate/merge mappings and malformed job
+    structures.  ``Job``/``Step`` then consume these semantic nodes directly.
+    """
+
+    try:
+        document = yaml.compose(source, Loader=yaml.BaseLoader)
+    except (RecursionError, yaml.YAMLError) as error:
+        return [], [f"workflow is not valid YAML: {path.name}: {error}"]
+    if not isinstance(document, MappingNode):
+        return [], [f"workflow root is not a mapping: {path.name}"]
+
+    active: set[int] = set()
+    checked: set[int] = set()
+
+    def validate(node: Node, *, context: str) -> None:
+        identity = id(node)
+        if identity in active:
+            raise ContractInputError(f"{context} has a recursive YAML alias")
+        if identity in checked:
+            return
+        active.add(identity)
+        if isinstance(node, MappingNode):
+            for key, value in semantic_mapping_items(node, context=context).items():
+                validate(value, context=f"{context}.{key}")
+        elif isinstance(node, SequenceNode):
+            for index, value in enumerate(node.value):
+                validate(value, context=f"{context}[{index}]")
+        elif not isinstance(node, ScalarNode):
+            raise ContractInputError(f"{context} has an unsupported YAML node")
+        active.remove(identity)
+        checked.add(identity)
+
+    try:
+        validate(document, context=f"workflow {path.name}")
+        top_level = semantic_mapping_items(document, context=f"workflow {path.name}")
+    except ContractInputError as error:
+        return [], [str(error)]
+
+    def default_run_shell(
+        fields: dict[str, Node], *, context: str
+    ) -> str | None:
+        defaults = fields.get("defaults")
+        if defaults is None:
+            return None
+        if not isinstance(defaults, MappingNode):
+            raise ContractInputError(f"{context}.defaults is not a mapping")
+        run = semantic_mapping_items(defaults, context=f"{context}.defaults").get("run")
+        if run is None:
+            return None
+        if not isinstance(run, MappingNode):
+            raise ContractInputError(f"{context}.defaults.run is not a mapping")
+        run_defaults = semantic_mapping_items(run, context=f"{context}.defaults.run")
+        if "working-directory" in run_defaults:
+            raise ContractInputError(
+                f"{context}.defaults.run must not set working-directory"
+            )
+        shell = run_defaults.get("shell")
+        if shell is None:
+            return None
+        if not isinstance(shell, ScalarNode):
+            raise ContractInputError(f"{context}.defaults.run.shell is not a scalar")
+        return shell.value
+
+    try:
+        workflow_default_shell = default_run_shell(
+            top_level, context=f"workflow {path.name}"
+        )
+        workflow_environment = scalar_environment_values(
+            top_level, context=f"workflow {path.name}"
+        )
+    except ContractInputError as error:
+        return [], [str(error)]
+    jobs = top_level.get("jobs")
+    if jobs is None:
+        return [], []
+    if not isinstance(jobs, MappingNode):
+        return [], [f"workflow jobs is not a mapping: {path.name}"]
+
+    result: list[tuple[str, ScalarNode, MappingNode, str | None, dict[str, str]]] = []
+    try:
+        semantic_mapping_items(jobs, context=f"workflow jobs {path.name}")
+        for key_node, value in jobs.value:
+            if not isinstance(key_node, ScalarNode):
+                return [], [f"workflow job key is not a scalar: {path.name}"]
+            name = key_node.value
+            if not is_mapping_key(name):
+                return [], [f"workflow job has an invalid identifier {name!r}: {path.name}"]
+            if not isinstance(value, MappingNode):
+                return [], [f"workflow job is not a mapping: {path.name}:{name}"]
+            fields = semantic_mapping_items(
+                value, context=f"workflow job {path.name}:{name}"
+            )
+            job_default_shell = default_run_shell(
+                fields, context=f"workflow job {path.name}:{name}"
+            )
+            environment = dict(workflow_environment)
+            environment.update(
+                scalar_environment_values(
+                    fields, context=f"workflow job {path.name}:{name}"
+                )
+            )
+            steps = fields.get("steps")
+            if steps is not None:
+                if not isinstance(steps, SequenceNode):
+                    return [], [f"workflow job steps is not a sequence: {path.name}:{name}"]
+                if any(not isinstance(step, MappingNode) for step in steps.value):
+                    return [], [
+                        f"workflow job step is not a mapping: {path.name}:{name}"
+                    ]
+            result.append(
+                (
+                    name,
+                    key_node,
+                    value,
+                    job_default_shell or workflow_default_shell,
+                    environment,
+                )
+            )
+    except ContractInputError as error:
+        return [], [f"cannot decode workflow jobs {path.name}: {error}"]
+    return result, []
+
+
 def parse_jobs(path: Path) -> tuple[dict[JobIdentity, Job], list[str]]:
     lines, read_errors = read_workflow_lines(path)
     if lines is None:
         return {}, read_errors
 
-    jobs_start = jobs_mapping_index(lines)
-    if jobs_start is None:
-        return {}, []
-
+    source = "\n".join(lines)
+    semantic_jobs, semantic_violations = semantic_workflow_jobs(path, source)
+    if semantic_violations:
+        return {}, semantic_violations
     result: dict[JobIdentity, Job] = {}
     violations: list[str] = []
-    for identity, job_indent, job_lines in workflow_job_blocks(path, lines, jobs_start):
-        add_job_block(result, violations, identity, job_indent, job_lines)
+    for name, key, node, default_shell, inherited_environment in semantic_jobs:
+        identity = JobIdentity(path.name, name)
+        if identity in result:
+            violations.append(f"duplicate workflow job: {identity.display()}")
+            continue
+        start = key.start_mark.line
+        end = node.end_mark.line + 1
+        job_lines = [
+            (line_number + 1, line)
+            for line_number, line in enumerate(lines[start:end], start=start)
+        ]
+        result[identity] = Job(
+            identity,
+            key.start_mark.column,
+            job_lines,
+            node,
+            source,
+            default_shell,
+            inherited_environment,
+        )
     return result, violations
 
 
@@ -645,18 +1254,21 @@ class ShellWord:
     value: str
     dynamic: bool = False
     redirection_target: bool = False
+    redirection_operator: str | None = None
 
 
 @dataclass(frozen=True)
 class ShellCommand:
     command: ShellWord
     arguments: tuple[ShellWord, ...]
+    prefix: tuple[ShellWord, ...] = ()
 
 
 @dataclass(frozen=True)
 class ShellAnalysis:
     commands: tuple[ShellCommand, ...]
     errors: tuple[str, ...]
+    words: tuple[ShellWord, ...]
 
 
 @dataclass
@@ -665,7 +1277,7 @@ class ShellScanState:
 
     cursor: int
     words: list[ShellWord]
-    redirection_target: bool = False
+    redirection_operator: str | None = None
 
 
 @dataclass
@@ -862,17 +1474,20 @@ class ShellScanner:
         self.depth = depth
         self.commands: list[ShellCommand] = []
         self.errors: list[str] = []
+        self.words: list[ShellWord] = []
 
     def scan(self) -> ShellAnalysis:
         limit_error = self._scanner_limit_error()
         if limit_error is not None:
-            return ShellAnalysis((), (limit_error,))
+            return ShellAnalysis((), (limit_error,), ())
 
         state = ShellScanState(0, [])
         while state.cursor < len(self.source):
             self._scan_next(state)
         self._finish_scan(state)
-        return ShellAnalysis(tuple(self.commands), tuple(self.errors))
+        return ShellAnalysis(
+            tuple(self.commands), tuple(self.errors), tuple(self.words)
+        )
 
     def _scanner_limit_error(self) -> str | None:
         if len(self.source) > MAX_SHELL_SOURCE_LENGTH:
@@ -894,7 +1509,7 @@ class ShellScanner:
             return
         redirection_start = self._redirection_start(state.cursor)
         if redirection_start is not None:
-            state.cursor, state.redirection_target = self._consume_redirection(
+            state.cursor, state.redirection_operator = self._consume_redirection(
                 redirection_start
             )
             return
@@ -908,9 +1523,9 @@ class ShellScanner:
         return len(self.source) if end < 0 else end
 
     def _consume_command_boundary(self, state: ShellScanState, character: str) -> None:
-        if state.redirection_target:
+        if state.redirection_operator is not None:
             self.errors.append("redirection has no target")
-            state.redirection_target = False
+            state.redirection_operator = None
         self._finish_segment(state.words)
         state.words = []
         state.cursor = self._after_command_boundary(state.cursor, character)
@@ -931,8 +1546,8 @@ class ShellScanner:
             state.cursor += 2
             return
         if character == "(":
-            if state.redirection_target:
-                state.redirection_target = False
+            if state.redirection_operator is not None:
+                state.redirection_operator = None
             self._finish_segment(state.words)
             state.words = []
             state.cursor += 1
@@ -952,13 +1567,19 @@ class ShellScanner:
 
     def _consume_word(self, state: ShellScanState) -> None:
         word, state.cursor = self._read_word(state.cursor)
-        if state.redirection_target:
-            word = ShellWord(word.value, word.dynamic, redirection_target=True)
-            state.redirection_target = False
+        if state.redirection_operator is not None:
+            word = ShellWord(
+                word.value,
+                word.dynamic,
+                redirection_target=True,
+                redirection_operator=state.redirection_operator,
+            )
+            state.redirection_operator = None
         state.words.append(word)
+        self.words.append(word)
 
     def _finish_scan(self, state: ShellScanState) -> None:
-        if state.redirection_target:
+        if state.redirection_operator is not None:
             self.errors.append("redirection has no target")
         self._finish_segment(state.words)
 
@@ -973,21 +1594,23 @@ class ShellScanner:
             end += 1
         return end if end < len(self.source) and self.source[end] in "<>" else None
 
-    def _consume_redirection(self, cursor: int) -> tuple[int, bool]:
+    def _consume_redirection(self, cursor: int) -> tuple[int, str | None]:
         operator = self.source[cursor]
         cursor += 1
         if cursor < len(self.source) and self.source[cursor] == operator:
             cursor += 1
+            operator *= 2
         if operator == "<" and cursor < len(self.source) and self.source[cursor] == "-":
             cursor += 1
+            operator = "<-"
         if cursor < len(self.source) and self.source[cursor] == "&":
             cursor += 1
             while cursor < len(self.source) and (
                 self.source[cursor].isdigit() or self.source[cursor] == "-"
             ):
                 cursor += 1
-            return cursor, False
-        return cursor, True
+            return cursor, None
+        return cursor, operator
 
     def _read_word(self, cursor: int) -> tuple[ShellWord, int]:
         state = ShellWordReadState([])
@@ -1076,6 +1699,8 @@ class ShellScanner:
             characters.append("$")
             return cursor + 1, True
         marker = self.source[cursor + 1]
+        if marker == "'":
+            return self._read_ansi_c_quoted_string(cursor, characters)
         if marker == "(":
             return self._read_parenthesized_expansion(cursor, characters)
         if marker == "{":
@@ -1084,6 +1709,34 @@ class ShellScanner:
             return self._read_named_expansion(cursor, characters)
         characters.append(self.source[cursor : cursor + 2])
         return cursor + 2, True
+
+    def _read_ansi_c_quoted_string(
+        self, cursor: int, characters: list[str]
+    ) -> tuple[int, bool]:
+        """Consume Bash's static ANSI-C ``$'...'`` quote form.
+
+        It is used for NUL/newline/tab-safe fixed literals in trusted
+        workflows.  Treat the contents as a static word rather than letting
+        the closing quote start an unrelated shell quote state; dynamic shell
+        expansions are not evaluated inside this form.
+        """
+
+        position = cursor + 2
+        while position < len(self.source):
+            character = self.source[position]
+            if character == "'":
+                return position + 1, False
+            if character == "\\":
+                if position + 1 >= len(self.source):
+                    self.errors.append("dangling ANSI-C shell escape")
+                    return len(self.source), False
+                characters.append(self.source[position + 1])
+                position += 2
+                continue
+            characters.append(character)
+            position += 1
+        self.errors.append("unterminated ANSI-C shell quote")
+        return len(self.source), False
 
     def _read_parenthesized_expansion(
         self, cursor: int, characters: list[str]
@@ -1103,6 +1756,7 @@ class ShellScanner:
         nested = ShellScanner(content, self.depth + 1).scan()
         self.commands.extend(nested.commands)
         self.errors.extend(nested.errors)
+        self.words.extend(nested.words)
 
     def _validate_arithmetic_expansion(self, content: str) -> None:
         """Reject executable substitutions hidden inside arithmetic expansion."""
@@ -1237,6 +1891,13 @@ class ShellScanner:
         value = word.value if not word.dynamic else None
         if value in {"case", "for", "function"}:
             return cursor, None, None, True
+        if value in SHELL_INDIRECTION_BUILTINS:
+            return (
+                cursor,
+                None,
+                f"shell indirection builtin {value!r} is unsupported",
+                True,
+            )
         if value in SHELL_CONTROL_WORDS:
             return cursor + 1, None, None, False
         if value == "command":
@@ -1250,7 +1911,16 @@ class ShellScanner:
         basename = static_command_basename(word)
         if basename is None:
             return cursor, None, "dynamic shell command head is unsupported", True
-        return cursor, ShellCommand(word, tuple(words[cursor + 1 :])), None, True
+        return (
+            cursor,
+            ShellCommand(
+                word,
+                tuple(words[cursor + 1 :]),
+                tuple(words[:cursor]),
+            ),
+            None,
+            True,
+        )
 
     def _command_wrapper_transition(
         self, words: list[ShellWord], cursor: int
@@ -1261,6 +1931,14 @@ class ShellScanner:
             and words[option_cursor].value in SHELL_COMMAND_OPTION_ONLY
         ):
             return option_cursor, None, None, True
+        if (
+            option_cursor < len(words)
+            and not words[option_cursor].dynamic
+            and words[option_cursor].value == "-p"
+        ):
+            # ``command -p`` changes PATH for the invoked command; it does
+            # not consume the following executable as an option value.
+            return option_cursor + 1, None, None, False
         next_cursor, error = self._skip_wrapper_options(words, option_cursor)
         return next_cursor, None, error, False
 
@@ -1329,13 +2007,170 @@ class ShellScanner:
             nested = ShellScanner(script.value, self.depth + 1).scan()
             self.commands.extend(nested.commands)
             self.errors.extend(nested.errors)
+            self.words.extend(nested.words)
             return
 
 
 def analyze_shell_source(run: str) -> ShellAnalysis:
     source, heredoc_errors = shell_source_without_heredoc_bodies(run)
     scanned = ShellScanner(source).scan()
-    return ShellAnalysis(scanned.commands, heredoc_errors + scanned.errors)
+    return ShellAnalysis(scanned.commands, heredoc_errors + scanned.errors, scanned.words)
+
+
+def static_github_env_writer_key(source: str) -> str | None:
+    """Return a literal key from one intentionally narrow env-file writer."""
+
+    match = STATIC_GITHUB_ENV_ECHO.fullmatch(source)
+    if match is None:
+        match = STATIC_GITHUB_ENV_PRINTF.fullmatch(source)
+    return match.group("key") if match is not None else None
+
+
+def github_env_group_writers(
+    lines: list[str], closing_index: int
+) -> list[str] | None:
+    """Return a simple ``{ echo ...; } >> "$GITHUB_ENV"`` group body.
+
+    Nested or otherwise indirect groups are intentionally outside this small
+    grammar: persisting an environment key that cannot be statically named is
+    not safe for a job whose subsequent Python executable is path-bound.
+    """
+
+    for opening_index in range(closing_index - 1, -1, -1):
+        if lines[opening_index].strip() == "{":
+            return lines[opening_index + 1 : closing_index]
+    return None
+
+
+def github_env_write_error(run: str) -> str | None:
+    """Reject indirect or unapproved writes to GitHub's environment file.
+
+    Matching only ``PATH=`` is not sufficient: shell arguments can assemble
+    that key dynamically.  The accepted forms therefore have a literal key in
+    source and are limited to an audited non-interpreter allowlist.
+    """
+
+    if "GITHUB_ENV" not in run:
+        return None
+    lines = run.splitlines()
+    for line_index, line in enumerate(lines):
+        if "GITHUB_ENV" not in line:
+            continue
+        redirect = GITHUB_ENV_REDIRECT.search(line)
+        if redirect is None:
+            return "indirect or unsupported GITHUB_ENV write"
+        writer = line[: redirect.start()].strip()
+        if writer == "}":
+            writers = github_env_group_writers(lines, line_index)
+            if writers is None:
+                return "unsupported GITHUB_ENV writer group"
+        else:
+            writers = [writer]
+        for source in writers:
+            stripped = source.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            key = static_github_env_writer_key(stripped)
+            if key is None:
+                return "indirect or unsupported GITHUB_ENV writer"
+            if key not in ALLOWED_GITHUB_ENV_KEYS:
+                return f"unapproved GITHUB_ENV key {key!r}"
+    return None
+
+
+def simple_redirect_path_variables(run: str) -> frozenset[str]:
+    """Return variables that are assigned only bounded local output paths."""
+
+    assignments: dict[str, bool] = {}
+    source, _ = shell_source_without_heredoc_bodies(run)
+    for match in SIMPLE_REDIRECT_PATH_ASSIGNMENT.finditer(source):
+        name = match.group("name")
+        value = match.group("value").strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        is_safe = SIMPLE_REDIRECT_PATH_VALUE.fullmatch(value) is not None
+        assignments[name] = assignments.get(name, True) and is_safe
+    return frozenset(name for name, is_safe in assignments.items() if is_safe)
+
+
+def bounded_dynamic_output_target(
+    target: str,
+    safe_variables: frozenset[str],
+    *,
+    allowed_github_targets: frozenset[str],
+) -> bool:
+    """Return whether one dynamic write target has a bounded source form."""
+
+    if target in allowed_github_targets:
+        return True
+    if target.startswith("$RUNNER_TEMP/") or target.startswith("$GITHUB_WORKSPACE/"):
+        return True
+    variable = DYNAMIC_OUTPUT_REDIRECT_VARIABLE.fullmatch(target)
+    return variable is not None and variable.group("name") in safe_variables
+
+
+def dynamic_output_redirection_error(run: str) -> str | None:
+    """Reject opaque dynamic output paths that could resolve to GitHub files.
+
+    GitHub environment files are process-provided paths.  A workflow must not
+    discover one through ``set``, ``grep``, indirection, or another opaque
+    shell variable and then redirect output there.  Direct GitHub output files,
+    direct runner/workspace paths, and variables with a bounded local path
+    assignment are the only accepted dynamic output targets.
+    """
+
+    safe_variables = simple_redirect_path_variables(run)
+    for word in analyze_shell_source(run).words:
+        if (
+            not word.redirection_target
+            or word.redirection_operator not in {">", ">>"}
+            or not word.dynamic
+        ):
+            continue
+        target = word.value
+        if bounded_dynamic_output_target(
+            target,
+            safe_variables,
+            allowed_github_targets=frozenset(
+                {"$GITHUB_ENV", "$GITHUB_OUTPUT", "$GITHUB_STEP_SUMMARY"}
+            ),
+        ):
+            continue
+        return "dynamic output redirection target is unsupported"
+    return None
+
+
+def tee_destination_error(run: str) -> str | None:
+    """Restrict ``tee`` targets before its data stream can reach GitHub files.
+
+    ``tee`` is data-only for executable selection, but it is a file writer.
+    Its target must consequently use the same bounded path policy as shell
+    output redirections.  A direct step-summary target is the sole GitHub
+    special file used by the checked-in workflows.
+    """
+
+    safe_variables = simple_redirect_path_variables(run)
+    for command in analyze_shell_source(run).commands:
+        if static_command_basename(command.command) != "tee":
+            continue
+        parsing_options = True
+        for argument in command.arguments:
+            if parsing_options and not argument.dynamic and argument.value == "--":
+                parsing_options = False
+                continue
+            if parsing_options and not argument.dynamic and argument.value.startswith("-"):
+                continue
+            parsing_options = False
+            if not argument.dynamic:
+                continue
+            if bounded_dynamic_output_target(
+                argument.value,
+                safe_variables,
+                allowed_github_targets=frozenset({"$GITHUB_STEP_SUMMARY"}),
+            ):
+                continue
+            return "dynamic tee destination is unsupported"
+    return None
 
 
 def direct_python_or_pip_command(run: str) -> str | None:
@@ -1346,12 +2181,81 @@ def direct_python_or_pip_command(run: str) -> str | None:
     return None
 
 
+def executable_words(command: ShellCommand) -> tuple[ShellWord, ...]:
+    """Return words that can be executable positions for one shell command."""
+
+    basename = static_command_basename(command.command)
+    if (
+        basename in NON_EXECUTING_ARGUMENT_COMMANDS
+        or (basename is not None and is_python_or_pip_command(basename))
+    ):
+        return (command.command,)
+    return (command.command, *command.arguments)
+
+
+def python_interpreter_token(run: str) -> str | None:
+    """Return a literal interpreter token found anywhere in shell syntax.
+
+    Shell launchers are intentionally not enumerated here.  Any command can
+    choose to execute a following argument (for example ``nohup``, ``flock``,
+    ``find -exec``, or a future tool), so a static Python/pip executable token
+    is inventoried in every potential execution position outside comments,
+    here-doc bodies, redirection targets, and arguments of commands proven to
+    be data-only.  Dynamic executable construction remains a scanner error
+    and is handled by :func:`shell_syntax_error`.
+    """
+
+    for shell_command in analyze_shell_source(run).commands:
+        for word in executable_words(shell_command):
+            if word.redirection_target:
+                continue
+            command = static_command_basename(word)
+            if command is not None and is_python_or_pip_command(command):
+                return command
+    return None
+
+
 def bare_pip_command(run: str) -> str | None:
     for shell_command in analyze_shell_source(run).commands:
-        command = static_command_basename(shell_command.command)
-        if command is not None and is_bare_pip_command(command):
-            return command
+        for word in executable_words(shell_command):
+            if word.redirection_target:
+                continue
+            command = static_command_basename(word)
+            if command is not None and is_bare_pip_command(command):
+                return command
     return None
+
+
+def python_shell_use(step: Step) -> str | None:
+    """Classify an explicit or inherited step shell without executing it."""
+
+    shell = step.scalar("shell") or step.default_shell
+    if shell is None:
+        return None
+    if "$" in shell or "`" in shell:
+        return "dynamic shell selector"
+    normalized = shell.strip()
+    executable = normalized.split(maxsplit=1)[0] if normalized else ""
+    if is_python_or_pip_command(executable):
+        return "Python shell"
+    if normalized in {"bash", "sh"}:
+        return None
+    if normalized in NON_POSIX_WORKFLOW_SHELLS:
+        return "non-POSIX shell selector"
+    return "custom shell selector"
+
+
+def workflow_shell_selector_error(step: Step) -> str | None:
+    """Allow only the reviewed default/Bash shell in monitored Python jobs."""
+
+    shell = step.scalar("shell") or step.default_shell
+    if shell is None:
+        return None
+    if "$" in shell or "`" in shell:
+        return "dynamic workflow shell selector is unsupported"
+    if shell.strip() == "bash":
+        return None
+    return f"unsupported workflow shell selector {shell.strip()!r}"
 
 
 def python_make_target(run: str) -> str | None:
@@ -1365,20 +2269,221 @@ def python_make_target(run: str) -> str | None:
     return None
 
 
+LOCAL_SHELL_FUNCTION = re.compile(
+    r"(?m)^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(\)"
+)
+
+
+def dynamic_executable_position_error(run: str) -> str | None:
+    """Reject dynamic words at every potential executable position.
+
+    A launcher has no bounded universal grammar: ``nohup p${X}ython3`` and
+    ``nohup "$PYTHON"`` can both execute an interpreter without containing a
+    static ``python`` token.  Arguments of commands proven to be data-only,
+    and arguments after a direct Python/pip executable, are the only narrow
+    exceptions.  This avoids a bypassable launcher allowlist while retaining
+    ordinary ``echo``/``printf`` data handling.
+    """
+
+    local_functions = frozenset(LOCAL_SHELL_FUNCTION.findall(run))
+    for command in analyze_shell_source(run).commands:
+        command_name = static_command_basename(command.command)
+        if not command_name:
+            # The bounded POSIX scanner can retain an empty placeholder around
+            # a multiline pipeline continuation; it is not an executable
+            # position, and the adjacent command is scanned independently.
+            continue
+        if (
+            command_name in DYNAMIC_ARGUMENT_SAFE_COMMANDS
+            or command_name in local_functions
+            or (
+                command_name is not None
+                and is_python_or_pip_command(command_name)
+            )
+        ):
+            words = (command.command,)
+        else:
+            words = executable_words(command)
+        for word in words:
+            if word.redirection_target or not word.dynamic:
+                continue
+            basename = static_command_basename(word)
+            if basename is not None and not is_python_or_pip_command(basename):
+                # A dynamic directory prefix paired with a fixed non-Python
+                # tool name (for example "$RUNNER_TEMP/.../gitleaks") cannot
+                # construct a Python executable.  The tool's own integrity
+                # contract is checked separately.
+                continue
+            return "dynamic potential executable position is unsupported"
+    return None
+
+
+def shell_path_reset_error(run: str) -> str | None:
+    """Reject wrappers that replace setup-python's PATH search order."""
+
+    for command in analyze_shell_source(run).commands:
+        prefix = command.prefix
+        if not prefix:
+            continue
+        wrapper = static_command_basename(prefix[0])
+        values = [word.value for word in prefix]
+        if wrapper == "command" and "-p" in values[1:]:
+            return "command -p replaces the setup-python PATH"
+        if wrapper != "env":
+            continue
+        for index, value in enumerate(values[1:], start=1):
+            if value in {"-i", "--ignore-environment"}:
+                return "env -i replaces the setup-python PATH"
+            if value in {"-u", "--unset"}:
+                if index + 1 < len(values) and values[index + 1] == "PATH":
+                    return "env unsets the setup-python PATH"
+            if value in {"-uPATH", "--unset=PATH"}:
+                return "env unsets the setup-python PATH"
+    return None
+
+
 def shell_syntax_error(run: str) -> str | None:
     analysis = analyze_shell_source(run)
-    return analysis.errors[0] if analysis.errors else None
+    if analysis.errors:
+        return analysis.errors[0]
+    path_reset = shell_path_reset_error(run)
+    if path_reset is not None:
+        return path_reset
+    tee_error = tee_destination_error(run)
+    if tee_error is not None:
+        return tee_error
+    return dynamic_executable_position_error(run)
 
 
 def actual_python_use(step: Step) -> str | None:
+    shell_use = python_shell_use(step)
+    if shell_use is not None:
+        return shell_use
     run = step.run()
     without_verifier = run_without_verifier_command(run)
     if direct_python_or_pip_command(without_verifier) is not None:
         return "direct python/pip command"
+    if python_interpreter_token(without_verifier) is not None:
+        return "literal python/pip interpreter token"
     target = python_make_target(without_verifier)
     if target is not None:
         return f"Make target {target}"
     return None
+
+
+def step_environment_values(step: Step) -> tuple[dict[str, str], str | None]:
+    """Return one step's scalar environment mapping or a fail-closed error."""
+
+    if step.node is None:
+        return step.nested_mapping("env"), None
+    try:
+        return (
+            scalar_environment_values(
+                step.semantic_fields(),
+                context=f"workflow step at line {step.start_line}",
+            ),
+            None,
+        )
+    except ContractInputError as error:
+        return {}, str(error)
+
+
+def path_mutation_in_run(run: str) -> str | None:
+    """Return interpreter-selection environment mutations in shell source.
+
+    This deliberately scans the original source in addition to lexical shell
+    words: a GitHub environment file persists state for later steps, and its
+    pathname or assignment key must not be assembled dynamically.
+    """
+
+    if "${!" in run:
+        return "indirect shell expansion"
+    github_env_error = github_env_write_error(run)
+    if github_env_error is not None:
+        return github_env_error
+    dynamic_target_error = dynamic_output_redirection_error(run)
+    if dynamic_target_error is not None:
+        return dynamic_target_error
+    if "GITHUB_PATH" in run:
+        return "GITHUB_PATH mutation"
+    if UNSAFE_INTERPRETER_ENV_ASSIGNMENT.search(run):
+        return "inline interpreter-selection environment assignment"
+    return None
+
+
+def python_words_by_command(run: str) -> tuple[ShellAnalysis, list[tuple[int, ShellWord]]]:
+    """Return recognized Python/pip executable words with command ordering."""
+
+    analysis = analyze_shell_source(run)
+    words: list[tuple[int, ShellWord]] = []
+    for command_index, command in enumerate(analysis.commands):
+        for word in executable_words(command):
+            if word.redirection_target:
+                continue
+            basename = static_command_basename(word)
+            if basename is not None and is_python_or_pip_command(basename):
+                words.append((command_index, word))
+    return analysis, words
+
+
+def validate_python_execution_sources(job: Job, steps: Iterable[Step]) -> list[str]:
+    """Bind Python execution to setup-python's unmodified PATH.
+
+    Bare ``python``/``python3`` names remain valid after the verified setup only
+    when no workflow, job, step, or inline PATH mutation can replace the
+    action-provided executable.  Absolute and alternate executable paths are
+    rejected; the checked-in full-smoke workflow uses the verified ``python3``
+    name instead of a local virtual-environment path.
+    """
+
+    errors: list[str] = []
+    inherited_unsafe = sorted(
+        UNSAFE_INTERPRETER_ENV_KEYS.intersection(job.inherited_environment)
+    )
+    if inherited_unsafe:
+        errors.append(
+            f"{job.identity.display()} must not set interpreter-selection env key(s) "
+            f"{', '.join(inherited_unsafe)} via workflow/job env"
+        )
+    for step in steps:
+        environment, environment_error = step_environment_values(step)
+        if environment_error is not None:
+            errors.append(f"{job.identity.display()} {environment_error}")
+        else:
+            unsafe_keys = sorted(
+                UNSAFE_INTERPRETER_ENV_KEYS.intersection(environment)
+            )
+            if unsafe_keys:
+                errors.append(
+                    f"{job.identity.display()} step at workflow line {step.start_line} "
+                    "must not set interpreter-selection env key(s) "
+                    f"{', '.join(unsafe_keys)} via env"
+                )
+
+        run = step.run()
+        mutation = path_mutation_in_run(run)
+        if mutation is not None:
+            errors.append(
+                f"{job.identity.display()} step at workflow line {step.start_line} "
+                f"must not perform {mutation}"
+            )
+
+        _, python_words = python_words_by_command(run)
+        for _, word in python_words:
+            executable = word.value
+            basename = static_command_basename(word)
+            if basename is None:
+                continue
+            if is_bare_pip_command(basename):
+                continue
+            if executable in {"python", "python3"}:
+                continue
+            errors.append(
+                f"{job.identity.display()} step at workflow line {step.start_line} "
+                "must invoke only unqualified 'python' or 'python3' from "
+                f"setup-python, not {executable!r}"
+            )
+    return errors
 
 
 def first_python_use(steps: Iterable[Step]) -> tuple[Step, str] | None:
@@ -1401,6 +2506,33 @@ def first_shell_syntax_error(steps: Iterable[Step]) -> tuple[Step, str] | None:
 
 def has_python_matrix_selector(job: Job) -> bool:
     """Identify Python-bearing matrix axes and matrix-derived selectors."""
+
+    if job.node is not None:
+        if any("matrix" in line.lower() for line in selector_lines(job)):
+            return True
+        visited: set[int] = set()
+
+        def visit(node: Node, *, in_matrix: bool = False) -> bool:
+            identity = id(node)
+            if identity in visited:
+                return False
+            visited.add(identity)
+            if isinstance(node, ScalarNode):
+                return bool(PYTHON_MATRIX_REFERENCE.search(node.value))
+            if isinstance(node, SequenceNode):
+                return any(visit(value, in_matrix=in_matrix) for value in node.value)
+            if not isinstance(node, MappingNode):
+                return False
+            for key, value in semantic_mapping_items(
+                node, context=f"workflow job {job.identity.display()}"
+            ).items():
+                if in_matrix and PYTHON_MATRIX_KEY.fullmatch(f"{key}:"):
+                    return True
+                if visit(value, in_matrix=in_matrix or key == "matrix"):
+                    return True
+            return False
+
+        return visit(job.node)
 
     if any(PYTHON_MATRIX_REFERENCE.search(line) for _, line in job.lines):
         return True
@@ -1447,6 +2579,8 @@ def exact_command(run: str, expected: str) -> bool:
 
 
 def pinned_setup_step(steps: Sequence[Step]) -> tuple[Step | None, list[str]]:
+    expected_reference = active_setup_python_reference()
+    expected_action = active_setup_python_action()
     setup_like = [
         step
         for step in steps
@@ -1454,19 +2588,20 @@ def pinned_setup_step(steps: Sequence[Step]) -> tuple[Step | None, list[str]]:
         and uses.startswith("actions/setup-python@")
     ]
     matching = [
-        step for step in setup_like if step.raw_scalar("uses") == SETUP_PYTHON_REFERENCE
+        step for step in setup_like if step.raw_scalar("uses") == expected_reference
     ]
     errors: list[str] = []
-    if len(matching) != 1:
+    if len(setup_like) != 1 or len(matching) != 1:
         if setup_like:
             errors.append(
                 "actions/setup-python must use exactly "
-                f"{SETUP_PYTHON_REFERENCE}; found {len(matching)} exact reference(s)"
+                f"one {expected_reference} step; found {len(setup_like)} "
+                f"setup-python step(s) and {len(matching)} exact reference(s)"
             )
         else:
             errors.append(
                 "must contain exactly one "
-                f"{SETUP_PYTHON_ACTION} setup step; found {len(matching)}"
+                f"{expected_action} setup step; found {len(matching)}"
             )
         return None, errors
     setup = matching[0]
@@ -1476,6 +2611,29 @@ def pinned_setup_step(steps: Sequence[Step]) -> tuple[Step | None, list[str]]:
 
 
 def selector_lines(job: Job) -> list[str]:
+    if job.node is not None:
+        lines: list[str] = []
+        visited: set[int] = set()
+
+        def visit(node: Node) -> None:
+            identity = id(node)
+            if identity in visited:
+                return
+            visited.add(identity)
+            if isinstance(node, MappingNode):
+                for key, value in semantic_mapping_items(
+                    node, context=f"workflow job {job.identity.display()}"
+                ).items():
+                    if key == "python-version":
+                        scalar = value.value if isinstance(value, ScalarNode) else ""
+                        lines.append(f"{key}: {scalar}")
+                    visit(value)
+            elif isinstance(node, SequenceNode):
+                for value in node.value:
+                    visit(value)
+
+        visit(job.node)
+        return lines
     lines: list[str] = []
     for _, line in job.lines:
         if re.match(r"^\s*python-version\s*:", line):
@@ -1534,11 +2692,27 @@ def validate_no_bare_pip(identity: JobIdentity, steps: Iterable[Step]) -> list[s
     return errors
 
 
+def validate_working_directories(identity: JobIdentity, steps: Iterable[Step]) -> list[str]:
+    """Keep relative verifier scripts rooted at the checked-out repository."""
+
+    return [
+        f"{identity.display()} must not set a step working-directory"
+        for step in steps
+        if step.scalar("working-directory") is not None
+    ]
+
+
 def validate_shell_syntax(identity: JobIdentity, steps: Iterable[Step]) -> list[str]:
     """Reject unsupported shell forms instead of silently missing Python use."""
 
     errors: list[str] = []
     for step in steps:
+        selector_error = workflow_shell_selector_error(step)
+        if selector_error is not None:
+            errors.append(
+                f"{identity.display()} step at workflow line {step.start_line} "
+                f"contains unsupported shell selector: {selector_error}"
+            )
         error = shell_syntax_error(run_without_verifier_command(step.run()))
         if error is not None:
             errors.append(
@@ -1586,15 +2760,18 @@ def normal_verifier_violations(verifier: Step) -> list[str]:
 
 
 def finalize_job_validation(
-    identity: JobIdentity, steps: Sequence[Step], errors: list[str]
+    job: Job, steps: Sequence[Step], errors: list[str]
 ) -> list[str]:
     """Prefix structural errors before adding source-level shell violations."""
 
+    identity = job.identity
     prefixed = [f"{identity.display()}: {error}" for error in errors]
     return (
         prefixed
         + validate_no_bare_pip(identity, steps)
+        + validate_working_directories(identity, steps)
         + validate_shell_syntax(identity, steps)
+        + validate_python_execution_sources(job, steps)
     )
 
 
@@ -1608,7 +2785,7 @@ def validate_normal_job(job: Job) -> list[str]:
     if verifier is not None:
         errors.extend(normal_verifier_violations(verifier))
     errors.extend(validate_order(job.identity, steps, setup, verifier))
-    return finalize_job_validation(job.identity, steps, errors)
+    return finalize_job_validation(job, steps, errors)
 
 
 def candidate_setup_violations(job: Job, setup: Step) -> list[str]:
@@ -1677,7 +2854,7 @@ def validate_candidate_job(job: Job) -> list[str]:
             CANDIDATE_VERIFIER_NAME,
         )
     )
-    return finalize_job_validation(job.identity, steps, errors)
+    return finalize_job_validation(job, steps, errors)
 
 
 def downgrade_violations(
@@ -1807,30 +2984,38 @@ def evaluate_workflow_contract(
     allow_downgrade: bool = False,
     expected_normal_jobs: Iterable[JobIdentity] = EXPECTED_NORMAL_PYTHON_JOBS,
     expected_candidate_job: JobIdentity | None = CANDIDATE_VALIDATION_JOB,
+    require_setup_lock: bool = False,
 ) -> tuple[str, list[str], set[JobIdentity]]:
     """Evaluate source-only workflow policy and return version, violations, inventory."""
 
-    canonical_version = read_canonical_version(version_file)
-    violations = downgrade_violations(
-        canonical_version, previous_version, allow_downgrade
+    global _ACTIVE_SETUP_PYTHON_REFERENCE
+    previous_reference = _ACTIVE_SETUP_PYTHON_REFERENCE
+    _ACTIVE_SETUP_PYTHON_REFERENCE = setup_python_reference_from_lock(
+        root, require_lock=require_setup_lock
     )
-    jobs, workflow_violations = collect_workflow_jobs(root)
-    violations.extend(workflow_violations)
-
-    expected = frozenset(expected_normal_jobs)
-    violations.extend(
-        missing_inventory_violations(jobs, expected, expected_candidate_job)
-    )
-    detected = detected_python_jobs(jobs)
-    violations.extend(expected_normal_job_violations(jobs, expected, detected))
-    violations.extend(candidate_job_violations(jobs, expected_candidate_job, detected))
-    violations.extend(
-        unlisted_python_job_violations(
-            jobs, expected, expected_candidate_job, detected
+    try:
+        canonical_version = read_canonical_version(version_file)
+        violations = downgrade_violations(
+            canonical_version, previous_version, allow_downgrade
         )
-    )
+        jobs, workflow_violations = collect_workflow_jobs(root)
+        violations.extend(workflow_violations)
 
-    return canonical_version, violations, detected
+        expected = frozenset(expected_normal_jobs)
+        violations.extend(
+            missing_inventory_violations(jobs, expected, expected_candidate_job)
+        )
+        detected = detected_python_jobs(jobs)
+        violations.extend(expected_normal_job_violations(jobs, expected, detected))
+        violations.extend(candidate_job_violations(jobs, expected_candidate_job, detected))
+        violations.extend(
+            unlisted_python_job_violations(
+                jobs, expected, expected_candidate_job, detected
+            )
+        )
+        return canonical_version, violations, detected
+    finally:
+        _ACTIVE_SETUP_PYTHON_REFERENCE = previous_reference
 
 
 def parser() -> argparse.ArgumentParser:
@@ -1906,6 +3091,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             version_file,
             previous_version=args.previous_version,
             allow_downgrade=args.allow_downgrade,
+            require_setup_lock=True,
         )
     except ContractInputError as exc:
         report("error", None, [str(exc)], set(), args.json)

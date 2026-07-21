@@ -15,10 +15,32 @@ official upstream, release version, immutable commit, binary release asset,
 SHA-256 digest, license, purpose, and minimum permissions are recorded in
 `ci/tooling/security-tools.lock.yml`.
 
-`ci/tools/fetch_security_tool.py` accepts only the recorded official release
-asset, verifies the SHA-256 digest before extraction, rejects absolute and
-traversal archive paths, and extracts exactly one declared executable. It does
-not install dependencies or modify repository files.
+`ci/tools/fetch_security_tool.py` starts only from the exact recorded
+`https://github.com/.../releases/download/...` URL. It follows at most two
+HTTPS redirects: the first only from that GitHub origin to the explicit
+official release-asset host allowlist, and an optional second only within that
+same allowlist (`release-assets.githubusercontent.com` and the legacy
+`github-releases.githubusercontent.com`). It rejects any foreign or insecure
+redirect/final host and verifies the locked SHA-256 digest before
+extraction, rejects absolute and traversal archive paths, and extracts exactly
+one declared executable. It does not install dependencies or modify repository
+files.
+
+The workflow-key verifier parses every workflow's YAML node tree and requires
+each decoded `uses` key to be written as the canonical unquoted block
+`uses:` key, so YAML quoting, escape, tag, explicit-key, and flow-map syntax
+cannot hide an action reference. Its parser wheel is pinned with an exact
+SHA-256 in `ci/tooling/python-ci-requirements.lock` and is installed from the
+fixed PyPI index with hash enforcement; it is not taken implicitly from the
+hosted runner.
+
+Before the privileged Parent tooling publisher can create or refresh a draft
+PR, the read-only validator rebuilds the candidate in a disposable trusted
+tree and checksum-downloads/extracts each candidate security tool. After the
+SHA-256 and extraction checks, it runs only bounded, 30-second version smoke
+checks (`actionlint --version`, `zizmor --version`, and `gitleaks version`).
+It does not use those downloaded binaries to inspect repository content or to
+publish changes.
 
 ## Workflow linting
 
@@ -43,10 +65,16 @@ triaged before it becomes a blocking policy.
 
 ## CodeQL and Scorecard boundaries
 
-CodeQL analyzes Actions, each Go module with fixed Go `1.24.13`, and a bounded
-C/C++ scope limited to `make check-common-helpers-c17`. The C/C++ result does
-not claim full connector coverage; expanding it requires reproducible builds
-for the selected connector scope.
+CodeQL analyzes Actions, each Go module with the exact pinned Go `1.26` patch
+declared in its `go.mod` and mirrored in the CodeQL setup, and a bounded C/C++
+scope limited to `make check-common-helpers-c17`. The patch-only updater
+accepts only official stable releases in that `1.26` series; it does not float
+to a new minor release. Its machine-readable result distinguishes `current`,
+`patch_update_available`, and `newer_minor_available`; it fails closed with
+`blocked_metadata`, `blocked_network`, `no_stable_release`,
+`invalid_current_version`, or `candidate_failed`. The C/C++ result does not
+claim full connector coverage; expanding it requires reproducible builds for
+the selected connector scope.
 
 Scorecard uses read-only permissions for same-repository pull requests and
 checks out the exact pull-request head. Fork pull requests are intentionally

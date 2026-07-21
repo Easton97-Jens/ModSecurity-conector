@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compatibility wrapper for checking GitHub Actions versions."""
+"""Read-only compatibility wrapper for the Parent CI-tool update check."""
 
 from __future__ import annotations
 
@@ -22,7 +22,9 @@ def load_updater_module():
 def main(argv: list[str] | None = None) -> int:
     module = load_updater_module()
     arguments = list(argv if argv is not None else sys.argv[1:])
-    if "--write" not in arguments and "--check" not in arguments:
+    if "--apply" in arguments or "--validate" in arguments:
+        raise SystemExit("the check wrapper permits only read-only updater modes")
+    if "--check" not in arguments and "--verify" not in arguments and "--resolve" not in arguments:
         arguments.insert(0, "--check")
     return module.main(arguments)
 

@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI tooling and Go 1.26.5 update](CR-20260721-parent-ci-tooling-go-update.md)
 - [Parent Python 3.13 workflow contract and safe patch updater](CR-20260720-python-313-workflow-contract.md)
 - [Apache intervention ownership cleanup](CR-20260720-apache-intervention-ownership.md)
 - [Go 1.24.13 security baseline](CR-20260720-go12413-security-baseline.md)

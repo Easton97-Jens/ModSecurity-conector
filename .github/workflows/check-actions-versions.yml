@@ -1,4 +1,4 @@
-name: check-actions-versions
+name: Check Parent CI tooling
 
 on:
   workflow_dispatch:
@@ -9,17 +9,23 @@ permissions:
   contents: read
 
 jobs:
-  check-actions-versions:
+  check-ci-tool-updates:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Check out trusted default branch without submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
           persist-credentials: false
 
-      - id: setup-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -29,15 +35,27 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
-      - name: Check GitHub Actions versions
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      - name: Install hash-locked YAML parser
         run: |
-          python3 scripts/check-github-actions-versions.py --report actions-update-report.md
+          set -euo pipefail
+          dependency_dir="$RUNNER_TEMP/parent-ci-yaml-parser"
+          python3 -m pip install \
+            --isolated \
+            --disable-pip-version-check \
+            --no-deps \
+            --no-input \
+            --require-hashes \
+            --only-binary=:all: \
+            --index-url https://pypi.org/simple \
+            --target "$dependency_dir" \
+            -r ci/tooling/python-ci-requirements.lock
+          PYTHONPATH="$dependency_dir" python3 -c 'import yaml; assert yaml.__version__ == "6.0.3"'
+          printf 'PYTHONPATH=%s\n' "$dependency_dir" >> "$GITHUB_ENV"
 
-      - name: Write report summary
-        if: always()
+      - name: Verify current lock and report official updates
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
         run: |
-          if [ -f actions-update-report.md ]; then
-            cat actions-update-report.md >> "$GITHUB_STEP_SUMMARY"
-          fi
+          set -euo pipefail
+          python3 scripts/update-github-actions-versions.py --verify --json
+          python3 scripts/check-github-actions-versions.py --check --json | tee -a "$GITHUB_STEP_SUMMARY"

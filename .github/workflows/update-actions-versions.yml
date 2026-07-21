@@ -1,36 +1,34 @@
-name: update-actions-versions
+name: Update Parent CI tooling
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: '42 5 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  update-actions-versions:
+  resolve-ci-tool-updates:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     permissions:
-      contents: write
-      pull-requests: write
-      actions: write
+      contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      UPDATE_BRANCH: automation/update-github-actions-versions
-      SUBMODULE_PATH: modules/ModSecurity-test-Framework
-      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    timeout-minutes: 15
+    outputs:
+      update_available: ${{ steps.resolve.outputs.update_available }}
+      candidate_sha256: ${{ steps.resolve.outputs.candidate_sha256 }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Check out trusted default branch without submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
-          submodules: recursive
-          fetch-depth: 0
+          submodules: false
           persist-credentials: false
 
-      - id: setup-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -40,198 +38,479 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
-      - name: Update GitHub Actions versions
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          SUBMODULE_UPDATE_TOKEN: ${{ secrets.SUBMODULE_UPDATE_TOKEN }}
+      - name: Install hash-locked YAML parser
         run: |
-          python3 scripts/update-github-actions-versions.py --write --report actions-update-report.md
+          set -euo pipefail
+          dependency_dir="$RUNNER_TEMP/parent-ci-yaml-parser"
+          python3 -m pip install \
+            --isolated \
+            --disable-pip-version-check \
+            --no-deps \
+            --no-input \
+            --require-hashes \
+            --only-binary=:all: \
+            --index-url https://pypi.org/simple \
+            --target "$dependency_dir" \
+            -r ci/tooling/python-ci-requirements.lock
+          PYTHONPATH="$dependency_dir" python3 -c 'import yaml; assert yaml.__version__ == "6.0.3"'
+          printf 'PYTHONPATH=%s\n' "$dependency_dir" >> "$GITHUB_ENV"
 
-      - name: Write report summary
-        if: always()
-        run: |
-          if [ -f actions-update-report.md ]; then
-            cat actions-update-report.md >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Cleanup artifacts before upload
-        if: always()
-        continue-on-error: true
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+      - name: Resolve fixed official release provenance
+        id: resolve
         env:
-          ARTIFACT_NAME: actions-update-report
-        with:
-          script: |
-            const GLOBAL_KEEP_LIMIT = 20;
-            const PRE_UPLOAD_KEEP_LIMIT = Math.max(GLOBAL_KEEP_LIMIT - 1, 0);
-            const { owner, repo } = context.repo;
-            const targetName = process.env.ARTIFACT_NAME || 'artifact';
-            const targetGroup = artifactGroupName(targetName);
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/ci-tool-update-candidate.json"
+          python3 scripts/update-github-actions-versions.py --resolve --json > "$candidate"
+          CANDIDATE="$candidate" python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import hashlib
+          import json
+          import os
 
-            function artifactGroupName(name) {
-              return name
-                .replace(/-\d{8,}$/u, '')
-                .replace(/-\d{6,}-\d+$/u, '')
-                .replace(/-run-\d+$/u, '')
-                .replace(/-attempt-\d+$/u, '');
-            }
+          candidate = open(os.environ["CANDIDATE"], "rb").read()
+          data = json.loads(candidate.decode("utf-8"))
+          if data.get("schema_version") != 1 or data.get("source") != "https://api.github.com":
+              raise SystemExit("resolver did not return fixed official GitHub provenance")
+          available = data.get("update_available")
+          if type(available) is not bool:
+              raise SystemExit("resolver did not return a boolean update state")
+          if not isinstance(data.get("actions"), list) or not isinstance(data.get("tools"), list):
+              raise SystemExit("resolver did not return complete action and tool records")
+          print(f"update_available={str(available).lower()}")
+          print(f"candidate_sha256={hashlib.sha256(candidate).hexdigest()}")
+          PY
 
-            function compareArtifactsNewestFirst(left, right) {
-              const createdDiff = Date.parse(right.created_at) - Date.parse(left.created_at);
-              if (createdDiff !== 0) {
-                return createdDiff;
-              }
-              return right.id - left.id;
-            }
-
-            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
-              owner,
-              repo,
-              per_page: 100,
-            });
-
-            const groups = new Map();
-            for (const artifact of artifacts) {
-              const group = artifactGroupName(artifact.name);
-              if (!groups.has(group)) {
-                groups.set(group, []);
-              }
-              groups.get(group).push(artifact);
-            }
-
-            const deleteById = new Map();
-            const retainedByGroup = [];
-
-            for (const [group, groupArtifacts] of groups) {
-              groupArtifacts.sort(compareArtifactsNewestFirst);
-              const [newest, ...older] = groupArtifacts;
-              if (group === targetGroup) {
-                for (const artifact of groupArtifacts) {
-                  deleteById.set(artifact.id, {
-                    artifact,
-                    group,
-                    reason: `same logical group as upcoming upload: ${targetGroup}`,
-                  });
-                }
-                continue;
-              }
-              if (newest) {
-                retainedByGroup.push(newest);
-              }
-              for (const artifact of older) {
-                deleteById.set(artifact.id, {
-                  artifact,
-                  group,
-                  reason: 'older artifact in logical group',
-                });
-              }
-            }
-
-            retainedByGroup.sort(compareArtifactsNewestFirst);
-
-            for (const artifact of retainedByGroup.slice(PRE_UPLOAD_KEEP_LIMIT)) {
-              deleteById.set(artifact.id, {
-                artifact,
-                group: artifactGroupName(artifact.name),
-                reason: `reserve one slot while keeping newest ${GLOBAL_KEEP_LIMIT} artifacts after upload`,
-              });
-            }
-
-            const deleteCandidates = Array.from(deleteById.values())
-              .sort((left, right) => compareArtifactsNewestFirst(left.artifact, right.artifact));
-
-            core.info(`Found ${artifacts.length} artifact(s); deleting ${deleteCandidates.length} before uploading ${targetName}.`);
-
-            for (const entry of deleteCandidates) {
-              try {
-                await github.rest.actions.deleteArtifact({
-                  owner,
-                  repo,
-                  artifact_id: entry.artifact.id,
-                });
-                core.info(`Deleted artifact ${entry.artifact.name} (${entry.artifact.id}) from group ${entry.group}: ${entry.reason}`);
-              } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                core.warning(`Could not delete artifact ${entry.artifact.name} (${entry.artifact.id}) from group ${entry.group}: ${message}`);
-              }
-            }
-
-      - name: Upload actions update report
-        if: always()
-        continue-on-error: true
+      - name: Upload immutable candidate for independent revalidation
+        if: steps.resolve.outputs.update_available == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: actions-update-report
-          path: actions-update-report.md
+          name: parent-ci-tool-update-candidate
+          path: ${{ runner.temp }}/ci-tool-update-candidate.json
           retention-days: 1
-          if-no-files-found: warn
+          if-no-files-found: error
 
-      - name: Commit module updates
+  validate-ci-tool-updates:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-ci-tool-updates.outputs.update_available == 'true' }}
+    needs: resolve-ci-tool-updates
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CANDIDATE_SHA256: ${{ needs.resolve-ci-tool-updates.outputs.candidate_sha256 }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out trusted default branch without submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
+          persist-credentials: false
+
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
         env:
-          GH_TOKEN: ${{ secrets.SUBMODULE_UPDATE_TOKEN }}
-          SUBMODULE_UPDATE_TOKEN: ${{ secrets.SUBMODULE_UPDATE_TOKEN }}
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Install hash-locked YAML parser
         run: |
-          set -eu
-          if [ -z "${SUBMODULE_UPDATE_TOKEN:-}" ]; then
-            echo "SUBMODULE_UPDATE_TOKEN is not set; module updates are reported only."
+          set -euo pipefail
+          dependency_dir="$RUNNER_TEMP/parent-ci-yaml-parser"
+          python3 -m pip install \
+            --isolated \
+            --disable-pip-version-check \
+            --no-deps \
+            --no-input \
+            --require-hashes \
+            --only-binary=:all: \
+            --index-url https://pypi.org/simple \
+            --target "$dependency_dir" \
+            -r ci/tooling/python-ci-requirements.lock
+          PYTHONPATH="$dependency_dir" python3 -c 'import yaml; assert yaml.__version__ == "6.0.3"'
+          printf 'PYTHONPATH=%s\n' "$dependency_dir" >> "$GITHUB_ENV"
+
+      - name: Download candidate without credentials
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: parent-ci-tool-update-candidate
+          path: ${{ runner.temp }}/parent-ci-tool-candidate
+
+      - name: Set candidate artifact path
+        run: printf 'CANDIDATE_PATH=%s\n' "$RUNNER_TEMP/parent-ci-tool-candidate/ci-tool-update-candidate.json" >> "$GITHUB_ENV"
+
+      - name: Verify candidate digest and re-resolve official metadata
+        run: |
+          set -euo pipefail
+          actual_sha256="$(sha256sum "$CANDIDATE_PATH" | awk '{print $1}')"
+          if [ "$actual_sha256" != "$CANDIDATE_SHA256" ]; then
+            echo "candidate artifact digest mismatch" >&2
+            exit 1
+          fi
+          python3 scripts/update-github-actions-versions.py --validate --candidate "$CANDIDATE_PATH" --json
+
+      - name: Validate and checksum-download candidate tool archives before publishing
+        run: |
+          set -euo pipefail
+          validation_root="$(mktemp -d "$RUNNER_TEMP/parent-ci-tool-candidate.XXXXXX")"
+          git archive --format=tar HEAD -- \
+            .python-version \
+            .github/workflows \
+            Makefile \
+            ci/checks/common/check-python-version-contract.py \
+            ci/tooling/security-tools.lock.yml \
+            ci/tools/fetch_security_tool.py \
+            scripts/update-github-actions-versions.py | tar -x -C "$validation_root"
+          cp "$CANDIDATE_PATH" "$validation_root/candidate.json"
+          (
+            cd "$validation_root"
+            python3 scripts/update-github-actions-versions.py --apply --candidate "$validation_root/candidate.json" --json
+            python3 scripts/update-github-actions-versions.py --verify --json
+            python3 ci/checks/common/check-python-version-contract.py --json
+          )
+          for tool in actionlint zizmor gitleaks; do
+            destination="$validation_root/downloaded-tools/$tool"
+            python3 "$validation_root/ci/tools/fetch_security_tool.py" \
+              --tool "$tool" \
+              --destination "$destination"
+            test -x "$destination/$tool"
+          done
+          timeout 30 "$validation_root/downloaded-tools/actionlint/actionlint" --version
+          timeout 30 "$validation_root/downloaded-tools/zizmor/zizmor" --version
+          timeout 30 "$validation_root/downloaded-tools/gitleaks/gitleaks" version
+
+      - name: Run focused CI-tool regression contracts
+        env:
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/python-pycache
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q ci scripts tests
+          python3 -m unittest -v \
+            tests.test_update_github_actions_versions \
+            tests.test_fetch_security_tool \
+            tests.test_ci_security_workflows
+          git diff --check
+
+  create-ci-tool-update-pr:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-ci-tool-updates.outputs.update_available == 'true' && needs.validate-ci-tool-updates.result == 'success' }}
+    needs:
+      - resolve-ci-tool-updates
+      - validate-ci-tool-updates
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CANDIDATE_SHA256: ${{ needs.resolve-ci-tool-updates.outputs.candidate_sha256 }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      UPDATE_BRANCH: automation/update-parent-ci-tooling
+      PR_TITLE: "chore(ci): propose Parent CI tooling update"
+      WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out trusted default branch without submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Install hash-locked YAML parser
+        run: |
+          set -euo pipefail
+          dependency_dir="$RUNNER_TEMP/parent-ci-yaml-parser"
+          python3 -m pip install \
+            --isolated \
+            --disable-pip-version-check \
+            --no-deps \
+            --no-input \
+            --require-hashes \
+            --only-binary=:all: \
+            --index-url https://pypi.org/simple \
+            --target "$dependency_dir" \
+            -r ci/tooling/python-ci-requirements.lock
+          PYTHONPATH="$dependency_dir" python3 -c 'import yaml; assert yaml.__version__ == "6.0.3"'
+          printf 'PYTHONPATH=%s\n' "$dependency_dir" >> "$GITHUB_ENV"
+
+      - name: Download candidate without submodules
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: parent-ci-tool-update-candidate
+          path: ${{ runner.temp }}/parent-ci-tool-candidate
+
+      - name: Set candidate artifact path
+        run: printf 'CANDIDATE_PATH=%s\n' "$RUNNER_TEMP/parent-ci-tool-candidate/ci-tool-update-candidate.json" >> "$GITHUB_ENV"
+
+      - name: Re-resolve and apply only Parent CI-tool files
+        id: update
+        run: |
+          set -euo pipefail
+          candidate_base_sha="$(git rev-parse HEAD)"
+          printf 'base_sha=%s\n' "$candidate_base_sha" >> "$GITHUB_OUTPUT"
+          actual_sha256="$(sha256sum "$CANDIDATE_PATH" | awk '{print $1}')"
+          if [ "$actual_sha256" != "$CANDIDATE_SHA256" ]; then
+            echo "candidate artifact digest mismatch" >&2
+            exit 1
+          fi
+          python3 scripts/update-github-actions-versions.py --apply --candidate "$CANDIDATE_PATH" --json
+          python3 scripts/update-github-actions-versions.py --verify --json
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if ! git -C "$SUBMODULE_PATH" diff --quiet -- .github/workflows .github/dependabot.yml README.md; then
-            module_url=$(git -C "$SUBMODULE_PATH" config --get remote.origin.url)
-            module_repo="${module_url#https://github.com/}"
-            module_repo="${module_repo%.git}"
-            git -C "$SUBMODULE_PATH" config user.name "github-actions[bot]"
-            git -C "$SUBMODULE_PATH" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git -C "$SUBMODULE_PATH" checkout -B "$UPDATE_BRANCH"
-            git -C "$SUBMODULE_PATH" add .github/workflows .github/dependabot.yml README.md
-            if git -C "$SUBMODULE_PATH" diff --cached --quiet; then
-              echo "No staged module updates."
-              exit 0
-            fi
-            git -C "$SUBMODULE_PATH" commit -m "Update GitHub Actions workflow versions"
-            git -C "$SUBMODULE_PATH" remote set-url origin "https://x-access-token:${SUBMODULE_UPDATE_TOKEN}@github.com/${module_repo}.git"
-            git -C "$SUBMODULE_PATH" push --force-with-lease origin "$UPDATE_BRANCH"
-            module_base=$(git -C "$SUBMODULE_PATH" remote show origin | sed -n 's/.*HEAD branch: //p' || true)
-            module_base="${module_base:-master}"
-            gh pr create \
-              --repo "$module_repo" \
-              --base "$module_base" \
-              --head "$UPDATE_BRANCH" \
-              --title "Update GitHub Actions workflow versions" \
-              --body-file actions-update-report.md \
-              || gh pr view "$UPDATE_BRANCH" --repo "$module_repo" >/dev/null
-          else
-            echo "No module workflow updates to commit."
-          fi
+          git diff --check
+          echo "changed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Create pull request
+      - name: Create or update one repository-owned draft pull request without force push
+        if: steps.update.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          CANDIDATE_BASE_SHA: ${{ steps.update.outputs.base_sha }}
         run: |
-          set -eu
+          set -euo pipefail
+          set -o pipefail
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "Publisher branch binding is invalid." >&2
+            exit 1
+          fi
+          if [ "$UPDATE_BRANCH" != "automation/update-parent-ci-tooling" ]; then
+            echo "Publisher branch binding is invalid." >&2
+            exit 1
+          fi
+          if [ "$UPDATE_BRANCH" = "$DEFAULT_BRANCH" ]; then
+            echo "Publisher branch binding is invalid." >&2
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+            echo "Publisher branch binding is invalid." >&2
+            exit 1
+          fi
+          if ! printf '%s\n' "$CANDIDATE_BASE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Candidate base revision is invalid." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin "$DEFAULT_BRANCH"
+          verified_default_sha="$(git rev-parse --verify --quiet "origin/$DEFAULT_BRANCH^{commit}")"
+          if [ "$verified_default_sha" != "$CANDIDATE_BASE_SHA" ]; then
+            echo "Trusted default branch changed after candidate application; rerun resolution and validation." >&2
+            exit 1
+          fi
+          is_explicit_parent_ci_tool_path() {
+            case "$1" in
+              ci/tooling/security-tools.lock.yml|\
+              .github/workflows/all-connectors-no-crs.yml|\
+              .github/workflows/check-actions-versions.yml|\
+              .github/workflows/ci-security-codeql.yml|\
+              .github/workflows/ci-security-osv.yml|\
+              .github/workflows/ci-security-scorecard.yml|\
+              .github/workflows/ci-security-secrets.yml|\
+              .github/workflows/ci-security-workflow-lint.yml|\
+              .github/workflows/cleanup-artifacts.yml|\
+              .github/workflows/lint.yml|\
+              .github/workflows/open-connectors-smoke.yml|\
+              .github/workflows/protocol-contract.yml|\
+              .github/workflows/quick-framework-check.yml|\
+              .github/workflows/test-apache.yml|\
+              .github/workflows/test-common.yml|\
+              .github/workflows/test-envoy.yml|\
+              .github/workflows/test-full-smoke-sequential.yml|\
+              .github/workflows/test-haproxy.yml|\
+              .github/workflows/test-lighttpd.yml|\
+              .github/workflows/test-nginx.yml|\
+              .github/workflows/test-traefik.yml|\
+              .github/workflows/update-actions-versions.yml|\
+              .github/workflows/update-go-version.yml|\
+              .github/workflows/update-python-version.yml|\
+              .github/workflows/update-submodules.yml|\
+              .github/workflows/verified-report-governance.yml)
+                return 0
+                ;;
+              *)
+                echo "Path is outside the explicit Parent CI-tool allowlist: $1" >&2
+                return 1
+                ;;
+            esac
+          }
+          assert_modified_parent_ci_paths() {
+            local status_file="$1" status path count=0
+            while IFS= read -r -d '' status && IFS= read -r -d '' path; do
+              if [ "$status" != "M" ]; then
+                echo "Refusing non-modification change status $status for $path." >&2
+                return 1
+              fi
+              if ! is_explicit_parent_ci_tool_path "$path"; then
+                return 1
+              fi
+              count=$((count + 1))
+            done < "$status_file"
+            if [ "$count" -eq 0 ]; then
+              echo "Expected at least one modified Parent CI-tool path." >&2
+              return 1
+            fi
+          }
+          rebuild_trusted_candidate_index() {
+            local candidate_blobs candidate_blob changed_path
+            candidate_blobs="$RUNNER_TEMP/parent-ci-tool-candidate-blobs.txt"
+            : > "$candidate_blobs" || return 1
+            for changed_path in $changed_paths; do
+              candidate_blob="$(git hash-object -w -- "$changed_path")" || return 1
+              if ! printf '%s\n' "$candidate_blob" | grep -Eq '^[0-9a-f]{40}$'; then
+                echo "Candidate blob is malformed for $changed_path." >&2
+                return 1
+              fi
+              printf '%s\t%s\n' "$candidate_blob" "$changed_path" >> "$candidate_blobs" || return 1
+            done
+            # Rebuild from the trusted default tree, never from the existing
+            # branch: an old draft may contain arbitrary content in an
+            # otherwise allowlisted file.  The candidate blobs are the only
+            # permitted deviations from the revalidated default worktree.
+            git read-tree "origin/$DEFAULT_BRANCH" || return 1
+            while IFS=$'\t' read -r candidate_blob changed_path; do
+              git update-index --add --cacheinfo 100644 "$candidate_blob" "$changed_path" || return 1
+            done < "$candidate_blobs"
+            if ! git diff --quiet; then
+              echo "Reconstructed index does not exactly match the revalidated trusted candidate worktree." >&2
+              return 1
+            fi
+          }
+          current_status_file="$RUNNER_TEMP/parent-ci-tool-current-status.z"
+          git diff --name-status -z --no-renames > "$current_status_file"
+          assert_modified_parent_ci_paths "$current_status_file"
+          changed_paths="$(git diff --name-only --no-renames)"
+          printf '%s\n' "$changed_paths" > "$RUNNER_TEMP/parent-ci-tool-changed-paths.txt"
+          existing_pr="$(
+            gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+              -f state=open \
+              -f base="$DEFAULT_BRANCH" \
+              -f head="${GITHUB_REPOSITORY_OWNER}:$UPDATE_BRANCH" \
+              -f per_page=100 | \
+              python3 scripts/select-python-update-pr.py \
+                --repository "$GITHUB_REPOSITORY" \
+                --owner "$GITHUB_REPOSITORY_OWNER" \
+                --base "$DEFAULT_BRANCH" \
+                --branch "$UPDATE_BRANCH"
+          )"
+          remote_branch=false
+          if git ls-remote --exit-code --heads origin "$UPDATE_BRANCH" >/dev/null 2>&1; then
+            remote_branch=true
+          fi
+          gh auth setup-git
+          pr_body="$RUNNER_TEMP/parent-ci-tool-update-pr-body.md"
+          cat > "$pr_body" <<EOF
+          ## English
+
+          - Scope: Parent workflow action pins and ci/tooling/security-tools.lock.yml only
+          - Provenance source: https://api.github.com (immutable tag commit SHA and release-asset SHA-256)
+          - Candidate SHA-256: $CANDIDATE_SHA256
+          - Validation workflow and run: validate-ci-tool-updates ($WORKFLOW_RUN_URL)
+          - Changed files: $(tr '\n' ' ' < "$RUNNER_TEMP/parent-ci-tool-changed-paths.txt")
+          - Merge: no automatic merge
+
+          ## Deutsch
+
+          - Umfang: nur Parent-Workflow-Action-Pins und ci/tooling/security-tools.lock.yml
+          - Provenienzquelle: https://api.github.com (unveränderlicher Tag-Commit-SHA und Release-Asset-SHA-256)
+          - Kandidat-SHA-256: $CANDIDATE_SHA256
+          - Validierungsworkflow und Run: validate-ci-tool-updates ($WORKFLOW_RUN_URL)
+          - Geänderte Dateien: $(tr '\n' ' ' < "$RUNNER_TEMP/parent-ci-tool-changed-paths.txt")
+          - Merge: kein automatischer Merge
+          EOF
+
+          if [ -n "$existing_pr" ]; then
+            if [ "$remote_branch" != true ]; then
+              echo "Open update pull request lacks its expected branch $UPDATE_BRANCH." >&2
+              exit 1
+            fi
+            is_draft="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq '.draft')"
+            if [ "$is_draft" != "true" ]; then
+              echo "Existing update pull request is not a draft." >&2
+              exit 1
+            fi
+            auto_merge="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq '.auto_merge')"
+            if [ "$auto_merge" != "null" ]; then
+              echo "Existing update pull request has automatic merge enabled or an unverifiable merge state." >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$DEFAULT_BRANCH" "$UPDATE_BRANCH"
+            verified_default_sha="$(git rev-parse --verify --quiet "origin/$DEFAULT_BRANCH^{commit}")"
+            if [ "$verified_default_sha" != "$CANDIDATE_BASE_SHA" ]; then
+              echo "Trusted default branch changed while preparing the existing update branch; rerun resolution and validation." >&2
+              exit 1
+            fi
+            merge_base="$(git merge-base "origin/$DEFAULT_BRANCH" "origin/$UPDATE_BRANCH")"
+            if [ -z "$merge_base" ]; then
+              echo "Update branch has no trusted default-branch merge base." >&2
+              exit 1
+            fi
+            branch_status_file="$RUNNER_TEMP/parent-ci-tool-branch-status.z"
+            git diff --name-status -z --no-renames "$merge_base" "origin/$UPDATE_BRANCH" > "$branch_status_file"
+            assert_modified_parent_ci_paths "$branch_status_file"
+            if ! rebuild_trusted_candidate_index; then
+              exit 1
+            fi
+            python3 scripts/update-github-actions-versions.py --verify --json
+            if git diff-index --quiet "origin/$UPDATE_BRANCH" --; then
+              echo "The existing update pull request already contains the resolved CI-tool changes."
+              exit 0
+            fi
+            cached_status_file="$RUNNER_TEMP/parent-ci-tool-cached-status.z"
+            git diff --cached --name-status -z --no-renames "origin/$UPDATE_BRANCH" > "$cached_status_file"
+            assert_modified_parent_ci_paths "$cached_status_file"
+            git diff --cached --check
+            git diff-index --check "origin/$UPDATE_BRANCH" --
+            tree="$(git write-tree)"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            commit="$(git commit-tree "$tree" -p "origin/$UPDATE_BRANCH" -m "$PR_TITLE")"
+            git update-ref "refs/heads/$UPDATE_BRANCH" "$commit" "origin/$UPDATE_BRANCH"
+            git push origin "$UPDATE_BRANCH"
+            gh pr edit "$existing_pr" --title "$PR_TITLE" --body-file "$pr_body"
+            exit 0
+          fi
+
+          if [ "$remote_branch" = true ]; then
+            echo "Refusing to overwrite the existing remote branch $UPDATE_BRANCH without one open draft update pull request." >&2
+            exit 1
+          fi
+          git switch --no-track -c "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/$DEFAULT_BRANCH")" ]; then
+            echo "Fresh update branch is not based on the verified default branch." >&2
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- .github .gitignore README.md scripts tests "$SUBMODULE_PATH"; then
-            echo "No root repository updates to commit."
-            exit 0
+          mapfile -t changed_path_array < "$RUNNER_TEMP/parent-ci-tool-changed-paths.txt"
+          if [ "${#changed_path_array[@]}" -eq 0 ]; then
+            echo "Expected at least one Parent CI-tool path to stage." >&2
+            exit 1
           fi
-          git checkout -B "$UPDATE_BRANCH"
-          git add .github .gitignore README.md scripts tests "$SUBMODULE_PATH"
-          if git diff --cached --quiet; then
-            echo "No staged root updates."
-            exit 0
-          fi
-          git commit -m "Update GitHub Actions workflow versions"
-          gh auth setup-git
-          git push --force-with-lease origin "$UPDATE_BRANCH"
-          default_branch="$DEFAULT_BRANCH"
-          if ! gh pr create \
-            --base "$default_branch" \
+          git add -- "${changed_path_array[@]}"
+          git commit -m "$PR_TITLE"
+          git push origin "$UPDATE_BRANCH"
+          gh pr create \
+            --draft \
+            --base "$DEFAULT_BRANCH" \
             --head "$UPDATE_BRANCH" \
-            --title "Update GitHub Actions workflow versions" \
-            --body-file actions-update-report.md; then
-            pr_number=$(gh pr list --head "$UPDATE_BRANCH" --json number --jq '.[0].number')
-            if [ -n "$pr_number" ]; then
-              gh pr edit "$pr_number" --body-file actions-update-report.md
-            fi
-          fi
+            --title "$PR_TITLE" \
+            --body-file "$pr_body"

@@ -1,22 +1,22 @@
 schema_version: 1
-checked_at: "2026-07-16"
+checked_at: "2026-07-21"
 
 # These values are revalidated against official upstream tag or release APIs.
 pinned_actions:
   actions/checkout:
-    version: v7
-    commit_sha: 9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+    version: v7.0.1
+    commit_sha: 3d3c42e5aac5ba805825da76410c181273ba90b1
     upstream: https://github.com/actions/checkout
   actions/setup-python:
-    version: v6.3.0
-    commit_sha: ece7cb06caefa5fff74198d8649806c4678c61a1
+    version: v7.0.0
+    commit_sha: 5fda3b95a4ea91299a34e894583c3862153e4b97
     upstream: https://github.com/actions/setup-python
   actions/setup-go:
     version: v7.0.0
     commit_sha: b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
     upstream: https://github.com/actions/setup-go
   actions/github-script:
-    version: v9
+    version: v9.0.0
     commit_sha: 3a2844b7e9c422d3c10d287c895573f7108da1b3
     upstream: https://github.com/actions/github-script
   actions/upload-artifact:
