@@ -13,6 +13,7 @@ Review- oder Delivery-Ergebnisse behaupten.
 - [Apache-Intervention-Ownership-Cleanup](CR-20260720-apache-intervention-ownership.de.md)
 - [Go-1.24.13-Sicherheitsbaseline](CR-20260720-go12413-security-baseline.de.md)
 - [Behebung der SonarQube-Cloud-Reliability-Bugs](CR-20260720-sonar-reliability-remediation.de.md)
+- [Explizite Parent-Analyse-Output-Containment-Defaults für SonarQube Cloud S131](CR-20260721-sonar-s131-containment-defaults.de.md)
 - [Behebung der SonarQube-Cloud-New-Code-Duplizierung](CR-20260719-sonar-new-code-duplication.de.md)
 - [Phase-4-Evidence-Identitätsbindung](CR-20260718-phase4-evidence-identity-binding.de.md)
 - [Apache-Phase-4-Response-Enforcement](CR-20260718-apache-phase4-response.de.md)

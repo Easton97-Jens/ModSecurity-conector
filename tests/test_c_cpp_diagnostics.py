@@ -162,6 +162,57 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
             self.assertIn("outside the checkout", result.stderr)
             self.assertFalse(test_root.exists())
 
+    def test_external_output_requests_continue_to_dependency_checks(self) -> None:
+        temporary_parent = os.environ.get("TMPDIR")
+        with tempfile.TemporaryDirectory(
+            prefix="c-cpp-diagnostics-external-output-", dir=temporary_parent
+        ) as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            for script, variable, target, tool_variable, expected_message, defaults in (
+                (
+                    CPP_DATABASE_CHECK,
+                    "COMPDB_OUTPUT",
+                    temporary_root / "cpp" / "compile_commands.json",
+                    "CXX",
+                    "BLOCKED: missing C++ compiler",
+                    2,
+                ),
+                (
+                    NGINX_DATABASE_CHECK,
+                    "COMPDB_OUTPUT",
+                    temporary_root / "nginx" / "compile_commands.json",
+                    "CC",
+                    "BLOCKED: missing C compiler",
+                    2,
+                ),
+                (
+                    CPP_EVALUATOR_CHECK,
+                    "CPP_BUILD_ROOT",
+                    temporary_root / "evaluator",
+                    "CXX",
+                    "BLOCKED: missing C++ compiler",
+                    1,
+                ),
+            ):
+                environment = os.environ.copy()
+                environment[variable] = str(target)
+                environment[tool_variable] = "codex-missing-compiler-for-contract-test"
+                result = subprocess.run(
+                    [str(script)],
+                    cwd=ROOT,
+                    env=environment,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                script_text = script.read_text(encoding="utf-8")
+                self.assertEqual(result.returncode, 77, result.stderr)
+                self.assertIn(expected_message, result.stderr)
+                self.assertNotIn("outside the checkout", result.stderr)
+                created_path = target.parent if variable == "COMPDB_OUTPUT" else target
+                self.assertTrue(created_path.exists())
+                self.assertEqual(script_text.count("*) : ;;"), defaults)
+
     def test_missing_analysis_tool_returns_documented_blocked_status(self) -> None:
         environment = os.environ.copy()
         environment["CC"] = "codex-missing-c-compiler-for-contract-test"
