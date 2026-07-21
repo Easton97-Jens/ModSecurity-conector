@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Python-3.13-Workflow-Vertrag und sicherer Patch-Updater](CR-20260720-python-313-workflow-contract.de.md)
 - [Apache-Intervention-Ownership-Cleanup](CR-20260720-apache-intervention-ownership.de.md)
 - [Go-1.24.13-Sicherheitsbaseline](CR-20260720-go12413-security-baseline.de.md)
 - [Behebung der SonarQube-Cloud-Reliability-Bugs](CR-20260720-sonar-reliability-remediation.de.md)

@@ -1,0 +1,17 @@
+name: verifier absent
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fixture-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up toolchain
+        id: setup-python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: '.python-version'
+          check-latest: false
+      - name: Use Python
+        run: python3 -c 'print("unsafe")'
