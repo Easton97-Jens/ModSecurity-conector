@@ -1031,7 +1031,6 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 self.assertFalse(partial.exists())
                 build_env = args[1]
                 assert isinstance(build_env, dict)
-                active_build_path = Path(build_env["NGINX_BUILD_DIR"])
                 active_nginx_prefix = Path(build_env["NGINX_PREFIX"])
                 binary = active_nginx_prefix / "sbin/nginx"
                 binary.parent.mkdir(parents=True, exist_ok=True)
