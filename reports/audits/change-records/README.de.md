@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Python-3.14.6- und Go-1.26.5-Toolchain-Baseline](CR-20260721-python314-go1265-toolchain-baseline.de.md)
 - [GitHub-Actions-checkout-v7.0.1-Immutable-Lock-Synchronisierung](CR-20260721-actions-checkout-v7-lock.de.md)
 - [GitHub-Actions-setup-python-v7-Immutable-Lock-Synchronisierung](CR-20260721-actions-setup-python-v7-lock.de.md)
 - [Parent-Python-3.13-Workflow-Vertrag und sicherer Patch-Updater](CR-20260720-python-313-workflow-contract.de.md)
