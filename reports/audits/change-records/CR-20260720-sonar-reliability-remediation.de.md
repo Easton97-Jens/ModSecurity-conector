@@ -1,0 +1,180 @@
+# Change Record: Behebung der SonarQube-Cloud-Reliability-Bugs
+
+**Sprache:** [English](CR-20260720-sonar-reliability-remediation.md) | Deutsch
+
+## Identität
+
+| Feld | Wert |
+| --- | --- |
+| Change-ID | `CR-20260720-sonar-reliability-remediation` |
+| Datum (UTC) | `2026-07-20` |
+| Basis-Revision | `5a22cbf5206dbc2b7f53a9f961d72e37d567e188` |
+| Tracking | Neun aktuelle Parent-Master-SonarQube-Cloud-Bug-Records: `python:S5779`, `python:S1751`, drei `c:S2637`-Stellen, `c:S5489`, `c:S836` und `c:S3519`; zusätzlich die exakten PR-#66-Follow-ups für `c:S5489`-Lock-Identität und einen sichtbar gewordenen `c:S3519`-HAProxy-Quelllängenpfad. |
+| Grenze | Nur Parent-Provisioning, Envoy-Smoke-Helper, Traefik-Engine-Service, Common-Authorization-Service, Native Oracle und HAProxy-SPOP-Diagnostik; Framework und MRTS bleiben unverändert. |
+
+## Motivation und Problemstellung
+
+Die aktuelle Parent-SonarQube-Cloud-Analyse auf der Basis-Revision meldet neun
+offene Bug-Records. Zwei Python-Records verwenden einen fragilen
+Assertion-/Fehlerpfad und eine Ein-Iterations-Schleife. Die nativen Records
+betreffen optionale Zeigerkopien, deren Nullsicherheit nur durch einen
+Size-Helper impliziert ist, ein durch Wrapper verdecktes Lock-Paar, einen
+uninitialisierten Socket-Address-Analysepfad, einen nullable JSON-String-
+Fallback und Diagnostik, die den Standard-Error-Stream ohne expliziten Guard
+übergibt.
+Die erste Analyse des exakten PR-Heads beseitigte diese neun Keys, meldete dann
+aber zwei neue direkte-Mutex-`c:S5489`-Pfade und machte einen bereits
+existierenden HAProxy-`append_bytes`-`c:S3519`-Quelllängenpfad sichtbar, weil
+die Diagnostikdatei geändert wurde.
+
+## Akzeptanzkriterien
+
+- Erfolgreiche Cache-Veröffentlichung, gültige nicht-gechunkte Envoy-Body-Reads,
+  Traefik-Result-Serialisierung, Authorization-Listener-Verhalten, native
+  JSON-Escapes und HAProxy-Startdiagnostik bleiben erhalten.
+- Null-, Lock- und Socket-Zustand werden ohne Sonar-Suppression,
+  Regel-Deaktivierung, Exclusion, Hotspot-Disposition oder Quality-Gate-
+  Änderung explizit gemacht.
+- Fokussierte Regression-/Contract-Abdeckung wird ergänzt und alle berührten
+  C-Translation-Units werden mit C17-Warnungen als Fehler kompiliert.
+- Vor der Behauptung, dass die ursprünglichen neun Bug-Keys behoben sind, wird
+  eine frische SonarQube-Cloud-Analyse für den exakten PR-Head eingeholt.
+
+## Implementierungsentscheidung und Begründung
+
+Der Cache-Publisher ersetzt drei `assert`-Statements durch einen privaten
+`require_staging_path`-Guard, der auch bei optimierter Python-Ausführung
+wirksam bleibt. Der Envoy-Helper führt den einen erforderlichen First-Body-Byte-
+Receive direkt aus. Traefik kopiert optionale Felder erst nach nicht-null
+Zeiger und positiver begrenzter Größe; seine direkten Mutex-Paare machen die
+Lock/Unlock-Beziehung an jeder Call-Site sichtbar. Common initialisiert
+akzeptierte und lokale
+Socket-Address-Objekte. Der Native Oracle gibt für einen null optionalen Wert
+einen leeren JSON-String aus, bevor er einen Byte-Cursor bezieht, und die
+HAProxy-Diagnostik prüft den Standard-Error-Stream explizit.
+
+Die fehlgeschlagene PR-Analyse erforderte anschließend zwei enge Follow-ups:
+Die zwei gemeldeten Traefik-Funktionen halten einen lokalen Service-Zeiger von
+Lock bis Unlock, sodass sie keinen potenziell geänderten `session->service`
+entsperren können; und HAProxy `append_bytes` erhält und validiert eine
+explizite Quelllänge vor dem Kopieren. Die aktuellen direkten Caller übergeben
+ihre tatsächliche `uint32_t`-, begrenzte String- oder SPOP-Payload-Länge;
+abweichende Quell-/Kopierlängen liefern nun vor der Kopie `-1`.
+
+Dies sind enge, verhaltenserhaltende Änderungen an den vorhandenen
+Enforcement- oder Diagnostik-Grenzen; weder öffentliche API noch
+Connector-Protokoll, Framework-Source, MRTS-Source, Scanner-Konfiguration oder
+Quality Gate werden verändert.
+
+## Security-Auswirkung
+
+Die betroffenen Pfade verarbeiten native Connector-Ergebnisse,
+Socket-Peer-Informationen und Runtime-/Evidence-Diagnostik. Die Änderungen
+behandeln fehlende optionale Werte und uninitialisierten Zustand sicher,
+während legitime nicht-null und begrenzte Eingaben erhalten bleiben. Sie
+akzeptieren keine fehlerhaften Eingaben, senken kein Ressourcenlimit, schwächen
+keine Validierung und verbergen kein Scanner-Ergebnis.
+
+## Geänderte Dateien
+
+- `ci/provisioning/components/prepare-runtime-components.py`
+- `connectors/envoy/harness/envoy_smoke_helper.py`
+- `connectors/traefik/src/traefik_engine_service.c`
+- `common/runtime/http_authorization_service.c`
+- `ci/tools/native_modsecurity_oracle.c`
+- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`
+- `tests/test_prepare_runtime_components.py`
+- `tests/test_envoy_transport_hardening_contract.py`
+- `tests/test_sonar_reliability_contract.py`
+- `reports/audits/change-records/README.md` und `README.de.md`
+- dieses englische/deutsche Change-Record-Paar
+
+## Ausgeführte Befehle
+
+| Befehl | Ergebnis |
+| --- | --- |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_sonar_reliability_contract` | bestanden: 6 fokussierte Source-Contract-Tests nach dem PR-Follow-up. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_envoy_transport_hardening_contract` | bestanden: 8 Envoy-Transport-Controls. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_traefik_native_local_plugin` | bestanden: 16 Traefik-Native-Plugin-/UDS-Controls. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_require_staging_path_rejects_absence_and_preserves_path` | bestanden. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests.test_sonar_reliability_contract tests.test_envoy_transport_hardening_contract tests.test_traefik_native_local_plugin tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_require_staging_path_rejects_absence_and_preserves_path tests.test_bilingual_docs` | bestanden: 42 fokussierte Source-, Transport-, Connector-, Provisioning- und Dokumentationstests nach dem PR-Follow-up. |
+| `rtk proxy cc -std=c17 -Wall -Wextra -Werror -fsyntax-only ...` für jede berührte C-Translation-Unit | bestanden für Traefik-Engine-Service, Common-Authorization-Service, Native Oracle und HAProxy-SPOP-Diagnostik. |
+| `rtk env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python ci/checks/connectors/haproxy/check-haproxy-common-adoption.py` | nach dem Quelllängen-Follow-up bestanden. |
+| `rtk git diff --check` | nach dem finalen PR-Follow-up-Dokumentationsupdate bestanden. |
+
+## Runtime-Evidence
+
+In diesem isolierten Worktree wurde keine vollständige native Connector-Runtime
+ausgeführt. Die aufbewahrte lokale Evidence besteht aus C17-Syntaxvalidierung
+aller vier berührten C-Translation-Units sowie fokussierten Contracts für die
+Envoy-Receive-Grenze, Traefik-Mutex-/Serialisierungsgrenzen, den
+Provisioning-Guard und die zweisprachige Dokumentation. Der frühere PR-#66-Head
+97c24192268d567575f0c1417872e1d79911e0dc beseitigte die ursprünglichen neun
+Keys, scheiterte aber mit drei Reliability-Follow-up-Bugs. Der Source-Repair-
+Head 91fea6d05850cc5aeef8ce7fb66a4123ac14e190 erhielt anschließend die unten
+dokumentierte Exact-Head-GitHub- und SonarQube-Cloud-Evidence.
+
+## Exact-PR-Head-Delivery-Evidence
+
+Für den Source-Repair-Head 91fea6d05850cc5aeef8ce7fb66a4123ac14e190 bestanden
+die anwendbaren GitHub Actions, CodeQL, OSV, Secret-Scanning, actionlint,
+zizmor und die erforderlichen Branch-Rule-Checks. SonarQube Cloud endete am
+2026-07-20T19:31:39Z erfolgreich mit bestandenem Quality Gate, null neuen
+Issues und null neuen Security Hotspots. Dies belegt den reparierten
+Source-Head, nicht eine nicht ausgeführte native Runtime und nicht einen
+späteren reinen Dokumentationscommit. Der aktuelle PR-Head benötigt vor Ready
+for Review oder Merge stets seine eigene Review- und Exact-Head-Delivery-
+Evidence.
+
+## Nicht ausgeführte Prüfungen mit Begründung
+
+- Ein breiterer Lauf von `tests.test_prepare_runtime_components` führte 38
+  Tests aus; 35 bestanden und drei HAProxy-Cache-Tests scheiterten vor dem
+  geänderten Code, weil dieser isolierte Parent-Worktree kein initialisiertes
+  `modules/ModSecurity-test-Framework/ci/provisioning/prepare-haproxy-runtime.sh`
+  enthält. Die drei Fehler werden als externer Framework-Worktree-
+  Prerequisite-Gap dokumentiert, nicht als bestandenes Ergebnis.
+- Vollständige native Connector-Builds und Runtime-Harnesses benötigen eine
+  linkbare lokale libmodsecurity-Installation und/oder Host-Source; verfügbar
+  war nur die C17-Syntaxvalidierung.
+- Der repositoryweite Bilingual-Checker erreichte die Link-Phase ohne
+  Change-Record-Heading-Fehler und stoppte dann an unabhängigen fehlenden
+  Framework-Link-Targets, weil dieser isolierte Parent-Worktree keinen
+  initialisierten Framework-Checkout besitzt. Der CI-Checker für den exakten
+  PR-Head bleibt die ausstehende Full-Scope-Evidence.
+- Die erste Runde exakter PR-Head-GitHub-Actions, CodeQL, OSV, Secret-Scanning,
+  actionlint und zizmor bestand; SonarQube-Cloud-Analyse
+  29add8e9-7fb9-41a6-a250-29a9fbf53e7c scheiterte allein am Reliability Rating
+  mit drei Bugs. Der spätere Source-Repair-Head
+  91fea6d05850cc5aeef8ce7fb66a4123ac14e190 absolvierte eine frische Exact-Head-
+  Runde mit bestandenen GitHub-Checks und bestandenem SonarQube-Cloud-Quality-
+  Gate. Jeder spätere Commit unterliegt weiterhin derselben frischen Review-
+  und Exact-Head-Runde.
+
+## Bekannte Einschränkungen
+
+Die C17-Prüfungen und fokussierten Contracts belegen Source-Level-Sicherheit
+und Kompatibilität an den berührten Grenzen, sind aber kein frisches
+SonarQube-Cloud-Ergebnis.
+
+## Verbleibende Risiken
+
+Der aktuelle Master enthält außerdem unabhängige unreviewte Security-Hotspots
+und einen getrennt getrackten Vulnerability-Backlog; dieser Record behauptet
+nicht, sie zu lösen. Der historische Draft-PR-#66-Head scheiterte am
+SonarQube-Cloud-Reliability-Gate, während Source-Repair-Head
+91fea6d05850cc5aeef8ce7fb66a4123ac14e190 sein Exact-Head-Quality-Gate mit null
+neuen Issues und Hotspots bestand. Die Delivery richtet sich nach dem aktuellen
+PR-Head mit Review- und Check-Status, nicht allein nach diesem Record.
+
+## Finaler Diff- und Review-Status
+
+Der erste lokale Commit ist
+`d1ec42d0ebf713b3e898538ea125c8d6e5b8bf6d`, gefolgt vom Dokumentationscommit
+`97c24192268d567575f0c1417872e1d79911e0dc`; letzterer machte die drei
+SonarQube-Cloud-Follow-up-Bugs in Draft-PR #66 sichtbar. Source-Follow-up-
+Commit `91fea6d05850cc5aeef8ce7fb66a4123ac14e190` reparierte diese Pfade und
+bestand seine exakte GitHub-/SonarQube-Cloud-Runde. Dieses Change-Record-Paar
+dokumentiert diese beobachtete Evidence, autorisiert aber keinen Merge; jeder
+aktuelle Head unterliegt weiterhin der repository-erforderlichen Review- und
+Exact-Head-Verifikation.

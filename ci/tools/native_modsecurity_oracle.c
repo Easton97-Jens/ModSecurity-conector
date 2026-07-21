@@ -119,7 +119,13 @@ static int read_file_bytes(const char *path, struct byte_buffer *buffer)
 
 static void json_string(FILE *out, const char *value)
 {
-    const unsigned char *cursor = (const unsigned char *)(value ? value : "");
+    const unsigned char *cursor;
+
+    if (value == NULL) {
+        fputs("\"\"", out);
+        return;
+    }
+    cursor = (const unsigned char *)value;
 
     fputc('"', out);
     while (*cursor != '\0') {
@@ -168,7 +174,7 @@ static void write_result(const char *path, const char *status,
     fputs(",\n  \"reason\": ", out);
     json_string(out, reason);
     fputs(",\n  \"libmodsecurity\": ", out);
-    json_string(out, whoami ? whoami : "");
+    json_string(out, whoami);
     fprintf(out, ",\n  \"expected_status\": %d", expected_status);
     fprintf(out, ",\n  \"actual_status\": %d", actual_status);
     fputs(",\n  \"native_match\": ", out);

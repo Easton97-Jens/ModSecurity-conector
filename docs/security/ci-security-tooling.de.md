@@ -45,7 +45,7 @@ kann, bevor es zur blockierenden Regel wird.
 
 ## CodeQL- und Scorecard-Grenzen
 
-CodeQL analysiert Actions, beide Go-Module mit festem Go `1.24.0` und einen
+CodeQL analysiert Actions, beide Go-Module mit festem Go `1.26.5` und einen
 begrenzten C/C++-Scope, der auf `make check-common-helpers-c17` beschränkt ist.
 Das C/C++-Ergebnis beansprucht keine vollständige Connector-Abdeckung; eine
 Erweiterung erfordert reproduzierbare Builds für den ausgewählten Connector-Scope.

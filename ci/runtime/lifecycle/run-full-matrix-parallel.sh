@@ -337,6 +337,7 @@ run_job() {
     if [ ! -f "$actual_summary_path" ] && [ -f "$results_dir/force-all/$connector-summary.json" ]; then
         actual_summary_path="$results_dir/force-all/$connector-summary.json"
     fi
+    results_jsonl="$results_dir/force-all/$connector-results.jsonl"
     printf '%s\n' "$actual_summary_path" > "$summary_path_file"
     printf '%s\n' "$rc" > "$exit_code_file"
     echo "full-matrix-parallel: job end connector=$connector variant=$test_variant/$mrts_variant rc=$rc duration=$duration" >> "$run_log"
@@ -350,6 +351,7 @@ run_job() {
     RUN_DURATION="$duration" \
     RUN_RESULTS_DIR="$results_dir" \
     RUN_SUMMARY_PATH="$actual_summary_path" \
+    RUN_RESULTS_JSONL="$results_jsonl" \
     RUN_LOG_PATH="$run_log" \
     RUN_JOB_JSON="$job_json" \
     RUN_BUILD_MANIFEST="$build_manifest" \
@@ -393,6 +395,7 @@ print(json.dumps({
         "log": sha256(os.environ["RUN_LOG_PATH"]),
         "summary": sha256(os.environ["RUN_SUMMARY_PATH"]),
         "build_manifest": sha256(os.environ["RUN_BUILD_MANIFEST"]),
+        "results_jsonl": sha256(os.environ["RUN_RESULTS_JSONL"]),
     },
     "inputs": {
         "build_manifest": os.environ["RUN_BUILD_MANIFEST"],
@@ -402,6 +405,7 @@ print(json.dumps({
         "log": os.environ["RUN_LOG_PATH"],
         "summary": os.environ["RUN_SUMMARY_PATH"],
         "results_dir": os.environ["RUN_RESULTS_DIR"],
+        "results_jsonl": os.environ["RUN_RESULTS_JSONL"],
     },
 }, sort_keys=True))
 PY

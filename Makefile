@@ -935,15 +935,19 @@ check-no-crs-protocol-client: check-framework
 check-no-crs-status-consistency: check-framework
 	$(call RUN_NO_CRS_EVIDENCE_CHECK,status)
 
+define RUN_PARENT_FULL_LIFECYCLE_EVIDENCE_CHECK
+	"$(PYTHON)" ci/checks/evidence/check-full-lifecycle-evidence.py \
+		--connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" \
+		--run-id "$(NO_CRS_RUN_ID)" --check $(1) --connectors $(NO_CRS_CONNECTORS)
+endef
+
 define RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK
 	@set -eu; \
 	for connector in $(NO_CRS_CONNECTORS); do \
 		"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/checks/evidence/check_full_lifecycle_evidence.py" \
 			--run-dir "$(EVIDENCE_ROOT)/$$connector/$(NO_CRS_RUN_ID)" --check $(1); \
 	done; \
-	"$(PYTHON)" ci/checks/evidence/check-full-lifecycle-evidence.py \
-		--connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" \
-		--run-id "$(NO_CRS_RUN_ID)" --check profile --connectors $(NO_CRS_CONNECTORS)
+	$(call RUN_PARENT_FULL_LIFECYCLE_EVIDENCE_CHECK,profile)
 endef
 
 # Transport sidecars are inventory only until a case is promoted.  The
@@ -963,10 +967,12 @@ endef
 check-first-byte-before-response-end: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
 	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,first-byte)
+	$(call RUN_PARENT_FULL_LIFECYCLE_EVIDENCE_CHECK,first-byte)
 
 check-no-full-response-buffering: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
 	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,no-full-response-buffering)
+	$(call RUN_PARENT_FULL_LIFECYCLE_EVIDENCE_CHECK,no-full-buffer)
 
 check-full-lifecycle-event-privacy: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
@@ -992,6 +998,7 @@ check-full-lifecycle-transport-hardening: check-framework
 check-full-lifecycle-promotion: check-framework
 	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
 	$(call RUN_STRICT_FULL_LIFECYCLE_EVIDENCE_CHECK,promotion)
+	$(call RUN_PARENT_FULL_LIFECYCLE_EVIDENCE_CHECK,promotion)
 	$(call RUN_TRANSPORT_HARDENING_EVIDENCE_CHECK)
 
 # Read-only compact acceptance gate.  It consumes one already finalized
@@ -1012,7 +1019,7 @@ check-no-crs-source-normalization:
 		tests.test_prepare_runtime_components \
 		tests.test_runtime_component_cache_identity
 
-.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-apache-request-transaction-cleanup check-apache-request-transaction-cleanup-lint check-optional-prerequisite-status check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-haproxy-htx-overlay check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-remaining-connectors-common-adoption check-envoy-common-adoption check-traefik-common-adoption check-lighttpd-common-adoption check-remaining-connectors-host-integration check-remaining-connectors-build-wiring check-remaining-connectors-start-wiring check-remaining-connectors-claim-policy check-remaining-connectors-c-standard-wiring check-remaining-connectors-c-standards check-remaining-connectors-c17 check-remaining-connectors-c17-lint check-remaining-connectors-c23 check-remaining-connectors-future-c check-block-status-generator build-envoy-connector check-envoy-config start-smoke-envoy runtime-smoke-envoy build-traefik-connector check-traefik-config start-smoke-traefik runtime-smoke-traefik build-lighttpd-connector build-lighttpd-bridge self-test-lighttpd-bridge check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd build-remaining-connectors start-smoke-remaining-connectors runtime-smoke-remaining-connectors readiness-remaining-connectors
+.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-apache-request-transaction-cleanup check-apache-request-transaction-cleanup-lint check-optional-prerequisite-status check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-haproxy-htx-overlay check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-python-version-contract check-remaining-connectors-common-adoption check-envoy-common-adoption check-traefik-common-adoption check-lighttpd-common-adoption check-remaining-connectors-host-integration check-remaining-connectors-build-wiring check-remaining-connectors-start-wiring check-remaining-connectors-claim-policy check-remaining-connectors-c-standard-wiring check-remaining-connectors-c-standards check-remaining-connectors-c17 check-remaining-connectors-c17-lint check-remaining-connectors-c23 check-remaining-connectors-future-c check-block-status-generator build-envoy-connector check-envoy-config start-smoke-envoy runtime-smoke-envoy build-traefik-connector check-traefik-config start-smoke-traefik runtime-smoke-traefik build-lighttpd-connector build-lighttpd-bridge self-test-lighttpd-bridge check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd build-remaining-connectors start-smoke-remaining-connectors runtime-smoke-remaining-connectors readiness-remaining-connectors
 
 build-envoy-connector:
 	sh ci/runtime/lifecycle/run-remaining-connector-target.sh envoy build-envoy-connector
@@ -1121,6 +1128,10 @@ check-apache-c-standards:
 
 check-apache-c17:
 	APACHE_C_STD_PROFILE=c17 sh ci/checks/connectors/apache/check-apache-c-standards.sh
+
+.PHONY: check-apache-intervention-cleanup
+check-apache-intervention-cleanup:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_intervention_cleanup
 
 check-apache-c17-lint:
 	@APACHE_C_STD_PROFILE=c17 sh ci/checks/connectors/apache/check-apache-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: apache C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
@@ -1243,6 +1254,9 @@ check-adapter-contracts:
 check-directive-parity:
 	$(PYTHON) ci/checks/common/check-directive-parity.py
 
+check-python-version-contract:
+	$(PYTHON) ci/checks/common/check-python-version-contract.py
+
 lint: check-framework
 	find ci -type f -name '*.sh' -print0 | xargs -0 -r sh -n
 	find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec sh -n {} +
@@ -1252,6 +1266,7 @@ lint: check-framework
 	$(MAKE) check-apache-common-adoption
 	$(MAKE) check-apache-c-standard-wiring
 	$(MAKE) check-apache-c17-lint
+	$(MAKE) check-apache-intervention-cleanup
 	$(MAKE) check-apache-request-transaction-cleanup-lint
 	$(MAKE) check-optional-prerequisite-status
 	$(MAKE) check-nginx-common-adoption

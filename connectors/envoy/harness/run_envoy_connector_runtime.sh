@@ -28,7 +28,8 @@ service_pid=
 upstream_pid=
 
 missing_dependency() {
-    echo "envoy_runtime_smoke: BLOCKED - $1" >&2
+    reason=$1
+    echo "envoy_runtime_smoke: BLOCKED - $reason" >&2
     exit 77
 }
 

@@ -201,7 +201,6 @@ static int append_protocol_bool(
 }
 
 static int is_nonreversible_quic_connection_id(const char *value) {
-    size_t index;
     size_t length;
     if (value == NULL || strncmp(value, "sha256:", 7U) != 0) {
         return 0;
@@ -210,7 +209,7 @@ static int is_nonreversible_quic_connection_id(const char *value) {
     if (length < 16U || length > 64U) {
         return 0;
     }
-    for (index = 7U; value[index] != '\0'; ++index) {
+    for (size_t index = 7U; value[index] != '\0'; ++index) {
         if (!((value[index] >= '0' && value[index] <= '9') ||
                 (value[index] >= 'a' && value[index] <= 'f'))) {
             return 0;
@@ -219,17 +218,16 @@ static int is_nonreversible_quic_connection_id(const char *value) {
     return 1;
 }
 
-static int is_bounded_transport_case_id(const char *value) {
-    size_t index;
+static int is_bounded_transport_token(const char *value, int allow_empty) {
     size_t length;
     if (value == NULL || value[0] == '\0') {
-        return 0;
+        return allow_empty != 0;
     }
     length = strlen(value);
     if (length > 128U) {
         return 0;
     }
-    for (index = 0U; index < length; ++index) {
+    for (size_t index = 0U; index < length; ++index) {
         const char character = value[index];
         if (!((character >= 'a' && character <= 'z') ||
                 (character >= 'A' && character <= 'Z') ||
@@ -242,27 +240,12 @@ static int is_bounded_transport_case_id(const char *value) {
     return 1;
 }
 
+static int is_bounded_transport_case_id(const char *value) {
+    return is_bounded_transport_token(value, 0);
+}
+
 static int is_bounded_transport_value(const char *value) {
-    size_t index;
-    size_t length;
-    if (value == NULL || value[0] == '\0') {
-        return 1;
-    }
-    length = strlen(value);
-    if (length > 128U) {
-        return 0;
-    }
-    for (index = 0U; index < length; ++index) {
-        const char character = value[index];
-        if (!((character >= 'a' && character <= 'z') ||
-                (character >= 'A' && character <= 'Z') ||
-                (character >= '0' && character <= '9') ||
-                character == ':' || character == '.' || character == '_' ||
-                character == '-')) {
-            return 0;
-        }
-    }
-    return 1;
+    return is_bounded_transport_token(value, 1);
 }
 
 const char *msconnector_event_default_message(const char *message_id) {
