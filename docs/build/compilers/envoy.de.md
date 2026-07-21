@@ -53,11 +53,11 @@ export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-Das repository-eigene ext_proc-Modul verlangt Go 1.24.13; die gepinnte Moduldeklaration vor dem Build in Abschnitt 7 prüfen.
+Das repository-eigene ext_proc-Modul verlangt Go 1.26.5; die gepinnte Moduldeklaration vor dem Build in Abschnitt 7 prüfen.
 
 ```sh
 go version
-grep -Fx "go 1.24.13" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"
+grep -Fx "go 1.26.5" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"
 ```
 
 ## 5. ModSecurity vorbereiten

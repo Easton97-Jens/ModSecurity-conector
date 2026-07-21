@@ -17,7 +17,7 @@ from typing import Sequence
 
 CANONICAL_VERSION_FILENAME = ".python-version"
 MAX_VERSION_FILE_BYTES = 64
-EXACT_PYTHON_313 = re.compile(r"3\.13\.(?:0|[1-9]\d*)\Z", re.ASCII)
+EXACT_PYTHON_314 = re.compile(r"3\.14\.(?:0|[1-9]\d*)\Z", re.ASCII)
 
 
 class ContractInputError(ValueError):
@@ -27,9 +27,9 @@ class ContractInputError(ValueError):
 def exact_version(value: str, source: str) -> str:
     """Return an exact supported version or raise a deterministic input error."""
 
-    if not EXACT_PYTHON_313.fullmatch(value):
+    if not EXACT_PYTHON_314.fullmatch(value):
         raise ContractInputError(
-            f"{source} must contain an exact Python 3.13.N version"
+            f"{source} must contain an exact Python 3.14.N version"
         )
     return value
 
@@ -195,7 +195,7 @@ def parser() -> argparse.ArgumentParser:
     )
     version_source.add_argument(
         "--expected-version",
-        metavar="3.13.N",
+        metavar="3.14.N",
         help="validated exact version for the one candidate-validation workflow",
     )
     argument_parser.add_argument(
