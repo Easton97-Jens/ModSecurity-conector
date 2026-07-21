@@ -343,12 +343,76 @@ class RuntimePathSecurityTest(unittest.TestCase):
                 VERIFIED_REPORT_RUN.prepare_runtime_roots(paths)
             self.assertFalse((run_root / "state").exists())
 
+    def test_root_owned_sticky_shared_root_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-shared-root-control-") as temporary:
+            shared_root = Path(temporary)
+            shared_details = shared_root.stat()
+            runtime_root = shared_root / "runtime-root"
+            original_fstat = RUNTIME_PATH_UTILS.os.fstat
+
+            def trusted_shared_root_fstat(descriptor: int) -> os.stat_result:
+                details = original_fstat(descriptor)
+                if (details.st_dev, details.st_ino) != (
+                    shared_details.st_dev,
+                    shared_details.st_ino,
+                ):
+                    return details
+                replacement = list(details)
+                replacement[0] = stat.S_IFDIR | 0o1777
+                replacement[4] = 0
+                return os.stat_result(replacement)
+
+            with mock.patch.object(
+                RUNTIME_PATH_UTILS.os,
+                "fstat",
+                side_effect=trusted_shared_root_fstat,
+            ):
+                self.assertEqual(runtime_root, ensure_safe_runtime_directory(runtime_root))
+
+            self.assertTrue(runtime_root.is_dir())
+            self.assertEqual(0, stat.S_IMODE(runtime_root.stat().st_mode) & 0o022)
+
+    def test_nonsticky_or_nonroot_shared_root_is_rejected(self) -> None:
+        variants = (
+            ("root-owned non-sticky", 0, 0o777),
+            ("non-root sticky", os.geteuid() + 1, 0o1777),
+        )
+        for label, owner, mode in variants:
+            with self.subTest(label=label), tempfile.TemporaryDirectory(
+                prefix="runtime-unsafe-shared-root-"
+            ) as temporary:
+                shared_root = Path(temporary)
+                shared_details = shared_root.stat()
+                runtime_root = shared_root / "runtime-root"
+                original_fstat = RUNTIME_PATH_UTILS.os.fstat
+
+                def unsafe_shared_root_fstat(descriptor: int) -> os.stat_result:
+                    details = original_fstat(descriptor)
+                    if (details.st_dev, details.st_ino) != (
+                        shared_details.st_dev,
+                        shared_details.st_ino,
+                    ):
+                        return details
+                    replacement = list(details)
+                    replacement[0] = stat.S_IFDIR | mode
+                    replacement[4] = owner
+                    return os.stat_result(replacement)
+
+                with mock.patch.object(
+                    RUNTIME_PATH_UTILS.os,
+                    "fstat",
+                    side_effect=unsafe_shared_root_fstat,
+                ):
+                    with self.assertRaisesRegex(ValueError, "group- or world-writable"):
+                        ensure_safe_runtime_directory(runtime_root)
+
+                self.assertFalse(runtime_root.exists())
+
     def test_foreign_owned_component_below_shared_temp_root_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-foreign-owner-") as temporary:
-            temporary_parent = Path(temporary)
-            if not temporary_parent.is_relative_to(Path("/var/tmp")):
-                self.skipTest("configured test temporary root is not below /var/tmp")
-            foreign_parent = temporary_parent / "foreign-parent"
+            shared_root = Path(temporary)
+            shared_details = shared_root.stat()
+            foreign_parent = shared_root / "foreign-parent"
             foreign_parent.mkdir(mode=0o755)
             foreign_details = foreign_parent.stat()
             runtime_root = foreign_parent / "runtime-root"
@@ -357,6 +421,14 @@ class RuntimePathSecurityTest(unittest.TestCase):
 
             def foreign_owner_fstat(descriptor: int) -> os.stat_result:
                 details = original_fstat(descriptor)
+                if (details.st_dev, details.st_ino) == (
+                    shared_details.st_dev,
+                    shared_details.st_ino,
+                ):
+                    replacement = list(details)
+                    replacement[0] = stat.S_IFDIR | 0o1777
+                    replacement[4] = 0
+                    return os.stat_result(replacement)
                 if (details.st_dev, details.st_ino) != (
                     foreign_details.st_dev,
                     foreign_details.st_ino,

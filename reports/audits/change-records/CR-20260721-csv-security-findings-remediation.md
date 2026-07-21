@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-07-21 |
 | Base revision | 5fa90474a79eaee2df034bf1c4389572fdcca42f |
 | Boundary | Parent source, Parent tests, Parent CI/runtime tooling, Parent documentation, and this Change Record/index pair only. Framework, MRTS, dependencies, and gitlinks remain unchanged. |
-| Finding linkage | Imported Codex Security CSV rows CSV-01 through CSV-19. |
+| Finding linkage | Imported Codex Security CSV rows CSV-01 through CSV-19; task-owned SonarQube Cloud S5443 follow-up FND-SONAR-0010. |
 
 ## Motivation and problem statement
 
@@ -29,6 +29,8 @@ Parent-only remediation, and makes unresolved evidence gaps explicit.
   a backend request is issued.
 - Every configured runtime write root, including MATRIX_ROOT, is
   descriptor-confined and ownership-validated before use.
+- A public writable runtime ancestor is accepted only after its opened
+  descriptor proves root ownership and sticky semantics.
 - Build and report-evidence controls fail closed.
 - English/German documentation remains paired.
 - The resulting PR is Draft/open and is not merged.
@@ -66,7 +68,10 @@ than only the default root; run IDs, no-follow directory operations, and
 random task-owned temporary directories prevent traversal, symlink, and
 collision paths. Generated reports now require immutable build provenance,
 strict layout/evidence, and structurally valid bilingual content. HAProxy
-helper identifiers stay within the native buffer boundary.
+helper identifiers stay within the native buffer boundary. The Sonar follow-up
+replaces pathname-only trust for public temporary roots with descriptor-based
+directory, UID-0, sticky-bit, and writable-mode proof while retaining the
+existing no-follow, descendant-owner, and final-root checks.
 
 ## Changed files
 
@@ -84,7 +89,12 @@ helper identifiers stay within the native buffer boundary.
 
 | Command or control | Result |
 | --- | --- |
-| Focused Parent unittest suite for compiler guides, workflow security, bilingual documentation, generated-report evidence, runtime paths, path resolution, smoke request bodies, and HAProxy HTX IDs | passed: 144 tests after rebase to the current master base. |
+| Focused Parent unittest suite for compiler guides, workflow security, bilingual documentation, generated-report evidence, runtime paths, path resolution, smoke request bodies, and HAProxy HTX IDs | passed: 146 tests after the S5443 follow-up (the earlier rebased suite contained 144 tests). |
+| Pre-fix S5443 regression trio for root-owned/sticky, unsafe-root, and foreign-owner paths | expected failure: the old pathname allowlist rejected the synthetic safe root before it could exercise the intended ownership path. |
+| Post-fix S5443 regression trio | passed: root-owned sticky shared root succeeds; non-sticky/non-root shared roots and foreign-owned descendants fail before final-root creation. |
+| Four focused runtime-path policy controls | passed: mutable-root, broad-parent, selected Python policy, and system-root rejection controls remain passing. |
+| Complete runtime-path policy unittest module | blocked_environment for one Framework-backed shell checker: the intentionally uninitialized Framework gitlink lacks `ci/lib/common.sh`; the other four controls passed. |
+| Ruff check / format check for the two Python files | not_run: the selected Parent virtual environment has no `ruff` executable; no dependency installation was performed. |
 | make check-http-authorization-service-timeout with GCC and with Clang | passed for both compilers. |
 | make check-common-helpers-c17 with GCC and with Clang | passed for both compilers. |
 | Common SDK and common security source-contract controls | passed. |
@@ -98,7 +108,9 @@ helper identifiers stay within the native buffer boundary.
 This is defense-in-depth work across request processing, local runtime tools,
 CI/report provenance, and a connector helper. It closes a tested local-helper
 forwarding case for ambiguous TE+CL and repeated CL/TE framing and a plausible configured-MATRIX_ROOT
-containment gap found during review. It does not claim production-host exposure,
+containment gap found during review. The S5443 follow-up also rejects a
+root-owned but non-sticky public ancestor instead of accepting it by pathname.
+It does not claim production-host exposure,
 a complete connector matrix, or production exploitability beyond the controls
 that were tested.
 
@@ -126,27 +138,40 @@ CSV-06 remains blocked_missing_evidence until authentic current verified
 runtime reports satisfy the strict gate. CSV-10 remains blocked_missing_evidence
 pending a pinned affected Lighttpd environment and queue/multi-chunk test
 evidence. Both remain visible in the Draft PR and are not presented as solved.
-The exact PR head still needs ordinary CI, review, and resulting-master
-evidence before any future integration decision.
+The local S5443 source remediation is `fixed`, but it is not `verified` or
+`closed` until a normal follow-up push receives a fresh exact-head SonarQube
+Cloud Quality Gate and filtered issue readback. The shared root-local canonical
+finding store is read-only, so its required incremental FND-SONAR-0010 import
+is `blocked_permissions`; the retained task record does not claim to replace
+that import. The exact PR head still needs ordinary CI, review, and
+resulting-master evidence before any future integration decision.
 
 ## Remaining risks
 
 The local controls cannot establish the missing Framework-backed canonical
 connector checks, an affected Lighttpd runtime, a full host/connector matrix,
 or remote PR CI status. Existing incomplete report evidence remains a
-deliberate blocking condition. No control, test, scanner, branch protection,
-or evidence requirement was weakened to obtain a passing result.
+deliberate blocking condition. Descriptor metadata cannot prove host ACL
+semantics or protect against a same-UID attacker after descriptors close; a
+dir_fd-retaining sink refactor is outside this focused change. No control,
+test, scanner, branch protection, or evidence requirement was weakened to
+obtain a passing result.
 
 ## Delivery status
 
-This record supports a Parent-only Draft pull request. It does not authorize a
-merge, direct master push, Framework/MRTS work, or a claim that remote CI
-passed. Final diff review, commit, push, PR creation, and PR-check snapshots
-are recorded only after observation.
+This record supports the existing Parent-only Draft PR #74. Its published
+head was `33b0bfb5a375d0db268709f9c07313506b95f1aa`; this focused S5443
+follow-up is not yet committed or pushed. It does not authorize a merge,
+direct master push, Framework/MRTS work, history rewrite, or a claim that
+remote CI passed. A normal follow-up commit and push occur only after final
+local review, followed by a new exact-head check snapshot.
 
 ## Final diff and review status
 
-The final local worktree whitespace review passed with git diff --check after
-the Change Record schema correction. A focused security review and the listed
-local controls were completed. Commit, push, Draft-PR creation, remote CI, and
-human review remain distinct future observations until they occur.
+The current local whitespace review passed with git diff --check. The focused
+security regression/control tests, 146-test selected Parent suite, four
+runtime-path policy controls, and bilingual Change Record tests passed. One
+Framework-backed policy checker is blocked by the intentionally absent
+Framework gitlink, and Ruff is unavailable in the selected venv. A focused
+security diff review, normal commit/push, fresh exact-head Sonar result,
+remote CI, and human review remain separate observations until they occur.

@@ -24,7 +24,6 @@ SYSTEM_WRITE_PREFIXES = (
 SYSTEM_WRITE_VAR_ALLOWLIST = (
     "/var/tmp",
 )
-TRUSTED_SHARED_TEMP_DIRECTORIES = (Path("/tmp"), Path("/var/tmp"))
 READ_ONLY_SOURCE_MOUNT_ROOTS = (Path("/src"),)
 BROAD_RUNTIME_ROOTS = (
     Path("/"),
@@ -81,6 +80,23 @@ def _env_value(env: Mapping[str, str], name: str) -> str:
 def _matches_path_prefix(path: Path, prefix: str) -> bool:
     text = str(path)
     return text == prefix or text.startswith(prefix + "/")
+
+
+def _is_root_owned_sticky_shared_directory(details: os.stat_result) -> bool:
+    """Return whether an opened public ancestor safely protects child names.
+
+    Sticky, root-owned public directories protect a child created by this user
+    from replacement by a different local user.  The caller still validates
+    every descendant and the final write root through its own descriptor.
+    """
+
+    mode = stat.S_IMODE(details.st_mode)
+    return (
+        stat.S_ISDIR(details.st_mode)
+        and details.st_uid == 0
+        and bool(details.st_mode & stat.S_ISVTX)
+        and bool(mode & 0o022)
+    )
 
 
 def canonical_project_roots() -> tuple[Path, Path]:
@@ -382,15 +398,16 @@ def ensure_safe_runtime_directory(path: Path | str) -> Path:
             details = os.fstat(descriptor)
             if not stat.S_ISDIR(details.st_mode):
                 raise ValueError(f"runtime directory is not a directory: {current_path}")
+            trusted_shared_root = _is_root_owned_sticky_shared_directory(details)
             if (
-                current_path not in TRUSTED_SHARED_TEMP_DIRECTORIES
+                not trusted_shared_root
                 and stat.S_IMODE(details.st_mode) & 0o022
             ):
                 raise ValueError(
                     "runtime directory has a group- or world-writable ancestor: "
                     f"{current_path}"
                 )
-            if current_path in TRUSTED_SHARED_TEMP_DIRECTORIES:
+            if trusted_shared_root:
                 shared_temp_root = current_path
             elif (
                 shared_temp_root is not None

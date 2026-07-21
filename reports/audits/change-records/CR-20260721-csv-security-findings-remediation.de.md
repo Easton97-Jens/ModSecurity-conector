@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-07-21 |
 | Basis-Revision | 5fa90474a79eaee2df034bf1c4389572fdcca42f |
 | Grenze | Nur Parent-Quellcode, Parent-Tests, Parent-CI/Runtime-Werkzeuge, Parent-Dokumentation und dieses Change-Record/Index-Paar. Framework, MRTS, Abhängigkeiten und Gitlinks bleiben unverändert. |
-| Finding-Verknüpfung | Importierte Codex-Security-CSV-Zeilen CSV-01 bis CSV-19. |
+| Finding-Verknüpfung | Importierte Codex-Security-CSV-Zeilen CSV-01 bis CSV-19; task-owned SonarQube-Cloud-S5443-Follow-up FND-SONAR-0010. |
 
 ## Motivation und Problemstellung
 
@@ -30,6 +30,8 @@ ungelöste Evidence-Lücken explizit.
   bevor eine Backend-Anfrage abgesetzt wird.
 - Jede konfigurierte Runtime-Schreibwurzel einschließlich MATRIX_ROOT wird
   descriptor-begrenzt und eigentumsvalidiert, bevor sie verwendet wird.
+- Ein öffentlich schreibbarer Runtime-Vorgänger wird nur akzeptiert, nachdem
+  sein geöffneter Descriptor Root-Ownership und Sticky-Semantik belegt.
 - Build- und Report-Evidence-Kontrollen schlagen fehlgeschlossen fehl.
 - Englische/deutsche Dokumentation bleibt gepaart.
 - Der resultierende PR ist Draft/offen und wird nicht gemergt.
@@ -68,7 +70,10 @@ no-follow-Verzeichnisoperationen und zufällige task-eigene Temporärverzeichnis
 verhindern Traversal-, Symlink- und Kollisionspfade. Generierte Berichte
 erfordern unveränderliche Build-Provenienz, striktes Layout/Evidence und
 strukturell gültige bilinguale Inhalte. HAProxy-Helfer-IDs bleiben an der
-nativen Puffergrenze.
+nativen Puffergrenze. Das Sonar-Follow-up ersetzt Pfadnamenvertrauen für
+öffentliche temporäre Wurzeln durch Descriptor-basierten Beweis für
+Verzeichnis, UID 0, Sticky-Bit und schreibbaren Mode und erhält die vorhandenen
+No-Follow-, Nachfolger-Owner- und Final-Root-Prüfungen.
 
 ## Geänderte Dateien
 
@@ -87,7 +92,12 @@ nativen Puffergrenze.
 
 | Befehl oder Kontrolle | Ergebnis |
 | --- | --- |
-| Fokussierte Parent-Unittest-Suite für Compiler-Guides, Workflow-Sicherheit, bilinguale Dokumentation, Generated-Report-Evidence, Runtime-Pfade, Pfadauflösung, Smoke-Request-Bodies und HAProxy-HTX-IDs | bestanden: 144 Tests nach Rebase auf die aktuelle Master-Basis. |
+| Fokussierte Parent-Unittest-Suite für Compiler-Guides, Workflow-Sicherheit, bilinguale Dokumentation, Generated-Report-Evidence, Runtime-Pfade, Pfadauflösung, Smoke-Request-Bodies und HAProxy-HTX-IDs | bestanden: 146 Tests nach dem S5443-Follow-up (die frühere rebased Suite enthielt 144 Tests). |
+| Pre-Fix-S5443-Regressions-Trio für root-owned/sticky-, unsafe-root- und Fremdbesitzer-Pfade | erwartetes Fehlschlagen: Die alte Pfadnamen-Allowlist lehnte die synthetische sichere Wurzel ab, bevor sie den vorgesehenen Ownership-Pfad ausüben konnte. |
+| Post-Fix-S5443-Regressions-Trio | bestanden: Root-owned/sticky Shared-Root gelingt; non-sticky/non-root Shared-Roots und fremdbesitzte Nachfolger schlagen vor Final-Root-Erstellung fehl. |
+| Vier fokussierte Runtime-Pfad-Policy-Kontrollen | bestanden: Mutable-Root-, Broad-Parent-, ausgewählte Python-Policy- und System-Root-Ablehnungskontrollen bleiben bestanden. |
+| Vollständiges Runtime-Path-Policy-Unittest-Modul | blocked_environment für einen Framework-gestützten Shell-Checker: Dem absichtlich nicht initialisierten Framework-Gitlink fehlt `ci/lib/common.sh`; die anderen vier Kontrollen bestanden. |
+| Ruff check / format check für die beiden Python-Dateien | not_run: Die ausgewählte Parent-virtuelle Umgebung enthält kein `ruff`-Executable; es wurde keine Dependency installiert. |
 | make check-http-authorization-service-timeout mit GCC und Clang | für beide Compiler bestanden. |
 | make check-common-helpers-c17 mit GCC und Clang | für beide Compiler bestanden. |
 | Common-SDK- und Common-Security-Source-Contract-Kontrollen | bestanden. |
@@ -103,6 +113,8 @@ CI-/Report-Provenienz und einen Connector-Helfer. Es schließt einen getesteten
 Local-Helper-Forwarding-Fall für mehrdeutiges TE+CL- und wiederholtes
 CL/TE-Framing sowie eine bei der
 Prüfung entdeckte plausible Containment-Lücke für konfiguriertes MATRIX_ROOT.
+Das S5443-Follow-up lehnt außerdem einen root-owned, aber nicht-sticky
+öffentlichen Vorgänger ab, statt ihn anhand seines Pfadnamens zu akzeptieren.
 Es behauptet weder Produktionshost-Exposure noch eine vollständige
 Connector-Matrix oder Produktions-Exploitierbarkeit über die getesteten
 Kontrollen hinaus.
@@ -132,9 +144,15 @@ CSV-06 bleibt blocked_missing_evidence, bis authentische aktuelle
 Verified-Runtime-Reports das strikte Gate erfüllen. CSV-10 bleibt
 blocked_missing_evidence, bis eine gepinnte betroffene Lighttpd-Umgebung und
 Queue-/Multi-Chunk-Test-Evidence vorliegen. Beide Punkte bleiben im Draft-PR
-sichtbar und werden nicht als gelöst dargestellt. Der exakte PR-Head benötigt
-weiterhin reguläre CI, Review und Resulting-Master-Evidence vor jeder späteren
-Integrationsentscheidung.
+sichtbar und werden nicht als gelöst dargestellt. Die lokale S5443-
+Source-Remediation ist `fixed`, aber nicht `verified` oder `closed`, bis ein
+normaler Follow-up-Push ein frisches Exact-Head-SonarQube-Cloud-Quality-Gate
+und einen gefilterten Issue-Readback erhält. Der gemeinsame root-lokale
+kanonische Finding-Store ist read-only; sein erforderlicher inkrementeller
+FND-SONAR-0010-Import ist daher `blocked_permissions`, und der retained
+Task-Record behauptet nicht, diesen Import zu ersetzen. Der exakte PR-Head
+benötigt weiterhin reguläre CI, Review und Resulting-Master-Evidence vor jeder
+späteren Integrationsentscheidung.
 
 ## Verbleibende Risiken
 
@@ -142,20 +160,29 @@ Die lokalen Kontrollen können weder die fehlenden Framework-gestützten
 kanonischen Connector-Prüfungen noch eine betroffene Lighttpd-Runtime, eine
 vollständige Host-/Connector-Matrix oder den Remote-PR-CI-Status belegen.
 Bestehende unvollständige Report-Evidence bleibt absichtlich blockierend.
-Keine Kontrolle, kein Test, Scanner, Branch-Protection oder
+Descriptor-Metadaten können keine Host-ACL-Semantik belegen und schützen nach
+dem Schließen der Descriptors nicht gegen einen Angreifer mit derselben UID;
+ein dir_fd-haltendes Sink-Refactoring liegt außerhalb dieser fokussierten
+Änderung. Keine Kontrolle, kein Test, Scanner, Branch-Protection oder
 Evidence-Anforderung wurde für ein positives Ergebnis abgeschwächt.
 
 ## Delivery-Status
 
-Dieser Record unterstützt einen Parent-only-Draft-Pull-Request. Er autorisiert
-weder Merge noch Direct-Master-Push noch Framework-/MRTS-Arbeit oder die
-Behauptung bestandener Remote-CI. Finale Diff-Prüfung, Commit, Push,
-PR-Erstellung und PR-Check-Snapshots werden erst nach Beobachtung dokumentiert.
+Dieser Record unterstützt den bestehenden Parent-only-Draft-PR #74. Sein
+veröffentlichter Head war `33b0bfb5a375d0db268709f9c07313506b95f1aa`; dieses
+fokussierte S5443-Follow-up ist noch nicht committed oder gepusht. Er
+autorisiert weder Merge noch Direct-Master-Push, Framework-/MRTS-Arbeit,
+History-Rewrite oder die Behauptung bestandener Remote-CI. Ein normaler
+Follow-up-Commit und Push erfolgen erst nach finalem lokalem Review, gefolgt
+von einem neuen Exact-Head-Check-Snapshot.
 
 ## Finaler Diff- und Review-Status
 
-Der finale lokale Worktree-Whitespace-Review bestand nach der
-Change-Record-Schema-Korrektur mit git diff --check. Ein fokussierter
-Security-Review und die aufgeführten lokalen Kontrollen sind abgeschlossen.
-Commit, Push, Draft-PR-Erstellung, Remote-CI und Human Review bleiben getrennte
-künftige Beobachtungen, bis sie stattfinden.
+Der aktuelle lokale Worktree-Whitespace-Review bestand mit git diff --check.
+Die fokussierten Security-Regression-/Kontrolltests, die ausgewählte
+146-Test-Parent-Suite, vier Runtime-Pfad-Policy-Kontrollen und die bilingualen
+Change-Record-Tests bestanden. Ein Framework-gestützter Policy-Checker ist
+durch den absichtlich fehlenden Framework-Gitlink blockiert, und Ruff ist in
+der ausgewählten venv nicht verfügbar. Ein fokussierter Security-Diff-Review,
+normaler Commit/Push, frisches Exact-Head-Sonar-Ergebnis, Remote-CI und Human
+Review bleiben getrennte Beobachtungen, bis sie stattfinden.
