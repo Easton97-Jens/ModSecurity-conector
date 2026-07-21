@@ -8,8 +8,8 @@ pinned_actions:
     commit_sha: 9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
     upstream: https://github.com/actions/checkout
   actions/setup-python:
-    version: v6.3.0
-    commit_sha: ece7cb06caefa5fff74198d8649806c4678c61a1
+    version: v7.0.0
+    commit_sha: 5fda3b95a4ea91299a34e894583c3862153e4b97
     upstream: https://github.com/actions/setup-python
   actions/setup-go:
     version: v7.0.0
