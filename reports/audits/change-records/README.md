@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [GitHub Actions checkout v7.0.1 immutable-lock synchronization](CR-20260721-actions-checkout-v7-lock.md)
 - [GitHub Actions setup-python v7 immutable-lock synchronization](CR-20260721-actions-setup-python-v7-lock.md)
 - [Parent Python 3.13 workflow contract and safe patch updater](CR-20260720-python-313-workflow-contract.md)
 - [Apache intervention ownership cleanup](CR-20260720-apache-intervention-ownership.md)
