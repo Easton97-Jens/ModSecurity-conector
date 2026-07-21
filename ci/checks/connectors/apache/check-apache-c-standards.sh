@@ -76,6 +76,7 @@ if ! "$CC_BIN" -std=c17 $APXS_CFLAGS $APXS_CPPFLAGS $INCLUDES -c "$HEADER_PROBE"
 fi
 
 APACHE_SOURCES="
+connectors/apache/src/mod_security3.c
 connectors/apache/src/msc_apache_mapper.c
 connectors/apache/src/msc_config.c
 connectors/apache/src/msc_filters.c

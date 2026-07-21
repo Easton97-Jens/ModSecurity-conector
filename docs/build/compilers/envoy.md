@@ -53,11 +53,11 @@ export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-The repository ext_proc module requires Go 1.24.0; verify the pinned module declaration before its Section 7 build.
+The repository ext_proc module requires Go 1.24.13; verify the pinned module declaration before its Section 7 build.
 
 ```sh
 go version
-grep -Fx "go 1.24.0" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"
+grep -Fx "go 1.24.13" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"
 ```
 
 ## 5. Prepare libmodsecurity v3

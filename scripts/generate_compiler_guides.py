@@ -355,7 +355,7 @@ DETAILS: dict[str, dict[str, object]] = {
         "package_status": "package-assisted source build",
         "extra_prepare": "prepare-envoy-runtime",
         "host_source": "verified binary; service source",
-        "go_requirement": "1.24.0",
+        "go_requirement": "1.24.13",
         "go_module": "connectors/envoy/ext_proc/go.mod",
         "test_prerequisites": (
             "Git, a writable external parent, Go and C/C++ build tools, libmodsecurity inputs, and the Framework submodule. The specific preparation target obtains only the pinned host binary through repository policy.",
@@ -373,7 +373,7 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
         "source_validation": (
             "go version",
-            "grep -Fx 'go 1.24.0' connectors/envoy/ext_proc/go.mod",
+            "grep -Fx 'go 1.24.13' connectors/envoy/ext_proc/go.mod",
             "make -C connectors/envoy check-envoy-ext-proc-config",
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-envoy",
         ),
@@ -412,7 +412,7 @@ DETAILS: dict[str, dict[str, object]] = {
         "package_status": "package-assisted source build",
         "extra_prepare": "prepare-traefik-runtime",
         "host_source": "verified binary; middleware/service source",
-        "go_requirement": "1.24.0",
+        "go_requirement": "1.24.13",
         "go_module": "connectors/traefik/native_middleware/go.mod",
         "test_prerequisites": (
             "Git, a writable external parent, Go and C/C++ build tools, libmodsecurity inputs, and the Framework submodule. Runtime preparation supplies the pinned host binary through provenance policy.",
@@ -431,7 +431,7 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
         "source_validation": (
             "go version",
-            "grep -Fx 'go 1.24.0' connectors/traefik/native_middleware/go.mod",
+            "grep -Fx 'go 1.24.13' connectors/traefik/native_middleware/go.mod",
             "make -C connectors/traefik test-engine-service",
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-traefik",
         ),
@@ -3641,14 +3641,14 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
     )
     go_prereqs: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "envoy": (
-            "The repository ext_proc module requires Go 1.24.0; verify the pinned module declaration before its Section 7 build.",
-            "Das repository-eigene ext_proc-Modul verlangt Go 1.24.0; die gepinnte Moduldeklaration vor dem Build in Abschnitt 7 prüfen.",
-            ('go version', 'grep -Fx "go 1.24.0" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"'),
+            "The repository ext_proc module requires Go 1.24.13; verify the pinned module declaration before its Section 7 build.",
+            "Das repository-eigene ext_proc-Modul verlangt Go 1.24.13; die gepinnte Moduldeklaration vor dem Build in Abschnitt 7 prüfen.",
+            ('go version', 'grep -Fx "go 1.24.13" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"'),
         ),
         "traefik": (
-            "The repository native middleware module requires Go 1.24.0; this differs from the optional Traefik-v3.7.5 host-source requirement in Section 6.",
-            "Das repository-eigene native Middleware-Modul verlangt Go 1.24.0; dies unterscheidet sich von der optionalen Traefik-v3.7.5-Host-Source-Anforderung in Abschnitt 6.",
-            ('go version', 'grep -Fx "go 1.24.0" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"'),
+            "The repository native middleware module requires Go 1.24.13; this differs from the optional Traefik-v3.7.5 host-source requirement in Section 6.",
+            "Das repository-eigene native Middleware-Modul verlangt Go 1.24.13; dies unterscheidet sich von der optionalen Traefik-v3.7.5-Host-Source-Anforderung in Abschnitt 6.",
+            ('go version', 'grep -Fx "go 1.24.13" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"'),
         ),
     }
     go_prereq = go_prereqs.get(slug)

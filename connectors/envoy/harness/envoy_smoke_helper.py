@@ -403,14 +403,13 @@ def _read_chunked_first_body(
         if remainder:
             return status, 1
         deadline = time.monotonic() + timeout
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError("timed out waiting for first response body byte")
-            connection.settimeout(remaining)
-            if connection.recv(1):
-                return status, 1
-            raise RuntimeError("connection closed before the first response body byte")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("timed out waiting for first response body byte")
+        connection.settimeout(remaining)
+        if connection.recv(1):
+            return status, 1
+        raise RuntimeError("connection closed before the first response body byte")
     chunk_data = bytearray(remainder)
     _read_until(
         connection,

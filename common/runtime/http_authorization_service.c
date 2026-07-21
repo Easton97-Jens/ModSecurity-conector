@@ -729,7 +729,7 @@ static int serve_authorization(
     const authorization_cli *cli,
     const msconnector_http_authorization_profile *profile) {
     msconnector_runtime *runtime = NULL;
-    struct sockaddr_in local;
+    struct sockaddr_in local = {0};
     int listener = -1;
     char error[AUTH_ERROR_SIZE];
     unsigned long handled = 0UL;
@@ -759,7 +759,7 @@ static int serve_authorization(
     (void)fflush(stdout);
     while (!authorization_stop &&
         (cli->max_requests == 0UL || handled < cli->max_requests)) {
-        struct sockaddr_in peer;
+        struct sockaddr_in peer = {0};
         socklen_t peer_size = sizeof(peer);
         int client_fd;
         do {
