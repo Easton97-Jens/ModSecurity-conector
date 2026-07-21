@@ -1129,6 +1129,10 @@ check-apache-c-standards:
 check-apache-c17:
 	APACHE_C_STD_PROFILE=c17 sh ci/checks/connectors/apache/check-apache-c-standards.sh
 
+.PHONY: check-apache-intervention-cleanup
+check-apache-intervention-cleanup:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_intervention_cleanup
+
 check-apache-c17-lint:
 	@APACHE_C_STD_PROFILE=c17 sh ci/checks/connectors/apache/check-apache-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: apache C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
 
@@ -1259,6 +1263,7 @@ lint: check-framework
 	$(MAKE) check-apache-common-adoption
 	$(MAKE) check-apache-c-standard-wiring
 	$(MAKE) check-apache-c17-lint
+	$(MAKE) check-apache-intervention-cleanup
 	$(MAKE) check-apache-request-transaction-cleanup-lint
 	$(MAKE) check-optional-prerequisite-status
 	$(MAKE) check-nginx-common-adoption
