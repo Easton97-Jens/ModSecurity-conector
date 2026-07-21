@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "msconnector/memory.h"
 #include "common/runtime/msconnector_runtime.h"
 
 struct msc_envoy_ext_proc_runtime {
@@ -564,6 +565,6 @@ void msc_envoy_ext_proc_transaction_close(
             &runtime_error);
     }
     msconnector_runtime_transaction_destroy(&transaction->transaction);
-    memset(transaction, 0, sizeof(*transaction));
+    msconnector_secure_zero(transaction, sizeof(*transaction));
     free(transaction);
 }
