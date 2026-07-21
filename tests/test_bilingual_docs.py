@@ -64,6 +64,31 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
 
         self.assertTrue(any("fenced code-block content differs" in error for error in errors))
 
+    def test_mixed_fence_marker_cannot_hide_bilingual_code_block_differences(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self.write(
+                root,
+                "docs/example.md",
+                "# Example\n\n**Language:** English | [Deutsch](example.de.md)\n\n```sh\necho shared\n~~~\necho English-only\n```\n",
+            )
+            self.write(
+                root,
+                "docs/example.de.md",
+                "# Beispiel\n\n**Sprache:** [English](example.md) | Deutsch\n\n```sh\necho shared\n~~~\necho Deutsch-only\n```\n",
+            )
+
+            errors = CHECKER.check_pairs_and_switches(root)
+
+        self.assertTrue(any("fenced code-block content differs" in error for error in errors), errors)
+
+    def test_matching_longer_fences_remain_valid(self) -> None:
+        text = "````sh\necho control\n````\n\n~~~text\ncontrol\n~~~~\n"
+        self.assertEqual(
+            ["````sh\necho control\n````", "~~~text\ncontrol\n~~~~"],
+            CHECKER.fenced_blocks(text),
+        )
+
     def test_rejects_local_german_companions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

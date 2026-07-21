@@ -27,6 +27,10 @@ REQUEST_BODY_BLOCK_MARKER = "modsec-request-body-block"
 REQUEST_BODY_ALLOW_BODY = b"payload=modsec-request-body-allow"
 REQUEST_BODY_BLOCK_BODY = b"payload=modsec-request-body-block"
 REQUEST_BODY_CONTENT_TYPE = "application/x-www-form-urlencoded"
+MAX_REQUEST_BODY_BYTES = 64 * 1024
+MAX_CHUNK_LINE_BYTES = 128
+MAX_TRAILER_BYTES = 8 * 1024
+SERVER_SOCKET_TIMEOUT_SECONDS = 5.0
 TARGETED_SMOKE_CASES = {"targeted", "request_body"}
 CRS_SMOKE_CASES = {
     "minimal": {
@@ -45,6 +49,14 @@ class SmokeBlocked(RuntimeError):
         super().__init__(reason)
         self.reason = reason
         self.missing_dependencies = missing_dependencies
+
+
+class RequestBodyError(ValueError):
+    status_code = 400
+
+
+class RequestBodyTooLarge(RequestBodyError):
+    status_code = 413
 
 
 def namespace_value(args: argparse.Namespace, name: str, default: str = "") -> str:
@@ -218,9 +230,11 @@ class QuietHandler(http.server.BaseHTTPRequestHandler):
 
 class UpstreamHandler(QuietHandler):
     def _answer(self) -> None:
-        length = int(self.headers.get("content-length") or "0")
-        if length > 0:
-            self.rfile.read(length)
+        try:
+            read_request_body(self)
+        except RequestBodyError as exc:
+            self.send_error(exc.status_code, "request body rejected")
+            return
         body = b"msconnector upstream ok\n"
         self.send_response(200)
         self.send_header("content-type", "text/plain")
@@ -440,32 +454,80 @@ class ModSecurityDecisionBackend:
         }
 
 
-def read_request_body(handler: http.server.BaseHTTPRequestHandler) -> bytes:
-    transfer_encoding = (handler.headers.get("transfer-encoding") or "").lower()
-    if "chunked" in transfer_encoding:
-        chunks: list[bytes] = []
-        while True:
-            line = handler.rfile.readline()
-            if not line:
-                break
-            size_text = line.split(b";", 1)[0].strip()
-            try:
-                size = int(size_text, 16)
-            except ValueError:
-                break
-            if size == 0:
-                while True:
-                    trailer = handler.rfile.readline()
-                    if trailer in {b"\r\n", b"\n", b""}:
-                        break
-                break
-            chunks.append(handler.rfile.read(size))
-            handler.rfile.read(2)
-        return b"".join(chunks)
-    length = int(handler.headers.get("content-length") or "0")
-    if length <= 0:
+def read_request_bytes(handler: http.server.BaseHTTPRequestHandler, size: int) -> bytes:
+    try:
+        value = handler.rfile.read(size)
+    except OSError as exc:
+        raise RequestBodyError("timed out reading request body") from exc
+    if len(value) != size:
+        raise RequestBodyError("incomplete request body")
+    return value
+
+
+def read_request_line(handler: http.server.BaseHTTPRequestHandler) -> bytes:
+    try:
+        value = handler.rfile.readline(MAX_CHUNK_LINE_BYTES + 1)
+    except OSError as exc:
+        raise RequestBodyError("timed out reading request body") from exc
+    if not value or len(value) > MAX_CHUNK_LINE_BYTES or not value.endswith(b"\n"):
+        raise RequestBodyError("invalid chunk framing")
+    return value
+
+
+def read_chunked_request_body(handler: http.server.BaseHTTPRequestHandler) -> bytes:
+    body = bytearray()
+    trailer_bytes = 0
+    while True:
+        line = read_request_line(handler)
+        size_text = line.split(b";", 1)[0].strip()
+        if re.fullmatch(rb"[0-9A-Fa-f]+", size_text) is None:
+            raise RequestBodyError("invalid chunk size")
+        size = int(size_text, 16)
+        if size > MAX_REQUEST_BODY_BYTES - len(body):
+            raise RequestBodyTooLarge("request body exceeds local smoke limit")
+        if size == 0:
+            while True:
+                trailer = read_request_line(handler)
+                trailer_bytes += len(trailer)
+                if trailer_bytes > MAX_TRAILER_BYTES:
+                    raise RequestBodyError("request trailers exceed local smoke limit")
+                if trailer in {b"\r\n", b"\n"}:
+                    return bytes(body)
+        body.extend(read_request_bytes(handler, size))
+        if read_request_bytes(handler, 2) != b"\r\n":
+            raise RequestBodyError("invalid chunk terminator")
+
+
+def read_content_length_request_body(handler: http.server.BaseHTTPRequestHandler) -> bytes:
+    raw_length = handler.headers.get("content-length")
+    if raw_length is None:
         return b""
-    return handler.rfile.read(length)
+    value = raw_length.strip()
+    if re.fullmatch(r"[0-9]+", value) is None:
+        raise RequestBodyError("invalid content length")
+    length = int(value, 10)
+    if length > MAX_REQUEST_BODY_BYTES:
+        raise RequestBodyTooLarge("request body exceeds local smoke limit")
+    return read_request_bytes(handler, length)
+
+
+def read_request_body(handler: http.server.BaseHTTPRequestHandler) -> bytes:
+    transfer_encodings = handler.headers.get_all("transfer-encoding", [])
+    content_lengths = handler.headers.get_all("content-length", [])
+    if len(transfer_encodings) > 1:
+        raise RequestBodyError("duplicate transfer encoding")
+    if len(content_lengths) > 1:
+        raise RequestBodyError("duplicate content length")
+    raw_transfer_encoding = transfer_encodings[0] if transfer_encodings else None
+    raw_content_length = content_lengths[0] if content_lengths else None
+    if raw_transfer_encoding is not None and raw_content_length is not None:
+        raise RequestBodyError("conflicting request body framing")
+    transfer_encoding = (raw_transfer_encoding or "").strip().lower()
+    if transfer_encoding:
+        if transfer_encoding != "chunked":
+            raise RequestBodyError("unsupported transfer encoding")
+        return read_chunked_request_body(handler)
+    return read_content_length_request_body(handler)
 
 
 def make_decision_handler(
@@ -479,6 +541,11 @@ def make_decision_handler(
                 decision = decision_backend.decide(self.headers, self.path, self.command, request_body)
                 status = int(decision["status"])
                 body = decision["body"]
+            except RequestBodyError as exc:
+                decision_backend.last_error = str(exc)
+                status = exc.status_code
+                body = b"local smoke request body rejected\n"
+                request_body = b""
             except Exception as exc:  # noqa: BLE001 - auth backend errors become smoke evidence.
                 decision_backend.last_error = str(exc)
                 status = 500
@@ -555,6 +622,10 @@ def make_sidecar_proxy_handler(
                         body = exc.read()
                         status = int(exc.code)
                     upstream_status = status
+            except RequestBodyError as exc:
+                decision_backend.last_error = str(exc)
+                body = b"local smoke request body rejected\n"
+                status = exc.status_code
             except Exception as exc:  # noqa: BLE001 - proxy errors become smoke evidence.
                 decision_backend.last_error = str(exc)
                 body = f"sidecar proxy error: {exc}\n".encode("utf-8")
@@ -590,8 +661,17 @@ def make_sidecar_proxy_handler(
     return LighttpdSidecarProxyHandler
 
 
-def start_http_server(handler: type[http.server.BaseHTTPRequestHandler], port: int) -> http.server.ThreadingHTTPServer:
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
+class LocalSmokeHTTPServer(http.server.ThreadingHTTPServer):
+    daemon_threads = True
+
+    def get_request(self) -> tuple[socket.socket, tuple[str, int]]:
+        request, client_address = super().get_request()
+        request.settimeout(SERVER_SOCKET_TIMEOUT_SECONDS)
+        return request, client_address
+
+
+def start_http_server(handler: type[http.server.BaseHTTPRequestHandler], port: int) -> LocalSmokeHTTPServer:
+    server = LocalSmokeHTTPServer(("127.0.0.1", port), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server

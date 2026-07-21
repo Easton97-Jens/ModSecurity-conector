@@ -252,6 +252,12 @@ class CiSecurityWorkflowTest(unittest.TestCase):
             for checkout_step in checkout_steps:
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
 
+    def test_verified_report_governance_runs_the_strict_evidence_gate(self) -> None:
+        job = self.jobs("verified-report-governance.yml")["report-governance"]
+        self.assertIn("make report-governance", job)
+        self.assertIn("make verified-report-evidence-gate", job)
+        self.assertLess(job.index("make report-governance"), job.index("make verified-report-evidence-gate"))
+
     def test_untrusted_pull_request_model(self) -> None:
         sarif_write_jobs = {
             key for key, value in EXPECTED_WRITE_PERMISSIONS.items() if value.get("security-events") == "write"

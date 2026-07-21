@@ -36,16 +36,23 @@ sudo dnf install gcc gcc-c++ make git autoconf automake libtool flex bison pkgco
 
 ## Simple official build
 
-Once the required development packages are installed, the official Unix build is essentially these eight commands:
+Once the required development packages are installed, the default path uses this verified, repository-documented release. It is a reproducibility baseline, not a claim about the latest or upstream-supported release. GPG tag verification requires a trusted maintainer key.
 
 ```sh
-git clone https://github.com/owasp-modsecurity/ModSecurity.git
+MODSECURITY_REF="v3.0.16"
+MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"
+git clone --branch "$MODSECURITY_REF" --single-branch https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity
 cd ModSecurity
+git fetch --tags origin
+git verify-tag "$MODSECURITY_REF"
+git checkout --detach "$MODSECURITY_REF"
+test "$(git rev-parse HEAD)" = "$MODSECURITY_COMMIT"
 git submodule update --init --recursive
 git submodule status
 ./build.sh
 ./configure
 make
+make check
 sudo make install
 ```
 
@@ -53,13 +60,20 @@ sudo make install
 
 | Command | Meaning |
 | --- | --- |
-| `git clone https://github.com/owasp-modsecurity/ModSecurity.git` | Downloads the ModSecurity v3 source code. |
+| `MODSECURITY_REF="v3.0.16"` | Selects the repository-documented immutable release tag. |
+| `MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"` | Records the expected immutable commit for the selected release. |
+| `git clone --branch "$MODSECURITY_REF" --single-branch https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity` | Downloads only the selected ModSecurity v3 release into the local source directory. |
 | `cd ModSecurity` | Changes into the downloaded directory. |
+| `git fetch --tags origin` | Fetches release tags before their signature is verified. |
+| `git verify-tag "$MODSECURITY_REF"` | Verifies the selected signed release tag with a trusted maintainer key. |
+| `git checkout --detach "$MODSECURITY_REF"` | Checks out the selected tag in detached-HEAD mode. |
+| `test "$(git rev-parse HEAD)" = "$MODSECURITY_COMMIT"` | Fails unless the checked-out commit equals the documented release commit. |
 | `git submodule update --init --recursive` | Downloads the additional required subprojects. |
 | `git submodule status` | Checks that the subprojects are present completely. |
 | `./build.sh` | Creates the required Autotools build files. |
 | `./configure` | Checks compilers and libraries and creates the Makefiles. |
 | `make` | Compiles libmodsecurity. |
+| `make check` | Runs the upstream test suite before installation. |
 | `sudo make install` | Installs headers and the library system-wide. |
 
 `build.sh` does not compile the library yet. `configure` checks the environment. `make` compiles. `make install` installs the result.

@@ -68,6 +68,7 @@ VERIFIED_CRITICAL_INPUT_STATUSES = {"complete"}
 VERIFIED_CRITICAL_INPUT_RECORD_STATUSES = {"present"}
 SELF_GENERATED_CRITICAL_INPUT_STATUS = "self_generated_no_direct_input"
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
+GERMAN_GENERATED_NOTICE = "Generierte Datei – nicht manuell bearbeiten."
 
 
 def rel(path: Path, root: Path) -> str:
@@ -308,22 +309,65 @@ def check_json_metadata(path: Path, errors: list[str], connector_root: Path) -> 
         errors.append(f"{rel(path, connector_root)}: metadata.inputs must be a list")
 
 
+def generated_markdown_metadata_labels(german: bool) -> tuple[
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+]:
+    if german:
+        # Existing German companions use both retained English metadata and
+        # fully translated metadata.  Validate either canonical rendering
+        # without weakening the English source-document contract below.
+        return (
+            (GENERATED_NOTICE, GERMAN_GENERATED_NOTICE),
+            ("Generated at:", "Erstellt unter:"),
+            ("Verified run id:", "Verifizierte Lauf-ID:"),
+            ("Data source policy:", "Datenquellenrichtlinie:"),
+            ("## Data Availability / Missing Information", "## Datenverfügbarkeit / fehlende Informationen"),
+            ("## Data Sources", "## Datenquellen"),
+            ("_No rows available. Reason:", "_Keine Zeilen verfügbar. Grund:"),
+        )
+    return (
+        (GENERATED_NOTICE,),
+        ("Generated at:",),
+        ("Verified run id:",),
+        ("Data source policy:",),
+        ("## Data Availability / Missing Information",),
+        ("## Data Sources",),
+        ("_No rows available. Reason:",),
+    )
+
+
+def german_generated_markdown_path(path: Path) -> Path:
+    return path.with_name(f"{path.stem}.de{path.suffix}")
+
+
 def check_markdown_metadata(path: Path, errors: list[str], connector_root: Path) -> None:
     text = path.read_text(encoding="utf-8", errors="replace")
     first_lines = text.splitlines()[:20]
-    if not first_lines or first_lines[0].strip() != f"> {GENERATED_NOTICE}":
+    german = path.name.endswith(".generated.de.md")
+    notices, generated_at, verified_run_id, data_source_policy, availability_headings, sources_headings, empty_table_markers = (
+        generated_markdown_metadata_labels(german)
+    )
+    if not german and (not first_lines or first_lines[0].strip() != f"> {GENERATED_NOTICE}"):
         errors.append(f"{rel(path, connector_root)}: missing generated notice at top")
-    if not any("Generated at:" in line for line in first_lines):
+    elif german and not any(line.strip() in {f"> {notice}" for notice in notices} for line in first_lines):
+        errors.append(f"{rel(path, connector_root)}: missing generated notice at top")
+    if not any(label in line for label in generated_at for line in first_lines):
         errors.append(f"{rel(path, connector_root)}: missing visible generated timestamp")
-    if not any("Verified run id:" in line for line in first_lines):
+    if not any(label in line for label in verified_run_id for line in first_lines):
         errors.append(f"{rel(path, connector_root)}: missing visible verified run id")
-    if not any("Data source policy:" in line for line in first_lines):
+    if not any(label in line for label in data_source_policy for line in first_lines):
         errors.append(f"{rel(path, connector_root)}: missing visible data source policy")
-    if "## Data Availability / Missing Information" not in text:
+    if not any(heading in text for heading in availability_headings):
         errors.append(f"{rel(path, connector_root)}: missing data availability section")
-    if "## Data Sources" not in text:
+    if not any(heading in text for heading in sources_headings):
         errors.append(f"{rel(path, connector_root)}: missing data sources section")
-    check_empty_tables_explained(path, text, errors, connector_root)
+    check_empty_tables_explained(path, text, errors, connector_root, empty_table_markers)
 
 
 def is_table_separator(line: str) -> bool:
@@ -331,7 +375,13 @@ def is_table_separator(line: str) -> bool:
     return bool(cells) and all(cell and set(cell) <= {"-", ":"} and cell.count("-") >= 3 for cell in cells)
 
 
-def check_empty_tables_explained(path: Path, text: str, errors: list[str], connector_root: Path) -> None:
+def check_empty_tables_explained(
+    path: Path,
+    text: str,
+    errors: list[str],
+    connector_root: Path,
+    empty_table_markers: tuple[str, ...],
+) -> None:
     lines = text.splitlines()
     for index in range(1, len(lines)):
         if not is_table_separator(lines[index]):
@@ -343,15 +393,13 @@ def check_empty_tables_explained(path: Path, text: str, errors: list[str], conne
             next_index += 1
         if next_index >= len(lines) or lines[next_index].startswith("## "):
             window = "\n".join(lines[index + 1 : min(index + 5, len(lines))])
-            if "_No rows available. Reason:" not in window:
+            if not any(marker in window for marker in empty_table_markers):
                 errors.append(f"{rel(path, connector_root)}:{index + 1}: empty table lacks a Missing/Empty explanation")
 
 
 def check_existing_generated_reports(connector_root: Path, errors: list[str]) -> None:
     generated_root = connector_root / GENERATED_ROOT
     for path in sorted(generated_root.rglob("*.generated.*")):
-        if path.name.endswith(".generated.de.md"):
-            continue
         if os.environ.get("ALLOW_IN_PROGRESS_SYSTEM_PROOF") == "1" and path.name.startswith("system-environment-proof.generated."):
             continue
         if path.suffix == ".json":
@@ -373,8 +421,6 @@ def check_generated_markdown_portability(connector_root: Path, errors: list[str]
 def check_no_flat_reports(connector_root: Path, errors: list[str]) -> None:
     generated_root = connector_root / GENERATED_ROOT
     for path in sorted(generated_root.glob("*.generated.*")):
-        if path.name.endswith(".generated.de.md"):
-            continue
         if path.exists():
             errors.append(f"{rel(path, connector_root)}: stale flat generated report remains")
 
@@ -695,10 +741,16 @@ def check_registry_paths(connector_root: Path, errors: list[str]) -> None:
             errors.append(f"registry:{key}: missing severity")
         for ext in report.formats:
             path = report_path(connector_root, key, ext)
-            if path.parent.name != report.category:
-                errors.append(f"{rel(path, connector_root)}: registry category mismatch")
-            if not path.is_file() and report.commit_policy not in {"local-only", "do-not-commit"} and report.data_kind != "system-proof":
-                errors.append(f"{rel(path, connector_root)}: registry output missing")
+            paths = (path, german_generated_markdown_path(path)) if ext == "md" else (path,)
+            for registered_path in paths:
+                if registered_path.parent.name != report.category:
+                    errors.append(f"{rel(registered_path, connector_root)}: registry category mismatch")
+                if (
+                    not registered_path.is_file()
+                    and report.commit_policy not in {"local-only", "do-not-commit"}
+                    and report.data_kind != "system-proof"
+                ):
+                    errors.append(f"{rel(registered_path, connector_root)}: registry output missing")
 
 
 def check_no_orphan_generated_reports(connector_root: Path, errors: list[str]) -> None:
@@ -708,11 +760,19 @@ def check_no_orphan_generated_reports(connector_root: Path, errors: list[str]) -
         for key, report in GENERATED_REPORTS.items()
         for ext in report.formats
     }
+    expected.update(
+        str(german_generated_markdown_path(connector_root / report_relpath(key, "md")).resolve(strict=False))
+        for key, report in GENERATED_REPORTS.items()
+        if "md" in report.formats
+    )
     for path in sorted(generated_root.rglob("*.generated.*")):
-        if path.name.endswith(".generated.de.md"):
-            continue
         resolved = str(path.resolve(strict=False))
-        if path.name not in FILENAME_TO_KEY:
+        registry_filename = (
+            path.name.removesuffix(".de.md") + ".md"
+            if path.name.endswith(".generated.de.md")
+            else path.name
+        )
+        if registry_filename not in FILENAME_TO_KEY:
             errors.append(f"{rel(path, connector_root)}: generated file is not in registry")
         elif resolved not in expected:
             errors.append(f"{rel(path, connector_root)}: generated file is not at registry path")
@@ -1376,6 +1436,13 @@ def main() -> int:
     if str(connector_root / "ci") not in sys.path:
         sys.path.insert(0, str(connector_root / "ci"))
 
+    try:
+        build_root = Path(verified_runtime_paths()["BUILD_ROOT"]).absolute()
+    except ValueError as exc:
+        print("check-generated-report-layout: FAIL", file=sys.stderr)
+        print(f"- runtime build root is invalid: {exc}", file=sys.stderr)
+        return 1
+
     errors: list[str] = []
     check_registry_paths(connector_root, errors)
     check_no_flat_reports(connector_root, errors)
@@ -1386,6 +1453,7 @@ def main() -> int:
         connector_root,
         errors,
         strict_evidence=strict_evidence,
+        build_root=build_root,
         framework_root=framework_root,
     )
     check_existing_generated_reports(connector_root, errors)
@@ -1394,10 +1462,11 @@ def main() -> int:
         connector_root,
         errors,
         strict_evidence=strict_evidence,
+        build_root=build_root,
         framework_root=framework_root,
     )
     if strict_evidence:
-        check_verified_runtime_artifact_chain(connector_root, errors)
+        check_verified_runtime_artifact_chain(connector_root, errors, build_root=build_root)
     check_verified_runtime_diagnostics(connector_root, errors, strict_evidence=strict_evidence)
     check_system_environment_proof(connector_root, errors)
     check_no_legacy_references(connector_root, errors)

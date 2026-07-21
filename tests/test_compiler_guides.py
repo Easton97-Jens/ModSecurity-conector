@@ -14,13 +14,20 @@ GENERATOR_PATH = ROOT / "scripts" / "generate_compiler_guides.py"
 GUIDE_DIRECTORY = ROOT / "docs" / "build" / "compilers"
 SLUGS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 COMMON_BEGINNER_COMMANDS = (
-    "git clone https://github.com/owasp-modsecurity/ModSecurity.git",
+    'MODSECURITY_REF="v3.0.16"',
+    'MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+    'git clone --branch "$MODSECURITY_REF" --single-branch https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity',
     "cd ModSecurity",
+    "git fetch --tags origin",
+    'git verify-tag "$MODSECURITY_REF"',
+    'git checkout --detach "$MODSECURITY_REF"',
+    'test "$(git rev-parse HEAD)" = "$MODSECURITY_COMMIT"',
     "git submodule update --init --recursive",
     "git submodule status",
     "./build.sh",
     "./configure",
     "make",
+    "make check",
     "sudo make install",
 )
 
@@ -327,6 +334,29 @@ class CompilerGuideGenerationTest(unittest.TestCase):
             self.assertIn(f"| `{command}` |", german_meanings)
         self.assertLess(english.index("## Simple official build"), english.index("## Meaning of the commands"))
         self.assertLess(german.index("## Einfacher offizieller Build"), german.index("## Bedeutung der Befehle"))
+
+    def test_common_beginner_build_verifies_the_pinned_release_before_building(self) -> None:
+        required_commands = (
+            'MODSECURITY_REF="v3.0.16"',
+            'MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+            'git verify-tag "$MODSECURITY_REF"',
+            'git checkout --detach "$MODSECURITY_REF"',
+            'test "$(git rev-parse HEAD)" = "$MODSECURITY_COMMIT"',
+            "git submodule update --init --recursive",
+            "git submodule status",
+            "make check",
+        )
+        for content, heading in (
+            (common_guide(), "Simple official build"),
+            (common_guide(german=True), "Einfacher offizieller Build"),
+        ):
+            beginner = h2_section(content, heading)
+            self.assertNotIn("v3/master", beginner)
+            for command in required_commands:
+                self.assertIn(command, beginner)
+            self.assertLess(beginner.index('git verify-tag "$MODSECURITY_REF"'), beginner.index('git checkout --detach "$MODSECURITY_REF"'))
+            self.assertLess(beginner.index('git checkout --detach "$MODSECURITY_REF"'), beginner.index('test "$(git rev-parse HEAD)" = "$MODSECURITY_COMMIT"'))
+            self.assertLess(beginner.index("make check"), beginner.index("sudo make install"))
 
     def test_advanced_engine_information_follows_the_simple_build(self) -> None:
         for content, beginner_heading, heading in (

@@ -215,6 +215,61 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
                     events_path, probe_path, upstream_path, "haproxy:htx-allow",
                 )
 
+    def test_htx_transaction_id_length_matches_native_buffer_in_write_and_evidence_paths(self) -> None:
+        accepted = "a" * HELPER.HTX_TRANSACTION_ID_MAX_LENGTH
+        rejected = "b" * (HELPER.HTX_TRANSACTION_ID_MAX_LENGTH + 1)
+        self.assertEqual(HELPER.safe_htx_transaction_id(accepted), accepted)
+        with self.assertRaisesRegex(ValueError, "invalid HTX transaction id"):
+            HELPER.safe_htx_transaction_id(rejected)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            events = root / "events.jsonl"
+            probe = root / "client-probe.json"
+            upstream = root / "upstream-requests.jsonl"
+            host_evidence = root / "host-runtime-evidence.jsonl"
+            decision_log = root / "haproxy.stderr.log"
+            probe.write_text(
+                json.dumps({"status": 200, "response_bytes": 24, "content_type": "text/plain"}),
+                encoding="utf-8",
+            )
+            upstream.write_text(
+                json.dumps({"profile": "ordinary", "request_id": accepted}) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                HELPER.write_allow_event(str(events), str(probe), str(upstream), accepted),
+                0,
+            )
+            self.assertEqual(json.loads(events.read_text(encoding="utf-8"))["transaction_id"], accepted)
+            with self.assertRaisesRegex(ValueError, "invalid HTX transaction id"):
+                HELPER.write_allow_event(str(events), str(probe), str(upstream), rejected)
+
+            decision_log.write_text(
+                "modsecurity-htx: request intervention observed; "
+                f"transaction_id={accepted} phase=1 status=403 rule_id=1100001 action=deny\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                HELPER.write_host_evidence(
+                    str(host_evidence), "phase1_403", 1, 1100001, str(probe), 0,
+                    "enforced_reply", str(decision_log),
+                ),
+                0,
+            )
+            self.assertEqual(
+                json.loads(host_evidence.read_text(encoding="utf-8"))["transaction_id"], accepted,
+            )
+            decision_log.write_text(
+                "modsecurity-htx: request intervention observed; "
+                f"transaction_id={rejected} phase=1 status=403 rule_id=1100001 action=deny\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "invalid HTX transaction id"):
+                HELPER.write_host_evidence(
+                    str(host_evidence), "phase1_403", 1, 1100001, str(probe), 0,
+                    "enforced_reply", str(decision_log),
+                )
+
     def test_first_byte_evidence_binds_client_byte_to_paused_upstream(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

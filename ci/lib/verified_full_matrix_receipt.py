@@ -19,6 +19,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
+from verified_run_id import (
+    VERIFIED_RUN_ID_PATTERN,
+    VerifiedRunIdError,
+    validate_verified_run_id,
+)
+
 
 FULL_MATRIX_CONNECTORS = ("apache", "nginx", "haproxy")
 FULL_MATRIX_CRS_VARIANTS = ("no-crs", "with-crs")
@@ -27,7 +33,7 @@ RECEIPT_FILENAME = "full-matrix-aggregate-receipt.json"
 RECEIPT_TYPE = "verified-full-matrix-aggregate"
 RECEIPT_SCHEMA_VERSION = 1
 INTEGRATION_MODE = "full-matrix-parallel-runtime"
-RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+RUN_ID_PATTERN = VERIFIED_RUN_ID_PATTERN
 GIT_SHA_PATTERN = re.compile(r"[0-9a-f]{40,64}\Z")
 COMPLETE_RUNTIME_STATUSES = {"runtime_completed", "runtime_completed_with_mismatches"}
 COMPLETE_JOB_STATUSES = {"completed", "completed_with_mismatches"}
@@ -44,6 +50,13 @@ class _MissingReceiptPath(AggregateReceiptError):
     """A receipt component is absent rather than unsafe."""
 
 
+def _validated_verified_run_id(verified_run_id: str) -> str:
+    try:
+        return validate_verified_run_id(verified_run_id)
+    except VerifiedRunIdError as exc:
+        raise AggregateReceiptError(INVALID_VERIFIED_RUN_ID_MESSAGE) from exc
+
+
 def expected_full_matrix_job_ids() -> tuple[str, ...]:
     return tuple(
         f"{connector}:{crs}:{mrts}"
@@ -54,8 +67,7 @@ def expected_full_matrix_job_ids() -> tuple[str, ...]:
 
 
 def aggregate_receipt_path(build_root: Path, verified_run_id: str) -> Path:
-    if not RUN_ID_PATTERN.fullmatch(verified_run_id):
-        raise AggregateReceiptError(INVALID_VERIFIED_RUN_ID_MESSAGE)
+    verified_run_id = _validated_verified_run_id(verified_run_id)
     return build_root.absolute() / "verified-runs" / verified_run_id / RECEIPT_FILENAME
 
 
@@ -591,8 +603,7 @@ def build_full_matrix_aggregate_receipt(
     strict consumer so every field that is sealed is independently recomputed.
     """
 
-    if not RUN_ID_PATTERN.fullmatch(verified_run_id):
-        raise AggregateReceiptError(INVALID_VERIFIED_RUN_ID_MESSAGE)
+    verified_run_id = _validated_verified_run_id(verified_run_id)
     if profile != "full":
         raise AggregateReceiptError("aggregate receipt requires profile full")
     root = build_root.absolute()
@@ -641,8 +652,7 @@ def full_matrix_aggregate_receipt_record(
 ) -> dict[str, Any] | None:
     """Read an aggregate-receipt record through a pinned BUILD_ROOT descriptor."""
 
-    if not RUN_ID_PATTERN.fullmatch(verified_run_id):
-        raise AggregateReceiptError(INVALID_VERIFIED_RUN_ID_MESSAGE)
+    verified_run_id = _validated_verified_run_id(verified_run_id)
     root = build_root.absolute()
     with _open_root_directory(root) as root_descriptor:
         return _receipt_record_from_root(
@@ -660,8 +670,7 @@ def verified_command_receipt(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Read the Parent command receipt and its record through BUILD_ROOT's descriptor."""
 
-    if not RUN_ID_PATTERN.fullmatch(verified_run_id):
-        raise AggregateReceiptError(INVALID_VERIFIED_RUN_ID_MESSAGE)
+    verified_run_id = _validated_verified_run_id(verified_run_id)
     root = build_root.absolute()
     path = root / "verified-runs" / verified_run_id / "verified-commands.json"
     with _open_root_directory(root) as root_descriptor:
@@ -717,8 +726,7 @@ def seal_full_matrix_aggregate_receipt_record(
 ) -> dict[str, Any]:
     """Create one immutable receipt and return metadata from its open descriptor."""
 
-    if not RUN_ID_PATTERN.fullmatch(verified_run_id):
-        raise AggregateReceiptError(INVALID_VERIFIED_RUN_ID_MESSAGE)
+    verified_run_id = _validated_verified_run_id(verified_run_id)
     if profile != "full":
         raise AggregateReceiptError("aggregate receipt requires profile full")
 

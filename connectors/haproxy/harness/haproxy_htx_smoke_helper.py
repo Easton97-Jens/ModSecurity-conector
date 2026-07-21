@@ -35,6 +35,7 @@ CANONICAL_RULE_SNIPPETS = (
 )
 UPSTREAM_OK_BODY = b"haproxy-htx-upstream-ok\n"
 UPSTREAM_PHASE4_BODY = b"no-crs-response-body-marker\n"
+HTX_TRANSACTION_ID_MAX_LENGTH = 127
 DECISION_PATTERN = re.compile(
     r"transaction_id=(?P<transaction_id>[A-Za-z0-9._-]+) "
     r"phase=(?P<phase>[0-9]+) status=(?P<status>[0-9]+) "
@@ -92,7 +93,10 @@ def safe_token(value: object, label: str, maximum: int = 128) -> str:
 def safe_htx_transaction_id(value: object) -> str:
     """Return the request-ID grammar accepted by the native HTX filter."""
 
-    text = safe_token(value, "HTX transaction id", maximum=256)
+    # The native HTX context owns a `char transaction_id[128]`; reserve one
+    # byte for its terminating NUL and do not emit evidence the host cannot
+    # have accepted as the request correlation token.
+    text = safe_token(value, "HTX transaction id", maximum=HTX_TRANSACTION_ID_MAX_LENGTH)
     if re.fullmatch(r"[A-Za-z0-9._-]+", text) is None:
         raise ValueError("invalid HTX transaction id")
     return text
@@ -516,7 +520,7 @@ def decision_from_log(path: str, phase: int, rule_id: int) -> dict[str, object]:
         if not match:
             continue
         result = {
-            "transaction_id": match.group("transaction_id"),
+            "transaction_id": safe_htx_transaction_id(match.group("transaction_id")),
             "phase": int(match.group("phase")),
             "status": int(match.group("status")),
             "rule_id": int(match.group("rule_id")),
@@ -539,7 +543,7 @@ def late_decision_from_log(path: str, phase: int, rule_id: int) -> dict[str, obj
         if not match:
             continue
         result: dict[str, object] = {
-            "transaction_id": match.group("transaction_id"),
+            "transaction_id": safe_htx_transaction_id(match.group("transaction_id")),
             "phase": int(match.group("phase")),
             "status": int(match.group("status")),
             "rule_id": int(match.group("rule_id")),
@@ -695,7 +699,7 @@ def phase4_safe_event(
         raise ValueError("first-byte evidence has invalid body accounting")
     safe_run_id = safe_token(run_id, "run id", maximum=128)
     safe_transport_case = safe_token(transport_case_id, "transport case id")
-    transaction_id = safe_token(decision["transaction_id"], "transaction id", maximum=256)
+    transaction_id = safe_htx_transaction_id(decision["transaction_id"])
     record: dict[str, object] = {
         "connector": "haproxy",
         "event": "native_htx_phase4_late_intervention",

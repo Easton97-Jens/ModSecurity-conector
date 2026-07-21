@@ -2,8 +2,9 @@
 """Create a temporary documentation-reorganization inventory and move plan.
 
 This repository-maintenance tool reads tracked files only. Its audit outputs
-belong below ``${TMP_ROOT:-/tmp}/modsecurity-doc-cleanup`` so a planning
-snapshot never becomes a competing versioned report.
+use a private randomly named directory below ``${TMP_ROOT:-/tmp}`` so a
+planning snapshot never becomes a competing versioned report or follows a
+pre-created shared temporary path.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,7 +21,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK = ROOT / "modules" / "ModSecurity-test-Framework"
-AUDIT_ROOT = Path(os.environ.get("TMP_ROOT", "/tmp")) / "modsecurity-doc-cleanup"
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 VARIABLE_RE = re.compile(
     r"(?:\$\{?[A-Z][A-Z0-9_]*\}?|\$\([A-Z][A-Z0-9_]*\)|\b[A-Z][A-Z0-9_]{2,}\s*(?:\?|:|\+)?=)"
@@ -33,6 +34,15 @@ REFERENCE_RE = re.compile(r"(?:\bci/[\w./-]+|\bdocs/[\w./-]+|\breports/[\w./-]+|
 def tracked_files(directory: Path) -> list[str]:
     command = ["git", "-C", str(directory), "ls-files"]
     return subprocess.check_output(command, text=True).splitlines()
+
+
+def private_audit_root() -> Path:
+    """Allocate a private audit directory without reusing a predictable name."""
+    temporary_parent = Path(os.environ.get("TMP_ROOT") or tempfile.gettempdir())
+    temporary_parent.mkdir(parents=True, exist_ok=True)
+    return Path(
+        tempfile.mkdtemp(prefix="modsecurity-doc-cleanup-", dir=temporary_parent)
+    )
 
 
 def read_text(path: Path) -> str:
@@ -234,10 +244,11 @@ def main() -> None:
         "allowed_actions": ["keep", "move", "merge", "rewrite", "archive", "generate", "remove_duplicate"],
         "files": rows,
     }
-    AUDIT_ROOT.mkdir(parents=True, exist_ok=True)
-    (AUDIT_ROOT / "repository-organization-inventory.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    (AUDIT_ROOT / "repository-organization-plan.md").write_text(plan(rows, german=False), encoding="utf-8")
-    (AUDIT_ROOT / "repository-organization-plan.de.md").write_text(plan(rows, german=True), encoding="utf-8")
+    audit_root = private_audit_root()
+    (audit_root / "repository-organization-inventory.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (audit_root / "repository-organization-plan.md").write_text(plan(rows, german=False), encoding="utf-8")
+    (audit_root / "repository-organization-plan.de.md").write_text(plan(rows, german=True), encoding="utf-8")
+    print(f"repository-organization-inventory: wrote temporary inventory: {audit_root}")
 
 
 if __name__ == "__main__":

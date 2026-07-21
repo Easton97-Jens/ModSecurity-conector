@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import tempfile
 from pathlib import Path
 
 # CI helpers are shared from ci/lib even when this file is executed directly.
@@ -957,6 +958,15 @@ def build_payload(root: Path) -> dict[str, Any]:
     }
 
 
+def default_temporary_output_dir() -> Path:
+    """Allocate an unpredictable private directory below the configured temp root."""
+    temporary_parent = Path(os.environ.get("TMP_ROOT") or tempfile.gettempdir())
+    temporary_parent.mkdir(parents=True, exist_ok=True)
+    return Path(
+        tempfile.mkdtemp(prefix="modsecurity-connector-roadmap-", dir=temporary_parent)
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", type=Path, default=Path.cwd())
@@ -965,9 +975,8 @@ def main() -> int:
     args = parser.parse_args()
     root = args.connector_root.resolve()
     output_dir = (
-        args.output_dir
-        or Path(os.environ.get("TMP_ROOT", "/tmp")) / "modsecurity-doc-cleanup" / "connector-roadmap"
-    ).resolve()
+        args.output_dir.resolve() if args.output_dir else default_temporary_output_dir()
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = build_payload(root)
     metadata = build_metadata(
@@ -1001,7 +1010,7 @@ def main() -> int:
         ),
         encoding="utf-8",
     )
-    print("connector-roadmap: wrote temporary roadmap report")
+    print(f"connector-roadmap: wrote temporary roadmap report: {output_dir}")
     return 0
 
 

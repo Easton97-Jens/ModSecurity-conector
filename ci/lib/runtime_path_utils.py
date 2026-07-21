@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import stat
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -23,6 +24,7 @@ SYSTEM_WRITE_PREFIXES = (
 SYSTEM_WRITE_VAR_ALLOWLIST = (
     "/var/tmp",
 )
+TRUSTED_SHARED_TEMP_DIRECTORIES = (Path("/tmp"), Path("/var/tmp"))
 READ_ONLY_SOURCE_MOUNT_ROOTS = (Path("/src"),)
 BROAD_RUNTIME_ROOTS = (
     Path("/"),
@@ -30,6 +32,46 @@ BROAD_RUNTIME_ROOTS = (
     Path("/var/tmp"),
     Path("/home"),
 )
+WRITABLE_RUNTIME_PATH_KEYS = (
+    "VERIFIED_RUN_ROOT",
+    "VERIFIED_STATE_ROOT",
+    "VERIFIED_BUILD_ROOT",
+    "VERIFIED_SOURCE_ROOT",
+    "VERIFIED_TMP_ROOT",
+    "VERIFIED_LOG_ROOT",
+    "CACHE_ROOT",
+    "VERIFIED_COMPONENT_CACHE",
+    "NGINX_HARNESS_PARENT",
+    "BUILD_ROOT",
+    "SOURCE_ROOT",
+    "TMP_ROOT",
+    "LOG_ROOT",
+    "CONNECTOR_COMPONENT_CACHE",
+    "MATRIX_ROOT",
+    "MRTS_BUILD_ROOT",
+    "MRTS_NATIVE_ROOT",
+)
+
+
+def _absolute_path_without_resolution(path: Path | str) -> Path:
+    """Normalize a path lexically without following a possible symlink."""
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _contains_symbolic_link(path: Path | str) -> bool:
+    """Return whether an existing component would redirect this path."""
+    absolute = _absolute_path_without_resolution(path)
+    try:
+        return absolute.resolve(strict=False) != absolute
+    except OSError:
+        return True
+
+
+def _runtime_path(path: Path | str, label: str) -> Path:
+    absolute = _absolute_path_without_resolution(path)
+    if _contains_symbolic_link(absolute):
+        raise ValueError(f"{label} must not use symbolic links: {absolute}")
+    return absolute
 
 
 def _env_value(env: Mapping[str, str], name: str) -> str:
@@ -67,7 +109,11 @@ def default_verified_run_root(env: Mapping[str, str] | None = None) -> Path:
     values = env or os.environ
     parent_value = _env_value(values, "RUNNER_TEMP") or _env_value(values, "TMPDIR")
     fallback_parent = fixed_runtime_temp_parent()
-    parent = Path(parent_value).resolve(strict=False) if parent_value else fallback_parent
+    parent = (
+        _absolute_path_without_resolution(parent_value)
+        if parent_value
+        else fallback_parent
+    )
     if not is_safe_runtime_parent(parent):
         parent = fallback_parent
     return parent / DEFAULT_RUN_BASENAME
@@ -106,7 +152,9 @@ def is_configured_project_path(path: Path, env: Mapping[str, str] | None = None)
 
 def is_safe_runtime_parent(path: Path) -> bool:
     """Return whether an invocation parent is safe to derive a child run root."""
-    resolved = path.resolve(strict=False)
+    if _contains_symbolic_link(path):
+        return False
+    resolved = _absolute_path_without_resolution(path)
     if (
         resolved == Path("/")
         or resolved.parent == Path("/")
@@ -122,7 +170,9 @@ def is_safe_runtime_parent(path: Path) -> bool:
 
 def is_safe_runtime_root(path: Path) -> bool:
     """Return whether an exact invocation root is narrow enough for writes."""
-    resolved = path.resolve(strict=False)
+    if _contains_symbolic_link(path):
+        return False
+    resolved = _absolute_path_without_resolution(path)
     return resolved not in BROAD_RUNTIME_ROOTS and is_safe_runtime_parent(resolved)
 
 
@@ -171,30 +221,79 @@ def verified_runtime_paths(
     build_root_override: Path | str | None = None,
 ) -> dict[str, str]:
     values = env or os.environ
-    run_root = Path(_env_value(values, "VERIFIED_RUN_ROOT") or default_verified_run_root(values)).resolve()
+    run_root = _runtime_path(
+        _env_value(values, "VERIFIED_RUN_ROOT") or default_verified_run_root(values),
+        "VERIFIED_RUN_ROOT",
+    )
     if not is_safe_runtime_root(run_root):
         raise ValueError(f"VERIFIED_RUN_ROOT is unsafe for runtime writes: {run_root}")
-    state_root = Path(_env_value(values, "VERIFIED_STATE_ROOT") or run_root / "state").resolve()
-    verified_build_root = Path(_env_value(values, "VERIFIED_BUILD_ROOT") or run_root / "build").resolve()
-    verified_source_root = Path(_env_value(values, "VERIFIED_SOURCE_ROOT") or run_root / "src").resolve()
-    verified_tmp_root = Path(_env_value(values, "VERIFIED_TMP_ROOT") or run_root / "tmp").resolve()
-    verified_log_root = Path(_env_value(values, "VERIFIED_LOG_ROOT") or run_root / "logs").resolve()
-    cache_root = Path(_env_value(values, "CACHE_ROOT") or run_root / "cache-v2").resolve()
-    verified_component_cache = Path(_env_value(values, "VERIFIED_COMPONENT_CACHE") or cache_root / "shared").resolve()
+    state_root = _runtime_path(
+        _env_value(values, "VERIFIED_STATE_ROOT") or run_root / "state",
+        "VERIFIED_STATE_ROOT",
+    )
+    verified_build_root = _runtime_path(
+        _env_value(values, "VERIFIED_BUILD_ROOT") or run_root / "build",
+        "VERIFIED_BUILD_ROOT",
+    )
+    verified_source_root = _runtime_path(
+        _env_value(values, "VERIFIED_SOURCE_ROOT") or run_root / "src",
+        "VERIFIED_SOURCE_ROOT",
+    )
+    verified_tmp_root = _runtime_path(
+        _env_value(values, "VERIFIED_TMP_ROOT") or run_root / "tmp",
+        "VERIFIED_TMP_ROOT",
+    )
+    verified_log_root = _runtime_path(
+        _env_value(values, "VERIFIED_LOG_ROOT") or run_root / "logs",
+        "VERIFIED_LOG_ROOT",
+    )
+    cache_root = _runtime_path(
+        _env_value(values, "CACHE_ROOT") or run_root / "cache-v2",
+        "CACHE_ROOT",
+    )
+    verified_component_cache = _runtime_path(
+        _env_value(values, "VERIFIED_COMPONENT_CACHE") or cache_root / "shared",
+        "VERIFIED_COMPONENT_CACHE",
+    )
 
-    build_root = Path(
+    build_root = _runtime_path(
         build_root_override
         or _env_value(values, "BUILD_ROOT")
-        or verified_build_root
-    ).resolve()
-    source_root = Path(_env_value(values, "SOURCE_ROOT") or verified_source_root).resolve()
-    tmp_root = Path(_env_value(values, "TMP_ROOT") or verified_tmp_root).resolve()
-    log_root = Path(_env_value(values, "LOG_ROOT") or verified_log_root).resolve()
-    component_cache = Path(_env_value(values, "CONNECTOR_COMPONENT_CACHE") or verified_component_cache).resolve()
-    nginx_harness_parent = Path(_env_value(values, "NGINX_HARNESS_PARENT") or run_root / "nginx-harness").resolve()
-    matrix_root = Path(_env_value(values, "MATRIX_ROOT") or build_root / "full-matrix").resolve()
-    mrts_build_root = Path(_env_value(values, "MRTS_BUILD_ROOT") or build_root / "mrts").resolve()
-    mrts_native_root = Path(_env_value(values, "MRTS_NATIVE_ROOT") or build_root / "mrts-native").resolve()
+        or verified_build_root,
+        "BUILD_ROOT",
+    )
+    source_root = _runtime_path(
+        _env_value(values, "SOURCE_ROOT") or verified_source_root,
+        "SOURCE_ROOT",
+    )
+    tmp_root = _runtime_path(
+        _env_value(values, "TMP_ROOT") or verified_tmp_root,
+        "TMP_ROOT",
+    )
+    log_root = _runtime_path(
+        _env_value(values, "LOG_ROOT") or verified_log_root,
+        "LOG_ROOT",
+    )
+    component_cache = _runtime_path(
+        _env_value(values, "CONNECTOR_COMPONENT_CACHE") or verified_component_cache,
+        "CONNECTOR_COMPONENT_CACHE",
+    )
+    nginx_harness_parent = _runtime_path(
+        _env_value(values, "NGINX_HARNESS_PARENT") or run_root / "nginx-harness",
+        "NGINX_HARNESS_PARENT",
+    )
+    matrix_root = _runtime_path(
+        _env_value(values, "MATRIX_ROOT") or build_root / "full-matrix",
+        "MATRIX_ROOT",
+    )
+    mrts_build_root = _runtime_path(
+        _env_value(values, "MRTS_BUILD_ROOT") or build_root / "mrts",
+        "MRTS_BUILD_ROOT",
+    )
+    mrts_native_root = _runtime_path(
+        _env_value(values, "MRTS_NATIVE_ROOT") or build_root / "mrts-native",
+        "MRTS_NATIVE_ROOT",
+    )
 
     for label, path in (
         ("VERIFIED_STATE_ROOT", state_root),
@@ -238,6 +337,100 @@ def verified_runtime_paths(
         "MRTS_BUILD_ROOT": str(mrts_build_root),
         "MRTS_NATIVE_ROOT": str(mrts_native_root),
     }
+
+
+def ensure_safe_runtime_directory(path: Path | str) -> Path:
+    """Create or open one runtime directory without following path symlinks.
+
+    The returned leaf must be owned by the current user and not writable by
+    group or other users.  Existing safe directories retain their mode so
+    worker-readable directories stay compatible with the runtime harness.
+    """
+
+    directory_path = _runtime_path(path, "runtime directory")
+    if not is_safe_runtime_root(directory_path):
+        raise ValueError(f"runtime directory is unsafe for writes: {directory_path}")
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    directory_flag = getattr(os, "O_DIRECTORY", None)
+    if no_follow is None or directory_flag is None:
+        raise ValueError(
+            "safe runtime directories require O_NOFOLLOW and O_DIRECTORY support"
+        )
+
+    descriptor = os.open("/", os.O_RDONLY | directory_flag | no_follow)
+    current_path = Path("/")
+    shared_temp_root: Path | None = None
+    try:
+        for component in directory_path.parts[1:]:
+            try:
+                os.mkdir(component, 0o755, dir_fd=descriptor)
+            except FileExistsError:
+                pass
+            try:
+                child_descriptor = os.open(
+                    component,
+                    os.O_RDONLY | directory_flag | no_follow,
+                    dir_fd=descriptor,
+                )
+            except OSError as exc:
+                raise ValueError(
+                    f"runtime directory is unavailable or unsafe: {directory_path}: {exc}"
+                ) from exc
+            os.close(descriptor)
+            descriptor = child_descriptor
+            current_path /= component
+            details = os.fstat(descriptor)
+            if not stat.S_ISDIR(details.st_mode):
+                raise ValueError(f"runtime directory is not a directory: {current_path}")
+            if (
+                current_path not in TRUSTED_SHARED_TEMP_DIRECTORIES
+                and stat.S_IMODE(details.st_mode) & 0o022
+            ):
+                raise ValueError(
+                    "runtime directory has a group- or world-writable ancestor: "
+                    f"{current_path}"
+                )
+            if current_path in TRUSTED_SHARED_TEMP_DIRECTORIES:
+                shared_temp_root = current_path
+            elif (
+                shared_temp_root is not None
+                and details.st_uid not in {os.geteuid(), 0}
+            ):
+                raise ValueError(
+                    "runtime directory has an untrusted owner below shared temporary root "
+                    f"{shared_temp_root}: {current_path}"
+                )
+
+        details = os.fstat(descriptor)
+        if not stat.S_ISDIR(details.st_mode):
+            raise ValueError(f"runtime directory is not a directory: {directory_path}")
+        if details.st_uid != os.geteuid():
+            raise ValueError(
+                f"runtime directory is not owned by the current user: {directory_path}"
+            )
+        if stat.S_IMODE(details.st_mode) & 0o022:
+            raise ValueError(f"runtime directory is group- or world-writable: {directory_path}")
+    finally:
+        os.close(descriptor)
+    return directory_path
+
+
+def ensure_safe_writable_runtime_paths(paths: Mapping[str, str]) -> None:
+    """Materialize every write-capable verified runtime path without following links.
+
+    ``verified_runtime_paths()`` keeps canonical source locations available for
+    read-only inputs.  All other returned locations can become write sinks in
+    a lifecycle child, so create and inspect them before exporting the values.
+    """
+
+    for key in WRITABLE_RUNTIME_PATH_KEYS:
+        try:
+            path = Path(paths[key])
+        except KeyError as exc:
+            raise ValueError(f"missing verified runtime path: {key}") from exc
+        if key == "SOURCE_ROOT" and is_read_only_source_path(_runtime_path(path, key)):
+            continue
+        ensure_safe_runtime_directory(path)
 
 
 def path_status(

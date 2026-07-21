@@ -253,6 +253,46 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 CHECKER.check_verified_runtime_artifact_chain(connector_root, errors)
         self.assertEqual([], errors)
 
+    def test_main_threads_the_validated_build_root_to_strict_receipt_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root = root / "connector"
+            build_root = root / "build"
+            connector_root.mkdir()
+            build_root.mkdir()
+            with contextlib.ExitStack() as stack:
+                for name in (
+                    "check_registry_paths",
+                    "check_no_flat_reports",
+                    "check_no_orphan_generated_reports",
+                    "check_existing_generated_reports",
+                    "check_generated_markdown_portability",
+                    "check_verified_runtime_diagnostics",
+                    "check_system_environment_proof",
+                    "check_no_legacy_references",
+                    "check_no_flat_generator_writes",
+                    "check_no_runtime_source_url_hardcoding",
+                    "check_no_insecure_repo_url_literals",
+                ):
+                    stack.enter_context(mock.patch.object(CHECKER, name))
+                check_manifest = stack.enter_context(mock.patch.object(CHECKER, "check_manifest"))
+                check_consistency = stack.enter_context(
+                    mock.patch.object(CHECKER, "check_critical_report_run_consistency")
+                )
+                check_chain = stack.enter_context(mock.patch.object(CHECKER, "check_verified_runtime_artifact_chain"))
+                stack.enter_context(
+                    mock.patch.object(CHECKER, "verified_runtime_paths", return_value={"BUILD_ROOT": str(build_root)})
+                )
+                stack.enter_context(
+                    mock.patch.object(sys, "argv", ["check-generated-report-layout.py", "--connector-root", str(connector_root)])
+                )
+                self.assertEqual(0, CHECKER.main())
+
+        expected = build_root.absolute()
+        self.assertEqual(expected, check_manifest.call_args.kwargs["build_root"])
+        self.assertEqual(expected, check_consistency.call_args.kwargs["build_root"])
+        self.assertEqual(expected, check_chain.call_args.kwargs["build_root"])
+
     def test_paired_mutable_result_job_and_raw_forgery_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             connector_root, build_root, _ = self.build_valid_run(Path(temporary))
@@ -1072,6 +1112,121 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             errors: list[str] = []
             CHECKER.check_manifest(connector_root, errors, strict_evidence=True)
         self.assertEqual([], errors)
+
+    def test_critical_manifest_present_build_root_input_record_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root = root / "connector"
+            build_root = root / "build"
+            input_path = build_root / "runtime-receipt.json"
+            write_json(input_path, {"runtime": "receipt"})
+            refresh_manifest = {
+                "reports": [
+                    {
+                        "report_name": "full_runtime_matrix",
+                        "status": "generated",
+                        "output_files": [],
+                        "category": "runtime",
+                        "kind": "report",
+                        "owner": "parent",
+                        "severity": "critical",
+                        "input_status": "complete",
+                        "inputs": [
+                            {
+                                "path": "BUILD_ROOT:runtime-receipt.json",
+                                "status": "present",
+                                "sha256": sha256(input_path),
+                            }
+                        ],
+                        "missing_inputs": [],
+                        "empty_inputs": [],
+                        "unknown_inputs": [],
+                        "stale_inputs": [],
+                    }
+                ]
+            }
+            write_json(
+                connector_root / "reports/testing/generated/manifest/report-refresh-manifest.generated.json",
+                refresh_manifest,
+            )
+            errors: list[str] = []
+            CHECKER.check_manifest(connector_root, errors, strict_evidence=True, build_root=build_root)
+        self.assertEqual([], errors)
+
+    def test_german_generated_markdown_metadata_is_checked(self) -> None:
+        valid_german_report = (
+            "> Generierte Datei – nicht manuell bearbeiten.\n"
+            "> Erstellt unter: `2026-07-21T00:00:00Z`\n"
+            "> Verifizierte Lauf-ID: `verified-run-20260721`\n"
+            "> Datenquellenrichtlinie: `verified-inputs-only`\n\n"
+            "# Generierter Bericht\n\n"
+            "## Datenquellen\n\n"
+            "## Datenverfügbarkeit / fehlende Informationen\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary)
+            report = connector_root / "reports/testing/generated/runtime/example.generated.de.md"
+            report.parent.mkdir(parents=True)
+            report.write_text(valid_german_report, encoding="utf-8")
+            errors: list[str] = []
+            CHECKER.check_existing_generated_reports(connector_root, errors)
+            self.assertEqual([], errors)
+
+            report.write_text(valid_german_report.removeprefix("> Generierte Datei – nicht manuell bearbeiten.\n"), encoding="utf-8")
+            errors = []
+            CHECKER.check_existing_generated_reports(connector_root, errors)
+        self.assertTrue(any("missing generated notice at top" in error for error in errors), errors)
+
+    def test_english_generated_markdown_keeps_the_canonical_first_line_notice(self) -> None:
+        valid_english_report = (
+            f"> {CHECKER.GENERATED_NOTICE}\n"
+            "> Generated at: `2026-07-21T00:00:00Z`\n"
+            "> Verified run id: `verified-run-20260721`\n"
+            "> Data source policy: `verified-inputs-only`\n\n"
+            "# Generated Report\n\n"
+            "## Data Sources\n\n"
+            "## Data Availability / Missing Information\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary)
+            report = connector_root / "reports/testing/generated/runtime/example.generated.md"
+            report.parent.mkdir(parents=True)
+            report.write_text(valid_english_report, encoding="utf-8")
+            errors: list[str] = []
+            CHECKER.check_existing_generated_reports(connector_root, errors)
+            self.assertEqual([], errors)
+
+            report.write_text("**Language:** English\n\n" + valid_english_report, encoding="utf-8")
+            errors = []
+            CHECKER.check_existing_generated_reports(connector_root, errors)
+        self.assertTrue(any("missing generated notice at top" in error for error in errors), errors)
+
+    def test_registry_requires_the_german_generated_markdown_companion(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary)
+            report = CHECKER.GENERATED_REPORTS["runtime_matrix"]
+            english = CHECKER.report_path(connector_root, "runtime_matrix", "md")
+            english.parent.mkdir(parents=True)
+            english.write_text("generated\n", encoding="utf-8")
+            with mock.patch.object(CHECKER, "GENERATED_REPORTS", {"runtime_matrix": report}):
+                errors: list[str] = []
+                CHECKER.check_registry_paths(connector_root, errors)
+                self.assertTrue(any("runtime-matrix.generated.de.md: registry output missing" in error for error in errors), errors)
+
+                CHECKER.german_generated_markdown_path(english).write_text("generated\n", encoding="utf-8")
+                errors = []
+                CHECKER.check_registry_paths(connector_root, errors)
+        self.assertEqual([], errors)
+
+    def test_orphan_german_generated_report_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary)
+            orphan = connector_root / "reports/testing/generated/runtime/unregistered.generated.de.md"
+            orphan.parent.mkdir(parents=True)
+            orphan.write_text("generated\n", encoding="utf-8")
+            errors: list[str] = []
+            CHECKER.check_no_orphan_generated_reports(connector_root, errors)
+        self.assertTrue(any("unregistered.generated.de.md: generated file is not in registry" in error for error in errors), errors)
 
     def test_critical_manifest_parent_traversal_receipts_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

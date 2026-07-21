@@ -10,7 +10,10 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -19,6 +22,7 @@
 #include <strings.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #define AUTH_LISTEN_HOST_SIZE 64U
@@ -28,6 +32,8 @@
 #define AUTH_RESPONSE_SIZE 2048U
 #define AUTH_ERROR_SIZE 512U
 #define AUTH_REQUEST_LINE_OVERHEAD 16384U
+#define AUTH_CONNECTION_TIMEOUT_DEFAULT_MS 5000UL
+#define AUTH_CONNECTION_TIMEOUT_MAX_MS 600000UL
 
 typedef struct authorization_cli {
     const char *config_path;
@@ -35,6 +41,7 @@ typedef struct authorization_cli {
     int check_config;
     int serve;
     unsigned long max_requests;
+    unsigned long connection_timeout_ms;
 } authorization_cli;
 
 typedef struct parsed_http_request {
@@ -55,6 +62,10 @@ typedef struct parsed_http_request {
     int server_port;
 } parsed_http_request;
 
+typedef struct connection_deadline {
+    struct timespec expires_at;
+} connection_deadline;
+
 static volatile sig_atomic_t authorization_stop = 0;
 
 static void stop_service(int signal_number) {
@@ -65,7 +76,8 @@ static void stop_service(int signal_number) {
 static void print_usage(const char *program) {
     (void)fprintf(stderr,
         "usage: %s --check-config --config PATH\n"
-        "       %s --serve --config PATH --listen HOST:PORT [--max-requests N]\n",
+        "       %s --serve --config PATH --listen HOST:PORT [--max-requests N] "
+        "[--connection-timeout-ms N]\n",
         program, program);
 }
 
@@ -87,6 +99,7 @@ static int parse_unsigned_long(const char *value, unsigned long *out) {
 static int parse_cli(int argc, char **argv, authorization_cli *cli) {
     int index;
     memset(cli, 0, sizeof(*cli));
+    cli->connection_timeout_ms = AUTH_CONNECTION_TIMEOUT_DEFAULT_MS;
     for (index = 1; index < argc; ++index) {
         if (strcmp(argv[index], "--check-config") == 0) {
             cli->check_config = 1;
@@ -98,6 +111,13 @@ static int parse_cli(int argc, char **argv, authorization_cli *cli) {
             cli->listen_spec = argv[++index];
         } else if (strcmp(argv[index], "--max-requests") == 0 && index + 1 < argc) {
             if (!parse_unsigned_long(argv[++index], &cli->max_requests)) {
+                return 0;
+            }
+        } else if (strcmp(argv[index], "--connection-timeout-ms") == 0 &&
+            index + 1 < argc) {
+            if (!parse_unsigned_long(argv[++index], &cli->connection_timeout_ms) ||
+                cli->connection_timeout_ms == 0UL ||
+                cli->connection_timeout_ms > AUTH_CONNECTION_TIMEOUT_MAX_MS) {
                 return 0;
             }
         } else {
@@ -187,19 +207,112 @@ static char *find_header_end(char *buffer, size_t size) {
     return NULL;
 }
 
-static int recv_more(int socket_fd, char *buffer, size_t capacity, size_t *used) {
-    ssize_t received;
-    if (*used >= capacity) {
+/* Use an absolute monotonic deadline rather than an idle socket timeout so a
+ * peer that drips bytes cannot retain the synchronous accept loop forever. */
+static int connection_deadline_init(
+    connection_deadline *deadline,
+    unsigned long timeout_ms) {
+    if (deadline == NULL || timeout_ms == 0UL ||
+        timeout_ms > AUTH_CONNECTION_TIMEOUT_MAX_MS ||
+        clock_gettime(CLOCK_MONOTONIC, &deadline->expires_at) != 0) {
         return 0;
     }
-    do {
-        received = recv(socket_fd, buffer + *used, capacity - *used, 0);
-    } while (received < 0 && errno == EINTR && !authorization_stop);
-    if (received <= 0) {
-        return 0;
+    deadline->expires_at.tv_sec += (time_t)(timeout_ms / 1000UL);
+    deadline->expires_at.tv_nsec +=
+        (long)((timeout_ms % 1000UL) * 1000000UL);
+    if (deadline->expires_at.tv_nsec >= 1000000000L) {
+        ++deadline->expires_at.tv_sec;
+        deadline->expires_at.tv_nsec -= 1000000000L;
     }
-    *used += (size_t)received;
     return 1;
+}
+
+static int connection_deadline_remaining_ms(const connection_deadline *deadline) {
+    struct timespec now;
+    time_t seconds;
+    long nanoseconds;
+    if (deadline == NULL || clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+        return -1;
+    }
+    seconds = deadline->expires_at.tv_sec - now.tv_sec;
+    nanoseconds = deadline->expires_at.tv_nsec - now.tv_nsec;
+    if (nanoseconds < 0L) {
+        --seconds;
+        nanoseconds += 1000000000L;
+    }
+    if (seconds < 0 || (seconds == 0 && nanoseconds <= 0L)) {
+        return 0;
+    }
+    if (seconds > (time_t)(INT_MAX / 1000)) {
+        return INT_MAX;
+    }
+    return (int)(seconds * 1000 + (nanoseconds + 999999L) / 1000000L);
+}
+
+static int wait_for_socket(
+    int socket_fd,
+    short events,
+    const connection_deadline *deadline) {
+    struct pollfd descriptor;
+    int timeout_ms;
+    int result;
+    if (socket_fd < 0) {
+        return 0;
+    }
+    for (;;) {
+        timeout_ms = connection_deadline_remaining_ms(deadline);
+        if (timeout_ms <= 0) {
+            return -1;
+        }
+        memset(&descriptor, 0, sizeof(descriptor));
+        descriptor.fd = socket_fd;
+        descriptor.events = events;
+        result = poll(&descriptor, 1U, timeout_ms);
+        if (result < 0 && errno == EINTR && !authorization_stop) {
+            continue;
+        }
+        if (result == 0) {
+            return -1;
+        }
+        if (result < 0) {
+            return 0;
+        }
+        if ((descriptor.revents & events) != 0) {
+            return 1;
+        }
+        if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+            return 0;
+        }
+    }
+}
+
+static int recv_more(
+    int socket_fd,
+    void *buffer,
+    size_t capacity,
+    size_t *used,
+    const connection_deadline *deadline) {
+    ssize_t received;
+    if (buffer == NULL || used == NULL || *used >= capacity) {
+        return 0;
+    }
+    for (;;) {
+        const int ready = wait_for_socket(socket_fd, POLLIN, deadline);
+        if (ready != 1) {
+            return ready;
+        }
+        do {
+            received = recv(socket_fd, (char *)buffer + *used, capacity - *used, 0);
+        } while (received < 0 && errno == EINTR && !authorization_stop);
+        if (received < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            continue;
+        }
+        if (received <= 0) {
+            return 0;
+        }
+        *used += (size_t)received;
+        return 1;
+    }
 }
 
 static int http_token_character(unsigned char value);
@@ -373,6 +486,7 @@ static int read_request_body(
     const char *body_start,
     size_t buffered_body_size,
     size_t body_limit,
+    const connection_deadline *deadline,
     char *error,
     size_t error_len) {
     size_t content_length = 0U;
@@ -410,15 +524,13 @@ static int read_request_body(
         memcpy(request->body, body_start, copied);
     }
     while (copied < content_length) {
-        ssize_t received;
-        do {
-            received = recv(socket_fd, request->body + copied, content_length - copied, 0);
-        } while (received < 0 && errno == EINTR && !authorization_stop);
-        if (received <= 0) {
-            (void)snprintf(error, error_len, "%s", "incomplete request body");
+        const int received = recv_more(
+            socket_fd, request->body, content_length, &copied, deadline);
+        if (received != 1) {
+            (void)snprintf(error, error_len, "%s",
+                received < 0 ? "request body read timed out" : "incomplete request body");
             return 0;
         }
-        copied += (size_t)received;
     }
     request->body_size = content_length;
     return 1;
@@ -430,6 +542,7 @@ static int read_http_request(
     parsed_http_request *request,
     const struct sockaddr_in *peer,
     const struct sockaddr_in *local,
+    const connection_deadline *deadline,
     char *error,
     size_t error_len) {
     size_t header_limit = msconnector_runtime_total_header_limit(runtime);
@@ -451,8 +564,12 @@ static int read_http_request(
     }
     header_end = NULL;
     while (header_end == NULL) {
-        if (!recv_more(socket_fd, request->header_buffer, header_capacity, &used)) {
-            (void)snprintf(error, error_len, "%s", "incomplete HTTP request headers");
+        const int received = recv_more(
+            socket_fd, request->header_buffer, header_capacity, &used, deadline);
+        if (received != 1) {
+            (void)snprintf(error, error_len, "%s",
+                received < 0 ? "HTTP request headers timed out" :
+                "incomplete HTTP request headers");
             return 0;
         }
         header_end = find_header_end(request->header_buffer, used);
@@ -477,7 +594,8 @@ static int read_http_request(
     body_start = header_end + 4;
     buffered_body_size = used - (size_t)(body_start - request->header_buffer);
     if (!read_request_body(socket_fd, request, body_start, buffered_body_size,
-            msconnector_runtime_request_body_limit(runtime), error, error_len)) {
+            msconnector_runtime_request_body_limit(runtime), deadline,
+            error, error_len)) {
         return 0;
     }
     if (inet_ntop(AF_INET, &peer->sin_addr, request->client_address,
@@ -534,13 +652,24 @@ static const char *request_hostname(parsed_http_request *request) {
     return request->server_address;
 }
 
-static int send_all(int socket_fd, const char *data, size_t size) {
+static int send_all(
+    int socket_fd,
+    const char *data,
+    size_t size,
+    const connection_deadline *deadline) {
     size_t sent = 0U;
     while (sent < size) {
         ssize_t result;
+        const int ready = wait_for_socket(socket_fd, POLLOUT, deadline);
+        if (ready != 1) {
+            return 0;
+        }
         do {
             result = send(socket_fd, data + sent, size - sent, 0);
         } while (result < 0 && errno == EINTR && !authorization_stop);
+        if (result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            continue;
+        }
         if (result <= 0) {
             return 0;
         }
@@ -553,8 +682,10 @@ static int send_response(
     int socket_fd,
     int status,
     const char *transaction_id,
-    const char *decision_name) {
+    const char *decision_name,
+    unsigned long timeout_ms) {
     char response[AUTH_RESPONSE_SIZE];
+    connection_deadline deadline;
     const char *reason = msconnector_http_status_reason_phrase(status);
     const char *body = status >= 400 ? "request denied\n" : "request allowed\n";
     int written;
@@ -580,10 +711,14 @@ static int send_response(
     if (written < 0 || (size_t)written >= sizeof(response)) {
         return 0;
     }
-    return send_all(socket_fd, response, (size_t)written);
+    return connection_deadline_init(&deadline, timeout_ms) &&
+        send_all(socket_fd, response, (size_t)written, &deadline);
 }
 
 static int error_status_from_message(const char *message) {
+    if (message != NULL && strstr(message, "timed out") != NULL) {
+        return 408;
+    }
     if (message != NULL && strstr(message, "body") != NULL &&
         strstr(message, "limit") != NULL) {
         return 413;
@@ -606,7 +741,9 @@ static int handle_authorization_request(
     msconnector_runtime *runtime,
     const msconnector_http_authorization_profile *profile,
     const struct sockaddr_in *peer,
-    const struct sockaddr_in *local) {
+    const struct sockaddr_in *local,
+    const connection_deadline *read_deadline,
+    unsigned long timeout_ms) {
     parsed_http_request parsed;
     msconnector_generic_request_source source;
     msconnector_request_mapper_contract contract;
@@ -626,9 +763,10 @@ static int handle_authorization_request(
     msconnector_error_init(&common_error);
     msconnector_decision_set_allow(&decision);
     if (!read_http_request(client_fd, runtime, &parsed, peer, local,
-            error, sizeof(error))) {
+            read_deadline, error, sizeof(error))) {
         status = error_status_from_message(error);
-        (void)send_response(client_fd, status, NULL, "invalid_request");
+        (void)send_response(
+            client_fd, status, NULL, "invalid_request", timeout_ms);
         parsed_request_destroy(&parsed);
         return 0;
     }
@@ -680,7 +818,8 @@ static int handle_authorization_request(
             success = 0;
         }
     }
-    if (!send_response(client_fd, status, transaction_id, decision_name)) {
+    if (!send_response(
+            client_fd, status, transaction_id, decision_name, timeout_ms)) {
         success = 0;
     }
     msconnector_runtime_transaction_destroy(&transaction);
@@ -725,6 +864,15 @@ static int create_listener(
     return 1;
 }
 
+static int configure_client_socket(int socket_fd) {
+    int flags;
+    if (socket_fd < 0) {
+        return 0;
+    }
+    flags = fcntl(socket_fd, F_GETFL, 0);
+    return flags >= 0 && fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK) == 0;
+}
+
 static int serve_authorization(
     const authorization_cli *cli,
     const msconnector_http_authorization_profile *profile) {
@@ -762,6 +910,7 @@ static int serve_authorization(
         struct sockaddr_in peer = {0};
         socklen_t peer_size = sizeof(peer);
         int client_fd;
+        connection_deadline read_deadline;
         do {
             client_fd = accept(listener, (struct sockaddr *)&peer, &peer_size);
         } while (client_fd < 0 && errno == EINTR && !authorization_stop);
@@ -775,8 +924,18 @@ static int serve_authorization(
             msconnector_runtime_destroy(&runtime);
             return 1;
         }
+        if (!connection_deadline_init(
+                &read_deadline, cli->connection_timeout_ms) ||
+            !configure_client_socket(client_fd)) {
+            (void)fprintf(stderr, "%s client socket deadline setup failed: %s\n",
+                profile->connector_name, strerror(errno));
+            (void)close(client_fd);
+            ++handled;
+            continue;
+        }
         (void)handle_authorization_request(
-            client_fd, runtime, profile, &peer, &local);
+            client_fd, runtime, profile, &peer, &local,
+            &read_deadline, cli->connection_timeout_ms);
         (void)close(client_fd);
         ++handled;
     }
