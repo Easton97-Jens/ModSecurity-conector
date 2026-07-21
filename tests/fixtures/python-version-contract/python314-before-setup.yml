@@ -1,4 +1,4 @@
-name: python313 before setup
+name: python314 before setup
 
 on:
   workflow_dispatch:
@@ -7,11 +7,11 @@ jobs:
   fixture-job:
     runs-on: ubuntu-latest
     steps:
-      - name: Use python3.13 too soon
-        run: python3.13 -c 'print("unsafe")'
+      - name: Use python3.14 too soon
+        run: python3.14 -c 'print("unsafe")'
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: '.python-version'
           check-latest: false
