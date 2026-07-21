@@ -50,6 +50,165 @@ is invalid input/contract validation, and <code>77</code> means a missing
 optional or required environment prerequisite. See [Testing](../testing-and-evidence.md)
 for the status vocabulary.
 
+## Parent CI Python-version contract
+
+**Change record:** [CR-20260721-python314-go1265-toolchain-baseline](../../reports/audits/change-records/CR-20260721-python314-go1265-toolchain-baseline.md)
+
+This checked-in Parent GitHub Actions contract records the implemented
+interpreter strategy, workflow boundaries, and local static-validation
+evidence. It does not represent a GitHub Actions execution, remote CI run,
+pull request, review, or delivery result.
+
+### Canonical interpreter and strategy
+
+The committed root [`.python-version`](../../.python-version) is the sole
+machine-readable interpreter source. Its required content is the exact stable
+release <code>3.14.6</code>. Every Python-executing job in the inventory below
+must run `actions/setup-python` before its first direct or indirect Python use
+with:
+
+~~~yaml
+python-version-file: .python-version
+check-latest: false
+~~~
+
+The version literal must not be duplicated in workflow YAML. The setup action
+is separately action-pinned; an action-lock record is not an interpreter
+version source. The accepted setup reference is the existing immutable
+`actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0`
+pin that is also recorded in `ci/tooling/security-tools.lock.yml`; the
+contract checker must validate that same v7 reference rather than a stale v6
+expectation. After setup, the workflow contract must validate that `python`
+and `python3` select equivalent configured Python <code>3.14.6</code>
+interpreters before either name, a Python-backed Make target, or an indirect
+Framework check is used. No listed job may fall back to an ambient runner,
+bootstrap, virtual-environment, or system `python3` interpreter.
+
+| Alternative | Decision | Rationale |
+| --- | --- | --- |
+| Floating `3.14` | Rejected | A later runner/tool-cache resolution can silently select a different patch release, creating patch drift. |
+| Exact `3.14.6` from one committed `.python-version` file | Selected | The exact stable patch is reviewable and reproducible, while `python-version-file` gives every covered job the same source. |
+| Exact version plus a permanent canary workflow | Rejected | The independent, read-only candidate-validation stage below validates a proposed patch before publication; an additional canary would duplicate that control without changing the publisher trust boundary. |
+
+### Complete Parent workflow/job inventory
+
+This 22-job baseline inventory is the authoritative documentation table for
+the linked Change Record. “Existing minor-only setup” and “Ambient or
+bootstrapped Python” describe the historical adoption path before the
+contract was introduced; neither is a current selector. In the checked-in
+workflow contract, every row has the same explicit <code>3.14.6</code> setup
+and `python`/`python3` equivalence validation.
+
+| Workflow | Job | Python execution chain | Baseline condition |
+| --- | --- | --- | --- |
+| `all-connectors-no-crs.yml` | `no-crs` | Direct `python3`, Framework scripts, and Python-backed Make targets | Existing minor-only setup |
+| `all-connectors-no-crs.yml` | `aggregate` | Direct `python3` validation and summarization | Ambient or bootstrapped Python |
+| `check-actions-versions.yml` | `check-actions-versions` | `python3 scripts/check-github-actions-versions.py` | Existing minor-only setup |
+| `ci-security-secrets.yml` | `pull-request-range` | `python3 ci/tools/fetch_security_tool.py` | Ambient or bootstrapped Python |
+| `ci-security-secrets.yml` | `advisory-full-history` | `python3 ci/tools/fetch_security_tool.py` | Ambient or bootstrapped Python |
+| `ci-security-workflow-lint.yml` | `actionlint` | Python tool fetcher and `python3 -m unittest` | Ambient or bootstrapped Python |
+| `ci-security-workflow-lint.yml` | `zizmor` | Python tool fetcher | Ambient or bootstrapped Python |
+| `lint.yml` | `scaffold-lint` | Python documentation check and non-PR Python-backed setup/lint | Existing minor-only setup |
+| `open-connectors-smoke.yml` | `open-connectors-smoke` | Direct summary plus indirect Python Make targets | Existing minor-only setup |
+| `protocol-contract.yml` | `protocol-contract` | `python3 -m unittest` and protocol-client target | Existing minor-only setup |
+| `protocol-contract.yml` | `nginx-profile-and-client-preflight` | Inline `python3` and client Make target | Existing minor-only setup |
+| `quick-framework-check.yml` | `quick-check` | Indirect setup, matrix, and quick-check Python work | Existing minor-only setup |
+| `test-apache.yml` | `apache-structure` | Conditional non-PR Python setup and quick-check | Existing minor-only setup |
+| `test-common.yml` | `common-structure` | Conditional non-PR Python setup and quick-check | Existing minor-only setup |
+| `test-envoy.yml` | `envoy-contract` | Indirect Python in connector checks | Ambient or bootstrapped Python |
+| `test-full-smoke-sequential.yml` | `manual-heavy-runtime-validation` | `.venv/bin/python -m py_compile` and Python Make paths | Ambient or bootstrapped Python |
+| `test-lighttpd.yml` | `lighttpd-contract` | Indirect Python in connector and shared checks | Ambient or bootstrapped Python |
+| `test-nginx.yml` | `nginx-structure` | Conditional non-PR Python setup and quick-check | Existing minor-only setup |
+| `test-traefik.yml` | `traefik-contract` | Indirect Python in connector and shared checks | Ambient or bootstrapped Python |
+| `update-actions-versions.yml` | `update-actions-versions` | `python3 scripts/update-github-actions-versions.py --write` | Existing minor-only setup |
+| `update-submodules.yml` | `validate-submodule-update` | Indirect Python through `make quick-check` | Ambient or bootstrapped Python |
+| `verified-report-governance.yml` | `report-governance` | Indirect Python through `make report-governance` | Existing minor-only setup |
+
+The inventory deliberately excludes jobs that have no proven Python execution
+chain, such as action-only security scans, inline JavaScript cleanup, and
+shell-only checks. A new Python-executing job must join this contract before it
+is allowed to use Python. The static validator covers both `.yml` and `.yaml`
+workflow filenames.
+
+### Safe stable-patch updater contract
+
+The updater is separate from the 22 baseline jobs. The checked-in
+`.github/workflows/update-python-version.yml` has exactly three jobs:
+
+| Job | Interpreter and trust boundary | Required behavior |
+| --- | --- | --- |
+| `resolve-python-patch` | Runs the current canonical `.python-version`; read-only | Calls only the fixed official structured Python release API `https://www.python.org/api/v2/downloads/release/?is_published=true` through HTTPS with exact host `www.python.org`, no redirects, `application/json`, bounded response handling, and schema validation. `--check` strictly parses published, non-prerelease stable `3.14.N` values, reports a candidate only when it is a higher patch, and cannot downgrade or cross a minor series. |
+| `validate-python-patch` | Sets up the independently resolved candidate patch; read-only | Repeats the compatibility validation with the candidate interpreter before publication. It is independent of the resolver’s current-version interpreter and performs no source or branch mutation. |
+| `create-python-update-pr` | Runs the current canonical `.python-version`; default-branch-gated publisher | Re-resolves the candidate with `--expected-version` before `--update`; only this job receives `contents: write` and `pull-requests: write`, and only to create a proposed update pull request. |
+
+The only triggers are the scheduled Monday run and a manual
+`workflow_dispatch`; there is no push or pull-request trigger. Every job is
+gated to the repository default-branch ref and checks out that trusted default
+branch without submodules or persisted checkout credentials. The validation
+job sets up the independently resolved candidate version, re-resolves it, runs
+the fail-closed static contract, compiles the checked-in Python paths, and runs
+the focused Parent-native contract tests before the publisher can start.
+
+`--check` resolves and validates a candidate without changing files. `--update`
+is reserved for the publisher after the independent validation and expected-
+version re-resolution succeed. The publisher is not an updater for arbitrary
+Python versions: it accepts only the strict stable <code>3.14.N</code> format,
+never a lower patch, prerelease, alternate minor series, or unstructured/HTML
+release data.
+
+The publisher uses the constant branch
+`automation/update-python-314` and the stable title
+`chore(ci): propose Python 3.14 patch update`. It creates a Draft pull request
+when that branch does not exist, or updates an existing repository-owned Draft
+update pull request only after verifying its head repository, default base,
+and disabled automatic merge, then restricting its merge-base diff to
+`.python-version`; it refuses to overwrite a branch without that exact pull
+request. It therefore does not create duplicate update pull requests and never
+force-pushes. Its English/German pull-request body records the prior and
+proposed versions, official release identity, metadata source, validation
+workflow/run URL, `.python-version` as the only changed file, retained Python
+3.14 minor version, and absence of automatic merge.
+
+The publisher streams the bounded REST pull-list response directly from
+`gh api` into its strict duplicate-key JSON selector. The selector has no
+caller-controlled response-file path, so the publisher does not cross a
+response-file or symlink/TOCTOU boundary while reusing an existing Draft PR.
+
+The updater must not auto-merge, write the default branch, force-push, consume
+repository or user-provided `secrets.*`, initialize submodules, or execute an
+arbitrary project workload. The publisher may use only GitHub’s automatically
+provided job token, limited by its two job-scoped write permissions, to create
+the Draft pull request or update the existing open update pull request; its
+repository execution is limited to the
+fixed interpreter verification and updater paths. The resolver and validator
+remain read-only. The publisher’s limited write permissions, default-branch
+gate, revalidation at the write boundary, and PR-only output prevent metadata
+from directly mutating the default branch.
+
+The independent validation stage is the evidence boundary for a proposed
+patch; it is not a claim that a scheduled run, candidate, pull request, or
+merge has occurred. Those results require separately observed CI and delivery
+evidence.
+
+### Observed local implementation validation
+
+Before this baseline upgrade, the current-master invocation of
+`make check-python-version-contract` failed because its Python-specific
+checker expected the old v6 `actions/setup-python` pin although the checked-in
+workflows and the reviewed security lock already used the immutable v7 pin.
+The v7 checker repair is part of this exact-version change; it does not alter
+the existing workflow pin, lock entry, permissions, triggers, or publisher
+boundary.
+
+The available local executables are Python <code>3.14.4</code> and Go
+<code>1.26.0</code>, not the required exact Python <code>3.14.6</code> and Go
+<code>1.26.5</code> baselines. They can support source-level and static
+validation only. An exact GitHub-hosted workflow run that installs the two
+declared versions is required before this change can be treated as verified
+CI evidence. The linked Change Record records actual commands, their results,
+and any Framework-dependent documentation-check limitation without turning a
+local result into connector runtime or remote-CI evidence.
+
 ## Compiler and linker variables
 
 Use standard compiler environment variables only when the local toolchain

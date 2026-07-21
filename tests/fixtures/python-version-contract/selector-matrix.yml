@@ -1,0 +1,24 @@
+name: selector matrix
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fixture-job:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.14.6']
+    steps:
+      - name: Set up toolchain
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Use Python
+        run: python3 -c 'print("unsafe")'

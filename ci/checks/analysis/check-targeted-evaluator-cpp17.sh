@@ -42,6 +42,7 @@ case "$CPP_BUILD_ROOT" in
         echo "FAIL: CPP_BUILD_ROOT must be outside the checkout: $CPP_BUILD_ROOT" >&2
         exit 2
         ;;
+    *) : ;;
 esac
 mkdir -p "$CPP_BUILD_ROOT" || block "cannot create CPP_BUILD_ROOT: $CPP_BUILD_ROOT"
 CPP_BUILD_ROOT=$(CDPATH= cd -- "$CPP_BUILD_ROOT" && pwd -P) || block "cannot resolve CPP_BUILD_ROOT"

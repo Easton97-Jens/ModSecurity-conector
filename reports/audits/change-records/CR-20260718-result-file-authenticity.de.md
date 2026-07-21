@@ -135,7 +135,8 @@ PR-Worktree erstellt oder besitzt keine zweite Virtualenv.
 | In-Memory-`compile()`-Validierung der drei geänderten Python-Quellen | Bestanden ohne Versuch checkout-lokaler Bytecode-Schreibvorgänge. |
 | Striktes `make verified-report-evidence-gate` gegen aufbewahrte Evidence | Erwarteter Fehler: Es lehnt kritische Missing-Input-Zustände und nichtkanonische/fehlende Command-Receipts ab. Die bestehende stale Cross-Evidence `FND-CROSS-0001` bleibt ein separater fail-closed Blocker. |
 | Governance-only Generated-Report-Layout-Check gegen aufbewahrte Evidence | Bestanden: Der Governance-only-Modus ist keine Runtime-Evidence-Behauptung. |
-| `rtk git diff --check` | Bestanden. |
+| `rtk proxy /usr/bin/env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` nach der Post-Merge-Korrektur der sachlichen Aktualität | Bestanden: Das aktualisierte englische/deutsche Change-Record-Paar blieb strukturell und zweisprachig gültig. |
+| `rtk git diff --check` | Bestand für die ursprüngliche Strict-Chain-Änderung und erneut für die Post-Merge-Korrektur der sachlichen Aktualität. |
 
 ## Runtime-Evidence
 
@@ -159,10 +160,9 @@ einer Result-JSONL, ihres veränderbaren Job-Receipts und ihrer veränderbaren
 Raw-Matrix-Zeile. Dies erfordert einen abgekoppelten vertrauenswürdigen
 Producer-Aggregate-Receipt und wird durch `FND-PARENT-0031` adressiert; das
 Aggregate-Receipt-Zwischenverzeichnis-Follow-up ist `FND-PARENT-0037`. Beide
-werden zusammen mit `FND-PARENT-0030` im user-autorisierten gemeinsamen/
-gestaffelten, Parent-only-Kandidaten im Draft-Parent-PR #59 geliefert. Sie sind
-in diesem Kandidaten fixed, aber keines ist verified, closed oder
-risk-accepted; dieser Change Record behauptet nicht, dass P0030 allein eine
+wurden zusammen mit `FND-PARENT-0030` im user-autorisierten gemeinsamen/
+gestaffelten Parent-only-PR #59 geliefert. Ihre aktuellen kanonischen Findings
+sind `verified`; dieser Change Record behauptet nicht, dass P0030 allein eine
 der beiden Grenzen schließt.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
@@ -175,13 +175,20 @@ frühere Exact-Head-Validierung des Draft-Parent-PR #59 bei
 `d4f88b886dac6fd5f483940015d6310bc239f814` hatte 33 erfolgreiche und sechs
 übersprungene Checks; CodeQL und das SonarQube-Cloud-Quality-Gate bestanden.
 Diese Evidenz gilt nur für `d4f88b886dac6fd5f483940015d6310bc239f814`. Der
-Kandidat enthält nun eine normale lokale Synchronisierung von Parent-`master`
-`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` und bleibt ein Draft. Sein nächster
-gepushter Exact Head muss vor der Readiness frische Exact-Head-CI, CodeQL,
-SonarQube Cloud und PR-Review erhalten; die ursprüngliche Reproduktion ist nach
-einem Merge zu wiederholen. Kein Framework- oder MRTS-Test, keine task-eigene
-Gitlink-Änderung und keine Parent-master-Integration erfolgten, und keine
-Prüfung darf umgangen werden.
+finale Source-Head von PR #59 `b9b22cc36958ba506278f3aa3fbc1d383ea6a151`
+wurde über den geschützten Squash-Pfad als
+`5a22cbf5206dbc2b7f53a9f961d72e37d567e188` nach Parent-`master` gemergt,
+und zwar um `2026-07-20T15:09:01Z`; PR #59 ist damit kein Draft mehr und seine
+Parent-master-Integration steht nicht mehr aus. Diese beobachteten
+Delivery-Fakten erfinden keine fehlende Runtime-Evidence: Dieser Change Record
+beansprucht keine vollständige Connector-/Runtime-Matrix, keinen Framework-
+oder MRTS-Test und keine task-eigene Gitlink-Änderung; keine Prüfung wurde
+umgangen.
+
+`make check-doc-links` wurde für diese enge Record-Korrektur nicht ausgeführt,
+weil sein dokumentiertes Target den ausgeschlossenen Framework-
+Dokumentationschecker aufruft. `make check-bilingual-docs` ist die anwendbare
+Parent-only-Dokumentationsprüfung.
 
 Dieser Kandidat enthält außerdem die eng begrenzte, verhaltensgleiche
 `FND-SONAR-0006`-Nacharbeit für alle acht bei diesem Stand ermittelten
@@ -190,18 +197,22 @@ Consumer, Aggregate-Receipt-Generator und Runner, eine Konstante für
 wiederholte Run-ID-Diagnostik und eine präzisere Tamper-Assertion. Die neue
 lokale 57-Test-Receipt-Integrity-Suite, `sh -n`, der Bilingual-Check und
 `git diff --check` bestanden. Keine Receipt-, Pfad-, Hash- oder
-TOCTOU-Kontrolle wird geändert oder unterdrückt; ein neuer exakter Head muss
-vor der Readiness erneut SonarQube Cloud durchlaufen.
+TOCTOU-Kontrolle wird geändert oder unterdrückt. Der finale PR-Source-Head
+erhielt eine erfolgreiche SonarQube-Cloud-PR-Analyse mit null neuen Issues,
+null Security-Hotspots und `0.0%` Duplication on New Code; der aktuelle
+Master-weite Quality-Gate-Status bleibt eine unabhängige Beurteilung.
 
 ## Finaler Diff- und Review-Status
 
-Der Draft-Parent-PR #59 ist der user-autorisierte gemeinsame/gestaffelte,
-Parent-only-Delivery-Kandidat für `FND-PARENT-0030`, `FND-PARENT-0031` und
-`FND-PARENT-0037`. Alle drei sind auf diesem Kandidaten fixed, aber keines ist
-verified, closed oder risk-accepted. Sein zuvor validierter Head ist
-`d4f88b886dac6fd5f483940015d6310bc239f814`; dieser Kandidat enthält nun eine
-normale lokale Synchronisierung von Parent-`master`
-`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` und bleibt ein Draft. Frische
-Exact-Head-Checks und Review sowie die ursprüngliche Reproduktion nach dem
-Merge bleiben erforderlich. Es wird keine Framework-, MRTS- oder task-eigene
-Gitlink-Änderung und keine Parent-master-Integration behauptet.
+Parent-PR #59 war die user-autorisierte gemeinsame/gestaffelte,
+Parent-only-Delivery für `FND-PARENT-0030`, `FND-PARENT-0031` und
+`FND-PARENT-0037`. Sein finaler Source-Head
+`b9b22cc36958ba506278f3aa3fbc1d383ea6a151` wurde über den geschützten
+Squash-Pfad als `5a22cbf5206dbc2b7f53a9f961d72e37d567e188` nach
+Parent-`master` gemergt, und zwar um `2026-07-20T15:09:01Z`. Die aktuellen
+kanonischen Finding-Akten führen alle drei Remediations als `verified`. Der
+zuvor validierte Head `d4f88b886dac6fd5f483940015d6310bc239f814` bleibt
+historische Evidenz in seinem eigenen Scope. Es wird keine Framework-, MRTS-
+oder task-eigene Gitlink-Änderung behauptet; diese Korrektur der sachlichen
+Aktualität verändert weder die zugrunde liegenden Remediations noch ihre
+Security-Controls.

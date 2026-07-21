@@ -125,7 +125,8 @@ worktree does not create or own a second virtual environment.
 | In-memory `compile()` validation of the three changed Python sources | Passed without attempting checkout-local bytecode writes. |
 | Strict `make verified-report-evidence-gate` against retained evidence | Expected failure: it rejects critical missing input states and noncanonical/missing command receipts. Existing `FND-CROSS-0001` stale Cross evidence remains a separate fail-closed blocker. |
 | Governance-only generated-report layout check against retained evidence | Passed: governance-only mode is not a runtime-evidence assertion. |
-| `rtk git diff --check` | Passed. |
+| `rtk proxy /usr/bin/env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` after the post-merge factual-currency correction | Passed: the updated English/German Change Record pair remained structurally and bilingually valid. |
+| `rtk git diff --check` | Passed for the original strict-chain change and again for the post-merge factual-currency correction. |
 
 ## Runtime evidence
 
@@ -148,10 +149,10 @@ Independent review also reproduced a paired rewrite of a result JSONL, its
 mutable job receipt, and its mutable raw-matrix row. That requires a detached
 trusted producer aggregate receipt and is addressed by `FND-PARENT-0031`; the
 aggregate-receipt intermediate-directory follow-up is `FND-PARENT-0037`.
-Both are carried with `FND-PARENT-0030` in the user-authorized
-combined/stacked, Parent-only candidate in Draft Parent PR #59. They are fixed
-in that candidate, but none is verified, closed, or risk-accepted; this Change
-Record does not claim that P0030 alone closes either boundary.
+Both were delivered with `FND-PARENT-0030` in the user-authorized
+combined/stacked, Parent-only PR #59. Their current canonical findings are
+`verified`; this Change Record does not claim that P0030 alone closes either
+boundary.
 
 ## Checks not run and rationale
 
@@ -162,13 +163,19 @@ governance-only substitute. The observed prior exact-head validation for Draft
 Parent PR #59 at `d4f88b886dac6fd5f483940015d6310bc239f814` had 33 successful
 and six skipped checks, with CodeQL and the SonarQube Cloud Quality Gate
 passed. That evidence applies only to
-`d4f88b886dac6fd5f483940015d6310bc239f814`. This candidate now includes a
-normal local synchronization from Parent `master`
-`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` and remains a Draft. Its next
-pushed exact head must receive fresh exact-head CI, CodeQL, SonarQube Cloud,
-and PR review before readiness; the original reproduction must be repeated
-after a merge. No Framework or MRTS test, task-owned Gitlink change, or
-Parent-master integration occurred, and no check may be bypassed.
+`d4f88b886dac6fd5f483940015d6310bc239f814`. PR #59's final source head
+`b9b22cc36958ba506278f3aa3fbc1d383ea6a151` was merged through the protected
+squash path into Parent `master` as
+`5a22cbf5206dbc2b7f53a9f961d72e37d567e188` at
+`2026-07-20T15:09:01Z`; PR #59 is therefore no longer a Draft and its
+Parent-master integration is no longer pending. Those observed delivery facts
+do not invent missing runtime evidence: no full connector/runtime matrix,
+Framework or MRTS test, or task-owned Gitlink change is claimed by this Change
+Record, and no check was bypassed.
+
+`make check-doc-links` was not run for this narrow record correction because
+its documented target invokes the excluded Framework documentation checker.
+`make check-bilingual-docs` is the applicable Parent-only documentation check.
 
 This candidate also contains the narrow, behavior-preserving `FND-SONAR-0006`
 remediation for all eight then-current PR SonarQube Cloud maintainability code
@@ -176,18 +183,20 @@ smells: helper extraction in the strict consumer, aggregate-receipt generator
 and runner, a constant for repeated run-ID diagnostics, and a more precise
 tamper assertion. The fresh local 57-test receipt-integrity suite, `sh -n`,
 the bilingual check, and `git diff --check` passed. No receipt, path, hash, or
-TOCTOU control is changed or suppressed; a new exact head must receive fresh
-SonarQube Cloud analysis before readiness.
+TOCTOU control is changed or suppressed. The final PR source head received a
+successful SonarQube Cloud PR analysis with zero new issues, zero security
+hotspots, and `0.0%` duplication on new code; the current master-wide Quality
+Gate state remains an independent assessment.
 
 ## Final diff and review status
 
-Draft Parent PR #59 is the user-authorized combined/stacked, Parent-only
-delivery candidate for `FND-PARENT-0030`, `FND-PARENT-0031`, and
-`FND-PARENT-0037`. All three are fixed on that candidate, but none is verified,
-closed, or risk-accepted. Its previously validated head is
-`d4f88b886dac6fd5f483940015d6310bc239f814`; this candidate now includes a
-normal local synchronization from Parent `master`
-`6f80c90592fdd1f2eb990fe1514fdfc4efbf01e8` and remains a Draft. Fresh
-exact-head checks and review, and post-merge original reproduction remain
-required. No Framework, MRTS, or task-owned Gitlink change and no
-Parent-master integration is claimed.
+Parent PR #59 was the user-authorized combined/stacked, Parent-only delivery
+for `FND-PARENT-0030`, `FND-PARENT-0031`, and `FND-PARENT-0037`. Its final
+source head `b9b22cc36958ba506278f3aa3fbc1d383ea6a151` was merged through the
+protected squash path into Parent `master` as
+`5a22cbf5206dbc2b7f53a9f961d72e37d567e188` at `2026-07-20T15:09:01Z`.
+The current canonical finding records mark all three remediations `verified`.
+The previously validated head `d4f88b886dac6fd5f483940015d6310bc239f814`
+remains historical evidence at its own scope. No Framework, MRTS, or
+task-owned Gitlink change is claimed; this factual-currency correction does
+not alter the underlying remediations or their security controls.
