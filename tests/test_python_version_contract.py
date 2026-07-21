@@ -161,6 +161,25 @@ class PythonVersionContractTest(unittest.TestCase):
         self.assertIsNone(CHECKER.job_header("fixture-job: unexpected-value"))
         self.assertIsNone(CHECKER.mapping_entry("not a mapping"))
 
+    def test_structural_version_and_executable_recognition_remain_ascii_only(self) -> None:
+        for version in ("3.13.0", "3.13.1", "3.13.14"):
+            with self.subTest(version=version):
+                self.assertEqual(version, CHECKER.parse_exact_version(version, "test"))
+
+        for version in ("3.13.01", "3.13.\u0661", "3.13.1.0", "3.14.1"):
+            with self.subTest(version=version), self.assertRaises(
+                CHECKER.ContractInputError
+            ):
+                CHECKER.parse_exact_version(version, "test")
+
+        for command in ("python", "python3.13.14", "pip", "pip3.13"):
+            with self.subTest(command=command):
+                self.assertTrue(CHECKER.is_python_or_pip_command(command))
+
+        for command in ("python3.13.", "python3.13.\u0661", "pythonx", "pipy"):
+            with self.subTest(command=command):
+                self.assertFalse(CHECKER.is_python_or_pip_command(command))
+
     def test_linear_shell_parser_detects_commands_without_text_false_positives(self) -> None:
         self.assertEqual(
             "python3.13",
@@ -360,8 +379,9 @@ printf '%s\\n' 'make quick-check'
 
     def test_public_cli_rejects_user_controlled_root_and_nonliteral_version_file(self) -> None:
         stderr = io.StringIO()
+        argument_parser = CHECKER.parser()
         with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as context:
-            CHECKER.parser().parse_args(["--root", "/not-a-repository"])
+            argument_parser.parse_args(["--root", "/not-a-repository"])
         self.assertEqual(2, context.exception.code)
 
         output = io.StringIO()

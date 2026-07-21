@@ -19,7 +19,6 @@ import textwrap
 from typing import Iterable, Sequence
 
 
-EXACT_PYTHON_313 = re.compile(r"3\.13\.(?:0|[1-9][0-9]*)\Z")
 CANONICAL_VERSION_FILE = ".python-version"
 SETUP_PYTHON_ACTION = "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
 SETUP_PYTHON_RELEASE_COMMENT = "# v6.3.0"
@@ -37,6 +36,7 @@ CANDIDATE_VERIFIER_COMMAND = (
     f'python3 {VERIFIER_PATH} --expected-version "$EXPECTED_VERSION" '
     '--expected-python "$EXPECTED_PYTHON"'
 )
+UPDATE_PYTHON_VERSION_WORKFLOW = "update-python-version.yml"
 
 
 @dataclass(frozen=True, order=True)
@@ -76,8 +76,8 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("test-nginx.yml", "nginx-structure"),
         JobIdentity("test-traefik.yml", "traefik-contract"),
         JobIdentity("update-actions-versions.yml", "update-actions-versions"),
-        JobIdentity("update-python-version.yml", "create-python-update-pr"),
-        JobIdentity("update-python-version.yml", "resolve-python-patch"),
+        JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "create-python-update-pr"),
+        JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "resolve-python-patch"),
         JobIdentity("update-submodules.yml", "validate-submodule-update"),
         JobIdentity("verified-report-governance.yml", "report-governance"),
     }
@@ -87,7 +87,7 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
 # does not permit ambient Python: the candidate version and setup-python path
 # are both checked by the stricter verifier shape below.
 CANDIDATE_VALIDATION_JOB = JobIdentity(
-    "update-python-version.yml", "validate-python-patch"
+    UPDATE_PYTHON_VERSION_WORKFLOW, "validate-python-patch"
 )
 
 # The list is intentionally explicit.  Broadly classifying every Make target
@@ -120,13 +120,11 @@ KNOWN_PYTHON_MAKE_TARGETS = frozenset(
     }
 )
 
-# Match executable basenames after a shell command boundary.  The code below
-# deliberately does not search arbitrary shell text: `echo python3`, comments,
-# and here-document bodies are not interpreter executions.  Versioned and
-# absolute/venv forms remain covered through `is_python_or_pip_command()`.
-PYTHON_OR_PIP_BASENAME = re.compile(
-    r"(?:python(?:[0-9]+(?:\.[0-9]+)*)?|pip(?:[0-9]+(?:\.[0-9]+)*)?)\Z"
-)
+# Executable basenames are recognized structurally below rather than with a
+# regular expression.  The scanner deliberately does not search arbitrary
+# shell text: `echo python3`, comments, and here-document bodies are not
+# interpreter executions.  Versioned and absolute/venv forms remain covered
+# through `is_python_or_pip_command()`.
 MAX_SHELL_SOURCE_LENGTH = 131_072
 MAX_SHELL_NESTING = 32
 SHELL_CONTROL_WORDS = frozenset(
@@ -191,15 +189,8 @@ class Step:
     lines: list[tuple[int, str]]
 
     def scalar(self, key: str) -> str | None:
-        for position, (_, line) in enumerate(self.lines):
-            indent = indentation(line)
-            tail = line[indent:]
-            if position == 0 and indent == self.indent and tail.startswith("- "):
-                tail = tail[2:]
-            elif indent != self.indent + 2:
-                continue
-            entry = mapping_entry(tail)
-            if entry is not None and entry[0] == key:
+        for _, _, entry in direct_step_entries(self.lines, self.indent):
+            if entry[0] == key:
                 return clean_scalar(entry[1])
         return None
 
@@ -210,65 +201,27 @@ class Step:
         must be checked before `clean_scalar()` removes a YAML comment.
         """
 
-        for position, (_, line) in enumerate(self.lines):
-            indent = indentation(line)
-            tail = line[indent:]
-            if position == 0 and indent == self.indent and tail.startswith("- "):
-                tail = tail[2:]
-            elif indent != self.indent + 2:
-                continue
-            entry = mapping_entry(tail)
-            if entry is not None and entry[0] == key:
+        for _, _, entry in direct_step_entries(self.lines, self.indent):
+            if entry[0] == key:
                 return entry[1].strip()
         return None
 
     def nested_mapping(self, key: str) -> dict[str, str]:
-        for position, (_, line) in enumerate(self.lines):
-            indent = indentation(line)
-            tail = line[indent:]
-            if position == 0 and indent == self.indent and tail.startswith("- "):
-                tail = tail[2:]
-            elif indent != self.indent + 2:
-                continue
-            entry = mapping_entry(tail)
-            if entry is None or entry[0] != key:
-                continue
-
-            result: dict[str, str] = {}
-            for _, child_line in self.lines[position + 1 :]:
-                child_indent = indentation(child_line)
-                if child_line.strip() and child_indent <= indent:
-                    break
-                if child_indent != indent + 2:
-                    continue
-                child_entry = mapping_entry(child_line[child_indent:])
-                if child_entry is not None:
-                    result[child_entry[0]] = clean_scalar(child_entry[1])
-            return result
+        for position, parent_indent, entry in direct_step_entries(
+            self.lines, self.indent
+        ):
+            if entry[0] == key:
+                return direct_child_mapping(self.lines[position + 1 :], parent_indent)
         return {}
 
     def run(self) -> str:
-        for position, (_, line) in enumerate(self.lines):
-            indent = indentation(line)
-            tail = line[indent:]
-            if position == 0 and indent == self.indent and tail.startswith("- "):
-                tail = tail[2:]
-            elif indent != self.indent + 2:
-                continue
-            entry = mapping_entry(tail)
-            if entry is None or entry[0] != "run":
-                continue
-            value = clean_scalar(entry[1])
-            if not value.startswith(("|", ">")):
-                return value
-
-            body: list[str] = []
-            for _, child_line in self.lines[position + 1 :]:
-                child_indent = indentation(child_line)
-                if child_line.strip() and child_indent <= indent:
-                    break
-                body.append(child_line)
-            return textwrap.dedent("\n".join(body)).strip()
+        for position, parent_indent, entry in direct_step_entries(
+            self.lines, self.indent
+        ):
+            if entry[0] == "run":
+                return step_run_value(
+                    entry[1], self.lines[position + 1 :], parent_indent
+                )
         return ""
 
 
@@ -291,38 +244,127 @@ class Job:
         return None
 
     def steps(self) -> list[Step]:
-        steps_line = None
-        for position, (_, line) in enumerate(self.lines):
-            if indentation(line) == self.indent + 2 and line.strip() == "steps:":
-                steps_line = position
-                break
+        steps_line = steps_mapping_index(self.lines, self.indent)
         if steps_line is None:
             return []
-
-        step_indent = self.indent + 4
-        result: list[Step] = []
-        current: list[tuple[int, str]] | None = None
-        current_start = 0
-        for line_number, line in self.lines[steps_line + 1 :]:
-            indent = indentation(line)
-            if line.strip() and indent <= self.indent + 2:
-                break
-            if indent == step_indent and line[indent:].startswith("- "):
-                if current is not None:
-                    result.append(
-                        Step(len(result), current_start, step_indent, current)
-                    )
-                current = [(line_number, line)]
-                current_start = line_number
-            elif current is not None:
-                current.append((line_number, line))
-        if current is not None:
-            result.append(Step(len(result), current_start, step_indent, current))
-        return result
+        return build_steps(self.lines[steps_line + 1 :], self.indent)
 
 
 def indentation(line: str) -> int:
     return len(line) - len(line.lstrip(" "))
+
+
+def step_mapping_tail(
+    line: str, position: int, step_indent: int, line_indent: int
+) -> str | None:
+    """Return a direct step-mapping tail in the supported YAML subset."""
+
+    tail = line[line_indent:]
+    if position == 0 and line_indent == step_indent and tail.startswith("- "):
+        return tail[2:]
+    if line_indent == step_indent + 2:
+        return tail
+    return None
+
+
+def direct_step_entries(
+    lines: Sequence[tuple[int, str]], step_indent: int
+) -> Iterable[tuple[int, int, tuple[str, str]]]:
+    """Yield direct mapping entries from one workflow step."""
+
+    for position, (_, line) in enumerate(lines):
+        line_indent = indentation(line)
+        tail = step_mapping_tail(line, position, step_indent, line_indent)
+        if tail is None:
+            continue
+        entry = mapping_entry(tail)
+        if entry is not None:
+            yield position, line_indent, entry
+
+
+def direct_child_mapping(
+    lines: Sequence[tuple[int, str]], parent_indent: int
+) -> dict[str, str]:
+    """Collect direct scalar children until the parent mapping ends."""
+
+    result: dict[str, str] = {}
+    for _, child_line in lines:
+        child_indent = indentation(child_line)
+        if child_line.strip() and child_indent <= parent_indent:
+            break
+        if child_indent != parent_indent + 2:
+            continue
+        child_entry = mapping_entry(child_line[child_indent:])
+        if child_entry is not None:
+            result[child_entry[0]] = clean_scalar(child_entry[1])
+    return result
+
+
+def step_run_value(
+    value: str, following_lines: Sequence[tuple[int, str]], parent_indent: int
+) -> str:
+    """Return a supported inline or block ``run`` value."""
+
+    scalar = clean_scalar(value)
+    if not scalar.startswith(("|", ">")):
+        return scalar
+    return textwrap.dedent("\n".join(block_lines(following_lines, parent_indent))).strip()
+
+
+def block_lines(
+    lines: Sequence[tuple[int, str]], parent_indent: int
+) -> list[str]:
+    """Return a YAML block body without crossing its parent indentation."""
+
+    result: list[str] = []
+    for _, line in lines:
+        if line.strip() and indentation(line) <= parent_indent:
+            break
+        result.append(line)
+    return result
+
+
+def steps_mapping_index(lines: Sequence[tuple[int, str]], job_indent: int) -> int | None:
+    """Locate the direct ``steps:`` mapping in a parsed job."""
+
+    for position, (_, line) in enumerate(lines):
+        if indentation(line) == job_indent + 2 and line.strip() == "steps:":
+            return position
+    return None
+
+
+def append_step(
+    result: list[Step],
+    lines: list[tuple[int, str]] | None,
+    start_line: int,
+    step_indent: int,
+) -> None:
+    """Append one accumulated workflow step when one is available."""
+
+    if lines is not None:
+        result.append(Step(len(result), start_line, step_indent, lines))
+
+
+def build_steps(lines: Sequence[tuple[int, str]], job_indent: int) -> list[Step]:
+    """Split the bounded YAML ``steps:`` body into individual steps."""
+
+    step_indent = job_indent + 4
+    result: list[Step] = []
+    current: list[tuple[int, str]] | None = None
+    current_start = 0
+    for line_number, line in lines:
+        line_indent = indentation(line)
+        if line.strip() and line_indent <= job_indent + 2:
+            break
+        if line_indent == step_indent and line[line_indent:].startswith("- "):
+            append_step(result, current, current_start, step_indent)
+            current = [(line_number, line)]
+            current_start = line_number
+            continue
+        if current is not None:
+            current.append((line_number, line))
+    append_step(result, current, current_start, step_indent)
+    return result
 
 
 def is_mapping_key(value: str) -> bool:
@@ -379,8 +421,26 @@ def repository_root() -> Path:
     return next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
 
 
+def is_ascii_decimal(value: str) -> bool:
+    """Return whether *value* contains one or more ASCII decimal digits."""
+
+    return bool(value) and all("0" <= character <= "9" for character in value)
+
+
+def is_exact_python_313_version(value: str) -> bool:
+    """Return whether *value* is the accepted ``3.13.N`` version shape."""
+
+    prefix = "3.13."
+    if not value.startswith(prefix):
+        return False
+    patch = value.removeprefix(prefix)
+    return patch == "0" or (
+        bool(patch) and patch[0] != "0" and is_ascii_decimal(patch)
+    )
+
+
 def parse_exact_version(value: str, source: str) -> str:
-    if not EXACT_PYTHON_313.fullmatch(value):
+    if not is_exact_python_313_version(value):
         raise ContractInputError(
             f"{source} must be an exact Python 3.13.N version; got {value!r}"
         )
@@ -452,57 +512,102 @@ def workflow_files(root: Path) -> tuple[list[Path], list[str]]:
     return result, violations
 
 
-def parse_jobs(path: Path) -> tuple[dict[JobIdentity, Job], list[str]]:
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except UnicodeDecodeError as exc:
-        return {}, [f"cannot decode workflow {path.name}: {exc}"]
-    except OSError as exc:
-        return {}, [f"cannot read workflow {path.name}: {exc}"]
+def read_workflow_lines(path: Path) -> tuple[list[str] | None, list[str]]:
+    """Read a workflow as text without broadening the parser boundary."""
 
-    jobs_start = None
+    try:
+        return path.read_text(encoding="utf-8").splitlines(), []
+    except UnicodeDecodeError as exc:
+        return None, [f"cannot decode workflow {path.name}: {exc}"]
+    except OSError as exc:
+        return None, [f"cannot read workflow {path.name}: {exc}"]
+
+
+def jobs_mapping_index(lines: Sequence[str]) -> int | None:
+    """Locate the top-level ``jobs:`` mapping when it exists."""
+
     for index, line in enumerate(lines):
         if indentation(line) == 0 and line.strip() == "jobs:":
-            jobs_start = index
+            return index
+    return None
+
+
+def starts_top_level_section(line: str) -> bool:
+    """Return whether a nonblank line ends the current ``jobs:`` section."""
+
+    return bool(line.strip()) and indentation(line) == 0
+
+
+def job_block_transition(
+    line: str, current_indent: int | None
+) -> tuple[int | None, str | None]:
+    """Return the selected job indentation and any new job header."""
+
+    line_indent = indentation(line)
+    header = job_header(line[line_indent:])
+    if header is None:
+        return current_indent, None
+    if current_indent is None:
+        return line_indent, header
+    if line_indent == current_indent:
+        return current_indent, header
+    return current_indent, None
+
+
+def workflow_job_blocks(
+    path: Path, lines: Sequence[str], jobs_start: int
+) -> Iterable[tuple[JobIdentity, int, list[tuple[int, str]]]]:
+    """Yield the narrow, indentation-delimited jobs below ``jobs:``."""
+
+    job_indent: int | None = None
+    current_identity: JobIdentity | None = None
+    current_lines: list[tuple[int, str]] = []
+    for line_number, line in enumerate(lines[jobs_start + 1 :], start=jobs_start + 2):
+        if starts_top_level_section(line):
             break
+        job_indent, header = job_block_transition(line, job_indent)
+        if header is not None:
+            if current_identity is not None:
+                assert job_indent is not None
+                yield current_identity, job_indent, current_lines
+            current_identity = JobIdentity(path.name, header)
+            current_lines = [(line_number, line)]
+            continue
+        if current_identity is not None:
+            current_lines.append((line_number, line))
+    if current_identity is not None:
+        assert job_indent is not None
+        yield current_identity, job_indent, current_lines
+
+
+def add_job_block(
+    result: dict[JobIdentity, Job],
+    violations: list[str],
+    identity: JobIdentity,
+    job_indent: int,
+    lines: list[tuple[int, str]],
+) -> None:
+    """Record one workflow job or retain the existing duplicate diagnostic."""
+
+    if identity in result:
+        violations.append(f"duplicate workflow job: {identity.display()}")
+        return
+    result[identity] = Job(identity, job_indent, list(lines))
+
+
+def parse_jobs(path: Path) -> tuple[dict[JobIdentity, Job], list[str]]:
+    lines, read_errors = read_workflow_lines(path)
+    if lines is None:
+        return {}, read_errors
+
+    jobs_start = jobs_mapping_index(lines)
     if jobs_start is None:
         return {}, []
 
     result: dict[JobIdentity, Job] = {}
     violations: list[str] = []
-    job_indent: int | None = None
-    current_identity: JobIdentity | None = None
-    current_lines: list[tuple[int, str]] = []
-
-    def finish_current() -> None:
-        if current_identity is None:
-            return
-        if current_identity in result:
-            violations.append(f"duplicate workflow job: {current_identity.display()}")
-            return
-        assert job_indent is not None
-        result[current_identity] = Job(current_identity, job_indent, list(current_lines))
-
-    for line_number, line in enumerate(lines[jobs_start + 1 :], start=jobs_start + 2):
-        if line.strip() and indentation(line) == 0:
-            break
-        if not line.strip():
-            if current_identity is not None:
-                current_lines.append((line_number, line))
-            continue
-        indent = indentation(line)
-        if indent <= 0:
-            continue
-        header = job_header(line[indent:])
-        if job_indent is None and header is not None:
-            job_indent = indent
-        if job_indent is not None and indent == job_indent and header is not None:
-            finish_current()
-            current_identity = JobIdentity(path.name, header)
-            current_lines = [(line_number, line)]
-        elif current_identity is not None:
-            current_lines.append((line_number, line))
-    finish_current()
+    for identity, job_indent, job_lines in workflow_job_blocks(path, lines, jobs_start):
+        add_job_block(result, violations, identity, job_indent, job_lines)
     return result, violations
 
 
@@ -554,6 +659,25 @@ class ShellAnalysis:
     errors: tuple[str, ...]
 
 
+@dataclass
+class ShellScanState:
+    """Mutable state for one bounded linear shell scan."""
+
+    cursor: int
+    words: list[ShellWord]
+    redirection_target: bool = False
+
+
+@dataclass
+class ShellWordReadState:
+    """Mutable state while consuming one source-only shell word."""
+
+    characters: list[str]
+    dynamic: bool = False
+    quote: str | None = None
+    stopped: bool = False
+
+
 def command_basename(command: str) -> str:
     return command.rsplit("/", 1)[-1]
 
@@ -567,14 +691,30 @@ def static_command_basename(word: ShellWord) -> str | None:
     return basename
 
 
+def is_dotted_ascii_decimal(value: str) -> bool:
+    """Return whether *value* is one or more dotted ASCII decimal components."""
+
+    return all(is_ascii_decimal(component) for component in value.split("."))
+
+
+def is_versioned_command_name(command: str, prefix: str) -> bool:
+    """Recognize an unversioned or dotted-ASCII-version executable name."""
+
+    if not command.startswith(prefix):
+        return False
+    suffix = command.removeprefix(prefix)
+    return not suffix or is_dotted_ascii_decimal(suffix)
+
+
 def is_python_or_pip_command(command: str) -> bool:
-    return PYTHON_OR_PIP_BASENAME.fullmatch(command_basename(command)) is not None
+    basename = command_basename(command)
+    return any(
+        is_versioned_command_name(basename, prefix) for prefix in ("python", "pip")
+    )
 
 
 def is_bare_pip_command(command: str) -> bool:
-    return command_basename(command).startswith("pip") and (
-        PYTHON_OR_PIP_BASENAME.fullmatch(command_basename(command)) is not None
-    )
+    return is_versioned_command_name(command_basename(command), "pip")
 
 
 def read_heredoc_delimiter(
@@ -621,6 +761,48 @@ def read_heredoc_delimiter(
     return delimiter, strip_tabs, cursor, None
 
 
+def advance_heredoc_quote(
+    line: str, cursor: int, quote: str
+) -> tuple[int, str | None]:
+    """Advance one quoted character while looking only for heredoc openings."""
+
+    character = line[cursor]
+    if character == "\\" and quote == '"':
+        return cursor + 2, quote
+    if character == quote:
+        return cursor + 1, None
+    return cursor + 1, quote
+
+
+def shell_comment_starts(line: str, cursor: int) -> bool:
+    """Return whether ``#`` begins a supported shell comment."""
+
+    if line[cursor] != "#":
+        return False
+    return cursor == 0 or line[cursor - 1].isspace() or line[cursor - 1] in ";|&"
+
+
+def heredoc_starts_at(line: str, cursor: int) -> bool:
+    """Return whether the cursor starts a possible here-document operator."""
+
+    return line[cursor] == "<" and cursor + 1 < len(line) and line[cursor + 1] == "<"
+
+
+def record_heredoc_opening(
+    openings: list[tuple[str, bool]],
+    errors: list[str],
+    delimiter: str | None,
+    strip_tabs: bool,
+    error: str | None,
+) -> None:
+    """Retain a valid delimiter or its fail-closed scanner error."""
+
+    if error is not None:
+        errors.append(error)
+    elif delimiter is not None:
+        openings.append((delimiter, strip_tabs))
+
+
 def heredoc_openings(line: str) -> tuple[list[tuple[str, bool]], list[str]]:
     """Find static here-document openings outside comments and shell quotes."""
 
@@ -631,13 +813,7 @@ def heredoc_openings(line: str) -> tuple[list[tuple[str, bool]], list[str]]:
     while cursor < len(line):
         character = line[cursor]
         if quote is not None:
-            if character == "\\" and quote == '"':
-                cursor += 2
-            elif character == quote:
-                quote = None
-                cursor += 1
-            else:
-                cursor += 1
+            cursor, quote = advance_heredoc_quote(line, cursor, quote)
             continue
         if character in {"'", '"'}:
             quote = character
@@ -646,16 +822,11 @@ def heredoc_openings(line: str) -> tuple[list[tuple[str, bool]], list[str]]:
         if character == "\\":
             cursor += 2
             continue
-        if character == "#" and (
-            cursor == 0 or line[cursor - 1].isspace() or line[cursor - 1] in ";|&"
-        ):
+        if shell_comment_starts(line, cursor):
             break
-        if character == "<" and cursor + 1 < len(line) and line[cursor + 1] == "<":
+        if heredoc_starts_at(line, cursor):
             delimiter, strip_tabs, cursor, error = read_heredoc_delimiter(line, cursor)
-            if error is not None:
-                errors.append(error)
-            elif delimiter is not None:
-                openings.append((delimiter, strip_tabs))
+            record_heredoc_opening(openings, errors, delimiter, strip_tabs, error)
             continue
         cursor += 1
     return openings, errors
@@ -693,89 +864,103 @@ class ShellScanner:
         self.errors: list[str] = []
 
     def scan(self) -> ShellAnalysis:
-        if len(self.source) > MAX_SHELL_SOURCE_LENGTH:
-            return ShellAnalysis(
-                (),
-                (
-                    f"shell source exceeds {MAX_SHELL_SOURCE_LENGTH} byte scanner limit",
-                ),
-            )
-        if self.depth > MAX_SHELL_NESTING:
-            return ShellAnalysis(
-                (),
-                (f"shell nesting exceeds {MAX_SHELL_NESTING} levels",),
-            )
+        limit_error = self._scanner_limit_error()
+        if limit_error is not None:
+            return ShellAnalysis((), (limit_error,))
 
-        words: list[ShellWord] = []
-        redirection_target = False
-        cursor = 0
-        while cursor < len(self.source):
-            character = self.source[cursor]
-            if character in " \t\r":
-                cursor += 1
-                continue
-            if character == "#" and (
-                cursor == 0
-                or self.source[cursor - 1].isspace()
-                or self.source[cursor - 1] in ";|&"
-            ):
-                while cursor < len(self.source) and self.source[cursor] != "\n":
-                    cursor += 1
-                continue
-            if character == "\n" or character in ";|&":
-                if redirection_target:
-                    self.errors.append("redirection has no target")
-                    redirection_target = False
-                self._finish_segment(words)
-                words = []
-                if character in "|&" and cursor + 1 < len(self.source):
-                    if self.source[cursor + 1] == character:
-                        cursor += 1
-                cursor += 1
-                continue
-            redirection_start = self._redirection_start(cursor)
-            if redirection_start is not None:
-                cursor, redirection_target = self._consume_redirection(redirection_start)
-                continue
-            if character == "(":
-                # A function declaration has the narrow ``name()`` form.  It
-                # declares a shell function; it is not an invocation of a
-                # similarly named executable.  Other parenthesized forms are
-                # command lists or process substitutions, whose contents are
-                # scanned normally after this structural delimiter.
-                if (
-                    cursor + 1 < len(self.source)
-                    and self.source[cursor + 1] == ")"
-                    and len(words) == 1
-                    and not words[0].dynamic
-                ):
-                    words = []
-                    cursor += 2
-                    continue
-                if redirection_target:
-                    redirection_target = False
-                self._finish_segment(words)
-                words = []
-                cursor += 1
-                continue
-            if character == ")":
-                # Case-arm terminators and closing command lists both end a
-                # segment.  The contained command has already been scanned.
-                self._finish_segment(words)
-                words = []
-                cursor += 1
-                continue
-
-            word, cursor = self._read_word(cursor)
-            if redirection_target:
-                word = ShellWord(word.value, word.dynamic, redirection_target=True)
-                redirection_target = False
-            words.append(word)
-
-        if redirection_target:
-            self.errors.append("redirection has no target")
-        self._finish_segment(words)
+        state = ShellScanState(0, [])
+        while state.cursor < len(self.source):
+            self._scan_next(state)
+        self._finish_scan(state)
         return ShellAnalysis(tuple(self.commands), tuple(self.errors))
+
+    def _scanner_limit_error(self) -> str | None:
+        if len(self.source) > MAX_SHELL_SOURCE_LENGTH:
+            return f"shell source exceeds {MAX_SHELL_SOURCE_LENGTH} byte scanner limit"
+        if self.depth > MAX_SHELL_NESTING:
+            return f"shell nesting exceeds {MAX_SHELL_NESTING} levels"
+        return None
+
+    def _scan_next(self, state: ShellScanState) -> None:
+        character = self.source[state.cursor]
+        if character in " \t\r":
+            state.cursor += 1
+            return
+        if shell_comment_starts(self.source, state.cursor):
+            state.cursor = self._comment_end(state.cursor)
+            return
+        if character == "\n" or character in ";|&":
+            self._consume_command_boundary(state, character)
+            return
+        redirection_start = self._redirection_start(state.cursor)
+        if redirection_start is not None:
+            state.cursor, state.redirection_target = self._consume_redirection(
+                redirection_start
+            )
+            return
+        if character in "()":
+            self._consume_parenthesis(state, character)
+            return
+        self._consume_word(state)
+
+    def _comment_end(self, cursor: int) -> int:
+        end = self.source.find("\n", cursor)
+        return len(self.source) if end < 0 else end
+
+    def _consume_command_boundary(self, state: ShellScanState, character: str) -> None:
+        if state.redirection_target:
+            self.errors.append("redirection has no target")
+            state.redirection_target = False
+        self._finish_segment(state.words)
+        state.words = []
+        state.cursor = self._after_command_boundary(state.cursor, character)
+
+    def _after_command_boundary(self, cursor: int, character: str) -> int:
+        next_cursor = cursor + 1
+        if (
+            character in "|&"
+            and next_cursor < len(self.source)
+            and self.source[next_cursor] == character
+        ):
+            return next_cursor + 1
+        return next_cursor
+
+    def _consume_parenthesis(self, state: ShellScanState, character: str) -> None:
+        if character == "(" and self._is_function_declaration(state):
+            state.words = []
+            state.cursor += 2
+            return
+        if character == "(":
+            if state.redirection_target:
+                state.redirection_target = False
+            self._finish_segment(state.words)
+            state.words = []
+            state.cursor += 1
+            return
+        self._finish_segment(state.words)
+        state.words = []
+        state.cursor += 1
+
+    def _is_function_declaration(self, state: ShellScanState) -> bool:
+        cursor = state.cursor
+        return (
+            cursor + 1 < len(self.source)
+            and self.source[cursor + 1] == ")"
+            and len(state.words) == 1
+            and not state.words[0].dynamic
+        )
+
+    def _consume_word(self, state: ShellScanState) -> None:
+        word, state.cursor = self._read_word(state.cursor)
+        if state.redirection_target:
+            word = ShellWord(word.value, word.dynamic, redirection_target=True)
+            state.redirection_target = False
+        state.words.append(word)
+
+    def _finish_scan(self, state: ShellScanState) -> None:
+        if state.redirection_target:
+            self.errors.append("redirection has no target")
+        self._finish_segment(state.words)
 
     def _redirection_start(self, cursor: int) -> int | None:
         character = self.source[cursor]
@@ -805,61 +990,86 @@ class ShellScanner:
         return cursor, True
 
     def _read_word(self, cursor: int) -> tuple[ShellWord, int]:
-        characters: list[str] = []
-        dynamic = False
-        quote: str | None = None
-        while cursor < len(self.source):
-            character = self.source[cursor]
-            if quote is None and character in " \t\r\n;|&<>()":
+        state = ShellWordReadState([])
+        while cursor < len(self.source) and not state.stopped:
+            if self._word_boundary(cursor, state.quote):
                 break
-            if quote is not None:
-                if character == quote:
-                    quote = None
-                    cursor += 1
-                    continue
-                if character == "\\" and quote == '"':
-                    if cursor + 1 >= len(self.source):
-                        self.errors.append("dangling shell escape")
-                        return ShellWord("".join(characters), dynamic), len(self.source)
-                    characters.append(self.source[cursor + 1])
-                    cursor += 2
-                    continue
-                if character == "$" and quote == '"':
-                    cursor, expansion_dynamic = self._read_expansion(cursor, characters)
-                    dynamic = dynamic or expansion_dynamic
-                    continue
-                if character == "`" and quote == '"':
-                    self.errors.append("backtick command substitution is unsupported")
-                characters.append(character)
-                cursor += 1
-                continue
-
-            if character in {"'", '"'}:
-                quote = character
-                cursor += 1
-                continue
-            if character == "\\":
-                if cursor + 1 >= len(self.source):
-                    self.errors.append("dangling shell escape")
-                    return ShellWord("".join(characters), dynamic), len(self.source)
-                if self.source[cursor + 1] == "\n":
-                    cursor += 2
-                else:
-                    characters.append(self.source[cursor + 1])
-                    cursor += 2
-                continue
-            if character == "$":
-                cursor, expansion_dynamic = self._read_expansion(cursor, characters)
-                dynamic = dynamic or expansion_dynamic
-                continue
-            if character == "`":
-                self.errors.append("backtick command substitution is unsupported")
-            characters.append(character)
-            cursor += 1
-
-        if quote is not None:
+            cursor = self._consume_word_character(cursor, state)
+        if state.quote is not None and not state.stopped:
             self.errors.append("unterminated shell quote")
-        return ShellWord("".join(characters), dynamic), cursor
+        return ShellWord("".join(state.characters), state.dynamic), cursor
+
+    def _word_boundary(self, cursor: int, quote: str | None) -> bool:
+        return quote is None and self.source[cursor] in " \t\r\n;|&<>()"
+
+    def _consume_word_character(
+        self, cursor: int, state: ShellWordReadState
+    ) -> int:
+        if state.quote is None:
+            return self._consume_unquoted_word_character(cursor, state)
+        return self._consume_quoted_word_character(cursor, state)
+
+    def _consume_quoted_word_character(
+        self, cursor: int, state: ShellWordReadState
+    ) -> int:
+        quote = state.quote
+        assert quote is not None
+        character = self.source[cursor]
+        if character == quote:
+            state.quote = None
+            return cursor + 1
+        if character == "\\" and quote == '"':
+            return self._consume_quoted_escape(cursor, state)
+        if character == "$" and quote == '"':
+            return self._consume_word_expansion(cursor, state)
+        if character == "`" and quote == '"':
+            self.errors.append("backtick command substitution is unsupported")
+        state.characters.append(character)
+        return cursor + 1
+
+    def _consume_quoted_escape(
+        self, cursor: int, state: ShellWordReadState
+    ) -> int:
+        if cursor + 1 >= len(self.source):
+            self.errors.append("dangling shell escape")
+            state.stopped = True
+            return len(self.source)
+        state.characters.append(self.source[cursor + 1])
+        return cursor + 2
+
+    def _consume_unquoted_word_character(
+        self, cursor: int, state: ShellWordReadState
+    ) -> int:
+        character = self.source[cursor]
+        if character in {"'", '"'}:
+            state.quote = character
+            return cursor + 1
+        if character == "\\":
+            return self._consume_unquoted_escape(cursor, state)
+        if character == "$":
+            return self._consume_word_expansion(cursor, state)
+        if character == "`":
+            self.errors.append("backtick command substitution is unsupported")
+        state.characters.append(character)
+        return cursor + 1
+
+    def _consume_unquoted_escape(
+        self, cursor: int, state: ShellWordReadState
+    ) -> int:
+        if cursor + 1 >= len(self.source):
+            self.errors.append("dangling shell escape")
+            state.stopped = True
+            return len(self.source)
+        if self.source[cursor + 1] != "\n":
+            state.characters.append(self.source[cursor + 1])
+        return cursor + 2
+
+    def _consume_word_expansion(
+        self, cursor: int, state: ShellWordReadState
+    ) -> int:
+        cursor, expansion_dynamic = self._read_expansion(cursor, state.characters)
+        state.dynamic = state.dynamic or expansion_dynamic
+        return cursor
 
     def _read_expansion(self, cursor: int, characters: list[str]) -> tuple[int, bool]:
         if cursor + 1 >= len(self.source):
@@ -867,46 +1077,69 @@ class ShellScanner:
             return cursor + 1, True
         marker = self.source[cursor + 1]
         if marker == "(":
-            content, end = self._command_substitution(cursor)
-            if content is None:
-                self.errors.append("unterminated command substitution")
-                return len(self.source), True
-            if content.startswith("("):
-                # ``$((...))`` is a normal non-executing arithmetic expansion.
-                # Its only executable nested form is command substitution;
-                # reject that form rather than overlooking a hidden Python
-                # invocation.  Backticks are rejected for the same reason.
-                if "$(" in content[1:]:
-                    self.errors.append(
-                        "arithmetic expansion with command substitution is unsupported"
-                    )
-                if "`" in content:
-                    self.errors.append(
-                        "arithmetic expansion with backtick substitution is unsupported"
-                    )
-            else:
-                nested = ShellScanner(content, self.depth + 1).scan()
-                self.commands.extend(nested.commands)
-                self.errors.extend(nested.errors)
-            characters.append("$()")
-            return end, True
+            return self._read_parenthesized_expansion(cursor, characters)
         if marker == "{":
-            end = self._braced_expansion_end(cursor)
-            if end is None:
-                self.errors.append("unterminated braced shell expansion")
-                return len(self.source), True
-            characters.append("${}")
-            return end, True
+            return self._read_braced_expansion(cursor, characters)
         if marker.isalpha() or marker == "_":
-            end = cursor + 2
-            while end < len(self.source) and (
-                self.source[end].isalnum() or self.source[end] == "_"
-            ):
-                end += 1
-            characters.append(self.source[cursor:end])
-            return end, True
+            return self._read_named_expansion(cursor, characters)
         characters.append(self.source[cursor : cursor + 2])
         return cursor + 2, True
+
+    def _read_parenthesized_expansion(
+        self, cursor: int, characters: list[str]
+    ) -> tuple[int, bool]:
+        content, end = self._command_substitution(cursor)
+        if content is None:
+            self.errors.append("unterminated command substitution")
+            return len(self.source), True
+        self._inspect_parenthesized_expansion(content)
+        characters.append("$()")
+        return end, True
+
+    def _inspect_parenthesized_expansion(self, content: str) -> None:
+        if content.startswith("("):
+            self._validate_arithmetic_expansion(content)
+            return
+        nested = ShellScanner(content, self.depth + 1).scan()
+        self.commands.extend(nested.commands)
+        self.errors.extend(nested.errors)
+
+    def _validate_arithmetic_expansion(self, content: str) -> None:
+        """Reject executable substitutions hidden inside arithmetic expansion."""
+
+        if "$(" in content[1:]:
+            self.errors.append(
+                "arithmetic expansion with command substitution is unsupported"
+            )
+        if "`" in content:
+            self.errors.append(
+                "arithmetic expansion with backtick substitution is unsupported"
+            )
+
+    def _read_braced_expansion(
+        self, cursor: int, characters: list[str]
+    ) -> tuple[int, bool]:
+        end = self._braced_expansion_end(cursor)
+        if end is None:
+            self.errors.append("unterminated braced shell expansion")
+            return len(self.source), True
+        characters.append("${}")
+        return end, True
+
+    def _read_named_expansion(
+        self, cursor: int, characters: list[str]
+    ) -> tuple[int, bool]:
+        end = self._named_expansion_end(cursor)
+        characters.append(self.source[cursor:end])
+        return end, True
+
+    def _named_expansion_end(self, cursor: int) -> int:
+        end = cursor + 2
+        while end < len(self.source) and (
+            self.source[end].isalnum() or self.source[end] == "_"
+        ):
+            end += 1
+        return end
 
     def _command_substitution(self, start: int) -> tuple[str | None, int]:
         cursor = start + 2
@@ -914,31 +1147,38 @@ class ShellScanner:
         depth = 1
         quote: str | None = None
         while cursor < len(self.source):
-            character = self.source[cursor]
-            if quote is not None:
-                if character == "\\" and quote == '"':
-                    cursor += 2
-                elif character == quote:
-                    quote = None
-                    cursor += 1
-                else:
-                    cursor += 1
-                continue
-            if character in {"'", '"'}:
-                quote = character
-                cursor += 1
-                continue
-            if character == "\\":
-                cursor += 2
-                continue
-            if character == "(":
-                depth += 1
-            elif character == ")":
-                depth -= 1
-                if depth == 0:
-                    return self.source[content_start:cursor], cursor + 1
-            cursor += 1
+            cursor, depth, quote = self._advance_command_substitution(
+                cursor, depth, quote
+            )
+            if depth == 0:
+                return self.source[content_start : cursor - 1], cursor
         return None, len(self.source)
+
+    def _advance_command_substitution(
+        self, cursor: int, depth: int, quote: str | None
+    ) -> tuple[int, int, str | None]:
+        if quote is not None:
+            return self._advance_substitution_quote(cursor, depth, quote)
+        character = self.source[cursor]
+        if character in {"'", '"'}:
+            return cursor + 1, depth, character
+        if character == "\\":
+            return cursor + 2, depth, None
+        if character == "(":
+            return cursor + 1, depth + 1, None
+        if character == ")":
+            return cursor + 1, depth - 1, None
+        return cursor + 1, depth, None
+
+    def _advance_substitution_quote(
+        self, cursor: int, depth: int, quote: str
+    ) -> tuple[int, int, str | None]:
+        character = self.source[cursor]
+        if character == "\\" and quote == '"':
+            return cursor + 2, depth, quote
+        if character == quote:
+            return cursor + 1, depth, None
+        return cursor + 1, depth, quote
 
     def _braced_expansion_end(self, start: int) -> int | None:
         cursor = start + 2
@@ -971,40 +1211,58 @@ class ShellScanner:
         self, words: list[ShellWord]
     ) -> tuple[ShellCommand | None, str | None]:
         usable = [word for word in words if not word.redirection_target]
-        cursor = 0
-        while cursor < len(usable) and is_shell_assignment(usable[cursor]):
-            cursor += 1
+        cursor = self._first_non_assignment_word(usable)
         while cursor < len(usable):
-            word = usable[cursor]
-            value = word.value if not word.dynamic else None
-            if value in {"case", "for", "function"}:
+            cursor, command, error, finished = self._command_head_transition(
+                usable, cursor
+            )
+            if error is not None:
+                return None, error
+            if command is not None:
+                return command, None
+            if finished:
                 return None, None
-            if value in SHELL_CONTROL_WORDS:
-                cursor += 1
-                continue
-            if value == "command":
-                cursor += 1
-                if cursor < len(usable) and usable[cursor].value in SHELL_COMMAND_OPTION_ONLY:
-                    return None, None
-                cursor, error = self._skip_wrapper_options(usable, cursor)
-                if error is not None:
-                    return None, error
-                continue
-            if value == "env":
-                cursor, error = self._skip_env_options(usable, cursor + 1)
-                if error is not None:
-                    return None, error
-                continue
-            if value == "sudo":
-                cursor, error = self._skip_wrapper_options(usable, cursor + 1)
-                if error is not None:
-                    return None, error
-                continue
-            basename = static_command_basename(word)
-            if basename is None:
-                return None, "dynamic shell command head is unsupported"
-            return ShellCommand(word, tuple(usable[cursor + 1 :])), None
         return None, None
+
+    def _first_non_assignment_word(self, words: Sequence[ShellWord]) -> int:
+        cursor = 0
+        while cursor < len(words) and is_shell_assignment(words[cursor]):
+            cursor += 1
+        return cursor
+
+    def _command_head_transition(
+        self, words: list[ShellWord], cursor: int
+    ) -> tuple[int, ShellCommand | None, str | None, bool]:
+        word = words[cursor]
+        value = word.value if not word.dynamic else None
+        if value in {"case", "for", "function"}:
+            return cursor, None, None, True
+        if value in SHELL_CONTROL_WORDS:
+            return cursor + 1, None, None, False
+        if value == "command":
+            return self._command_wrapper_transition(words, cursor)
+        if value == "env":
+            next_cursor, error = self._skip_env_options(words, cursor + 1)
+            return next_cursor, None, error, False
+        if value == "sudo":
+            next_cursor, error = self._skip_wrapper_options(words, cursor + 1)
+            return next_cursor, None, error, False
+        basename = static_command_basename(word)
+        if basename is None:
+            return cursor, None, "dynamic shell command head is unsupported", True
+        return cursor, ShellCommand(word, tuple(words[cursor + 1 :])), None, True
+
+    def _command_wrapper_transition(
+        self, words: list[ShellWord], cursor: int
+    ) -> tuple[int, ShellCommand | None, str | None, bool]:
+        option_cursor = cursor + 1
+        if (
+            option_cursor < len(words)
+            and words[option_cursor].value in SHELL_COMMAND_OPTION_ONLY
+        ):
+            return option_cursor, None, None, True
+        next_cursor, error = self._skip_wrapper_options(words, option_cursor)
+        return next_cursor, None, error, False
 
     def _skip_wrapper_options(
         self, words: list[ShellWord], cursor: int
@@ -1028,22 +1286,31 @@ class ShellScanner:
         self, words: list[ShellWord], cursor: int
     ) -> tuple[int, str | None]:
         while cursor < len(words):
-            word = words[cursor]
-            if word.value == "--" and not word.dynamic:
-                return cursor + 1, None
-            if is_shell_assignment(word):
-                cursor += 1
-                continue
-            if word.dynamic:
-                return cursor, "dynamic env command head is unsupported"
-            if not word.value.startswith("-") or word.value == "-":
+            cursor, finished, error = self._env_option_transition(words, cursor)
+            if error is not None:
+                return cursor, error
+            if finished:
                 return cursor, None
-            cursor += 1
-            if word.value in {"-C", "-u", "--chdir", "--unset"}:
-                if cursor >= len(words):
-                    return cursor, "env option has no value"
-                cursor += 1
         return cursor, None
+
+    def _env_option_transition(
+        self, words: list[ShellWord], cursor: int
+    ) -> tuple[int, bool, str | None]:
+        word = words[cursor]
+        if word.value == "--" and not word.dynamic:
+            return cursor + 1, True, None
+        if is_shell_assignment(word):
+            return cursor + 1, False, None
+        if word.dynamic:
+            return cursor, True, "dynamic env command head is unsupported"
+        if not word.value.startswith("-") or word.value == "-":
+            return cursor, True, None
+        next_cursor = cursor + 1
+        if word.value not in {"-C", "-u", "--chdir", "--unset"}:
+            return next_cursor, False, None
+        if next_cursor >= len(words):
+            return next_cursor, True, "env option has no value"
+        return next_cursor + 1, False, None
 
     def _scan_shell_script_argument(self, command: ShellCommand) -> None:
         basename = static_command_basename(command.command)
@@ -1281,43 +1548,113 @@ def validate_shell_syntax(identity: JobIdentity, steps: Iterable[Step]) -> list[
     return errors
 
 
+def normal_setup_violations(job: Job, setup: Step) -> list[str]:
+    """Return normal-job setup selector violations in their contract order."""
+
+    errors: list[str] = []
+    with_values = setup.nested_mapping("with")
+    if with_values.get("python-version-file") != ".python-version":
+        errors.append("setup-python must use python-version-file: '.python-version'")
+    if with_values.get("check-latest") != "false":
+        errors.append("setup-python must use check-latest: false")
+    if "python-version" in with_values:
+        errors.append("normal Python jobs must not use python-version selectors")
+    if any("3.13" in line or "matrix" in line for line in selector_lines(job)):
+        errors.append("normal Python jobs must not use a literal or matrix Python selector")
+    if has_python_matrix_selector(job):
+        errors.append(
+            "normal Python jobs must not declare or reference Python-related matrix selectors"
+        )
+    return errors
+
+
+def normal_verifier_violations(verifier: Step) -> list[str]:
+    """Return normal-job verifier-shape violations in contract order."""
+
+    errors: list[str] = []
+    if verifier.nested_mapping("env").get("EXPECTED_PYTHON") != SETUP_PYTHON_OUTPUT:
+        errors.append(
+            "verifier EXPECTED_PYTHON must be exactly "
+            "${{ steps.setup-python.outputs.python-path }}"
+        )
+    if not exact_command(verifier.run(), NORMAL_VERIFIER_COMMAND):
+        errors.append(
+            "verifier must invoke the interpreter checker with .python-version and "
+            '"$EXPECTED_PYTHON"'
+        )
+    return errors
+
+
+def finalize_job_validation(
+    identity: JobIdentity, steps: Sequence[Step], errors: list[str]
+) -> list[str]:
+    """Prefix structural errors before adding source-level shell violations."""
+
+    prefixed = [f"{identity.display()}: {error}" for error in errors]
+    return (
+        prefixed
+        + validate_no_bare_pip(identity, steps)
+        + validate_shell_syntax(identity, steps)
+    )
+
+
 def validate_normal_job(job: Job) -> list[str]:
     steps = job.steps()
     setup, errors = pinned_setup_step(steps)
     if setup is not None:
-        with_values = setup.nested_mapping("with")
-        if with_values.get("python-version-file") != ".python-version":
-            errors.append("setup-python must use python-version-file: '.python-version'")
-        if with_values.get("check-latest") != "false":
-            errors.append("setup-python must use check-latest: false")
-        if "python-version" in with_values:
-            errors.append("normal Python jobs must not use python-version selectors")
-        if any("3.13" in line or "matrix" in line for line in selector_lines(job)):
-            errors.append("normal Python jobs must not use a literal or matrix Python selector")
-        if has_python_matrix_selector(job):
-            errors.append(
-                "normal Python jobs must not declare or reference Python-related matrix selectors"
-            )
+        errors.extend(normal_setup_violations(job, setup))
 
     verifier = verifier_step(steps)
     if verifier is not None:
-        if verifier.nested_mapping("env").get("EXPECTED_PYTHON") != SETUP_PYTHON_OUTPUT:
-            errors.append(
-                "verifier EXPECTED_PYTHON must be exactly "
-                "${{ steps.setup-python.outputs.python-path }}"
-            )
-        if not exact_command(verifier.run(), NORMAL_VERIFIER_COMMAND):
-            errors.append(
-                "verifier must invoke the interpreter checker with .python-version and "
-                '"$EXPECTED_PYTHON"'
-            )
+        errors.extend(normal_verifier_violations(verifier))
     errors.extend(validate_order(job.identity, steps, setup, verifier))
-    prefixed = [f"{job.identity.display()}: {error}" for error in errors]
-    return (
-        prefixed
-        + validate_no_bare_pip(job.identity, steps)
-        + validate_shell_syntax(job.identity, steps)
-    )
+    return finalize_job_validation(job.identity, steps, errors)
+
+
+def candidate_setup_violations(job: Job, setup: Step) -> list[str]:
+    """Return candidate-job setup selector violations in contract order."""
+
+    errors: list[str] = []
+    with_values = setup.nested_mapping("with")
+    if with_values.get("python-version") != CANDIDATE_VERSION_OUTPUT:
+        errors.append(
+            "candidate setup-python must use exactly "
+            "python-version: ${{ needs.resolve-python-patch.outputs.version }}"
+        )
+    if "python-version-file" in with_values:
+        errors.append("candidate setup-python must not use python-version-file")
+    if with_values.get("check-latest") != "false":
+        errors.append("candidate setup-python must use check-latest: false")
+    if any("3.13" in line or "matrix" in line for line in selector_lines(job)):
+        errors.append("candidate job must not use literal or matrix Python selectors")
+    if has_python_matrix_selector(job):
+        errors.append(
+            "candidate job must not declare or reference Python-related matrix selectors"
+        )
+    return errors
+
+
+def candidate_verifier_violations(verifier: Step) -> list[str]:
+    """Return candidate verifier-shape violations in contract order."""
+
+    errors: list[str] = []
+    env = verifier.nested_mapping("env")
+    if env.get("EXPECTED_VERSION") != CANDIDATE_VERSION_OUTPUT:
+        errors.append(
+            "candidate verifier EXPECTED_VERSION must be exactly "
+            "${{ needs.resolve-python-patch.outputs.version }}"
+        )
+    if env.get("EXPECTED_PYTHON") != SETUP_PYTHON_OUTPUT:
+        errors.append(
+            "candidate verifier EXPECTED_PYTHON must be exactly "
+            "${{ steps.setup-python.outputs.python-path }}"
+        )
+    if not exact_command(verifier.run(), CANDIDATE_VERIFIER_COMMAND):
+        errors.append(
+            "candidate verifier must invoke the checker with "
+            '"$EXPECTED_VERSION" and "$EXPECTED_PYTHON"'
+        )
+    return errors
 
 
 def validate_candidate_job(job: Job) -> list[str]:
@@ -1326,41 +1663,11 @@ def validate_candidate_job(job: Job) -> list[str]:
     steps = job.steps()
     setup, errors = pinned_setup_step(steps)
     if setup is not None:
-        with_values = setup.nested_mapping("with")
-        if with_values.get("python-version") != CANDIDATE_VERSION_OUTPUT:
-            errors.append(
-                "candidate setup-python must use exactly "
-                "python-version: ${{ needs.resolve-python-patch.outputs.version }}"
-            )
-        if "python-version-file" in with_values:
-            errors.append("candidate setup-python must not use python-version-file")
-        if with_values.get("check-latest") != "false":
-            errors.append("candidate setup-python must use check-latest: false")
-        if any("3.13" in line or "matrix" in line for line in selector_lines(job)):
-            errors.append("candidate job must not use literal or matrix Python selectors")
-        if has_python_matrix_selector(job):
-            errors.append(
-                "candidate job must not declare or reference Python-related matrix selectors"
-            )
+        errors.extend(candidate_setup_violations(job, setup))
 
     verifier = verifier_step(steps, CANDIDATE_VERIFIER_NAME)
     if verifier is not None:
-        env = verifier.nested_mapping("env")
-        if env.get("EXPECTED_VERSION") != CANDIDATE_VERSION_OUTPUT:
-            errors.append(
-                "candidate verifier EXPECTED_VERSION must be exactly "
-                "${{ needs.resolve-python-patch.outputs.version }}"
-            )
-        if env.get("EXPECTED_PYTHON") != SETUP_PYTHON_OUTPUT:
-            errors.append(
-                "candidate verifier EXPECTED_PYTHON must be exactly "
-                "${{ steps.setup-python.outputs.python-path }}"
-            )
-        if not exact_command(verifier.run(), CANDIDATE_VERIFIER_COMMAND):
-            errors.append(
-                "candidate verifier must invoke the checker with "
-                '"$EXPECTED_VERSION" and "$EXPECTED_PYTHON"'
-            )
+        errors.extend(candidate_verifier_violations(verifier))
     errors.extend(
         validate_order(
             job.identity,
@@ -1370,12 +1677,127 @@ def validate_candidate_job(job: Job) -> list[str]:
             CANDIDATE_VERIFIER_NAME,
         )
     )
-    prefixed = [f"{job.identity.display()}: {error}" for error in errors]
-    return (
-        prefixed
-        + validate_no_bare_pip(job.identity, steps)
-        + validate_shell_syntax(job.identity, steps)
-    )
+    return finalize_job_validation(job.identity, steps, errors)
+
+
+def downgrade_violations(
+    canonical_version: str, previous_version: str | None, allow_downgrade: bool
+) -> list[str]:
+    """Return the explicit-authorization error for a version downgrade."""
+
+    if previous_version is None:
+        return []
+    previous = parse_exact_version(previous_version, "--previous-version")
+    if version_tuple(canonical_version) >= version_tuple(previous) or allow_downgrade:
+        return []
+    return [
+        f"canonical Python version {canonical_version} is a downgrade from {previous}; "
+        "pass --allow-downgrade only with explicit authorization"
+    ]
+
+
+def collect_workflow_jobs(root: Path) -> tuple[dict[JobIdentity, Job], list[str]]:
+    """Collect workflow jobs and retain source-file diagnostics in path order."""
+
+    paths, violations = workflow_files(root)
+    jobs: dict[JobIdentity, Job] = {}
+    for path in paths:
+        parsed, parse_violations = parse_jobs(path)
+        jobs.update(parsed)
+        violations.extend(parse_violations)
+    return jobs, violations
+
+
+def missing_inventory_violations(
+    jobs: dict[JobIdentity, Job],
+    expected: frozenset[JobIdentity],
+    expected_candidate_job: JobIdentity | None,
+) -> list[str]:
+    """Return required inventory entries that are absent from the workflows."""
+
+    violations = [
+        f"expected normal Python job is absent: {identity.display()}"
+        for identity in sorted(expected)
+        if identity not in jobs
+    ]
+    if expected_candidate_job is not None and expected_candidate_job not in jobs:
+        violations.append(
+            f"expected candidate-validation job is absent: {expected_candidate_job.display()}"
+        )
+    return violations
+
+
+def detected_python_jobs(jobs: dict[JobIdentity, Job]) -> set[JobIdentity]:
+    """Return the inventory of every job that can select or execute Python."""
+
+    return {
+        identity for identity, job in jobs.items() if python_job_reason(job) is not None
+    }
+
+
+def expected_normal_job_violations(
+    jobs: dict[JobIdentity, Job],
+    expected: frozenset[JobIdentity],
+    detected: set[JobIdentity],
+) -> list[str]:
+    """Validate each expected normal job in stable inventory order."""
+
+    violations: list[str] = []
+    for identity in sorted(expected):
+        job = jobs.get(identity)
+        if job is None:
+            continue
+        if identity not in detected:
+            violations.append(
+                f"expected normal Python job has no detected Python use, known Make use, "
+                f"reusable invocation, or Python-related matrix selector: "
+                f"{identity.display()}"
+            )
+        violations.extend(validate_normal_job(job))
+    return violations
+
+
+def candidate_job_violations(
+    jobs: dict[JobIdentity, Job],
+    candidate_identity: JobIdentity | None,
+    detected: set[JobIdentity],
+) -> list[str]:
+    """Validate the one candidate exception when it is configured and present."""
+
+    if candidate_identity is None:
+        return []
+    candidate = jobs.get(candidate_identity)
+    if candidate is None:
+        return []
+    violations: list[str] = []
+    if candidate_identity not in detected:
+        violations.append(
+            "candidate-validation job has no detected Python use, known Make use, "
+            "reusable invocation, or Python-related matrix selector: "
+            f"{candidate_identity.display()}"
+        )
+    violations.extend(validate_candidate_job(candidate))
+    return violations
+
+
+def unlisted_python_job_violations(
+    jobs: dict[JobIdentity, Job],
+    expected: frozenset[JobIdentity],
+    expected_candidate_job: JobIdentity | None,
+    detected: set[JobIdentity],
+) -> list[str]:
+    """Reject detected Python jobs absent from the explicit inventory."""
+
+    violations: list[str] = []
+    for identity in sorted(detected):
+        if identity in expected or identity == expected_candidate_job:
+            continue
+        violations.append(
+            f"unlisted Python-related workflow job: {identity.display()} "
+            f"({python_job_reason(jobs[identity])})"
+        )
+        violations.extend(validate_normal_job(jobs[identity]))
+    return violations
 
 
 def evaluate_workflow_contract(
@@ -1389,68 +1811,24 @@ def evaluate_workflow_contract(
     """Evaluate source-only workflow policy and return version, violations, inventory."""
 
     canonical_version = read_canonical_version(version_file)
-    violations: list[str] = []
-    if previous_version is not None:
-        previous = parse_exact_version(previous_version, "--previous-version")
-        if version_tuple(canonical_version) < version_tuple(previous) and not allow_downgrade:
-            violations.append(
-                f"canonical Python version {canonical_version} is a downgrade from {previous}; "
-                "pass --allow-downgrade only with explicit authorization"
-            )
-
-    paths, file_violations = workflow_files(root)
-    violations.extend(file_violations)
-    jobs: dict[JobIdentity, Job] = {}
-    for path in paths:
-        parsed, parse_violations = parse_jobs(path)
-        jobs.update(parsed)
-        violations.extend(parse_violations)
+    violations = downgrade_violations(
+        canonical_version, previous_version, allow_downgrade
+    )
+    jobs, workflow_violations = collect_workflow_jobs(root)
+    violations.extend(workflow_violations)
 
     expected = frozenset(expected_normal_jobs)
-    for identity in sorted(expected):
-        if identity not in jobs:
-            violations.append(f"expected normal Python job is absent: {identity.display()}")
-    if expected_candidate_job is not None and expected_candidate_job not in jobs:
-        violations.append(
-            f"expected candidate-validation job is absent: {expected_candidate_job.display()}"
+    violations.extend(
+        missing_inventory_violations(jobs, expected, expected_candidate_job)
+    )
+    detected = detected_python_jobs(jobs)
+    violations.extend(expected_normal_job_violations(jobs, expected, detected))
+    violations.extend(candidate_job_violations(jobs, expected_candidate_job, detected))
+    violations.extend(
+        unlisted_python_job_violations(
+            jobs, expected, expected_candidate_job, detected
         )
-
-    detected: set[JobIdentity] = set()
-    for identity, job in jobs.items():
-        if python_job_reason(job) is not None:
-            detected.add(identity)
-
-    for identity in sorted(expected):
-        job = jobs.get(identity)
-        if job is None:
-            continue
-        if identity not in detected:
-            violations.append(
-                f"expected normal Python job has no detected Python use, known Make use, "
-                f"reusable invocation, or Python-related matrix selector: "
-                f"{identity.display()}"
-            )
-        violations.extend(validate_normal_job(job))
-
-    if expected_candidate_job is not None:
-        candidate = jobs.get(expected_candidate_job)
-        if candidate is not None:
-            if expected_candidate_job not in detected:
-                violations.append(
-                    "candidate-validation job has no detected Python use, known Make use, "
-                    "reusable invocation, or Python-related matrix selector: "
-                    f"{expected_candidate_job.display()}"
-                )
-            violations.extend(validate_candidate_job(candidate))
-
-    for identity in sorted(detected):
-        if identity in expected or identity == expected_candidate_job:
-            continue
-        violations.append(
-            f"unlisted Python-related workflow job: {identity.display()} "
-            f"({python_job_reason(jobs[identity])})"
-        )
-        violations.extend(validate_normal_job(jobs[identity]))
+    )
 
     return canonical_version, violations, detected
 

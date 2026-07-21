@@ -123,6 +123,25 @@ class PythonInterpreterContractTest(unittest.TestCase):
         self.assertEqual("error", payload["status"])
         self.assertIn("exact Python 3.13.N", payload["violations"][0])
 
+    def test_non_ascii_candidate_version_is_an_invocation_error(self) -> None:
+        with self.temporary_root() as directory:
+            root = Path(directory)
+            completed = self.run_checker(
+                root,
+                [
+                    "--expected-version",
+                    "3.13.\u0661",
+                    "--expected-python",
+                    sys.executable,
+                    "--json",
+                ],
+                self.checker_environment(root),
+            )
+        self.assertEqual(2, completed.returncode)
+        payload = json.loads(completed.stdout)
+        self.assertEqual("error", payload["status"])
+        self.assertIn("exact Python 3.13.N", payload["violations"][0])
+
     def test_candidate_version_and_version_file_are_mutually_exclusive(self) -> None:
         with self.temporary_root() as directory:
             root = Path(directory)

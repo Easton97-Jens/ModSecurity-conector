@@ -79,8 +79,9 @@ class SelectPythonUpdatePullRequestTests(unittest.TestCase):
                 self.select(response)
 
     def test_rejects_multiple_or_malformed_matches(self) -> None:
+        multiple_responses = self.response() + self.response(number=124)
         with self.assertRaises(MODULE.SelectionError):
-            self.select(self.response() + self.response(number=124))
+            self.select(multiple_responses)
         with self.assertRaises(MODULE.SelectionError):
             self.select([{ "number": "123" }])
 

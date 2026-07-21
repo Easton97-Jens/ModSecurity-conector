@@ -24,8 +24,8 @@ VERSION_FILENAME = ".python-version"
 MAX_METADATA_BYTES = 2 * 1024 * 1024
 MAX_VERSION_FILE_BYTES = 64
 NETWORK_TIMEOUT_SECONDS = 15
-VERSION_RE = re.compile(r"^3\.13\.(?P<patch>0|[1-9][0-9]*)$")
-RELEASE_NAME_RE = re.compile(r"^Python 3\.13\.(?P<patch>0|[1-9][0-9]*)$")
+VERSION_RE = re.compile(r"^3\.13\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
+RELEASE_NAME_RE = re.compile(r"^Python 3\.13\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
 _UNSET = object()
 
 
@@ -124,7 +124,7 @@ def _response_status(response: object) -> int | None:
 def _parse_content_length(value: str | None) -> int | None:
     if value is None:
         return None
-    if not re.fullmatch(r"[0-9]+", value.strip()):
+    if not re.fullmatch(r"\d+", value.strip(), re.ASCII):
         raise MetadataError("release metadata response has an invalid Content-Length")
     length = int(value)
     if length > MAX_METADATA_BYTES:
@@ -172,7 +172,7 @@ def _decode_metadata(body: bytes) -> object:
         )
     except MetadataError:
         raise
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError) as error:
+    except (RecursionError, ValueError) as error:
         raise MetadataError("release metadata is not valid JSON") from error
 
 
@@ -206,7 +206,7 @@ def fetch_release_metadata(opener: object | None = None) -> object:
         return _decode_metadata(_read_metadata_body(response))
     except MetadataError:
         raise
-    except (OSError, TimeoutError, urllib.error.URLError, urllib.error.HTTPError) as error:
+    except OSError as error:
         raise MetadataError("release metadata request failed") from error
     finally:
         if response is not None and hasattr(response, "close"):

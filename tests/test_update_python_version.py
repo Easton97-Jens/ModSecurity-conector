@@ -271,6 +271,17 @@ class UpdatePythonVersionTests(unittest.TestCase):
         self.assertEqual(record["status"], "error")
         self.assertEqual(opener.requests, [])
 
+    def test_exact_version_parsers_reject_non_ascii_digits(self):
+        non_ascii_patch = "3.13.\u0661"
+        malformed_release = release("Python 3.13.\u0661")
+
+        with self.assertRaises(updater.VersionError):
+            updater.parse_stable_version(non_ascii_patch)
+        with self.assertRaises(updater.MetadataError):
+            updater._parse_content_length("\u0661")
+        with self.assertRaises(updater.MetadataError):
+            updater.resolve_latest_stable_version(metadata=[malformed_release])
+
     def test_malformed_json_is_rejected(self):
         self._assert_metadata_failure(FakeResponse(b"{"))
 
@@ -314,8 +325,9 @@ class UpdatePythonVersionTests(unittest.TestCase):
 
     def test_schema_with_unpublished_or_malformed_records_is_rejected(self):
         with self.subTest("unpublished"):
+            unpublished_release = release("Python 3.13.15", published=False)
             with self.assertRaises(updater.MetadataError):
-                updater.resolve_latest_stable_version(metadata=[release("Python 3.13.15", published=False)])
+                updater.resolve_latest_stable_version(metadata=[unpublished_release])
         with self.subTest("non-array"):
             with self.assertRaises(updater.MetadataError):
                 updater.resolve_latest_stable_version(metadata={"objects": []})

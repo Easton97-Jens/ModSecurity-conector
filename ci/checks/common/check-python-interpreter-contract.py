@@ -17,7 +17,7 @@ from typing import Sequence
 
 CANONICAL_VERSION_FILENAME = ".python-version"
 MAX_VERSION_FILE_BYTES = 64
-EXACT_PYTHON_313 = re.compile(r"3\.13\.(?:0|[1-9][0-9]*)\Z")
+EXACT_PYTHON_313 = re.compile(r"3\.13\.(?:0|[1-9]\d*)\Z", re.ASCII)
 
 
 class ContractInputError(ValueError):
