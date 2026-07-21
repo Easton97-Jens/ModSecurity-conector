@@ -6,6 +6,9 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Apache intervention ownership cleanup](CR-20260720-apache-intervention-ownership.md)
+- [Go 1.24.13 security baseline](CR-20260720-go12413-security-baseline.md)
+- [SonarQube Cloud reliability bug remediation](CR-20260720-sonar-reliability-remediation.md)
 - [SonarQube Cloud new-code duplication remediation](CR-20260719-sonar-new-code-duplication.md)
 - [Phase-4 evidence identity binding](CR-20260718-phase4-evidence-identity-binding.md)
 - [Apache Phase-4 response enforcement](CR-20260718-apache-phase4-response.md)

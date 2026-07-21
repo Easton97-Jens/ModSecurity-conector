@@ -7,6 +7,9 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Apache-Intervention-Ownership-Cleanup](CR-20260720-apache-intervention-ownership.de.md)
+- [Go-1.24.13-Sicherheitsbaseline](CR-20260720-go12413-security-baseline.de.md)
+- [Behebung der SonarQube-Cloud-Reliability-Bugs](CR-20260720-sonar-reliability-remediation.de.md)
 - [Behebung der SonarQube-Cloud-New-Code-Duplizierung](CR-20260719-sonar-new-code-duplication.de.md)
 - [Phase-4-Evidence-Identitätsbindung](CR-20260718-phase4-evidence-identity-binding.de.md)
 - [Apache-Phase-4-Response-Enforcement](CR-20260718-apache-phase4-response.de.md)

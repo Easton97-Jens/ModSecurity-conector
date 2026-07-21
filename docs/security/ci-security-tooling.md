@@ -43,7 +43,7 @@ triaged before it becomes a blocking policy.
 
 ## CodeQL and Scorecard boundaries
 
-CodeQL analyzes Actions, each Go module with fixed Go `1.24.0`, and a bounded
+CodeQL analyzes Actions, each Go module with fixed Go `1.24.13`, and a bounded
 C/C++ scope limited to `make check-common-helpers-c17`. The C/C++ result does
 not claim full connector coverage; expanding it requires reproducible builds
 for the selected connector scope.
