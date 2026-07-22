@@ -72,6 +72,9 @@ anwendbar.
 | Selected-File-Python-Syntax mit externem Bytecode-Cache | bestanden: `python -B -s -m compileall -q tests/test_nginx_phase4_runner_wiring.py`. |
 | Direct Changed-Test Controls | bestanden: Die zwei Methoden mit allen fünf umgeordneten Assertions bestanden (2 Tests) in einem task-owned Parent-Overlay. Das Overlay liest den vorhandenen Framework-Runner nur, weil der isolierte Parent-Worktree sein Framework-Submodule absichtlich nicht initialisiert; weder Framework- noch MRTS-Pfad wurde verändert. |
 | AST-Ordering-Control | bestanden: Alle fünf Zielzeilen haben exakt die Actual-First-/Expected-Second-Argumentpaare. |
+| `ruff check`- und `ruff format --check`-Applicability | blockiert: Der ausgewählte Parent-Venv hat kein `ruff`-Modul; für diese fokussierte Reparatur ist weder External-Tool-Provisioning noch eine Repository-Dependency-Änderung autorisiert. |
+| Pyright-Applicability | blockiert: Der ausgewählte Parent-Venv hat kein `pyright`-Modul; für diese fokussierte Reparatur ist weder External-Tool-Provisioning noch eine Repository-Dependency-Änderung autorisiert. |
+| `pip check` | nicht anwendbar: Der Commit ändert weder Dependency-Manifest noch Lock, Package oder Environment. |
 | Full Focused Module mit geändertem Source | vor den geänderten Assertions fehlgeschlagen: `test_generic_case_environment_carries_only_the_reviewed_mode` löst `TypeError: write_shell_env() missing 1 required keyword-only argument: 'output_root'` aus; die anderen 5 Tests bestehen. |
 | Full Focused Module mit unverändertem `origin/master`-Source | mit identischem `write_shell_env`-TypeError und denselben 5 bestehenden Tests fehlgeschlagen; dies beweist, dass der lokale Fehler dieser Änderung mit fünf Assertions vorausgeht. |
 | Fokussierter Change-Record-Pair-Contract | bestanden: erforderliche Headings und übereinstimmende Identity Values. |
@@ -109,6 +112,10 @@ Connector-Build noch einen Runtime-Lifecycle.
   Contract und seine 11 Checker-Tests bestehen. Es wird kein Framework-
   Checkout initialisiert oder verändert, um diese Environment-Prerequisite in
   einen scheinbaren Documentation-Pass umzuwandeln.
+- Ruff und Pyright sind im ausgewählten Parent-Venv nicht verfügbar. Sie sind
+  optionale Quality-Tools für diesen Scope und werden nicht nebenbei
+  installiert; Syntax-, direkte Test-, AST-, Documentation- und Hosted-
+  Quality-Gate-Pfad bleiben die ausgewählte Validierungsroute.
 - Ein vollständiger Repository-Sonar-Sweep ist keine lokale Evidence. Die
   SonarQube-Cloud-PR-Analyse für den exakten Head ist der erforderliche
   Hosted-Entscheidungspunkt.

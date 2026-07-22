@@ -67,6 +67,9 @@ not applicable to a separate security-finding workflow.
 | Selected-file Python syntax with external bytecode cache | passed: `python -B -s -m compileall -q tests/test_nginx_phase4_runner_wiring.py`. |
 | Direct changed-test controls | passed: the two methods containing all five reordered assertions passed (2 tests) in a task-owned Parent overlay. The overlay reads the existing Framework runner only because the isolated Parent worktree deliberately leaves its Framework submodule uninitialized; no Framework or MRTS path was modified. |
 | AST ordering control | passed: all five target lines have the exact actual-first / expected-second argument pairs. |
+| `ruff check` and `ruff format --check` applicability | blocked: the selected Parent venv has no `ruff` module; no external-tool provisioning or repository dependency change is authorized for this focused repair. |
+| Pyright applicability | blocked: the selected Parent venv has no `pyright` module; no external-tool provisioning or repository dependency change is authorized for this focused repair. |
+| `pip check` | not applicable: the commit changes no dependency manifest, lock, package, or environment. |
 | Full focused module with changed source | failed before the changed assertions: `test_generic_case_environment_carries_only_the_reviewed_mode` raises `TypeError: write_shell_env() missing 1 required keyword-only argument: 'output_root'`; the other 5 tests pass. |
 | Full focused module with unmodified `origin/master` source | failed with the identical `write_shell_env` TypeError and the same 5 passing tests, proving the local failure predates this five-assertion change. |
 | Focused Change Record pair contract | passed: required headings and matching identity values. |
@@ -101,6 +104,10 @@ nor a runtime lifecycle.
   uninitialized Framework submodule; the focused record-pair contract and its
   11 checker tests pass. No Framework checkout is initialized or changed to
   turn that environmental prerequisite into an apparent documentation pass.
+- Ruff and Pyright are unavailable from the selected Parent venv. They are
+  optional quality tools for this scope and are not installed incidentally;
+  the focused syntax, direct test, AST, documentation, and hosted quality-gate
+  path remain the selected validation route.
 - A full repository Sonar sweep is not local evidence. SonarQube Cloud PR
   analysis for the exact head is the required hosted decision point.
 
