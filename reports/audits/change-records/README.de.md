@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [CodeQL-Action-4.37.2-Batch](CR-20260722-codeql-action-4-37-2-batch.de.md)
 - [NGINX-Korrektur der Server-Header-Bytelänge](CR-20260721-nginx-server-header-length.de.md)
 - [Parent-Readiness-Pfadkonstante für SonarQube Cloud S1192](CR-20260721-sonar-s1192-readiness-path.de.md)
 - [Python-3.14.6- und Go-1.26.5-Toolchain-Baseline](CR-20260721-python314-go1265-toolchain-baseline.de.md)
