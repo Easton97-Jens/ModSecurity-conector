@@ -26,7 +26,7 @@ jobs:
         with:
           languages: actions
           build-mode: none
-      - uses: github/codeql-action/analyze@e0647621c2984b5ed2f768cb892365bf2a616ad1 # v4.37.2
+      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
 
   envoy-go:
     runs-on: ubuntu-latest
@@ -47,7 +47,7 @@ jobs:
       - name: Build Envoy Go module
         working-directory: connectors/envoy/ext_proc
         run: go build ./...
-      - uses: github/codeql-action/analyze@e0647621c2984b5ed2f768cb892365bf2a616ad1 # v4.37.2
+      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
 
   traefik-go:
     runs-on: ubuntu-latest
@@ -68,7 +68,7 @@ jobs:
       - name: Build Traefik Go module
         working-directory: connectors/traefik/native_middleware
         run: go build ./...
-      - uses: github/codeql-action/analyze@e0647621c2984b5ed2f768cb892365bf2a616ad1 # v4.37.2
+      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
 
   bounded-c-cpp:
     runs-on: ubuntu-latest
@@ -85,4 +85,4 @@ jobs:
           build-mode: manual
       - name: Build bounded C17 common helper scope
         run: make check-common-helpers-c17
-      - uses: github/codeql-action/analyze@e0647621c2984b5ed2f768cb892365bf2a616ad1 # v4.37.2
+      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
