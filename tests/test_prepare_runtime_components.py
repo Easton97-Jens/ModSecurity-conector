@@ -13,6 +13,7 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
+LEGACY_FRAMEWORK_HAPROXY_CACHE_SHA = "784977615acfc55567e37b863309abc4a38ac877"
 sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
@@ -132,6 +133,35 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 "submodule or set MODSECURITY_FRAMEWORK_TEST_ROOT to a reviewed read-only source"
             )
         return framework_root
+
+    def haproxy_prepare_enforces_split_build_root_containment(self, framework_root: Path) -> bool:
+        script = framework_root / "ci" / "provisioning" / "prepare-haproxy-runtime.sh"
+        source = script.read_text(encoding="utf-8")
+        return all(
+            f'require_under_build_root "${name}" {name}' in source
+            for name in (
+                "HAPROXY_RUNTIME_BUILD_DIR",
+                "HAPROXY_RUNTIME_BUILD_WORKTREE",
+                "HAPROXY_RUNTIME_DIR",
+                "HAPROXY_BIN",
+            )
+        )
+
+    def haproxy_prepare_framework_revision(self, framework_root: Path) -> str:
+        result = subprocess.run(
+            ["git", "-C", str(framework_root), "rev-parse", "HEAD"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        revision = result.stdout.strip()
+        if result.returncode != 0 or len(revision) != 40:
+            self.fail(
+                "HAProxy prepare Framework source must expose a checked-out revision for "
+                f"the split-BUILD_ROOT containment control: {result.stderr}"
+            )
+        return revision
 
     def managed_haproxy_cache_environment(
         self,
@@ -281,6 +311,18 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertIn("ready existing provenance-verified binary", result.stdout)
 
     def test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root(self) -> None:
+        framework_root = self.haproxy_prepare_framework_root()
+        if not self.haproxy_prepare_enforces_split_build_root_containment(framework_root):
+            revision = self.haproxy_prepare_framework_revision(framework_root)
+            if revision == LEGACY_FRAMEWORK_HAPROXY_CACHE_SHA:
+                self.skipTest(
+                    "the current Parent gitlink predates the candidate split-BUILD_ROOT containment "
+                    "control; the Update submodules candidate must exercise this negative control"
+                )
+            self.fail(
+                "selected Framework revision lacks required split-BUILD_ROOT HAProxy containment: "
+                f"{revision}"
+            )
         with tempfile.TemporaryDirectory(prefix="haproxy-split-build-root-") as temporary:
             env = self.managed_haproxy_cache_environment(
                 Path(temporary),

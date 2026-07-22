@@ -11,7 +11,7 @@
 | Basis-Revision | 961b4fa37cee257a9d50542b3968005e0e21f556 |
 | Grenze | Nur Parent-CI/Tooling, Parent-Tests, gepaarte Parent-Dokumentation und dieses Change-Record-Paar. Framework-Source, MRTS, Parent-Gitlink, Go-Module, Abhängigkeiten und Action-Pins bleiben unverändert. |
 | Finding-Verknüpfung | FND-PARENT-0045: validierter Parent-CI-Kompatibilitätsblocker für die fehlschlagende Update-submodules-Candidate-Validierung. |
-| Delivery-Status | Lokale Implementierung und lokale Validierung sind abgeschlossen. Dieser Source-Stand behauptet keinen Hosted-CI-, Review-, SonarQube-Cloud- oder Master-Integrationserfolg; ein task-eigener Replacement-Draft-PR ist der nächste Delivery-Schritt. |
+| Delivery-Status | Der initiale Draft-PR-#90-Head `0acba7768848651758610928e89f4481dbb90c81` erreichte fünf abgeschlossene gewöhnliche Push-Workflows, die alle an der veralteten Parent-HAProxy-Erwartung gegen den aktuellen Legacy-Gitlink scheiterten. Dieses begrenzte Follow-up ist lokal validiert, aber noch nicht committed oder gepusht. Es wird kein Hosted-Erfolg, Review-, SonarQube-Cloud- oder Master-Integrationserfolg behauptet; ein frischer Exact-Head bleibt erforderlich. |
 
 ## Motivation und Problemstellung
 
@@ -30,7 +30,8 @@ Candidate.
   1.26-Serie vor.
 - Der Updater lässt Moduldeklarationen und Dependency-Dateien unverändert.
 - Die Update-submodules-Regression bewahrt sowohl legitimen Cache-Reuse als
-  auch die Rejection für getrenntes BUILD_ROOT.
+  auch die Rejection für getrenntes BUILD_ROOT, wenn die ausgewählte
+  Framework-Revision diesen Containment-Control bereitstellt.
 - Lokale statische und fokussierte Test-Evidence wird wahrheitsgemäß erfasst;
   Exact-Head-Hosted-Validierung bleibt eine getrennte Voraussetzung.
 
@@ -85,13 +86,19 @@ Sperre. Die fehlschlagende Parent-Fixture legte stattdessen ein Runtime-
 Binärprogramm in den Shared Cache und setzte BUILD_ROOT unabhängig.
 
 Der direkte Parent-Test modelliert jetzt das legitime produktive Layout, bei
-dem der effektive Managed-Connector-Entry zugleich BUILD_ROOT ist. Er behält
-einen expliziten Negativ-Control für die frühere Split-Root-Bedingung, die Exit
-77 liefern muss. Der Test akzeptiert für lokale Evidence bewusst eine
-übergebene read-only-Framework-Source, ohne den Parent-Gitlink zu initialisieren
-oder zu verändern. Der Workflow bleibt Resolve, dann read-only-Validierung,
-dann enger Publisher; kein Berechtigungs-, Trigger-, Workflow- oder
-Framework-Source-Change umgeht den Fehler.
+dem der effektive Managed-Connector-Entry zugleich BUILD_ROOT ist. Sein
+expliziter Negativ-Control verlangt Exit 77 von einer Framework-Source, die
+den strikten Split-Root-Containment-Vertrag bereitstellt. Der bekannte aktuelle
+Parent-Gitlink `784977615acfc55567e37b863309abc4a38ac877` datiert vor diesem
+Vertrag und wird transparent übersprungen; jede andere ausgewählte Revision,
+der der Vertrag fehlt, schlägt fehl. Der Update-submodules-Candidate führt den
+Exit-77-Control somit aus, ohne dass gewöhnliche Parent-PR-Checks die ältere
+gepinnte Framework-Revision fälschlich als Parent-Regression klassifizieren.
+Der Test akzeptiert für lokale Evidence bewusst eine übergebene read-only-
+Framework-Source, ohne den Parent-Gitlink zu initialisieren oder zu verändern.
+Der Workflow bleibt Resolve, dann read-only-Validierung, dann enger Publisher;
+kein Berechtigungs-, Trigger-, Workflow- oder Framework-Source-Change umgeht
+den Fehler.
 
 ## Ausgeführte Befehle
 
@@ -103,13 +110,24 @@ Framework-Source-Change umgeht den Fehler.
   Python 3.14.6 und 28 Python-ausführende Workflow-Jobs, und 16 CI-Security-
   Tests bestanden.
 - `tests.test_bilingual_docs` führte 11 Tests aus und endete mit Exit 0. Der
-  finale fokussierte Security-Diff-Report wurde formatvalidiert und mit null
-  reportierbaren Befunden finalisiert.
+  finale fokussierte Security-Diff-Review ist eine getrennte erforderliche
+  Staging-Voraussetzung für dieses finale Drei-Dateien-Follow-up.
 - `git diff --check` bestand im finalen lokalen Review; es wird als
   Staging-Voraussetzung erneut ausgeführt.
+- Der initiale Draft-PR-#90-Head
+  `0acba7768848651758610928e89f4481dbb90c81` löste die abgeschlossenen
+  Push-Runs [29955277020](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/29955277020),
+  [29955277057](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/29955277057),
+  [29955276989](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/29955276989),
+  [29955277045](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/29955277045)
+  und [29955277071](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/29955277071)
+  aus. Jeder scheiterte an derselben Legacy-Test-Assertion: erwartet wurde Exit
+  77, beobachtet Exit 0 aus dem Managed-Cache-Reuse-Verhalten des alten Gitlinks.
+  Dies ist Failure-Evidence für den initialen Head, kein Hosted-Delivery-Erfolg.
 
-Kein Hosted-Befehl, PR-Ergebnis, Review, SonarQube-Cloud-Ergebnis oder Merge
-wird in diesem Record als ausgeführt dargestellt.
+Die obigen initialen Hosted-Fehlschläge sind die einzigen in diesem Record
+dargestellten Hosted-Ergebnisse. Es wird kein Hosted-Erfolg, Review-,
+SonarQube-Cloud-Ergebnis oder Merge behauptet.
 
 ## Runtime-Evidence
 
@@ -123,7 +141,9 @@ Die lokale Go-Executable ist älter als 1.26.5 und kann daher die Candidate-
 Modulausführung mit dem angeforderten Patch nicht belegen. Candidate-Hosted-
 Validierung ist die erforderliche Exact-Toolchain-Evidence. Das vollständige
 Documentation-Target hängt außerdem vom absichtlich nicht initialisierten
-Framework-Gitlink ab.
+Framework-Gitlink ab. `Update submodules` ist ein Default-Branch-Schedule-/
+Manual-Workflow; das Follow-up benötigt daher nach den normalen PR-Checks
+seine eigene frische Hosted-Candidate-Validierung.
 
 ## Verbleibende Risiken
 
@@ -140,8 +160,11 @@ Kein Risiko wird akzeptiert.
   ist Go 1.26.0, daher weisen `GOTOOLCHAIN=local go test ./...` und `go vet
   ./...` in beiden tatsächlichen Modul-Roots die benötigte 1.26.5 vor jeder
   Ausführung oder jedem Download zurück.
-- Exact-Head-Update-submodules-, CodeQL-, Review-, SonarQube-Cloud- und
-  Resulting-Master-Evidence existiert vor der Delivery nicht.
+- Ein frischer Follow-up-Commit und seine Exact-Head-gewöhnliche CI,
+  Update-submodules-, CodeQL-, Review-, SonarQube-Cloud- und Resulting-Master-
+  Evidence existieren noch nicht. Die einzigen aktuellen Exact-Head-Workflows
+  sind die dokumentierten fehlschlagenden initialen Heads; sie können diese
+  Korrektur nicht verifizieren.
 - Die vollständige Documentation-Link-Validierung endete ausschließlich für
   Ziele unter dem absichtlich nicht initialisierten Framework-Gitlink mit Exit
   2; sie darf nicht durch eine Framework- oder MRTS-Änderung aus diesem
@@ -149,12 +172,13 @@ Kein Risiko wird akzeptiert.
 
 ## Finaler Diff- und Review-Status
 
-Der finale lokale Diff hat fokussierte Static-, Regressions-, Bilingual- und
-Security-Review-Coverage. Der Scope enthält keine Framework-Source, kein MRTS,
+Der lokale Follow-up-Diff hat fokussierte Static-, Regressions- und
+Bilingual-Coverage. Der Scope enthält keine Framework-Source, kein MRTS,
 keinen Parent-Gitlink, kein Go-Modul, keine Dependency- oder Action-Pin-
-Änderung. Vor dem Staging bleiben ein frischer scoped Diff-/Status-Review und
-der Delivery-Preflight erforderlich. Dieser Record enthält nur beobachtete
-lokale Ergebnisse; keine aktuelle Hosted-Delivery-Aktion ist impliziert.
+Änderung. Vor dem Staging bleiben ein frischer scoped Security-/Diff-/Status-
+Review und der Delivery-Preflight erforderlich. Dieser Record enthält nur
+beobachtete lokale Ergebnisse sowie die dokumentierten fehlschlagenden
+initialen Heads; kein aktueller Hosted-Delivery-Erfolg ist impliziert.
 
 ## Security-Auswirkung
 
