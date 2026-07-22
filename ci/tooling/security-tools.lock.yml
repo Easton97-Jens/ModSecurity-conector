@@ -28,8 +28,8 @@ pinned_actions:
     commit_sha: 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
     upstream: https://github.com/actions/download-artifact
   github/codeql-action:
-    version: v4.37.2
-    commit_sha: e0647621c2984b5ed2f768cb892365bf2a616ad1
+    version: v4.37.3
+    commit_sha: e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81
     upstream: https://github.com/github/codeql-action
   google/osv-scanner-action:
     version: v2.3.8
