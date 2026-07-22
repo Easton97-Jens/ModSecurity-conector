@@ -79,9 +79,12 @@ Maintainability-Batch wird kein Security-Finding als behoben beansprucht.
 | Source-Occurrence-Review | bestanden: exakt die 20 ausgewählten assertEqual-Aufrufe verwenden Actual-first-Reihenfolge und behalten ihre optionalen Message-Argumente. |
 | git diff --check | bestanden. |
 
-Frische Exact-Head-SonarQube-Cloud- und GitHub-Actions-Ergebnisse stehen bis
-zur Erstellung des Draft-PR aus und werden nicht aus diesem Datensatz
-abgeleitet.
+Der Draft-PR [#89](https://github.com/Easton97-Jens/ModSecurity-conector/pull/89)
+existiert jetzt für Branch `agent/sonar-s3415-tests-connectors-assertions-20260722`.
+Zum Erstellungszeitpunkt stimmten sein Head, der lokale Commit und der Remote-
+Branch auf `2012eb37565729fb7fc8a1f902953149ee9cadbe` überein. Frische
+Exact-Head-SonarQube-Cloud- und GitHub-Actions-Ergebnisse stehen noch aus und
+werden nicht aus diesem Datensatz abgeleitet.
 
 ## Runtime-Evidence
 
@@ -97,8 +100,8 @@ ein Framework-/MRTS-Lauf.
   betroffenen Testmodule bestanden.
 - Kein Framework- oder MRTS-Test und keine -Änderung: Sie sind aus diesem
   Parent-only-Task ausgeschlossen.
-- Vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse stehen aus, bis
-  der exakte Draft-PR-Head existiert.
+- Vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse stehen für den
+  aktuellen exakten Draft-PR-Head noch aus.
 
 ## Bekannte Einschränkungen
 
@@ -116,7 +119,9 @@ vor verifizierter Delivery erforderlich.
 
 ## Finaler Review-Status
 
-Lokale Implementierung und fokussierte Validierung laufen auf einem Parent-
-only-Task-Branch. Dieser Pre-Delivery-Datensatz beansprucht keinen Commit,
-Push, Draft-PR-Nummer, Review, Hosted-Check, Sonar-Quality-Gate, Merge oder
-Default-Branch-Change.
+Lokale Implementierung und fokussierte Validierung sind auf dem Parent-only-
+Task-Branch abgeschlossen. Draft-PR #89 ist offen und als Draft markiert;
+sein initialer exakter Head wurde gegen lokale und Remote-Git-Metadaten
+verifiziert. Hosted-Checks, Sonar-Analyse und Quality Gate stehen noch aus.
+Es werden weder Review-Freigabe noch Merge oder Default-Branch-Änderung
+beansprucht oder autorisiert.

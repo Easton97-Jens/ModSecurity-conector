@@ -76,8 +76,11 @@ fixed by this maintainability-only batch.
 | Source occurrence review | passed: exactly the 20 selected assertEqual calls use actual-first order and retain their optional message arguments. |
 | git diff --check | passed. |
 
-Fresh exact-head SonarQube Cloud and GitHub Actions results are pending Draft PR
-creation and are not inferred by this record.
+Draft PR [#89](https://github.com/Easton97-Jens/ModSecurity-conector/pull/89)
+now exists for branch `agent/sonar-s3415-tests-connectors-assertions-20260722`.
+At creation time, its head, the local commit, and the remote branch all matched
+`2012eb37565729fb7fc8a1f902953149ee9cadbe`. Fresh exact-head SonarQube Cloud
+and GitHub Actions results are pending and are not inferred by this record.
 
 ## Runtime evidence
 
@@ -91,8 +94,8 @@ runtime deployment or a Framework/MRTS run.
   diagnostic argument order and the complete affected test modules passed.
 - No Framework or MRTS test or modification: they are excluded from this
   Parent-only task.
-- Full hosted checks and SonarQube Cloud PR analysis remain pending until the
-  exact Draft PR head exists.
+- Full hosted checks and SonarQube Cloud PR analysis remain pending for the
+  current exact Draft PR head.
 
 ## Known limitations
 
@@ -109,7 +112,8 @@ exact-head analysis remains required before delivery is verified.
 
 ## Final review status
 
-Local implementation and focused validation are in progress on a Parent-only
-task branch. No commit, push, Draft PR number, review, hosted check, Sonar
-Quality Gate, merge, or default-branch change is claimed in this pre-delivery
-record.
+Local implementation and focused validation completed on the Parent-only task
+branch. Draft PR #89 is open and marked Draft; its initial exact head was
+verified against local and remote Git metadata. Hosted checks, Sonar analysis,
+and the Quality Gate remain pending. No review approval, merge, or
+default-branch change is claimed or authorized.
