@@ -30,20 +30,27 @@ def load_checker():
 checker = load_checker()
 
 
-def go_job(name: str, *, setup_reference: str | None = None, selector: str = "file") -> str:
+def go_job(
+    name: str,
+    *,
+    setup_reference: str | None = None,
+    selector: str = "file",
+    extra_with_lines: tuple[str, ...] = (),
+) -> str:
     reference = checker.SETUP_GO_REFERENCE if setup_reference is None else setup_reference
     version_line = (
         "          go-version-file: .go-version"
         if selector == "file"
         else "          go-version: '1.26.5'"
     )
+    extra_lines = "".join(f"          {line}\n" for line in extra_with_lines)
     return f'''  {name}:
     runs-on: ubuntu-latest
     steps:
       - uses: {reference}
         with:
 {version_line}
-          check-latest: false
+{extra_lines}          check-latest: false
 '''
 
 
@@ -82,8 +89,29 @@ class GoVersionContractTests(unittest.TestCase):
             status, result = self.check_json(self.root_with_workflow(Path(temporary), workflow))
         self.assertEqual(2, status)
         self.assertEqual("failed", result["status"])
-        self.assertTrue(any("literal go-version" in entry for entry in result["violations"]))
+        self.assertTrue(any("exact central" in entry for entry in result["violations"]))
         self.assertTrue(any("unlisted" in entry for entry in result["violations"]))
+
+    def test_yaml_equivalent_literal_selector_variants_are_rejected(self) -> None:
+        variants = {
+            "space_before_colon": ("go-version : '1.26.5'",),
+            "single_quoted_key": ("'go-version': '1.26.5'",),
+            "double_quoted_key": ('"go-version": "1.26.5"',),
+            "explicit_mapping_key": ("? go-version", ": '1.26.5'"),
+        }
+        for name, extra_with_lines in variants.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                workflow = (
+                    "name: CodeQL\n\non:\n  workflow_dispatch:\n\njobs:\n"
+                    + go_job("envoy-go", extra_with_lines=extra_with_lines)
+                    + go_job("traefik-go")
+                )
+                status, result = self.check_json(
+                    self.root_with_workflow(Path(temporary), workflow)
+                )
+            self.assertEqual(2, status)
+            self.assertEqual("failed", result["status"])
+            self.assertTrue(any("exact central" in entry for entry in result["violations"]))
 
     def test_wrong_action_pin_and_invalid_version_file_fail_closed(self) -> None:
         wrong_reference = "actions/setup-go@main"
@@ -100,6 +128,13 @@ class GoVersionContractTests(unittest.TestCase):
         self.assertEqual(2, status)
         self.assertTrue(any("actions/setup-go" in entry for entry in result["violations"]))
         self.assertEqual((2, "error"), (bad_status, bad_result["status"]))
+
+    def test_setup_go_step_body_ends_at_the_next_step(self) -> None:
+        job = go_job("envoy-go") + "      - name: unrelated\n        run: echo unrelated\n"
+        steps = checker.setup_go_blocks(job)
+        self.assertEqual(1, len(steps))
+        self.assertEqual(checker.SETUP_GO_REFERENCE, steps[0].reference)
+        self.assertNotIn("unrelated", steps[0].body)
 
     def test_symlink_version_file_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

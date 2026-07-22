@@ -20,8 +20,13 @@ SETUP_GO_REFERENCE = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e 
 EXPECTED_JOBS = frozenset({"envoy-go", "traefik-go"})
 VERSION_RE = re.compile(r"^1\.26\.(?:0|[1-9]\d*)$", re.ASCII)
 JOB_HEADER = re.compile(r"^ {2}(?P<name>[A-Za-z0-9_-]+):\s*$")
-SETUP_GO_STEP = re.compile(
-    r"(?ms)^      - uses: (?P<reference>actions/setup-go@[^\n]+)\n(?P<body>.*?)(?=^      - |\Z)"
+SETUP_GO_PREFIX = "      - uses: actions/setup-go@"
+EXPECTED_SETUP_GO_BODY = "\n".join(
+    (
+        "        with:",
+        "          go-version-file: .go-version",
+        "          check-latest: false",
+    )
 )
 
 
@@ -33,6 +38,14 @@ class ContractError(ValueError):
 class Result:
     version: str
     violations: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class SetupGoStep:
+    """One exact-indentation setup-go step and its indented body."""
+
+    reference: str
+    body: str
 
 
 def repository_root() -> Path:
@@ -106,8 +119,26 @@ def job_blocks(text: str) -> dict[str, str]:
     return {name: "\n".join(lines) for name, lines in blocks.items()}
 
 
-def setup_go_blocks(job: str) -> list[re.Match[str]]:
-    return list(SETUP_GO_STEP.finditer(job + "\n"))
+def setup_go_blocks(job: str) -> list[SetupGoStep]:
+    """Extract setup-go steps without multiline-regex boundary ambiguity."""
+
+    lines = job.splitlines()
+    steps: list[SetupGoStep] = []
+    for index, line in enumerate(lines):
+        if not line.startswith(SETUP_GO_PREFIX):
+            continue
+        body_lines: list[str] = []
+        for body_line in lines[index + 1 :]:
+            if body_line.startswith("      - "):
+                break
+            body_lines.append(body_line)
+        steps.append(
+            SetupGoStep(
+                reference=line.removeprefix("      - uses: ").strip(),
+                body="\n".join(body_lines),
+            )
+        )
+    return steps
 
 
 def job_violations(job_name: str, job: str) -> list[str]:
@@ -116,16 +147,14 @@ def job_violations(job_name: str, job: str) -> list[str]:
     if len(setup_steps) != 1:
         return [f"{job_name} must contain exactly one actions/setup-go step"]
     setup = setup_steps[0]
-    reference = setup.group("reference").strip()
+    reference = setup.reference
     if reference != SETUP_GO_REFERENCE:
         violations.append(f"{job_name} must use exactly {SETUP_GO_REFERENCE}")
-    body = setup.group("body")
-    if not re.search(r"(?m)^          go-version-file: \.go-version\s*$", body):
-        violations.append(f"{job_name} must select .go-version through go-version-file")
-    if not re.search(r"(?m)^          check-latest: false\s*$", body):
-        violations.append(f"{job_name} must set check-latest: false")
-    if re.search(r"(?m)^          go-version:\s*", body):
-        violations.append(f"{job_name} must not use a literal go-version selector")
+    body = setup.body
+    if body != EXPECTED_SETUP_GO_BODY:
+        violations.append(
+            f"{job_name} must use only the exact central .go-version selector inputs"
+        )
     return violations
 
 
