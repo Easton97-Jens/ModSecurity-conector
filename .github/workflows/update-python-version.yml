@@ -1,4 +1,4 @@
-name: Update Python 3.13 patch
+name: Update Python 3.14 patch
 
 on:
   schedule:
@@ -21,7 +21,7 @@ jobs:
       update_available: ${{ steps.resolve.outputs.update_available }}
     steps:
       - name: Check out trusted default branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           submodules: false
@@ -39,7 +39,7 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
-      - name: Resolve latest stable Python 3.13 patch
+      - name: Resolve latest stable Python 3.14 patch
         id: resolve
         env:
           PYTHONDONTWRITEBYTECODE: "1"
@@ -57,7 +57,7 @@ jobs:
           latest = data.get("latest_version")
           available = data.get("update_available")
           status = data.get("status")
-          pattern = re.compile(r"^3\\.13\\.(?:0|[1-9][0-9]*)$")
+          pattern = re.compile(r"^3\\.14\\.(?:0|[1-9][0-9]*)$")
           if not isinstance(current, str) or not pattern.fullmatch(current):
               raise SystemExit("resolver returned an invalid current_version")
           if not isinstance(latest, str) or not pattern.fullmatch(latest):
@@ -87,7 +87,7 @@ jobs:
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Check out trusted default branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           submodules: false
@@ -137,13 +137,13 @@ jobs:
       CANDIDATE_VERSION: ${{ needs.resolve-python-patch.outputs.version }}
       CURRENT_VERSION: ${{ needs.resolve-python-patch.outputs.current_version }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-      UPDATE_BRANCH: automation/update-python-313
-      PR_TITLE: "chore(ci): propose Python 3.13 patch update"
+      UPDATE_BRANCH: automation/update-python-314
+      PR_TITLE: "chore(ci): propose Python 3.14 patch update"
       WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Check out trusted default branch without submodules
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           submodules: false
@@ -166,12 +166,12 @@ jobs:
         id: update
         run: |
           set -euo pipefail
-          if ! printf '%s\n' "$CANDIDATE_VERSION" | grep -Eq '^3\.13\.(0|[1-9][0-9]*)$'; then
-            echo "Candidate version is not an exact stable Python 3.13 patch." >&2
+          if ! printf '%s\n' "$CANDIDATE_VERSION" | grep -Eq '^3\.14\.(0|[1-9][0-9]*)$'; then
+            echo "Candidate version is not an exact stable Python 3.14 patch." >&2
             exit 1
           fi
-          if ! printf '%s\n' "$CURRENT_VERSION" | grep -Eq '^3\.13\.(0|[1-9][0-9]*)$'; then
-            echo "Current version is not an exact stable Python 3.13 patch." >&2
+          if ! printf '%s\n' "$CURRENT_VERSION" | grep -Eq '^3\.14\.(0|[1-9][0-9]*)$'; then
+            echo "Current version is not an exact stable Python 3.14 patch." >&2
             exit 1
           fi
           if [ "$CANDIDATE_VERSION" = "$CURRENT_VERSION" ]; then
@@ -226,7 +226,7 @@ jobs:
           - Metadata source: https://www.python.org/api/v2/downloads/release/?is_published=true
           - Validation workflow and run: validate-python-patch ($WORKFLOW_RUN_URL)
           - Changed files: .python-version only
-          - Minor version: remains Python 3.13
+          - Minor version: remains Python 3.14
           - Merge: no automatic merge
 
           ## Deutsch
@@ -237,7 +237,7 @@ jobs:
           - Metadatenquelle: https://www.python.org/api/v2/downloads/release/?is_published=true
           - Validierungsworkflow und Run: validate-python-patch ($WORKFLOW_RUN_URL)
           - Geänderte Dateien: nur .python-version
-          - Minor-Version: bleibt Python 3.13
+          - Minor-Version: bleibt Python 3.14
           - Merge: kein automatischer Merge
           EOF
 

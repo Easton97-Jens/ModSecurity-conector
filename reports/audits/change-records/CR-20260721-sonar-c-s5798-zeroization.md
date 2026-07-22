@@ -81,6 +81,13 @@ destructor ordering and public connector protocol behavior are unchanged.
 | rtk proxy env LC_ALL=C gcc and clang -std=c17 -Wall -Wextra -Werror -fsyntax-only connectors/envoy/ext_proc/internal/processor/common_runtime_bridge.c | Passed. |
 | rtk proxy env BUILD_ROOT=<isolated external task build root>/envoy sh connectors/envoy/build/build_ext_proc.sh | Blocked, exit 77: MODSECURITY_INCLUDE_DIR or MODSECURITY_PREFIX was not supplied. |
 | rtk git diff --check | Passed after the final documentation edit. |
+| rtk proxy env BUILD_ROOT=<isolated external task build root>/pr77-gcc-o2 CC=gcc MSCONNECTOR_CFLAGS=-std=c17 -O2 -Wall -Wextra -Werror make check-common-memory-safety | Passed on the current-master reconciliation tree. |
+| rtk proxy env BUILD_ROOT=<isolated external task build root>/pr77-clang-o2 CC=clang MSCONNECTOR_CFLAGS=-std=c17 -O2 -Wall -Wextra -Werror make check-common-memory-safety | Passed on the current-master reconciliation tree. |
+| rtk proxy env BUILD_ROOT=<isolated external task build root>/pr77-common-helpers CC=gcc MSCONNECTOR_CFLAGS=-std=c17 -O2 -Wall -Wextra -Werror make check-common-helpers | Passed on the current-master reconciliation tree. |
+| rtk proxy make check-common-security-contract | Passed on the current-master reconciliation tree. |
+| rtk proxy gcc -std=c17 -O2 -Wall -Wextra -Werror -I common/include -S common/src/memory.c | Passed; the inspected current reconciliation assembly retains volatile zero-byte stores in msconnector_secure_zero. |
+| rtk proxy clang -std=c17 -O2 -Wall -Wextra -Werror -I common/include -S common/src/memory.c | Passed; the inspected current reconciliation assembly retains volatile zero-byte stores in msconnector_secure_zero. |
+| rtk proxy git diff --cached --check origin/master | Passed after the current-master documentation-conflict resolution. |
 
 The retained run-scoped English/German/JSON finding evidence and validation
 summary are private, hash-addressed task artifacts for FND-SONAR-0012; no
@@ -91,7 +98,12 @@ private build paths or credentials are included in this versioned record.
 No complete native connector or Envoy runtime was exercised in this isolated
 worktree. The retained evidence is limited to the focused allocator/free
 callback smoke, Common-helper smoke, direct bridge syntax checks, and
-compiler-aware optimized assembly inspection described above.
+compiler-aware optimized assembly inspection described above. The current-
+master reconciliation also received a focused source/lifetime review of the
+four wrapper-release sites. The smoke explicitly calls msconnector_secure_zero
+before its observing free callback; it proves the helper at that call site but
+does not make msconnector_free_checked a generic secure-free API or dynamically
+exercise all four production destructor paths.
 
 ## Known limitations
 
@@ -104,23 +116,29 @@ compiler-aware optimized assembly inspection described above.
 
 ## Remaining risks
 
-Hosted SonarQube Cloud exact-head analysis, GitHub checks, review, and Draft
-PR delivery are pending at this source revision. The current master Quality
-Gate and its unrelated hotspot disposition remain under FND-SONAR-0001. The
-remaining host prerequisite can prevent future full Envoy-build verification
-until a compatible libmodsecurity development installation is supplied.
+The original PR #77 head ef801b316334285816bc1566e2640087ee137f7f had observed
+successful required GitHub checks and SonarQube Cloud analysis, but it became
+stale and conflicting and those results do not establish the current-master
+reconciliation. The reconciled exact upstream head still requires fresh
+GitHub, SonarQube Cloud, review, and Draft-delivery evidence. The remaining
+host prerequisite can prevent future full Envoy-build verification until a
+compatible libmodsecurity development installation is supplied.
 
 ## Checks not run and rationale
 
 The full Envoy ext_proc product build and runtime suite were not run because
 the required libmodsecurity headers and linkable library are absent from the
-supplied environment. Hosted SonarQube Cloud and GitHub checks cannot exist
-until the exact Draft PR head is pushed.
+supplied environment. This also prevents dynamic exercise of the four real
+release paths in their production bridge/runtime configuration. Hosted
+SonarQube Cloud and GitHub checks cannot exist until the exact reconciled Draft
+PR head is pushed.
 
 ## Final diff and review status
 
-At this Change Record revision the source change is locally validated but not
-yet committed, pushed, or submitted. The user authorizes a Parent-only Draft PR
-after local verification and explicitly prohibits merge. Final branch, commit,
-PR-head, check, and hosted SonarQube Cloud evidence must be observed on the
-exact delivered head; they are not inferred here.
+The source change was committed as 3ef1bb551b4bf98f2034335b44b0ca05e431c48d,
+with later traceability commits producing the original PR #77 head
+ef801b316334285816bc1566e2640087ee137f7f. This record corrects the earlier
+pre-delivery wording. Current-master reconciliation and any resulting master
+integration are separate delivery events: their final branch, commit, PR head,
+checks, SonarQube Cloud disposition, review, and merge result must be observed
+at their exact delivered heads and are not inferred here.

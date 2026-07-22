@@ -29,6 +29,7 @@ require_external_output() {
             echo "FAIL: COMPDB_OUTPUT must be outside the checkout: $requested" >&2
             exit 2
             ;;
+        *) : ;;
     esac
     parent=$(dirname -- "$requested")
     name=$(basename -- "$requested")
@@ -40,6 +41,7 @@ require_external_output() {
             echo "FAIL: COMPDB_OUTPUT must be outside the checkout: $output" >&2
             exit 2
             ;;
+        *) : ;;
     esac
     printf '%s\n' "$output"
 }
