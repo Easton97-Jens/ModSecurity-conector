@@ -69,6 +69,16 @@ Maintainability-Batch wird kein Security-Finding als behoben beansprucht.
 - reports/audits/change-records/README.md und README.de.md
 - dieses englische/deutsche Change-Record-Paar
 
+## Ausgeführte Befehle
+
+- Python-Kompilierung der zwei geänderten Testmodule: bestanden.
+- `tests.test_python_interpreter_contract` und
+  `connectors.lighttpd.tests.test_patched_host_contract`: bestanden (23 Tests).
+- Fokussierte negative Security-Controls für fremdes Executable,
+  Content-Encoding und begrenztes EOS: bestanden (3 Tests).
+- `tests.test_bilingual_docs`: bestanden (11 Tests).
+- `git diff --check`: bestanden.
+
 ## Tests und tatsächliche Ergebnisse
 
 | Befehl oder Check | Ergebnis |
@@ -117,7 +127,7 @@ Review, 23 Tests der betroffenen Module und fokussierte negative Security-
 Controls reduzieren dieses Risiko; frische Hosted-Exact-Head-Analyse bleibt
 vor verifizierter Delivery erforderlich.
 
-## Finaler Review-Status
+## Finaler Diff- und Review-Status
 
 Lokale Implementierung und fokussierte Validierung sind auf dem Parent-only-
 Task-Branch abgeschlossen. Draft-PR #89 ist offen und als Draft markiert;

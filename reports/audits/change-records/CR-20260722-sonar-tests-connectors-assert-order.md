@@ -66,6 +66,16 @@ fixed by this maintainability-only batch.
 - reports/audits/change-records/README.md and README.de.md
 - this English/German Change Record pair
 
+## Commands executed
+
+- Python compilation of the two changed test modules: passed.
+- `tests.test_python_interpreter_contract` and
+  `connectors.lighttpd.tests.test_patched_host_contract`: passed (23 tests).
+- Focused foreign-executable, content-encoding, and bounded-EOS negative
+  security controls: passed (3 tests).
+- `tests.test_bilingual_docs`: passed (11 tests).
+- `git diff --check`: passed.
+
 ## Tests and actual results
 
 | Command or check | Result |
@@ -110,7 +120,7 @@ diagnostics misleading. The final source occurrence review, 23 affected-module
 tests, and focused negative security controls reduce that risk; fresh hosted
 exact-head analysis remains required before delivery is verified.
 
-## Final review status
+## Final diff and review status
 
 Local implementation and focused validation completed on the Parent-only task
 branch. Draft PR #89 is open and marked Draft; its initial exact head was
