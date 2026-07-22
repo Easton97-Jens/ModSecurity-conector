@@ -190,6 +190,38 @@ patch; it is not a claim that a scheduled run, candidate, pull request, or
 merge has occurred. Those results require separately observed CI and delivery
 evidence.
 
+## Parent CI Go-toolchain contract
+
+**Change record:** [CR-20260722-central-go-toolchain-submodule-validation](../../reports/audits/change-records/CR-20260722-central-go-toolchain-submodule-validation.md)
+
+The committed root <code>.go-version</code> is the sole machine-readable Go
+CI toolchain selector. Its required content is the exact stable patch
+<code>1.26.5</code>. The two Go CodeQL jobs use:
+
+~~~yaml
+go-version-file: .go-version
+check-latest: false
+~~~
+
+The selector deliberately does not replace either module's <code>go.mod</code>
+directive. A module directive remains the module-owned Go language and
+compatibility contract, and the updater never edits <code>go.mod</code>,
+<code>go.sum</code>, dependencies, or a <code>toolchain</code> directive.
+
+<code>.github/workflows/update-go-version.yml</code> follows the same
+three-stage trust boundary as the Python updater:
+
+| Job | Toolchain and trust boundary | Required behavior |
+| --- | --- | --- |
+| <code>resolve-go-patch</code> | Canonical <code>.go-version</code>; read-only | Calls only the exact Go release endpoint <code>https://go.dev/dl/?mode=json</code>, rejects redirects and malformed or oversized metadata, and accepts only a higher stable exact <code>1.26.N</code> patch. |
+| <code>validate-go-patch</code> | Independently resolved Go candidate; read-only | Re-resolves the candidate, runs the static contract and focused tests, then validates each actual module with <code>GOTOOLCHAIN=local</code>, <code>go mod verify</code>, <code>go test -mod=readonly</code>, <code>go vet</code>, and <code>go build -mod=readonly</code>. It cannot fall back to a downloaded Go toolchain or write module files. |
+| <code>create-go-update-pr</code> | Canonical Python for the bounded updater; narrow publisher | Re-resolves with <code>--expected-version</code>, changes only <code>.go-version</code>, and may create or safely update only the repository-owned Draft PR on <code>automation/update-go-126</code>. It has only contents and pull-requests write permissions. |
+
+The updater is Python because the bounded, offline-testable release parser is
+checked-in Python. Each Go updater job therefore first uses the existing
+<code>.python-version</code> and interpreter contract, preserving the
+no-ambient-interpreter rule rather than adding a bootstrap exception.
+
 ### Observed local implementation validation
 
 Before this baseline upgrade, the current-master invocation of
