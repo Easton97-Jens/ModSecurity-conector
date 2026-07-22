@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Readiness-Pfadkonstante für SonarQube Cloud S1192](CR-20260721-sonar-s1192-readiness-path.de.md)
 - [Python-3.14.6- und Go-1.26.5-Toolchain-Baseline](CR-20260721-python314-go1265-toolchain-baseline.de.md)
 - [GitHub-Actions-checkout-v7.0.1-Immutable-Lock-Synchronisierung](CR-20260721-actions-checkout-v7-lock.de.md)
 - [GitHub-Actions-setup-python-v7-Immutable-Lock-Synchronisierung](CR-20260721-actions-setup-python-v7-lock.de.md)
