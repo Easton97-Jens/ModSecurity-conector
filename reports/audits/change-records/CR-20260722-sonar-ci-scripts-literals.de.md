@@ -61,6 +61,17 @@ Maintainability-Batch wird kein Security-Finding als behoben beansprucht.
 - reports/audits/change-records/README.md und README.de.md
 - dieses englische/deutsche Change-Record-Paar
 
+## Ausgeführte Befehle
+
+- Python-Kompilierung der zwei geänderten Module: bestanden.
+- `tests.test_compiler_guides`: bestanden (19 Tests).
+- Begrenzte System-Environment-Proof-Generierung mit `--skip-check-runs`:
+  bestanden.
+- `tests.test_bilingual_docs`: bestanden (11 Tests).
+- Fokussierter Shell-Path-/Source-/Candidate-/PATH-Fallback-Invariant-Check:
+  bestanden.
+- `git diff --check`: bestanden.
+
 ## Tests und tatsächliche Ergebnisse
 
 | Befehl oder Check | Ergebnis |
@@ -107,7 +118,7 @@ fokussierte Compiler-Guide-Suite und der begrenzte Generatoraufruf reduzieren
 dieses Risiko; frische Hosted-Exact-Head-Analyse bleibt vor verifizierter
 Delivery erforderlich.
 
-## Finaler Review-Status
+## Finaler Diff- und Review-Status
 
 Lokale Implementierung und fokussierte Validierung sind auf dem Parent-only-
 Task-Branch abgeschlossen. Draft-PR #88 ist offen und als Draft markiert;

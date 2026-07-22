@@ -60,6 +60,16 @@ maintainability-only batch.
 - reports/audits/change-records/README.md and README.de.md
 - this English/German Change Record pair
 
+## Commands executed
+
+- Python compilation of the two changed modules: passed.
+- `tests.test_compiler_guides`: passed (19 tests).
+- Bounded system-environment-proof generation with `--skip-check-runs`:
+  passed.
+- `tests.test_bilingual_docs`: passed (11 tests).
+- Focused shell-path/source/candidate/PATH-fallback invariant check: passed.
+- `git diff --check`: passed.
+
 ## Tests and actual results
 
 | Command or check | Result |
@@ -104,7 +114,7 @@ generated text or reporting metadata. The focused compiler-guide suite and the
 bounded generator invocation reduce that risk; fresh hosted exact-head analysis
 remains required before delivery is verified.
 
-## Final review status
+## Final diff and review status
 
 Local implementation and focused validation completed on the Parent-only task
 branch. Draft PR #88 is open and marked Draft; its initial exact head was
