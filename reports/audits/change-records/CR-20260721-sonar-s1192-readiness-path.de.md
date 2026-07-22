@@ -72,9 +72,13 @@ separate Security-Finding-Remediation erfordert.
 | Fokussierter Change-Record-Contract | bestanden: alle erforderlichen englischen/deutschen Abschnitte und übereinstimmenden Identity-Werte sind vorhanden. |
 | rtk proxy env TMPDIR=<task-owned path> PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_bilingual_docs | bestanden: 11 Tests. |
 | rtk proxy git diff --check | bestanden. |
+| rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-remaining-connectors-claim-policy | Im Current-master-Reconciliation-Tree bestanden: remaining connectors claim policy: ok. |
+| rtk proxy git diff --cached --check origin/master | Nach der Current-master-Dokumentationskonfliktauflösung bestanden. |
 
-Hosted-Exact-Head-Evidence bleibt zukünftige Arbeit; dieser Record behauptet
-keine unbeobachteten CI-, SonarQube-Cloud-, Review- oder Delivery-Ergebnisse.
+Der ursprüngliche PR-#79-Head e0c7e70ed12c5903f5cb751c5903f451a67c2e1a hatte
+beobachtete bestandene anwendbare GitHub-Checks und SonarQube-Cloud-Analyse,
+wurde aber stale und konflikthaft. Diese Ergebnisse beweisen die Current-master-
+Reconciliation nicht, die einen frischen Exact-Head-Delivery-Zyklus benötigt.
 
 ## Runtime-Evidence
 
@@ -99,15 +103,17 @@ Runtime-Matrix.
 
 ## Verbleibende Risiken
 
-Der größere Parent-only-SonarQube-Cloud-Backlog bleibt separat getrackt.
-Hosted-Exact-Head-SonarQube-Cloud- und GitHub-Actions-Evidence sind für einen
-Draft-PR weiterhin erforderlich; er muss ungemergt bleiben.
+Der größere Parent-only-SonarQube-Cloud-Backlog bleibt separat getrackt. Der
+reconciled exakte Upstream-Head benötigt weiterhin frische gehostete SonarQube-
+Cloud-, GitHub-Actions-, Review- und Delivery-Evidence, bevor ein Merge
+beansprucht werden darf.
 
 ## Finaler Diff- und Review-Status
 
-Der beabsichtigte Source-Diff ist eine Konstantenextraktion ohne
-Policy-Verhaltensänderung, ergänzt durch bilinguale Traceability. Bevor ein
-Draft-PR als verifiziert gilt, müssen finaler Diff, exakte lokale/Remote/PR-SHA-
-Gleichheit, anwendbare GitHub-Checks, SonarQube-Cloud-Quality-Gate,
-Selected-Key-Query und PR-Status für den tatsächlichen Head erneut geprüft
-werden.
+Die Source-Änderung wurde als ursprünglicher PR-#79-Head
+e0c7e70ed12c5903f5cb751c5903f451a67c2e1a ausgeliefert. Dieser Datensatz
+korrigiert seine frühere Pre-Delivery-Formulierung. Die Current-master-
+Reconciliation und eine eventuelle daraus folgende Master-Integration sind
+separate Delivery-Ereignisse: deren finaler Branch, Commit, PR-Head, Checks,
+SonarQube-Cloud-Disposition, Review und Merge-Ergebnis müssen an ihren exakten
+ausgelieferten Heads beobachtet werden und werden hier nicht abgeleitet.

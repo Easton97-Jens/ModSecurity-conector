@@ -215,7 +215,7 @@ class CiSecurityWorkflowTest(unittest.TestCase):
 
     def test_codeql_has_fixed_go_and_bounded_cpp_scope(self) -> None:
         text = self.workflow("ci-security-codeql.yml")
-        self.assertEqual(text.count("go-version: '1.24.13'"), 2)
+        self.assertEqual(text.count("go-version: '1.26.5'"), 2)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
         self.assertIn("make check-common-helpers-c17", text)
@@ -361,8 +361,8 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertNotIn("--force", publisher)
         self.assertNotIn("--force-with-lease", publisher)
         self.assertIn('python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json', publisher)
-        self.assertIn("UPDATE_BRANCH: automation/update-python-313", publisher)
-        self.assertIn('PR_TITLE: "chore(ci): propose Python 3.13 patch update"', publisher)
+        self.assertIn("UPDATE_BRANCH: automation/update-python-314", publisher)
+        self.assertIn('PR_TITLE: "chore(ci): propose Python 3.14 patch update"', publisher)
         self.assertIn('changed_paths="$(git diff --name-only)"', publisher)
         self.assertIn("if [ \"$changed_paths\" != \".python-version\" ]; then", publisher)
         self.assertIn("git diff --check", publisher)

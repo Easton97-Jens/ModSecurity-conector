@@ -61,7 +61,7 @@ class PythonVersionContractTest(unittest.TestCase):
             for fixture_name in fixture_names:
                 shutil.copy2(FIXTURES / fixture_name, workflows / fixture_name)
             version_file = root / ".python-version"
-            version_file.write_text("3.13.14\n", encoding="utf-8")
+            version_file.write_text("3.14.6\n", encoding="utf-8")
             return CHECKER.evaluate_workflow_contract(
                 root,
                 version_file,
@@ -86,7 +86,7 @@ class PythonVersionContractTest(unittest.TestCase):
     steps:
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: '.python-version'
           check-latest: false
@@ -104,7 +104,7 @@ class PythonVersionContractTest(unittest.TestCase):
     steps:
       - name: Set up candidate Python
         id: setup-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ needs.resolve-python-patch.outputs.version }}
           check-latest: false
@@ -135,7 +135,7 @@ class PythonVersionContractTest(unittest.TestCase):
                 + "".join(jobs),
                 encoding="utf-8",
             )
-        (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
+        (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
 
     def test_expected_inventory_has_24_normal_jobs_and_one_special_job(self) -> None:
         self.assertEqual(24, len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS))
@@ -145,7 +145,7 @@ class PythonVersionContractTest(unittest.TestCase):
 
     def test_valid_yaml_control_is_accepted(self) -> None:
         version, violations, detected = self.fixture_result("valid-control.yaml")
-        self.assertEqual("3.13.14", version)
+        self.assertEqual("3.14.6", version)
         self.assertEqual([], violations)
         self.assertEqual(
             {CHECKER.JobIdentity("valid-control.yaml", "fixture-job")}, detected
@@ -162,30 +162,30 @@ class PythonVersionContractTest(unittest.TestCase):
         self.assertIsNone(CHECKER.mapping_entry("not a mapping"))
 
     def test_structural_version_and_executable_recognition_remain_ascii_only(self) -> None:
-        for version in ("3.13.0", "3.13.1", "3.13.14"):
+        for version in ("3.14.0", "3.14.1", "3.14.6"):
             with self.subTest(version=version):
                 self.assertEqual(version, CHECKER.parse_exact_version(version, "test"))
 
-        dotted_patch = ".".join(("3", "13", "1", "0"))
-        for version in ("3.13.01", "3.13.\u0661", dotted_patch, "3.14.1"):
+        dotted_patch = ".".join(("3", "14", "1", "0"))
+        for version in ("3.14.01", "3.14.\u0661", dotted_patch, "3.15.1"):
             with self.subTest(version=version), self.assertRaises(
                 CHECKER.ContractInputError
             ):
                 CHECKER.parse_exact_version(version, "test")
 
-        for command in ("python", "python3.13.14", "pip", "pip3.13"):
+        for command in ("python", "python3.14.6", "pip", "pip3.14"):
             with self.subTest(command=command):
                 self.assertTrue(CHECKER.is_python_or_pip_command(command))
 
-        for command in ("python3.13.", "python3.13.\u0661", "pythonx", "pipy"):
+        for command in ("python3.14.", "python3.14.\u0661", "pythonx", "pipy"):
             with self.subTest(command=command):
                 self.assertFalse(CHECKER.is_python_or_pip_command(command))
 
     def test_linear_shell_parser_detects_commands_without_text_false_positives(self) -> None:
         self.assertEqual(
-            "python3.13",
+            "python3.14",
             CHECKER.direct_python_or_pip_command(
-                "/opt/toolchains/python3.13 -c 'print(\"direct\")'"
+                "/opt/toolchains/python3.14 -c 'print(\"direct\")'"
             ),
         )
         self.assertEqual(
@@ -249,7 +249,7 @@ printf '%s\\n' 'make quick-check'
         for fixture in (
             "python-before-setup.yml",
             "pip-before-setup.yml",
-            "python313-before-setup.yml",
+            "python314-before-setup.yml",
             "versioned-python-before-setup.yml",
             "python-command-substitution-before-setup.yml",
         ):
@@ -260,7 +260,7 @@ printf '%s\\n' 'make quick-check'
         self.assert_fixture_violation("verifier-absent.yml", "lacks exactly one")
         self.assert_fixture_violation("verifier-not-equivalent.yml", "EXPECTED_PYTHON")
 
-    def test_setup_python_reference_requires_full_sha_and_v630_comment(self) -> None:
+    def test_setup_python_reference_requires_full_sha_and_v700_comment(self) -> None:
         for fixture in (
             "setup-python-mutable-tag.yml",
             "setup-python-short-sha.yml",
@@ -271,7 +271,7 @@ printf '%s\\n' 'make quick-check'
                 self.assert_fixture_violation(
                     fixture,
                     "actions/setup-python must use exactly "
-                    "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0",
+                    "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
                 )
 
     def test_bare_pip_and_pip3_are_rejected_after_verified_setup(self) -> None:
@@ -364,7 +364,7 @@ printf '%s\\n' 'make quick-check'
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(2, exit_code)
         self.assertEqual("error", payload["status"])
-        self.assertIn("exact Python 3.13.N", payload["violations"][0])
+        self.assertIn("exact Python 3.14.N", payload["violations"][0])
 
     def test_json_cli_reports_contract_violations_with_exit_one(self) -> None:
         with self.temporary_root() as directory:
@@ -372,7 +372,7 @@ printf '%s\\n' 'make quick-check'
             workflows = root / ".github" / "workflows"
             workflows.mkdir(parents=True)
             shutil.copy2(FIXTURES / "missing-setup.yml", workflows / "missing-setup.yml")
-            (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
+            (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(1, exit_code)
         self.assertEqual("violations", payload["status"])
@@ -406,7 +406,7 @@ printf '%s\\n' 'make quick-check'
         with self.temporary_root() as directory:
             root = Path(directory)
             target = root / "version-source"
-            target.write_text("3.13.14\n", encoding="utf-8")
+            target.write_text("3.14.6\n", encoding="utf-8")
             (root / ".python-version").symlink_to(target)
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(2, exit_code)
@@ -424,18 +424,18 @@ printf '%s\\n' 'make quick-check'
             root = Path(directory)
             (root / ".github" / "workflows").mkdir(parents=True)
             version_file = root / ".python-version"
-            version_file.write_text("3.13.13\n", encoding="utf-8")
+            version_file.write_text("3.14.5\n", encoding="utf-8")
             _, blocked, _ = CHECKER.evaluate_workflow_contract(
                 root,
                 version_file,
-                previous_version="3.13.14",
+                previous_version="3.14.6",
                 expected_normal_jobs=(),
                 expected_candidate_job=None,
             )
             _, authorized, _ = CHECKER.evaluate_workflow_contract(
                 root,
                 version_file,
-                previous_version="3.13.14",
+                previous_version="3.14.6",
                 allow_downgrade=True,
                 expected_normal_jobs=(),
                 expected_candidate_job=None,

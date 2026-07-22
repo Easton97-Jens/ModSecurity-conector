@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: setup-python
-        uses: actions/setup-python@v6.3.0 # v6.3.0
+        uses: actions/setup-python@v7.0.0 # v7.0.0
         with:
           python-version-file: '.python-version'
           check-latest: false

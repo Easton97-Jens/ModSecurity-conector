@@ -69,9 +69,13 @@ security-boundary change requiring a separate security-finding remediation.
 | Focused Change Record contract | passed: all required English/German sections and matching identity values are present. |
 | rtk proxy env TMPDIR=<task-owned path> PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_bilingual_docs | passed: 11 tests. |
 | rtk proxy git diff --check | passed. |
+| rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-remaining-connectors-claim-policy | passed on the current-master reconciliation tree: remaining connectors claim policy: ok. |
+| rtk proxy git diff --cached --check origin/master | passed after the current-master documentation-conflict resolution. |
 
-Hosted exact-head evidence remains future work; this record does not claim
-unobserved CI, SonarQube Cloud, review, or delivery results.
+The original PR #79 head e0c7e70ed12c5903f5cb751c5903f451a67c2e1a had
+observed passing applicable GitHub checks and SonarQube Cloud analysis, but it
+became stale and conflicting. Those results do not establish the current-master
+reconciliation, which requires a fresh exact-head delivery cycle.
 
 ## Runtime evidence
 
@@ -94,14 +98,15 @@ proves current policy-checker behavior, not an entire connector runtime matrix.
 
 ## Remaining risks
 
-The broader Parent-only SonarQube Cloud backlog remains tracked separately.
-Hosted exact-head SonarQube Cloud and GitHub Actions evidence are still required
-for any Draft PR, which must remain unmerged.
+The broader Parent-only SonarQube Cloud backlog remains tracked separately. The
+reconciled exact upstream head still requires fresh hosted SonarQube Cloud,
+GitHub Actions, review, and delivery evidence before any merge claim.
 
 ## Final diff and review status
 
-The intended source diff is one constant extraction with no policy-behavior
-change, accompanied by bilingual traceability. Before a Draft PR is called
-verified, the final diff, exact local/remote/PR SHA equality, applicable GitHub
-checks, SonarQube Cloud Quality Gate, selected-key query, and PR state must be
-rechecked for the actual head.
+The source change was delivered as the original PR #79 head
+e0c7e70ed12c5903f5cb751c5903f451a67c2e1a. This record corrects its earlier
+pre-delivery wording. Current-master reconciliation and any resulting master
+integration are separate delivery events: their final branch, commit, PR head,
+checks, SonarQube Cloud disposition, review, and merge result must be observed
+at their exact delivered heads and are not inferred here.
