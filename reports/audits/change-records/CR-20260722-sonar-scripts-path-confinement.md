@@ -123,12 +123,15 @@ the selected findings are declared resolved.
   locally because its known failures are missing links in the deliberately
   uninitialized Framework gitlink; the targeted Change Record rule and hosted
   `scaffold-lint` evidence are used instead.
-- Full hosted checks and SonarQube Cloud PR analysis remain pending until the
-  exact Draft PR head exists.
+- Full hosted checks and SonarQube Cloud PR analysis remain pending for the
+  current exact Draft PR head.
 
 ## Final diff and review status
 
 Local implementation, source-to-sink review, focused exploit controls, and
-legitimate controls are complete on a Parent-only task branch. No commit,
-push, Draft PR number, review, hosted check, Sonar Quality Gate, merge, or
-default-branch change is claimed in this pre-delivery record.
+legitimate controls are complete on the Parent-only task branch. Draft PR
+[#91](https://github.com/Easton97-Jens/ModSecurity-conector/pull/91) is open
+and marked Draft. At creation time, its head, local commit, and remote branch
+all matched `b902bd7c7b1b4819670435536dbbb8491c4918ae`. Hosted checks, Sonar
+analysis, and the Quality Gate remain pending. No review approval, merge, or
+default-branch change is claimed or authorized.

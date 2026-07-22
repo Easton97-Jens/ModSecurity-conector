@@ -130,13 +130,16 @@ ausgewählten Befunde als behoben gelten.
   lokal nicht, weil seine bekannten Fehler fehlende Links im absichtlich nicht
   initialisierten Framework-Gitlink sind; stattdessen werden die gezielte
   Change-Record-Regel und Hosted-`scaffold-lint`-Evidence verwendet.
-- Vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse stehen aus, bis
-  der exakte Draft-PR-Head existiert.
+- Vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse stehen für den
+  aktuellen exakten Draft-PR-Head noch aus.
 
 ## Finaler Diff- und Review-Status
 
 Lokale Implementierung, Source-to-Sink-Review, fokussierte Exploit-Controls
-und legitime Controls sind auf einem Parent-only-Task-Branch abgeschlossen.
-Dieser Pre-Delivery-Datensatz beansprucht keinen Commit, Push, Draft-PR-
-Nummer, Review, Hosted-Check, Sonar-Quality-Gate, Merge oder Default-Branch-
-Change.
+und legitime Controls sind auf dem Parent-only-Task-Branch abgeschlossen.
+Draft-PR [#91](https://github.com/Easton97-Jens/ModSecurity-conector/pull/91)
+ist offen und als Draft markiert. Zum Erstellungszeitpunkt stimmten sein Head,
+lokaler Commit und Remote-Branch auf
+`b902bd7c7b1b4819670435536dbbb8491c4918ae` überein. Hosted-Checks,
+Sonar-Analyse und Quality Gate stehen noch aus. Es werden weder Review-
+Freigabe noch Merge oder Default-Branch-Änderung beansprucht oder autorisiert.
