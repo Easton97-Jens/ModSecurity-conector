@@ -71,9 +71,12 @@ Maintainability-Batch wird kein Security-Finding als behoben beansprucht.
 | Source-Occurrence-Review | bestanden: jedes ausgewählte Literal bleibt einmal als Modulkonstante; unverbundene längere Note-Strings bleiben unverändert. |
 | Fokussiertes Security-Extraction-Invariant | bestanden: vorhandener Shell-Pfad, Shell-Check-Source/-Candidate und das Missing-Tool-PATH-Fallback-Verhalten behalten ihre exakten Werte. |
 
-Frische Exact-Head-SonarQube-Cloud- und GitHub-Actions-Ergebnisse stehen bis
-zur Erstellung des Draft-PR aus und werden nicht aus diesem Datensatz
-abgeleitet.
+Der Draft-PR [#88](https://github.com/Easton97-Jens/ModSecurity-conector/pull/88)
+existiert jetzt für Branch `agent/sonar-s1192-ci-scripts-literals-20260722`.
+Zum Erstellungszeitpunkt stimmten sein Head, der lokale Commit und der Remote-
+Branch auf `dcf0d63f376c8935387643a15012e8828fd13d90` überein. Frische
+Exact-Head-SonarQube-Cloud- und GitHub-Actions-Ergebnisse stehen noch aus und
+werden nicht aus diesem Datensatz abgeleitet.
 
 ## Runtime-Evidence
 
@@ -87,8 +90,8 @@ und keine Connector-Host-Runtime-Evidence.
   Connector-Source noch Runtime-Harness-Verhalten änderten sich.
 - Kein Framework- oder MRTS-Test und keine -Änderung: Sie sind aus diesem
   Parent-only-Task ausgeschlossen.
-- Vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse stehen aus, bis
-  der exakte Draft-PR-Head existiert.
+- Vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse stehen für den
+  aktuellen exakten Draft-PR-Head noch aus.
 
 ## Bekannte Einschränkungen
 
@@ -106,7 +109,9 @@ Delivery erforderlich.
 
 ## Finaler Review-Status
 
-Lokale Implementierung und fokussierte Validierung laufen auf einem Parent-
-only-Task-Branch. Dieser Pre-Delivery-Datensatz beansprucht keinen Commit,
-Push, Draft-PR-Nummer, Review, Hosted-Check, Sonar-Quality-Gate, Merge oder
-Default-Branch-Change.
+Lokale Implementierung und fokussierte Validierung sind auf dem Parent-only-
+Task-Branch abgeschlossen. Draft-PR #88 ist offen und als Draft markiert;
+sein initialer exakter Head wurde gegen lokale und Remote-Git-Metadaten
+verifiziert. Hosted-Checks, Sonar-Analyse und Quality Gate stehen noch aus.
+Es werden weder Review-Freigabe noch Merge oder Default-Branch-Änderung
+beansprucht oder autorisiert.
