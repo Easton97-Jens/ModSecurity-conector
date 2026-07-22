@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import tempfile
 import unittest
@@ -80,6 +81,15 @@ class UpdateGitHubActionsVersionsTest(unittest.TestCase):
             module_workflow.write_text("steps:\n  - uses: actions/checkout@v4\n", encoding="utf-8")
             self.assertEqual(updater.path_repository(root, module_workflow), "module")
 
+    def test_module_workflow_inside_root_is_discovered(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            module_workflow = root / "modules/ModSecurity-test-Framework/.github/workflows/test.yml"
+            module_workflow.parent.mkdir(parents=True)
+            module_workflow.write_text("steps:\n  - uses: actions/checkout@v4\n", encoding="utf-8")
+
+            self.assertEqual(updater.workflow_files(root), [module_workflow.resolve()])
+
     def test_report_rendering(self):
         row = updater.ReportRow(
             status="Updated",
@@ -98,6 +108,94 @@ class UpdateGitHubActionsVersionsTest(unittest.TestCase):
     def test_gitignore_ignores_report(self):
         gitignore = Path(__file__).resolve().parents[1] / ".gitignore"
         self.assertIn("actions-update-report.md", gitignore.read_text(encoding="utf-8").splitlines())
+
+    def test_external_workflow_symlink_is_not_read_or_updated(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as external_tmp:
+            root = Path(tmp)
+            external = Path(external_tmp) / "external-workflow.yml"
+            external_contents = "steps:\n  - uses: actions/checkout@v4\n"
+            external.write_text(external_contents, encoding="utf-8")
+            workflow = root / ".github/workflows/external.yml"
+            workflow.parent.mkdir(parents=True)
+            workflow.symlink_to(external)
+
+            rows, _ = updater.scan_workflows(
+                root,
+                FakeResolver({"actions/checkout": ["v4", "v5"]}),
+                write=True,
+            )
+
+            self.assertEqual(rows, [])
+            self.assertEqual(external.read_text(encoding="utf-8"), external_contents)
+
+    def test_root_relative_report_path_is_allowed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            expected = (root / "actions-update-report.md").resolve()
+
+            self.assertEqual(updater.confined_report_path(root, "actions-update-report.md"), expected)
+
+    def test_report_path_outside_root_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as external_tmp:
+            root = Path(tmp)
+            outside = Path(external_tmp) / "actions-update-report.md"
+
+            with self.assertRaises(ValueError):
+                updater.confined_report_path(root, str(outside))
+
+    def test_report_symlink_to_outside_root_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as external_tmp:
+            root = Path(tmp)
+            outside = Path(external_tmp) / "actions-update-report.md"
+            outside.write_text("outside", encoding="utf-8")
+            report_link = root / "actions-update-report.md"
+            report_link.symlink_to(outside)
+
+            with self.assertRaises(ValueError):
+                updater.confined_report_path(root, str(report_link))
+
+    def test_cyclic_report_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report_link = root / "actions-update-report.md"
+            report_link.symlink_to(report_link)
+
+            with self.assertRaises(ValueError):
+                updater.confined_report_path(root, str(report_link))
+
+    def test_main_rejects_external_report_path_before_writing(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as external_tmp:
+            root = Path(tmp)
+            outside = Path(external_tmp) / "actions-update-report.md"
+            workflow = root / ".github/workflows/test.yml"
+            workflow.parent.mkdir(parents=True)
+            workflow_contents = "steps:\n  - uses: actions/checkout@v4\n"
+            workflow.write_text(workflow_contents, encoding="utf-8")
+            previous_directory = Path.cwd()
+            try:
+                os.chdir(root)
+                with self.assertRaises(SystemExit) as error:
+                    updater.main(["--write", "--report", str(outside)])
+            finally:
+                os.chdir(previous_directory)
+
+            self.assertEqual(error.exception.code, 2)
+            self.assertFalse(outside.exists())
+            self.assertEqual(workflow.read_text(encoding="utf-8"), workflow_contents)
+
+    def test_main_writes_root_relative_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report = root / "actions-update-report.md"
+            previous_directory = Path.cwd()
+            try:
+                os.chdir(root)
+                result = updater.main(["--report", report.name])
+            finally:
+                os.chdir(previous_directory)
+
+            self.assertEqual(result, 0)
+            self.assertTrue(report.is_file())
 
     def _single_row(self, uses_line):
         with tempfile.TemporaryDirectory() as tmp:

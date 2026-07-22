@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Scripts workflow and report path confinement for SonarQube Cloud security findings](CR-20260722-sonar-scripts-path-confinement.md)
 - [CodeQL Action 4.37.3 batch](CR-20260722-codeql-action-4-37-3-batch.md)
 - [CodeQL Action 4.37.2 batch](CR-20260722-codeql-action-4-37-2-batch.md)
 - [NGINX Server header byte-length correction](CR-20260721-nginx-server-header-length.md)

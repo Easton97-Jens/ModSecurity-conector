@@ -184,14 +184,46 @@ def parse_uses_line(path: Path, line_number: int, line: str) -> UsesLine | None:
 
 
 def workflow_files(root: Path) -> list[Path]:
+    root = root.resolve()
     files: list[Path] = []
-    for pattern in WORKFLOW_GLOBS:
-        files.extend(root.glob(pattern))
+    search_roots = [root]
     module_root = root / MODULE_PATH
     if module_root.exists():
+        search_roots.append(module_root)
+    for search_root in search_roots:
         for pattern in WORKFLOW_GLOBS:
-            files.extend(module_root.glob(pattern))
-    return sorted(path for path in files if path.is_file())
+            for candidate in search_root.glob(pattern):
+                try:
+                    resolved = candidate.resolve(strict=True)
+                except (OSError, RuntimeError):
+                    continue
+                if candidate.is_symlink() or not resolved.is_file() or not is_within_root(resolved, root):
+                    continue
+                files.append(resolved)
+    return sorted(files)
+
+
+def is_within_root(candidate: Path, root: Path) -> bool:
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def confined_report_path(root: Path, raw_path: str) -> Path:
+    """Resolve a report path and reject locations outside the repository root."""
+    candidate = Path(raw_path)
+    unresolved = candidate if candidate.is_absolute() else root / candidate
+    if unresolved.is_symlink():
+        raise ValueError("report path must not be a symbolic link")
+    try:
+        resolved = unresolved.resolve()
+    except (OSError, RuntimeError) as error:
+        raise ValueError("report path cannot be resolved safely") from error
+    if not is_within_root(resolved, root):
+        raise ValueError("report path must remain inside the repository root")
+    return resolved
 
 
 def path_repository(root: Path, path: Path) -> str:
@@ -523,7 +555,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
-    root = Path.cwd()
+    root = Path.cwd().resolve()
+    report_path: Path | None = None
+    if args.report:
+        try:
+            report_path = confined_report_path(root, args.report)
+        except ValueError as error:
+            parser.error(str(error))
     token = os.environ.get("GITHUB_TOKEN")
     allow_submodule_write = bool(os.environ.get("SUBMODULE_UPDATE_TOKEN"))
     resolver = GitHubActionResolver(token=token)
@@ -533,8 +571,8 @@ def main(argv: list[str] | None = None) -> int:
         write=args.write,
         allow_submodule_write=allow_submodule_write,
     )
-    if args.report:
-        write_report(Path(args.report), rows, module_submodule)
+    if report_path is not None:
+        write_report(report_path, rows, module_submodule)
     if args.check and any(row.status == "Updated" for row in rows):
         return 1
     return 0
