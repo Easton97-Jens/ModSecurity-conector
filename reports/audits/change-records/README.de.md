@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Tests und Lighttpd-Assert-Reihenfolge für SonarQube Cloud S3415](CR-20260722-sonar-tests-connectors-assert-order.de.md)
 - [CodeQL-Action-4.37.3-Batch](CR-20260722-codeql-action-4-37-3-batch.de.md)
 - [CodeQL-Action-4.37.2-Batch](CR-20260722-codeql-action-4-37-2-batch.de.md)
 - [NGINX-Korrektur der Server-Header-Bytelänge](CR-20260721-nginx-server-header-length.de.md)

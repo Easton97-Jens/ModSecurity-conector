@@ -86,7 +86,7 @@ class PatchedHostContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             config = Path(result.stdout.strip())
             self.assertIn(
                 "response_body_mode=streaming",
@@ -122,7 +122,7 @@ class PatchedHostContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             config = Path(result.stdout.strip()).read_text(encoding="utf-8")
         self.assertIn('server.modules = ( "mod_proxy", "mod_msconnector" )', config)
         self.assertIn("server.stream-response-body = 1", config)
@@ -158,7 +158,7 @@ class PatchedHostContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-        self.assertEqual(77, result.returncode)
+        self.assertEqual(result.returncode, 77)
         self.assertIn("identity entity-body input", result.stderr)
 
     def test_response_callback_ingests_entity_ranges_and_finishes_at_eos(self) -> None:
@@ -379,22 +379,22 @@ class PatchedHostContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             projected = json.loads(projection.read_text(encoding="utf-8"))
             self.assertTrue(projected["eos_seen"])
             self.assertTrue(projected["end_of_stream_evaluation"])
             self.assertNotIn("event_hash", projected)
             rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
-            self.assertEqual({"PASS"}, {row["status"] for row in rows})
+            self.assertEqual({row["status"] for row in rows}, {"PASS"})
             self.assertTrue(all(row["transaction_ids"] == ["tx-barrier"] for row in rows))
             self.assertEqual(
-                {str(evidence)},
                 {row["first_byte_evidence_path"] for row in rows},
+                {str(evidence)},
             )
             summary_value = json.loads(summary.read_text(encoding="utf-8"))
-            self.assertEqual(200, summary_value["phase4_end_of_stream_evaluation_status"])
-            self.assertEqual(200, summary_value["phase4_first_byte_before_response_end_status"])
-            self.assertEqual(200, summary_value["phase4_no_full_response_buffering_status"])
+            self.assertEqual(summary_value["phase4_end_of_stream_evaluation_status"], 200)
+            self.assertEqual(summary_value["phase4_first_byte_before_response_end_status"], 200)
+            self.assertEqual(summary_value["phase4_no_full_response_buffering_status"], 200)
 
 
 if __name__ == "__main__":
