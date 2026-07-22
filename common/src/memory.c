@@ -32,4 +32,13 @@ void msconnector_free_checked(msconnector_allocator *allocator, void **ptr, size
     allocator->bytes_allocated = size > allocator->bytes_allocated ? 0U : allocator->bytes_allocated - size;
 }
 
+void msconnector_secure_zero(void *ptr, size_t size) {
+    volatile unsigned char *bytes = ptr;
+
+    while (bytes != 0 && size > 0U) {
+        *bytes++ = 0U;
+        --size;
+    }
+}
+
 int msconnector_allocator_within_limit(const msconnector_allocator *allocator) { return allocator != 0 && allocator->bytes_allocated <= allocator->max_bytes; }

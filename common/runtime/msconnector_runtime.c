@@ -675,7 +675,7 @@ static void native_free_transaction(void *userdata, void *native_transaction) {
         if (native->transaction != NULL) {
             msc_transaction_cleanup(native->transaction);
         }
-        memset(native, 0, sizeof(*native));
+        msconnector_secure_zero(native, sizeof(*native));
         free(native);
     }
 }
@@ -1112,7 +1112,7 @@ void msconnector_runtime_destroy(msconnector_runtime **runtime_pointer) {
         (void)fclose(runtime->event_file);
         runtime->event_file = NULL;
     }
-    memset(runtime, 0, sizeof(*runtime));
+    msconnector_secure_zero(runtime, sizeof(*runtime));
     free(runtime);
     *runtime_pointer = NULL;
 }
@@ -2139,7 +2139,7 @@ void msconnector_runtime_transaction_destroy(
     if (transaction->native_started) {
         msconnector_modsecurity_transaction_cleanup(&transaction->modsecurity);
     }
-    memset(transaction, 0, sizeof(*transaction));
+    msconnector_secure_zero(transaction, sizeof(*transaction));
     free(transaction);
     *transaction_pointer = NULL;
 }

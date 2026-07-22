@@ -28,6 +28,8 @@ typedef struct msconnector_allocator {
 void msconnector_allocator_init(msconnector_allocator *allocator, size_t max_bytes);
 int msconnector_alloc_checked(msconnector_allocator *allocator, size_t size, void **out);
 void msconnector_free_checked(msconnector_allocator *allocator, void **ptr, size_t size);
+/* Clear a sensitive allocation with volatile stores before releasing it. */
+void msconnector_secure_zero(void *ptr, size_t size);
 int msconnector_allocator_within_limit(const msconnector_allocator *allocator);
 
 #ifdef __cplusplus

@@ -8,8 +8,9 @@ import sys
 
 ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
 CONNECTORS = ("envoy", "traefik", "lighttpd")
+READINESS_REPORT_EN = "reports/current/readiness.md"
 REPORTS = (
-    "reports/current/readiness.md",
+    READINESS_REPORT_EN,
     "reports/current/readiness.de.md",
 )
 STATUS_DOCUMENTS = {
@@ -57,7 +58,8 @@ runtime_paths = {
     "traefik": ROOT / "connectors/traefik/scripts/runtime-smoke.sh",
     "lighttpd": ROOT / "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
 }
-readiness_en = (ROOT / "reports/current/readiness.md").read_text(encoding="utf-8", errors="replace") if (ROOT / "reports/current/readiness.md").is_file() else ""
+readiness_en_path = ROOT / READINESS_REPORT_EN
+readiness_en = readiness_en_path.read_text(encoding="utf-8", errors="replace") if readiness_en_path.is_file() else ""
 for connector in CONNECTORS:
     metadata_path = ROOT / "connectors" / connector / "metadata.c"
     metadata = metadata_path.read_text(encoding="utf-8", errors="replace")
