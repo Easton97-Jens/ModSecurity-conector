@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [NGINX Server header byte-length correction](CR-20260721-nginx-server-header-length.md)
 - [Parent readiness-path constant for SonarQube Cloud S1192](CR-20260721-sonar-s1192-readiness-path.md)
 - [Python 3.14.6 and Go 1.26.5 toolchain baseline](CR-20260721-python314-go1265-toolchain-baseline.md)
 - [GitHub Actions checkout v7.0.1 immutable-lock synchronization](CR-20260721-actions-checkout-v7-lock.md)
