@@ -10,7 +10,7 @@
 | Date (UTC) | `2026-07-21` |
 | Base revision | `0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3` |
 | Scope | Parent repository only; Framework and MRTS source and gitlinks are unchanged. |
-| Related finding | `FND-PARENT-0044` is retained as a pending canonical EN/DE/JSON import because the local `.codex` mount is read-only. |
+| Related finding | No canonical finding ID was assigned at record authoring; this record retains only the bounded static-candidate evidence. |
 
 ## Motivation and problem statement
 
@@ -68,9 +68,10 @@ assignments, requires the custom length control, and verifies the sink.
 - `reports/audits/change-records/README.md`
 - `reports/audits/change-records/README.de.md`
 
-Local, ignored evidence also retains the complete pending canonical
-`FND-PARENT-0044` EN/DE/JSON record and required finding-system update plan;
-it is not a substitute for versioned source, tests, or this Change Record.
+No canonical finding record is referenced by this Change Record. The current
+local `.codex/findings` storage is read-only, so allocation and import were not
+performed; this bounded static-candidate evidence is not a substitute for
+versioned source, tests, or this Change Record.
 
 ## Commands executed
 
@@ -114,6 +115,20 @@ gitlink; its nested MRTS submodule remained uninitialized. The Change Record
 pair was also manually checked for matching required headings, identity fields,
 language switches, tables, and technical literals.
 
+On `2026-07-22`, current-master reconciliation in an isolated delivery clone
+started a merge of `origin/master` at `b0cc501d8edeada4709118b91194ab838b6d681e`
+with the original Draft PR #73 content. Only the bilingual Change Record indexes
+conflicted; the source and checker hunks did not. The focused
+`rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-nginx-common-adoption`
+check passed, including both default-terminal-NUL controls, the custom-length
+control, and the explicit-sink control. `rtk proxy env
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_bilingual_docs`
+passed all 11 tests. The current
+`rtk proxy env BUILD_ROOT=<task-owned-external-build-root> make
+check-nginx-c17` attempt is `blocked`: NGINX headers/source are absent, so its
+underlying script returns `77` and `make` returns `2`; it is not a current C17
+compilation pass.
+
 ## Security impact
 
 The correction restores the intended semantic length at the NGINX-to-
@@ -154,11 +169,10 @@ static regression and real C17 compiles prove the source invariant and the
 legitimate custom/header-sink controls, but not a deployed rule decision or
 client-visible response behavior.
 
-New-directory allocation beneath `.codex/findings` is denied in this session:
-`mkdir -p .codex/findings/FND-PARENT-0044` returned `Read-only file system`.
-The canonical FND-0044 directory, indexes, backlog, roadmap, and reconciliation
-report therefore cannot be synchronized as a new canonical record. Its complete
-pending EN/DE/JSON import package is hash-retained under the task run.
+New-directory allocation beneath `.codex/findings` is denied in this session
+with `Read-only file system`. No canonical finding ID is assigned in this Change
+Record; this storage limitation does not turn bounded static evidence into
+native behavioral verification.
 
 The distinct gzip-disabled C17 warning is triaged separately as
 `FND-PARENT-0045` (`compiler_warning`, P2, non-security). It does not alter the
@@ -167,15 +181,18 @@ not combined into this change.
 
 ## Remaining risks
 
-Under the mandatory security workflow, the related finding remains `blocked`,
-not `fixed`, `verified`, or `closed`, until relevant native behavioral proof is
-available. An integration-specific NGINX/libModSecurity behavior could remain
+The static candidate is not claimed as runtime-verified; no canonical finding
+has been allocated or closed. Relevant native behavioral proof is still
+required. An integration-specific NGINX/libModSecurity behavior could remain
 undiscovered until default-header exact/end-anchored, custom-header, and
 non-match controls run in a native environment. No risk has been accepted.
 
-The source correction is local at record authoring. Commit, push, Draft PR,
-exact-head hosted checks, review, SonarQube Cloud, merge, and resulting-master
-scan facts do not yet exist and are not claimed here.
+The source correction was committed and pushed as Draft PR #73 at original
+head `264f8ca131b5c7371d8be3a7840601255a68ac0e`. That head is behind current
+`master`, so its earlier hosted evidence is stale and is not reused. The
+current-master reconciliation still requires a fresh exact-head CI, review,
+SonarQube Cloud, merge, and resulting-master verification; none is claimed
+until observed.
 
 ## Checks not run and rationale
 
@@ -195,12 +212,23 @@ NGINX runtime module remained unavailable. The Framework boundary and Parent
 gitlink are outside this remediation's write scope, so no Framework workaround
 or checksum weakening was made.
 
-Native NGINX/libModSecurity rule verification, sanitizer coverage, hosted PR
-checks, SonarQube Cloud analysis, review, and resulting-master revalidation
-are not run because there is not yet a committed or pushed PR head. The
+Native NGINX/libModSecurity rule verification and sanitizer coverage are not
+run for the current-master reconciliation because this task environment does
+not provide a compatible runnable NGINX/libModSecurity integration. The
+original Draft PR #73 was committed and pushed at
+`264f8ca131b5c7371d8be3a7840601255a68ac0e`; any current-master
+conflict-resolution or rebase follow-up requires a new exact-head hosted
+cycle, so no current CI, SonarQube Cloud, review, or resulting-master fact is
+claimed before observation. The historical
 repository bilingual/documentation checks ran after this record pair was
 created and passed in the task-owned delivery clone with the exact Framework
 gitlink. That isolated Framework copy did not initialize or modify MRTS.
+
+The current isolated clone deliberately has no Framework working tree. Its
+`make check-bilingual-docs` and `make check-doc-links` attempts both return
+`2` for repository-wide missing Framework link targets; they do not disprove
+this paired Change Record's focused heading, identity, and literal parity and
+are not reported as documentation-check passes.
 
 ## Final diff and review status
 
@@ -208,11 +236,12 @@ An independent focused review of the two source/test files passed with no
 blocking security or compatibility issue. It confirmed both literal corrections,
 the unchanged custom `h->value.len` path, and the preserved explicit sink.
 
-At record authoring the task worktree contains only the two source/test edits
-and this EN/DE Change Record plus README index pair. It is based on
-`0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3`; no commit, push, PR, review,
-hosted check, Sonar result, merge, or master scan is claimed. The final local
-diff and the real GCC/Clang C17 checks passed. Full bilingual/documentation
-checks passed in the delivery clone; broad `make lint` remains a documented
+The current-master reconciliation combines the original PR #73 source/checker
+edits, its EN/DE Change Record and README index updates, and the selected
+current-master content. The original PR head is
+`264f8ca131b5c7371d8be3a7840601255a68ac0e`; a follow-up exact head will be
+verified separately. The final local diff and the historic real GCC/Clang C17
+checks passed at their stated scope. Historical bilingual/documentation checks
+passed in the delivery clone; broad `make lint` remains a documented
 non-passing check because of the separate, fail-closed Framework provisioning
 blocker.

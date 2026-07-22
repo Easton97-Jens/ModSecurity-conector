@@ -28,7 +28,7 @@ jobs:
       changed: ${{ steps.resolve.outputs.changed }}
     steps:
       - name: Checkout Parent metadata
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: master
           submodules: false
@@ -71,12 +71,24 @@ jobs:
       CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
     steps:
       - name: Checkout candidate for read-only validation
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: master
           submodules: recursive
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Set up toolchain
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Check out the resolved submodule revision
         run: |
@@ -106,7 +118,7 @@ jobs:
       CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
     steps:
       - name: Checkout Parent repository without submodules
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: master
           submodules: false

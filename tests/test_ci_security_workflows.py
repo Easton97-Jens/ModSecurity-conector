@@ -39,6 +39,10 @@ EXPECTED_WRITE_PERMISSIONS = {
         "contents": "write",
         "pull-requests": "write",
     },
+    ("update-python-version.yml", "create-python-update-pr"): {
+        "contents": "write",
+        "pull-requests": "write",
+    },
     ("ci-security-codeql.yml", "actions"): {
         "contents": "read",
         "security-events": "write",
@@ -211,7 +215,7 @@ class CiSecurityWorkflowTest(unittest.TestCase):
 
     def test_codeql_has_fixed_go_and_bounded_cpp_scope(self) -> None:
         text = self.workflow("ci-security-codeql.yml")
-        self.assertEqual(text.count("go-version: '1.24.13'"), 2)
+        self.assertEqual(text.count("go-version: '1.26.5'"), 2)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
         self.assertIn("make check-common-helpers-c17", text)
@@ -310,6 +314,91 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertNotIn("submodules: recursive", publisher)
         self.assertNotIn("git submodule", publisher)
         self.assertNotIn("make quick-check", publisher)
+
+    def test_manual_actions_updater_uses_a_trusted_default_branch(self) -> None:
+        job = self.jobs("update-actions-versions.yml")["update-actions-versions"]
+        self.assertIn(
+            "if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+            job,
+        )
+        checkouts = checkout_step_blocks(job)
+        self.assertEqual(len(checkouts), 1)
+        self.assertIn("ref: ${{ github.event.repository.default_branch }}", checkouts[0])
+        self.assertIn("persist-credentials: false", checkouts[0])
+
+    def test_python_patch_updater_separates_trusted_stages_and_writer_scope(self) -> None:
+        workflow_name = "update-python-version.yml"
+        jobs = self.jobs(workflow_name)
+        self.assertEqual(
+            set(jobs),
+            {
+                "resolve-python-patch",
+                "validate-python-patch",
+                "create-python-update-pr",
+            },
+        )
+        trusted_default_ref = "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
+        for job_name in ("resolve-python-patch", "validate-python-patch", "create-python-update-pr"):
+            self.assertIn(trusted_default_ref, jobs[job_name], job_name)
+            checkouts = checkout_step_blocks(jobs[job_name])
+            self.assertEqual(len(checkouts), 1, job_name)
+            self.assertIn("ref: ${{ github.event.repository.default_branch }}", checkouts[0], job_name)
+            self.assertIn("submodules: false", checkouts[0], job_name)
+            self.assertIn("persist-credentials: false", checkouts[0], job_name)
+            self.assertNotIn("secrets.", jobs[job_name], job_name)
+
+        self.assertEqual(job_permissions(jobs["resolve-python-patch"]), {"contents": "read"})
+        self.assertEqual(job_permissions(jobs["validate-python-patch"]), {"contents": "read"})
+        publisher = jobs["create-python-update-pr"]
+        self.assertEqual(
+            job_permissions(publisher),
+            {"contents": "write", "pull-requests": "write"},
+        )
+        self.assertNotIn("actions: write", publisher)
+        self.assertNotIn("submodules: recursive", publisher)
+        self.assertNotIn("git submodule", publisher)
+        self.assertNotIn("make ", publisher)
+        self.assertNotIn("--force", publisher)
+        self.assertNotIn("--force-with-lease", publisher)
+        self.assertIn('python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json', publisher)
+        self.assertIn("UPDATE_BRANCH: automation/update-python-314", publisher)
+        self.assertIn('PR_TITLE: "chore(ci): propose Python 3.14 patch update"', publisher)
+        self.assertIn('changed_paths="$(git diff --name-only)"', publisher)
+        self.assertIn("if [ \"$changed_paths\" != \".python-version\" ]; then", publisher)
+        self.assertIn("git diff --check", publisher)
+        self.assertIn("git push origin \"$UPDATE_BRANCH\"", publisher)
+        self.assertIn("--draft", publisher)
+        self.assertIn("gh pr edit \"$existing_pr\"", publisher)
+        self.assertIn('gh api --method GET "repos/$GITHUB_REPOSITORY/pulls"', publisher)
+        self.assertIn('-f base="$DEFAULT_BRANCH"', publisher)
+        self.assertIn('-f head="${GITHUB_REPOSITORY_OWNER}:$UPDATE_BRANCH"', publisher)
+        self.assertIn("set -o pipefail", publisher)
+        self.assertIn("scripts/select-python-update-pr.py", publisher)
+        self.assertNotIn("--input", publisher)
+        self.assertNotIn("gh pr list --head", publisher)
+        self.assertIn('gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$existing_pr" --jq \'.auto_merge\'', publisher)
+        self.assertIn('if [ "$auto_merge" != "null" ]; then', publisher)
+        self.assertIn("git fetch --no-tags origin \"$UPDATE_BRANCH\"", publisher)
+        self.assertIn("git read-tree \"origin/$UPDATE_BRANCH\"", publisher)
+        self.assertIn("git update-index --add --cacheinfo 100644 \"$candidate_blob\" .python-version", publisher)
+        self.assertIn("git commit-tree \"$tree\" -p \"origin/$UPDATE_BRANCH\"", publisher)
+        self.assertIn("## English", publisher)
+        self.assertIn("## Deutsch", publisher)
+        self.assertIn("no automatic merge", publisher)
+        self.assertIn("kein automatischer Merge", publisher)
+
+        candidate = jobs["validate-python-patch"]
+        self.assertIn("python-version: ${{ needs.resolve-python-patch.outputs.version }}", candidate)
+        self.assertIn("check-latest: false", candidate)
+        self.assertIn("python3 -m compileall -q ci scripts tests", candidate)
+        self.assertIn(
+            'check-python-interpreter-contract.py --expected-version "$EXPECTED_VERSION" --expected-python "$EXPECTED_PYTHON"',
+            candidate,
+        )
+        self.assertIn(
+            'scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json',
+            candidate,
+        )
 
     def test_sarif_upload_permissions_are_scoped(self) -> None:
         codeql = self.workflow("ci-security-codeql.yml")

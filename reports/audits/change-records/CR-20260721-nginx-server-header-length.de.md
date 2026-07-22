@@ -10,7 +10,7 @@
 | Datum (UTC) | `2026-07-21` |
 | Basis-Revision | `0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3` |
 | Scope | Nur Parent-Repository; Framework- und MRTS-Source und Gitlinks bleiben unverändert. |
-| Zugehöriges Finding | `FND-PARENT-0044` ist als pending canonical EN/DE/JSON-Import retained, weil der lokale `.codex`-Mount read-only ist. |
+| Zugehöriges Finding | Bei der Erstellung dieses Records war keine kanonische Finding-ID vergeben; dieser Record hält nur die begrenzte Evidence des statischen Candidates fest. |
 
 ## Motivation und Problemstellung
 
@@ -46,7 +46,7 @@ Der vorhandene Custom-Zweig bleibt `value.len = h->value.len;`. NGINX besitzt di
 - `reports/audits/change-records/README.md`
 - `reports/audits/change-records/README.de.md`
 
-Lokale, ignorierte Evidence hält zusätzlich den vollständigen pending canonical `FND-PARENT-0044`-EN/DE/JSON-Record und den erforderlichen Finding-System-Update-Plan fest; sie ersetzt keine versionierte Source, Tests oder diesen Change Record.
+Dieser Change Record referenziert keinen kanonischen Finding-Record. Der aktuelle lokale `.codex/findings`-Speicher ist read-only, daher wurden keine Allokation und kein Import durchgeführt; diese begrenzte Evidence des statischen Candidates ersetzt weder versionierte Source noch Tests oder diesen Change Record.
 
 ## Ausgeführte Befehle
 
@@ -70,6 +70,8 @@ Die direkte fokussierte Prüfung bestand alle vorhandenen Assertions plus die vi
 
 `make check-bilingual-docs` und `make check-doc-links` bestanden im Delivery-Clone unter Verwendung einer task-eigenen detached Kopie des exakt auf Master gepinnten Framework-Gitlinks; sein verschachteltes MRTS-Submodule blieb uninitialisiert. Das Change-Record-Paar wurde zusätzlich manuell auf passende erforderliche Überschriften, Identity-Felder, Sprachumschalter, Tabellen und technische Literale geprüft.
 
+Am `2026-07-22` startete die Current-Master-Reconciliation in einem isolierten Delivery-Clone einen Merge von `origin/master` bei `b0cc501d8edeada4709118b91194ab838b6d681e` mit dem ursprünglichen Draft-PR-#73-Inhalt. Nur die bilingualen Change-Record-Indizes hatten Konflikte; die Source- und Checker-Hunks nicht. Die fokussierte Prüfung `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-nginx-common-adoption` bestand, einschließlich beider Default-Terminal-NUL-Controls, des Custom-Length-Controls und des Explicit-Sink-Controls. `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_bilingual_docs` bestand alle 11 Tests. Der aktuelle Versuch `rtk proxy env BUILD_ROOT=<task-owned-external-build-root> make check-nginx-c17` ist `blocked`: NGINX-Header/Source fehlen, daher gibt sein zugrunde liegendes Script `77` und `make` `2` zurück; dies ist kein aktueller C17-Compilation-Pass.
+
 ## Security-Auswirkung
 
 Die Korrektur stellt die beabsichtigte semantische Länge an der NGINX-zu-libModSecurity-Response-Header-Grenze wieder her. Sie erlaubt einer exakten oder verankerten `RESPONSE_HEADERS:Server`-Policy, den Default-Wert ohne verborgenen Terminator zu vergleichen. Sie erweitert kein Parsing, ändert keine Policy-Auswahl, verändert keinen client-sichtbaren Default-Server-Text und schwächt den korrekt längenbegrenzten Custom-Header-Pfad nicht.
@@ -86,15 +88,15 @@ Das retained Final-Validation-Receipt ist `/var/tmp/codex/ModSecurity-conector/r
 
 Ein task-eigener, signierter und checksum-pinnter NGINX-1.31.2-Source-Baum mit normalen generierten Headern steht für die C17-Compilation zur Verfügung. Dem Host fehlt weiterhin eine kompatible lauffähige NGINX/libModSecurity-Integrationsumgebung. Die ursprüngliche statische Regression und die echten C17-Compiles beweisen die Source-Invariante und die legitimen Custom-/Header-Sink-Controls, aber keine ausgerollte Rule-Entscheidung oder client-sichtbares Response-Verhalten.
 
-Neue Verzeichnis-Allokation unter `.codex/findings` ist in dieser Sitzung verweigert: `mkdir -p .codex/findings/FND-PARENT-0044` lieferte `Read-only file system`. Das kanonische FND-0044-Verzeichnis, Indizes, Backlog, Roadmap und Reconciliation-Report können daher nicht als neuer kanonischer Record synchronisiert werden. Sein vollständiges pending EN/DE/JSON-Import-Paket ist unter dem Task-Run hash-retained.
+Neue Verzeichnis-Allokation unter `.codex/findings` ist in dieser Sitzung mit `Read-only file system` verweigert. In diesem Change Record ist keine kanonische Finding-ID vergeben; diese Storage-Einschränkung macht begrenzte statische Evidence nicht zu nativer Behavioral Verification.
 
 Die getrennte gzip-deaktivierte C17-Warnung ist separat als `FND-PARENT-0045` (`compiler_warning`, P2, nicht sicherheitsrelevant) triagiert. Sie ändert weder die Server-Header-Korrektur noch ihre normalen GCC-/Clang-Controls und wird bewusst nicht in diesen Change kombiniert.
 
 ## Verbleibende Risiken
 
-Nach dem verpflichtenden Security-Workflow bleibt das zugehörige Finding `blocked`, nicht `fixed`, `verified` oder `closed`, bis relevanter nativer Behavioral Proof verfügbar ist. Ein integrationsspezifisches NGINX/libModSecurity-Verhalten könnte bis zur Ausführung von Default-Header-Exact-/End-Anchored-, Custom-Header- und Non-Match-Controls in einer nativen Umgebung unentdeckt bleiben. Es wurde kein Risiko akzeptiert.
+Der statische Candidate wird nicht als runtime-verifiziert behauptet; es wurde kein kanonisches Finding alloziert oder geschlossen. Relevanter nativer Behavioral Proof ist weiterhin erforderlich. Ein integrationsspezifisches NGINX/libModSecurity-Verhalten könnte bis zur Ausführung von Default-Header-Exact-/End-Anchored-, Custom-Header- und Non-Match-Controls in einer nativen Umgebung unentdeckt bleiben. Es wurde kein Risiko akzeptiert.
 
-Die Source-Korrektur ist bei Record-Autorenschaft lokal. Commit, Push, Draft-PR, Exact-Head-Hosted-Checks, Review, SonarQube Cloud, Merge und Resulting-Master-Scan-Fakten existieren noch nicht und werden hier nicht behauptet.
+Die Source-Korrektur wurde als Draft PR #73 beim ursprünglichen Head `264f8ca131b5c7371d8be3a7840601255a68ac0e` committet und gepusht. Dieser Head liegt hinter dem aktuellen `master`, daher wird seine frühere Hosted-Evidence nicht wiederverwendet. Die Current-Master-Reconciliation benötigt weiterhin frische Exact-Head-CI, Review, SonarQube Cloud, Merge und Resulting-Master-Verifikation; vor Beobachtung wird nichts davon behauptet.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -102,10 +104,12 @@ Die Source-Korrektur ist bei Record-Autorenschaft lokal. Commit, Push, Draft-PR,
 
 Der vollständige Lauf `make lint` endete vor den NGINX-Lint-Stufen bei `make check-apache-c17-lint` mit `2`. Ohne lokales APXS forderte der Framework-Helper die All-Component-Runtime-Provisionierung an. Deren NGINX-Pfad lud ein GitHub-Tag-Archiv herunter, während er den für das abweichende nginx.org-Release-Archiv gepinnten Checksum anwandte; der Integrity-Check schlug daher korrekt fail-closed fehl, und Apache/APXS sowie das NGINX-Runtime-Modul blieben nicht verfügbar. Die Framework-Grenze und der Parent-Gitlink liegen außerhalb des Schreib-Scope dieser Remediation, daher wurde kein Framework-Workaround oder Checksum-Weakening vorgenommen.
 
-Native NGINX/libModSecurity-Rule-Verifikation, Sanitizer-Coverage, Hosted-PR-Checks, SonarQube-Cloud-Analyse, Review und Resulting-Master-Revalidierung sind nicht ausgeführt, weil noch kein commiteter oder gepushter PR-Head existiert. Die Repository-Bilingual-/Documentation-Checks liefen nach dem Anlegen dieses Record-Paars und bestanden im task-eigenen Delivery-Clone mit dem exakten Framework-Gitlink. Diese isolierte Framework-Kopie initialisierte oder änderte MRTS nicht.
+Native NGINX/libModSecurity-Rule-Verifikation und Sanitizer-Coverage sind für die Current-Master-Reconciliation nicht ausgeführt, weil diese Task-Umgebung keine kompatible lauffähige NGINX/libModSecurity-Integration bereitstellt. Der ursprüngliche Draft PR #73 wurde bei `264f8ca131b5c7371d8be3a7840601255a68ac0e` committet und gepusht; jeder Current-Master-Conflict-Resolution- oder Rebase-Follow-up benötigt einen neuen Exact-Head-Hosted-Zyklus, daher werden keine aktuellen CI-, SonarQube-Cloud-, Review- oder Resulting-Master-Fakten vor Beobachtung behauptet. Die historischen Repository-Bilingual-/Documentation-Checks liefen nach dem Anlegen dieses Record-Paars und bestanden im task-eigenen Delivery-Clone mit dem exakten Framework-Gitlink. Diese isolierte Framework-Kopie initialisierte oder änderte MRTS nicht.
+
+Der aktuelle isolierte Clone hat absichtlich keinen Framework-Working-Tree. Seine Versuche mit `make check-bilingual-docs` und `make check-doc-links` geben beide `2` für repository-weite fehlende Framework-Link-Targets zurück; sie widerlegen weder die fokussierte Heading-, Identity- und Literal-Parität dieses Change-Record-Paars noch werden sie als bestandene Documentation-Checks berichtet.
 
 ## Finaler Diff- und Review-Status
 
 Ein unabhängiges fokussiertes Review der zwei Source-/Test-Dateien bestand ohne blockierendes Security- oder Compatibility-Problem. Es bestätigte beide Literal-Korrekturen, den unveränderten Custom-`h->value.len`-Pfad und den erhaltenen expliziten Sink.
 
-Bei Record-Aktualisierung enthält der Task-Delivery-Clone nur die zwei Source-/Test-Edits und dieses EN/DE-Change-Record- plus README-Index-Paar. Er basiert auf `0e8be81d14ee9a6ae0497b9ab67e58ba2def1fd3`; kein Commit, Push, PR, Review, Hosted-Check, Sonar-Ergebnis, Merge oder Master-Scan wird behauptet. Der finale lokale Diff und die echten GCC-/Clang-C17-Checks bestanden. Die vollständigen Bilingual-/Documentation-Checks bestanden im Delivery-Clone; der breite Lauf `make lint` bleibt wegen des getrennten fail-closed Framework-Provisionierungsblockers als nicht bestanden dokumentiert.
+Die Current-Master-Reconciliation kombiniert die Source-/Checker-Edits des ursprünglichen PR #73, seine EN/DE-Change-Record- und README-Index-Updates sowie den ausgewählten Current-Master-Inhalt. Der ursprüngliche PR-Head ist `264f8ca131b5c7371d8be3a7840601255a68ac0e`; ein Follow-up-Exact-Head wird separat verifiziert. Der finale lokale Diff und die historischen echten GCC-/Clang-C17-Checks bestanden in ihrem angegebenen Scope. Historische Bilingual-/Documentation-Checks bestanden im Delivery-Clone; der breite Lauf `make lint` bleibt wegen des getrennten fail-closed Framework-Provisionierungsblockers als nicht bestanden dokumentiert.
