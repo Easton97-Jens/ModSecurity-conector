@@ -133,6 +133,7 @@ vier Befunde verifiziert sind. Kein Merge ist autorisiert.
 
 Der Scoped-Diff wurde vor dem Staging geprüft. Die lokale Source-, fokussierte
 Test-, differenzielle Parser- und Bilingual-Validierung ist abgeschlossen und
-der private Finding-Record ist aufbewahrt. Commit, Push, Draft-PR-Erstellung
-und Exact-Head-Hosted-Analyse bleiben erforderlich und werden hier nicht
-behauptet.
+der private Finding-Record ist aufbewahrt. Commit
+`03b487f88a98ec71edf438e8ac347dd76b370f69` wurde auf der genannten Basis
+erstellt; normaler Push, Draft-PR-Erstellung und Exact-Head-Hosted-Analyse
+bleiben erforderlich und werden hier nicht behauptet.

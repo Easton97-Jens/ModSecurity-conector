@@ -123,5 +123,6 @@ verified. No merge is authorized.
 
 The scoped diff was reviewed before staging. Local source, focused-test,
 differential-parser, and bilingual validation is complete, and the private
-finding record is retained. Commit, push, Draft-PR creation, and exact-head
+finding record is retained. Commit `03b487f88a98ec71edf438e8ac347dd76b370f69`
+was created from the stated base; normal push, Draft-PR creation, and exact-head
 hosted analysis remain required and are not claimed here.
