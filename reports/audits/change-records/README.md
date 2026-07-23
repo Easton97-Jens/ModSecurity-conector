@@ -9,6 +9,7 @@ must not claim unobserved CI, runtime, review, or delivery results.
 - [Framework gitlink update to 935cf14](CR-20260723-framework-gitlink-935cf14.md)
 - [Read-only Update-submodules runtime-path validation repair](CR-20260723-update-submodules-runtime-path-validation.md)
 - [Parent tests and Lighttpd assertion order for SonarQube Cloud S3415](CR-20260722-sonar-tests-connectors-assert-order.md)
+- [Scripts workflow and report path confinement for SonarQube Cloud security findings](CR-20260722-sonar-scripts-path-confinement.md)
 - [Read-only Update-submodules validation dependency repair](CR-20260723-update-submodules-validation-dependency.md)
 - [Parent CI and scripts literal deduplication for SonarQube Cloud S1192](CR-20260722-sonar-ci-scripts-literals.md)
 - [Parent NGINX Phase-4 assertion ordering for SonarQube Cloud S3415](CR-20260722-sonar-s3415-nginx-phase4-assert-order.md)
