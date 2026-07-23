@@ -72,7 +72,7 @@ class RuntimeProducerReadinessPathPolicyTest(unittest.TestCase):
         payload, canonical_source_root, _ = self._payload_with_source_roots()
 
         source_row = self._path_row(payload, "SOURCE_ROOT")
-        self.assertEqual("PASS", source_row["status"])
+        self.assertEqual(source_row["status"], "PASS")
         self.assertEqual(str(canonical_source_root), source_row["path"])
 
     def test_runtime_environment_cannot_replace_canonical_source_root(self) -> None:
@@ -82,7 +82,7 @@ class RuntimeProducerReadinessPathPolicyTest(unittest.TestCase):
         )
 
         source_row = self._path_row(payload, "SOURCE_ROOT")
-        self.assertEqual("BLOCKED", source_row["status"])
+        self.assertEqual(source_row["status"], "BLOCKED")
         self.assertIn("system write path", str(source_row["notes"]))
 
     def test_safe_external_source_sibling_is_not_authorized(self) -> None:
@@ -104,7 +104,7 @@ class RuntimeProducerReadinessPathPolicyTest(unittest.TestCase):
                 Path("/"),
                 Path("/"),
             )
-            self.assertEqual("BLOCKED", foreign_source["status"])
+            self.assertEqual(foreign_source["status"], "BLOCKED")
             self.assertIn("outside allowed runtime/cache roots", foreign_source["notes"])
 
     def test_project_root_argument_cannot_authorize_system_write_path(self) -> None:
@@ -128,7 +128,7 @@ class RuntimeProducerReadinessPathPolicyTest(unittest.TestCase):
                 Path("/"),
                 Path("/"),
             )
-            self.assertEqual("BLOCKED", escaped["status"])
+            self.assertEqual(escaped["status"], "BLOCKED")
             self.assertIn("system write path", escaped["notes"])
 
             control = readiness.check_safe_path(
@@ -138,7 +138,7 @@ class RuntimeProducerReadinessPathPolicyTest(unittest.TestCase):
                 Path("/"),
                 Path("/"),
             )
-            self.assertEqual("PASS", control["status"])
+            self.assertEqual(control["status"], "PASS")
 
 
 if __name__ == "__main__":

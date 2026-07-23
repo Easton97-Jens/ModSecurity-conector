@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Runtime-Producer-Readiness-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260723-sonar-tests-runtime-producer-readiness-assert-order.de.md)
 - [Framework-Gitlink-Update auf 935cf14](CR-20260723-framework-gitlink-935cf14.de.md)
 - [Reparatur der read-only Update-Submodules-Runtime-Pfad-Validierung](CR-20260723-update-submodules-runtime-path-validation.de.md)
 - [Parent-Tests und Lighttpd-Assert-Reihenfolge für SonarQube Cloud S3415](CR-20260722-sonar-tests-connectors-assert-order.de.md)
