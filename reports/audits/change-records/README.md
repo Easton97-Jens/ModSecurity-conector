@@ -6,8 +6,12 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Framework gitlink update to 935cf14](CR-20260723-framework-gitlink-935cf14.md)
+- [Read-only Update-submodules runtime-path validation repair](CR-20260723-update-submodules-runtime-path-validation.md)
 - [Parent tests and Lighttpd assertion order for SonarQube Cloud S3415](CR-20260722-sonar-tests-connectors-assert-order.md)
 - [Read-only Update-submodules validation dependency repair](CR-20260723-update-submodules-validation-dependency.md)
+- [Parent CI and scripts literal deduplication for SonarQube Cloud S1192](CR-20260722-sonar-ci-scripts-literals.md)
+- [Parent NGINX Phase-4 assertion ordering for SonarQube Cloud S3415](CR-20260722-sonar-s3415-nginx-phase4-assert-order.md)
 - [CodeQL Action 4.37.3 batch](CR-20260722-codeql-action-4-37-3-batch.md)
 - [Central Go toolchain and Update-submodules validation repair](CR-20260722-central-go-toolchain-submodule-validation.md)
 - [CodeQL Action 4.37.2 batch](CR-20260722-codeql-action-4-37-2-batch.md)

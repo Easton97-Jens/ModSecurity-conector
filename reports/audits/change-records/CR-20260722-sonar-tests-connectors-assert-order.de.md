@@ -135,3 +135,16 @@ sein initialer exakter Head wurde gegen lokale und Remote-Git-Metadaten
 verifiziert. Hosted-Checks, Sonar-Analyse und Quality Gate stehen noch aus.
 Es werden weder Review-Freigabe noch Merge oder Default-Branch-Änderung
 beansprucht oder autorisiert.
+
+## Current-Master-Integrationsnachtrag (2026-07-23)
+
+Der Kandidat wurde durch einen normalen Merge vom aktuellen Parent-Master
+`019f38a18337d58ade93f8efbc051aceca54fcc4` aktualisiert; weder Rebase noch
+Force-Push werden verwendet. Der daraus resultierende finale Unterschied zu
+diesem Master bleibt auf die zwei ausgewählten Parent-Testmodule, dieses
+englisch/deutsche Change-Record-Paar und die zwei Indizes begrenzt. Die
+Validierung des aktuellen Kandidaten führte die zwei betroffenen Module (23
+Tests), die Prüfung der zweisprachigen Dokumentation, die Prüfung der
+Dokumentationslinks und `git diff --check` erneut aus; alle bestanden.
+Hosted-Exact-Head-Checks, Sonar-Analyse und Quality Gate bleiben ausstehend,
+bis der aktualisierte Kandidat gepusht ist.

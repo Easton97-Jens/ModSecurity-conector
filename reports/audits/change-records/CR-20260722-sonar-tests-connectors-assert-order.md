@@ -127,3 +127,14 @@ branch. Draft PR #89 is open and marked Draft; its initial exact head was
 verified against local and remote Git metadata. Hosted checks, Sonar analysis,
 and the Quality Gate remain pending. No review approval, merge, or
 default-branch change is claimed or authorized.
+
+## Current-master integration amendment (2026-07-23)
+
+The candidate was refreshed by a normal merge from the current Parent master
+`019f38a18337d58ade93f8efbc051aceca54fcc4`; no rebase or force-push is
+used. The resulting final difference from that master remains limited to the
+two selected Parent test modules, this bilingual Change Record pair, and the
+two indexes. The current-candidate validation reran the two affected modules
+(23 tests), the bilingual-documentation check, the documentation-link check,
+and `git diff --check`; all passed. Hosted exact-head checks, Sonar analysis,
+and the Quality Gate remain pending until the refreshed candidate is pushed.

@@ -7,8 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Framework-Gitlink-Update auf 935cf14](CR-20260723-framework-gitlink-935cf14.de.md)
+- [Reparatur der read-only Update-Submodules-Runtime-Pfad-Validierung](CR-20260723-update-submodules-runtime-path-validation.de.md)
 - [Parent-Tests und Lighttpd-Assert-Reihenfolge für SonarQube Cloud S3415](CR-20260722-sonar-tests-connectors-assert-order.de.md)
 - [Reparatur der read-only Update-Submodules-Validierungsabhängigkeit](CR-20260723-update-submodules-validation-dependency.de.md)
+- [Parent-CI- und Scripts-Literal-Deduplizierung für SonarQube Cloud S1192](CR-20260722-sonar-ci-scripts-literals.de.md)
+- [Parent-NGINX-Phase-4-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260722-sonar-s3415-nginx-phase4-assert-order.de.md)
 - [CodeQL-Action-4.37.3-Batch](CR-20260722-codeql-action-4-37-3-batch.de.md)
 - [Zentralisierte Go-Toolchain und Update-Submodules-Validierungsreparatur](CR-20260722-central-go-toolchain-submodule-validation.de.md)
 - [CodeQL-Action-4.37.2-Batch](CR-20260722-codeql-action-4-37-2-batch.de.md)
