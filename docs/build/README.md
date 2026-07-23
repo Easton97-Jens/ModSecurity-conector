@@ -52,7 +52,7 @@ for the status vocabulary.
 
 ## Parent CI Python-version contract
 
-**Change record:** [CR-20260720-python-313-workflow-contract](../../reports/audits/change-records/CR-20260720-python-313-workflow-contract.md)
+**Change record:** [CR-20260721-python314-go1265-toolchain-baseline](../../reports/audits/change-records/CR-20260721-python314-go1265-toolchain-baseline.md)
 
 This checked-in Parent GitHub Actions contract records the implemented
 interpreter strategy, workflow boundaries, and local static-validation
@@ -63,7 +63,7 @@ pull request, review, or delivery result.
 
 The committed root [`.python-version`](../../.python-version) is the sole
 machine-readable interpreter source. Its required content is the exact stable
-release <code>3.13.14</code>. Every Python-executing job in the inventory below
+release <code>3.14.6</code>. Every Python-executing job in the inventory below
 must run `actions/setup-python` before its first direct or indirect Python use
 with:
 
@@ -74,27 +74,30 @@ check-latest: false
 
 The version literal must not be duplicated in workflow YAML. The setup action
 is separately action-pinned; an action-lock record is not an interpreter
-version source. After setup, the workflow contract must validate that `python`
-and `python3` select equivalent configured Python <code>3.13.14</code>
+version source. The accepted setup reference is the existing immutable
+`actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0`
+pin that is also recorded in `ci/tooling/security-tools.lock.yml`; the
+contract checker must validate that same v7 reference rather than a stale v6
+expectation. After setup, the workflow contract must validate that `python`
+and `python3` select equivalent configured Python <code>3.14.6</code>
 interpreters before either name, a Python-backed Make target, or an indirect
 Framework check is used. No listed job may fall back to an ambient runner,
 bootstrap, virtual-environment, or system `python3` interpreter.
 
 | Alternative | Decision | Rationale |
 | --- | --- | --- |
-| Floating `3.13` | Rejected | A later runner/tool-cache resolution can silently select a different patch release, creating patch drift. |
-| Exact `3.13.14` from one committed `.python-version` file | Selected | The exact stable patch is reviewable and reproducible, while `python-version-file` gives every covered job the same source. |
+| Floating `3.14` | Rejected | A later runner/tool-cache resolution can silently select a different patch release, creating patch drift. |
+| Exact `3.14.6` from one committed `.python-version` file | Selected | The exact stable patch is reviewable and reproducible, while `python-version-file` gives every covered job the same source. |
 | Exact version plus a permanent canary workflow | Rejected | The independent, read-only candidate-validation stage below validates a proposed patch before publication; an additional canary would duplicate that control without changing the publisher trust boundary. |
 
 ### Complete Parent workflow/job inventory
 
 This 22-job baseline inventory is the authoritative documentation table for
-the linked Change Record. “Existing minor-only setup” describes the live
-baseline before this implementation: it had a `3.13` setup step. “Ambient or
-bootstrapped Python” likewise describes a baseline path that lacked explicit
-setup before the shown execution chain. In the checked-in workflow contract,
-every row has the same explicit setup and `python`/`python3` equivalence
-validation.
+the linked Change Record. “Existing minor-only setup” and “Ambient or
+bootstrapped Python” describe the historical adoption path before the
+contract was introduced; neither is a current selector. In the checked-in
+workflow contract, every row has the same explicit <code>3.14.6</code> setup
+and `python`/`python3` equivalence validation.
 
 | Workflow | Job | Python execution chain | Baseline condition |
 | --- | --- | --- | --- |
@@ -134,7 +137,7 @@ The updater is separate from the 22 baseline jobs. The checked-in
 
 | Job | Interpreter and trust boundary | Required behavior |
 | --- | --- | --- |
-| `resolve-python-patch` | Runs the current canonical `.python-version`; read-only | Calls only the fixed official structured Python release API `https://www.python.org/api/v2/downloads/release/?is_published=true` through HTTPS with exact host `www.python.org`, no redirects, `application/json`, bounded response handling, and schema validation. `--check` strictly parses published, non-prerelease stable `3.13.N` values, reports a candidate only when it is a higher patch, and cannot downgrade or cross a minor series. |
+| `resolve-python-patch` | Runs the current canonical `.python-version`; read-only | Calls only the fixed official structured Python release API `https://www.python.org/api/v2/downloads/release/?is_published=true` through HTTPS with exact host `www.python.org`, no redirects, `application/json`, bounded response handling, and schema validation. `--check` strictly parses published, non-prerelease stable `3.14.N` values, reports a candidate only when it is a higher patch, and cannot downgrade or cross a minor series. |
 | `validate-python-patch` | Sets up the independently resolved candidate patch; read-only | Repeats the compatibility validation with the candidate interpreter before publication. It is independent of the resolver’s current-version interpreter and performs no source or branch mutation. |
 | `create-python-update-pr` | Runs the current canonical `.python-version`; default-branch-gated publisher | Re-resolves the candidate with `--expected-version` before `--update`; only this job receives `contents: write` and `pull-requests: write`, and only to create a proposed update pull request. |
 
@@ -149,13 +152,13 @@ the focused Parent-native contract tests before the publisher can start.
 `--check` resolves and validates a candidate without changing files. `--update`
 is reserved for the publisher after the independent validation and expected-
 version re-resolution succeed. The publisher is not an updater for arbitrary
-Python versions: it accepts only the strict stable <code>3.13.N</code> format,
+Python versions: it accepts only the strict stable <code>3.14.N</code> format,
 never a lower patch, prerelease, alternate minor series, or unstructured/HTML
 release data.
 
 The publisher uses the constant branch
-`automation/update-python-313` and the stable title
-`chore(ci): propose Python 3.13 patch update`. It creates a Draft pull request
+`automation/update-python-314` and the stable title
+`chore(ci): propose Python 3.14 patch update`. It creates a Draft pull request
 when that branch does not exist, or updates an existing repository-owned Draft
 update pull request only after verifying its head repository, default base,
 and disabled automatic merge, then restricting its merge-base diff to
@@ -164,7 +167,7 @@ request. It therefore does not create duplicate update pull requests and never
 force-pushes. Its English/German pull-request body records the prior and
 proposed versions, official release identity, metadata source, validation
 workflow/run URL, `.python-version` as the only changed file, retained Python
-3.13 minor version, and absence of automatic merge.
+3.14 minor version, and absence of automatic merge.
 
 The publisher streams the bounded REST pull-list response directly from
 `gh api` into its strict duplicate-key JSON selector. The selector has no
@@ -187,25 +190,56 @@ patch; it is not a claim that a scheduled run, candidate, pull request, or
 merge has occurred. Those results require separately observed CI and delivery
 evidence.
 
+## Parent CI Go-toolchain contract
+
+**Change record:** [CR-20260722-central-go-toolchain-submodule-validation](../../reports/audits/change-records/CR-20260722-central-go-toolchain-submodule-validation.md)
+
+The committed root <code>.go-version</code> is the sole machine-readable Go
+CI toolchain selector. Its required content is the exact stable patch
+<code>1.26.5</code>. The two Go CodeQL jobs use:
+
+~~~yaml
+go-version-file: .go-version
+check-latest: false
+~~~
+
+The selector deliberately does not replace either module's <code>go.mod</code>
+directive. A module directive remains the module-owned Go language and
+compatibility contract, and the updater never edits <code>go.mod</code>,
+<code>go.sum</code>, dependencies, or a <code>toolchain</code> directive.
+
+<code>.github/workflows/update-go-version.yml</code> follows the same
+three-stage trust boundary as the Python updater:
+
+| Job | Toolchain and trust boundary | Required behavior |
+| --- | --- | --- |
+| <code>resolve-go-patch</code> | Canonical <code>.go-version</code>; read-only | Calls only the exact Go release endpoint <code>https://go.dev/dl/?mode=json</code>, rejects redirects and malformed or oversized metadata, and accepts only a higher stable exact <code>1.26.N</code> patch. |
+| <code>validate-go-patch</code> | Independently resolved Go candidate; read-only | Re-resolves the candidate, runs the static contract and focused tests, then validates each actual module with <code>GOTOOLCHAIN=local</code>, <code>go mod verify</code>, <code>go test -mod=readonly</code>, <code>go vet</code>, and <code>go build -mod=readonly</code>. It cannot fall back to a downloaded Go toolchain or write module files. |
+| <code>create-go-update-pr</code> | Canonical Python for the bounded updater; narrow publisher | Re-resolves with <code>--expected-version</code>, changes only <code>.go-version</code>, and may create or safely update only the repository-owned Draft PR on <code>automation/update-go-126</code>. It has only contents and pull-requests write permissions. |
+
+The updater is Python because the bounded, offline-testable release parser is
+checked-in Python. Each Go updater job therefore first uses the existing
+<code>.python-version</code> and interpreter contract, preserving the
+no-ambient-interpreter rule rather than adding a bootstrap exception.
+
 ### Observed local implementation validation
 
-An isolated Python <code>3.13.14</code> interpreter was used for the local
-implementation checks. The fail-closed workflow-version contract and
-interpreter-identity verifier passed; a live `--check --json` query to the
-fixed official API reported that the checked-in <code>3.13.14</code> is
-current, and the updater unit suite passed 21 tests. `actionlint` (with
-ShellCheck) passed for the workflow set and security fixtures, and
-`zizmor --offline .github/workflows` reported no findings.
+Before this baseline upgrade, the current-master invocation of
+`make check-python-version-contract` failed because its Python-specific
+checker expected the old v6 `actions/setup-python` pin although the checked-in
+workflows and the reviewed security lock already used the immutable v7 pin.
+The v7 checker repair is part of this exact-version change; it does not alter
+the existing workflow pin, lock entry, permissions, triggers, or publisher
+boundary.
 
-The complete local discovery run is not green in this sparse worktree:
-`python3 -m unittest discover -s tests -v` under Python <code>3.13.14</code>
-ran 355 tests and ended with 13 failures and four errors because required
-Framework scripts are absent. `make setup-dev` exited 2 when its Framework
-bootstrap attempted to create the unavailable local development environment;
-`make lint` reached the shell and Python compilation checks but then exited 2
-because the Framework `no_crs_baseline.py` check is absent. These are recorded
-cross-repository/environment blockers, not successful runtime or remote-CI
-evidence; the linked Change Record gives the command-level detail.
+The available local executables are Python <code>3.14.4</code> and Go
+<code>1.26.0</code>, not the required exact Python <code>3.14.6</code> and Go
+<code>1.26.5</code> baselines. They can support source-level and static
+validation only. An exact GitHub-hosted workflow run that installs the two
+declared versions is required before this change can be treated as verified
+CI evidence. The linked Change Record records actual commands, their results,
+and any Framework-dependent documentation-check limitation without turning a
+local result into connector runtime or remote-CI evidence.
 
 ## Compiler and linker variables
 

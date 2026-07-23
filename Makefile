@@ -233,6 +233,7 @@ export LIGHTTPD_DECISION_BACKEND
 .PHONY: smoke-envoy-request-body smoke-traefik-request-body smoke-lighttpd-request-body smoke-open-connectors-request-body
 .PHONY: check-compiler-guides
 .PHONY: check-ci-security-contract
+.PHONY: check-go-version-contract
 .PHONY: check-analysis-tools compile-db-nginx-c17 check-targeted-evaluator-cpp17 compile-db-cpp17 check-clangd-c17
 .PHONY: check-clang-analysis-tools clang-tidy-baseline clang-analyzer-baseline clang-analysis-baseline
 .PHONY: build-apache build-nginx build-haproxy build-envoy build-traefik build-lighttpd build-all-connectors
@@ -1260,6 +1261,9 @@ check-directive-parity:
 
 check-python-version-contract:
 	$(PYTHON) ci/checks/common/check-python-version-contract.py
+
+check-go-version-contract:
+	$(PYTHON) ci/checks/common/check-go-version-contract.py
 
 lint: check-framework
 	find ci -type f -name '*.sh' -print0 | xargs -0 -r sh -n

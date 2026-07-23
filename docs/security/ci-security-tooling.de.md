@@ -45,10 +45,16 @@ kann, bevor es zur blockierenden Regel wird.
 
 ## CodeQL- und Scorecard-Grenzen
 
-CodeQL analysiert Actions, beide Go-Module mit festem Go `1.24.13` und einen
-begrenzten C/C++-Scope, der auf `make check-common-helpers-c17` beschränkt ist.
-Das C/C++-Ergebnis beansprucht keine vollständige Connector-Abdeckung; eine
-Erweiterung erfordert reproduzierbare Builds für den ausgewählten Connector-Scope.
+CodeQL analysiert Actions, beide Go-Module über den exakten Root-
+<code>.go-version</code>-Selector (aktuell Go <code>1.26.5</code>) und einen
+begrenzten C/C++-Scope, der auf <code>make check-common-helpers-c17</code>
+beschränkt ist. Der zentrale Selector ist ein CI-Toolchain-Vertrag; die
+<code>go.mod</code> jedes Moduls behält seine Go-Sprachbaseline. Der Updater
+schlägt nur einen stabilen Patch derselben Minor-Serie erst nach
+read-only-Candidate-Validierung in einem Draft PR vor und kann keine Modul-
+oder Dependency-Dateien ändern. Das C/C++-Ergebnis beansprucht keine
+vollständige Connector-Abdeckung; eine Erweiterung erfordert reproduzierbare
+Builds für den ausgewählten Connector-Scope.
 
 Scorecard nutzt Read-only-Berechtigungen für Same-Repository-Pull-Requests und
 checkt den exakten Pull-Request-Head aus. Fork-Pull-Requests analysiert dieser

@@ -49,7 +49,7 @@ class PythonInterpreterContractTest(unittest.TestCase):
         with self.temporary_root() as directory:
             root = Path(directory)
             version_file = root / ".python-version"
-            version_file.write_text("3.13.0\n", encoding="utf-8")
+            version_file.write_text("3.14.6\n", encoding="utf-8")
             completed = self.run_checker(
                 root,
                 [
@@ -61,9 +61,9 @@ class PythonInterpreterContractTest(unittest.TestCase):
                 ],
                 self.checker_environment(root),
             )
-        self.assertEqual(1, completed.returncode)
+        self.assertEqual(completed.returncode, 1)
         payload = json.loads(completed.stdout)
-        self.assertEqual("violations", payload["status"])
+        self.assertEqual(payload["status"], "violations")
         self.assertTrue(
             any("current sys.version" in violation for violation in payload["violations"]),
             payload,
@@ -85,7 +85,7 @@ class PythonInterpreterContractTest(unittest.TestCase):
         with self.temporary_root() as directory:
             root = Path(directory)
             version_file = root / ".python-version"
-            version_file.write_text("3.13.0\n", encoding="utf-8")
+            version_file.write_text("3.14.6\n", encoding="utf-8")
             completed = self.run_checker(
                 root,
                 [
@@ -97,7 +97,7 @@ class PythonInterpreterContractTest(unittest.TestCase):
                 ],
                 self.checker_environment(root),
             )
-        self.assertEqual(1, completed.returncode)
+        self.assertEqual(completed.returncode, 1)
         payload = json.loads(completed.stdout)
         self.assertTrue(
             any("--expected-python is not a regular file" in violation for violation in payload["violations"]),
@@ -111,17 +111,17 @@ class PythonInterpreterContractTest(unittest.TestCase):
                 root,
                 [
                     "--expected-version",
-                    "3.13",
+                    "3.14",
                     "--expected-python",
                     sys.executable,
                     "--json",
                 ],
                 self.checker_environment(root),
             )
-        self.assertEqual(2, completed.returncode)
+        self.assertEqual(completed.returncode, 2)
         payload = json.loads(completed.stdout)
-        self.assertEqual("error", payload["status"])
-        self.assertIn("exact Python 3.13.N", payload["violations"][0])
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("exact Python 3.14.N", payload["violations"][0])
 
     def test_non_ascii_candidate_version_is_an_invocation_error(self) -> None:
         with self.temporary_root() as directory:
@@ -130,55 +130,55 @@ class PythonInterpreterContractTest(unittest.TestCase):
                 root,
                 [
                     "--expected-version",
-                    "3.13.\u0661",
+                    "3.14.\u0661",
                     "--expected-python",
                     sys.executable,
                     "--json",
                 ],
                 self.checker_environment(root),
             )
-        self.assertEqual(2, completed.returncode)
+        self.assertEqual(completed.returncode, 2)
         payload = json.loads(completed.stdout)
-        self.assertEqual("error", payload["status"])
-        self.assertIn("exact Python 3.13.N", payload["violations"][0])
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("exact Python 3.14.N", payload["violations"][0])
 
     def test_candidate_version_and_version_file_are_mutually_exclusive(self) -> None:
         with self.temporary_root() as directory:
             root = Path(directory)
             version_file = root / ".python-version"
-            version_file.write_text("3.13.0\n", encoding="utf-8")
+            version_file.write_text("3.14.6\n", encoding="utf-8")
             completed = self.run_checker(
                 root,
                 [
                     "--version-file",
                     ".python-version",
                     "--expected-version",
-                    "3.13.0",
+                    "3.14.6",
                 ],
                 self.checker_environment(root),
             )
-        self.assertEqual(2, completed.returncode)
+        self.assertEqual(completed.returncode, 2)
         self.assertIn("not allowed with argument", completed.stderr)
 
     def test_noncanonical_version_file_is_rejected_before_any_file_read(self) -> None:
         with self.temporary_root() as directory:
             root = Path(directory)
-            (root / ".python-version").write_text("3.13.0\n", encoding="utf-8")
+            (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
             completed = self.run_checker(
                 root,
                 ["--version-file", "/dev/null", "--json"],
                 self.checker_environment(root),
             )
 
-        self.assertEqual(2, completed.returncode)
+        self.assertEqual(completed.returncode, 2)
         payload = json.loads(completed.stdout)
-        self.assertEqual("error", payload["status"])
+        self.assertEqual(payload["status"], "error")
         self.assertIn("literal .python-version", payload["violations"][0])
 
     def test_foreign_expected_executable_is_not_invoked(self) -> None:
         with self.temporary_root() as directory:
             root = Path(directory)
-            (root / ".python-version").write_text("3.13.0\n", encoding="utf-8")
+            (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
             marker = root / "unexpected-execution"
             foreign = root / "foreign-python"
             foreign.write_text(
@@ -199,7 +199,7 @@ class PythonInterpreterContractTest(unittest.TestCase):
             )
             marker_was_created = marker.exists()
 
-        self.assertEqual(1, completed.returncode)
+        self.assertEqual(completed.returncode, 1)
         payload = json.loads(completed.stdout)
         self.assertTrue(
             any("--expected-python is" in violation for violation in payload["violations"]),

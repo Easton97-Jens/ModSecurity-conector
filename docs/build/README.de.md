@@ -54,7 +54,7 @@ Umgebungsvoraussetzung. Das Statusvokabular steht unter
 
 ## Parent-CI-Python-Versionsvertrag
 
-**Change Record:** [CR-20260720-python-313-workflow-contract](../../reports/audits/change-records/CR-20260720-python-313-workflow-contract.de.md)
+**Change Record:** [CR-20260721-python314-go1265-toolchain-baseline](../../reports/audits/change-records/CR-20260721-python314-go1265-toolchain-baseline.de.md)
 
 Dieser eingecheckte Parent-GitHub-Actions-Vertrag hält die implementierte
 Interpreterstrategie, Workflow-Grenzen und lokale statische
@@ -65,7 +65,7 @@ Remote-CI-Lauf, Pull Request, Review oder Delivery-Erfolg dar.
 
 Die eingecheckte Root-[`.python-version`](../../.python-version) ist die
 einzige maschinenlesbare Interpreterquelle. Ihr erforderlicher Inhalt ist das
-exakte stabile Release <code>3.13.14</code>. Jeder Python-ausführende Job aus
+exakte stabile Release <code>3.14.6</code>. Jeder Python-ausführende Job aus
 der folgenden Inventarisierung muss vor seiner ersten direkten oder indirekten
 Python-Nutzung `actions/setup-python` ausführen mit:
 
@@ -76,28 +76,33 @@ check-latest: false
 
 Das Versionsliteral darf nicht in Workflow-YAML dupliziert werden. Die
 Setup-Action wird separat Action-gepinnt; ein Action-Lock-Record ist keine
-Interpreterversionsquelle. Nach dem Setup muss der Workflow-Vertrag
-validieren, dass `python` und `python3` äquivalente konfigurierte Python-
-<code>3.13.14</code>-Interpreter auswählen, bevor einer der Namen, ein
+Interpreterversionsquelle. Die akzeptierte Setup-Referenz ist der bereits
+vorhandene unveränderliche Pin
+`actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0`,
+der auch in `ci/tooling/security-tools.lock.yml` dokumentiert ist; der
+Contract-Checker muss diese v7-Referenz statt einer veralteten v6-Erwartung
+validieren. Nach dem Setup muss der Workflow-Vertrag validieren, dass `python`
+und `python3` äquivalente konfigurierte Python-<code>3.14.6</code>-Interpreter
+auswählen, bevor einer der Namen, ein
 Python-gestütztes Make-Target oder eine indirekte Framework-Prüfung verwendet
 wird. Kein aufgelisteter Job darf auf einen ambienten Runner-, Bootstrap-,
 Virtual-Environment- oder System-`python3`-Interpreter zurückfallen.
 
 | Alternative | Entscheidung | Begründung |
 | --- | --- | --- |
-| Floating `3.13` | Abgelehnt | Eine spätere Runner-/Tool-Cache-Auflösung kann stillschweigend ein anderes Patch-Release auswählen und Patch Drift erzeugen. |
-| Exaktes `3.13.14` aus einer eingecheckten `.python-version` | Ausgewählt | Der exakte stabile Patch ist reviewbar und reproduzierbar, während `python-version-file` allen abgedeckten Jobs dieselbe Quelle gibt. |
+| Floating `3.14` | Abgelehnt | Eine spätere Runner-/Tool-Cache-Auflösung kann stillschweigend ein anderes Patch-Release auswählen und Patch Drift erzeugen. |
+| Exaktes `3.14.6` aus einer eingecheckten `.python-version` | Ausgewählt | Der exakte stabile Patch ist reviewbar und reproduzierbar, während `python-version-file` allen abgedeckten Jobs dieselbe Quelle gibt. |
 | Exakte Version plus permanenter Canary-Workflow | Abgelehnt | Die unabhängige schreibgeschützte Candidate-Validierungs-Stage unten validiert einen vorgeschlagenen Patch vor der Veröffentlichung; ein zusätzlicher Canary würde diese Kontrolle duplizieren, ohne die Publisher-Trust-Grenze zu ändern. |
 
 ### Vollständige Parent-Workflow-/Job-Inventarisierung
 
 Diese 22-Job-Baseline-Inventarisierung ist die maßgebliche
 Dokumentationstabelle für den verlinkten Change Record. „Vorhandenes
-Minor-only-Setup“ beschreibt die Live-Baseline vor dieser Implementierung: Sie
-hatte einen `3.13`-Setup-Schritt. „Ambientes oder Bootstrap-Python“ beschreibt
-entsprechend einen Baseline-Pfad ohne explizites Setup vor der gezeigten
-Ausführungskette. Im eingecheckten Workflow-Vertrag hat jede Zeile dasselbe
-explizite Setup und dieselbe `python`/`python3`-Äquivalenzvalidierung.
+Minor-only-Setup“ und „Ambientes oder Bootstrap-Python“ beschreiben den
+historischen Einführungspfad vor dem Vertrag; keine der beiden Bezeichnungen
+ist ein aktueller Selector. Im eingecheckten Workflow-Vertrag hat jede Zeile
+dasselbe explizite <code>3.14.6</code>-Setup und dieselbe
+`python`/`python3`-Äquivalenzvalidierung.
 
 | Workflow | Job | Python-Ausführungskette | Baseline-Zustand |
 | --- | --- | --- | --- |
@@ -137,7 +142,7 @@ Der Updater ist von den 22 Baseline-Jobs getrennt. Der eingecheckte Workflow
 
 | Job | Interpreter und Trust-Grenze | Erforderliches Verhalten |
 | --- | --- | --- |
-| `resolve-python-patch` | Läuft mit der aktuellen kanonischen `.python-version`; schreibgeschützt | Ruft nur die feste offizielle strukturierte Python-Release-API `https://www.python.org/api/v2/downloads/release/?is_published=true` über HTTPS mit exaktem Host `www.python.org`, ohne Redirects, mit `application/json`, begrenzter Response-Verarbeitung und Schema-Validierung auf. `--check` parst veröffentlichte, nicht-prerelease stabile `3.13.N`-Werte strikt, meldet einen Candidate nur bei einem höheren Patch und kann weder downgraden noch eine Minor-Serie überqueren. |
+| `resolve-python-patch` | Läuft mit der aktuellen kanonischen `.python-version`; schreibgeschützt | Ruft nur die feste offizielle strukturierte Python-Release-API `https://www.python.org/api/v2/downloads/release/?is_published=true` über HTTPS mit exaktem Host `www.python.org`, ohne Redirects, mit `application/json`, begrenzter Response-Verarbeitung und Schema-Validierung auf. `--check` parst veröffentlichte, nicht-prerelease stabile `3.14.N`-Werte strikt, meldet einen Candidate nur bei einem höheren Patch und kann weder downgraden noch eine Minor-Serie überqueren. |
 | `validate-python-patch` | Richtet den unabhängig aufgelösten Candidate-Patch ein; schreibgeschützt | Wiederholt die Kompatibilitätsvalidierung mit dem Candidate-Interpreter vor der Veröffentlichung. Sie ist unabhängig vom Current-Version-Interpreter des Resolvers und führt keine Source- oder Branch-Mutation aus. |
 | `create-python-update-pr` | Läuft mit der aktuellen kanonischen `.python-version`; Default-Branch-gated Publisher | Löst den Candidate mit `--expected-version` vor `--update` erneut auf; nur dieser Job erhält `contents: write` und `pull-requests: write` und nur, um einen vorgeschlagenen Update-Pull-Request zu erstellen. |
 
@@ -154,12 +159,12 @@ Parent-nativen Contract-Tests aus, bevor der Publisher starten kann.
 ist dem Publisher vorbehalten, nachdem die unabhängige Validierung und die
 Expected-Version-Neuauflösung bestanden haben. Der Publisher ist kein Updater
 für beliebige Python-Versionen: Er akzeptiert nur das strikte stabile
-<code>3.13.N</code>-Format, niemals einen niedrigeren Patch, Prerelease,
+<code>3.14.N</code>-Format, niemals einen niedrigeren Patch, Prerelease,
 alternative Minor-Serie oder unstrukturierte/HTML-Release-Daten.
 
 Der Publisher verwendet den konstanten Branch
-`automation/update-python-313` und den stabilen Titel
-`chore(ci): propose Python 3.13 patch update`. Er erstellt einen Draft Pull
+`automation/update-python-314` und den stabilen Titel
+`chore(ci): propose Python 3.14 patch update`. Er erstellt einen Draft Pull
 Request, wenn dieser Branch nicht existiert, oder aktualisiert einen bestehenden
 repository-eigenen Draft-Update-Pull-Request erst nach Prüfung seines Head-
 Repository, Default-Base und deaktivierten automatischen Merge sowie der
@@ -168,7 +173,7 @@ diesen exakten Pull Request überschreibt er nicht. Damit erstellt er keine
 doppelten Update-Pull-Requests und führt nie einen Force-Push aus. Sein englisch/deutscher Pull-
 Request-Body enthält vorherige und vorgeschlagene Version, offizielle Release-
 Identität, Metadatenquelle, Validierungsworkflow/-Run-URL,
-`.python-version` als einzige geänderte Datei, die beibehaltene Python-3.13-
+`.python-version` als einzige geänderte Datei, die beibehaltene Python-3.14-
 Minor-Version und das Fehlen eines automatischen Merge.
 
 Der Publisher streamt die begrenzte REST-Pull-List-Antwort direkt von `gh api`
@@ -195,27 +200,60 @@ vorgeschlagenen Patch; sie behauptet nicht, dass ein geplanter Lauf, Candidate,
 Pull Request oder Merge stattgefunden hat. Solche Ergebnisse benötigen separat
 beobachtete CI- und Delivery-Evidence.
 
+## Parent-CI-Go-Toolchain-Vertrag
+
+**Change Record:** [CR-20260722-central-go-toolchain-submodule-validation](../../reports/audits/change-records/CR-20260722-central-go-toolchain-submodule-validation.de.md)
+
+Die eingecheckte Root-<code>.go-version</code> ist der einzige
+maschinenlesbare Go-CI-Toolchain-Selector. Ihr erforderlicher Inhalt ist der
+exakte stabile Patch <code>1.26.5</code>. Die zwei Go-CodeQL-Jobs verwenden:
+
+~~~yaml
+go-version-file: .go-version
+check-latest: false
+~~~
+
+Der Selector ersetzt bewusst keine <code>go.mod</code>-Direktive der beiden
+Module. Eine Modul-Direktive bleibt der modul-eigene Go-Sprach- und
+Kompatibilitätsvertrag, und der Updater verändert niemals
+<code>go.mod</code>, <code>go.sum</code>, Abhängigkeiten oder eine
+<code>toolchain</code>-Direktive.
+
+<code>.github/workflows/update-go-version.yml</code> folgt derselben
+dreistufigen Trust-Grenze wie der Python-Updater:
+
+| Job | Toolchain und Trust-Grenze | Erforderliches Verhalten |
+| --- | --- | --- |
+| <code>resolve-go-patch</code> | Kanonische <code>.go-version</code>; read-only | Ruft nur den exakten Go-Release-Endpoint <code>https://go.dev/dl/?mode=json</code> auf, weist Redirects sowie fehlerhafte oder zu große Metadaten zurück und akzeptiert nur einen höheren stabilen exakten <code>1.26.N</code>-Patch. |
+| <code>validate-go-patch</code> | Unabhängig aufgelöster Go-Candidate; read-only | Löst den Candidate erneut auf, führt den statischen Vertrag und fokussierte Tests aus und validiert dann jedes tatsächliche Modul mit <code>GOTOOLCHAIN=local</code>, <code>go mod verify</code>, <code>go test -mod=readonly</code>, <code>go vet</code> und <code>go build -mod=readonly</code>. Es kann weder auf eine heruntergeladene Go-Toolchain zurückfallen noch Moduldateien schreiben. |
+| <code>create-go-update-pr</code> | Kanonisches Python für den begrenzten Updater; enger Publisher | Löst mit <code>--expected-version</code> erneut auf, ändert nur <code>.go-version</code> und darf nur den repository-eigenen Draft PR auf <code>automation/update-go-126</code> erstellen oder sicher aktualisieren. Er hat nur Contents- und Pull-Requests-Write-Berechtigungen. |
+
+Der Updater ist Python, weil der begrenzte, offline-testbare Release-Parser
+eingechecktes Python ist. Jeder Go-Updater-Job verwendet daher zuerst die
+vorhandene <code>.python-version</code> und den Interpretervertrag; die
+No-ambient-interpreter-Regel bleibt erhalten, statt eine Bootstrap-Ausnahme
+hinzuzufügen.
+
 ### Beobachtete lokale Implementierungsvalidierung
 
-Für die lokalen Implementierungsprüfungen wurde ein isolierter Python-
-<code>3.13.14</code>-Interpreter verwendet. Der fail-closed
-Workflow-Versionsvertrag und der Interpreter-Identity-Verifier bestanden; eine
-Live-`--check --json`-Abfrage der festen offiziellen API meldete die
-eingecheckte Version <code>3.13.14</code> als aktuell, und die Updater-
-Unit-Suite bestand mit 21 Tests. `actionlint` (mit ShellCheck) bestand für das
-Workflow-Set und die Security-Fixtures, und
-`zizmor --offline .github/workflows` meldete keine Findings.
+Vor diesem Baseline-Upgrade schlug die Current-Master-Ausführung von
+`make check-python-version-contract` fehl, weil ihr Python-spezifischer
+Checker den alten v6-`actions/setup-python`-Pin erwartete, obwohl die
+eingecheckten Workflows und der geprüfte Security-Lock bereits den
+unveränderlichen v7-Pin verwendeten. Die Reparatur des v7-Checkers gehört zu
+dieser exakten Versionsänderung; sie ändert weder vorhandenen Workflow-Pin
+noch Lock-Eintrag, Berechtigungen, Trigger oder Publisher-Grenze.
 
-Der vollständige lokale Discovery-Lauf ist in diesem Sparse-Worktree nicht
-grün: `python3 -m unittest discover -s tests -v` unter Python
-<code>3.13.14</code> führte 355 Tests aus und endete mit 13 Failures und vier
-Errors, weil erforderliche Framework-Skripte fehlen. `make setup-dev` endete
-mit 2, als sein Framework-Bootstrap versuchte, die nicht verfügbare lokale
-Entwicklungsumgebung zu erstellen; `make lint` erreichte die Shell- und
-Python-Kompilierungsprüfungen, endete dann jedoch mit 2, weil die Framework-
-Prüfung `no_crs_baseline.py` fehlt. Dies sind festgehaltene Cross-Repository- /
-Umgebungsblocker, keine erfolgreiche Runtime- oder Remote-CI-Evidence; der
-verlinkte Change Record enthält die Details auf Kommandoebene.
+Die verfügbaren lokalen Executables sind Python <code>3.14.4</code> und Go
+<code>1.26.0</code>, nicht die geforderten exakten Baselines Python
+<code>3.14.6</code> und Go <code>1.26.5</code>. Sie können nur Source-Level-
+und statische Validierung unterstützen. Ein exakter GitHub-gehosteter
+Workflow-Lauf, der die beiden deklarierten Versionen installiert, ist
+erforderlich, bevor diese Änderung als verifizierte CI-Evidence gelten kann.
+Der verlinkte Change Record hält tatsächliche Befehle, deren Ergebnisse und
+eine etwaige Framework-abhängige Einschränkung der Dokumentationsprüfung fest,
+ohne ein lokales Ergebnis in Connector-Runtime- oder Remote-CI-Evidence
+umzudeuten.
 
 ## Compiler- und Linker-Variablen
 

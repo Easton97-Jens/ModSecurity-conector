@@ -20,8 +20,8 @@ from typing import Iterable, Sequence
 
 
 CANONICAL_VERSION_FILE = ".python-version"
-SETUP_PYTHON_ACTION = "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
-SETUP_PYTHON_RELEASE_COMMENT = "# v6.3.0"
+SETUP_PYTHON_ACTION = "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97"
+SETUP_PYTHON_RELEASE_COMMENT = "# v7.0.0"
 SETUP_PYTHON_REFERENCE = f"{SETUP_PYTHON_ACTION} {SETUP_PYTHON_RELEASE_COMMENT}"
 VERIFIER_NAME = "Verify Python interpreter contract"
 CANDIDATE_VERIFIER_NAME = "Verify Python candidate interpreter contract"
@@ -37,6 +37,7 @@ CANDIDATE_VERIFIER_COMMAND = (
     '--expected-python "$EXPECTED_PYTHON"'
 )
 UPDATE_PYTHON_VERSION_WORKFLOW = "update-python-version.yml"
+UPDATE_GO_VERSION_WORKFLOW = "update-go-version.yml"
 
 
 @dataclass(frozen=True, order=True)
@@ -50,10 +51,12 @@ class JobIdentity:
         return f"{self.workflow}:{self.job}"
 
 
-# These are the final Parent-native Python jobs: the current 22 jobs plus the
-# resolver and publisher in update-python-version.yml.  The one candidate job
-# below is deliberately separate because it must validate a prospective patch
-# before the canonical .python-version file is changed.
+# These are the final Parent-native Python jobs: the current 22 jobs, the
+# resolver and publisher in update-python-version.yml, and all three Go updater
+# jobs. The Go updater is Python-bearing because its bounded official-metadata
+# parser and workflow-contract tests use the canonical interpreter. The one
+# Python candidate job below is deliberately separate because it validates a
+# prospective patch before the canonical .python-version file is changed.
 EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
     {
         JobIdentity("all-connectors-no-crs.yml", "aggregate"),
@@ -78,6 +81,9 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("update-actions-versions.yml", "update-actions-versions"),
         JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "create-python-update-pr"),
         JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "resolve-python-patch"),
+        JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "create-go-update-pr"),
+        JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "resolve-go-patch"),
+        JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "validate-go-patch"),
         JobIdentity("update-submodules.yml", "validate-submodule-update"),
         JobIdentity("verified-report-governance.yml", "report-governance"),
     }
@@ -427,10 +433,10 @@ def is_ascii_decimal(value: str) -> bool:
     return bool(value) and all("0" <= character <= "9" for character in value)
 
 
-def is_exact_python_313_version(value: str) -> bool:
-    """Return whether *value* is the accepted ``3.13.N`` version shape."""
+def is_exact_python_314_version(value: str) -> bool:
+    """Return whether *value* is the accepted ``3.14.N`` version shape."""
 
-    prefix = "3.13."
+    prefix = "3.14."
     if not value.startswith(prefix):
         return False
     patch = value.removeprefix(prefix)
@@ -440,9 +446,9 @@ def is_exact_python_313_version(value: str) -> bool:
 
 
 def parse_exact_version(value: str, source: str) -> str:
-    if not is_exact_python_313_version(value):
+    if not is_exact_python_314_version(value):
         raise ContractInputError(
-            f"{source} must be an exact Python 3.13.N version; got {value!r}"
+            f"{source} must be an exact Python 3.14.N version; got {value!r}"
         )
     return value
 
@@ -1559,7 +1565,7 @@ def normal_setup_violations(job: Job, setup: Step) -> list[str]:
         errors.append("setup-python must use check-latest: false")
     if "python-version" in with_values:
         errors.append("normal Python jobs must not use python-version selectors")
-    if any("3.13" in line or "matrix" in line for line in selector_lines(job)):
+    if any("3.14" in line or "matrix" in line for line in selector_lines(job)):
         errors.append("normal Python jobs must not use a literal or matrix Python selector")
     if has_python_matrix_selector(job):
         errors.append(
@@ -1625,7 +1631,7 @@ def candidate_setup_violations(job: Job, setup: Step) -> list[str]:
         errors.append("candidate setup-python must not use python-version-file")
     if with_values.get("check-latest") != "false":
         errors.append("candidate setup-python must use check-latest: false")
-    if any("3.13" in line or "matrix" in line for line in selector_lines(job)):
+    if any("3.14" in line or "matrix" in line for line in selector_lines(job)):
         errors.append("candidate job must not use literal or matrix Python selectors")
     if has_python_matrix_selector(job):
         errors.append(
@@ -1845,7 +1851,7 @@ def parser() -> argparse.ArgumentParser:
     )
     argument_parser.add_argument(
         "--previous-version",
-        metavar="3.13.N",
+        metavar="3.14.N",
         help="previous canonical version; reject a downgrade unless explicitly allowed",
     )
     argument_parser.add_argument(
