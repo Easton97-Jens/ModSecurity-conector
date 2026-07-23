@@ -9,7 +9,7 @@
 | Change-ID | CR-20260721-csv-security-findings-remediation |
 | Datum (UTC) | 2026-07-21 |
 | Basis-Revision | 5fa90474a79eaee2df034bf1c4389572fdcca42f |
-| Grenze | Nur Parent-Quellcode, Parent-Tests, Parent-CI/Runtime-Werkzeuge, Parent-Dokumentation und dieses Change-Record/Index-Paar. Framework, MRTS, Abhängigkeiten und Gitlinks bleiben unverändert. |
+| Grenze | Nur Parent-Quellcode, Parent-Tests, Parent-CI/Runtime-Werkzeuge, Parent-Dokumentation und dieses Change-Record/Index-Paar. Der Branch übernimmt den aktuellen Framework-Gitlink von Parent-master, aber diese Aufgabe verändert weder Framework noch MRTS. |
 | Finding-Verknüpfung | Importierte Codex-Security-CSV-Zeilen CSV-01 bis CSV-19; task-owned SonarQube-Cloud-S5443-Follow-up FND-SONAR-0010. |
 
 ## Motivation und Problemstellung
@@ -101,16 +101,26 @@ eine Kontrolle abzuschwächen: Descriptor-Traversal und Chunk-Parsing sind bei
 gleichen Guards in kleinere Helfer aufgeteilt, der Content-Length-Parser
 bleibt ASCII-only, der Authorization-Service bindet Per-Connection-Status in
 einen privaten Kontext, und die Regressionstests vermeiden verschachtelte
-beziehungsweise Mehrfachaufruf-Assertions. Die zwei `c:S995`-Hinweise im
-Timeout-Smoke bleiben API-gebunden: Seine Fake-Definitionen müssen die
-nicht-konstanten Signaturen aus `msconnector_runtime.h` beibehalten, deren
-Produktivimplementierungen diese Objekte verändern. Es wurde weder eine
-Scanner-Suppression noch eine öffentliche ABI-Änderung zum Verbergen dieser
-Hinweise verwendet.
+beziehungsweise Mehrfachaufruf-Assertions. Der Timeout-Smoke-Fake behält die
+nicht-konstanten Signaturen aus `msconnector_runtime.h` bei, weil dessen
+Produktivimplementierungen diese Objekte verändern; es wurde weder eine
+Scanner-Suppression noch eine öffentliche ABI-Änderung verwendet.
 Ein Exact-Head-Sonar-Detail-Readback zeigte anschließend 22
 `python:S3415`-Hinweise zur Assertion-Reihenfolge. Sie sind auf die native
 `actual, expected`-Reihenfolge korrigiert, ohne Testbedingung oder geschützte
-Kontrolle zu verändern.
+Kontrolle zu verändern. Die zwei `c:S995`-Hinweise im Timeout-Smoke waren
+echte Lücken im Fake-Lifecycle und keine Const-Correctness-Gelegenheit: Die
+Fake-Runtime zählt jetzt aktive Transaktionen, und die Fake-Transaktion hält
+Owner und Completion-Status. Das Fake-`begin` speichert einen gültigen Owner
+und erhöht dessen Zähler; das idempotente Fake-`finish` validiert, dekrementiert
+und markiert den Abschluss. Das erhält die gemeinsame nicht-konstante ABI und
+macht den Smoke-Lifecycle ohne Scanner-Suppression verhaltenswirksam.
+
+Der Branch wurde anschließend normal auf den aktuellen Parent-`master`
+`a308d7b414f0859490fe7253e0683a4bde80b563` aktualisiert. Dabei wurde nur die
+aktuelle Framework-Gitlink-Aktualisierung übernommen; kein Framework- oder
+MRTS-Worktree wurde von dieser Aufgabe initialisiert, verändert, gestaged oder
+committed.
 
 ## Ausgeführte Befehle
 
@@ -135,6 +145,7 @@ Kontrolle zu verändern.
 | Current-Master-Fortsetzung: Authorization-Timeout-Smoke | mit GCC und Clang unter isolierten externen Build-Wurzeln bestanden; Common-C17-Helper- und Shell-Syntax-Prüfung bestanden ebenfalls. |
 | Current-Master-Fortsetzung: fokussiertes Security-Diff-Review | bestanden: keine neue plausible Sicherheitsregression im geprüften Zehn-Dateien-Remediation-Diff. |
 | Exact-Head-Sonar-`S3415`-Assertion-Reihenfolgen-Follow-up | bestanden: 92 fokussierte Runtime-Pfad-, bilinguale Dokumentations- und Generated-Report-Evidence-Tests nach allen 22 Actual/Expected-Reihenfolgenkorrekturen. |
+| Current-Master-Fortsetzung: verhaltenswirksamer Timeout-Smoke-Fake-Lifecycle | bestanden: GCC-/Clang-Timeout-Smoke-Kompilierung und -Ausführung üben normales Begin/Finish-Ownership- und Count-Bookkeeping ohne Änderung der Common-Runtime-ABI. |
 
 ## Security-Auswirkung
 
@@ -184,11 +195,10 @@ Task-Record behauptet nicht, diesen Import zu ersetzen. Der exakte PR-Head
 benötigt weiterhin reguläre CI, Review und Resulting-Master-Evidence vor jeder
 späteren Integrationsentscheidung.
 
-Die zwei API-gebundenen `c:S995`-Hinweise des Timeout-Smokes benötigen einen
-frischen gehosteten Sonar-Readback und, falls sie bleiben, eine explizite
-Scanner-seitige False-Positive- oder Accepted-Risk-Disposition. Sie werden
-lokal nicht unterdrückt; die öffentlichen Runtime-Deklarationen allein für die
-Stilregel zu ändern, liegt außerhalb des Scopes.
+Die verhaltenswirksame `c:S995`-Behebung des Timeout-Smokes benötigt einen
+frischen gehosteten Exact-Head-Sonar-Readback. Sie unterdrückt keinen Hinweis
+und ändert die öffentlichen Runtime-Deklarationen nicht allein für eine
+Stilregel.
 
 ## Verbleibende Risiken
 

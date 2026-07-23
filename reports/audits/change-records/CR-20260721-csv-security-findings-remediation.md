@@ -9,7 +9,7 @@
 | Change ID | CR-20260721-csv-security-findings-remediation |
 | Date (UTC) | 2026-07-21 |
 | Base revision | 5fa90474a79eaee2df034bf1c4389572fdcca42f |
-| Boundary | Parent source, Parent tests, Parent CI/runtime tooling, Parent documentation, and this Change Record/index pair only. Framework, MRTS, dependencies, and gitlinks remain unchanged. |
+| Boundary | Parent source, Parent tests, Parent CI/runtime tooling, Parent documentation, and this Change Record/index pair only. The branch retains the current Parent-master Framework gitlink, but this task does not modify Framework or MRTS. |
 | Finding linkage | Imported Codex Security CSV rows CSV-01 through CSV-19; task-owned SonarQube Cloud S5443 follow-up FND-SONAR-0010. |
 
 ## Motivation and problem statement
@@ -98,13 +98,24 @@ weakening a control: descriptor traversal and chunk parsing are split into
 smaller helpers with the same guards, the content-length parser remains
 ASCII-only, the authorization service binds per-connection state in a private
 context, and the regression tests avoid nested/multiple-call assertion forms.
-The two `c:S995` notices in the timeout smoke remain API-constrained: its fake
-definitions must retain the non-const signatures declared by
-`msconnector_runtime.h`, whose production implementations mutate those
-objects. No scanner suppression or public ABI change was used to hide them.
+The timeout-smoke fake retains the non-const signatures declared by
+`msconnector_runtime.h`, because its production implementations mutate those
+objects; no scanner suppression or public ABI change was used.
 An exact-head Sonar detail readback then identified 22 `python:S3415` test
 assertion-order smells. They are corrected to the native `actual, expected`
-order without changing any test condition or protected control.
+order without changing any test condition or protected control. The two
+`c:S995` timeout-smoke notices were genuine fake-lifecycle gaps rather than
+const-correctness opportunities: the fake runtime now tracks active
+transactions, and the fake transaction stores its owner and completion state.
+The fake `begin` records a valid owner and increments its count; its idempotent
+`finish` validates, decrements, and marks completion. This preserves the
+shared non-const ABI and makes the smoke lifecycle behaviorful without a
+scanner suppression.
+
+The branch was then refreshed normally from current Parent `master`
+`a308d7b414f0859490fe7253e0683a4bde80b563`. That inherited only the current
+Framework gitlink update; no Framework or MRTS working tree was initialized,
+modified, staged, or committed by this task.
 
 ## Commands executed
 
@@ -129,6 +140,7 @@ order without changing any test condition or protected control.
 | Current-master continuation: authorization-timeout smoke | passed with GCC and Clang using isolated external build roots; Common C17 helper check and shell syntax check also passed. |
 | Current-master continuation: focused security-diff review | passed: no new plausible security regression in the reviewed ten-file remediation diff. |
 | Exact-head Sonar `S3415` assertion-order follow-up | passed: 92 focused runtime-path, bilingual-documentation, and generated-report-evidence tests after all 22 actual/expected order corrections. |
+| Current-master continuation: behaviorful timeout-smoke fake lifecycle | passed: GCC/Clang timeout-smoke compilation and execution exercise normal begin/finish ownership and count bookkeeping without changing the Common runtime ABI. |
 
 ## Security impact
 
@@ -173,10 +185,9 @@ is `blocked_permissions`; the retained task record does not claim to replace
 that import. The exact PR head still needs ordinary CI, review, and
 resulting-master evidence before any future integration decision.
 
-The two API-constrained `c:S995` timeout-smoke notices require a fresh hosted
-Sonar readback and, if they remain, an explicit scanner-side false-positive or
-accepted-risk disposition. They are not suppressed locally, and changing the
-public runtime declarations solely to satisfy the style rule is out of scope.
+The behaviorful `c:S995` timeout-smoke remediation requires a fresh hosted
+exact-head Sonar readback. It does not suppress either warning or change the
+public runtime declarations solely for a style rule.
 
 ## Remaining risks
 

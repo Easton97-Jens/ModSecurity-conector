@@ -28,14 +28,15 @@
 #define TEST_CHILD_TIMEOUT_MS 3000L
 
 struct msconnector_runtime {
-    unsigned int marker;
+    unsigned int active_transactions;
 };
 
 struct msconnector_runtime_transaction {
-    unsigned int marker;
+    msconnector_runtime *runtime;
+    int finished;
 };
 
-static msconnector_runtime fake_runtime = {1U};
+static msconnector_runtime fake_runtime = {0U};
 
 int msconnector_runtime_config_check(
     const char *connector_name,
@@ -106,9 +107,8 @@ int msconnector_runtime_transaction_begin(
     msconnector_decision *decision,
     msconnector_error *error) {
     msconnector_runtime_transaction *transaction;
-    (void)runtime;
     (void)host_request_id;
-    if (request == NULL || out == NULL || decision == NULL ||
+    if (runtime == NULL || request == NULL || out == NULL || decision == NULL ||
         request->method == NULL || request->uri == NULL ||
         strcmp(request->method, "GET") != 0 || strcmp(request->uri, "/ok") != 0) {
         return 0;
@@ -117,7 +117,9 @@ int msconnector_runtime_transaction_begin(
     if (transaction == NULL) {
         return 0;
     }
-    transaction->marker = 1U;
+    transaction->runtime = runtime;
+    transaction->finished = 0;
+    ++runtime->active_transactions;
     *out = transaction;
     msconnector_decision_set_allow(decision);
     if (error != NULL) {
@@ -129,9 +131,17 @@ int msconnector_runtime_transaction_begin(
 int msconnector_runtime_transaction_finish(
     msconnector_runtime_transaction *transaction,
     msconnector_error *error) {
-    if (transaction == NULL) {
+    if (transaction == NULL || transaction->runtime == NULL) {
         return 0;
     }
+    if (transaction->finished != 0) {
+        return 1;
+    }
+    if (transaction->runtime->active_transactions == 0U) {
+        return 0;
+    }
+    --transaction->runtime->active_transactions;
+    transaction->finished = 1;
     if (error != NULL) {
         msconnector_error_init(error);
     }
