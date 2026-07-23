@@ -11,7 +11,7 @@
 | Base revision | 95fb4917b63dd8a5c5973bb49fd955bd3d2b29a3 |
 | Boundary | Parent `Update submodules` read-only validator, its Parent runtime-path-policy checker and test coverage, this English/German Change Record pair, and both Change-Record indexes. Framework source, MRTS, the Parent Framework gitlink, workflow permissions, action pins, dependency locks, resolver ordering, and publisher behavior remain unchanged. |
 | Finding linkage | FND-PARENT-0050: confirmed Parent CI failure caused by an obsolete self-test expectation. Its complete English/German/JSON canonical-import package is retained in task-owned evidence; the local canonical `.codex/findings` import is `blocked_permissions` because that mount is read-only. Related historical context: FND-PARENT-0045, FND-PARENT-0048, and FND-PARENT-0049. |
-| Delivery status | Pre-delivery local record. No task commit, push, PR, review result, SonarQube Cloud result, merge, or resulting-master workflow result is claimed in this snapshot. The current prompt authorizes one protected Parent repair PR and its resulting-master validation only. |
+| Delivery status | Pre-delivery local record. No task commit, push, PR, review result, SonarQube Cloud result, merge, or resulting-master workflow result is claimed in this snapshot. The current prompt authorizes one normal Parent PR-only repair integration and its resulting-master validation only. |
 
 ## Motivation and problem statement
 
@@ -41,7 +41,7 @@ correctly skipped after validation failed.
   locks, action pins, candidate scope, and narrow publisher isolation remain
   unchanged.
 - Exact-head PR checks, review/conversation status, SonarQube Cloud when
-  configured, protected merge, and a new resulting-master `Update submodules`
+  configured, repository-established PR-only squash merge, and a new resulting-master `Update submodules`
   run are observed before this repair is reported complete.
 
 ## Implementation decision and rationale
@@ -113,7 +113,7 @@ outcome.
   Framework, or control was modified to bypass it.
 - No Framework change, Framework PR, Framework merge, Framework gitlink
   update, MRTS change, or MRTS test was run; all are out of scope.
-- Exact-head GitHub checks, SonarQube Cloud, review, protected merge, and the
+- Exact-head GitHub checks, SonarQube Cloud, review, PR-only squash merge, and the
   resulting-master workflow are pending at this pre-delivery snapshot and must
   be recorded from observed GitHub evidence only.
 

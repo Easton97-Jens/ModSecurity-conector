@@ -11,7 +11,7 @@
 | Basis-Revision | 95fb4917b63dd8a5c5973bb49fd955bd3d2b29a3 |
 | Grenze | Parent-`Update submodules`-read-only-Validator, sein Parent-Runtime-Path-Policy-Checker und seine Testabdeckung, dieses englische/deutsche Change-Record-Paar sowie beide Change-Record-Indizes. Framework-Source, MRTS, der Parent-Framework-Gitlink, Workflow-Berechtigungen, Action-Pins, Dependency-Locks, Resolver-Reihenfolge und Publisher-Verhalten bleiben unverändert. |
 | Finding-Verknüpfung | FND-PARENT-0050: bestätigter Parent-CI-Fehler durch eine veraltete Self-Test-Erwartung. Sein vollständiges englisches/deutsches/JSON-Canonical-Import-Paket wird in task-eigener Evidence aufbewahrt; der lokale Canonical-`.codex/findings`-Import ist `blocked_permissions`, weil dieser Mount read-only ist. Verwandter historischer Kontext: FND-PARENT-0045, FND-PARENT-0048 und FND-PARENT-0049. |
-| Delivery-Status | Pre-Delivery-Lokalrecord. Dieser Snapshot behauptet keinen Task-Commit, Push, PR, kein Review-Ergebnis, kein SonarQube-Cloud-Ergebnis, keinen Merge und kein Resulting-Master-Workflow-Ergebnis. Der aktuelle Prompt autorisiert nur einen geschützten Parent-Reparatur-PR und seine Resulting-Master-Validierung. |
+| Delivery-Status | Pre-Delivery-Lokalrecord. Dieser Snapshot behauptet keinen Task-Commit, Push, PR, kein Review-Ergebnis, kein SonarQube-Cloud-Ergebnis, keinen Merge und kein Resulting-Master-Workflow-Ergebnis. Der aktuelle Prompt autorisiert nur eine normale Parent-PR-only-Reparaturintegration und ihre Resulting-Master-Validierung. |
 
 ## Motivation und Problemstellung
 
@@ -25,7 +25,7 @@ Das Candidate-Framework klassifiziert Source-Checkout-Roots korrekt als Non-Syst
 - Ein verifizierter Runtime-/Cache-Descendant bleibt der positive `assert_safe_runtime_path`-Control.
 - Die Regression schlägt mit dem früheren Verhalten fehl, indem sie eine Framework-Implementierung simuliert, die Source-Roots als Runtime-Write-Pfade zurückweist.
 - Read-only-Berechtigungen von Resolver/Validator, Validierungsreihenfolge, Dependency-Locks, Action-Pins, Candidate-Scope und enge Publisher-Isolation bleiben unverändert.
-- Exact-Head-PR-Checks, Review-/Conversation-Status, SonarQube Cloud falls konfiguriert, geschützter Merge und ein neuer Resulting-Master-`Update submodules`-Run werden beobachtet, bevor diese Reparatur als vollständig berichtet wird.
+- Exact-Head-PR-Checks, Review-/Conversation-Status, SonarQube Cloud falls konfiguriert, repository-etablierter PR-only-Squash-Merge und ein neuer Resulting-Master-`Update submodules`-Run werden beobachtet, bevor diese Reparatur als vollständig berichtet wird.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -61,7 +61,7 @@ Nicht anwendbar. Dies ist eine statische Parent-Validator-/Self-Test-Reparatur. 
 
 - Ein lokaler vollständiger Abschluss von `make quick-check` ist in diesem Checkout nicht verfügbar, weil sein Apache/APXS-Dependency-Provisioner bei unmanaged Cache-Entries fail-closed scheitert. Der Fehler wurde als Environment-Evidence aufbewahrt; kein Cache, Framework oder Control wurde zur Umgehung geändert.
 - Kein Framework-Change, Framework-PR, Framework-Merge, Framework-Gitlink-Update, MRTS-Change oder MRTS-Test lief; alles liegt außerhalb des Scopes.
-- Exact-Head-GitHub-Checks, SonarQube Cloud, Review, geschützter Merge und der Resulting-Master-Workflow stehen bei diesem Pre-Delivery-Snapshot aus und müssen ausschließlich aus beobachteter GitHub-Evidence erfasst werden.
+- Exact-Head-GitHub-Checks, SonarQube Cloud, Review, PR-only-Squash-Merge und der Resulting-Master-Workflow stehen bei diesem Pre-Delivery-Snapshot aus und müssen ausschließlich aus beobachteter GitHub-Evidence erfasst werden.
 
 ## Bekannte Einschränkungen
 
