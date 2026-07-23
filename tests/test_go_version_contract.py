@@ -73,10 +73,10 @@ class GoVersionContractTests(unittest.TestCase):
     def test_valid_contract_accepts_two_central_selectors(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             status, result = self.check_json(self.root_with_workflow(Path(temporary), self.valid_workflow()))
-        self.assertEqual(0, status)
-        self.assertEqual("passed", result["status"])
-        self.assertEqual("1.26.5", result["version"])
-        self.assertEqual([], result["violations"])
+        self.assertEqual(status, 0)
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["version"], "1.26.5")
+        self.assertEqual(result["violations"], [])
 
     def test_literal_selector_and_unlisted_go_job_are_rejected(self) -> None:
         workflow = (
@@ -87,8 +87,8 @@ class GoVersionContractTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as temporary:
             status, result = self.check_json(self.root_with_workflow(Path(temporary), workflow))
-        self.assertEqual(2, status)
-        self.assertEqual("failed", result["status"])
+        self.assertEqual(status, 2)
+        self.assertEqual(result["status"], "failed")
         self.assertTrue(any("exact central" in entry for entry in result["violations"]))
         self.assertTrue(any("unlisted" in entry for entry in result["violations"]))
 
@@ -109,8 +109,8 @@ class GoVersionContractTests(unittest.TestCase):
                 status, result = self.check_json(
                     self.root_with_workflow(Path(temporary), workflow)
                 )
-            self.assertEqual(2, status)
-            self.assertEqual("failed", result["status"])
+            self.assertEqual(status, 2)
+            self.assertEqual(result["status"], "failed")
             self.assertTrue(any("exact central" in entry for entry in result["violations"]))
 
     def test_wrong_action_pin_and_invalid_version_file_fail_closed(self) -> None:
@@ -125,14 +125,14 @@ class GoVersionContractTests(unittest.TestCase):
             status, result = self.check_json(root)
             (root / ".go-version").write_text("1.26.05\n", encoding="utf-8")
             bad_status, bad_result = self.check_json(root)
-        self.assertEqual(2, status)
+        self.assertEqual(status, 2)
         self.assertTrue(any("actions/setup-go" in entry for entry in result["violations"]))
         self.assertEqual((2, "error"), (bad_status, bad_result["status"]))
 
     def test_setup_go_step_body_ends_at_the_next_step(self) -> None:
         job = go_job("envoy-go") + "      - name: unrelated\n        run: echo unrelated\n"
         steps = checker.setup_go_blocks(job)
-        self.assertEqual(1, len(steps))
+        self.assertEqual(len(steps), 1)
         self.assertEqual(checker.SETUP_GO_REFERENCE, steps[0].reference)
         self.assertNotIn("unrelated", steps[0].body)
 

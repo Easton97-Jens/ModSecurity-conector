@@ -291,7 +291,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             result = self.run_haproxy_prepare_with_shared_cache(
                 self.managed_haproxy_cache_environment(Path(temporary), managed=True)
             )
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ready existing provenance-verified binary", result.stdout)
 
     def test_haproxy_prepare_reuses_complete_entry_without_cache_marker(self) -> None:
@@ -299,7 +299,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             result = self.run_haproxy_prepare_with_shared_cache(
                 self.managed_haproxy_cache_environment(Path(temporary), managed=False)
             )
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ready existing provenance-verified binary", result.stdout)
 
     def test_haproxy_prepare_does_not_rebuild_a_verified_runtime_binary(self) -> None:

@@ -10,8 +10,8 @@
 | Date (UTC) | 2026-07-22 |
 | Base revision | 961b4fa37cee257a9d50542b3968005e0e21f556 |
 | Boundary | Parent CI/tooling, Parent tests, paired Parent documentation, and this Change Record pair only. Framework source, MRTS, the Parent gitlink, Go modules, dependencies, and action pins are unchanged. |
-| Finding linkage | FND-PARENT-0045: validated Parent CI compatibility blocker for the failing Update submodules candidate validation. |
-| Delivery status | Initial Draft PR #90 head `0acba7768848651758610928e89f4481dbb90c81` reached five completed ordinary push workflows, all of which failed at the obsolete Parent HAProxy expectation against the current legacy gitlink. This bounded follow-up is locally validated but is not yet committed or pushed. No hosted success, review, SonarQube Cloud result, or master integration is asserted; a fresh exact head remains required. |
+| Finding linkage | FND-PARENT-0045: validated Parent CI compatibility blocker for the failing Update submodules candidate validation; FND-SONAR-0011: 23 task-owned, non-gating SonarQube Cloud test maintainability observations. |
+| Delivery status | Historical initial Draft PR #90 head `0acba7768848651758610928e89f4481dbb90c81` failed five ordinary push workflows at the obsolete Parent HAProxy expectation. Its later exact head `06a4e71408a60e5a72a55065a653b9c4e79a1ecf` passed the observed ordinary checks and SonarQube Cloud Quality Gate. The current user-authorized Sonar cleanup is locally validated but not yet committed or pushed, so no fresh hosted result, review, or master integration is asserted for this continuation. |
 
 ## Motivation and problem statement
 
@@ -62,6 +62,8 @@ auto-merge, submodule-initialization, or module-update path.
   the bounded checked-in Python parser under the existing interpreter contract.
 - Parent HAProxy cache regression tests, paired documentation, Change Record
   indexes, and this bilingual Change Record pair.
+- The current three-test Sonar cleanup: assertion diagnostic order only and
+  one prerelease fixture moved outside its expected exception assertion.
 
 No Framework source, MRTS content, Parent gitlink, Go module, Go checksum,
 dependency, action pin, or security-tools lock file is changed.
@@ -116,9 +118,11 @@ Framework-source change bypasses the failure.
   exit 0 from the old gitlink's managed-cache reuse behavior. This is failure
   evidence for the initial head, not a hosted delivery success.
 
-The initial hosted failures above are the only hosted outcomes represented in
-this record. No hosted success, review, SonarQube Cloud result, or merge is
-asserted.
+The historical initial-head failures above remain failure evidence. The later
+exact head `06a4e71408a60e5a72a55065a653b9c4e79a1ecf` separately passed its
+observed ordinary checks and SonarQube Cloud Quality Gate. The current local
+Sonar cleanup has not yet created a new exact PR head, so it has no new hosted
+delivery result yet.
 
 ## Runtime evidence
 
@@ -148,22 +152,46 @@ normal PR delivery remain required. No risk is accepted.
   task-owned candidate head. The installed local executable is Go 1.26.0, so
   `GOTOOLCHAIN=local go test ./...` and `go vet ./...` in both actual module
   roots reject the required 1.26.5 before executing or downloading anything.
-- A fresh follow-up commit and its exact-head ordinary CI, Update submodules,
-  CodeQL, review, SonarQube Cloud, and resulting-master evidence do not exist
-  yet. The only current exact-head workflows are the documented failing initial
-  head; they cannot verify this correction.
+- A fresh Sonar-cleanup commit and its exact-head ordinary CI, CodeQL, review,
+  SonarQube Cloud, and resulting-master evidence do not exist yet. The
+  `Update submodules` workflow is not currently branch-protection-required,
+  but its recorded task acceptance requirement must be reassessed before merge.
 - Full documentation link validation exited 2 solely for targets under the
   intentionally uninitialized Framework gitlink; it must not be made green by
   changing Framework or MRTS from this Parent task.
 
 ## Final diff and review status
 
-The follow-up local diff has focused static, regression, and bilingual coverage.
-The scope contains no Framework source, MRTS, Parent gitlink, Go module,
-dependency, or action-pin change. Final staging still requires a fresh scoped
-security/diff/status review and delivery preflight. This record contains only
-observed local results plus the documented failed initial head; no current
-hosted delivery success is implied.
+The follow-up local diff has focused static, regression, bilingual, and
+security-diff coverage. The scope contains no Framework source, MRTS, Parent
+gitlink, Go module, dependency, or action-pin change. Final staging requires
+the documented status/diff review and delivery preflight. No current hosted
+success is implied for the uncommitted Sonar cleanup.
+
+## 2026-07-23 continuation: Sonar cleanup and protected-integration preparation
+
+The user explicitly authorized remediation of the 23 current SonarQube Cloud
+PR #90 observations and protected Parent-master integration. The local change
+reverses only the 22 `unittest.TestCase.assertEqual` operand orders flagged by
+`python:S3415` and moves the unchanged `release("go1.26.6rc1")` fixture outside
+the `assertRaises(MetadataError)` context flagged by `python:S5778`. It does
+not alter production/runtime code, workflow permissions, action pins, Sonar
+configuration, exclusions, suppressions, false-positive disposition, or risk
+acceptance.
+
+The three affected modules passed as a 24-test focused suite. The preceding
+100-test focused PR suite, the Go/Python/CI-security contract targets, selected
+Python compilation, and `git diff --check` also passed. A complete local
+security diff scan explicitly reviewed all three changed test-control files
+(the generic source worklist excludes `tests/`) and produced zero reportable
+findings. Its retained completion receipt is outside the repository under the
+task run; it is not a substitute for a fresh hosted SonarQube Cloud analysis.
+
+The next delivery step is a normal task-owned commit and push, then exact-head
+Sonar issue/Quality Gate, required-check, review-thread, mergeability, and
+protected-branch evidence. The user authorization does not permit direct
+master writes, bypasses, Framework/MRTS mutation, gitlink changes, or branch
+cleanup.
 
 ## Security impact
 

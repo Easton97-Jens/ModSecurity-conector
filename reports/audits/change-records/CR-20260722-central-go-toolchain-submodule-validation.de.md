@@ -10,8 +10,8 @@
 | Datum (UTC) | 2026-07-22 |
 | Basis-Revision | 961b4fa37cee257a9d50542b3968005e0e21f556 |
 | Grenze | Nur Parent-CI/Tooling, Parent-Tests, gepaarte Parent-Dokumentation und dieses Change-Record-Paar. Framework-Source, MRTS, Parent-Gitlink, Go-Module, Abhängigkeiten und Action-Pins bleiben unverändert. |
-| Finding-Verknüpfung | FND-PARENT-0045: validierter Parent-CI-Kompatibilitätsblocker für die fehlschlagende Update-submodules-Candidate-Validierung. |
-| Delivery-Status | Der initiale Draft-PR-#90-Head `0acba7768848651758610928e89f4481dbb90c81` erreichte fünf abgeschlossene gewöhnliche Push-Workflows, die alle an der veralteten Parent-HAProxy-Erwartung gegen den aktuellen Legacy-Gitlink scheiterten. Dieses begrenzte Follow-up ist lokal validiert, aber noch nicht committed oder gepusht. Es wird kein Hosted-Erfolg, Review-, SonarQube-Cloud- oder Master-Integrationserfolg behauptet; ein frischer Exact-Head bleibt erforderlich. |
+| Finding-Verknüpfung | FND-PARENT-0045: validierter Parent-CI-Kompatibilitätsblocker für die fehlschlagende Update-submodules-Candidate-Validierung; FND-SONAR-0011: 23 task-owned nicht gate-blockierende SonarQube-Cloud-Test-Maintainability-Beobachtungen. |
+| Delivery-Status | Der historische initiale Draft-PR-#90-Head `0acba7768848651758610928e89f4481dbb90c81` scheiterte in fünf gewöhnlichen Push-Workflows an der veralteten Parent-HAProxy-Erwartung. Sein späterer exakter Head `06a4e71408a60e5a72a55065a653b9c4e79a1ecf` bestand die beobachteten gewöhnlichen Checks und das SonarQube-Cloud-Quality-Gate. Die aktuell nutzerautorisierte Sonar-Bereinigung ist lokal validiert, aber noch nicht committed oder gepusht; für diese Fortsetzung wird daher kein frischer Hosted-Erfolg, Review- oder Master-Integrationserfolg behauptet. |
 
 ## Motivation und Problemstellung
 
@@ -70,6 +70,8 @@ Initialisierungs- oder Modulupdate-Pfad.
   Vertrag ausführt.
 - Parent-HAProxy-Cache-Regressionstests, gepaarte Dokumentation,
   Change-Record-Indizes und dieses bilinguale Change-Record-Paar.
+- Die aktuelle Drei-Test-Sonar-Bereinigung: nur Assertion-Diagnosereihenfolge
+  und eine Prerelease-Fixture außerhalb ihrer erwarteten Exception-Assertion.
 
 Keine Framework-Source, kein MRTS-Inhalt, Parent-Gitlink, Go-Modul, Go-
 Checksum, Dependency, Action-Pin oder Security-Tools-Lock-Datei wird geändert.
@@ -125,9 +127,11 @@ den Fehler.
   77, beobachtet Exit 0 aus dem Managed-Cache-Reuse-Verhalten des alten Gitlinks.
   Dies ist Failure-Evidence für den initialen Head, kein Hosted-Delivery-Erfolg.
 
-Die obigen initialen Hosted-Fehlschläge sind die einzigen in diesem Record
-dargestellten Hosted-Ergebnisse. Es wird kein Hosted-Erfolg, Review-,
-SonarQube-Cloud-Ergebnis oder Merge behauptet.
+Die obigen historischen Initial-Head-Fehlschläge bleiben Failure-Evidence. Der
+spätere exakte Head `06a4e71408a60e5a72a55065a653b9c4e79a1ecf` bestand getrennt
+seine beobachteten gewöhnlichen Checks und das SonarQube-Cloud-Quality-Gate.
+Die aktuelle lokale Sonar-Bereinigung hat noch keinen neuen exakten PR-Head
+erzeugt und damit noch kein neues Hosted-Delivery-Ergebnis.
 
 ## Runtime-Evidence
 
@@ -160,11 +164,11 @@ Kein Risiko wird akzeptiert.
   ist Go 1.26.0, daher weisen `GOTOOLCHAIN=local go test ./...` und `go vet
   ./...` in beiden tatsächlichen Modul-Roots die benötigte 1.26.5 vor jeder
   Ausführung oder jedem Download zurück.
-- Ein frischer Follow-up-Commit und seine Exact-Head-gewöhnliche CI,
-  Update-submodules-, CodeQL-, Review-, SonarQube-Cloud- und Resulting-Master-
-  Evidence existieren noch nicht. Die einzigen aktuellen Exact-Head-Workflows
-  sind die dokumentierten fehlschlagenden initialen Heads; sie können diese
-  Korrektur nicht verifizieren.
+- Ein frischer Sonar-Bereinigungs-Commit und seine Exact-Head-gewöhnliche CI,
+  CodeQL-, Review-, SonarQube-Cloud- und Resulting-Master-Evidence existieren
+  noch nicht. Der `Update submodules`-Workflow ist aktuell nicht durch Branch
+  Protection erforderlich, aber seine dokumentierte Task-Akzeptanzanforderung
+  muss vor dem Merge erneut bewertet werden.
 - Die vollständige Documentation-Link-Validierung endete ausschließlich für
   Ziele unter dem absichtlich nicht initialisierten Framework-Gitlink mit Exit
   2; sie darf nicht durch eine Framework- oder MRTS-Änderung aus diesem
@@ -172,13 +176,39 @@ Kein Risiko wird akzeptiert.
 
 ## Finaler Diff- und Review-Status
 
-Der lokale Follow-up-Diff hat fokussierte Static-, Regressions- und
-Bilingual-Coverage. Der Scope enthält keine Framework-Source, kein MRTS,
+Der lokale Follow-up-Diff hat fokussierte Static-, Regressions-, Bilingual- und
+Security-Diff-Coverage. Der Scope enthält keine Framework-Source, kein MRTS,
 keinen Parent-Gitlink, kein Go-Modul, keine Dependency- oder Action-Pin-
-Änderung. Vor dem Staging bleiben ein frischer scoped Security-/Diff-/Status-
-Review und der Delivery-Preflight erforderlich. Dieser Record enthält nur
-beobachtete lokale Ergebnisse sowie die dokumentierten fehlschlagenden
-initialen Heads; kein aktueller Hosted-Delivery-Erfolg ist impliziert.
+Änderung. Vor dem Staging sind der dokumentierte Status-/Diff-Review und der
+Delivery-Preflight erforderlich. Für die uncommittete Sonar-Bereinigung ist
+kein aktueller Hosted-Erfolg impliziert.
+
+## Fortsetzung 2026-07-23: Sonar-Bereinigung und Vorbereitung der geschützten Integration
+
+Der Nutzer autorisierte ausdrücklich die Behebung der 23 aktuellen
+SonarQube-Cloud-PR-#90-Beobachtungen und die geschützte Parent-Master-
+Integration. Die lokale Änderung dreht nur die 22 durch `python:S3415`
+markierten `unittest.TestCase.assertEqual`-Operand-Reihenfolgen um und
+verschiebt die unveränderte `release("go1.26.6rc1")`-Fixture aus dem durch
+`python:S5778` markierten `assertRaises(MetadataError)`-Kontext. Sie ändert
+weder Produkt-/Runtime-Code, Workflow-Berechtigungen, Action-Pins,
+Sonar-Konfiguration, Exclusions, Suppressions, False-Positive-Disposition noch
+Risikoakzeptanz.
+
+Die drei betroffenen Module bestanden als fokussierte 24-Test-Suite. Die
+vorhergehende fokussierte PR-100-Test-Suite, die Go-/Python-/CI-Security-
+Contract-Targets, ausgewählte Python-Kompilierung und `git diff --check`
+bestanden ebenfalls. Ein vollständiger lokaler Security-Diff-Scan prüfte
+explizit alle drei geänderten Test-Control-Dateien (der generische Source-
+Worklist schließt `tests/` aus) und erzeugte null reportable Findings. Sein
+aufbewahrter Completion-Receipt liegt außerhalb des Repositories im Task-Run;
+er ersetzt keine frische gehostete SonarQube-Cloud-Analyse.
+
+Der nächste Delivery-Schritt ist ein normaler task-owned Commit und Push, dann
+Exact-Head-Sonar-Issue-/Quality-Gate-, Required-Check-, Review-Thread-,
+Mergeability- und Protected-Branch-Evidence. Die Nutzerautorisierung erlaubt
+keine direkten Master-Writes, Bypässe, Framework-/MRTS-Mutationen,
+Gitlink-Änderungen oder Branch-Cleanup.
 
 ## Security-Auswirkung
 

@@ -49,7 +49,7 @@ class UpdateGoVersionTests(unittest.TestCase):
             release("go1.27.1"),
             release("go1.26.8"),
         ]
-        self.assertEqual("1.26.8", str(updater.resolve_latest_stable_version(metadata=metadata)))
+        self.assertEqual(str(updater.resolve_latest_stable_version(metadata=metadata)), "1.26.8")
 
     def test_check_and_update_are_deterministic(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -66,14 +66,14 @@ class UpdateGoVersionTests(unittest.TestCase):
                 ["--update", "--expected-version", "1.26.6", "--json"],
                 metadata=[release("go1.26.6")],
             )
-        self.assertEqual(0, status)
-        self.assertEqual("update_available", decision["status"])
+        self.assertEqual(status, 0)
+        self.assertEqual(decision["status"], "update_available")
         self.assertIs(decision["update_available"], True)
-        self.assertEqual(0, update_status)
+        self.assertEqual(update_status, 0)
         self.assertIs(update["changed"], True)
-        self.assertEqual("1.26.6\n", content)
-        self.assertEqual(0, current_status)
-        self.assertEqual("current", current["status"])
+        self.assertEqual(content, "1.26.6\n")
+        self.assertEqual(current_status, 0)
+        self.assertEqual(current["status"], "current")
         self.assertIs(current["changed"], False)
 
     def test_update_rejects_downgrade_or_wrong_expected_version_without_mutation(self) -> None:
@@ -92,14 +92,15 @@ class UpdateGoVersionTests(unittest.TestCase):
             content = (root / ".go-version").read_text(encoding="utf-8")
         self.assertEqual((1, "error"), (downgrade_status, downgrade["status"]))
         self.assertEqual((1, "error"), (mismatch_status, mismatch["status"]))
-        self.assertEqual("1.26.6\n", content)
+        self.assertEqual(content, "1.26.6\n")
 
     def test_rejects_noncurrent_minor_prerelease_and_leading_zero_forms(self) -> None:
         for value in ("1.27.1", "go1.26.6", "1.26.06", "1.26.6rc1", "1.26.١"):
             with self.subTest(value=value), self.assertRaises(updater.VersionError):
                 updater.parse_stable_version(value)
+        prerelease_metadata = [release("go1.26.6rc1")]
         with self.assertRaises(updater.MetadataError):
-            updater.resolve_latest_stable_version(metadata=[release("go1.26.6rc1")])
+            updater.resolve_latest_stable_version(metadata=prerelease_metadata)
         with self.assertRaises(updater.MetadataError):
             updater.resolve_latest_stable_version(metadata=[{"version": "go1.26.6", "stable": "true"}])
 
@@ -128,7 +129,7 @@ class UpdateGoVersionTests(unittest.TestCase):
             with mock.patch.object(updater, "RELEASE_API_URL", invalid):
                 status, record = self.run_cli(root, ["--check", "--json"], opener=opener)
         self.assertEqual((1, "error"), (status, record["status"]))
-        self.assertEqual([], opener.requests)
+        self.assertEqual(opener.requests, [])
 
     def test_symlink_target_is_refused_without_touching_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -143,7 +144,7 @@ class UpdateGoVersionTests(unittest.TestCase):
             )
             content = outside.read_text(encoding="utf-8")
         self.assertEqual((1, "error"), (status, record["status"]))
-        self.assertEqual("1.26.5\n", content)
+        self.assertEqual(content, "1.26.5\n")
 
 
 if __name__ == "__main__":
