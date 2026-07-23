@@ -7,7 +7,9 @@ limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent tests and Lighttpd assertion order for SonarQube Cloud S3415](CR-20260722-sonar-tests-connectors-assert-order.md)
+- [Read-only Update-submodules validation dependency repair](CR-20260723-update-submodules-validation-dependency.md)
 - [CodeQL Action 4.37.3 batch](CR-20260722-codeql-action-4-37-3-batch.md)
+- [Central Go toolchain and Update-submodules validation repair](CR-20260722-central-go-toolchain-submodule-validation.md)
 - [CodeQL Action 4.37.2 batch](CR-20260722-codeql-action-4-37-2-batch.md)
 - [NGINX Server header byte-length correction](CR-20260721-nginx-server-header-length.md)
 - [Parent readiness-path constant for SonarQube Cloud S1192](CR-20260721-sonar-s1192-readiness-path.md)

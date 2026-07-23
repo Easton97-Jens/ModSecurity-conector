@@ -37,6 +37,7 @@ CANDIDATE_VERIFIER_COMMAND = (
     '--expected-python "$EXPECTED_PYTHON"'
 )
 UPDATE_PYTHON_VERSION_WORKFLOW = "update-python-version.yml"
+UPDATE_GO_VERSION_WORKFLOW = "update-go-version.yml"
 
 
 @dataclass(frozen=True, order=True)
@@ -50,10 +51,12 @@ class JobIdentity:
         return f"{self.workflow}:{self.job}"
 
 
-# These are the final Parent-native Python jobs: the current 22 jobs plus the
-# resolver and publisher in update-python-version.yml.  The one candidate job
-# below is deliberately separate because it must validate a prospective patch
-# before the canonical .python-version file is changed.
+# These are the final Parent-native Python jobs: the current 22 jobs, the
+# resolver and publisher in update-python-version.yml, and all three Go updater
+# jobs. The Go updater is Python-bearing because its bounded official-metadata
+# parser and workflow-contract tests use the canonical interpreter. The one
+# Python candidate job below is deliberately separate because it validates a
+# prospective patch before the canonical .python-version file is changed.
 EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
     {
         JobIdentity("all-connectors-no-crs.yml", "aggregate"),
@@ -78,6 +81,9 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("update-actions-versions.yml", "update-actions-versions"),
         JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "create-python-update-pr"),
         JobIdentity(UPDATE_PYTHON_VERSION_WORKFLOW, "resolve-python-patch"),
+        JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "create-go-update-pr"),
+        JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "resolve-go-patch"),
+        JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "validate-go-patch"),
         JobIdentity("update-submodules.yml", "validate-submodule-update"),
         JobIdentity("verified-report-governance.yml", "report-governance"),
     }
