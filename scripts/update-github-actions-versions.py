@@ -183,6 +183,29 @@ def parse_uses_line(path: Path, line_number: int, line: str) -> UsesLine | None:
     )
 
 
+def is_within_root(candidate: Path, root: Path) -> bool:
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def confined_workflow_path(root: Path, candidate: Path) -> Path | None:
+    """Resolve a discovered workflow only when it remains safely in ``root``."""
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+    if candidate.is_symlink():
+        return None
+    if not resolved.is_file():
+        return None
+    if not is_within_root(resolved, root):
+        return None
+    return resolved
+
+
 def workflow_files(root: Path) -> list[Path]:
     root = root.resolve()
     files: list[Path] = []
@@ -193,22 +216,10 @@ def workflow_files(root: Path) -> list[Path]:
     for search_root in search_roots:
         for pattern in WORKFLOW_GLOBS:
             for candidate in search_root.glob(pattern):
-                try:
-                    resolved = candidate.resolve(strict=True)
-                except (OSError, RuntimeError):
-                    continue
-                if candidate.is_symlink() or not resolved.is_file() or not is_within_root(resolved, root):
-                    continue
-                files.append(resolved)
+                resolved = confined_workflow_path(root, candidate)
+                if resolved is not None:
+                    files.append(resolved)
     return sorted(files)
-
-
-def is_within_root(candidate: Path, root: Path) -> bool:
-    try:
-        candidate.relative_to(root)
-    except ValueError:
-        return False
-    return True
 
 
 def confined_report_path(root: Path, raw_path: str) -> Path:

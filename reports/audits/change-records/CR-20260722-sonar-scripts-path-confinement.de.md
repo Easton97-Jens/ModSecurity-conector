@@ -8,8 +8,9 @@
 | --- | --- |
 | Change-ID | CR-20260722-sonar-scripts-path-confinement |
 | Datum (UTC) | 2026-07-22 |
-| Basis-Revision | 961b4fa37cee257a9d50542b3968005e0e21f556 |
-| Tracking | Zwei Parent-only-Sicherheitsbefunde in scripts/update-github-actions-versions.py: AZ70CAr3IpeCryPNS2zi (pythonsecurity:S2083) und AZ70CAr3IpeCryPNS2zj (pythonsecurity:S8707). |
+| Ursprüngliche Basis-Revision | 961b4fa37cee257a9d50542b3968005e0e21f556 |
+| Aktuelle Master-Basis | 95fb4917b63dd8a5c5973bb49fd955bd3d2b29a3, am 2026-07-23 ohne History-Rewrite in diesen Task-Branch gemergt |
+| Tracking | Zwei Parent-only-Sicherheitsbefunde in scripts/update-github-actions-versions.py: AZ70CAr3IpeCryPNS2zi (pythonsecurity:S2083) und AZ70CAr3IpeCryPNS2zj (pythonsecurity:S8707); Follow-up-SonarQube-Cloud-Maintainability-Befunde AZ-LiaSLimiHoxpRJ2G8 (python:S3776) sowie AZ-LiaLHimiHoxpRJ2G4 bis AZ-LiaLHimiHoxpRJ2G7 (python:S5778). |
 | Grenze | Parent-Updater-Source und Regressionstests sowie dieses englisch/deutsche Traceability-Paar und die Indizes. Framework, MRTS, Gitlinks, Workflow-Konfiguration, Action-Update-Policy, Scanner-Konfiguration, Quality Gates und Suppressions bleiben unverändert. |
 
 ## Motivation und Problemstellung
@@ -38,6 +39,10 @@ in dessen PR-Analyse und wird hier absichtlich nicht dupliziert.
 - Ein bösartiger Workflow-Symlink-Control und ein externer Reportpfad-Control
   scheitern sicher; ein legitimer Workflow-Update- und root-relativer
   Report-Control bestehen weiterhin.
+- Die Workflow-Discovery bleibt unter dem SonarQube-Cloud-Grenzwert für
+  kognitive Komplexität, ohne eine Containment-Prüfung zu umgehen.
+- Die negativen Exception-Controls behalten ihre Eingaben und erwarteten
+  Fehlschläge ohne verschachtelte Aufrufe in ihren Assertions bei.
 - Beide Change-Record-Sprachen und beide Indizes bleiben gleichwertig.
 - Frische SonarQube-Cloud- und Hosted-Check-Evidence für den exakten Draft-
   PR-Head einholen, bevor einer der ausgewählten Keys als behoben gilt.
@@ -58,6 +63,14 @@ repository-native Grenze, weil sie sowohl den direkten CLI-Sink als auch den
 bestehenden CI-Default schützt, ohne die Semantik der Action-Version-Selection
 zu ändern.
 
+Das Current-Master-Follow-up extrahiert die vorhandene
+Workflow-Kandidatenentscheidung in `confined_workflow_path`. Sie bewahrt
+dieselbe strikte Auflösung, Ablehnung direkter Symlinks, Regulärdatei-Prüfung
+und Parent-Root-Containment, bevor ein Kandidat Workflow-Lesen oder die
+Write-Mode-Replacement erreicht. Die vier negativen Exception-Controls
+bereiten ihre Pfad- oder Argumentwerte vor dem Eintritt in `assertRaises` vor;
+ihre abgelehnten Eingaben und erwarteten Fehlschläge bleiben unverändert.
+
 ## Geänderte Dateien
 
 - scripts/update-github-actions-versions.py
@@ -67,8 +80,8 @@ zu ändern.
 
 ## Ausgeführte Befehle
 
-- Python-Kompilierung des geänderten Updaters und Regressionstests: bestanden.
-- `tests.test_update_github_actions_versions`: bestanden (17 Tests).
+- In-Memory-Python-Syntaxkompilierung des geänderten Updaters: bestanden.
+- `tests.test_update_github_actions_versions`: bestanden (19 Tests).
 - Fokussierte Exploit- und legitime Controls: bestanden. Ein externer
   Workflow-Symlink erzeugte keine Scan-Zeile und sein Ziel blieb unverändert;
   externe und verlinkte Reportpfade lösten eine CLI-Ablehnung aus; ein
@@ -92,6 +105,12 @@ gelesen und verändert, und die frühere CLI hätte einen externen Report
 geschrieben. Kein Security-Control wird geschwächt und es werden weder
 Suppression, NOSONAR-Marker noch Scanner-Konfigurationsänderung verwendet.
 
+Das Maintainability-Refactoring verwandelt die früheren Prüfungen nicht in
+einen Best-Effort-Filter: `None` wird nur nach derselben fehlgeschlagenen
+Auflösung, Symlink-, Regulärdatei- oder Root-Containment-Bedingung
+zurückgegeben, die den Kandidaten zuvor übersprungen hat. Die expliziten
+Security-Controls üben diese Entscheidungen weiterhin aus.
+
 ## Runtime-Evidence
 
 Die Regression-Suite übt die echten Updater-Funktionen und die CLI-
@@ -100,6 +119,18 @@ Reporttests verwendet sie absichtlich einen leeren legitimen Workflow-Root,
 sodass kein Network-GitHub-API-Lookup erforderlich ist. Das bestehende
 Workflow-Parsing/-Update wird durch den Major-Ref-Update-Test abgedeckt; kein
 Production-GitHub-Workflow wurde ausgeführt.
+
+## Current-Master-Refresh und Maintainability-Follow-up
+
+Die aktuelle Remote-`master`-Revision
+`95fb4917b63dd8a5c5973bb49fd955bd3d2b29a3` wurde mit einem normalen
+Merge-Commit übernommen, nicht durch Rebase oder History-Rewrite. Ihre einzige
+Auflösung war die Vereinigung dieses Change-Record-Indexeintrags mit dem
+Current-Master-Eintrag. Das anschließende Source/Test-Follow-up behandelt die
+fünf exakten PR-Befunde, ohne Scanner-Konfiguration, Quality Gates,
+Suppressions, Workflow-Konfiguration, Framework, MRTS oder den Parent-Gitlink
+zu verändern. Frische Hosted- und SonarQube-Cloud-Evidence für den exakten
+Head bleibt nach dem Follow-up-Commit erforderlich.
 
 ## Bekannte Einschränkungen
 
@@ -138,8 +169,7 @@ ausgewählten Befunde als behoben gelten.
 Lokale Implementierung, Source-to-Sink-Review, fokussierte Exploit-Controls
 und legitime Controls sind auf dem Parent-only-Task-Branch abgeschlossen.
 Draft-PR [#91](https://github.com/Easton97-Jens/ModSecurity-conector/pull/91)
-ist offen und als Draft markiert. Zum Erstellungszeitpunkt stimmten sein Head,
-lokaler Commit und Remote-Branch auf
-`b902bd7c7b1b4819670435536dbbb8491c4918ae` überein. Hosted-Checks,
-Sonar-Analyse und Quality Gate stehen noch aus. Es werden weder Review-
-Freigabe noch Merge oder Default-Branch-Änderung beansprucht oder autorisiert.
+bleibt offen und als Draft markiert. Frische Hosted-Checks, Sonar-Analyse und
+Quality Gate für den exakten Head sind erforderlich, bevor die ausgewählten
+Befunde als behoben gelten. Es werden weder Review-Freigabe noch Merge oder
+Default-Branch-Änderung beansprucht oder autorisiert.

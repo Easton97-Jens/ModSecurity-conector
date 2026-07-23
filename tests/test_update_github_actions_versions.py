@@ -139,9 +139,10 @@ class UpdateGitHubActionsVersionsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as external_tmp:
             root = Path(tmp)
             outside = Path(external_tmp) / "actions-update-report.md"
+            outside_path = str(outside)
 
             with self.assertRaises(ValueError):
-                updater.confined_report_path(root, str(outside))
+                updater.confined_report_path(root, outside_path)
 
     def test_report_symlink_to_outside_root_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as external_tmp:
@@ -150,18 +151,20 @@ class UpdateGitHubActionsVersionsTest(unittest.TestCase):
             outside.write_text("outside", encoding="utf-8")
             report_link = root / "actions-update-report.md"
             report_link.symlink_to(outside)
+            report_link_path = str(report_link)
 
             with self.assertRaises(ValueError):
-                updater.confined_report_path(root, str(report_link))
+                updater.confined_report_path(root, report_link_path)
 
     def test_cyclic_report_symlink_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             report_link = root / "actions-update-report.md"
             report_link.symlink_to(report_link)
+            report_link_path = str(report_link)
 
             with self.assertRaises(ValueError):
-                updater.confined_report_path(root, str(report_link))
+                updater.confined_report_path(root, report_link_path)
 
     def test_main_rejects_external_report_path_before_writing(self):
         with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as external_tmp:
@@ -171,11 +174,12 @@ class UpdateGitHubActionsVersionsTest(unittest.TestCase):
             workflow.parent.mkdir(parents=True)
             workflow_contents = "steps:\n  - uses: actions/checkout@v4\n"
             workflow.write_text(workflow_contents, encoding="utf-8")
+            arguments = ["--write", "--report", str(outside)]
             previous_directory = Path.cwd()
             try:
                 os.chdir(root)
                 with self.assertRaises(SystemExit) as error:
-                    updater.main(["--write", "--report", str(outside)])
+                    updater.main(arguments)
             finally:
                 os.chdir(previous_directory)
 
