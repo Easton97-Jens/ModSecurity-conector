@@ -117,8 +117,9 @@ Hosted Sonar analysis and CI still need to run against the exact Draft PR head.
 
 ## Final diff and review status
 
-The record is written before staging, commit, push, pull-request creation, and
-external check/review evidence. Local source/test/documentation validation is
-complete; the final Draft PR must state only observed hosted results. No merge,
-default-branch update, Framework/MRTS change, suppression, or alert closure is
-claimed or authorized.
+The reviewed local batch was committed as
+`a315a79ab485b1834939c4b9f90b53981151ff67`; normal push, Draft-PR creation,
+and external check/review evidence remain pending. Local source/test/
+documentation validation is complete; the final Draft PR must state only
+observed hosted results. No merge, default-branch update, Framework/MRTS change,
+suppression, or alert closure is claimed or authorized.

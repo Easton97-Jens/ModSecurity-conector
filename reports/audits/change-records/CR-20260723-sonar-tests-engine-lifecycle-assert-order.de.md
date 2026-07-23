@@ -124,9 +124,10 @@ müssen noch auf dem exakten Draft-PR-Head laufen.
 
 ## Finaler Diff- und Review-Status
 
-Dieser Record wird vor Staging, Commit, Push, Pull-Request-Erstellung und
-externer Check-/Review-Evidence geschrieben. Die lokale Source-/Test-/
-Dokumentations-Validierung ist vollständig; der finale Draft PR darf nur
-beobachtete Hosted-Ergebnisse angeben. Es werden weder Merge, Default-Branch-
-Update, Framework-/MRTS-Änderung, Suppression noch Alert-Closure beansprucht
-oder autorisiert.
+Der geprüfte lokale Batch wurde als
+`a315a79ab485b1834939c4b9f90b53981151ff67` committed; normaler Push,
+Draft-PR-Erstellung und externe Check-/Review-Evidence stehen weiter aus. Die
+lokale Source-/Test-/Dokumentations-Validierung ist vollständig; der finale
+Draft PR darf nur beobachtete Hosted-Ergebnisse angeben. Es werden weder Merge,
+Default-Branch-Update, Framework-/MRTS-Änderung, Suppression noch Alert-Closure
+beansprucht oder autorisiert.
