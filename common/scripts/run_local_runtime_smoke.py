@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+from dataclasses import dataclass
 import http.client
 import http.server
 import json
@@ -23,12 +24,30 @@ import urllib.request
 from pathlib import Path
 
 
+# CI helpers are shared from ci/lib even when this runner is executed directly.
+_CI_LIB = Path(__file__).resolve().parents[2] / "ci" / "lib"
+if str(_CI_LIB) not in sys.path:
+    sys.path.insert(0, str(_CI_LIB))
+
+from runtime_path_utils import is_safe_runtime_root, verified_runtime_paths
+
+
 BLOCK_VALUES = {"1", "true", "block", "yes", "on"}
 REQUEST_BODY_BLOCK_MARKER = "modsec-request-body-block"
 REQUEST_BODY_ALLOW_BODY = b"payload=modsec-request-body-allow"
 REQUEST_BODY_BLOCK_BODY = b"payload=modsec-request-body-block"
 REQUEST_BODY_CONTENT_TYPE = "application/x-www-form-urlencoded"
 TARGETED_SMOKE_CASES = {"targeted", "request_body"}
+CRS_SETUP_TEMPLATE_NAME = "crs-setup.conf.example"
+GENERATED_CRS_SMOKE_RULE_LABEL = "generated CRS smoke rule"
+RUNTIME_OUTPUT_PATH_FIELDS = (
+    ("evidence_root", "EVIDENCE_ROOT"),
+    ("results_dir", "RESULTS_DIR"),
+    ("tmp_root", "TMP_ROOT"),
+    ("log_root", "LOG_ROOT"),
+    ("log_dir", "LOG_DIR"),
+    ("config_root", "CONFIG_ROOT"),
+)
 CRS_SMOKE_CASES = {
     "minimal": {
         "blocked_path": "/?id=1%20UNION%20SELECT%20password%20FROM%20users",
@@ -46,6 +65,72 @@ class SmokeBlocked(RuntimeError):
         super().__init__(reason)
         self.reason = reason
         self.missing_dependencies = missing_dependencies
+
+
+@dataclass(frozen=True)
+class RuntimeOutputPaths:
+    runtime_root: Path
+    evidence_root: Path
+    results_dir: Path
+    tmp_root: Path
+    log_root: Path
+    log_dir: Path
+    config_root: Path
+
+
+def require_verified_runtime_output_path(value: str, label: str, root: Path) -> Path:
+    """Return one absolute CLI output path constrained to the verified run root."""
+
+    configured = Path(value)
+    if not configured.is_absolute():
+        raise SmokeBlocked(f"{label} must be absolute: {configured}", ["runtime path"])
+    component = Path(configured.anchor)
+    for name in configured.parts[1:]:
+        component /= name
+        try:
+            metadata = component.lstat()
+        except FileNotFoundError:
+            break
+        except OSError as exc:
+            raise SmokeBlocked(
+                f"{label} cannot inspect path component: {component}", ["runtime path"]
+            ) from exc
+        if stat.S_ISLNK(metadata.st_mode):
+            raise SmokeBlocked(
+                f"{label} must not contain a symlink: {component}", ["runtime path"]
+            )
+    try:
+        resolved = configured.resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        raise SmokeBlocked(f"{label} cannot be resolved: {configured}", ["runtime path"]) from exc
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise SmokeBlocked(
+            f"{label} is outside the verified runtime root: {resolved}", ["runtime path"]
+        ) from exc
+    return resolved
+
+
+def validate_runtime_output_paths(args: argparse.Namespace) -> RuntimeOutputPaths:
+    """Validate every direct CLI output destination before this runner writes."""
+
+    try:
+        verified = verified_runtime_paths(os.environ)
+    except ValueError as exc:
+        raise SmokeBlocked(f"invalid verified runtime paths: {exc}", ["runtime path"]) from exc
+    runtime_root = Path(verified["VERIFIED_RUN_ROOT"]).resolve(strict=False)
+    if not is_safe_runtime_root(runtime_root):
+        raise SmokeBlocked(f"VERIFIED_RUN_ROOT is unsafe: {runtime_root}", ["runtime path"])
+
+    values: dict[str, Path] = {}
+    for field, label in RUNTIME_OUTPUT_PATH_FIELDS:
+        configured = namespace_value(args, field)
+        if not configured:
+            raise SmokeBlocked(f"missing required {label}", ["runtime path"])
+        values[field] = require_verified_runtime_output_path(configured, label, runtime_root)
+        setattr(args, field, str(values[field]))
+    return RuntimeOutputPaths(runtime_root=runtime_root, **values)
 
 
 def namespace_value(args: argparse.Namespace, name: str, default: str = "") -> str:
@@ -405,7 +490,7 @@ def validate_crs_source_dir(candidate: Path) -> Path:
 
     source_dir = require_trusted_crs_path(candidate, "CRS source directory", directory=True)
     setup_template = require_trusted_crs_path(
-        source_dir / "crs-setup.conf.example", "CRS setup template", directory=False
+        source_dir / CRS_SETUP_TEMPLATE_NAME, "CRS setup template", directory=False
     )
     require_safe_crs_config_path(setup_template, "CRS setup template")
     rules_dir = require_trusted_crs_path(
@@ -441,7 +526,7 @@ def resolve_crs_source_dir(args: argparse.Namespace) -> Path:
     for candidate in crs_source_candidate_roots(args):
         if (
             candidate.is_dir()
-            and (candidate / "crs-setup.conf.example").is_file()
+            and (candidate / CRS_SETUP_TEMPLATE_NAME).is_file()
             and (candidate / "rules").is_dir()
         ):
             return validate_crs_source_dir(candidate)
@@ -551,9 +636,9 @@ class ModSecurityDecisionBackend:
     ) -> dict[str, object]:
         if self.ruleset == "crs":
             self.rule_file = require_trusted_crs_path(
-                self.rule_file, "generated CRS smoke rule", directory=False
+                self.rule_file, GENERATED_CRS_SMOKE_RULE_LABEL, directory=False
             )
-            require_safe_crs_config_path(self.rule_file, "generated CRS smoke rule")
+            require_safe_crs_config_path(self.rule_file, GENERATED_CRS_SMOKE_RULE_LABEL)
         command = [
             str(self.helper),
             "--rule-file",
@@ -929,7 +1014,7 @@ def local_library_env(base_env: dict[str, str], lib_dir: Path, runtime_lookup_ro
 def prepare_crs_smoke_config(args: argparse.Namespace, log_dir: Path) -> tuple[Path, Path, str]:
     source_dir = resolve_crs_source_dir(args)
     args.effective_crs_source_dir = str(source_dir)
-    setup_template = source_dir / "crs-setup.conf.example"
+    setup_template = source_dir / CRS_SETUP_TEMPLATE_NAME
     rules_dir = source_dir / "rules"
     if not setup_template.is_file():
         raise SmokeBlocked(f"missing CRS setup template: {setup_template}", ["crs"])
@@ -986,10 +1071,10 @@ def prepare_crs_smoke_config(args: argparse.Namespace, log_dir: Path) -> tuple[P
         lines.append(f'Include "{plugins_dir}/*-after.conf"')
     rule_file = write_trusted_crs_output(
         rule_file,
-        "generated CRS smoke rule",
+        GENERATED_CRS_SMOKE_RULE_LABEL,
         "\n".join(lines) + "\n",
     )
-    require_safe_crs_config_path(rule_file, "generated CRS smoke rule")
+    require_safe_crs_config_path(rule_file, GENERATED_CRS_SMOKE_RULE_LABEL)
 
     version = crs_version_from_source(source_dir, args.crs_git_ref)
     payload_name = "crs-smoke-payload.txt" if args.crs_smoke_case == "minimal" else "crs-secondary-smoke-payload.txt"
@@ -1024,9 +1109,9 @@ def build_modsecurity_evaluator(args: argparse.Namespace, log_dir: Path) -> tupl
         raise RuntimeError("local libmodsecurity include dir, lib dir, lib file, and rule file are required")
     if args.modsecurity_ruleset == "crs":
         rule_file = require_trusted_crs_path(
-            rule_file, "generated CRS smoke rule", directory=False
+            rule_file, GENERATED_CRS_SMOKE_RULE_LABEL, directory=False
         )
-        require_safe_crs_config_path(rule_file, "generated CRS smoke rule")
+        require_safe_crs_config_path(rule_file, GENERATED_CRS_SMOKE_RULE_LABEL)
     for path, label in (
         (include_dir / "modsecurity/modsecurity.h", "modsecurity.h"),
         (include_dir / "modsecurity/rules_set.h", "rules_set.h"),
@@ -1781,6 +1866,11 @@ def run_lighttpd_sidecar_smoke(
 
 def run_smoke(args: argparse.Namespace) -> int:
     try:
+        runtime_output_paths = validate_runtime_output_paths(args)
+    except SmokeBlocked as exc:
+        print(f"BLOCKED runtime output path: {exc.reason}", file=sys.stderr)
+        return 77
+    try:
         args.modsecurity_ruleset = normalize_ruleset(args.modsecurity_ruleset)
         args.modsecurity_smoke_case = normalize_modsecurity_smoke_case(args.modsecurity_smoke_case)
         args.crs_smoke_case = normalize_crs_smoke_case(args.crs_smoke_case)
@@ -1796,13 +1886,23 @@ def run_smoke(args: argparse.Namespace) -> int:
             exc.missing_dependencies,
         )
         return 77
+    config_root = runtime_output_paths.config_root
     if args.modsecurity_ruleset == "crs":
         args.modsecurity_smoke_case = "targeted"
         config_suffix = "crs-smoke" if args.crs_smoke_case == "minimal" else "crs-secondary-smoke"
-        args.config_root = str(Path(args.config_root) / config_suffix)
+        try:
+            config_root = require_verified_runtime_output_path(
+                str(config_root / config_suffix),
+                "CONFIG_ROOT",
+                runtime_output_paths.runtime_root,
+            )
+        except SmokeBlocked as exc:
+            print(f"BLOCKED runtime output path: {exc.reason}", file=sys.stderr)
+            return 77
+        args.config_root = str(config_root)
     binary = Path(args.resolved_runtime_binary)
-    work_dir = Path(args.config_root)
-    log_dir = Path(args.log_dir)
+    work_dir = config_root
+    log_dir = runtime_output_paths.log_dir
     work_dir.mkdir(parents=True, exist_ok=True)
     if args.modsecurity_ruleset != "crs":
         log_dir.mkdir(parents=True, exist_ok=True)

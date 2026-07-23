@@ -9,7 +9,7 @@
 | Change-ID | CR-20260723-sonar-common-crs-source-integrity |
 | Datum (UTC) | 2026-07-23 |
 | Basis-Revision | a308d7b414f0859490fe7253e0683a4bde80b563 |
-| Tracking | Parent-only-`python:S5443`-Keys `AZ70UrU3IhrooTjfZnAX`, `AZ70UrU3IhrooTjfZnAY` und `AZ70UrU3IhrooTjfZnAZ`; Pending-Canonical-Finding `FND-SONAR-0013`. |
+| Tracking | Parent-only-`python:S5443`-Keys `AZ70UrU3IhrooTjfZnAX`, `AZ70UrU3IhrooTjfZnAY` und `AZ70UrU3IhrooTjfZnAZ`; Draft-PR-#97-Follow-up für `pythonsecurity:S8707`-Key `AZ-PstOVmYfklgBeDadY`, zwei `python:S1192`-Keys und vier `python:S3415`-Keys; Pending-Canonical-Findings `FND-SONAR-0013` und `FND-SONAR-0014`. |
 | Grenze | Nur Parent: Common-Python-Runner, Parent-Test, gepaarte Parent-Dokumentation und dieses Change-Record-Paar. Framework, MRTS, Gitlinks, Abhängigkeiten, SonarCloud-Controls, Suppressions, Exclusions, Quality Gates und Host-Protokollverhalten bleiben unverändert. |
 
 ## Motivation und Problemstellung
@@ -30,6 +30,14 @@ ein Remote-Request-zu-Parser-Pfad noch behauptet, dass beliebige CRS-Direktiven
 Code-Ausführung erreichen; die Änderung verhindert, dass ein Smoke-Lauf den
 Regelbaum eines anderen Benutzers stillschweigend als Quelle akzeptiert.
 
+Die erste Exact-Draft-PR-#97-SonarCloud-Analyse meldete zusätzlich einen
+agentischen Filesystem-Boundary-Kandidaten auf der direkten `--log-dir`-Route
+des Runners. Vor dem Follow-up konnte eine direkte Invocation einen Output-Root
+außerhalb des verifizierten Invocation-Baums auswählen und Konfigurations-/Log-
+Verzeichnisse sowie bei libmodsecurity die Entfernung eines stale Decision-Logs
+erreichen. Eine fokussierte Red-Regression bewies, dass ein außerhalb liegendes
+`--config-root` erzeugt wurde, bevor der Runner zurückkehrte.
+
 ## Akzeptanzkriterien
 
 - Die CRS-Discovery verwendet nur explizites `CRS_SOURCE_DIR` oder aus einer
@@ -48,6 +56,12 @@ Regelbaum eines anderen Benutzers stillschweigend als Quelle akzeptiert.
 - Gültige explizite Quellen und gültige Runtime-Lookup-Root-Quellen bleiben
   akzeptiert; fehlende oder unsichere Quellen liefern `SmokeBlocked` / Exit 77,
   bevor eine generierte Regeldatei den Evaluator erreicht.
+- Jedes direkte Output-Argument (`--evidence-root`, `--results-dir`,
+  `--tmp-root`, `--log-root`, `--log-dir` und `--config-root`) ist absolut,
+  kanonisiert und unterhalb von `VERIFIED_RUN_ROOT` enthalten, bevor der Runner
+  erzeugt, unlinkt, an den Evaluator übergibt oder den Result-Writer aufruft.
+  Außerhalb liegende Roots und über Symlink aufgelöste Escapes liefern Exit 77
+  ohne einen Runner-Write.
 - Die ausgewählten Sonar-Keys werden auf einem frischen Exact-Draft-PR-Head
   ohne Suppression, False-Positive-State, Exclusion, Regel-/Profil- oder
   Quality-Gate-Änderung geprüft.
@@ -73,6 +87,20 @@ bewahrt damit den Prepared-Component-Lifecycle.
 Das Control adressiert absichtlich Cross-User-Replacement. Same-UID-Races
 bleiben wie bei den bestehenden Runtime-Path-Controls außerhalb dieses Claims.
 
+Für das Exact-Head-Follow-up verwendet `validate_runtime_output_paths()` die
+Parent-Policy `ci/lib/runtime_path_utils.py` für den verifizierten Runtime-
+Root. Es löst und enthält alle sechs CLI-abgeleiteten Output-Ziele vor einer
+Normalisierung oder Runner-Dateisystemoperation. Der Runner behält die
+validierten `Path`-Objekte für seine ersten Konfigurations- und Log-Sinks;
+normalisierte Werte werden nur für nachgelagerte Helper zurückgeschrieben. Das
+feste CRS-Suffix wird vor dem Erzeugen des Konfigurationsverzeichnisses erneut
+validiert, sodass ein bereits vorhandener `crs-smoke`-/`crs-secondary-smoke`-
+Symlink die erste Root-Prüfung nicht umgehen kann. Das bewahrt das bestehende
+Verified-Invocation-Layout, blockiert Outside-Root- und Symlink-Escapes vor
+einem Write und hängt nicht von ununtersuchtem Framework-Verhalten ab. Dasselbe
+Follow-up ersetzt die zwei duplizierten Literale und korrigiert die vier auf
+dem initialen Exact-PR-Head gemeldeten Python-Assertion-Argumentreihenfolgen.
+
 ## Geänderte Dateien
 
 - `common/scripts/run_local_runtime_smoke.py`
@@ -85,12 +113,15 @@ offene Draft-PRs diese Pfade bereits besitzen.
 
 ## Lokale Validierung
 
-- `python -m unittest -v tests.test_common_runtime_smoke_crs_source_security`:
-  alle 17 Fälle bestanden, einschließlich keiner impliziten Temp-Discovery,
-  Selected-Source- und Generated-Output-Symlinks, beschreibbaren Source-/
-  Rule-/Plugin-/Evidence-/Runtime-/Audit-Pfaden, Sticky-Parent-Ownership,
-  quotierten/geglobbten Directive-Pfaden, expliziter Quelle und Runtime-Lookup-Root-
-  Kontrollen.
+- `env PYTHONDONTWRITEBYTECODE=1 python -m unittest -v
+  tests.test_common_runtime_smoke_crs_source_security`: alle 26 Fälle
+  bestanden, einschließlich der Pre-Fix-Reproduktion eines Outside-Outputs,
+  aller sechs direkten Output-Roots und eines relativen Pfads, die vor einem
+  Runner-Write zurückgewiesen werden, eines breiten `/tmp`-Verified-Roots,
+  eines bestehenden Symlink-Escapes, einer Symlink-Schleife und eines bereits
+  vorhandenen CRS-Config-Suffix-Symlinks, die mit Exit 77 zurückgewiesen
+  werden, sowie eines gültigen Verified-Root-Kontrollfalls zusätzlich zu den
+  CRS-Source- und Generated-Output-Kontrollen.
 - `python -m compileall -q common/scripts/run_local_runtime_smoke.py tests/test_common_runtime_smoke_crs_source_security.py`:
   bestanden mit Bytecode außerhalb des Checkouts.
 - `git diff --check`: bestanden.
@@ -104,24 +135,30 @@ offene Draft-PRs diese Pfade bereits besitzen.
 
 ## Runtime-Evidence
 
-Die fokussierte Python-Suite erreicht die Production-Resolver- und generierte
-Konfigurationsgrenze. Sie beweist, dass ein vorbereiteter Fake-CRS-Baum unter
-einer Ambient-Temporary-Umgebung nicht ausgewählt wird; unsichere Source-,
-Evidence-, Runtime-, Audit-, Setup-Output- und Rule-Output-Varianten werden
-zurückgewiesen, bevor ein Parser-Input zurückkehrt; und ein vertrauenswürdiges
-vorhandenes Runtime-Verzeichnis bleibt nutzbar. Der legitime Explizitquellen-
-Test beweist, dass die generierte Konfiguration einen erlaubten `Include`-Pfad
-unter dem ausgewählten vertrauenswürdigen Baum beibehält. Kein Host-Connector
-und kein libmodsecurity-Evaluator wird durch diese Fixtures gestartet.
+Die fokussierte Python-Suite erreicht Production-Resolver, Direct-Runner-
+Output- und Generated-Configuration-Grenzen. Sie beweist, dass ein
+vorbereiteter Fake-CRS-Baum unter einer Ambient-Temporary-Umgebung nicht
+ausgewählt wird; unsichere Source-, Evidence-, Runtime-, Audit-, Setup-Output-
+und Rule-Output-Varianten werden zurückgewiesen, bevor ein Parser-Input
+zurückkehrt; ein außerhalb liegendes direktes `--config-root` vor der Reparatur
+erzeugt wurde, aber nun vor `write_result` oder einem vom Runner erzeugten
+Verzeichnis zurückgewiesen wird; und ein Output-Escape über einen bestehenden Symlink,
+eine Symlink-Schleife sowie ein bereits vorhandener CRS-Config-Suffix-Symlink
+mit Exit 77 zurückgewiesen werden. Die legitimen Kontrollen bewahren ein gültiges
+Verified-Root-Layout und eine generierte Konfiguration mit einem erlaubten
+`Include`-Pfad unter der ausgewählten vertrauenswürdigen Quelle. Kein
+Host-Connector und kein libmodsecurity-Evaluator wird durch diese Fixtures
+gestartet.
 
 ## Security-Auswirkung und verbleibende Evidence
 
 Der geänderte Pfad ist CRS-Kandidatenauswahl plus generierte Konfigurations-/
-Audit-Ausgabe zum libmodsecurity-Rules-Parser. Das neue Control weist die
-Varianten preseeded temp, unsicheren Sticky-Parent, Symlink, beschreibbaren
-Inhalt, stale Output und Directive-Injection-/Glob-Expansion zurück, bevor dieser Parser-Input
-geschrieben oder konsumiert wird, und bewahrt legitime explizite Eingaben durch
-denselben Resolver.
+Audit-Ausgabe zum libmodsecurity-Rules-Parser sowie die CLI-Output-Grenze des
+Direct-Runners. Die Controls weisen preseeded Temp, unsicheren Sticky-Parent,
+Symlink, beschreibbaren Inhalt, stale Output, Directive-Injection-/Glob-
+Expansion, Outside-Output-Root und Symlink-Output-Escape vor dem betroffenen
+Sink zurück und bewahren legitime explizite Inputs und das Verified-Runtime-
+Layout durch denselben Resolver/dieselbe Policy.
 
 ## Bekannte Einschränkungen
 
@@ -133,10 +170,10 @@ unabhängige offene Draft-PRs diese Pfade besitzen.
 ## Verbleibende Risiken
 
 Bis dieser Branch integriert ist, kann ungepatchter master weiterhin die alten
-Ambient-Temporary-CRS-Kandidaten auswählen und hat keine Generated-Output-
-Containment. Same-UID-Races und Filesystem-ACL-Semantik bleiben außerhalb des
-POSIX-Owner-/Mode-Cross-User-Integrity-Claims. Es ist keine Risikoakzeptanz
-erfasst.
+Ambient-Temporary-CRS-Kandidaten auswählen und Direct-Runner-CLI-Outputs aus
+dem Verified-Runtime-Root herausführen. Same-UID-Races und Filesystem-ACL-
+Semantik bleiben außerhalb des POSIX-Owner-/Mode-Cross-User-Integrity-Claims.
+Es ist keine Risikoakzeptanz erfasst.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -146,20 +183,21 @@ erfasst.
   isolierten Worktree kann er durch fehlende Framework-Submodule-Linkziele
   blockiert bleiben. Es wird keine Framework-Initialisierung oder Mutation
   versucht.
-- Hosted Checks und Exact-Head-SonarCloud-Analyse setzen Commit und Draft PR
-  voraus und werden in diesem Pre-Delivery-Record nicht behauptet.
+- Hosted Checks und Exact-Head-SonarCloud-Analyse hängen vom aktuellen Head
+  ab. Sie werden nach dem Follow-up-Commit/-Push erneut ausgeführt und werden
+  von diesem lokalen Pre-Delivery-Record nicht behauptet.
 
 ## Finaler Diff- und Review-Status
 
-Der finale lokale Parent-only-Diff liegt auf Branch
-`codex/sonar-common-crs-source-20260723-master-a308d7b` auf der aktuell
-beobachteten master-Revision. Finaler Source-to-Sink- und Alternate-Bypass-
-Review, exakter Staged-Diff, Hosted Checks und SonarCloud-Ergebnis müssen
-abgeglichen werden, bevor Verifikation behauptet wird.
+Das finale lokale Parent-only-Follow-up liegt auf Branch
+`codex/sonar-common-crs-source-20260723-master-a308d7b`, basiert auf der
+beobachteten master-Revision und aktualisiert den bestehenden Draft PR #97.
+Finaler Change-aware-Security-Review, exakter Staged-Diff, Hosted Checks und
+SonarCloud-Ergebnis müssen abgeglichen werden, bevor Verifikation behauptet
+wird.
 
 ## Delivery-Status
 
-Diese lokale Parent-only-Änderung ist auf ihrem eigenen Current-Master-
-Task-Branch vorbereitet. Kein Commit, Push, Pull Request, Merge,
-Default-Branch-Update oder Hosted-Ergebnis wird hier behauptet. Der daraus
-entstehende PR muss Draft bleiben und darf nicht gemergt werden.
+Draft PR #97 ist offen und muss Draft und ungemergt bleiben. Dieses Follow-up
+wird nur über seinen Task-Branch geliefert; es aktualisiert weder den
+Default-Branch noch autorisiert es einen Merge.

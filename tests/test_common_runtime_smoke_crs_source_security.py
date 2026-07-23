@@ -4,6 +4,7 @@ import argparse
 import importlib.util
 import os
 import stat
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,6 +19,7 @@ SPEC = importlib.util.spec_from_file_location(
 )
 assert SPEC is not None and SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = RUNNER
 SPEC.loader.exec_module(RUNNER)
 
 
@@ -36,6 +38,50 @@ class CommonRuntimeSmokeCrsSourceSecurityTest(unittest.TestCase):
             crs_smoke_case="minimal",
             crs_git_ref="",
         )
+
+    @staticmethod
+    def make_runtime_args(
+        verified_root: Path, **overrides: object
+    ) -> argparse.Namespace:
+        values: dict[str, object] = {
+            "connector": "envoy",
+            "integration_mode": "local",
+            "resolved_runtime_binary": "/bin/true",
+            "runtime_binary_env_var": "ENVOY_BIN",
+            "runtime_binary_name": "envoy",
+            "runtime_lookup_root": [],
+            "evidence_root": str(verified_root / "evidence"),
+            "results_dir": str(verified_root / "results"),
+            "connector_root": str(ROOT),
+            "source_root": str(verified_root / "src"),
+            "build_root": str(verified_root / "build"),
+            "tmp_root": str(verified_root / "tmp"),
+            "log_root": str(verified_root / "logs"),
+            "log_dir": str(verified_root / "logs/envoy"),
+            "config_root": str(verified_root / "config"),
+            "listen_port": 0,
+            "upstream_port": 0,
+            "authz_port": 0,
+            "harness_path": "",
+            "architecture_decision": "",
+            "decision_backend": "simple",
+            "modsecurity_ruleset": "targeted",
+            "modsecurity_smoke_case": "targeted",
+            "crs_smoke_case": "minimal",
+            "modsecurity_rule_file": "",
+            "modsecurity_include_dir": "",
+            "modsecurity_lib_dir": "",
+            "modsecurity_lib_file": "",
+            "modsecurity_pkg_config_path": "",
+            "modsecurity_prefix": "",
+            "modsecurity_manifest": "",
+            "crs_repo_url": "",
+            "crs_git_ref": "",
+            "crs_source_dir": "",
+            "crs_runtime_dir": "",
+        }
+        values.update(overrides)
+        return argparse.Namespace(**values)
 
     @staticmethod
     def make_crs_source(path: Path) -> Path:
@@ -64,7 +110,7 @@ class CommonRuntimeSmokeCrsSourceSecurityTest(unittest.TestCase):
                 {"RUNNER_TEMP": str(temporary_root), "TMPDIR": str(temporary_root)},
                 clear=False,
             ):
-                self.assertEqual([], RUNNER.crs_source_candidate_roots(args))
+                self.assertEqual(RUNNER.crs_source_candidate_roots(args), [])
                 with self.assertRaisesRegex(RUNNER.SmokeBlocked, "missing CRS_SOURCE_DIR"):
                     RUNNER.resolve_crs_source_dir(args)
 
@@ -247,7 +293,7 @@ class CommonRuntimeSmokeCrsSourceSecurityTest(unittest.TestCase):
                 "generated CRS setup file must not contain a symlink",
             ):
                 RUNNER.prepare_crs_smoke_config(args, log_dir)
-            self.assertEqual("keep\n", protected_target.read_text(encoding="utf-8"))
+            self.assertEqual(protected_target.read_text(encoding="utf-8"), "keep\n")
 
     def test_symlinked_generated_rule_file_is_rejected_without_overwrite(self) -> None:
         with tempfile.TemporaryDirectory(prefix="common-crs-source-") as temporary:
@@ -271,7 +317,7 @@ class CommonRuntimeSmokeCrsSourceSecurityTest(unittest.TestCase):
                 "generated CRS smoke rule must not contain a symlink",
             ):
                 RUNNER.prepare_crs_smoke_config(args, log_dir)
-            self.assertEqual("keep\n", protected_target.read_text(encoding="utf-8"))
+            self.assertEqual(protected_target.read_text(encoding="utf-8"), "keep\n")
 
     def test_group_or_world_writable_audit_log_directory_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(prefix="common-crs-source-") as temporary:
@@ -311,7 +357,7 @@ class CommonRuntimeSmokeCrsSourceSecurityTest(unittest.TestCase):
                 "generated CRS audit log must not contain a symlink",
             ):
                 RUNNER.prepare_crs_smoke_config(args, log_dir)
-            self.assertEqual("keep\n", protected_target.read_text(encoding="utf-8"))
+            self.assertEqual(protected_target.read_text(encoding="utf-8"), "keep\n")
 
     def test_quoted_source_path_is_rejected_before_config_generation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="common-crs-source-") as temporary:
@@ -344,6 +390,153 @@ class CommonRuntimeSmokeCrsSourceSecurityTest(unittest.TestCase):
                 RUNNER.SmokeBlocked, "unsupported characters for a ModSecurity directive"
             ):
                 RUNNER.prepare_crs_smoke_config(args, log_dir)
+
+    def assert_outside_runtime_output_is_rejected(self, field: str) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-runtime-output-") as temporary:
+            temporary_root = Path(temporary)
+            verified_root = temporary_root / "verified"
+            outside_path = temporary_root / "outside" / field
+            args = self.make_runtime_args(verified_root, **{field: str(outside_path)})
+            with (
+                mock.patch.dict(os.environ, {"VERIFIED_RUN_ROOT": str(verified_root)}, clear=True),
+                mock.patch.object(RUNNER, "write_result") as write_result,
+            ):
+                self.assertEqual(RUNNER.run_smoke(args), 77)
+
+            self.assertFalse(outside_path.exists())
+            write_result.assert_not_called()
+
+    def test_outside_runtime_config_root_is_rejected_before_runner_writes(self) -> None:
+        self.assert_outside_runtime_output_is_rejected("config_root")
+
+    def test_outside_runtime_log_dir_is_rejected_before_runner_writes(self) -> None:
+        self.assert_outside_runtime_output_is_rejected("log_dir")
+
+    def test_relative_runtime_log_dir_is_rejected_before_runner_writes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-runtime-output-") as temporary:
+            temporary_root = Path(temporary)
+            verified_root = temporary_root / "verified"
+            relative_log_dir = Path("relative/log")
+            args = self.make_runtime_args(verified_root, log_dir=str(relative_log_dir))
+            previous_directory = Path.cwd()
+            working_directory = temporary_root / "working-directory"
+            working_directory.mkdir(mode=0o700)
+            try:
+                os.chdir(working_directory)
+                with (
+                    mock.patch.dict(
+                        os.environ, {"VERIFIED_RUN_ROOT": str(verified_root)}, clear=True
+                    ),
+                    mock.patch.object(RUNNER, "write_result") as write_result,
+                ):
+                    self.assertEqual(RUNNER.run_smoke(args), 77)
+            finally:
+                os.chdir(previous_directory)
+
+            self.assertFalse((working_directory / relative_log_dir).exists())
+            write_result.assert_not_called()
+
+    def test_broad_verified_runtime_root_is_rejected_before_runner_writes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-runtime-output-") as temporary:
+            candidate_root = Path("/tmp") / Path(temporary).name
+            args = self.make_runtime_args(candidate_root)
+
+            with (
+                mock.patch.dict(os.environ, {"VERIFIED_RUN_ROOT": "/tmp"}, clear=True),
+                mock.patch.object(RUNNER, "write_result") as write_result,
+            ):
+                self.assertEqual(RUNNER.run_smoke(args), 77)
+
+            self.assertFalse(candidate_root.exists())
+            write_result.assert_not_called()
+
+    def test_other_outside_runtime_output_roots_are_rejected_before_runner_writes(self) -> None:
+        for field in ("evidence_root", "results_dir", "tmp_root", "log_root"):
+            with self.subTest(field=field):
+                self.assert_outside_runtime_output_is_rejected(field)
+
+    def test_verified_runtime_output_paths_are_accepted_and_normalized(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-runtime-output-") as temporary:
+            verified_root = Path(temporary) / "verified"
+            args = self.make_runtime_args(verified_root)
+
+            with mock.patch.dict(
+                os.environ, {"VERIFIED_RUN_ROOT": str(verified_root)}, clear=True
+            ):
+                paths = RUNNER.validate_runtime_output_paths(args)
+
+            self.assertEqual(paths.config_root, (verified_root / "config").resolve())
+            self.assertEqual(paths.log_dir, (verified_root / "logs/envoy").resolve())
+            self.assertEqual(args.results_dir, str((verified_root / "results").resolve()))
+
+    def test_symlinked_runtime_output_path_is_rejected_before_runner_writes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-runtime-output-") as temporary:
+            temporary_root = Path(temporary)
+            verified_root = temporary_root / "verified"
+            verified_root.mkdir(mode=0o700)
+            outside_root = temporary_root / "outside"
+            outside_root.mkdir(mode=0o700)
+            output_alias = verified_root / "output-alias"
+            output_alias.symlink_to(outside_root, target_is_directory=True)
+            args = self.make_runtime_args(
+                verified_root, config_root=str(output_alias / "config")
+            )
+
+            with mock.patch.dict(
+                os.environ, {"VERIFIED_RUN_ROOT": str(verified_root)}, clear=True
+            ):
+                with self.assertRaisesRegex(
+                    RUNNER.SmokeBlocked, "CONFIG_ROOT must not contain a symlink"
+                ):
+                    RUNNER.validate_runtime_output_paths(args)
+
+            self.assertFalse((outside_root / "config").exists())
+
+    def test_symlink_loop_runtime_output_path_is_blocked_before_runner_writes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-runtime-output-") as temporary:
+            temporary_root = Path(temporary)
+            verified_root = temporary_root / "verified"
+            verified_root.mkdir(mode=0o700)
+            loop = verified_root / "loop"
+            loop.symlink_to("loop")
+            args = self.make_runtime_args(verified_root, config_root=str(loop / "config"))
+
+            with (
+                mock.patch.dict(
+                    os.environ, {"VERIFIED_RUN_ROOT": str(verified_root)}, clear=True
+                ),
+                mock.patch.object(RUNNER, "write_result") as write_result,
+            ):
+                self.assertEqual(RUNNER.run_smoke(args), 77)
+
+            write_result.assert_not_called()
+
+    def test_crs_config_suffix_symlink_is_blocked_before_runner_writes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-runtime-output-") as temporary:
+            temporary_root = Path(temporary)
+            verified_root = temporary_root / "verified"
+            config_root = verified_root / "config"
+            config_root.mkdir(parents=True, mode=0o700)
+            outside_root = temporary_root / "outside"
+            outside_root.mkdir(mode=0o700)
+            (config_root / "crs-smoke").symlink_to(outside_root, target_is_directory=True)
+            args = self.make_runtime_args(
+                verified_root,
+                config_root=str(config_root),
+                decision_backend="simple",
+                modsecurity_ruleset="crs",
+            )
+
+            with (
+                mock.patch.dict(
+                    os.environ, {"VERIFIED_RUN_ROOT": str(verified_root)}, clear=True
+                ),
+                mock.patch.object(RUNNER, "write_result") as write_result,
+            ):
+                self.assertEqual(RUNNER.run_smoke(args), 77)
+
+            self.assertEqual(list(outside_root.iterdir()), [])
+            write_result.assert_not_called()
 
 
 if __name__ == "__main__":
