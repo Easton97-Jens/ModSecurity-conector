@@ -40,6 +40,7 @@ REQUEST_BODY_CONTENT_TYPE = "application/x-www-form-urlencoded"
 TARGETED_SMOKE_CASES = {"targeted", "request_body"}
 CRS_SETUP_TEMPLATE_NAME = "crs-setup.conf.example"
 GENERATED_CRS_SMOKE_RULE_LABEL = "generated CRS smoke rule"
+RUNTIME_PATH_DEPENDENCY = "runtime path"
 RUNTIME_OUTPUT_PATH_FIELDS = (
     ("evidence_root", "EVIDENCE_ROOT"),
     ("results_dir", "RESULTS_DIR"),
@@ -83,7 +84,7 @@ def require_verified_runtime_output_path(value: str, label: str, root: Path) -> 
 
     configured = Path(value)
     if not configured.is_absolute():
-        raise SmokeBlocked(f"{label} must be absolute: {configured}", ["runtime path"])
+        raise SmokeBlocked(f"{label} must be absolute: {configured}", [RUNTIME_PATH_DEPENDENCY])
     component = Path(configured.anchor)
     for name in configured.parts[1:]:
         component /= name
@@ -93,21 +94,21 @@ def require_verified_runtime_output_path(value: str, label: str, root: Path) -> 
             break
         except OSError as exc:
             raise SmokeBlocked(
-                f"{label} cannot inspect path component: {component}", ["runtime path"]
+                f"{label} cannot inspect path component: {component}", [RUNTIME_PATH_DEPENDENCY]
             ) from exc
         if stat.S_ISLNK(metadata.st_mode):
             raise SmokeBlocked(
-                f"{label} must not contain a symlink: {component}", ["runtime path"]
+                f"{label} must not contain a symlink: {component}", [RUNTIME_PATH_DEPENDENCY]
             )
     try:
         resolved = configured.resolve(strict=False)
     except (OSError, RuntimeError) as exc:
-        raise SmokeBlocked(f"{label} cannot be resolved: {configured}", ["runtime path"]) from exc
+        raise SmokeBlocked(f"{label} cannot be resolved: {configured}", [RUNTIME_PATH_DEPENDENCY]) from exc
     try:
         resolved.relative_to(root)
     except ValueError as exc:
         raise SmokeBlocked(
-            f"{label} is outside the verified runtime root: {resolved}", ["runtime path"]
+            f"{label} is outside the verified runtime root: {resolved}", [RUNTIME_PATH_DEPENDENCY]
         ) from exc
     return resolved
 
@@ -118,16 +119,16 @@ def validate_runtime_output_paths(args: argparse.Namespace) -> RuntimeOutputPath
     try:
         verified = verified_runtime_paths(os.environ)
     except ValueError as exc:
-        raise SmokeBlocked(f"invalid verified runtime paths: {exc}", ["runtime path"]) from exc
+        raise SmokeBlocked(f"invalid verified runtime paths: {exc}", [RUNTIME_PATH_DEPENDENCY]) from exc
     runtime_root = Path(verified["VERIFIED_RUN_ROOT"]).resolve(strict=False)
     if not is_safe_runtime_root(runtime_root):
-        raise SmokeBlocked(f"VERIFIED_RUN_ROOT is unsafe: {runtime_root}", ["runtime path"])
+        raise SmokeBlocked(f"VERIFIED_RUN_ROOT is unsafe: {runtime_root}", [RUNTIME_PATH_DEPENDENCY])
 
     values: dict[str, Path] = {}
     for field, label in RUNTIME_OUTPUT_PATH_FIELDS:
         configured = namespace_value(args, field)
         if not configured:
-            raise SmokeBlocked(f"missing required {label}", ["runtime path"])
+            raise SmokeBlocked(f"missing required {label}", [RUNTIME_PATH_DEPENDENCY])
         values[field] = require_verified_runtime_output_path(configured, label, runtime_root)
         setattr(args, field, str(values[field]))
     return RuntimeOutputPaths(runtime_root=runtime_root, **values)
