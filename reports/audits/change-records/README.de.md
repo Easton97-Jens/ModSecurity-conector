@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Reparatur der read-only Update-Submodules-Runtime-Pfad-Validierung](CR-20260723-update-submodules-runtime-path-validation.de.md)
 - [Reparatur der read-only Update-Submodules-Validierungsabhängigkeit](CR-20260723-update-submodules-validation-dependency.de.md)
 - [CodeQL-Action-4.37.3-Batch](CR-20260722-codeql-action-4-37-3-batch.de.md)
 - [Zentralisierte Go-Toolchain und Update-Submodules-Validierungsreparatur](CR-20260722-central-go-toolchain-submodule-validation.de.md)
