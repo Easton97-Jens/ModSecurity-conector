@@ -233,7 +233,7 @@ def _render_lifecycle(data: dict, name: str, partner: str, german: bool) -> list
     return lines
 
 
-def _render_testing(connector: str, data: dict, name: str, partner: str, german: bool) -> list[str]:
+def _render_testing(connector: str, name: str, partner: str, german: bool) -> list[str]:
     lines = _document_intro("testing", name, partner, german)
     if german:
         lines += ["## Ebenen", "", f"Führen Sie `make build-{connector}`, `make check-config-{connector}`, einen vorhandenen Start-/Runtime-Smoke und `make full-lifecycle-{connector}` als getrennte Ebenen aus. Build, Config und Start sind kein Rule-Engine-PASS.", "", "## No-CRS-Kernregeln und Cases", "", "Diese Rule-IDs gehören zum repository-eigenen No-CRS-Testprofil, nicht zu OWASP CRS.", "", "| Rule-ID | Phase | Zweck |\n| ---: | --- | --- |\n| `1100001` | P1 | Request-Header deny |\n| `1100101` | P2 | Request-Body deny |\n| `1100201` | P3 | Response-Header deny |\n| `1100301` | P4 | Response-Body deny oder Safe-Late-Intervention |", "", "## Evidence und Run-Grenze", "", "Case-IDs beschreiben eine Capability und den erwarteten Zustand. Ein ausgewählter Case benötigt zurechenbare Result-/Event-Evidence, Profilidentität und die konfigurierte Run-ID. Ein `PASS`-Aggregat darf nicht aus Build-Ausgabe abgeleitet werden.", "", "## Statuswerte", "", "`PASS`, `FAIL`, `BLOCKED`, `NOT EXECUTED`, `NOT APPLICABLE` und `UNSUPPORTED` stehen unter [Testebenen](../../testing/test-levels.de.md).", ""]
@@ -242,7 +242,7 @@ def _render_testing(connector: str, data: dict, name: str, partner: str, german:
     return lines
 
 
-def _render_operations(data: dict, name: str, partner: str, german: bool) -> list[str]:
+def _render_operations(name: str, partner: str, german: bool) -> list[str]:
     lines = _document_intro("operations", name, partner, german)
     if german:
         lines += ["## Start und Stop", "", "Verwenden Sie für lokale Harnesses die passenden Make-Targets. Operatorverwaltete Services verwenden ihren eigenen Service-Manager und den Host-Config-Check.", "", "## Logs, Rotation und Health", "", "Nutzen Sie Host-Error-/Access-Logs und payloadfreie Connector-/Evidence-Logs. Rotieren Sie Logs mit der Hostfunktion, nicht durch Umbenennen offener Dateien. Health bedeutet Erreichbarkeit und geladene Konfiguration; es ist kein Security- oder Lifecycle-PASS.", "", "## Timeouts und Ressourcen", "", "Setzen Sie Host-Timeouts, Worker-/Datei-/Speicherlimits und Runtime-Roots nach den Grenzen des Zielhosts. Repository-Timeoutvariablen begrenzen Jobs, ersetzen aber keine Produktionsdimensionierung. Vermeiden Sie Secrets in Pfaden, Prozessen, Events und kanonischer Evidence.", "", "## Diagnose und Updates", "", "Prüfen Sie Endpoint-Erreichbarkeit, Modul-/Service-Load, Lesbarkeit der Rule-Datei, Runtime-Root-Rechte und den ausgewählten Integrationsmodus, bevor Sie ein fehlendes Ergebnis als Rule-Fehler deuten. Host-, Modul-, Patchset- und Source-Revisionen schaffen eine neue Build-/Cache-Identität; führen Sie danach den ausgewählten Evidence-Target erneut aus.", ""]
@@ -269,8 +269,8 @@ def _render_sections(
         "build": lambda: _render_build(connector, data, name, partner, german),
         "configuration": lambda: _render_configuration(connector, data, name, partner, german),
         "lifecycle": lambda: _render_lifecycle(data, name, partner, german),
-        "testing": lambda: _render_testing(connector, data, name, partner, german),
-        "operations": lambda: _render_operations(data, name, partner, german),
+        "testing": lambda: _render_testing(connector, name, partner, german),
+        "operations": lambda: _render_operations(name, partner, german),
         "limitations": lambda: _render_limitations(data, name, partner, german),
     }
     return renderers[kind]()

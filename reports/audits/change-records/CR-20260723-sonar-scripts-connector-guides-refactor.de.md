@@ -9,7 +9,7 @@
 | Change-ID | CR-20260723-sonar-scripts-connector-guides-refactor |
 | Datum (UTC) | 2026-07-23 |
 | Basis-Revision | a308d7b414f0859490fe7253e0683a4bde80b563 |
-| Tracking | Parent-`python:S3776` `AZ9cRzBCHhV2CayPTP5L` und `python:S1481` `AZ9cRzBCHhV2CayPTP5K` in `scripts/generate_connector_guides.py`. |
+| Tracking | Parent-`python:S3776` `AZ9cRzBCHhV2CayPTP5L`, `python:S1481` `AZ9cRzBCHhV2CayPTP5K` sowie die zwei PR-erzeugten `python:S1172`-Zeilen `AZ-Qn4qN18-5KNpatmRP`, `AZ-Qn4qO18-5KNpatmRQ` in `scripts/generate_connector_guides.py`. |
 | Grenze | Parent-Generator/-Test sowie dieses englisch/deutsche Change-Record-Paar und die Indizes. Framework, MRTS, Gitlinks, Scanner-Konfiguration, Quality Gates, Suppressions und eingecheckter Connector-Dokumentationsinhalt bleiben unverändert. |
 
 ## Motivation und Problemstellung
@@ -30,6 +30,10 @@ hinzufügen, der beweist, dass alle sechs Connectoren × acht Dokumenttypen ×
 zwei Sprachen den aktuellen deterministischen Aggregate-SHA-256 bewahren und
 dass `main()` exakt dieselben 96 Dateien in einen kontrollierten temporären
 Root schreibt.
+Diese Regression in den bestehenden `lint`-Vertrag einbinden. Nachdem die
+erste Exact-Draft-PR-Analyse zwei durch die Zerlegung eingeführte unbenutzte
+private-Helper-Parameter meldete, nur diese Parameter und die passenden
+Dispatch-Argumente entfernen.
 
 ## Scope und Non-Goals
 
@@ -44,6 +48,12 @@ Der Change Record und sein englisches Gegenstück sind die einzigen
 versionierten Dokumentationsänderungen. Die gemeinsamen Indizes werden zur
 Traceability aktualisiert. Kein Merge und kein Default-Branch-Write sind Teil
 dieses Changes.
+
+`Makefile` erhält nur den benannten Test-Target und seinen `lint`-Aufruf. Der
+Task-Branch enthält außerdem einen normalen Synchronisations-Merge des
+aktuellen `master`; der einzige Konflikt führte die beiden bilingualen
+Change-Record-Indexeinträge zusammen. Dieser Merge ändert weder `master` noch
+schreibt er veröffentlichte Historie um.
 
 ## Output-Kompatibilität und Testgrenze
 
@@ -65,21 +75,27 @@ keinen Security-Workflow aus.
 
 ## Validierung und Delivery-Status
 
-Der fokussierte Renderer-Test, In-Memory-Syntax-Compile, Output-Digest-
-Vergleich, AST-Dispatch-Inspektion und Diff-Check bestanden lokal. Gezielte
-bilinguale Dokumentationstests bestanden. Die vollständigen Dokumentations-/
-Link-Kommandos sind nur durch vorbestehende fehlende Framework-Gitlink-Targets
-blockiert und meldeten keinen task-eigenen Change-Record-Fehler. Vollständige
-Hosted- und SonarCloud-Exact-Head-Ergebnisse bleiben ausstehend, bis ein
-separater ungemergter Draft PR existiert.
+Der fokussierte Renderer-Test, `make check-connector-guides`, In-Memory-
+Syntax-Compile, Output-Digest-Vergleich, AST-Dispatch-Inspektion und Diff-
+Check bestanden lokal. Gezielte bilinguale Dokumentationstests bestanden. Die
+vollständigen Dokumentations-/Link-Kommandos sind nur durch vorbestehende
+fehlende Framework-Gitlink-Targets blockiert und meldeten keinen task-eigenen
+Change-Record-Fehler. Die erste Exact-Head-Draft-PR-Analyse bestand ihr Quality
+Gate und entfernte die ursprünglichen zwei Zeilen, meldete aber zwei
+task-eingeführte unbenutzte private-Helper-Parameter. Ihr fokussierter
+Follow-up ist lokal validiert; frische Exact-Head-Hosted- und SonarCloud-
+Ergebnisse stehen aus.
 
 ## Akzeptanzkriterien
 
-- Die unbenutzte lokale Variable `suffix` entfernen und die markierte
+- Die unbenutzte lokale Variable `suffix`, die zwei task-eingeführten
+  unbenutzten private-Helper-Parameter entfernen und die markierte
   `content()`-Ladder ohne Suppression oder Scanner-Konfigurationsänderung
   zerlegen.
 - Alle 96 Keyed Rendered Outputs exakt bewahren und exakt diese Dateien nur in
   einem kontrollierten temporären Test-Root schreiben.
+- Diese Output-Regression über den benannten Repository-`lint`-Target
+  ausführen.
 - Beide Change-Record-Sprachen und beide Indizes gleichwertig halten.
 - Exact-Draft-PR-Head-SonarQube-Cloud- und Hosted-Check-Evidence einholen,
   bevor einer der ausgewählten Keys als behoben gilt.
@@ -88,7 +104,8 @@ separater ungemergter Draft PR existiert.
 
 Die öffentliche `content()`-Schnittstelle berechnet jetzt ihren Partnernamen
 und delegiert an einen kleinen Renderer-Dispatch. Jeder Dokumenttyp hat einen
-fokussierten Helper mit nur den von ihm verwendeten Inputs;
+fokussierten Helper mit nur den von ihm verwendeten Inputs; die zwei zunächst
+redundanten Helper-Inputs wurden nach der ersten PR-Analyse entfernt.
 `_finish_content()` bewahrt die vorhandene deutsche Structural-Parity-
 Umwandlung. Ein globales Dokumenttyp-Tuple wird von Dispatch, Writer und Test
 geteilt, damit der 96-Output-Vertrag explizit bleibt.
@@ -97,12 +114,15 @@ geteilt, damit der 96-Output-Vertrag explizit bleibt.
 
 - scripts/generate_connector_guides.py
 - tests/test_connector_guides.py
+- Makefile
 - reports/audits/change-records/README.md und README.de.md
 - dieses englische/deutsche Change-Record-Paar
 
 ## Ausgeführte Befehle
 
 - Fokussierter `tests.test_connector_guides`: bestanden (2 Tests).
+- `make check-connector-guides`: bestanden (2 Tests) und wird von `lint`
+  aufgerufen.
 - In-Memory-Syntax-Compile: bestanden (2 Python-Dateien).
 - Renderer-Output-Parität: bestanden (96 Renders, aufgezeichneter SHA-256).
 - AST-Dispatch-Inspektion: bestanden; `content()` hat keinen Branch-Node, alle
@@ -113,8 +133,11 @@ geteilt, damit der 96-Output-Vertrag explizit bleibt.
 - Vollständige Dokumentations-/Link-Checks: nur durch bekannte fehlende
   Framework-Gitlink-Targets blockiert; kein task-eigener Change-Record-Fehler
   wurde gemeldet.
-- Vollständige Draft-PR-Hosted-/SonarQube-Cloud-Analyse: ausstehend, weil noch
-  kein Draft PR existiert.
+- Erste Draft-PR-SonarQube-Cloud-Analyse: Quality Gate `OK`; die ursprünglichen
+  zwei Zeilen fehlen, sie meldete aber zwei task-eingeführte `python:S1172`-
+  Zeilen.
+- Frische vollständige Draft-PR-Hosted-/SonarQube-Cloud-Analyse: für den
+  fokussierten S1172-Follow-up-Head ausstehend.
 
 ## Security-Auswirkung
 
@@ -131,8 +154,9 @@ Change, kein Host-/Runtime-Deployment und kein Framework-/MRTS-Lauf.
 
 ## Bekannte Einschränkungen
 
-Dieser Batch behandelt nur die zwei ausgewählten SonarQube-Cloud-
-Observations. Er beansprucht weder, den breiteren SonarCloud-Backlog zu
+Dieser Batch behandelt die zwei ausgewählten SonarQube-Cloud-Observations und
+die zwei direkt task-eingeführten S1172-Observations. Er beansprucht weder,
+den breiteren SonarCloud-Backlog zu
 leeren, noch Connector-Builds, Host-Konfigurationen oder Production-
 Dokumentationsdeployment zu validieren.
 
@@ -153,13 +177,15 @@ bleibt vor verifizierter Delivery erforderlich.
 - Vollständige Dokumentationsprüfungen: werden ausgeführt, nachdem das
   bilinguale Change-Record-Paar vorliegt; bekannte Framework-Gitlink-Blocker
   werden beibehalten, falls sie die einzigen beobachteten Fehler sind.
-- Vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse: es existiert noch
-  kein Draft PR.
+- Frische vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse: ein Draft
+  PR existiert, aber sein S1172-Follow-up-Head benötigt noch eine neue
+  Exact-Head-Analyse.
 
 ## Finaler Diff- und Review-Status
 
-Lokales Generator-Refactoring, Output-Kompatibilitätsvalidierung und gezielte
-Dokumentationsvalidierung sind auf dem Parent-only-Task-Branch abgeschlossen.
-Hosted-Checks, Sonar-Analyse und Quality Gate bleiben ausstehend, bis der
-separate ungemergte Draft PR gepusht ist. Es werden weder Review-Freigabe,
-Merge noch Default-Branch-Änderung beansprucht oder autorisiert.
+Lokales Generator-Refactoring, Output-Kompatibilitätsvalidierung, benannter
+Lint-Target und gezielte Dokumentationsvalidierung sind auf dem Parent-only-
+Task-Branch abgeschlossen. Der exakte Draft PR existiert und bleibt
+ungemergt. Hosted-Checks, Sonar-Analyse und Quality Gate müssen für den
+fokussierten S1172-Follow-up-Head neu starten. Es werden weder Review-
+Freigabe, PR-Merge noch Default-Branch-Änderung beansprucht oder autorisiert.
