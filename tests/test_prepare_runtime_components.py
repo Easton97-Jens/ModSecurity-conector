@@ -13,6 +13,7 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
+LEGACY_FRAMEWORK_HAPROXY_CACHE_SHA = "784977615acfc55567e37b863309abc4a38ac877"
 sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
@@ -118,7 +119,57 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertEqual("blocked", record["status"])
         self.assertNotIn("build_exit_code", record)
 
-    def managed_haproxy_cache_environment(self, root: Path, *, managed: bool) -> dict[str, str]:
+    def haproxy_prepare_framework_root(self) -> Path:
+        configured_root = os.environ.get("MODSECURITY_FRAMEWORK_TEST_ROOT")
+        framework_root = (
+            Path(configured_root)
+            if configured_root
+            else ROOT / "modules" / "ModSecurity-test-Framework"
+        )
+        script = framework_root / "ci" / "provisioning" / "prepare-haproxy-runtime.sh"
+        if not script.is_file():
+            self.fail(
+                "HAProxy prepare framework source is unavailable; initialize the checked-out "
+                "submodule or set MODSECURITY_FRAMEWORK_TEST_ROOT to a reviewed read-only source"
+            )
+        return framework_root
+
+    def haproxy_prepare_enforces_split_build_root_containment(self, framework_root: Path) -> bool:
+        script = framework_root / "ci" / "provisioning" / "prepare-haproxy-runtime.sh"
+        source = script.read_text(encoding="utf-8")
+        return all(
+            f'require_under_build_root "${name}" {name}' in source
+            for name in (
+                "HAPROXY_RUNTIME_BUILD_DIR",
+                "HAPROXY_RUNTIME_BUILD_WORKTREE",
+                "HAPROXY_RUNTIME_DIR",
+                "HAPROXY_BIN",
+            )
+        )
+
+    def haproxy_prepare_framework_revision(self, framework_root: Path) -> str:
+        result = subprocess.run(
+            ["git", "-C", str(framework_root), "rev-parse", "HEAD"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        revision = result.stdout.strip()
+        if result.returncode != 0 or len(revision) != 40:
+            self.fail(
+                "HAProxy prepare Framework source must expose a checked-out revision for "
+                f"the split-BUILD_ROOT containment control: {result.stderr}"
+            )
+        return revision
+
+    def managed_haproxy_cache_environment(
+        self,
+        root: Path,
+        *,
+        managed: bool,
+        separate_build_root: bool = False,
+    ) -> dict[str, str]:
         cache_root = root / "cache-v2" / "shared"
         cache_root.mkdir(parents=True)
         identity = {
@@ -200,10 +251,10 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-        build_root = root / "connector-run" / "build"
+        build_root = root / "connector-run" / "build" if separate_build_root else entry
         return {
             "CONNECTOR_ROOT": str(ROOT),
-            "FRAMEWORK_ROOT": str(ROOT / "modules/ModSecurity-test-Framework"),
+            "FRAMEWORK_ROOT": str(self.haproxy_prepare_framework_root()),
             "VERIFIED_RUN_ROOT": str(root / "connector-run"),
             "CACHE_ROOT": str(cache_root.parent),
             "VERIFIED_COMPONENT_CACHE": str(cache_root),
@@ -224,8 +275,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         }
 
     def run_haproxy_prepare_with_shared_cache(self, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+        framework_root = Path(env["FRAMEWORK_ROOT"])
         return subprocess.run(
-            ["sh", str(ROOT / "modules/ModSecurity-test-Framework/ci/provisioning/prepare-haproxy-runtime.sh")],
+            ["sh", str(framework_root / "ci" / "provisioning" / "prepare-haproxy-runtime.sh")],
             cwd=ROOT,
             env={**os.environ, **env},
             text=True,
@@ -239,25 +291,50 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             result = self.run_haproxy_prepare_with_shared_cache(
                 self.managed_haproxy_cache_environment(Path(temporary), managed=True)
             )
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ready existing provenance-verified binary", result.stdout)
 
-    def test_haproxy_prepare_rejects_unmanaged_shared_cache_entry(self) -> None:
+    def test_haproxy_prepare_reuses_complete_entry_without_cache_marker(self) -> None:
         with tempfile.TemporaryDirectory(prefix="haproxy-unmanaged-cache-") as temporary:
             result = self.run_haproxy_prepare_with_shared_cache(
                 self.managed_haproxy_cache_environment(Path(temporary), managed=False)
             )
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
-        self.assertIn("complete managed HAProxy cache entry", result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("ready existing provenance-verified binary", result.stdout)
 
-    def test_haproxy_prepare_refuses_to_rebuild_an_incomplete_managed_shared_entry(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="haproxy-stale-managed-cache-") as temporary:
+    def test_haproxy_prepare_does_not_rebuild_a_verified_runtime_binary(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-verified-runtime-") as temporary:
             env = self.managed_haproxy_cache_environment(Path(temporary), managed=True)
-            Path(env["HAPROXY_BIN"]).unlink()
             result = self.run_haproxy_prepare_with_shared_cache(env)
             self.assertFalse((Path(env["HAPROXY_RUNTIME_BUILD_WORKTREE"]) / "Makefile").exists())
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("ready existing provenance-verified binary", result.stdout)
+
+    def test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root(self) -> None:
+        framework_root = self.haproxy_prepare_framework_root()
+        if not self.haproxy_prepare_enforces_split_build_root_containment(framework_root):
+            revision = self.haproxy_prepare_framework_revision(framework_root)
+            if revision == LEGACY_FRAMEWORK_HAPROXY_CACHE_SHA:
+                self.skipTest(
+                    "the current Parent gitlink predates the candidate split-BUILD_ROOT containment "
+                    "control; the Update submodules candidate must exercise this negative control"
+                )
+            self.fail(
+                "selected Framework revision lacks required split-BUILD_ROOT HAProxy containment: "
+                f"{revision}"
+            )
+        with tempfile.TemporaryDirectory(prefix="haproxy-split-build-root-") as temporary:
+            env = self.managed_haproxy_cache_environment(
+                Path(temporary),
+                managed=True,
+                separate_build_root=True,
+            )
+            result = self.run_haproxy_prepare_with_shared_cache(env)
         self.assertEqual(77, result.returncode, result.stdout + result.stderr)
-        self.assertIn("refuse to modify immutable cache entry", result.stdout + result.stderr)
+        self.assertIn(
+            "HAPROXY_RUNTIME_BUILD_DIR must be under BUILD_ROOT",
+            result.stdout + result.stderr,
+        )
 
 
 if __name__ == "__main__":
