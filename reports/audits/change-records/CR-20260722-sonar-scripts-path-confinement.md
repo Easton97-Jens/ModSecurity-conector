@@ -9,7 +9,7 @@
 | Change ID | CR-20260722-sonar-scripts-path-confinement |
 | Date (UTC) | 2026-07-22 |
 | Base revision | 961b4fa37cee257a9d50542b3968005e0e21f556 |
-| Current master base | 95fb4917b63dd8a5c5973bb49fd955bd3d2b29a3, merged non-rewriting into this task branch on 2026-07-23 |
+| Current master base | ae314bb332d9b2ba859a42f2db31914fb20512f9, merged non-rewriting into this task branch on 2026-07-23 |
 | Tracking | Two Parent-only security findings in scripts/update-github-actions-versions.py: AZ70CAr3IpeCryPNS2zi (pythonsecurity:S2083) and AZ70CAr3IpeCryPNS2zj (pythonsecurity:S8707); follow-up SonarQube Cloud maintainability findings AZ-LiaSLimiHoxpRJ2G8 (python:S3776) and AZ-LiaLHimiHoxpRJ2G4 through AZ-LiaLHimiHoxpRJ2G7 (python:S5778). |
 | Boundary | Parent updater source and regression tests plus this English/German traceability pair and indexes. Framework, MRTS, gitlinks, workflow configuration, action-update policy, scanner configuration, Quality Gates, and suppressions remain unchanged. |
 
@@ -115,9 +115,9 @@ an empty legitimate workflow root for CLI report tests so no network GitHub
 API lookup is required. Existing workflow parsing/update behavior is covered
 by the major-ref update test; no production GitHub workflow was executed.
 
-## Current-master refresh and maintainability follow-up
+## Earlier current-master refresh and maintainability follow-up
 
-Current remote `master` revision
+Earlier remote `master` revision
 `95fb4917b63dd8a5c5973bb49fd955bd3d2b29a3` was incorporated with a normal
 merge commit, not a rebase or history rewrite. Its only resolution was a
 union of this Change Record index entry with the current-master entry. The
@@ -126,6 +126,20 @@ changing scanner configuration, Quality Gates, suppressions, workflow
 configuration, Framework, MRTS, or the Parent gitlink. Fresh exact-head
 hosted and SonarQube Cloud evidence remains required after the follow-up
 commit.
+
+## Current-master integration amendment (2026-07-23)
+
+The candidate was then refreshed by a normal merge from current Parent master
+`ae314bb332d9b2ba859a42f2db31914fb20512f9`; no rebase or force-push is used.
+The resulting final difference from that master remains limited to the
+updater, its direct regression module, this English/German Change Record pair,
+and the two indexes. The current-candidate validation reran
+`tests.test_update_github_actions_versions` (19 tests),
+`tests.test_ci_security_workflows` (16 tests), `make check-ci-security-contract`,
+and `git diff --check`; all passed. The bilingual-documentation and
+documentation-link checks will be rerun after this wording update. Fresh
+hosted exact-head checks, SonarQube analysis, and the Quality Gate remain
+pending until the refreshed candidate is pushed.
 
 ## Known limitations
 

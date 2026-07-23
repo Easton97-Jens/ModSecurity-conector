@@ -9,7 +9,7 @@
 | Change-ID | CR-20260722-sonar-scripts-path-confinement |
 | Datum (UTC) | 2026-07-22 |
 | Basis-Revision | 961b4fa37cee257a9d50542b3968005e0e21f556 |
-| Aktuelle Master-Basis | 95fb4917b63dd8a5c5973bb49fd955bd3d2b29a3, am 2026-07-23 ohne History-Rewrite in diesen Task-Branch gemergt |
+| Aktuelle Master-Basis | ae314bb332d9b2ba859a42f2db31914fb20512f9, am 2026-07-23 ohne History-Rewrite in diesen Task-Branch gemergt |
 | Tracking | Zwei Parent-only-Sicherheitsbefunde in scripts/update-github-actions-versions.py: AZ70CAr3IpeCryPNS2zi (pythonsecurity:S2083) und AZ70CAr3IpeCryPNS2zj (pythonsecurity:S8707); Follow-up-SonarQube-Cloud-Maintainability-Befunde AZ-LiaSLimiHoxpRJ2G8 (python:S3776) sowie AZ-LiaLHimiHoxpRJ2G4 bis AZ-LiaLHimiHoxpRJ2G7 (python:S5778). |
 | Grenze | Parent-Updater-Source und Regressionstests sowie dieses englisch/deutsche Traceability-Paar und die Indizes. Framework, MRTS, Gitlinks, Workflow-Konfiguration, Action-Update-Policy, Scanner-Konfiguration, Quality Gates und Suppressions bleiben unverändert. |
 
@@ -120,9 +120,9 @@ sodass kein Network-GitHub-API-Lookup erforderlich ist. Das bestehende
 Workflow-Parsing/-Update wird durch den Major-Ref-Update-Test abgedeckt; kein
 Production-GitHub-Workflow wurde ausgeführt.
 
-## Current-Master-Refresh und Maintainability-Follow-up
+## Früherer Current-Master-Refresh und Maintainability-Follow-up
 
-Die aktuelle Remote-`master`-Revision
+Die frühere Remote-`master`-Revision
 `95fb4917b63dd8a5c5973bb49fd955bd3d2b29a3` wurde mit einem normalen
 Merge-Commit übernommen, nicht durch Rebase oder History-Rewrite. Ihre einzige
 Auflösung war die Vereinigung dieses Change-Record-Indexeintrags mit dem
@@ -131,6 +131,22 @@ fünf exakten PR-Befunde, ohne Scanner-Konfiguration, Quality Gates,
 Suppressions, Workflow-Konfiguration, Framework, MRTS oder den Parent-Gitlink
 zu verändern. Frische Hosted- und SonarQube-Cloud-Evidence für den exakten
 Head bleibt nach dem Follow-up-Commit erforderlich.
+
+## Current-Master-Integrationsnachtrag (2026-07-23)
+
+Der Kandidat wurde danach durch einen normalen Merge vom aktuellen Parent-
+Master `ae314bb332d9b2ba859a42f2db31914fb20512f9` aktualisiert; weder Rebase
+noch Force-Push werden verwendet. Der daraus resultierende finale Unterschied
+zu diesem Master bleibt auf den Updater, sein direktes Regressionsmodul,
+dieses englisch/deutsche Change-Record-Paar und die zwei Indizes begrenzt. Die
+Validierung des aktuellen Kandidaten führte
+`tests.test_update_github_actions_versions` (19 Tests),
+`tests.test_ci_security_workflows` (16 Tests), `make check-ci-security-contract`
+und `git diff --check` erneut aus; alle bestanden. Die Prüfung der
+zweisprachigen Dokumentation und der Dokumentationslinks wird nach dieser
+Wortlaut-Aktualisierung erneut ausgeführt. Frische Hosted-Exact-Head-Checks,
+SonarQube-Analyse und Quality Gate bleiben ausstehend, bis der aktualisierte
+Kandidat gepusht ist.
 
 ## Bekannte Einschränkungen
 
