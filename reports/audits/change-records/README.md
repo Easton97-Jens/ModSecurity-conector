@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Read-only Update-submodules validation dependency repair](CR-20260723-update-submodules-validation-dependency.md)
 - [CodeQL Action 4.37.3 batch](CR-20260722-codeql-action-4-37-3-batch.md)
 - [Central Go toolchain and Update-submodules validation repair](CR-20260722-central-go-toolchain-submodule-validation.md)
 - [CodeQL Action 4.37.2 batch](CR-20260722-codeql-action-4-37-2-batch.md)
