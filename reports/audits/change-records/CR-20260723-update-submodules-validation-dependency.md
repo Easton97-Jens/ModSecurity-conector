@@ -11,7 +11,7 @@
 | Base revision | ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3 |
 | Boundary | Parent `Update submodules` read-only validation workflow, its Parent static CI-security contract, a CI-only PyYAML hash lock, this English/German Change Record pair, and both Change-Record indexes. Framework source, MRTS, Parent gitlink, development dependency declaration, action pins, permissions, and publisher behavior remain unchanged. |
 | Finding linkage | FND-PARENT-0048: current missing validation prerequisite; FND-PARENT-0045: prior Parent HAProxy fixture repair awaiting a successful hosted candidate validation. |
-| Delivery status | Draft Parent [PR #92](https://github.com/Easton97-Jens/ModSecurity-conector/pull/92) carries the corrective series. Its first head exposed the YAML-scalar regression recorded as FND-PARENT-0049; the current amendment and its exact-head checks, review, SonarQube Cloud result, merge, and resulting-master verification remain pending. |
+| Delivery status | Draft Parent [PR #92](https://github.com/Easton97-Jens/ModSecurity-conector/pull/92) carries the corrective series. Its first head exposed the YAML-scalar regression recorded as FND-PARENT-0049. The quoted-scalar amendment head `a9af868d0723b6c35c14f35dc733dbbcb1896a25` completed terminal successful or expected-skipped GitHub Actions checks and passed the SonarQube Cloud Quality Gate with zero new issues. This record does not treat that prior-PR-head evidence as a merge or resulting-master verification; the PR remains Draft. |
 
 ## Motivation and problem statement
 
@@ -80,6 +80,11 @@ changed.
 - `make check-bilingual-docs` remains blocked by baseline missing linked files
   beneath the uninitialized Framework submodule; no Framework content was
   changed, and the focused English/German pair test passed.
+- Hosted PR evidence for the quoted-scalar amendment head
+  `a9af868d0723b6c35c14f35dc733dbbcb1896a25` completed with terminal
+  successful or expected-skipped GitHub Actions checks. SonarQube Cloud passed
+  its Quality Gate with zero new issues and zero security hotspots. This is
+  PR-head evidence only, not a master-only `Update submodules` run.
 
 ## Security impact
 
@@ -123,17 +128,17 @@ failure. No risk is accepted.
 - A fresh `Update submodules` success is not runnable against this PR head
   because the workflow deliberately checks out `master`; it remains pending a
   separately authorized merge.
-- Exact-head GitHub Actions, review, and SonarQube Cloud outcomes do not yet
-  exist for the current amendment. The first Draft PR head exposed a YAML parse
-  regression before candidate validation; that task-owned defect is being
-  corrected without changing validation or publisher privileges.
+- No master-only `Update submodules` run, merge, Framework candidate PR,
+  gitlink update, or resulting-master verification was requested or performed.
+  Hosted PR-head results are retained on the Draft PR and must be re-evaluated
+  for any later PR head.
 
 ## Final diff and review status
 
 The source diff is deliberately limited to the read-only hash-locked setup
 command, its static regression, and complete bilingual traceability. Local
-validation, the focused security-diff review, and the final exact diff review
-are complete for the initial correction. The Draft PR's YAML-scalar amendment,
-its exact-head verification, and final review remain pending. No master change,
-candidate PR, Framework/MRTS action, gitlink update, or branch cleanup has
-occurred.
+validation, the focused security-diff review, the quoted-scalar amendment's
+exact-head checks, and the final exact diff review are complete for the
+recorded amendment. The Draft PR remains subject to normal review and any later
+head must receive its own exact-head evidence. No master change, candidate PR,
+Framework/MRTS action, gitlink update, or branch cleanup has occurred.

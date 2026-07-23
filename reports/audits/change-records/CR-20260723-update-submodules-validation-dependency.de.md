@@ -11,7 +11,7 @@
 | Basis-Revision | ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3 |
 | Grenze | Parent-`Update submodules`-read-only-Validierungsworkflow, sein Parent-static-CI-Security-Contract, ein CI-only-PyYAML-Hash-Lock, dieses englische/deutsche Change-Record-Paar und beide Change-Record-Indizes. Framework-Source, MRTS, Parent-Gitlink, die Development-Dependency-Deklaration, Action-Pins, Berechtigungen und Publisher-Verhalten bleiben unverändert. |
 | Finding-Verknüpfung | FND-PARENT-0048: aktuelle fehlende Validierungsvoraussetzung; FND-PARENT-0045: vorherige Parent-HAProxy-Fixture-Reparatur, die auf eine erfolgreiche Hosted-Candidate-Validierung wartet. |
-| Delivery-Status | Der Draft-Parent-[PR #92](https://github.com/Easton97-Jens/ModSecurity-conector/pull/92) trägt die Korrekturserie. Sein erster Head zeigte die als FND-PARENT-0049 erfasste YAML-Scalar-Regression; das aktuelle Amendment sowie seine Exact-Head-Checks, Review, SonarQube-Cloud-Ergebnis, Merge und Resulting-Master-Verifikation sind noch ausstehend. |
+| Delivery-Status | Der Draft-Parent-[PR #92](https://github.com/Easton97-Jens/ModSecurity-conector/pull/92) trägt die Korrekturserie. Sein erster Head zeigte die als FND-PARENT-0049 erfasste YAML-Scalar-Regression. Der quotierte-Scalar-Amendment-Head `a9af868d0723b6c35c14f35dc733dbbcb1896a25` schloss GitHub-Actions-Checks terminal erfolgreich oder erwartungsgemäß übersprungen ab und bestand das SonarQube-Cloud-Quality-Gate mit null neuen Issues. Dieses Record behandelt die Evidence des vorherigen PR-Heads nicht als Merge- oder Resulting-Master-Verifikation; der PR bleibt Draft. |
 
 ## Motivation und Problemstellung
 
@@ -85,6 +85,11 @@ oder Publisher-Code wird geändert.
   Dateien unterhalb des nicht initialisierten Framework-Submoduls blockiert;
   kein Framework-Inhalt wurde geändert, und der fokussierte englisch/deutsche
   Paar-Test bestand.
+- Hosted-PR-Evidence für den quotierten-Scalar-Amendment-Head
+  `a9af868d0723b6c35c14f35dc733dbbcb1896a25` schloss mit terminal erfolgreichen
+  oder erwartungsgemäß übersprungenen GitHub-Actions-Checks ab. SonarQube Cloud
+  bestand das Quality Gate mit null neuen Issues und null Security Hotspots.
+  Dies ist nur PR-Head-Evidence und kein master-only-`Update submodules`-Run.
 
 ## Security-Auswirkung
 
@@ -132,18 +137,18 @@ wird akzeptiert.
 - Ein frischer `Update submodules`-Erfolg ist gegen diesen PR-Head nicht
   ausführbar, weil der Workflow absichtlich `master` auscheckt; er bleibt bis
   zu einem separat autorisierten Merge ausstehend.
-- Exact-Head-GitHub-Actions-, Review- und SonarQube-Cloud-Ergebnisse existieren
-  für das aktuelle Amendment noch nicht. Der erste Draft-PR-Head zeigte vor
-  der Candidate-Validierung eine YAML-Parse-Regression; dieser task-eigene
-  Defekt wird ohne Änderung von Validierungs- oder Publisher-Privilegien
-  korrigiert.
+- Kein master-only-`Update submodules`-Run, Merge, Framework-Candidate-PR,
+  Gitlink-Update oder Resulting-Master-Verifikation wurde angefordert oder
+  durchgeführt. Hosted-PR-Head-Ergebnisse bleiben im Draft-PR erhalten und
+  müssen für jeden späteren PR-Head erneut bewertet werden.
 
 ## Finaler Diff- und Review-Status
 
 Der Source-Diff ist bewusst auf den read-only-hash-gelockten Setup-Befehl,
 seine statische Regression und vollständige bilinguale Traceability begrenzt.
-Lokale Validierung, der fokussierte Security-Diff-Review und der finale
-Exact-Diff-Review sind abgeschlossen; Commit, Push und PR-Verifikation sind
-für das YAML-Scalar-Amendment und finaler Review noch ausstehend. Kein Master-
-Change, Candidate-PR, Framework-/MRTS-Aktion, Gitlink-Update oder Branch-
-Cleanup ist erfolgt.
+Lokale Validierung, der fokussierte Security-Diff-Review, die Exact-Head-
+Checks des quotierten-Scalar-Amendments und der finale Exact-Diff-Review sind
+für das dokumentierte Amendment abgeschlossen. Der Draft-PR bleibt dem
+normalen Review unterworfen; jeder spätere Head benötigt eigene Exact-Head-
+Evidence. Kein Master-Change, Candidate-PR, Framework-/MRTS-Aktion, Gitlink-
+Update oder Branch-Cleanup ist erfolgt.
