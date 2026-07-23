@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260722-sonar-scripts-path-confinement |
 | Datum (UTC) | 2026-07-22 |
-| Ursprüngliche Basis-Revision | 961b4fa37cee257a9d50542b3968005e0e21f556 |
+| Basis-Revision | 961b4fa37cee257a9d50542b3968005e0e21f556 |
 | Aktuelle Master-Basis | 95fb4917b63dd8a5c5973bb49fd955bd3d2b29a3, am 2026-07-23 ohne History-Rewrite in diesen Task-Branch gemergt |
 | Tracking | Zwei Parent-only-Sicherheitsbefunde in scripts/update-github-actions-versions.py: AZ70CAr3IpeCryPNS2zi (pythonsecurity:S2083) und AZ70CAr3IpeCryPNS2zj (pythonsecurity:S8707); Follow-up-SonarQube-Cloud-Maintainability-Befunde AZ-LiaSLimiHoxpRJ2G8 (python:S3776) sowie AZ-LiaLHimiHoxpRJ2G4 bis AZ-LiaLHimiHoxpRJ2G7 (python:S5778). |
 | Grenze | Parent-Updater-Source und Regressionstests sowie dieses englisch/deutsche Traceability-Paar und die Indizes. Framework, MRTS, Gitlinks, Workflow-Konfiguration, Action-Update-Policy, Scanner-Konfiguration, Quality Gates und Suppressions bleiben unverändert. |
