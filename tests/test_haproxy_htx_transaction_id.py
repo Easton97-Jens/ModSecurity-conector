@@ -34,6 +34,11 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
             upstream = root / "upstream-requests.jsonl"
             host_evidence = root / "host-runtime-evidence.jsonl"
             decision_log = root / "haproxy.stderr.log"
+            events_path = str(events)
+            probe_path = str(probe)
+            upstream_path = str(upstream)
+            host_evidence_path = str(host_evidence)
+            decision_log_path = str(decision_log)
             probe.write_text(
                 json.dumps({"status": 200, "response_bytes": 24, "content_type": "text/plain"}),
                 encoding="utf-8",
@@ -43,7 +48,7 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(
-                HELPER.write_allow_event(str(events), str(probe), str(upstream), accepted),
+                HELPER.write_allow_event(events_path, probe_path, upstream_path, accepted),
                 0,
             )
             self.assertEqual(
@@ -51,7 +56,7 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
                 accepted,
             )
             with self.assertRaisesRegex(ValueError, "invalid HTX transaction id"):
-                HELPER.write_allow_event(str(events), str(probe), str(upstream), rejected)
+                HELPER.write_allow_event(events_path, probe_path, upstream_path, rejected)
 
             decision_log.write_text(
                 "modsecurity-htx: request intervention observed; "
@@ -60,8 +65,8 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
             )
             self.assertEqual(
                 HELPER.write_host_evidence(
-                    str(host_evidence), "phase1_403", 1, 1100001, str(probe), 0,
-                    "enforced_reply", str(decision_log),
+                    host_evidence_path, "phase1_403", 1, 1100001, probe_path, 0,
+                    "enforced_reply", decision_log_path,
                 ),
                 0,
             )
@@ -76,8 +81,8 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "invalid HTX transaction id"):
                 HELPER.write_host_evidence(
-                    str(host_evidence), "phase1_403", 1, 1100001, str(probe), 0,
-                    "enforced_reply", str(decision_log),
+                    host_evidence_path, "phase1_403", 1, 1100001, probe_path, 0,
+                    "enforced_reply", decision_log_path,
                 )
 
 

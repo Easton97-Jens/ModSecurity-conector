@@ -85,6 +85,24 @@ existing no-follow, descendant-owner, and final-root checks.
 - focused Python, shell, C, workflow, documentation, and evidence tests;
 - this English/German Change Record pair and index pair.
 
+## Current-master continuation (2026-07-23)
+
+The Draft was refreshed from Parent `master`
+`b37aa629398501f83750d6454f5f6a27eb614818` with an intentional union
+resolution. The current immutable action pins, Go-version contract, strict
+verified-report evidence gate, authorization-timeout check, and both language
+indexes are retained together.
+
+The continuation then resolves the locally remediable Sonar findings without
+weakening a control: descriptor traversal and chunk parsing are split into
+smaller helpers with the same guards, the content-length parser remains
+ASCII-only, the authorization service binds per-connection state in a private
+context, and the regression tests avoid nested/multiple-call assertion forms.
+The two `c:S995` notices in the timeout smoke remain API-constrained: its fake
+definitions must retain the non-const signatures declared by
+`msconnector_runtime.h`, whose production implementations mutate those
+objects. No scanner suppression or public ABI change was used to hide them.
+
 ## Commands executed
 
 | Command or control | Result |
@@ -102,6 +120,11 @@ existing no-follow, descendant-owner, and final-root checks.
 | Strict generated-report layout checker against current evidence | expected failure: incomplete/stale evidence was rejected. This demonstrates CSV-06 fail-closed behavior and is not a passing provenance result. |
 | make check-bilingual-docs and the canonical Framework-backed HAProxy harness | blocked: the Framework gitlink is intentionally absent in this Parent-only checkout and was not initialized or changed. |
 | Final git diff --check after Change Record completion | passed: no whitespace errors in the task worktree. |
+| Current-master continuation: `tests.test_runtime_path_security`, `tests.test_local_runtime_smoke_request_body`, `tests.test_haproxy_htx_transaction_id`, and `tests.test_generated_report_evidence_integrity` | passed: 90 tests, including symlink/ownership, request-framing, ASCII content-length, HTX-ID, and report-integrity controls. |
+| Current-master continuation: `tests.test_resolve_runtime_paths` | passed: 8 tests. |
+| Current-master continuation: workflow-security and compiler-guide suites | passed: 37 tests after the conflict union. |
+| Current-master continuation: authorization-timeout smoke | passed with GCC and Clang using isolated external build roots; Common C17 helper check and shell syntax check also passed. |
+| Current-master continuation: focused security-diff review | passed: no new plausible security regression in the reviewed ten-file remediation diff. |
 
 ## Security impact
 
@@ -146,6 +169,11 @@ is `blocked_permissions`; the retained task record does not claim to replace
 that import. The exact PR head still needs ordinary CI, review, and
 resulting-master evidence before any future integration decision.
 
+The two API-constrained `c:S995` timeout-smoke notices require a fresh hosted
+Sonar readback and, if they remain, an explicit scanner-side false-positive or
+accepted-risk disposition. They are not suppressed locally, and changing the
+public runtime declarations solely to satisfy the style rule is out of scope.
+
 ## Remaining risks
 
 The local controls cannot establish the missing Framework-backed canonical
@@ -159,12 +187,11 @@ obtain a passing result.
 
 ## Delivery status
 
-This record supports the existing Parent-only Draft PR #74. Its published
-head was `33b0bfb5a375d0db268709f9c07313506b95f1aa`; this focused S5443
-follow-up is not yet committed or pushed. It does not authorize a merge,
-direct master push, Framework/MRTS work, history rewrite, or a claim that
-remote CI passed. A normal follow-up commit and push occur only after final
-local review, followed by a new exact-head check snapshot.
+This record supports the existing Parent-only Draft PR #74. It deliberately
+does not declare a current published head: every local continuation requires a
+normal commit and push followed by a fresh exact-head check snapshot. It does
+not authorize a merge, direct master push, Framework/MRTS work, history
+rewrite, or a claim that remote CI passed.
 
 ## Final diff and review status
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+from functools import partial
 import io
 import importlib.util
 import os
@@ -32,6 +33,24 @@ def load_script(name: str, relative_path: str):
     sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def fstat_with_directory_metadata(
+    descriptor: int,
+    *,
+    original_fstat,
+    target_device: int,
+    target_inode: int,
+    replacement_owner: int,
+    replacement_mode: int,
+) -> os.stat_result:
+    details = original_fstat(descriptor)
+    if (details.st_dev, details.st_ino) != (target_device, target_inode):
+        return details
+    replacement = list(details)
+    replacement[0] = stat.S_IFDIR | replacement_mode
+    replacement[4] = replacement_owner
+    return os.stat_result(replacement)
 
 
 VERIFIED_REPORT_RUN = load_script(
@@ -76,9 +95,10 @@ class RuntimePathSecurityTest(unittest.TestCase):
             victim.mkdir()
             run_root = parent / "verified-run"
             run_root.symlink_to(victim, target_is_directory=True)
+            run_root_text = str(run_root)
 
             with self.assertRaisesRegex(ValueError, "symbolic links"):
-                verified_runtime_paths({"VERIFIED_RUN_ROOT": str(run_root)})
+                verified_runtime_paths({"VERIFIED_RUN_ROOT": run_root_text})
             with self.assertRaisesRegex(ValueError, "symbolic links"):
                 ensure_safe_runtime_directory(run_root)
 
@@ -385,18 +405,14 @@ class RuntimePathSecurityTest(unittest.TestCase):
                 shared_details = shared_root.stat()
                 runtime_root = shared_root / "runtime-root"
                 original_fstat = RUNTIME_PATH_UTILS.os.fstat
-
-                def unsafe_shared_root_fstat(descriptor: int) -> os.stat_result:
-                    details = original_fstat(descriptor)
-                    if (details.st_dev, details.st_ino) != (
-                        shared_details.st_dev,
-                        shared_details.st_ino,
-                    ):
-                        return details
-                    replacement = list(details)
-                    replacement[0] = stat.S_IFDIR | mode
-                    replacement[4] = owner
-                    return os.stat_result(replacement)
+                unsafe_shared_root_fstat = partial(
+                    fstat_with_directory_metadata,
+                    original_fstat=original_fstat,
+                    target_device=shared_details.st_dev,
+                    target_inode=shared_details.st_ino,
+                    replacement_owner=owner,
+                    replacement_mode=mode,
+                )
 
                 with mock.patch.object(
                     RUNTIME_PATH_UTILS.os,

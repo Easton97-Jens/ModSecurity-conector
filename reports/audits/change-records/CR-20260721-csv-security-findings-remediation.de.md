@@ -88,6 +88,26 @@ No-Follow-, Nachfolger-Owner- und Final-Root-Prüfungen.
   Evidence-Tests;
 - dieses englische/deutsche Change-Record-Paar und das Indexpaar.
 
+## Current-Master-Fortsetzung (2026-07-23)
+
+Der Draft wurde mit einer bewussten Union-Auflösung vom Parent-`master`
+`b37aa629398501f83750d6454f5f6a27eb614818` aktualisiert. Die aktuellen
+immutable Action-Pins, der Go-Version-Contract, das strikte
+Verified-Report-Evidence-Gate, die Authorization-Timeout-Prüfung und beide
+Sprachindizes bleiben gemeinsam erhalten.
+
+Die Fortsetzung behebt anschließend die lokal behebbaren Sonar-Befunde, ohne
+eine Kontrolle abzuschwächen: Descriptor-Traversal und Chunk-Parsing sind bei
+gleichen Guards in kleinere Helfer aufgeteilt, der Content-Length-Parser
+bleibt ASCII-only, der Authorization-Service bindet Per-Connection-Status in
+einen privaten Kontext, und die Regressionstests vermeiden verschachtelte
+beziehungsweise Mehrfachaufruf-Assertions. Die zwei `c:S995`-Hinweise im
+Timeout-Smoke bleiben API-gebunden: Seine Fake-Definitionen müssen die
+nicht-konstanten Signaturen aus `msconnector_runtime.h` beibehalten, deren
+Produktivimplementierungen diese Objekte verändern. Es wurde weder eine
+Scanner-Suppression noch eine öffentliche ABI-Änderung zum Verbergen dieser
+Hinweise verwendet.
+
 ## Ausgeführte Befehle
 
 | Befehl oder Kontrolle | Ergebnis |
@@ -105,6 +125,11 @@ No-Follow-, Nachfolger-Owner- und Final-Root-Prüfungen.
 | Strikter Generated-Report-Layout-Checker gegen die aktuelle Evidence | erwartetes Fehlschlagen: unvollständige/veraltete Evidence wurde abgelehnt. Das belegt CSV-06-Fail-Closed-Verhalten und ist kein bestandener Provenienzstatus. |
 | make check-bilingual-docs und kanonischer Framework-gestützter HAProxy-Harness | blockiert: Der Framework-Gitlink fehlt absichtlich im Parent-only-Checkout und wurde nicht initialisiert oder verändert. |
 | Finales git diff --check nach Abschluss des Change Records | bestanden: keine Whitespace-Fehler im Task-Worktree. |
+| Current-Master-Fortsetzung: `tests.test_runtime_path_security`, `tests.test_local_runtime_smoke_request_body`, `tests.test_haproxy_htx_transaction_id` und `tests.test_generated_report_evidence_integrity` | bestanden: 90 Tests einschließlich Symlink-/Ownership-, Request-Framing-, ASCII-Content-Length-, HTX-ID- und Report-Integrity-Kontrollen. |
+| Current-Master-Fortsetzung: `tests.test_resolve_runtime_paths` | bestanden: 8 Tests. |
+| Current-Master-Fortsetzung: Workflow-Security- und Compiler-Guide-Suiten | bestanden: 37 Tests nach der Konflikt-Union. |
+| Current-Master-Fortsetzung: Authorization-Timeout-Smoke | mit GCC und Clang unter isolierten externen Build-Wurzeln bestanden; Common-C17-Helper- und Shell-Syntax-Prüfung bestanden ebenfalls. |
+| Current-Master-Fortsetzung: fokussiertes Security-Diff-Review | bestanden: keine neue plausible Sicherheitsregression im geprüften Zehn-Dateien-Remediation-Diff. |
 
 ## Security-Auswirkung
 
@@ -154,6 +179,12 @@ Task-Record behauptet nicht, diesen Import zu ersetzen. Der exakte PR-Head
 benötigt weiterhin reguläre CI, Review und Resulting-Master-Evidence vor jeder
 späteren Integrationsentscheidung.
 
+Die zwei API-gebundenen `c:S995`-Hinweise des Timeout-Smokes benötigen einen
+frischen gehosteten Sonar-Readback und, falls sie bleiben, eine explizite
+Scanner-seitige False-Positive- oder Accepted-Risk-Disposition. Sie werden
+lokal nicht unterdrückt; die öffentlichen Runtime-Deklarationen allein für die
+Stilregel zu ändern, liegt außerhalb des Scopes.
+
 ## Verbleibende Risiken
 
 Die lokalen Kontrollen können weder die fehlenden Framework-gestützten
@@ -168,13 +199,12 @@ Evidence-Anforderung wurde für ein positives Ergebnis abgeschwächt.
 
 ## Delivery-Status
 
-Dieser Record unterstützt den bestehenden Parent-only-Draft-PR #74. Sein
-veröffentlichter Head war `33b0bfb5a375d0db268709f9c07313506b95f1aa`; dieses
-fokussierte S5443-Follow-up ist noch nicht committed oder gepusht. Er
-autorisiert weder Merge noch Direct-Master-Push, Framework-/MRTS-Arbeit,
-History-Rewrite oder die Behauptung bestandener Remote-CI. Ein normaler
-Follow-up-Commit und Push erfolgen erst nach finalem lokalem Review, gefolgt
-von einem neuen Exact-Head-Check-Snapshot.
+Dieser Record unterstützt den bestehenden Parent-only-Draft-PR #74. Er nennt
+bewusst keinen aktuellen veröffentlichten Head: Jede lokale Fortsetzung
+benötigt einen normalen Commit und Push mit anschließendem frischem
+Exact-Head-Check-Snapshot. Er autorisiert weder Merge noch Direct-Master-Push,
+Framework-/MRTS-Arbeit, History-Rewrite oder die Behauptung bestandener
+Remote-CI.
 
 ## Finaler Diff- und Review-Status
 

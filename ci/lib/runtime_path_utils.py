@@ -355,6 +355,75 @@ def verified_runtime_paths(
     }
 
 
+def _open_runtime_root_descriptor() -> tuple[int, int]:
+    """Open the filesystem root with the flags required for safe traversal."""
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    directory_flag = getattr(os, "O_DIRECTORY", None)
+    if no_follow is None or directory_flag is None:
+        raise ValueError(
+            "safe runtime directories require O_NOFOLLOW and O_DIRECTORY support"
+        )
+    flags = os.O_RDONLY | directory_flag | no_follow
+    return os.open("/", flags), flags
+
+
+def _open_runtime_component(
+    descriptor: int,
+    component: str,
+    directory_path: Path,
+    flags: int,
+) -> int:
+    """Create then reopen one path component without following a symlink."""
+    try:
+        os.mkdir(component, 0o755, dir_fd=descriptor)
+    except FileExistsError:
+        pass
+    try:
+        return os.open(component, flags, dir_fd=descriptor)
+    except OSError as exc:
+        raise ValueError(
+            f"runtime directory is unavailable or unsafe: {directory_path}: {exc}"
+        ) from exc
+
+
+def _validate_runtime_ancestor(
+    descriptor: int,
+    current_path: Path,
+    shared_temp_root: Path | None,
+) -> Path | None:
+    """Validate one opened ancestor and track a trusted sticky shared root."""
+    details = os.fstat(descriptor)
+    if not stat.S_ISDIR(details.st_mode):
+        raise ValueError(f"runtime directory is not a directory: {current_path}")
+    trusted_shared_root = _is_root_owned_sticky_shared_directory(details)
+    if not trusted_shared_root and stat.S_IMODE(details.st_mode) & 0o022:
+        raise ValueError(
+            "runtime directory has a group- or world-writable ancestor: "
+            f"{current_path}"
+        )
+    if trusted_shared_root:
+        return current_path
+    if shared_temp_root is not None and details.st_uid not in {os.geteuid(), 0}:
+        raise ValueError(
+            "runtime directory has an untrusted owner below shared temporary root "
+            f"{shared_temp_root}: {current_path}"
+        )
+    return shared_temp_root
+
+
+def _validate_runtime_leaf(descriptor: int, directory_path: Path) -> None:
+    """Require a private directory at the final writable runtime path."""
+    details = os.fstat(descriptor)
+    if not stat.S_ISDIR(details.st_mode):
+        raise ValueError(f"runtime directory is not a directory: {directory_path}")
+    if details.st_uid != os.geteuid():
+        raise ValueError(
+            f"runtime directory is not owned by the current user: {directory_path}"
+        )
+    if stat.S_IMODE(details.st_mode) & 0o022:
+        raise ValueError(f"runtime directory is group- or world-writable: {directory_path}")
+
+
 def ensure_safe_runtime_directory(path: Path | str) -> Path:
     """Create or open one runtime directory without following path symlinks.
 
@@ -366,67 +435,23 @@ def ensure_safe_runtime_directory(path: Path | str) -> Path:
     directory_path = _runtime_path(path, "runtime directory")
     if not is_safe_runtime_root(directory_path):
         raise ValueError(f"runtime directory is unsafe for writes: {directory_path}")
-    no_follow = getattr(os, "O_NOFOLLOW", None)
-    directory_flag = getattr(os, "O_DIRECTORY", None)
-    if no_follow is None or directory_flag is None:
-        raise ValueError(
-            "safe runtime directories require O_NOFOLLOW and O_DIRECTORY support"
-        )
 
-    descriptor = os.open("/", os.O_RDONLY | directory_flag | no_follow)
+    descriptor, directory_flags = _open_runtime_root_descriptor()
     current_path = Path("/")
     shared_temp_root: Path | None = None
     try:
         for component in directory_path.parts[1:]:
-            try:
-                os.mkdir(component, 0o755, dir_fd=descriptor)
-            except FileExistsError:
-                pass
-            try:
-                child_descriptor = os.open(
-                    component,
-                    os.O_RDONLY | directory_flag | no_follow,
-                    dir_fd=descriptor,
-                )
-            except OSError as exc:
-                raise ValueError(
-                    f"runtime directory is unavailable or unsafe: {directory_path}: {exc}"
-                ) from exc
+            child_descriptor = _open_runtime_component(
+                descriptor, component, directory_path, directory_flags
+            )
             os.close(descriptor)
             descriptor = child_descriptor
             current_path /= component
-            details = os.fstat(descriptor)
-            if not stat.S_ISDIR(details.st_mode):
-                raise ValueError(f"runtime directory is not a directory: {current_path}")
-            trusted_shared_root = _is_root_owned_sticky_shared_directory(details)
-            if (
-                not trusted_shared_root
-                and stat.S_IMODE(details.st_mode) & 0o022
-            ):
-                raise ValueError(
-                    "runtime directory has a group- or world-writable ancestor: "
-                    f"{current_path}"
-                )
-            if trusted_shared_root:
-                shared_temp_root = current_path
-            elif (
-                shared_temp_root is not None
-                and details.st_uid not in {os.geteuid(), 0}
-            ):
-                raise ValueError(
-                    "runtime directory has an untrusted owner below shared temporary root "
-                    f"{shared_temp_root}: {current_path}"
-                )
-
-        details = os.fstat(descriptor)
-        if not stat.S_ISDIR(details.st_mode):
-            raise ValueError(f"runtime directory is not a directory: {directory_path}")
-        if details.st_uid != os.geteuid():
-            raise ValueError(
-                f"runtime directory is not owned by the current user: {directory_path}"
+            shared_temp_root = _validate_runtime_ancestor(
+                descriptor, current_path, shared_temp_root
             )
-        if stat.S_IMODE(details.st_mode) & 0o022:
-            raise ValueError(f"runtime directory is group- or world-writable: {directory_path}")
+
+        _validate_runtime_leaf(descriptor, directory_path)
     finally:
         os.close(descriptor)
     return directory_path

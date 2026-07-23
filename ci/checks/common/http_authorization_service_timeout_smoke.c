@@ -439,11 +439,10 @@ done:
 
 static pid_t start_dripping_peer(int socket_fd) {
     const pid_t child = fork();
-    unsigned int index;
     if (child != 0) {
         return child;
     }
-    for (index = 0U; index < 200U; ++index) {
+    for (unsigned int index = 0U; index < 200U; ++index) {
         if (!sleep_milliseconds(20L) || !send_all(socket_fd, "x")) {
             _exit(0);
         }

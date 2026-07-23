@@ -180,8 +180,9 @@ class LocalRuntimeSmokeRequestBodyTest(unittest.TestCase):
         headers = Message()
         headers["transfer-encoding"] = "chunked"
         headers["content-length"] = "0"
+        reader = RequestBodyReader(headers, b"0\r\n\r\n")
         with self.assertRaises(SMOKE.RequestBodyError):
-            SMOKE.read_request_body(RequestBodyReader(headers, b"0\r\n\r\n"))
+            SMOKE.read_request_body(reader)
 
     def test_chunked_reader_accepts_exact_limit_and_rejects_cumulative_overflow(self) -> None:
         headers = Message()
@@ -197,18 +198,29 @@ class LocalRuntimeSmokeRequestBodyTest(unittest.TestCase):
             exact_body,
         )
         overflow_request = exact_request[:-5] + b"1\r\nb\r\n0\r\n\r\n"
+        overflow_reader = RequestBodyReader(headers, overflow_request)
         with self.assertRaises(SMOKE.RequestBodyTooLarge):
-            SMOKE.read_request_body(RequestBodyReader(headers, overflow_request))
+            SMOKE.read_request_body(overflow_reader)
 
     def test_reader_rejects_malformed_and_incomplete_request_bodies(self) -> None:
         chunked_headers = Message()
         chunked_headers["Transfer-Encoding"] = "chunked"
+        malformed_chunk_reader = RequestBodyReader(chunked_headers, b"not-hex\r\n")
         with self.assertRaises(SMOKE.RequestBodyError):
-            SMOKE.read_request_body(RequestBodyReader(chunked_headers, b"not-hex\r\n"))
+            SMOKE.read_request_body(malformed_chunk_reader)
         length_headers = Message()
         length_headers["Content-Length"] = "2"
+        incomplete_length_reader = RequestBodyReader(length_headers, b"x")
         with self.assertRaises(SMOKE.RequestBodyError):
-            SMOKE.read_request_body(RequestBodyReader(length_headers, b"x"))
+            SMOKE.read_request_body(incomplete_length_reader)
+
+    def test_reader_rejects_non_ascii_content_length_digits(self) -> None:
+        headers = Message()
+        headers["Content-Length"] = "١"
+        reader = RequestBodyReader(headers, b"x")
+
+        with self.assertRaises(SMOKE.RequestBodyError):
+            SMOKE.read_request_body(reader)
 
     def test_accepted_connections_receive_a_finite_socket_deadline(self) -> None:
         observed: list[float | None] = []

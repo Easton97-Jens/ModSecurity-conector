@@ -474,28 +474,45 @@ def read_request_line(handler: http.server.BaseHTTPRequestHandler) -> bytes:
     return value
 
 
-def read_chunked_request_body(handler: http.server.BaseHTTPRequestHandler) -> bytes:
-    body = bytearray()
+def parse_chunk_size(line: bytes) -> int:
+    size_text = line.split(b";", 1)[0].strip()
+    if re.fullmatch(rb"[0-9A-Fa-f]+", size_text) is None:
+        raise RequestBodyError("invalid chunk size")
+    return int(size_text, 16)
+
+
+def ensure_chunk_fits_request_limit(size: int, body_size: int) -> None:
+    if size > MAX_REQUEST_BODY_BYTES - body_size:
+        raise RequestBodyTooLarge("request body exceeds local smoke limit")
+
+
+def read_chunked_trailers(handler: http.server.BaseHTTPRequestHandler) -> None:
     trailer_bytes = 0
     while True:
-        line = read_request_line(handler)
-        size_text = line.split(b";", 1)[0].strip()
-        if re.fullmatch(rb"[0-9A-Fa-f]+", size_text) is None:
-            raise RequestBodyError("invalid chunk size")
-        size = int(size_text, 16)
-        if size > MAX_REQUEST_BODY_BYTES - len(body):
-            raise RequestBodyTooLarge("request body exceeds local smoke limit")
+        trailer = read_request_line(handler)
+        trailer_bytes += len(trailer)
+        if trailer_bytes > MAX_TRAILER_BYTES:
+            raise RequestBodyError("request trailers exceed local smoke limit")
+        if trailer in {b"\r\n", b"\n"}:
+            return
+
+
+def read_chunk_data(handler: http.server.BaseHTTPRequestHandler, size: int) -> bytes:
+    chunk = read_request_bytes(handler, size)
+    if read_request_bytes(handler, 2) != b"\r\n":
+        raise RequestBodyError("invalid chunk terminator")
+    return chunk
+
+
+def read_chunked_request_body(handler: http.server.BaseHTTPRequestHandler) -> bytes:
+    body = bytearray()
+    while True:
+        size = parse_chunk_size(read_request_line(handler))
+        ensure_chunk_fits_request_limit(size, len(body))
         if size == 0:
-            while True:
-                trailer = read_request_line(handler)
-                trailer_bytes += len(trailer)
-                if trailer_bytes > MAX_TRAILER_BYTES:
-                    raise RequestBodyError("request trailers exceed local smoke limit")
-                if trailer in {b"\r\n", b"\n"}:
-                    return bytes(body)
-        body.extend(read_request_bytes(handler, size))
-        if read_request_bytes(handler, 2) != b"\r\n":
-            raise RequestBodyError("invalid chunk terminator")
+            read_chunked_trailers(handler)
+            return bytes(body)
+        body.extend(read_chunk_data(handler, size))
 
 
 def read_content_length_request_body(handler: http.server.BaseHTTPRequestHandler) -> bytes:
@@ -503,7 +520,7 @@ def read_content_length_request_body(handler: http.server.BaseHTTPRequestHandler
     if raw_length is None:
         return b""
     value = raw_length.strip()
-    if re.fullmatch(r"[0-9]+", value) is None:
+    if re.fullmatch(r"\d+", value, flags=re.ASCII) is None:
         raise RequestBodyError("invalid content length")
     length = int(value, 10)
     if length > MAX_REQUEST_BODY_BYTES:

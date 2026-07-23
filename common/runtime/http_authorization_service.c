@@ -66,6 +66,13 @@ typedef struct connection_deadline {
     struct timespec expires_at;
 } connection_deadline;
 
+typedef struct authorization_connection {
+    int socket_fd;
+    const struct sockaddr_in *peer;
+    const struct sockaddr_in *local;
+    const connection_deadline *read_deadline;
+} authorization_connection;
+
 static volatile sig_atomic_t authorization_stop = 0;
 
 static void stop_service(int signal_number) {
@@ -481,12 +488,11 @@ static int transfer_encoding_supported(const parsed_http_request *request) {
 }
 
 static int read_request_body(
-    int socket_fd,
+    const authorization_connection *connection,
     parsed_http_request *request,
     const char *body_start,
     size_t buffered_body_size,
     size_t body_limit,
-    const connection_deadline *deadline,
     char *error,
     size_t error_len) {
     size_t content_length = 0U;
@@ -525,7 +531,8 @@ static int read_request_body(
     }
     while (copied < content_length) {
         const int received = recv_more(
-            socket_fd, request->body, content_length, &copied, deadline);
+            connection->socket_fd, request->body, content_length, &copied,
+            connection->read_deadline);
         if (received != 1) {
             (void)snprintf(error, error_len, "%s",
                 received < 0 ? "request body read timed out" : "incomplete request body");
@@ -537,12 +544,9 @@ static int read_request_body(
 }
 
 static int read_http_request(
-    int socket_fd,
+    const authorization_connection *connection,
     msconnector_runtime *runtime,
     parsed_http_request *request,
-    const struct sockaddr_in *peer,
-    const struct sockaddr_in *local,
-    const connection_deadline *deadline,
     char *error,
     size_t error_len) {
     size_t header_limit = msconnector_runtime_total_header_limit(runtime);
@@ -565,7 +569,8 @@ static int read_http_request(
     header_end = NULL;
     while (header_end == NULL) {
         const int received = recv_more(
-            socket_fd, request->header_buffer, header_capacity, &used, deadline);
+            connection->socket_fd, request->header_buffer, header_capacity, &used,
+            connection->read_deadline);
         if (received != 1) {
             (void)snprintf(error, error_len, "%s",
                 received < 0 ? "HTTP request headers timed out" :
@@ -593,20 +598,20 @@ static int read_http_request(
     }
     body_start = header_end + 4;
     buffered_body_size = used - (size_t)(body_start - request->header_buffer);
-    if (!read_request_body(socket_fd, request, body_start, buffered_body_size,
-            msconnector_runtime_request_body_limit(runtime), deadline,
+    if (!read_request_body(connection, request, body_start, buffered_body_size,
+            msconnector_runtime_request_body_limit(runtime),
             error, error_len)) {
         return 0;
     }
-    if (inet_ntop(AF_INET, &peer->sin_addr, request->client_address,
+    if (inet_ntop(AF_INET, &connection->peer->sin_addr, request->client_address,
             sizeof(request->client_address)) == NULL ||
-        inet_ntop(AF_INET, &local->sin_addr, request->server_address,
+        inet_ntop(AF_INET, &connection->local->sin_addr, request->server_address,
             sizeof(request->server_address)) == NULL) {
         (void)snprintf(error, error_len, "%s", "endpoint address conversion failed");
         return 0;
     }
-    request->client_port = (int)ntohs(peer->sin_port);
-    request->server_port = (int)ntohs(local->sin_port);
+    request->client_port = (int)ntohs(connection->peer->sin_port);
+    request->server_port = (int)ntohs(connection->local->sin_port);
     return 1;
 }
 
@@ -737,12 +742,9 @@ static int error_status_from_message(const char *message) {
 }
 
 static int handle_authorization_request(
-    int client_fd,
+    const authorization_connection *connection,
     msconnector_runtime *runtime,
     const msconnector_http_authorization_profile *profile,
-    const struct sockaddr_in *peer,
-    const struct sockaddr_in *local,
-    const connection_deadline *read_deadline,
     unsigned long timeout_ms) {
     parsed_http_request parsed;
     msconnector_generic_request_source source;
@@ -762,11 +764,10 @@ static int handle_authorization_request(
     error[0] = '\0';
     msconnector_error_init(&common_error);
     msconnector_decision_set_allow(&decision);
-    if (!read_http_request(client_fd, runtime, &parsed, peer, local,
-            read_deadline, error, sizeof(error))) {
+    if (!read_http_request(connection, runtime, &parsed, error, sizeof(error))) {
         status = error_status_from_message(error);
         (void)send_response(
-            client_fd, status, NULL, "invalid_request", timeout_ms);
+            connection->socket_fd, status, NULL, "invalid_request", timeout_ms);
         parsed_request_destroy(&parsed);
         return 0;
     }
@@ -819,7 +820,7 @@ static int handle_authorization_request(
         }
     }
     if (!send_response(
-            client_fd, status, transaction_id, decision_name, timeout_ms)) {
+            connection->socket_fd, status, transaction_id, decision_name, timeout_ms)) {
         success = 0;
     }
     msconnector_runtime_transaction_destroy(&transaction);
@@ -933,9 +934,16 @@ static int serve_authorization(
             ++handled;
             continue;
         }
-        (void)handle_authorization_request(
-            client_fd, runtime, profile, &peer, &local,
-            &read_deadline, cli->connection_timeout_ms);
+        {
+            const authorization_connection connection = {
+                .socket_fd = client_fd,
+                .peer = &peer,
+                .local = &local,
+                .read_deadline = &read_deadline,
+            };
+            (void)handle_authorization_request(
+                &connection, runtime, profile, cli->connection_timeout_ms);
+        }
         (void)close(client_fd);
         ++handled;
     }

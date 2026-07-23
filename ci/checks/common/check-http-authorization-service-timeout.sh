@@ -22,6 +22,7 @@ case "$(CDPATH= cd "$BUILD_ROOT" 2>/dev/null && pwd 2>/dev/null || printf '%s' "
         echo "http_authorization_service_timeout_smoke: BUILD_ROOT must not be inside the checkout" >&2
         exit 77
         ;;
+    *) ;;
 esac
 if [ -L "$OUT_DIR" ]; then
     echo "http_authorization_service_timeout_smoke: output directory must not be a symlink" >&2

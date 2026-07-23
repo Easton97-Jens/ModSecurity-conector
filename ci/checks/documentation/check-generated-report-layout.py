@@ -346,6 +346,19 @@ def german_generated_markdown_path(path: Path) -> Path:
     return path.with_name(f"{path.stem}.de{path.suffix}")
 
 
+def has_generated_notice(
+    first_lines: list[str],
+    notices: tuple[str, ...],
+    german: bool,
+) -> bool:
+    if german:
+        return any(
+            line.strip() in {f"> {notice}" for notice in notices}
+            for line in first_lines
+        )
+    return bool(first_lines) and first_lines[0].strip() == f"> {GENERATED_NOTICE}"
+
+
 def check_markdown_metadata(path: Path, errors: list[str], connector_root: Path) -> None:
     text = path.read_text(encoding="utf-8", errors="replace")
     first_lines = text.splitlines()[:20]
@@ -353,9 +366,7 @@ def check_markdown_metadata(path: Path, errors: list[str], connector_root: Path)
     notices, generated_at, verified_run_id, data_source_policy, availability_headings, sources_headings, empty_table_markers = (
         generated_markdown_metadata_labels(german)
     )
-    if not german and (not first_lines or first_lines[0].strip() != f"> {GENERATED_NOTICE}"):
-        errors.append(f"{rel(path, connector_root)}: missing generated notice at top")
-    elif german and not any(line.strip() in {f"> {notice}" for notice in notices} for line in first_lines):
+    if not has_generated_notice(first_lines, notices, german):
         errors.append(f"{rel(path, connector_root)}: missing generated notice at top")
     if not any(label in line for label in generated_at for line in first_lines):
         errors.append(f"{rel(path, connector_root)}: missing visible generated timestamp")
