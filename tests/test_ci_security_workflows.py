@@ -323,6 +323,10 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         )
         self.assertNotIn("PyYAML>=", dependency_lock)
         self.assertIn(dependency_install, jobs["validate-submodule-update"])
+        self.assertIn(
+            f'run: "{dependency_install}"',
+            jobs["validate-submodule-update"],
+        )
         self.assertLess(
             jobs["validate-submodule-update"].index("Verify Python interpreter contract"),
             jobs["validate-submodule-update"].index(dependency_install),

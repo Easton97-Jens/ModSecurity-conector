@@ -11,7 +11,7 @@
 | Base revision | ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3 |
 | Boundary | Parent `Update submodules` read-only validation workflow, its Parent static CI-security contract, a CI-only PyYAML hash lock, this English/German Change Record pair, and both Change-Record indexes. Framework source, MRTS, Parent gitlink, development dependency declaration, action pins, permissions, and publisher behavior remain unchanged. |
 | Finding linkage | FND-PARENT-0048: current missing validation prerequisite; FND-PARENT-0045: prior Parent HAProxy fixture repair awaiting a successful hosted candidate validation. |
-| Delivery status | Local corrective PR preparation is in progress. The source branch, commit, push, PR, exact-head checks, review, SonarQube Cloud result, merge, and resulting-master verification do not yet exist. |
+| Delivery status | Draft Parent [PR #92](https://github.com/Easton97-Jens/ModSecurity-conector/pull/92) carries the corrective series. Its first head exposed the YAML-scalar regression recorded as FND-PARENT-0049; the current amendment and its exact-head checks, review, SonarQube Cloud result, merge, and resulting-master verification remain pending. |
 
 ## Motivation and problem statement
 
@@ -124,13 +124,16 @@ failure. No risk is accepted.
   because the workflow deliberately checks out `master`; it remains pending a
   separately authorized merge.
 - Exact-head GitHub Actions, review, and SonarQube Cloud outcomes do not yet
-  exist before the task branch is committed and pushed.
+  exist for the current amendment. The first Draft PR head exposed a YAML parse
+  regression before candidate validation; that task-owned defect is being
+  corrected without changing validation or publisher privileges.
 
 ## Final diff and review status
 
 The source diff is deliberately limited to the read-only hash-locked setup
 command, its static regression, and complete bilingual traceability. Local
 validation, the focused security-diff review, and the final exact diff review
-are complete; commit, push, and PR verification remain pending. No master change,
+are complete for the initial correction. The Draft PR's YAML-scalar amendment,
+its exact-head verification, and final review remain pending. No master change,
 candidate PR, Framework/MRTS action, gitlink update, or branch cleanup has
 occurred.

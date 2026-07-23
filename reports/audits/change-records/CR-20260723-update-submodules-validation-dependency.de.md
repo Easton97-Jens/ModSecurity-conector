@@ -11,7 +11,7 @@
 | Basis-Revision | ad953cdcbc8c05ede519661ca56c03cf7b1ac7f3 |
 | Grenze | Parent-`Update submodules`-read-only-Validierungsworkflow, sein Parent-static-CI-Security-Contract, ein CI-only-PyYAML-Hash-Lock, dieses englische/deutsche Change-Record-Paar und beide Change-Record-Indizes. Framework-Source, MRTS, Parent-Gitlink, die Development-Dependency-Deklaration, Action-Pins, Berechtigungen und Publisher-Verhalten bleiben unverändert. |
 | Finding-Verknüpfung | FND-PARENT-0048: aktuelle fehlende Validierungsvoraussetzung; FND-PARENT-0045: vorherige Parent-HAProxy-Fixture-Reparatur, die auf eine erfolgreiche Hosted-Candidate-Validierung wartet. |
-| Delivery-Status | Lokale Vorbereitung eines Korrektur-PR läuft. Source-Branch, Commit, Push, PR, Exact-Head-Checks, Review, SonarQube-Cloud-Ergebnis, Merge und Resulting-Master-Verifikation existieren noch nicht. |
+| Delivery-Status | Der Draft-Parent-[PR #92](https://github.com/Easton97-Jens/ModSecurity-conector/pull/92) trägt die Korrekturserie. Sein erster Head zeigte die als FND-PARENT-0049 erfasste YAML-Scalar-Regression; das aktuelle Amendment sowie seine Exact-Head-Checks, Review, SonarQube-Cloud-Ergebnis, Merge und Resulting-Master-Verifikation sind noch ausstehend. |
 
 ## Motivation und Problemstellung
 
@@ -133,7 +133,10 @@ wird akzeptiert.
   ausführbar, weil der Workflow absichtlich `master` auscheckt; er bleibt bis
   zu einem separat autorisierten Merge ausstehend.
 - Exact-Head-GitHub-Actions-, Review- und SonarQube-Cloud-Ergebnisse existieren
-  noch nicht, bevor der Task-Branch committed und gepusht ist.
+  für das aktuelle Amendment noch nicht. Der erste Draft-PR-Head zeigte vor
+  der Candidate-Validierung eine YAML-Parse-Regression; dieser task-eigene
+  Defekt wird ohne Änderung von Validierungs- oder Publisher-Privilegien
+  korrigiert.
 
 ## Finaler Diff- und Review-Status
 
@@ -141,5 +144,6 @@ Der Source-Diff ist bewusst auf den read-only-hash-gelockten Setup-Befehl,
 seine statische Regression und vollständige bilinguale Traceability begrenzt.
 Lokale Validierung, der fokussierte Security-Diff-Review und der finale
 Exact-Diff-Review sind abgeschlossen; Commit, Push und PR-Verifikation sind
-noch ausstehend. Kein Master-Change, Candidate-PR, Framework-/MRTS-Aktion,
-Gitlink-Update oder Branch-Cleanup ist erfolgt.
+für das YAML-Scalar-Amendment und finaler Review noch ausstehend. Kein Master-
+Change, Candidate-PR, Framework-/MRTS-Aktion, Gitlink-Update oder Branch-
+Cleanup ist erfolgt.
