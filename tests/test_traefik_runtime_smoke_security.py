@@ -52,6 +52,10 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
             with self.assertRaisesRegex(RUNNER.MissingDependency, "must not be group or world writable"):
                 RUNNER.require_trusted_runtime_root(root, "BUILD_ROOT", ROOT)
 
+        filesystem_root = Path(os.sep)
+        with self.assertRaisesRegex(RUNNER.MissingDependency, "too broad"):
+            RUNNER.require_trusted_runtime_root(filesystem_root, "BUILD_ROOT", ROOT)
+
     def test_symlinked_runtime_root_and_binary_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory(prefix="traefik-runtime-root-") as temporary:
             temporary_root = Path(temporary)
@@ -108,7 +112,6 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
                 )
                 self.assertEqual(connector, connector_binary)
                 self.assertEqual(traefik, traefik_binary)
+                outside_arguments = self.runtime_args(outside_binary, traefik_binary)
                 with self.assertRaisesRegex(RUNNER.MissingDependency, "must remain below"):
-                    RUNNER.resolve_runtime_binaries(
-                        self.runtime_args(outside_binary, traefik_binary), ROOT
-                    )
+                    RUNNER.resolve_runtime_binaries(outside_arguments, ROOT)

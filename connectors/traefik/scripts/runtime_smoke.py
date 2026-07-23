@@ -25,7 +25,6 @@ class MissingDependency(RuntimeError):
 
 
 RUNTIME_ROOT_ENVIRONMENTS = ("BUILD_ROOT", "CONNECTOR_COMPONENT_CACHE")
-TOO_BROAD_RUNTIME_ROOTS = frozenset((Path("/"), Path("/tmp"), Path("/var/tmp")))
 
 
 class UpstreamHandler(http.server.BaseHTTPRequestHandler):
@@ -89,7 +88,7 @@ def require_trusted_runtime_root(path: Path, label: str, repo_root: Path) -> Pat
     if not path.is_absolute():
         raise MissingDependency(f"{label} must be an existing absolute directory: {path}")
     root = Path(os.path.abspath(path))
-    if root in TOO_BROAD_RUNTIME_ROOTS:
+    if root == Path(root.anchor):
         raise MissingDependency(f"{label} is too broad for runtime inputs: {root}")
     try:
         root.relative_to(repo_root.resolve())
