@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Optional-prerequisite assertion diagnostic order for SonarQube Cloud](CR-20260723-sonar-tests-optional-prerequisite-assert-order.md)
 - [Framework gitlink update to 935cf14](CR-20260723-framework-gitlink-935cf14.md)
 - [Read-only Update-submodules runtime-path validation repair](CR-20260723-update-submodules-runtime-path-validation.md)
 - [Parent tests and Lighttpd assertion order for SonarQube Cloud S3415](CR-20260722-sonar-tests-connectors-assert-order.md)
