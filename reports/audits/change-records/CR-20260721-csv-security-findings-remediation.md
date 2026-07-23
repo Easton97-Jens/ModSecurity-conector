@@ -141,6 +141,7 @@ modified, staged, or committed by this task.
 | Current-master continuation: focused security-diff review | passed: no new plausible security regression in the reviewed ten-file remediation diff. |
 | Exact-head Sonar `S3415` assertion-order follow-up | passed: 92 focused runtime-path, bilingual-documentation, and generated-report-evidence tests after all 22 actual/expected order corrections. |
 | Current-master continuation: behaviorful timeout-smoke fake lifecycle | passed: GCC/Clang timeout-smoke compilation and execution exercise normal begin/finish ownership and count bookkeeping without changing the Common runtime ABI. |
+| Hosted exact-head CI and SonarCloud for `95c59343dca602b8b6412b307b0d0002a3dca91d` | passed for SonarCloud Quality Gate and every non-evidence GitHub check; the filtered Sonar issue query returned zero open issues. `report-governance` correctly failed only on missing/stale runtime receipts and downstream evidence. |
 
 ## Security impact
 
@@ -177,36 +178,36 @@ CSV-06 remains blocked_missing_evidence until authentic current verified
 runtime reports satisfy the strict gate. CSV-10 remains blocked_missing_evidence
 pending a pinned affected Lighttpd environment and queue/multi-chunk test
 evidence. Both remain visible in the Draft PR and are not presented as solved.
-The local S5443 source remediation is `fixed`, but it is not `verified` or
-`closed` until a normal follow-up push receives a fresh exact-head SonarQube
-Cloud Quality Gate and filtered issue readback. The shared root-local canonical
-finding store is read-only, so its required incremental FND-SONAR-0010 import
-is `blocked_permissions`; the retained task record does not claim to replace
-that import. The exact PR head still needs ordinary CI, review, and
-resulting-master evidence before any future integration decision.
-
-The behaviorful `c:S995` timeout-smoke remediation requires a fresh hosted
-exact-head Sonar readback. It does not suppress either warning or change the
-public runtime declarations solely for a style rule.
+The local S5443 source remediation and the behaviorful `c:S995` timeout-smoke
+remediation are verified on published exact head
+`95c59343dca602b8b6412b307b0d0002a3dca91d`: SonarCloud completed its new
+analysis at 2026-07-23T14:14:56Z with an `OK` Quality Gate and a filtered
+open-issue count of zero. The shared root-local canonical finding store is
+read-only, so its required incremental FND-SONAR-0010 import is
+`blocked_permissions`; this retained Change Record does not claim to replace
+that import. The exact head has passing hosted non-evidence CI, while the
+strict report-evidence gate remains intentionally blocked. Human review and
+resulting-master evidence remain required before any future integration
+decision.
 
 ## Remaining risks
 
 The local controls cannot establish the missing Framework-backed canonical
-connector checks, an affected Lighttpd runtime, a full host/connector matrix,
-or remote PR CI status. Existing incomplete report evidence remains a
-deliberate blocking condition. Descriptor metadata cannot prove host ACL
-semantics or protect against a same-UID attacker after descriptors close; a
-dir_fd-retaining sink refactor is outside this focused change. No control,
-test, scanner, branch protection, or evidence requirement was weakened to
-obtain a passing result.
+connector checks, an affected Lighttpd runtime, or a full host/connector
+matrix. Hosted exact-head CI is green apart from the deliberately strict
+report-evidence gate; incomplete report evidence remains a blocking condition.
+Descriptor metadata cannot prove host ACL semantics or protect against a
+same-UID attacker after descriptors close; a dir_fd-retaining sink refactor is
+outside this focused change. No control, test, scanner, branch protection, or
+evidence requirement was weakened to obtain a passing result.
 
 ## Delivery status
 
-This record supports the existing Parent-only Draft PR #74. It deliberately
-does not declare a current published head: every local continuation requires a
-normal commit and push followed by a fresh exact-head check snapshot. It does
-not authorize a merge, direct master push, Framework/MRTS work, history
-rewrite, or a claim that remote CI passed.
+This record supports the existing Parent-only Draft PR #74 at published head
+`95c59343dca602b8b6412b307b0d0002a3dca91d`. Its normal push and fresh
+exact-head Sonar/CI snapshot are observed. It does not authorize a merge,
+direct master push, Framework/MRTS work, history rewrite, or a claim that the
+strict report-evidence gate passed.
 
 ## Final diff and review status
 
@@ -215,5 +216,6 @@ security regression/control tests, 146-test selected Parent suite, four
 runtime-path policy controls, and bilingual Change Record tests passed. One
 Framework-backed policy checker is blocked by the intentionally absent
 Framework gitlink, and Ruff is unavailable in the selected venv. A focused
-security diff review, normal commit/push, fresh exact-head Sonar result,
-remote CI, and human review remain separate observations until they occur.
+security diff review, normal commit/push, fresh exact-head Sonar result, and
+hosted non-evidence CI have occurred; human review and genuine runtime
+evidence remain separate requirements.

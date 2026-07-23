@@ -146,6 +146,7 @@ committed.
 | Current-Master-Fortsetzung: fokussiertes Security-Diff-Review | bestanden: keine neue plausible Sicherheitsregression im geprüften Zehn-Dateien-Remediation-Diff. |
 | Exact-Head-Sonar-`S3415`-Assertion-Reihenfolgen-Follow-up | bestanden: 92 fokussierte Runtime-Pfad-, bilinguale Dokumentations- und Generated-Report-Evidence-Tests nach allen 22 Actual/Expected-Reihenfolgenkorrekturen. |
 | Current-Master-Fortsetzung: verhaltenswirksamer Timeout-Smoke-Fake-Lifecycle | bestanden: GCC-/Clang-Timeout-Smoke-Kompilierung und -Ausführung üben normales Begin/Finish-Ownership- und Count-Bookkeeping ohne Änderung der Common-Runtime-ABI. |
+| Gehostetes Exact-Head-CI und SonarCloud für `95c59343dca602b8b6412b307b0d0002a3dca91d` | bestanden für SonarCloud-Quality-Gate und alle Nicht-Evidence-GitHub-Checks; die gefilterte Sonar-Issue-Abfrage lieferte null offene Issues. `report-governance` schlug korrekt nur wegen fehlender/veralteter Runtime-Receipts und Downstream-Evidence fehl. |
 
 ## Security-Auswirkung
 
@@ -186,40 +187,39 @@ Verified-Runtime-Reports das strikte Gate erfüllen. CSV-10 bleibt
 blocked_missing_evidence, bis eine gepinnte betroffene Lighttpd-Umgebung und
 Queue-/Multi-Chunk-Test-Evidence vorliegen. Beide Punkte bleiben im Draft-PR
 sichtbar und werden nicht als gelöst dargestellt. Die lokale S5443-
-Source-Remediation ist `fixed`, aber nicht `verified` oder `closed`, bis ein
-normaler Follow-up-Push ein frisches Exact-Head-SonarQube-Cloud-Quality-Gate
-und einen gefilterten Issue-Readback erhält. Der gemeinsame root-lokale
+Source-Remediation und die verhaltenswirksame `c:S995`-
+Behebung des Timeout-Smokes sind auf dem veröffentlichten Exact Head
+`95c59343dca602b8b6412b307b0d0002a3dca91d` verifiziert: SonarCloud schloss
+seine neue Analyse am 2026-07-23T14:14:56Z mit einem `OK`-Quality-Gate und
+einem gefilterten Open-Issue-Count von null ab. Der gemeinsame root-lokale
 kanonische Finding-Store ist read-only; sein erforderlicher inkrementeller
-FND-SONAR-0010-Import ist daher `blocked_permissions`, und der retained
-Task-Record behauptet nicht, diesen Import zu ersetzen. Der exakte PR-Head
-benötigt weiterhin reguläre CI, Review und Resulting-Master-Evidence vor jeder
-späteren Integrationsentscheidung.
-
-Die verhaltenswirksame `c:S995`-Behebung des Timeout-Smokes benötigt einen
-frischen gehosteten Exact-Head-Sonar-Readback. Sie unterdrückt keinen Hinweis
-und ändert die öffentlichen Runtime-Deklarationen nicht allein für eine
-Stilregel.
+FND-SONAR-0010-Import ist daher `blocked_permissions`, und dieser retained
+Change Record behauptet nicht, ihn zu ersetzen. Der exakte Head hat
+bestandene gehostete Nicht-Evidence-CI; das strikte Report-Evidence-Gate bleibt
+absichtlich blockiert. Human Review und Resulting-Master-Evidence bleiben vor
+jeder späteren Integrationsentscheidung erforderlich.
 
 ## Verbleibende Risiken
 
 Die lokalen Kontrollen können weder die fehlenden Framework-gestützten
-kanonischen Connector-Prüfungen noch eine betroffene Lighttpd-Runtime, eine
-vollständige Host-/Connector-Matrix oder den Remote-PR-CI-Status belegen.
-Bestehende unvollständige Report-Evidence bleibt absichtlich blockierend.
-Descriptor-Metadaten können keine Host-ACL-Semantik belegen und schützen nach
-dem Schließen der Descriptors nicht gegen einen Angreifer mit derselben UID;
-ein dir_fd-haltendes Sink-Refactoring liegt außerhalb dieser fokussierten
-Änderung. Keine Kontrolle, kein Test, Scanner, Branch-Protection oder
-Evidence-Anforderung wurde für ein positives Ergebnis abgeschwächt.
+kanonischen Connector-Prüfungen noch eine betroffene Lighttpd-Runtime oder eine
+vollständige Host-/Connector-Matrix belegen. Gehostetes Exact-Head-CI ist bis
+auf das absichtlich strikte Report-Evidence-Gate grün; unvollständige
+Report-Evidence bleibt eine blockierende Bedingung. Descriptor-Metadaten können
+keine Host-ACL-Semantik belegen und schützen nach dem Schließen der Descriptors
+nicht gegen einen Angreifer mit derselben UID; ein dir_fd-haltendes
+Sink-Refactoring liegt außerhalb dieser fokussierten Änderung. Keine Kontrolle,
+kein Test, Scanner, Branch-Protection oder Evidence-Anforderung wurde für ein
+positives Ergebnis abgeschwächt.
 
 ## Delivery-Status
 
-Dieser Record unterstützt den bestehenden Parent-only-Draft-PR #74. Er nennt
-bewusst keinen aktuellen veröffentlichten Head: Jede lokale Fortsetzung
-benötigt einen normalen Commit und Push mit anschließendem frischem
-Exact-Head-Check-Snapshot. Er autorisiert weder Merge noch Direct-Master-Push,
-Framework-/MRTS-Arbeit, History-Rewrite oder die Behauptung bestandener
-Remote-CI.
+Dieser Record unterstützt den bestehenden Parent-only-Draft-PR #74 auf dem
+veröffentlichten Head `95c59343dca602b8b6412b307b0d0002a3dca91d`. Sein
+normaler Push und der frische Exact-Head-Sonar-/CI-Snapshot sind beobachtet.
+Er autorisiert weder Merge noch Direct-Master-Push, Framework-/MRTS-Arbeit,
+History-Rewrite oder die Behauptung eines bestandenen strikten
+Report-Evidence-Gates.
 
 ## Finaler Diff- und Review-Status
 
@@ -228,6 +228,7 @@ Die fokussierten Security-Regression-/Kontrolltests, die ausgewählte
 146-Test-Parent-Suite, vier Runtime-Pfad-Policy-Kontrollen und die bilingualen
 Change-Record-Tests bestanden. Ein Framework-gestützter Policy-Checker ist
 durch den absichtlich fehlenden Framework-Gitlink blockiert, und Ruff ist in
-der ausgewählten venv nicht verfügbar. Ein fokussierter Security-Diff-Review,
-normaler Commit/Push, frisches Exact-Head-Sonar-Ergebnis, Remote-CI und Human
-Review bleiben getrennte Beobachtungen, bis sie stattfinden.
+der ausgewählten venv nicht verfügbar. Fokussiertes Security-Diff-Review,
+normaler Commit/Push, frisches Exact-Head-Sonar-Ergebnis und gehostetes
+Nicht-Evidence-CI sind erfolgt; Human Review und echte Runtime-Evidence bleiben
+getrennte Anforderungen.
