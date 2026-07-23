@@ -8,11 +8,22 @@ import json
 import os
 import re
 import shlex
+import stat
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+
+# Keep external capture validation aligned with the Parent runtime-path policy.
+_CI_ROOT = next(
+    parent for parent in Path(__file__).resolve().parents if parent.name == "ci"
+)
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import is_safe_runtime_root
 
 
 class CompilationDatabaseError(RuntimeError):
@@ -36,6 +47,74 @@ def external_output_path(value: str, repository_root: Path) -> Path:
         raise CompilationDatabaseError(
             f"COMPDB_OUTPUT must be outside the checkout: {resolved}"
         )
+    return resolved
+
+
+def external_capture_root(value: str, repository_root: Path) -> Path:
+    capture_root = Path(value)
+    if not capture_root.is_absolute():
+        raise CompilationDatabaseError(
+            f"capture root must be an absolute path: {value}"
+        )
+    if capture_root.is_symlink():
+        raise CompilationDatabaseError(
+            f"capture root must not be a symlink: {capture_root}"
+        )
+    try:
+        resolved = capture_root.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise CompilationDatabaseError(
+            f"capture root cannot be resolved: {capture_root}: {error}"
+        ) from error
+    if not resolved.is_dir():
+        raise CompilationDatabaseError(f"capture root is not a directory: {resolved}")
+    if is_within(resolved, repository_root):
+        raise CompilationDatabaseError(
+            f"capture root must be outside the checkout: {resolved}"
+        )
+    if not is_safe_runtime_root(resolved):
+        raise CompilationDatabaseError(
+            f"capture root is not a safe runtime path: {resolved}"
+        )
+    metadata = resolved.stat()
+    if metadata.st_uid != os.geteuid():
+        raise CompilationDatabaseError(
+            f"capture root is not owned by the effective user: {resolved}"
+        )
+    mode = stat.S_IMODE(metadata.st_mode)
+    if mode & (stat.S_IWGRP | stat.S_IRWXO):
+        raise CompilationDatabaseError(
+            f"capture root must not be group writable or accessible by others: {resolved}"
+        )
+    return resolved
+
+
+def external_capture_input_path(
+    value: str,
+    capture_root: Path,
+    repository_root: Path,
+) -> Path:
+    capture = Path(value)
+    if not capture.is_absolute():
+        raise CompilationDatabaseError(
+            f"capture input must be an absolute path: {value}"
+        )
+    try:
+        resolved = capture.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise CompilationDatabaseError(
+            f"capture input cannot be resolved: {capture}: {error}"
+        ) from error
+    if is_within(resolved, repository_root):
+        raise CompilationDatabaseError(
+            f"capture input must be outside the checkout: {resolved}"
+        )
+    if not is_within(resolved, capture_root):
+        raise CompilationDatabaseError(
+            f"capture input must remain within capture root: {resolved}"
+        )
+    if not resolved.is_file():
+        raise CompilationDatabaseError(f"compilation database is missing: {resolved}")
     return resolved
 
 
@@ -94,6 +173,36 @@ def output_path(entry: dict[str, Any]) -> Path:
     return path.resolve(strict=False)
 
 
+def entry_paths(entry: dict[str, Any], index: int) -> tuple[Path, Path] | str:
+    try:
+        return source_path(entry), output_path(entry)
+    except CompilationDatabaseError as error:
+        return f"entry {index}: {error}"
+
+
+def entry_filter_reason(
+    source: Path,
+    output: Path,
+    index: int,
+    repository_root: Path,
+    tracked: set[Path],
+    accepted: dict[Path, dict[str, Any]],
+) -> str | None:
+    if source.suffix not in {".c", ".cc"}:
+        return f"entry {index} is not a supported C/C++ translation unit: {source}"
+    if (
+        source not in tracked
+        or not is_within(source, repository_root)
+        or not source.is_file()
+    ):
+        return f"entry {index} is not a tracked checkout source: {source}"
+    if is_within(output, repository_root):
+        return f"entry {index} writes inside the checkout: {output}"
+    if source in accepted:
+        return f"duplicate translation unit: {source}"
+    return None
+
+
 def collect_entries(
     entries: list[Any],
     repository_root: Path,
@@ -108,27 +217,21 @@ def collect_entries(
             filtered.append(f"entry {index} is not an object")
             continue
         entry = dict(raw_entry)
-        try:
-            source = source_path(entry)
-        except CompilationDatabaseError as error:
-            filtered.append(f"entry {index}: {error}")
+        paths = entry_paths(entry, index)
+        if isinstance(paths, str):
+            filtered.append(paths)
             continue
-        try:
-            output = output_path(entry)
-        except CompilationDatabaseError as error:
-            filtered.append(f"entry {index}: {error}")
-            continue
-        if source.suffix not in {".c", ".cc"}:
-            filtered.append(f"entry {index} is not a supported C/C++ translation unit: {source}")
-            continue
-        if source not in tracked or not is_within(source, repository_root) or not source.is_file():
-            filtered.append(f"entry {index} is not a tracked checkout source: {source}")
-            continue
-        if is_within(output, repository_root):
-            filtered.append(f"entry {index} writes inside the checkout: {output}")
-            continue
-        if source in accepted:
-            filtered.append(f"duplicate translation unit: {source}")
+        source, output = paths
+        reason = entry_filter_reason(
+            source,
+            output,
+            index,
+            repository_root,
+            tracked,
+            accepted,
+        )
+        if reason:
+            filtered.append(reason)
             continue
         accepted[source] = entry
     return accepted, filtered
@@ -237,6 +340,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--output", required=True, help="absolute external compilation database path")
     parser.add_argument("--input", help="Bear JSON to filter and publish")
     parser.add_argument(
+        "--capture-root",
+        help="absolute private external Bear capture directory required with --input",
+    )
+    parser.add_argument(
         "--require",
         choices=("nginx", "cpp"),
         action="append",
@@ -267,6 +374,10 @@ def main() -> int:
     if args.verify_only:
         if args.input:
             raise CompilationDatabaseError("--input cannot be combined with --verify-only")
+        if args.capture_root:
+            raise CompilationDatabaseError(
+                "--capture-root cannot be combined with --verify-only"
+            )
         existing, filtered = collect_entries(load_database(output), repository_root, tracked)
         if filtered:
             raise CompilationDatabaseError(
@@ -274,35 +385,43 @@ def main() -> int:
             )
         validate_entries(existing, repository_root, args.require)
         print(f"PASS: validated {len(existing)} unique translation units in {output}")
-        return 0
-
-    if not args.input:
-        raise CompilationDatabaseError("--input is required unless --verify-only is used")
-
-    captured, filtered = collect_entries(
-        load_database(Path(args.input)), repository_root, tracked
-    )
-    if not captured:
-        raise CompilationDatabaseError("Bear did not capture any tracked C/C++ translation units")
-
-    published: dict[Path, dict[str, Any]] = {}
-    if args.merge_existing and output.exists():
-        existing, existing_filtered = collect_entries(
-            load_database(output), repository_root, tracked
+    else:
+        if not args.input:
+            raise CompilationDatabaseError("--input is required unless --verify-only is used")
+        if not args.capture_root:
+            raise CompilationDatabaseError("--capture-root is required with --input")
+        capture_root = external_capture_root(args.capture_root, repository_root)
+        input_path = external_capture_input_path(
+            args.input,
+            capture_root,
+            repository_root,
         )
-        if existing_filtered:
-            raise CompilationDatabaseError(
-                "existing compilation database is invalid: " + "; ".join(existing_filtered)
-            )
-        validate_entries(existing, repository_root, [])
-        published.update(existing)
-    published.update(captured)
-    validate_entries(published, repository_root, args.require)
-    atomic_write(output, published)
+        captured, filtered = collect_entries(
+            load_database(input_path),
+            repository_root,
+            tracked,
+        )
+        if not captured:
+            raise CompilationDatabaseError("Bear did not capture any tracked C/C++ translation units")
 
-    for reason in filtered:
-        print(f"FILTERED: {reason}")
-    print(f"PASS: atomically published {len(published)} unique translation units to {output}")
+        published: dict[Path, dict[str, Any]] = {}
+        if args.merge_existing and output.exists():
+            existing, existing_filtered = collect_entries(
+                load_database(output), repository_root, tracked
+            )
+            if existing_filtered:
+                raise CompilationDatabaseError(
+                    "existing compilation database is invalid: " + "; ".join(existing_filtered)
+                )
+            validate_entries(existing, repository_root, [])
+            published.update(existing)
+        published.update(captured)
+        validate_entries(published, repository_root, args.require)
+        atomic_write(output, published)
+
+        for reason in filtered:
+            print(f"FILTERED: {reason}")
+        print(f"PASS: atomically published {len(published)} unique translation units to {output}")
     return 0
 
 
