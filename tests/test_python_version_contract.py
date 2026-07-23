@@ -137,8 +137,8 @@ class PythonVersionContractTest(unittest.TestCase):
             )
         (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
 
-    def test_expected_inventory_has_24_normal_jobs_and_one_special_job(self) -> None:
-        self.assertEqual(24, len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS))
+    def test_expected_inventory_has_27_normal_jobs_and_one_special_job(self) -> None:
+        self.assertEqual(27, len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS))
         self.assertNotIn(
             CHECKER.CANDIDATE_VALIDATION_JOB, CHECKER.EXPECTED_NORMAL_PYTHON_JOBS
         )
@@ -467,7 +467,7 @@ printf '%s\\n' 'make quick-check'
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(0, exit_code)
         self.assertEqual("valid", payload["status"])
-        self.assertEqual(25, len(payload["detected_python_jobs"]))
+        self.assertEqual(28, len(payload["detected_python_jobs"]))
 
 
 if __name__ == "__main__":

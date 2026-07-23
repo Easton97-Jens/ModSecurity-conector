@@ -12,6 +12,14 @@ access_c = (nginx/'ngx_http_modsecurity_access.c').read_text()
 header_c = (nginx/'ngx_http_modsecurity_header_filter.c').read_text()
 nginx_config = (ROOT/'connectors/nginx/config').read_text()
 all_nginx = '\n'.join(p.read_text(errors='ignore') for p in nginx.glob('*.c')) + common_h + mapper_h
+server_header_resolver_marker = 'static ngx_int_t\nngx_http_modsecurity_resolv_header_server'
+server_header_resolver_start = header_c.index(server_header_resolver_marker)
+server_header_resolver_end = header_c.find('\nstatic ngx_int_t\n', server_header_resolver_start + len(server_header_resolver_marker))
+server_header_resolver = header_c[server_header_resolver_start:server_header_resolver_end] if server_header_resolver_end != -1 else ''
+custom_server_header_marker = 'ngx_table_elt_t *h = r->headers_out.server;'
+custom_server_header_start = server_header_resolver.find(custom_server_header_marker)
+custom_server_header_end = server_header_resolver.find('\n#if', custom_server_header_start)
+custom_server_header_branch = server_header_resolver[custom_server_header_start:custom_server_header_end] if custom_server_header_start != -1 and custom_server_header_end != -1 else ''
 checks = [
 ('msconnector_config common_config' in common_h or 'msconnector_config        common_config' in common_h, 'NGINX config embeds msconnector_config common_config'),
 ('"msconnector/phase.h"' in common_h and 'enum msconnector_phase native_event_phase;' in common_h, 'NGINX native event phase has its complete Common enum declaration'),
@@ -48,6 +56,33 @@ checks = [
 ('event.body.content_type' in body_c and 'event.body.bytes_seen' in body_c and 'event.body.bytes_inspected' in body_c, 'NGINX Phase4 events include payload-free content-type and body-byte metadata'),
 ('ngx_str_t event_transaction_id' in common_h and 'ctx->event_transaction_id' in module_c and 'ctx->event_transaction_id' in body_c and 'event.meta.transaction_id = ctx != NULL' in body_c, 'NGINX Phase4 events retain a request-level transaction ID instead of a connection-only identifier'),
 ('MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR' not in module_c, 'NGINX does not register Apache-style transaction_id_expr'),
+(
+    'value.data = (u_char *)ngx_http_server_full_string;' in server_header_resolver
+    and 'value.len = sizeof(ngx_http_server_full_string) - 1U;' in server_header_resolver
+    and 'value.len = sizeof(ngx_http_server_full_string);' not in server_header_resolver,
+    'NGINX server_tokens default excludes the terminating NUL from the explicit Server header length',
+),
+(
+    'value.data = (u_char *)ngx_http_server_string;' in server_header_resolver
+    and 'value.len = sizeof(ngx_http_server_string) - 1U;' in server_header_resolver
+    and 'value.len = sizeof(ngx_http_server_string);' not in server_header_resolver,
+    'NGINX non-tokenized default excludes the terminating NUL from the explicit Server header length',
+),
+(
+    'ngx_table_elt_t *h = r->headers_out.server;' in custom_server_header_branch
+    and 'value.data = h->value.data;' in custom_server_header_branch
+    and re.search(r'value\.len\s*=\s*h->value\.len;', custom_server_header_branch) is not None
+    and '- 1U' not in custom_server_header_branch
+    and 'strlen(' not in custom_server_header_branch
+    and 'ngx_strlen(' not in custom_server_header_branch,
+    'NGINX custom Server headers retain the host-provided explicit length',
+),
+(
+    'return msc_add_n_response_header(ctx->modsec_transaction,' in server_header_resolver
+    and '(const unsigned char *) value.data,' in server_header_resolver
+    and 'value.len);' in server_header_resolver,
+    'NGINX Server resolver preserves the explicit-length response-header sink',
+),
 ]
 claims = ['production verified','runtime verified','full-matrix verified','crs verified']
 text = '\n'.join((ROOT/p).read_text(errors='ignore') for p in ['connectors/nginx/README.md','docs/connectors/nginx.md'] if (ROOT/p).exists()).lower()

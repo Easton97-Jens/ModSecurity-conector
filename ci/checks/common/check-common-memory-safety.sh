@@ -24,8 +24,64 @@ command -v "$CC_BIN" >/dev/null 2>&1 || { echo "BLOCKED: memory_safety missing c
 OUT="$BUILD_ROOT/common-memory-safety"; mkdir -p "$OUT"
 cat > "$OUT/smoke.c" <<'C'
 #include "msconnector/memory.h"
+
 #include <assert.h>
-int main(void){ msconnector_allocator a; void *p=0,*q=0; msconnector_allocator_init(&a, 8); assert(msconnector_alloc_checked(&a, 4, &p)); assert(p!=0); assert(a.bytes_allocated==4); assert(!msconnector_alloc_checked(&a, 9, &q)); assert(q==0); msconnector_free_checked(&a, &p, 4); assert(p==0); assert(a.bytes_allocated==0); msconnector_free_checked(&a, &p, 4); assert(p==0); assert(a.bytes_allocated==0); assert(msconnector_allocator_within_limit(&a)); return 0; }
+#include <stddef.h>
+#include <stdlib.h>
+
+typedef struct wipe_observation {
+    size_t size;
+    int all_zero;
+} wipe_observation;
+
+static void inspect_wiped_allocation(void *ptr, void *userdata)
+{
+    wipe_observation *observation = userdata;
+    const unsigned char *bytes = ptr;
+    size_t index;
+
+    observation->all_zero = 1;
+    for (index = 0U; index < observation->size; ++index) {
+        if (bytes[index] != 0U) {
+            observation->all_zero = 0;
+        }
+    }
+    free(ptr);
+}
+
+int main(void)
+{
+    msconnector_allocator allocator;
+    wipe_observation observation = {4U, 0};
+    void *pointer = 0;
+    void *too_large = 0;
+    unsigned char *bytes;
+
+    msconnector_allocator_init(&allocator, 8U);
+    assert(msconnector_alloc_checked(&allocator, 4U, &pointer));
+    assert(pointer != 0);
+    assert(allocator.bytes_allocated == 4U);
+    bytes = pointer;
+    bytes[0] = 0xA5U;
+    bytes[1] = 0x5AU;
+    bytes[2] = 0xFFU;
+    bytes[3] = 0x01U;
+    allocator.free = inspect_wiped_allocation;
+    allocator.userdata = &observation;
+    msconnector_secure_zero(pointer, observation.size);
+    assert(!msconnector_alloc_checked(&allocator, 9U, &too_large));
+    assert(too_large == 0);
+    msconnector_free_checked(&allocator, &pointer, observation.size);
+    assert(observation.all_zero);
+    assert(pointer == 0);
+    assert(allocator.bytes_allocated == 0U);
+    msconnector_secure_zero(0, 0U);
+    msconnector_free_checked(&allocator, &pointer, observation.size);
+    assert(pointer == 0);
+    assert(allocator.bytes_allocated == 0U);
+    assert(msconnector_allocator_within_limit(&allocator));
+    return 0;
+}
 C
 FLAGS="${MSCONNECTOR_CFLAGS:--std=c17 -Wall -Wextra -Werror}"
 "$CC_BIN" $FLAGS -I"$REPO_ROOT/common/include" "$OUT/smoke.c" "$REPO_ROOT/common/src/memory.c" -o "$OUT/smoke"

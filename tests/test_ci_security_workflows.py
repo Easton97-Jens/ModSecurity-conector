@@ -43,6 +43,10 @@ EXPECTED_WRITE_PERMISSIONS = {
         "contents": "write",
         "pull-requests": "write",
     },
+    ("update-go-version.yml", "create-go-update-pr"): {
+        "contents": "write",
+        "pull-requests": "write",
+    },
     ("ci-security-codeql.yml", "actions"): {
         "contents": "read",
         "security-events": "write",
@@ -213,9 +217,11 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertIn("new-results.json", text)
         self.assertNotIn("fix", text.lower())
 
-    def test_codeql_has_fixed_go_and_bounded_cpp_scope(self) -> None:
+    def test_codeql_uses_central_go_file_and_bounded_cpp_scope(self) -> None:
         text = self.workflow("ci-security-codeql.yml")
-        self.assertEqual(text.count("go-version: '1.26.5'"), 2)
+        self.assertEqual(text.count("go-version-file: .go-version"), 2)
+        self.assertEqual(text.count("check-latest: false"), 2)
+        self.assertNotIn("go-version:", text)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
         self.assertIn("make check-common-helpers-c17", text)
@@ -311,6 +317,33 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertIn("needs: resolve-submodule-update", jobs["validate-submodule-update"])
         self.assertIn("submodules: recursive", jobs["validate-submodule-update"])
         self.assertIn("make quick-check", jobs["validate-submodule-update"])
+        dependency_install = (
+            "python3 -m pip install --disable-pip-version-check --only-binary=:all: "
+            "--require-hashes --requirement "
+            "ci/requirements/update-submodules-validation-linux-x86_64.txt"
+        )
+        dependency_lock = (
+            ROOT / "ci" / "requirements" / "update-submodules-validation-linux-x86_64.txt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("PyYAML==6.0.3", dependency_lock)
+        self.assertIn(
+            "--hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5",
+            dependency_lock,
+        )
+        self.assertNotIn("PyYAML>=", dependency_lock)
+        self.assertIn(dependency_install, jobs["validate-submodule-update"])
+        self.assertIn(
+            f'run: "{dependency_install}"',
+            jobs["validate-submodule-update"],
+        )
+        self.assertLess(
+            jobs["validate-submodule-update"].index("Verify Python interpreter contract"),
+            jobs["validate-submodule-update"].index(dependency_install),
+        )
+        self.assertLess(
+            jobs["validate-submodule-update"].index(dependency_install),
+            jobs["validate-submodule-update"].index("make quick-check"),
+        )
         self.assertNotIn("GH_TOKEN", jobs["validate-submodule-update"])
         self.assertNotIn("secrets.", jobs["validate-submodule-update"])
 
@@ -408,6 +441,71 @@ class CiSecurityWorkflowTest(unittest.TestCase):
             'scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json',
             candidate,
         )
+
+    def test_go_patch_updater_separates_trusted_stages_and_writer_scope(self) -> None:
+        workflow_name = "update-go-version.yml"
+        jobs = self.jobs(workflow_name)
+        self.assertEqual(
+            set(jobs),
+            {
+                "resolve-go-patch",
+                "validate-go-patch",
+                "create-go-update-pr",
+            },
+        )
+        trusted_default_ref = "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
+        for job_name in ("resolve-go-patch", "validate-go-patch", "create-go-update-pr"):
+            self.assertIn(trusted_default_ref, jobs[job_name], job_name)
+            checkouts = checkout_step_blocks(jobs[job_name])
+            self.assertEqual(len(checkouts), 1, job_name)
+            self.assertIn("ref: ${{ github.event.repository.default_branch }}", checkouts[0], job_name)
+            self.assertIn("submodules: false", checkouts[0], job_name)
+            self.assertIn("persist-credentials: false", checkouts[0], job_name)
+            self.assertNotIn("secrets.", jobs[job_name], job_name)
+
+        self.assertEqual(job_permissions(jobs["resolve-go-patch"]), {"contents": "read"})
+        self.assertEqual(job_permissions(jobs["validate-go-patch"]), {"contents": "read"})
+        resolver = jobs["resolve-go-patch"]
+        self.assertIn("go-version-file: .go-version", resolver)
+        self.assertIn("check-latest: false", resolver)
+        self.assertIn("cache: false", resolver)
+        self.assertIn("make check-go-version-contract", resolver)
+        self.assertIn('scripts/update-go-version.py --check --json', resolver)
+
+        candidate = jobs["validate-go-patch"]
+        self.assertIn("go-version: ${{ needs.resolve-go-patch.outputs.version }}", candidate)
+        self.assertIn("GOTOOLCHAIN: local", candidate)
+        self.assertEqual(candidate.count("go test -mod=readonly ./..."), 2)
+        self.assertEqual(candidate.count("go build -mod=readonly ./..."), 2)
+        self.assertEqual(candidate.count("go mod verify"), 2)
+        self.assertIn('scripts/update-go-version.py --check --expected-version "$CANDIDATE_VERSION" --json', candidate)
+        self.assertIn("tests.test_update_go_version", candidate)
+        self.assertIn("tests.test_go_version_contract", candidate)
+
+        publisher = jobs["create-go-update-pr"]
+        self.assertEqual(
+            job_permissions(publisher),
+            {"contents": "write", "pull-requests": "write"},
+        )
+        self.assertNotIn("actions: write", publisher)
+        self.assertNotIn("actions/setup-go@", publisher)
+        self.assertNotIn("submodules: recursive", publisher)
+        self.assertNotIn("git submodule", publisher)
+        self.assertNotIn("make ", publisher)
+        self.assertNotIn("--force", publisher)
+        self.assertNotIn("--force-with-lease", publisher)
+        self.assertIn('python3 scripts/update-go-version.py --update --expected-version "$CANDIDATE_VERSION" --json', publisher)
+        self.assertIn("UPDATE_BRANCH: automation/update-go-126", publisher)
+        self.assertIn('PR_TITLE: "chore(ci): propose Go 1.26 patch update"', publisher)
+        self.assertIn("if [ \"$changed_paths\" != \".go-version\" ]; then", publisher)
+        self.assertIn('git update-index --add --cacheinfo 100644 "$candidate_blob" .go-version', publisher)
+        self.assertIn("git push origin \"$UPDATE_BRANCH\"", publisher)
+        self.assertIn("--draft", publisher)
+        self.assertIn("gh pr edit \"$existing_pr\"", publisher)
+        self.assertIn("scripts/select-python-update-pr.py", publisher)
+        self.assertIn("## English", publisher)
+        self.assertIn("## Deutsch", publisher)
+        self.assertIn("Module directives: unchanged", publisher)
 
     def test_sarif_upload_permissions_are_scoped(self) -> None:
         codeql = self.workflow("ci-security-codeql.yml")
