@@ -7,6 +7,8 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Framework-Gitlink-Update auf 935cf14](CR-20260723-framework-gitlink-935cf14.de.md)
+- [Reparatur der read-only Update-Submodules-Runtime-Pfad-Validierung](CR-20260723-update-submodules-runtime-path-validation.de.md)
 - [Reparatur der read-only Update-Submodules-Validierungsabhängigkeit](CR-20260723-update-submodules-validation-dependency.de.md)
 - [Parent-CI- und Scripts-Literal-Deduplizierung für SonarQube Cloud S1192](CR-20260722-sonar-ci-scripts-literals.de.md)
 - [CodeQL-Action-4.37.3-Batch](CR-20260722-codeql-action-4-37-3-batch.de.md)
