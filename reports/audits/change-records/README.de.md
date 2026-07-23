@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [GitHub-Actions-Updater-Parser- und Komplexitätsbehebung](CR-20260723-sonar-actions-updater-parser.de.md)
 - [Envoy-Go-Dependency-Sicherheitsgrenzen](CR-20260723-envoy-go-dependency-security-floors.de.md)
 - [Framework-Gitlink-Update auf 935cf14](CR-20260723-framework-gitlink-935cf14.de.md)
 - [Reparatur der read-only Update-Submodules-Runtime-Pfad-Validierung](CR-20260723-update-submodules-runtime-path-validation.de.md)
