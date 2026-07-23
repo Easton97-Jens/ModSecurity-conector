@@ -105,6 +105,60 @@ class RuntimePathPolicyTest(unittest.TestCase):
 
         checker.check_python_policy()
 
+    def test_shell_policy_allows_framework_to_reject_source_roots_as_runtime_paths(self) -> None:
+        """A source root is non-system/read-only, not a required write-safe path."""
+        spec = importlib.util.spec_from_file_location("runtime_path_policy_checker", CHECKER)
+        assert spec is not None and spec.loader is not None
+        checker = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = checker
+        spec.loader.exec_module(checker)
+
+        source_paths = (
+            "/src",
+            "/src/ModSecurity-conector-build",
+            str(ROOT),
+            str(ROOT / "build"),
+        )
+        system_paths = (
+            "/var",
+            "/var/lib/foo",
+            "/var/log/foo",
+            "/var/cache/foo",
+            "/etc/foo",
+            "/usr/local/foo",
+        )
+        calls: list[str] = []
+        original_shell_status = checker.shell_status
+
+        def candidate_shell_status(script: str) -> int:
+            calls.append(script)
+            if "ci_path_is_system_path" in script:
+                return 0 if any(checker.sh_quote(path) in script for path in system_paths) else 1
+            if "assert_safe_runtime_path" in script:
+                if any(
+                    f"assert_safe_runtime_path {checker.sh_quote(path)} test_path" in script
+                    for path in source_paths
+                ):
+                    return 77
+                if "assert_safe_runtime_path /root/.local/state/foo test_path" in script:
+                    return 77
+                return 0
+            if "HAPROXY_SMOKE_POLICY_SELFTEST=1" in script:
+                return 77 if any(f"SOURCE_ROOT={checker.sh_quote(path)}" in script for path in system_paths) else 0
+            return 0
+
+        try:
+            checker.shell_status = candidate_shell_status
+            checker.check_shell_policy()
+        finally:
+            checker.shell_status = original_shell_status
+
+        for source_path in source_paths:
+            self.assertNotIn(
+                f"assert_safe_runtime_path {checker.sh_quote(source_path)} test_path",
+                calls,
+            )
+
     def test_default_policy_selftest_ignores_caller_cache_overrides(self) -> None:
         """A custom verified root must not poison the checker’s default probe."""
         with tempfile.TemporaryDirectory(prefix="runtime-path-policy-") as temporary:

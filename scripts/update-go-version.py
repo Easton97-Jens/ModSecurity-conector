@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safely check or update the repository's Python 3.14 patch version."""
+"""Safely check or update the repository's Go 1.26 patch version."""
 
 from __future__ import annotations
 
@@ -19,40 +19,40 @@ from version_updater_common import (
 )
 
 
-CANONICAL_RELEASE_API_URL = "https://www.python.org/api/v2/downloads/release/?is_published=true"
+CANONICAL_RELEASE_API_URL = "https://go.dev/dl/?mode=json"
 RELEASE_API_URL = CANONICAL_RELEASE_API_URL
-VERSION_FILENAME = ".python-version"
-VERSION_RE = re.compile(r"^3\.14\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
-RELEASE_NAME_RE = re.compile(r"^Python 3\.14\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
+VERSION_FILENAME = ".go-version"
+VERSION_RE = re.compile(r"^1\.26\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
+RELEASE_VERSION_RE = re.compile(r"^go1\.26\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
 RELEASE_ENDPOINT = ReleaseEndpoint(
     canonical_url=CANONICAL_RELEASE_API_URL,
-    hostname="www.python.org",
-    path="/api/v2/downloads/release/",
-    query="is_published=true",
-    endpoint_name="Python.org",
-    user_agent="modsecurity-python-version-updater",
+    hostname="go.dev",
+    path="/dl/",
+    query="mode=json",
+    endpoint_name="go.dev",
+    user_agent="modsecurity-go-version-updater",
 )
 
 
 @dataclass(frozen=True, order=True)
-class PythonVersion:
-    """A validated stable Python 3.14 patch version."""
+class GoVersion:
+    """A validated stable Go 1.26 patch version."""
 
     patch: int
 
     def __str__(self) -> str:
-        return f"3.14.{self.patch}"
+        return f"1.26.{self.patch}"
 
 
-def parse_stable_version(value: object) -> PythonVersion:
+def parse_stable_version(value: object) -> GoVersion:
     """Return a stable supported version or reject every other representation."""
 
     if type(value) is not str:
-        raise VersionError("version must be a string in the exact form 3.14.N")
+        raise VersionError("version must be a string in the exact form 1.26.N")
     match = VERSION_RE.fullmatch(value)
     if match is None:
-        raise VersionError("version must be an exact stable 3.14.N value with nonnegative N")
-    return PythonVersion(patch=int(match.group("patch")))
+        raise VersionError("version must be an exact stable 1.26.N value with nonnegative N")
+    return GoVersion(patch=int(match.group("patch")))
 
 
 def _validate_release_endpoint(url: object) -> None:
@@ -67,39 +67,31 @@ def fetch_release_metadata(opener: object | None = None) -> object:
     return _fetch_release_metadata(RELEASE_API_URL, RELEASE_ENDPOINT, opener=opener)
 
 
-def _required_boolean(record: dict[str, object], field: str, index: int) -> bool:
-    value = record.get(field, _UNSET)
-    if type(value) is not bool:
-        raise MetadataError(f"release metadata record {index} has an invalid {field}")
-    return value
-
-
-def select_latest_stable_version(metadata: object) -> PythonVersion:
-    """Select the highest published, non-prerelease stable 3.14 patch."""
+def select_latest_stable_version(metadata: object) -> GoVersion:
+    """Select the highest stable Go 1.26 patch from official release metadata."""
 
     if type(metadata) is not list:
         raise MetadataError("release metadata must be a JSON array")
 
-    candidates: list[PythonVersion] = []
+    candidates: list[GoVersion] = []
     for index, record in enumerate(metadata):
         if type(record) is not dict:
             raise MetadataError(f"release metadata record {index} is not an object")
-        name = record.get("name", _UNSET)
-        if type(name) is not str:
-            raise MetadataError(f"release metadata record {index} has an invalid name")
-        if not _required_boolean(record, "is_published", index):
-            raise MetadataError("release metadata contained an unpublished release")
-        pre_release = _required_boolean(record, "pre_release", index)
-        if not name.startswith("Python 3.14.") or pre_release:
+        raw_version = record.get("version", _UNSET)
+        stable = record.get("stable", _UNSET)
+        if type(raw_version) is not str:
+            raise MetadataError(f"release metadata record {index} has an invalid version")
+        if type(stable) is not bool:
+            raise MetadataError(f"release metadata record {index} has an invalid stable flag")
+        if not stable or not raw_version.startswith("go1.26."):
             continue
-
-        match = RELEASE_NAME_RE.fullmatch(name)
+        match = RELEASE_VERSION_RE.fullmatch(raw_version)
         if match is None:
-            raise MetadataError(f"release metadata record {index} has an invalid stable 3.14 name")
-        candidates.append(PythonVersion(patch=int(match.group("patch"))))
+            raise MetadataError(f"release metadata record {index} has an invalid stable Go 1.26 version")
+        candidates.append(GoVersion(patch=int(match.group("patch"))))
 
     if not candidates:
-        raise MetadataError("release metadata contains no published stable Python 3.14 patch")
+        raise MetadataError("release metadata contains no stable Go 1.26 patch")
     return max(candidates)
 
 
@@ -107,7 +99,7 @@ def resolve_latest_stable_version(
     *,
     opener: object | None = None,
     metadata: object = _UNSET,
-) -> PythonVersion:
+) -> GoVersion:
     """Resolve metadata through an injectable offline seam for focused tests."""
 
     if metadata is _UNSET:
@@ -118,8 +110,8 @@ def resolve_latest_stable_version(
 _RUNTIME = UpdaterRuntime(
     script_path=__file__,
     version_filename=VERSION_FILENAME,
-    version_label="Python",
-    version_metavar="3.14.N",
+    version_label="Go",
+    version_metavar="1.26.N",
     description=__doc__,
     parse_stable_version=parse_stable_version,
     resolve_latest_stable_version=resolve_latest_stable_version,

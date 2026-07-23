@@ -101,6 +101,13 @@ INSECURE_REPO_URL_PATTERNS = (
     "git://github.com",
 )
 
+PATH_FALLBACK_SOURCE = "PATH fallback"
+SHELL_PATH = "/bin/sh"
+SHELL_EXECUTABLE_CHECK_SOURCE = "/bin/sh executable check"
+APACHE_HTTPD_TOOL = "apache/httpd"
+MARKDOWN_FIELD_VALUE_HEADER = "| Field | Value |"
+MARKDOWN_FIELD_VALUE_SEPARATOR = "|---|---|"
+
 
 @dataclass(frozen=True)
 class ToolSpec:
@@ -470,10 +477,10 @@ def resolve_tool(spec: ToolSpec, cwd: Path, framework_env: dict[str, Any], initi
             candidates.append(candidate)
     if spec.sys_executable_fallback:
         candidates.append((sys.executable, "current sys.executable"))
-    candidates.extend((name, "PATH fallback") for name in spec.path_fallbacks)
+    candidates.extend((name, PATH_FALLBACK_SOURCE) for name in spec.path_fallbacks)
 
     attempted_command = spec.path_fallbacks[0] if spec.path_fallbacks else spec.tool
-    source = "PATH fallback"
+    source = PATH_FALLBACK_SOURCE
     resolved_command: str | None = None
     prefix_args: list[str] = []
     resolution_error = "command not found"
@@ -489,7 +496,7 @@ def resolve_tool(spec: ToolSpec, cwd: Path, framework_env: dict[str, Any], initi
             resolution_error = ""
             resolution_rc = 0
             break
-        if candidate_source != "PATH fallback":
+        if candidate_source != PATH_FALLBACK_SOURCE:
             resolved_command = resolved
             resolution_error = error
             resolution_rc = rc
@@ -502,7 +509,7 @@ def resolve_tool(spec: ToolSpec, cwd: Path, framework_env: dict[str, Any], initi
         return {
             "tool": spec.tool,
             "status": "missing",
-            "resolved_command": resolved_command if source != "PATH fallback" else None,
+            "resolved_command": resolved_command if source != PATH_FALLBACK_SOURCE else None,
             "attempted_command": attempted_command,
             "source": source,
             "candidates": unique_candidates([item for item, _source in candidates]),
@@ -541,7 +548,7 @@ def resolve_python_tool(cwd: Path, framework_env: dict[str, Any], initial_env: d
         helper_output = helper.get("output_excerpt", "").splitlines()[0] if helper.get("output_excerpt") else ""
         if helper.get("return_code") == 0 and helper_output:
             candidates.append((helper_output, "ci_python from framework common.sh"))
-    candidates.extend((item, "PATH fallback") for item in ("python3", "python"))
+    candidates.extend((item, PATH_FALLBACK_SOURCE) for item in ("python3", "python"))
 
     effective_env = dict(common_env(framework_env) or initial_env)
     for value, source in candidates:
@@ -558,7 +565,7 @@ def resolve_python_tool(cwd: Path, framework_env: dict[str, Any], initial_env: d
                 cwd=cwd,
                 notes="resolved by Make PYTHON, ci_python, then python3/python fallback",
             )
-        if source != "PATH fallback":
+        if source != PATH_FALLBACK_SOURCE:
             return make_tool_record(
                 tool="python",
                 status="missing",
@@ -575,7 +582,7 @@ def resolve_python_tool(cwd: Path, framework_env: dict[str, Any], initial_env: d
         status="missing",
         resolved_command=None,
         attempted_command="python",
-        source="PATH fallback",
+        source=PATH_FALLBACK_SOURCE,
         candidates=[candidate for candidate, _source in candidates],
         version_output="no candidate found: python3 python",
         return_code=127,
@@ -584,15 +591,15 @@ def resolve_python_tool(cwd: Path, framework_env: dict[str, Any], initial_env: d
 
 
 def resolve_sh_tool(cwd: Path) -> dict[str, Any]:
-    sh_path = Path("/bin/sh")
+    sh_path = Path(SHELL_PATH)
     if not sh_path.exists():
         return make_tool_record(
             tool="sh",
             status="missing",
             resolved_command=None,
-            attempted_command="/bin/sh",
-            source="/bin/sh executable check",
-            candidates=["/bin/sh"],
+            attempted_command=SHELL_PATH,
+            source=SHELL_EXECUTABLE_CHECK_SOURCE,
+            candidates=[SHELL_PATH],
             version_output="file not found",
             return_code=127,
             notes="checked /bin/sh without using unsupported --version",
@@ -602,9 +609,9 @@ def resolve_sh_tool(cwd: Path) -> dict[str, Any]:
             tool="sh",
             status="missing",
             resolved_command=str(sh_path),
-            attempted_command="/bin/sh",
-            source="/bin/sh executable check",
-            candidates=["/bin/sh"],
+            attempted_command=SHELL_PATH,
+            source=SHELL_EXECUTABLE_CHECK_SOURCE,
+            candidates=[SHELL_PATH],
             version_output="not executable",
             return_code=126,
             notes="checked /bin/sh without using unsupported --version",
@@ -616,9 +623,9 @@ def resolve_sh_tool(cwd: Path) -> dict[str, Any]:
         tool="sh",
         status="present" if result["return_code"] == 0 else "error",
         resolved_command=resolved,
-        attempted_command="/bin/sh",
-        source="/bin/sh executable check",
-        candidates=["/bin/sh"],
+        attempted_command=SHELL_PATH,
+        source=SHELL_EXECUTABLE_CHECK_SOURCE,
+        candidates=[SHELL_PATH],
         version_output=version_output,
         return_code=result["return_code"],
         notes="checked shell availability with /bin/sh -c instead of sh --version",
@@ -665,7 +672,7 @@ def resolve_haproxy_tool(cwd: Path, framework_env: dict[str, Any], initial_env: 
     return resolve_candidate_list(
         tool="haproxy",
         candidates=["haproxy"],
-        source="PATH fallback",
+        source=PATH_FALLBACK_SOURCE,
         version_args=("-vv",),
         cwd=cwd,
         env=effective_env,
@@ -772,7 +779,7 @@ def resolve_apache_tool(
         resolved, error, rc = command_exists(value, cwd, effective_env)
         if rc == 0 and resolved is not None:
             return run_resolved_tool(
-                tool="apache/httpd",
+                tool=APACHE_HTTPD_TOOL,
                 resolved_command=resolved,
                 attempted_command=value,
                 source=source,
@@ -782,7 +789,7 @@ def resolve_apache_tool(
                 notes=f"{var_name} is set and executable",
             )
         return make_tool_record(
-            tool="apache/httpd",
+            tool=APACHE_HTTPD_TOOL,
             status="missing",
             resolved_command=resolved,
             attempted_command=value,
@@ -801,7 +808,7 @@ def resolve_apache_tool(
             resolved, error, rc = command_exists(helper_output, cwd, effective_env)
             if rc == 0 and resolved is not None:
                 return run_resolved_tool(
-                    tool="apache/httpd",
+                    tool=APACHE_HTTPD_TOOL,
                     resolved_command=resolved,
                     attempted_command=helper_output,
                     source="ci_resolve_apache_from_apxs from framework common.sh",
@@ -811,7 +818,7 @@ def resolve_apache_tool(
                     notes="resolved Apache binary through APXS helper",
                 )
             return make_tool_record(
-                tool="apache/httpd",
+                tool=APACHE_HTTPD_TOOL,
                 status="missing",
                 resolved_command=resolved,
                 attempted_command=helper_output,
@@ -824,7 +831,7 @@ def resolve_apache_tool(
 
     candidates, source = framework_candidate_values("CI_APACHE_BIN_CANDIDATES", initial_env, framework_env)
     return resolve_candidate_list(
-        tool="apache/httpd",
+        tool=APACHE_HTTPD_TOOL,
         candidates=candidates,
         source=source,
         version_args=("-v",),
@@ -867,7 +874,7 @@ def resolve_apachectl_tool(cwd: Path, framework_env: dict[str, Any], initial_env
     return resolve_candidate_list(
         tool="apachectl",
         candidates=apachectl_candidates or ["apachectl"],
-        source=source if apachectl_candidates else "PATH fallback",
+        source=source if apachectl_candidates else PATH_FALLBACK_SOURCE,
         version_args=("-v",),
         cwd=cwd,
         env=effective_env,
@@ -1084,7 +1091,7 @@ def runtime_component_readiness(tools: list[dict[str, Any]], framework_env: dict
     haproxy = tool_by_name(tools, "haproxy")
     nginx = tool_by_name(tools, "nginx")
     apxs = tool_by_name(tools, "apxs")
-    apache = tool_by_name(tools, "apache/httpd")
+    apache = tool_by_name(tools, APACHE_HTTPD_TOOL)
     go_ftw = tool_by_name(tools, "go-ftw")
     albedo = tool_by_name(tools, "albedo")
     apache_status = "present" if apxs.get("status") == "present" or apache.get("status") == "present" else "missing"
@@ -1239,7 +1246,7 @@ def verified_producer_readiness(
     }
     native_missing = tool_missing(
         tools,
-        ("go-ftw", "albedo", "apachectl", "apache/httpd", "nginx", "apxs"),
+        ("go-ftw", "albedo", "apachectl", APACHE_HTTPD_TOOL, "nginx", "apxs"),
     )
     full_matrix = command_record(commands, "full-matrix-parallel")
     full_matrix_status = producer_status(commands, "full-matrix-parallel")
@@ -1302,8 +1309,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "",
         "## Proof Status",
         "",
-        "| Field | Value |",
-        "|---|---|",
+        MARKDOWN_FIELD_VALUE_HEADER,
+        MARKDOWN_FIELD_VALUE_SEPARATOR,
         f"| Proof generation status | `{payload.get('proof_generation_status', '-')}` |",
         f"| Embedded strict evidence gate | `{payload.get('embedded_strict_evidence_gate', '-')}` |",
         f"| Overall target status | `{payload.get('overall_target_status', '-')}` |",
@@ -1311,8 +1318,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "",
         "## OS / System",
         "",
-        "| Field | Value |",
-        "|---|---|",
+        MARKDOWN_FIELD_VALUE_HEADER,
+        MARKDOWN_FIELD_VALUE_SEPARATOR,
         f"| OS Name | {os_info.get('name', '-')} |",
         f"| OS Version | {os_info.get('version', '-')} |",
         f"| Kernel | {os_info.get('kernel', '-')} |",
@@ -1323,8 +1330,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "",
         "## Framework Environment Resolution",
         "",
-        "| Field | Value |",
-        "|---|---|",
+        MARKDOWN_FIELD_VALUE_HEADER,
+        MARKDOWN_FIELD_VALUE_SEPARATOR,
         f"| Framework root | {md_code(framework_env.get('framework_root'))} |",
         f"| common.sh path | {md_code(framework_env.get('common_sh_path'))} |",
         f"| common.sh status | {md_code(framework_env.get('common_sh_status'))} |",
@@ -1372,8 +1379,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "",
             "## NGINX Runtime Module Readiness",
             "",
-            "| Field | Value |",
-            "|---|---|",
+            MARKDOWN_FIELD_VALUE_HEADER,
+            MARKDOWN_FIELD_VALUE_SEPARATOR,
             f"| NGINX_BIN | {md_code(nginx_module.get('NGINX_BIN', ''))} |",
             f"| NGINX_MODULE_DIR | {md_code(nginx_module.get('NGINX_MODULE_DIR', ''))} |",
             f"| ModSecurity module path | {md_code(nginx_module.get('ModSecurity module path', ''))} |",
@@ -1430,8 +1437,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "",
             "## Python Environment",
             "",
-            "| Field | Value |",
-            "|---|---|",
+            MARKDOWN_FIELD_VALUE_HEADER,
+            MARKDOWN_FIELD_VALUE_SEPARATOR,
             f"| sys.version | `{python_info.get('sys_version', '-')}` |",
             f"| sys.executable | `{python_info.get('sys_executable', '-')}` |",
             f"| sys.platform | `{python_info.get('sys_platform', '-')}` |",
@@ -1458,7 +1465,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "## Report Layout Evidence",
             "",
             "| Metric | Value |",
-            "|---|---|",
+            MARKDOWN_FIELD_VALUE_SEPARATOR,
             f"| Generated report files | {layout['generated_report_files']} |",
             f"| Flat files in generated root | {layout['flat_files_in_generated_root']} |",
             f"| Categories | {layout['category_count']} ({', '.join(layout['categories'])}) |",

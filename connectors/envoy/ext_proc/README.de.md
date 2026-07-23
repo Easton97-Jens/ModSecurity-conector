@@ -41,6 +41,24 @@ Die angeheftete Abhängigkeit ist das offiziell generierte Envoy Go API-Modul in
 Envoy-Version (`1.38.2`) und `../config/envoy-ext-proc-streaming.yaml.in` werden verwendet
 nur `STREAMED` Körpermodi, niemals `BUFFERED`.
 
+## Mindestversionen für die Abhängigkeitssicherheit
+
+Das Modul hält für die aktuell triagierten Dependency-Advisories mindestens
+folgende stabile Auswahlen ein:
+
+- `google.golang.org/grpc` `v1.82.1` oder höher;
+- `golang.org/x/net` `v0.56.0` oder höher;
+- `golang.org/x/sys` `v0.46.0` oder höher; und
+- `golang.org/x/text` `v0.39.0` oder höher.
+
+`tests/test_ci_security_workflows.py` prüft diese Grenzen als semantische
+Versionsuntergrenzen. Damit bleibt ein späteres stabiles Sicherheitsupdate
+zulässig, während ein Downgrade den fokussierten CI-Sicherheitsvertrag verletzt.
+Die Grenze belegt die ausgewählten Modulversionen; sie belegt weder die
+Erreichbarkeit eines Advisories noch ersetzt sie Go-Modultests oder behauptet,
+dass ein gehosteter Dependabot-, OSV- oder Scorecard-Alert bereits aktualisiert
+wurde.
+
 ## Explizite Nichteinforderungen und verspätetes Handeln
 
 Der ausgelieferte Build verwendet `-tags libmodsecurity`; Ein Go-Build, der nur aus der Quelle stammt, behält a

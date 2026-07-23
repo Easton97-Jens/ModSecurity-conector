@@ -8,6 +8,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MARKER = "<!-- Generated from scripts/generate_connector_guides.py; do not edit directly. -->"
+REQUIRED_CANONICAL_RULE_RUNS = "Required for canonical rule runs"
+ABSOLUTE_RULES_FILE_PATH = "absolute rules-file path"
+MAKE_DEFAULT_OR_CALLER = "Make default or caller"
+NO_CRS_RULES_FILE = "`/etc/modsecurity/no-crs-baseline.conf`"
+PROVISIONING_OR_CALLER = "Provisioning or caller"
+FRAMEWORK_PROVIDER_PIN_OR_CALLER = "Framework/provider pin or caller"
+ABSOLUTE_BUILD_DIRECTORY = "absolute build directory"
 
 
 CONNECTORS = {
@@ -20,7 +27,7 @@ CONNECTORS = {
         "build_de": "`make build-apache` bereitet den ausgewählten Hostpfad vor; `make check-config-apache` führt den Konfigurationscheck aus.",
         "config": "Apache directives are registered by the adapter. The documented examples use `modsecurity on`, `modsecurity_rules_file`, and existing bounded Phase-4 controls.",
         "config_de": "Apache-Direktiven werden vom Adapter registriert. Die dokumentierten Beispiele verwenden `modsecurity on`, `modsecurity_rules_file` und vorhandene begrenzte Phase-4-Controls.",
-        "variables": [("APXS / APXS_BIN", "Optional", "path to an executable APXS", "Set by the operator or provisioning", "`/usr/bin/apxs`"), ("APACHE_BIN / APACHECTL_BIN", "Optional", "path to httpd/apachectl", "Set by provisioning or operator", "`/usr/sbin/apachectl`"), ("BUILD_HTTPD_FROM_SOURCE", "Optional", "`0` or `1`", "Make caller", "`1`"), ("NO_CRS_RULES_FILE", "Required for canonical rule runs", "absolute rules-file path", "Make default or caller", "`/etc/modsecurity/no-crs-baseline.conf`")],
+        "variables": [("APXS / APXS_BIN", "Optional", "path to an executable APXS", "Set by the operator or provisioning", "`/usr/bin/apxs`"), ("APACHE_BIN / APACHECTL_BIN", "Optional", "path to httpd/apachectl", "Set by provisioning or operator", "`/usr/sbin/apachectl`"), ("BUILD_HTTPD_FROM_SOURCE", "Optional", "`0` or `1`", "Make caller", "`1`"), ("NO_CRS_RULES_FILE", REQUIRED_CANONICAL_RULE_RUNS, ABSOLUTE_RULES_FILE_PATH, MAKE_DEFAULT_OR_CALLER, NO_CRS_RULES_FILE)],
         "limit": "Strict late behavior is a host-specific boundary; this guide does not promote a universal status rewrite after commitment.",
         "limit_de": "Strict-Late-Verhalten ist eine host-spezifische Grenze; dieser Leitfaden promotet keine universelle Statusumschreibung nach dem Commit.",
     },
@@ -33,7 +40,7 @@ CONNECTORS = {
         "build_de": "`make build-nginx` bereitet den ausgewählten Hostpfad vor; `make check-config-nginx` validiert die erzeugte Konfiguration.",
         "config": "The adapter uses existing NGINX directives such as `modsecurity on` and `modsecurity_rules_file`. The dynamic module, prefix, and phase-4 mode are selected by existing harness variables.",
         "config_de": "Der Adapter verwendet vorhandene NGINX-Direktiven wie `modsecurity on` und `modsecurity_rules_file`. Dynamisches Modul, Prefix und Phase-4-Modus werden über vorhandene Harness-Variablen gewählt.",
-        "variables": [("NGINX_PREFIX", "Optional", "absolute generated prefix", "Provisioning or caller", "`/srv/modsecurity-work/nginx-runtime/nginx`"), ("NGINX_BINARY", "Optional", "executable NGINX path", "Derived from `NGINX_PREFIX`", "`<nginx-prefix>/sbin/nginx`"), ("NGINX_MODULE", "Optional", "dynamic module path", "Derived from `NGINX_PREFIX`", "`<nginx-prefix>/modules/ngx_http_modsecurity_module.so`"), ("NGINX_PHASE4_MODE", "Optional", "`minimal`, `safe`, or `strict` where host supports it", "Caller/harness", "`safe`")],
+        "variables": [("NGINX_PREFIX", "Optional", "absolute generated prefix", PROVISIONING_OR_CALLER, "`/srv/modsecurity-work/nginx-runtime/nginx`"), ("NGINX_BINARY", "Optional", "executable NGINX path", "Derived from `NGINX_PREFIX`", "`<nginx-prefix>/sbin/nginx`"), ("NGINX_MODULE", "Optional", "dynamic module path", "Derived from `NGINX_PREFIX`", "`<nginx-prefix>/modules/ngx_http_modsecurity_module.so`"), ("NGINX_PHASE4_MODE", "Optional", "`minimal`, `safe`, or `strict` where host supports it", "Caller/harness", "`safe`")],
         "limit": "Strict is a separate host capability. The selected evidence documents Safe post-commit semantics without claiming a rewritten response after commitment.",
         "limit_de": "Strict ist eine separate Hostfähigkeit. Die ausgewählte Evidence dokumentiert Safe-Post-Commit-Semantik ohne eine umgeschriebene Response nach dem Commit zu behaupten.",
     },
@@ -46,7 +53,7 @@ CONNECTORS = {
         "build_de": "`make build-haproxy` bereitet den gepinnten Overlay-Pfad vor; `make check-haproxy-htx-overlay` validiert den Source-Vertrag.",
         "config": "The selected full-lifecycle path is the native HTX filter. It is not the historical SPOE/SPOP compatibility example.",
         "config_de": "Der ausgewählte Full-Lifecycle-Pfad ist der native HTX-Filter. Er ist nicht das historische SPOE/SPOP-Kompatibilitätsbeispiel.",
-        "variables": [("HAPROXY_VERSION", "Optional", "selected host version", "Framework/provider pin or caller", "the current provider pin"), ("HAPROXY_SOURCE_URL", "Optional", "HTTPS archive URL", "Framework/provider pin or caller", "pinned source URL"), ("HAPROXY_SHA256", "Optional", "64-character SHA-256", "Framework/provider pin or caller", "pinned digest"), ("HAPROXY_RUNTIME_BUILD_DIR", "Optional", "absolute build directory", "Provisioning", "`<build-root>/haproxy-runtime`")],
+        "variables": [("HAPROXY_VERSION", "Optional", "selected host version", FRAMEWORK_PROVIDER_PIN_OR_CALLER, "the current provider pin"), ("HAPROXY_SOURCE_URL", "Optional", "HTTPS archive URL", FRAMEWORK_PROVIDER_PIN_OR_CALLER, "pinned source URL"), ("HAPROXY_SHA256", "Optional", "64-character SHA-256", FRAMEWORK_PROVIDER_PIN_OR_CALLER, "pinned digest"), ("HAPROXY_RUNTIME_BUILD_DIR", "Optional", ABSOLUTE_BUILD_DIRECTORY, "Provisioning", "`<build-root>/haproxy-runtime`")],
         "limit": "SPOE/SPOP remains a compatibility path and is not presented as the selected full-lifecycle evidence path.",
         "limit_de": "SPOE/SPOP bleibt ein Kompatibilitätspfad und wird nicht als ausgewählter Full-Lifecycle-Evidence-Pfad dargestellt.",
     },
@@ -59,7 +66,7 @@ CONNECTORS = {
         "build_de": "`make build-envoy` und `make check-config-envoy` verwenden den ausgewählten `ext_proc`-Hostpfad.",
         "config": "The selected configuration streams request and response processing through an `ext_proc` gRPC service. `ext_authz` is kept only as a compatibility example.",
         "config_de": "Die ausgewählte Konfiguration streamt Request- und Response-Verarbeitung über einen `ext_proc`-gRPC-Service. `ext_authz` bleibt nur ein Kompatibilitätsbeispiel.",
-        "variables": [("ENVOY_BIN", "Optional", "executable Envoy path", "Provisioning or caller", "`<component-cache>/envoy/bin/envoy`"), ("ENVOY_CONFIG", "Generated", "absolute runtime YAML path", "Harness", "`<build-root>/envoy.yaml`"), ("EXT_PROC_PORT", "Optional", "local TCP port number", "Harness/caller", "`18083`"), ("NO_CRS_RULES_FILE", "Required for canonical rule runs", "absolute rules-file path", "Make default or caller", "`/etc/modsecurity/no-crs-baseline.conf`")],
+        "variables": [("ENVOY_BIN", "Optional", "executable Envoy path", PROVISIONING_OR_CALLER, "`<component-cache>/envoy/bin/envoy`"), ("ENVOY_CONFIG", "Generated", "absolute runtime YAML path", "Harness", "`<build-root>/envoy.yaml`"), ("EXT_PROC_PORT", "Optional", "local TCP port number", "Harness/caller", "`18083`"), ("NO_CRS_RULES_FILE", REQUIRED_CANONICAL_RULE_RUNS, ABSOLUTE_RULES_FILE_PATH, MAKE_DEFAULT_OR_CALLER, NO_CRS_RULES_FILE)],
         "limit": "Safe is the selected documented core mode. Strict enforcement and `ext_authz` compatibility are separate work.",
         "limit_de": "Safe ist der ausgewählte dokumentierte Kernmodus. Strict-Enforcement und `ext_authz`-Kompatibilität sind getrennte Arbeit.",
     },
@@ -72,7 +79,7 @@ CONNECTORS = {
         "build_de": "`make build-traefik` und `make check-config-traefik` bereiten den nativen Middleware-Pfad vor.",
         "config": "The selected path uses an EntryPoint, Router, native Middleware, and local engine service. `forwardAuth` remains a compatibility example.",
         "config_de": "Der ausgewählte Pfad verwendet EntryPoint, Router, native Middleware und lokalen Engine-Service. `forwardAuth` bleibt ein Kompatibilitätsbeispiel.",
-        "variables": [("TRAEFIK_BIN", "Optional", "executable Traefik path", "Provisioning or caller", "`<component-cache>/traefik/bin/traefik`"), ("TRAEFIK_ENGINE_SERVICE_BUILD_DIR", "Optional", "absolute build directory", "Build script or caller", "`<build-root>/traefik-engine-service`"), ("TRAEFIK_ENGINE_SERVICE_BIN", "Optional", "absolute engine-service executable", "Build script or caller", "`<build-root>/traefik-engine-service/traefik-engine-service`"), ("TRAEFIK_CONNECTOR_CONFIG", "Optional", "absolute connector configuration", "Start-smoke harness or caller", "`config/traefik-forwardauth.conf`")],
+        "variables": [("TRAEFIK_BIN", "Optional", "executable Traefik path", PROVISIONING_OR_CALLER, "`<component-cache>/traefik/bin/traefik`"), ("TRAEFIK_ENGINE_SERVICE_BUILD_DIR", "Optional", ABSOLUTE_BUILD_DIRECTORY, "Build script or caller", "`<build-root>/traefik-engine-service`"), ("TRAEFIK_ENGINE_SERVICE_BIN", "Optional", "absolute engine-service executable", "Build script or caller", "`<build-root>/traefik-engine-service/traefik-engine-service`"), ("TRAEFIK_CONNECTOR_CONFIG", "Optional", "absolute connector configuration", "Start-smoke harness or caller", "`config/traefik-forwardauth.conf`")],
         "limit": "Safe is the selected documented core mode. Strict enforcement and `forwardAuth` compatibility are separate work.",
         "limit_de": "Safe ist der ausgewählte dokumentierte Kernmodus. Strict-Enforcement und `forwardAuth`-Kompatibilität sind getrennte Arbeit.",
     },
@@ -85,7 +92,7 @@ CONNECTORS = {
         "build_de": "`make build-lighttpd` bereitet den gepatchten ausgewählten Host vor; `make check-config-lighttpd` prüft dessen Konfiguration.",
         "config": "The selected path uses the patched host hook and module configuration. It is distinct from the older sidecar compatibility example.",
         "config_de": "Der ausgewählte Pfad verwendet den gepatchten Host-Hook und die Modulkonfiguration. Er unterscheidet sich vom älteren Sidecar-Kompatibilitätsbeispiel.",
-        "variables": [("LIGHTTPD_SOURCE_URL", "Optional", "HTTPS source archive URL", "Provisioning/caller", "pinned source URL"), ("LIGHTTPD_BUILD_ROOT", "Optional", "absolute build directory", "Provisioning", "`<build-root>/lighttpd`"), ("LIGHTTPD_CONFIG", "Generated", "absolute host configuration path", "Harness", "`<build-root>/lighttpd.conf`"), ("NO_CRS_RULES_FILE", "Required for canonical rule runs", "absolute rules-file path", "Make default or caller", "`/etc/modsecurity/no-crs-baseline.conf`")],
+        "variables": [("LIGHTTPD_SOURCE_URL", "Optional", "HTTPS source archive URL", "Provisioning/caller", "pinned source URL"), ("LIGHTTPD_BUILD_ROOT", "Optional", ABSOLUTE_BUILD_DIRECTORY, "Provisioning", "`<build-root>/lighttpd`"), ("LIGHTTPD_CONFIG", "Generated", "absolute host configuration path", "Harness", "`<build-root>/lighttpd.conf`"), ("NO_CRS_RULES_FILE", REQUIRED_CANONICAL_RULE_RUNS, ABSOLUTE_RULES_FILE_PATH, MAKE_DEFAULT_OR_CALLER, NO_CRS_RULES_FILE)],
         "limit": "Host-patch, compression, optional protocol profiles, and strict enforcement remain explicitly bounded by current evidence.",
         "limit_de": "Host-Patch, Kompression, optionale Protokollprofile und Strict-Enforcement bleiben durch die aktuelle Evidence ausdrücklich begrenzt.",
     },

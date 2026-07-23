@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import importlib.util
 import io
 import json
 import os
-import sys
 import tempfile
 import unittest
 import urllib.error
@@ -12,70 +10,11 @@ import urllib.parse
 from pathlib import Path
 from unittest import mock
 
+from tests.version_updater_test_support import FakeOpener, load_updater, response_factory, uses_shared_core
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "update-python-version.py"
-
-
-def load_module():
-    spec = importlib.util.spec_from_file_location("update_python_version", SCRIPT)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Cannot load {SCRIPT}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-updater = load_module()
-
-
-class FakeResponse:
-    def __init__(
-        self,
-        body: bytes,
-        *,
-        content_type: str | None = "application/json; charset=utf-8",
-        content_length: int | None = None,
-        url: str | None = None,
-        status: int = 200,
-    ) -> None:
-        self.body = body
-        self.status = status
-        self.url = updater.CANONICAL_RELEASE_API_URL if url is None else url
-        self.headers: dict[str, str] = {}
-        if content_type is not None:
-            self.headers["Content-Type"] = content_type
-        if content_length is None:
-            content_length = len(body)
-        self.headers["Content-Length"] = str(content_length)
-        self.closed = False
-
-    def read(self, size: int = -1) -> bytes:
-        return self.body if size < 0 else self.body[:size]
-
-    def geturl(self) -> str:
-        return self.url
-
-    def getcode(self) -> int:
-        return self.status
-
-    def close(self) -> None:
-        self.closed = True
-
-
-class FakeOpener:
-    def __init__(self, response: FakeResponse | None = None, error: Exception | None = None) -> None:
-        self.response = response
-        self.error = error
-        self.requests = []
-
-    def open(self, request, timeout):
-        self.requests.append((request, timeout))
-        if self.error is not None:
-            raise self.error
-        if self.response is None:
-            raise AssertionError("FakeOpener needs a response or an error")
-        return self.response
+updater = load_updater("update_python_version", SCRIPT)
+FakeResponse = response_factory(updater.CANONICAL_RELEASE_API_URL)
 
 
 def release(name: str, *, published: bool = True, prerelease: bool = False) -> dict[str, object]:
@@ -87,6 +26,9 @@ def release(name: str, *, published: bool = True, prerelease: bool = False) -> d
 
 
 class UpdatePythonVersionTests(unittest.TestCase):
+    def test_spec_loaded_adapter_uses_shared_core(self) -> None:
+        self.assertTrue(uses_shared_core(updater))
+
     def _root_with_version(self, root: Path, version: str = "3.14.6") -> Path:
         root.mkdir(parents=True, exist_ok=True)
         (root / ".python-version").write_text(f"{version}\n", encoding="utf-8")
@@ -285,6 +227,21 @@ class UpdatePythonVersionTests(unittest.TestCase):
     def test_malformed_json_is_rejected(self):
         self._assert_metadata_failure(FakeResponse(b"{"))
 
+    def test_nonstandard_json_constants_are_rejected(self) -> None:
+        for payload in (b'{"value":NaN}', b'{"value":Infinity}', b'{"value":-Infinity}'):
+            with self.subTest(payload=payload), self.assertRaises(updater.MetadataError):
+                updater._decode_metadata(payload)
+
+    def test_metadata_body_larger_than_two_mib_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self._root_with_version(Path(temporary))
+            opener = FakeOpener(FakeResponse(b" " * ((2 * 1024 * 1024) + 1)))
+            result, record = self._run_cli(root, ["--check", "--json"], opener=opener)
+
+        self.assertEqual(result, 1)
+        self.assertEqual(record["status"], "error")
+        self.assertTrue(opener.requests)
+
     def test_truncated_metadata_is_rejected(self):
         self._assert_metadata_failure(FakeResponse(b"[]", content_length=3))
 
@@ -369,7 +326,7 @@ class UpdatePythonVersionTests(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertEqual(record["status"], "error")
 
-    def _assert_metadata_failure(self, response: FakeResponse) -> None:
+    def _assert_metadata_failure(self, response: object) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = self._root_with_version(Path(temporary))
             result, record = self._run_cli(root, ["--check", "--json"], opener=FakeOpener(response))

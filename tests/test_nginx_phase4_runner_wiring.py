@@ -25,11 +25,11 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
         expect = case["expect"]
         phase4_log = expect["phase4_log"]
 
-        self.assertEqual("phase4_deny_after_commit_log_only", case["name"])
+        self.assertEqual(case["name"], "phase4_deny_after_commit_log_only")
         self.assertTrue(case["no_crs_baseline"])
-        self.assertEqual("safe", case["nginx"]["phase4_mode"])
-        self.assertEqual(200, expect["status"])
-        self.assertEqual("http_status", expect["transport"])
+        self.assertEqual(case["nginx"]["phase4_mode"], "safe")
+        self.assertEqual(expect["status"], 200)
+        self.assertEqual(expect["transport"], "http_status")
         self.assertIn("event", case["expected_event_fields"])
         self.assertIn("message_id", case["expected_event_fields"])
         self.assertIn('"message_id":"MSCONN_EVENT_PHASE4_LATE_INTERVENTION"', phase4_log["contains"])
@@ -44,7 +44,7 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
         expect = case["expect"]
         phase4_log = expect["phase4_log"]
 
-        self.assertEqual("phase4_deny_after_commit_abort", case["name"])
+        self.assertEqual(case["name"], "phase4_deny_after_commit_abort")
         self.assertTrue(case["no_crs_baseline"])
         self.assertEqual("strict", case["nginx"]["phase4_mode"])
         self.assertEqual(200, expect["status"])
@@ -62,7 +62,7 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
         case = self.load_fixture("nginx_phase4_deny_after_commit_log_only.yaml")
         with tempfile.TemporaryDirectory() as temporary:
             env_file = Path(temporary) / "case.env"
-            write_shell_env(case, env_file)
+            write_shell_env(case, env_file, output_root=temporary)
             content = env_file.read_text(encoding="utf-8")
         self.assertIn("NGINX_PHASE4_MODE=safe", content)
         self.assertNotIn("actual_action", content)

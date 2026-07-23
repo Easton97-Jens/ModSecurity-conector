@@ -90,6 +90,9 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
+      - name: Install hash-locked validation dependency
+        run: "python3 -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes --requirement ci/requirements/update-submodules-validation-linux-x86_64.txt"
+
       - name: Check out the resolved submodule revision
         run: |
           set -euo pipefail

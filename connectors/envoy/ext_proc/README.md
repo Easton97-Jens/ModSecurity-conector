@@ -41,6 +41,22 @@ The pinned dependency is the official generated Envoy Go API module in
 Envoy release (`1.38.2`) and `../config/envoy-ext-proc-streaming.yaml.in` uses
 only `STREAMED` body modes, never `BUFFERED`.
 
+## Dependency security floors
+
+The module keeps the following minimum stable selections for the currently
+triaged dependency advisories:
+
+- `google.golang.org/grpc` `v1.82.1` or later;
+- `golang.org/x/net` `v0.56.0` or later;
+- `golang.org/x/sys` `v0.46.0` or later; and
+- `golang.org/x/text` `v0.39.0` or later.
+
+`tests/test_ci_security_workflows.py` checks these as semantic-version floors,
+so a later stable security update remains valid while a downgrade fails the
+focused CI-security contract. The floor proves the selected module versions;
+it does not itself establish advisory reachability, replace Go module tests,
+or claim that a hosted Dependabot, OSV, or Scorecard alert has refreshed.
+
 ## Explicit non-claims and late-action behavior
 
 The shipped build uses `-tags libmodsecurity`; a source-only Go build retains a
