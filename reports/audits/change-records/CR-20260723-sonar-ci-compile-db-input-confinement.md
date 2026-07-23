@@ -9,7 +9,7 @@
 | Change ID | CR-20260723-sonar-ci-compile-db-input-confinement |
 | Date (UTC) | 2026-07-23 |
 | Base revision | a308d7b414f0859490fe7253e0683a4bde80b563 |
-| Tracking | FND-SONAR-0016; SonarQube Cloud `AZ9dWiALxi9ITghe3pzq` (`pythonsecurity:S8707`), `AZ9dWiALxi9ITghe3pzp` (`python:S3516`), and `AZ9dWiALxi9ITghe3pzo` (`python:S3776`). |
+| Tracking | FND-SONAR-0016 and FND-SONAR-0018; SonarQube Cloud `AZ9dWiALxi9ITghe3pzq` (`pythonsecurity:S8707`), `AZ9dWiALxi9ITghe3pzp` (`python:S3516`), `AZ9dWiALxi9ITghe3pzo` and PR follow-up `AZ-QC5_F7_w-jke5-e7_` (`python:S3776`). |
 | Boundary | Parent CI compile-database tool, its two Bear wrappers, direct regression tests, and this English/German Change Record pair and indexes. Framework, MRTS, gitlinks, scanner configuration, Quality Gates, suppressions, and default branch remain unchanged. |
 
 ## Motivation and problem statement
@@ -24,6 +24,11 @@ processing.
 The same source also contained the selected redundant-success-return and
 cognitive-complexity findings. They are handled without weakening any capture,
 source, or output validation.
+
+The first exact Draft-PR analysis removed the three original target keys and
+kept the Quality Gate at `OK`, but reported a fresh `python:S3776` issue in
+`main` (cognitive complexity 24/15). That issue is a required follow-up in the
+same Draft PR, not an accepted Quality-Gate exception.
 
 ## Acceptance criteria
 
@@ -41,7 +46,7 @@ source, or output validation.
   filtering, merge, atomic publication, and verify-only behavior remain
   covered.
 - Fresh exact-head SonarQube Cloud and hosted-check evidence is required before
-  the three selected keys are declared resolved.
+  all four selected keys are declared resolved.
 
 ## Implementation decision and rationale
 
@@ -62,6 +67,13 @@ same accepted entries, filter messages, duplicate handling, source tracking,
 and output-in-checkout rejection are retained while lowering the selected
 function's cognitive complexity. `main` has one common success return rather
 than separate equivalent returns.
+
+The initial branch arrangement made `main` itself too complex. The follow-up
+extracts verify-only argument validation, existing-database validation,
+capture loading, and publication into explicit helpers. `main` remains a
+shallow orchestrator while preserving the previously tested argument
+precedence, read-sink confinement, merge behavior, atomic output, filtering,
+and success messages.
 
 ## Changed files
 
@@ -98,6 +110,9 @@ or CI protection is weakened.
 - `make check-bilingual-docs`: blocked only by pre-existing links below the
   intentionally uninitialized Framework gitlink; no missing section or
   equivalence error is reported for this Change Record pair.
+- Follow-up helper extraction: focused C/C++ diagnostics and selected syntax
+  passed locally; final exact-head SonarCloud and hosted evidence is pending
+  after its targeted push.
 
 ## Runtime evidence
 
@@ -164,4 +179,6 @@ included. The final local diff and all named local validation commands were
 rechecked after this record update and passed, except for the separately
 documented Framework-gitlink documentation blocker. SonarCloud, hosted checks,
 PR number, and Quality Gate remain pending until the exact branch head is
-pushed.
+pushed. Initial PR #98 analysis did run and found the required
+`AZ-QC5_F7_w-jke5-e7_` follow-up; the final clean-head result must be collected
+after that refactor is pushed.

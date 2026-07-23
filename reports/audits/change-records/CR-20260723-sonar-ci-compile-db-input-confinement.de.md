@@ -9,7 +9,7 @@
 | Change-ID | CR-20260723-sonar-ci-compile-db-input-confinement |
 | Datum (UTC) | 2026-07-23 |
 | Basis-Revision | a308d7b414f0859490fe7253e0683a4bde80b563 |
-| Tracking | FND-SONAR-0016; SonarQube Cloud `AZ9dWiALxi9ITghe3pzq` (`pythonsecurity:S8707`), `AZ9dWiALxi9ITghe3pzp` (`python:S3516`) und `AZ9dWiALxi9ITghe3pzo` (`python:S3776`). |
+| Tracking | FND-SONAR-0016 und FND-SONAR-0018; SonarQube Cloud `AZ9dWiALxi9ITghe3pzq` (`pythonsecurity:S8707`), `AZ9dWiALxi9ITghe3pzp` (`python:S3516`), `AZ9dWiALxi9ITghe3pzo` sowie PR-Follow-up `AZ-QC5_F7_w-jke5-e7_` (`python:S3776`). |
 | Grenze | Parent-CI-Compile-Database-Tool, seine zwei Bear-Wrapper, direkte Regressionstests sowie dieses englisch/deutsche Change-Record-Paar und die Indizes. Framework, MRTS, Gitlinks, Scanner-Konfiguration, Quality Gates, Suppressions und der Default-Branch bleiben unverändert. |
 
 ## Motivation und Problemstellung
@@ -24,6 +24,12 @@ Parsing und spätere Verarbeitung auswählen.
 Dieselbe Source enthielt außerdem die ausgewählten Befunde zu einem
 redundanten Success-Return und zur kognitiven Komplexität. Sie werden behoben,
 ohne Capture-, Source- oder Output-Validierung zu schwächen.
+
+Die erste exakte Draft-PR-Analyse entfernte die drei ursprünglichen Target-
+Keys und hielt das Quality Gate bei `OK`, meldete aber einen frischen
+`python:S3776`-Befund in `main` (kognitive Komplexität 24/15). Dieser Befund
+ist ein erforderliches Follow-up im selben Draft-PR, keine akzeptierte Quality-
+Gate-Ausnahme.
 
 ## Akzeptanzkriterien
 
@@ -41,7 +47,7 @@ ohne Capture-, Source- oder Output-Validierung zu schwächen.
   Bestehendes Filtering, Merge, atomare Veröffentlichung und Verify-only-
   Verhalten bleiben abgedeckt.
 - Frische Exact-Head-SonarQube-Cloud- und Hosted-Check-Evidence ist
-  erforderlich, bevor die drei ausgewählten Keys als behoben gelten.
+  erforderlich, bevor alle vier ausgewählten Keys als behoben gelten.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -64,6 +70,13 @@ Duplicate-Behandlung, Source-Tracking und Output-in-Checkout-Ablehnung bleiben
 erhalten, während die kognitive Komplexität der ausgewählten Funktion sinkt.
 `main` hat statt separater äquivalenter Returns nur noch einen gemeinsamen
 Success-Return.
+
+Die initiale Branch-Anordnung machte `main` selbst zu komplex. Das Follow-up
+extrahiert Verify-only-Argumentvalidierung, bestehende-Datenbank-Validierung,
+Capture-Laden und Veröffentlichung in explizite Hilfsfunktionen. `main`
+bleibt ein flacher Orchestrator und erhält die zuvor getestete Argument-
+Priorität, Read-Sink-Containment, Merge-Verhalten, atomaren Output, Filtering
+und Success-Meldungen.
 
 ## Geänderte Dateien
 
@@ -102,6 +115,9 @@ Isolation, Validierung, Logging- oder CI-Protection wird geschwächt.
   absichtlich nicht initialisierten Framework-Gitlinks blockiert; für dieses
   Change-Record-Paar wird kein fehlender Abschnitt oder Equivalence-Fehler
   gemeldet.
+- Follow-up-Helper-Extraktion: fokussierte C/C++-Diagnostik und ausgewählte
+  Syntax bestanden lokal; finale Exact-Head-SonarCloud- und Hosted-Evidence
+  steht nach dem gezielten Push noch aus.
 
 ## Runtime-Evidence
 
@@ -175,3 +191,6 @@ Validierungsbefehle wurden nach diesem Record-Update erneut geprüft und
 bestanden, abgesehen vom getrennt dokumentierten Framework-Gitlink-
 Dokumentationsblocker. SonarCloud, Hosted-Checks, PR-Nummer und Quality Gate
 stehen aus, bis der exakte Branch-Head gepusht ist.
+Die initiale PR-#98-Analyse lief bereits und fand das erforderliche Follow-up
+`AZ-QC5_F7_w-jke5-e7_`; das finale Clean-Head-Ergebnis muss nach Push dieses
+Refactorings eingeholt werden.

@@ -363,6 +363,68 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def verify_only_arguments(args: argparse.Namespace) -> None:
+    if args.input:
+        raise CompilationDatabaseError("--input cannot be combined with --verify-only")
+    if args.capture_root:
+        raise CompilationDatabaseError(
+            "--capture-root cannot be combined with --verify-only"
+        )
+
+
+def validated_database_entries(
+    database: Path,
+    repository_root: Path,
+    tracked: set[Path],
+    requirements: list[str],
+) -> dict[Path, dict[str, Any]]:
+    entries, filtered = collect_entries(load_database(database), repository_root, tracked)
+    if filtered:
+        raise CompilationDatabaseError(
+            "existing compilation database is invalid: " + "; ".join(filtered)
+        )
+    validate_entries(entries, repository_root, requirements)
+    return entries
+
+
+def captured_database_entries(
+    args: argparse.Namespace,
+    repository_root: Path,
+    tracked: set[Path],
+) -> tuple[dict[Path, dict[str, Any]], list[str]]:
+    if not args.input:
+        raise CompilationDatabaseError("--input is required unless --verify-only is used")
+    if not args.capture_root:
+        raise CompilationDatabaseError("--capture-root is required with --input")
+    capture_root = external_capture_root(args.capture_root, repository_root)
+    input_path = external_capture_input_path(args.input, capture_root, repository_root)
+    captured, filtered = collect_entries(load_database(input_path), repository_root, tracked)
+    if not captured:
+        raise CompilationDatabaseError("Bear did not capture any tracked C/C++ translation units")
+    return captured, filtered
+
+
+def publish_database_entries(
+    captured: dict[Path, dict[str, Any]],
+    filtered: list[str],
+    output: Path,
+    repository_root: Path,
+    tracked: set[Path],
+    requirements: list[str],
+    merge_existing: bool,
+) -> None:
+    published: dict[Path, dict[str, Any]] = {}
+    if merge_existing and output.exists():
+        published.update(validated_database_entries(output, repository_root, tracked, []))
+    published.update(captured)
+    validate_entries(published, repository_root, requirements)
+    atomic_write(output, published)
+
+    for reason in filtered:
+        print(f"FILTERED: {reason}")
+    print(f"PASS: atomically published {len(published)} unique translation units to {output}")
+
+
 def main() -> int:
     args = parse_arguments()
     repository_root = Path(args.repo_root).resolve(strict=False)
@@ -372,56 +434,25 @@ def main() -> int:
     tracked = tracked_sources(repository_root)
 
     if args.verify_only:
-        if args.input:
-            raise CompilationDatabaseError("--input cannot be combined with --verify-only")
-        if args.capture_root:
-            raise CompilationDatabaseError(
-                "--capture-root cannot be combined with --verify-only"
-            )
-        existing, filtered = collect_entries(load_database(output), repository_root, tracked)
-        if filtered:
-            raise CompilationDatabaseError(
-                "existing compilation database is invalid: " + "; ".join(filtered)
-            )
-        validate_entries(existing, repository_root, args.require)
-        print(f"PASS: validated {len(existing)} unique translation units in {output}")
-    else:
-        if not args.input:
-            raise CompilationDatabaseError("--input is required unless --verify-only is used")
-        if not args.capture_root:
-            raise CompilationDatabaseError("--capture-root is required with --input")
-        capture_root = external_capture_root(args.capture_root, repository_root)
-        input_path = external_capture_input_path(
-            args.input,
-            capture_root,
-            repository_root,
-        )
-        captured, filtered = collect_entries(
-            load_database(input_path),
+        verify_only_arguments(args)
+        entries = validated_database_entries(
+            output,
             repository_root,
             tracked,
+            args.require,
         )
-        if not captured:
-            raise CompilationDatabaseError("Bear did not capture any tracked C/C++ translation units")
-
-        published: dict[Path, dict[str, Any]] = {}
-        if args.merge_existing and output.exists():
-            existing, existing_filtered = collect_entries(
-                load_database(output), repository_root, tracked
-            )
-            if existing_filtered:
-                raise CompilationDatabaseError(
-                    "existing compilation database is invalid: " + "; ".join(existing_filtered)
-                )
-            validate_entries(existing, repository_root, [])
-            published.update(existing)
-        published.update(captured)
-        validate_entries(published, repository_root, args.require)
-        atomic_write(output, published)
-
-        for reason in filtered:
-            print(f"FILTERED: {reason}")
-        print(f"PASS: atomically published {len(published)} unique translation units to {output}")
+        print(f"PASS: validated {len(entries)} unique translation units in {output}")
+    else:
+        captured, filtered = captured_database_entries(args, repository_root, tracked)
+        publish_database_entries(
+            captured,
+            filtered,
+            output,
+            repository_root,
+            tracked,
+            args.require,
+            args.merge_existing,
+        )
     return 0
 
 
