@@ -15,6 +15,52 @@ NO_CRS_RULES_FILE = "`/etc/modsecurity/no-crs-baseline.conf`"
 PROVISIONING_OR_CALLER = "Provisioning or caller"
 FRAMEWORK_PROVIDER_PIN_OR_CALLER = "Framework/provider pin or caller"
 ABSOLUTE_BUILD_DIRECTORY = "absolute build directory"
+DOCUMENT_KINDS = (
+    "README",
+    "architecture",
+    "build",
+    "configuration",
+    "lifecycle",
+    "testing",
+    "operations",
+    "limitations",
+)
+DOCUMENT_TITLES = {
+    "README": ("{name} Connector", "{name}-Connector"),
+    "architecture": ("{name} architecture", "{name}-Architektur"),
+    "build": ("{name} build", "{name}-Build"),
+    "configuration": ("{name} configuration", "{name}-Konfiguration"),
+    "lifecycle": ("{name} lifecycle", "{name}-Lifecycle"),
+    "testing": ("{name} testing", "{name}-Tests"),
+    "operations": ("{name} operations", "{name}-Betrieb"),
+    "limitations": ("{name} limitations", "{name}-Grenzen"),
+}
+GERMAN_LABEL_REPLACEMENTS = {
+    "## Host integration": "## Hostintegration",
+    "## Data flow": "## Datenfluss",
+    "## Ownership": "## Ownership",
+    "## Build path": "## Buildpfad",
+    "## Prerequisites": "## Voraussetzungen",
+    "## Cache and provenance": "## Cache und Provenienz",
+    "## Validation": "## Validierung",
+    "## Troubleshooting": "## Fehlerdiagnose",
+    "## Configuration model": "## Konfigurationsmodell",
+    "## Minimal and Safe examples": "## Minimal- und Safe-Beispiele",
+    "## Phases": "## Phasen",
+    "## Safe and Strict boundary": "## Safe- und Strict-Grenze",
+    "## First byte and buffering": "## First Byte und Buffering",
+    "## Levels": "## Ebenen",
+    "## No-CRS core rules": "## No-CRS-Kernregeln",
+    "## Evidence": "## Evidence",
+    "## Statuses": "## Statuswerte",
+    "## Start and stop": "## Start und Stop",
+    "## Logs and health": "## Logs und Health",
+    "## Diagnosis": "## Diagnose",
+    "## Updates": "## Updates",
+    "## Boundaries": "## Grenzen",
+    "## Not covered by this guide": "## Nicht durch diesen Leitfaden abgedeckt",
+    "## Compatibility paths": "## Kompatibilitätspfade",
+}
 
 
 CONNECTORS = {
@@ -136,78 +182,122 @@ def variables_table(data: dict, german: bool) -> list[str]:
     return [f"## {title}", "", lead, "", headers, separator, *rows, "", f"See the [central variables reference]({central})." if not german else f"Siehe die [zentrale Variablenreferenz]({central}).", ""]
 
 
-def content(kind: str, connector: str, data: dict, german: bool) -> str:
-    name = data["name"]
-    suffix = ".de.md" if german else ".md"
-    partner = f"{kind}{'.md' if german else '.de.md'}"
-    labels = {
-        "README": (f"{name} Connector", f"{name}-Connector"),
-        "architecture": (f"{name} architecture", f"{name}-Architektur"),
-        "build": (f"{name} build", f"{name}-Build"),
-        "configuration": (f"{name} configuration", f"{name}-Konfiguration"),
-        "lifecycle": (f"{name} lifecycle", f"{name}-Lifecycle"),
-        "testing": (f"{name} testing", f"{name}-Tests"),
-        "operations": (f"{name} operations", f"{name}-Betrieb"),
-        "limitations": (f"{name} limitations", f"{name}-Grenzen"),
-    }
-    lines = header(labels[kind][1 if german else 0], partner, german) + scope(german)
-    if kind == "README":
-        lines += ["## Selected integration mode", "", f"`{data['mode']}` — {data['host']}.", "", "## Current core", "", "HTTP/1.1 P1–P4 with Safe post-commit Phase 4 semantics, first byte before EOS evidence, and no connector-owned full response buffer.", "", "## Quick links", "", "- [Architecture](architecture.md)", "- [Build](build.md)", "- [Configuration](configuration.md)", "- [Lifecycle](lifecycle.md)", "- [Testing](testing.md)", "- [Operations](operations.md)", "- [Limitations](limitations.md)", ""]
-        if german:
-            lines = header(labels[kind][1], partner, True) + scope(True) + ["## Ausgewählter Integrationsmodus", "", f"`{data['mode']}` — {localized(data, 'host', True)}.", "", "## Aktueller Kern", "", "HTTP/1.1 P1–P4 mit Safe-Post-Commit-Phase-4-Semantik, First-Byte-vor-EOS-Evidence und ohne connector-eigenen vollständigen Response-Buffer.", "", "## Schnelllinks", "", "- [Architektur](architecture.de.md)", "- [Build](build.de.md)", "- [Konfiguration](configuration.de.md)", "- [Lifecycle](lifecycle.de.md)", "- [Tests](testing.de.md)", "- [Betrieb](operations.de.md)", "- [Grenzen](limitations.de.md)", ""]
-    elif kind == "architecture":
-        if german:
-            lines += ["## Hostintegration", "", localized(data, "host", True) + ". Common erhält nur neutral gemappte Werte; Host-APIs, Speicherallokation und Callback-Lebensdauer bleiben außerhalb von Common.", "", "## Transaktions-Lifecycle", "", "| Phase | Bedeutung |\n| --- | --- |\n| P1 | Request-Header vor dem Upstream-Request |\n| P2 | Request-Body; Abschluss an Request-EOS |\n| P3 | Response-Header |\n| P4 | Response-Body; Abschluss an Response-EOS |", "", "## Datenfluss und Engine-Anbindung", "", "Die Adapter geben geliehene Header- und Body-Abschnitte an Common weiter. Common ruft die Engine über seine neutrale Schnittstelle auf; Host-spezifische Typen, Puffer und Callbacks werden nicht in Common übertragen.", "", "## Ownership und Lifetime", "", "Body-Chunks werden nicht connector-eigen vollständig gepuffert. Events und Reports speichern keine Roh-Request- oder Response-Bodies. Adapter-Cleanup folgt dem Ende des Host-Lifecycles und bleibt der gleichen Transaktion zurechenbar.", ""]
-        else:
-            lines += ["## Host integration", "", data["host"] + ". Common receives only neutral mapped values; host APIs, allocation, and callback lifetime remain outside Common.", "", "## Transaction lifecycle", "", "| Phase | Meaning |\n| --- | --- |\n| P1 | Request headers before the upstream request |\n| P2 | Request body; finish at request EOS |\n| P3 | Response headers |\n| P4 | Response body; finish at response EOS |", "", "## Data flow and engine binding", "", "The adapter passes borrowed header and body slices to Common. Common calls the engine through its neutral interface; host-specific types, buffers, and callbacks are never passed into Common.", "", "## Ownership and lifetime", "", "Body chunks are not fully buffered by the connector. Events and reports retain no raw request or response body. Adapter cleanup follows the host lifecycle end and remains attributable to the same transaction.", ""]
-    elif kind == "build":
-        if german:
-            lines += ["## Buildpfad und Hostversion", "", localized(data, "build", True), "", "Die maßgebliche Hostversion ist die Version der aktuellen vorbereiteten Runtime oder ihres gepinnten Provisionierungsinputs. Eine dokumentierte Version ist keine Aussage über jede Distribution, ABI oder Betriebsumgebung.", "", "## Toolchain und Abhängigkeiten", "", "Benötigt werden der zum Host passende C/C++- bzw. Go-Toolchainpfad, libmodsecurity-Abhängigkeiten und ein beschreibbarer Build-/Cache-Root außerhalb des Checkouts. Compiler, Flags und Hostrevisionen werden als Build-Provenance festgehalten; dieser Leitfaden behauptet keine universelle Compiler- oder Go-Version.", "", "## Cache-v2 und Provenienz", "", "Die Wiederverwendung von Cache-v2 ist identitätsgebunden. Source-URL, Revision oder Digest, Patchset, Architektur, Compiler und Konfiguration bestimmen, ob ein Cache-Eintrag wiederverwendbar ist. Ein Cache-Treffer ist kein Runtime-PASS.", "", "## Build, Config und Runtime", "", f"Führen Sie `make build-{connector}` und danach `make check-config-{connector}` aus. Start- und Runtime-Smokes existieren nur für die jeweils angebotenen Targetfamilien; der ausgewählte Kernlauf ist `make full-lifecycle-{connector}`. Erfolgreicher Build oder Config-Check ist kein Rule-Engine-PASS.", "", "## Optionale Profile und Fehlerdiagnose", "", "Kompatibilitäts-, CRS-, erweitertes Matrix-, H2/H3- und Strict-Profile sind getrennt vom ausgewählten Kern. Prüfen Sie bei Fehlern Executable-Pfade, ABI, Modul-/Service-Load, beschreibbare Runtime-Roots sowie gepinnte Source-/Patch-Eingaben, bevor Sie Konfiguration ändern.", ""]
-        else:
-            lines += ["## Build path and host version", "", data["build"], "", "The authoritative host version is the version of the current prepared runtime or its pinned provisioning input. A documented version is not support for every distribution, ABI, or operating environment.", "", "## Toolchain and dependencies", "", "Use the host-appropriate C/C++ or Go toolchain, libmodsecurity dependencies, and a writable build/cache root outside the checkout. Compiler, flags, and host revision are recorded as build provenance; this guide makes no universal compiler or Go-version claim.", "", "## Cache-v2 and provenance", "", "Cache-v2 reuse is identity-bound. Source URL, revision or digest, patchset, architecture, compiler, and configuration decide whether an entry is reusable. A cache hit is not a runtime PASS.", "", "## Build, configuration, and runtime", "", f"Run `make build-{connector}` and then `make check-config-{connector}`. Start and runtime smokes exist only for the target families that provide them; the selected core run is `make full-lifecycle-{connector}`. A successful build or config check is not a rule-engine PASS.", "", "## Optional profiles and troubleshooting", "", "Compatibility, CRS, extended-matrix, H2/H3, and Strict profiles remain separate from the selected core. Before changing configuration, check executable paths, ABI, module/service load, writable runtime roots, and pinned source/patch inputs.", ""]
-        lines += variables_table(data, german)
-    elif kind == "configuration":
-        if german:
-            lines += ["## Konfigurationsmodell", "", localized(data, "config", True), "", "## Minimal, Safe und Strict", "", f"Die [annotierten {name}-Beispiele](../../../examples/{connector}/README.de.md) sind die vollständige lokale Quelle. Ersetzen Sie jeden Pfad, Port und Endpoint für den Zielhost. Minimal und Safe gehören zum dokumentierten Kern; Strict wird nur dort beschrieben, wo der Host und aktuelle Evidence es tragen. Kopieren Sie keine Kompatibilitätskonfiguration als ausgewählten Kernpfad.", "", "## Defaults, Body-Scope und Logging", "", "Nur vorhandene Hostdirektiven und Harness-Optionen sind in den Beispielen aufgeführt. Body- und Content-Type-Verhalten bleiben host- und profilgebunden; keine Konfiguration erlaubt einen connector-eigenen vollständigen Response-Buffer. Nutzen Sie payloadfreie Connector-/Evidence-Logs und speichern Sie keine Secrets in Regeln, Pfaden oder Kommandozeilen.", "", "## Validierung", "", f"Führen Sie `make check-config-{connector}` vor dem Start aus. Der Kernlauf `make full-lifecycle-{connector}` benötigt beschreibbare Runtime- und Evidence-Roots; prüfen Sie das Ergebnis immer anhand der Artefakte.", ""]
-        else:
-            lines += ["## Configuration model", "", data["config"], "", "## Minimal, Safe, and Strict", "", f"The [annotated {name} examples](../../../examples/{connector}/README.md) are the complete local source. Replace every path, port, and endpoint for the target host. Minimal and Safe belong to the documented core; Strict is described only where the host and current evidence support it. Do not copy a compatibility configuration as the selected core path.", "", "## Defaults, body scope, and logging", "", "Only existing host directives and harness options are listed in the examples. Body and content-type behavior remain host- and profile-bound; no configuration permits a connector-owned full response buffer. Use payload-free connector/evidence logs and keep secrets out of rules, paths, and command lines.", "", "## Validation", "", f"Run `make check-config-{connector}` before starting a host. The core run `make full-lifecycle-{connector}` needs writable runtime and evidence roots; always inspect its artifacts for the result.", ""]
-        lines += variables_table(data, german)
-    elif kind == "lifecycle":
-        if german:
-            lines += ["## Phasen und EOS", "", "| Phase | Bedeutung |\n| --- | --- |\n| P1 | Request-Header |\n| P2 | Request-Body; Abschluss an Request-EOS |\n| P3 | Response-Header |\n| P4 | Response-Body; Abschluss an Response-EOS |", "", "## Pre-Commit und Post-Commit", "", "Vor dem Response-Commit darf ein Host eine unterstützte Pre-Commit-Aktion anwenden. Nach dem Commit protokolliert Safe `log_only`; Safe behauptet keinen umgeschriebenen sichtbaren Status. " + localized(data, "limit", True), "", "## First Byte, Buffering und Cleanup", "", "Die ausgewählte Evidence verlangt, wo anwendbar, eine First-Byte-vor-EOS-Beobachtung und verbietet einen connector-eigenen Full-Response-Buffer. Lifecycle-Counter, Events und Cleanup müssen derselben Transaktion zurechenbar sein.", ""]
-        else:
-            lines += ["## Phases and EOS", "", "| Phase | Meaning |\n| --- | --- |\n| P1 | Request headers |\n| P2 | Request body; finish at request EOS |\n| P3 | Response headers |\n| P4 | Response body; finish at response EOS |", "", "## Pre-commit and post-commit", "", "Before response commitment, a host may take a supported pre-commit action. After commitment, Safe records `log_only`; Safe does not claim a rewritten visible status. " + data["limit"], "", "## First byte, buffering, and cleanup", "", "The selected evidence requires first-byte-before-EOS observation where applicable and rejects a connector-owned full response buffer. Lifecycle counters, events, and cleanup must be attributable to the same transaction.", ""]
-    elif kind == "testing":
-        if german:
-            lines += ["## Ebenen", "", f"Führen Sie `make build-{connector}`, `make check-config-{connector}`, einen vorhandenen Start-/Runtime-Smoke und `make full-lifecycle-{connector}` als getrennte Ebenen aus. Build, Config und Start sind kein Rule-Engine-PASS.", "", "## No-CRS-Kernregeln und Cases", "", "Diese Rule-IDs gehören zum repository-eigenen No-CRS-Testprofil, nicht zu OWASP CRS.", "", "| Rule-ID | Phase | Zweck |\n| ---: | --- | --- |\n| `1100001` | P1 | Request-Header deny |\n| `1100101` | P2 | Request-Body deny |\n| `1100201` | P3 | Response-Header deny |\n| `1100301` | P4 | Response-Body deny oder Safe-Late-Intervention |", "", "## Evidence und Run-Grenze", "", "Case-IDs beschreiben eine Capability und den erwarteten Zustand. Ein ausgewählter Case benötigt zurechenbare Result-/Event-Evidence, Profilidentität und die konfigurierte Run-ID. Ein `PASS`-Aggregat darf nicht aus Build-Ausgabe abgeleitet werden.", "", "## Statuswerte", "", "`PASS`, `FAIL`, `BLOCKED`, `NOT EXECUTED`, `NOT APPLICABLE` und `UNSUPPORTED` stehen unter [Testebenen](../../testing/test-levels.de.md).", ""]
-        else:
-            lines += ["## Levels", "", f"Run `make build-{connector}`, `make check-config-{connector}`, any available start/runtime smoke, and `make full-lifecycle-{connector}` as separate levels. Build, configuration, and start are not rule-engine PASS.", "", "## No-CRS core rules and cases", "", "These rule IDs belong to the repository-owned No-CRS test profile, not OWASP CRS.", "", "| Rule ID | Phase | Purpose |\n| ---: | --- | --- |\n| `1100001` | P1 | Request-header deny |\n| `1100101` | P2 | Request-body deny |\n| `1100201` | P3 | Response-header deny |\n| `1100301` | P4 | Response-body deny or Safe late intervention |", "", "## Evidence and run boundary", "", "Case IDs identify a capability and expected state. A selected case needs attributable result/event evidence, profile identity, and the configured run ID. A PASS aggregate must not be inferred from build output.", "", "## Statuses", "", "`PASS`, `FAIL`, `BLOCKED`, `NOT EXECUTED`, `NOT APPLICABLE`, and `UNSUPPORTED` are defined in [test levels](../../testing/test-levels.md).", ""]
-    elif kind == "operations":
-        if german:
-            lines += ["## Start und Stop", "", "Verwenden Sie für lokale Harnesses die passenden Make-Targets. Operatorverwaltete Services verwenden ihren eigenen Service-Manager und den Host-Config-Check.", "", "## Logs, Rotation und Health", "", "Nutzen Sie Host-Error-/Access-Logs und payloadfreie Connector-/Evidence-Logs. Rotieren Sie Logs mit der Hostfunktion, nicht durch Umbenennen offener Dateien. Health bedeutet Erreichbarkeit und geladene Konfiguration; es ist kein Security- oder Lifecycle-PASS.", "", "## Timeouts und Ressourcen", "", "Setzen Sie Host-Timeouts, Worker-/Datei-/Speicherlimits und Runtime-Roots nach den Grenzen des Zielhosts. Repository-Timeoutvariablen begrenzen Jobs, ersetzen aber keine Produktionsdimensionierung. Vermeiden Sie Secrets in Pfaden, Prozessen, Events und kanonischer Evidence.", "", "## Diagnose und Updates", "", "Prüfen Sie Endpoint-Erreichbarkeit, Modul-/Service-Load, Lesbarkeit der Rule-Datei, Runtime-Root-Rechte und den ausgewählten Integrationsmodus, bevor Sie ein fehlendes Ergebnis als Rule-Fehler deuten. Host-, Modul-, Patchset- und Source-Revisionen schaffen eine neue Build-/Cache-Identität; führen Sie danach den ausgewählten Evidence-Target erneut aus.", ""]
-        else:
-            lines += ["## Start and stop", "", "Use matching Make targets for local harnesses. Operator-managed services use their own service manager and host configuration check.", "", "## Logs, rotation, and health", "", "Use host error/access logs and payload-free connector/evidence logs. Rotate logs through the host facility rather than renaming open files. Health means reachability and a loaded configuration; it is not a security or lifecycle PASS.", "", "## Timeouts and resources", "", "Set host timeouts, worker/file/memory limits, and runtime roots for the target host's boundaries. Repository timeout variables bound jobs but do not replace production sizing. Keep secrets out of paths, processes, events, and canonical evidence.", "", "## Diagnosis and updates", "", "Check endpoint reachability, module/service load, rules-file readability, runtime-root permissions, and the selected integration mode before treating a missing result as a rule failure. Host, module, patchset, and source-revision changes create a new build/cache identity; rerun the selected evidence target afterward.", ""]
+def _document_intro(kind: str, name: str, partner: str, german: bool) -> list[str]:
+    title = DOCUMENT_TITLES[kind][1 if german else 0].format(name=name)
+    return header(title, partner, german) + scope(german)
+
+
+def _render_readme(data: dict, name: str, partner: str, german: bool) -> list[str]:
+    lines = _document_intro("README", name, partner, german)
+    lines += ["## Selected integration mode", "", f"`{data['mode']}` — {data['host']}.", "", "## Current core", "", "HTTP/1.1 P1–P4 with Safe post-commit Phase 4 semantics, first byte before EOS evidence, and no connector-owned full response buffer.", "", "## Quick links", "", "- [Architecture](architecture.md)", "- [Build](build.md)", "- [Configuration](configuration.md)", "- [Lifecycle](lifecycle.md)", "- [Testing](testing.md)", "- [Operations](operations.md)", "- [Limitations](limitations.md)", ""]
+    if german:
+        lines = _document_intro("README", name, partner, True) + ["## Ausgewählter Integrationsmodus", "", f"`{data['mode']}` — {localized(data, 'host', True)}.", "", "## Aktueller Kern", "", "HTTP/1.1 P1–P4 mit Safe-Post-Commit-Phase-4-Semantik, First-Byte-vor-EOS-Evidence und ohne connector-eigenen vollständigen Response-Buffer.", "", "## Schnelllinks", "", "- [Architektur](architecture.de.md)", "- [Build](build.de.md)", "- [Konfiguration](configuration.de.md)", "- [Lifecycle](lifecycle.de.md)", "- [Tests](testing.de.md)", "- [Betrieb](operations.de.md)", "- [Grenzen](limitations.de.md)", ""]
+    return lines
+
+
+def _render_architecture(data: dict, name: str, partner: str, german: bool) -> list[str]:
+    lines = _document_intro("architecture", name, partner, german)
+    if german:
+        lines += ["## Hostintegration", "", localized(data, "host", True) + ". Common erhält nur neutral gemappte Werte; Host-APIs, Speicherallokation und Callback-Lebensdauer bleiben außerhalb von Common.", "", "## Transaktions-Lifecycle", "", "| Phase | Bedeutung |\n| --- | --- |\n| P1 | Request-Header vor dem Upstream-Request |\n| P2 | Request-Body; Abschluss an Request-EOS |\n| P3 | Response-Header |\n| P4 | Response-Body; Abschluss an Response-EOS |", "", "## Datenfluss und Engine-Anbindung", "", "Die Adapter geben geliehene Header- und Body-Abschnitte an Common weiter. Common ruft die Engine über seine neutrale Schnittstelle auf; Host-spezifische Typen, Puffer und Callbacks werden nicht in Common übertragen.", "", "## Ownership und Lifetime", "", "Body-Chunks werden nicht connector-eigen vollständig gepuffert. Events und Reports speichern keine Roh-Request- oder Response-Bodies. Adapter-Cleanup folgt dem Ende des Host-Lifecycles und bleibt der gleichen Transaktion zurechenbar.", ""]
     else:
-        if german:
-            lines += ["## Grenzen", "", localized(data, "limit", True), "", "## Nicht durch diesen Leitfaden abgedeckt", "", "Strict-Transport-Enforcement über die ausgewählte Evidence hinaus, vollständige HTTP/2- oder HTTP/3-Verifikation, CRS-Verifikation, vollständige Extended-Matrix-Ausführung, Kompressionsverhalten und Produktionsreife bleiben getrennte Arbeit.", "", "## Kompatibilitätspfade", "", "Kompatibilitätskonfigurationen liegen getrennt unter `examples/` und dürfen nicht als ausgewählter Full-Lifecycle-Beweis zitiert werden.", ""]
-        else:
-            lines += ["## Boundaries", "", data["limit"], "", "## Not covered by this guide", "", "Strict transport enforcement beyond the selected evidence, complete HTTP/2 or HTTP/3 verification, CRS verification, full extended-matrix execution, compression behavior, and production suitability remain separate work.", "", "## Compatibility paths", "", "Compatibility configurations are kept separately in `examples/` and must not be cited as selected full-lifecycle proof.", ""]
+        lines += ["## Host integration", "", data["host"] + ". Common receives only neutral mapped values; host APIs, allocation, and callback lifetime remain outside Common.", "", "## Transaction lifecycle", "", "| Phase | Meaning |\n| --- | --- |\n| P1 | Request headers before the upstream request |\n| P2 | Request body; finish at request EOS |\n| P3 | Response headers |\n| P4 | Response body; finish at response EOS |", "", "## Data flow and engine binding", "", "The adapter passes borrowed header and body slices to Common. Common calls the engine through its neutral interface; host-specific types, buffers, and callbacks are never passed into Common.", "", "## Ownership and lifetime", "", "Body chunks are not fully buffered by the connector. Events and reports retain no raw request or response body. Adapter cleanup follows the host lifecycle end and remains attributable to the same transaction.", ""]
+    return lines
+
+
+def _render_build(connector: str, data: dict, name: str, partner: str, german: bool) -> list[str]:
+    lines = _document_intro("build", name, partner, german)
+    if german:
+        lines += ["## Buildpfad und Hostversion", "", localized(data, "build", True), "", "Die maßgebliche Hostversion ist die Version der aktuellen vorbereiteten Runtime oder ihres gepinnten Provisionierungsinputs. Eine dokumentierte Version ist keine Aussage über jede Distribution, ABI oder Betriebsumgebung.", "", "## Toolchain und Abhängigkeiten", "", "Benötigt werden der zum Host passende C/C++- bzw. Go-Toolchainpfad, libmodsecurity-Abhängigkeiten und ein beschreibbarer Build-/Cache-Root außerhalb des Checkouts. Compiler, Flags und Hostrevisionen werden als Build-Provenance festgehalten; dieser Leitfaden behauptet keine universelle Compiler- oder Go-Version.", "", "## Cache-v2 und Provenienz", "", "Die Wiederverwendung von Cache-v2 ist identitätsgebunden. Source-URL, Revision oder Digest, Patchset, Architektur, Compiler und Konfiguration bestimmen, ob ein Cache-Eintrag wiederverwendbar ist. Ein Cache-Treffer ist kein Runtime-PASS.", "", "## Build, Config und Runtime", "", f"Führen Sie `make build-{connector}` und danach `make check-config-{connector}` aus. Start- und Runtime-Smokes existieren nur für die jeweils angebotenen Targetfamilien; der ausgewählte Kernlauf ist `make full-lifecycle-{connector}`. Erfolgreicher Build oder Config-Check ist kein Rule-Engine-PASS.", "", "## Optionale Profile und Fehlerdiagnose", "", "Kompatibilitäts-, CRS-, erweitertes Matrix-, H2/H3- und Strict-Profile sind getrennt vom ausgewählten Kern. Prüfen Sie bei Fehlern Executable-Pfade, ABI, Modul-/Service-Load, beschreibbare Runtime-Roots sowie gepinnte Source-/Patch-Eingaben, bevor Sie Konfiguration ändern.", ""]
+    else:
+        lines += ["## Build path and host version", "", data["build"], "", "The authoritative host version is the version of the current prepared runtime or its pinned provisioning input. A documented version is not support for every distribution, ABI, or operating environment.", "", "## Toolchain and dependencies", "", "Use the host-appropriate C/C++ or Go toolchain, libmodsecurity dependencies, and a writable build/cache root outside the checkout. Compiler, flags, and host revision are recorded as build provenance; this guide makes no universal compiler or Go-version claim.", "", "## Cache-v2 and provenance", "", "Cache-v2 reuse is identity-bound. Source URL, revision or digest, patchset, architecture, compiler, and configuration decide whether an entry is reusable. A cache hit is not a runtime PASS.", "", "## Build, configuration, and runtime", "", f"Run `make build-{connector}` and then `make check-config-{connector}`. Start and runtime smokes exist only for the target families that provide them; the selected core run is `make full-lifecycle-{connector}`. A successful build or config check is not a rule-engine PASS.", "", "## Optional profiles and troubleshooting", "", "Compatibility, CRS, extended-matrix, H2/H3, and Strict profiles remain separate from the selected core. Before changing configuration, check executable paths, ABI, module/service load, writable runtime roots, and pinned source/patch inputs.", ""]
+    lines += variables_table(data, german)
+    return lines
+
+
+def _render_configuration(connector: str, data: dict, name: str, partner: str, german: bool) -> list[str]:
+    lines = _document_intro("configuration", name, partner, german)
+    if german:
+        lines += ["## Konfigurationsmodell", "", localized(data, "config", True), "", "## Minimal, Safe und Strict", "", f"Die [annotierten {name}-Beispiele](../../../examples/{connector}/README.de.md) sind die vollständige lokale Quelle. Ersetzen Sie jeden Pfad, Port und Endpoint für den Zielhost. Minimal und Safe gehören zum dokumentierten Kern; Strict wird nur dort beschrieben, wo der Host und aktuelle Evidence es tragen. Kopieren Sie keine Kompatibilitätskonfiguration als ausgewählten Kernpfad.", "", "## Defaults, Body-Scope und Logging", "", "Nur vorhandene Hostdirektiven und Harness-Optionen sind in den Beispielen aufgeführt. Body- und Content-Type-Verhalten bleiben host- und profilgebunden; keine Konfiguration erlaubt einen connector-eigenen vollständigen Response-Buffer. Nutzen Sie payloadfreie Connector-/Evidence-Logs und speichern Sie keine Secrets in Regeln, Pfaden oder Kommandozeilen.", "", "## Validierung", "", f"Führen Sie `make check-config-{connector}` vor dem Start aus. Der Kernlauf `make full-lifecycle-{connector}` benötigt beschreibbare Runtime- und Evidence-Roots; prüfen Sie das Ergebnis immer anhand der Artefakte.", ""]
+    else:
+        lines += ["## Configuration model", "", data["config"], "", "## Minimal, Safe, and Strict", "", f"The [annotated {name} examples](../../../examples/{connector}/README.md) are the complete local source. Replace every path, port, and endpoint for the target host. Minimal and Safe belong to the documented core; Strict is described only where the host and current evidence support it. Do not copy a compatibility configuration as the selected core path.", "", "## Defaults, body scope, and logging", "", "Only existing host directives and harness options are listed in the examples. Body and content-type behavior remain host- and profile-bound; no configuration permits a connector-owned full response buffer. Use payload-free connector/evidence logs and keep secrets out of rules, paths, and command lines.", "", "## Validation", "", f"Run `make check-config-{connector}` before starting a host. The core run `make full-lifecycle-{connector}` needs writable runtime and evidence roots; always inspect its artifacts for the result.", ""]
+    lines += variables_table(data, german)
+    return lines
+
+
+def _render_lifecycle(data: dict, name: str, partner: str, german: bool) -> list[str]:
+    lines = _document_intro("lifecycle", name, partner, german)
+    if german:
+        lines += ["## Phasen und EOS", "", "| Phase | Bedeutung |\n| --- | --- |\n| P1 | Request-Header |\n| P2 | Request-Body; Abschluss an Request-EOS |\n| P3 | Response-Header |\n| P4 | Response-Body; Abschluss an Response-EOS |", "", "## Pre-Commit und Post-Commit", "", "Vor dem Response-Commit darf ein Host eine unterstützte Pre-Commit-Aktion anwenden. Nach dem Commit protokolliert Safe `log_only`; Safe behauptet keinen umgeschriebenen sichtbaren Status. " + localized(data, "limit", True), "", "## First Byte, Buffering und Cleanup", "", "Die ausgewählte Evidence verlangt, wo anwendbar, eine First-Byte-vor-EOS-Beobachtung und verbietet einen connector-eigenen Full-Response-Buffer. Lifecycle-Counter, Events und Cleanup müssen derselben Transaktion zurechenbar sein.", ""]
+    else:
+        lines += ["## Phases and EOS", "", "| Phase | Meaning |\n| --- | --- |\n| P1 | Request headers |\n| P2 | Request body; finish at request EOS |\n| P3 | Response headers |\n| P4 | Response body; finish at response EOS |", "", "## Pre-commit and post-commit", "", "Before response commitment, a host may take a supported pre-commit action. After commitment, Safe records `log_only`; Safe does not claim a rewritten visible status. " + data["limit"], "", "## First byte, buffering, and cleanup", "", "The selected evidence requires first-byte-before-EOS observation where applicable and rejects a connector-owned full response buffer. Lifecycle counters, events, and cleanup must be attributable to the same transaction.", ""]
+    return lines
+
+
+def _render_testing(connector: str, data: dict, name: str, partner: str, german: bool) -> list[str]:
+    lines = _document_intro("testing", name, partner, german)
+    if german:
+        lines += ["## Ebenen", "", f"Führen Sie `make build-{connector}`, `make check-config-{connector}`, einen vorhandenen Start-/Runtime-Smoke und `make full-lifecycle-{connector}` als getrennte Ebenen aus. Build, Config und Start sind kein Rule-Engine-PASS.", "", "## No-CRS-Kernregeln und Cases", "", "Diese Rule-IDs gehören zum repository-eigenen No-CRS-Testprofil, nicht zu OWASP CRS.", "", "| Rule-ID | Phase | Zweck |\n| ---: | --- | --- |\n| `1100001` | P1 | Request-Header deny |\n| `1100101` | P2 | Request-Body deny |\n| `1100201` | P3 | Response-Header deny |\n| `1100301` | P4 | Response-Body deny oder Safe-Late-Intervention |", "", "## Evidence und Run-Grenze", "", "Case-IDs beschreiben eine Capability und den erwarteten Zustand. Ein ausgewählter Case benötigt zurechenbare Result-/Event-Evidence, Profilidentität und die konfigurierte Run-ID. Ein `PASS`-Aggregat darf nicht aus Build-Ausgabe abgeleitet werden.", "", "## Statuswerte", "", "`PASS`, `FAIL`, `BLOCKED`, `NOT EXECUTED`, `NOT APPLICABLE` und `UNSUPPORTED` stehen unter [Testebenen](../../testing/test-levels.de.md).", ""]
+    else:
+        lines += ["## Levels", "", f"Run `make build-{connector}`, `make check-config-{connector}`, any available start/runtime smoke, and `make full-lifecycle-{connector}` as separate levels. Build, configuration, and start are not rule-engine PASS.", "", "## No-CRS core rules and cases", "", "These rule IDs belong to the repository-owned No-CRS test profile, not OWASP CRS.", "", "| Rule ID | Phase | Purpose |\n| ---: | --- | --- |\n| `1100001` | P1 | Request-header deny |\n| `1100101` | P2 | Request-body deny |\n| `1100201` | P3 | Response-header deny |\n| `1100301` | P4 | Response-body deny or Safe late intervention |", "", "## Evidence and run boundary", "", "Case IDs identify a capability and expected state. A selected case needs attributable result/event evidence, profile identity, and the configured run ID. A PASS aggregate must not be inferred from build output.", "", "## Statuses", "", "`PASS`, `FAIL`, `BLOCKED`, `NOT EXECUTED`, `NOT APPLICABLE`, and `UNSUPPORTED` are defined in [test levels](../../testing/test-levels.md).", ""]
+    return lines
+
+
+def _render_operations(data: dict, name: str, partner: str, german: bool) -> list[str]:
+    lines = _document_intro("operations", name, partner, german)
+    if german:
+        lines += ["## Start und Stop", "", "Verwenden Sie für lokale Harnesses die passenden Make-Targets. Operatorverwaltete Services verwenden ihren eigenen Service-Manager und den Host-Config-Check.", "", "## Logs, Rotation und Health", "", "Nutzen Sie Host-Error-/Access-Logs und payloadfreie Connector-/Evidence-Logs. Rotieren Sie Logs mit der Hostfunktion, nicht durch Umbenennen offener Dateien. Health bedeutet Erreichbarkeit und geladene Konfiguration; es ist kein Security- oder Lifecycle-PASS.", "", "## Timeouts und Ressourcen", "", "Setzen Sie Host-Timeouts, Worker-/Datei-/Speicherlimits und Runtime-Roots nach den Grenzen des Zielhosts. Repository-Timeoutvariablen begrenzen Jobs, ersetzen aber keine Produktionsdimensionierung. Vermeiden Sie Secrets in Pfaden, Prozessen, Events und kanonischer Evidence.", "", "## Diagnose und Updates", "", "Prüfen Sie Endpoint-Erreichbarkeit, Modul-/Service-Load, Lesbarkeit der Rule-Datei, Runtime-Root-Rechte und den ausgewählten Integrationsmodus, bevor Sie ein fehlendes Ergebnis als Rule-Fehler deuten. Host-, Modul-, Patchset- und Source-Revisionen schaffen eine neue Build-/Cache-Identität; führen Sie danach den ausgewählten Evidence-Target erneut aus.", ""]
+    else:
+        lines += ["## Start and stop", "", "Use matching Make targets for local harnesses. Operator-managed services use their own service manager and host configuration check.", "", "## Logs, rotation, and health", "", "Use host error/access logs and payload-free connector/evidence logs. Rotate logs through the host facility rather than renaming open files. Health means reachability and a loaded configuration; it is not a security or lifecycle PASS.", "", "## Timeouts and resources", "", "Set host timeouts, worker/file/memory limits, and runtime roots for the target host's boundaries. Repository timeout variables bound jobs but do not replace production sizing. Keep secrets out of paths, processes, events, and canonical evidence.", "", "## Diagnosis and updates", "", "Check endpoint reachability, module/service load, rules-file readability, runtime-root permissions, and the selected integration mode before treating a missing result as a rule failure. Host, module, patchset, and source-revision changes create a new build/cache identity; rerun the selected evidence target afterward.", ""]
+    return lines
+
+
+def _render_limitations(data: dict, name: str, partner: str, german: bool) -> list[str]:
+    lines = _document_intro("limitations", name, partner, german)
+    if german:
+        lines += ["## Grenzen", "", localized(data, "limit", True), "", "## Nicht durch diesen Leitfaden abgedeckt", "", "Strict-Transport-Enforcement über die ausgewählte Evidence hinaus, vollständige HTTP/2- oder HTTP/3-Verifikation, CRS-Verifikation, vollständige Extended-Matrix-Ausführung, Kompressionsverhalten und Produktionsreife bleiben getrennte Arbeit.", "", "## Kompatibilitätspfade", "", "Kompatibilitätskonfigurationen liegen getrennt unter `examples/` und dürfen nicht als ausgewählter Full-Lifecycle-Beweis zitiert werden.", ""]
+    else:
+        lines += ["## Boundaries", "", data["limit"], "", "## Not covered by this guide", "", "Strict transport enforcement beyond the selected evidence, complete HTTP/2 or HTTP/3 verification, CRS verification, full extended-matrix execution, compression behavior, and production suitability remain separate work.", "", "## Compatibility paths", "", "Compatibility configurations are kept separately in `examples/` and must not be cited as selected full-lifecycle proof.", ""]
+    return lines
+
+
+def _render_sections(
+    kind: str, connector: str, data: dict, name: str, partner: str, german: bool
+) -> list[str]:
+    renderers = {
+        "README": lambda: _render_readme(data, name, partner, german),
+        "architecture": lambda: _render_architecture(data, name, partner, german),
+        "build": lambda: _render_build(connector, data, name, partner, german),
+        "configuration": lambda: _render_configuration(connector, data, name, partner, german),
+        "lifecycle": lambda: _render_lifecycle(data, name, partner, german),
+        "testing": lambda: _render_testing(connector, data, name, partner, german),
+        "operations": lambda: _render_operations(data, name, partner, german),
+        "limitations": lambda: _render_limitations(data, name, partner, german),
+    }
+    return renderers[kind]()
+
+
+def _finish_content(lines: list[str], kind: str, german: bool) -> str:
     if german and kind not in {"README"}:
         # Preserve structural parity while translating the repeated practical labels.
         text = "\n".join(lines)
-        replacements = {"## Host integration": "## Hostintegration", "## Data flow": "## Datenfluss", "## Ownership": "## Ownership", "## Build path": "## Buildpfad", "## Prerequisites": "## Voraussetzungen", "## Cache and provenance": "## Cache und Provenienz", "## Validation": "## Validierung", "## Troubleshooting": "## Fehlerdiagnose", "## Configuration model": "## Konfigurationsmodell", "## Minimal and Safe examples": "## Minimal- und Safe-Beispiele", "## Phases": "## Phasen", "## Safe and Strict boundary": "## Safe- und Strict-Grenze", "## First byte and buffering": "## First Byte und Buffering", "## Levels": "## Ebenen", "## No-CRS core rules": "## No-CRS-Kernregeln", "## Evidence": "## Evidence", "## Statuses": "## Statuswerte", "## Start and stop": "## Start und Stop", "## Logs and health": "## Logs und Health", "## Diagnosis": "## Diagnose", "## Updates": "## Updates", "## Boundaries": "## Grenzen", "## Not covered by this guide": "## Nicht durch diesen Leitfaden abgedeckt", "## Compatibility paths": "## Kompatibilitätspfade"}
-        for old, new in replacements.items():
+        for old, new in GERMAN_LABEL_REPLACEMENTS.items():
             text = text.replace(old, new)
         return text.rstrip() + "\n"
     return "\n".join(lines).rstrip() + "\n"
 
 
+def content(kind: str, connector: str, data: dict, german: bool) -> str:
+    name = data["name"]
+    partner = f"{kind}{'.md' if german else '.de.md'}"
+    lines = _render_sections(kind, connector, data, name, partner, german)
+    return _finish_content(lines, kind, german)
+
+
 def main() -> None:
-    names = ("README", "architecture", "build", "configuration", "lifecycle", "testing", "operations", "limitations")
     for connector, data in CONNECTORS.items():
         directory = ROOT / "docs" / "connectors" / connector
         directory.mkdir(parents=True, exist_ok=True)
-        for name in names:
+        for name in DOCUMENT_KINDS:
             directory.joinpath(f"{name}.md").write_text(content(name, connector, data, False), encoding="utf-8")
             directory.joinpath(f"{name}.de.md").write_text(content(name, connector, data, True), encoding="utf-8")
 
