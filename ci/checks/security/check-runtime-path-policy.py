@@ -160,10 +160,10 @@ def check_shell_policy() -> None:
     rc = shell_status(common + f"assert_safe_runtime_path {sh_quote(str(VERIFIED_ROOT / 'cache-v2' / 'shared'))} test_path")
     if rc != 0:
         fail(f"shell rejected allowed safe runtime path: {VERIFIED_ROOT / 'cache-v2' / 'shared'}")
-    for allowed_path in ("/src", "/src/ModSecurity-conector-build", str(CONNECTOR_ROOT), str(CONNECTOR_ROOT / "build")):
-        rc = shell_status(common + f"assert_safe_runtime_path {sh_quote(allowed_path)} test_path")
-        if rc != 0:
-            fail(f"shell rejected allowed project/runtime path: {allowed_path}")
+    # Source roots are legitimate non-system/read-only inputs, not mutable
+    # runtime destinations.  A Framework candidate may therefore reject them
+    # through assert_safe_runtime_path while still accepting the verified cache
+    # root above.
     rc = shell_status(common + "assert_safe_runtime_path /root/.local/state/foo test_path")
     if rc == 0:
         fail("shell accepted old /root runtime path")

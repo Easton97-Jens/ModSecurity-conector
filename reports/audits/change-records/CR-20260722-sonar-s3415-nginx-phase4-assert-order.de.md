@@ -136,6 +136,26 @@ Exact-Head-GitHub-Actions, SonarQube-Cloud-Quality-Gate, Selected-Key-Queries
 und Review-Evidence sind erforderlich, bevor ein Draft-PR als verifiziert
 bezeichnet werden kann; der PR muss ungemergt bleiben.
 
+## Current-Master-Integrationsnachtrag (2026-07-23)
+
+Das historische Baseline-Ergebnis vom 2026-07-22 bleibt zur
+Nachvollziehbarkeit erhalten. Nachdem der Parent auf Master
+`b348c7ef78bfbce058dae06794e80b5f77515907` mit Framework-Gitlink
+`935cf14c676a24672be5c336e92cd13457cc35c8` aktualisiert wurde, reproduzierte
+dasselbe vollständige fokussierte Modul den bereits vorhandenen
+`write_shell_env`-`output_root`-API-Mismatch. Der Parent-only-Test übergibt
+jetzt sein vorhandenes `TemporaryDirectory` als `output_root`; damit bleibt der
+Write-Containment-Control des Frameworks erhalten und weder Framework- noch
+MRTS-Inhalt ändert sich. Nach dieser Anpassung bestehen alle 6 Tests des
+vollständigen fokussierten Moduls. Dies ist zusätzlich zu den fünf S3415-
+Assertion-Reihenfolgen eine für die Current-Master-Integration notwendige
+Kompatibilitätsreparatur.
+
+Dieser Nachtrag ersetzt die frühere vorausschauende Draft-/Unmerged-
+Delivery-Formulierung. Frische Hosted-Checks für den exakten Head,
+SonarQube-Cloud-Evidence und Review-Evidence bleiben vor einem geschützten
+Merge erforderlich.
+
 ## Finaler Diff- und Review-Status
 
 Der beabsichtigte Source-Diff tauscht nur die Argumentreihenfolge in fünf

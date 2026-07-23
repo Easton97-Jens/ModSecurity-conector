@@ -126,6 +126,23 @@ GitHub Actions, SonarQube Cloud Quality Gate, selected-key queries, and review
 evidence are required before a Draft PR can be called verified; the PR must
 remain unmerged.
 
+## Current-master integration amendment (2026-07-23)
+
+The historical 2026-07-22 baseline result above is retained for traceability.
+After the Parent moved to master `b348c7ef78bfbce058dae06794e80b5f77515907`
+with Framework gitlink `935cf14c676a24672be5c336e92cd13457cc35c8`, the
+same full focused module reproduced the pre-existing `write_shell_env`
+`output_root` API mismatch. The Parent-only test now passes its existing
+`TemporaryDirectory` as `output_root`, preserving the Framework contained-write
+control and changing neither Framework nor MRTS content. The complete focused
+module passes all 6 tests after this adjustment. It is a compatibility repair
+needed for current-master integration in addition to the five S3415 assertion
+order changes.
+
+This amendment supersedes the earlier prospective Draft/unmerged delivery
+wording. Fresh exact-head hosted checks, SonarQube Cloud evidence, and review
+evidence remain required before a protected merge.
+
 ## Final diff and review status
 
 The intended source diff only swaps argument order in five `assertEqual` calls

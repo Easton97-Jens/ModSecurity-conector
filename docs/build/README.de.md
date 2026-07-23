@@ -200,6 +200,40 @@ vorgeschlagenen Patch; sie behauptet nicht, dass ein geplanter Lauf, Candidate,
 Pull Request oder Merge stattgefunden hat. Solche Ergebnisse benötigen separat
 beobachtete CI- und Delivery-Evidence.
 
+## Parent-CI-Go-Toolchain-Vertrag
+
+**Change Record:** [CR-20260722-central-go-toolchain-submodule-validation](../../reports/audits/change-records/CR-20260722-central-go-toolchain-submodule-validation.de.md)
+
+Die eingecheckte Root-<code>.go-version</code> ist der einzige
+maschinenlesbare Go-CI-Toolchain-Selector. Ihr erforderlicher Inhalt ist der
+exakte stabile Patch <code>1.26.5</code>. Die zwei Go-CodeQL-Jobs verwenden:
+
+~~~yaml
+go-version-file: .go-version
+check-latest: false
+~~~
+
+Der Selector ersetzt bewusst keine <code>go.mod</code>-Direktive der beiden
+Module. Eine Modul-Direktive bleibt der modul-eigene Go-Sprach- und
+Kompatibilitätsvertrag, und der Updater verändert niemals
+<code>go.mod</code>, <code>go.sum</code>, Abhängigkeiten oder eine
+<code>toolchain</code>-Direktive.
+
+<code>.github/workflows/update-go-version.yml</code> folgt derselben
+dreistufigen Trust-Grenze wie der Python-Updater:
+
+| Job | Toolchain und Trust-Grenze | Erforderliches Verhalten |
+| --- | --- | --- |
+| <code>resolve-go-patch</code> | Kanonische <code>.go-version</code>; read-only | Ruft nur den exakten Go-Release-Endpoint <code>https://go.dev/dl/?mode=json</code> auf, weist Redirects sowie fehlerhafte oder zu große Metadaten zurück und akzeptiert nur einen höheren stabilen exakten <code>1.26.N</code>-Patch. |
+| <code>validate-go-patch</code> | Unabhängig aufgelöster Go-Candidate; read-only | Löst den Candidate erneut auf, führt den statischen Vertrag und fokussierte Tests aus und validiert dann jedes tatsächliche Modul mit <code>GOTOOLCHAIN=local</code>, <code>go mod verify</code>, <code>go test -mod=readonly</code>, <code>go vet</code> und <code>go build -mod=readonly</code>. Es kann weder auf eine heruntergeladene Go-Toolchain zurückfallen noch Moduldateien schreiben. |
+| <code>create-go-update-pr</code> | Kanonisches Python für den begrenzten Updater; enger Publisher | Löst mit <code>--expected-version</code> erneut auf, ändert nur <code>.go-version</code> und darf nur den repository-eigenen Draft PR auf <code>automation/update-go-126</code> erstellen oder sicher aktualisieren. Er hat nur Contents- und Pull-Requests-Write-Berechtigungen. |
+
+Der Updater ist Python, weil der begrenzte, offline-testbare Release-Parser
+eingechecktes Python ist. Jeder Go-Updater-Job verwendet daher zuerst die
+vorhandene <code>.python-version</code> und den Interpretervertrag; die
+No-ambient-interpreter-Regel bleibt erhalten, statt eine Bootstrap-Ausnahme
+hinzuzufügen.
+
 ### Beobachtete lokale Implementierungsvalidierung
 
 Vor diesem Baseline-Upgrade schlug die Current-Master-Ausführung von

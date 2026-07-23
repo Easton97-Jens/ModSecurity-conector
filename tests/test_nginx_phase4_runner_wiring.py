@@ -62,7 +62,7 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
         case = self.load_fixture("nginx_phase4_deny_after_commit_log_only.yaml")
         with tempfile.TemporaryDirectory() as temporary:
             env_file = Path(temporary) / "case.env"
-            write_shell_env(case, env_file)
+            write_shell_env(case, env_file, output_root=temporary)
             content = env_file.read_text(encoding="utf-8")
         self.assertIn("NGINX_PHASE4_MODE=safe", content)
         self.assertNotIn("actual_action", content)
