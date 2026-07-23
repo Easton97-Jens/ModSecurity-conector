@@ -128,7 +128,7 @@ class RuntimePathSecurityTest(unittest.TestCase):
                 with self.subTest(path=path):
                     self.assertTrue(path.is_dir())
                     self.assertFalse(path.is_symlink())
-                    self.assertEqual(0, stat.S_IMODE(path.stat().st_mode) & 0o022)
+                    self.assertEqual(stat.S_IMODE(path.stat().st_mode) & 0o022, 0)
 
     def test_all_write_capable_configured_runtime_roots_are_prepared(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-path-all-roots-") as temporary:
@@ -166,7 +166,7 @@ class RuntimePathSecurityTest(unittest.TestCase):
                 with self.subTest(key=key, path=path):
                     self.assertTrue(path.is_dir())
                     self.assertFalse(path.is_symlink())
-                    self.assertEqual(0, stat.S_IMODE(path.stat().st_mode) & 0o022)
+                    self.assertEqual(stat.S_IMODE(path.stat().st_mode) & 0o022, 0)
 
     def test_canonical_source_root_remains_read_only_during_runtime_preparation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-path-read-only-source-") as temporary:
@@ -211,7 +211,7 @@ class RuntimePathSecurityTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "symbolic links"):
                     VERIFIED_REPORT_RUN.prepare_runtime_roots(paths)
 
-                self.assertEqual([], list(victim.iterdir()))
+                self.assertEqual(list(victim.iterdir()), [])
                 self.assertFalse((victim / "no-crs").exists())
 
     def test_direct_full_matrix_job_rejects_matrix_swap_before_job_creation(self) -> None:
@@ -256,7 +256,7 @@ class RuntimePathSecurityTest(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError, "symbolic links"):
                             FULL_MATRIX_JOB.main()
 
-            self.assertEqual([], list(victim.iterdir()))
+            self.assertEqual(list(victim.iterdir()), [])
             self.assertFalse((victim / "no-crs").exists())
 
     def test_direct_full_matrix_resume_rejects_matrix_swap_before_subprocesses(self) -> None:
@@ -295,7 +295,7 @@ class RuntimePathSecurityTest(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError, "symbolic links"):
                             FULL_MATRIX_RESUME.main()
 
-            self.assertEqual([], list(victim.iterdir()))
+            self.assertEqual(list(victim.iterdir()), [])
 
     def test_shell_runtime_path_preflight_rejects_matrix_swap_before_shell_writes(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-path-shell-preflight-") as temporary:
@@ -328,9 +328,9 @@ class RuntimePathSecurityTest(unittest.TestCase):
                         side_effect=swap_matrix_root,
                     ):
                         with contextlib.redirect_stderr(io.StringIO()):
-                            self.assertEqual(77, RUNTIME_PATH_PREFLIGHT.main())
+                            self.assertEqual(RUNTIME_PATH_PREFLIGHT.main(), 77)
 
-            self.assertEqual([], list(victim.iterdir()))
+            self.assertEqual(list(victim.iterdir()), [])
 
     def test_direct_mrts_shell_entrypoints_preflight_before_first_directory_creation(self) -> None:
         for relative_path in (
@@ -390,7 +390,7 @@ class RuntimePathSecurityTest(unittest.TestCase):
                 self.assertEqual(runtime_root, ensure_safe_runtime_directory(runtime_root))
 
             self.assertTrue(runtime_root.is_dir())
-            self.assertEqual(0, stat.S_IMODE(runtime_root.stat().st_mode) & 0o022)
+            self.assertEqual(stat.S_IMODE(runtime_root.stat().st_mode) & 0o022, 0)
 
     def test_nonsticky_or_nonroot_shared_root_is_rejected(self) -> None:
         variants = (
@@ -477,7 +477,7 @@ class RuntimePathSecurityTest(unittest.TestCase):
                 validate_verified_run_id(value)
 
         valid = "2026-07-21T02-35-59Z-deadbeef"
-        self.assertEqual(valid, validate_verified_run_id(valid))
+        self.assertEqual(validate_verified_run_id(valid), valid)
 
     def test_run_id_is_checked_before_lifecycle_and_report_path_joins(self) -> None:
         with tempfile.TemporaryDirectory(prefix="verified-run-id-") as temporary:
@@ -535,7 +535,7 @@ class RuntimePathSecurityTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertNotEqual(0, process.returncode)
+            self.assertNotEqual(process.returncode, 0)
             self.assertIn("verified_run_id", process.stderr)
             self.assertFalse((build_root / "verified-runs").exists())
 
@@ -557,23 +557,23 @@ class RuntimePathSecurityTest(unittest.TestCase):
                     "argv",
                     ["generate-connector-roadmap.py", "--connector-root", str(ROOT)],
                 ):
-                    self.assertEqual(0, CONNECTOR_ROADMAP.main())
+                    self.assertEqual(CONNECTOR_ROADMAP.main(), 0)
                 with mock.patch.object(ORGANIZATION_INVENTORY, "tracked_files", return_value=[]):
                     ORGANIZATION_INVENTORY.main()
 
             roadmap_outputs = list(temporary_parent.glob("modsecurity-connector-roadmap-*"))
             inventory_outputs = list(temporary_parent.glob("modsecurity-doc-cleanup-*"))
-            self.assertEqual(1, len(roadmap_outputs))
-            self.assertEqual(1, len(inventory_outputs))
+            self.assertEqual(len(roadmap_outputs), 1)
+            self.assertEqual(len(inventory_outputs), 1)
             self.assertTrue((roadmap_outputs[0] / "connector-roadmap.generated.json").is_file())
             self.assertTrue((roadmap_outputs[0] / "connector-roadmap.generated.md").is_file())
             self.assertTrue((roadmap_outputs[0] / "connector-roadmap.generated.de.md").is_file())
             self.assertTrue((inventory_outputs[0] / "repository-organization-inventory.json").is_file())
             self.assertTrue((inventory_outputs[0] / "repository-organization-plan.md").is_file())
             self.assertTrue((inventory_outputs[0] / "repository-organization-plan.de.md").is_file())
-            self.assertEqual("unchanged\n", sentinel.read_text(encoding="utf-8"))
-            self.assertEqual(0, stat.S_IMODE(roadmap_outputs[0].stat().st_mode) & 0o077)
-            self.assertEqual(0, stat.S_IMODE(inventory_outputs[0].stat().st_mode) & 0o077)
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "unchanged\n")
+            self.assertEqual(stat.S_IMODE(roadmap_outputs[0].stat().st_mode) & 0o077, 0)
+            self.assertEqual(stat.S_IMODE(inventory_outputs[0].stat().st_mode) & 0o077, 0)
 
 
 if __name__ == "__main__":

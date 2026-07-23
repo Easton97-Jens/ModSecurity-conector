@@ -286,7 +286,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 stack.enter_context(
                     mock.patch.object(sys, "argv", ["check-generated-report-layout.py", "--connector-root", str(connector_root)])
                 )
-                self.assertEqual(0, CHECKER.main())
+                self.assertEqual(CHECKER.main(), 0)
 
         expected = build_root.absolute()
         self.assertEqual(expected, check_manifest.call_args.kwargs["build_root"])
@@ -1151,7 +1151,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             )
             errors: list[str] = []
             CHECKER.check_manifest(connector_root, errors, strict_evidence=True, build_root=build_root)
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_german_generated_markdown_metadata_is_checked(self) -> None:
         valid_german_report = (
@@ -1170,7 +1170,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             report.write_text(valid_german_report, encoding="utf-8")
             errors: list[str] = []
             CHECKER.check_existing_generated_reports(connector_root, errors)
-            self.assertEqual([], errors)
+            self.assertEqual(errors, [])
 
             report.write_text(valid_german_report.removeprefix("> Generierte Datei – nicht manuell bearbeiten.\n"), encoding="utf-8")
             errors = []
@@ -1194,7 +1194,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             report.write_text(valid_english_report, encoding="utf-8")
             errors: list[str] = []
             CHECKER.check_existing_generated_reports(connector_root, errors)
-            self.assertEqual([], errors)
+            self.assertEqual(errors, [])
 
             report.write_text("**Language:** English\n\n" + valid_english_report, encoding="utf-8")
             errors = []
@@ -1216,7 +1216,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 CHECKER.german_generated_markdown_path(english).write_text("generated\n", encoding="utf-8")
                 errors = []
                 CHECKER.check_registry_paths(connector_root, errors)
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_orphan_german_generated_report_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

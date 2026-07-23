@@ -107,6 +107,10 @@ nicht-konstanten Signaturen aus `msconnector_runtime.h` beibehalten, deren
 Produktivimplementierungen diese Objekte verändern. Es wurde weder eine
 Scanner-Suppression noch eine öffentliche ABI-Änderung zum Verbergen dieser
 Hinweise verwendet.
+Ein Exact-Head-Sonar-Detail-Readback zeigte anschließend 22
+`python:S3415`-Hinweise zur Assertion-Reihenfolge. Sie sind auf die native
+`actual, expected`-Reihenfolge korrigiert, ohne Testbedingung oder geschützte
+Kontrolle zu verändern.
 
 ## Ausgeführte Befehle
 
@@ -130,6 +134,7 @@ Hinweise verwendet.
 | Current-Master-Fortsetzung: Workflow-Security- und Compiler-Guide-Suiten | bestanden: 37 Tests nach der Konflikt-Union. |
 | Current-Master-Fortsetzung: Authorization-Timeout-Smoke | mit GCC und Clang unter isolierten externen Build-Wurzeln bestanden; Common-C17-Helper- und Shell-Syntax-Prüfung bestanden ebenfalls. |
 | Current-Master-Fortsetzung: fokussiertes Security-Diff-Review | bestanden: keine neue plausible Sicherheitsregression im geprüften Zehn-Dateien-Remediation-Diff. |
+| Exact-Head-Sonar-`S3415`-Assertion-Reihenfolgen-Follow-up | bestanden: 92 fokussierte Runtime-Pfad-, bilinguale Dokumentations- und Generated-Report-Evidence-Tests nach allen 22 Actual/Expected-Reihenfolgenkorrekturen. |
 
 ## Security-Auswirkung
 

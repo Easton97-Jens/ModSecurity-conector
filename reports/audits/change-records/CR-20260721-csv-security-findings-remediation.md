@@ -102,6 +102,9 @@ The two `c:S995` notices in the timeout smoke remain API-constrained: its fake
 definitions must retain the non-const signatures declared by
 `msconnector_runtime.h`, whose production implementations mutate those
 objects. No scanner suppression or public ABI change was used to hide them.
+An exact-head Sonar detail readback then identified 22 `python:S3415` test
+assertion-order smells. They are corrected to the native `actual, expected`
+order without changing any test condition or protected control.
 
 ## Commands executed
 
@@ -125,6 +128,7 @@ objects. No scanner suppression or public ABI change was used to hide them.
 | Current-master continuation: workflow-security and compiler-guide suites | passed: 37 tests after the conflict union. |
 | Current-master continuation: authorization-timeout smoke | passed with GCC and Clang using isolated external build roots; Common C17 helper check and shell syntax check also passed. |
 | Current-master continuation: focused security-diff review | passed: no new plausible security regression in the reviewed ten-file remediation diff. |
+| Exact-head Sonar `S3415` assertion-order follow-up | passed: 92 focused runtime-path, bilingual-documentation, and generated-report-evidence tests after all 22 actual/expected order corrections. |
 
 ## Security impact
 

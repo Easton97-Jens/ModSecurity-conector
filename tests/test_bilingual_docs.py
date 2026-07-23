@@ -85,8 +85,8 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
     def test_matching_longer_fences_remain_valid(self) -> None:
         text = "````sh\necho control\n````\n\n~~~text\ncontrol\n~~~~\n"
         self.assertEqual(
-            ["````sh\necho control\n````", "~~~text\ncontrol\n~~~~"],
             CHECKER.fenced_blocks(text),
+            ["````sh\necho control\n````", "~~~text\ncontrol\n~~~~"],
         )
 
     def test_rejects_local_german_companions(self) -> None:
