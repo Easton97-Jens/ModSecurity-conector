@@ -308,6 +308,29 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertIn("needs: resolve-submodule-update", jobs["validate-submodule-update"])
         self.assertIn("submodules: recursive", jobs["validate-submodule-update"])
         self.assertIn("make quick-check", jobs["validate-submodule-update"])
+        dependency_install = (
+            "python3 -m pip install --disable-pip-version-check --only-binary=:all: "
+            "--require-hashes --requirement "
+            "ci/requirements/update-submodules-validation-linux-x86_64.txt"
+        )
+        dependency_lock = (
+            ROOT / "ci" / "requirements" / "update-submodules-validation-linux-x86_64.txt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("PyYAML==6.0.3", dependency_lock)
+        self.assertIn(
+            "--hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5",
+            dependency_lock,
+        )
+        self.assertNotIn("PyYAML>=", dependency_lock)
+        self.assertIn(dependency_install, jobs["validate-submodule-update"])
+        self.assertLess(
+            jobs["validate-submodule-update"].index("Verify Python interpreter contract"),
+            jobs["validate-submodule-update"].index(dependency_install),
+        )
+        self.assertLess(
+            jobs["validate-submodule-update"].index(dependency_install),
+            jobs["validate-submodule-update"].index("make quick-check"),
+        )
         self.assertNotIn("GH_TOKEN", jobs["validate-submodule-update"])
         self.assertNotIn("secrets.", jobs["validate-submodule-update"])
 
