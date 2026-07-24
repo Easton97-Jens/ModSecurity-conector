@@ -46,8 +46,8 @@ default-branch write is part of this change.
 
 `Makefile` receives only the named test target and its `lint` invocation. The
 task branch also contains a normal synchronization merge of current `master`;
-the sole conflict combined the two bilingual Change Record index entries. That
-merge neither changes `master` nor rewrites published history.
+the paired bilingual Change Record indexes merged automatically. That merge
+neither changes `master` nor rewrites published history.
 
 ## Output compatibility and test boundary
 
@@ -77,6 +77,26 @@ exact-head Draft-PR analysis passed its Quality Gate and removed the original
 two rows, but found two task-introduced unused private-helper parameters. Their
 focused follow-up is locally validated; fresh exact-head hosted and SonarCloud
 results are pending.
+
+### Current Parent-master update — 2026-07-24
+
+Existing Draft PR #106 remains the delivery vehicle. Its previous remote head
+`619e27f8890fcdb1a47dea21ff804e66743ce154` was normally updated without a
+rebase by merging Parent master
+`26f0eb9cff2f1c69ba7be9cfc5fd609659e3041f`. The resulting local merge commit
+`20ad9b6a9341f13f553e28edb2eb471d170c7fd8` incorporated the shared Change
+Record indexes automatically. It does not modify Framework or MRTS; it only
+inherits existing master history. The current PR-base diff remains the Parent
+generator, its Parent test, the named Make target, this English/German Change
+Record pair, and those indexes, with no Framework, MRTS, gitlink,
+checked-in-guide, scanner, Gate, suppression, or security-control change
+authored by this PR update.
+
+The current merged-tree renderer test and the named Make target each passed two
+tests; the independent AST check verified all eight renderer kinds, a
+branch-free public `content()` dispatcher, and no `suffix` assignment. Hosted
+check, SonarQube Cloud, Quality Gate, review, readiness, and merge results are
+claimed only through observed exact-head PR delivery metadata.
 
 ## Acceptance criteria
 
@@ -156,17 +176,19 @@ verified.
   documentation rendering and its complete focused unit test passes.
 - No Framework or MRTS test or modification: both are excluded from this
   Parent-only task.
-- Full documentation checks: will be run after the bilingual Change Record
-  pair is present; known Framework-gitlink blockers will be retained if they
-  are the only observed failures.
+- No current full documentation/link sweep: it can exercise Framework-gitlink
+  targets outside this Parent-only task; targeted bilingual-documentation
+  validation is the applicable local control.
 - Fresh full hosted checks and SonarQube Cloud PR analysis: a Draft PR exists,
   but its S1172 follow-up head still requires a new exact-head analysis.
 
 ## Final diff and review status
 
-The local generator refactor, output-compatibility validation, named lint
-target, and targeted documentation validation are complete on the Parent-only
-task branch. The exact Draft PR exists and remains unmerged. Hosted checks,
-Sonar analysis, and the Quality Gate must be restarted for the focused S1172
-follow-up head. No review approval, PR merge, or default-branch change is
-claimed or authorized.
+The existing Parent-only PR #106 is the delivery vehicle. Its task-owned branch
+contains the normal current-master update merge
+`20ad9b6a9341f13f553e28edb2eb471d170c7fd8` and paired delivery-evidence
+documentation. This record claims neither review approval, merge, nor a
+default-branch change. Before protected merge, the PR must be non-draft and
+its current exact remote head must have passing hosted checks and SonarQube
+Cloud analysis plus refreshed review state; those observed facts belong to
+delivery metadata rather than an unobserved claim in this record.

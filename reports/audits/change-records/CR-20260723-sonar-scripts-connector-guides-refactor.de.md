@@ -51,9 +51,9 @@ dieses Changes.
 
 `Makefile` erhält nur den benannten Test-Target und seinen `lint`-Aufruf. Der
 Task-Branch enthält außerdem einen normalen Synchronisations-Merge des
-aktuellen `master`; der einzige Konflikt führte die beiden bilingualen
-Change-Record-Indexeinträge zusammen. Dieser Merge ändert weder `master` noch
-schreibt er veröffentlichte Historie um.
+aktuellen `master`; die gepaarten bilingualen Change-Record-Indizes wurden
+automatisch gemergt. Dieser Merge ändert weder `master` noch schreibt er
+veröffentlichte Historie um.
 
 ## Output-Kompatibilität und Testgrenze
 
@@ -85,6 +85,28 @@ Gate und entfernte die ursprünglichen zwei Zeilen, meldete aber zwei
 task-eingeführte unbenutzte private-Helper-Parameter. Ihr fokussierter
 Follow-up ist lokal validiert; frische Exact-Head-Hosted- und SonarCloud-
 Ergebnisse stehen aus.
+
+### Aktuelle Parent-master-Aktualisierung — 2026-07-24
+
+Der bestehende Draft PR #106 bleibt das Delivery-Vehikel. Sein vorheriger
+Remote-Head `619e27f8890fcdb1a47dea21ff804e66743ce154` wurde ohne Rebase durch
+das Mergen von Parent-master
+`26f0eb9cff2f1c69ba7be9cfc5fd609659e3041f` normal aktualisiert. Der
+resultierende lokale Merge-Commit
+`20ad9b6a9341f13f553e28edb2eb471d170c7fd8` übernahm die gemeinsamen Change-
+Record-Indizes automatisch. Er ändert weder Framework noch MRTS, sondern
+übernimmt lediglich bestehende Master-Historie. Der aktuelle PR-Base-Diff
+bleibt beim Parent-Generator, seinem Parent-Test, dem benannten Make-Target,
+diesem englisch/deutschen Change-Record-Paar und den Indizes, ohne von diesem
+PR-Update verfasste Framework-, MRTS-, Gitlink-, eingecheckte-Guide-, Scanner-,
+Gate-, Suppression- oder Security-Control-Änderung.
+
+Der aktuelle Renderer-Test im gemergten Baum und der benannte Make-Target
+bestanden jeweils zwei Tests; die unabhängige AST-Prüfung bestätigte alle acht
+Renderer-Arten, einen branch-freien öffentlichen `content()`-Dispatcher und
+keine `suffix`-Zuweisung. Hosted-Check-, SonarQube-Cloud-, Quality-Gate-,
+Review-, Ready- und Merge-Ergebnisse werden nur durch beobachtete Exact-Head-
+PR-Delivery-Metadaten beansprucht.
 
 ## Akzeptanzkriterien
 
@@ -174,18 +196,21 @@ bleibt vor verifizierter Delivery erforderlich.
   Unit-Test besteht.
 - Kein Framework- oder MRTS-Test und keine -Änderung: beide sind aus diesem
   Parent-only-Task ausgeschlossen.
-- Vollständige Dokumentationsprüfungen: werden ausgeführt, nachdem das
-  bilinguale Change-Record-Paar vorliegt; bekannte Framework-Gitlink-Blocker
-  werden beibehalten, falls sie die einzigen beobachteten Fehler sind.
+- Kein aktueller vollständiger Dokumentations-/Link-Sweep: er kann Framework-
+  Gitlink-Targets außerhalb dieses Parent-only-Tasks ausführen; gezielte
+  bilinguale Dokumentationsvalidierung ist die passende lokale Kontrolle.
 - Frische vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse: ein Draft
   PR existiert, aber sein S1172-Follow-up-Head benötigt noch eine neue
   Exact-Head-Analyse.
 
 ## Finaler Diff- und Review-Status
 
-Lokales Generator-Refactoring, Output-Kompatibilitätsvalidierung, benannter
-Lint-Target und gezielte Dokumentationsvalidierung sind auf dem Parent-only-
-Task-Branch abgeschlossen. Der exakte Draft PR existiert und bleibt
-ungemergt. Hosted-Checks, Sonar-Analyse und Quality Gate müssen für den
-fokussierten S1172-Follow-up-Head neu starten. Es werden weder Review-
-Freigabe, PR-Merge noch Default-Branch-Änderung beansprucht oder autorisiert.
+Der bestehende Parent-only-PR #106 ist das Delivery-Vehikel. Sein task-eigener
+Branch enthält den normalen Current-Master-Update-Merge
+`20ad9b6a9341f13f553e28edb2eb471d170c7fd8` sowie gepaarte Delivery-Evidence-
+Dokumentation. Dieser Record beansprucht weder Review-Freigabe noch Merge oder
+Default-Branch-Änderung. Vor einem geschützten Merge muss der PR nicht mehr
+Draft sein und sein aktueller Exact-Remote-Head muss bestehende Hosted-Checks
+und SonarQube-Cloud-Analyse sowie einen aktualisierten Review-Status aufweisen;
+diese beobachteten Fakten gehören zu Delivery-Metadaten und nicht zu einer
+unbeobachteten Behauptung in diesem Record.
