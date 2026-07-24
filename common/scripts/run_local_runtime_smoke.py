@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+from dataclasses import dataclass
 import http.client
 import http.server
 import json
@@ -12,6 +13,7 @@ import os
 import re
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import threading
@@ -22,12 +24,31 @@ import urllib.request
 from pathlib import Path
 
 
+# CI helpers are shared from ci/lib even when this runner is executed directly.
+_CI_LIB = Path(__file__).resolve().parents[2] / "ci" / "lib"
+if str(_CI_LIB) not in sys.path:
+    sys.path.insert(0, str(_CI_LIB))
+
+from runtime_path_utils import is_safe_runtime_root, verified_runtime_paths
+
+
 BLOCK_VALUES = {"1", "true", "block", "yes", "on"}
 REQUEST_BODY_BLOCK_MARKER = "modsec-request-body-block"
 REQUEST_BODY_ALLOW_BODY = b"payload=modsec-request-body-allow"
 REQUEST_BODY_BLOCK_BODY = b"payload=modsec-request-body-block"
 REQUEST_BODY_CONTENT_TYPE = "application/x-www-form-urlencoded"
 TARGETED_SMOKE_CASES = {"targeted", "request_body"}
+CRS_SETUP_TEMPLATE_NAME = "crs-setup.conf.example"
+GENERATED_CRS_SMOKE_RULE_LABEL = "generated CRS smoke rule"
+RUNTIME_PATH_DEPENDENCY = "runtime path"
+RUNTIME_OUTPUT_PATH_FIELDS = (
+    ("evidence_root", "EVIDENCE_ROOT"),
+    ("results_dir", "RESULTS_DIR"),
+    ("tmp_root", "TMP_ROOT"),
+    ("log_root", "LOG_ROOT"),
+    ("log_dir", "LOG_DIR"),
+    ("config_root", "CONFIG_ROOT"),
+)
 CRS_SMOKE_CASES = {
     "minimal": {
         "blocked_path": "/?id=1%20UNION%20SELECT%20password%20FROM%20users",
@@ -45,6 +66,72 @@ class SmokeBlocked(RuntimeError):
         super().__init__(reason)
         self.reason = reason
         self.missing_dependencies = missing_dependencies
+
+
+@dataclass(frozen=True)
+class RuntimeOutputPaths:
+    runtime_root: Path
+    evidence_root: Path
+    results_dir: Path
+    tmp_root: Path
+    log_root: Path
+    log_dir: Path
+    config_root: Path
+
+
+def require_verified_runtime_output_path(value: str, label: str, root: Path) -> Path:
+    """Return one absolute CLI output path constrained to the verified run root."""
+
+    configured = Path(value)
+    if not configured.is_absolute():
+        raise SmokeBlocked(f"{label} must be absolute: {configured}", [RUNTIME_PATH_DEPENDENCY])
+    component = Path(configured.anchor)
+    for name in configured.parts[1:]:
+        component /= name
+        try:
+            metadata = component.lstat()
+        except FileNotFoundError:
+            break
+        except OSError as exc:
+            raise SmokeBlocked(
+                f"{label} cannot inspect path component: {component}", [RUNTIME_PATH_DEPENDENCY]
+            ) from exc
+        if stat.S_ISLNK(metadata.st_mode):
+            raise SmokeBlocked(
+                f"{label} must not contain a symlink: {component}", [RUNTIME_PATH_DEPENDENCY]
+            )
+    try:
+        resolved = configured.resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        raise SmokeBlocked(f"{label} cannot be resolved: {configured}", [RUNTIME_PATH_DEPENDENCY]) from exc
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise SmokeBlocked(
+            f"{label} is outside the verified runtime root: {resolved}", [RUNTIME_PATH_DEPENDENCY]
+        ) from exc
+    return resolved
+
+
+def validate_runtime_output_paths(args: argparse.Namespace) -> RuntimeOutputPaths:
+    """Validate every direct CLI output destination before this runner writes."""
+
+    try:
+        verified = verified_runtime_paths(os.environ)
+    except ValueError as exc:
+        raise SmokeBlocked(f"invalid verified runtime paths: {exc}", [RUNTIME_PATH_DEPENDENCY]) from exc
+    runtime_root = Path(verified["VERIFIED_RUN_ROOT"]).resolve(strict=False)
+    if not is_safe_runtime_root(runtime_root):
+        raise SmokeBlocked(f"VERIFIED_RUN_ROOT is unsafe: {runtime_root}", [RUNTIME_PATH_DEPENDENCY])
+
+    values: dict[str, Path] = {}
+    for field, label in RUNTIME_OUTPUT_PATH_FIELDS:
+        configured = namespace_value(args, field)
+        if not configured:
+            raise SmokeBlocked(f"missing required {label}", [RUNTIME_PATH_DEPENDENCY])
+        values[field] = require_verified_runtime_output_path(configured, label, runtime_root)
+        setattr(args, field, str(values[field]))
+    return RuntimeOutputPaths(runtime_root=runtime_root, **values)
 
 
 def namespace_value(args: argparse.Namespace, name: str, default: str = "") -> str:
@@ -168,6 +255,13 @@ def request_body_evidence(
 
 
 def crs_source_candidate_roots(args: argparse.Namespace) -> list[Path]:
+    """Return only explicitly selected CRS source candidates.
+
+    Shared temporary locations are intentionally not consulted here. A
+    direct caller must supply CRS_SOURCE_DIR or a runtime lookup root that the
+    caller already selected for its run.
+    """
+
     roots: list[Path] = []
 
     def add(path: Path) -> None:
@@ -184,24 +278,260 @@ def crs_source_candidate_roots(args: argparse.Namespace) -> list[Path]:
         add(root / "coreruleset")
         add(root / "sources/coreruleset")
         add(root / "cache-v2/shared/sources/coreruleset")
-    for base_text in (os.environ.get("RUNNER_TEMP", ""), os.environ.get("TMPDIR", ""), "/tmp", "/var/tmp"):
-        if not base_text:
-            continue
-        verified = Path(base_text) / "ModSecurity-conector-verified"
-        add(verified / "src/coreruleset")
-        add(verified / "cache-v2/shared/sources/coreruleset")
     return roots
+
+
+def is_trusted_crs_owner(path_stat: os.stat_result) -> bool:
+    """Return whether the runner or root controls a selected CRS path."""
+
+    return path_stat.st_uid in {os.geteuid(), 0}
+
+
+def crs_directory_entry_is_protected(
+    parent_stat: os.stat_result, child_stat: os.stat_result
+) -> bool:
+    """Return whether an ancestor prevents a different user replacing its child."""
+
+    if not stat.S_ISDIR(parent_stat.st_mode):
+        return False
+    parent_mode = stat.S_IMODE(parent_stat.st_mode)
+    if parent_mode & (stat.S_IWGRP | stat.S_IWOTH) == 0:
+        return True
+    return (
+        bool(parent_mode & stat.S_ISVTX)
+        and is_trusted_crs_owner(parent_stat)
+        and is_trusted_crs_owner(child_stat)
+    )
+
+
+def assert_crs_path_has_no_symlink_components(path: Path, label: str) -> Path:
+    """Return an absolute existing path after rejecting every symlink component."""
+
+    absolute = Path(os.path.abspath(path))
+    current = Path(absolute.anchor)
+    for component in absolute.parts[1:]:
+        current /= component
+        try:
+            current_stat = current.lstat()
+        except OSError as exc:
+            raise SmokeBlocked(f"{label} is unavailable: {current}", ["crs"]) from exc
+        if stat.S_ISLNK(current_stat.st_mode):
+            raise SmokeBlocked(f"{label} must not contain a symlink: {current}", ["crs"])
+    return absolute
+
+
+def assert_crs_path_ancestors_are_safe(path: Path, label: str) -> None:
+    """Reject a CRS path replaceable through a different user's writable ancestor."""
+
+    child = path
+    while child != child.parent:
+        try:
+            child_stat = child.lstat()
+            parent_stat = child.parent.lstat()
+        except OSError as exc:
+            raise SmokeBlocked(f"{label} ancestor is unavailable: {child.parent}", ["crs"]) from exc
+        if not crs_directory_entry_is_protected(parent_stat, child_stat):
+            raise SmokeBlocked(
+                f"{label} has an ancestor that permits cross-user replacement: {child.parent}",
+                ["crs"],
+            )
+        child = child.parent
+
+
+def require_trusted_crs_path(path: Path, label: str, *, directory: bool) -> Path:
+    """Require one non-replaceable selected CRS directory or configuration file."""
+
+    if not path.is_absolute():
+        raise SmokeBlocked(f"{label} must be absolute: {path}", ["crs"])
+    trusted_path = assert_crs_path_has_no_symlink_components(path, label)
+    if trusted_path == Path(trusted_path.anchor):
+        raise SmokeBlocked(f"{label} is too broad: {trusted_path}", ["crs"])
+    try:
+        path_stat = trusted_path.lstat()
+    except OSError as exc:
+        raise SmokeBlocked(f"{label} is unavailable: {trusted_path}", ["crs"]) from exc
+    expected_type = stat.S_ISDIR if directory else stat.S_ISREG
+    expected_name = "directory" if directory else "regular file"
+    if not expected_type(path_stat.st_mode):
+        raise SmokeBlocked(f"{label} must be a {expected_name}: {trusted_path}", ["crs"])
+    if not is_trusted_crs_owner(path_stat):
+        raise SmokeBlocked(f"{label} must be owned by the runner or root: {trusted_path}", ["crs"])
+    if stat.S_IMODE(path_stat.st_mode) & (stat.S_IWGRP | stat.S_IWOTH):
+        raise SmokeBlocked(f"{label} must not be group or world writable: {trusted_path}", ["crs"])
+    assert_crs_path_ancestors_are_safe(trusted_path, label)
+    return trusted_path
+
+
+def require_safe_crs_config_path(path: Path, label: str) -> Path:
+    """Reject a filesystem path that would change a quoted ModSecurity directive."""
+
+    value = str(path)
+    if any(
+        character in value
+        for character in ('"', "\\", "\r", "\n", "\0", "*", "?", "[", "]", "{", "}")
+    ):
+        raise SmokeBlocked(
+            f"{label} contains unsupported characters for a ModSecurity directive",
+            ["crs"],
+        )
+    return path
+
+
+def require_trusted_crs_output_parent(path: Path, label: str) -> Path:
+    """Validate an existing directory that may safely receive a runner-owned child."""
+
+    if not path.is_absolute():
+        raise SmokeBlocked(f"{label} must be absolute: {path}", ["crs"])
+    trusted_path = assert_crs_path_has_no_symlink_components(path, label)
+    try:
+        path_stat = trusted_path.lstat()
+    except OSError as exc:
+        raise SmokeBlocked(f"{label} is unavailable: {trusted_path}", ["crs"]) from exc
+    if not stat.S_ISDIR(path_stat.st_mode):
+        raise SmokeBlocked(f"{label} must be a directory: {trusted_path}", ["crs"])
+    if not is_trusted_crs_owner(path_stat):
+        raise SmokeBlocked(f"{label} must be owned by the runner or root: {trusted_path}", ["crs"])
+    mode = stat.S_IMODE(path_stat.st_mode)
+    if mode & (stat.S_IWGRP | stat.S_IWOTH) and not mode & stat.S_ISVTX:
+        raise SmokeBlocked(f"{label} must not be group or world writable: {trusted_path}", ["crs"])
+    assert_crs_path_ancestors_are_safe(trusted_path, label)
+    return trusted_path
+
+
+def ensure_trusted_crs_output_directory(path: Path, label: str) -> Path:
+    """Safely create or validate a private generated-CRS output directory."""
+
+    if not path.is_absolute():
+        raise SmokeBlocked(f"{label} must be absolute: {path}", ["crs"])
+    absolute = Path(os.path.abspath(path))
+    if absolute == Path(absolute.anchor):
+        raise SmokeBlocked(f"{label} is too broad: {absolute}", ["crs"])
+
+    missing: list[Path] = []
+    current = absolute
+    while True:
+        try:
+            current_stat = current.lstat()
+        except FileNotFoundError:
+            missing.append(current)
+            current = current.parent
+            continue
+        except OSError as exc:
+            raise SmokeBlocked(f"{label} is unavailable: {current}", ["crs"]) from exc
+        if stat.S_ISLNK(current_stat.st_mode):
+            raise SmokeBlocked(f"{label} must not contain a symlink: {current}", ["crs"])
+        break
+
+    if missing:
+        require_trusted_crs_output_parent(current, f"{label} parent")
+    for missing_directory in reversed(missing):
+        try:
+            missing_directory.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        except OSError as exc:
+            raise SmokeBlocked(
+                f"could not create {label}: {missing_directory}", ["crs"]
+            ) from exc
+        require_trusted_crs_path(missing_directory, label, directory=True)
+    return require_trusted_crs_path(absolute, label, directory=True)
+
+
+def secure_crs_output_file(path: Path, label: str) -> int:
+    """Open one generated CRS artifact without following a stale symlink."""
+
+    parent = require_trusted_crs_path(path.parent, f"{label} parent", directory=True)
+    target = parent / path.name
+    if target.exists() or target.is_symlink():
+        require_trusted_crs_path(target, label, directory=False)
+        try:
+            target.unlink()
+        except OSError as exc:
+            raise SmokeBlocked(f"could not replace {label}: {target}", ["crs"]) from exc
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    if no_follow == 0:
+        raise SmokeBlocked("secure CRS output creation requires O_NOFOLLOW", ["crs"])
+    try:
+        return os.open(
+            target,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
+            stat.S_IRUSR | stat.S_IWUSR,
+        )
+    except OSError as exc:
+        raise SmokeBlocked(f"could not create {label}: {target}", ["crs"]) from exc
+
+
+def write_trusted_crs_output(path: Path, label: str, content: str) -> Path:
+    """Write one generated text artifact and verify it before later use."""
+
+    descriptor = secure_crs_output_file(path, label)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(content)
+    except OSError as exc:
+        raise SmokeBlocked(f"could not write {label}: {path}", ["crs"]) from exc
+    return require_trusted_crs_path(path, label, directory=False)
+
+
+def copy_trusted_crs_output(source: Path, destination: Path, label: str) -> Path:
+    """Copy a validated source file into a generated CRS artifact safely."""
+
+    descriptor = secure_crs_output_file(destination, label)
+    try:
+        with os.fdopen(descriptor, "wb") as output_handle:
+            with source.open("rb") as input_handle:
+                shutil.copyfileobj(input_handle, output_handle)
+    except OSError as exc:
+        raise SmokeBlocked(f"could not write {label}: {destination}", ["crs"]) from exc
+    return require_trusted_crs_path(destination, label, directory=False)
+
+
+def validate_crs_source_dir(candidate: Path) -> Path:
+    """Validate every CRS path that the generated smoke config can include."""
+
+    source_dir = require_trusted_crs_path(candidate, "CRS source directory", directory=True)
+    setup_template = require_trusted_crs_path(
+        source_dir / CRS_SETUP_TEMPLATE_NAME, "CRS setup template", directory=False
+    )
+    require_safe_crs_config_path(setup_template, "CRS setup template")
+    rules_dir = require_trusted_crs_path(
+        source_dir / "rules", "CRS rules directory", directory=True
+    )
+    require_safe_crs_config_path(rules_dir, "CRS rules directory")
+    try:
+        rule_files = sorted(path for path in rules_dir.iterdir() if path.name.endswith(".conf"))
+    except OSError as exc:
+        raise SmokeBlocked(f"CRS rules directory is unavailable: {rules_dir}", ["crs"]) from exc
+    if not rule_files:
+        raise SmokeBlocked(f"missing CRS rule files: {rules_dir}/*.conf", ["crs"])
+    for rule_file in rule_files:
+        trusted_rule_file = require_trusted_crs_path(rule_file, "CRS rule file", directory=False)
+        require_safe_crs_config_path(trusted_rule_file, "CRS rule file")
+
+    plugins_dir = source_dir / "plugins"
+    if plugins_dir.exists() or plugins_dir.is_symlink():
+        plugins_dir = require_trusted_crs_path(plugins_dir, "CRS plugins directory", directory=True)
+        require_safe_crs_config_path(plugins_dir, "CRS plugins directory")
+        plugin_files: list[Path] = []
+        for pattern in ("*-config.conf", "*-before.conf", "*-after.conf"):
+            plugin_files.extend(plugins_dir.glob(pattern))
+        for plugin_file in sorted(set(plugin_files)):
+            trusted_plugin_file = require_trusted_crs_path(
+                plugin_file, "CRS plugin file", directory=False
+            )
+            require_safe_crs_config_path(trusted_plugin_file, "CRS plugin file")
+    return source_dir
 
 
 def resolve_crs_source_dir(args: argparse.Namespace) -> Path:
     for candidate in crs_source_candidate_roots(args):
         if (
             candidate.is_dir()
-            and (candidate / "crs-setup.conf.example").is_file()
+            and (candidate / CRS_SETUP_TEMPLATE_NAME).is_file()
             and (candidate / "rules").is_dir()
         ):
-            return candidate
-    configured = Path(args.crs_source_dir)
+            return validate_crs_source_dir(candidate)
+    configured = args.crs_source_dir or "<unset>"
     raise SmokeBlocked(f"missing CRS_SOURCE_DIR: {configured}; run make fetch-crs", ["crs"])
 
 
@@ -305,6 +635,11 @@ class ModSecurityDecisionBackend:
         body: bytes = b"",
         content_type: str = "",
     ) -> dict[str, object]:
+        if self.ruleset == "crs":
+            self.rule_file = require_trusted_crs_path(
+                self.rule_file, GENERATED_CRS_SMOKE_RULE_LABEL, directory=False
+            )
+            require_safe_crs_config_path(self.rule_file, GENERATED_CRS_SMOKE_RULE_LABEL)
         command = [
             str(self.helper),
             "--rule-file",
@@ -680,7 +1015,7 @@ def local_library_env(base_env: dict[str, str], lib_dir: Path, runtime_lookup_ro
 def prepare_crs_smoke_config(args: argparse.Namespace, log_dir: Path) -> tuple[Path, Path, str]:
     source_dir = resolve_crs_source_dir(args)
     args.effective_crs_source_dir = str(source_dir)
-    setup_template = source_dir / "crs-setup.conf.example"
+    setup_template = source_dir / CRS_SETUP_TEMPLATE_NAME
     rules_dir = source_dir / "rules"
     if not setup_template.is_file():
         raise SmokeBlocked(f"missing CRS setup template: {setup_template}", ["crs"])
@@ -691,15 +1026,23 @@ def prepare_crs_smoke_config(args: argparse.Namespace, log_dir: Path) -> tuple[P
         raise SmokeBlocked(f"missing CRS rule files: {rules_dir}/*.conf", ["crs"])
 
     smoke_label = "crs-smoke" if args.crs_smoke_case == "minimal" else "crs-secondary-smoke"
-    runtime_dir = Path(args.evidence_root) / smoke_label
-    runtime_dir.mkdir(parents=True, exist_ok=True)
-    crs_setup = runtime_dir / "crs-setup.conf"
-    shutil.copyfile(setup_template, crs_setup)
+    evidence_root = require_safe_crs_config_path(Path(args.evidence_root), "CRS evidence root")
+    evidence_root = ensure_trusted_crs_output_directory(evidence_root, "CRS evidence root")
+    runtime_dir = ensure_trusted_crs_output_directory(
+        evidence_root / smoke_label, "CRS smoke runtime directory"
+    )
+    crs_setup = copy_trusted_crs_output(
+        setup_template, runtime_dir / "crs-setup.conf", "generated CRS setup file"
+    )
+    require_safe_crs_config_path(crs_setup, "generated CRS setup file")
 
     audit_log_name = "crs-audit.log" if args.crs_smoke_case == "minimal" else "crs-secondary-audit.log"
-    audit_log_path = log_dir / audit_log_name
-    if audit_log_path.exists():
-        audit_log_path.unlink()
+    log_dir = require_safe_crs_config_path(log_dir, "CRS audit-log directory")
+    log_dir = ensure_trusted_crs_output_directory(log_dir, "CRS audit-log directory")
+    audit_log_path = write_trusted_crs_output(
+        log_dir / audit_log_name, "generated CRS audit log", ""
+    )
+    require_safe_crs_config_path(audit_log_path, "generated CRS audit log")
     args.effective_audit_log_path = str(audit_log_path)
     if args.crs_smoke_case == "minimal":
         rule_file_name = "modsecurity-crs-smoke.conf"
@@ -727,11 +1070,18 @@ def prepare_crs_smoke_config(args: argparse.Namespace, log_dir: Path) -> tuple[P
     lines.append(f'Include "{rules_dir}/*.conf"')
     if plugins_dir.is_dir():
         lines.append(f'Include "{plugins_dir}/*-after.conf"')
-    rule_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    rule_file = write_trusted_crs_output(
+        rule_file,
+        GENERATED_CRS_SMOKE_RULE_LABEL,
+        "\n".join(lines) + "\n",
+    )
+    require_safe_crs_config_path(rule_file, GENERATED_CRS_SMOKE_RULE_LABEL)
 
     version = crs_version_from_source(source_dir, args.crs_git_ref)
     payload_name = "crs-smoke-payload.txt" if args.crs_smoke_case == "minimal" else "crs-secondary-smoke-payload.txt"
-    (log_dir / payload_name).write_text(
+    write_trusted_crs_output(
+        log_dir / payload_name,
+        "CRS smoke payload evidence",
         "\n".join(
             [
                 "allowed_path=/allowed",
@@ -746,7 +1096,6 @@ def prepare_crs_smoke_config(args: argparse.Namespace, log_dir: Path) -> tuple[P
             ]
         )
         + "\n",
-        encoding="utf-8",
     )
     return rule_file, runtime_dir, version
 
@@ -759,6 +1108,11 @@ def build_modsecurity_evaluator(args: argparse.Namespace, log_dir: Path) -> tupl
     rule_file = Path(rule_file_text) if rule_file_text else None
     if include_dir is None or lib_dir is None or lib_file is None or rule_file is None:
         raise RuntimeError("local libmodsecurity include dir, lib dir, lib file, and rule file are required")
+    if args.modsecurity_ruleset == "crs":
+        rule_file = require_trusted_crs_path(
+            rule_file, GENERATED_CRS_SMOKE_RULE_LABEL, directory=False
+        )
+        require_safe_crs_config_path(rule_file, GENERATED_CRS_SMOKE_RULE_LABEL)
     for path, label in (
         (include_dir / "modsecurity/modsecurity.h", "modsecurity.h"),
         (include_dir / "modsecurity/rules_set.h", "rules_set.h"),
@@ -1513,6 +1867,11 @@ def run_lighttpd_sidecar_smoke(
 
 def run_smoke(args: argparse.Namespace) -> int:
     try:
+        runtime_output_paths = validate_runtime_output_paths(args)
+    except SmokeBlocked as exc:
+        print(f"BLOCKED runtime output path: {exc.reason}", file=sys.stderr)
+        return 77
+    try:
         args.modsecurity_ruleset = normalize_ruleset(args.modsecurity_ruleset)
         args.modsecurity_smoke_case = normalize_modsecurity_smoke_case(args.modsecurity_smoke_case)
         args.crs_smoke_case = normalize_crs_smoke_case(args.crs_smoke_case)
@@ -1528,15 +1887,26 @@ def run_smoke(args: argparse.Namespace) -> int:
             exc.missing_dependencies,
         )
         return 77
+    config_root = runtime_output_paths.config_root
     if args.modsecurity_ruleset == "crs":
         args.modsecurity_smoke_case = "targeted"
         config_suffix = "crs-smoke" if args.crs_smoke_case == "minimal" else "crs-secondary-smoke"
-        args.config_root = str(Path(args.config_root) / config_suffix)
+        try:
+            config_root = require_verified_runtime_output_path(
+                str(config_root / config_suffix),
+                "CONFIG_ROOT",
+                runtime_output_paths.runtime_root,
+            )
+        except SmokeBlocked as exc:
+            print(f"BLOCKED runtime output path: {exc.reason}", file=sys.stderr)
+            return 77
+        args.config_root = str(config_root)
     binary = Path(args.resolved_runtime_binary)
-    work_dir = Path(args.config_root)
-    log_dir = Path(args.log_dir)
+    work_dir = config_root
+    log_dir = runtime_output_paths.log_dir
     work_dir.mkdir(parents=True, exist_ok=True)
-    log_dir.mkdir(parents=True, exist_ok=True)
+    if args.modsecurity_ruleset != "crs":
+        log_dir.mkdir(parents=True, exist_ok=True)
     if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
         decision_log_name = "crs-secondary-decision.log"
     elif args.modsecurity_ruleset == "crs":
@@ -1546,7 +1916,12 @@ def run_smoke(args: argparse.Namespace) -> int:
     else:
         decision_log_name = "modsecurity-decision.log"
     decision_log_path = log_dir / decision_log_name if args.decision_backend == "libmodsecurity" else None
-    if args.connector != "lighttpd" and decision_log_path is not None and decision_log_path.exists():
+    if (
+        args.modsecurity_ruleset != "crs"
+        and args.connector != "lighttpd"
+        and decision_log_path is not None
+        and decision_log_path.exists()
+    ):
         decision_log_path.unlink()
 
     try:
@@ -1562,6 +1937,8 @@ def run_smoke(args: argparse.Namespace) -> int:
                 args.effective_modsecurity_rule_file = args.modsecurity_rule_file
                 args.effective_crs_runtime_dir = args.crs_runtime_dir
                 args.effective_crs_version = ""
+            if args.connector != "lighttpd" and decision_log_path is not None and decision_log_path.exists():
+                decision_log_path.unlink()
             helper, helper_env = build_modsecurity_evaluator(args, log_dir)
             decision_backend: SimpleDecisionBackend | ModSecurityDecisionBackend = ModSecurityDecisionBackend(
                 helper,
