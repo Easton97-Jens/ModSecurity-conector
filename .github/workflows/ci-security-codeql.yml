@@ -70,6 +70,9 @@ jobs:
       - name: Build Traefik Go module
         working-directory: connectors/traefik/native_middleware
         run: go build ./...
+      - name: Fuzz Traefik UDS frame parser
+        working-directory: connectors/traefik/native_middleware
+        run: GOTOOLCHAIN=local go test -mod=readonly -run='^$' -fuzz='^FuzzUDSFrameAndResult$' -fuzztime=15s -parallel=1 .
       - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
 
   bounded-c-cpp:

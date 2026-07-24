@@ -14,6 +14,10 @@ PERMISSION_FIXTURES = ROOT / "ci" / "fixtures" / "workflow-permission-contract"
 SHA_PIN = re.compile(r"^[a-z\d_.-]+(?:/[a-z\d_.-]+)+@[a-f\d]{40}\s+# v\d", re.MULTILINE)
 JOB_HEADER = re.compile(r"^ {2}(?P<name>[A-Za-z0-9_-]+):\s*$")
 STEP_HEADER = re.compile(r"^(?P<indent>\s*)-\s")
+GO_MODULE_REQUIREMENT = re.compile(
+    r"^(?P<module>[A-Za-z0-9][A-Za-z0-9._/-]*)\s+v"
+    r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(?:\s+//.*)?$"
+)
 
 WRITE_PERMISSION_KEYS = {
     "contents",
@@ -180,6 +184,34 @@ def fixture_violations(text: str) -> set[str]:
     return violations
 
 
+def go_module_requirements(text: str) -> dict[str, tuple[int, int, int]]:
+    """Return stable semantic versions declared in Go require directives."""
+
+    requirements: dict[str, tuple[int, int, int]] = {}
+    in_require_block = False
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if line == "require (":
+            in_require_block = True
+            continue
+        if in_require_block and line == ")":
+            in_require_block = False
+            continue
+        if in_require_block:
+            candidate = line
+        elif line.startswith("require "):
+            candidate = line.removeprefix("require ").strip()
+        else:
+            continue
+        match = GO_MODULE_REQUIREMENT.fullmatch(candidate)
+        if match is None:
+            continue
+        requirements[match.group("module")] = tuple(
+            int(match.group(part)) for part in ("major", "minor", "patch")
+        )
+    return requirements
+
+
 class CiSecurityWorkflowTest(unittest.TestCase):
     def workflow(self, name: str) -> str:
         return (WORKFLOWS / name).read_text(encoding="utf-8")
@@ -217,6 +249,21 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertIn("new-results.json", text)
         self.assertNotIn("fix", text.lower())
 
+    def test_envoy_ext_proc_dependency_floors(self) -> None:
+        requirements = go_module_requirements(
+            (ROOT / "connectors" / "envoy" / "ext_proc" / "go.mod").read_text(encoding="utf-8")
+        )
+        security_floors = {
+            "google.golang.org/grpc": (1, 82, 1),
+            "golang.org/x/net": (0, 56, 0),
+            "golang.org/x/sys": (0, 46, 0),
+            "golang.org/x/text": (0, 39, 0),
+        }
+        for module, floor in security_floors.items():
+            with self.subTest(module=module):
+                self.assertIn(module, requirements)
+                self.assertGreaterEqual(requirements[module], floor)
+
     def test_codeql_uses_central_go_file_and_bounded_cpp_scope(self) -> None:
         text = self.workflow("ci-security-codeql.yml")
         self.assertEqual(text.count("go-version-file: .go-version"), 2)
@@ -224,6 +271,9 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertNotIn("go-version:", text)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
+        self.assertIn("Fuzz Traefik UDS frame parser", text)
+        self.assertIn("-fuzz='^FuzzUDSFrameAndResult$'", text)
+        self.assertIn("-fuzztime=15s -parallel=1", text)
         self.assertIn("make check-common-helpers-c17", text)
 
     def test_security_tool_lock_has_provenance_and_digests(self) -> None:
