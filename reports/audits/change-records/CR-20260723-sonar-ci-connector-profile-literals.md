@@ -65,6 +65,12 @@ authentication, isolation, or scanner control changes.
   tuples and the three constant values.
 - git diff --check: passed for the source-only candidate before this record
   pair was added.
+- Targeted `tests.test_bilingual_docs`: passed (11 tests); the paired record
+  identity values also match exactly.
+- Exact-head hosted evidence for `d19f923cac105501366a90d76c2849265e687874`:
+  all 39 check runs completed with only `success` or `skipped` conclusions,
+  including the six protected required checks; SonarQube Cloud Quality Gate is
+  `OK` with zero new issues and zero security hotspots.
 
 ## Runtime evidence
 
@@ -74,11 +80,13 @@ production runtime execution is claimed.
 
 ## Validation status
 
-The focused checker and profile mapping pass on the current integration head.
-The mapping proves that all six required-file tuples and the three direct path
-checks retain their exact values after constant substitution. Targeted
-bilingual documentation, final scoped diff, and exact-head hosted delivery
-evidence remain required before protected integration.
+The focused checker, profile mapping, targeted bilingual documentation, and
+current-base diff review pass. The mapping proves that all six required-file
+tuples and the three direct path checks retain their exact values after
+constant substitution. The exact-head hosted evidence for
+`d19f923cac105501366a90d76c2849265e687874` passed as recorded above. This
+record-only follow-up requires a fresh exact-head validation cycle after its
+normal publication; it does not alter checker behavior or profile values.
 
 ## Known limitations and follow-up
 
@@ -88,31 +96,36 @@ Common, Scripts, Tests, or connector findings are resolved.
 
 ## Remaining risks
 
-The values are intentionally unchanged. The remaining delivery risk is
-external: a fresh exact-head SonarQube Cloud analysis and hosted checks must
-verify the updated PR before the findings are marked verified.
+The values are intentionally unchanged. No task-owned Quality-Gate issue or
+security hotspot was observed for `d19f923cac105501366a90d76c2849265e687874`.
+The remaining delivery risk is limited to a fresh exact-head revalidation of
+this record-only follow-up before protected integration.
 
 ## Checks not run and rationale
 
 - No Framework or MRTS test or modification: both are out of scope.
 - No live connector runtime: static checker behavior is directly exercised by
   its focused target.
-- Exact-head hosted checks and SonarQube Cloud analysis: required after the
-  normal Parent branch update is pushed and before protected integration.
+- Final exact-head hosted checks and SonarQube Cloud analysis for this
+  record-only follow-up: not yet run at the time this record is committed and
+  required before protected integration.
 
 ## Delivery status
 
-The candidate has been normally updated on an isolated Parent task branch from
-the recorded current integration base. It may be pushed to its existing Draft
-PR for fresh exact-head validation. A protected squash integration is
-authorized only after the applicable exact-head checks, SonarQube Cloud result,
-review state, and current-base verification pass. Direct default-branch
-updates, rebase, force-push, and Framework/MRTS changes remain prohibited.
+The normal current-base update was pushed at
+`d19f923cac105501366a90d76c2849265e687874`, and PR #103 was marked ready for
+review after its observed local, hosted, SonarQube Cloud, and review evidence.
+This record-only follow-up is published normally and requires a new exact-head
+verification cycle before a protected squash integration. Direct
+default-branch updates, rebase, force-push, and Framework/MRTS changes remain
+prohibited.
 
 ## Final diff and review status
 
 The final current-base diff introduces three immutable constants and replaces
-their matching uses; it does not change profile values or validation flow. The
-focused checker, static profile mapping, and local diff review passed. Fresh
-exact-head hosted delivery evidence is still required; this record makes no
-premature Quality Gate or PR-status claim.
+their matching uses; it does not change profile values or validation flow. This
+record-only follow-up changes no source, test, Framework, MRTS, or gitlink
+path. The focused checker, static profile mapping, targeted documentation, and
+local diff review passed; the prior exact-head hosted evidence is recorded
+above. A new exact-head cycle remains required solely because this record is a
+new commit; this record makes no premature final merge claim.

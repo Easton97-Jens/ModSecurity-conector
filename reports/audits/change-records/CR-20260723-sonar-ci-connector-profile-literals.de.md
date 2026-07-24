@@ -68,6 +68,12 @@ sich.
   und die drei Konstantenwerte bestanden.
 - git diff --check: für den Source-only-Kandidaten vor dem Hinzufügen dieses
   Record-Paars bestanden.
+- Gezieltes `tests.test_bilingual_docs`: bestanden (11 Tests); die
+  Identitätswerte des Record-Paars stimmen ebenfalls exakt überein.
+- Exact-Head-Hosted-Evidence für `d19f923cac105501366a90d76c2849265e687874`:
+  alle 39 Check-Runs endeten nur mit `success` oder `skipped`, einschließlich
+  der sechs geschützten Pflichtchecks; das SonarQube-Cloud-Quality-Gate ist
+  `OK` mit null neuen Issues und null Security-Hotspots.
 
 ## Runtime-Evidence
 
@@ -77,12 +83,14 @@ MRTS- oder Production-Runtime wird beansprucht.
 
 ## Validierungsstatus
 
-Der fokussierte Checker und das Profil-Mapping bestehen auf dem aktuellen
-Integrations-Head. Das Mapping beweist, dass alle sechs Required-File-Tupel und
-die drei direkten Pfadprüfungen nach der Konstantensubstitution ihre exakten
-Werte behalten. Gezielte bilinguale Dokumentation, finaler Scoped-Diff und
-Exact-Head-Hosted-Delivery-Evidence bleiben vor der geschützten Integration
-erforderlich.
+Der fokussierte Checker, das Profil-Mapping, die gezielte bilinguale
+Dokumentation und der Current-Base-Diff-Review bestehen. Das Mapping beweist,
+dass alle sechs Required-File-Tupel und die drei direkten Pfadprüfungen nach
+der Konstantensubstitution ihre exakten Werte behalten. Die Exact-Head-Hosted-
+Evidence für `d19f923cac105501366a90d76c2849265e687874` bestand wie oben
+festgehalten. Dieser reine Record-Follow-up benötigt nach seiner normalen
+Veröffentlichung einen frischen Exact-Head-Validierungszyklus; er ändert weder
+Checker-Verhalten noch Profilwerte.
 
 ## Bekannte Einschränkungen und Follow-up
 
@@ -92,10 +100,11 @@ CI-, Common-, Scripts-, Tests- oder Connector-Befunde behoben sind.
 
 ## Verbleibende Risiken
 
-Die Werte bleiben absichtlich unverändert. Das verbleibende Delivery-Risiko ist
-extern: Eine frische Exact-Head-SonarQube-Cloud-Analyse und Hosted-Checks müssen
-den aktualisierten PR verifizieren, bevor die Befunde als verified markiert
-werden.
+Die Werte bleiben absichtlich unverändert. Für
+`d19f923cac105501366a90d76c2849265e687874` wurden keine task-owned
+Quality-Gate-Issues oder Security-Hotspots beobachtet. Das verbleibende
+Delivery-Risiko beschränkt sich auf die frische Exact-Head-Revalidierung dieses
+reinen Record-Follow-ups vor der geschützten Integration.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -103,25 +112,27 @@ werden.
   des Scopes.
 - Keine Live-Connector-Runtime: Das Verhalten des statischen Checkers wird
   direkt durch sein fokussiertes Target ausgeübt.
-- Exact-Head-Hosted-Checks und SonarQube-Cloud-Analyse: nach dem Push des
-  normalen Parent-Branch-Updates und vor der geschützten Integration
-  erforderlich.
+- Finale Exact-Head-Hosted-Checks und SonarQube-Cloud-Analyse für diesen
+  reinen Record-Follow-up: zum Zeitpunkt des Record-Commits noch nicht
+  ausgeführt und vor der geschützten Integration erforderlich.
 
 ## Delivery-Status
 
-Der Kandidat wurde auf einem isolierten Parent-Task-Branch normal aus der
-festgehaltenen aktuellen Integrationsbasis aktualisiert. Er darf für frische
-Exact-Head-Validierung zu seinem bestehenden Draft-PR gepusht werden. Eine
-geschützte Squash-Integration ist erst nach erfolgreichen anwendbaren
-Exact-Head-Checks, SonarQube-Cloud-Ergebnis, Review-Status und aktueller
-Basisverifikation autorisiert. Direkte Default-Branch-Updates, Rebase,
-Force-Push und Framework-/MRTS-Changes bleiben verboten.
+Das normale Current-Base-Update wurde bei
+`d19f923cac105501366a90d76c2849265e687874` gepusht, und PR #103 wurde nach
+der beobachteten lokalen, Hosted-, SonarQube-Cloud- und Review-Evidence zur
+Prüfung bereitgesetzt. Dieser reine Record-Follow-up wird normal veröffentlicht
+und benötigt vor einer geschützten Squash-Integration einen neuen Exact-Head-
+Validierungszyklus. Direkte Default-Branch-Updates, Rebase, Force-Push und
+Framework-/MRTS-Changes bleiben verboten.
 
 ## Finaler Diff- und Review-Status
 
 Der finale Current-Base-Diff führt drei unveränderliche Konstanten ein und
 ersetzt ihre passenden Verwendungen; er ändert weder Profilwerte noch
-Validation-Flow. Der fokussierte Checker, das statische Profil-Mapping und der
-lokale Diff-Review bestanden. Frische Exact-Head-Hosted-Delivery-Evidence
-bleibt erforderlich; dieser Record behauptet keinen vorzeitigen Quality-Gate-
-oder PR-Status.
+Validation-Flow. Dieser reine Record-Follow-up ändert keinen Source-, Test-,
+Framework-, MRTS- oder Gitlink-Pfad. Der fokussierte Checker, das statische
+Profil-Mapping, die gezielte Dokumentation und der lokale Diff-Review
+bestanden; die frühere Exact-Head-Hosted-Evidence ist oben festgehalten. Ein
+neuer Exact-Head-Zyklus bleibt allein wegen dieses neuen Record-Commits
+erforderlich; dieser Record behauptet keinen vorzeitigen finalen Merge.
