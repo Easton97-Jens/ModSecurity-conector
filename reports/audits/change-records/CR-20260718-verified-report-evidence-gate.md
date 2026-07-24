@@ -1,0 +1,126 @@
+# Change Record: Verified report evidence gate
+
+**Language:** English | [Deutsch](CR-20260718-verified-report-evidence-gate.de.md)
+
+## Identity
+
+| Field | Value |
+| --- | --- |
+| Change ID | `CR-20260718-verified-report-evidence-gate` |
+| Date (UTC) | `2026-07-18` |
+| Base revision | `c8ca0d92b630c18232b881855c4f5d1482568ea6` |
+| Boundary | Parent workflow and focused Parent test only; Framework and MRTS are unchanged. |
+
+## Motivation and problem statement
+
+The `verified-report-governance` workflow ran `make report-governance`, whose
+checker deliberately uses `--governance-only`. It could therefore report a
+successful governance result while critical runtime evidence was stale or
+incomplete. The strict `verified-report-evidence-gate` target already existed
+but no workflow invoked it.
+
+## Acceptance criteria
+
+- The verified-report workflow executes the strict
+  `make verified-report-evidence-gate` after its non-evidence governance
+  check.
+- A focused regression test fails if the strict workflow invocation is
+  removed or placed before the governance check.
+- The change neither regenerates reports nor treats governance output as
+  runtime evidence.
+- Framework and MRTS source, gitlinks, and generated report files remain
+  unchanged.
+
+## Implementation decision and rationale
+
+Keep `report-governance` as the existing layout/path/documentation control and
+add a distinct strict evidence-gate step to the workflow. This is the narrowest
+Parent-native enforcement point: the strict Make target already invokes the
+same checker without `--governance-only`, so it fails closed on stale or
+blocked critical runtime evidence.
+
+## Changed files
+
+- `.github/workflows/verified-report-governance.yml`
+- `tests/test_ci_security_workflows.py`
+- `reports/audits/change-records/README.md`
+- `reports/audits/change-records/README.de.md`
+- this English/German Change Record pair
+
+## Commands executed
+
+| Command | Result |
+| --- | --- |
+| `make report-governance` with task-owned runtime roots | passed: the governance-only checker reported `PASS`; its path-policy helper attempted no successful system-path write in the sandbox. |
+| `python ci/checks/documentation/check-generated-report-layout.py --connector-root <Parent> --framework-root <Framework>` | expected failure: strict mode rejected current stale critical runtime/report inputs. |
+| `PYTHONDONTWRITEBYTECODE=1 <Parent venv>/bin/python -m unittest -v tests.test_ci_security_workflows` before the workflow change | expected failure: the newly added regression test found no strict gate invocation. |
+| `PYTHONDONTWRITEBYTECODE=1 <Parent venv>/bin/python -m unittest -v tests.test_ci_security_workflows` after the workflow change | passed: 6 tests. |
+| `git diff --check` | passed. |
+
+## Security impact
+
+The workflow no longer lets a governance-only PASS stand in for verified
+runtime evidence. It uses the existing strict report evidence control and does
+not weaken stale-input, blocked-input, checksum, manifest, path, or runtime
+diagnostic checks.
+
+## Runtime evidence
+
+No connector runtime was executed or promoted. The change enforces evidence
+validation; it does not create runtime evidence.
+
+## Delivery evidence (observed 2026-07-18 UTC)
+
+- The implementation was committed and pushed on
+  `agent/harden-evidence-integrity` as
+  `42b31f1c84c0c915a5cb65119714613fbf3e0c40`
+  (`ci: enforce verified runtime evidence gate`).
+- Draft PR [#55](https://github.com/Easton97-Jens/ModSecurity-conector/pull/55)
+  was `OPEN` against `master` at observation. At that observation, local `HEAD`,
+  `origin/agent/harden-evidence-integrity`, and the PR head all resolved to
+  `42b31f1c84c0c915a5cb65119714613fbf3e0c40`.
+- CodeQL passed (check run `88069241639`); SonarCloud Code Analysis passed
+  (check run `88069255373`).
+- The check view at that observation contained two `report-governance` failures:
+  [job `88069138522`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/29640117282/job/88069138522)
+  and [job `88069198804`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/29640140820/job/88069198804).
+  In the latter, setup and `Generated report governance` passed while
+  `Verified runtime evidence gate` failed. Other observed checks passed or
+  were skipped by their documented scope; no pending or cancelled result was
+  observed.
+- The delivery state at that observed head was `not_verified_pr`. This is intentional fail-closed
+  behavior: a strict-gate failure cannot be treated as runtime-evidence
+  success.
+
+## Known limitations
+
+The current strict checker correctly fails because existing critical reports
+are stale. `FND-CROSS-0001` (`Evidence freshness manifest contains stale
+entries and SHA mismatches`) remains `validated`; its current assessment
+records 58 stale entries and 9 SHA mismatches. This cross-repository evidence
+work must not be silenced, regenerated by hand, or reclassified by this
+workflow-only change.
+
+## Remaining risks
+
+The failed strict gate remains a delivery blocker until the owner of
+`FND-CROSS-0001` reconciles the stale freshness entries and checksum mismatch
+evidence through the established runtime-evidence path. It is counterevidence
+to a forged governance-only success, not a defect in this gate.
+
+## Checks not run and rationale
+
+No generator refresh, connector build, runtime harness, Framework change, or
+MRTS operation ran. A refresh would cross the established evidence-generation
+boundary and cannot be substituted for a verified runtime run. The current
+GitHub Actions, CodeQL, and SonarCloud results are recorded above for the
+observed exact PR head SHA.
+
+## Final diff and review status
+
+The focused local regression test, YAML parse, and diff whitespace check
+passed. Commit, push, Draft PR creation, exact-head equality, GitHub Actions,
+CodeQL, and SonarCloud are observed above. GitHub reports no review decision.
+The strict evidence-gate failure kept that observed head at `not_verified_pr`;
+this documentation correction requires a fresh exact-head cycle before any
+new delivery claim. No merge is authorized or performed.

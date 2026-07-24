@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -101,6 +102,9 @@ CACHE_ROOT_MARKER = ".msconnector-runtime-cache-root.json"
 CACHE_ENTRY_MARKER_DIRECTORY = ".msconnector-runtime-cache-entries"
 CACHE_MANIFEST_STATUS_COMPLETE = "complete"
 RUNTIME_ENV_SNAPSHOT_SCHEMA_VERSION = 1
+_TRUSTED_FRAMEWORK_GUARD_SHELL = Path("/bin/sh")
+_TRUSTED_FRAMEWORK_GUARD_GIT = Path("/usr/bin/git")
+_TRUSTED_FRAMEWORK_GUARD_PATH = "/usr/bin:/bin"
 
 # Apache httpd generates several installed helper/configuration files with the
 # configured absolute prefix.  Connector cache entries are built below an
@@ -1146,6 +1150,7 @@ def reusable_git_source_record(
     expected_url: str,
     expected_ref: str,
     previous: dict[str, Any],
+    strict: bool,
 ) -> dict[str, Any] | None:
     """Return current provenance for a clean, complete published checkout.
 
@@ -1181,6 +1186,14 @@ def reusable_git_source_record(
         actual_head=actual_head,
     ):
         return None
+    if strict:
+        # A prior manifest can establish the candidate identity, but strict
+        # verification must still inspect the currently reused object store.
+        # Do this before accepting the cache hit so a stale historical PASS
+        # result cannot stand in for an exact-run integrity check.
+        fsck = run(["git", "-C", str(checkout_path), "fsck", "--full"])
+        if fsck.returncode != 0:
+            return None
     submodules = git_output(checkout_path, "submodule", "status", "--recursive")
     clean, _ = submodule_status_clean(submodules)
     if not clean:
@@ -1280,6 +1293,7 @@ def prepare_git_component(
                     expected_url=url,
                     expected_ref=expected_ref,
                     previous=previous,
+                    strict=strict,
                 )
                 if reusable is not None:
                     record.update(
@@ -2897,6 +2911,167 @@ def copy_modsecurity_outputs(source_dir: Path, prefix: Path) -> None:
             shutil.copy2(item, dest)
 
 
+_FRAMEWORK_MODSECURITY_V3_GUARD = (
+    'set -eu\n'
+    '. "$1"\n'
+    'MODSECURITY_V3_SOURCE_DIR=$2\n'
+    'export MODSECURITY_V3_SOURCE_DIR\n'
+    'ci_require_approved_modsecurity_v3_checkout "$MODSECURITY_V3_SOURCE_DIR"\n'
+)
+_FRAMEWORK_MODSECURITY_V3_PROVENANCE_GUARD = (
+    'set -eu\n'
+    '. "$1"\n'
+    'ci_require_approved_modsecurity_v3_provenance\n'
+)
+
+
+def verified_host_guard_executable(path: Path, label: str) -> Path:
+    """Return a root-owned, non-writable host executable for guard execution."""
+    try:
+        resolved = path.resolve(strict=True)
+        details = resolved.stat()
+    except OSError as exc:
+        raise RuntimeError(f"trusted_{label}_unavailable:{exc}") from exc
+    if not stat.S_ISREG(details.st_mode) or not os.access(resolved, os.X_OK):
+        raise RuntimeError(f"trusted_{label}_not_executable:{resolved}")
+    if details.st_uid != 0 or details.st_mode & 0o022:
+        raise RuntimeError(f"trusted_{label}_ownership_or_mode_invalid:{resolved}")
+    return resolved
+
+
+def run_framework_modsecurity_v3_guard(
+    env: dict[str, str],
+    framework_root: Path | None,
+    guard_script: str,
+    guard_label: str,
+    source_path: Path | None = None,
+) -> dict[str, Any]:
+    """Run one Framework-owned V3 guard with positional path arguments."""
+    if framework_root is None:
+        return {
+            "status": "blocked",
+            "blocker_reason": "framework_root_missing_for_modsecurity_v3_provenance_guard",
+        }
+    resolved_framework_root = framework_root.resolve()
+    common_sh = resolved_framework_root / "ci" / "lib" / "common.sh"
+    if not common_sh.is_file():
+        return {
+            "status": "blocked",
+            "blocker_reason": "framework_modsecurity_v3_provenance_guard_missing",
+            "framework_common": str(common_sh),
+        }
+    guard_env = dict(os.environ)
+    guard_env.update(env)
+    try:
+        trusted_shell = verified_host_guard_executable(_TRUSTED_FRAMEWORK_GUARD_SHELL, "framework_guard_shell")
+        verified_host_guard_executable(_TRUSTED_FRAMEWORK_GUARD_GIT, "framework_guard_git")
+    except RuntimeError as exc:
+        return {
+            "status": "blocked",
+            "blocker_reason": str(exc),
+            "framework_common": str(common_sh),
+        }
+    # The Framework helper deliberately invokes `git` by name after clearing
+    # Git-specific attacker controls.  Limit that lookup to the verified host
+    # baseline and execute the shell itself by an immutable absolute path.
+    guard_env["PATH"] = _TRUSTED_FRAMEWORK_GUARD_PATH
+    guard_env.pop("ENV", None)
+    guard_env.pop("BASH_ENV", None)
+    command = [str(trusted_shell), "-c", guard_script, guard_label, str(common_sh)]
+    if source_path is not None:
+        guard_env["MODSECURITY_V3_SOURCE_DIR"] = str(source_path)
+        command.append(str(source_path))
+    proc = run_env(command, cwd=resolved_framework_root, env=guard_env)
+    diagnostic = (proc.stdout + proc.stderr).strip()
+    result: dict[str, Any] = {
+        "status": "passed" if proc.returncode == 0 else "blocked",
+        "framework_common": str(common_sh),
+        "exit_code": proc.returncode,
+    }
+    if source_path is not None:
+        result["source_path"] = str(source_path)
+    if diagnostic:
+        result["details"] = diagnostic
+    if proc.returncode != 0:
+        result["blocker_reason"] = "framework_modsecurity_v3_provenance_guard_rejected"
+    return result
+
+
+def verify_framework_approved_modsecurity_v3_provenance(
+    env: dict[str, str],
+    framework_root: Path | None,
+) -> dict[str, Any]:
+    """Fail closed before Parent asks Git to acquire the V3 source."""
+    return run_framework_modsecurity_v3_guard(
+        env,
+        framework_root,
+        _FRAMEWORK_MODSECURITY_V3_PROVENANCE_GUARD,
+        "framework-modsecurity-v3-provenance-configuration-guard",
+    )
+
+
+def verify_framework_approved_modsecurity_v3_checkout(
+    env: dict[str, str],
+    framework_root: Path | None,
+    source_path: Path,
+) -> dict[str, Any]:
+    """Ask the Framework to admit the exact V3 checkout before any build use.
+
+    The Parent deliberately delegates the immutable origin/commit/topology
+    policy to the Framework-owned guard.  The command string is constant and
+    the two filesystem paths are passed as positional arguments, so neither
+    a source checkout path nor caller-supplied environment data becomes shell
+    syntax.
+    """
+    return run_framework_modsecurity_v3_guard(
+        env,
+        framework_root,
+        _FRAMEWORK_MODSECURITY_V3_GUARD,
+        "framework-modsecurity-v3-provenance-guard",
+        source_path,
+    )
+
+
+def prepare_framework_approved_modsecurity_v3_source(
+    env: dict[str, str],
+    framework_root: Path,
+    path: Path,
+    previous_records: dict[str, dict[str, Any]],
+    strict: bool,
+    cache_root: Path,
+) -> dict[str, Any]:
+    """Validate immutable V3 configuration before generic Git acquisition."""
+    url = env.get("MODSECURITY_V3_GIT_URL") or env.get("MODSECURITY_REPO_URL", "")
+    expected_ref = env.get("MODSECURITY_V3_GIT_REF") or env.get("MODSECURITY_GIT_REF", "")
+    configuration = verify_framework_approved_modsecurity_v3_provenance(env, framework_root)
+    if configuration.get("status") != "passed":
+        return {
+            "name": "modsecurity-v3",
+            "url": url,
+            "expected_ref": expected_ref,
+            "path": str(path),
+            "recursive_submodules": True,
+            "submodule_count": 0,
+            "submodule_status_clean": False,
+            "git_fsck": "SKIPPED",
+            "status": "blocked",
+            "blocker_reason": "modsecurity_v3_provenance_configuration_failed",
+            "details": configuration.get("details") or configuration.get("blocker_reason", ""),
+            "provenance_configuration": configuration,
+        }
+    record = prepare_git_component(
+        "modsecurity-v3",
+        url,
+        expected_ref,
+        path,
+        previous_records,
+        strict,
+        cache_root=cache_root,
+    )
+    record["provenance_configuration"] = configuration
+    return record
+
+
 def prepare_shared_modsecurity(
     env: dict[str, str],
     cache_root: Path,
@@ -2904,6 +3079,7 @@ def prepare_shared_modsecurity(
     git_record: dict[str, Any],
     expat: dict[str, Any],
     connector_root: Path | None = None,
+    framework_root: Path | None = None,
 ) -> dict[str, Any]:
     try:
         cache_root = ensure_managed_cache_root(cache_root)
@@ -2948,6 +3124,19 @@ def prepare_shared_modsecurity(
         if is_system_path(path) or not is_within(path, cache_root):
             record.update(status="blocked", blocker_reason="system_path_write_forbidden", blocked_path=f"{label}:{path}")
             return record
+    if git_record.get("status") == "present":
+        if not git_record.get("submodule_status_clean", False):
+            record.update(status="blocked", blocker_reason="modsecurity_submodule_missing")
+            return record
+        provenance = verify_framework_approved_modsecurity_v3_checkout(env, framework_root, source_path)
+        record["provenance_verification"] = provenance
+        if provenance.get("status") != "passed":
+            record.update(
+                status="blocked",
+                blocker_reason="modsecurity_v3_provenance_guard_failed",
+                details=provenance.get("details") or provenance.get("blocker_reason", ""),
+            )
+            return record
     if paths["build_root"].exists() and not cache_entry_marker_valid(paths["build_root"], cache_root):
         # A complete local manifest is sufficient to safely discard a stale
         # entry, never to claim it or treat it as reusable cache state.
@@ -2983,10 +3172,6 @@ def prepare_shared_modsecurity(
         return record
     if git_record.get("status") != "present":
         record.update(status="blocked", blocker_reason=git_record.get("blocker_reason") or "modsecurity_source_unavailable")
-        write_cache_manifest(manifest_path, record)
-        return record
-    if not git_record.get("submodule_status_clean", False):
-        record.update(status="blocked", blocker_reason="modsecurity_submodule_missing")
         write_cache_manifest(manifest_path, record)
         return record
 
@@ -5436,10 +5621,9 @@ def main() -> int:
     ]
 
     git_components = [
-        prepare_git_component(
-            "modsecurity-v3",
-            env.get("MODSECURITY_V3_GIT_URL") or env.get("MODSECURITY_REPO_URL", ""),
-            env.get("MODSECURITY_V3_GIT_REF") or env.get("MODSECURITY_GIT_REF", ""),
+        prepare_framework_approved_modsecurity_v3_source(
+            env,
+            framework_root,
             modsec_path,
             previous_git,
             strict,
@@ -5564,7 +5748,8 @@ def main() -> int:
         build_root,
         git_by_name.get("modsecurity-v3", {}),
         expat,
-        connector_root,
+        connector_root=connector_root,
+        framework_root=framework_root,
     )
     connector_plans = {
         name: connector_plan(connector_root, framework_root, cache_root, env, name, modsecurity, expat, archives)

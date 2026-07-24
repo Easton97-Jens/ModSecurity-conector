@@ -557,7 +557,11 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
 
             with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
                 components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
-            ), mock.patch.object(components, "run_env", side_effect=fake_run_env):
+            ), mock.patch.object(components, "run_env", side_effect=fake_run_env), mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                return_value={"status": "passed"},
+            ):
                 record = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
 
             build_entry = cache_root / "builds/modsecurity" / record["cache_key"]
@@ -594,7 +598,11 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             components.write_json(marker_path, marker)
             with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
                 components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
-            ), mock.patch.object(components, "run_env", side_effect=fake_run_env):
+            ), mock.patch.object(components, "run_env", side_effect=fake_run_env), mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                return_value={"status": "passed"},
+            ):
                 rebuilt = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
             self.assertEqual("built", rebuilt["status"])
             self.assertEqual(2, make_calls)
@@ -605,7 +613,11 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             components.remove_managed_cache_entry_marker(prefix, cache_root)
             with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
                 components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
-            ), mock.patch.object(components, "run_env", side_effect=fake_run_env):
+            ), mock.patch.object(components, "run_env", side_effect=fake_run_env), mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                return_value={"status": "passed"},
+            ):
                 rebuilt_prefix = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
             self.assertEqual("built", rebuilt_prefix["status"])
             self.assertEqual("missing_modsecurity_prefix_registry_marker", rebuilt_prefix["invalidation_reason"])
@@ -1219,6 +1231,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             checkout = cache_root / "sources" / "ModSecurity_V3"
             expected_url = "https://github.com/owasp-modsecurity/ModSecurity.git"
             clone_count = 0
+            strict_cache_fsck_calls: list[list[str]] = []
             original_run = components.run
 
             def local_clone_run(
@@ -1255,6 +1268,8 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     return clone
                 if len(command) >= 5 and command[:2] == ["git", "-C"] and command[3:5] == ["fetch", "--tags"]:
                     return subprocess.CompletedProcess(command, 0, "", "")
+                if command == ["git", "-C", str(checkout), "fsck", "--full"]:
+                    strict_cache_fsck_calls.append(command)
                 return original_run(command, cwd=cwd, check=check)
 
             with mock.patch.object(components, "run", side_effect=local_clone_run):
@@ -1282,6 +1297,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertEqual(1, clone_count)
             self.assertEqual(commit, nginx_source["actual_head"])
             self.assertEqual(apache_source["cache_identity"], nginx_source["cache_identity"])
+            self.assertEqual(
+                [["git", "-C", str(checkout), "fsck", "--full"]],
+                strict_cache_fsck_calls,
+            )
             self.assertTrue(
                 components.git_checkout_is_reusable(
                     checkout,
@@ -1292,6 +1311,27 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     actual_head=commit,
                 )
             )
+
+            def failed_strict_cache_fsck(
+                command: list[str],
+                cwd: Path | None = None,
+                check: bool = False,
+            ) -> subprocess.CompletedProcess[str]:
+                if command == ["git", "-C", str(checkout), "fsck", "--full"]:
+                    return subprocess.CompletedProcess(command, 1, "", "corrupt object")
+                return original_run(command, cwd=cwd, check=check)
+
+            with mock.patch.object(components, "run", side_effect=failed_strict_cache_fsck):
+                rejected_reuse = components.reusable_git_source_record(
+                    checkout,
+                    cache_root,
+                    name="modsecurity-v3",
+                    expected_url=expected_url,
+                    expected_ref=branch,
+                    previous=apache_source,
+                    strict=True,
+                )
+            self.assertIsNone(rejected_reuse)
 
     def test_dirty_managed_git_checkout_is_replaced_and_atomically_republished(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
