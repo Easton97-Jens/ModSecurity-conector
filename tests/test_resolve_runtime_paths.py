@@ -43,6 +43,7 @@ class ResolveRuntimePathsTest(unittest.TestCase):
             self.assertEqual(root / "cache/shared", paths.shared_component_cache)
             self.assertEqual(root, paths.invocation_root)
             self.assertEqual(
+                set(paths.shell_values()),
                 {
                     "EVIDENCE_RUN_ROOT",
                     "CONNECTOR_BUILD_ROOT",
@@ -50,7 +51,6 @@ class ResolveRuntimePathsTest(unittest.TestCase):
                     "CONNECTOR_LOG_ROOT",
                     "SHARED_COMPONENT_CACHE",
                 },
-                set(paths.shell_values()),
             )
             outputs = (
                 paths.evidence_run_root,
@@ -211,9 +211,9 @@ class ResolveRuntimePathsTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, json_result.returncode, json_result.stderr)
+            self.assertEqual(json_result.returncode, 0, json_result.stderr)
             payload = json.loads(json_result.stdout)
-            self.assertEqual("traefik", payload["connector"])
+            self.assertEqual(payload["connector"], "traefik")
             self.assertEqual(str(root / "build/traefik/cli-run"), payload["build_root"])
             self.assertEqual(str(root / "cache/shared"), payload["shared_component_cache"])
 
@@ -225,7 +225,7 @@ class ResolveRuntimePathsTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, shell_result.returncode, shell_result.stderr)
+            self.assertEqual(shell_result.returncode, 0, shell_result.stderr)
             self.assertIn("export EVIDENCE_RUN_ROOT=", shell_result.stdout)
             self.assertIn("export SHARED_COMPONENT_CACHE=", shell_result.stdout)
 
