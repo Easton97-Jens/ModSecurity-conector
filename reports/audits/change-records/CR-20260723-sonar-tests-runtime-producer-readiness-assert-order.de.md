@@ -58,9 +58,24 @@ Test-, AST-, Syntax-, Diff-, bilinguale Dokumentations- und exakte
 Draft-PR-Head-Verifikation erforderlich, bevor der Record ein verifiziertes
 Delivery-Ergebnis behaupten kann.
 
-Die beabsichtigte Delivery ist ein separater ungemergter Draft PR. Hosted-
-Check- und SonarQube-Cloud-Ergebnisse werden in diesem Record erst nach
-Beobachtung für seinen exakten gepushten Head behauptet.
+### Aktuelles Parent-Master-Update — 2026-07-24
+
+Der bestehende Draft-PR #104 bleibt das Delivery-Vehikel. Sein alter exakter
+Head `a1f38b4cdc67b55214a67ecd53d25e45a1ae54e7` wurde ohne Rebase durch einen
+normalen Merge von Parent-Master `90e3d8d9603375f9a33e2a51836ba284221fdd0f`
+aktualisiert. Der resultierende lokale Merge-Commit
+`6116d97a881a666e701ae6afa7671ff9f9fbfd53` löst nur die gemeinsamen
+englischen und deutschen Change-Record-Indizes auf. Sein finaler
+Current-Base-Diff bleibt dieser Parent-Test, dieses englisch/deutsche
+Change-Record-Paar und diese Indizes; er enthält keine Framework-, MRTS-,
+Gitlink-, Production-Source-, Scanner-, Gate-, Suppression- oder
+Security-Control-Änderung. Das fokussierte Modul (4 Tests), die strukturelle
+Fünf-Call-AST-Operandreihenfolge-Prüfung, die bilingualen Dokumentationstests
+(11 Tests) und der Diff-Check bestanden auf diesem lokalen Merge-Head.
+
+Hosted-Check- und SonarQube-Cloud-Ergebnisse werden erst behauptet, wenn
+dieser aktuelle lokale Head normal auf PR #104 gepusht und als dessen exakter
+Remote-Head erneut beobachtet wurde.
 
 ## Akzeptanzkriterien
 
@@ -93,6 +108,12 @@ Assertion-Argument wurde verändert.
   (5 ausgewählte Aufrufe).
 - `tests.test_bilingual_docs`: bestanden (11 Tests).
 - `git diff --check`: bestanden.
+- Aktuelles Parent-Master-Update und Konfliktauflösung: bestanden; normaler
+  nicht-rewritender Merge `6116d97a881a666e701ae6afa7671ff9f9fbfd53` löst nur
+  die beiden Change-Record-Indizes auf.
+- Aktueller lokaler Merge-Head: fokussiertes Modul (4 Tests), strukturelle
+  Fünf-Call-AST-Operandreihenfolge-Prüfung, bilinguale Dokumentationstests
+  (11 Tests) und Diff-Check: bestanden.
 - Vollständige Dokumentations-/Link-Checks: Der reparierte Change Record hat
   keinen gemeldeten record-spezifischen Verstoß; beide Kommandos sind nur durch
   bestehende fehlende Framework-Gitlink-Targets außerhalb dieses Tasks blockiert.
@@ -131,13 +152,15 @@ Hosted-Exact-Head-Analyse bleibt vor verifizierter Delivery erforderlich.
   Modul besteht.
 - Kein Framework- oder MRTS-Test und keine -Änderung: beide sind aus diesem
   Parent-only-Task ausgeschlossen.
-- Vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse: es existiert noch
-  kein Draft PR.
+- Vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse: PR #104 existiert,
+  aber der aktuelle lokale Merge-Head wurde noch nicht normal darauf gepusht;
+  frische Exact-Head-Analyse bleibt nach diesem Push erforderlich.
 
 ## Finaler Diff- und Review-Status
 
-Lokale Implementierung und fokussierte Validierung sind auf dem Parent-only-
-Task-Branch abgeschlossen. Hosted-Checks, Sonar-Analyse und Quality Gate
-bleiben ausstehend, bis ein separater ungemergter Draft PR gepusht ist. Es
-werden weder Review-Freigabe, Merge noch Default-Branch-Änderung beansprucht
-oder autorisiert.
+Der bestehende Parent-only-PR #104 bleibt Draft. Sein task-eigener aktueller
+lokaler Merge-Head `6116d97a881a666e701ae6afa7671ff9f9fbfd53` wurde noch nicht
+auf den PR-Branch gepusht. Hosted-Checks, Sonar-Analyse, Quality Gate und
+frischer Review-Status bleiben deshalb für diesen exakten Remote-Head
+ausstehend. Es werden weder Review-Freigabe, Merge noch Default-Branch-
+Änderung beansprucht oder autorisiert.

@@ -54,9 +54,23 @@ the isolated current-master worktree. Post-change focused test, AST, syntax,
 diff, bilingual-documentation, and exact Draft-PR-head verification evidence
 are required before the record can claim a verified delivery result.
 
-The intended delivery is a separate unmerged Draft PR. Hosted-check and
-SonarQube Cloud results are not claimed in this record until observed for its
-exact pushed head.
+### Current Parent-master update — 2026-07-24
+
+Existing Draft PR #104 remains the delivery vehicle. Its old exact head
+`a1f38b4cdc67b55214a67ecd53d25e45a1ae54e7` was normally updated without a
+rebase by merging Parent master `90e3d8d9603375f9a33e2a51836ba284221fdd0f`.
+The resulting local merge commit
+`6116d97a881a666e701ae6afa7671ff9f9fbfd53` resolves only the shared English
+and German Change Record indexes. Its final current-base diff remains this
+Parent test, this English/German Change Record pair, and those indexes; it has
+no Framework, MRTS, gitlink, production-source, scanner, Gate, suppression, or
+security-control change. The focused module (4 tests), structural five-call
+AST operand-order check, bilingual-documentation tests (11 tests), and diff
+check passed on that local merge head.
+
+Hosted-check and SonarQube Cloud results are not claimed until this current
+local head is normally pushed to PR #104 and re-observed as its exact remote
+head.
 
 ## Acceptance criteria
 
@@ -86,6 +100,12 @@ argument changed.
 - AST operand-order and in-memory syntax validation: passed (5 selected calls).
 - `tests.test_bilingual_docs`: passed (11 tests).
 - `git diff --check`: passed.
+- Current Parent-master update and conflict resolution: passed; normal
+  non-rewriting merge `6116d97a881a666e701ae6afa7671ff9f9fbfd53` resolves only
+  the paired Change Record indexes.
+- Current local merge-head focused module (4 tests), structural five-call AST
+  operand-order check, bilingual-documentation tests (11 tests), and diff
+  check: passed.
 - Full documentation/link checks: the repaired Change Record has no reported
   record-specific violation; both commands are blocked only by existing missing
   Framework-gitlink targets outside this task.
@@ -122,11 +142,14 @@ delivery is verified.
   diagnostic argument order and the complete affected module passes.
 - No Framework or MRTS test or modification: both are excluded from this
   Parent-only task.
-- Full hosted checks and SonarQube Cloud PR analysis: no Draft PR exists yet.
+- Full hosted checks and SonarQube Cloud PR analysis: PR #104 exists but the
+  current local merge head has not yet been normally pushed to it; fresh
+  exact-head analysis remains required after that push.
 
 ## Final diff and review status
 
-Local implementation and focused validation are complete on the Parent-only
-task branch. Hosted checks, Sonar analysis, and the Quality Gate remain pending
-until a separate unmerged Draft PR is pushed. No review approval, merge, or
-default-branch change is claimed or authorized.
+The existing Parent-only PR #104 remains Draft. Its task-owned current local
+merge head `6116d97a881a666e701ae6afa7671ff9f9fbfd53` has not yet been pushed
+to the PR branch. Hosted checks, Sonar analysis, Quality Gate, and fresh review
+state therefore remain pending for that exact remote head. No review approval,
+merge, or default-branch change is claimed or authorized.
