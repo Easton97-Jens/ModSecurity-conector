@@ -271,6 +271,9 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertNotIn("go-version:", text)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
+        self.assertIn("Fuzz Traefik UDS frame parser", text)
+        self.assertIn("-fuzz='^FuzzUDSFrameAndResult$'", text)
+        self.assertIn("-fuzztime=15s -parallel=1", text)
         self.assertIn("make check-common-helpers-c17", text)
 
     def test_security_tool_lock_has_provenance_and_digests(self) -> None:

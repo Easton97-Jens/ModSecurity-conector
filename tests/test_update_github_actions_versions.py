@@ -34,6 +34,15 @@ class FakeResolver:
         return self.refs.get(action, ["v4", "v5"]), "tags"
 
 
+class FailingResolver(FakeResolver):
+    def __init__(self, error):
+        super().__init__()
+        self.error = error
+
+    def get_semver_refs(self, action):
+        raise self.error
+
+
 class UpdateGitHubActionsVersionsTest(unittest.TestCase):
     def test_checkout_major_ref_updates(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -44,6 +53,125 @@ class UpdateGitHubActionsVersionsTest(unittest.TestCase):
             rows, _ = updater.scan_workflows(root, FakeResolver({"actions/checkout": ["v4", "v5"]}), write=True)
             self.assertEqual(rows[0].status, "Updated")
             self.assertIn("actions/checkout@v5", workflow.read_text(encoding="utf-8"))
+
+    def test_quoted_and_unquoted_actions_preserve_suffix_when_updated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workflow = root / ".github/workflows/test.yml"
+            workflow.parent.mkdir(parents=True)
+            workflow.write_text(
+                "steps:\n"
+                "  - uses: actions/checkout@v4 # unquoted\n"
+                "  - uses: \"actions/checkout@v4\" # double quoted\n"
+                "  - uses: 'actions/checkout@v4' # single quoted\n",
+                encoding="utf-8",
+            )
+
+            rows, _ = updater.scan_workflows(root, FakeResolver({"actions/checkout": ["v4", "v5"]}), write=True)
+
+            self.assertEqual([row.status for row in rows], ["Updated"] * 3)
+            self.assertEqual(
+                workflow.read_text(encoding="utf-8"),
+                "steps:\n"
+                "  - uses: actions/checkout@v5 # unquoted\n"
+                "  - uses: \"actions/checkout@v5\" # double quoted\n"
+                "  - uses: 'actions/checkout@v5' # single quoted\n",
+            )
+
+    def test_malformed_quoted_actions_are_not_rewritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workflow = root / ".github/workflows/test.yml"
+            workflow.parent.mkdir(parents=True)
+            malformed = "  - uses: \"" + ("a" * 65536) + "\n"
+            mismatched = "  - uses: \"actions/checkout@v4' # mismatched\n"
+            contents = "steps:\n" + malformed + mismatched
+            workflow.write_text(contents, encoding="utf-8")
+
+            rows, _ = updater.scan_workflows(root, FakeResolver({"actions/checkout": ["v4", "v5"]}), write=True)
+
+            self.assertEqual(rows, [])
+            self.assertEqual(workflow.read_text(encoding="utf-8"), contents)
+
+    def test_write_false_reports_updates_without_rewriting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workflow = root / ".github/workflows/test.yml"
+            workflow.parent.mkdir(parents=True)
+            contents = "steps:\n  - uses: actions/checkout@v4 # keep\n"
+            workflow.write_text(contents, encoding="utf-8")
+
+            rows, _ = updater.scan_workflows(root, FakeResolver({"actions/checkout": ["v4", "v5"]}), write=False)
+
+            self.assertEqual([row.status for row in rows], ["Updated"])
+            self.assertEqual(workflow.read_text(encoding="utf-8"), contents)
+
+    def test_lookup_failures_are_reported_without_an_update(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workflow = root / ".github/workflows/test.yml"
+            workflow.parent.mkdir(parents=True)
+            uses_line = updater.parse_uses_line(workflow, 1, "  - uses: actions/checkout@v4\n")
+            self.assertIsNotNone(uses_line)
+
+            for error in (updater.ActionLookupError("unavailable"), updater.RateLimitError("limited")):
+                with self.subTest(error=type(error).__name__):
+                    row, new_ref = updater.analyze_uses(
+                        root,
+                        uses_line,
+                        FailingResolver(error),
+                        module_is_submodule=False,
+                        write=True,
+                        allow_submodule_write=False,
+                    )
+
+                    self.assertEqual(row.status, "Error")
+                    self.assertEqual(row.note, str(error))
+                    self.assertIsNone(new_ref)
+
+    def test_missing_current_ref_is_not_downgraded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workflow = root / ".github/workflows/test.yml"
+            workflow.parent.mkdir(parents=True)
+            uses_line = updater.parse_uses_line(workflow, 1, "  - uses: actions/checkout@v5\n")
+            self.assertIsNotNone(uses_line)
+
+            row, new_ref = updater.analyze_uses(
+                root,
+                uses_line,
+                FakeResolver({"actions/checkout": ["v4"]}),
+                module_is_submodule=False,
+                write=True,
+                allow_submodule_write=False,
+            )
+
+            self.assertEqual(row.status, "Unknown")
+            self.assertEqual(row.current_ref, "v5")
+            self.assertEqual(row.new_ref, "v4")
+            self.assertEqual(row.note, "current ref was not found in tags; not downgrading")
+            self.assertIsNone(new_ref)
+
+    def test_submodule_updates_require_explicit_write_authorization(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workflow = root / "modules/ModSecurity-test-Framework/.github/workflows/test.yml"
+            workflow.parent.mkdir(parents=True)
+            uses_line = updater.parse_uses_line(workflow, 1, "  - uses: actions/checkout@v4\n")
+            self.assertIsNotNone(uses_line)
+
+            row, new_ref = updater.analyze_uses(
+                root,
+                uses_line,
+                FakeResolver({"actions/checkout": ["v4", "v5"]}),
+                module_is_submodule=True,
+                write=True,
+                allow_submodule_write=False,
+            )
+
+            self.assertEqual(row.status, "Skipped submodule write")
+            self.assertEqual(row.new_ref, "v5")
+            self.assertIsNone(new_ref)
 
     def test_codeql_nested_action_is_parsed(self):
         parsed = updater.split_action_ref("github/codeql-action/init@v3")
