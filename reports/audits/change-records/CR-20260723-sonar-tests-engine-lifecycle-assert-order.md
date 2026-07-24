@@ -129,18 +129,23 @@ Framework gitlink already present in `master` history. The final PR diff must
 not, and does not, modify a gitlink. No Framework or MRTS checkout,
 modification, test, delivery, or merge occurred.
 
-Fresh validation of the documentation-bearing post-update head, followed by
-exact-head hosted checks, SonarQube Cloud evidence, issue/hotspot review, and
-PR review/conversation checks remains pending. No readiness transition or
-merge is claimed by this record.
+Fresh validation of the documentation-bearing post-update head passed: the
+affected module completed 5 tests in 0.883 seconds; the AST inventory proved
+exactly 33 selected operand swaps with every other `assertEqual` and
+`assertNotEqual` call unchanged; `tests.test_bilingual_docs` completed 11
+tests; and `git diff --check origin/master...HEAD` reported no whitespace
+diagnostic. Exact-head hosted checks, SonarQube Cloud evidence, issue/hotspot
+review, and PR review/conversation checks remain pending. No readiness
+transition or merge is claimed by this record.
 
 ## Final diff and review status
 
 The reviewed local batch originated at
 `a315a79ab485b1834939c4b9f90b53981151ff67` and is now represented by the
-existing updated Draft PR #109. The final diff still has only the selected
-Parent test module, this English/German Change Record pair, and their two
-indexes. Its delivery evidence remains incomplete until the exact updated head
-has passed the required local and hosted controls. No merge, default-branch
+existing updated Draft PR #109. The final diff has exactly five Parent paths:
+the selected test module, this English/German Change Record pair, and their
+two indexes. It contains no Framework, MRTS, or gitlink modification. Local
+controls have passed; delivery evidence remains incomplete until the exact
+updated head has passed the required hosted controls. No merge, default-branch
 update, Framework/MRTS change, suppression, or alert closure is claimed or
 authorized.

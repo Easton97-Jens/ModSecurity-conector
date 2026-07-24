@@ -136,18 +136,24 @@ bereits in der `master`-Historie vorhandenen Framework-Gitlink erben. Der
 finale PR-Diff darf und verändert keinen Gitlink. Es gab keinen Framework- oder
 MRTS-Checkout, keine Änderung, keinen Test, keine Delivery und keinen Merge.
 
-Die frische Validierung des dokumentationstragenden Post-Update-Heads sowie
-anschließend exakte-Head-Hosted-Checks, SonarQube-Cloud-Evidence, Issue- und
-Hotspot-Review und PR-Review-/Conversation-Checks stehen noch aus. Dieser
-Record beansprucht weder eine Ready-Transition noch einen Merge.
+Die frische Validierung des dokumentationstragenden Post-Update-Heads bestand:
+Das betroffene Modul absolvierte 5 Tests in 0,883 Sekunden; das AST-Inventar
+bewies genau 33 ausgewählte Operandentausche bei unveränderten übrigen
+`assertEqual`- und `assertNotEqual`-Aufrufen; `tests.test_bilingual_docs`
+absolvierte 11 Tests; und `git diff --check origin/master...HEAD` meldete keine
+Whitespace-Diagnose. Exakte-Head-Hosted-Checks, SonarQube-Cloud-Evidence,
+Issue-/Hotspot-Review und PR-Review-/Conversation-Checks stehen weiter aus.
+Dieser Record beansprucht weder eine Ready-Transition noch einen Merge.
 
 ## Finaler Diff- und Review-Status
 
 Der geprüfte lokale Batch entstand bei
 `a315a79ab485b1834939c4b9f90b53981151ff67` und wird nun durch den bestehenden
-aktualisierten Draft PR #109 dargestellt. Der finale Diff enthält weiterhin
-nur das ausgewählte Parent-Testmodul, dieses englische/deutsche Change-Record-
-Paar und die beiden Indizes. Seine Delivery-Evidence bleibt unvollständig, bis
-der exakte aktualisierte Head die erforderlichen lokalen und Hosted-Kontrollen
-bestanden hat. Es werden weder Merge, Default-Branch-Update, Framework-/MRTS-
-Änderung, Suppression noch Alert-Closure beansprucht oder autorisiert.
+aktualisierten Draft PR #109 dargestellt. Der finale Diff enthält genau fünf
+Parent-Pfade: das ausgewählte Testmodul, dieses englische/deutsche Change-
+Record-Paar und die beiden Indizes. Er enthält keine Framework-, MRTS- oder
+Gitlink-Änderung. Die lokalen Kontrollen bestanden; die Delivery-Evidence
+bleibt unvollständig, bis der exakte aktualisierte Head die erforderlichen
+Hosted-Kontrollen bestanden hat. Es werden weder Merge, Default-Branch-Update,
+Framework-/MRTS-Änderung, Suppression noch Alert-Closure beansprucht oder
+autorisiert.
