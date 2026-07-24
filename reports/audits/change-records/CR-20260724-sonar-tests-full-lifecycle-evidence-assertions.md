@@ -68,6 +68,8 @@ The focused commands used the Parent `.venv` Python,
 - rtk proxy -- env ... make PYTHON=<Parent .venv python> check-doc-links
 - rtk proxy -- git diff --check
 - rtk proxy -- find <current batch worktree> -name '*.pyc' -type f
+- rtk proxy -- gh pr checks 112 --repo Easton97-Jens/ModSecurity-conector --watch --interval 15
+- rtk proxy -- curl -fsSL <official SonarQube Cloud PR, Quality Gate, and PR-issue endpoints>
 
 ## Tests and actual results
 
@@ -93,9 +95,14 @@ host-traffic nor production-runtime evidence.
 - Connector builds, configuration checks, host runtime smoke tests, protocol
   matrices, Framework, and MRTS checks are not applicable because no
   connector/runtime implementation changed and Framework/MRTS are excluded.
-- Git commit/push/Draft-PR creation, hosted GitHub checks, review inspection,
-  and SonarQube Cloud exact-head verification are pending the delivery
-  milestone; no result is claimed here in advance.
+- Initial exact-head Draft-PR verification for
+  `726f56d7787289b8c9f91b68a7b315e5b35a410e` passed: 33 GitHub checks
+  succeeded, 6 were scope-appropriate skips, and none failed, remained
+  pending, cancelled, or unknown. The official SonarQube Cloud Quality Gate
+  was `OK` with zero open PR issues; reviews, inline review comments, and
+  review threads each total zero. This traceability commit creates a newer PR
+  head, which is independently reverified after push and retained in the PR
+  and task receipt rather than claimed in advance here.
 
 ## Known limitations
 
@@ -111,8 +118,12 @@ are verified.
 
 ## Final diff and review status
 
-Local implementation and focused validation are complete on a task branch
-based on `5b8db00d44ab24f3a9f4216a00f7edee977b6898`. Commit, normal push,
-Draft PR creation, and exact-head GitHub/SonarQube Cloud/review evidence are
-still pending. No merge, default-branch update, Framework action, or MRTS
+The source implementation is in initial commit
+`726f56d7787289b8c9f91b68a7b315e5b35a410e` on a branch based on
+`5b8db00d44ab24f3a9f4216a00f7edee977b6898`. Draft PR #112 exists for that
+branch, remains open and Draft, and is not merged. The initial exact head has
+matching local, remote, GitHub PR, and SonarQube Cloud commit evidence. The
+current exact head after this traceability commit is independently reverified
+and retained in the PR and task receipt rather than creating a self-referential
+Change Record SHA. No merge, default-branch update, Framework action, or MRTS
 action is authorized or performed.
