@@ -95,4 +95,4 @@ An accidental constant/value mismatch could weaken a static checker. The focused
 
 ## Final diff and review status
 
-Local source implementation and focused validation are complete in an isolated Parent worktree based on 5b8db00d44ab24f3a9f4216a00f7edee977b6898. This record is not yet a delivery claim: a commit, push, unmerged Draft PR, and current-head GitHub/SonarQube Cloud/review verification remain pending.
+The source implementation is in initial commit e09886ca4713798fc47e1304c651fd0e7216a692 on a branch based on 5b8db00d44ab24f3a9f4216a00f7edee977b6898. Draft PR #111 exists for that branch, remains open and Draft, and is not merged. Exact current-head remote, GitHub, SonarQube Cloud, and review evidence is retained in the PR and the task receipt rather than creating a self-referential Change-Record commit. No merge, default-branch update, Framework action, or MRTS action is authorized or performed.
