@@ -180,6 +180,16 @@ configuration. It requires an allowed request to return 200 and
 `X-Modsec-Smoke: block` to return 403 through the Common runtime. Missing local
 binaries return Exit 77; config, startup, mapping, or status errors return FAIL.
 
+For a direct `runtime-smoke` invocation, `BUILD_ROOT` and
+`CONNECTOR_COMPONENT_CACHE` are mandatory selected runtime roots. Each must be
+an existing absolute directory outside the checkout, owned by the invoking
+user, non-symlinked, and not group- or world-writable; the selected connector
+and Traefik binaries must be regular executable files contained below their
+respective roots, with no group- or world-writable ancestor that could replace
+them. The canonical lifecycle runner supplies these values. The helper
+intentionally has no shared `/tmp` or `/var/tmp` fallback, and an unsafe or
+missing value returns `BLOCKED` / Exit 77 before any binary starts.
+
 ## Global Contract
 
 See the canonical [connector contract](../../docs/connectors/README.md) and

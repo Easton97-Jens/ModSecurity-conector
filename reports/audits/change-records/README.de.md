@@ -8,7 +8,10 @@ englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-Python-Version-Assert-Reihenfolge für SonarQube Cloud S3415](CR-20260723-sonar-tests-python-version-assert-order.de.md)
+- [Traefik-UDS-Parser-Fuzzing](CR-20260723-traefik-uds-parser-fuzzing.de.md)
+- [Envoy-Go-Dependency-Sicherheitsgrenzen](CR-20260723-envoy-go-dependency-security-floors.de.md)
 - [Framework-Gitlink-Update auf 935cf14](CR-20260723-framework-gitlink-935cf14.de.md)
+- [CI-Compile-Database-Capture-Input-Begrenzung für SonarQube Cloud](CR-20260723-sonar-ci-compile-db-input-confinement.de.md)
 - [Reparatur der read-only Update-Submodules-Runtime-Pfad-Validierung](CR-20260723-update-submodules-runtime-path-validation.de.md)
 - [Parent-Tests und Lighttpd-Assert-Reihenfolge für SonarQube Cloud S3415](CR-20260722-sonar-tests-connectors-assert-order.de.md)
 - [Scripts-Workflow- und Report-Pfadbegrenzung für SonarQube-Cloud-Sicherheitsbefunde](CR-20260722-sonar-scripts-path-confinement.de.md)
