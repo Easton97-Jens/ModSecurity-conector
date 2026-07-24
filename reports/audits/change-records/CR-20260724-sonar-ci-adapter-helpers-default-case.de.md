@@ -128,8 +128,12 @@ Material liegen im atomaren Parent-Commit
 41f8ed308bf8acb4d6688dd8639944b5e3482957 auf Task-Branch
 codex/sonar-ci-adapter-helpers-default-case-20260724-master-5b8db00 von Basis
 5b8db00d44ab24f3a9f4216a00f7edee977b6898. Er ist lokal sauber und besteht
-branch-weite Diff-Hygiene. Normaler Push, offene Draft-PR-Erstellung und
-finale Exact-Head-GitHub-/Sonar-/Review-Beobachtung stehen aus. Es gab keinen
-Merge, kein Default-Branch-Update, keine Framework-Action, keine MRTS-Action,
-keine Scanner-Control-Änderung und keine Suppression. Finale Delivery-Fakten
-werden erst nach Beobachtung ergänzt.
+branch-weite Diff-Hygiene. Draft PR
+[#115](https://github.com/Easton97-Jens/ModSecurity-conector/pull/115) wurde
+offen und ungemergt auf initialem Head
+9a93aa68812756faafd6fdd3689378428d244134 erstellt. Dieses Delivery-
+Observation-Update erzeugt einen neuen finalen Head, daher müssen GitHub-/
+Sonar-/Review-Ergebnisse danach frisch beobachtet werden und werden nicht
+vorab behauptet. Es gab keinen Merge, kein Default-Branch-Update, keine
+Framework-Action, keine MRTS-Action, keine Scanner-Control-Änderung und keine
+Suppression. Finale Delivery-Fakten werden erst nach Beobachtung ergänzt.

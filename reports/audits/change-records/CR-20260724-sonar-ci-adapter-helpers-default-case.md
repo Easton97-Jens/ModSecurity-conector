@@ -117,7 +117,10 @@ The source correction and initial English/German traceability material are in
 atomic Parent commit 41f8ed308bf8acb4d6688dd8639944b5e3482957 on task branch
 codex/sonar-ci-adapter-helpers-default-case-20260724-master-5b8db00 from base
 5b8db00d44ab24f3a9f4216a00f7edee977b6898. It is locally clean and passes
-branch-wide diff hygiene. Normal push, open Draft-PR creation, and final
-exact-head GitHub/Sonar/review observation remain pending. No merge,
+branch-wide diff hygiene. Draft PR [#115](https://github.com/Easton97-Jens/ModSecurity-conector/pull/115)
+was created open and unmerged at initial head
+9a93aa68812756faafd6fdd3689378428d244134. This delivery-observation update
+creates a new final head, so GitHub/Sonar/review results must be freshly
+observed afterwards and are not claimed in advance. No merge,
 default-branch update, Framework action, MRTS action, scanner-control change,
 or suppression occurred. Final delivery facts are added only after observation.
