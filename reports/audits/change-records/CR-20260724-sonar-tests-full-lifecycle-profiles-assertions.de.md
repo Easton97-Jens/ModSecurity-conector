@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260724-sonar-tests-full-lifecycle-profiles-assertions |
 | Datum (UTC) | 2026-07-24 |
-| Basis-Revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Basis-Revision | a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0 |
 | Tracking | Sieben aktive Parent-SonarQube-Cloud-`python:S3415`-Code-Smells: AZ-KYVRvfYmbqbBXVNFH, AZ-KYVRvfYmbqbBXVNFI, AZ-KYVRvfYmbqbBXVNFJ, AZ-KYVRvfYmbqbBXVNFK, AZ-KYVRvfYmbqbBXVNFL, AZ-KYVRvfYmbqbBXVNFM und AZ-KYVRvfYmbqbBXVNFN. |
 | Grenze | Parent-Testquellcode sowie dieses englisch/deutsche Traceability-Paar und die Indizes. Der Lifecycle-Profile-Helper, Connector-Verhalten, Framework, MRTS, Gitlinks, Scanner-Konfiguration, Quality Gates, Suppressions und generierte Artefakte bleiben unverändert. |
 
@@ -97,3 +97,25 @@ Exact-Head-Hosted-Verifikationszyklus. Es gab keinen Merge, kein
 Default-Branch-Update, keine Framework-Action, keine MRTS-Action, keine
 Scanner-Control-Änderung und keine Suppression. Finale Delivery-Fakten werden
 erst nach ihrer Beobachtung ergänzt.
+
+## Current-Master-Update und finale lokale Verifikation
+
+Der Branch erhielt den normalen Current-Master-Merge ohne History-Rewrite
+`ce37b8148666de96e9511e69e05ec26b9319afa9`, dessen zweiter Parent der
+Parent-Master `a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0` ist. Nur die beiden
+Change-Record-Indizes waren konfliktbehaftet; ihre Auflösung behält diesen
+Profil-Record und jeden Current-Master-Eintrag in passender englisch/deutscher
+Newest-first-Reihenfolge. Der Merge übernimmt unter der engen Nutzerfreigabe
+nur bereits vorhandene Parent-Master-Historie. Framework und MRTS wurden weder
+ausgecheckt noch geändert, getestet, gemergt oder ausgeliefert.
+
+Auf dieser Current-Master-Source-Revision bestand das fokussierte Modul
+`tests.test_full_lifecycle_profiles` alle fünf Tests; die Selected-File-
+Syntaxkompilierung, der exakte Sieben-Aufruf-Actual-first-AST-Vertrag und der
+scoped `git diff --check` bestanden ebenfalls. Der finale beabsichtigte Diff
+hat genau fünf Parent-Pfade: diesen Test, dieses englisch/deutsche Record-Paar
+und die beiden Indizes. Er enthält keine Gitlink-, Framework-, MRTS-,
+Connector-Runtime-, Scanner-Control- oder Quality-Gate-Änderung. Dieses
+Dokumentationsupdate verlangt vor einem geschützten Merge eine frische
+Exact-Head-Beobachtung von Hosted-Checks, SonarQube Cloud, PR-Issues und
+Review-Status; kein Ergebnis eines früheren Heads gilt als final.

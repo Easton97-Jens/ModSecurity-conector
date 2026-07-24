@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260724-sonar-tests-full-lifecycle-profiles-assertions |
 | Date (UTC) | 2026-07-24 |
-| Base revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Base revision | a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0 |
 | Tracking | Seven live Parent SonarQube Cloud `python:S3415` Code Smells: AZ-KYVRvfYmbqbBXVNFH, AZ-KYVRvfYmbqbBXVNFI, AZ-KYVRvfYmbqbBXVNFJ, AZ-KYVRvfYmbqbBXVNFK, AZ-KYVRvfYmbqbBXVNFL, AZ-KYVRvfYmbqbBXVNFM, and AZ-KYVRvfYmbqbBXVNFN. |
 | Boundary | Parent test source plus this English/German traceability pair and indexes. The lifecycle-profile helper, connector behavior, Framework, MRTS, gitlinks, scanner configuration, Quality Gates, suppressions, and generated artifacts remain unchanged. |
 
@@ -127,3 +127,24 @@ document-update commit intentionally requires a fresh exact-head hosted
 verification cycle. No merge, default-branch update, Framework action, MRTS
 action, scanner-control change, or suppression occurred. Final delivery facts
 are added only after they are observed.
+
+## Current-master update and final local verification
+
+The branch received the normal no-rewrite current-master merge
+`ce37b8148666de96e9511e69e05ec26b9319afa9`, whose second parent is Parent
+master `a99bd0bb1c28ab3842f021b9234c6209dbe1f8c0`. Only the paired Change
+Record indexes conflicted; their resolution retains this profile-record entry
+and every current-master entry in matching English/German newest-first order.
+The merge merely inherits already-present Parent master history under the
+user's narrow authorization. Framework and MRTS were not checked out,
+modified, tested, merged, or delivered.
+
+At this current-master source revision, the focused
+`tests.test_full_lifecycle_profiles` module passed all five tests; selected-file
+syntax compilation, the exact seven-call actual-first AST contract, and scoped
+`git diff --check` also passed. The final intended diff has exactly five Parent
+paths: this test, this English/German record pair, and the paired indexes. It
+contains no gitlink, Framework, MRTS, connector runtime, scanner-control, or
+Quality-Gate change. This documentation update requires a fresh exact-head
+hosted-check, SonarQube Cloud, PR-issue, and review-state observation before a
+protected merge; no earlier-head result is treated as final.
