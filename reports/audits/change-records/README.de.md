@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Full-Lifecycle-Evidence-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260724-sonar-tests-full-lifecycle-evidence-assertions.de.md)
 - [Parent-CI/Common-SonarQube-Cloud-Hygiene-Behebung](CR-20260724-sonar-ci-common-hygiene.de.md)
 - [Runtime-Test-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260723-sonar-tests-runtime-assertions.de.md)
 - [Engine-Lifecycle-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260723-sonar-tests-engine-lifecycle-assert-order.de.md)
