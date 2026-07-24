@@ -31,9 +31,8 @@ keeps supported workflow syntax and existing update/write controls unchanged.
 - Malformed unmatched or mismatched quoted values are not parsed or rewritten.
 - Existing dynamic, local, Docker, SHA-pinned, symlink-confinement, and report
   path-confinement behavior continues to pass its focused Parent tests.
-- The final task branch is an unmerged Draft PR based on the recorded current
-  `master`, with exact-head checks and SonarQube Cloud evidence before it is
-  described as verified.
+- Obtain fresh exact-head checks and SonarQube Cloud evidence before the four
+  findings are described as resolved or delivery as verified.
 
 ## Implementation decision and rationale
 
@@ -102,8 +101,8 @@ boundary with a fake resolver and task-owned temporary roots.
   deterministic unit fixtures are the selected safe regression boundary.
 - No Framework or MRTS check or modification: both are outside the Parent-only
   scope.
-- Exact-head GitHub Actions, SonarQube Cloud, review, and PR evidence do not
-  exist until a task-owned Draft PR is pushed and are not inferred locally.
+- Exact-head GitHub Actions, SonarQube Cloud, review, and PR evidence require
+  the current pushed PR head and are not inferred locally.
 
 ## Known limitations
 
@@ -116,13 +115,38 @@ that environment condition is not worked around by this Parent-only change.
 The parser compatibility comparison is a focused corpus, not a proof for every
 possible YAML form; the updater continues to intentionally handle the supported
 `uses:` syntax rather than act as a YAML parser. SonarQube Cloud and hosted
-checks must still analyze the exact Draft-PR head before the four findings are
-verified. No merge is authorized.
+checks must still analyze the exact current PR head before the four findings
+are verified.
+
+### Current Parent-master update — 2026-07-24
+
+Existing Draft PR #108 was normally updated without a rebase by merging Parent
+master `00dfe5f2ae0908228a6242b15e09f70d6742d102`. The resulting local merge
+commit `e444936a080c81ab1cf21f4e7357777652d60efc` reconciled the shared Change
+Record indexes by retaining all current-master entries and this #108 entry. It
+does not modify Framework or MRTS; it only inherits existing master history.
+The current PR-base diff remains the Parent updater, its Parent unit test, this
+English/German Change Record pair, and the two indexes, with no Framework,
+MRTS, gitlink, workflow-permission, token, scanner, Gate, suppression, or
+security-control change authored by this PR update.
+
+The current merged-tree updater suite passed 25 tests in 0.065 seconds,
+including the temporary-root write and protected-submodule controls. An
+independent AST/import parse verified the maintained public `scan_workflows`
+signature, the new parser and write helpers, removal of `USES_RE`, and the
+unchanged rate-limit write guard. The bilingual-documentation check passed 11
+tests; the scoped final diff check is rerun after this paired evidence update.
+Hosted check,
+SonarQube Cloud, Quality Gate, review, readiness, and merge results are claimed
+only through observed exact-head PR delivery metadata.
 
 ## Final diff and review status
 
-The scoped diff was reviewed before staging. Local source, focused-test,
-differential-parser, and bilingual validation is complete, and the private
-finding record is retained. Commit `03b487f88a98ec71edf438e8ac347dd76b370f69`
-was created from the stated base; normal push, Draft-PR creation, and exact-head
-hosted analysis remain required and are not claimed here.
+The existing Parent-only PR #108 is the delivery vehicle and now contains the
+normal current-master update merge `e444936a080c81ab1cf21f4e7357777652d60efc`
+and this paired delivery-evidence update. This record claims neither review
+approval, merge, nor a default-branch change. Before protected merge, the PR
+must be non-draft and its current exact remote head must have passing hosted
+checks and SonarQube Cloud analysis plus refreshed review state; those observed
+facts belong to delivery metadata rather than an unobserved claim in this
+record.

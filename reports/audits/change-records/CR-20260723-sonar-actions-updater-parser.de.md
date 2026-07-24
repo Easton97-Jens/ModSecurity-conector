@@ -35,9 +35,8 @@ Workflow-Syntax und bestehende Update-/Write-Kontrollen unverändert bewahrt.
 - Bestehendes Dynamic-, Local-, Docker-, SHA-pinned-, Symlink-Containment- und
   Report-Path-Containment-Verhalten besteht weiterhin seine fokussierten
   Parent-Tests.
-- Der finale Task-Branch ist ein ungemergter Draft PR auf Basis des
-  aufgezeichneten aktuellen `master`, mit Exact-Head-Checks und
-  SonarQube-Cloud-Evidence, bevor er als verifiziert beschrieben wird.
+- Frische Exact-Head-Checks und SonarQube-Cloud-Evidence einholen, bevor die
+  vier Befunde als behoben oder die Delivery als verifiziert beschrieben wird.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -111,8 +110,7 @@ Temporary-Roots aus.
 - Kein Framework- oder MRTS-Check und keine -Änderung: Beide liegen außerhalb
   des Parent-only-Scopes.
 - Exact-Head-GitHub-Actions-, SonarQube-Cloud-, Review- und PR-Evidence
-  existieren erst nach einem Push eines task-eigenen Draft PR und werden nicht
-  lokal hergeleitet.
+  benötigen den aktuellen gepushten PR-Head und werden nicht lokal hergeleitet.
 
 ## Bekannte Einschränkungen
 
@@ -126,14 +124,42 @@ Parent-only-Änderung umgangen.
 Der Parser-Kompatibilitätsvergleich ist ein fokussierter Korpus, kein Beweis für
 jede mögliche YAML-Form; der Updater behandelt weiterhin absichtlich die
 unterstützte `uses:`-Syntax statt als YAML-Parser zu agieren. SonarQube Cloud
-und Hosted-Checks müssen den exakten Draft-PR-Head noch analysieren, bevor die
-vier Befunde verifiziert sind. Kein Merge ist autorisiert.
+und Hosted-Checks müssen den exakten aktuellen PR-Head noch analysieren, bevor
+die vier Befunde verifiziert sind.
+
+### Current-Parent-Master-Update — 2026-07-24
+
+Der bestehende Draft-PR #108 wurde ohne Rebase regulär aktualisiert, indem
+Parent-Master `00dfe5f2ae0908228a6242b15e09f70d6742d102` gemergt wurde. Der
+daraus entstandene lokale Merge-Commit
+`e444936a080c81ab1cf21f4e7357777652d60efc` führte die gemeinsamen
+Change-Record-Indizes zusammen, wobei alle Current-Master-Einträge und der
+Eintrag für PR 108 erhalten blieben. Er ändert weder Framework noch MRTS,
+sondern übernimmt nur vorhandene Master-Historie. Der aktuelle PR-Base-Diff
+bleibt der Parent-Updater, sein Parent-Unit-Test, dieses englisch/deutsche
+Change-Record-Paar und die beiden Indizes, ohne eine durch dieses PR-Update
+verfasste Framework-, MRTS-, Gitlink-, Workflow-Permission-, Token-, Scanner-,
+Gate-, Suppression- oder Security-Control-Änderung.
+
+Die aktuelle Merged-Tree-Updater-Suite bestand 25 Tests in 0,065 Sekunden,
+einschließlich der Temporary-Root-Write- und Protected-Submodule-Kontrollen.
+Ein unabhängiger AST-/Import-Parse verifizierte die erhaltene öffentliche
+`scan_workflows`-Signatur, die neuen Parser- und Write-Helper, die Entfernung
+von `USES_RE` und den unveränderten Rate-Limit-Write-Guard. Der bilinguale
+Dokumentationscheck bestand 11 Tests; der Scoped-Final-Diff-Check wird nach
+diesem gepaarten Evidence-Update erneut ausgeführt. Hosted-Check-, SonarQube-Cloud-,
+Quality-Gate-, Review-, Readiness- und Merge-Ergebnisse werden nur über
+beobachtete Exact-Head-PR-Delivery-Metadaten beansprucht.
 
 ## Finaler Diff- und Review-Status
 
-Der Scoped-Diff wurde vor dem Staging geprüft. Die lokale Source-, fokussierte
-Test-, differenzielle Parser- und Bilingual-Validierung ist abgeschlossen und
-der private Finding-Record ist aufbewahrt. Commit
-`03b487f88a98ec71edf438e8ac347dd76b370f69` wurde auf der genannten Basis
-erstellt; normaler Push, Draft-PR-Erstellung und Exact-Head-Hosted-Analyse
-bleiben erforderlich und werden hier nicht behauptet.
+Der bestehende Parent-only-PR #108 ist das Delivery-Vehikel und enthält nun den
+normalen Current-Master-Update-Merge
+`e444936a080c81ab1cf21f4e7357777652d60efc` sowie dieses gepaarte
+Delivery-Evidence-Update. Dieser Datensatz beansprucht weder Review-Approval,
+Merge noch eine Default-Branch-Änderung. Vor dem geschützten Merge muss der PR
+nicht mehr Draft sein und sein aktueller exakter Remote-Head muss bestehende
+Hosted-Checks und SonarQube-Cloud-Analyse sowie einen aktualisierten
+Review-Status haben; diese beobachteten Tatsachen gehören zu
+Delivery-Metadaten und nicht zu einer unbeobachteten Behauptung dieses
+Datensatzes.
