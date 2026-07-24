@@ -118,25 +118,32 @@ Hosted Sonar analysis and CI still need to run against the exact Draft PR head.
 
 ## Current normal update and delivery status
 
-The existing Draft PR #109 was refreshed without a rebase by normal merge
-commit `62eae66`, which merged Parent `master`
+The existing Draft PR #109 was first refreshed without a rebase by normal
+merge commit `62eae66`, which merged Parent `master`
 `700e62e5c2287e10f8774757ffff7432753900c0` into its branch. Only the two
 shared Change Record indexes conflicted; their resolution retains all current
 `master` entries and this record.
 
-Under the current Parent-only authorization, that normal merge may inherit the
-Framework gitlink already present in `master` history. The final PR diff must
-not, and does not, modify a gitlink. No Framework or MRTS checkout,
+While the first exact-head check round was running, the separately protected
+submodule PR #117 advanced Parent `master` to
+`09ec1e050e5f6c226d0214964fef6ae8bd498e00`. That already-merged master commit
+changes only the Framework gitlink. PR #109 was therefore refreshed again,
+without a rebase and without conflicts, by normal merge commit `cad42b1`.
+
+Under the current Parent-only authorization, these normal merges may inherit
+the Framework gitlink already present in `master` history. The final PR diff
+must not, and does not, modify a gitlink. No Framework or MRTS checkout,
 modification, test, delivery, or merge occurred.
 
-Fresh validation of the documentation-bearing post-update head passed: the
-affected module completed 5 tests in 0.883 seconds; the AST inventory proved
-exactly 33 selected operand swaps with every other `assertEqual` and
-`assertNotEqual` call unchanged; `tests.test_bilingual_docs` completed 11
-tests; and `git diff --check origin/master...HEAD` reported no whitespace
-diagnostic. Exact-head hosted checks, SonarQube Cloud evidence, issue/hotspot
-review, and PR review/conversation checks remain pending. No readiness
-transition or merge is claimed by this record.
+After the second merge, the affected module again completed 5 tests (in 1.197
+seconds), the AST inventory again proved exactly 33 selected operand swaps with
+every other `assertEqual` and `assertNotEqual` call unchanged, and
+`git diff --check origin/master...HEAD` again reported no whitespace
+diagnostic. The prior exact-head hosted results apply only to superseded head
+`79aedad849ca20065d831904481ee70d1d1d5179`; exact-head hosted checks,
+SonarQube Cloud evidence, issue/hotspot review, and PR review/conversation
+checks must be repeated for the next pushed head. No readiness transition or
+merge is claimed by this record.
 
 ## Final diff and review status
 

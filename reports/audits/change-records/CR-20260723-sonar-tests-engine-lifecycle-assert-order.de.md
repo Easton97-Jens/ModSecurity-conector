@@ -125,25 +125,34 @@ müssen noch auf dem exakten Draft-PR-Head laufen.
 
 ## Aktuelle normale Aktualisierung und Delivery-Status
 
-Der bestehende Draft PR #109 wurde ohne Rebase durch den normalen Merge-Commit
-`62eae66` aktualisiert, der Parent-`master`
+Der bestehende Draft PR #109 wurde zunächst ohne Rebase durch den normalen
+Merge-Commit `62eae66` aktualisiert, der Parent-`master`
 `700e62e5c2287e10f8774757ffff7432753900c0` in seinen Branch übernommen hat.
 Nur die beiden gemeinsamen Change-Record-Indizes hatten Konflikte; ihre
 Auflösung bewahrt alle aktuellen `master`-Einträge sowie diesen Record.
 
-Unter der aktuellen Parent-only-Autorisierung darf dieser normale Merge den
+Während die erste Exact-Head-Checkrunde lief, brachte der separat geschützte
+Submodule-PR #117 Parent-`master` auf
+`09ec1e050e5f6c226d0214964fef6ae8bd498e00`. Dieser bereits gemergte
+Master-Commit ändert ausschließlich den Framework-Gitlink. PR #109 wurde daher
+ohne Rebase und ohne Konflikt erneut durch den normalen Merge-Commit `cad42b1`
+aktualisiert.
+
+Unter der aktuellen Parent-only-Autorisierung dürfen diese normalen Merges den
 bereits in der `master`-Historie vorhandenen Framework-Gitlink erben. Der
 finale PR-Diff darf und verändert keinen Gitlink. Es gab keinen Framework- oder
 MRTS-Checkout, keine Änderung, keinen Test, keine Delivery und keinen Merge.
 
-Die frische Validierung des dokumentationstragenden Post-Update-Heads bestand:
-Das betroffene Modul absolvierte 5 Tests in 0,883 Sekunden; das AST-Inventar
-bewies genau 33 ausgewählte Operandentausche bei unveränderten übrigen
-`assertEqual`- und `assertNotEqual`-Aufrufen; `tests.test_bilingual_docs`
-absolvierte 11 Tests; und `git diff --check origin/master...HEAD` meldete keine
-Whitespace-Diagnose. Exakte-Head-Hosted-Checks, SonarQube-Cloud-Evidence,
-Issue-/Hotspot-Review und PR-Review-/Conversation-Checks stehen weiter aus.
-Dieser Record beansprucht weder eine Ready-Transition noch einen Merge.
+Nach dem zweiten Merge absolvierte das betroffene Modul erneut 5 Tests (in
+1,197 Sekunden), das AST-Inventar bewies erneut genau 33 ausgewählte
+Operandentausche bei unveränderten übrigen `assertEqual`- und
+`assertNotEqual`-Aufrufen, und `git diff --check origin/master...HEAD` meldete
+erneut keine Whitespace-Diagnose. Die vorherigen Exact-Head-Hosted-Ergebnisse
+gelten nur für den abgelösten Head `79aedad849ca20065d831904481ee70d1d1d5179`;
+Exact-Head-Hosted-Checks, SonarQube-Cloud-Evidence, Issue-/Hotspot-Review und
+PR-Review-/Conversation-Checks müssen für den nächsten gepushten Head erneut
+ausgeführt werden. Dieser Record beansprucht weder eine Ready-Transition noch
+einen Merge.
 
 ## Finaler Diff- und Review-Status
 
