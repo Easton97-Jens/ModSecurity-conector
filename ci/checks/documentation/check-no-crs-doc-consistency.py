@@ -21,13 +21,14 @@ CORE_COMPLETION_REPORTS = (
 CAPABILITY_CATALOG_JSON = "reports/testing/generated/canonical/connector-capabilities.generated.json"
 CAPABILITY_CATALOG_MARKDOWN = "reports/testing/generated/canonical/connector-capabilities.generated.md"
 CORE_CAPABILITIES = ("phase1", "phase2", "phase3", "phase4", "event_jsonl")
+NOT_EXECUTED_STATUS = "NOT EXECUTED"
 REPORT_STATUSES = {
     "PASS",
     "FAIL",
     "BLOCKED",
     "UNSUPPORTED",
     "NOT IMPLEMENTED",
-    "NOT EXECUTED",
+    NOT_EXECUTED_STATUS,
     "IMPLEMENTED, NOT ASSERTED",
 }
 
@@ -86,7 +87,7 @@ def main() -> int:
         todo = read(ROOT / f"connectors/{connector}/TODO.md", errors)
         for required in (
             "capabilities.json",
-            "NOT EXECUTED",
+            NOT_EXECUTED_STATUS,
             f"no-crs-baseline-{connector}",
             f"evidence-check-{connector}",
         ):
@@ -141,8 +142,8 @@ def main() -> int:
         ):
             fail(errors, f"reports/current/core-completion.md: compact core row for {connector} is not eight PASS results")
         readiness_row = re.search(rf"^\|\s*{re.escape(display)}\s*\|.*$", english, flags=re.IGNORECASE | re.MULTILINE)
-        if not readiness_row or "PASS" not in readiness_row.group(0) or "NOT EXECUTED" not in readiness_row.group(0):
-            fail(errors, f"reports/current/readiness.md: {connector} must keep selected core PASS separate from extended NOT EXECUTED")
+        if not readiness_row or "PASS" not in readiness_row.group(0) or NOT_EXECUTED_STATUS not in readiness_row.group(0):
+            fail(errors, f"reports/current/readiness.md: {connector} must keep selected core PASS separate from extended {NOT_EXECUTED_STATUS}")
 
     envoy_todo = read(ROOT / "connectors/envoy/TODO.md", errors)
     if "Status: targeted `minimal_runtime_smoke`" not in envoy_todo:

@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI/Common SonarQube Cloud hygiene remediation](CR-20260724-sonar-ci-common-hygiene.md)
 - [Envoy Go dependency security floors](CR-20260723-envoy-go-dependency-security-floors.md)
 - [Framework gitlink update to 935cf14](CR-20260723-framework-gitlink-935cf14.md)
 - [Read-only Update-submodules runtime-path validation repair](CR-20260723-update-submodules-runtime-path-validation.md)
