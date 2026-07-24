@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260724-sonar-tests-nginx-intervention-url-assertions |
 | Datum (UTC) | 2026-07-24 |
-| Basis-Revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Ursprüngliche Basis-Revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
 | Tracking | Parent-SonarQube-Cloud-`python:S3415`-Code-Smells AZ-KYVTafYmbqbBXVNF7 (Zeile 35) und AZ-KYVTafYmbqbBXVNF8 (Zeile 42). |
 | Grenze | Parent-Testquellcode sowie dieses englisch/deutsche Traceability-Paar und die Indizes. NGINX-C-Quellcode, Connector-Verhalten, Framework, MRTS, Gitlinks, Scanner-Konfiguration, Quality Gates, Suppressions und generierte Artefakte bleiben unverändert. |
 
@@ -130,7 +130,26 @@ dessen initialer Parent `5b8db00d44ab24f3a9f4216a00f7edee977b6898` ist. Der
 Branch wurde normal gepusht und als Draft PR #114 auf initial beobachtetem Head
 `f3497e7e50448cde85a883e2d71e88dbccb65556` eröffnet; er ist offen und
 ungemergt. Dieser Dokument-Update-Commit erfordert bewusst einen frischen
-Exact-Head-Hosted-Verifikationszyklus. Es gab keinen Merge, kein
+Exact-Head-Hosted-Verifikationszyklus. Es gab keinen Master-Merge, kein
 Default-Branch-Update, keine Framework-Action, keine MRTS-Action, keine
 Scanner-Control-Änderung und keine Suppression. Finale Delivery-Fakten werden
 erst nach ihrer Beobachtung ergänzt.
+
+## Synchronisierungs- und Revalidierungsupdate
+
+Der veröffentlichte Draft wurde durch den normalen, nicht
+History-rewriting-Merge `a9402abaace2ca2e08919034a56991e89f213bbe` mit dem
+Parent-Master `185fd358bcfabe63464ab0e135eecedf24c9a699` synchronisiert. Die
+Konfliktauflösung bewahrte jeden aktuellen Master-Change-Record-Indexeintrag
+und dieses englisch/deutsche Paar. Der finale Kandidaten-Diff gegen
+`origin/master` hat keine Framework-Gitlink-Differenz. Auf dem synchronisierten
+Tree bestanden das fokussierte Modul mit 3/3 Tests, Selected-File-Syntax und
+die exakte Zwei-Aufruf-AST-Inventur; `tests.test_bilingual_docs` bestand 11/11
+und die staged Diff-Hygiene bestand. Es gab keinen Framework- oder MRTS-
+Checkout, -Test oder -Change.
+
+Dieses Statusupdate erzeugt einen neueren Kandidaten-Head. Exact-Head-GitHub-
+Checks, SonarQube-Cloud-Quality-Gate und PR-Issue-Status sowie der Review-
+Status müssen nach seinem normalen Push beobachtet werden, bevor der PR
+bereitgemeldet oder gemergt wird. Kein Hosted-Ergebnis eines vorherigen Heads
+wird als final behandelt.

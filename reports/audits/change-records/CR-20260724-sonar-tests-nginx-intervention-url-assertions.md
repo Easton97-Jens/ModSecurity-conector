@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260724-sonar-tests-nginx-intervention-url-assertions |
 | Date (UTC) | 2026-07-24 |
-| Base revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Original base revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
 | Tracking | Parent SonarQube Cloud `python:S3415` Code Smells AZ-KYVTafYmbqbBXVNF7 (line 35) and AZ-KYVTafYmbqbBXVNF8 (line 42). |
 | Boundary | Parent test source plus this English/German traceability pair and indexes. NGINX C source, connector behavior, Framework, MRTS, gitlinks, scanner configuration, Quality Gates, suppressions, and generated artifacts remain unchanged. |
 
@@ -123,6 +123,23 @@ whose initial parent is `5b8db00d44ab24f3a9f4216a00f7edee977b6898`. The
 branch was pushed normally and opened as Draft PR #114 at initial observed
 head `f3497e7e50448cde85a883e2d71e88dbccb65556`; it is open and unmerged. This
 document-update commit intentionally requires a fresh exact-head hosted
-verification cycle. No merge, default-branch update, Framework action, MRTS
+verification cycle. No master merge, default-branch update, Framework action, MRTS
 action, scanner-control change, or suppression occurred. Final delivery facts
 are added only after they are observed.
+
+## Synchronization and revalidation update
+
+The published Draft was synchronized with Parent master
+`185fd358bcfabe63464ab0e135eecedf24c9a699` through normal,
+non-history-rewriting merge `a9402abaace2ca2e08919034a56991e89f213bbe`.
+The conflict resolution retained every current-master Change Record index entry
+and this English/German pair. The final candidate diff against `origin/master`
+has no Framework gitlink difference. On the synchronized tree, the focused
+module passed 3/3 tests, selected-file syntax and the exact two-call AST
+inventory passed, `tests.test_bilingual_docs` passed 11/11, and staged diff
+hygiene passed. No Framework or MRTS checkout, test, or change occurred.
+
+This status update creates a newer candidate head. Exact-head GitHub checks,
+SonarQube Cloud Quality Gate and PR-issue state, and review state must be
+observed after its normal push before the PR is made ready or merged. No prior
+head's hosted result is treated as final.
