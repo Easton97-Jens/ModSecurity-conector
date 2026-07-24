@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260723-sonar-tests-python-version-assert-order |
 | Date (UTC) | 2026-07-23 |
-| Integration base revision | `6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d`; original source base `a308d7b414f0859490fe7253e0683a4bde80b563`. |
+| Base revision | Current integration base `6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d`; original source base `a308d7b414f0859490fe7253e0683a4bde80b563`. |
 | Tracking | FND-SONAR-0019; 34 Parent-only SonarQube Cloud `python:S3415` Code Smells, keys `AZ-KYVOzfYmbqbBXVNDC` through `AZ-KYVOzfYmbqbBXVNDj`, in `tests/test_python_version_contract.py`. |
 | Boundary | One Parent test module plus this English/German Change Record pair and indexes. Framework, MRTS, gitlinks, product source, dependency manifests, scanner configuration, Quality Gates, suppressions, and the default branch remain unchanged. |
 

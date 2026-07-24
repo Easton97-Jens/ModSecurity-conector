@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260723-sonar-tests-python-version-assert-order |
 | Datum (UTC) | 2026-07-23 |
-| Integrations-Basis-Revision | `6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d`; ursprüngliche Source-Basis `a308d7b414f0859490fe7253e0683a4bde80b563`. |
+| Basis-Revision | Current integration base `6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d`; original source base `a308d7b414f0859490fe7253e0683a4bde80b563`. |
 | Tracking | FND-SONAR-0019; 34 Parent-only SonarQube-Cloud-`python:S3415`-Code-Smells, Keys `AZ-KYVOzfYmbqbBXVNDC` bis `AZ-KYVOzfYmbqbBXVNDj`, in `tests/test_python_version_contract.py`. |
 | Grenze | Ein Parent-Testmodul sowie dieses englisch/deutsche Change-Record-Paar und die Indizes. Framework, MRTS, Gitlinks, Produkt-Source, Dependency-Manifeste, Scanner-Konfiguration, Quality Gates, Suppressions und der Default-Branch bleiben unverändert. |
 
