@@ -53,6 +53,26 @@ an `$BUILD_ROOT/traefik-native-middleware/build.txt`. Es wird kein installiert
 Traefik-Plugin, starten Sie die persistente Engine, rufen Sie Common/libmodsecurity auf, oder
 Laufzeitbeweise schreiben.
 
+## Begrenztes Fuzzing des UDS-Parsers
+
+`FuzzUDSFrameAndResult` übt den eigenen UDS-Frame-Reader und Result-Parser mit
+abgeschnittenen, fehlerhaften, Allow-, Deny- und Redirect-Seeds sowie beliebigen
+begrenzten Frames aus. Er verwendet nur einen In-Memory-Reader: Er öffnet keinen
+Socket, startet keine Engine und ruft weder CGo noch Common auf. Ein fehlerhafter
+Frame muss ohne Panic einen Fehler liefern; jeder erfolgreich geparste Frame muss
+zu seinen konsumierten Bytes unverändert round-trippen dürfen (weitere Stream-Frames
+können folgen), und ein erfolgreich geparstes Result muss eine erkannte Aktion haben.
+
+Führen Sie dieselbe begrenzte Kontrolle aus diesem Modulverzeichnis aus:
+
+```sh
+GOTOOLCHAIN=local go test -mod=readonly -run='^$' -fuzz='^FuzzUDSFrameAndResult$' -fuzztime=15s -parallel=1 .
+```
+
+Der `traefik-go`-CodeQL-Job führt diese Kontrolle mit derselben 15-Sekunden-
+und Single-Worker-Grenze aus. Es handelt sich um Source-Level-Parser-Evidence,
+nicht um Traefik-Host-Runtime- oder Capability-Promotion-Evidence.
+
 ## Konfigurationsgrenze`../config/traefik-native-middleware-static.yaml` und
 `../config/traefik-native-middleware-dynamic.yaml` sind passende lokale Plugins
 und Dateianbieterformen für eine vom Bediener erstellte Registrierung mit dem Namen
