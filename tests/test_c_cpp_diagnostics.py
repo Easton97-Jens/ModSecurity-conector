@@ -126,6 +126,9 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
         self.assertIn("--tweaks=", clangd_script)
         self.assertIn("--compile-commands-dir", clangd_script)
         self.assertIn("--log=error", clangd_script)
+        for database_script in (NGINX_DATABASE_CHECK, CPP_DATABASE_CHECK):
+            database_text = database_script.read_text(encoding="utf-8")
+            self.assertIn("--capture-root \"$CAPTURE_DIR\"", database_text)
         evaluator_script = (
             ROOT / "ci/checks/analysis/check-targeted-evaluator-cpp17.sh"
         ).read_text(encoding="utf-8")
@@ -235,12 +238,14 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
             output_root = temporary_root / "objects"
             output_root.mkdir()
             database = temporary_root / "compile_commands.json"
+            capture_root = temporary_root / ".compile-db-contract"
+            capture_root.mkdir(mode=0o700)
             c_sources = sorted(nginx_config_sources(), key=lambda path: path.as_posix())
             cpp_source = (ROOT / "common/scripts/modsecurity_targeted_eval.cc").resolve()
             generated_probe = temporary_root / "generated-probe.c"
             generated_probe.write_text("int generated_probe(void) { return 0; }\n", encoding="utf-8")
 
-            c_capture = temporary_root / "nginx-raw.json"
+            c_capture = capture_root / "nginx-raw.json"
             c_capture.write_text(
                 json.dumps(
                     [cdb_entry(source, output_root) for source in c_sources]
@@ -265,6 +270,8 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
             c_result = self.run_cdb_tool(
                 "--input",
                 str(c_capture),
+                "--capture-root",
+                str(capture_root),
                 "--output",
                 str(database),
                 "--require",
@@ -274,7 +281,7 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
             self.assertIn("FILTERED: duplicate translation unit", c_result.stdout)
             self.assertIn("FILTERED: entry", c_result.stdout)
 
-            missing_c_capture = temporary_root / "missing-c-raw.json"
+            missing_c_capture = capture_root / "missing-c-raw.json"
             missing_c_capture.write_text(
                 json.dumps([cdb_entry(source, output_root) for source in c_sources[1:]]),
                 encoding="utf-8",
@@ -283,6 +290,8 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
             missing_c_result = self.run_cdb_tool(
                 "--input",
                 str(missing_c_capture),
+                "--capture-root",
+                str(capture_root),
                 "--output",
                 str(missing_c_database),
                 "--require",
@@ -310,13 +319,15 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
                 "common/scripts/modsecurity_targeted_eval.cc", missing_cpp_result.stderr
             )
 
-            cpp_capture = temporary_root / "cpp-raw.json"
+            cpp_capture = capture_root / "cpp-raw.json"
             cpp_capture.write_text(
                 json.dumps([cdb_entry(cpp_source, output_root)]), encoding="utf-8"
             )
             cpp_result = self.run_cdb_tool(
                 "--input",
                 str(cpp_capture),
+                "--capture-root",
+                str(capture_root),
                 "--output",
                 str(database),
                 "--merge-existing",
@@ -353,7 +364,7 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
                 self.assertIn("-std=c17" if source.suffix == ".c" else "-std=c++17", arguments)
 
             original_database = database.read_bytes()
-            invalid_capture = temporary_root / "invalid-raw.json"
+            invalid_capture = capture_root / "invalid-raw.json"
             invalid_capture.write_text(
                 json.dumps(
                     [
@@ -376,6 +387,8 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
             invalid_result = self.run_cdb_tool(
                 "--input",
                 str(invalid_capture),
+                "--capture-root",
+                str(capture_root),
                 "--output",
                 str(database),
                 "--merge-existing",
@@ -388,6 +401,8 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
             checkout_output_result = self.run_cdb_tool(
                 "--input",
                 str(c_capture),
+                "--capture-root",
+                str(capture_root),
                 "--output",
                 str(ROOT / "compile_commands.json"),
                 "--require",
@@ -395,6 +410,171 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
             )
             self.assertNotEqual(checkout_output_result.returncode, 0)
             self.assertIn("outside the checkout", checkout_output_result.stderr)
+
+    def test_capture_input_requires_a_private_external_capture_root(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="c-cpp-capture-input-"
+        ) as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            capture_root = temporary_root / ".compile-db-contract"
+            capture_root.mkdir(mode=0o700)
+            output_root = temporary_root / "objects"
+            output_root.mkdir()
+            output = temporary_root / "compile_commands.json"
+            source = sorted(nginx_config_sources(), key=lambda path: path.as_posix())[0]
+            valid_capture = capture_root / "valid.json"
+            valid_capture.write_text(
+                json.dumps([cdb_entry(source, output_root)]), encoding="utf-8"
+            )
+
+            valid_result = self.run_cdb_tool(
+                "--input",
+                str(valid_capture),
+                "--capture-root",
+                str(capture_root),
+                "--output",
+                str(output),
+            )
+            self.assertEqual(valid_result.returncode, 0, valid_result.stderr)
+
+            missing_root_result = self.run_cdb_tool(
+                "--input",
+                str(valid_capture),
+                "--output",
+                str(temporary_root / "missing-root-output.json"),
+            )
+            self.assertNotEqual(missing_root_result.returncode, 0)
+            self.assertIn(
+                "--capture-root is required with --input",
+                missing_root_result.stderr,
+            )
+
+            relative_result = self.run_cdb_tool(
+                "--input",
+                "relative-capture.json",
+                "--capture-root",
+                str(capture_root),
+                "--output",
+                str(temporary_root / "relative-output.json"),
+            )
+            self.assertNotEqual(relative_result.returncode, 0)
+            self.assertIn("capture input must be an absolute path", relative_result.stderr)
+            self.assertFalse((temporary_root / "relative-output.json").exists())
+
+            checkout_result = self.run_cdb_tool(
+                "--input",
+                str(ROOT / "Makefile"),
+                "--capture-root",
+                str(capture_root),
+                "--output",
+                str(temporary_root / "checkout-output.json"),
+            )
+            self.assertNotEqual(checkout_result.returncode, 0)
+            self.assertIn(
+                "capture input must be outside the checkout",
+                checkout_result.stderr,
+            )
+            self.assertFalse((temporary_root / "checkout-output.json").exists())
+
+            outside_capture = temporary_root / "outside.json"
+            outside_capture.write_text("not compilation database JSON\n", encoding="utf-8")
+            escaping_capture = capture_root / "escape.json"
+            escaping_capture.symlink_to(outside_capture)
+            escape_result = self.run_cdb_tool(
+                "--input",
+                str(escaping_capture),
+                "--capture-root",
+                str(capture_root),
+                "--output",
+                str(temporary_root / "escape-output.json"),
+            )
+            self.assertNotEqual(escape_result.returncode, 0)
+            self.assertIn("capture root", escape_result.stderr)
+            self.assertFalse((temporary_root / "escape-output.json").exists())
+
+            loop_capture = capture_root / "loop.json"
+            loop_capture.symlink_to(loop_capture)
+            loop_result = self.run_cdb_tool(
+                "--input",
+                str(loop_capture),
+                "--capture-root",
+                str(capture_root),
+                "--output",
+                str(temporary_root / "loop-output.json"),
+            )
+            self.assertNotEqual(loop_result.returncode, 0)
+            self.assertIn("capture input cannot be resolved", loop_result.stderr)
+            self.assertFalse((temporary_root / "loop-output.json").exists())
+
+            unsafe_capture_root = temporary_root / ".compile-db-group-writable"
+            unsafe_capture_root.mkdir(mode=0o700)
+            unsafe_capture_root.chmod(0o770)
+            unsafe_capture = unsafe_capture_root / "unsafe.json"
+            unsafe_capture.write_text(
+                valid_capture.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            unsafe_root_result = self.run_cdb_tool(
+                "--input",
+                str(unsafe_capture),
+                "--capture-root",
+                str(unsafe_capture_root),
+                "--output",
+                str(temporary_root / "unsafe-root-output.json"),
+            )
+            self.assertNotEqual(unsafe_root_result.returncode, 0)
+            self.assertIn(
+                "capture root must not be group writable or accessible by others",
+                unsafe_root_result.stderr,
+            )
+            self.assertFalse((temporary_root / "unsafe-root-output.json").exists())
+
+            world_accessible_capture_root = temporary_root / ".compile-db-world-accessible"
+            world_accessible_capture_root.mkdir(mode=0o700)
+            world_accessible_capture_root.chmod(0o755)
+            world_accessible_capture = world_accessible_capture_root / "world.json"
+            world_accessible_capture.write_text(
+                valid_capture.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            world_accessible_result = self.run_cdb_tool(
+                "--input",
+                str(world_accessible_capture),
+                "--capture-root",
+                str(world_accessible_capture_root),
+                "--output",
+                str(temporary_root / "world-root-output.json"),
+            )
+            self.assertNotEqual(world_accessible_result.returncode, 0)
+            self.assertIn(
+                "capture root must not be group writable or accessible by others",
+                world_accessible_result.stderr,
+            )
+            self.assertFalse((temporary_root / "world-root-output.json").exists())
+
+            linked_capture_root = temporary_root / ".compile-db-linked"
+            linked_capture_root.symlink_to(capture_root, target_is_directory=True)
+            linked_root_result = self.run_cdb_tool(
+                "--input",
+                str(valid_capture),
+                "--capture-root",
+                str(linked_capture_root),
+                "--output",
+                str(temporary_root / "linked-root-output.json"),
+            )
+            self.assertNotEqual(linked_root_result.returncode, 0)
+            self.assertIn("capture root must not be a symlink", linked_root_result.stderr)
+            self.assertFalse((temporary_root / "linked-root-output.json").exists())
+
+            verify_result = self.run_cdb_tool(
+                "--output",
+                str(output),
+                "--capture-root",
+                str(capture_root),
+                "--verify-only",
+            )
+            self.assertNotEqual(verify_result.returncode, 0)
+            self.assertIn("--capture-root cannot be combined with --verify-only", verify_result.stderr)
 
 
 if __name__ == "__main__":
