@@ -49,3 +49,8 @@ jobs:
         run: |
           set -eu
           make report-governance
+
+      - name: Strict verified-report evidence gate
+        run: |
+          set -eu
+          make verified-report-evidence-gate

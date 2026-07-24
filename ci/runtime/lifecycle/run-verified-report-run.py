@@ -32,10 +32,13 @@ from generated_report_utils import (
 )
 from runtime_path_utils import (
     WORKER_BLOCKED_REASON,
+    ensure_safe_runtime_directory,
+    ensure_safe_writable_runtime_paths,
     is_under_root_home,
     runtime_path_rows,
     verified_runtime_paths,
 )
+from verified_run_id import VerifiedRunIdError, validate_verified_run_id
 from verified_full_matrix_receipt import (
     AggregateReceiptError,
     aggregate_receipt_path,
@@ -426,28 +429,26 @@ def collect_report_statuses(connector_root: Path, status_prefix: str | None = No
 
 
 def runtime_paths(env: dict[str, str], build_root: Path, verified_run_id: str) -> dict[str, str]:
+    verified_run_id = validate_verified_run_id(verified_run_id)
     paths = verified_runtime_paths(env, build_root_override=build_root)
-    paths["VERIFIED_RUN_INSTANCE_ROOT"] = str(build_root / "verified-runs" / verified_run_id)
+    verified_build_root = Path(paths["BUILD_ROOT"])
+    verified_runs_root = verified_build_root / "verified-runs"
+    paths["VERIFIED_RUNS_ROOT"] = str(verified_runs_root)
+    paths["VERIFIED_RUN_INSTANCE_ROOT"] = str(verified_runs_root / verified_run_id)
+    paths["VERIFIED_RUN_INSTANCE_LOG_ROOT"] = str(
+        verified_runs_root / verified_run_id / "logs"
+    )
     return paths
 
 
 def prepare_runtime_roots(paths: dict[str, str]) -> None:
+    ensure_safe_writable_runtime_paths(paths)
     for key in (
-        "VERIFIED_RUN_ROOT",
-        "VERIFIED_STATE_ROOT",
-        "VERIFIED_BUILD_ROOT",
-        "VERIFIED_SOURCE_ROOT",
-        "VERIFIED_TMP_ROOT",
-        "VERIFIED_LOG_ROOT",
-        "VERIFIED_COMPONENT_CACHE",
-        "NGINX_HARNESS_PARENT",
+        "VERIFIED_RUNS_ROOT",
+        "VERIFIED_RUN_INSTANCE_ROOT",
+        "VERIFIED_RUN_INSTANCE_LOG_ROOT",
     ):
-        path = Path(paths[key])
-        path.mkdir(parents=True, exist_ok=True)
-        try:
-            path.chmod(0o755)
-        except OSError:
-            pass
+        ensure_safe_runtime_directory(paths[key])
 
 
 def runtime_path_report_rows(paths: dict[str, str], connector_root: Path, framework_root: Path) -> list[dict[str, Any]]:
@@ -1507,10 +1508,14 @@ def main() -> int:
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     initial_paths = verified_runtime_paths(os.environ)
-    build_root = Path(args.build_root or initial_paths["BUILD_ROOT"]).resolve()
-    paths = runtime_paths(dict(os.environ), build_root, os.environ.get("VERIFIED_RUN_ID", "pending"))
-    prepare_runtime_roots(paths)
-    current_run_file = build_root / "verified-runs" / "current-run-id"
+    build_root = Path(os.path.abspath(args.build_root or initial_paths["BUILD_ROOT"]))
+    initial_run_id = os.environ.get("VERIFIED_RUN_ID", "") or "pending"
+    try:
+        initial_run_id = validate_verified_run_id(initial_run_id)
+    except VerifiedRunIdError as exc:
+        parser.error(str(exc))
+    paths = runtime_paths(dict(os.environ), build_root, initial_run_id)
+    current_run_file = Path(paths["VERIFIED_RUNS_ROOT"]) / "current-run-id"
     if not os.environ.get("VERIFIED_RUN_ID") and args.phase in {
         "report-refresh",
         "consumers",
@@ -1525,14 +1530,16 @@ def main() -> int:
         if previous_run_id:
             os.environ["VERIFIED_RUN_ID"] = previous_run_id
     os.environ.setdefault("VERIFIED_RUN_ID", current_verified_run_id(connector_root))
-    verified_run_id = os.environ["VERIFIED_RUN_ID"]
+    try:
+        verified_run_id = validate_verified_run_id(os.environ["VERIFIED_RUN_ID"])
+    except VerifiedRunIdError as exc:
+        parser.error(str(exc))
+    os.environ["VERIFIED_RUN_ID"] = verified_run_id
     started_at = utc_now()
     paths = runtime_paths(dict(os.environ), build_root, verified_run_id)
     prepare_runtime_roots(paths)
-    run_root = build_root / "verified-runs" / verified_run_id
-    logs_dir = run_root / "logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    current_run_file.parent.mkdir(parents=True, exist_ok=True)
+    run_root = Path(paths["VERIFIED_RUN_INSTANCE_ROOT"])
+    logs_dir = Path(paths["VERIFIED_RUN_INSTANCE_LOG_ROOT"])
     current_run_file.write_text(verified_run_id + "\n", encoding="utf-8")
     commands_file = run_root / "verified-commands.json"
 

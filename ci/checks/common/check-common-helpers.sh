@@ -655,10 +655,36 @@ int main(void) {
         msconnector_config_init(&parent_config);
         msconnector_config_init(&child_config);
         parent_config.rules_remote_key = "parent-key";
+        parent_config.rules_remote_url = "https://example.test/parent-rules.conf";
+        child_config.rules_remote_key = "";
+        assert(msconnector_config_merge(&merged_config, &parent_config, &child_config));
+        assert(strcmp(merged_config.rules_remote_key, "parent-key") == 0);
+        assert(strcmp(merged_config.rules_remote_url, "https://example.test/parent-rules.conf") == 0);
+
+        msconnector_config_init(&child_config);
+        child_config.rules_remote_url = "";
+        assert(msconnector_config_merge(&merged_config, &parent_config, &child_config));
+        assert(strcmp(merged_config.rules_remote_key, "parent-key") == 0);
+        assert(strcmp(merged_config.rules_remote_url, "https://example.test/parent-rules.conf") == 0);
+
+        msconnector_config_init(&child_config);
+        child_config.rules_remote_key = "";
+        child_config.rules_remote_url = "";
+        assert(msconnector_config_merge(&merged_config, &parent_config, &child_config));
+        assert(strcmp(merged_config.rules_remote_key, "parent-key") == 0);
+        assert(strcmp(merged_config.rules_remote_url, "https://example.test/parent-rules.conf") == 0);
+
+        msconnector_config_init(&child_config);
+        child_config.rules_remote_key = "";
         child_config.rules_remote_url = "https://example.invalid/rules.conf";
         assert(!msconnector_config_merge(&merged_config, &parent_config, &child_config));
-        assert(merged_config.rules_remote_key == 0);
+        assert(strcmp(merged_config.rules_remote_key, "") == 0);
         assert(strcmp(merged_config.rules_remote_url, "https://example.invalid/rules.conf") == 0);
+
+        msconnector_config_init(&child_config);
+        child_config.rules_remote_key = "child-key";
+        child_config.rules_remote_url = "";
+        assert(!msconnector_config_merge(&merged_config, &parent_config, &child_config));
 
         msconnector_config_init(&parent_config);
         msconnector_config_init(&child_config);
@@ -1498,6 +1524,22 @@ int main(void) {
         assert(msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
         assert(strcmp(merged_rules.inline_rules, "parent") == 0);
         assert(strcmp(merged_rules.rules_file, "child.conf") == 0);
+        child_rules.rules_remote_key = "";
+        assert(msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
+        assert(strcmp(merged_rules.rules_remote_key, "key") == 0);
+        assert(strcmp(merged_rules.rules_remote_url, "url") == 0);
+        msconnector_rule_collection_init(&child_rules);
+        child_rules.rules_remote_url = "";
+        assert(msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
+        assert(strcmp(merged_rules.rules_remote_key, "key") == 0);
+        assert(strcmp(merged_rules.rules_remote_url, "url") == 0);
+        child_rules.rules_remote_key = "";
+        assert(msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
+        assert(strcmp(merged_rules.rules_remote_key, "key") == 0);
+        assert(strcmp(merged_rules.rules_remote_url, "url") == 0);
+        child_rules.rules_remote_url = "child-url";
+        assert(!msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
+        msconnector_rule_collection_init(&child_rules);
         child_rules.rules_remote_key = "child-key"; child_rules.rules_remote_url = 0;
         assert(!msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
         msconnector_rule_error_set_parse_failed(&rule_error, "rules.conf");

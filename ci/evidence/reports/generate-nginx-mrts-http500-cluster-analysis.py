@@ -27,6 +27,7 @@ from generated_report_utils import (
 )
 from report_path_safety import add_safe_roots, write_text_file
 from runtime_path_utils import verified_runtime_paths
+from verified_run_id import VerifiedRunIdError, validate_verified_run_id
 
 
 JOB_ID = "nginx:with-crs:with-mrts"
@@ -405,6 +406,7 @@ def permissions_probe(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_payload(connector_root: Path, framework_root: Path, build_root: Path, verified_run_id: str) -> dict[str, Any]:
+    verified_run_id = validate_verified_run_id(verified_run_id)
     job_root = build_root / "full-matrix/with-crs/with-mrts/nginx"
     job_json = job_root / "job.json"
     run_log = job_root / "run.log"
@@ -654,11 +656,16 @@ def main() -> int:
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     default_paths = verified_runtime_paths(os.environ)
     build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
+    try:
+        verified_run_id = validate_verified_run_id(
+            args.verified_run_id or current_verified_run_id(connector_root)
+        )
+    except VerifiedRunIdError as exc:
+        parser.error(str(exc))
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / GENERATED_ROOT
     report_root = output_dir.parent if output_dir.name == "manifest" else output_dir
     add_safe_roots(report_root, output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    verified_run_id = args.verified_run_id or current_verified_run_id(connector_root)
 
     payload = build_payload(connector_root, framework_root, build_root, verified_run_id)
     inputs = [Path(value) for value in payload["inputs"].values()]

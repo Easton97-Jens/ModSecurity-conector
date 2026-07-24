@@ -26,6 +26,7 @@ from generated_report_utils import (
     utc_now,
 )
 from runtime_path_utils import verified_runtime_paths
+from verified_run_id import validate_verified_run_id
 from verified_full_matrix_receipt import AggregateReceiptError, aggregate_receipt_path
 
 
@@ -521,6 +522,7 @@ def resolve_generation_context(
         verified_run_id = current.read_text(encoding="utf-8").strip() if current.is_file() else ""
     if not verified_run_id:
         verified_run_id = "unknown"
+    verified_run_id = validate_verified_run_id(verified_run_id)
     verified_commands = build_root / "verified-runs" / verified_run_id / "verified-commands.json"
     if args.verified_commands_file:
         verified_commands = Path(args.verified_commands_file)

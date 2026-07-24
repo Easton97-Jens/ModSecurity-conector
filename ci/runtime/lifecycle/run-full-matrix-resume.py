@@ -14,7 +14,8 @@ _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.
 if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 
-from runtime_path_utils import verified_runtime_paths
+from runtime_path_utils import ensure_safe_writable_runtime_paths, verified_runtime_paths
+from verified_run_id import VerifiedRunIdError, validate_verified_run_id
 
 
 def read_json(path: Path) -> dict:
@@ -64,10 +65,19 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    default_paths = verified_runtime_paths(os.environ)
-    build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
+    build_root_override = Path(os.path.abspath(args.build_root)) if args.build_root else None
+    paths = verified_runtime_paths(
+        os.environ,
+        build_root_override=build_root_override,
+    )
+    ensure_safe_writable_runtime_paths(paths)
+    build_root = Path(paths["BUILD_ROOT"])
     current = build_root / "verified-runs/current-run-id"
     verified_run_id = os.environ.get("VERIFIED_RUN_ID") or (current.read_text(encoding="utf-8").strip() if current.is_file() else "")
+    try:
+        verified_run_id = validate_verified_run_id(verified_run_id)
+    except VerifiedRunIdError as exc:
+        parser.error(str(exc))
 
     rc = run_completeness(connector_root, framework_root, build_root, verified_run_id)
     if rc != 0:
