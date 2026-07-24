@@ -90,4 +90,6 @@ jobs:
           build-mode: manual
       - name: Build bounded C17 common helper scope
         run: make check-common-helpers-c17
+      - name: Fuzz Common HTTP header parser
+        run: make check-common-http-header-fuzz
       - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3

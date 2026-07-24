@@ -7,6 +7,7 @@ limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent NGINX intervention URL ownership assertion order for SonarQube Cloud S3415](CR-20260724-sonar-tests-nginx-intervention-url-assertions.md)
+- [Scorecard fuzzing and PyYAML remediation](CR-20260724-scorecard-fuzzing-pyyaml-remediation.md)
 - [Parent full-lifecycle profile assertion order for SonarQube Cloud S3415](CR-20260724-sonar-tests-full-lifecycle-profiles-assertions.md)
 - [Parent full-lifecycle evidence assertion order for SonarQube Cloud S3415](CR-20260724-sonar-tests-full-lifecycle-evidence-assertions.md)
 - [Parent CI/Common SonarQube Cloud hygiene remediation](CR-20260724-sonar-ci-common-hygiene.md)
