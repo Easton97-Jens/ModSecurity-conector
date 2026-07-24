@@ -146,8 +146,8 @@ einschließlich der Temporary-Root-Write- und Protected-Submodule-Kontrollen.
 Ein unabhängiger AST-/Import-Parse verifizierte die erhaltene öffentliche
 `scan_workflows`-Signatur, die neuen Parser- und Write-Helper, die Entfernung
 von `USES_RE` und den unveränderten Rate-Limit-Write-Guard. Der bilinguale
-Dokumentationscheck bestand 11 Tests; der Scoped-Final-Diff-Check wird nach
-diesem gepaarten Evidence-Update erneut ausgeführt. Hosted-Check-, SonarQube-Cloud-,
+Dokumentationscheck bestand 11 Tests und der Scoped-Final-`git diff --check
+origin/master...HEAD` bestand. Hosted-Check-, SonarQube-Cloud-,
 Quality-Gate-, Review-, Readiness- und Merge-Ergebnisse werden nur über
 beobachtete Exact-Head-PR-Delivery-Metadaten beansprucht.
 

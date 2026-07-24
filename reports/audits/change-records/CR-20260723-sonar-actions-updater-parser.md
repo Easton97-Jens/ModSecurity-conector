@@ -135,7 +135,7 @@ including the temporary-root write and protected-submodule controls. An
 independent AST/import parse verified the maintained public `scan_workflows`
 signature, the new parser and write helpers, removal of `USES_RE`, and the
 unchanged rate-limit write guard. The bilingual-documentation check passed 11
-tests; the scoped final diff check is rerun after this paired evidence update.
+tests and the scoped final `git diff --check origin/master...HEAD` passed.
 Hosted check,
 SonarQube Cloud, Quality Gate, review, readiness, and merge results are claimed
 only through observed exact-head PR delivery metadata.
