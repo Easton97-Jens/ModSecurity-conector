@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260724-sonar-tests-full-lifecycle-evidence-assertions |
 | Datum (UTC) | 2026-07-24 |
-| Basis-Revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Basis-Revision | 8e36b86ac17bce06003b0505fe26f6bb60c3cec7 |
 | Tracking | Fünf aktive Parent-SonarQube-Cloud-`python:S3415`-Code-Smells: AZ-KYVT1fYmbqbBXVNF-, AZ-KYVT1fYmbqbBXVNF_, AZ-KYVT1fYmbqbBXVNGA, AZ-KYVT1fYmbqbBXVNGB und AZ-KYVT1fYmbqbBXVNGC. |
 | Grenze | Parent-Testquellcode sowie dieses englisch/deutsche Traceability-Paar und die Indizes. Framework, MRTS, Gitlinks, Scanner-Konfiguration, Quality Gates, Suppressions, Full-Lifecycle-Checker-/Runtime-Verhalten und generierte Artefakte bleiben unverändert. |
 
@@ -122,15 +122,31 @@ Control abschwächen. Der abgegrenzte Diff, die Fünf-Aufruf-AST-Inventur und da
 vollständige fokussierte 17-Test-Modul reduzieren dieses Risiko; Exact-Head-
 Hosted-Analyse bleibt erforderlich, bevor die Keys verifiziert sind.
 
+## Current-Master-Update und finale lokale Verifikation
+
+Der normale nicht umschreibende Merge `1c8a2b9` übernahm aktuellen
+Parent-Master `8e36b86ac17bce06003b0505fe26f6bb60c3cec7` in den isolierten
+PR-Branch. Er löste nur die gepaarten Change-Record-Indizes auf. Die geerbte
+Master-Historie enthält den bereits vorhandenen Framework-Gitlink-Übergang
+unter der engen Nutzerfreigabe; Framework und MRTS wurden weder ausgecheckt
+noch geändert, getestet, gemergt oder ausgeliefert, und der finale PR-Diff hat
+keinen Gitlink-, Framework- oder MRTS-Pfad.
+
+Auf diesem exakten Tree vor der Record-Korrektur bestanden
+`tests.test_full_lifecycle_evidence` mit allen 17 Tests,
+`tests.test_bilingual_docs` mit allen 11 Tests, die Fünf-Aufruf-AST-Inventur
+bestätigte tatsächliche-Checker-Werte zuerst an den ausgewählten Ankern, und
+`git diff --check origin/master...HEAD` bestand. Diese Dokumentationskorrektur
+erzeugt einen neuen PR-Head; daher müssen alle gehosteten Exact-Head-Checks,
+das SonarQube-Cloud-Quality-Gate sowie Review-/Conversation-Evidence frisch
+revalidiert werden, bevor der Draft PR als bereit markiert werden kann.
+
 ## Finaler Diff- und Review-Status
 
-Die Source-Implementierung liegt im Initial-Commit
-`726f56d7787289b8c9f91b68a7b315e5b35a410e` auf einem Branch mit Basis
-`5b8db00d44ab24f3a9f4216a00f7edee977b6898`. Draft PR #112 existiert für
-diesen Branch, bleibt offen und Draft und ist nicht gemergt. Der Initial-
-Exact-Head hat passende Local-, Remote-, GitHub-PR- und SonarQube-Cloud-
-Commit-Evidenz. Der aktuelle Exact-Head nach diesem Traceability-Commit wird
-unabhängig verifiziert und im PR sowie Task-Receipt festgehalten, statt eine
-selbstreferenzielle Change-Record-SHA zu erzeugen. Kein Merge,
-Default-Branch-Update, Framework-Action oder MRTS-Action ist autorisiert oder
-erfolgt.
+Die Source-Implementierung bleibt im Initial-Commit
+`726f56d7787289b8c9f91b68a7b315e5b35a410e`; dieser Change Record wird ohne
+selbstreferenziellen finalen Head aktualisiert. Draft PR #112 bleibt offen,
+Draft und ungemergt, bis sein finaler Exact Head aktuelle Base-, lokale,
+gehostete, SonarQube-Cloud- sowie Review-Evidence hat. Kein Merge,
+Default-Branch-Update, Framework-Action oder MRTS-Action wird durch diesen
+Record autorisiert oder ausgeführt.

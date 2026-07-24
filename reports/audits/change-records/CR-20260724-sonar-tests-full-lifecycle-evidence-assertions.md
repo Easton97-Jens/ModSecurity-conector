@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260724-sonar-tests-full-lifecycle-evidence-assertions |
 | Date (UTC) | 2026-07-24 |
-| Base revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Base revision | 8e36b86ac17bce06003b0505fe26f6bb60c3cec7 |
 | Tracking | Five live Parent SonarQube Cloud `python:S3415` Code Smells: AZ-KYVT1fYmbqbBXVNF-, AZ-KYVT1fYmbqbBXVNF_, AZ-KYVT1fYmbqbBXVNGA, AZ-KYVT1fYmbqbBXVNGB, and AZ-KYVT1fYmbqbBXVNGC. |
 | Boundary | Parent test source plus this English/German traceability pair and indexes. Framework, MRTS, gitlinks, scanner configuration, Quality Gates, suppressions, full-lifecycle checker/runtime behavior, and generated artifacts remain unchanged. |
 
@@ -116,14 +116,30 @@ scoped diff, five-call AST inventory, and complete focused 17-test module
 reduce that risk; exact-head hosted analysis remains required before the keys
 are verified.
 
+## Current-master update and final local verification
+
+Normal no-rewrite merge `1c8a2b9` incorporated current Parent master
+`8e36b86ac17bce06003b0505fe26f6bb60c3cec7` into the isolated PR branch. It
+resolved only the paired Change Record indexes. The inherited master history
+includes the already-present Framework gitlink transition under the user's
+narrow authorization; Framework and MRTS were not checked out, changed,
+tested, merged, or delivered, and the final PR diff has no gitlink,
+Framework, or MRTS path.
+
+On that exact pre-record-correction tree,
+`tests.test_full_lifecycle_evidence` passed all 17 tests,
+`tests.test_bilingual_docs` passed all 11 tests, the five-call AST inventory
+verified actual-first checker calls at the selected anchors, and
+`git diff --check origin/master...HEAD` passed. This documentation correction
+creates a new PR head, so all hosted exact-head checks, SonarQube Cloud
+Quality Gate, and review/conversation evidence must be freshly revalidated
+before the Draft PR can be marked ready.
+
 ## Final diff and review status
 
-The source implementation is in initial commit
-`726f56d7787289b8c9f91b68a7b315e5b35a410e` on a branch based on
-`5b8db00d44ab24f3a9f4216a00f7edee977b6898`. Draft PR #112 exists for that
-branch, remains open and Draft, and is not merged. The initial exact head has
-matching local, remote, GitHub PR, and SonarQube Cloud commit evidence. The
-current exact head after this traceability commit is independently reverified
-and retained in the PR and task receipt rather than creating a self-referential
-Change Record SHA. No merge, default-branch update, Framework action, or MRTS
-action is authorized or performed.
+The source implementation remains in initial commit
+`726f56d7787289b8c9f91b68a7b315e5b35a410e`; this Change Record is updated
+without embedding a self-referential final head. Draft PR #112 remains open,
+Draft, and unmerged until its final exact head has current base, local,
+hosted, SonarQube Cloud, and review evidence. No merge, default-branch update,
+Framework action, or MRTS action is authorized or performed by this record.
