@@ -87,10 +87,10 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
         self.assertNotEqual(h2["cache_key"], h3["cache_key"])
         self.assertNotEqual(h3["cache_key"], changed_tls["cache_key"])
         self.assertEqual(
-            "--with-http_ssl_module --with-http_v2_module --with-http_v3_module",
             h3["cache_identity"]["configuration_flags"]["NGINX_PROTOCOL_CONFIGURE_FLAGS"],
+            "--with-http_ssl_module --with-http_v2_module --with-http_v3_module",
         )
-        self.assertEqual("openssl", h3["nginx_protocol_build"]["tls_library"])
+        self.assertEqual(h3["nginx_protocol_build"]["tls_library"], "openssl")
 
     def test_expat_reuse_requires_full_build_identity(self) -> None:
         with tempfile.TemporaryDirectory(prefix="expat-cache-identity-") as temporary:
@@ -123,7 +123,7 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
                         "submodule_status_clean": True,
                     },
                 )
-            self.assertNotEqual("present", result["status"])
+            self.assertNotEqual(result["status"], "present")
 
     def test_modsecurity_identity_uses_immutable_expat_identity_not_mutable_manifest_tree(self) -> None:
         """A completed Expat prefix must not churn the shared ModSecurity key.
