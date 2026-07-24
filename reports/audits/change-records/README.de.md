@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Optional-Prerequisite-Assert-Diagnostikreihenfolge für SonarQube Cloud](CR-20260723-sonar-tests-optional-prerequisite-assert-order.de.md)
 - [Parent-Python-Version-Assert-Reihenfolge für SonarQube Cloud S3415](CR-20260723-sonar-tests-python-version-assert-order.de.md)
 - [Traefik-UDS-Parser-Fuzzing](CR-20260723-traefik-uds-parser-fuzzing.de.md)
 - [Envoy-Go-Dependency-Sicherheitsgrenzen](CR-20260723-envoy-go-dependency-security-floors.de.md)
