@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Traefik UDS parser fuzzing](CR-20260723-traefik-uds-parser-fuzzing.md)
 - [Envoy Go dependency security floors](CR-20260723-envoy-go-dependency-security-floors.md)
 - [Framework gitlink update to 935cf14](CR-20260723-framework-gitlink-935cf14.md)
 - [CI compile-database capture-input confinement for SonarQube Cloud](CR-20260723-sonar-ci-compile-db-input-confinement.md)
