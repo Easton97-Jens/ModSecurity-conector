@@ -8,7 +8,8 @@
 | --- | --- |
 | Change-ID | CR-20260724-sonar-ci-adapter-helpers-default-case |
 | Datum (UTC) | 2026-07-24 |
-| Basis-Revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Basis-Revision | 30ee953b57f4aafebaa0e6ed565a80f6500db1de |
+| Ursprüngliche Quellbasis | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
 | Tracking | Parent-SonarQube-Cloud-shelldre:S131-Code-Smell AZ422z_PmJyaFL6eWoJF an Zeile 23. |
 | Grenze | Parent-CI-Shell-Source sowie dieses englisch/deutsche Traceability-Paar und die Indizes. Build-Root-Policy, Framework, MRTS, Gitlinks, Scanner-Konfiguration, Quality Gates, Suppressions, generierte Artefakte und Runtime-Verhalten bleiben unverändert. |
 
@@ -60,36 +61,37 @@ abgeschwächt und kein Sicherheitsbefund als behoben behauptet.
 
 ## Ausgeführte Befehle
 
-- rtk proxy -- sh -n ci/checks/common/check-adapter-helpers.sh
-- rtk proxy -- sh -c <Checkout-enthaltenes BUILD_ROOT-Exit-77-Control>
-- rtk proxy -- rg <exakte leere Default-Arm-Inventur>
-- rtk proxy -- shellcheck ci/checks/common/check-adapter-helpers.sh
-- rtk proxy -- git diff --check
+- rtk proxy sh -n ci/checks/common/check-adapter-helpers.sh
+- rtk proxy env FRAMEWORK_ROOT="$PWD" BUILD_ROOT="$PWD" sh ci/checks/common/check-adapter-helpers.sh
+- rtk proxy rg <exakte leere Default-Arm-Inventur>
+- rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_bilingual_docs
+- rtk proxy make check-bilingual-docs
+- rtk proxy make check-doc-links
+- rtk proxy git diff --check origin/master...HEAD
 
 ## Tests und tatsächliche Ergebnisse
 
 | Kommando oder Check | Ergebnis |
 | --- | --- |
-| Offizieller aktueller Key und alle Open-PR-Selected-Path-Overlap-Abfragen | bestanden: Der eine Parent-Key ist auf der dokumentierten Basis OPEN und keiner der 20 offenen PRs ändert die ausgewählte Datei. |
-| Shell-Syntax vor und nach der Änderung | bestanden. |
-| Checkout-enthaltenes Build-Root-Control vor und nach der Änderung | bestanden: Das Skript gibt die bestehende Zurückweisung aus und liefert erwarteten Exit 77 vor Framework-Metadatenzugriff. |
+| Normaler Master-Update | bestanden: Der normale Update-Commit `151f409800a685aa41b92e3fc8fdb14e9db09f7b` führt den aktuellen Parent-`master` `30ee953b57f4aafebaa0e6ed565a80f6500db1de` zusammen; nur die gepaarten Change-Record-Indizes konfligierten und wurden manuell zusammengeführt. |
+| Shell-Syntax nach dem Master-Update | bestanden. |
+| Checkout-enthaltenes Build-Root-Control nach dem Master-Update | bestanden: Das Skript gibt die bestehende Zurückweisung aus und endet mit Exit 77 vor Framework-Metadatenzugriff. |
 | Exakte Source-Inventur | bestanden: Genau ein leerer Default-Arm ist im ausgewählten case vorhanden. |
 | Fokussierter Path-Control-Security-Review | bestanden: Der einzige Source-Delta ist ein leerer Default-Arm; Kanonisierung, Reject-Pattern/-Meldung, Exit 77 und spätere Kommandos sind unverändert. |
+| Finaler Parent-Diff und Gitlink-Check | bestanden: Fünf Parent-Pfade unterscheiden sich vom aktuellen `master`; der Framework-Gitlink hat keinen finalen PR-Delta und wird nur über den normalen Master-Update-Parent geerbt. |
 | git diff --check | bestanden: kein Whitespace-Fehler. |
-| Bytecode-Scan des aktuellen Batch-Worktrees | bestanden: keine Python-Bytecode-Datei. |
-| ShellCheck | baseline-äquivalentes Warning-Ergebnis: SC1007 an bestehenden Kanonisierungszeilen 4 und 23 vor und nach der Änderung; der neue Default-Arm erzeugt keine Warnung. Diese bestehenden Warnings liegen außerhalb dieses Ein-Key-Batches und werden nicht unterdrückt. |
-| tests.test_bilingual_docs und direkter Change-Record-/Index-Paritätscheck | bestanden: 11 Tests; beide Change Records haben 13 Level-two-Abschnitte sowie passende Change-ID-, Basis-Revision-, Key- und Affected-Path-Literale. |
-| make check-bilingual-docs | blocked_environment: Genau 20 vorhandene fehlende Framework-Gitlink-Linkziele; kein neuer Change-Record-Fehler. |
-| make check-doc-links | blocked_environment: Genau 16 vorhandene fehlende Framework-Gitlink-Linkziele; es wurde kein Framework-Quellcode, Gitlink oder generiertes Artefakt geändert. |
-| Hosted-Delivery-Checks | ausstehend: Es gibt noch keinen Draft PR. |
+| tests.test_bilingual_docs | bestanden: Das englisch/deutsche Paar und beide Indizes bleiben strukturell gültig. |
+| make check-bilingual-docs | blocked_environment: Bestehende fehlende Framework-Gitlink-Linkziele verhindern den repository-weiten lokalen Check; Framework-Quellcode, Gitlink und generierte Artefakte wurden nicht geändert. |
+| make check-doc-links | blocked_environment: Bestehende fehlende Framework-Gitlink-Linkziele verhindern den repository-weiten lokalen Check; Framework-Quellcode, Gitlink und generierte Artefakte wurden nicht geändert. |
+| Hosted-Delivery-Checks | ausstehend: Das Update erzeugt einen neuen PR-Head; daher müssen Checks, SonarQube Cloud und Reviews erneut für diesen exakten Head beobachtet werden. |
 
 ## Runtime-Evidence
 
 Es wird keine vollständige erfolgreiche Adapter-Helper-Skriptausführung
 behauptet. Sie benötigt ausgeschlossene Framework-Adapter-Metadaten. Der
-geänderte Arm läuft nur nach einem Non-Checkout-Root-Match und ist leer; die
-direkte Pre-/Post-Evidenz deckt den betroffenen Checkout-Root-Policy-Branch ab,
-ohne Framework/MRTS zu initialisieren, mocken oder verändern.
+geänderte Arm läuft nur nach einem Non-Checkout-Root-Match und ist leer; das
+direkte Checkout-enthaltene Negativ-Control deckt den betroffenen Policy-Branch
+ab, ohne Framework/MRTS zu initialisieren, mocken oder verändern.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -104,14 +106,14 @@ ohne Framework/MRTS zu initialisieren, mocken oder verändern.
   konfigurierten Parent-Pfad und kein installiertes Executable hat; es wird
   keine Abhängigkeit installiert.
 - Exact-Head-GitHub-Checks, SonarQube-Cloud-Quality-Gate, PR-Issue-Abfrage,
-  Bot-Ergebnis und Review-Status warten auf einen künftigen offenen Draft PR
-  und werden nicht behauptet.
+  Bot-Ergebnis und Review-Status müssen nach dem normalen Master-Update und
+  dem Documentation-Reconciliation-Push aktualisiert werden; keine alte
+  Draft-Evidenz wird für Merge-Eignung verwendet.
 
 ## Bekannte Einschränkungen
 
 Dieser Batch korrigiert nur einen ausgewählten Parent-SonarQube-Cloud-Befund.
-Er behauptet nicht, den breiteren SonarQube-Cloud-Backlog mit 1.474 Befunden
-zu beheben.
+Er behauptet nicht, den breiteren SonarQube-Cloud-Backlog zu beheben.
 
 ## Verbleibende Risiken
 
@@ -123,17 +125,16 @@ ausgeschlossene nicht verfügbare Framework-Metadaten blockiert.
 
 ## Finaler Diff- und Review-Status
 
-Die Source-Korrektur und das anfängliche englisch/deutsche Traceability-
-Material liegen im atomaren Parent-Commit
-41f8ed308bf8acb4d6688dd8639944b5e3482957 auf Task-Branch
-codex/sonar-ci-adapter-helpers-default-case-20260724-master-5b8db00 von Basis
-5b8db00d44ab24f3a9f4216a00f7edee977b6898. Er ist lokal sauber und besteht
-branch-weite Diff-Hygiene. Draft PR
-[#115](https://github.com/Easton97-Jens/ModSecurity-conector/pull/115) wurde
-offen und ungemergt auf initialem Head
-9a93aa68812756faafd6fdd3689378428d244134 erstellt. Dieses Delivery-
-Observation-Update erzeugt einen neuen finalen Head, daher müssen GitHub-/
-Sonar-/Review-Ergebnisse danach frisch beobachtet werden und werden nicht
-vorab behauptet. Es gab keinen Merge, kein Default-Branch-Update, keine
+Die anfängliche Source-Korrektur liegt im Parent-Commit
+41f8ed308bf8acb4d6688dd8639944b5e3482957 von der ursprünglichen Quellbasis
+5b8db00d44ab24f3a9f4216a00f7edee977b6898. Der normale Master-Update-Commit
+151f409800a685aa41b92e3fc8fdb14e9db09f7b bringt den Branch auf den aktuellen
+Parent-master `30ee953b57f4aafebaa0e6ed565a80f6500db1de`; er löst nur den
+gepaarten Index-Reihenfolgekonflikt. Die historische Draft-Evidenz für den
+alten Head `a0c78a5c87b3fc4a9af8e2759fa0fee9c5bd3034` bleibt als Historie
+erhalten, ist aber nach diesem Update keine Merge-Evidenz. Draft PR
+[#115](https://github.com/Easton97-Jens/ModSecurity-conector/pull/115) muss
+erneut veröffentlicht und frisch verifiziert werden, bevor ein autorisierter
+geschützter Merge möglich ist. Es gab kein Default-Branch-Update, keine
 Framework-Action, keine MRTS-Action, keine Scanner-Control-Änderung und keine
-Suppression. Finale Delivery-Fakten werden erst nach Beobachtung ergänzt.
+Suppression.

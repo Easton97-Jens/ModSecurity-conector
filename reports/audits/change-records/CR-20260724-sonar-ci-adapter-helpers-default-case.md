@@ -8,7 +8,8 @@
 | --- | --- |
 | Change ID | CR-20260724-sonar-ci-adapter-helpers-default-case |
 | Date (UTC) | 2026-07-24 |
-| Base revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Base revision | 30ee953b57f4aafebaa0e6ed565a80f6500db1de |
+| Original source base | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
 | Tracking | Parent SonarQube Cloud shelldre:S131 Code Smell AZ422z_PmJyaFL6eWoJF at line 23. |
 | Boundary | Parent CI shell source plus this English/German traceability pair and indexes. Build-root policy, Framework, MRTS, gitlinks, scanner configuration, Quality Gates, suppressions, generated artifacts, and runtime behavior remain unchanged. |
 
@@ -56,35 +57,36 @@ security control is weakened and no security finding is claimed fixed.
 
 ## Commands executed
 
-- rtk proxy -- sh -n ci/checks/common/check-adapter-helpers.sh
-- rtk proxy -- sh -c <checkout-contained BUILD_ROOT exit-77 control>
-- rtk proxy -- rg <exact empty default-arm inventory>
-- rtk proxy -- shellcheck ci/checks/common/check-adapter-helpers.sh
-- rtk proxy -- git diff --check
+- rtk proxy sh -n ci/checks/common/check-adapter-helpers.sh
+- rtk proxy env FRAMEWORK_ROOT="$PWD" BUILD_ROOT="$PWD" sh ci/checks/common/check-adapter-helpers.sh
+- rtk proxy rg <exact empty default-arm inventory>
+- rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_bilingual_docs
+- rtk proxy make check-bilingual-docs
+- rtk proxy make check-doc-links
+- rtk proxy git diff --check origin/master...HEAD
 
 ## Tests and actual results
 
 | Command or check | Result |
 | --- | --- |
-| Official current key and all open-PR selected-path overlap queries | passed: the one Parent key is OPEN on the recorded base and none of the 20 open PRs changes the selected file. |
-| Shell syntax before and after the edit | passed. |
-| Checkout-contained Build-root control before and after the edit | passed: the script prints the existing rejection and returns expected exit 77 before Framework metadata access. |
+| Normal master update | passed: normal update commit `151f409800a685aa41b92e3fc8fdb14e9db09f7b` merged current Parent `master` `30ee953b57f4aafebaa0e6ed565a80f6500db1de`; only the paired Change-Record indexes conflicted and were manually reconciled. |
+| Shell syntax after the master update | passed. |
+| Checkout-contained Build-root control after the master update | passed: the script prints the established rejection and returns exit 77 before Framework metadata access. |
 | Exact source inventory | passed: exactly one empty default arm is present at the selected case. |
 | Focused path-control security review | passed: the only source delta is an empty default arm; canonicalization, reject pattern/message, exit 77, and later commands are unchanged. |
+| Final Parent diff and gitlink check | passed: five Parent paths differ from current `master`; the Framework gitlink has no final PR delta and is inherited only through the normal master-update parent. |
 | git diff --check | passed: no whitespace error. |
-| Current-batch worktree bytecode scan | passed: no Python bytecode file. |
-| ShellCheck | baseline-equivalent warning result: SC1007 at existing canonicalization lines 4 and 23 before and after the edit; the new default arm introduces no warning. These pre-existing warnings are outside this one-key batch and are not suppressed. |
-| tests.test_bilingual_docs and direct Change Record/index parity | passed: 11 tests; both Change Records have 13 level-two sections and matching Change ID, base revision, key, and affected path. |
-| make check-bilingual-docs | blocked_environment: exactly 20 existing missing Framework-gitlink link targets; no new Change Record error. |
-| make check-doc-links | blocked_environment: exactly 16 existing missing Framework-gitlink link targets; no Framework source, gitlink, or generated artifact changed. |
-| Hosted-delivery checks | pending: no Draft PR exists yet. |
+| tests.test_bilingual_docs | passed: the English/German pair and both indexes remain structurally valid. |
+| make check-bilingual-docs | blocked_environment: existing missing Framework-gitlink link targets prevent the repository-wide local check; no Framework source, gitlink, or generated artifact was changed. |
+| make check-doc-links | blocked_environment: existing missing Framework-gitlink link targets prevent the repository-wide local check; no Framework source, gitlink, or generated artifact was changed. |
+| Hosted-delivery checks | pending: the update creates a new PR head, so checks, SonarQube Cloud, and reviews must be observed again for that exact head. |
 
 ## Runtime evidence
 
 No full successful adapter-helper script run is claimed. It requires excluded
 Framework adapter metadata. The changed arm executes only after a non-checkout
-root match and is empty; direct pre/post evidence covers the affected
-checkout-root policy branch without initializing, mocking, or modifying
+root match and is empty; the direct checkout-contained negative control covers
+the affected policy branch without initializing, mocking, or modifying
 Framework/MRTS.
 
 ## Checks not run and rationale
@@ -97,12 +99,14 @@ Framework/MRTS.
 - Ruff and Pyright are not applicable because this shell-only change has no
   configured Parent route or installed executable; no dependency is installed.
 - Exact-head GitHub checks, SonarQube Cloud Quality Gate, PR issue query, bot
-  result, and review state await a future open Draft PR and are not claimed.
+  result, and review state must be refreshed after the normal master update
+  and documentation-reconciliation push; no stale Draft evidence is used for
+  merge eligibility.
 
 ## Known limitations
 
 This batch corrects only one selected Parent SonarQube Cloud finding. It does
-not claim to remediate the wider 1,474-item SonarQube Cloud backlog.
+not claim to remediate the wider SonarQube Cloud backlog.
 
 ## Remaining risks
 
@@ -113,14 +117,15 @@ success route remains blocked only by excluded unavailable Framework metadata.
 
 ## Final diff and review status
 
-The source correction and initial English/German traceability material are in
-atomic Parent commit 41f8ed308bf8acb4d6688dd8639944b5e3482957 on task branch
-codex/sonar-ci-adapter-helpers-default-case-20260724-master-5b8db00 from base
-5b8db00d44ab24f3a9f4216a00f7edee977b6898. It is locally clean and passes
-branch-wide diff hygiene. Draft PR [#115](https://github.com/Easton97-Jens/ModSecurity-conector/pull/115)
-was created open and unmerged at initial head
-9a93aa68812756faafd6fdd3689378428d244134. This delivery-observation update
-creates a new final head, so GitHub/Sonar/review results must be freshly
-observed afterwards and are not claimed in advance. No merge,
+The initial source correction is in Parent commit
+41f8ed308bf8acb4d6688dd8639944b5e3482957 from original source base
+5b8db00d44ab24f3a9f4216a00f7edee977b6898. The normal master-update commit
+151f409800a685aa41b92e3fc8fdb14e9db09f7b brings the branch to current Parent
+master `30ee953b57f4aafebaa0e6ed565a80f6500db1de`; it resolves only the paired
+index ordering conflict. The historical Draft evidence for old head
+`a0c78a5c87b3fc4a9af8e2759fa0fee9c5bd3034` is retained as history but is not
+merge evidence after this update. Draft PR
+[#115](https://github.com/Easton97-Jens/ModSecurity-conector/pull/115) must be
+republished and freshly verified before an authorized protected merge. No
 default-branch update, Framework action, MRTS action, scanner-control change,
-or suppression occurred. Final delivery facts are added only after observation.
+or suppression has occurred.
