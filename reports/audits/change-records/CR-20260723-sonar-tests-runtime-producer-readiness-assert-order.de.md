@@ -73,9 +73,10 @@ Security-Control-Änderung. Das fokussierte Modul (4 Tests), die strukturelle
 Fünf-Call-AST-Operandreihenfolge-Prüfung, die bilingualen Dokumentationstests
 (11 Tests) und der Diff-Check bestanden auf diesem lokalen Merge-Head.
 
-Hosted-Check- und SonarQube-Cloud-Ergebnisse werden erst behauptet, wenn der
-finale task-eigene Branch-Head normal auf PR #104 gepusht und als dessen exakter
-Remote-Head erneut beobachtet wurde.
+Hosted-Check- und SonarQube-Cloud-Ergebnisse werden nur über beobachtete
+Exact-Head-PR-Delivery-Metadaten behauptet. Dieser Record erfindet sie nicht;
+der Task-Flow aktualisiert diese externe Evidence für den aktuellen Remote-Head
+vor jedem geschützten Merge.
 
 ## Akzeptanzkriterien
 
@@ -152,16 +153,17 @@ Hosted-Exact-Head-Analyse bleibt vor verifizierter Delivery erforderlich.
   Modul besteht.
 - Kein Framework- oder MRTS-Test und keine -Änderung: beide sind aus diesem
   Parent-only-Task ausgeschlossen.
-- Vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse: PR #104 existiert,
-  aber der aktuelle lokale Merge-Head wurde noch nicht normal darauf gepusht;
-  frische Exact-Head-Analyse bleibt nach diesem Push erforderlich.
+- Vollständige Hosted-Checks und SonarQube-Cloud-PR-Analyse sind externe
+  Delivery-Evidence: Nur ein beobachteter aktueller exakter Remote-Head kann
+  diese Anforderung vor dem geschützten Merge erfüllen.
 
 ## Finaler Diff- und Review-Status
 
-Der bestehende Parent-only-PR #104 bleibt Draft. Sein task-eigener Branch
-enthält den normalen Current-Master-Update-Merge
-`6116d97a881a666e701ae6afa7671ff9f9fbfd53` plus diese Delivery-Evidence-
-Korrektur und wurde noch nicht auf den PR-Branch gepusht. Hosted-Checks,
-Sonar-Analyse, Quality Gate und frischer Review-Status bleiben deshalb für den
-finalen exakten Remote-Head ausstehend. Es werden weder Review-Freigabe, Merge
-noch Default-Branch-Änderung beansprucht oder autorisiert.
+Der bestehende Parent-only-PR #104 ist das Delivery-Vehikel. Sein task-eigener
+Branch enthält den normalen Current-Master-Update-Merge
+`6116d97a881a666e701ae6afa7671ff9f9fbfd53` und die paarige Delivery-Evidence-
+Dokumentation. Dieser Record beansprucht weder Review-Freigabe noch Merge oder
+Default-Branch-Änderung. Vor dem geschützten Merge muss der PR non-draft sein,
+sein aktueller exakter Remote-Head bestehende Hosted-Checks und Sonar-Analyse
+haben und der Review-Status frisch sein; diese beobachteten Fakten gehören in
+Delivery-Metadaten statt in eine unbeobachtete Behauptung dieses Records.

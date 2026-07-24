@@ -68,9 +68,10 @@ security-control change. The focused module (4 tests), structural five-call
 AST operand-order check, bilingual-documentation tests (11 tests), and diff
 check passed on that local merge head.
 
-Hosted-check and SonarQube Cloud results are not claimed until the final
-task-owned branch head is normally pushed to PR #104 and re-observed as its
-exact remote head.
+Hosted-check and SonarQube Cloud results are claimed only through observed
+exact-head PR delivery metadata. This record does not invent them; the task
+flow refreshes that external evidence for the current remote head before any
+protected merge.
 
 ## Acceptance criteria
 
@@ -142,16 +143,17 @@ delivery is verified.
   diagnostic argument order and the complete affected module passes.
 - No Framework or MRTS test or modification: both are excluded from this
   Parent-only task.
-- Full hosted checks and SonarQube Cloud PR analysis: PR #104 exists but the
-  current local merge head has not yet been normally pushed to it; fresh
-  exact-head analysis remains required after that push.
+- Full hosted checks and SonarQube Cloud PR analysis are external delivery
+  evidence: only an observed current exact remote head may satisfy this
+  requirement before protected merge.
 
 ## Final diff and review status
 
-The existing Parent-only PR #104 remains Draft. Its task-owned branch contains
-the normal current-master update merge
-`6116d97a881a666e701ae6afa7671ff9f9fbfd53` plus this delivery-evidence
-correction and has not yet been pushed to the PR branch. Hosted checks, Sonar
-analysis, Quality Gate, and fresh review state therefore remain pending for the
-final exact remote head. No review approval, merge, or default-branch change is
-claimed or authorized.
+The existing Parent-only PR #104 is the delivery vehicle. Its task-owned branch
+contains the normal current-master update merge
+`6116d97a881a666e701ae6afa7671ff9f9fbfd53` and paired delivery-evidence
+documentation. This record claims neither review approval, merge, nor a
+default-branch change. Before protected merge, the PR must be non-draft and its
+current exact remote head must have passing hosted checks and Sonar analysis
+plus a refreshed review state; those observed facts belong to delivery metadata
+rather than an unobserved claim in this record.
