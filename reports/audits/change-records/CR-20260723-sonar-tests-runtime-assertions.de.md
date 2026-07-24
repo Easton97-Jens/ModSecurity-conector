@@ -79,7 +79,7 @@ Implementierung ändert sich.
 | tests.test_bilingual_docs | bestanden: 11 Tests. |
 | make check-doc-links | blocked_environment: die einzigen 16 Diagnosen sind bereits vorhandene fehlende Framework-Gitlink-Link-Ziele. |
 | Fokussierter Codex-Security-Staged-Diff-Scan | bestanden: alle sieben gestagten Dateien erhielten Closure-Receipts; der kanonische Bericht hat vollständige Abdeckung und null berichtsfähige Befunde. |
-| Exact-Head-Hosted-Checks | bis zur Draft-PR-Erstellung ausstehend. |
+| Exact-Head-Hosted-Checks | ausstehend: Der bestehende Draft PR #110 muss nach seiner normalen Branch-Aktualisierung und dem nächsten Push alle Pflicht-Evidence erneut durchlaufen. |
 
 ## Security-Auswirkung
 
@@ -129,15 +129,44 @@ und CI benötigen noch Evidence für den exakten Draft-PR-Head.
   ändert sich.
 - Kein Framework- oder MRTS-Test und keine Änderung: Beide liegen außerhalb
   dieses Parent-Tasks.
-- Keine exakte-PR-Head-GitHub-Actions-, CodeQL-, Sonar-Quality-Gate-, PR-Issue-
-  Query- oder Review-Thread-Prüfung existiert vor dem Draft PR.
+- Noch keine exakte-Post-Update-Head-GitHub-Actions-, CodeQL-, Sonar-Quality-
+  Gate-, PR-Issue-Query- oder Review-Thread-Prüfung; der bestehende Draft PR
+  muss nach der normalen Branch-Aktualisierung und dem nächsten Push erneut
+  ausgewertet werden.
+
+## Aktuelle normale Aktualisierung und Delivery-Status
+
+Der bestehende Draft PR #110 wurde ohne Rebase durch den normalen Merge-Commit
+`44611ee60e181b118952cc4ad52f06e633515611` aktualisiert, der Parent-`master`
+`475c2709f4ae0853f360a8b5dbcd754532c9b52d` in seinen ursprünglichen Head
+`07aa52fa35d464c30ad45e5c361850b1bc3002e8` übernommen hat. Nur die beiden
+gemeinsamen Change-Record-Indizes hatten Konflikte; ihre Auflösung bewahrt alle
+aktuellen `master`-Einträge sowie diesen Record.
+
+Unter der aktuellen Parent-only-Autorisierung darf dieser normale Merge den
+bereits in der `master`-Historie vorhandenen Framework-Gitlink erben. Der
+finale PR-Diff darf und verändert keinen Gitlink. Es gab keinen Framework- oder
+MRTS-Checkout, keine Änderung, keinen Test, keine Delivery und keinen Merge.
+
+Nach dem Update-Merge absolvierte das betroffene Drei-Modul-Subset 14 Tests in
+1,709 Sekunden. Ein frischer AST-Vergleich gegen aktuellen `origin/master`
+bewies genau neun ausgewählte Actual-first-`assertEqual`-/`assertNotEqual`-
+Operandentausche und keine andere geänderte Assertion; `git diff --check
+origin/master...HEAD` meldete keine Whitespace-Diagnose. Die vorherigen
+Hosted-Ergebnisse gelten nur für den abgelösten Head
+`07aa52fa35d464c30ad45e5c361850b1bc3002e8`; Exact-Head-Hosted-Checks,
+SonarQube-Cloud-Evidence, Issue-/Hotspot-Review und PR-Review-/Conversation-
+Checks müssen für den nächsten gepushten Head erneut ausgeführt werden. Dieser
+Record beansprucht weder eine Ready-Transition noch einen Merge.
 
 ## Finaler Diff- und Review-Status
 
-Die lokale Source-, fokussierte Test- und Bilingual-Paar-Validierung ist
-abgeschlossen. Die Repository-Bilingual- und Link-Befehle bleiben nur durch die
-erfassten fehlenden Framework-Gitlink-Ziele blockiert; kein Produkt- oder
-Grenz-Workaround wurde verwendet. Danach dürfen normaler Push und ein
-ungemergter Draft PR erfolgen. Es werden weder Merge, Default-Branch-Update,
-Framework-/MRTS-Änderung, Suppression noch Alert-Closure beansprucht oder
-autorisiert.
+Der geprüfte lokale Batch wird nun durch den bestehenden aktualisierten Draft
+PR #110 dargestellt. Sein finaler Current-Base-Diff enthält genau sieben
+Parent-Pfade: die drei ausgewählten Testmodule, dieses englische/deutsche
+Change-Record-Paar und die beiden Indizes. Er enthält keine Framework-, MRTS-
+oder Gitlink-Änderung. Source-, fokussierte Test- und Bilingual-Kontrollen
+bestanden; Exact-Head-Delivery-Evidence bleibt unvollständig, bis der nächste
+gepushte Head die erforderlichen Kontrollen bestanden hat. Es werden weder
+Merge, Default-Branch-Update, Framework-/MRTS-Änderung, Suppression noch
+Alert-Closure beansprucht oder autorisiert.

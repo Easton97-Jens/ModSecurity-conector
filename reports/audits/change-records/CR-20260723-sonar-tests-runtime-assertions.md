@@ -78,7 +78,7 @@ changes.
 | tests.test_bilingual_docs | passed: 11 tests. |
 | make check-doc-links | blocked_environment: the only 16 diagnostics are pre-existing missing Framework-gitlink link targets. |
 | Focused Codex Security staged-diff scan | passed: all seven staged files received closure receipts; canonical report has complete coverage and zero reportable findings. |
-| Exact-head hosted checks | pending until a Draft PR exists. |
+| Exact-head hosted checks | pending: the existing Draft PR #110 must rerun all required evidence after its normal branch update and next push. |
 
 ## Security impact
 
@@ -122,14 +122,41 @@ risk. Hosted Sonar analysis and CI still need exact Draft-PR-head evidence.
   authorized.
 - No full connector build or host/runtime matrix: only test diagnostics change.
 - No Framework or MRTS test or modification: both are outside this Parent task.
-- No exact-PR-head GitHub Actions, CodeQL, Sonar Quality Gate, PR issue query,
-  or review-thread check exists before the Draft PR is created.
+- No exact-post-update-head GitHub Actions, CodeQL, Sonar Quality Gate, PR
+  issue query, or review-thread check exists yet; the existing Draft PR must
+  be evaluated again after the normal branch update and next push.
+
+## Current normal update and delivery status
+
+The existing Draft PR #110 was refreshed without a rebase by normal merge
+commit `44611ee60e181b118952cc4ad52f06e633515611`, which merged Parent
+`master` `475c2709f4ae0853f360a8b5dbcd754532c9b52d` into its original head
+`07aa52fa35d464c30ad45e5c361850b1bc3002e8`. Only the paired Change Record
+indexes conflicted; their resolution retains all current `master` entries and
+this record.
+
+Under the current Parent-only authorization, that normal merge may inherit the
+Framework gitlink already present in `master` history. The final PR diff may
+not, and does not, modify a gitlink. No Framework or MRTS checkout,
+modification, test, delivery, or merge occurred.
+
+After the update merge, the affected three-module subset completed 14 tests in
+1.709 seconds. A fresh AST comparison against current `origin/master` proved
+exactly nine selected actual-first `assertEqual`/`assertNotEqual` operand swaps
+and no other changed assertion call; `git diff --check origin/master...HEAD`
+reported no whitespace diagnostic. The previous hosted results apply only to
+superseded head `07aa52fa35d464c30ad45e5c361850b1bc3002e8`; exact-head hosted
+checks, SonarQube Cloud evidence, issue/hotspot review, and PR
+review/conversation checks must be repeated for the next pushed head. This
+record claims neither a ready transition nor a merge.
 
 ## Final diff and review status
 
-Local source, focused-test, and bilingual-pair validation is complete. The
-repository bilingual and link commands remain blocked only by the recorded
-missing Framework-gitlink targets; no product or boundary workaround was used.
-Then a normal push and unmerged Draft PR may proceed. No merge, default-branch
-update, Framework/MRTS change, suppression, or alert closure is claimed or
-authorized.
+The reviewed local batch is now represented by the existing updated Draft PR
+#110. Its final current-base diff has exactly seven Parent paths: the three
+selected test modules, this English/German Change Record pair, and the two
+indexes. It contains no Framework, MRTS, or gitlink modification. Source and
+focused-test controls plus bilingual validation have passed; exact-head delivery
+evidence remains incomplete until the next pushed head has passed the required
+controls. No merge, default-branch update, Framework/MRTS change, suppression,
+or alert closure is claimed or authorized.
