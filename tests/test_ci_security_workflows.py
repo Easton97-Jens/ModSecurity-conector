@@ -271,7 +271,17 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertNotIn("go-version:", text)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
+        self.assertIn("Fuzz Traefik UDS frame parser", text)
+        self.assertIn("-fuzz='^FuzzUDSFrameAndResult$'", text)
+        self.assertIn("-fuzztime=15s -parallel=1", text)
         self.assertIn("make check-common-helpers-c17", text)
+        self.assertIn("Fuzz Common HTTP header parser", text)
+        self.assertIn("make check-common-http-header-fuzz", text)
+
+    def test_development_pyyaml_dependency_is_exact_safe_pin(self) -> None:
+        text = (ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
+        self.assertIn("PyYAML==6.0.3", text)
+        self.assertNotIn("PyYAML>=", text)
 
     def test_security_tool_lock_has_provenance_and_digests(self) -> None:
         text = (ROOT / "ci" / "tooling" / "security-tools.lock.yml").read_text(encoding="utf-8")

@@ -32,14 +32,14 @@ class NginxInterventionUrlOwnershipTests(unittest.TestCase):
         self.assertIn("ngx_memzero(&intervention, sizeof(intervention));", self.source)
         self.assertIn("intervention.status = 200;", self.source)
         self.assertNotIn("free(intervention.log)", self.source)
-        self.assertEqual(1, self.source.count("msc_intervention_cleanup(&intervention);"))
+        self.assertEqual(self.source.count("msc_intervention_cleanup(&intervention);"), 1)
 
         cleanup = self.source.index("msc_intervention_cleanup(&intervention);")
         self.assertNotIn("intervention.url", self.source[cleanup:])
         self.assertNotIn("intervention.log", self.source[cleanup:])
 
         returns = re.findall(r"\breturn\s+[^;]+;", self.source)
-        self.assertEqual(["return result;"], returns)
+        self.assertEqual(returns, ["return result;"])
 
     def test_redirect_url_is_a_request_pool_copy_before_cleanup(self) -> None:
         self.assertIn(

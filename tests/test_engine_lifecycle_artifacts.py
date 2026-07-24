@@ -112,9 +112,9 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
                     {"transaction_id": "tx-two", "phase": 3, "status": "blocked"},
                 ],
             )
-            self.assertEqual(0, completed.returncode, completed.stderr)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
             output = root / "engine-artifacts"
-            self.assertEqual("git:abc;build:def\n", (output / "engine-version.txt").read_text(encoding="utf-8"))
+            self.assertEqual((output / "engine-version.txt").read_text(encoding="utf-8"), "git:abc;build:def\n")
             self.assertEqual(
                 hashlib.sha256(b"current-engine-library").hexdigest(),
                 (output / "engine-library-sha256.txt").read_text(encoding="utf-8").strip(),
@@ -125,24 +125,24 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
             )
             counts = json.loads((output / "transaction-counts.json").read_text(encoding="utf-8"))
             lifecycle = json.loads((output / "lifecycle-counters.json").read_text(encoding="utf-8"))
-            self.assertEqual(["tx-one", "tx-two"], counts["transaction_ids"])
-            self.assertEqual(2, counts["transactions_observed"])
-            self.assertEqual(5, counts["unique_engine_events_observed"])
-            self.assertEqual(2, lifecycle["transactions_started"])
-            self.assertEqual(2, lifecycle["transactions_finished"])
-            self.assertEqual(2, lifecycle["transactions_destroyed"])
-            self.assertEqual(1, lifecycle["request_body_finishes"])
-            self.assertEqual(1, lifecycle["response_body_finishes"])
-            self.assertEqual(1, lifecycle["intentional_aborts"])
-            self.assertEqual(1, lifecycle["client_disconnects"])
-            self.assertEqual(1, lifecycle["upstream_disconnects"])
-            self.assertEqual(1, lifecycle["stream_resets"])
-            self.assertEqual(1, lifecycle["timeouts"])
-            self.assertEqual(1, lifecycle["short_writes"])
-            self.assertEqual(1, lifecycle["write_would_block"])
-            self.assertEqual(1, lifecycle["cleanup_cancel"])
-            self.assertEqual(1, lifecycle["cleanup_abort"])
-            self.assertEqual(0, lifecycle["cleanup_normal"])
+            self.assertEqual(counts["transaction_ids"], ["tx-one", "tx-two"])
+            self.assertEqual(counts["transactions_observed"], 2)
+            self.assertEqual(counts["unique_engine_events_observed"], 5)
+            self.assertEqual(lifecycle["transactions_started"], 2)
+            self.assertEqual(lifecycle["transactions_finished"], 2)
+            self.assertEqual(lifecycle["transactions_destroyed"], 2)
+            self.assertEqual(lifecycle["request_body_finishes"], 1)
+            self.assertEqual(lifecycle["response_body_finishes"], 1)
+            self.assertEqual(lifecycle["intentional_aborts"], 1)
+            self.assertEqual(lifecycle["client_disconnects"], 1)
+            self.assertEqual(lifecycle["upstream_disconnects"], 1)
+            self.assertEqual(lifecycle["stream_resets"], 1)
+            self.assertEqual(lifecycle["timeouts"], 1)
+            self.assertEqual(lifecycle["short_writes"], 1)
+            self.assertEqual(lifecycle["write_would_block"], 1)
+            self.assertEqual(lifecycle["cleanup_cancel"], 1)
+            self.assertEqual(lifecycle["cleanup_abort"], 1)
+            self.assertEqual(lifecycle["cleanup_normal"], 0)
             self.assertFalse(lifecycle["transport_counters_bound"])
             self.assertNotIn("secret", json.dumps(lifecycle))
 
@@ -185,17 +185,17 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
                 ],
                 transport_lifecycle_records=[record],
             )
-            self.assertEqual(0, completed.returncode, completed.stderr)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
             lifecycle = json.loads(
                 (root / "engine-artifacts/lifecycle-counters.json").read_text(encoding="utf-8")
             )
             self.assertTrue(lifecycle["transport_counters_bound"])
-            self.assertEqual(1, lifecycle["request_body_finishes"])
-            self.assertEqual(1, lifecycle["response_body_finishes"])
-            self.assertEqual(1, lifecycle["intentional_aborts"])
-            self.assertEqual(1, lifecycle["client_disconnects"])
-            self.assertEqual(1, lifecycle["short_writes"])
-            self.assertEqual(1, lifecycle["cleanup_abort"])
+            self.assertEqual(lifecycle["request_body_finishes"], 1)
+            self.assertEqual(lifecycle["response_body_finishes"], 1)
+            self.assertEqual(lifecycle["intentional_aborts"], 1)
+            self.assertEqual(lifecycle["client_disconnects"], 1)
+            self.assertEqual(lifecycle["short_writes"], 1)
+            self.assertEqual(lifecycle["cleanup_abort"], 1)
 
     def test_bound_upstream_disconnect_counts_as_cancel_cleanup(self) -> None:
         with tempfile.TemporaryDirectory(prefix="engine-lifecycle-artifacts-") as temporary:
@@ -223,13 +223,13 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
                 [{"transaction_id": "tx-one", "upstream_disconnected": True}],
                 transport_lifecycle_records=[record],
             )
-            self.assertEqual(0, completed.returncode, completed.stderr)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
             lifecycle = json.loads(
                 (root / "engine-artifacts/lifecycle-counters.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(1, lifecycle["upstream_disconnects"])
-            self.assertEqual(1, lifecycle["cleanup_cancel"])
-            self.assertEqual(0, lifecycle["intentional_aborts"])
+            self.assertEqual(lifecycle["upstream_disconnects"], 1)
+            self.assertEqual(lifecycle["cleanup_cancel"], 1)
+            self.assertEqual(lifecycle["intentional_aborts"], 0)
 
     def test_rejects_payload_bearing_event_input(self) -> None:
         with tempfile.TemporaryDirectory(prefix="engine-lifecycle-artifacts-") as temporary:
@@ -238,7 +238,7 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
                 root,
                 [{"transaction_id": "tx-one", "phase": 2, "request_body": "secret"}],
             )
-            self.assertNotEqual(0, completed.returncode)
+            self.assertNotEqual(completed.returncode, 0)
             self.assertIn("forbidden payload metadata", completed.stderr)
             self.assertFalse((root / "engine-artifacts/lifecycle-counters.json").exists())
 
@@ -250,7 +250,7 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
                 [{"transaction_id": "tx-one", "phase": 1, "status": "blocked"}],
                 library_symlink=True,
             )
-            self.assertEqual(0, completed.returncode, completed.stderr)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertEqual(
                 hashlib.sha256(b"current-engine-library").hexdigest(),
                 (root / "engine-artifacts/engine-library-sha256.txt").read_text(encoding="utf-8").strip(),
