@@ -73,8 +73,8 @@ Security-Control-Änderung. Das fokussierte Modul (4 Tests), die strukturelle
 Fünf-Call-AST-Operandreihenfolge-Prüfung, die bilingualen Dokumentationstests
 (11 Tests) und der Diff-Check bestanden auf diesem lokalen Merge-Head.
 
-Hosted-Check- und SonarQube-Cloud-Ergebnisse werden erst behauptet, wenn
-dieser aktuelle lokale Head normal auf PR #104 gepusht und als dessen exakter
+Hosted-Check- und SonarQube-Cloud-Ergebnisse werden erst behauptet, wenn der
+finale task-eigene Branch-Head normal auf PR #104 gepusht und als dessen exakter
 Remote-Head erneut beobachtet wurde.
 
 ## Akzeptanzkriterien
@@ -111,7 +111,7 @@ Assertion-Argument wurde verändert.
 - Aktuelles Parent-Master-Update und Konfliktauflösung: bestanden; normaler
   nicht-rewritender Merge `6116d97a881a666e701ae6afa7671ff9f9fbfd53` löst nur
   die beiden Change-Record-Indizes auf.
-- Aktueller lokaler Merge-Head: fokussiertes Modul (4 Tests), strukturelle
+- Aktueller gemergter Tree: fokussiertes Modul (4 Tests), strukturelle
   Fünf-Call-AST-Operandreihenfolge-Prüfung, bilinguale Dokumentationstests
   (11 Tests) und Diff-Check: bestanden.
 - Vollständige Dokumentations-/Link-Checks: Der reparierte Change Record hat
@@ -158,9 +158,10 @@ Hosted-Exact-Head-Analyse bleibt vor verifizierter Delivery erforderlich.
 
 ## Finaler Diff- und Review-Status
 
-Der bestehende Parent-only-PR #104 bleibt Draft. Sein task-eigener aktueller
-lokaler Merge-Head `6116d97a881a666e701ae6afa7671ff9f9fbfd53` wurde noch nicht
-auf den PR-Branch gepusht. Hosted-Checks, Sonar-Analyse, Quality Gate und
-frischer Review-Status bleiben deshalb für diesen exakten Remote-Head
-ausstehend. Es werden weder Review-Freigabe, Merge noch Default-Branch-
-Änderung beansprucht oder autorisiert.
+Der bestehende Parent-only-PR #104 bleibt Draft. Sein task-eigener Branch
+enthält den normalen Current-Master-Update-Merge
+`6116d97a881a666e701ae6afa7671ff9f9fbfd53` plus diese Delivery-Evidence-
+Korrektur und wurde noch nicht auf den PR-Branch gepusht. Hosted-Checks,
+Sonar-Analyse, Quality Gate und frischer Review-Status bleiben deshalb für den
+finalen exakten Remote-Head ausstehend. Es werden weder Review-Freigabe, Merge
+noch Default-Branch-Änderung beansprucht oder autorisiert.

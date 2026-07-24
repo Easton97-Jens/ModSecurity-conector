@@ -68,9 +68,9 @@ security-control change. The focused module (4 tests), structural five-call
 AST operand-order check, bilingual-documentation tests (11 tests), and diff
 check passed on that local merge head.
 
-Hosted-check and SonarQube Cloud results are not claimed until this current
-local head is normally pushed to PR #104 and re-observed as its exact remote
-head.
+Hosted-check and SonarQube Cloud results are not claimed until the final
+task-owned branch head is normally pushed to PR #104 and re-observed as its
+exact remote head.
 
 ## Acceptance criteria
 
@@ -103,7 +103,7 @@ argument changed.
 - Current Parent-master update and conflict resolution: passed; normal
   non-rewriting merge `6116d97a881a666e701ae6afa7671ff9f9fbfd53` resolves only
   the paired Change Record indexes.
-- Current local merge-head focused module (4 tests), structural five-call AST
+- Current merged-tree focused module (4 tests), structural five-call AST
   operand-order check, bilingual-documentation tests (11 tests), and diff
   check: passed.
 - Full documentation/link checks: the repaired Change Record has no reported
@@ -148,8 +148,10 @@ delivery is verified.
 
 ## Final diff and review status
 
-The existing Parent-only PR #104 remains Draft. Its task-owned current local
-merge head `6116d97a881a666e701ae6afa7671ff9f9fbfd53` has not yet been pushed
-to the PR branch. Hosted checks, Sonar analysis, Quality Gate, and fresh review
-state therefore remain pending for that exact remote head. No review approval,
-merge, or default-branch change is claimed or authorized.
+The existing Parent-only PR #104 remains Draft. Its task-owned branch contains
+the normal current-master update merge
+`6116d97a881a666e701ae6afa7671ff9f9fbfd53` plus this delivery-evidence
+correction and has not yet been pushed to the PR branch. Hosted checks, Sonar
+analysis, Quality Gate, and fresh review state therefore remain pending for the
+final exact remote head. No review approval, merge, or default-branch change is
+claimed or authorized.
