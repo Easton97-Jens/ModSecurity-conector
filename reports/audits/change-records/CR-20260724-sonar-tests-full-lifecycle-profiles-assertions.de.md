@@ -60,7 +60,7 @@ Die fokussierten Kommandos nutzten Parent-.venv-Python, `PYTHONDONTWRITEBYTECODE
 | Direkter Change-Record-Paar-Review | bestanden: Beide Dateien haben 13 Level-two-Abschnitte sowie passende ID-, Basis-Revision-, Issue-Key- und Affected-Path-Literale. |
 | make check-bilingual-docs | blocked_environment: Genau 20 vorhandene fehlende Framework-Gitlink-Linkziele; die Ausgabe enthält keinen neuen Change-Record-Fehler. |
 | make check-doc-links | blocked_environment: Genau 16 vorhandene fehlende Framework-Gitlink-Linkziele; es wurde kein Framework-Quellcode, Gitlink oder generiertes Artefakt geändert. |
-| Hosted-Delivery-Checks | not_run bei dieser Dokumentrevision; sie werden vor Delivery abgeschlossen und dokumentiert, statt vorab behauptet zu werden. |
+| Hosted-Delivery-Checks | not_run nach Initial-Commit `65c40bc`; sie sind auf dem finalen Draft-PR-Head erforderlich und werden nicht vorab behauptet. |
 
 ## Runtime-Evidence
 
@@ -82,4 +82,11 @@ Eine unbeabsichtigte Änderung eines Assertion-Werts könnte einen Profil- oder 
 
 ## Finaler Diff- und Review-Status
 
-Bei dieser Traceability-Revision ist der task-owned Source- und Dokumentations-Diff lokal validiert, aber noch nicht committed, gepusht oder einem Pull Request zugeordnet. Der geplante Parent-Branch basiert auf `5b8db00d44ab24f3a9f4216a00f7edee977b6898`; es gab keinen Merge, kein Default-Branch-Update, keine Framework-Action, keine MRTS-Action, keine Scanner-Control-Änderung und keine Suppression. Delivery-Fakten werden erst nach ihrer Beobachtung ergänzt.
+Die Source-Korrektur und das anfängliche englisch/deutsche Traceability-Material
+liegen im atomaren Commit `65c40bc` auf
+`codex/sonar-tests-full-lifecycle-profiles-assertions-20260724-master-5b8db00`,
+dessen Parent `5b8db00d44ab24f3a9f4216a00f7edee977b6898` ist. Der Branch ist
+bei dieser Dokumentrevision noch nicht gepusht oder einem Pull Request
+zugeordnet. Es gab keinen Merge, kein Default-Branch-Update, keine Framework-
+Action, keine MRTS-Action, keine Scanner-Control-Änderung und keine
+Suppression. Finale Delivery-Fakten werden erst nach ihrer Beobachtung ergänzt.

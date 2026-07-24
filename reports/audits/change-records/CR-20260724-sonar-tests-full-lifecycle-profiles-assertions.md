@@ -82,7 +82,7 @@ checkout:
 | Direct Change Record pair review | passed: both files have 13 level-two sections and matching ID, base revision, issue keys, and affected path literals. |
 | make check-bilingual-docs | blocked_environment: exactly 20 pre-existing missing Framework-gitlink link targets; the output contains no new Change Record error. |
 | make check-doc-links | blocked_environment: exactly 16 pre-existing missing Framework-gitlink link targets; no Framework source, gitlink, or generated artifact was changed. |
-| Hosted-delivery checks | not_run at this document revision; they are completed and recorded before delivery rather than claimed in advance. |
+| Hosted-delivery checks | not_run after initial commit `65c40bc`; they are required on the final Draft-PR head and are not claimed in advance. |
 
 ## Runtime evidence
 
@@ -116,9 +116,11 @@ or security behavior is inferred from this maintenance-only test change.
 
 ## Final diff and review status
 
-At this traceability revision, the task-owned source and documentation diff is
-locally validated but has not yet been committed, pushed, or associated with a
-pull request. The planned Parent branch is based on
-`5b8db00d44ab24f3a9f4216a00f7edee977b6898`; no merge, default-branch update,
-Framework action, MRTS action, scanner-control change, or suppression has
-occurred. Delivery facts are added only after they are observed.
+The source correction and initial English/German traceability material are in
+atomic commit `65c40bc` on
+`codex/sonar-tests-full-lifecycle-profiles-assertions-20260724-master-5b8db00`,
+whose parent is `5b8db00d44ab24f3a9f4216a00f7edee977b6898`. The branch has
+not yet been pushed or associated with a pull request at this document
+revision. No merge, default-branch update, Framework action, MRTS action,
+scanner-control change, or suppression occurred. Final delivery facts are
+added only after they are observed.
