@@ -60,7 +60,7 @@ Die fokussierten Kommandos nutzten Parent-.venv-Python, `PYTHONDONTWRITEBYTECODE
 | Direkter Change-Record-Paar-Review | bestanden: Beide Dateien haben 13 Level-two-Abschnitte sowie passende ID-, Basis-Revision-, Issue-Key- und Affected-Path-Literale. |
 | make check-bilingual-docs | blocked_environment: Genau 20 vorhandene fehlende Framework-Gitlink-Linkziele; die Ausgabe enthält keinen neuen Change-Record-Fehler. |
 | make check-doc-links | blocked_environment: Genau 16 vorhandene fehlende Framework-Gitlink-Linkziele; es wurde kein Framework-Quellcode, Gitlink oder generiertes Artefakt geändert. |
-| Hosted-Delivery-Checks | not_run nach Initial-Commit `65c40bc`; sie sind auf dem finalen Draft-PR-Head erforderlich und werden nicht vorab behauptet. |
+| Hosted-Delivery-Checks | ausstehend: Draft PR [#113](https://github.com/Easton97-Jens/ModSecurity-conector/pull/113) wurde offen und `isDraft: true` vom initialen Remote-Head `8a97eb963bd16ff4c7fbc187bbe3f8396c036736` erstellt. Dieses Delivery-Observation-Update erzeugt einen neuen finalen Head; Checks, Quality Gate, PR-Issues und Review-Status müssen danach frisch beobachtet werden und werden nicht vorab behauptet. |
 
 ## Runtime-Evidence
 
@@ -70,7 +70,10 @@ Es wurde kein Connector-Runtime-Verhalten geändert oder behauptet. Das fokussie
 
 - Connector-Builds, Konfigurationsprüfungen, Host-Runtime-Smoke-Tests, Protokollmatrizen, Framework-Checks und MRTS-Checks sind nicht anwendbar, weil keine Connector-/Runtime-Implementierung geändert wurde und Framework/MRTS ausgeschlossen sind.
 - Ruff und Pyright sind nicht anwendbar: Es gibt keine Parent-Konfiguration und keines der beiden Executables existiert in der ausgewählten Parent `.venv`; es wurde kein Tool installiert und keine Konfiguration nur für diese Diagnostik-Reihenfolgenänderung verändert.
-- Draft-PR-Checks, SonarQube-Cloud-Quality-Gate, PR-Issue-Abfrage und Review-Status sind bei dieser Dokumentrevision noch nicht verfügbar und vor `verified_pr` erforderlich.
+- Draft PR #113 existiert, aber sein finaler Dokument-Update-Head benötigt vor
+  `verified_pr` eine frische Beobachtung von GitHub-Checks,
+  SonarQube-Cloud-Quality-Gate, PR-Issues und Review-Status; kein Ergebnis
+  eines vorherigen Heads wird als final behandelt.
 
 ## Bekannte Einschränkungen
 
@@ -83,10 +86,14 @@ Eine unbeabsichtigte Änderung eines Assertion-Werts könnte einen Profil- oder 
 ## Finaler Diff- und Review-Status
 
 Die Source-Korrektur und das anfängliche englisch/deutsche Traceability-Material
-liegen im atomaren Commit `65c40bc` auf
+liegen im atomaren Commit `65c40bc`, gefolgt vom Traceability-Commit der
+beobachteten lokalen Delivery `8a97eb9`, auf
 `codex/sonar-tests-full-lifecycle-profiles-assertions-20260724-master-5b8db00`,
-dessen Parent `5b8db00d44ab24f3a9f4216a00f7edee977b6898` ist. Der Branch ist
-bei dieser Dokumentrevision noch nicht gepusht oder einem Pull Request
-zugeordnet. Es gab keinen Merge, kein Default-Branch-Update, keine Framework-
-Action, keine MRTS-Action, keine Scanner-Control-Änderung und keine
-Suppression. Finale Delivery-Fakten werden erst nach ihrer Beobachtung ergänzt.
+dessen initialer Parent `5b8db00d44ab24f3a9f4216a00f7edee977b6898` ist. Der
+Branch wurde normal gepusht und als Draft PR #113 auf initial beobachtetem Head
+`8a97eb963bd16ff4c7fbc187bbe3f8396c036736` eröffnet; er ist offen und
+ungemergt. Dieser Dokument-Update-Commit erfordert bewusst einen frischen
+Exact-Head-Hosted-Verifikationszyklus. Es gab keinen Merge, kein
+Default-Branch-Update, keine Framework-Action, keine MRTS-Action, keine
+Scanner-Control-Änderung und keine Suppression. Finale Delivery-Fakten werden
+erst nach ihrer Beobachtung ergänzt.

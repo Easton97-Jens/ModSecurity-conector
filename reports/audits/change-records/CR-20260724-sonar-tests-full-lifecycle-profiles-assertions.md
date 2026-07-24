@@ -82,7 +82,7 @@ checkout:
 | Direct Change Record pair review | passed: both files have 13 level-two sections and matching ID, base revision, issue keys, and affected path literals. |
 | make check-bilingual-docs | blocked_environment: exactly 20 pre-existing missing Framework-gitlink link targets; the output contains no new Change Record error. |
 | make check-doc-links | blocked_environment: exactly 16 pre-existing missing Framework-gitlink link targets; no Framework source, gitlink, or generated artifact was changed. |
-| Hosted-delivery checks | not_run after initial commit `65c40bc`; they are required on the final Draft-PR head and are not claimed in advance. |
+| Hosted-delivery checks | pending: Draft PR [#113](https://github.com/Easton97-Jens/ModSecurity-conector/pull/113) was created open and `isDraft: true` from initial remote head `8a97eb963bd16ff4c7fbc187bbe3f8396c036736`. This delivery-observation update creates a new final head, so checks, Quality Gate, PR issues, and review state must be freshly observed afterwards and are not claimed in advance. |
 
 ## Runtime evidence
 
@@ -98,9 +98,9 @@ write; it is neither host-traffic nor production-runtime evidence.
 - Ruff and Pyright are not applicable: no Parent configuration is present and
   neither executable exists in the selected Parent `.venv`; no installation or
   configuration change was made merely for this diagnostic-order change.
-- Draft-PR checks, SonarQube Cloud Quality Gate, PR issue query, and review
-  state are not yet available at this document revision and are required
-  before `verified_pr`.
+- Draft PR #113 exists, but its final document-update head must receive fresh
+  GitHub checks, SonarQube Cloud Quality Gate, PR issue, and review-state
+  observation before `verified_pr`; no prior-head result is treated as final.
 
 ## Known limitations
 
@@ -117,10 +117,13 @@ or security behavior is inferred from this maintenance-only test change.
 ## Final diff and review status
 
 The source correction and initial English/German traceability material are in
-atomic commit `65c40bc` on
+atomic commit `65c40bc`, followed by the observed-local-delivery traceability
+commit `8a97eb9`, on
 `codex/sonar-tests-full-lifecycle-profiles-assertions-20260724-master-5b8db00`,
-whose parent is `5b8db00d44ab24f3a9f4216a00f7edee977b6898`. The branch has
-not yet been pushed or associated with a pull request at this document
-revision. No merge, default-branch update, Framework action, MRTS action,
-scanner-control change, or suppression occurred. Final delivery facts are
-added only after they are observed.
+whose initial parent is `5b8db00d44ab24f3a9f4216a00f7edee977b6898`. The
+branch was pushed normally and opened as Draft PR #113 at initial observed
+head `8a97eb963bd16ff4c7fbc187bbe3f8396c036736`; it is open and unmerged. This
+document-update commit intentionally requires a fresh exact-head hosted
+verification cycle. No merge, default-branch update, Framework action, MRTS
+action, scanner-control change, or suppression occurred. Final delivery facts
+are added only after they are observed.
