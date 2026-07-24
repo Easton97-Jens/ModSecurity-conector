@@ -83,8 +83,8 @@ beheben.
 - Cross-Tree-AST-/Source-Inventar bestand: Exakt 19 `assertEqual`-Aufrufe
   sind Expected-zu-Actual-Operandentausche; alle anderen Operand-Ausdrücke
   bleiben erhalten.
-- Der finale `git diff --check` wird nach diesem Delivery-Evidence-Update
-  erneut ausgeführt.
+- Der finale `git diff --check origin/master...HEAD` bestand nach diesem
+  Delivery-Evidence-Update.
 
 ## Tests und tatsächliche Ergebnisse
 
@@ -92,7 +92,7 @@ beheben.
 | --- | --- |
 | `rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-owned path> <selected-python> -m unittest -v tests.test_envoy_transport_hardening_contract` | bestanden: 8 Tests in 1,144 Sekunden nach dem Current-Master-Update. |
 | Cross-Tree-AST-/Source-Operand-Inventar | bestanden: 19 exakte Expected-zu-Actual-Tausche; alle anderen `self.assertEqual`-Operandpaare sind unverändert. |
-| `git diff --check origin/master...HEAD` | wird nach diesem Change-Record-Update erneut ausgeführt. |
+| `git diff --check origin/master...HEAD` | bestanden. |
 
 ## Runtime-Evidence
 

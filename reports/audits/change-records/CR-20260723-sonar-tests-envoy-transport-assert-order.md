@@ -74,7 +74,8 @@ finding.
 - Cross-tree AST/source inventory passed: exactly 19 `assertEqual` calls are
   exact expected-to-actual operand reversals, with every other operand
   expression preserved.
-- Final `git diff --check` is rerun after this delivery-evidence update.
+- Final `git diff --check origin/master...HEAD` passed after this
+  delivery-evidence update.
 
 ## Tests and actual results
 
@@ -82,7 +83,7 @@ finding.
 | --- | --- |
 | `rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-owned path> <selected-python> -m unittest -v tests.test_envoy_transport_hardening_contract` | passed: 8 tests in 1.144 seconds after the current-master update. |
 | Cross-tree AST/source operand inventory | passed: 19 exact expected-to-actual reversals; all other `self.assertEqual` operand pairs are unchanged. |
-| `git diff --check origin/master...HEAD` | rerun after this Change Record update. |
+| `git diff --check origin/master...HEAD` | passed. |
 
 ## Runtime evidence
 
