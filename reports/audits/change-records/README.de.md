@@ -9,6 +9,7 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-Adapter-Helper-expliziter Default-Case für SonarQube Cloud S131](CR-20260724-sonar-ci-adapter-helpers-default-case.de.md)
 - [Parent-NGINX-Intervention-URL-Ownership-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260724-sonar-tests-nginx-intervention-url-assertions.de.md)
+- [Scorecard-Fuzzing- und PyYAML-Remediation](CR-20260724-scorecard-fuzzing-pyyaml-remediation.de.md)
 - [Parent-Full-Lifecycle-Profil-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260724-sonar-tests-full-lifecycle-profiles-assertions.de.md)
 - [Parent-Full-Lifecycle-Evidence-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260724-sonar-tests-full-lifecycle-evidence-assertions.de.md)
 - [Parent-CI/Common-SonarQube-Cloud-Hygiene-Behebung](CR-20260724-sonar-ci-common-hygiene.de.md)
