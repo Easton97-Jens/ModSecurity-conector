@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260723-sonar-ci-connector-profile-literals |
 | Datum (UTC) | 2026-07-23 |
-| Basis-Revision | a308d7b414f0859490fe7253e0683a4bde80b563 |
+| Basis-Revision | Current integration base ec57576814a3f75c5e153d51c945bd1dd341a916; original source base a308d7b414f0859490fe7253e0683a4bde80b563. |
 | Tracking | FND-SONAR-0021; drei aktuelle SonarQube-Cloud-python:S1192-Befunde AZ9cRyWgHhV2CayPTPuj, AZ9cRyWgHhV2CayPTPuk und AZ9cRyWgHhV2CayPTPul. |
 | Grenze | Parent-CI-Dokumentationslayout-Checker, dieses englisch/deutsche Change-Record-Paar und seine Indizes. Framework, MRTS, Gitlinks, Profilmitgliedschaft, Runtime-Code, Scanner-Konfiguration, Quality Gates, Suppressions, Exclusions, Issue-Status und Default-Branch bleiben unverändert. |
 
@@ -32,7 +32,7 @@ selbst beabsichtigte connector-spezifische Validierungsverträge sind.
   keine Exclusion, Suppression, kein NOSONAR und kein Issue-Status werden
   geändert.
 - Frische Exact-Head-SonarQube-Cloud- und Hosted-Evidence ist erforderlich,
-  bevor die drei Befunde auf einem ungemergten Draft PR als verifiziert gelten.
+  bevor die drei Befunde für die geschützte Integration als verifiziert gelten.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -77,10 +77,12 @@ MRTS- oder Production-Runtime wird beansprucht.
 
 ## Validierungsstatus
 
-Der fokussierte Checker und das Profil-Mapping bestehen lokal. Gezielte
-bilinguale Dokumentation, finaler Scoped-Diff und Exact-Head-Delivery-Evidence
-bleiben erforderlich, nachdem dieser Change Record in den isolierten Draft-PR-
-Kandidaten aufgenommen wurde.
+Der fokussierte Checker und das Profil-Mapping bestehen auf dem aktuellen
+Integrations-Head. Das Mapping beweist, dass alle sechs Required-File-Tupel und
+die drei direkten Pfadprüfungen nach der Konstantensubstitution ihre exakten
+Werte behalten. Gezielte bilinguale Dokumentation, finaler Scoped-Diff und
+Exact-Head-Hosted-Delivery-Evidence bleiben vor der geschützten Integration
+erforderlich.
 
 ## Bekannte Einschränkungen und Follow-up
 
@@ -92,7 +94,8 @@ CI-, Common-, Scripts-, Tests- oder Connector-Befunde behoben sind.
 
 Die Werte bleiben absichtlich unverändert. Das verbleibende Delivery-Risiko ist
 extern: Eine frische Exact-Head-SonarQube-Cloud-Analyse und Hosted-Checks müssen
-den Draft PR verifizieren, bevor die Befunde als verified markiert werden.
+den aktualisierten PR verifizieren, bevor die Befunde als verified markiert
+werden.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -100,20 +103,25 @@ den Draft PR verifizieren, bevor die Befunde als verified markiert werden.
   des Scopes.
 - Keine Live-Connector-Runtime: Das Verhalten des statischen Checkers wird
   direkt durch sein fokussiertes Target ausgeübt.
-- Hosted-Checks und Exact-Head-SonarQube-Cloud-Analyse: erst verfügbar, wenn
-  der Branch committed, gepusht und als ungemergter Draft PR geöffnet ist.
+- Exact-Head-Hosted-Checks und SonarQube-Cloud-Analyse: nach dem Push des
+  normalen Parent-Branch-Updates und vor der geschützten Integration
+  erforderlich.
 
 ## Delivery-Status
 
-Der Kandidat ist auf einem isolierten Parent-Task-Branch vorbereitet. Er darf
-nach finaler lokaler Validierung nur als ungemergter Draft PR committed, gepusht
-und geöffnet werden. Kein Merge, Default-Branch-Update, Rebase, Force-Push oder
-Framework-/MRTS-Change ist autorisiert.
+Der Kandidat wurde auf einem isolierten Parent-Task-Branch normal aus der
+festgehaltenen aktuellen Integrationsbasis aktualisiert. Er darf für frische
+Exact-Head-Validierung zu seinem bestehenden Draft-PR gepusht werden. Eine
+geschützte Squash-Integration ist erst nach erfolgreichen anwendbaren
+Exact-Head-Checks, SonarQube-Cloud-Ergebnis, Review-Status und aktueller
+Basisverifikation autorisiert. Direkte Default-Branch-Updates, Rebase,
+Force-Push und Framework-/MRTS-Changes bleiben verboten.
 
 ## Finaler Diff- und Review-Status
 
-Der Source-only-Diff führt drei unveränderliche Konstanten ein und ersetzt ihre
-passenden Verwendungen; er ändert weder Profilwerte noch Validation-Flow.
-Finale Dokumentationsvalidierung, Staged-Diff-Review und frische Exact-Head-
-Delivery-Evidence stehen aus; dieser Record behauptet keinen vorzeitigen
-Quality-Gate- oder PR-Status.
+Der finale Current-Base-Diff führt drei unveränderliche Konstanten ein und
+ersetzt ihre passenden Verwendungen; er ändert weder Profilwerte noch
+Validation-Flow. Der fokussierte Checker, das statische Profil-Mapping und der
+lokale Diff-Review bestanden. Frische Exact-Head-Hosted-Delivery-Evidence
+bleibt erforderlich; dieser Record behauptet keinen vorzeitigen Quality-Gate-
+oder PR-Status.

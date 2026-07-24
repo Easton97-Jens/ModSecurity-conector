@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260723-sonar-ci-connector-profile-literals |
 | Date (UTC) | 2026-07-23 |
-| Base revision | a308d7b414f0859490fe7253e0683a4bde80b563 |
+| Base revision | Current integration base ec57576814a3f75c5e153d51c945bd1dd341a916; original source base a308d7b414f0859490fe7253e0683a4bde80b563. |
 | Tracking | FND-SONAR-0021; three current SonarQube Cloud python:S1192 findings AZ9cRyWgHhV2CayPTPuj, AZ9cRyWgHhV2CayPTPuk, and AZ9cRyWgHhV2CayPTPul. |
 | Boundary | Parent CI documentation-layout checker, this English/German Change Record pair, and their indexes. Framework, MRTS, gitlinks, profile membership, runtime code, scanner configuration, Quality Gates, suppressions, exclusions, issue state, and default branch remain unchanged. |
 
@@ -31,7 +31,7 @@ are intentional connector-specific validation contracts.
 - No profile membership, validation message, rule, Quality Gate, exclusion,
   suppression, NOSONAR, or issue state is changed.
 - Fresh exact-head SonarQube Cloud and hosted evidence is required before the
-  three findings are declared verified on an unmerged Draft PR.
+  three findings are declared verified for protected integration.
 
 ## Implementation decision and rationale
 
@@ -74,10 +74,11 @@ production runtime execution is claimed.
 
 ## Validation status
 
-The focused checker and profile mapping pass locally. Targeted bilingual
-documentation, final scoped diff, and exact-head delivery evidence remain
-required after this Change Record is included in the isolated Draft-PR
-candidate.
+The focused checker and profile mapping pass on the current integration head.
+The mapping proves that all six required-file tuples and the three direct path
+checks retain their exact values after constant substitution. Targeted
+bilingual documentation, final scoped diff, and exact-head hosted delivery
+evidence remain required before protected integration.
 
 ## Known limitations and follow-up
 
@@ -89,27 +90,29 @@ Common, Scripts, Tests, or connector findings are resolved.
 
 The values are intentionally unchanged. The remaining delivery risk is
 external: a fresh exact-head SonarQube Cloud analysis and hosted checks must
-verify the Draft PR before the findings are marked verified.
+verify the updated PR before the findings are marked verified.
 
 ## Checks not run and rationale
 
 - No Framework or MRTS test or modification: both are out of scope.
 - No live connector runtime: static checker behavior is directly exercised by
   its focused target.
-- Hosted checks and exact-head SonarQube Cloud analysis: unavailable until the
-  branch is committed, pushed, and opened as an unmerged Draft PR.
+- Exact-head hosted checks and SonarQube Cloud analysis: required after the
+  normal Parent branch update is pushed and before protected integration.
 
 ## Delivery status
 
-The candidate is prepared on an isolated Parent task branch. It may be
-committed, pushed, and opened only as an unmerged Draft PR after final local
-validation. No merge, default-branch update, rebase, force-push, or
-Framework/MRTS change is authorized.
+The candidate has been normally updated on an isolated Parent task branch from
+the recorded current integration base. It may be pushed to its existing Draft
+PR for fresh exact-head validation. A protected squash integration is
+authorized only after the applicable exact-head checks, SonarQube Cloud result,
+review state, and current-base verification pass. Direct default-branch
+updates, rebase, force-push, and Framework/MRTS changes remain prohibited.
 
 ## Final diff and review status
 
-The source-only diff introduces three immutable constants and replaces their
-matching uses; it does not change profile values or validation flow. Final
-documentation validation, staged diff review, and fresh exact-head delivery
-evidence are pending; this record makes no premature Quality Gate or PR-status
-claim.
+The final current-base diff introduces three immutable constants and replaces
+their matching uses; it does not change profile values or validation flow. The
+focused checker, static profile mapping, and local diff review passed. Fresh
+exact-head hosted delivery evidence is still required; this record makes no
+premature Quality Gate or PR-status claim.
