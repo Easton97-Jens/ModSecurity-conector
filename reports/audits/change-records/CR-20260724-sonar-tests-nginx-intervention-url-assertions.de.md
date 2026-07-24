@@ -8,7 +8,8 @@
 | --- | --- |
 | Change-ID | CR-20260724-sonar-tests-nginx-intervention-url-assertions |
 | Datum (UTC) | 2026-07-24 |
-| Ursprüngliche Basis-Revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Basis-Revision | 185fd358bcfabe63464ab0e135eecedf24c9a699 |
+| Ursprüngliche Quellbasis-Revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
 | Tracking | Parent-SonarQube-Cloud-`python:S3415`-Code-Smells AZ-KYVTafYmbqbBXVNF7 (Zeile 35) und AZ-KYVTafYmbqbBXVNF8 (Zeile 42). |
 | Grenze | Parent-Testquellcode sowie dieses englisch/deutsche Traceability-Paar und die Indizes. NGINX-C-Quellcode, Connector-Verhalten, Framework, MRTS, Gitlinks, Scanner-Konfiguration, Quality Gates, Suppressions und generierte Artefakte bleiben unverändert. |
 
@@ -78,7 +79,7 @@ Fokussierte Kommandos nutzen Parent-.venv-Python,
 | AST-Inventur der ausgewählten Assertions | bestanden: Genau die zwei ausgewählten Anker (35 und 42) haben jetzt Actual-First-Operanden und unveränderte Expected-Werte. |
 | git diff --check | bestanden: kein Whitespace-Fehler. |
 | Bytecode-Scan des aktuellen Batch-Worktrees | bestanden: keine `*.pyc`-Datei. |
-| tests.test_bilingual_docs und direkter Change-Record-/Index-Paritätscheck | bestanden: 11 Tests; beide Change Records haben 13 Level-two-Abschnitte sowie passende ID-, Basis-Revision-, Key- und Affected-Path-Literale. |
+| tests.test_bilingual_docs und direkter Change-Record-/Index-Paritätscheck | bestanden: 11 Tests; beide Change Records haben 14 Level-two-Abschnitte sowie passende ID-, Basis-Revision-, Key- und Affected-Path-Literale. |
 | make check-bilingual-docs | blocked_environment: Genau 20 vorhandene fehlende Framework-Gitlink-Linkziele; kein neuer Change-Record-Fehler. |
 | make check-doc-links | blocked_environment: Genau 16 vorhandene fehlende Framework-Gitlink-Linkziele; es wurde kein Framework-Quellcode, Gitlink oder generiertes Artefakt geändert. |
 | Hosted-Delivery-Checks | ausstehend: Draft PR [#114](https://github.com/Easton97-Jens/ModSecurity-conector/pull/114) wurde offen und `isDraft: true` vom initialen Remote-Head `f3497e7e50448cde85a883e2d71e88dbccb65556` erstellt. Dieses Delivery-Observation-Update erzeugt einen neuen finalen Head; Checks, Quality Gate, PR-Issues und Review-Status müssen danach frisch beobachtet werden und werden nicht vorab behauptet. |

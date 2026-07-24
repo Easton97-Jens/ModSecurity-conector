@@ -8,7 +8,8 @@
 | --- | --- |
 | Change ID | CR-20260724-sonar-tests-nginx-intervention-url-assertions |
 | Date (UTC) | 2026-07-24 |
-| Original base revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Base revision | 185fd358bcfabe63464ab0e135eecedf24c9a699 |
+| Original source base revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
 | Tracking | Parent SonarQube Cloud `python:S3415` Code Smells AZ-KYVTafYmbqbBXVNF7 (line 35) and AZ-KYVTafYmbqbBXVNF8 (line 42). |
 | Boundary | Parent test source plus this English/German traceability pair and indexes. NGINX C source, connector behavior, Framework, MRTS, gitlinks, scanner configuration, Quality Gates, suppressions, and generated artifacts remain unchanged. |
 
@@ -77,7 +78,7 @@ Focused commands use the Parent `.venv` Python, `PYTHONDONTWRITEBYTECODE=1`,
 | Selected-assertion AST inventory | passed: exactly the two selected anchors (35 and 42) have actual-first operands and unchanged expected values. |
 | git diff --check | passed: no whitespace error. |
 | Current-batch worktree bytecode scan | passed: no `*.pyc` file. |
-| tests.test_bilingual_docs and direct Change Record/index parity | passed: 11 tests; both Change Records have 13 level-two sections and matching ID, base revision, keys, and affected path literal. |
+| tests.test_bilingual_docs and direct Change Record/index parity | passed: 11 tests; both Change Records have 14 level-two sections and matching ID, base revision, keys, and affected path literal. |
 | make check-bilingual-docs | blocked_environment: exactly 20 existing missing Framework-gitlink link targets; no new Change Record error. |
 | make check-doc-links | blocked_environment: exactly 16 existing missing Framework-gitlink link targets; no Framework source, gitlink, or generated artifact changed. |
 | Hosted-delivery checks | pending: Draft PR [#114](https://github.com/Easton97-Jens/ModSecurity-conector/pull/114) was created open and `isDraft: true` from initial remote head `f3497e7e50448cde85a883e2d71e88dbccb65556`. This delivery-observation update creates a new final head, so checks, Quality Gate, PR issues, and review state must be freshly observed afterwards and are not claimed in advance. |
