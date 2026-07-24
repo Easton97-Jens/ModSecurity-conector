@@ -38,8 +38,8 @@ The selected current keys are `AZ-KYVTIfYmbqbBXVNFo`,
   controlled loopback interactions, test inputs, and expected values.
 - Pass the complete affected test module without generated checkout artifacts.
 - Keep both Change Record languages and both indexes equivalent.
-- Obtain fresh exact-head SonarQube Cloud and hosted-check evidence for an
-  open, unmerged Draft PR before treating any selected key as resolved.
+- Obtain fresh exact-head SonarQube Cloud and hosted-check evidence before
+  treating any selected key as resolved or delivery as verified.
 
 ## Implementation decision and rationale
 
@@ -70,18 +70,19 @@ finding.
 ## Commands executed
 
 - The complete affected `tests.test_envoy_transport_hardening_contract` module
-  passed after the correction: 8 tests in 1.141 seconds.
-- AST/source inventory passed: exactly the 19 selected `assertEqual` calls
-  retain their operands and use actual-first order.
-- `git diff --check` passed.
+  passed after the normal current-master update: 8 tests in 1.144 seconds.
+- Cross-tree AST/source inventory passed: exactly 19 `assertEqual` calls are
+  exact expected-to-actual operand reversals, with every other operand
+  expression preserved.
+- Final `git diff --check` is rerun after this delivery-evidence update.
 
 ## Tests and actual results
 
 | Command or check | Result |
 | --- | --- |
-| `rtk proxy -- env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-owned path> <selected-python> -m unittest -v tests.test_envoy_transport_hardening_contract` | passed: 8 tests in 1.141 seconds. |
-| AST/source operand inventory of lines 50, 51, 75, 111, 194, 195, 200, 204-209, 212, 227, and 292-295 | passed: 19 selected calls, all actual-first. |
-| `git diff --check` | passed. |
+| `rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-owned path> <selected-python> -m unittest -v tests.test_envoy_transport_hardening_contract` | passed: 8 tests in 1.144 seconds after the current-master update. |
+| Cross-tree AST/source operand inventory | passed: 19 exact expected-to-actual reversals; all other `self.assertEqual` operand pairs are unchanged. |
+| `git diff --check origin/master...HEAD` | rerun after this Change Record update. |
 
 ## Runtime evidence
 
@@ -96,7 +97,7 @@ Envoy deployment or a Framework/MRTS run.
 - No Framework or MRTS test or modification: they are excluded from this
   Parent-only task.
 - Hosted checks and SonarQube Cloud PR analysis are not claimed by this local
-  record; they require a pushed exact Draft-PR head and external evidence.
+  record; they require a pushed exact PR head and external evidence.
 
 ## Known limitations
 
@@ -111,9 +112,31 @@ failure diagnostics misleading. The exact source inventory, focused module,
 and final diff review reduce that risk. Fresh hosted exact-head analysis
 remains required before delivery is verified.
 
+### Current Parent-master update — 2026-07-24
+
+Existing Draft PR #107 was normally updated without a rebase by merging Parent
+master `a60dd0380332a24cf231a36775256d21a812c027`. The resulting local merge
+commit `345b699eef301e6088286048cf13ba08f29345a9` reconciled the shared
+Change Record indexes by retaining all current-master entries and this #107
+entry. It does not modify Framework or MRTS; it only inherits existing master
+history. The current PR-base diff remains this Parent test, this
+English/German Change Record pair, and the two indexes, with no Framework,
+MRTS, gitlink, Envoy runtime/helper source, scanner, Gate, suppression, or
+security-control change authored by this PR update.
+
+The current merged-tree affected module passed eight tests, and the independent
+cross-tree AST/source inventory verified exactly 19 expected-to-actual operand
+reversals. Hosted check, SonarQube Cloud, Quality Gate, review, readiness, and
+merge results are claimed only through observed exact-head PR delivery
+metadata.
+
 ## Final diff and review status
 
-Local source correction and its focused test passed on a Parent-only task
-branch based on `5b8db00d44ab24f3a9f4216a00f7edee977b6898`. This record makes
-no unobserved hosted-check, SonarQube Cloud, review, merge, or default-branch
-claim. The intended delivery is an open unmerged Draft PR only.
+The Parent-only PR #107 is the delivery vehicle and now contains the normal
+current-master update merge `345b699eef301e6088286048cf13ba08f29345a9` plus
+this paired delivery-evidence update. This record claims neither review
+approval, merge, nor a default-branch change. Before protected merge, the PR
+must be non-draft and its current exact remote head must have passing hosted
+checks and SonarQube Cloud analysis plus refreshed review state; those observed
+facts belong to delivery metadata rather than an unobserved claim in this
+record.

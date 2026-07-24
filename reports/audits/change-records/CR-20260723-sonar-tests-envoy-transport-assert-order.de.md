@@ -42,9 +42,9 @@ Die ausgewählten aktuellen Keys sind `AZ-KYVTIfYmbqbBXVNFo`,
 - Das vollständige betroffene Testmodul ohne generierte Checkout-Artefakte
   bestehen lassen.
 - Beide Change-Record-Sprachen und beide Indizes gleichwertig halten.
-- Frische Exact-Head-SonarQube-Cloud- und Hosted-Check-Evidence für einen
-  offenen, ungemergten Draft-PR einholen, bevor ein ausgewählter Key als
-  behoben gilt.
+- Frische Exact-Head-SonarQube-Cloud- und Hosted-Check-Evidence einholen,
+  bevor ein ausgewählter Key als behoben oder die Delivery als verifiziert
+  gilt.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -78,19 +78,21 @@ beheben.
 ## Ausgeführte Befehle
 
 - Das vollständige betroffene Modul
-  `tests.test_envoy_transport_hardening_contract` bestand nach der Korrektur:
-  8 Tests in 1,141 Sekunden.
-- AST-/Source-Inventar bestand: Exakt die 19 ausgewählten `assertEqual`-
-  Aufrufe behalten ihre Operanden und verwenden Actual-first-Reihenfolge.
-- `git diff --check` bestand.
+  `tests.test_envoy_transport_hardening_contract` bestand nach dem normalen
+  Current-Master-Update: 8 Tests in 1,144 Sekunden.
+- Cross-Tree-AST-/Source-Inventar bestand: Exakt 19 `assertEqual`-Aufrufe
+  sind Expected-zu-Actual-Operandentausche; alle anderen Operand-Ausdrücke
+  bleiben erhalten.
+- Der finale `git diff --check` wird nach diesem Delivery-Evidence-Update
+  erneut ausgeführt.
 
 ## Tests und tatsächliche Ergebnisse
 
 | Befehl oder Check | Ergebnis |
 | --- | --- |
-| `rtk proxy -- env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-owned path> <selected-python> -m unittest -v tests.test_envoy_transport_hardening_contract` | bestanden: 8 Tests in 1,141 Sekunden. |
-| AST-/Source-Operand-Inventar der Zeilen 50, 51, 75, 111, 194, 195, 200, 204-209, 212, 227 und 292-295 | bestanden: 19 ausgewählte Aufrufe, alle Actual-first. |
-| `git diff --check` | bestanden. |
+| `rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=<task-owned path> <selected-python> -m unittest -v tests.test_envoy_transport_hardening_contract` | bestanden: 8 Tests in 1,144 Sekunden nach dem Current-Master-Update. |
+| Cross-Tree-AST-/Source-Operand-Inventar | bestanden: 19 exakte Expected-zu-Actual-Tausche; alle anderen `self.assertEqual`-Operandpaare sind unverändert. |
+| `git diff --check origin/master...HEAD` | wird nach diesem Change-Record-Update erneut ausgeführt. |
 
 ## Runtime-Evidence
 
@@ -107,8 +109,8 @@ Framework-/MRTS-Lauf.
 - Kein Framework- oder MRTS-Test und keine -Änderung: Sie sind aus diesem
   Parent-only-Task ausgeschlossen.
 - Hosted-Checks und SonarQube-Cloud-PR-Analyse werden von diesem lokalen
-  Datensatz nicht beansprucht; sie benötigen einen gepushten exakten
-  Draft-PR-Head und externe Evidence.
+  Datensatz nicht beansprucht; sie benötigen einen gepushten exakten PR-Head
+  und externe Evidence.
 
 ## Bekannte Einschränkungen
 
@@ -123,11 +125,35 @@ hinaus könnte Fehlerdiagnostik irreführend machen. Das exakte Source-Inventar,
 das fokussierte Modul und der finale Diff-Review verringern dieses Risiko.
 Frische Hosted-Exact-Head-Analyse bleibt vor verifizierter Delivery erforderlich.
 
+### Current-Parent-Master-Update — 2026-07-24
+
+Der bestehende Draft-PR #107 wurde ohne Rebase regulär aktualisiert, indem
+Parent-Master `a60dd0380332a24cf231a36775256d21a812c027` gemergt wurde. Der
+daraus entstandene lokale Merge-Commit
+`345b699eef301e6088286048cf13ba08f29345a9` führte die gemeinsamen
+Change-Record-Indizes zusammen, wobei alle Current-Master-Einträge und der
+Eintrag für PR 107 erhalten blieben. Er ändert weder Framework noch MRTS, sondern
+übernimmt nur vorhandene Master-Historie. Der aktuelle PR-Base-Diff besteht
+weiterhin aus diesem Parent-Test, diesem englisch/deutschen Change-Record-Paar
+und den beiden Indizes, ohne eine durch dieses PR-Update verfasste Framework-,
+MRTS-, Gitlink-, Envoy-Runtime-/Helper-Source-, Scanner-, Gate-, Suppression-
+oder Security-Control-Änderung.
+
+Das vollständige betroffene Modul bestand im aktuellen Merge-Tree mit acht
+Tests; das unabhängige Cross-Tree-AST-/Source-Inventar verifizierte exakt 19
+Expected-zu-Actual-Operandentausche. Hosted-Check-, SonarQube-Cloud-,
+Quality-Gate-, Review-, Readiness- und Merge-Ergebnisse werden nur über
+beobachtete Exact-Head-PR-Delivery-Metadaten beansprucht.
+
 ## Finaler Diff- und Review-Status
 
-Lokale Source-Korrektur und ihr fokussierter Test bestanden auf einem
-Parent-only-Task-Branch, der auf
-`5b8db00d44ab24f3a9f4216a00f7edee977b6898` basiert. Dieser Datensatz
-beansprucht keine nicht beobachteten Hosted-Check-, SonarQube-Cloud-, Review-,
-Merge- oder Default-Branch-Ergebnisse. Die vorgesehene Delivery ist
-ausschließlich ein offener, ungemergter Draft-PR.
+Der Parent-only-PR #107 ist das Delivery-Vehikel und enthält nun den normalen
+Current-Master-Update-Merge
+`345b699eef301e6088286048cf13ba08f29345a9` sowie dieses gepaarte
+Delivery-Evidence-Update. Dieser Datensatz beansprucht weder Review-Approval,
+Merge noch eine Default-Branch-Änderung. Vor dem geschützten Merge muss der PR
+nicht mehr Draft sein und sein aktueller exakter Remote-Head muss bestehende
+Hosted-Checks und SonarQube-Cloud-Analyse sowie einen aktualisierten
+Review-Status haben; diese beobachteten Tatsachen gehören zu
+Delivery-Metadaten und nicht zu einer unbeobachteten Behauptung dieses
+Datensatzes.
