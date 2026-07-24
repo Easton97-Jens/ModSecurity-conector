@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Engine-Lifecycle-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260723-sonar-tests-engine-lifecycle-assert-order.de.md)
 - [GitHub-Actions-Updater-Parser- und Komplexitätsbehebung](CR-20260723-sonar-actions-updater-parser.de.md)
 - [Parent-Envoy-Transport-Assert-Reihenfolge für SonarQube Cloud S3415](CR-20260723-sonar-tests-envoy-transport-assert-order.de.md)
 - [Parent-Apache-Intervention-Cleanup-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260723-sonar-tests-apache-intervention-cleanup-assert-order.de.md)
