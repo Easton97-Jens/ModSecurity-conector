@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260723-sonar-tests-optional-prerequisite-assert-order |
 | Datum (UTC) | 2026-07-23 |
-| Basis-Revision | Aktuelle Integrationsbasis 215b503a8d68ee85d93e18888f3710d1974c3169; ursprüngliche Source-Basis a308d7b414f0859490fe7253e0683a4bde80b563. |
+| Basis-Revision | Current integration base 215b503a8d68ee85d93e18888f3710d1974c3169; original source base a308d7b414f0859490fe7253e0683a4bde80b563. |
 | Tracking | FND-SONAR-0020; 77 aktuelle python:S3415-Befunde in tests/test_optional_prerequisite_status.py, von AZ-KYVRgfYmbqbBXVND6 bis AZ-KYVRgfYmbqbBXVNFG. |
 | Grenze | Parent-Test-Source, dieses englisch/deutsche Change-Record-Paar und seine Indizes. Framework, MRTS, Gitlinks, Runtime-Product-Code, Scanner-Konfiguration, Quality Gates, Suppressions, Exclusions, Issue-Status und Default-Branch bleiben unverändert. |
 
