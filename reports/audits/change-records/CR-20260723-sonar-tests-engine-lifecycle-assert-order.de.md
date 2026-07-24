@@ -76,7 +76,7 @@ unberührten Hash-Assertions ausgeschlossen bleiben, damit der Umfang nicht
 | `tests.test_bilingual_docs` | bestanden: 11 Tests. |
 | Repository-Bilingual-Dokumentations- und Link-Checks | `blocked_environment`: ausschließlich die 20 bereits bestehenden fehlenden Framework-Gitlink-Ziele wurden gemeldet; keine Diagnose nannte einen geänderten Change Record. |
 | AST-Syntax-Parse, `git diff --check` und Bytecode-Artefakt-Scan | bestanden: Source wurde geparst, keine Whitespace-Diagnose und kein `*.pyc`-Artefakt im Worktree. |
-| Exact-Head-Hosted-Checks | bis zur Draft-PR-Erstellung ausstehend; spätere Evidence darf nicht abgeleitet werden. |
+| Exact-Head-Hosted-Checks | ausstehend: Der bestehende Draft PR #109 muss nach seiner normalen Branch-Aktualisierung sämtliche Evidence erneut ausführen; spätere Ergebnisse müssen diesem exakten Head zugeordnet sein. |
 
 ## Security-Auswirkung
 
@@ -119,15 +119,35 @@ müssen noch auf dem exakten Draft-PR-Head laufen.
   Testmodul ist die enge Regression-Kontrolle.
 - Kein Framework- oder MRTS-Test und keine -Änderung: Beide sind aus diesem
   Parent-only-Task ausgeschlossen.
-- Keine exakte-PR-Head-GitHub-Actions-, CodeQL-, Sonar-Quality-Gate-, PR-Issue-
-  Query- oder Review-Thread-Prüfung existiert vor der Draft-PR-Erstellung.
+- Noch keine exakte-Post-Update-Head-GitHub-Actions-, CodeQL-, Sonar-Quality-
+  Gate-, PR-Issue-Query- oder Review-Thread-Prüfung; der bestehende Draft PR
+  muss nach der normalen Branch-Aktualisierung erneut ausgewertet werden.
+
+## Aktuelle normale Aktualisierung und Delivery-Status
+
+Der bestehende Draft PR #109 wurde ohne Rebase durch den normalen Merge-Commit
+`62eae66` aktualisiert, der Parent-`master`
+`700e62e5c2287e10f8774757ffff7432753900c0` in seinen Branch übernommen hat.
+Nur die beiden gemeinsamen Change-Record-Indizes hatten Konflikte; ihre
+Auflösung bewahrt alle aktuellen `master`-Einträge sowie diesen Record.
+
+Unter der aktuellen Parent-only-Autorisierung darf dieser normale Merge den
+bereits in der `master`-Historie vorhandenen Framework-Gitlink erben. Der
+finale PR-Diff darf und verändert keinen Gitlink. Es gab keinen Framework- oder
+MRTS-Checkout, keine Änderung, keinen Test, keine Delivery und keinen Merge.
+
+Die frische Validierung des dokumentationstragenden Post-Update-Heads sowie
+anschließend exakte-Head-Hosted-Checks, SonarQube-Cloud-Evidence, Issue- und
+Hotspot-Review und PR-Review-/Conversation-Checks stehen noch aus. Dieser
+Record beansprucht weder eine Ready-Transition noch einen Merge.
 
 ## Finaler Diff- und Review-Status
 
-Der geprüfte lokale Batch wurde als
-`a315a79ab485b1834939c4b9f90b53981151ff67` committed; normaler Push,
-Draft-PR-Erstellung und externe Check-/Review-Evidence stehen weiter aus. Die
-lokale Source-/Test-/Dokumentations-Validierung ist vollständig; der finale
-Draft PR darf nur beobachtete Hosted-Ergebnisse angeben. Es werden weder Merge,
-Default-Branch-Update, Framework-/MRTS-Änderung, Suppression noch Alert-Closure
-beansprucht oder autorisiert.
+Der geprüfte lokale Batch entstand bei
+`a315a79ab485b1834939c4b9f90b53981151ff67` und wird nun durch den bestehenden
+aktualisierten Draft PR #109 dargestellt. Der finale Diff enthält weiterhin
+nur das ausgewählte Parent-Testmodul, dieses englische/deutsche Change-Record-
+Paar und die beiden Indizes. Seine Delivery-Evidence bleibt unvollständig, bis
+der exakte aktualisierte Head die erforderlichen lokalen und Hosted-Kontrollen
+bestanden hat. Es werden weder Merge, Default-Branch-Update, Framework-/MRTS-
+Änderung, Suppression noch Alert-Closure beansprucht oder autorisiert.

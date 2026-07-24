@@ -73,7 +73,7 @@ scanner's current scope.
 | `tests.test_bilingual_docs` | passed: 11 tests. |
 | Repository bilingual-documentation and link checks | `blocked_environment`: only the 20 pre-existing missing Framework-gitlink targets were reported; no changed Change Record diagnostic appeared. |
 | AST syntax parse, `git diff --check`, and bytecode-artifact scan | passed: source parsed, no whitespace diagnostics, and no `*.pyc` artifact exists in the worktree. |
-| Exact-head hosted checks | pending until a Draft PR exists; later evidence must not be inferred. |
+| Exact-head hosted checks | pending: the existing Draft PR #109 must rerun all evidence after its normal branch update; later results must be tied to that exact head. |
 
 ## Security impact
 
@@ -112,14 +112,35 @@ Hosted Sonar analysis and CI still need to run against the exact Draft PR head.
   regression control.
 - No Framework or MRTS test or modification: both are excluded from this
   Parent-only task.
-- No exact-PR-head GitHub Actions, CodeQL, Sonar Quality Gate, PR issue query,
-  or review-thread check exists before the Draft PR is created.
+- No exact-post-update-head GitHub Actions, CodeQL, Sonar Quality Gate, PR
+  issue query, or review-thread check exists yet; the existing Draft PR must
+  be evaluated again after the normal branch update.
+
+## Current normal update and delivery status
+
+The existing Draft PR #109 was refreshed without a rebase by normal merge
+commit `62eae66`, which merged Parent `master`
+`700e62e5c2287e10f8774757ffff7432753900c0` into its branch. Only the two
+shared Change Record indexes conflicted; their resolution retains all current
+`master` entries and this record.
+
+Under the current Parent-only authorization, that normal merge may inherit the
+Framework gitlink already present in `master` history. The final PR diff must
+not, and does not, modify a gitlink. No Framework or MRTS checkout,
+modification, test, delivery, or merge occurred.
+
+Fresh validation of the documentation-bearing post-update head, followed by
+exact-head hosted checks, SonarQube Cloud evidence, issue/hotspot review, and
+PR review/conversation checks remains pending. No readiness transition or
+merge is claimed by this record.
 
 ## Final diff and review status
 
-The reviewed local batch was committed as
-`a315a79ab485b1834939c4b9f90b53981151ff67`; normal push, Draft-PR creation,
-and external check/review evidence remain pending. Local source/test/
-documentation validation is complete; the final Draft PR must state only
-observed hosted results. No merge, default-branch update, Framework/MRTS change,
-suppression, or alert closure is claimed or authorized.
+The reviewed local batch originated at
+`a315a79ab485b1834939c4b9f90b53981151ff67` and is now represented by the
+existing updated Draft PR #109. The final diff still has only the selected
+Parent test module, this English/German Change Record pair, and their two
+indexes. Its delivery evidence remains incomplete until the exact updated head
+has passed the required local and hosted controls. No merge, default-branch
+update, Framework/MRTS change, suppression, or alert closure is claimed or
+authorized.
