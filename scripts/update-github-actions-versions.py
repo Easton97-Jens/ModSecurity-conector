@@ -17,13 +17,6 @@ from pathlib import Path
 from typing import Iterable
 
 
-USES_RE = re.compile(
-    r"^(?P<prefix>\s*(?:-\s*)?uses:\s*)"
-    r"(?P<quote>[\"']?)"
-    r"(?P<value>[^\"'\s#]+)"
-    r"(?P=quote)"
-    r"(?P<suffix>.*)$"
-)
 USES_PREFIX_RE = re.compile(r"^\s*(?:-\s*)?uses:\s*(?P<rest>.+)$")
 SEMVER_RE = re.compile(r"^v(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?$")
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40,64}$")
@@ -31,6 +24,8 @@ SHA_RE = re.compile(r"^[0-9a-fA-F]{40,64}$")
 MODULE_PATH = Path("modules/ModSecurity-test-Framework")
 REPORT_DEFAULT = "actions-update-report.md"
 WORKFLOW_GLOBS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
+QUOTE_CHARACTERS = frozenset({"'", '"'})
+SKIPPED_DYNAMIC = "Skipped dynamic"
 
 
 class RateLimitError(RuntimeError):
@@ -147,28 +142,48 @@ def split_action_ref(value: str) -> tuple[str, str] | None:
     return action, ref
 
 
+def _parse_uses_value(rest: str) -> tuple[str, str, str] | None:
+    """Return quote, action value, and trailing suffix without backtracking."""
+    quote = rest[0] if rest[0] in QUOTE_CHARACTERS else ""
+    value_start = len(quote)
+    value_end = value_start
+    while value_end < len(rest):
+        character = rest[value_end]
+        if character.isspace() or character == "#" or character in QUOTE_CHARACTERS:
+            break
+        value_end += 1
+    if value_end == value_start:
+        return None
+    if not quote:
+        return quote, rest[:value_end], rest[value_end:]
+    if value_end == len(rest) or rest[value_end] != quote:
+        return None
+    return quote, rest[value_start:value_end], rest[value_end + 1 :]
+
+
 def parse_uses_line(path: Path, line_number: int, line: str) -> UsesLine | None:
     newline = ""
     body = line
     if body.endswith("\n"):
         newline = "\n"
         body = body[:-1]
-    match = USES_RE.match(body)
-    if match:
-        return UsesLine(
-            path=path,
-            line_number=line_number,
-            prefix=match.group("prefix"),
-            quote=match.group("quote"),
-            value=match.group("value"),
-            suffix=match.group("suffix"),
-            newline=newline,
-        )
     loose = USES_PREFIX_RE.match(body)
     if not loose:
         return None
+    parsed_value = _parse_uses_value(loose.group("rest"))
+    if parsed_value is not None:
+        quote, value, suffix = parsed_value
+        return UsesLine(
+            path=path,
+            line_number=line_number,
+            prefix=body[: loose.start("rest")],
+            quote=quote,
+            value=value,
+            suffix=suffix,
+            newline=newline,
+        )
     rest = loose.group("rest").split("#", 1)[0].strip()
-    if len(rest) >= 2 and rest[0] == rest[-1] and rest[0] in {"'", '"'}:
+    if len(rest) >= 2 and rest[0] == rest[-1] and rest[0] in QUOTE_CHARACTERS:
         rest = rest[1:-1]
     if not is_dynamic_uses(rest):
         return None
@@ -369,6 +384,138 @@ def replacement_line(uses_line: UsesLine, new_ref: str) -> str:
     return f"{uses_line.replacement_prefix}{action}@{new_ref}{uses_line.replacement_suffix}"
 
 
+def _report_row_for_uses(
+    root: Path,
+    uses_line: UsesLine,
+    status: str,
+    action: str | None = None,
+    current_ref: str = "",
+    new_ref: str = "",
+    note: str = "",
+) -> ReportRow:
+    return ReportRow(
+        status=status,
+        path=uses_line.path.resolve().relative_to(root.resolve()),
+        line=uses_line.line_number,
+        action=uses_line.value if action is None else action,
+        current_ref=current_ref,
+        new_ref=new_ref,
+        repository=path_repository(root, uses_line.path),
+        note=note,
+    )
+
+
+def _skip_uses_reason(value: str) -> tuple[str, str] | None:
+    if is_dynamic_uses(value):
+        return SKIPPED_DYNAMIC, "uses contains a GitHub expression"
+    if is_local_uses(value):
+        return "Skipped local", "local action path"
+    if is_docker_uses(value):
+        return "Skipped docker", "Docker action reference"
+    return None
+
+
+def _resolve_action_update(
+    root: Path,
+    uses_line: UsesLine,
+    resolver: GitHubActionResolver,
+    action: str,
+    current_ref: str,
+    module_is_submodule: bool,
+    write: bool,
+    allow_submodule_write: bool,
+) -> tuple[ReportRow, str | None]:
+    current_semver = parse_semver_ref(current_ref)
+    if current_semver is None:
+        return _report_row_for_uses(
+            root,
+            uses_line,
+            "Unknown",
+            action,
+            current_ref,
+            note="current ref is not a supported semver tag",
+        ), None
+
+    try:
+        candidate_refs, source = resolver.get_semver_refs(action)
+    except RateLimitError as error:
+        return _report_row_for_uses(root, uses_line, "Error", action, current_ref, note=str(error)), None
+    except ActionLookupError as error:
+        return _report_row_for_uses(root, uses_line, "Error", action, current_ref, note=str(error)), None
+
+    latest_ref = select_latest_ref(current_ref, candidate_refs)
+    if latest_ref is None:
+        return _report_row_for_uses(
+            root,
+            uses_line,
+            "Unknown",
+            action,
+            current_ref,
+            note=f"no semver refs found from {source}",
+        ), None
+
+    latest_semver = parse_semver_ref(latest_ref)
+    if latest_semver is None:
+        return _report_row_for_uses(
+            root,
+            uses_line,
+            "Unknown",
+            action,
+            current_ref,
+            note=f"latest ref is not semver: {latest_ref}",
+        ), None
+
+    current_key = (current_semver.major, current_semver.minor, current_semver.patch)
+    latest_key = (latest_semver.major, latest_semver.minor, latest_semver.patch)
+    if latest_key <= current_key:
+        if current_ref not in set(candidate_refs):
+            return _report_row_for_uses(
+                root,
+                uses_line,
+                "Unknown",
+                action,
+                current_ref,
+                latest_ref,
+                f"current ref was not found in {source}; not downgrading",
+            ), None
+        return _report_row_for_uses(
+            root,
+            uses_line,
+            "OK",
+            action,
+            current_ref,
+            latest_ref,
+            f"latest from {source}",
+        ), None
+
+    is_protected_module_write = (
+        write
+        and path_repository(root, uses_line.path) == "module"
+        and module_is_submodule
+        and not allow_submodule_write
+    )
+    if is_protected_module_write:
+        return _report_row_for_uses(
+            root,
+            uses_line,
+            "Skipped submodule write",
+            action,
+            current_ref,
+            latest_ref,
+            "module is a submodule; set SUBMODULE_UPDATE_TOKEN to write module updates",
+        ), None
+
+    return _report_row_for_uses(
+        root,
+        uses_line,
+        "Updated",
+        action,
+        current_ref,
+        latest_ref,
+        f"latest from {source}",
+    ), latest_ref
+
+
 def analyze_uses(
     root: Path,
     uses_line: UsesLine,
@@ -377,71 +524,82 @@ def analyze_uses(
     write: bool,
     allow_submodule_write: bool,
 ) -> tuple[ReportRow, str | None]:
-    repository = path_repository(root, uses_line.path)
-    rel_path = uses_line.path.resolve().relative_to(root.resolve())
     value = uses_line.value
 
-    def row(status: str, action: str = value, current: str = "", new: str = "", note: str = "") -> ReportRow:
-        return ReportRow(status, rel_path, uses_line.line_number, action, current, new, repository, note)
-
-    if is_dynamic_uses(value):
-        return row("Skipped dynamic", note="uses contains a GitHub expression"), None
-    if is_local_uses(value):
-        return row("Skipped local", note="local action path"), None
-    if is_docker_uses(value):
-        return row("Skipped docker", note="Docker action reference"), None
+    skipped = _skip_uses_reason(value)
+    if skipped is not None:
+        status, note = skipped
+        return _report_row_for_uses(root, uses_line, status, note=note), None
 
     action_ref = split_action_ref(value)
     if action_ref is None:
-        return row("Unknown", note="uses entry has no @ref"), None
+        return _report_row_for_uses(root, uses_line, "Unknown", note="uses entry has no @ref"), None
     action, current_ref = action_ref
     if is_dynamic_uses(action) or is_dynamic_uses(current_ref):
-        return row("Skipped dynamic", action, current_ref, note="uses contains a GitHub expression"), None
-    if is_sha_ref(current_ref):
-        return row("Pinned SHA", action, current_ref, note="SHA-pinned action is not updated automatically"), None
-
-    current_semver = parse_semver_ref(current_ref)
-    if current_semver is None:
-        return row("Unknown", action, current_ref, note="current ref is not a supported semver tag"), None
-
-    try:
-        candidate_refs, source = resolver.get_semver_refs(action)
-    except RateLimitError as error:
-        return row("Error", action, current_ref, note=str(error)), None
-    except ActionLookupError as error:
-        return row("Error", action, current_ref, note=str(error)), None
-
-    latest_ref = select_latest_ref(current_ref, candidate_refs)
-    if latest_ref is None:
-        return row("Unknown", action, current_ref, note=f"no semver refs found from {source}"), None
-
-    latest_semver = parse_semver_ref(latest_ref)
-    if latest_semver is None:
-        return row("Unknown", action, current_ref, note=f"latest ref is not semver: {latest_ref}"), None
-
-    current_key = (current_semver.major, current_semver.minor, current_semver.patch)
-    latest_key = (latest_semver.major, latest_semver.minor, latest_semver.patch)
-    if latest_key <= current_key:
-        if current_ref not in set(candidate_refs):
-            return row(
-                "Unknown",
-                action,
-                current_ref,
-                latest_ref,
-                f"current ref was not found in {source}; not downgrading",
-            ), None
-        return row("OK", action, current_ref, latest_ref, f"latest from {source}"), None
-
-    if write and repository == "module" and module_is_submodule and not allow_submodule_write:
-        return row(
-            "Skipped submodule write",
+        return _report_row_for_uses(
+            root,
+            uses_line,
+            SKIPPED_DYNAMIC,
             action,
             current_ref,
-            latest_ref,
-            "module is a submodule; set SUBMODULE_UPDATE_TOKEN to write module updates",
+            note="uses contains a GitHub expression",
         ), None
+    if is_sha_ref(current_ref):
+        return _report_row_for_uses(
+            root,
+            uses_line,
+            "Pinned SHA",
+            action,
+            current_ref,
+            note="SHA-pinned action is not updated automatically",
+        ), None
+    return _resolve_action_update(
+        root,
+        uses_line,
+        resolver,
+        action,
+        current_ref,
+        module_is_submodule,
+        write,
+        allow_submodule_write,
+    )
 
-    return row("Updated", action, current_ref, latest_ref, f"latest from {source}"), latest_ref
+
+def _scan_workflow_file(
+    root: Path,
+    path: Path,
+    resolver: GitHubActionResolver,
+    module_is_submodule: bool,
+    write: bool,
+    allow_submodule_write: bool,
+) -> tuple[list[ReportRow], dict[int, str]]:
+    rows: list[ReportRow] = []
+    replacements: dict[int, str] = {}
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    for index, line in enumerate(lines, start=1):
+        uses_line = parse_uses_line(path, index, line)
+        if uses_line is None:
+            continue
+        row, new_ref = analyze_uses(
+            root=root,
+            uses_line=uses_line,
+            resolver=resolver,
+            module_is_submodule=module_is_submodule,
+            write=write,
+            allow_submodule_write=allow_submodule_write,
+        )
+        rows.append(row)
+        if new_ref and row.status == "Updated":
+            replacements[index] = replacement_line(uses_line, new_ref)
+    return rows, replacements
+
+
+def _apply_workflow_replacements(replacements: dict[Path, dict[int, str]]) -> None:
+    for path, line_replacements in replacements.items():
+        lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+        for line_number, new_line in line_replacements.items():
+            lines[line_number - 1] = new_line
+        path.write_text("".join(lines), encoding="utf-8")
 
 
 def scan_workflows(
@@ -456,29 +614,20 @@ def scan_workflows(
     module_submodule = is_module_submodule(root)
 
     for path in workflow_files(root):
-        lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-        for index, line in enumerate(lines, start=1):
-            uses_line = parse_uses_line(path, index, line)
-            if uses_line is None:
-                continue
-            row, new_ref = analyze_uses(
-                root=root,
-                uses_line=uses_line,
-                resolver=resolver,
-                module_is_submodule=module_submodule,
-                write=write,
-                allow_submodule_write=allow_submodule_write,
-            )
-            rows.append(row)
-            if new_ref and row.status == "Updated":
-                replacements.setdefault(path, {})[index] = replacement_line(uses_line, new_ref)
+        file_rows, file_replacements = _scan_workflow_file(
+            root,
+            path,
+            resolver,
+            module_submodule,
+            write,
+            allow_submodule_write,
+        )
+        rows.extend(file_rows)
+        if file_replacements:
+            replacements[path] = file_replacements
 
     if write and not resolver.rate_limited:
-        for path, line_replacements in replacements.items():
-            lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-            for line_number, new_line in line_replacements.items():
-                lines[line_number - 1] = new_line
-            path.write_text("".join(lines), encoding="utf-8")
+        _apply_workflow_replacements(replacements)
 
     return rows, module_submodule
 
@@ -494,7 +643,7 @@ def render_report(rows: list[ReportRow], module_submodule: bool) -> str:
         "Pinned SHA",
         "Skipped local",
         "Skipped docker",
-        "Skipped dynamic",
+        SKIPPED_DYNAMIC,
         "Skipped submodule write",
         "Unknown",
         "Error",
