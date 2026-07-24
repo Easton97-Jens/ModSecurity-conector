@@ -81,7 +81,7 @@ Fokussierte Kommandos nutzen Parent-.venv-Python,
 | tests.test_bilingual_docs und direkter Change-Record-/Index-Paritätscheck | bestanden: 11 Tests; beide Change Records haben 13 Level-two-Abschnitte sowie passende ID-, Basis-Revision-, Key- und Affected-Path-Literale. |
 | make check-bilingual-docs | blocked_environment: Genau 20 vorhandene fehlende Framework-Gitlink-Linkziele; kein neuer Change-Record-Fehler. |
 | make check-doc-links | blocked_environment: Genau 16 vorhandene fehlende Framework-Gitlink-Linkziele; es wurde kein Framework-Quellcode, Gitlink oder generiertes Artefakt geändert. |
-| Hosted-Delivery-Checks | nicht ausgeführt nach Initial-Commit `bfb73bb`; sie sind auf dem finalen Draft-PR-Head erforderlich und werden nicht vorab behauptet. |
+| Hosted-Delivery-Checks | ausstehend: Draft PR [#114](https://github.com/Easton97-Jens/ModSecurity-conector/pull/114) wurde offen und `isDraft: true` vom initialen Remote-Head `f3497e7e50448cde85a883e2d71e88dbccb65556` erstellt. Dieses Delivery-Observation-Update erzeugt einen neuen finalen Head; Checks, Quality Gate, PR-Issues und Review-Status müssen danach frisch beobachtet werden und werden nicht vorab behauptet. |
 
 ## Runtime-Evidence
 
@@ -100,9 +100,10 @@ Runtime-Evidenz.
   und keines der beiden Executables existiert in der ausgewählten Parent
   `.venv`; für diese Diagnostik-Reihenfolgenkorrektur werden weder Tool
   installiert noch Konfiguration geändert.
-- Draft-PR-Checks, SonarQube-Cloud-Quality-Gate, PR-Issue-Abfrage und
-  Review-Status stehen nach dem Initial-Commit weiterhin aus und sind vor
-  `verified_pr` erforderlich.
+- Draft PR #114 existiert, aber sein finaler Dokument-Update-Head benötigt vor
+  `verified_pr` eine frische Beobachtung von GitHub-Checks,
+  SonarQube-Cloud-Quality-Gate, PR-Issues und Review-Status; kein Ergebnis
+  eines vorherigen Heads wird als final behandelt.
 
 ## Bekannte Einschränkungen
 
@@ -122,10 +123,14 @@ abgeleitet.
 ## Finaler Diff- und Review-Status
 
 Die Source-Korrektur und das anfängliche englisch/deutsche Traceability-
-Material liegen im atomaren Commit `bfb73bb` auf Task-Branch
-`codex/sonar-tests-nginx-intervention-url-assertions-20260724-master-5b8db00`
-dessen Parent `5b8db00d44ab24f3a9f4216a00f7edee977b6898` ist. Der Branch ist
-bei dieser Dokumentrevision noch nicht gepusht oder einem Pull Request
-zugeordnet. Es gab keinen Merge, kein Default-Branch-Update, keine Framework-
-Action, keine MRTS-Action, keine Scanner-Control-Änderung und keine
-Suppression. Finale Delivery-Fakten werden erst nach ihrer Beobachtung ergänzt.
+Material liegen im atomaren Commit `bfb73bb`, gefolgt vom Traceability-Commit
+der beobachteten lokalen Delivery `f3497e7`, auf Task-Branch
+`codex/sonar-tests-nginx-intervention-url-assertions-20260724-master-5b8db00`,
+dessen initialer Parent `5b8db00d44ab24f3a9f4216a00f7edee977b6898` ist. Der
+Branch wurde normal gepusht und als Draft PR #114 auf initial beobachtetem Head
+`f3497e7e50448cde85a883e2d71e88dbccb65556` eröffnet; er ist offen und
+ungemergt. Dieser Dokument-Update-Commit erfordert bewusst einen frischen
+Exact-Head-Hosted-Verifikationszyklus. Es gab keinen Merge, kein
+Default-Branch-Update, keine Framework-Action, keine MRTS-Action, keine
+Scanner-Control-Änderung und keine Suppression. Finale Delivery-Fakten werden
+erst nach ihrer Beobachtung ergänzt.

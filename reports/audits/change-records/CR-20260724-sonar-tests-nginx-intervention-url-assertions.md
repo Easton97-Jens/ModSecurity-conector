@@ -80,7 +80,7 @@ Focused commands use the Parent `.venv` Python, `PYTHONDONTWRITEBYTECODE=1`,
 | tests.test_bilingual_docs and direct Change Record/index parity | passed: 11 tests; both Change Records have 13 level-two sections and matching ID, base revision, keys, and affected path literal. |
 | make check-bilingual-docs | blocked_environment: exactly 20 existing missing Framework-gitlink link targets; no new Change Record error. |
 | make check-doc-links | blocked_environment: exactly 16 existing missing Framework-gitlink link targets; no Framework source, gitlink, or generated artifact changed. |
-| Hosted-delivery checks | not run after initial commit `bfb73bb`; required on the final Draft-PR head and not claimed in advance. |
+| Hosted-delivery checks | pending: Draft PR [#114](https://github.com/Easton97-Jens/ModSecurity-conector/pull/114) was created open and `isDraft: true` from initial remote head `f3497e7e50448cde85a883e2d71e88dbccb65556`. This delivery-observation update creates a new final head, so checks, Quality Gate, PR issues, and review state must be freshly observed afterwards and are not claimed in advance. |
 
 ## Runtime evidence
 
@@ -96,9 +96,9 @@ literals; it is neither host-traffic nor production-runtime evidence.
 - Ruff and Pyright are not applicable: no Parent configuration is present and
   neither executable exists in the selected Parent `.venv`; no installation or
   configuration change is made for this diagnostic-order correction.
-- Draft-PR checks, SonarQube Cloud Quality Gate, PR issue query, and review
-  state remain unavailable after the initial commit and are required before
-  `verified_pr`.
+- Draft PR #114 exists, but its final document-update head must receive fresh
+  GitHub checks, SonarQube Cloud Quality Gate, PR issue, and review-state
+  observation before `verified_pr`; no prior-head result is treated as final.
 
 ## Known limitations
 
@@ -116,10 +116,13 @@ change.
 ## Final diff and review status
 
 The source correction and initial English/German traceability material are in
-atomic commit `bfb73bb` on task branch
+atomic commit `bfb73bb`, followed by the observed-local-delivery traceability
+commit `f3497e7`, on task branch
 `codex/sonar-tests-nginx-intervention-url-assertions-20260724-master-5b8db00`,
-whose parent is `5b8db00d44ab24f3a9f4216a00f7edee977b6898`. The branch has
-not yet been pushed or associated with a pull request at this document
-revision. No merge, default-branch update, Framework action, MRTS action,
-scanner-control change, or suppression occurred. Final delivery facts are
-added only after they are observed.
+whose initial parent is `5b8db00d44ab24f3a9f4216a00f7edee977b6898`. The
+branch was pushed normally and opened as Draft PR #114 at initial observed
+head `f3497e7e50448cde85a883e2d71e88dbccb65556`; it is open and unmerged. This
+document-update commit intentionally requires a fresh exact-head hosted
+verification cycle. No merge, default-branch update, Framework action, MRTS
+action, scanner-control change, or suppression occurred. Final delivery facts
+are added only after they are observed.
