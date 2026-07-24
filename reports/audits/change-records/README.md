@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent runtime-producer-readiness assertion order for SonarQube Cloud S3415](CR-20260723-sonar-tests-runtime-producer-readiness-assert-order.md)
 - [CI connector-profile literal deduplication for SonarQube Cloud](CR-20260723-sonar-ci-connector-profile-literals.md)
 - [Optional-prerequisite assertion diagnostic order for SonarQube Cloud](CR-20260723-sonar-tests-optional-prerequisite-assert-order.md)
 - [Parent Python-version assertion order for SonarQube Cloud S3415](CR-20260723-sonar-tests-python-version-assert-order.md)

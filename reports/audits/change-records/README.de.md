@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Runtime-Producer-Readiness-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260723-sonar-tests-runtime-producer-readiness-assert-order.de.md)
 - [CI-Connector-Profil-Literal-Deduplizierung für SonarQube Cloud](CR-20260723-sonar-ci-connector-profile-literals.de.md)
 - [Optional-Prerequisite-Assert-Diagnostikreihenfolge für SonarQube Cloud](CR-20260723-sonar-tests-optional-prerequisite-assert-order.de.md)
 - [Parent-Python-Version-Assert-Reihenfolge für SonarQube Cloud S3415](CR-20260723-sonar-tests-python-version-assert-order.de.md)
