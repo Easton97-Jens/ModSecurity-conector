@@ -81,7 +81,7 @@ Fokussierte Kommandos nutzen Parent-.venv-Python,
 | tests.test_bilingual_docs und direkter Change-Record-/Index-Paritätscheck | bestanden: 11 Tests; beide Change Records haben 13 Level-two-Abschnitte sowie passende ID-, Basis-Revision-, Key- und Affected-Path-Literale. |
 | make check-bilingual-docs | blocked_environment: Genau 20 vorhandene fehlende Framework-Gitlink-Linkziele; kein neuer Change-Record-Fehler. |
 | make check-doc-links | blocked_environment: Genau 16 vorhandene fehlende Framework-Gitlink-Linkziele; es wurde kein Framework-Quellcode, Gitlink oder generiertes Artefakt geändert. |
-| Hosted-Delivery-Checks | nicht ausgeführt; sie sind auf dem finalen Draft-PR-Head erforderlich und werden nicht vorab behauptet. |
+| Hosted-Delivery-Checks | nicht ausgeführt nach Initial-Commit `bfb73bb`; sie sind auf dem finalen Draft-PR-Head erforderlich und werden nicht vorab behauptet. |
 
 ## Runtime-Evidence
 
@@ -101,8 +101,8 @@ Runtime-Evidenz.
   `.venv`; für diese Diagnostik-Reihenfolgenkorrektur werden weder Tool
   installiert noch Konfiguration geändert.
 - Draft-PR-Checks, SonarQube-Cloud-Quality-Gate, PR-Issue-Abfrage und
-  Review-Status sind vor Delivery nicht verfügbar und vor `verified_pr`
-  erforderlich.
+  Review-Status stehen nach dem Initial-Commit weiterhin aus und sind vor
+  `verified_pr` erforderlich.
 
 ## Bekannte Einschränkungen
 
@@ -121,11 +121,11 @@ abgeleitet.
 
 ## Finaler Diff- und Review-Status
 
-Bei dieser Dokumentrevision sind Source-Korrektur und anfängliches
-englisch/deutsches Traceability-Material auf Task-Branch
+Die Source-Korrektur und das anfängliche englisch/deutsche Traceability-
+Material liegen im atomaren Commit `bfb73bb` auf Task-Branch
 `codex/sonar-tests-nginx-intervention-url-assertions-20260724-master-5b8db00`
-lokal validiert, deren exakte Basis
-`5b8db00d44ab24f3a9f4216a00f7edee977b6898` ist. Es gab keinen Commit, Push,
-Pull Request, Merge, Default-Branch-Update, Framework-Action, MRTS-Action,
-Scanner-Control-Änderung oder Suppression. Delivery-Fakten werden erst nach
-ihrer Beobachtung ergänzt.
+dessen Parent `5b8db00d44ab24f3a9f4216a00f7edee977b6898` ist. Der Branch ist
+bei dieser Dokumentrevision noch nicht gepusht oder einem Pull Request
+zugeordnet. Es gab keinen Merge, kein Default-Branch-Update, keine Framework-
+Action, keine MRTS-Action, keine Scanner-Control-Änderung und keine
+Suppression. Finale Delivery-Fakten werden erst nach ihrer Beobachtung ergänzt.

@@ -80,7 +80,7 @@ Focused commands use the Parent `.venv` Python, `PYTHONDONTWRITEBYTECODE=1`,
 | tests.test_bilingual_docs and direct Change Record/index parity | passed: 11 tests; both Change Records have 13 level-two sections and matching ID, base revision, keys, and affected path literal. |
 | make check-bilingual-docs | blocked_environment: exactly 20 existing missing Framework-gitlink link targets; no new Change Record error. |
 | make check-doc-links | blocked_environment: exactly 16 existing missing Framework-gitlink link targets; no Framework source, gitlink, or generated artifact changed. |
-| Hosted-delivery checks | not run; required on the final Draft-PR head and not claimed in advance. |
+| Hosted-delivery checks | not run after initial commit `bfb73bb`; required on the final Draft-PR head and not claimed in advance. |
 
 ## Runtime evidence
 
@@ -97,7 +97,8 @@ literals; it is neither host-traffic nor production-runtime evidence.
   neither executable exists in the selected Parent `.venv`; no installation or
   configuration change is made for this diagnostic-order correction.
 - Draft-PR checks, SonarQube Cloud Quality Gate, PR issue query, and review
-  state are unavailable before delivery and are required before `verified_pr`.
+  state remain unavailable after the initial commit and are required before
+  `verified_pr`.
 
 ## Known limitations
 
@@ -114,10 +115,11 @@ change.
 
 ## Final diff and review status
 
-At this document revision, source correction and initial English/German
-traceability are locally validated on task branch
+The source correction and initial English/German traceability material are in
+atomic commit `bfb73bb` on task branch
 `codex/sonar-tests-nginx-intervention-url-assertions-20260724-master-5b8db00`,
-whose exact base is `5b8db00d44ab24f3a9f4216a00f7edee977b6898`. No commit,
-push, pull request, merge, default-branch update, Framework action, MRTS
-action, scanner-control change, or suppression has occurred. Delivery facts
-are added only after they are observed.
+whose parent is `5b8db00d44ab24f3a9f4216a00f7edee977b6898`. The branch has
+not yet been pushed or associated with a pull request at this document
+revision. No merge, default-branch update, Framework action, MRTS action,
+scanner-control change, or suppression occurred. Final delivery facts are
+added only after they are observed.
