@@ -185,6 +185,18 @@ Konfiguration. Es erfordert eine zulässige Anfrage zur Rückgabe von 200 und
 `X-Modsec-Smoke: block`, um 403 über die Common Runtime zurückzugeben. Lokal fehlt
 Binärdateien geben Exit 77 zurück; Konfigurations-, Start-, Zuordnungs- oder Statusfehler geben FAIL zurück.
 
+Für eine direkte `runtime-smoke`-Ausführung sind `BUILD_ROOT` und
+`CONNECTOR_COMPONENT_CACHE` verpflichtend ausgewählte Runtime-Wurzeln. Jede
+muss ein vorhandenes absolutes Verzeichnis außerhalb des Checkouts sein, dem
+aufrufenden Benutzer gehören, symlinkfrei und nicht gruppen- oder
+weltbeschreibbar sein; die ausgewählten Connector- und Traefik-Binärdateien
+müssen reguläre ausführbare Dateien sein, die unter ihren jeweiligen Wurzeln
+enthalten sind und keinen gruppen- oder weltbeschreibbaren Vorfahren haben,
+über den sie ersetzt werden könnten. Der kanonische Lifecycle-Runner stellt
+diese Werte bereit. Der Helper hat bewusst keinen gemeinsamen `/tmp`- oder
+`/var/tmp`-Fallback; ein unsicherer oder fehlender Wert liefert `BLOCKED` /
+Exit 77, bevor eine Binärdatei startet.
+
 ## Globaler Vertrag
 
 Siehe den kanonischen [Connector-Vertrag](../../docs/connectors/README.de.md)
