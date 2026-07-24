@@ -32,6 +32,7 @@ case "$BUILD_ROOT_RESOLVED" in
         echo "common_http_headers_fuzz: BUILD_ROOT must not be inside the checkout: $BUILD_ROOT"
         exit 77
         ;;
+    *) ;;
 esac
 
 CLANG_BIN=$(command -v clang 2>/dev/null || true)
