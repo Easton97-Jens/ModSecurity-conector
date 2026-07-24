@@ -48,18 +48,29 @@ this delta.
 
 ## Validation and delivery status
 
-Before and after the edit, `make check-apache-intervention-cleanup` completed
-all five test cases successfully on the isolated current-master worktree. An
-AST operand-order inspection also confirmed that only the two selected calls
-now supply actual then expected values. The targeted bilingual-documentation
-test and scoped diff check passed. The full documentation commands are blocked
-only by pre-existing missing Framework-gitlink targets and emitted no task
-Change Record error. Exact Draft-PR-head verification remains required before
-this record can claim a verified delivery result.
+The current Parent-only integration branch was checked after its normal,
+non-rewriting update from current Parent master. The focused module completed
+five tests successfully, and an AST inspection confirmed that exactly the two
+selected `assertEqual` calls place the observed expression before the fixed
+expected value.
 
-The intended delivery is a separate unmerged Draft PR. Hosted-check and
-SonarQube Cloud results are not claimed in this record until observed for its
-exact pushed head.
+### Current Parent-master update — 2026-07-24
+
+Existing Draft PR #105 remains the delivery vehicle. Its previous remote head
+`60b8254e45b00ddbac556ff78cd0af3490e26ff2` was normally updated without a
+rebase by merging Parent master
+`053a9ca5b0f9351319c96d359107c53ba8f9d3a1`. The resulting local merge commit
+`709493f9b219db246701a8023ed853e86a3026e7` resolves only the shared English
+and German Change Record indexes. It does not modify Framework or MRTS; it
+only inherits existing master history. The current PR-base diff remains this
+Parent test, this English/German Change Record pair, and those indexes, with
+no Framework, MRTS, gitlink, production-source, scanner, Gate, suppression,
+or security-control change authored by this PR update.
+
+Hosted-check, SonarQube Cloud, Quality Gate, review, readiness, and merge
+results are claimed only through observed exact-head PR delivery metadata.
+This record neither transfers old-head results to the new head nor invents a
+later delivery result.
 
 ## Acceptance criteria
 
@@ -84,14 +95,13 @@ security control, or optional assertion argument changed.
 
 ## Commands executed
 
-- Focused affected-module test before and after the edit: passed (5 tests).
-- AST operand-order validation: passed (2 selected calls).
-- `tests.test_bilingual_docs`: passed (11 tests).
-- `git diff --check`: passed.
-- Full documentation/link checks: blocked only by known missing
-  Framework-gitlink targets; no task Change Record error was emitted.
-- Full Draft-PR-hosted/SonarCloud analysis: pending because no Draft PR exists
-  yet.
+- Current merged-tree focused affected-module test: passed (5 tests).
+- Current merged-tree AST operand-order validation: passed (2 selected calls).
+- Current Parent-master update and conflict resolution: passed; normal,
+  non-rewriting merge `709493f9b219db246701a8023ed853e86a3026e7` resolves only
+  the paired Change Record indexes.
+- Targeted bilingual-documentation test: passed (11 tests).
+- Scoped `git diff --check`: passed.
 
 ## Security impact
 
@@ -125,11 +135,17 @@ required before delivery is verified.
   test diagnostic argument order and the complete affected module passes.
 - No Framework or MRTS test or modification: both are excluded from this
   Parent-only task.
-- Full hosted checks and SonarQube Cloud PR analysis: no Draft PR exists yet.
+- Hosted checks and SonarQube Cloud PR analysis are external delivery evidence:
+  only an observed current exact remote head may satisfy this requirement
+  before protected merge.
 
 ## Final diff and review status
 
-Local implementation and focused validation are complete on the Parent-only
-task branch. Hosted checks, Sonar analysis, and the Quality Gate remain
-pending until the separate unmerged Draft PR is pushed. No review approval,
-merge, or default-branch change is claimed or authorized.
+The existing Parent-only PR #105 is the delivery vehicle. Its task-owned
+branch contains the normal current-master update merge
+`709493f9b219db246701a8023ed853e86a3026e7` and paired delivery-evidence
+documentation. This record claims neither review approval, merge, nor a
+default-branch change. Before protected merge, the PR must be non-draft and
+its current exact remote head must have passing hosted checks and SonarQube
+Cloud analysis plus refreshed review state; those observed facts belong to
+delivery metadata rather than an unobserved claim in this record.
