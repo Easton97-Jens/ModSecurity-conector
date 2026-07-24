@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260723-sonar-tests-optional-prerequisite-assert-order |
 | Date (UTC) | 2026-07-23 |
-| Base revision | a308d7b414f0859490fe7253e0683a4bde80b563 |
+| Base revision | Current integration base 215b503a8d68ee85d93e18888f3710d1974c3169; original source base a308d7b414f0859490fe7253e0683a4bde80b563. |
 | Tracking | FND-SONAR-0020; 77 current python:S3415 findings in tests/test_optional_prerequisite_status.py, from AZ-KYVRgfYmbqbBXVND6 through AZ-KYVRgfYmbqbBXVNFG. |
 | Boundary | Parent test source, this English/German Change Record pair, and their indexes. Framework, MRTS, gitlinks, runtime product code, scanner configuration, Quality Gates, suppressions, exclusions, issue state, and default branch remain unchanged. |
 
@@ -80,11 +80,15 @@ unchanged; no live Apache, Framework, MRTS, or connector runtime is claimed.
 
 ## Validation status
 
-The affected module passed all 20 tests before and after the correction. The
-source mapping proves that each selected Sonar site has only its first two
-operands swapped and any third diagnostic argument preserved. Targeted
-bilingual documentation, final scoped diff, and exact-head delivery evidence
-remain required after this record is included in the Draft-PR candidate.
+The original candidate passed all 20 affected tests before and after the
+correction. On the current integration head, 19 direct Parent-only test cases
+passed. The remaining case deliberately routes `FRAMEWORK_ROOT` at the real
+gitlink and was not executed to preserve the Framework boundary. An AST
+mapping against the current integration base proves that all 77 selected calls,
+including that remaining case, have only their first two operands swapped and
+retain every later diagnostic argument. Targeted bilingual documentation and
+exact-head hosted delivery evidence remain required before protected
+integration.
 
 ## Known limitations and follow-up
 
@@ -102,21 +106,26 @@ checks on the exact unmerged Draft-PR head.
 
 - No Framework or MRTS test or modification: both are outside this Parent-only
   batch.
+- The one direct module case that deliberately routes `FRAMEWORK_ROOT` at the
+  real Framework gitlink was not executed; its changed assertion is covered by
+  the complete 77-site AST mapping instead.
 - No live Apache or full connector runtime: the assertion-order-only change is
-  covered by the complete direct test module.
-- Hosted checks and exact-head SonarQube Cloud analysis: unavailable until the
-  branch is committed, pushed, and opened as an unmerged Draft PR.
+  covered by the direct Parent-only controls and complete static mapping.
+- Exact-head hosted checks and SonarQube Cloud analysis: required after the
+  normal Parent branch update is pushed and before protected integration.
 
 ## Delivery status
 
-The candidate is prepared on an isolated Parent task branch based on the
-recorded master revision. It may be committed, pushed, and opened only as an
-unmerged Draft PR after final local validation. No merge, default-branch
-update, rebase, force-push, or Framework/MRTS change is authorized.
+The candidate has been normally updated on an isolated Parent task branch from
+the recorded current integration base. It may be pushed to its existing Draft
+PR for fresh exact-head validation. A protected squash integration is
+authorized only after the applicable exact-head checks, SonarQube Cloud result,
+review state, and current-base verification pass. Direct default-branch
+updates, rebase, force-push, and Framework/MRTS changes remain prohibited.
 
 ## Final diff and review status
 
-The source-only diff contains 77 operand-pair swaps and no behavioral test
-logic change. Final documentation validation, staged diff review, and fresh
-exact-head delivery evidence are pending; this record makes no premature
-Quality Gate or PR-status claim.
+The final current-base diff contains 77 operand-pair swaps and no behavioral
+test-logic change. Local bilingual documentation validation, diff checks, and
+the final static mapping passed. Fresh exact-head hosted delivery evidence is
+still required; this record makes no premature Quality Gate or PR-status claim.

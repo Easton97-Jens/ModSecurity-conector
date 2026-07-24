@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260723-sonar-tests-optional-prerequisite-assert-order |
 | Datum (UTC) | 2026-07-23 |
-| Basis-Revision | a308d7b414f0859490fe7253e0683a4bde80b563 |
+| Basis-Revision | Aktuelle Integrationsbasis 215b503a8d68ee85d93e18888f3710d1974c3169; ursprüngliche Source-Basis a308d7b414f0859490fe7253e0683a4bde80b563. |
 | Tracking | FND-SONAR-0020; 77 aktuelle python:S3415-Befunde in tests/test_optional_prerequisite_status.py, von AZ-KYVRgfYmbqbBXVND6 bis AZ-KYVRgfYmbqbBXVNFG. |
 | Grenze | Parent-Test-Source, dieses englisch/deutsche Change-Record-Paar und seine Indizes. Framework, MRTS, Gitlinks, Runtime-Product-Code, Scanner-Konfiguration, Quality Gates, Suppressions, Exclusions, Issue-Status und Default-Branch bleiben unverändert. |
 
@@ -85,12 +85,15 @@ Connector-Runtime wird beansprucht.
 
 ## Validierungsstatus
 
-Das betroffene Modul bestand alle 20 Tests vor und nach der Korrektur. Das
-Source-Mapping beweist, dass jeder ausgewählte Sonar-Site nur seine ersten zwei
-Operanden vertauscht und ein drittes Diagnoseargument erhalten bleibt.
-Gezielte bilinguale Dokumentation, finaler Scoped-Diff und Exact-Head-
-Delivery-Evidence bleiben erforderlich, nachdem dieser Record in den Draft-PR-
-Kandidaten aufgenommen ist.
+Der ursprüngliche Kandidat bestand alle 20 betroffenen Tests vor und nach der
+Korrektur. Auf dem aktuellen Integrations-Head bestanden 19 direkte
+Parent-only-Testfälle. Der verbleibende Fall leitet `FRAMEWORK_ROOT` bewusst
+auf den realen Gitlink und wurde zur Wahrung der Framework-Grenze nicht
+ausgeführt. Ein AST-Mapping gegen die aktuelle Integrationsbasis beweist, dass
+alle 77 ausgewählten Aufrufe, einschließlich dieses verbleibenden Falls, nur
+ihre ersten zwei Operanden vertauschen und jedes weitere Diagnoseargument
+behalten. Gezielte bilinguale Dokumentation und Exact-Head-Hosted-
+Delivery-Evidence bleiben vor der geschützten Integration erforderlich.
 
 ## Bekannte Einschränkungen und Follow-up
 
@@ -109,22 +112,30 @@ und Hosted-Checks auf dem exakten ungemergten Draft-PR-Head bestehen.
 
 - Kein Framework- oder MRTS-Test und keine -Änderung: Beide liegen außerhalb
   dieses Parent-only-Batches.
+- Der eine direkte Modulfall, der `FRAMEWORK_ROOT` bewusst auf den realen
+  Framework-Gitlink leitet, wurde nicht ausgeführt; seine geänderte Assertion
+  ist stattdessen durch das vollständige 77-Site-AST-Mapping abgedeckt.
 - Keine Live-Apache- oder Full-Connector-Runtime: Die reine Assertion-
-  Reihenfolgeänderung ist durch das vollständige direkte Testmodul abgedeckt.
-- Hosted-Checks und Exact-Head-SonarQube-Cloud-Analyse: erst verfügbar, wenn
-  der Branch committed, gepusht und als ungemergter Draft PR geöffnet ist.
+  Reihenfolgeänderung ist durch die direkten Parent-only-Controls und das
+  vollständige statische Mapping abgedeckt.
+- Exact-Head-Hosted-Checks und SonarQube-Cloud-Analyse: nach dem Push des
+  normalen Parent-Branch-Updates und vor der geschützten Integration
+  erforderlich.
 
 ## Delivery-Status
 
-Der Kandidat ist auf einem isolierten Parent-Task-Branch basierend auf der
-festgehaltenen Master-Revision vorbereitet. Er darf nach finaler lokaler
-Validierung nur als ungemergter Draft PR committed, gepusht und geöffnet
-werden. Kein Merge, Default-Branch-Update, Rebase, Force-Push oder Framework-/
-MRTS-Change ist autorisiert.
+Der Kandidat wurde auf einem isolierten Parent-Task-Branch normal aus der
+festgehaltenen aktuellen Integrationsbasis aktualisiert. Er darf für frische
+Exact-Head-Validierung zu seinem bestehenden Draft-PR gepusht werden. Eine
+geschützte Squash-Integration ist erst nach erfolgreichen anwendbaren
+Exact-Head-Checks, SonarQube-Cloud-Ergebnis, Review-Status und aktueller
+Basisverifikation autorisiert. Direkte Default-Branch-Updates, Rebase,
+Force-Push und Framework-/MRTS-Changes bleiben verboten.
 
 ## Finaler Diff- und Review-Status
 
-Der Source-only-Diff enthält 77 Operand-Pair-Swaps und keine Verhaltensänderung
-der Testlogik. Finale Dokumentationsvalidierung, Staged-Diff-Review und frische
-Exact-Head-Delivery-Evidence stehen aus; dieser Record behauptet keinen
+Der finale Current-Base-Diff enthält 77 Operand-Pair-Swaps und keine
+Verhaltensänderung der Testlogik. Lokale bilinguale Dokumentationsvalidierung,
+Diff-Checks und das finale statische Mapping bestanden. Frische Exact-Head-
+Hosted-Delivery-Evidence bleibt erforderlich; dieser Record behauptet keinen
 vorzeitigen Quality-Gate- oder PR-Status.
