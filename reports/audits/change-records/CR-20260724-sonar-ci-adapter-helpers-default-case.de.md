@@ -124,9 +124,12 @@ ausgeschlossene nicht verfügbare Framework-Metadaten blockiert.
 ## Finaler Diff- und Review-Status
 
 Die Source-Korrektur und das anfängliche englisch/deutsche Traceability-
-Material sind auf Task-Branch
+Material liegen im atomaren Parent-Commit
+41f8ed308bf8acb4d6688dd8639944b5e3482957 auf Task-Branch
 codex/sonar-ci-adapter-helpers-default-case-20260724-master-5b8db00 von Basis
-5b8db00d44ab24f3a9f4216a00f7edee977b6898 lokal validiert. Es gab noch keinen
-Commit, Push, PR, Merge, Default-Branch-Update, Framework-Action, MRTS-Action,
-Scanner-Control-Change oder Suppression. Finale Delivery-Fakten werden erst
-nach ihrer Beobachtung auf einem offenen, ungemergten Draft PR ergänzt.
+5b8db00d44ab24f3a9f4216a00f7edee977b6898. Er ist lokal sauber und besteht
+branch-weite Diff-Hygiene. Normaler Push, offene Draft-PR-Erstellung und
+finale Exact-Head-GitHub-/Sonar-/Review-Beobachtung stehen aus. Es gab keinen
+Merge, kein Default-Branch-Update, keine Framework-Action, keine MRTS-Action,
+keine Scanner-Control-Änderung und keine Suppression. Finale Delivery-Fakten
+werden erst nach Beobachtung ergänzt.

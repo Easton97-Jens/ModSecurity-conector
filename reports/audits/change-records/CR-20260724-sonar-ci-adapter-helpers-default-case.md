@@ -113,10 +113,11 @@ success route remains blocked only by excluded unavailable Framework metadata.
 
 ## Final diff and review status
 
-The source correction and initial English/German traceability material are
-locally validated on task branch
+The source correction and initial English/German traceability material are in
+atomic Parent commit 41f8ed308bf8acb4d6688dd8639944b5e3482957 on task branch
 codex/sonar-ci-adapter-helpers-default-case-20260724-master-5b8db00 from base
-5b8db00d44ab24f3a9f4216a00f7edee977b6898. No commit, push, PR, merge,
+5b8db00d44ab24f3a9f4216a00f7edee977b6898. It is locally clean and passes
+branch-wide diff hygiene. Normal push, open Draft-PR creation, and final
+exact-head GitHub/Sonar/review observation remain pending. No merge,
 default-branch update, Framework action, MRTS action, scanner-control change,
-or suppression has occurred. Final delivery facts are added only after they
-are observed on an open, unmerged Draft PR.
+or suppression occurred. Final delivery facts are added only after observation.
