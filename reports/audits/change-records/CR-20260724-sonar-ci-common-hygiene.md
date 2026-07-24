@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260724-sonar-ci-common-hygiene |
 | Date (UTC) | 2026-07-24 |
-| Base revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Base revision | 5f831257949f4b2655347e2f8bcb2dd5e094a260 |
 | Tracking | Five live Parent SonarQube Cloud Code Smells: AZ9cRyZWHhV2CayPTPwW, AZ7POyUhBW70q7L2nMJP, AZ8d8_z6E36x1qGA4xhZ, AZ9cRyZ9HhV2CayPTPwb, and AZ9cRyWTHhV2CayPTPuh. |
 | Boundary | Parent ci/ checker source plus this English/German traceability pair and indexes. Framework, MRTS, gitlinks, scanner configuration, Quality Gates, suppressions, runtime connector behavior, and generated artifacts remain unchanged. |
 
@@ -73,6 +73,23 @@ TMPDIR:
 | tests.test_bilingual_docs | passed: 11 tests. |
 | Direct repository Change Record pair validation | passed: required sections, identity values, heading levels, and table structure match for this EN/DE pair. |
 
+## Current-master update and final local verification
+
+The task branch was refreshed from current Parent `master`
+`5f831257949f4b2655347e2f8bcb2dd5e094a260` by the normal non-rewriting merge
+`2f73282d6c3dd4e3f8af4da8627a0ca8e13ac35f`, resolving only the paired
+Change-Record indexes. That merge merely inherited existing Parent `master`
+history. Framework and MRTS were not checked out, changed, tested, merged, or
+delivered.
+
+After that update, the focused full-lifecycle module (17 tests), the
+runtime-producer path-policy module (4 tests), the block-status generator,
+Common-SDK contract, No-CRS documentation consistency checker, five-module AST
+parse, and the 11-test bilingual-document module all passed again. The scoped
+`git diff --check origin/master...HEAD` passed. The final current-base diff has
+only the five reviewed Parent checker files, this paired Change Record, and the
+two indexes; it has no Framework, MRTS, or gitlink path.
+
 ## Runtime evidence
 
 No connector runtime behavior changed or is claimed. The checks are Parent-local source/evidence/documentation controls, not host-traffic or production-runtime evidence.
@@ -95,4 +112,10 @@ An accidental constant/value mismatch could weaken a static checker. The focused
 
 ## Final diff and review status
 
-The source implementation is in initial commit e09886ca4713798fc47e1304c651fd0e7216a692 on a branch based on 5b8db00d44ab24f3a9f4216a00f7edee977b6898. Draft PR #111 exists for that branch, remains open and Draft, and is not merged. Exact current-head remote, GitHub, SonarQube Cloud, and review evidence is retained in the PR and the task receipt rather than creating a self-referential Change-Record commit. No merge, default-branch update, Framework action, or MRTS action is authorized or performed.
+The source implementation began in e09886ca4713798fc47e1304c651fd0e7216a692
+and is now current with Parent `master` through normal merge
+`2f73282d6c3dd4e3f8af4da8627a0ca8e13ac35f`. Draft PR #111 remains open and
+unmerged. A new exact-head remote, GitHub, SonarQube Cloud, and review cycle is
+required after publishing this current-base traceability correction. No merge,
+default-branch update, Framework action, or MRTS action is authorized or
+performed by this Change Record.

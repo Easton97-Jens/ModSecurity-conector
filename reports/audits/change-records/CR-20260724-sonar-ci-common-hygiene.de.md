@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260724-sonar-ci-common-hygiene |
 | Datum (UTC) | 2026-07-24 |
-| Basis-Revision | 5b8db00d44ab24f3a9f4216a00f7edee977b6898 |
+| Basis-Revision | 5f831257949f4b2655347e2f8bcb2dd5e094a260 |
 | Tracking | Fünf aktive Parent-SonarQube-Cloud-Code-Smells: AZ9cRyZWHhV2CayPTPwW, AZ7POyUhBW70q7L2nMJP, AZ8d8_z6E36x1qGA4xhZ, AZ9cRyZ9HhV2CayPTPwb und AZ9cRyWTHhV2CayPTPuh. |
 | Grenze | Parent-ci/-Checker-Quellcode sowie dieses englisch/deutsche Traceability-Paar und die Indizes. Framework, MRTS, Gitlinks, Scanner-Konfiguration, Quality Gates, Suppressions, Runtime-Verhalten der Connectoren und generierte Artefakte bleiben unverändert. |
 
@@ -73,6 +73,24 @@ TMPDIR:
 | tests.test_bilingual_docs | bestanden: 11 Tests. |
 | Direkte Repository-Change-Record-Paar-Validierung | bestanden: erforderliche Abschnitte, Identitätswerte, Heading-Level und Tabellenstruktur stimmen für dieses EN/DE-Paar überein. |
 
+## Current-Master-Update und finale lokale Verifikation
+
+Der Task-Branch wurde durch den normalen, nicht umschreibenden Merge
+`2f73282d6c3dd4e3f8af4da8627a0ca8e13ac35f` vom aktuellen Parent-`master`
+`5f831257949f4b2655347e2f8bcb2dd5e094a260` aktualisiert; aufgelöst wurden
+nur die gepaarten Change-Record-Indizes. Dieser Merge übernahm ausschließlich
+bereits vorhandene Parent-`master`-Historie. Framework und MRTS wurden weder
+ausgecheckt noch geändert, getestet, gemergt oder ausgeliefert.
+
+Nach diesem Update bestanden erneut das fokussierte Full-Lifecycle-Modul (17
+Tests), das Runtime-Producer-Path-Policy-Modul (4 Tests), der Block-Status-
+Generator, der Common-SDK-Contract, der No-CRS-Dokumentationskonsistenz-Checker,
+der AST-Parse der fünf Module und das 11-Test-Bilingual-Dokumentationsmodul.
+Das scoped `git diff --check origin/master...HEAD` bestand. Der finale Diff
+gegen die aktuelle Basis enthält nur die fünf geprüften Parent-Checker-Dateien,
+dieses gepaarte Change Record und die zwei Indizes; er enthält keinen Framework-,
+MRTS- oder Gitlink-Pfad.
+
 ## Runtime-Evidence
 
 Es wurde kein Connector-Runtime-Verhalten verändert oder behauptet. Die Checks sind Parent-lokale Source-/Evidence-/Dokumentations-Controls und keine Host-Traffic- oder Produktions-Runtime-Evidenz.
@@ -95,4 +113,10 @@ Eine versehentliche Abweichung zwischen Konstante und Literal könnte einen stat
 
 ## Finaler Diff- und Review-Status
 
-Die Source-Implementierung liegt im initialen Commit e09886ca4713798fc47e1304c651fd0e7216a692 auf einem Branch mit Basis 5b8db00d44ab24f3a9f4216a00f7edee977b6898. Draft PR #111 existiert für diesen Branch, bleibt offen und Draft und ist nicht gemergt. Die exakte Current-Head-Remote-, GitHub-, SonarQube-Cloud- und Review-Evidenz wird im PR und im Task-Receipt festgehalten, statt einen selbstreferenziellen Change-Record-Commit zu erzeugen. Kein Merge, Default-Branch-Update, Framework-Action oder MRTS-Action ist autorisiert oder erfolgt.
+Die Source-Implementierung begann in e09886ca4713798fc47e1304c651fd0e7216a692
+und ist durch den normalen Merge `2f73282d6c3dd4e3f8af4da8627a0ca8e13ac35f`
+mit Parent-`master` aktuell. Draft PR #111 bleibt offen und ungemergt. Nach der
+Veröffentlichung dieser Current-Master-Traceability-Korrektur ist ein neuer
+Exact-Head-Remote-, GitHub-, SonarQube-Cloud- und Review-Zyklus erforderlich.
+Kein Merge, Default-Branch-Update, Framework-Action oder MRTS-Action ist durch
+diesen Change Record autorisiert oder erfolgt.
