@@ -58,14 +58,14 @@ class FullLifecycleProfilesTest(unittest.TestCase):
 
     def test_every_connector_has_one_explicit_native_profile(self) -> None:
         self.assertEqual(
-            {"apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"},
             set(profiles.PROFILE_BY_CONNECTOR),
+            {"apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"},
         )
         for connector, profile in profiles.PROFILE_BY_CONNECTOR.items():
             payload = self.capability_manifest(connector)
             result = profiles.effective_manifest(payload, profile)
             self.assertEqual(profile, result["full_lifecycle_profile"])
-            self.assertNotEqual("compatibility-mode", result["integration_mode"])
+            self.assertNotEqual(result["integration_mode"], "compatibility-mode")
 
     def test_non_native_profiles_are_conservatively_downgraded(self) -> None:
         expected_phase4 = {
@@ -82,7 +82,7 @@ class FullLifecycleProfilesTest(unittest.TestCase):
                 phase4_state,
                 result["capabilities"]["phase4"]["state"],
             )
-            self.assertNotEqual("verified", result["capabilities"]["phase1"]["state"])
+            self.assertNotEqual(result["capabilities"]["phase1"]["state"], "verified")
 
     def test_common_bridge_profiles_select_only_unpromoted_native_capabilities(self) -> None:
         for connector in ("envoy", "traefik"):
@@ -96,12 +96,12 @@ class FullLifecycleProfilesTest(unittest.TestCase):
                 "late_intervention_log_only", "event_jsonl",
             ):
                 self.assertEqual(
-                    "implemented_not_asserted",
                     result["capabilities"][capability]["state"],
+                    "implemented_not_asserted",
                     f"{connector}/{capability}",
                 )
             self.assertNotEqual(
-                "verified", result["capabilities"]["phase4"]["state"]
+                result["capabilities"]["phase4"]["state"], "verified"
             )
 
     def test_patched_lighttpd_keeps_entity_body_lifecycle_selectable(self) -> None:
@@ -114,7 +114,7 @@ class FullLifecycleProfilesTest(unittest.TestCase):
             "late_intervention_log_only", "first_byte_before_response_end",
         ):
             with self.subTest(capability=capability):
-                self.assertEqual("implemented_not_asserted", result["capabilities"][capability]["state"])
+                self.assertEqual(result["capabilities"][capability]["state"], "implemented_not_asserted")
 
     def test_wrong_connector_profile_is_rejected_and_write_is_atomic(self) -> None:
         payload = self.capability_manifest("envoy")
@@ -126,7 +126,7 @@ class FullLifecycleProfilesTest(unittest.TestCase):
                 output, profiles.effective_manifest(payload, "ext_proc")
             )
             loaded = json.loads(output.read_text(encoding="utf-8"))
-            self.assertEqual("ext_proc", loaded["full_lifecycle_profile"])
+            self.assertEqual(loaded["full_lifecycle_profile"], "ext_proc")
 
 
 if __name__ == "__main__":

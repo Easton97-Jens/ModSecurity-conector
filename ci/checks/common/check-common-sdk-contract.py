@@ -25,6 +25,7 @@ FORBIDDEN_INCLUDES = (
 )
 SERVER_TOKENS = ("nginx", "apache", "haproxy", "envoy", "traefik", "lighttpd")
 NON_INTEGRATION_TERMS = ("not integrate", "not imply", "future", "separately", "no connector")
+SUCCESS_RETURN_LITERAL = "return 0"
 
 
 def fail(message: str) -> None:
@@ -408,7 +409,7 @@ rule_event_source = (ROOT / "common" / "src" / "rule_event.c").read_text(encodin
 transaction_header = (ROOT / "common" / "include" / "msconnector" / "transaction.h").read_text(encoding="utf-8")
 decision_header = (ROOT / "common" / "include" / "msconnector" / "decision.h").read_text(encoding="utf-8")
 harness_source = (ROOT / "ci" / "runtime" / "common" / "common-harness.sh").read_text(encoding="utf-8")
-if "decision_message_id" not in decision_source or "MSCONNECTOR_DECISION_KIND_ALLOW" not in decision_source or "return 0" not in decision_source:
+if "decision_message_id" not in decision_source or "MSCONNECTOR_DECISION_KIND_ALLOW" not in decision_source or SUCCESS_RETURN_LITERAL not in decision_source:
     fail("decision_to_event must not map ALLOW/LOG_ONLY decisions to blocked events")
 if "MSCONNECTOR_DECISION_KIND_DROP" not in decision_action_source or "MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION" not in decision_action_source:
     fail("decision_action must preserve specific decision kinds")
@@ -499,7 +500,7 @@ if '#include "msconnector/phase.h"' not in decision_header:
     fail("decision.h must include phase.h instead of depending on transaction.h")
 if '#include "msconnector/transaction.h"' in decision_header:
     fail("decision.h must not include transaction.h")
-if "MSCONNECTOR_ERROR_NONE" not in error_source or "error == 0" not in error_source or "return 0" not in error_source:
+if "MSCONNECTOR_ERROR_NONE" not in error_source or "error == 0" not in error_source or SUCCESS_RETURN_LITERAL not in error_source:
     fail("error_to_event must handle MSCONNECTOR_ERROR_NONE without emitting an error event")
 
 transaction_source = (ROOT / "common" / "src" / "transaction.c").read_text(encoding="utf-8")
@@ -542,9 +543,9 @@ request_hpp = (ROOT / "common" / "include" / "msconnector" / "request.hpp").read
 for alias in ("using Bytes = msconnector_bytes", "using Header = msconnector_header", "using Endpoint = msconnector_endpoint", "using Request = msconnector_request"):
     if alias not in request_hpp:
         fail("request.hpp must preserve C++ wrapper aliases")
-if "msconnector_request_content_type(const msconnector_request *request)" not in request_helpers_source or "return 0" not in request_helpers_source:
+if "msconnector_request_content_type(const msconnector_request *request)" not in request_helpers_source or SUCCESS_RETURN_LITERAL not in request_helpers_source:
     fail("request raw content-type helper must not expose bounded slices as C strings")
-if "msconnector_response_content_type(const msconnector_response *response)" not in response_helpers_source or "return 0" not in response_helpers_source:
+if "msconnector_response_content_type(const msconnector_response *response)" not in response_helpers_source or SUCCESS_RETURN_LITERAL not in response_helpers_source:
     fail("response raw content-type helper must not expose bounded slices as C strings")
 
 # PR 29 review hardening checks.
