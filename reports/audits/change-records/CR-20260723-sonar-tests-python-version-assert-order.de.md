@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260723-sonar-tests-python-version-assert-order |
 | Datum (UTC) | 2026-07-23 |
-| Basis-Revision | a308d7b414f0859490fe7253e0683a4bde80b563 |
+| Integrations-Basis-Revision | `6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d`; ursprüngliche Source-Basis `a308d7b414f0859490fe7253e0683a4bde80b563`. |
 | Tracking | FND-SONAR-0019; 34 Parent-only SonarQube-Cloud-`python:S3415`-Code-Smells, Keys `AZ-KYVOzfYmbqbBXVNDC` bis `AZ-KYVOzfYmbqbBXVNDj`, in `tests/test_python_version_contract.py`. |
 | Grenze | Ein Parent-Testmodul sowie dieses englisch/deutsche Change-Record-Paar und die Indizes. Framework, MRTS, Gitlinks, Produkt-Source, Dependency-Manifeste, Scanner-Konfiguration, Quality Gates, Suppressions und der Default-Branch bleiben unverändert. |
 
@@ -38,9 +38,9 @@ von allen anderen Sonar-Remediation-Branches unabhängig.
 - Das vollständige betroffene Parent-Testmodul, den ausgewählten In-Memory-
   Syntax-Check, den Source-to-Key-Occurrence-Review, bilinguale
   Dokumentationsprüfungen und `git diff --check` bestehen lassen.
-- Frische Exact-Head-Hosted-Check- und SonarQube-Cloud-Evidence auf einem
-  ungemergten Draft-PR einholen, bevor die 34 Observations als verifiziert
-  gelten.
+- Frische Exact-Head-Hosted-Check- und SonarQube-Cloud-Evidence nach jedem
+  Branch-Update und vor der geschützten Delivery einholen; nur beobachtete
+  Resultate im PR- und Task-Delivery-Record festhalten.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -71,9 +71,11 @@ kein Quality Gate oder Scanner-Setting geändert.
 
 ## Ausgeführte Befehle
 
-- Der ausgewählte Parent-Interpreter wurde als
-  `/root/git/ModSecurity-conector/.venv/bin/python`, Python `3.14.6`, mit
-  einem von `/usr` verschiedenen Virtual-Environment-Prefix verifiziert.
+- Der ausgewählte lokale Parent-Interpreter wurde als
+  `/root/git/ModSecurity-conector/.venv/bin/python`, Python `3.14.4`, mit
+  einem von `/usr` verschiedenen Virtual-Environment-Prefix verifiziert. Das
+  Modul validiert weiterhin den kanonischen `.python-version`-Contract für
+  `3.14.6`; die Hosted-Validierung ist separat an den exakten PR-Head gebunden.
 - Die fokussierten `tests.test_python_version_contract`-Läufe vor und nach der
   Änderung bestanden beide mit allen 24 Tests.
 - Die In-Memory-Syntaxkompilierung des geänderten Testmoduls bestand.
@@ -110,8 +112,10 @@ Die fokussierte verhaltensbewahrende Test-, Syntax-, gezielte bilinguale und
 finale Diff-Evidence für die Test-Source-Änderung ist vollständig. Die zwei
 vollständigen Repository-Dokumentationsbefehle sind wahrheitsgemäß nur durch
 vorhandene Framework-Gitlink-Targets außerhalb des ausgewählten Parent-Batches
-`blocked`. Exact-Head-GitHub- und SonarQube-Cloud-Resultate können erst nach
-dem Push des isolierten Branch als ungemergter Draft-PR existieren.
+`blocked`. Exact-Head-GitHub- und SonarQube-Cloud-Resultate sind nach jedem
+Branch-Update vor der geschützten Delivery erforderlich; das beobachtete
+per-Head-Resultat bleibt im PR- und Task-Delivery-Record erhalten und wird
+nicht aus einem älteren Head abgeleitet oder fortgeschrieben.
 
 ## Bekannte Einschränkungen und Follow-up
 
@@ -140,25 +144,28 @@ Exact-Head-Evidence bleibt vor verifizierter Delivery erforderlich.
   besitzt die geänderten Assertions vollständig; breitere Targets fügen
   ausgeschlossene Framework-Voraussetzungen hinzu und üben kein anderes
   geändertes Verhalten aus.
-- Hosted-Checks und SonarQube-Cloud-PR-Analyse: ausstehend, bis der exakte
-  ungemergte Draft-PR-Head existiert.
+- Hosted-Checks und SonarQube-Cloud-PR-Analyse: nur für den exakten aktuellen
+  PR-Head vor der geschützten Delivery bewerten; kein älteres Head-Resultat
+  wiederverwenden.
 
 ## Delivery-Status
 
-Der Kandidat liegt auf dem isolierten Parent-Branch
-`codex/sonar-tests-python-version-20260723-master-a308d7b`, basierend auf
-`a308d7b414f0859490fe7253e0683a4bde80b563`. Er darf nach der finalen lokalen
-Validierung nur als ungemergter Draft-PR committed, gepusht und geöffnet
-werden. Kein Merge, Default-Branch-Update, Framework-/MRTS-Change, Rebase oder
-Force-Push ist autorisiert.
+Der Kandidat ist Parent-PR #101 auf dem isolierten Branch
+`codex/sonar-tests-python-version-20260723-master-a308d7b`, abgeglichen auf
+die Integrationsbasis `6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d` aus der
+ursprünglichen Source-Basis `a308d7b414f0859490fe7253e0683a4bde80b563`. Er
+darf unter der aktuellen Task-Autorisation nur durch den repository-geschützten
+Squash-Merge nach einem frischen Exact-Head-Review geliefert werden. Es gibt
+keinen direkten Default-Branch-Update, Framework-/MRTS-Change, Rebase,
+Force-Push oder Control-Bypass.
 
 ## Finaler Diff- und Review-Status
 
-Der Kandidat bleibt auf das exakte S3415-Assert-Reihenfolge-Cleanup, dieses
-bilinguale Change-Record-Paar und seine zwei Indizes begrenzt. Der finale
-lokale Review ist vollständig: fokussierte Tests, Syntax, Source-to-Key-
+Der aktuelle Kandidat bleibt auf das exakte S3415-Assert-Reihenfolge-Cleanup,
+dieses bilinguale Change-Record-Paar und seine zwei Indizes begrenzt. Der
+finale lokale Review ist vollständig: fokussierte Tests, Syntax, Source-to-Key-
 Review, gezielte bilinguale Tests und `git diff --check` bestanden; die zwei
 breiteren Dokumentationsbefehle sind nur durch die dokumentierte Framework-
-Gitlink-Bedingung blockiert. Hosted-Checks, SonarQube-Cloud-Quality-Gate,
-PR-Nummer und Exact-Head-SHA-Evidence bleiben ausstehend und werden nicht
-abgeleitet.
+Gitlink-Bedingung blockiert. Exact-Head-Hosted-Checks, SonarQube-Cloud-
+Quality-Gate, PR-Status und Merge-Evidence werden bei der Delivery bewertet und
+nur als beobachtete Fakten im PR- und Task-Delivery-Record erhalten.

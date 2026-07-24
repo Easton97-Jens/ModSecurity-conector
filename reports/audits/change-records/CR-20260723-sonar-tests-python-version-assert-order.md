@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260723-sonar-tests-python-version-assert-order |
 | Date (UTC) | 2026-07-23 |
-| Base revision | a308d7b414f0859490fe7253e0683a4bde80b563 |
+| Integration base revision | `6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d`; original source base `a308d7b414f0859490fe7253e0683a4bde80b563`. |
 | Tracking | FND-SONAR-0019; 34 Parent-only SonarQube Cloud `python:S3415` Code Smells, keys `AZ-KYVOzfYmbqbBXVNDC` through `AZ-KYVOzfYmbqbBXVNDj`, in `tests/test_python_version_contract.py`. |
 | Boundary | One Parent test module plus this English/German Change Record pair and indexes. Framework, MRTS, gitlinks, product source, dependency manifests, scanner configuration, Quality Gates, suppressions, and the default branch remain unchanged. |
 
@@ -35,8 +35,9 @@ Sonar remediation branches.
 - Pass the complete affected Parent test module, selected in-memory syntax
   check, source-to-key occurrence review, bilingual documentation checks, and
   `git diff --check`.
-- Obtain fresh exact-head hosted-check and SonarQube Cloud evidence on an
-  unmerged Draft PR before the 34 observations are declared verified.
+- Obtain fresh exact-head hosted-check and SonarQube Cloud evidence after
+  every branch update and before protected delivery; retain only observed
+  results in the PR and task delivery record.
 
 ## Implementation decision and rationale
 
@@ -67,9 +68,11 @@ scanner setting changes.
 
 ## Commands executed
 
-- The selected Parent interpreter was verified as
-  `/root/git/ModSecurity-conector/.venv/bin/python`, Python `3.14.6`, with a
-  virtual-environment prefix distinct from `/usr`.
+- The selected local Parent interpreter was verified as
+  `/root/git/ModSecurity-conector/.venv/bin/python`, Python `3.14.4`, with a
+  virtual-environment prefix distinct from `/usr`. The module continues to
+  validate the canonical `.python-version` contract for `3.14.6`; hosted
+  validation is separately bound to the exact PR head.
 - Baseline and post-change focused
   `tests.test_python_version_contract` runs both passed all 24 tests.
 - In-memory syntax compilation of the changed test module passed.
@@ -102,11 +105,13 @@ contract; it is neither a host-runtime deployment nor a Framework/MRTS run.
 ## Validation status
 
 The focused behavior-preserving test, syntax, targeted bilingual, and final
-diff evidence is complete for the test-source change.  The two full
-repository documentation commands are truthfully `blocked` only by existing
-Framework-gitlink targets outside the selected Parent batch.  Exact-head
-GitHub and SonarQube Cloud results cannot exist until the isolated branch is
-pushed as an unmerged Draft PR.
+diff evidence is complete for the test-source change. The two full repository
+documentation commands are truthfully `blocked` only by existing
+Framework-gitlink targets outside the selected Parent batch. Exact-head GitHub
+and SonarQube Cloud results are required after every branch update before
+protected delivery; the observed per-head result is retained in the PR and
+task delivery record rather than inferred or copied forward from an older
+head.
 
 ## Known limitations and follow-up
 
@@ -133,24 +138,26 @@ verified.
 - No full repository-wide unittest run: the selected module fully owns the
   changed assertions; broader targets add excluded Framework prerequisites and
   do not exercise a different changed behavior.
-- Hosted checks and SonarQube Cloud PR analysis: pending until the exact
-  unmerged Draft-PR head exists.
+- Hosted checks and SonarQube Cloud PR analysis: evaluated only for the exact
+  current PR head before protected delivery; no older-head outcome is reused.
 
 ## Delivery status
 
-The candidate is on the isolated Parent branch
-`codex/sonar-tests-python-version-20260723-master-a308d7b`, based on
-`a308d7b414f0859490fe7253e0683a4bde80b563`.  It may be committed, pushed,
-and opened only as an unmerged Draft PR after final local validation.  No
-merge, default-branch update, Framework/MRTS change, rebase, or force-push is
-authorized.
+The candidate is Parent PR #101 on the isolated branch
+`codex/sonar-tests-python-version-20260723-master-a308d7b`, reconciled to
+integration base `6c1f5719f9b23f4df8d0fb65e07b3d38d1e3815d` from the original
+source base `a308d7b414f0859490fe7253e0683a4bde80b563`. It may be delivered
+only through the repository-protected squash merge after a fresh exact-head
+review under the current task authorization. No direct default-branch update,
+Framework/MRTS change, rebase, force-push, or control bypass is used.
 
 ## Final diff and review status
 
-The candidate remains limited to the exact S3415 assertion-order cleanup,
-this bilingual Change Record pair, and its two indexes.  Final local review
-is complete: focused tests, syntax, source-to-key review, targeted bilingual
-tests, and `git diff --check` passed; the two broader documentation commands
-are blocked only by the documented Framework-gitlink condition.  Hosted
-checks, SonarQube Cloud Quality Gate, PR number, and exact-head SHA evidence
-remain pending and are not inferred.
+The current-base candidate remains limited to the exact S3415 assertion-order
+cleanup, this bilingual Change Record pair, and its two indexes. Final local
+review is complete: focused tests, syntax, source-to-key review, targeted
+bilingual tests, and `git diff --check` passed; the two broader documentation
+commands are blocked only by the documented Framework-gitlink condition.
+Exact-head hosted checks, SonarQube Cloud Quality Gate, PR state, and merge
+evidence are evaluated at delivery and retained only as observed facts in the
+PR and task delivery record.
