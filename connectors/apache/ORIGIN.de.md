@@ -21,6 +21,24 @@ Adapter-eigener Build-Quell-Root: `connectors/apache/`
 Produktive Quelldateien: `connectors/apache/src/`
 Materialisierte Build-Quelle: `$BUILD_ROOT/apache-build/connector-src/`
 
+## Gezielte Upstream-Forward-Ports
+
+Der Basis-Ursprung bleibt `0488c77f69669584324b70460614a382224b4883`. Die
+folgenden aktuellen Upstream-Pull-Request-Heads wurden für diese enge,
+ausschließlich Parent-seitige Integration geprüft; jede Zeile dokumentiert die
+ausgewählte lokale Aktion und behauptet keinen vollständigen Merge.
+
+| Upstream-PR | Aktueller Head / relevanter Commit | Lokale Aktion | Parent-Route und Begründung |
+| --- | --- | --- | --- |
+| [#91](https://github.com/owasp-modsecurity/ModSecurity-apache/pull/91) | `230e14d755bc5912d96e13947aa4b8ef73dbb4fa` | Produktiver Handler-Port ausgeschlossen | Die vorhandene Apache-Input-Filter-/EOS-/Drain-/Fail-Closed-Architektur bleibt erhalten; nur Parent-eigene Request-Body-Regressionen werden ergänzt. |
+| [#92](https://github.com/owasp-modsecurity/ModSecurity-apache/pull/92) | `7d408a10d359601d5771f0446a81284be17fbf29`; fokussierter 403-Commit `16d47bb7df0974ba91281796abd9c649ba715979` | Docker-/Compose-Stack ausgeschlossen | Parent-eigene Large-, Multi-Bucket-, Body-Deny-, Chunked-, Unread-Handler-, Empty-Body- und Keep-Alive-Coverage anpassen, ohne den parallelen Upstream-Stack zu importieren. |
+| [#93](https://github.com/owasp-modsecurity/ModSecurity-apache/pull/93) | `8221baee1f349e3954043dc0d8102b119b9a04bf` | Parent-eigene Soak-Anpassung | Begrenzten Memcheck-/Helgrind-Runner, Evidence-/Report-Vertrag und manuellen Workflow ergänzen; keine Upstream-Docker-Assets importieren. |
+| [#94](https://github.com/owasp-modsecurity/ModSecurity-apache/pull/94) | `1e07559819163e4c23338d646859422b0efd5c0e`; direkter #94A-Commit `5ea3fc9da876195706375cf35f321de2a1f35ce1` | #94A in `src/msc_config.c` portiert; #94B ausgeschlossen | Das frische RulesSet zur Bereinigung bei seinem APR-Config-Pool registrieren. Die vorhandenen request-eigenen Intervention-Kopien und ihre einzige native Bereinigung erhalten; kein direktes `free(intervention.url/log)` einführen. |
+
+Nur `src/msc_config.c` erhält direkte Upstream-Patch-Provenienz in
+`SOURCE_MAP.json`. Harness, Runner, Workflow und Tests sind Parent-eigene
+Anpassungen und werden nicht als Upstream-Quellimporte dargestellt.
+
 ## Status von Phase 11
 
 Phase 11 verschob die Build-Eingabe des Apache-Connectors vom früheren

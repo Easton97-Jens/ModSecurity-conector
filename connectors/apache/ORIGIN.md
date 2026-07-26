@@ -21,6 +21,24 @@ Adapter-owned build source root: `connectors/apache/`
 Productive source files: `connectors/apache/src/`
 Materialized build source: `$BUILD_ROOT/apache-build/connector-src/`
 
+## Targeted upstream forward ports
+
+The base origin remains `0488c77f69669584324b70460614a382224b4883`. The
+following current upstream pull-request heads were inspected for this narrow
+Parent-only integration; a row records the selected local action rather than
+claiming a wholesale merge.
+
+| Upstream PR | Current head / relevant commit | Local action | Parent route and rationale |
+| --- | --- | --- | --- |
+| [#91](https://github.com/owasp-modsecurity/ModSecurity-apache/pull/91) | `230e14d755bc5912d96e13947aa4b8ef73dbb4fa` | Production handler port excluded | Retain the existing Apache input-filter/EOS/drain/fail-closed architecture; add Parent-owned request-body regressions only. |
+| [#92](https://github.com/owasp-modsecurity/ModSecurity-apache/pull/92) | `7d408a10d359601d5771f0446a81284be17fbf29`; focused 403 commit `16d47bb7df0974ba91281796abd9c649ba715979` | Docker/Compose stack excluded | Adapt Parent-native large, multi-bucket, body-deny, chunked, unread-handler, empty-body, and keep-alive coverage without importing the parallel upstream stack. |
+| [#93](https://github.com/owasp-modsecurity/ModSecurity-apache/pull/93) | `8221baee1f349e3954043dc0d8102b119b9a04bf` | Parent-native soak adaptation | Add bounded Memcheck/Helgrind runner, evidence/report contract, and manual workflow; do not import upstream Docker assets. |
+| [#94](https://github.com/owasp-modsecurity/ModSecurity-apache/pull/94) | `1e07559819163e4c23338d646859422b0efd5c0e`; direct #94A commit `5ea3fc9da876195706375cf35f321de2a1f35ce1` | #94A ported into `src/msc_config.c`; #94B excluded | Register the fresh RulesSet with its APR config pool for cleanup. Keep the existing request-owned intervention copies and its single native cleanup; no direct `free(intervention.url/log)` is introduced. |
+
+Only `src/msc_config.c` receives direct upstream-patch provenance in
+`SOURCE_MAP.json`. The harness, runners, workflow, and tests are Parent-owned
+adaptations and are not represented as upstream source imports.
+
 ## Phase 11 Status
 
 Phase 11 moved the Apache connector build input from the former
