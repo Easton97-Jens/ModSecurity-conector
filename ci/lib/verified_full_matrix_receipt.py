@@ -31,6 +31,8 @@ FULL_MATRIX_CONNECTORS = ("apache", "nginx", "haproxy")
 FULL_MATRIX_CRS_VARIANTS = ("no-crs", "with-crs")
 FULL_MATRIX_MRTS_VARIANTS = ("no-mrts", "with-mrts")
 RECEIPT_FILENAME = "full-matrix-aggregate-receipt.json"
+JOB_RECEIPT_FILENAME = "job.json"
+FULL_RUNTIME_MATRIX_MANIFEST_FILENAME = "full-runtime-matrix-runs.jsonl"
 RECEIPT_TYPE = "verified-full-matrix-aggregate"
 RECEIPT_SCHEMA_VERSION = 1
 INTEGRATION_MODE = "full-matrix-parallel-runtime"
@@ -346,7 +348,7 @@ def _expected_job_paths(build_root: Path, connector: str, crs: str, mrts: str) -
     results_dir = job_root / "results"
     return {
         "job_root": job_root,
-        "job_receipt": job_root / "job.json",
+        "job_receipt": job_root / JOB_RECEIPT_FILENAME,
         "log": job_root / "run.log",
         "build_manifest": job_root / "build-manifest.json",
         "results_dir": results_dir,
@@ -469,7 +471,7 @@ def _raw_rows_by_job(
     *,
     root_descriptor: int,
 ) -> tuple[Path, dict[str, dict[str, Any]]]:
-    matrix_manifest = build_root / "full-matrix" / "full-runtime-matrix-runs.jsonl"
+    matrix_manifest = build_root / "full-matrix" / FULL_RUNTIME_MATRIX_MANIFEST_FILENAME
     rows = _load_jsonl(
         matrix_manifest,
         build_root,
@@ -777,7 +779,6 @@ STAGED_EVIDENCE_FILE_COUNT = 18
 
 def _read_relative_stable_file(
     root_descriptor: int,
-    root: Path,
     components: tuple[str, ...],
     *,
     label: str,
@@ -799,7 +800,6 @@ def _read_relative_stable_file(
 def _current_verified_run_id_for_staging(build_root: Path, build_descriptor: int) -> str:
     data, _, _ = _read_relative_stable_file(
         build_descriptor,
-        build_root,
         ("verified-runs", "current-run-id"),
         label="verified runtime current-run marker",
         maximum_bytes=130,
@@ -839,8 +839,8 @@ def _staged_evidence_sources(verified_run_id: str) -> tuple[_StagedEvidenceSourc
     sources.append(
         _StagedEvidenceSource(
             source_root="build",
-            source_components=("full-matrix", "full-runtime-matrix-runs.jsonl"),
-            stage_components=("full-matrix", "full-runtime-matrix-runs.jsonl"),
+            source_components=("full-matrix", FULL_RUNTIME_MATRIX_MANIFEST_FILENAME),
+            stage_components=("full-matrix", FULL_RUNTIME_MATRIX_MANIFEST_FILENAME),
         )
     )
     for crs in FULL_MATRIX_CRS_VARIANTS:
@@ -849,8 +849,8 @@ def _staged_evidence_sources(verified_run_id: str) -> tuple[_StagedEvidenceSourc
                 sources.append(
                     _StagedEvidenceSource(
                         source_root="build",
-                        source_components=("full-matrix", crs, mrts, connector, "job.json"),
-                        stage_components=("full-matrix", crs, mrts, connector, "job.json"),
+                        source_components=("full-matrix", crs, mrts, connector, JOB_RECEIPT_FILENAME),
+                        stage_components=("full-matrix", crs, mrts, connector, JOB_RECEIPT_FILENAME),
                     )
                 )
     result = tuple(sources)
@@ -1073,6 +1073,164 @@ def _stage_root_still_bound(
     return True
 
 
+def _read_evidence_source(
+    source: _StagedEvidenceSource,
+    *,
+    connector_descriptor: int,
+    build_descriptor: int,
+) -> tuple[bytes, str, int]:
+    descriptor = connector_descriptor if source.source_root == "connector" else build_descriptor
+    return _read_relative_stable_file(
+        descriptor,
+        source.source_components,
+        label=f"{source.source_root}:{'/'.join(source.source_components)}",
+    )
+
+
+def _buffer_evidence_sources(
+    sources: tuple[_StagedEvidenceSource, ...],
+    *,
+    connector_descriptor: int,
+    build_descriptor: int,
+) -> list[tuple[_StagedEvidenceSource, bytes, str, int]]:
+    buffered_sources: list[tuple[_StagedEvidenceSource, bytes, str, int]] = []
+    for source in sources:
+        data, digest, byte_count = _read_evidence_source(
+            source,
+            connector_descriptor=connector_descriptor,
+            build_descriptor=build_descriptor,
+        )
+        buffered_sources.append((source, data, digest, byte_count))
+    return buffered_sources
+
+
+def _require_staged_root_binding(
+    *,
+    parent_descriptor: int,
+    stage_name: str,
+    stage_descriptor: int,
+    stage: Path,
+    action: str,
+) -> None:
+    if not _stage_root_still_bound(
+        parent_descriptor=parent_descriptor,
+        stage_name=stage_name,
+        stage_descriptor=stage_descriptor,
+        stage=stage,
+    ):
+        raise AggregateReceiptError(f"staged evidence root changed while {action}: {stage}")
+
+
+def _discard_staged_root(
+    *,
+    parent_descriptor: int,
+    stage_name: str,
+    stage_descriptor: int,
+    stage: Path,
+) -> None:
+    try:
+        _remove_staged_directory_contents(stage_descriptor)
+    except OSError:
+        pass
+    try:
+        if _stage_root_still_bound(
+            parent_descriptor=parent_descriptor,
+            stage_name=stage_name,
+            stage_descriptor=stage_descriptor,
+            stage=stage,
+        ):
+            os.rmdir(stage_name, dir_fd=parent_descriptor)
+            os.fsync(parent_descriptor)
+    except OSError:
+        pass
+
+
+@contextmanager
+def _open_new_staged_root(
+    *,
+    parent_descriptor: int,
+    stage_name: str,
+    stage: Path,
+) -> Iterator[int]:
+    descriptor = _create_empty_stage_root(parent_descriptor, stage.parent, stage_name)
+    try:
+        yield descriptor
+    except BaseException:
+        _discard_staged_root(
+            parent_descriptor=parent_descriptor,
+            stage_name=stage_name,
+            stage_descriptor=descriptor,
+            stage=stage,
+        )
+        raise
+    finally:
+        os.close(descriptor)
+
+
+def _publish_buffered_evidence(
+    *,
+    parent_descriptor: int,
+    stage_name: str,
+    stage: Path,
+    sources: tuple[_StagedEvidenceSource, ...],
+    buffered_sources: list[tuple[_StagedEvidenceSource, bytes, str, int]],
+) -> tuple[StagedEvidenceFile, ...]:
+    with _open_new_staged_root(
+        parent_descriptor=parent_descriptor,
+        stage_name=stage_name,
+        stage=stage,
+    ) as stage_descriptor:
+        records: list[StagedEvidenceFile] = []
+        for source, data, digest, byte_count in buffered_sources:
+            if hashlib.sha256(data).hexdigest() != digest or len(data) != byte_count:
+                raise AggregateReceiptError("stable source evidence bytes do not match their recorded digest")
+            relative_path = "/".join(source.stage_components)
+            _write_staged_file(stage_descriptor, source.stage_components, data, label=relative_path)
+            records.append(StagedEvidenceFile(relative_path, digest, byte_count))
+        _seal_staged_directories(stage_descriptor, sources)
+        _require_staged_root_binding(
+            parent_descriptor=parent_descriptor,
+            stage_name=stage_name,
+            stage_descriptor=stage_descriptor,
+            stage=stage,
+            action="publishing",
+        )
+        return tuple(records)
+
+
+def _verify_staged_evidence_tree(
+    *,
+    parent_descriptor: int,
+    stage_name: str,
+    stage: Path,
+    sources: tuple[_StagedEvidenceSource, ...],
+    connector_descriptor: int,
+    build_descriptor: int,
+) -> tuple[StagedEvidenceFile, ...]:
+    with _open_relative_directory(parent_descriptor, (stage_name,), label=str(stage)) as stage_descriptor:
+        staged_records = _read_exact_staged_tree(stage_descriptor, sources)
+        records: list[StagedEvidenceFile] = []
+        for source in sources:
+            _, digest, byte_count = _read_evidence_source(
+                source,
+                connector_descriptor=connector_descriptor,
+                build_descriptor=build_descriptor,
+            )
+            staged = staged_records[source.stage_components]
+            if staged.sha256 != digest or staged.bytes != byte_count:
+                relative_path = "/".join(source.stage_components)
+                raise AggregateReceiptError(f"staged evidence does not match current source: {relative_path}")
+            records.append(staged)
+        _require_staged_root_binding(
+            parent_descriptor=parent_descriptor,
+            stage_name=stage_name,
+            stage_descriptor=stage_descriptor,
+            stage=stage,
+            action="verifying",
+        )
+    return tuple(records)
+
+
 def stage_verified_full_matrix_evidence(
     *,
     connector_root: Path,
@@ -1102,61 +1260,22 @@ def stage_verified_full_matrix_evidence(
     ) as build_descriptor:
         verified_run_id = _current_verified_run_id_for_staging(build, build_descriptor)
         sources = _staged_evidence_sources(verified_run_id)
-        buffered_sources: list[tuple[_StagedEvidenceSource, bytes, str, int]] = []
-        for source in sources:
-            root = connector if source.source_root == "connector" else build
-            descriptor = connector_descriptor if source.source_root == "connector" else build_descriptor
-            label = f"{source.source_root}:{'/'.join(source.source_components)}"
-            data, digest, byte_count = _read_relative_stable_file(
-                descriptor,
-                root,
-                source.source_components,
-                label=label,
-            )
-            buffered_sources.append((source, data, digest, byte_count))
+        buffered_sources = _buffer_evidence_sources(
+            sources,
+            connector_descriptor=connector_descriptor,
+            build_descriptor=build_descriptor,
+        )
 
         with _open_absolute_directory(stage_parent, label="staged evidence parent") as stage_parent_descriptor:
             _require_private_staging_parent(stage_parent_descriptor, stage_parent)
-            stage_descriptor: int | None = None
-            try:
-                stage_descriptor = _create_empty_stage_root(stage_parent_descriptor, stage_parent, stage_name)
-                records: list[StagedEvidenceFile] = []
-                for source, data, digest, byte_count in buffered_sources:
-                    if hashlib.sha256(data).hexdigest() != digest or len(data) != byte_count:
-                        raise AggregateReceiptError("stable source evidence bytes do not match their recorded digest")
-                    relative_path = "/".join(source.stage_components)
-                    _write_staged_file(stage_descriptor, source.stage_components, data, label=relative_path)
-                    records.append(StagedEvidenceFile(relative_path, digest, byte_count))
-                _seal_staged_directories(stage_descriptor, sources)
-                if not _stage_root_still_bound(
-                    parent_descriptor=stage_parent_descriptor,
-                    stage_name=stage_name,
-                    stage_descriptor=stage_descriptor,
-                    stage=stage,
-                ):
-                    raise AggregateReceiptError(f"staged evidence root changed while publishing: {stage}")
-                return StagedEvidence(stage, verified_run_id, tuple(records))
-            except BaseException:
-                if stage_descriptor is not None:
-                    try:
-                        _remove_staged_directory_contents(stage_descriptor)
-                    except OSError:
-                        pass
-                    try:
-                        if _stage_root_still_bound(
-                            parent_descriptor=stage_parent_descriptor,
-                            stage_name=stage_name,
-                            stage_descriptor=stage_descriptor,
-                            stage=stage,
-                        ):
-                            os.rmdir(stage_name, dir_fd=stage_parent_descriptor)
-                            os.fsync(stage_parent_descriptor)
-                    except OSError:
-                        pass
-                raise
-            finally:
-                if stage_descriptor is not None:
-                    os.close(stage_descriptor)
+            records = _publish_buffered_evidence(
+                parent_descriptor=stage_parent_descriptor,
+                stage_name=stage_name,
+                stage=stage,
+                sources=sources,
+                buffered_sources=buffered_sources,
+            )
+    return StagedEvidence(stage, verified_run_id, records)
 
 
 def verify_staged_full_matrix_evidence(
@@ -1188,37 +1307,15 @@ def verify_staged_full_matrix_evidence(
         _require_private_staging_parent(stage_parent_descriptor, stage_parent)
         verified_run_id = _current_verified_run_id_for_staging(build, build_descriptor)
         sources = _staged_evidence_sources(verified_run_id)
-        with _open_relative_directory(
-            stage_parent_descriptor,
-            (stage_name,),
-            label=str(stage),
-        ) as stage_descriptor:
-            staged_records = _read_exact_staged_tree(stage_descriptor, sources)
-            records: list[StagedEvidenceFile] = []
-            for source in sources:
-                root = connector if source.source_root == "connector" else build
-                descriptor = connector_descriptor if source.source_root == "connector" else build_descriptor
-                relative_path = "/".join(source.stage_components)
-                _, digest, byte_count = _read_relative_stable_file(
-                    descriptor,
-                    root,
-                    source.source_components,
-                    label=f"{source.source_root}:{'/'.join(source.source_components)}",
-                )
-                staged = staged_records[source.stage_components]
-                if staged.sha256 != digest or staged.bytes != byte_count:
-                    raise AggregateReceiptError(
-                        f"staged evidence does not match current source: {relative_path}"
-                    )
-                records.append(staged)
-            if not _stage_root_still_bound(
-                parent_descriptor=stage_parent_descriptor,
-                stage_name=stage_name,
-                stage_descriptor=stage_descriptor,
-                stage=stage,
-            ):
-                raise AggregateReceiptError(f"staged evidence root changed while verifying: {stage}")
-    return StagedEvidence(stage, verified_run_id, tuple(records))
+        records = _verify_staged_evidence_tree(
+            parent_descriptor=stage_parent_descriptor,
+            stage_name=stage_name,
+            stage=stage,
+            sources=sources,
+            connector_descriptor=connector_descriptor,
+            build_descriptor=build_descriptor,
+        )
+    return StagedEvidence(stage, verified_run_id, records)
 
 
 def seal_full_matrix_aggregate_receipt_record(

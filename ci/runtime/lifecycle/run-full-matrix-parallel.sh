@@ -31,6 +31,56 @@ FULL_MATRIX_PREPARE_SHARED_BUILDS="${FULL_MATRIX_PREPARE_SHARED_BUILDS:-1}"
 FULL_MATRIX_PREPARE_CASE="${FULL_MATRIX_PREPARE_CASE:-action_allow_phase1_pass}"
 FULL_MATRIX_TRUNCATE_MANIFEST="${FULL_MATRIX_TRUNCATE_MANIFEST:-1}"
 FULL_MATRIX_SKIP_REPORTS="${FULL_MATRIX_SKIP_REPORTS:-0}"
+FULL_MATRIX_PORT_PLANNER="$SCRIPT_DIR/plan_full_matrix_ports.py"
+HAPROXY_SPOA_PORT_OFFSET="${HAPROXY_SPOA_PORT_OFFSET:-12000}"
+HAPROXY_BACKEND_PORT_OFFSET="${HAPROXY_BACKEND_PORT_OFFSET:-24000}"
+matrix_completion_wait_timeout="${VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS:-3600}"
+
+is_positive_decimal() {
+    case "${1:-}" in
+        ''|*[!0-9]*) return 1 ;;
+        *[1-9]*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+normalize_positive_decimal() {
+    normalized_decimal=$1
+    while [ "${normalized_decimal#0}" != "$normalized_decimal" ]; do
+        normalized_decimal=${normalized_decimal#0}
+    done
+    printf '%s\n' "$normalized_decimal"
+}
+
+detect_online_cpu_count() {
+    detected_cpu_count=""
+    if command -v nproc >/dev/null 2>&1; then
+        detected_cpu_count=$(nproc 2>/dev/null || true)
+    fi
+    if ! is_positive_decimal "$detected_cpu_count" && command -v getconf >/dev/null 2>&1; then
+        detected_cpu_count=$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)
+    fi
+    if is_positive_decimal "$detected_cpu_count"; then
+        normalize_positive_decimal "$detected_cpu_count"
+        return 0
+    fi
+    printf '%s\n' 1
+    return 0
+}
+
+if [ "${FULL_MATRIX_MAX_PARALLEL_JOBS+x}" != x ]; then
+    FULL_MATRIX_MAX_PARALLEL_JOBS=$(detect_online_cpu_count)
+fi
+if ! is_positive_decimal "$FULL_MATRIX_MAX_PARALLEL_JOBS"; then
+    echo "ERROR: FULL_MATRIX_MAX_PARALLEL_JOBS must be a positive decimal integer: $FULL_MATRIX_MAX_PARALLEL_JOBS" >&2
+    exit 2
+fi
+FULL_MATRIX_MAX_PARALLEL_JOBS=$(normalize_positive_decimal "$FULL_MATRIX_MAX_PARALLEL_JOBS")
+if ! is_positive_decimal "$matrix_completion_wait_timeout"; then
+    echo "ERROR: VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS must be a positive decimal integer: $matrix_completion_wait_timeout" >&2
+    exit 2
+fi
+matrix_completion_wait_timeout=$(normalize_positive_decimal "$matrix_completion_wait_timeout")
 
 export CONNECTOR_ROOT FRAMEWORK_ROOT SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE PYTHONDONTWRITEBYTECODE FORCE_ALL_CASES MRTS_BUILD_ROOT
 
@@ -121,23 +171,82 @@ run_cache_backed_connector() {
     env $common_env "$@" make -C "$CONNECTOR_ROOT" "$smoke_target" >> "$run_log" 2>&1
 }
 
-validate_runner_paths
-mkdir -p "$MATRIX_ROOT" "$FULL_MATRIX_REPORT_DIR"
-if [ "$FULL_MATRIX_TRUNCATE_MANIFEST" = "1" ]; then
-    : > "$FULL_MATRIX_MANIFEST"
-else
-    mkdir -p "$(dirname "$FULL_MATRIX_MANIFEST")"
-    touch "$FULL_MATRIX_MANIFEST"
-fi
-
-pids=""
+active_jobs=""
+matrix_lock_held=0
+matrix_completion_fifo=""
+matrix_completion_fd_open=0
+matrix_completion_watchdog_pid=""
+matrix_completion_wait_generation=0
 port_check_blocked=0
 
 terminate_jobs() {
-    for pid in $pids; do
+    for active_job in $active_jobs; do
+        pid=${active_job#*:}
         kill "$pid" >/dev/null 2>&1 || true
     done
     return 0
+}
+
+stop_matrix_completion_watchdog() {
+    if [ -n "$matrix_completion_watchdog_pid" ]; then
+        kill "$matrix_completion_watchdog_pid" >/dev/null 2>&1 || true
+        wait "$matrix_completion_watchdog_pid" >/dev/null 2>&1 || true
+        matrix_completion_watchdog_pid=""
+    fi
+    return 0
+}
+
+start_matrix_completion_watchdog() {
+    stop_matrix_completion_watchdog
+    matrix_completion_wait_generation=$((matrix_completion_wait_generation + 1))
+    watchdog_generation=$matrix_completion_wait_generation
+    (
+        # The watchdog reports through FD 8 only.  It must not prolong the
+        # scheduler's FD-9 lock if the scheduler parent is killed.
+        exec 9>&- || true
+        watchdog_sleep_pid=""
+        stop_watchdog_sleep() {
+            if [ -n "$watchdog_sleep_pid" ]; then
+                kill "$watchdog_sleep_pid" >/dev/null 2>&1 || true
+            fi
+            exit 0
+        }
+        trap stop_watchdog_sleep INT TERM HUP
+        sleep "$matrix_completion_wait_timeout" &
+        watchdog_sleep_pid=$!
+        if wait "$watchdog_sleep_pid"; then
+            printf 'timeout:%s\n' "$watchdog_generation" >&8
+        fi
+    ) &
+    matrix_completion_watchdog_pid=$!
+    return 0
+}
+
+release_matrix_completion_queue() {
+    stop_matrix_completion_watchdog
+    if [ "$matrix_completion_fd_open" = "1" ]; then
+        exec 8>&- || true
+        matrix_completion_fd_open=0
+    fi
+    if [ -n "$matrix_completion_fifo" ] && [ -p "$matrix_completion_fifo" ]; then
+        safe_rm_rf "$matrix_completion_fifo" "$MATRIX_ROOT" "full-matrix completion FIFO" || true
+    fi
+    matrix_completion_fifo=""
+    return 0
+}
+
+release_matrix_lock() {
+    if [ "$matrix_lock_held" = "1" ]; then
+        exec 9>&- || true
+        matrix_lock_held=0
+    fi
+    return 0
+}
+
+cleanup_matrix_run() {
+    terminate_jobs
+    release_matrix_completion_queue
+    release_matrix_lock
 }
 
 safe_rm_rf() {
@@ -149,40 +258,103 @@ safe_rm_rf() {
     return $?
 }
 
-trap 'terminate_jobs; exit 77' INT TERM
-
-variant_base_port() {
-    test_variant=$1
-    mrts_variant=$2
-
-    case "$test_variant/$mrts_variant" in
-        no-crs/no-mrts) printf '%s\n' 18000 ;;
-        no-crs/with-mrts) printf '%s\n' 21000 ;;
-        with-crs/no-mrts) printf '%s\n' 24000 ;;
-        with-crs/with-mrts) printf '%s\n' 27000 ;;
-        *) echo "ERROR: unsupported variant $test_variant/$mrts_variant" >&2; return 2 ;;
-    esac
+acquire_matrix_lock() {
+    candidate="$MATRIX_ROOT/.full-matrix-run.lock"
+    assert_safe_runtime_path "$candidate" "full-matrix run lock" || return 77
+    if [ -L "$candidate" ]; then
+        echo "ERROR: full-matrix run lock must not be a symbolic link: $candidate" >&2
+        return 77
+    fi
+    if ! command -v flock >/dev/null 2>&1; then
+        echo "ERROR: full-matrix scheduler requires flock" >&2
+        return 77
+    fi
+    previous_umask=$(umask)
+    umask 077
+    if exec 9>>"$candidate"; then
+        umask "$previous_umask"
+    else
+        umask "$previous_umask"
+        echo "ERROR: cannot open full-matrix run lock: $candidate" >&2
+        return 77
+    fi
+    if ! flock -n 9; then
+        exec 9>&- || true
+        echo "ERROR: another full-matrix run owns $candidate" >&2
+        return 77
+    fi
+    matrix_lock_held=1
     return 0
 }
 
-connector_offset() {
-    connector=$1
-
-    case "$connector" in
-        apache) printf '%s\n' 0 ;;
-        nginx) printf '%s\n' 1000 ;;
-        haproxy) printf '%s\n' 2000 ;;
-        *) echo "ERROR: unsupported connector $connector" >&2; return 2 ;;
-    esac
-    return 0
+prepare_matrix_completion_queue() {
+    candidate="$MATRIX_ROOT/.full-matrix-completions.fifo"
+    assert_safe_runtime_path "$candidate" "full-matrix completion FIFO" || return 77
+    if [ -L "$candidate" ]; then
+        echo "ERROR: full-matrix completion FIFO must not be a symbolic link: $candidate" >&2
+        return 77
+    fi
+    if [ -e "$candidate" ]; then
+        if [ ! -p "$candidate" ]; then
+            echo "ERROR: unexpected full-matrix completion queue type: $candidate" >&2
+            return 77
+        fi
+        safe_rm_rf "$candidate" "$MATRIX_ROOT" "stale full-matrix completion FIFO" || return 77
+    fi
+    previous_umask=$(umask)
+    umask 077
+    if mkfifo "$candidate"; then
+        umask "$previous_umask"
+    else
+        umask "$previous_umask"
+        echo "ERROR: cannot create full-matrix completion FIFO: $candidate" >&2
+        return 77
+    fi
+    if exec 8<>"$candidate"; then
+        matrix_completion_fifo="$candidate"
+        matrix_completion_fd_open=1
+        return 0
+    fi
+    echo "ERROR: cannot open full-matrix completion FIFO: $candidate" >&2
+    safe_rm_rf "$candidate" "$MATRIX_ROOT" "full-matrix completion FIFO" || true
+    return 77
 }
+
+trap cleanup_matrix_run 0
+trap 'exit 77' INT TERM
 
 validate_matrix_connectors() {
+    seen_connectors=""
     for connector in $FULL_MATRIX_CONNECTORS; do
         case "$connector" in
             apache|nginx|haproxy) ;;
             *) echo "ERROR: unsupported FULL_MATRIX_CONNECTORS item: $connector" >&2; return 2 ;;
         esac
+        case " $seen_connectors " in
+            *" $connector "*)
+                echo "ERROR: duplicate FULL_MATRIX_CONNECTORS item: $connector" >&2
+                return 2
+                ;;
+        esac
+        seen_connectors="$seen_connectors $connector"
+    done
+    return 0
+}
+
+validate_matrix_variants() {
+    seen_variants=""
+    for variant in $FULL_MATRIX_VARIANTS; do
+        case "$variant" in
+            no-crs/no-mrts|no-crs/with-mrts|with-crs/no-mrts|with-crs/with-mrts) ;;
+            *) echo "ERROR: unsupported FULL_MATRIX_VARIANTS item: $variant" >&2; return 2 ;;
+        esac
+        case " $seen_variants " in
+            *" $variant "*)
+                echo "ERROR: duplicate FULL_MATRIX_VARIANTS item: $variant" >&2
+                return 2
+                ;;
+        esac
+        seen_variants="$seen_variants $variant"
     done
     return 0
 }
@@ -262,6 +434,89 @@ prepare_shared_builds() {
     return 0
 }
 
+matrix_case_count() {
+    connector=$1
+    case_cli="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
+    case_scope="${CASE_SCOPE:-all}"
+    if [ ! -f "$case_cli" ]; then
+        echo "ERROR: missing matrix case selector: $case_cli" >&2
+        return 2
+    fi
+    if [ -n "${TEST_CASE:-}" ]; then
+        if ! selected_cases=$("$PYTHON" "$case_cli" list-cases \
+            --repo-root "$CONNECTOR_ROOT" \
+            --framework-root "$FRAMEWORK_ROOT" \
+            --connector-root "$CONNECTOR_ROOT" \
+            --connector "$connector" \
+            --scope "$case_scope" \
+            --test-case "$TEST_CASE"); then
+            echo "ERROR: cannot select $connector matrix cases" >&2
+            return 2
+        fi
+    elif [ -n "${SMOKE_CASES:-}" ]; then
+        if ! selected_cases=$("$PYTHON" "$case_cli" list-cases \
+            --repo-root "$CONNECTOR_ROOT" \
+            --framework-root "$FRAMEWORK_ROOT" \
+            --connector-root "$CONNECTOR_ROOT" \
+            --connector "$connector" \
+            --scope "$case_scope" \
+            --smoke-cases "$SMOKE_CASES"); then
+            echo "ERROR: cannot select $connector matrix cases" >&2
+            return 2
+        fi
+    elif ! selected_cases=$("$PYTHON" "$case_cli" list-cases \
+        --repo-root "$CONNECTOR_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --connector-root "$CONNECTOR_ROOT" \
+        --connector "$connector" \
+        --scope "$case_scope"); then
+        echo "ERROR: cannot select $connector matrix cases" >&2
+        return 2
+    fi
+    case_count=$(printf '%s\n' "$selected_cases" | awk 'NF { count += 1 } END { print count + 0 }')
+    if ! is_positive_decimal "$case_count"; then
+        echo "ERROR: no selected $connector matrix cases" >&2
+        return 2
+    fi
+    normalize_positive_decimal "$case_count"
+    return 0
+}
+
+write_matrix_port_plan() {
+    matrix_port_plan=$1
+    case "${NO_CRS_BASELINE:-}" in
+        1|true|TRUE|yes|YES|on|ON)
+            if [ -n "${NO_CRS_SELECTED_CASE_IDS:-}" ]; then
+                echo "ERROR: full-matrix global parallelism requires the canonical case selector" >&2
+                return 2
+            fi
+            ;;
+    esac
+    set -- "$PYTHON" "$FULL_MATRIX_PORT_PLANNER" \
+        --port-span "$FULL_MATRIX_PORT_SPAN" \
+        --haproxy-spoa-offset "$HAPROXY_SPOA_PORT_OFFSET" \
+        --haproxy-backend-offset "$HAPROXY_BACKEND_PORT_OFFSET"
+    for connector in $FULL_MATRIX_CONNECTORS; do
+        case_count=$(matrix_case_count "$connector") || return $?
+        set -- "$@" --case-count "$connector=$case_count"
+    done
+    for variant in $FULL_MATRIX_VARIANTS; do
+        for connector in $FULL_MATRIX_CONNECTORS; do
+            set -- "$@" --job "$variant:$connector"
+        done
+    done
+    "$@" > "$matrix_port_plan"
+}
+
+all_matrix_connectors_ready() {
+    for connector in $FULL_MATRIX_CONNECTORS; do
+        if ! shared_connector_ready "$connector"; then
+            return 1
+        fi
+    done
+    return 0
+}
+
 prepare_batch() {
     test_variant=$1
     mrts_variant=$2
@@ -321,13 +576,13 @@ run_job() {
     build_manifest="$job_root/build-manifest.json"
     summary_path=$(summary_path_for "$results_dir" "$connector")
 
-    assert_safe_runtime_path "$job_root" "matrix job root" || exit 77
-    assert_safe_runtime_path "$job_tmp_root" "matrix job tmp root" || exit 77
-    assert_safe_runtime_path "$job_log_root" "matrix job log root" || exit 77
-    assert_safe_runtime_path "$results_dir" "matrix job results root" || exit 77
-    assert_not_system_path_for_write "$run_log" "matrix run log" || exit 77
-    assert_not_system_path_for_write "$job_json" "matrix job json" || exit 77
-    assert_not_system_path_for_write "$build_manifest" "matrix build manifest" || exit 77
+    assert_safe_runtime_path "$job_root" "matrix job root" || return 77
+    assert_safe_runtime_path "$job_tmp_root" "matrix job tmp root" || return 77
+    assert_safe_runtime_path "$job_log_root" "matrix job log root" || return 77
+    assert_safe_runtime_path "$results_dir" "matrix job results root" || return 77
+    assert_not_system_path_for_write "$run_log" "matrix run log" || return 77
+    assert_not_system_path_for_write "$job_json" "matrix job json" || return 77
+    assert_not_system_path_for_write "$build_manifest" "matrix build manifest" || return 77
     safe_rm_rf "$job_root" "$MATRIX_ROOT" "matrix job root"
     mkdir -p "$job_build_root" "$job_tmp_root" "$job_log_root" "$results_dir"
     : > "$run_log"
@@ -364,6 +619,8 @@ run_job() {
                 RESULTS_DIR="$results_dir" \
                 HAPROXY_TEST_PORT="$port" \
                 TEST_BACKEND_PORT=$((port + 500)) \
+                HAPROXY_SPOA_PORT_OFFSET="$HAPROXY_SPOA_PORT_OFFSET" \
+                HAPROXY_BACKEND_PORT_OFFSET="$HAPROXY_BACKEND_PORT_OFFSET" \
                 HAPROXY_RUNTIME_BUILD_DIR="${HAPROXY_RUNTIME_BUILD_DIR:-$SHARED_BUILD_ROOT/haproxy-runtime-build}" \
                 HAPROXY_RUNTIME_DIR="${HAPROXY_RUNTIME_DIR:-$SHARED_BUILD_ROOT/haproxy-runtime/haproxy}" \
                 HAPROXY_BIN="${HAPROXY_BIN:-}" \
@@ -459,7 +716,7 @@ print(json.dumps({
     },
 }, sort_keys=True))
 PY
-    exit "$rc"
+    return "$rc"
 }
 
 append_job_json() {
@@ -512,68 +769,249 @@ PY
     return 0
 }
 
-run_batch() {
-    test_variant=$1
-    mrts_variant=$2
-    batch_base=$(variant_base_port "$test_variant" "$mrts_variant")
-    batch_root="$MATRIX_ROOT/$test_variant/$mrts_variant/_batch"
-    assert_safe_runtime_path "$batch_root" "matrix batch root" || return 77
-    mkdir -p "$batch_root"
-    prepare_batch "$test_variant" "$mrts_variant"
-
-    pids=""
-    job_jsons=""
-    logs=""
-    for connector in $FULL_MATRIX_CONNECTORS; do
-        offset=$(connector_offset "$connector")
-        port=$((batch_base + offset))
-        job_root="$MATRIX_ROOT/$test_variant/$mrts_variant/$connector"
-        run_job "$test_variant" "$mrts_variant" "$connector" "$port" &
-        pid=$!
-        pids="$pids $pid"
-        job_jsons="$job_jsons $job_root/job.json"
-        logs="$logs $job_root/run.log"
-        echo "full-matrix-parallel: spawned pid=$pid connector=$connector variant=$test_variant/$mrts_variant port=$port"
-    done
-
-    batch_rc=0
-    for pid in $pids; do
+wait_active_jobs() {
+    waited_rc=0
+    for active_job in $active_jobs; do
+        pid=${active_job#*:}
         if ! wait "$pid"; then
-            batch_rc=1
+            waited_rc=1
         fi
     done
-    pids=""
+    active_jobs=""
+    return "$waited_rc"
+}
 
-    for job_json in $job_jsons; do
+run_job_and_report_completion() {
+    completion_token=$1
+    shift
+
+    if run_job "$@"; then
+        job_rc=0
+    else
+        job_rc=$?
+    fi
+    if ! printf 'complete:%s\n' "$completion_token" >&8; then
+        echo "ERROR: cannot report full-matrix job completion token=$completion_token" >&2
+        return 77
+    fi
+    return "$job_rc"
+}
+
+wait_one_parallel_job() {
+    start_matrix_completion_watchdog
+    while :; do
+        if ! IFS= read -r completion_event <&8; then
+            stop_matrix_completion_watchdog
+            echo "ERROR: cannot read full-matrix job completion" >&2
+            return 2
+        fi
+        case "$completion_event" in
+            complete:*)
+                completed_token=${completion_event#complete:}
+                stop_matrix_completion_watchdog
+                break
+                ;;
+            timeout:*)
+                timeout_generation=${completion_event#timeout:}
+                if ! is_positive_decimal "$timeout_generation"; then
+                    stop_matrix_completion_watchdog
+                    echo "ERROR: invalid full-matrix completion timeout event: $completion_event" >&2
+                    return 2
+                fi
+                if [ "$timeout_generation" = "$matrix_completion_wait_generation" ]; then
+                    wait "$matrix_completion_watchdog_pid" >/dev/null 2>&1 || true
+                    matrix_completion_watchdog_pid=""
+                    echo "ERROR: full-matrix job completion timed out after $matrix_completion_wait_timeout seconds" >&2
+                    return 2
+                fi
+                ;;
+            *)
+                stop_matrix_completion_watchdog
+                echo "ERROR: invalid full-matrix completion event: $completion_event" >&2
+                return 2
+                ;;
+        esac
+    done
+    if ! is_positive_decimal "$completed_token"; then
+        echo "ERROR: invalid full-matrix completion token: $completed_token" >&2
+        return 2
+    fi
+
+    completed_pid=""
+    remaining_jobs=""
+    completion_matches=0
+    for active_job in $active_jobs; do
+        active_token=${active_job%%:*}
+        active_pid=${active_job#*:}
+        if [ "$active_token" = "$completed_token" ]; then
+            completed_pid=$active_pid
+            completion_matches=$((completion_matches + 1))
+        else
+            remaining_jobs="$remaining_jobs $active_job"
+        fi
+    done
+    if [ "$completion_matches" -ne 1 ] || [ -z "$completed_pid" ]; then
+        echo "ERROR: unexpected full-matrix completion token: $completed_token" >&2
+        return 2
+    fi
+    active_jobs=$remaining_jobs
+    if ! wait "$completed_pid"; then
+        return 1
+    fi
+    return 0
+}
+
+run_planned_jobs() {
+    matrix_port_plan=$1
+    execution_mode=$2
+    active_count=0
+    job_sequence=0
+    planned_rc=0
+    planned_job_jsons=""
+    planned_logs=""
+    tab=$(printf '\t')
+
+    if [ "$execution_mode" = "parallel" ]; then
+        prepare_matrix_completion_queue || return 77
+    fi
+
+    while IFS="$tab" read -r test_variant connector port; do
+        [ -n "$test_variant" ] || continue
+        case "$test_variant/$connector" in
+            no-crs/no-mrts/apache|no-crs/no-mrts/nginx|no-crs/no-mrts/haproxy|\
+            no-crs/with-mrts/apache|no-crs/with-mrts/nginx|no-crs/with-mrts/haproxy|\
+            with-crs/no-mrts/apache|with-crs/no-mrts/nginx|with-crs/no-mrts/haproxy|\
+            with-crs/with-mrts/apache|with-crs/with-mrts/nginx|with-crs/with-mrts/haproxy) ;;
+            *)
+                echo "ERROR: invalid full-matrix port-plan entry: $test_variant/$connector" >&2
+                return 2
+                ;;
+        esac
+        if ! is_positive_decimal "$port" || [ "$port" -gt 65000 ]; then
+            echo "ERROR: invalid full-matrix port-plan port: $port" >&2
+            return 2
+        fi
+        mrts_variant=${test_variant#*/}
+        test_variant=${test_variant%/*}
+        job_root="$MATRIX_ROOT/$test_variant/$mrts_variant/$connector"
+        job_sequence=$((job_sequence + 1))
+        if [ "$execution_mode" = "parallel" ]; then
+            run_job_and_report_completion "$job_sequence" "$test_variant" "$mrts_variant" "$connector" "$port" &
+        else
+            run_job "$test_variant" "$mrts_variant" "$connector" "$port" &
+        fi
+        pid=$!
+        active_jobs="$active_jobs $job_sequence:$pid"
+        planned_job_jsons="$planned_job_jsons $job_root/job.json"
+        planned_logs="$planned_logs $job_root/run.log"
+        active_count=$((active_count + 1))
+        echo "full-matrix-parallel: spawned pid=$pid connector=$connector variant=$test_variant/$mrts_variant port=$port"
+
+        if [ "$execution_mode" != "parallel" ]; then
+            if ! wait_active_jobs; then
+                planned_rc=1
+            fi
+            active_count=0
+            continue
+        fi
+
+        if [ "$active_count" -lt "$FULL_MATRIX_MAX_PARALLEL_JOBS" ]; then
+            continue
+        fi
+        if wait_one_parallel_job; then
+            wait_rc=0
+        else
+            wait_rc=$?
+        fi
+        if [ "$wait_rc" -gt 1 ]; then
+            terminate_jobs
+            wait_active_jobs || true
+            return 77
+        fi
+        if [ "$wait_rc" -ne 0 ]; then
+            planned_rc=1
+        fi
+        active_count=$((active_count - 1))
+    done < "$matrix_port_plan"
+
+    while [ "$execution_mode" = "parallel" ] && [ "$active_count" -gt 0 ]; do
+        if wait_one_parallel_job; then
+            wait_rc=0
+        else
+            wait_rc=$?
+        fi
+        if [ "$wait_rc" -gt 1 ]; then
+            terminate_jobs
+            wait_active_jobs || true
+            return 77
+        fi
+        if [ "$wait_rc" -ne 0 ]; then
+            planned_rc=1
+        fi
+        active_count=$((active_count - 1))
+    done
+    release_matrix_completion_queue
+
+    for job_json in $planned_job_jsons; do
         append_job_json "$job_json"
     done
 
-    ports_file="$batch_root/used-ports.txt"
-    collect_batch_ports "$ports_file" $logs
-    if ! check_ports_free "$ports_file" > "$batch_root/port-check.log" 2>&1; then
+    ports_file="$MATRIX_ROOT/used-ports.txt"
+    collect_batch_ports "$ports_file" $planned_logs
+    if ! check_ports_free "$ports_file" > "$MATRIX_ROOT/port-check.log" 2>&1; then
         port_check_blocked=1
-        echo "full-matrix-parallel: port cleanup check failed for $test_variant/$mrts_variant; see $batch_root/port-check.log"
+        echo "full-matrix-parallel: port cleanup check failed; see $MATRIX_ROOT/port-check.log"
     fi
-    return "$batch_rc"
+    return "$planned_rc"
 }
 
-validate_matrix_connectors
-prepare_shared_builds
+validate_matrix_connectors || exit $?
+validate_matrix_variants || exit $?
+validate_runner_paths
+mkdir -p "$MATRIX_ROOT" "$FULL_MATRIX_REPORT_DIR"
+acquire_matrix_lock || exit $?
+if [ "$FULL_MATRIX_TRUNCATE_MANIFEST" = "1" ]; then
+    : > "$FULL_MATRIX_MANIFEST"
+else
+    mkdir -p "$(dirname "$FULL_MATRIX_MANIFEST")"
+    touch "$FULL_MATRIX_MANIFEST"
+fi
 
-matrix_rc=0
+prepare_shared_builds
+matrix_port_plan="$MATRIX_ROOT/full-matrix-port-plan.tsv"
+write_matrix_port_plan "$matrix_port_plan" || exit $?
+
 for variant in $FULL_MATRIX_VARIANTS; do
-    case "$variant" in
-        */*) ;;
-        *) echo "ERROR: invalid FULL_MATRIX_VARIANTS item: $variant" >&2; exit 2 ;;
-    esac
     test_variant=${variant%/*}
     mrts_variant=${variant#*/}
-    echo "full-matrix-parallel: batch start $test_variant/$mrts_variant"
-    if ! run_batch "$test_variant" "$mrts_variant"; then
+    echo "full-matrix-parallel: preparing $test_variant/$mrts_variant"
+    prepare_batch "$test_variant" "$mrts_variant"
+done
+
+matrix_rc=0
+if all_matrix_connectors_ready; then
+    echo "full-matrix-parallel: scheduling up to $FULL_MATRIX_MAX_PARALLEL_JOBS isolated runtime jobs"
+    if run_planned_jobs "$matrix_port_plan" parallel; then
+        :
+    else
+        run_planned_jobs_rc=$?
+        if [ "$run_planned_jobs_rc" -eq 77 ]; then
+            exit 77
+        fi
         matrix_rc=2
     fi
-    echo "full-matrix-parallel: batch end $test_variant/$mrts_variant"
-done
+else
+    echo "full-matrix-parallel: cache artifacts are not all ready; keeping planned runtime jobs serial"
+    if run_planned_jobs "$matrix_port_plan" serial; then
+        :
+    else
+        run_planned_jobs_rc=$?
+        if [ "$run_planned_jobs_rc" -eq 77 ]; then
+            exit 77
+        fi
+        matrix_rc=2
+    fi
+fi
 
 if [ "$FULL_MATRIX_SKIP_REPORTS" = "1" ]; then
     echo "full-matrix-parallel: skip downstream report generation (FULL_MATRIX_SKIP_REPORTS=1)"

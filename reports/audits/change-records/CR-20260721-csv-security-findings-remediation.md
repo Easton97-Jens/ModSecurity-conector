@@ -414,3 +414,43 @@ validation passed, while full runtime evidence, fresh SonarCloud, fresh hosted
 CI, human review, and resulting-master evidence remain separate requirements.
 Historical focused security regression/control tests, the 146-test selected
 Parent suite, and four runtime-path policy controls remain recorded above.
+
+## CPU-aware full-matrix scheduling follow-up (2026-07-26)
+
+The full runtime matrix now defaults its isolated runtime-job cap to the
+online processor count detected by `nproc`, then
+`getconf _NPROCESSORS_ONLN`, with a safe fallback of one. An explicit positive
+`FULL_MATRIX_MAX_PARALLEL_JOBS` value remains an upper bound for shared
+runners. In the observed task environment both commands report 12, so a
+fully prepared twelve-job matrix can admit all twelve jobs without a manual
+cap override.
+
+Preparation remains serial to avoid concurrent cache refreshes. Only after all
+requested cache-backed connector artifacts are ready does the Parent scheduler
+admit globally planned jobs through a completion-driven worker pool. It refills
+each freed slot immediately rather than waiting for a slow batch sibling, and
+the Parent alone writes the manifest in plan order. If an artifact is not
+prepared, execution remains serial. A dependency-free planner reserves and
+validates disjoint Apache, NGINX, and HAProxy listener-search windows in the
+unprivileged port range before any runtime command starts.
+
+The completion path is fail-closed. A regular non-symlink FD-9 `flock` keeps
+competing matrix runs out, while a private FIFO associates each completion with
+one tracked child PID. A generation-bound watchdog uses the existing positive
+`VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS` limit: if a wrapper dies before
+reporting completion, the scheduler exits 77 rather than waiting forever.
+The watchdog closes FD 9 before sleeping, so it cannot prolong the lock after
+a killed parent; real job descendants continue to hold the lock until their
+own exit. A completion exactly at the timeout boundary may conservatively
+produce exit 77, which preserves the evidence and isolation controls.
+
+Local validation passed `sh -n`, `git diff --check`, the 107-test selected
+Python regression command with `-W error::ResourceWarning`,
+`make check-ci-security-contract`, variable and bilingual documentation
+checks, the Python-version contract, pinned Actionlint, and offline Zizmor.
+Focused controls prove the detected default cap, cap-two work conservation,
+port-plan rejection, live-lock rejection, parent-kill lock reuse, and the
+bounded lost-wrapper failure followed by lock reuse. These local checks do not
+replace the new exact-head hosted producer, GitHub, SonarQube Cloud, review,
+or integration evidence required before this Draft PR can be verified or
+merged.

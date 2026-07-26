@@ -163,6 +163,69 @@ def checkout_step_blocks(text: str) -> list[str]:
     return blocks
 
 
+def workflow_step_blocks(text: str) -> list[str]:
+    """Return each YAML workflow step as one block without a YAML dependency."""
+
+    lines = text.splitlines()
+    blocks: list[str] = []
+    for start, line in enumerate(lines):
+        step_match = STEP_HEADER.match(line)
+        if step_match is None:
+            continue
+        step_indent = len(step_match.group("indent"))
+        end = len(lines)
+        for candidate in range(start + 1, len(lines)):
+            candidate_match = STEP_HEADER.match(lines[candidate])
+            if candidate_match and len(candidate_match.group("indent")) <= step_indent:
+                end = candidate
+                break
+        blocks.append("\n".join(lines[start:end]))
+    return blocks
+
+
+def workflow_step_with_id(text: str, step_id: str) -> str:
+    """Return exactly one step carrying ``step_id``."""
+
+    matches = [block for block in workflow_step_blocks(text) if f"id: {step_id}" in block]
+    if len(matches) != 1:
+        raise AssertionError(
+            f"expected exactly one workflow step with id {step_id!r}, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def workflow_step_with_name(text: str, step_name: str) -> str:
+    """Return exactly one step named ``step_name``."""
+
+    matches = [block for block in workflow_step_blocks(text) if f"- name: {step_name}" in block]
+    if len(matches) != 1:
+        raise AssertionError(
+            f"expected exactly one workflow step named {step_name!r}, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def block_run_script(step: str) -> str:
+    """Return the literal-script body from a workflow step."""
+
+    lines = step.splitlines()
+    for start, line in enumerate(lines):
+        match = re.match(r"^(?P<indent>\s*)run:\s*\|\s*$", line)
+        if match is None:
+            continue
+        run_indent = len(match.group("indent"))
+        end = len(lines)
+        for candidate in range(start + 1, len(lines)):
+            if (
+                lines[candidate].strip()
+                and len(lines[candidate]) - len(lines[candidate].lstrip()) <= run_indent
+            ):
+                end = candidate
+                break
+        return "\n".join(lines[start + 1 : end])
+    raise AssertionError("workflow step has no literal run script")
+
+
 def fixture_violations(text: str) -> set[str]:
     """Model the policy boundary exercised by the safe/unsafe fixtures."""
 
@@ -380,7 +443,7 @@ class CiSecurityWorkflowTest(unittest.TestCase):
     def test_verified_report_governance_produces_current_evidence_before_the_strict_gate(self) -> None:
         text = self.workflow("verified-report-governance.yml")
         jobs = self.jobs("verified-report-governance.yml")
-        self.assertEqual({"verified-report-contract-preflight", "report-governance"}, set(jobs))
+        self.assertEqual(set(jobs), {"verified-report-contract-preflight", "report-governance"})
         self.assertIn("  push:\n    branches: [master]\n  pull_request:\n  workflow_dispatch:", text)
         self.assertNotIn("  push:\n  pull_request:", text)
         self.assertIn(
@@ -395,14 +458,14 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertIn("make check-ci-security-contract", preflight)
         self.assertLess(preflight.index("Verify Python interpreter contract"), preflight.index("make check-ci-security-contract"))
         preflight_checkouts = checkout_step_blocks(preflight)
-        self.assertEqual(1, len(preflight_checkouts))
+        self.assertEqual(len(preflight_checkouts), 1)
         self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", preflight_checkouts[0])
         self.assertIn("submodules: false", preflight_checkouts[0])
         self.assertIn("persist-credentials: false", preflight_checkouts[0])
         job = jobs["report-governance"]
         self.assertIn("needs: verified-report-contract-preflight", job)
         heavy_checkouts = checkout_step_blocks(job)
-        self.assertEqual(1, len(heavy_checkouts))
+        self.assertEqual(len(heavy_checkouts), 1)
         self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", heavy_checkouts[0])
         self.assertIn("submodules: recursive", heavy_checkouts[0])
         self.assertIn("persist-credentials: false", heavy_checkouts[0])
@@ -426,15 +489,28 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertNotIn("pip install --upgrade", job)
         self.assertIn("make report-governance", job)
         self.assertIn("make verified-report-run", job)
-        self.assertEqual(2, job.count("make verified-report-evidence-gate"))
-        self.assertIn("name: Stage payload-safe verified runtime evidence", job)
-        self.assertIn("id: verified-evidence-paths", job)
-        self.assertIn("stage-verified-full-matrix-evidence.py stage", job)
-        self.assertIn('--stage-parent "$RUNNER_TEMP"', job)
-        self.assertIn('--github-output "$GITHUB_OUTPUT"', job)
-        self.assertIn("name: Final strict gate and staged-evidence binding", job)
-        self.assertIn("stage-verified-full-matrix-evidence.py verify", job)
-        self.assertIn('--stage-root "${{ steps.verified-evidence-paths.outputs.staged_root }}"', job)
+        self.assertEqual(job.count("make verified-report-evidence-gate"), 2)
+        stage_parent = workflow_step_with_id(job, "verified-evidence-stage-parent")
+        stage = workflow_step_with_name(job, "Stage payload-safe verified runtime evidence")
+        final_binding = workflow_step_with_name(job, "Final strict gate and staged-evidence binding")
+        stage_root_expression = "${{ steps.verified-evidence-stage-parent.outputs.stage_parent }}/evidence"
+        stage_root_environment = f"VERIFIED_EVIDENCE_STAGE_ROOT: {stage_root_expression}"
+        self.assertIn("mktemp -d", stage_parent)
+        self.assertRegex(
+            stage_parent,
+            r"(?:echo|printf)[^\n]*stage_parent=[^\n]*(?:\$stage_parent|%s)[^\n]*\$GITHUB_OUTPUT",
+        )
+        self.assertIn("stage-verified-full-matrix-evidence.py stage", stage)
+        self.assertIn(stage_root_environment, stage)
+        self.assertIn('--stage-root "$VERIFIED_EVIDENCE_STAGE_ROOT"', stage)
+        self.assertIn("stage-verified-full-matrix-evidence.py verify", final_binding)
+        self.assertIn(stage_root_environment, final_binding)
+        self.assertIn('--stage-root "$VERIFIED_EVIDENCE_STAGE_ROOT"', final_binding)
+        self.assertNotIn("--stage-parent", job)
+        self.assertNotIn("--github-output", job)
+        self.assertNotIn("verified-evidence-paths", job)
+        for step in (stage, final_binding):
+            self.assertNotIn("${{ steps.", block_run_script(step))
         self.assertIn("name: Upload payload-safe verified runtime evidence", job)
         self.assertIn("if: success()", job)
         self.assertIn(
@@ -451,8 +527,8 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         artifact_start = job.index("name: Upload payload-safe verified runtime evidence")
         artifact_end = job.index("name: Summarize failed runtime preparation")
         artifact = job[artifact_start:artifact_end]
-        self.assertIn("path: ${{ steps.verified-evidence-paths.outputs.staged_root }}", artifact)
-        self.assertEqual(1, artifact.count("path:"))
+        self.assertIn(f"path: {stage_root_expression}", artifact)
+        self.assertEqual(artifact.count("path:"), 1)
         for excluded in (
             "reports/testing/",
             "outputs.build_root",

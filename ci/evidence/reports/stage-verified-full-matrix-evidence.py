@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import secrets
 import sys
 from pathlib import Path
 
@@ -36,8 +35,7 @@ def parser() -> argparse.ArgumentParser:
     stage = commands.add_parser("stage", help="create one fresh private evidence snapshot")
     stage.add_argument("--connector-root", required=True)
     stage.add_argument("--build-root", required=True)
-    stage.add_argument("--stage-parent", required=True)
-    stage.add_argument("--github-output", required=True)
+    stage.add_argument("--stage-root", required=True)
 
     verify = commands.add_parser("verify", help="compare a staged snapshot with current strict-gate inputs")
     verify.add_argument("--connector-root", required=True)
@@ -60,29 +58,17 @@ def evidence_summary(evidence: StagedEvidence) -> str:
     )
 
 
-def write_github_output(path: Path, evidence: StagedEvidence) -> None:
-    try:
-        with path.open("a", encoding="utf-8", newline="\n") as output:
-            output.write(f"staged_root={evidence.stage_root}\n")
-            output.write(f"verified_run_id={evidence.verified_run_id}\n")
-    except OSError as exc:
-        raise AggregateReceiptError(f"cannot publish staged evidence output: {exc}") from exc
-
-
 def main() -> int:
     args = parser().parse_args()
     connector_root = Path(args.connector_root)
     build_root = Path(args.build_root)
     try:
         if args.command == "stage":
-            stage_parent = Path(args.stage_parent)
-            stage_root = stage_parent / f"verified-report-evidence-{secrets.token_hex(16)}"
             evidence = stage_verified_full_matrix_evidence(
                 connector_root=connector_root,
                 build_root=build_root,
-                stage_root=stage_root,
+                stage_root=Path(args.stage_root),
             )
-            write_github_output(Path(args.github_output), evidence)
         else:
             evidence = verify_staged_full_matrix_evidence(
                 connector_root=connector_root,

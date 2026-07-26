@@ -450,3 +450,48 @@ Runtime-Evidence, frisches SonarCloud, frisches gehostetes CI, Human Review
 und Resulting-Master-Evidence bleiben getrennte Anforderungen. Historische
 fokussierte Security-Regression-/Kontrolltests, die ausgewählte 146-Test-
 Parent-Suite und vier Runtime-Pfad-Policy-Kontrollen bleiben oben dokumentiert.
+
+## CPU-bewusste Full-Matrix-Scheduler-Fortsetzung (2026-07-26)
+
+Die Full-Runtime-Matrix verwendet für ihre isolierten Runtime-Jobs nun
+standardmäßig die Online-Prozessorzahl, die zuerst über `nproc`, dann über
+`getconf _NPROCESSORS_ONLN` und andernfalls sicher mit eins ermittelt wird.
+Ein expliziter positiver Wert von `FULL_MATRIX_MAX_PARALLEL_JOBS` bleibt eine
+Obergrenze für gemeinsam genutzte Runner. In der beobachteten Task-Umgebung
+melden beide Befehle 12, sodass eine vollständig vorbereitete
+Zwölf-Job-Matrix alle zwölf Jobs ohne manuelles Cap zulassen kann.
+
+Die Vorbereitung bleibt seriell, damit keine Cache-Refreshes gleichzeitig
+ablaufen. Erst wenn alle angeforderten cache-gestützten Connector-Artefakte
+bereit sind, lässt der Parent-Scheduler global geplante Jobs über einen
+completion-getriebenen Worker-Pool zu. Er füllt jeden frei werdenden Slot
+sofort wieder auf, statt auf einen langsamen Batch-Geschwisterjob zu warten,
+und nur der Parent schreibt das Manifest in Plan-Reihenfolge. Fehlt ein
+Artefakt, bleibt die Ausführung seriell. Ein abhängigkeitenfreier Planer
+reserviert und validiert disjunkte Apache-, NGINX- und HAProxy-
+Listener-Suchfenster im unprivilegierten Portbereich, bevor ein Runtime-Befehl
+startet.
+
+Der Completion-Pfad schlägt fehlgeschlossen fehl. Ein regulärer,
+nicht-symlinked FD-9-`flock` sperrt konkurrierende Matrix-Läufe aus, während
+ein privates FIFO jeden Abschluss einem verfolgten Kind-PID zuordnet. Ein
+generationsgebundener Watchdog verwendet das vorhandene positive Limit
+`VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS`: Stirbt ein Wrapper vor seiner
+Completion-Meldung, beendet der Scheduler mit 77, statt unbegrenzt zu warten.
+Der Watchdog schließt FD 9 vor seinem Sleep und kann die Sperre daher nach
+einem getöteten Parent nicht verlängern; echte Job-Nachfahren halten sie bis
+zu ihrem eigenen Ende. Ein Completion-Ereignis genau an der Timeout-Grenze
+kann konservativ Exit 77 erzeugen, wodurch Evidence- und Isolationskontrollen
+erhalten bleiben.
+
+Die lokale Validierung bestand `sh -n`, `git diff --check`, den ausgewählten
+107-Test-Python-Regressionlauf mit `-W error::ResourceWarning`,
+`make check-ci-security-contract`, Variablen- und bilinguale
+Dokumentationsprüfungen, den Python-Version-Contract, gepinntes Actionlint
+und Offline-Zizmor. Fokussierte Kontrollen belegen das erkannte Default-Cap,
+Cap-zwei-Work-Conservation, Portplan-Ablehnung, Live-Lock-Ablehnung,
+Parent-Kill-Lock-Reuse und den begrenzten Lost-Wrapper-Fehler mit anschließendem
+Lock-Reuse. Diese lokalen Prüfungen ersetzen nicht den neuen Exact-Head-
+Hosted-Producer, GitHub-, SonarQube-Cloud-, Review- oder
+Integrationsnachweis, der erforderlich ist, bevor dieser Draft-PR verifiziert
+oder gemergt werden kann.

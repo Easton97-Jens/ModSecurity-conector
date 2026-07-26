@@ -286,13 +286,13 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 record = next(item for item in staged.files if item.relative_path == "/".join(source.stage_components))
                 self.assertTrue(stat.S_ISREG(os.lstat(staged_path).st_mode))
                 self.assertFalse(staged_path.is_symlink())
-                self.assertEqual(0o400, stat.S_IMODE(os.lstat(staged_path).st_mode))
+                self.assertEqual(stat.S_IMODE(os.lstat(staged_path).st_mode), 0o400)
                 self.assertEqual(source_path.read_bytes(), staged_path.read_bytes())
                 self.assertEqual(sha256(staged_path), record.sha256)
                 self.assertEqual(staged_path.stat().st_size, record.bytes)
-            self.assertEqual(0o500, stat.S_IMODE(stage_root.stat().st_mode))
+            self.assertEqual(stat.S_IMODE(stage_root.stat().st_mode), 0o500)
             for directory, _, _ in os.walk(stage_root):
-                self.assertEqual(0o500, stat.S_IMODE(Path(directory).stat().st_mode))
+                self.assertEqual(stat.S_IMODE(Path(directory).stat().st_mode), 0o500)
             self.assertFalse(any(path.name == "run.log" for path in stage_root.rglob("*")))
             self.assertFalse(any("results" in path.parts for path in stage_root.rglob("*")))
 
@@ -406,7 +406,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                         build_root=build_root,
                         stage_root=stage_root,
                     )
-                self.assertEqual("must remain untouched\n", sentinel.read_text(encoding="utf-8"))
+                self.assertEqual(sentinel.read_text(encoding="utf-8"), "must remain untouched\n")
 
     def test_verify_stage_rejects_post_stage_source_replacement(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -442,7 +442,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                         build_root=build_root,
                         stage_root=stage_root,
                     )
-            self.assertEqual("must not be retained\n", (stage_root / "unexpected.txt").read_text(encoding="utf-8"))
+            self.assertEqual((stage_root / "unexpected.txt").read_text(encoding="utf-8"), "must not be retained\n")
             self.assertTrue(moved_stage.is_dir())
 
     def test_stage_rejects_parent_writable_by_another_user(self) -> None:
@@ -459,12 +459,13 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                     stage_root=unsafe_parent / "stage",
                 )
 
-    def test_stager_cli_generates_a_private_random_root_and_verifies_it(self) -> None:
+    def test_stager_cli_stages_the_explicit_private_root_and_verifies_it(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             connector_root, build_root, _, _ = self.prepare_staging_inputs(root)
-            github_output = root / "github-output"
-            with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(
+            stage_root = root / "staged-evidence"
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout), mock.patch.object(
                 sys,
                 "argv",
                 [
@@ -474,17 +475,14 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                     str(connector_root),
                     "--build-root",
                     str(build_root),
-                    "--stage-parent",
-                    str(root),
-                    "--github-output",
-                    str(github_output),
+                    "--stage-root",
+                    str(stage_root),
                 ],
             ):
-                self.assertEqual(0, STAGER.main())
-            output = dict(line.split("=", 1) for line in github_output.read_text(encoding="utf-8").splitlines())
-            stage_root = Path(output["staged_root"])
-            self.assertTrue(stage_root.name.startswith("verified-report-evidence-"))
-            self.assertEqual("verified-run-20260718", output["verified_run_id"])
+                self.assertEqual(STAGER.main(), 0)
+            output = json.loads(stdout.getvalue())
+            self.assertEqual(output["stage_root"], str(stage_root))
+            self.assertEqual(output["verified_run_id"], "verified-run-20260718")
             with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(
                 sys,
                 "argv",
@@ -499,7 +497,33 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                     str(stage_root),
                 ],
             ):
-                self.assertEqual(0, STAGER.main())
+                self.assertEqual(STAGER.main(), 0)
+
+    def test_stager_cli_rejects_legacy_github_output_parameter(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, _, _ = self.prepare_staging_inputs(root)
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), mock.patch.object(
+                sys,
+                "argv",
+                [
+                    str(STAGER_PATH),
+                    "stage",
+                    "--connector-root",
+                    str(connector_root),
+                    "--build-root",
+                    str(build_root),
+                    "--stage-root",
+                    str(root / "staged-evidence"),
+                    "--github-output",
+                    str(root / "legacy-output"),
+                ],
+            ):
+                with self.assertRaises(SystemExit) as raised:
+                    STAGER.main()
+            self.assertEqual(raised.exception.code, 2)
+            self.assertIn("--github-output", stderr.getvalue())
 
     def test_valid_full_matrix_control_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
