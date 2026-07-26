@@ -11,6 +11,15 @@ Source-Commit: `0488c77f69669584324b70460614a382224b4883`
 Source-Beschreibung: `v0.0.9-beta1-26-g0488c77`
 Lizenz: Apache-2.0, aufbewahrt in `licenses/apache/`.
 
+## Selektiver Forward-Port aus dem offenen PR #94
+
+Die allgemeine Import-Basis oben bleibt unverändert. Das RulesSet-Pool-
+Lebensdauerverhalten aus dem offenen Upstream-PR #94 mit Head
+`1e07559819163e4c23338d646859422b0efd5c0e` wurde semantisch in
+`src/msc_config.c` adaptiert. Die gestapelten Request-Handler- und direkten
+Intervention-`free()`-Änderungen wurden bewusst nicht importiert; die Parent-
+EOS- und `msc_intervention_cleanup()`-Ownership bleiben maßgeblich.
+
 | Repository | Lokale Referenz | Upstream | Beobachteter Commit | Beobachtete Version/Tag | Lizenz |
 | --- | --- | --- | --- | --- | --- |
 | ModSecurity-apache | `<external-source-root>/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |

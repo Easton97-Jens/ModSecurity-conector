@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Selektive Integration der Apache-Upstream-PRs #91-#94](CR-20260726-apache-upstream-pr-91-94-integration.de.md)
 - [OpenSSF-Scorecard-Action-v2.4.4-Immutable-Lock-Synchronisierung](CR-20260726-scorecard-action-v2-4-4-lock.de.md)
 - [Parent-Adapter-Helper-expliziter Default-Case für SonarQube Cloud S131](CR-20260724-sonar-ci-adapter-helpers-default-case.de.md)
 - [Parent-NGINX-Intervention-URL-Ownership-Assertion-Reihenfolge für SonarQube Cloud S3415](CR-20260724-sonar-tests-nginx-intervention-url-assertions.de.md)

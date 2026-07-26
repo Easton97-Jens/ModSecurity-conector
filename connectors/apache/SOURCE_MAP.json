@@ -9,7 +9,16 @@
     "version": "v0.0.9-beta1-26-g0488c77",
     "license": "Apache-2.0"
   },
-  "patches": {},
+  "patches": {
+    "upstream-pr-94-ruleset-lifetime": {
+      "upstream_pr": 94,
+      "upstream_head": "1e07559819163e4c23338d646859422b0efd5c0e",
+      "upstream_commit": "5ea3fc9",
+      "status": "semantically-adapted",
+      "files": ["src/msc_config.c"],
+      "excluded": "Stacked request-handler changes and direct intervention free calls"
+    }
+  },
   "files": {
     "Makefile.am": {
       "base_path": "Makefile.am",
@@ -59,7 +68,7 @@
     "src/msc_config.c": {
       "base_path": "src/msc_config.c",
       "license": "Apache-2.0",
-      "reason": "Migrated Apache connector configuration source without semantic changes."
+      "reason": "Migrated Apache connector configuration source; open PR #94 RulesSet cleanup was later semantically adapted to Parent APR-pool ownership."
     },
     "src/msc_config.h": {
       "base_path": "src/msc_config.h",

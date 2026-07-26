@@ -11,6 +11,15 @@ Source commit: `0488c77f69669584324b70460614a382224b4883`
 Source describe: `v0.0.9-beta1-26-g0488c77`
 License: Apache-2.0, retained in `licenses/apache/`.
 
+## Selective forward-port from open PR #94
+
+The general import baseline above is unchanged. The RulesSet pool-lifetime
+behavior from open upstream PR #94, head
+`1e07559819163e4c23338d646859422b0efd5c0e`, was semantically adapted in
+`src/msc_config.c`. The stacked request-handler and direct intervention
+`free()` changes were deliberately not imported; the Parent EOS and
+`msc_intervention_cleanup()` ownership designs remain authoritative.
+
 | Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
 | ModSecurity-apache | `<external-source-root>/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |

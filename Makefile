@@ -1134,7 +1134,29 @@ check-apache-c-standards:
 check-apache-c17:
 	APACHE_C_STD_PROFILE=c17 sh ci/checks/connectors/apache/check-apache-c-standards.sh
 
-.PHONY: check-apache-intervention-cleanup
+.PHONY: check-apache-intervention-cleanup check-apache-ruleset-cleanup check-apache-request-body-regressions apache-request-body-regressions
+.PHONY: check-apache-valgrind-soak apache-soak apache-soak-memcheck apache-soak-helgrind
+check-apache-valgrind-soak:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_valgrind_soak
+
+apache-soak-memcheck:
+	"$(PYTHON)" ci/runtime/apache/run-apache-valgrind-soak.py --mode memcheck --duration "$${APACHE_SOAK_DURATION:-20}" --parallelism "$${APACHE_SOAK_PARALLELISM:-2}"
+
+apache-soak-helgrind:
+	"$(PYTHON)" ci/runtime/apache/run-apache-valgrind-soak.py --mode helgrind --duration "$${APACHE_SOAK_DURATION:-20}" --parallelism "$${APACHE_SOAK_PARALLELISM:-2}"
+
+apache-soak: apache-soak-memcheck apache-soak-helgrind
+
+check-apache-request-body-regressions:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_request_body_regressions
+
+apache-request-body-regressions:
+	@test -n "$${APACHE_TEST_BASE_URL:-}" || { echo "BLOCKED: set APACHE_TEST_BASE_URL to a Parent Apache harness with the body-token rules"; exit 77; }
+	"$(PYTHON)" connectors/apache/harness/request_body_regressions.py --base-url "$$APACHE_TEST_BASE_URL" --output "$${APACHE_TEST_REPORT:-$(BUILD_ROOT)/results/apache-request-body.json}"
+
+check-apache-ruleset-cleanup:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_ruleset_cleanup
+
 check-apache-intervention-cleanup:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_intervention_cleanup
 
@@ -1278,6 +1300,9 @@ lint: check-framework
 	$(MAKE) check-apache-c-standard-wiring
 	$(MAKE) check-apache-c17-lint
 	$(MAKE) check-apache-intervention-cleanup
+	$(MAKE) check-apache-ruleset-cleanup
+	$(MAKE) check-apache-request-body-regressions
+	$(MAKE) check-apache-valgrind-soak
 	$(MAKE) check-apache-request-transaction-cleanup-lint
 	$(MAKE) check-optional-prerequisite-status
 	$(MAKE) check-nginx-common-adoption
