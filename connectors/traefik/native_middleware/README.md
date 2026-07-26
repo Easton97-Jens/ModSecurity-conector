@@ -53,6 +53,26 @@ to `$BUILD_ROOT/traefik-native-middleware/build.txt`. It does not install a
 Traefik plugin, start the persistent engine, call Common/libmodsecurity, or
 write runtime evidence.
 
+## Bounded UDS parser fuzzing
+
+`FuzzUDSFrameAndResult` exercises the custom UDS frame reader and result parser
+with truncated, malformed, allow, deny, and redirect seeds plus arbitrary
+bounded frames. It uses an in-memory reader only: it does not open a socket,
+start the engine, or invoke CGo/Common. A malformed frame must return an error
+without a panic; each successfully parsed frame must round-trip to its consumed
+bytes unchanged (additional stream frames may follow), and a successfully parsed
+result must have a recognized action.
+
+Run the same bounded control from this module directory:
+
+```sh
+GOTOOLCHAIN=local go test -mod=readonly -run='^$' -fuzz='^FuzzUDSFrameAndResult$' -fuzztime=15s -parallel=1 .
+```
+
+The `traefik-go` CodeQL job runs this control with the same 15-second,
+single-worker bound. It is source-level parser evidence, not Traefik host-
+runtime or capability-promotion evidence.
+
 ## Configuration boundary
 
 `../config/traefik-native-middleware-static.yaml` and

@@ -76,6 +76,7 @@ bear --output "$CAPTURE_DIR/compile_commands.raw.json" -- \
 "$PYTHON_BIN" "$SCRIPT_DIR/compile_database.py" \
     --repo-root "$ROOT" \
     --input "$CAPTURE_DIR/compile_commands.raw.json" \
+    --capture-root "$CAPTURE_DIR" \
     --output "$OUTPUT" \
     --merge-existing \
     --require nginx

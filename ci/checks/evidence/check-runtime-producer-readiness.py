@@ -162,7 +162,7 @@ def check_safe_path(path: Path, label: str, roots: dict[str, Path], connector_ro
     return {"label": label, "path": str(resolved), "status": status, "notes": "; ".join(notes) or "ok"}
 
 
-def network_cache_status(env: dict[str, str], cache_root: Path) -> list[dict[str, Any]]:
+def network_cache_status(cache_root: Path) -> list[dict[str, Any]]:
     sources = [
         ("nginx latest release", cache_root / "archives/nginx/nginx-latest-release.json"),
         ("nginx archive cache", cache_root / "archives/nginx"),
@@ -300,7 +300,7 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path) 
             "Module exists": nginx_module_file.is_file(),
             "How to prepare": "make prepare-runtime-components",
         },
-        "network_cache": network_cache_status(effective_env, cache_root),
+        "network_cache": network_cache_status(cache_root),
     }
 
 

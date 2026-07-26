@@ -37,7 +37,7 @@ class ApacheInterventionCleanupTests(unittest.TestCase):
         )
 
     def test_successful_interventions_funnel_through_one_cleanup(self) -> None:
-        self.assertEqual(1, self.source.count("msc_intervention_cleanup(&intervention);"))
+        self.assertEqual(self.source.count("msc_intervention_cleanup(&intervention);"), 1)
         cleanup = self.source.index("msc_intervention_cleanup(&intervention);")
         self.assertIn("cleanup:", self.source[:cleanup])
         self.assertNotIn("intervention.url", self.source[cleanup:])
@@ -45,7 +45,7 @@ class ApacheInterventionCleanupTests(unittest.TestCase):
         self.assertLess(cleanup, self.source.index("return result;"))
 
         returns = re.findall(r"\breturn(?:\s+[^;\s][^;]*|\s{2,});", self.source)
-        self.assertEqual(["return N_INTERVENTION_STATUS;", "return result;"], returns)
+        self.assertEqual(returns, ["return N_INTERVENTION_STATUS;", "return result;"])
 
     def test_log_fallback_does_not_overwrite_the_cleanup_owned_field(self) -> None:
         self.assertIn("log = intervention.log;", self.source)

@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import threading
@@ -21,6 +22,9 @@ from pathlib import Path
 
 class MissingDependency(RuntimeError):
     """A required local executable is absent before the smoke starts."""
+
+
+RUNTIME_ROOT_ENVIRONMENTS = ("BUILD_ROOT", "CONNECTOR_COMPONENT_CACHE")
 
 
 class UpstreamHandler(http.server.BaseHTTPRequestHandler):
@@ -42,14 +46,123 @@ def free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def require_local_executable(path: Path, label: str) -> Path:
+def directory_entry_is_protected_from_cross_user_replacement(
+    parent_stat: os.stat_result, child_stat: os.stat_result
+) -> bool:
+    """Return whether an ancestor prevents another UID replacing its child."""
+
+    if not stat.S_ISDIR(parent_stat.st_mode):
+        return False
+    parent_mode = stat.S_IMODE(parent_stat.st_mode)
+    if parent_mode & (stat.S_IWGRP | stat.S_IWOTH) == 0:
+        return True
+    return bool(parent_mode & stat.S_ISVTX) and child_stat.st_uid == os.geteuid()
+
+
+def assert_path_ancestors_are_safe(
+    path: Path, label: str, stop_at: Path | None = None
+) -> None:
+    """Reject a path replaceable through a cross-user writable ancestor."""
+
+    child = path
+    while child != child.parent:
+        try:
+            child_stat = child.lstat()
+            parent_stat = child.parent.lstat()
+        except OSError as exc:
+            raise MissingDependency(f"{label} ancestor is unavailable: {child.parent}") from exc
+        if not directory_entry_is_protected_from_cross_user_replacement(
+            parent_stat, child_stat
+        ):
+            raise MissingDependency(
+                f"{label} has an ancestor that permits cross-user replacement: {child.parent}"
+            )
+        if stop_at is not None and child.parent == stop_at:
+            return
+        child = child.parent
+
+
+def require_trusted_runtime_root(path: Path, label: str, repo_root: Path) -> Path:
+    """Require an existing user-owned root safe for executable runtime inputs."""
+
+    if not path.is_absolute():
+        raise MissingDependency(f"{label} must be an existing absolute directory: {path}")
+    root = Path(os.path.abspath(path))
+    if root == Path(root.anchor):
+        raise MissingDependency(f"{label} is too broad for runtime inputs: {root}")
+    try:
+        root.relative_to(repo_root.resolve())
+    except ValueError:
+        pass
+    else:
+        raise MissingDependency(f"{label} must be outside the checkout: {root}")
+    assert_no_symlink_components(root)
+    try:
+        root_stat = root.lstat()
+    except OSError as exc:
+        raise MissingDependency(f"{label} is unavailable: {root}") from exc
+    if not stat.S_ISDIR(root_stat.st_mode):
+        raise MissingDependency(f"{label} must be an existing directory: {root}")
+    if root_stat.st_uid != os.geteuid():
+        raise MissingDependency(f"{label} must be owned by the current user: {root}")
+    if stat.S_IMODE(root_stat.st_mode) & (stat.S_IWGRP | stat.S_IWOTH):
+        raise MissingDependency(f"{label} must not be group or world writable: {root}")
+    assert_path_ancestors_are_safe(root, label)
+    if not os.access(root, os.X_OK):
+        raise MissingDependency(f"{label} is not searchable by the current user: {root}")
+    return root
+
+
+def require_runtime_root_from_environment(label: str, repo_root: Path) -> Path:
+    """Resolve one mandatory runtime root without falling back to shared temporary storage."""
+
+    value = os.environ.get(label, "")
+    if not value:
+        raise MissingDependency(f"{label} must be set to a trusted runtime root")
+    return require_trusted_runtime_root(Path(value), label, repo_root)
+
+
+def require_local_executable(path: Path, label: str, root: Path) -> Path:
+    """Require a trusted regular executable below its validated runtime root."""
+
     if not path.is_absolute():
         raise MissingDependency(f"{label} must be an absolute local path: {path}")
-    if str(path).startswith(("/usr/", "/bin/", "/sbin/", "/opt/")):
-        raise MissingDependency(f"{label} must not use a global system path: {path}")
-    if not path.is_file() or not os.access(path, os.X_OK):
-        raise MissingDependency(f"{label} is not executable: {path}")
-    return path
+    executable = Path(os.path.abspath(path))
+    try:
+        executable.relative_to(root)
+    except ValueError as exc:
+        raise MissingDependency(f"{label} must remain below {root}: {executable}") from exc
+    assert_no_symlink_components(executable)
+    try:
+        executable_stat = executable.lstat()
+    except OSError as exc:
+        raise MissingDependency(f"{label} is unavailable: {executable}") from exc
+    if not stat.S_ISREG(executable_stat.st_mode):
+        raise MissingDependency(f"{label} must be a regular file: {executable}")
+    if executable_stat.st_uid != os.geteuid():
+        raise MissingDependency(f"{label} must be owned by the current user: {executable}")
+    if stat.S_IMODE(executable_stat.st_mode) & (stat.S_IWGRP | stat.S_IWOTH):
+        raise MissingDependency(f"{label} must not be group or world writable: {executable}")
+    assert_path_ancestors_are_safe(executable, label, stop_at=root)
+    if not os.access(executable, os.X_OK):
+        raise MissingDependency(f"{label} is not executable: {executable}")
+    return executable
+
+
+def resolve_runtime_binaries(args: argparse.Namespace, repo_root: Path) -> tuple[Path, Path]:
+    """Resolve both binary paths only after their trusted roots are established."""
+
+    build_root = require_runtime_root_from_environment(RUNTIME_ROOT_ENVIRONMENTS[0], repo_root)
+    component_cache = require_runtime_root_from_environment(
+        RUNTIME_ROOT_ENVIRONMENTS[1], repo_root
+    )
+    connector_binary = require_local_executable(
+        args.connector_binary, "Traefik connector binary", build_root
+    )
+    traefik_binary = require_local_executable(
+        args.traefik_binary, "Traefik binary", component_cache
+    )
+    return connector_binary, traefik_binary
 
 
 def consume_no_crs_selected_cases(repo_root: Path) -> None:
@@ -228,13 +341,8 @@ def stop_process(process: subprocess.Popen[bytes] | None) -> None:
 def parse_args() -> argparse.Namespace:
     script = Path(__file__).resolve()
     repo_root = script.parents[3]
-    build_root = Path(os.environ.get("BUILD_ROOT", "/var/tmp/ModSecurity-conector-verified/build"))
-    component_cache = Path(
-        os.environ.get(
-            "CONNECTOR_COMPONENT_CACHE",
-            "/var/tmp/ModSecurity-conector-verified/cache-v2/shared",
-        )
-    )
+    build_root = Path(os.environ.get("BUILD_ROOT", ""))
+    component_cache = Path(os.environ.get("CONNECTOR_COMPONENT_CACHE", ""))
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--connector-binary",
@@ -277,8 +385,7 @@ def run(args: argparse.Namespace) -> int:
     assert_output_root(result_root, repo_root)
     result_path = result_root / "result.json"
     expected_rule_id = os.environ.get("MSCONNECTOR_EXPECTED_RULE_ID", "1000001")
-    connector_binary = require_local_executable(args.connector_binary, "Traefik connector binary")
-    traefik_binary = require_local_executable(args.traefik_binary, "Traefik binary")
+    connector_binary, traefik_binary = resolve_runtime_binaries(args, repo_root)
     template = args.config_template.resolve()
     rules_file = Path(
         os.environ.get(
