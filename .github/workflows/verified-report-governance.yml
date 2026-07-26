@@ -93,9 +93,35 @@ jobs:
         if: failure()
         run: |
           set -eu
-          log_root="$BUILD_ROOT/verified-runs"
-          if [ -d "$log_root" ]; then
-            find "$log_root" -type f -name '02-make-prepare-runtime-components.log' -exec tail -n 300 -- {} +
+          tail_regular_log() {
+            local log_label="$1"
+            local log_path="$2"
+            local stop_commands_token
+
+            if [ -f "$log_path" ] && [ ! -L "$log_path" ]; then
+              stop_commands_token="$(uuidgen)"
+              echo "::stop-commands::$stop_commands_token"
+              if ! tail -n 300 -- "$log_path"; then
+                echo "The safe $log_label could not be read."
+              fi
+              echo "::$stop_commands_token::"
+            else
+              echo "No safe $log_label was created."
+            fi
+          }
+
+          run_id_path="$BUILD_ROOT/verified-runs/current-run-id"
+          if [ -f "$run_id_path" ] && [ ! -L "$run_id_path" ]; then
+            run_id="$(cat -- "$run_id_path")"
+            if [ -z "$run_id" ] || [ "${#run_id}" -gt 128 ] || ! [[ "$run_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+              echo "Current verified runtime run identifier is invalid."
+            else
+              current_run_log="$BUILD_ROOT/verified-runs/$run_id/logs/02-make-prepare-runtime-components.log"
+              tail_regular_log "current runtime preparation log" "$current_run_log"
+            fi
           else
-            echo "No verified runtime log root was created."
+            echo "No safe verified runtime run identifier was created."
           fi
+
+          apache_build_log="$BUILD_ROOT/logs/runtime-components/apache-build.log"
+          tail_regular_log "Apache runtime build log" "$apache_build_log"

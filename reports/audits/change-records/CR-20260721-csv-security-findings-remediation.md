@@ -81,7 +81,7 @@ existing no-follow, descendant-owner, and final-root checks.
 - verified-report workflow, evidence receipt/layout checks, and report
   generators;
 - report-governance full-evidence orchestration and its focused CI-security
-  regression contract;
+  regression contract, including failure-only bounded diagnostic paths;
 - runtime path, run-ID, and temporary-directory helpers plus direct
   write-capable lifecycle entry points;
 - local smoke request parsing, authorization timeout, remote-rule merging, and
@@ -148,14 +148,28 @@ budget.
 The isolated task worktree materializes the Parent-recorded Framework and MRTS
 revisions only as runtime dependencies. No Framework/MRTS source change,
 branch, commit, push, pull request, or Parent gitlink update is part of this
-remediation. This record makes no fresh-runtime, SonarCloud, or merge claim:
-the updated exact head must be published and run in hosted CI before those
-results can be asserted.
+remediation. The published exact head
+`28a4a1af5e764860d27ecb670bd82283e7b1aa74` reached the full producer in its
+hosted push and pull-request runs, then correctly failed with
+`apache_httpd: missing_local_httpd_build`. This record makes no fresh-runtime
+success, SonarCloud, or merge claim: the hardened next exact head must run in
+hosted CI before any such result can be asserted.
 
-If the full producer fails, a failure-only diagnostic now prints the bounded
-tail of its fixed `prepare-runtime-components` log from the task-owned verified
-run root. It neither accepts the failed run nor changes the terminal gate; it
-only makes a legitimate CI blocker observable for a focused follow-up.
+The prior failure-only diagnostic printed only the outer producer log, so it
+showed the Apache classification but not the inner build cause. It now reads
+only the regular, non-symlink
+`$BUILD_ROOT/verified-runs/current-run-id` pointer; rejects an empty identifier,
+one longer than 128 characters, one without an initial alphanumeric character,
+or one containing characters outside `[A-Za-z0-9._-]`; and constructs exactly
+`$BUILD_ROOT/verified-runs/$run_id/logs/02-make-prepare-runtime-components.log`.
+It tails that path and the additional fixed
+`$BUILD_ROOT/logs/runtime-components/apache-build.log` only when each is a
+regular, non-symlink file, with each tail limited to 300 lines. It does not
+recurse, glob, or expose a broad log root. Each raw-log tail is surrounded by a
+fresh `uuidgen` GitHub `::stop-commands::` token and its matching resume token,
+so log content cannot be interpreted as a workflow command. The diagnostic
+neither accepts the failed producer nor changes the terminal gate; it only
+makes the legitimate Apache remediation observable on the next exact-head run.
 
 ## Commands executed
 
@@ -186,6 +200,10 @@ only makes a legitimate CI blocker observable for a focused follow-up.
 | Integration remediation: `make check-ci-security-contract` with the task-local Python environment | passed: 19 workflow-security tests plus actionlint, zizmor, and gitleaks lock validation. |
 | Integration remediation: `ci/checks/documentation/check-bilingual-docs.py` with the task-local Python environment | passed: the updated English/German Change Record pair remains structurally paired. |
 | Integration remediation: `git diff --check` | passed: no whitespace error in the scoped PR #74 worktree. |
+| PR #74 bounded-diagnostic hardening: `rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 .venv/bin/python -m unittest -v tests.test_ci_security_workflows` | passed: 19 tests, including the exact current-run pointer, identifier validation, two fixed log paths, regular/non-symlink gate, 300-line bound, command shielding, and preserved terminal-gate ordering. |
+| PR #74 bounded-diagnostic hardening: `rtk proxy env PYTHON=.venv/bin/python PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 make check-ci-security-contract` | passed: the same 19 workflow-security tests plus actionlint, zizmor, and gitleaks lock validation. |
+| PR #74 bounded-diagnostic hardening: `rtk proxy env PYTHON=.venv/bin/python PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 make check-bilingual-docs` | passed: the English/German Change Record pair remains structurally paired after the two-path diagnostic update. |
+| PR #74 bounded-diagnostic hardening: `rtk git diff --check -- .github/workflows/verified-report-governance.yml tests/test_ci_security_workflows.py reports/audits/change-records/CR-20260721-csv-security-findings-remediation.md reports/audits/change-records/CR-20260721-csv-security-findings-remediation.de.md` | passed: no whitespace error in the scoped four-file diff. |
 
 ## Security impact
 
@@ -194,6 +212,10 @@ CI/report provenance, and a connector helper. It closes a tested local-helper
 forwarding case for ambiguous TE+CL and repeated CL/TE framing and a plausible configured-MATRIX_ROOT
 containment gap found during review. The S5443 follow-up also rejects a
 root-owned but non-sticky public ancestor instead of accepting it by pathname.
+The bounded failure diagnostic is additional defense in depth, not a validated
+vulnerability: it treats raw local build logs as untrusted workflow output and
+prevents their content from becoming GitHub workflow commands while preserving
+the producer's nonzero failure.
 It does not claim production-host exposure,
 a complete connector matrix, or production exploitability beyond the controls
 that were tested.
@@ -208,10 +230,14 @@ No Lighttpd queue/multi-chunk remediation evidence was available for CSV-10.
 
 The updated unprivileged workflow now runs the existing strict/full Parent
 producer in the ephemeral checkout and retains the terminal strict consumer.
-The only acceptable fresh proof is its exact-head hosted result and its
-revision-bound runtime receipt chain; that run is pending publication of this
-change and is not substituted by the local static-contract checks above. The
-strict producer's Python and Expat inputs are now immutable/reviewed before it
+The exact head `28a4a1af5e764860d27ecb670bd82283e7b1aa74` reached that producer
+but failed with `apache_httpd: missing_local_httpd_build`; the outer
+`prepare-runtime-components` summary did not include the Apache build cause.
+The hardened two-path diagnostic is not runtime evidence and does not repair
+Apache. A subsequent exact-head hosted run must show the bounded Apache-build
+tail, re-exercise the unchanged strict producer and terminal consumer, and
+provide a revision-bound receipt chain before any success is claimed. The
+strict producer's Python and Expat inputs remain immutable/reviewed before it
 can mint that evidence; its non-strict compatibility path is not an evidence
 substitute.
 

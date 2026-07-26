@@ -84,7 +84,8 @@ No-Follow-, Nachfolger-Owner- und Final-Root-Prüfungen.
 - Verified-Report-Workflow, Evidence-Receipt-/Layout-Prüfungen und
   Berichtsgeneratoren;
 - Full-Evidence-Orchestrierung der Report-Governance und ihr fokussierter
-  CI-Sicherheits-Regressionsvertrag;
+  CI-Sicherheits-Regressionsvertrag einschließlich begrenzter
+  Diagnosepfade nur bei Fehlern;
 - Runtime-Pfad-, Run-ID- und Temporärverzeichnis-Helfer sowie direkte
   schreibfähige Lifecycle-Einstiegspunkte;
 - lokales Smoke-Request-Parsing, Authorization-Timeout, Remote-Rule-Merging
@@ -158,16 +159,33 @@ Provenienz-Eingaben, beide Opt-ins und das Budget fest.
 Der isolierte Task-Worktree materialisiert die von Parent referenzierten
 Framework- und MRTS-Revisionen ausschließlich als Runtime-Abhängigkeiten. Zu
 dieser Remediation gehören keine Framework-/MRTS-Quellcodeänderung, kein
-Branch, Commit, Push, Pull Request oder Parent-Gitlink-Update. Dieser Record
-behauptet weder frische Runtime-Evidence noch SonarCloud- oder Merge-Erfolg:
-der aktualisierte Exact Head muss veröffentlicht sein und im gehosteten CI
-laufen, bevor solche Ergebnisse behauptet werden können.
+Branch, Commit, Push, Pull Request oder Parent-Gitlink-Update. Der
+veröffentlichte Exact Head
+`28a4a1af5e764860d27ecb670bd82283e7b1aa74` erreichte in seinen gehosteten
+Push- und Pull-Request-Läufen den vollständigen Producer und schlug dann
+korrekt mit `apache_httpd: missing_local_httpd_build` fehl. Dieser Record
+behauptet weder frischen Runtime-Erfolg noch SonarCloud- oder Merge-Erfolg: Der
+gehärtete nächste Exact Head muss im gehosteten CI laufen, bevor solche
+Ergebnisse behauptet werden können.
 
-Wenn der Full-Producer fehlschlägt, gibt eine nur-bei-Fehler aktive Diagnose
-den begrenzten Tail seines festen `prepare-runtime-components`-Logs aus der
-task-eigenen Verified-Run-Wurzel aus. Sie akzeptiert weder den fehlgeschlagenen
-Lauf noch verändert sie das terminale Gate; sie macht ausschließlich einen
-legitimen CI-Blocker für ein fokussiertes Follow-up beobachtbar.
+Die bisherige nur-bei-Fehler aktive Diagnose gab nur das äußere Producer-Log
+aus und zeigte daher die Apache-Klassifizierung, aber nicht die innere
+Build-Ursache. Sie liest jetzt ausschließlich den regulären, nicht-symlinked
+Pointer `$BUILD_ROOT/verified-runs/current-run-id`; sie lehnt eine leere
+Kennung, eine Kennung mit mehr als 128 Zeichen, eine Kennung ohne initiales
+alphanumerisches Zeichen oder eine Kennung mit Zeichen außerhalb von
+`[A-Za-z0-9._-]` ab; und sie konstruiert exakt
+`$BUILD_ROOT/verified-runs/$run_id/logs/02-make-prepare-runtime-components.log`.
+Sie tailt diesen Pfad und das zusätzliche feste
+`$BUILD_ROOT/logs/runtime-components/apache-build.log` nur dann, wenn jeder
+eine reguläre, nicht-symlinked Datei ist, und begrenzt jeden Tail auf 300
+Zeilen. Sie rekursiert nicht, verwendet keine Globs und gibt keine breite
+Log-Wurzel aus. Jeder Raw-Log-Tail wird von einem frischen `uuidgen`-GitHub-
+`::stop-commands::`-Token und seinem passenden Resume-Token umschlossen, damit
+Log-Inhalt nicht als Workflow-Befehl interpretiert werden kann. Die Diagnose
+akzeptiert weder den fehlgeschlagenen Producer noch verändert sie das terminale
+Gate; sie macht nur die legitime Apache-Remediation im nächsten Exact-Head-Lauf
+beobachtbar.
 
 ## Ausgeführte Befehle
 
@@ -198,6 +216,10 @@ legitimen CI-Blocker für ein fokussiertes Follow-up beobachtbar.
 | Integrationsremediation: `make check-ci-security-contract` mit der task-lokalen Python-Umgebung | bestanden: 19 Workflow-Sicherheits-Tests sowie actionlint-, zizmor- und gitleaks-Lock-Validierung. |
 | Integrationsremediation: `ci/checks/documentation/check-bilingual-docs.py` mit der task-lokalen Python-Umgebung | bestanden: Das aktualisierte englisch/deutsche Change-Record-Paar bleibt strukturell gepaart. |
 | Integrationsremediation: `git diff --check` | bestanden: kein Whitespace-Fehler im scoped PR-#74-Worktree. |
+| PR-#74-Härtung der begrenzten Diagnose: `rtk proxy env PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 .venv/bin/python -m unittest -v tests.test_ci_security_workflows` | bestanden: 19 Tests einschließlich exaktem Current-Run-Pointer, Kennungsvalidierung, zwei festen Log-Pfaden, Regular-/Nicht-Symlink-Gate, 300-Zeilen-Grenze, Command-Shielding und beibehaltener terminaler-Gate-Reihenfolge. |
+| PR-#74-Härtung der begrenzten Diagnose: `rtk proxy env PYTHON=.venv/bin/python PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 make check-ci-security-contract` | bestanden: dieselben 19 Workflow-Sicherheits-Tests sowie actionlint-, zizmor- und gitleaks-Lock-Validierung. |
+| PR-#74-Härtung der begrenzten Diagnose: `rtk proxy env PYTHON=.venv/bin/python PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 make check-bilingual-docs` | bestanden: Das englisch/deutsche Change-Record-Paar bleibt nach der Zwei-Pfad-Diagnoseaktualisierung strukturell gepaart. |
+| PR-#74-Härtung der begrenzten Diagnose: `rtk git diff --check -- .github/workflows/verified-report-governance.yml tests/test_ci_security_workflows.py reports/audits/change-records/CR-20260721-csv-security-findings-remediation.md reports/audits/change-records/CR-20260721-csv-security-findings-remediation.de.md` | bestanden: kein Whitespace-Fehler im scoped Vier-Dateien-Diff. |
 
 ## Security-Auswirkung
 
@@ -208,6 +230,11 @@ CL/TE-Framing sowie eine bei der
 Prüfung entdeckte plausible Containment-Lücke für konfiguriertes MATRIX_ROOT.
 Das S5443-Follow-up lehnt außerdem einen root-owned, aber nicht-sticky
 öffentlichen Vorgänger ab, statt ihn anhand seines Pfadnamens zu akzeptieren.
+Die begrenzte Fehlerdiagnose ist zusätzliche Defense in Depth, keine
+validierte Schwachstelle: Sie behandelt rohe lokale Build-Logs als nicht
+vertrauenswürdige Workflow-Ausgabe und verhindert, dass deren Inhalt zu
+GitHub-Workflow-Befehlen wird, während der Nonzero-Fehler des Producers
+erhalten bleibt.
 Es behauptet weder Produktionshost-Exposure noch eine vollständige
 Connector-Matrix oder Produktions-Exploitierbarkeit über die getesteten
 Kontrollen hinaus.
@@ -224,10 +251,15 @@ Lighttpd-Queue-/Multi-Chunk-Behebungs-Evidence vor.
 Der aktualisierte unprivilegierte Workflow führt nun den vorhandenen
 strikten/vollständigen Parent-Producer im flüchtigen Checkout aus und behält
 den terminalen strikten Consumer. Der einzige akzeptable frische Nachweis ist
-sein Exact-Head-gehostetes Ergebnis mit revisionsgebundener Runtime-Receipt-
-Kette; dieser Lauf wartet auf die Veröffentlichung dieser Änderung und wird
-nicht durch die lokalen statischen Vertragschecks ersetzt. Die Python- und
-Expat-Eingaben des strikten Producers sind nun unveränderlich/überprüft, bevor
+der Exact Head `28a4a1af5e764860d27ecb670bd82283e7b1aa74` erreichte diesen
+Producer, schlug jedoch mit `apache_httpd: missing_local_httpd_build` fehl; die
+äußere `prepare-runtime-components`-Zusammenfassung enthielt die Apache-
+Build-Ursache nicht. Die gehärtete Zwei-Pfad-Diagnose ist keine Runtime-
+Evidence und repariert Apache nicht. Ein nachfolgender gehosteter Exact-Head-
+Lauf muss den begrenzten Apache-Build-Tail zeigen, den unveränderten strikten
+Producer und terminalen Consumer erneut ausüben und eine revisionsgebundene
+Receipt-Kette bereitstellen, bevor ein Erfolg behauptet wird. Die Python- und
+Expat-Eingaben des strikten Producers bleiben unveränderlich/überprüft, bevor
 er diese Evidence erzeugen kann; sein Nicht-Strict-Kompatibilitätspfad ist kein
 Evidence-Ersatz.
 
