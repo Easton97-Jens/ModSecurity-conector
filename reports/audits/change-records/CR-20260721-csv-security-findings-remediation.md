@@ -214,26 +214,50 @@ command outcomes rather than the complete machine-readable receipt chain.
 That does not meet FND-CROSS-0001's retained freshness-manifest acceptance
 criterion.
 
-The Parent-only follow-up keeps the strict terminal gate unchanged. Only after
-that gate succeeds, it resolves one validated regular non-symlink
-`$BUILD_ROOT/verified-runs/current-run-id` pointer, verifies every selected
-regular non-symlink structured record, and uploads a uniquely
-SHA/run-bound artifact with the existing pinned
-`actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1`
-action. The artifact retains for ten days and fails when a required selected
-record is missing. It includes the three generated manifest JSON files, the
-current run's command and aggregate receipts, the raw matrix index, and all
-twelve job JSON records. It deliberately excludes build trees, raw logs,
-`run.log`, result JSONL, request/response payloads, headers, and cookies.
-The workflow keeps `permissions: contents: read`, does not use
-`pull_request_target`, does not receive secrets, and gains no write
-permission.
+The first artifact-retention successor was not accepted as evidence: a review
+found that its shell pathname checks did not bind the later upload action to
+the checked files. The two task-owned runs for that unsafe successor were
+cancelled before upload; no artifact was created or inspected from them.
+
+The corrective Parent-only follow-up keeps the full producer and initial
+strict gate. It stages the fixed eighteen-file structured allowlist through
+descriptor-relative `O_NOFOLLOW` traversal, stable regular-file reads, and
+exclusive writes into a new random child of a private runner-owned staging
+parent. The upload action receives only that staged root. A final strict gate
+then runs again and the same descriptor-safe code compares every staged digest
+and byte count with the live source set, rejecting additions, symlinks,
+replacement, or a changed source before upload. The artifact retains for ten
+days and fails when the staged root is missing. It contains the three generated
+manifest JSON files, the current run's command and aggregate receipts, the raw
+matrix index, and all twelve job JSON records. It deliberately excludes build
+trees, raw logs, `run.log`, result JSONL, request/response payloads, headers,
+and cookies.
+
+The workflow also removes duplicate expensive PR work without shortening the
+runtime proof: automatic pushes are limited to `master`, every pull request
+still receives one full producer, and a same-PR/ref concurrency group cancels
+only superseded runs. A separate short read-only contract preflight runs
+`make check-ci-security-contract` before the 360-minute producer job. Both
+jobs check out the exact pull-request head (or the event SHA outside a PR), so
+the artifact identity uses that same revision. The workflow keeps
+`permissions: contents: read`, does not use `pull_request_target`, does not
+receive secrets, and gains no write permission. After its setup-python
+interpreter verifier, the preflight explicitly sets `PYTHON=python3`, so Make
+cannot select a repository-local `.venv` supplied by an untrusted pull request.
+
+This is a descriptor-safe staged snapshot, not a transactional filesystem
+snapshot or a protection against an arbitrary surviving same-UID process that
+can modify a runner path after the final comparison. The retained-evidence
+claim therefore requires the hosted runner to have no such untrusted surviving
+process from final comparison through upload; a stronger model would require a
+separate identity or an uploader consuming a protected descriptor/stream.
 
 The active pre-retention runs cannot be retroactively supplied with this
 artifact. A successor exact PR head must pass the complete hosted producer,
-the unchanged strict gate, and the new payload-safe upload before the artifact
-can be downloaded and checked for one matching run ID, current Parent and
-Framework revisions, declared hashes, and no stale or unexplained mismatch.
+both strict-gate observations, the staged-source binding, and the new
+payload-safe upload before the artifact can be downloaded and checked for one
+matching run ID, current Parent and Framework revisions, declared hashes, and
+no stale or unexplained mismatch.
 No FND-CROSS-0001 closure, SonarQube Cloud result, review result, or protected
 integration success is claimed here.
 
@@ -274,6 +298,11 @@ integration success is claimed here.
 | Payload-safe hosted-evidence retention: `PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` | passed: the same 20 workflow-security tests plus actionlint, zizmor, and gitleaks lock validation. |
 | Payload-safe hosted-evidence retention: `PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` | passed: the English/German Change Record pair is structurally paired. |
 | Payload-safe hosted-evidence retention: `git diff --check -- .github/workflows/verified-report-governance.yml tests/test_ci_security_workflows.py reports/audits/change-records/CR-20260721-csv-security-findings-remediation.md reports/audits/change-records/CR-20260721-csv-security-findings-remediation.de.md` | passed: no whitespace error in the scoped four-file diff. |
+| Artifact-retention security correction and runtime-efficiency follow-up: `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_generated_report_evidence_integrity tests.test_ci_security_workflows tests.test_python_version_contract` | passed: 117 tests cover descriptor-relative staging of all 18 allowlisted records, intermediate/final symlink rejection, source replacement and mutation checks, staged-source binding, the exact workflow order, and the Python workflow inventory. |
+| Artifact-retention security correction and runtime-efficiency follow-up: `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` | passed: 20 workflow-security tests plus actionlint, zizmor, and gitleaks lock validation. |
+| Artifact-retention security correction and runtime-efficiency follow-up: `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-python-version-contract` | passed: canonical Python 3.14.6 and 29 Python-executing workflow jobs; the staged workflow uses static, previously verified `python3` command heads and a private virtual-environment PATH. |
+| Artifact-retention security correction and runtime-efficiency follow-up: `rtk proxy timeout 180s env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python ci/checks/documentation/check-bilingual-docs.py` | passed: `bilingual docs ok`. |
+| Artifact-retention security correction and runtime-efficiency follow-up: Framework workflow-YAML checker and `git diff --check` | passed: the Parent workflow parses and the scoped diff has no whitespace error. |
 
 ## Security impact
 
@@ -287,10 +316,17 @@ vulnerability: it treats raw local build logs as untrusted workflow output and
 prevents their content from becoming GitHub workflow commands while preserving
 the producer's nonzero failure.
 The hosted-evidence continuation is similarly allowlisted and success-only:
-it verifies the current run pointer and every selected regular non-symlink
-structured record before retaining the SHA/run-bound artifact. It does not
-upload logs, result payloads, build trees, credentials, or broad directories,
-and it preserves the existing read-only workflow permission model.
+it descriptor-opens every source component without following symlinks, makes a
+stable read of each of the fixed eighteen structured records, and writes an
+exclusive staged copy under a private runner-owned root. The upload receives
+only that staged root. After the second unchanged strict gate, the same
+descriptor-safe logic compares every staged digest and byte count with the
+current source set and rejects an addition, symlink, replacement, or changed
+source before upload. It does not upload logs, result payloads, build trees,
+credentials, or broad directories, and it preserves the existing read-only
+workflow permission model. This protects the normal runner boundary; it is not
+a transactional filesystem snapshot against an arbitrary surviving same-UID
+process after the final comparison.
 It does not claim production-host exposure,
 a complete connector matrix, or production exploitability beyond the controls
 that were tested.

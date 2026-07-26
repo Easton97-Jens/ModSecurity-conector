@@ -2,14 +2,50 @@ name: verified-report-governance
 
 on:
   push:
+    branches: [master]
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: verified-report-governance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
+  verified-report-contract-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: false
+          persist-credentials: false
+
+      - id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Run CI-security workflow contract preflight
+        env:
+          # Do not let Make's optional repository-local .venv selection run
+          # before the exact setup-python interpreter has been used.
+          PYTHON: python3
+        run: |
+          set -eu
+          make check-ci-security-contract
+
   report-governance:
+    needs: verified-report-contract-preflight
     runs-on: ubuntu-latest
     # A strict/full verified run has a 345-minute maximum internal budget.
     # Keep a small outer margin without relying on a shortened or soft run.
@@ -29,6 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           persist-credentials: false
 
@@ -60,19 +97,23 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Install hash-locked CI dependency
-        env:
-          PYTHON_BIN: ${{ steps.setup-python.outputs.python-path }}
         run: |
           set -eu
           venv="$RUNNER_TEMP/verified-report-python"
-          "$PYTHON_BIN" -m venv "$venv"
-          "$venv/bin/python" -m pip install \
+          # actions/setup-python selected and the preceding verifier checked
+          # this static command head.  Keep the virtual environment first in
+          # PATH for all later Python/Make invocations.
+          python3 -m venv "$venv"
+          PATH="$venv/bin:$PATH" python3 -m pip install \
             --disable-pip-version-check \
             --no-input \
             --only-binary=:all: \
             --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock
-          "$venv/bin/python" -m pip check
-          echo "PYTHON=$venv/bin/python" >> "$GITHUB_ENV"
+          PATH="$venv/bin:$PATH" python3 -m pip check
+          {
+            echo "PATH=$venv/bin:$PATH"
+            echo "PYTHON=python3"
+          } >> "$GITHUB_ENV"
 
       - name: Generated report governance
         run: |
@@ -89,74 +130,34 @@ jobs:
           set -eu
           make verified-report-evidence-gate
 
-      - name: Resolve payload-safe verified runtime evidence paths
+      - name: Stage payload-safe verified runtime evidence
         id: verified-evidence-paths
         run: |
           set -eu
-          run_id_path="$BUILD_ROOT/verified-runs/current-run-id"
-          if [ ! -f "$run_id_path" ] || [ -L "$run_id_path" ]; then
-            echo "Verified runtime run identifier is unavailable or unsafe." >&2
-            exit 1
-          fi
-          run_id="$(cat -- "$run_id_path")"
-          if [ -z "$run_id" ] || [ "${#run_id}" -gt 128 ] || ! [[ "$run_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-            echo "Verified runtime run identifier is invalid." >&2
-            exit 1
-          fi
-          verified_run_root="$BUILD_ROOT/verified-runs/$run_id"
-          for evidence_path in \
-            "reports/testing/generated/manifest/verified-run-manifest.generated.json" \
-            "reports/testing/generated/manifest/report-freshness.generated.json" \
-            "reports/testing/generated/manifest/report-refresh-manifest.generated.json" \
-            "$verified_run_root/verified-commands.json" \
-            "$verified_run_root/full-matrix-aggregate-receipt.json" \
-            "$BUILD_ROOT/full-matrix/full-runtime-matrix-runs.jsonl"; do
-            if [ ! -f "$evidence_path" ] || [ -L "$evidence_path" ]; then
-              echo "Required payload-safe evidence path is unavailable or unsafe: $evidence_path" >&2
-              exit 1
-            fi
-          done
-          for crs in no-crs with-crs; do
-            for mrts in no-mrts with-mrts; do
-              for connector in apache nginx haproxy; do
-                evidence_path="$BUILD_ROOT/full-matrix/$crs/$mrts/$connector/job.json"
-                if [ ! -f "$evidence_path" ] || [ -L "$evidence_path" ]; then
-                  echo "Required payload-safe evidence path is unavailable or unsafe: $evidence_path" >&2
-                  exit 1
-                fi
-              done
-            done
-          done
-          printf 'build_root=%s\n' "$BUILD_ROOT" >> "$GITHUB_OUTPUT"
-          printf 'verified_run_root=%s\n' "$verified_run_root" >> "$GITHUB_OUTPUT"
+          python3 ci/evidence/reports/stage-verified-full-matrix-evidence.py stage \
+            --connector-root "$GITHUB_WORKSPACE" \
+            --build-root "$BUILD_ROOT" \
+            --stage-parent "$RUNNER_TEMP" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Final strict gate and staged-evidence binding
+        run: |
+          set -eu
+          make verified-report-evidence-gate
+          python3 ci/evidence/reports/stage-verified-full-matrix-evidence.py verify \
+            --connector-root "$GITHUB_WORKSPACE" \
+            --build-root "$BUILD_ROOT" \
+            --stage-root "${{ steps.verified-evidence-paths.outputs.staged_root }}"
 
       - name: Upload payload-safe verified runtime evidence
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: verified-report-evidence-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: verified-report-evidence-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           # Keep the revision-bound structured receipt chain without raw runtime payloads.
           retention-days: 10
           if-no-files-found: error
-          path: |
-            reports/testing/generated/manifest/verified-run-manifest.generated.json
-            reports/testing/generated/manifest/report-freshness.generated.json
-            reports/testing/generated/manifest/report-refresh-manifest.generated.json
-            ${{ steps.verified-evidence-paths.outputs.verified_run_root }}/verified-commands.json
-            ${{ steps.verified-evidence-paths.outputs.verified_run_root }}/full-matrix-aggregate-receipt.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/full-runtime-matrix-runs.jsonl
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/no-crs/no-mrts/apache/job.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/no-crs/no-mrts/nginx/job.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/no-crs/no-mrts/haproxy/job.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/no-crs/with-mrts/apache/job.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/no-crs/with-mrts/nginx/job.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/no-crs/with-mrts/haproxy/job.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/with-crs/no-mrts/apache/job.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/with-crs/no-mrts/nginx/job.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/with-crs/no-mrts/haproxy/job.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/with-crs/with-mrts/apache/job.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/with-crs/with-mrts/nginx/job.json
-            ${{ steps.verified-evidence-paths.outputs.build_root }}/full-matrix/with-crs/with-mrts/haproxy/job.json
+          path: ${{ steps.verified-evidence-paths.outputs.staged_root }}
 
       - name: Summarize failed runtime preparation
         if: failure()

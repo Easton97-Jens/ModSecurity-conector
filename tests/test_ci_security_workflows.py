@@ -378,7 +378,34 @@ class CiSecurityWorkflowTest(unittest.TestCase):
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
 
     def test_verified_report_governance_produces_current_evidence_before_the_strict_gate(self) -> None:
-        job = self.jobs("verified-report-governance.yml")["report-governance"]
+        text = self.workflow("verified-report-governance.yml")
+        jobs = self.jobs("verified-report-governance.yml")
+        self.assertEqual({"verified-report-contract-preflight", "report-governance"}, set(jobs))
+        self.assertIn("  push:\n    branches: [master]\n  pull_request:\n  workflow_dispatch:", text)
+        self.assertNotIn("  push:\n  pull_request:", text)
+        self.assertIn(
+            "concurrency:\n"
+            "  group: verified-report-governance-${{ github.event.pull_request.number || github.ref }}\n"
+            "  cancel-in-progress: true",
+            text,
+        )
+        preflight = jobs["verified-report-contract-preflight"]
+        self.assertIn("timeout-minutes: 15", preflight)
+        self.assertIn("PYTHON: python3", preflight)
+        self.assertIn("make check-ci-security-contract", preflight)
+        self.assertLess(preflight.index("Verify Python interpreter contract"), preflight.index("make check-ci-security-contract"))
+        preflight_checkouts = checkout_step_blocks(preflight)
+        self.assertEqual(1, len(preflight_checkouts))
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", preflight_checkouts[0])
+        self.assertIn("submodules: false", preflight_checkouts[0])
+        self.assertIn("persist-credentials: false", preflight_checkouts[0])
+        job = jobs["report-governance"]
+        self.assertIn("needs: verified-report-contract-preflight", job)
+        heavy_checkouts = checkout_step_blocks(job)
+        self.assertEqual(1, len(heavy_checkouts))
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", heavy_checkouts[0])
+        self.assertIn("submodules: recursive", heavy_checkouts[0])
+        self.assertIn("persist-credentials: false", heavy_checkouts[0])
         self.assertIn("timeout-minutes: 360", job)
         self.assertIn('ALLOW_RUNTIME_DOWNLOADS: "1"', job)
         self.assertIn('ALLOW_RUNTIME_BUILDS: "1"', job)
@@ -387,45 +414,54 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertIn("EXPAT_GIT_REF: c61098da494eea1cbd091118118dcee417faacea", job)
         self.assertIn("EXPAT_PROMPT_EXPECTED_LATEST: R_2_8_2", job)
         self.assertIn("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock", job)
-        self.assertIn('echo "PYTHON=$venv/bin/python" >> "$GITHUB_ENV"', job)
+        self.assertIn('python3 -m venv "$venv"', job)
+        self.assertIn('PATH="$venv/bin:$PATH" python3 -m pip install', job)
+        self.assertIn('PATH="$venv/bin:$PATH" python3 -m pip check', job)
+        self.assertIn('echo "PATH=$venv/bin:$PATH"', job)
+        self.assertIn('echo "PYTHON=python3"', job)
+        self.assertNotIn('"$PYTHON_BIN" -m venv', job)
+        self.assertNotIn('"$venv/bin/python" -m pip', job)
+        self.assertNotIn('"$PYTHON" ci/evidence/reports/stage-verified-full-matrix-evidence.py', job)
         self.assertNotIn("make setup-dev", job)
         self.assertNotIn("pip install --upgrade", job)
         self.assertIn("make report-governance", job)
         self.assertIn("make verified-report-run", job)
-        self.assertIn("make verified-report-evidence-gate", job)
-        self.assertIn("name: Resolve payload-safe verified runtime evidence paths", job)
+        self.assertEqual(2, job.count("make verified-report-evidence-gate"))
+        self.assertIn("name: Stage payload-safe verified runtime evidence", job)
         self.assertIn("id: verified-evidence-paths", job)
-        self.assertIn('run_id_path="$BUILD_ROOT/verified-runs/current-run-id"', job)
-        self.assertIn('verified_run_root="$BUILD_ROOT/verified-runs/$run_id"', job)
-        self.assertIn('for crs in no-crs with-crs; do', job)
-        self.assertIn('for mrts in no-mrts with-mrts; do', job)
-        self.assertIn('for connector in apache nginx haproxy; do', job)
+        self.assertIn("stage-verified-full-matrix-evidence.py stage", job)
+        self.assertIn('--stage-parent "$RUNNER_TEMP"', job)
+        self.assertIn('--github-output "$GITHUB_OUTPUT"', job)
+        self.assertIn("name: Final strict gate and staged-evidence binding", job)
+        self.assertIn("stage-verified-full-matrix-evidence.py verify", job)
+        self.assertIn('--stage-root "${{ steps.verified-evidence-paths.outputs.staged_root }}"', job)
         self.assertIn("name: Upload payload-safe verified runtime evidence", job)
         self.assertIn("if: success()", job)
         self.assertIn(
             "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
             job,
         )
-        self.assertIn("name: verified-report-evidence-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}", job)
+        self.assertIn(
+            "name: verified-report-evidence-${{ github.event.pull_request.head.sha || github.sha }}-"
+            "${{ github.run_id }}-${{ github.run_attempt }}",
+            job,
+        )
         self.assertIn("retention-days: 10", job)
         self.assertIn("if-no-files-found: error", job)
-        for manifest in (
-            "verified-run-manifest.generated.json",
-            "report-freshness.generated.json",
-            "report-refresh-manifest.generated.json",
-            "verified-commands.json",
-            "full-matrix-aggregate-receipt.json",
-            "full-runtime-matrix-runs.jsonl",
-        ):
-            self.assertIn(manifest, job)
-        for crs in ("no-crs", "with-crs"):
-            for mrts in ("no-mrts", "with-mrts"):
-                for connector in ("apache", "nginx", "haproxy"):
-                    self.assertIn(f"/full-matrix/{crs}/{mrts}/{connector}/job.json", job)
         artifact_start = job.index("name: Upload payload-safe verified runtime evidence")
         artifact_end = job.index("name: Summarize failed runtime preparation")
         artifact = job[artifact_start:artifact_end]
-        for excluded in ("run.log", "logs/", "results_jsonl", "/results/"):
+        self.assertIn("path: ${{ steps.verified-evidence-paths.outputs.staged_root }}", artifact)
+        self.assertEqual(1, artifact.count("path:"))
+        for excluded in (
+            "reports/testing/",
+            "outputs.build_root",
+            "outputs.verified_run_root",
+            "run.log",
+            "logs/",
+            "results_jsonl",
+            "/results/",
+        ):
             self.assertNotIn(excluded, artifact)
         self.assertIn("name: Summarize failed runtime preparation", job)
         self.assertIn("if: failure()", job)
@@ -456,13 +492,16 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertEqual(job.count('tail -n 300 -- "$log_path"'), 1)
         self.assertLess(job.index('echo "::stop-commands::$stop_commands_token"'), job.index('tail -n 300 -- "$log_path"'))
         self.assertLess(job.index('tail -n 300 -- "$log_path"'), job.index('echo "::$stop_commands_token::"'))
+        initial_gate = job.index("make verified-report-evidence-gate")
+        final_gate = job.index("make verified-report-evidence-gate", initial_gate + 1)
         self.assertLess(job.index("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock"), job.index("make report-governance"))
         self.assertLess(job.index("make report-governance"), job.index("make verified-report-run"))
-        self.assertLess(job.index("make verified-report-run"), job.index("make verified-report-evidence-gate"))
-        self.assertLess(job.index("make verified-report-evidence-gate"), job.index("name: Resolve payload-safe verified runtime evidence paths"))
-        self.assertLess(job.index("name: Resolve payload-safe verified runtime evidence paths"), job.index("name: Upload payload-safe verified runtime evidence"))
+        self.assertLess(job.index("make verified-report-run"), initial_gate)
+        self.assertLess(initial_gate, job.index("name: Stage payload-safe verified runtime evidence"))
+        self.assertLess(job.index("name: Stage payload-safe verified runtime evidence"), final_gate)
+        self.assertLess(final_gate, job.index("name: Upload payload-safe verified runtime evidence"))
         self.assertLess(job.index("name: Upload payload-safe verified runtime evidence"), job.index("name: Summarize failed runtime preparation"))
-        self.assertLess(job.index("make verified-report-evidence-gate"), job.index("name: Summarize failed runtime preparation"))
+        self.assertLess(final_gate, job.index("name: Summarize failed runtime preparation"))
 
     def test_untrusted_pull_request_model(self) -> None:
         sarif_write_jobs = {

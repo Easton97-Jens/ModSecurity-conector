@@ -16,6 +16,7 @@ import os
 import re
 import stat
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
@@ -131,6 +132,33 @@ def _open_child_directory(parent_descriptor: int, component: str, *, create: boo
         os.close(descriptor)
         raise
     return descriptor
+
+
+@contextmanager
+def _open_absolute_directory(root: Path, *, label: str) -> Iterator[int]:
+    """Open every component of an absolute directory without following links.
+
+    ``os.open(path, O_NOFOLLOW)`` protects only the final component.  Evidence
+    staging receives three independent roots, so walk each absolute path from
+    ``/`` through descriptor-relative opens instead of accepting a symlinked
+    ancestor selected by a caller.
+    """
+
+    if not root.is_absolute():
+        raise AggregateReceiptError(f"directory root is not absolute: {label}")
+    no_follow, directory = _required_directory_flags()
+    try:
+        descriptor = os.open(os.sep, os.O_RDONLY | directory | no_follow)
+    except OSError as exc:
+        raise AggregateReceiptError(f"filesystem root is unavailable or unsafe: {exc}") from exc
+    try:
+        for component in root.parts[1:]:
+            child = _open_child_directory(descriptor, component, create=False, label=label)
+            os.close(descriptor)
+            descriptor = child
+        yield descriptor
+    finally:
+        os.close(descriptor)
 
 
 @contextmanager
@@ -714,6 +742,483 @@ def _write_all(descriptor: int, content: bytes) -> None:
         if written <= 0:
             raise AggregateReceiptError("cannot write aggregate receipt")
         offset += written
+
+
+@dataclass(frozen=True)
+class StagedEvidenceFile:
+    """One payload-safe file staged read-only for non-owner identities."""
+
+    relative_path: str
+    sha256: str
+    bytes: int
+
+
+@dataclass(frozen=True)
+class StagedEvidence:
+    """Descriptor-pinned result of one full verified-runtime evidence staging."""
+
+    stage_root: Path
+    verified_run_id: str
+    files: tuple[StagedEvidenceFile, ...]
+
+
+@dataclass(frozen=True)
+class _StagedEvidenceSource:
+    source_root: str
+    source_components: tuple[str, ...]
+    stage_components: tuple[str, ...]
+
+
+STAGED_EVIDENCE_DIRECTORY_MODE = stat.S_IRUSR | stat.S_IXUSR
+STAGED_EVIDENCE_FILE_MODE = stat.S_IRUSR
+STAGED_EVIDENCE_CREATE_DIRECTORY_MODE = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
+STAGED_EVIDENCE_FILE_COUNT = 18
+
+
+def _read_relative_stable_file(
+    root_descriptor: int,
+    root: Path,
+    components: tuple[str, ...],
+    *,
+    label: str,
+    maximum_bytes: int = MAX_STRUCTURED_RECEIPT_BYTES,
+) -> tuple[bytes, str, int]:
+    if not components:
+        raise AggregateReceiptError(f"file path is the root: {label}")
+    for component in components:
+        _validated_component(component)
+    with _open_relative_directory(root_descriptor, components[:-1], label=label) as parent_descriptor:
+        return _read_stable_regular_file_at(
+            parent_descriptor,
+            components[-1],
+            label=label,
+            maximum_bytes=maximum_bytes,
+        )
+
+
+def _current_verified_run_id_for_staging(build_root: Path, build_descriptor: int) -> str:
+    data, _, _ = _read_relative_stable_file(
+        build_descriptor,
+        build_root,
+        ("verified-runs", "current-run-id"),
+        label="verified runtime current-run marker",
+        maximum_bytes=130,
+    )
+    if data.endswith(b"\n"):
+        data = data[:-1]
+    if data.endswith(b"\r"):
+        data = data[:-1]
+    try:
+        return _validated_verified_run_id(data.decode("ascii"))
+    except UnicodeDecodeError as exc:
+        raise AggregateReceiptError("verified runtime current-run marker is not ASCII") from exc
+
+
+def _staged_evidence_sources(verified_run_id: str) -> tuple[_StagedEvidenceSource, ...]:
+    sources: list[_StagedEvidenceSource] = []
+    for filename in (
+        "verified-run-manifest.generated.json",
+        "report-freshness.generated.json",
+        "report-refresh-manifest.generated.json",
+    ):
+        sources.append(
+            _StagedEvidenceSource(
+                source_root="connector",
+                source_components=("reports", "testing", "generated", "manifest", filename),
+                stage_components=("manifests", filename),
+            )
+        )
+    for filename in ("verified-commands.json", RECEIPT_FILENAME):
+        sources.append(
+            _StagedEvidenceSource(
+                source_root="build",
+                source_components=("verified-runs", verified_run_id, filename),
+                stage_components=("verified-runs", verified_run_id, filename),
+            )
+        )
+    sources.append(
+        _StagedEvidenceSource(
+            source_root="build",
+            source_components=("full-matrix", "full-runtime-matrix-runs.jsonl"),
+            stage_components=("full-matrix", "full-runtime-matrix-runs.jsonl"),
+        )
+    )
+    for crs in FULL_MATRIX_CRS_VARIANTS:
+        for mrts in FULL_MATRIX_MRTS_VARIANTS:
+            for connector in FULL_MATRIX_CONNECTORS:
+                sources.append(
+                    _StagedEvidenceSource(
+                        source_root="build",
+                        source_components=("full-matrix", crs, mrts, connector, "job.json"),
+                        stage_components=("full-matrix", crs, mrts, connector, "job.json"),
+                    )
+                )
+    result = tuple(sources)
+    if len(result) != STAGED_EVIDENCE_FILE_COUNT:
+        raise AggregateReceiptError("staged evidence allowlist has an unexpected file count")
+    return result
+
+
+def _create_empty_stage_root(parent_descriptor: int, parent: Path, stage_name: str) -> int:
+    name = _validated_component(stage_name)
+    try:
+        os.lstat(name, dir_fd=parent_descriptor)
+    except FileNotFoundError:
+        pass
+    else:
+        raise AggregateReceiptError(f"staged evidence root already exists: {parent / name}")
+    try:
+        os.mkdir(name, STAGED_EVIDENCE_CREATE_DIRECTORY_MODE, dir_fd=parent_descriptor)
+    except OSError as exc:
+        raise AggregateReceiptError(f"cannot create staged evidence root: {parent / name}: {exc}") from exc
+    try:
+        os.fsync(parent_descriptor)
+    except OSError as exc:
+        raise AggregateReceiptError(f"cannot persist staged evidence root: {parent / name}: {exc}") from exc
+    no_follow, directory = _required_directory_flags()
+    try:
+        descriptor = os.open(name, os.O_RDONLY | directory | no_follow, dir_fd=parent_descriptor)
+    except OSError as exc:
+        raise AggregateReceiptError(f"staged evidence root is unavailable or unsafe: {parent / name}: {exc}") from exc
+    try:
+        if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            raise AggregateReceiptError(f"staged evidence root is not a directory: {parent / name}")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _write_staged_file(
+    stage_descriptor: int,
+    components: tuple[str, ...],
+    content: bytes,
+    *,
+    label: str,
+) -> None:
+    if not components:
+        raise AggregateReceiptError(f"staged evidence path is empty: {label}")
+    no_follow, _ = _required_directory_flags()
+    for component in components:
+        _validated_component(component)
+    with _open_relative_directory(
+        stage_descriptor,
+        components[:-1],
+        create=True,
+        label=label,
+    ) as parent_descriptor:
+        descriptor: int | None = None
+        created = False
+        try:
+            try:
+                descriptor = os.open(
+                    components[-1],
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
+                    STAGED_EVIDENCE_FILE_MODE,
+                    dir_fd=parent_descriptor,
+                )
+            except OSError as exc:
+                raise AggregateReceiptError(f"cannot create staged evidence file: {label}: {exc}") from exc
+            created = True
+            _write_all(descriptor, content)
+            details = os.fstat(descriptor)
+            if not stat.S_ISREG(details.st_mode) or details.st_size != len(content):
+                raise AggregateReceiptError(f"staged evidence file changed while publishing: {label}")
+            os.fsync(descriptor)
+            os.fchmod(descriptor, STAGED_EVIDENCE_FILE_MODE)
+            os.fsync(descriptor)
+        except BaseException:
+            if created:
+                try:
+                    os.unlink(components[-1], dir_fd=parent_descriptor)
+                    os.fsync(parent_descriptor)
+                except OSError:
+                    pass
+            raise
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+
+def _remove_staged_directory_contents(directory_descriptor: int) -> None:
+    no_follow, directory = _required_directory_flags()
+    os.fchmod(directory_descriptor, STAGED_EVIDENCE_CREATE_DIRECTORY_MODE)
+    for name in os.listdir(directory_descriptor):
+        _validated_component(name)
+        details = os.stat(name, dir_fd=directory_descriptor, follow_symlinks=False)
+        if stat.S_ISDIR(details.st_mode):
+            child = os.open(name, os.O_RDONLY | directory | no_follow, dir_fd=directory_descriptor)
+            try:
+                _remove_staged_directory_contents(child)
+            finally:
+                os.close(child)
+            os.rmdir(name, dir_fd=directory_descriptor)
+        else:
+            os.unlink(name, dir_fd=directory_descriptor)
+    os.fsync(directory_descriptor)
+
+
+def _seal_staged_directories(stage_descriptor: int, sources: tuple[_StagedEvidenceSource, ...]) -> None:
+    directories = {
+        source.stage_components[:index]
+        for source in sources
+        for index in range(1, len(source.stage_components))
+    }
+    for components in sorted(directories, key=lambda value: (len(value), value), reverse=True):
+        with _open_relative_directory(stage_descriptor, components, label="/".join(components)) as descriptor:
+            os.fchmod(descriptor, STAGED_EVIDENCE_DIRECTORY_MODE)
+            os.fsync(descriptor)
+    os.fchmod(stage_descriptor, STAGED_EVIDENCE_DIRECTORY_MODE)
+    os.fsync(stage_descriptor)
+
+
+def _validated_staging_roots(
+    *,
+    connector_root: Path,
+    build_root: Path,
+    stage_root: Path,
+) -> tuple[Path, Path, Path]:
+    for root in (connector_root, build_root, stage_root):
+        if not root.is_absolute() or any(part in {".", ".."} for part in root.parts):
+            raise AggregateReceiptError("staged evidence roots must be non-root absolute paths without traversal")
+    if stage_root == stage_root.parent:
+        raise AggregateReceiptError("staged evidence roots must be non-root absolute paths without traversal")
+    return connector_root.absolute(), build_root.absolute(), stage_root.absolute()
+
+
+def _require_private_staging_parent(parent_descriptor: int, parent: Path) -> None:
+    details = os.fstat(parent_descriptor)
+    if not stat.S_ISDIR(details.st_mode):
+        raise AggregateReceiptError(f"staged evidence parent is not a directory: {parent}")
+    if details.st_uid != os.geteuid():
+        raise AggregateReceiptError(f"staged evidence parent is not owned by the current user: {parent}")
+    if details.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        raise AggregateReceiptError(f"staged evidence parent is writable by another user: {parent}")
+
+
+def _staged_directory_components(sources: tuple[_StagedEvidenceSource, ...]) -> set[tuple[str, ...]]:
+    return {
+        source.stage_components[:index]
+        for source in sources
+        for index in range(1, len(source.stage_components))
+    }
+
+
+def _read_exact_staged_tree(
+    stage_descriptor: int,
+    sources: tuple[_StagedEvidenceSource, ...],
+) -> dict[tuple[str, ...], StagedEvidenceFile]:
+    expected_files = {source.stage_components for source in sources}
+    expected_directories = _staged_directory_components(sources)
+    observed: dict[tuple[str, ...], StagedEvidenceFile] = {}
+    no_follow, directory = _required_directory_flags()
+
+    def collect(directory_descriptor: int, prefix: tuple[str, ...]) -> None:
+        for name in os.listdir(directory_descriptor):
+            _validated_component(name)
+            components = (*prefix, name)
+            details = os.stat(name, dir_fd=directory_descriptor, follow_symlinks=False)
+            if stat.S_ISDIR(details.st_mode):
+                if components not in expected_directories:
+                    raise AggregateReceiptError(
+                        f"staged evidence contains an unexpected directory: {'/'.join(components)}"
+                    )
+                child = os.open(name, os.O_RDONLY | directory | no_follow, dir_fd=directory_descriptor)
+                try:
+                    collect(child, components)
+                finally:
+                    os.close(child)
+                continue
+            if not stat.S_ISREG(details.st_mode):
+                raise AggregateReceiptError(f"staged evidence contains a non-regular path: {'/'.join(components)}")
+            if components not in expected_files:
+                raise AggregateReceiptError(f"staged evidence contains an unexpected file: {'/'.join(components)}")
+            data, digest, byte_count = _read_stable_regular_file_at(
+                directory_descriptor,
+                name,
+                label=f"staged evidence:{'/'.join(components)}",
+                maximum_bytes=MAX_STRUCTURED_RECEIPT_BYTES,
+            )
+            if hashlib.sha256(data).hexdigest() != digest or len(data) != byte_count:
+                raise AggregateReceiptError("staged evidence bytes do not match their recorded digest")
+            observed[components] = StagedEvidenceFile("/".join(components), digest, byte_count)
+
+    collect(stage_descriptor, ())
+    missing = expected_files.difference(observed)
+    if missing:
+        raise AggregateReceiptError(
+            "staged evidence is missing required files: " + ", ".join("/".join(item) for item in sorted(missing))
+        )
+    if set(observed) != expected_files:
+        raise AggregateReceiptError("staged evidence allowlist does not match the expected files")
+    return observed
+
+
+def _stage_root_still_bound(
+    *,
+    parent_descriptor: int,
+    stage_name: str,
+    stage_descriptor: int,
+    stage: Path,
+) -> bool:
+    try:
+        _assert_directory_binding(
+            root_descriptor=parent_descriptor,
+            components=(stage_name,),
+            expected_descriptor=stage_descriptor,
+            label=str(stage),
+        )
+    except AggregateReceiptError:
+        return False
+    return True
+
+
+def stage_verified_full_matrix_evidence(
+    *,
+    connector_root: Path,
+    build_root: Path,
+    stage_root: Path,
+) -> StagedEvidence:
+    """Copy the exact structured evidence allowlist through no-follow descriptors.
+
+    The caller must follow this snapshot with a final strict evidence gate and
+    :func:`verify_staged_full_matrix_evidence` before upload.  This function
+    pins every source-root component by descriptor, rejects symlinked
+    ancestors/leaves, checks stable file identity while reading, and writes a
+    private, exact allowlist tree rather than returning PR-controlled source
+    pathnames to an uploader.
+    """
+
+    connector, build, stage = _validated_staging_roots(
+        connector_root=connector_root,
+        build_root=build_root,
+        stage_root=stage_root,
+    )
+    stage_parent = stage.parent
+    stage_name = _validated_component(stage.name)
+
+    with _open_absolute_directory(connector, label="connector evidence root") as connector_descriptor, _open_absolute_directory(
+        build, label="build evidence root"
+    ) as build_descriptor:
+        verified_run_id = _current_verified_run_id_for_staging(build, build_descriptor)
+        sources = _staged_evidence_sources(verified_run_id)
+        buffered_sources: list[tuple[_StagedEvidenceSource, bytes, str, int]] = []
+        for source in sources:
+            root = connector if source.source_root == "connector" else build
+            descriptor = connector_descriptor if source.source_root == "connector" else build_descriptor
+            label = f"{source.source_root}:{'/'.join(source.source_components)}"
+            data, digest, byte_count = _read_relative_stable_file(
+                descriptor,
+                root,
+                source.source_components,
+                label=label,
+            )
+            buffered_sources.append((source, data, digest, byte_count))
+
+        with _open_absolute_directory(stage_parent, label="staged evidence parent") as stage_parent_descriptor:
+            _require_private_staging_parent(stage_parent_descriptor, stage_parent)
+            stage_descriptor: int | None = None
+            try:
+                stage_descriptor = _create_empty_stage_root(stage_parent_descriptor, stage_parent, stage_name)
+                records: list[StagedEvidenceFile] = []
+                for source, data, digest, byte_count in buffered_sources:
+                    if hashlib.sha256(data).hexdigest() != digest or len(data) != byte_count:
+                        raise AggregateReceiptError("stable source evidence bytes do not match their recorded digest")
+                    relative_path = "/".join(source.stage_components)
+                    _write_staged_file(stage_descriptor, source.stage_components, data, label=relative_path)
+                    records.append(StagedEvidenceFile(relative_path, digest, byte_count))
+                _seal_staged_directories(stage_descriptor, sources)
+                if not _stage_root_still_bound(
+                    parent_descriptor=stage_parent_descriptor,
+                    stage_name=stage_name,
+                    stage_descriptor=stage_descriptor,
+                    stage=stage,
+                ):
+                    raise AggregateReceiptError(f"staged evidence root changed while publishing: {stage}")
+                return StagedEvidence(stage, verified_run_id, tuple(records))
+            except BaseException:
+                if stage_descriptor is not None:
+                    try:
+                        _remove_staged_directory_contents(stage_descriptor)
+                    except OSError:
+                        pass
+                    try:
+                        if _stage_root_still_bound(
+                            parent_descriptor=stage_parent_descriptor,
+                            stage_name=stage_name,
+                            stage_descriptor=stage_descriptor,
+                            stage=stage,
+                        ):
+                            os.rmdir(stage_name, dir_fd=stage_parent_descriptor)
+                            os.fsync(stage_parent_descriptor)
+                    except OSError:
+                        pass
+                raise
+            finally:
+                if stage_descriptor is not None:
+                    os.close(stage_descriptor)
+
+
+def verify_staged_full_matrix_evidence(
+    *,
+    connector_root: Path,
+    build_root: Path,
+    stage_root: Path,
+) -> StagedEvidence:
+    """Prove a staged snapshot still matches the final strict-gate inputs.
+
+    The strict gate is intentionally rerun immediately before this function.
+    It compares each no-follow, stable source read with the sealed stage tree,
+    rejects additions and path swaps, and rebinds the stage child to its opened
+    parent descriptor.  It is not a transactional snapshot against arbitrary
+    surviving same-UID processes; that limitation is recorded by the caller's
+    evidence policy.
+    """
+
+    connector, build, stage = _validated_staging_roots(
+        connector_root=connector_root,
+        build_root=build_root,
+        stage_root=stage_root,
+    )
+    stage_parent = stage.parent
+    stage_name = _validated_component(stage.name)
+    with _open_absolute_directory(connector, label="connector evidence root") as connector_descriptor, _open_absolute_directory(
+        build, label="build evidence root"
+    ) as build_descriptor, _open_absolute_directory(stage_parent, label="staged evidence parent") as stage_parent_descriptor:
+        _require_private_staging_parent(stage_parent_descriptor, stage_parent)
+        verified_run_id = _current_verified_run_id_for_staging(build, build_descriptor)
+        sources = _staged_evidence_sources(verified_run_id)
+        with _open_relative_directory(
+            stage_parent_descriptor,
+            (stage_name,),
+            label=str(stage),
+        ) as stage_descriptor:
+            staged_records = _read_exact_staged_tree(stage_descriptor, sources)
+            records: list[StagedEvidenceFile] = []
+            for source in sources:
+                root = connector if source.source_root == "connector" else build
+                descriptor = connector_descriptor if source.source_root == "connector" else build_descriptor
+                relative_path = "/".join(source.stage_components)
+                _, digest, byte_count = _read_relative_stable_file(
+                    descriptor,
+                    root,
+                    source.source_components,
+                    label=f"{source.source_root}:{'/'.join(source.source_components)}",
+                )
+                staged = staged_records[source.stage_components]
+                if staged.sha256 != digest or staged.bytes != byte_count:
+                    raise AggregateReceiptError(
+                        f"staged evidence does not match current source: {relative_path}"
+                    )
+                records.append(staged)
+            if not _stage_root_still_bound(
+                parent_descriptor=stage_parent_descriptor,
+                stage_name=stage_name,
+                stage_descriptor=stage_descriptor,
+                stage=stage,
+            ):
+                raise AggregateReceiptError(f"staged evidence root changed while verifying: {stage}")
+    return StagedEvidence(stage, verified_run_id, tuple(records))
 
 
 def seal_full_matrix_aggregate_receipt_record(

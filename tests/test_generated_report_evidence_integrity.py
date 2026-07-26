@@ -43,6 +43,12 @@ assert RECEIPT_SPEC is not None and RECEIPT_SPEC.loader is not None
 RECEIPT = importlib.util.module_from_spec(RECEIPT_SPEC)
 sys.modules[RECEIPT_SPEC.name] = RECEIPT
 RECEIPT_SPEC.loader.exec_module(RECEIPT)
+STAGER_PATH = ROOT / "ci/evidence/reports/stage-verified-full-matrix-evidence.py"
+STAGER_SPEC = importlib.util.spec_from_file_location("verified_full_matrix_stager_test", STAGER_PATH)
+assert STAGER_SPEC is not None and STAGER_SPEC.loader is not None
+STAGER = importlib.util.module_from_spec(STAGER_SPEC)
+sys.modules[STAGER_SPEC.name] = STAGER
+STAGER_SPEC.loader.exec_module(STAGER)
 
 CONNECTORS = ("apache", "nginx", "haproxy")
 CRS_VARIANTS = ("no-crs", "with-crs")
@@ -233,6 +239,267 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             "".join(json.dumps(row, sort_keys=True) + "\n" for row in rewritten),
             encoding="utf-8",
         )
+
+    def prepare_staging_inputs(self, root: Path) -> tuple[Path, Path, str, Path]:
+        connector_root, build_root, run_id = self.build_valid_run(root)
+        manifest_root = connector_root / "reports/testing/generated/manifest"
+        write_json(manifest_root / "report-freshness.generated.json", {"verified_run_id": run_id})
+        write_json(manifest_root / "report-refresh-manifest.generated.json", {"verified_run_id": run_id})
+        marker = build_root / "verified-runs/current-run-id"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(f"{run_id}\n", encoding="ascii")
+        return connector_root, build_root, run_id, root / "staged-evidence"
+
+    def stage_full_evidence(self, root: Path) -> tuple[Path, Path, str, Path, object]:
+        connector_root, build_root, run_id, stage_root = self.prepare_staging_inputs(root)
+        staged = RECEIPT.stage_verified_full_matrix_evidence(
+            connector_root=connector_root,
+            build_root=build_root,
+            stage_root=stage_root,
+        )
+        return connector_root, build_root, run_id, stage_root, staged
+
+    def test_stage_verified_full_matrix_evidence_copies_exact_allowlist(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, run_id, stage_root, staged = self.stage_full_evidence(root)
+            expected_paths = {
+                "manifests/verified-run-manifest.generated.json",
+                "manifests/report-freshness.generated.json",
+                "manifests/report-refresh-manifest.generated.json",
+                f"verified-runs/{run_id}/verified-commands.json",
+                f"verified-runs/{run_id}/full-matrix-aggregate-receipt.json",
+                "full-matrix/full-runtime-matrix-runs.jsonl",
+                *{
+                    f"full-matrix/{crs}/{mrts}/{connector}/job.json"
+                    for crs, mrts, connector in product(CRS_VARIANTS, MRTS_VARIANTS, CONNECTORS)
+                },
+            }
+            self.assertEqual(stage_root.absolute(), staged.stage_root)
+            self.assertEqual(run_id, staged.verified_run_id)
+            self.assertEqual(RECEIPT.STAGED_EVIDENCE_FILE_COUNT, len(staged.files))
+            self.assertEqual(expected_paths, {record.relative_path for record in staged.files})
+            for source in RECEIPT._staged_evidence_sources(run_id):
+                source_root = connector_root if source.source_root == "connector" else build_root
+                source_path = source_root.joinpath(*source.source_components)
+                staged_path = stage_root.joinpath(*source.stage_components)
+                record = next(item for item in staged.files if item.relative_path == "/".join(source.stage_components))
+                self.assertTrue(stat.S_ISREG(os.lstat(staged_path).st_mode))
+                self.assertFalse(staged_path.is_symlink())
+                self.assertEqual(0o400, stat.S_IMODE(os.lstat(staged_path).st_mode))
+                self.assertEqual(source_path.read_bytes(), staged_path.read_bytes())
+                self.assertEqual(sha256(staged_path), record.sha256)
+                self.assertEqual(staged_path.stat().st_size, record.bytes)
+            self.assertEqual(0o500, stat.S_IMODE(stage_root.stat().st_mode))
+            for directory, _, _ in os.walk(stage_root):
+                self.assertEqual(0o500, stat.S_IMODE(Path(directory).stat().st_mode))
+            self.assertFalse(any(path.name == "run.log" for path in stage_root.rglob("*")))
+            self.assertFalse(any("results" in path.parts for path in stage_root.rglob("*")))
+
+    def test_stage_rejects_intermediate_source_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, _, stage_root = self.prepare_staging_inputs(root)
+            matrix_root = build_root / "full-matrix"
+            external_matrix = root / "external-matrix"
+            matrix_root.rename(external_matrix)
+            matrix_root.symlink_to(external_matrix, target_is_directory=True)
+
+            with self.assertRaisesRegex(RECEIPT.AggregateReceiptError, "directory is unavailable or unsafe"):
+                RECEIPT.stage_verified_full_matrix_evidence(
+                    connector_root=connector_root,
+                    build_root=build_root,
+                    stage_root=stage_root,
+                )
+            self.assertFalse(stage_root.exists())
+            self.assertTrue((external_matrix / "full-runtime-matrix-runs.jsonl").is_file())
+
+    def test_stage_rejects_final_source_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, _, stage_root = self.prepare_staging_inputs(root)
+            job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+            external_job = root / "external-job.json"
+            job_path.rename(external_job)
+            job_path.symlink_to(external_job)
+
+            with self.assertRaisesRegex(RECEIPT.AggregateReceiptError, "file is unavailable or unsafe"):
+                RECEIPT.stage_verified_full_matrix_evidence(
+                    connector_root=connector_root,
+                    build_root=build_root,
+                    stage_root=stage_root,
+                )
+            self.assertFalse(stage_root.exists())
+            self.assertEqual(external_job.read_bytes(), (root / "external-job.json").read_bytes())
+
+    def test_stage_uses_buffered_bytes_after_source_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, _, stage_root = self.prepare_staging_inputs(root)
+            job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+            original = job_path.read_bytes()
+            original_create = RECEIPT._create_empty_stage_root
+
+            def replace_source_then_create(*args: object, **kwargs: object) -> int:
+                job_path.write_text("replaced after source snapshot\n", encoding="utf-8")
+                return original_create(*args, **kwargs)
+
+            with mock.patch.object(RECEIPT, "_create_empty_stage_root", side_effect=replace_source_then_create):
+                staged = RECEIPT.stage_verified_full_matrix_evidence(
+                    connector_root=connector_root,
+                    build_root=build_root,
+                    stage_root=stage_root,
+                )
+            staged_path = stage_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+            self.assertEqual(original, staged_path.read_bytes())
+            self.assertNotEqual(original, job_path.read_bytes())
+            record = next(item for item in staged.files if item.relative_path.endswith("no-crs/no-mrts/apache/job.json"))
+            self.assertEqual(hashlib.sha256(original).hexdigest(), record.sha256)
+
+    def test_stage_rejects_source_mutated_while_read(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, _, stage_root = self.prepare_staging_inputs(root)
+            job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+            target = os.stat(job_path)
+            original_read = RECEIPT.os.read
+            mutated = False
+
+            def mutate_target_while_read(descriptor: int, count: int) -> bytes:
+                nonlocal mutated
+                chunk = original_read(descriptor, count)
+                details = os.fstat(descriptor)
+                if not mutated and chunk and (details.st_dev, details.st_ino) == (target.st_dev, target.st_ino):
+                    current = os.stat(job_path)
+                    os.utime(job_path, ns=(current.st_atime_ns, current.st_mtime_ns + 1_000_000))
+                    mutated = True
+                return chunk
+
+            with mock.patch.object(RECEIPT.os, "read", side_effect=mutate_target_while_read):
+                with self.assertRaisesRegex(RECEIPT.AggregateReceiptError, "file changed while it was read"):
+                    RECEIPT.stage_verified_full_matrix_evidence(
+                        connector_root=connector_root,
+                        build_root=build_root,
+                        stage_root=stage_root,
+                    )
+            self.assertTrue(mutated)
+            self.assertFalse(stage_root.exists())
+
+    def test_stage_root_is_never_reused_or_followed(self) -> None:
+        for kind in ("directory", "symlink"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                connector_root, build_root, _, stage_root = self.prepare_staging_inputs(root)
+                if kind == "directory":
+                    stage_root.mkdir()
+                    sentinel = stage_root / "sentinel.txt"
+                else:
+                    external = root / "external-stage"
+                    external.mkdir()
+                    stage_root.symlink_to(external, target_is_directory=True)
+                    sentinel = external / "sentinel.txt"
+                sentinel.write_text("must remain untouched\n", encoding="utf-8")
+
+                with self.assertRaisesRegex(RECEIPT.AggregateReceiptError, "staged evidence root already exists"):
+                    RECEIPT.stage_verified_full_matrix_evidence(
+                        connector_root=connector_root,
+                        build_root=build_root,
+                        stage_root=stage_root,
+                    )
+                self.assertEqual("must remain untouched\n", sentinel.read_text(encoding="utf-8"))
+
+    def test_verify_stage_rejects_post_stage_source_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, _, stage_root, _ = self.stage_full_evidence(root)
+            job_path = build_root / "full-matrix/no-crs/no-mrts/apache/job.json"
+            job_path.write_text("replacement after staging\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(RECEIPT.AggregateReceiptError, "does not match current source"):
+                RECEIPT.verify_staged_full_matrix_evidence(
+                    connector_root=connector_root,
+                    build_root=build_root,
+                    stage_root=stage_root,
+                )
+
+    def test_stage_rejects_directory_replacement_before_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, _, stage_root = self.prepare_staging_inputs(root)
+            moved_stage = root / "moved-stage"
+            original_seal = RECEIPT._seal_staged_directories
+
+            def seal_then_replace(*args: object, **kwargs: object) -> None:
+                original_seal(*args, **kwargs)
+                stage_root.rename(moved_stage)
+                stage_root.mkdir()
+                (stage_root / "unexpected.txt").write_text("must not be retained\n", encoding="utf-8")
+
+            with mock.patch.object(RECEIPT, "_seal_staged_directories", side_effect=seal_then_replace):
+                with self.assertRaisesRegex(RECEIPT.AggregateReceiptError, "staged evidence root changed while publishing"):
+                    RECEIPT.stage_verified_full_matrix_evidence(
+                        connector_root=connector_root,
+                        build_root=build_root,
+                        stage_root=stage_root,
+                    )
+            self.assertEqual("must not be retained\n", (stage_root / "unexpected.txt").read_text(encoding="utf-8"))
+            self.assertTrue(moved_stage.is_dir())
+
+    def test_stage_rejects_parent_writable_by_another_user(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, _, _ = self.prepare_staging_inputs(root)
+            unsafe_parent = root / "unsafe-stage-parent"
+            unsafe_parent.mkdir()
+            unsafe_parent.chmod(0o733)
+            with self.assertRaisesRegex(RECEIPT.AggregateReceiptError, "writable by another user"):
+                RECEIPT.stage_verified_full_matrix_evidence(
+                    connector_root=connector_root,
+                    build_root=build_root,
+                    stage_root=unsafe_parent / "stage",
+                )
+
+    def test_stager_cli_generates_a_private_random_root_and_verifies_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connector_root, build_root, _, _ = self.prepare_staging_inputs(root)
+            github_output = root / "github-output"
+            with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(
+                sys,
+                "argv",
+                [
+                    str(STAGER_PATH),
+                    "stage",
+                    "--connector-root",
+                    str(connector_root),
+                    "--build-root",
+                    str(build_root),
+                    "--stage-parent",
+                    str(root),
+                    "--github-output",
+                    str(github_output),
+                ],
+            ):
+                self.assertEqual(0, STAGER.main())
+            output = dict(line.split("=", 1) for line in github_output.read_text(encoding="utf-8").splitlines())
+            stage_root = Path(output["staged_root"])
+            self.assertTrue(stage_root.name.startswith("verified-report-evidence-"))
+            self.assertEqual("verified-run-20260718", output["verified_run_id"])
+            with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(
+                sys,
+                "argv",
+                [
+                    str(STAGER_PATH),
+                    "verify",
+                    "--connector-root",
+                    str(connector_root),
+                    "--build-root",
+                    str(build_root),
+                    "--stage-root",
+                    str(stage_root),
+                ],
+            ):
+                self.assertEqual(0, STAGER.main())
 
     def test_valid_full_matrix_control_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

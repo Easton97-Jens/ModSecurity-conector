@@ -231,27 +231,55 @@ erfolgreichen Logs zeigen nur Command-Ergebnisse statt der vollständigen
 maschinenlesbaren Receipt-Kette. Das erfüllt das Akzeptanzkriterium von
 FND-CROSS-0001 für ein aufbewahrtes Freshness-Manifest nicht.
 
-Das Parent-only-Follow-up lässt das strikte Terminal-Gate unverändert. Erst
-nach erfolgreichem Gate löst es einen validierten regulären Nicht-Symlink-
-Pointer `$BUILD_ROOT/verified-runs/current-run-id` auf, prüft jeden gewählten
-regulären Nicht-Symlink-Structured-Record und lädt ein eindeutig an SHA/Run
-gebundenes Artifact mit der bereits gepinnten Action
-`actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1`
-hoch. Das Artifact wird zehn Tage aufbewahrt und schlägt fehl, wenn ein
-erforderlicher gewählter Record fehlt. Es enthält die drei generierten
-Manifest-JSON-Dateien, die Command- und Aggregate-Receipts des aktuellen Runs,
-den rohen Matrix-Index und alle zwölf Job-JSON-Records. Es schließt Build-
-Trees, rohe Logs, `run.log`, Result-JSONL, Request-/Response-Payloads, Header
-und Cookies bewusst aus. Der Workflow behält `permissions: contents: read`,
-verwendet kein `pull_request_target`, erhält keine Secrets und gewinnt keine
-Write-Permission.
+Der erste Artifact-Retention-Nachfolger wird nicht als Evidence akzeptiert:
+Eine Prüfung zeigte, dass seine Shell-Pfadprüfungen die spätere Upload-Action
+nicht an die geprüften Dateien banden. Die beiden task-owned Läufe dieses
+unsicheren Nachfolgers wurden vor dem Upload abgebrochen; aus ihnen wurde kein
+Artifact erzeugt oder geprüft.
+
+Das korrigierende Parent-only-Follow-up behält den vollständigen Producer und
+das erste strikte Gate. Es staged die feste 18-Dateien-Structured-Allowlist
+über descriptor-relative `O_NOFOLLOW`-Traversal, stabile Regular-File-Reads
+und exklusive Writes in ein neues zufälliges Kind eines privaten,
+runner-owned Staging-Parents. Die Upload-Action erhält nur diese Staging-Wurzel.
+Danach läuft das strikte Gate erneut; derselbe descriptor-sichere Code
+vergleicht jeden staged Digest und Byte-Count mit dem Live-Source-Set und lehnt
+Zusätze, Symlinks, Ersetzungen oder eine geänderte Quelle vor dem Upload ab.
+Das Artifact wird zehn Tage aufbewahrt und schlägt bei fehlender Staging-Wurzel
+fehl. Es enthält die drei generierten Manifest-JSON-Dateien, die Command- und
+Aggregate-Receipts des aktuellen Runs, den rohen Matrix-Index und alle zwölf
+Job-JSON-Records. Build-Trees, rohe Logs, `run.log`, Result-JSONL,
+Request-/Response-Payloads, Header und Cookies sind bewusst ausgeschlossen.
+
+Der Workflow entfernt außerdem doppelte teure PR-Arbeit, ohne den
+Runtime-Nachweis zu verkürzen: Automatische Pushes sind auf `master` begrenzt,
+jeder Pull Request erhält weiter einen vollständigen Producer, und eine
+Concurrency-Gruppe pro PR/Ref bricht nur überholte Läufe ab. Ein separater
+kurzer Read-only-Contract-Preflight führt
+`make check-ci-security-contract` vor dem 360-Minuten-Producer-Job aus. Beide
+Jobs checken den exakten Pull-Request-Head aus (außerhalb eines PR die
+Event-SHA), daher nutzt auch die Artifact-Identität dieselbe Revision. Der
+Workflow behält `permissions: contents: read`, verwendet kein
+`pull_request_target`, erhält keine Secrets und gewinnt keine Write-Permission.
+Nach seinem setup-python-Interpreter-Verifier setzt der Preflight explizit
+`PYTHON=python3`, damit Make keine von einem nicht vertrauenswürdigen Pull
+Request gelieferte repository-lokale `.venv` auswählen kann.
+
+Dies ist ein descriptor-sicherer staged Snapshot, kein transaktionaler
+Filesystem-Snapshot und kein Schutz gegen einen beliebigen weiterlaufenden
+Same-UID-Prozess, der einen Runner-Pfad nach dem finalen Vergleich ändern kann.
+Der Retention-Claim setzt daher voraus, dass vom finalen Vergleich bis zum
+Upload kein solcher nicht vertrauenswürdiger weiterlaufender Prozess existiert;
+ein stärkeres Modell benötigte eine getrennte Identität oder einen Uploader,
+der einen geschützten Descriptor/Stream konsumiert.
 
 Die aktiven Läufe vor der Retention können dieses Artifact nicht rückwirkend
 erhalten. Ein Nachfolge-Exact-PR-Head muss den vollständigen Hosted-Producer,
-das unveränderte strikte Gate und den neuen payload-sicheren Upload bestehen,
-bevor das Artifact heruntergeladen und auf eine übereinstimmende Run-ID,
-aktuelle Parent-/Framework-Revisionen, deklarierte Hashes sowie keine stale
-oder ungeklärte Abweichung geprüft werden kann. Hier wird weder eine
+beide strikten Gate-Beobachtungen, die staged-Source-Bindung und den neuen
+payload-sicheren Upload bestehen, bevor das Artifact heruntergeladen und auf
+eine übereinstimmende Run-ID, aktuelle Parent-/Framework-Revisionen,
+deklarierte Hashes sowie keine stale oder ungeklärte Abweichung geprüft werden
+kann. Hier wird weder eine
 FND-CROSS-0001-Schließung noch ein SonarQube-Cloud-, Review- oder geschützter
 Integrations-Erfolg behauptet.
 
@@ -292,6 +320,11 @@ Integrations-Erfolg behauptet.
 | Payload-sichere Hosted-Evidence-Retention: `PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` | bestanden: dieselben 20 Workflow-Sicherheits-Tests sowie actionlint-, zizmor- und gitleaks-Lock-Validierung. |
 | Payload-sichere Hosted-Evidence-Retention: `PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` | bestanden: Das englisch/deutsche Change-Record-Paar ist strukturell gepaart. |
 | Payload-sichere Hosted-Evidence-Retention: `git diff --check -- .github/workflows/verified-report-governance.yml tests/test_ci_security_workflows.py reports/audits/change-records/CR-20260721-csv-security-findings-remediation.md reports/audits/change-records/CR-20260721-csv-security-findings-remediation.de.md` | bestanden: kein Whitespace-Fehler im scoped Vier-Dateien-Diff. |
+| Artifact-Retention-Sicherheitskorrektur und Runtime-Effizienz-Follow-up: `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_generated_report_evidence_integrity tests.test_ci_security_workflows tests.test_python_version_contract` | bestanden: 117 Tests decken descriptor-relatives Staging aller 18 Allowlist-Records, Intermediate-/Final-Symlink-Ablehnung, Source-Ersetzung und -Mutation, Staged-Source-Bindung, die exakte Workflow-Reihenfolge und das Python-Workflow-Inventar ab. |
+| Artifact-Retention-Sicherheitskorrektur und Runtime-Effizienz-Follow-up: `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` | bestanden: 20 Workflow-Sicherheits-Tests sowie actionlint-, zizmor- und gitleaks-Lock-Validierung. |
+| Artifact-Retention-Sicherheitskorrektur und Runtime-Effizienz-Follow-up: `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-python-version-contract` | bestanden: kanonisches Python 3.14.6 und 29 Python-ausführende Workflow-Jobs; der Staging-Workflow verwendet statische, zuvor verifizierte `python3`-Command-Heads und einen privaten Virtualenv-PATH. |
+| Artifact-Retention-Sicherheitskorrektur und Runtime-Effizienz-Follow-up: `rtk proxy timeout 180s env PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python ci/checks/documentation/check-bilingual-docs.py` | bestanden: `bilingual docs ok`. |
+| Artifact-Retention-Sicherheitskorrektur und Runtime-Effizienz-Follow-up: Framework-Workflow-YAML-Checker und `git diff --check` | bestanden: Der Parent-Workflow parst und der scoped Diff enthält keinen Whitespace-Fehler. |
 
 ## Security-Auswirkung
 
@@ -308,11 +341,18 @@ vertrauenswürdige Workflow-Ausgabe und verhindert, dass deren Inhalt zu
 GitHub-Workflow-Befehlen wird, während der Nonzero-Fehler des Producers
 erhalten bleibt.
 Die Hosted-Evidence-Fortsetzung ist ebenfalls allowlisted und nur-bei-Erfolg:
-Sie prüft den Current-Run-Pointer und jeden gewählten regulären Nicht-Symlink-
-Structured-Record, bevor sie das SHA/run-gebundene Artifact aufbewahrt. Sie
-lädt keine Logs, Result-Payloads, Build-Trees, Credentials oder breiten
+Sie öffnet jede Source-Komponente descriptor-relativ ohne Symlink-Following,
+liest jeden der festen 18 Structured-Records stabil und schreibt eine
+exklusive staged Kopie unter einer privaten runner-owned Wurzel. Der Upload
+erhält ausschließlich diese Staging-Wurzel. Nach dem zweiten unveränderten
+strikten Gate vergleicht dieselbe descriptor-sichere Logik jeden staged Digest
+und Byte-Count mit dem aktuellen Source-Set und lehnt eine Ergänzung, einen
+Symlink, eine Ersetzung oder eine geänderte Source vor dem Upload ab. Sie lädt
+keine Logs, Result-Payloads, Build-Trees, Credentials oder breiten
 Verzeichnisse hoch und bewahrt das vorhandene Read-only-
-Workflow-Permissionsmodell.
+Workflow-Permissionsmodell. Dies schützt die normale Runner-Grenze, ist aber
+kein transaktionaler Filesystem-Snapshot gegen einen beliebigen weiterlaufenden
+Same-UID-Prozess nach dem finalen Vergleich.
 Es behauptet weder Produktionshost-Exposure noch eine vollständige
 Connector-Matrix oder Produktions-Exploitierbarkeit über die getesteten
 Kontrollen hinaus.
