@@ -30,6 +30,7 @@ REQUEST_PATH = "/__request_body_consume"
 ALLOW_PAYLOAD = b"request-body-allow-marker"
 DENY_PAYLOAD = b"request-body-block-marker"
 LARGE_PAYLOAD = b"request-body-large-prefix-" + (b"a" * 1048577)
+RESULT_PATH_LABEL = "result path"
 SOURCE_CHECKOUT = Path(__file__).resolve().parents[3]
 REQUEST_SHAPES = (
     ("allow", ALLOW_PAYLOAD, 200),
@@ -142,8 +143,8 @@ def validate_result_path(run_root: Path, result: Path) -> Path:
 
 
 def atomic_json(path: Path, payload: dict[str, Any]) -> None:
-    validate_absolute_path(path, "result path")
-    reject_symlink_components(path, "result path", require_existing=False)
+    validate_absolute_path(path, RESULT_PATH_LABEL)
+    reject_symlink_components(path, RESULT_PATH_LABEL, require_existing=False)
     try:
         parent_metadata = path.parent.lstat()
     except FileNotFoundError:
@@ -152,7 +153,7 @@ def atomic_json(path: Path, payload: dict[str, Any]) -> None:
         raise ValueError(f"cannot inspect result parent: {path.parent}") from exc
     if not stat.S_ISDIR(parent_metadata.st_mode) or stat.S_ISLNK(parent_metadata.st_mode):
         raise ValueError(f"result parent must be an existing real directory: {path.parent}")
-    require_missing_or_regular_file(path, "result path")
+    require_missing_or_regular_file(path, RESULT_PATH_LABEL)
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:

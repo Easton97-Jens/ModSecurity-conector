@@ -168,6 +168,7 @@ int msconnector_config_validate(const msconnector_config *config, char *error,
  * the harness need not reimplement Apache's variadic logging ABI. */
 void __wrap_ap_log_perror_(void)
 {
+    /* Intentionally discard the production log call in this lifecycle-only check. */
 }
 
 
