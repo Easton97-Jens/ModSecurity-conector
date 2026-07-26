@@ -14,6 +14,9 @@ SHARED_BUILD_ROOT="${BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
 BUILD_ROOT="$SHARED_BUILD_ROOT"
 TMP_ROOT="${TMP_ROOT:-$VERIFIED_TMP_ROOT}"
 LOG_ROOT="${LOG_ROOT:-$VERIFIED_LOG_ROOT}"
+VERIFIED_COMPONENT_CACHE="${VERIFIED_COMPONENT_CACHE:-$VERIFIED_RUN_ROOT/cache-v2/shared}"
+CONNECTOR_COMPONENT_CACHE="${CONNECTOR_COMPONENT_CACHE:-$VERIFIED_COMPONENT_CACHE}"
+CONNECTOR_BUILD_OWNER_ROOT="$CONNECTOR_COMPONENT_CACHE/builds/connectors"
 MATRIX_ROOT="${MATRIX_ROOT:-$SHARED_BUILD_ROOT/full-matrix}"
 MRTS_BUILD_ROOT="${MRTS_BUILD_ROOT:-$SHARED_BUILD_ROOT/mrts}"
 PYTHON="${PYTHON:-python3}"
@@ -29,7 +32,7 @@ FULL_MATRIX_PREPARE_CASE="${FULL_MATRIX_PREPARE_CASE:-action_allow_phase1_pass}"
 FULL_MATRIX_TRUNCATE_MANIFEST="${FULL_MATRIX_TRUNCATE_MANIFEST:-1}"
 FULL_MATRIX_SKIP_REPORTS="${FULL_MATRIX_SKIP_REPORTS:-0}"
 
-export CONNECTOR_ROOT FRAMEWORK_ROOT SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT PYTHONDONTWRITEBYTECODE FORCE_ALL_CASES MRTS_BUILD_ROOT
+export CONNECTOR_ROOT FRAMEWORK_ROOT SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE PYTHONDONTWRITEBYTECODE FORCE_ALL_CASES MRTS_BUILD_ROOT
 
 "$PYTHON" "$SCRIPT_DIR/prepare-verified-runtime-paths.py" --build-root "$SHARED_BUILD_ROOT" || exit 77
 
@@ -40,11 +43,82 @@ validate_runner_paths() {
     assert_safe_runtime_path "$SHARED_BUILD_ROOT" SHARED_BUILD_ROOT || exit 77
     assert_safe_runtime_path "$TMP_ROOT" TMP_ROOT || exit 77
     assert_safe_runtime_path "$LOG_ROOT" LOG_ROOT || exit 77
+    assert_safe_runtime_path "$CONNECTOR_COMPONENT_CACHE" CONNECTOR_COMPONENT_CACHE || exit 77
+    assert_safe_runtime_path "$CONNECTOR_BUILD_OWNER_ROOT" CONNECTOR_BUILD_OWNER_ROOT || exit 77
     assert_safe_runtime_path "$MATRIX_ROOT" MATRIX_ROOT || exit 77
     assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || exit 77
     assert_safe_runtime_path "$NGINX_HARNESS_PARENT" NGINX_HARNESS_PARENT || exit 77
     assert_not_system_path_for_write "$FULL_MATRIX_REPORT_DIR" FULL_MATRIX_REPORT_DIR || exit 77
     assert_not_system_path_for_write "$FULL_MATRIX_MANIFEST" FULL_MATRIX_MANIFEST || exit 77
+}
+
+connector_build_root_for() {
+    connector=$1
+
+    case "$connector" in
+        apache) printf '%s\n' "${APACHE_BUILD_ROOT:-$SHARED_BUILD_ROOT/apache-build}" ;;
+        nginx) printf '%s\n' "${NGINX_BUILD_DIR:-$SHARED_BUILD_ROOT/nginx-build}" ;;
+        *) echo "ERROR: no cache-backed build root for connector: $connector" >&2; return 2 ;;
+    esac
+    return 0
+}
+
+validate_connector_build_root() {
+    connector=$1
+    connector_build_root=$2
+
+    assert_runtime_path_under_root \
+        "$connector_build_root" \
+        "$CONNECTOR_BUILD_OWNER_ROOT" \
+        "$connector matrix build root"
+}
+
+run_cache_backed_connector() {
+    connector=$1
+    port=$2
+    connector_build_root=$(connector_build_root_for "$connector") || return $?
+
+    validate_connector_build_root "$connector" "$connector_build_root" >> "$run_log" 2>&1 || return 77
+
+    case "$connector" in
+        apache)
+            smoke_target=smoke-apache
+            set -- \
+                "APACHE_TEST_PORT=$port" \
+                "APACHE_BUILD_ROOT=$connector_build_root" \
+                "APACHE_BUILD_OWNER_ROOT=$CONNECTOR_BUILD_OWNER_ROOT" \
+                "HTTPD_PREFIX=${HTTPD_PREFIX:-}" \
+                "APACHE_MODULE=${APACHE_MODULE:-}" \
+                "MODSECURITY_LIB_DIR=${APACHE_MRTS_MODSECURITY_LIB_DIR:-${MODSECURITY_LIB_DIR:-}}" \
+                "APACHE_BUILD_LOG_DIR=$job_log_root/apache-build" \
+                "APACHE_RUNTIME_LOG_DIR=$job_log_root/apache-runtime"
+            ;;
+        nginx)
+            nginx_harness_parent="${NGINX_HARNESS_PARENT:-$TMP_ROOT/nginx-harness}"
+            nginx_harness_root="$nginx_harness_parent/ModSecurity-conector-full-matrix"
+            nginx_harness_root="$nginx_harness_root/$test_variant-$mrts_variant-nginx-$port"
+            nginx_module="${MRTS_NATIVE_NGINX_MODULE_FILE:-${MRTS_NATIVE_NGINX_MODULE_DIR:-}/ngx_http_modsecurity_module.so}"
+            smoke_target=smoke-nginx
+            set -- \
+                "NGINX_TEST_PORT=$port" \
+                "NGINX_BUILD_DIR=$connector_build_root" \
+                "NGINX_BUILD_OWNER_ROOT=$CONNECTOR_BUILD_OWNER_ROOT" \
+                "NGINX_PREFIX=${NGINX_PREFIX:-}" \
+                "NGINX_BINARY=${MRTS_NATIVE_NGINX_BIN:-}" \
+                "NGINX_MODULE=$nginx_module" \
+                "MODSECURITY_LIB_DIR=${MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR:-${MODSECURITY_LIB_DIR:-}}" \
+                "NGINX_HARNESS_PARENT=$nginx_harness_parent" \
+                "NGINX_HARNESS_WORK_ROOT=$nginx_harness_root" \
+                "NGINX_RUNTIME_BASE=$nginx_harness_root/runtime" \
+                "NGINX_RUNTIME_LOG_DIR=$nginx_harness_root/logs"
+            ;;
+        *)
+            echo "ERROR: unsupported cache-backed connector: $connector" >> "$run_log"
+            return 2
+            ;;
+    esac
+
+    env $common_env "$@" make -C "$CONNECTOR_ROOT" "$smoke_target" >> "$run_log" 2>&1
 }
 
 validate_runner_paths
@@ -275,38 +349,12 @@ run_job() {
     export RUNTIME_COMPONENTS_PREPARED_ONLY
     write_job_build_manifest "$build_manifest" "$connector"
 
-    common_env="FRAMEWORK_ROOT=$FRAMEWORK_ROOT CONNECTOR_ROOT=$CONNECTOR_ROOT SOURCE_ROOT=$SOURCE_ROOT BUILD_ROOT=$job_build_root MRTS_BUILD_ROOT=$MRTS_BUILD_ROOT TMP_ROOT=$job_tmp_root LOG_ROOT=$job_log_root RESULTS_DIR=$results_dir MODSECURITY_TEST_VARIANT=$test_variant MODSECURITY_MRTS_VARIANT=$mrts_variant MODSECURITY_MRTS_PREPARED=$prepared_flag FORCE_ALL_CASES=$FORCE_ALL_CASES PYTHONDONTWRITEBYTECODE=$PYTHONDONTWRITEBYTECODE PORT=$port PORT_SEARCH_LIMIT=$FULL_MATRIX_PORT_SPAN PORT_RETRY_LIMIT=1 REFRESH=$job_refresh AUTO_REFRESH_STALE_BUILD=0 CRS_RUNTIME_DIR=$job_build_root/crs MRTS_LOAD_FILE=$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load SKIP_RUNTIME_COMPONENT_PREPARE=1 RUNTIME_COMPONENTS_PREPARED_ONLY=1"
+    common_env="FRAMEWORK_ROOT=$FRAMEWORK_ROOT CONNECTOR_ROOT=$CONNECTOR_ROOT SOURCE_ROOT=$SOURCE_ROOT BUILD_ROOT=$job_build_root MRTS_BUILD_ROOT=$MRTS_BUILD_ROOT TMP_ROOT=$job_tmp_root LOG_ROOT=$job_log_root RESULTS_DIR=$results_dir CONNECTOR_COMPONENT_CACHE=$CONNECTOR_COMPONENT_CACHE MODSECURITY_TEST_VARIANT=$test_variant MODSECURITY_MRTS_VARIANT=$mrts_variant MODSECURITY_MRTS_PREPARED=$prepared_flag FORCE_ALL_CASES=$FORCE_ALL_CASES PYTHONDONTWRITEBYTECODE=$PYTHONDONTWRITEBYTECODE PORT=$port PORT_SEARCH_LIMIT=$FULL_MATRIX_PORT_SPAN PORT_RETRY_LIMIT=1 REFRESH=$job_refresh AUTO_REFRESH_STALE_BUILD=0 CRS_RUNTIME_DIR=$job_build_root/crs MRTS_LOAD_FILE=$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load SKIP_RUNTIME_COMPONENT_PREPARE=1 RUNTIME_COMPONENTS_PREPARED_ONLY=1"
 
     set +e
     case "$connector" in
-        apache)
-            env $common_env \
-                APACHE_TEST_PORT="$port" \
-                APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$SHARED_BUILD_ROOT/apache-build}" \
-                APACHE_BUILD_OWNER_ROOT="$SHARED_BUILD_ROOT" \
-                HTTPD_PREFIX="${HTTPD_PREFIX:-}" \
-                APACHE_MODULE="${APACHE_MODULE:-}" \
-                MODSECURITY_LIB_DIR="${APACHE_MRTS_MODSECURITY_LIB_DIR:-${MODSECURITY_LIB_DIR:-}}" \
-                APACHE_BUILD_LOG_DIR="$job_log_root/apache-build" \
-                APACHE_RUNTIME_LOG_DIR="$job_log_root/apache-runtime" \
-                make -C "$CONNECTOR_ROOT" smoke-apache >> "$run_log" 2>&1
-            rc=$?
-            ;;
-        nginx)
-            nginx_harness_parent="${NGINX_HARNESS_PARENT:-$TMP_ROOT/nginx-harness}"
-            nginx_harness_root="$nginx_harness_parent/ModSecurity-conector-full-matrix/$test_variant-$mrts_variant-nginx-$port"
-            env $common_env \
-                NGINX_TEST_PORT="$port" \
-                NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$SHARED_BUILD_ROOT/nginx-build}" \
-                NGINX_PREFIX="${NGINX_PREFIX:-}" \
-                NGINX_BINARY="${MRTS_NATIVE_NGINX_BIN:-}" \
-                NGINX_MODULE="${MRTS_NATIVE_NGINX_MODULE_FILE:-${MRTS_NATIVE_NGINX_MODULE_DIR:-}/ngx_http_modsecurity_module.so}" \
-                MODSECURITY_LIB_DIR="${MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR:-${MODSECURITY_LIB_DIR:-}}" \
-                NGINX_HARNESS_PARENT="$nginx_harness_parent" \
-                NGINX_HARNESS_WORK_ROOT="$nginx_harness_root" \
-                NGINX_RUNTIME_BASE="$nginx_harness_root/runtime" \
-                NGINX_RUNTIME_LOG_DIR="$nginx_harness_root/logs" \
-                make -C "$CONNECTOR_ROOT" smoke-nginx >> "$run_log" 2>&1
+        apache|nginx)
+            run_cache_backed_connector "$connector" "$port"
             rc=$?
             ;;
         haproxy)
