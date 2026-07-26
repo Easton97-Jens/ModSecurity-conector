@@ -193,6 +193,14 @@ At exact head `7238c9d0a0902affbf7dfae1d7f96d6603d80f89`, hosted run `3019609066
 
 The Parent-only follow-up adds no acceptance path and does not change the terminal evidence gate. On failure it derives that one fixed matrix log only after validating the existing regular non-symlink run-ID pointer, requires the log itself to be a regular non-symlink file, emits at most 300 lines, and shields raw content with a fresh GitHub `stop-commands` token. It retains the existing bounded preparation and Apache diagnostics. The next exact hosted head must supply the matrix cause; no matrix, SonarQube Cloud, review, integration, or resulting-master success is claimed here. This opaque evidence gap is tracked as `FND-PARENT-0054`.
 
+## SonarQube Cloud follow-up (2026-07-26)
+
+The SonarQube Cloud PR analysis for exact head `b28b8744765a2cac6e3cf91f7bd3070d49d7774d` passed its Quality Gate but still reported 22 OPEN task-owned findings and 59 new duplicated lines (1.6638465877044557%). This does not meet the current delivery acceptance criterion of zero open PR findings and zero new-code duplication.
+
+The focused Parent-only remediation puts the observed value before the expected value in the affected `unittest` equality assertions, reuses the existing compiled immutable-Git-commit expression instead of repeating its literal, and removes duplicate transaction-ID boundary coverage from the helper-local test because the dedicated Parent regression test already owns that behavior. It changes no SonarQube Cloud rule, Quality Gate, exclusion, suppression, coverage threshold, scanner configuration, Framework, MRTS, or gitlink.
+
+Fresh exact-head SonarQube Cloud analysis is still required after publication. No zero-issue, zero-duplication, CI, review, integration, or resulting-master success is claimed by this record before that analysis completes.
+
 ## Commands executed
 
 | Command or control | Result |

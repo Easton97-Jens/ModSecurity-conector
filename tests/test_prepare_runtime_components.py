@@ -34,8 +34,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
 
     def test_require_full_immutable_git_commit_accepts_only_full_commit_ids(self) -> None:
         self.assertEqual(
-            PINNED_EXPAT_COMMIT,
             components.require_full_immutable_git_commit(PINNED_EXPAT_COMMIT, "EXPAT_GIT_REF"),
+            PINNED_EXPAT_COMMIT,
         )
         for mutable_or_abbreviated_ref in ("master", "R_2_8_2", "refs/tags/R_2_8_2", "c61098d"):
             with self.subTest(ref=mutable_or_abbreviated_ref):
@@ -81,7 +81,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 strict=True,
             )
 
-        self.assertEqual("blocked", record["status"])
+        self.assertEqual(record["status"], "blocked")
         self.assertIn("full immutable Git commit ID", record["blocker_reason"])
         self.assertFalse(record["immutable_commit_verified"])
         prepare_git.assert_not_called()
@@ -118,11 +118,11 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             cache_root=None,
         )
         resolve_latest.assert_not_called()
-        self.assertEqual("present", record["status"])
-        self.assertEqual(PINNED_EXPAT_COMMIT, record["expected_ref"])
-        self.assertEqual(PINNED_EXPAT_COMMIT, record["actual_head"])
+        self.assertEqual(record["status"], "present")
+        self.assertEqual(record["expected_ref"], PINNED_EXPAT_COMMIT)
+        self.assertEqual(record["actual_head"], PINNED_EXPAT_COMMIT)
         self.assertTrue(record["immutable_commit_verified"])
-        self.assertEqual("not_applicable_immutable_commit", record["release_lookup_status"])
+        self.assertEqual(record["release_lookup_status"], "not_applicable_immutable_commit")
 
     def test_immutable_expat_blocks_checkout_record_for_a_different_commit(self) -> None:
         different_commit = "f" * 40
@@ -146,8 +146,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 strict=True,
             )
 
-        self.assertEqual("blocked", record["status"])
-        self.assertEqual("immutable_git_checkout_record_mismatch", record["blocker_reason"])
+        self.assertEqual(record["status"], "blocked")
+        self.assertEqual(record["blocker_reason"], "immutable_git_checkout_record_mismatch")
         self.assertFalse(record["immutable_commit_verified"])
 
     def test_strict_expat_path_uses_only_the_immutable_component_preparer(self) -> None:
@@ -208,7 +208,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             False,
             cache_root=None,
         )
-        self.assertEqual("R_2_8_2", record["release_tag"])
+        self.assertEqual(record["release_tag"], "R_2_8_2")
 
     def test_optional_release_components_still_resolve_the_latest_release(self) -> None:
         for name in ("go-ftw", "albedo"):
@@ -252,7 +252,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     True,
                     cache_root=None,
                 )
-                self.assertEqual("network", record["release_lookup_status"])
+                self.assertEqual(record["release_lookup_status"], "network")
                 self.assertTrue(record["optional"])
 
     def test_apache_blocker_does_not_misclassify_expat_include_path(self) -> None:

@@ -997,7 +997,7 @@ def resolved_remote_git_ref(url: str, expected_ref: str) -> str:
     ``git ls-remote`` supplies that freshness check without cloning or
     fetching the immutable published source tree.
     """
-    if re.fullmatch(r"[0-9a-fA-F]{40,64}", expected_ref):
+    if FULL_GIT_COMMIT_ID.fullmatch(expected_ref):
         return expected_ref
     requested = expected_ref.removeprefix("origin/")
     if requested.startswith("refs/heads/"):
@@ -1019,7 +1019,7 @@ def resolved_remote_git_ref(url: str, expected_ref: str) -> str:
     resolved: dict[str, str] = {}
     for line in proc.stdout.splitlines():
         fields = line.split()
-        if len(fields) >= 2 and re.fullmatch(r"[0-9a-fA-F]{40,64}", fields[0]):
+        if len(fields) >= 2 and FULL_GIT_COMMIT_ID.fullmatch(fields[0]):
             resolved.setdefault(fields[1], fields[0])
     for candidate in candidates:
         if candidate in resolved:
@@ -1061,7 +1061,7 @@ def source_cache_identity(
         # Preserve deterministic identities for callers already pinning a
         # full commit, while leaving moving refs unresolved until Git has
         # fetched and checked out their current origin commit.
-        resolved_commit = expected_ref if re.fullmatch(r"[0-9a-fA-F]{40,64}", expected_ref) else ""
+        resolved_commit = expected_ref if FULL_GIT_COMMIT_ID.fullmatch(expected_ref) else ""
     identity: dict[str, Any] = {
         "cache_schema_version": CACHE_SCHEMA_VERSION,
         "component": name,
@@ -1326,7 +1326,7 @@ def prepare_git_component(
         checkout_candidates = [expected_ref]
         if (
             not expected_ref.startswith(("origin/", "refs/"))
-            and not re.fullmatch(r"[0-9a-fA-F]{40,64}", expected_ref)
+            and not FULL_GIT_COMMIT_ID.fullmatch(expected_ref)
         ):
             # Prefer the freshly fetched remote tracking ref for branches;
             # tags and other refs still fall back to the requested spelling.

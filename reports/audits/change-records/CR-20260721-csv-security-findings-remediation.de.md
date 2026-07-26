@@ -209,6 +209,14 @@ Am exakten Head `7238c9d0a0902affbf7dfae1d7f96d6603d80f89` bestanden im Hosted-R
 
 Das Parent-only-Follow-up fügt keinen Akzeptanzpfad hinzu und ändert das terminale Evidence-Gate nicht. Bei Fehlern leitet es genau diesen festen Matrix-Log erst nach Validierung des vorhandenen regulären Nicht-Symlink-Run-ID-Pointers ab, verlangt auch für den Log eine reguläre Nicht-Symlink-Datei, gibt höchstens 300 Zeilen aus und schirmt rohe Inhalte mit einem frischen GitHub-`stop-commands`-Token ab. Die vorhandenen begrenzten Preparation- und Apache-Diagnosen bleiben erhalten. Der nächste exakte Hosted-Head muss die Matrix-Ursache liefern; Matrix-, SonarQube-Cloud-, Review-, Integrations- oder Resulting-Master-Erfolg wird hier nicht behauptet. Diese undurchsichtige Evidenzlücke wird als `FND-PARENT-0054` verfolgt.
 
+## SonarQube-Cloud-Follow-up (2026-07-26)
+
+Die SonarQube-Cloud-PR-Analyse für den exakten Head `b28b8744765a2cac6e3cf91f7bd3070d49d7774d` bestand zwar ihr Quality Gate, meldete aber weiterhin 22 OPEN task-eigene Findings und 59 neue duplizierte Zeilen (1.6638465877044557 %). Das erfüllt nicht das aktuelle Delivery-Akzeptanzkriterium von null offenen PR-Findings und null New-Code-Duplizierung.
+
+Die fokussierte Parent-only-Remediation setzt in den betroffenen `unittest`-Gleichheitsassertions den beobachteten Wert vor den erwarteten Wert, verwendet den vorhandenen kompilierten Immutable-Git-Commit-Ausdruck statt sein Literal zu wiederholen und entfernt die duplizierte Transaction-ID-Grenzabdeckung aus dem Helper-lokalen Test, weil der dedizierte Parent-Regressionstest dieses Verhalten bereits besitzt. Sie ändert keine SonarQube-Cloud-Regel, kein Quality Gate, keine Exclusion, keine Suppression, keinen Coverage-Schwellenwert, keine Scanner-Konfiguration, kein Framework, kein MRTS und keinen Gitlink.
+
+Nach der Veröffentlichung bleibt eine frische Exact-Head-SonarQube-Cloud-Analyse erforderlich. Dieses Dokument behauptet vor Abschluss dieser Analyse keinen Null-Issue-, Null-Duplizierungs-, CI-, Review-, Integrations- oder Resulting-Master-Erfolg.
+
 ## Ausgeführte Befehle
 
 | Befehl oder Kontrolle | Ergebnis |

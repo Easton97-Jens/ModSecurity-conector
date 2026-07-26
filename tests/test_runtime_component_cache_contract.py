@@ -527,7 +527,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                         required_literal_sha256=True,
                     )
 
-                self.assertEqual("blocked", record["status"])
+                self.assertEqual(record["status"], "blocked")
                 self.assertIn(blocker, record["blocker_reason"])
                 download_mock.assert_not_called()
                 archive_can_list_mock.assert_not_called()
@@ -566,10 +566,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
 
             archive_path = archive_dir / source_archive.name
             archive_identity = components.archive_cache_identity("pcre2", archive_url, digest, "")
-            self.assertEqual("present", record["status"])
-            self.assertEqual("PASS", record["checksum_status"])
-            self.assertEqual(digest, record["expected_sha256"])
-            self.assertEqual([archive_url], downloads)
+            self.assertEqual(record["status"], "present")
+            self.assertEqual(record["checksum_status"], "PASS")
+            self.assertEqual(record["expected_sha256"], digest)
+            self.assertEqual(downloads, [archive_url])
             self.assertTrue(
                 components.cache_entry_complete(
                     archive_path,
@@ -595,9 +595,9 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 )
 
             bad_archive_path = bad_archive_dir / source_archive.name
-            self.assertEqual("corrupt", mismatch["status"])
-            self.assertEqual("sha256_mismatch", mismatch["blocker_reason"])
-            self.assertEqual("FAIL", mismatch["checksum_status"])
+            self.assertEqual(mismatch["status"], "corrupt")
+            self.assertEqual(mismatch["blocker_reason"], "sha256_mismatch")
+            self.assertEqual(mismatch["checksum_status"], "FAIL")
             self.assertFalse(bad_archive_path.exists())
             self.assertFalse(components.cache_entry_marker_path(bad_archive_path, bad_cache_root).exists())
 

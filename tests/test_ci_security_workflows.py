@@ -312,7 +312,7 @@ class CiSecurityWorkflowTest(unittest.TestCase):
             text=True,
             check=True,
         )
-        self.assertEqual("absent", absent.stdout)
+        self.assertEqual(absent.stdout, "absent")
 
         empty_environment = {**environment, "PCRE2_SHA256": ""}
         environment_empty = subprocess.run(
@@ -323,7 +323,7 @@ class CiSecurityWorkflowTest(unittest.TestCase):
             text=True,
             check=True,
         )
-        self.assertEqual("present:<>", environment_empty.stdout)
+        self.assertEqual(environment_empty.stdout, "present:<>")
 
         explicit_empty = subprocess.run(
             ["make", "-s", "PCRE2_SHA256=", f"--eval={target}", "print-pcre2-export"],
@@ -333,7 +333,7 @@ class CiSecurityWorkflowTest(unittest.TestCase):
             text=True,
             check=True,
         )
-        self.assertEqual("present:<>", explicit_empty.stdout)
+        self.assertEqual(explicit_empty.stdout, "present:<>")
 
         explicit_digest = subprocess.run(
             ["make", "-s", f"PCRE2_SHA256={PCRE2_SHA256}", f"--eval={target}", "print-pcre2-export"],
@@ -343,7 +343,7 @@ class CiSecurityWorkflowTest(unittest.TestCase):
             text=True,
             check=True,
         )
-        self.assertEqual(f"present:<{PCRE2_SHA256}>", explicit_digest.stdout)
+        self.assertEqual(explicit_digest.stdout, f"present:<{PCRE2_SHA256}>")
 
     def test_security_tool_lock_has_provenance_and_digests(self) -> None:
         text = (ROOT / "ci" / "tooling" / "security-tools.lock.yml").read_text(encoding="utf-8")
