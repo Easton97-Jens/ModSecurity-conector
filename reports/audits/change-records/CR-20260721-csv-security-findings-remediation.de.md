@@ -187,6 +187,22 @@ akzeptiert weder den fehlgeschlagenen Producer noch verändert sie das terminale
 Gate; sie macht nur die legitime Apache-Remediation im nächsten Exact-Head-Lauf
 beobachtbar.
 
++## PCRE2-Digest-Remediation (2026-07-26)
+
+Die frische gehostete begrenzte Diagnose am exakten Head `d93446a1b53be344f5599c48272060e2c664ae86` legte im Run `30193495484`, Job `89770795068`, den inneren Fehler offen:
+
+```text
+apache_poc: blocked missing required SHA256 digest for pcre2
+```
+
+Das Parent-`Makefile` hatte eine ansonsten undefinierte `PCRE2_SHA256` bedingungslos exportiert. GNU Make übergab Framework dadurch einen explizit leeren Wert und unterdrückte dessen absichtlichen nur-bei-nicht-gesetztem-Wert greifenden Default. Der Parent-Archiv-Prefetch-Pfad behandelte die PCRE2-Prüfsumme außerdem als optional und erlaubte Checksum-URL-Fallback, Download, Archiv-Parsing und Cache-Publikation, bevor Framework eine leere Prüfsumme vor der Extraction korrekt ablehnte.
+
+Die Parent-only-Korrektur dupliziert das Framework-Pin nicht. Sie exportiert `PCRE2_SHA256` nur, wenn GNU Make einen tatsächlich vom Caller bereitgestellten Wert meldet, und verlangt vor Parent-Archiv-/Cache-Zustand eine literale 64-hex-Prüfsumme. Gültige Eingabe wird kleingeschrieben; leere, nur aus Whitespace bestehende, fehlerhafte und nicht passende Eingabe bleibt fehlgeschlossen, und `PCRE2_SHA256_URL` kann keine fehlende literale Prüfsumme ersetzen. Framework bleibt die alleinige Default-Pin-Autorität und sein Extraction-Time-Verifier bleibt unverändert. Diese Korrektur wird durch `FND-PARENT-0053` verfolgt.
+
+Fokussierte lokale Evidence bestand: 33 Cache-Contract-/Cache-Identity-Tests, 20 CI-Security-Tests, 18 Runtime-Komponenten-Tests, `make check-ci-security-contract`, Variablendokumentations-Validierung, bilinguale Dokumentations-Validierung und `git diff --check`. Die direkte Framework-PCRE2-Archiv-Digest-Fixture bestand nicht: Ihre synthetische V3-Source besitzt das aktuell erforderliche nicht-symlinked `.gitmodules`-Manifest nicht und wird vor ihren beabsichtigten PCRE2-Assertions abgelehnt. Diese separate Framework-Fixture-Regression ist als `FND-FRAMEWORK-0056` erfasst; keine Framework- oder MRTS-Source, kein Branch, Gitlink oder Delivery-Schritt ist hier enthalten.
+
+Diese lokalen Kontrollen sind keine gehostete Runtime-Evidence. Ein frischer Exact-Head-gehosteter strikter/vollständiger Producer und das unveränderte terminale Evidence-Gate müssen nach der normalen PR-Branch-Veröffentlichung bestehen, bevor SonarCloud-, Review-, Integrations- oder Resulting-Master-Erfolg behauptet wird.
+
 ## Ausgeführte Befehle
 
 | Befehl oder Kontrolle | Ergebnis |

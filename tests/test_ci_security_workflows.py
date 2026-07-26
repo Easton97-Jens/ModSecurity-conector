@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -18,6 +20,7 @@ GO_MODULE_REQUIREMENT = re.compile(
     r"^(?P<module>[A-Za-z0-9][A-Za-z0-9._/-]*)\s+v"
     r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(?:\s+//.*)?$"
 )
+PCRE2_SHA256 = "47fe8c99461250d42f89e6e8fdaeba9da057855d06eb7fc08d9ca03fd08d7bc7"
 
 WRITE_PERMISSION_KEYS = {
     "contents",
@@ -282,6 +285,65 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         text = (ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
         self.assertIn("PyYAML==6.0.3", text)
         self.assertNotIn("PyYAML>=", text)
+
+    def test_makefile_preserves_the_framework_pcre2_default_boundary(self) -> None:
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertIn(
+            "ifneq ($(origin PCRE2_SHA256),undefined)\nexport PCRE2_SHA256\nendif",
+            makefile,
+        )
+        self.assertNotIn(
+            "export PCRE2_VERSION\nexport PCRE2_SOURCE_URL\nexport PCRE2_SHA256\nexport PCRE2_SHA256_URL",
+            makefile,
+        )
+        target = (
+            "print-pcre2-export:\n"
+            "\t@if printenv PCRE2_SHA256 >/dev/null 2>&1; then "
+            "printf 'present:<%s>' \"$$PCRE2_SHA256\"; else printf absent; fi"
+        )
+        environment = dict(os.environ)
+        environment.pop("PCRE2_SHA256", None)
+        command = ["make", "-s", f"--eval={target}", "print-pcre2-export"]
+        absent = subprocess.run(
+            command,
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual("absent", absent.stdout)
+
+        empty_environment = {**environment, "PCRE2_SHA256": ""}
+        environment_empty = subprocess.run(
+            command,
+            cwd=ROOT,
+            env=empty_environment,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual("present:<>", environment_empty.stdout)
+
+        explicit_empty = subprocess.run(
+            ["make", "-s", "PCRE2_SHA256=", f"--eval={target}", "print-pcre2-export"],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual("present:<>", explicit_empty.stdout)
+
+        explicit_digest = subprocess.run(
+            ["make", "-s", f"PCRE2_SHA256={PCRE2_SHA256}", f"--eval={target}", "print-pcre2-export"],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(f"present:<{PCRE2_SHA256}>", explicit_digest.stdout)
 
     def test_security_tool_lock_has_provenance_and_digests(self) -> None:
         text = (ROOT / "ci" / "tooling" / "security-tools.lock.yml").read_text(encoding="utf-8")

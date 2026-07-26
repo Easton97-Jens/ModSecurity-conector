@@ -171,6 +171,22 @@ so log content cannot be interpreted as a workflow command. The diagnostic
 neither accepts the failed producer nor changes the terminal gate; it only
 makes the legitimate Apache remediation observable on the next exact-head run.
 
++## PCRE2 digest remediation (2026-07-26)
+
+The fresh hosted bounded diagnostic at exact head `d93446a1b53be344f5599c48272060e2c664ae86` exposed the inner failure in run `30193495484`, job `89770795068`:
+
+```text
+apache_poc: blocked missing required SHA256 digest for pcre2
+```
+
+The Parent `Makefile` unconditionally exported an otherwise undefined `PCRE2_SHA256`. GNU Make consequently passed an explicit empty value to the Framework and suppressed its deliberate unset-only default. The Parent archive prefetch path also treated PCRE2's digest as optional, allowing checksum-URL fallback, download, archive parsing, and cache publication before Framework correctly rejected an empty digest before extraction.
+
+The Parent-only correction does not duplicate the Framework pin. It exports `PCRE2_SHA256` only when GNU Make reports an actual caller-provided value and requires a literal 64-hex digest before Parent creates archive/cache state. Valid input is normalized to lowercase; empty, whitespace-only, malformed, and mismatching input remains fail-closed, and `PCRE2_SHA256_URL` cannot repair a missing literal digest. Framework remains the single default-pin authority and its extraction-time verifier is unchanged. This correction is tracked by `FND-PARENT-0053`.
+
+Focused local evidence passed: 33 cache-contract/cache-identity tests, 20 CI-security tests, 18 runtime-component tests, `make check-ci-security-contract`, variable-documentation validation, bilingual-documentation validation, and `git diff --check`. The direct Framework PCRE2 archive-digest fixture did not pass: its synthetic V3 source lacks the current required non-symlink `.gitmodules` manifest and is rejected before it reaches its intended PCRE2 assertions. That separate Framework fixture regression is recorded as `FND-FRAMEWORK-0056`; no Framework or MRTS source, branch, gitlink, or delivery action is included here.
+
+These local controls are not hosted runtime evidence. A fresh exact-head hosted strict/full producer and unchanged terminal evidence gate must pass after normal PR-branch publication before SonarCloud, review, integration, or resulting-master success is claimed.
+
 ## Commands executed
 
 | Command or control | Result |

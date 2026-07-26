@@ -1669,6 +1669,19 @@ def expected_sha_from_url(url: str, archive_name: str, dest: Path) -> str:
     return ""
 
 
+def require_literal_sha256(value: str, label: str) -> str:
+    """Require a configured literal SHA-256 before handling a pinned archive."""
+
+    digest = value.strip()
+    if not digest:
+        raise RuntimeError(f"missing required SHA256 digest for {label}")
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+        raise RuntimeError(
+            f"invalid SHA256 digest for {label}: expected exactly 64 hexadecimal characters"
+        )
+    return digest.lower()
+
+
 def prepare_archive(
     name: str,
     url: str,
@@ -1676,6 +1689,8 @@ def prepare_archive(
     sha_url: str,
     dest_dir: Path,
     cache_root: Path | None = None,
+    *,
+    required_literal_sha256: bool = False,
     _lock_held: bool = False,
 ) -> dict[str, Any]:
     archive_name = url.rstrip("/").split("/")[-1] if url else ""
@@ -1695,6 +1710,11 @@ def prepare_archive(
         record.update(status="blocked", blocker_reason="system_path_write_forbidden")
         return record
     try:
+        if required_literal_sha256:
+            # PCRE2 uses a reviewed literal digest only.  A digest URL is
+            # retained as metadata but must not turn an absent override into
+            # a cacheable/downloadable archive.
+            expected_sha = require_literal_sha256(expected_sha, name)
         managed_root: Path | None = None
         archive_identity = archive_cache_identity(name, url, expected_sha, sha_url)
         archive_cache_key = str(archive_identity["cache_key"])
@@ -1711,6 +1731,7 @@ def prepare_archive(
                         sha_url,
                         dest_dir,
                         managed_root,
+                        required_literal_sha256=required_literal_sha256,
                         _lock_held=True,
                     )
             except TimeoutError as exc:
@@ -5637,7 +5658,15 @@ def main() -> int:
                 prepare_archive("httpd", env.get("HTTPD_SOURCE_URL", ""), env.get("HTTPD_SHA256", ""), env.get("HTTPD_SHA256_URL", ""), archives_root / "apache", cache_root),
                 prepare_archive("apr", env.get("APR_SOURCE_URL", ""), env.get("APR_SHA256", ""), env.get("APR_SHA256_URL", ""), archives_root / "apache", cache_root),
                 prepare_archive("apr-util", env.get("APR_UTIL_SOURCE_URL", ""), env.get("APR_UTIL_SHA256", ""), env.get("APR_UTIL_SHA256_URL", ""), archives_root / "apache", cache_root),
-                prepare_archive("pcre2", env.get("PCRE2_SOURCE_URL", ""), env.get("PCRE2_SHA256", ""), env.get("PCRE2_SHA256_URL", ""), archives_root / "apache", cache_root),
+                prepare_archive(
+                    "pcre2",
+                    env.get("PCRE2_SOURCE_URL", ""),
+                    env.get("PCRE2_SHA256", ""),
+                    env.get("PCRE2_SHA256_URL", ""),
+                    archives_root / "apache",
+                    cache_root,
+                    required_literal_sha256=True,
+                ),
             ]
         )
     if target_connector in {"all", "haproxy"}:

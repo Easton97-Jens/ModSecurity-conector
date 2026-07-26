@@ -498,6 +498,109 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertEqual(identity["cache_key"], marker["cache_key"])
             self.assertEqual("complete", marker["status"])
 
+    def test_required_pcre2_digest_rejects_unsafe_values_before_archive_handling(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            cache_root = components.ensure_managed_cache_root(Path(temporary) / "cache")
+            archive_dir = cache_root / "archives/apache"
+            archive_url = "https://example.invalid/pcre2-10.47.tar.bz2"
+            sha_url = "https://example.invalid/pcre2-10.47.tar.bz2.sha256"
+            expected_cases = (
+                ("", "missing required SHA256 digest for pcre2"),
+                ("   ", "missing required SHA256 digest for pcre2"),
+                ("not-a-sha256", "invalid SHA256 digest for pcre2"),
+            )
+
+            for digest, blocker in expected_cases:
+                with (
+                    self.subTest(digest=repr(digest)),
+                    mock.patch.object(components, "download") as download_mock,
+                    mock.patch.object(components, "archive_can_list") as archive_can_list_mock,
+                    mock.patch.object(components, "expected_sha_from_url") as checksum_url_mock,
+                ):
+                    record = components.prepare_archive(
+                        "pcre2",
+                        archive_url,
+                        digest,
+                        sha_url,
+                        archive_dir,
+                        cache_root,
+                        required_literal_sha256=True,
+                    )
+
+                self.assertEqual("blocked", record["status"])
+                self.assertIn(blocker, record["blocker_reason"])
+                download_mock.assert_not_called()
+                archive_can_list_mock.assert_not_called()
+                checksum_url_mock.assert_not_called()
+                self.assertFalse(archive_dir.exists())
+
+    def test_required_pcre2_digest_verifies_before_cache_publication(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            source_payload = root / "pcre2.txt"
+            source_payload.write_text("pcre2 fixture\n", encoding="utf-8")
+            source_archive = root / "pcre2-10.47.tar.bz2"
+            with tarfile.open(source_archive, "w:bz2") as archive:
+                archive.add(source_payload, arcname=source_payload.name)
+            digest = components.sha256_file(source_archive)
+            archive_url = "https://example.invalid/pcre2-10.47.tar.bz2"
+            source_bytes = source_archive.read_bytes()
+            downloads: list[str] = []
+
+            def download_fixture(url: str, destination: Path) -> None:
+                downloads.append(url)
+                destination.write_bytes(source_bytes)
+
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            archive_dir = cache_root / "archives/apache"
+            with mock.patch.object(components, "download", side_effect=download_fixture):
+                record = components.prepare_archive(
+                    "pcre2",
+                    archive_url,
+                    digest.upper(),
+                    "",
+                    archive_dir,
+                    cache_root,
+                    required_literal_sha256=True,
+                )
+
+            archive_path = archive_dir / source_archive.name
+            archive_identity = components.archive_cache_identity("pcre2", archive_url, digest, "")
+            self.assertEqual("present", record["status"])
+            self.assertEqual("PASS", record["checksum_status"])
+            self.assertEqual(digest, record["expected_sha256"])
+            self.assertEqual([archive_url], downloads)
+            self.assertTrue(
+                components.cache_entry_complete(
+                    archive_path,
+                    cache_root,
+                    component="archive:pcre2",
+                    cache_key=archive_identity["cache_key"],
+                    cache_identity=archive_identity,
+                )
+            )
+
+            bad_cache_root = components.ensure_managed_cache_root(root / "bad-cache")
+            bad_archive_dir = bad_cache_root / "archives/apache"
+            mismatching_digest = "0" * 64 if digest != "0" * 64 else "f" * 64
+            with mock.patch.object(components, "download", side_effect=download_fixture):
+                mismatch = components.prepare_archive(
+                    "pcre2",
+                    archive_url,
+                    mismatching_digest,
+                    "",
+                    bad_archive_dir,
+                    bad_cache_root,
+                    required_literal_sha256=True,
+                )
+
+            bad_archive_path = bad_archive_dir / source_archive.name
+            self.assertEqual("corrupt", mismatch["status"])
+            self.assertEqual("sha256_mismatch", mismatch["blocker_reason"])
+            self.assertEqual("FAIL", mismatch["checksum_status"])
+            self.assertFalse(bad_archive_path.exists())
+            self.assertFalse(components.cache_entry_marker_path(bad_archive_path, bad_cache_root).exists())
+
     def test_blocked_modsecurity_manifest_claims_fresh_entry_before_writing(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)

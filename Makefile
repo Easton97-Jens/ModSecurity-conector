@@ -211,8 +211,13 @@ export APR_UTIL_SHA256
 export APR_UTIL_SHA256_URL
 export PCRE2_VERSION
 export PCRE2_SOURCE_URL
-export PCRE2_SHA256
 export PCRE2_SHA256_URL
+# Framework's PCRE2 default deliberately distinguishes an absent digest from
+# an explicitly empty caller override.  GNU make would export an undefined
+# variable as empty, so only forward an actual caller-supplied override.
+ifneq ($(origin PCRE2_SHA256),undefined)
+export PCRE2_SHA256
+endif
 export APACHE_BIN
 export APACHECTL_BIN
 export APXS_BIN
