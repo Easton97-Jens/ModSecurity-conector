@@ -41,6 +41,7 @@ class ApacheSoakWiringTests(unittest.TestCase):
             "APACHE_SOAK_HTTPD_WRAPPER",
             "APACHE_SOAK_READY_FILE",
             "APACHE_SOAK_RESULT_FILE",
+            '--run-root "$APACHE_SOAK_RUN_ROOT"',
             "write_apache_soak_ready",
             "run_apache_soak",
             "apache_soak_workload.py",
@@ -71,6 +72,8 @@ class ApacheSoakWiringTests(unittest.TestCase):
             "RESPONSE_BOUND",
             '"real_httpd_pid"',
             '"instrumented_httpd_launch_pid"',
+            "validate_result_path",
+            "--run-root",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.workload)
@@ -214,6 +217,7 @@ class ApacheSoakWiringTests(unittest.TestCase):
             with self.subTest(target=target):
                 self.assertIn(target, self.makefile)
         self.assertIn("tests.test_apache_soak_wiring", self.makefile)
+        self.assertIn("tests.test_apache_soak_workload", self.makefile)
         self.assertIn("run-apache-soak.sh memcheck", self.makefile)
         self.assertIn("run-apache-soak.sh helgrind", self.makefile)
         self.assertNotIn("$(MAKE) apache-soak", self.makefile.split("lint:", 1)[1])

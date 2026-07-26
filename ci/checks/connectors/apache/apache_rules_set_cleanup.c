@@ -163,18 +163,11 @@ int msconnector_config_validate(const msconnector_config *config, char *error,
 }
 
 
-/* Error logging is outside the lifecycle contract; the stub makes failure
- * paths linkable without a running Apache server. */
-void ap_log_perror_(const char *file, int line, int module_index, int level,
-    apr_status_t status, apr_pool_t *pool, const char *format, ...)
+/* Error logging is outside the lifecycle contract. The native check links
+ * this fixed-signature no-op through GNU ld's --wrap=ap_log_perror_ option, so
+ * the harness need not reimplement Apache's variadic logging ABI. */
+void __wrap_ap_log_perror_(void)
 {
-    (void)file;
-    (void)line;
-    (void)module_index;
-    (void)level;
-    (void)status;
-    (void)pool;
-    (void)format;
 }
 
 

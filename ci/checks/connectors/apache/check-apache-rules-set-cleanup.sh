@@ -63,6 +63,7 @@ validate_external_output() {
         *"/../"*|*/..|..)
             fail "output must not contain parent traversal: $output_path"
             ;;
+        *) ;;
     esac
     reject_symlink_components "$output_path"
 
@@ -82,6 +83,7 @@ validate_external_output() {
         "$REPO_ROOT"|"$REPO_ROOT"/*)
             fail "output must stay outside the checkout: $output_path"
             ;;
+        *) ;;
     esac
 
     mkdir -p "$output_path" || fail "could not create output directory: $output_path"
@@ -95,6 +97,7 @@ validate_external_output() {
         "$REPO_ROOT"|"$REPO_ROOT"/*)
             fail "output resolved inside the checkout: $OUT"
             ;;
+        *) ;;
     esac
 }
 
@@ -206,6 +209,7 @@ for apr_link_flag in $APR_LINK_FLAGS; do
             APR_LIBDIR=${apr_link_flag#-L}
             break
             ;;
+        *) ;;
     esac
 done
 APR_RPATH_FLAG=
@@ -220,7 +224,8 @@ COMPILE_LOG="$OUT/compile.err"
 
 if ! "$CC_BIN" -std=c17 -Wall -Wextra -Werror -ffunction-sections \
     -fdata-sections $APXS_CFLAGS $APXS_CPPFLAGS -UNDEBUG $INCLUDES "$HARNESS" \
-    "$CONFIG" -Wl,--gc-sections $APR_RPATH_FLAG $APR_LINK_FLAGS -o "$BIN" \
+    "$CONFIG" -Wl,--gc-sections -Wl,--wrap=ap_log_perror_ $APR_RPATH_FLAG \
+    $APR_LINK_FLAGS -o "$BIN" \
     >"$OUT/compile.out" 2>"$COMPILE_LOG"; then
     sed -n '1,200p' "$OUT/compile.out" >&2
     sed -n '1,200p' "$COMPILE_LOG" >&2

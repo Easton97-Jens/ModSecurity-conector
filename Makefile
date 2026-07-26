@@ -1156,6 +1156,7 @@ check-apache-request-body-regression-wiring:
 	sh -n ci/runtime/lifecycle/run-apache-request-body-regression.sh
 
 check-apache-soak-wiring:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_soak_workload
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_soak_wiring
 	sh -n connectors/apache/harness/run_apache_smoke.sh
 	sh -n ci/runtime/lifecycle/run-apache-soak.sh

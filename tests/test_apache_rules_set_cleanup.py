@@ -112,6 +112,7 @@ class ApacheRulesSetCleanupTests(unittest.TestCase):
         )
         self.assertIn("-std=c17", native_check)
         self.assertIn("-UNDEBUG", native_check)
+        self.assertIn("-Wl,--wrap=ap_log_perror_", native_check)
         self.assertIn("msc_config.c", native_check)
         self.assertIn("APACHE_RULES_SET_CLEANUP_OUT", native_check)
         self.assertIn("reject_symlink_components", native_check)
@@ -130,6 +131,8 @@ class ApacheRulesSetCleanupTests(unittest.TestCase):
         self.assertIn("check-apache-ruleset-cleanup:", makefile)
         self.assertIn("check-apache-ruleset-cleanup-lint:", makefile)
         self.assertIn("$(MAKE) check-apache-ruleset-cleanup-lint", makefile)
+        self.assertIn("void __wrap_ap_log_perror_(void)", native_harness)
+        self.assertNotIn("void ap_log_perror_(", native_harness)
 
 
 if __name__ == "__main__":

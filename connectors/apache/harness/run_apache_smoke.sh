@@ -158,6 +158,7 @@ require_uint_range() {
     label=$4
     case "$value" in
         ''|*[!0-9]*) fail "$label must be an integer from $minimum to $maximum" ;;
+        *) ;;
     esac
     [ "$value" -ge "$minimum" ] && [ "$value" -le "$maximum" ] || \
         fail "$label must be an integer from $minimum to $maximum"
@@ -267,6 +268,7 @@ append_smoke_case() {
     fixture=$1
     case " $SMOKE_CASES " in
         *" $fixture "*|*" $fixture.yaml "*) return 0 ;;
+        *) ;;
     esac
     SMOKE_CASES="${SMOKE_CASES}${SMOKE_CASES:+ }$fixture"
 }
@@ -1363,6 +1365,7 @@ run_apache_soak() {
         --concurrency "$APACHE_SOAK_CONCURRENCY" \
         --request-timeout-seconds "$APACHE_SOAK_REQUEST_TIMEOUT_SECONDS" \
         --restart-interval-seconds "$APACHE_SOAK_RESTART_INTERVAL_SECONDS" \
+        --run-root "$APACHE_SOAK_RUN_ROOT" \
         --result "$APACHE_SOAK_RESULT_FILE" \
         --httpd-version "$httpd_version" \
         --apxs-version "$apxs_version" \

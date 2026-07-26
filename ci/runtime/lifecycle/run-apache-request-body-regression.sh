@@ -48,14 +48,16 @@ require_absolute_path() {
             echo "BLOCKED: $label must not contain dot path segments: $path" >&2
             exit 77
             ;;
+        *) ;;
     esac
 }
 
 reject_symlink_ancestors() {
     candidate=$1
+    label=$2
     while [ "$candidate" != / ]; do
         if [ -L "$candidate" ]; then
-            echo "BLOCKED: unsafe symlink in $2 path: $candidate" >&2
+            echo "BLOCKED: unsafe symlink in $label path: $candidate" >&2
             exit 77
         fi
         candidate=$(dirname "$candidate")
@@ -87,6 +89,7 @@ prepare_external_root() {
             echo "BLOCKED: $label must be outside a source checkout: $canonical" >&2
             exit 77
             ;;
+        *) ;;
     esac
     printf '%s\n' "$canonical"
 }
@@ -121,6 +124,7 @@ case "$PORT" in
         echo "BLOCKED: PORT must be a numeric TCP port: $PORT" >&2
         exit 77
         ;;
+    *) ;;
 esac
 if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
     echo "BLOCKED: PORT must be between 1 and 65535: $PORT" >&2
