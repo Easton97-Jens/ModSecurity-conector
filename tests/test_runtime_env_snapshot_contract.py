@@ -69,7 +69,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             Path("/cache"),
             {"status": "blocked"},
         )
-        self.assertEqual({}, values)
+        self.assertEqual(values, {})
 
     def test_snapshot_is_unique_local_atomic_and_keeps_shared_compatibility_export(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-env-snapshot-") as temporary:
