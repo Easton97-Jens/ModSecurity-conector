@@ -9,7 +9,7 @@
 | Change-ID | CR-20260726-runtime-matrix-cache-owner-root |
 | Datum (UTC) | 2026-07-26 |
 | Basis-Revision | 6ca7e1536ce7e93da68099db9c586b88852ff13e |
-| Grenze | Parent-Runtime-Matrix-Shell-Handoff, ein Parent-Regressionstest und dieses englisch/deutsche Change-Record-Paar mit Index. Der mitgeführte Framework-Gitlink ist bereits auf Parent-`master` gemergt; hier werden weder Framework- noch MRTS-Quellen geändert. |
+| Grenze | Parent-Runtime-Matrix- und vorbereitete Runtime-Environment-Snapshot-Handoffs, Parent-Regressionstests und dieses englisch/deutsche Change-Record-Paar mit Index. Der mitgeführte Framework-Gitlink ist bereits auf Parent-`master` gemergt; hier werden weder Framework- noch MRTS-Quellen geändert. |
 | Finding-Verknüpfung | FND-CROSS-0008; FND-CROSS-0001 bleibt offen, bis frische legitime Runtime-Evidence das strikte Terminal-Gate besteht. |
 
 ## Motivation und Problemstellung
@@ -31,6 +31,12 @@ expliziten Root als `APACHE_BUILD_OWNER_ROOT` beziehungsweise
 `NGINX_BUILD_OWNER_ROOT`; er weitet `BUILD_ROOT` nicht auf und deaktiviert den
 Framework-Löschguard nicht.
 
+Das direkte Target `runtime-matrix-all-runtime` erreicht den Framework-Runner
+über einen vorbereiteten Invocation-lokalen Runtime-Environment-Snapshot.
+Dieser Snapshot veröffentlicht nun für beide Connectoren denselben engen Owner
+Root, sodass der direkte Runner bei einem legitimen Cache-Refresh nicht auf
+seinen nicht zugehörigen Job-`BUILD_ROOT` zurückfallen kann.
+
 Parent-PR #125 führt bereits Framework-Commit
 `a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6`, der die Framework-NGINX-Owner-
 Root-Fähigkeit enthält. Diese Änderung verwendet diese Fähigkeit an der Parent-
@@ -44,6 +50,8 @@ Branch-Update von `master` hinaus.
 - Ein Connector-Build-Pfad außerhalb dieses engen Roots schlägt fehl, bevor
   `make` aufgerufen wird.
 - Der isolierte Job-`BUILD_ROOT` bleibt vom Cache-Owner-Root getrennt.
+- Der Invocation-lokale Runtime-Environment-Snapshot veröffentlicht dieselben
+  engen Apache- und NGINX-Owner-Roots für die direkte Runtime-Matrix-Ausführung.
 - Weder Löschguard, striktes Evidence-Gate, SonarQube-Cloud-Policy noch
   Branch-Schutz werden gelockert.
 - Der aktualisierte exakte PR-#74-Head benötigt weiterhin vollständige Hosted-
@@ -61,17 +69,25 @@ relative, symlinked, Sibling- oder Systempfade ab.
 
 Legitime vorbereitete Cache-Builds bleiben refreshbar. Ein Nicht-Cache-Build-
 Root wird jetzt abgewiesen, statt einen Connector-Provisioning-Pfad mit nicht
-zugehöriger Ownership zu erreichen. Es werden weder Cleanup, `REFRESH`-
-Deaktivierung, Suppression, Quality-Gate-Änderung noch ein Branch-Protection-
-Bypass verwendet.
+zugehöriger Ownership zu erreichen. Der Parent-Snapshot übergibt die
+Connector-spezifische Authority an den direkten Framework-Runtime-Runner,
+statt eines mutierbaren Shared Exports oder eines impliziten `BUILD_ROOT`-
+Defaults. Es werden weder Cleanup, `REFRESH`-Deaktivierung, Suppression,
+Quality-Gate-Änderung noch ein Branch-Protection-Bypass verwendet.
 
 ## Geänderte Dateien
 
 - `ci/runtime/lifecycle/run-full-matrix-parallel.sh`: leitet den engen
   Connector-Cache-Owner-Root ab, validiert ihn und übergibt ihn an Apache und
   NGINX.
+- `ci/provisioning/components/prepare-runtime-components.py`: übergibt
+  denselben engen Owner Root beim Bauen der Cache-Einträge und im vorbereiteten
+  Invocation-lokalen Runtime-Environment-Snapshot.
 - `tests/test_full_matrix_cache_owner_root.py`: kontrollierte Same-Boundary-
-  Positiv- und Outside-Owner-Ablehnungstests.
+  Positiv- und Outside-Owner-Ablehnungstests sowie direkte Runtime-Matrix-
+  Snapshot-Propagation-Coverage.
+- `tests/test_runtime_component_cache_contract.py`: prüft, dass beide
+  Connector-Build-Provisioner den engen Owner Root erhalten.
 - `modules/ModSecurity-test-Framework`: der normale Merge von aktuellem
   Parent-Master führt seinen bereits integrierten Gitlink mit.
 - `reports/audits/change-records/README.md`, `README.de.md` sowie dieser
@@ -81,10 +97,14 @@ Bypass verwendet.
 
 - `sh -n ci/runtime/lifecycle/run-full-matrix-parallel.sh` — bestanden.
 - `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_full_matrix_cache_owner_root`
-  — bestanden (zwei Tests). Die Positivkontrolle führt den echten Matrix-Shell-
-  Runner mit einer kontrollierten `make`-Grenze aus und prüft explizite Apache-
-  und NGINX-Owner-Roots bei `REFRESH=1`. Die Negativkontrolle verwendet einen
-  außerhalb liegenden Build-Root und prüft die Ablehnung vor `make`.
+  — bestanden (drei Tests). Die Kontrollen führen den echten Matrix-Shell-
+  Runner und den direkten Framework-Runtime-Matrix-Runner über den
+  kontrollierten Invocation-lokalen Snapshot aus. Sie prüfen explizite Apache-
+  und NGINX-Owner-Roots bei `REFRESH=1`; die Negativkontrolle prüft die
+  Ablehnung vor `make`.
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_runtime_component_cache_contract`
+  — bestanden (27 Tests), einschließlich Owner-Root-Assertions der
+  Cache-Provisioner.
 - `git diff --check` — bestanden.
 
 ## Security-Auswirkung
@@ -96,17 +116,20 @@ aufgeweitet.
 
 ## Runtime-Evidence
 
-Die kontrollierte Regression führt den echten Parent-Matrix-Shell-Runner aus
-und beobachtet dessen Connector-Dispatch-Umgebung. Sie ist kein nativer
-Connector-Build, Host-Deployment oder vollständiger Runtime-Evidence-Producer;
-dies bleibt für den aktualisierten exakten PR-#74-Head erforderlich.
+Die kontrollierten Regressionen führen den echten Parent-Full-Matrix-Shell-
+Runner und den direkten Framework-Runtime-Matrix-Runner über dieselbe
+Invocation-lokale Snapshot-Grenze wie der Hosted-Producer aus. Sie sind keine
+nativen Connector-Builds, Host-Deployments oder vollständige Runtime-Evidence-
+Producer; dies bleibt für den aktualisierten exakten PR-#74-Head erforderlich.
 
 ## Bekannte Einschränkungen
 
 Die lokalen Kontrollen ersetzen `make` nur an der finalen Connector-Smoke-
 Grenze und behaupten daher keinen Apache- oder NGINX-Build. Die zugehörigen
-Framework-Owner-Root-Löschkontrollen wurden separat gemergt und validiert. Das
-strikte Parent-Evidence-Gate lief für diesen künftigen #74-Head noch nicht.
+Framework-Owner-Root-Löschkontrollen wurden separat gemergt und validiert. Der
+vorherige Hosted-Producer des exakten Heads legte den fehlenden direkten
+Snapshot-Handoff offen; das strikte Parent-Evidence-Gate muss nun erneut auf
+dem Nachfolge-#74-Head laufen.
 
 ## Verbleibende Risiken
 
@@ -128,9 +151,9 @@ diesem Handoff gemergt.
 
 ## Finaler Diff- und Review-Status
 
-Der lokale Diff ist auf den Parent-Matrix-Handoff, seinen fokussierten
-Regressionstest, das normale Master-Gitlink-Update und diesen zweisprachigen
-Record/Index begrenzt. Er bestand lokale Syntax-, fokussierte Security-/Pfad-,
-CI-Sicherheitsvertrags-, Dokumentationslink- und Whitespace-Checks. Vor einem
-geschützten Merge sind weiterhin frische Exact-Head-Hosted-Validierung und
-Review erforderlich.
+Der lokale Diff ist auf die Parent-Matrix-/Snapshot-Handoffs, fokussierte
+Regressionstests, das normale Master-Gitlink-Update und diesen zweisprachigen
+Record/Index begrenzt. Er bestand fokussierte Security-/Pfad- und Cache-
+Provisioner-Tests; die breiteren lokalen Checks und frische Exact-Head-Hosted-
+Validierung müssen vor einem geschützten Merge erneut auf dem Nachfolge-Commit
+laufen.

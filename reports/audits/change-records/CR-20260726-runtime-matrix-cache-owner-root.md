@@ -9,7 +9,7 @@
 | Change ID | CR-20260726-runtime-matrix-cache-owner-root |
 | Date (UTC) | 2026-07-26 |
 | Base revision | 6ca7e1536ce7e93da68099db9c586b88852ff13e |
-| Boundary | Parent runtime-matrix shell hand-off, a Parent regression test, and this English/German Change Record pair/index. The carried Framework Gitlink is already merged on Parent `master`; no Framework or MRTS source changes are made here. |
+| Boundary | Parent runtime-matrix and prepared runtime-environment-snapshot hand-offs, Parent regression tests, and this English/German Change Record pair/index. The carried Framework Gitlink is already merged on Parent `master`; no Framework or MRTS source changes are made here. |
 | Finding linkage | FND-CROSS-0008; FND-CROSS-0001 remains open until fresh legitimate runtime evidence passes the strict terminal gate. |
 
 ## Motivation and problem statement
@@ -29,6 +29,12 @@ the connector. A cache-backed path outside the derived root is rejected before
 as `APACHE_BUILD_OWNER_ROOT` or `NGINX_BUILD_OWNER_ROOT`; it does not widen
 `BUILD_ROOT` and does not disable the Framework deletion guard.
 
+The direct `runtime-matrix-all-runtime` target reaches the Framework runner
+through a prepared invocation-local runtime-environment snapshot. That
+snapshot now publishes the same narrow owner root for both connectors, so the
+direct runner cannot fall back to its unrelated job `BUILD_ROOT` during a
+legitimate cache refresh.
+
 Parent PR #125 already carries Framework commit
 `a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6`, which includes the Framework
 NGINX owner-root capability. This change consumes that capability through the
@@ -42,6 +48,8 @@ branch update from `master`.
 - A connector build path outside that narrow root fails before `make` is
   invoked.
 - The isolated per-job `BUILD_ROOT` remains separate from the cache owner root.
+- The invocation-local runtime-environment snapshot publishes the same narrow
+  Apache and NGINX owner roots for direct runtime-matrix execution.
 - No deletion guard, strict evidence gate, SonarQube Cloud policy, or branch
   protection is relaxed.
 - The updated exact PR #74 head still requires its full hosted producer,
@@ -58,15 +66,23 @@ the deletion boundary.
 
 Legitimate prepared cache builds remain refreshable. A non-cache build root is
 now rejected instead of reaching a connector provisioning path with unrelated
-ownership. No cleanup, `REFRESH` disablement, suppression, Quality Gate change,
-or branch-protection bypass is used.
+ownership. The Parent snapshot, rather than a mutable shared export or an
+implicit `BUILD_ROOT` default, carries the connector-specific authority into
+the direct Framework runtime runner. No cleanup, `REFRESH` disablement,
+suppression, Quality Gate change, or branch-protection bypass is used.
 
 ## Changed files
 
 - `ci/runtime/lifecycle/run-full-matrix-parallel.sh`: derives, validates, and
   dispatches the narrow connector-cache owner root for Apache and NGINX.
+- `ci/provisioning/components/prepare-runtime-components.py`: supplies the
+  same narrow owner root while building cache entries and in the prepared
+  invocation-local runtime environment snapshot.
 - `tests/test_full_matrix_cache_owner_root.py`: controlled same-boundary
-  positive and outside-owner rejection tests.
+  positive and outside-owner rejection tests, plus direct runtime-matrix
+  snapshot propagation coverage.
+- `tests/test_runtime_component_cache_contract.py`: verifies both connector
+  build provisioners receive the narrow owner root.
 - `modules/ModSecurity-test-Framework`: the normal merge from current Parent
   master carries its already-integrated Gitlink.
 - `reports/audits/change-records/README.md`, `README.de.md`, and this paired
@@ -76,10 +92,12 @@ or branch-protection bypass is used.
 
 - `sh -n ci/runtime/lifecycle/run-full-matrix-parallel.sh` — passed.
 - `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_full_matrix_cache_owner_root`
-  — passed (two tests). The positive control invokes the real matrix shell
-  runner with a controlled `make` boundary and verifies explicit Apache and
-  NGINX owner roots while `REFRESH=1`. The negative control uses an outside
-  build root and verifies rejection before `make`.
+  — passed (three tests). The controls invoke the real matrix shell runner and
+  the direct Framework runtime-matrix runner through the controlled
+  invocation-local snapshot. They verify explicit Apache and NGINX owner roots
+  while `REFRESH=1`; the negative control verifies rejection before `make`.
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_runtime_component_cache_contract`
+  — passed (27 tests), including cache-provisioner owner-root assertions.
 - `git diff --check` — passed.
 
 ## Security impact
@@ -90,17 +108,20 @@ deletion guard as the final fail-closed sink. No trusted boundary is broadened.
 
 ## Runtime evidence
 
-The controlled regression invokes the real Parent matrix shell runner and
-observes its connector dispatch environment. It is not a native connector
-build, host deployment, or complete runtime-evidence producer; those remain
+The controlled regressions invoke the real Parent full-matrix shell runner and
+the direct Framework runtime-matrix runner through the same invocation-local
+snapshot boundary used by the hosted producer. They are not native connector
+builds, host deployments, or complete runtime-evidence producers; those remain
 required on the updated exact PR #74 head.
 
 ## Known limitations
 
 The local controls replace `make` only at the final connector smoke boundary,
 so they do not claim an Apache or NGINX build. Framework's corresponding
-owner-root deletion controls were separately merged and validated. The strict
-Parent evidence gate has not yet run on this future #74 head.
+owner-root deletion controls were separately merged and validated. The
+previous exact-head hosted producer exposed the missing direct snapshot
+handoff; the strict Parent evidence gate must now run again on the successor
+#74 head.
 
 ## Remaining risks
 
@@ -121,8 +142,8 @@ Framework owner-root controls were independently merged before this hand-off.
 
 ## Final diff and review status
 
-The local diff is limited to the Parent matrix hand-off, its focused regression
-test, the normal master Gitlink update, and this bilingual record/index. It has
-passed local syntax, focused security/path, CI-security-contract,
-documentation-link, and whitespace checks. It still requires fresh exact-head
-hosted validation and review before a protected merge.
+The local diff is limited to the Parent matrix/snapshot hand-offs, focused
+regression tests, the normal master Gitlink update, and this bilingual
+record/index. It has passed focused security/path and cache-provisioner tests;
+the broader local checks and fresh exact-head hosted validation must be rerun
+for the successor commit before protected merge.

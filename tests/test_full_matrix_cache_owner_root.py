@@ -10,6 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 MATRIX_RUNNER = ROOT / "ci" / "runtime" / "lifecycle" / "run-full-matrix-parallel.sh"
+WITH_RUNTIME_COMPONENTS = ROOT / "ci" / "provisioning" / "cache" / "with-runtime-components.sh"
 FRAMEWORK_ROOT = ROOT / "modules" / "ModSecurity-test-Framework"
 
 
@@ -44,6 +45,12 @@ printf '%s|%s|%s|%s|%s\\n' \\
             encoding="utf-8",
         )
         fake_make.chmod(fake_make.stat().st_mode | stat.S_IXUSR)
+
+    def write_fake_python(self, bin_dir: Path) -> Path:
+        fake_python = bin_dir / "python"
+        fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        fake_python.chmod(fake_python.stat().st_mode | stat.S_IXUSR)
+        return fake_python
 
     def matrix_environment(
         self,
@@ -187,6 +194,91 @@ printf '%s|%s|%s|%s|%s\\n' \\
                 f"apache matrix build root must stay under {expected_owner_root}",
                 run_log.read_text(encoding="utf-8"),
             )
+
+    def test_direct_runtime_matrix_consumes_snapshot_owner_roots(self) -> None:
+        """The direct runtime-matrix target must not fall back to job BUILD_ROOT."""
+        with tempfile.TemporaryDirectory(prefix="runtime-matrix-owner-root-") as temporary:
+            root = Path(temporary)
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            self.write_fake_make(bin_dir)
+            fake_python = self.write_fake_python(bin_dir)
+            capture_file = root / "make-capture.txt"
+            verified_root = root / "verified"
+            build_root = verified_root / "build"
+            component_cache = verified_root / "cache-v2" / "shared"
+            owner_root = component_cache / "builds" / "connectors"
+            apache_build_root = owner_root / "apache" / "cache-key" / "build"
+            nginx_build_root = owner_root / "nginx" / "cache-key" / "build"
+            for path in (apache_build_root, nginx_build_root):
+                path.mkdir(parents=True)
+            output_root = build_root / "runtime-component-reports"
+            snapshot = output_root / "runtime-env-snapshot.matrix.sh"
+            snapshot.parent.mkdir(parents=True)
+            snapshot.write_text(
+                "\n".join(
+                    (
+                        f"export CONNECTOR_COMPONENT_CACHE='{component_cache}'",
+                        f"export APACHE_BUILD_ROOT='{apache_build_root}'",
+                        f"export APACHE_BUILD_OWNER_ROOT='{owner_root}'",
+                        f"export NGINX_BUILD_DIR='{nginx_build_root}'",
+                        f"export NGINX_BUILD_OWNER_ROOT='{owner_root}'",
+                        "export RUNTIME_COMPONENT_ENV_SNAPSHOT_TARGET='all'",
+                        f"export RUNTIME_COMPONENT_ENV_SNAPSHOT_CACHE='{component_cache}'",
+                        "export RUNTIME_COMPONENT_ENV_SNAPSHOT_SCHEMA='1'",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{bin_dir}{os.pathsep}{environment['PATH']}",
+                    "CAPTURE_FILE": str(capture_file),
+                    "CONNECTOR_ROOT": str(ROOT),
+                    "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
+                    "VERIFIED_RUN_ROOT": str(verified_root),
+                    "BUILD_ROOT": str(build_root),
+                    "TMP_ROOT": str(verified_root / "tmp"),
+                    "LOG_ROOT": str(verified_root / "logs"),
+                    "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+                    "VERIFIED_COMPONENT_CACHE": str(component_cache),
+                    "RUNTIME_REPORT_OUTPUT_ROOT": str(output_root),
+                    "RUNTIME_COMPONENT_TARGET": "all",
+                    "RUNTIME_COMPONENT_ENV_SNAPSHOT": str(snapshot),
+                    "SKIP_RUNTIME_COMPONENT_PREPARE": "1",
+                    "PYTHON": str(fake_python),
+                    "FORCE_ALL_CASES": "0",
+                    "MODSECURITY_MRTS_VARIANT": "no-mrts",
+                }
+            )
+
+            process = subprocess.run(
+                ["sh", str(WITH_RUNTIME_COMPONENTS), "sh", str(FRAMEWORK_ROOT / "ci/runtime/run-runtime-matrix.sh")],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+            records = {
+                fields[0]: fields
+                for fields in (
+                    line.split("|") for line in capture_file.read_text(encoding="utf-8").splitlines()
+                )
+            }
+            self.assertEqual(set(records), {"apache", "nginx"})
+            for connector, fields in records.items():
+                with self.subTest(connector=connector):
+                    _, refresh, job_build_root, connector_build_root, owner_root_text = fields
+                    self.assertEqual(refresh, "1")
+                    self.assertEqual(owner_root_text, str(owner_root))
+                    self.assertTrue(Path(connector_build_root).is_relative_to(owner_root))
+                    self.assertEqual(job_build_root, str(build_root))
+                    self.assertNotEqual(job_build_root, owner_root_text)
 
 
 if __name__ == "__main__":

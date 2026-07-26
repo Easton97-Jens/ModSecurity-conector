@@ -1016,6 +1016,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 assert isinstance(build_env, dict)
                 active_build_path = Path(build_env["APACHE_BUILD_ROOT"])
                 active_httpd_prefix = Path(build_env["HTTPD_PREFIX"])
+                self.assertEqual(
+                    str(cache_root / "builds" / "connectors"),
+                    build_env["APACHE_BUILD_OWNER_ROOT"],
+                )
                 staging_prefixes.append(active_httpd_prefix)
                 httpd = active_httpd_prefix / "bin/httpd"
                 httpd.parent.mkdir(parents=True, exist_ok=True)
@@ -1136,6 +1140,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 assert isinstance(build_env, dict)
                 active_build_path = Path(build_env["NGINX_BUILD_DIR"])
                 active_nginx_prefix = Path(build_env["NGINX_PREFIX"])
+                self.assertEqual(
+                    str(cache_root / "builds" / "connectors"),
+                    build_env["NGINX_BUILD_OWNER_ROOT"],
+                )
                 binary = active_nginx_prefix / "sbin/nginx"
                 binary.parent.mkdir(parents=True, exist_ok=True)
                 binary.write_text("#!/bin/sh\n", encoding="utf-8")
