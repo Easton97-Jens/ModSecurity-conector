@@ -92,6 +92,7 @@ DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256 = (
 )
 
 PATH_POLICY_ENV = dict(os.environ)
+FULL_GIT_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40,64}")
 
 
 # Bump this whenever the on-disk cache contract or the identity inputs change.
@@ -204,6 +205,17 @@ def require_env_value(env: dict[str, str], key: str) -> str:
     if not value:
         raise RuntimeError(f"missing required runtime component config: {key} from framework common.sh")
     return value
+
+
+def require_full_immutable_git_commit(value: str, label: str) -> str:
+    """Accept only a full Git object ID for a mandatory pinned source."""
+    commit = value.strip()
+    if not FULL_GIT_COMMIT_ID.fullmatch(commit):
+        raise RuntimeError(
+            f"{label} must be a full immutable Git commit ID "
+            "(40 or 64 hexadecimal characters)"
+        )
+    return commit
 
 
 def require_staging_path(staging_path: Path | None) -> Path:
@@ -1531,6 +1543,102 @@ def prepare_release_git_component(
         ),
     )
     return record
+
+
+def prepare_immutable_git_component(
+    name: str,
+    source_url: str,
+    expected_commit: str,
+    path: Path,
+    previous_records: dict[str, dict[str, Any]],
+    strict: bool,
+    cache_root: Path | None = None,
+) -> dict[str, Any]:
+    """Prepare a mandatory Git source pinned to one immutable commit.
+
+    Unlike optional release-backed tools, this path intentionally never asks
+    GitHub for a latest release.  The completed checkout record must prove the
+    checked-out object is exactly the configured full commit ID before its
+    source can be consumed by a dependent runtime component.
+    """
+    try:
+        expected_commit = require_full_immutable_git_commit(expected_commit, f"{name} Git ref")
+    except RuntimeError as exc:
+        return {
+            "name": name,
+            "url": source_url,
+            "source": source_url,
+            "path": str(path),
+            "expected_ref": expected_commit.strip(),
+            "release_tag": "",
+            "release_lookup_status": "not_applicable_immutable_commit",
+            "immutable_commit_verified": False,
+            "status": "blocked",
+            "optional": False,
+            "blocker_reason": str(exc),
+        }
+
+    record = prepare_git_component(
+        name,
+        source_url,
+        expected_commit,
+        path,
+        previous_records,
+        strict,
+        cache_root=cache_root,
+    )
+    actual_head = record.get("actual_head")
+    immutable_commit_verified = (
+        isinstance(actual_head, str) and actual_head.lower() == expected_commit.lower()
+    )
+    record.update(
+        source=source_url,
+        expected_ref=expected_commit,
+        release_tag=expected_commit,
+        release_lookup_status="not_applicable_immutable_commit",
+        immutable_commit_verified=immutable_commit_verified,
+        optional=False,
+        expected_prompt_latest="",
+        release_tag_deviation=False,
+        release_tag_deviation_note="",
+    )
+    if record.get("status") == "present" and not immutable_commit_verified:
+        record.update(
+            status="blocked",
+            blocker_reason="immutable_git_checkout_record_mismatch",
+        )
+    return record
+
+
+def prepare_expat_git_component(
+    source_url: str,
+    expected_ref: str,
+    expected_prompt_latest: str,
+    path: Path,
+    previous_records: dict[str, dict[str, Any]],
+    strict: bool,
+    cache_root: Path | None = None,
+) -> dict[str, Any]:
+    """Use immutable Expat provenance only for the strict evidence path."""
+    if strict:
+        return prepare_immutable_git_component(
+            "expat",
+            source_url,
+            expected_ref,
+            path,
+            previous_records,
+            strict,
+            cache_root=cache_root,
+        )
+    return prepare_release_git_component(
+        "expat",
+        source_url,
+        expected_prompt_latest,
+        path,
+        previous_records,
+        strict,
+        cache_root=cache_root,
+    )
 
 
 def archive_can_list(path: Path) -> bool:
@@ -5317,8 +5425,8 @@ def markdown_report(payload: dict[str, Any]) -> str:
             "- System paths are not used for runtime component writes.",
             "- Runtime writes are constrained to cache/build/runtime roots.",
             "- Native Apache and NGINX use local prepared components when env overrides are absent.",
-            "- go-ftw, albedo, and expat are prepared from explicit release-tag sources.",
-            "- `RUNTIME_COMPONENT_STRICT_VERIFY=1` forces full git fsck.",
+            "- go-ftw and albedo use release-tag resolution; Expat uses release resolution only outside strict evidence runs.",
+            "- `RUNTIME_COMPONENT_STRICT_VERIFY=1` requires a fresh-clone or prior-cache full git fsck PASS and an immutable Expat commit pin.",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -5382,6 +5490,7 @@ def main() -> int:
         }
     )
     PATH_POLICY_ENV = dict(env)
+    strict = env.get("RUNTIME_COMPONENT_STRICT_VERIFY") == "1"
     try:
         validate_https_url_config(env)
         go_ftw_source_url = require_env_value(env, "GO_FTW_SOURCE_URL")
@@ -5390,12 +5499,13 @@ def main() -> int:
         albedo_expected_latest = require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST")
         expat_source_url = require_env_value(env, "EXPAT_SOURCE_URL")
         expat_git_ref = require_env_value(env, "EXPAT_GIT_REF")
+        if strict:
+            expat_git_ref = require_full_immutable_git_commit(expat_git_ref, "EXPAT_GIT_REF")
         nginx_protocol_build_inputs(env)
     except RuntimeError as exc:
         print(f"prepare-runtime-components: BLOCKED: {exc}")
         return 77
     report_dir = output_root / GENERATED_ROOT
-    strict = env.get("RUNTIME_COMPONENT_STRICT_VERIFY") == "1"
     try:
         cache_root = ensure_managed_cache_root(
             cache_root,
@@ -5445,9 +5555,9 @@ def main() -> int:
             strict,
             cache_root=cache_root,
         ),
-        prepare_release_git_component(
-            "expat",
+        prepare_expat_git_component(
             env.get("EXPAT_GIT_URL") or expat_source_url,
+            expat_git_ref,
             env.get("EXPAT_PROMPT_EXPECTED_LATEST") or expat_git_ref,
             git_root / "libexpat",
             previous_git,

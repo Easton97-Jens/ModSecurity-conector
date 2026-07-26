@@ -315,11 +315,25 @@ class CiSecurityWorkflowTest(unittest.TestCase):
             for checkout_step in checkout_steps:
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
 
-    def test_verified_report_governance_runs_the_strict_evidence_gate(self) -> None:
+    def test_verified_report_governance_produces_current_evidence_before_the_strict_gate(self) -> None:
         job = self.jobs("verified-report-governance.yml")["report-governance"]
+        self.assertIn("timeout-minutes: 360", job)
+        self.assertIn('ALLOW_RUNTIME_DOWNLOADS: "1"', job)
+        self.assertIn('ALLOW_RUNTIME_BUILDS: "1"', job)
+        self.assertIn('PYTHONDONTWRITEBYTECODE: "1"', job)
+        self.assertIn('RUNTIME_COMPONENT_STRICT_VERIFY: "1"', job)
+        self.assertIn("EXPAT_GIT_REF: c61098da494eea1cbd091118118dcee417faacea", job)
+        self.assertIn("EXPAT_PROMPT_EXPECTED_LATEST: R_2_8_2", job)
+        self.assertIn("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock", job)
+        self.assertIn('echo "PYTHON=$venv/bin/python" >> "$GITHUB_ENV"', job)
+        self.assertNotIn("make setup-dev", job)
+        self.assertNotIn("pip install --upgrade", job)
         self.assertIn("make report-governance", job)
+        self.assertIn("make verified-report-run", job)
         self.assertIn("make verified-report-evidence-gate", job)
-        self.assertLess(job.index("make report-governance"), job.index("make verified-report-evidence-gate"))
+        self.assertLess(job.index("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock"), job.index("make report-governance"))
+        self.assertLess(job.index("make report-governance"), job.index("make verified-report-run"))
+        self.assertLess(job.index("make verified-report-run"), job.index("make verified-report-evidence-gate"))
 
     def test_untrusted_pull_request_model(self) -> None:
         sarif_write_jobs = {

@@ -14,6 +14,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY_FRAMEWORK_HAPROXY_CACHE_SHA = "784977615acfc55567e37b863309abc4a38ac877"
+PINNED_EXPAT_COMMIT = "c61098da494eea1cbd091118118dcee417faacea"
 sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
@@ -30,6 +31,229 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertEqual(staging_path, components.require_staging_path(staging_path))
         with self.assertRaisesRegex(RuntimeError, "staging cache entry is required"):
             components.require_staging_path(None)
+
+    def test_require_full_immutable_git_commit_accepts_only_full_commit_ids(self) -> None:
+        self.assertEqual(
+            PINNED_EXPAT_COMMIT,
+            components.require_full_immutable_git_commit(PINNED_EXPAT_COMMIT, "EXPAT_GIT_REF"),
+        )
+        for mutable_or_abbreviated_ref in ("master", "R_2_8_2", "refs/tags/R_2_8_2", "c61098d"):
+            with self.subTest(ref=mutable_or_abbreviated_ref):
+                with self.assertRaisesRegex(RuntimeError, "full immutable Git commit ID"):
+                    components.require_full_immutable_git_commit(
+                        mutable_or_abbreviated_ref,
+                        "EXPAT_GIT_REF",
+                    )
+
+    def test_runtime_component_report_describes_strict_expat_and_cache_fsck_accurately(self) -> None:
+        report = components.markdown_report(
+            {
+                "generated_at": "2026-07-26T00:00:00Z",
+                "cache_root": "/tmp/runtime-components",
+                "git_components": [],
+                "archives": [],
+                "dependencies": [],
+            }
+        )
+
+        self.assertIn(
+            "go-ftw and albedo use release-tag resolution; Expat uses release resolution only outside strict evidence runs.",
+            report,
+        )
+        self.assertIn(
+            "RUNTIME_COMPONENT_STRICT_VERIFY=1` requires a fresh-clone or prior-cache full git fsck PASS",
+            report,
+        )
+        self.assertNotIn("go-ftw, albedo, and expat are prepared from explicit release-tag sources.", report)
+        self.assertNotIn("forces full git fsck", report)
+
+    def test_immutable_expat_rejects_mutable_ref_before_git_or_release_lookup(self) -> None:
+        with (
+            mock.patch.object(components, "prepare_git_component") as prepare_git,
+            mock.patch.object(components, "resolve_latest_github_release_tag") as resolve_latest,
+        ):
+            record = components.prepare_immutable_git_component(
+                "expat",
+                "https://github.com/libexpat/libexpat",
+                "master",
+                Path("cache/git/libexpat"),
+                {},
+                strict=True,
+            )
+
+        self.assertEqual("blocked", record["status"])
+        self.assertIn("full immutable Git commit ID", record["blocker_reason"])
+        self.assertFalse(record["immutable_commit_verified"])
+        prepare_git.assert_not_called()
+        resolve_latest.assert_not_called()
+
+    def test_immutable_expat_uses_pinned_commit_without_latest_release_lookup(self) -> None:
+        prepared_record = {
+            "name": "expat",
+            "url": "https://github.com/libexpat/libexpat",
+            "expected_ref": PINNED_EXPAT_COMMIT,
+            "actual_head": PINNED_EXPAT_COMMIT,
+            "status": "present",
+        }
+        with (
+            mock.patch.object(components, "prepare_git_component", return_value=prepared_record) as prepare_git,
+            mock.patch.object(components, "resolve_latest_github_release_tag") as resolve_latest,
+        ):
+            record = components.prepare_immutable_git_component(
+                "expat",
+                "https://github.com/libexpat/libexpat",
+                PINNED_EXPAT_COMMIT,
+                Path("cache/git/libexpat"),
+                {},
+                strict=True,
+            )
+
+        prepare_git.assert_called_once_with(
+            "expat",
+            "https://github.com/libexpat/libexpat",
+            PINNED_EXPAT_COMMIT,
+            Path("cache/git/libexpat"),
+            {},
+            True,
+            cache_root=None,
+        )
+        resolve_latest.assert_not_called()
+        self.assertEqual("present", record["status"])
+        self.assertEqual(PINNED_EXPAT_COMMIT, record["expected_ref"])
+        self.assertEqual(PINNED_EXPAT_COMMIT, record["actual_head"])
+        self.assertTrue(record["immutable_commit_verified"])
+        self.assertEqual("not_applicable_immutable_commit", record["release_lookup_status"])
+
+    def test_immutable_expat_blocks_checkout_record_for_a_different_commit(self) -> None:
+        different_commit = "f" * 40
+        with mock.patch.object(
+            components,
+            "prepare_git_component",
+            return_value={
+                "name": "expat",
+                "url": "https://github.com/libexpat/libexpat",
+                "expected_ref": PINNED_EXPAT_COMMIT,
+                "actual_head": different_commit,
+                "status": "present",
+            },
+        ):
+            record = components.prepare_immutable_git_component(
+                "expat",
+                "https://github.com/libexpat/libexpat",
+                PINNED_EXPAT_COMMIT,
+                Path("cache/git/libexpat"),
+                {},
+                strict=True,
+            )
+
+        self.assertEqual("blocked", record["status"])
+        self.assertEqual("immutable_git_checkout_record_mismatch", record["blocker_reason"])
+        self.assertFalse(record["immutable_commit_verified"])
+
+    def test_strict_expat_path_uses_only_the_immutable_component_preparer(self) -> None:
+        with (
+            mock.patch.object(
+                components,
+                "prepare_immutable_git_component",
+                return_value={"status": "present", "immutable_commit_verified": True},
+            ) as prepare_immutable,
+            mock.patch.object(components, "prepare_release_git_component") as prepare_release,
+        ):
+            record = components.prepare_expat_git_component(
+                "https://github.com/libexpat/libexpat",
+                PINNED_EXPAT_COMMIT,
+                "master",
+                Path("cache/git/libexpat"),
+                {},
+                strict=True,
+            )
+
+        prepare_immutable.assert_called_once_with(
+            "expat",
+            "https://github.com/libexpat/libexpat",
+            PINNED_EXPAT_COMMIT,
+            Path("cache/git/libexpat"),
+            {},
+            True,
+            cache_root=None,
+        )
+        prepare_release.assert_not_called()
+        self.assertTrue(record["immutable_commit_verified"])
+
+    def test_non_strict_expat_path_preserves_release_resolution_compatibility(self) -> None:
+        with (
+            mock.patch.object(components, "prepare_immutable_git_component") as prepare_immutable,
+            mock.patch.object(
+                components,
+                "prepare_release_git_component",
+                return_value={"status": "present", "release_tag": "R_2_8_2"},
+            ) as prepare_release,
+        ):
+            record = components.prepare_expat_git_component(
+                "https://github.com/libexpat/libexpat",
+                "master",
+                "master",
+                Path("cache/git/libexpat"),
+                {},
+                strict=False,
+            )
+
+        prepare_immutable.assert_not_called()
+        prepare_release.assert_called_once_with(
+            "expat",
+            "https://github.com/libexpat/libexpat",
+            "master",
+            Path("cache/git/libexpat"),
+            {},
+            False,
+            cache_root=None,
+        )
+        self.assertEqual("R_2_8_2", record["release_tag"])
+
+    def test_optional_release_components_still_resolve_the_latest_release(self) -> None:
+        for name in ("go-ftw", "albedo"):
+            with self.subTest(component=name):
+                prepared_record = {
+                    "name": name,
+                    "url": f"https://github.com/coreruleset/{name}",
+                    "expected_ref": "v1.2.3",
+                    "actual_head": PINNED_EXPAT_COMMIT,
+                    "status": "present",
+                }
+                with (
+                    mock.patch.object(
+                        components,
+                        "resolve_latest_github_release_tag",
+                        return_value=("v1.2.3", "https://example.invalid/release", "network"),
+                    ) as resolve_latest,
+                    mock.patch.object(
+                        components,
+                        "prepare_git_component",
+                        return_value=prepared_record,
+                    ) as prepare_git,
+                ):
+                    record = components.prepare_release_git_component(
+                        name,
+                        f"https://github.com/coreruleset/{name}",
+                        "v1.0.0",
+                        Path(f"cache/git/{name}"),
+                        {},
+                        strict=True,
+                        optional=True,
+                    )
+
+                resolve_latest.assert_called_once()
+                prepare_git.assert_called_once_with(
+                    name,
+                    f"https://github.com/coreruleset/{name}",
+                    "v1.2.3",
+                    Path(f"cache/git/{name}"),
+                    {},
+                    True,
+                    cache_root=None,
+                )
+                self.assertEqual("network", record["release_lookup_status"])
+                self.assertTrue(record["optional"])
 
     def test_apache_blocker_does_not_misclassify_expat_include_path(self) -> None:
         compiler_error = (

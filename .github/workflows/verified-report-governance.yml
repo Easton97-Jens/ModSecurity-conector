@@ -11,7 +11,21 @@ permissions:
 jobs:
   report-governance:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # A strict/full verified run has a 345-minute maximum internal budget.
+    # Keep a small outer margin without relying on a shortened or soft run.
+    timeout-minutes: 360
+    env:
+      ALLOW_RUNTIME_DOWNLOADS: "1"
+      ALLOW_RUNTIME_BUILDS: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      # The full evidence producer must reject mutable Expat refs before it
+      # prepares a runtime source checkout.
+      RUNTIME_COMPONENT_STRICT_VERIFY: "1"
+      # Verified signed upstream release R_2_8_2, resolved to its immutable
+      # commit before this workflow change. The Parent provisioner rejects a
+      # mutable Expat ref for the strict evidence path.
+      EXPAT_GIT_REF: c61098da494eea1cbd091118118dcee417faacea
+      EXPAT_PROMPT_EXPECTED_LATEST: R_2_8_2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -45,10 +59,30 @@ jobs:
             echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
 
+      - name: Install hash-locked CI dependency
+        env:
+          PYTHON_BIN: ${{ steps.setup-python.outputs.python-path }}
+        run: |
+          set -eu
+          venv="$RUNNER_TEMP/verified-report-python"
+          "$PYTHON_BIN" -m venv "$venv"
+          "$venv/bin/python" -m pip install \
+            --disable-pip-version-check \
+            --no-input \
+            --only-binary=:all: \
+            --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock
+          "$venv/bin/python" -m pip check
+          echo "PYTHON=$venv/bin/python" >> "$GITHUB_ENV"
+
       - name: Generated report governance
         run: |
           set -eu
           make report-governance
+
+      - name: Produce current verified runtime evidence
+        run: |
+          set -eu
+          make verified-report-run
 
       - name: Strict verified-report evidence gate
         run: |
