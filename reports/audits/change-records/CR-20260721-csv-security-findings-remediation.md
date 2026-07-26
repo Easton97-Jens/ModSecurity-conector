@@ -152,6 +152,11 @@ remediation. This record makes no fresh-runtime, SonarCloud, or merge claim:
 the updated exact head must be published and run in hosted CI before those
 results can be asserted.
 
+If the full producer fails, a failure-only diagnostic now prints the bounded
+tail of its fixed `prepare-runtime-components` log from the task-owned verified
+run root. It neither accepts the failed run nor changes the terminal gate; it
+only makes a legitimate CI blocker observable for a focused follow-up.
+
 ## Commands executed
 
 | Command or control | Result |

@@ -163,6 +163,12 @@ behauptet weder frische Runtime-Evidence noch SonarCloud- oder Merge-Erfolg:
 der aktualisierte Exact Head muss veröffentlicht sein und im gehosteten CI
 laufen, bevor solche Ergebnisse behauptet werden können.
 
+Wenn der Full-Producer fehlschlägt, gibt eine nur-bei-Fehler aktive Diagnose
+den begrenzten Tail seines festen `prepare-runtime-components`-Logs aus der
+task-eigenen Verified-Run-Wurzel aus. Sie akzeptiert weder den fehlgeschlagenen
+Lauf noch verändert sie das terminale Gate; sie macht ausschließlich einen
+legitimen CI-Blocker für ein fokussiertes Follow-up beobachtbar.
+
 ## Ausgeführte Befehle
 
 | Befehl oder Kontrolle | Ergebnis |

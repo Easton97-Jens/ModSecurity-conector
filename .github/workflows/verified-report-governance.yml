@@ -88,3 +88,14 @@ jobs:
         run: |
           set -eu
           make verified-report-evidence-gate
+
+      - name: Summarize failed runtime preparation
+        if: failure()
+        run: |
+          set -eu
+          log_root="$BUILD_ROOT/verified-runs"
+          if [ -d "$log_root" ]; then
+            find "$log_root" -type f -name '02-make-prepare-runtime-components.log' -exec tail -n 300 -- {} +
+          else
+            echo "No verified runtime log root was created."
+          fi
