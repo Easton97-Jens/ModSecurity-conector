@@ -52,6 +52,9 @@ Branch-Update von `master` hinaus.
 - Der isolierte Job-`BUILD_ROOT` bleibt vom Cache-Owner-Root getrennt.
 - Der Invocation-lokale Runtime-Environment-Snapshot veröffentlicht dieselben
   engen Apache- und NGINX-Owner-Roots für die direkte Runtime-Matrix-Ausführung.
+- Bei einem Hosted-Producer-Fehler wird das begrenzte NGINX-`configure`-Log
+  nur aus seinem festen erwarteten Pfad nach der bestehenden Prüfung auf
+  reguläre Nicht-Symlink-Datei ausgegeben.
 - Weder Löschguard, striktes Evidence-Gate, SonarQube-Cloud-Policy noch
   Branch-Schutz werden gelockert.
 - Der aktualisierte exakte PR-#74-Head benötigt weiterhin vollständige Hosted-
@@ -88,6 +91,13 @@ Quality-Gate-Änderung noch ein Branch-Protection-Bypass verwendet.
   Snapshot-Propagation-Coverage.
 - `tests/test_runtime_component_cache_contract.py`: prüft, dass beide
   Connector-Build-Provisioner den engen Owner Root erhalten.
+- `.github/workflows/verified-report-governance.yml`: behält den bestehenden
+  begrenzten Failure-Summary-Helper bei und verwendet ihn für den festen
+  NGINX-`configure`-Logpfad, damit ein späterer Source-Build-Fehler seine
+  verwertbare Diagnose enthält.
+- `tests/test_ci_security_workflows.py`: prüft, dass das NGINX-Log auf
+  demselben Diagnosepfad für reguläre Nicht-Symlink-Dateien mit Command-
+  Masking bleibt.
 - `modules/ModSecurity-test-Framework`: der normale Merge von aktuellem
   Parent-Master führt seinen bereits integrierten Gitlink mit.
 - `reports/audits/change-records/README.md`, `README.de.md` sowie dieser
@@ -106,6 +116,11 @@ Quality-Gate-Änderung noch ein Branch-Protection-Bypass verwendet.
   — bestanden (27 Tests), einschließlich Owner-Root-Assertions der
   Cache-Provisioner.
 - `git diff --check` — bestanden.
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_ci_security_workflows`
+  — bestanden (20 Tests), einschließlich der begrenzten NGINX-
+  Failure-Diagnosekontrolle.
+- `make check-ci-security-contract` — bestanden (20 Workflow-Security-Tests
+  und Validierung der gepinnten Tools actionlint, zizmor und gitleaks).
 
 ## Security-Auswirkung
 
@@ -113,6 +128,13 @@ Dies ist eine Pfad-Containment-Korrektur am Parent-zu-Framework-Handoff. Sie
 hält einen Cache-Build in seinem deklarierten Owner Root und bewahrt den
 Framework-Löschguard als finalen fail-closed Sink. Keine Vertrauensgrenze wird
 aufgeweitet.
+
+Die Folgefehler-Diagnose verwendet weder Discovery noch Glob noch einen
+abgeleiteten Logpfad. Sie gibt höchstens 300 Zeilen aus dem festen
+`$BUILD_ROOT/logs/nginx/nginx-configure.log` nur aus, wenn dieser Pfad eine
+reguläre Nicht-Symlink-Datei innerhalb der bestehenden
+`::stop-commands::`-Grenze ist. Sie legt keine Credentials offen, aktiviert
+keinen privilegierten Workflow und verändert den NGINX-Buildbefehl nicht.
 
 ## Runtime-Evidence
 
@@ -130,6 +152,12 @@ Framework-Owner-Root-Löschkontrollen wurden separat gemergt und validiert. Der
 vorherige Hosted-Producer des exakten Heads legte den fehlenden direkten
 Snapshot-Handoff offen; das strikte Parent-Evidence-Gate muss nun erneut auf
 dem Nachfolge-#74-Head laufen.
+
+Der Vorgänger-Head erreichte den NGINX-Source-Build-`configure`-Befehl statt
+des früheren Owner-Root-Guards, aber seine Failure-Summary ließ das feste Log
+dieses Befehls aus. Die neue begrenzte Diagnose ist nötig, um den verbleibenden
+Source-Build-Fehler zu klassifizieren; sie behauptet nicht, dass der NGINX-
+Runtime-Producer besteht.
 
 ## Verbleibende Risiken
 

@@ -127,3 +127,6 @@ jobs:
 
           apache_build_log="$BUILD_ROOT/logs/runtime-components/apache-build.log"
           tail_regular_log "Apache runtime build log" "$apache_build_log"
+
+          nginx_configure_log="$BUILD_ROOT/logs/nginx/nginx-configure.log"
+          tail_regular_log "NGINX configure log" "$nginx_configure_log"
