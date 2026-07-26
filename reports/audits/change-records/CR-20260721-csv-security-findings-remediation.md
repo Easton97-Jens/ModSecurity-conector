@@ -454,3 +454,31 @@ bounded lost-wrapper failure followed by lock reuse. These local checks do not
 replace the new exact-head hosted producer, GitHub, SonarQube Cloud, review,
 or integration evidence required before this Draft PR can be verified or
 merged.
+
+## Exact-head SonarQube Cloud correction (2026-07-26)
+
+The direct PR #74 readback for published head
+`a9086a4527d7c82fa4657d229099b1ef2fe12f9c` reported four task-owned `OPEN`
+issues despite an `OK` Quality Gate: unused `build_root` in
+`_current_verified_run_id_for_staging`, inconsistent listener-offset return
+shape, and cognitive-complexity reports for the port planner and exact staged
+tree reader. The same readback reported `new_duplicated_lines=38` and
+`new_duplicated_lines_density=0.5794449527294907`, all from the two
+same-file scheduler lock-reuse test blocks. That does not meet this task's
+stricter zero-open/zero-duplication acceptance criterion.
+
+The follow-up makes only behavior-preserving Parent changes. The receipt
+reader no longer receives an unused path and splits its descriptor-relative,
+`O_NOFOLLOW`, exact-allowlist traversal into small helpers without changing
+the path-containment checks. The port planner builds one typed offset sequence
+and delegates uniqueness, ordering, and allocation while retaining its
+fail-closed collision and range checks. The scheduler tests share their
+post-descendant lock-reuse retry helper, preserving the individual assertions.
+No SonarQube Cloud rule, Quality Gate, exclusion, suppression, coverage
+setting, Framework, MRTS, Gitlink, or master branch was changed.
+
+The selected local 107-test regression command with
+`-W error::ResourceWarning` passed after these corrections. The next normal
+follow-up commit still requires fresh exact-head hosted CI and a direct
+SonarQube Cloud readback before zero open issues, zero duplication, PR
+verification, or integration can be claimed; PR #74 remains Draft.

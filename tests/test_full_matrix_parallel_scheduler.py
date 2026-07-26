@@ -291,6 +291,30 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
         )
         return environment
 
+    def assert_scheduler_lock_reusable_after_descendant_exit(
+        self,
+        environment: dict[str, str],
+        *,
+        failure_message: str,
+    ) -> None:
+        environment["FAKE_MAKE_SLEEP"] = "0.01"
+        environment["FAKE_MAKE_BLOCK"] = "0"
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            candidate = subprocess.run(
+                ["sh", str(MATRIX_RUNNER)],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if candidate.returncode == 0:
+                return
+            self.assertEqual(candidate.returncode, 77, candidate.stdout + candidate.stderr)
+            time.sleep(0.05)
+        self.fail(failure_message)
+
     def test_explicit_cap_runs_all_planned_jobs_without_exceeding_the_cap(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-matrix-scheduler-") as temporary:
             root = Path(temporary)
@@ -487,25 +511,10 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
                 self.assertIn("job completion timed out", scheduler.stderr.read())
 
                 os.kill(child_pid, signal.SIGKILL)
-                environment["FAKE_MAKE_SLEEP"] = "0.01"
-                environment["FAKE_MAKE_BLOCK"] = "0"
-                reusable = None
-                deadline = time.monotonic() + 10
-                while time.monotonic() < deadline:
-                    candidate = subprocess.run(
-                        ["sh", str(MATRIX_RUNNER)],
-                        cwd=ROOT,
-                        env=environment,
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                    )
-                    if candidate.returncode == 0:
-                        reusable = candidate
-                        break
-                    self.assertEqual(candidate.returncode, 77, candidate.stdout + candidate.stderr)
-                    time.sleep(0.05)
-                self.assertIsNotNone(reusable, "scheduler lock was not reusable after the final descendant exited")
+                self.assert_scheduler_lock_reusable_after_descendant_exit(
+                    environment,
+                    failure_message="scheduler lock was not reusable after the final descendant exited",
+                )
             finally:
                 if scheduler.poll() is None:
                     scheduler.kill()
@@ -568,25 +577,10 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
                 self.assertIn("another full-matrix run owns", blocked.stderr)
 
                 os.kill(child_pid, signal.SIGKILL)
-                environment["FAKE_MAKE_SLEEP"] = "0.01"
-                environment["FAKE_MAKE_BLOCK"] = "0"
-                reusable = None
-                deadline = time.monotonic() + 10
-                while time.monotonic() < deadline:
-                    candidate = subprocess.run(
-                        ["sh", str(MATRIX_RUNNER)],
-                        cwd=ROOT,
-                        env=environment,
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                    )
-                    if candidate.returncode == 0:
-                        reusable = candidate
-                        break
-                    self.assertEqual(candidate.returncode, 77, candidate.stdout + candidate.stderr)
-                    time.sleep(0.05)
-                self.assertIsNotNone(reusable, "kernel lock did not release after the final descendant exited")
+                self.assert_scheduler_lock_reusable_after_descendant_exit(
+                    environment,
+                    failure_message="kernel lock did not release after the final descendant exited",
+                )
                 self.assertTrue(capture_file.exists())
             finally:
                 if scheduler.poll() is None:

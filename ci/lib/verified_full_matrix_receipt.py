@@ -797,7 +797,7 @@ def _read_relative_stable_file(
         )
 
 
-def _current_verified_run_id_for_staging(build_root: Path, build_descriptor: int) -> str:
+def _current_verified_run_id_for_staging(build_descriptor: int) -> str:
     data, _, _ = _read_relative_stable_file(
         build_descriptor,
         ("verified-runs", "current-run-id"),
@@ -1004,6 +1004,88 @@ def _staged_directory_components(sources: tuple[_StagedEvidenceSource, ...]) -> 
     }
 
 
+def _read_expected_staged_file(
+    directory_descriptor: int,
+    name: str,
+    components: tuple[str, ...],
+    details: os.stat_result,
+    expected_files: set[tuple[str, ...]],
+) -> StagedEvidenceFile:
+    relative_path = "/".join(components)
+    if not stat.S_ISREG(details.st_mode):
+        raise AggregateReceiptError(f"staged evidence contains a non-regular path: {relative_path}")
+    if components not in expected_files:
+        raise AggregateReceiptError(f"staged evidence contains an unexpected file: {relative_path}")
+    data, digest, byte_count = _read_stable_regular_file_at(
+        directory_descriptor,
+        name,
+        label=f"staged evidence:{relative_path}",
+        maximum_bytes=MAX_STRUCTURED_RECEIPT_BYTES,
+    )
+    if hashlib.sha256(data).hexdigest() != digest or len(data) != byte_count:
+        raise AggregateReceiptError("staged evidence bytes do not match their recorded digest")
+    return StagedEvidenceFile(relative_path, digest, byte_count)
+
+
+def _open_expected_staged_directory(
+    directory_descriptor: int,
+    name: str,
+    components: tuple[str, ...],
+    expected_directories: set[tuple[str, ...]],
+    *,
+    no_follow: int,
+    directory: int,
+) -> int:
+    if components not in expected_directories:
+        raise AggregateReceiptError(f"staged evidence contains an unexpected directory: {'/'.join(components)}")
+    return os.open(name, os.O_RDONLY | directory | no_follow, dir_fd=directory_descriptor)
+
+
+def _collect_exact_staged_tree(
+    directory_descriptor: int,
+    prefix: tuple[str, ...],
+    *,
+    expected_files: set[tuple[str, ...]],
+    expected_directories: set[tuple[str, ...]],
+    observed: dict[tuple[str, ...], StagedEvidenceFile],
+    no_follow: int,
+    directory: int,
+) -> None:
+    for name in os.listdir(directory_descriptor):
+        _validated_component(name)
+        components = (*prefix, name)
+        details = os.stat(name, dir_fd=directory_descriptor, follow_symlinks=False)
+        if stat.S_ISDIR(details.st_mode):
+            child = _open_expected_staged_directory(
+                directory_descriptor,
+                name,
+                components,
+                expected_directories,
+                no_follow=no_follow,
+                directory=directory,
+            )
+            try:
+                _collect_exact_staged_tree(
+                    child,
+                    components,
+                    expected_files=expected_files,
+                    expected_directories=expected_directories,
+                    observed=observed,
+                    no_follow=no_follow,
+                    directory=directory,
+                )
+            finally:
+                os.close(child)
+            continue
+        observed[components] = _read_expected_staged_file(
+            directory_descriptor,
+            name,
+            components,
+            details,
+            expected_files,
+        )
+
+
 def _read_exact_staged_tree(
     stage_descriptor: int,
     sources: tuple[_StagedEvidenceSource, ...],
@@ -1012,38 +1094,15 @@ def _read_exact_staged_tree(
     expected_directories = _staged_directory_components(sources)
     observed: dict[tuple[str, ...], StagedEvidenceFile] = {}
     no_follow, directory = _required_directory_flags()
-
-    def collect(directory_descriptor: int, prefix: tuple[str, ...]) -> None:
-        for name in os.listdir(directory_descriptor):
-            _validated_component(name)
-            components = (*prefix, name)
-            details = os.stat(name, dir_fd=directory_descriptor, follow_symlinks=False)
-            if stat.S_ISDIR(details.st_mode):
-                if components not in expected_directories:
-                    raise AggregateReceiptError(
-                        f"staged evidence contains an unexpected directory: {'/'.join(components)}"
-                    )
-                child = os.open(name, os.O_RDONLY | directory | no_follow, dir_fd=directory_descriptor)
-                try:
-                    collect(child, components)
-                finally:
-                    os.close(child)
-                continue
-            if not stat.S_ISREG(details.st_mode):
-                raise AggregateReceiptError(f"staged evidence contains a non-regular path: {'/'.join(components)}")
-            if components not in expected_files:
-                raise AggregateReceiptError(f"staged evidence contains an unexpected file: {'/'.join(components)}")
-            data, digest, byte_count = _read_stable_regular_file_at(
-                directory_descriptor,
-                name,
-                label=f"staged evidence:{'/'.join(components)}",
-                maximum_bytes=MAX_STRUCTURED_RECEIPT_BYTES,
-            )
-            if hashlib.sha256(data).hexdigest() != digest or len(data) != byte_count:
-                raise AggregateReceiptError("staged evidence bytes do not match their recorded digest")
-            observed[components] = StagedEvidenceFile("/".join(components), digest, byte_count)
-
-    collect(stage_descriptor, ())
+    _collect_exact_staged_tree(
+        stage_descriptor,
+        (),
+        expected_files=expected_files,
+        expected_directories=expected_directories,
+        observed=observed,
+        no_follow=no_follow,
+        directory=directory,
+    )
     missing = expected_files.difference(observed)
     if missing:
         raise AggregateReceiptError(
@@ -1258,7 +1317,7 @@ def stage_verified_full_matrix_evidence(
     with _open_absolute_directory(connector, label="connector evidence root") as connector_descriptor, _open_absolute_directory(
         build, label="build evidence root"
     ) as build_descriptor:
-        verified_run_id = _current_verified_run_id_for_staging(build, build_descriptor)
+        verified_run_id = _current_verified_run_id_for_staging(build_descriptor)
         sources = _staged_evidence_sources(verified_run_id)
         buffered_sources = _buffer_evidence_sources(
             sources,
@@ -1305,7 +1364,7 @@ def verify_staged_full_matrix_evidence(
         build, label="build evidence root"
     ) as build_descriptor, _open_absolute_directory(stage_parent, label="staged evidence parent") as stage_parent_descriptor:
         _require_private_staging_parent(stage_parent_descriptor, stage_parent)
-        verified_run_id = _current_verified_run_id_for_staging(build, build_descriptor)
+        verified_run_id = _current_verified_run_id_for_staging(build_descriptor)
         sources = _staged_evidence_sources(verified_run_id)
         records = _verify_staged_evidence_tree(
             parent_descriptor=stage_parent_descriptor,

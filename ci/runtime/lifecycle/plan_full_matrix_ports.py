@@ -93,13 +93,17 @@ def listener_offsets(
     haproxy_spoa_offset: int,
     haproxy_backend_offset: int,
 ) -> tuple[tuple[str, int], ...]:
+    offsets: list[tuple[str, int]] = [("frontend", 0)]
     if job.connector in {"apache", "nginx"}:
-        return (("frontend", 0), ("response-header-backend", 1000))
-    return (
-        ("frontend", 0),
-        ("spoa", haproxy_spoa_offset),
-        ("backend", haproxy_backend_offset),
-    )
+        offsets.append(("response-header-backend", 1000))
+    else:
+        offsets.extend(
+            (
+                ("spoa", haproxy_spoa_offset),
+                ("backend", haproxy_backend_offset),
+            )
+        )
+    return tuple(offsets)
 
 
 def validate_same_case_offsets(offsets: Iterable[tuple[str, int]], span: int, *, job: MatrixJob) -> None:
@@ -143,6 +147,63 @@ def intervals_for(
     )
 
 
+def ensure_unique_jobs(jobs: Iterable[MatrixJob]) -> None:
+    seen: set[str] = set()
+    for job in jobs:
+        if job.identifier in seen:
+            raise PortPlanError(f"duplicate matrix job: {job.identifier}")
+        seen.add(job.identifier)
+
+
+def ordered_jobs(
+    jobs: Iterable[MatrixJob],
+    *,
+    haproxy_spoa_offset: int,
+    haproxy_backend_offset: int,
+) -> list[MatrixJob]:
+    # Place the least flexible jobs first. HAProxy has three listener banks,
+    # whereas Apache and NGINX have two.
+    return sorted(
+        jobs,
+        key=lambda job: (
+            -len(
+                listener_offsets(
+                    job,
+                    haproxy_spoa_offset=haproxy_spoa_offset,
+                    haproxy_backend_offset=haproxy_backend_offset,
+                )
+            ),
+            job.identifier,
+        ),
+    )
+
+
+def allocate_job_port(
+    job: MatrixJob,
+    allocated: list[PortInterval],
+    *,
+    span: int,
+    haproxy_spoa_offset: int,
+    haproxy_backend_offset: int,
+) -> int:
+    for base_port in range(MIN_PORT, MAX_PORT + 1):
+        intervals = intervals_for(
+            job,
+            base_port,
+            span=span,
+            haproxy_spoa_offset=haproxy_spoa_offset,
+            haproxy_backend_offset=haproxy_backend_offset,
+        )
+        if any(interval.start < MIN_PORT or interval.end > MAX_PORT for interval in intervals):
+            # Offsets are non-negative, so later candidates cannot fit.
+            break
+        if any(candidate.overlaps(existing) for candidate in intervals for existing in allocated):
+            continue
+        allocated.extend(intervals)
+        return base_port
+    raise PortPlanError(f"no safe port range is available for {job.identifier}")
+
+
 def plan_ports(
     jobs: tuple[MatrixJob, ...],
     *,
@@ -150,45 +211,22 @@ def plan_ports(
     haproxy_spoa_offset: int,
     haproxy_backend_offset: int,
 ) -> dict[str, int]:
-    seen = set()
-    for job in jobs:
-        if job.identifier in seen:
-            raise PortPlanError(f"duplicate matrix job: {job.identifier}")
-        seen.add(job.identifier)
-
-    # Place the least flexible jobs first.  HAProxy has three listener banks,
-    # whereas Apache and NGINX have two.
-    ordered = sorted(
+    ensure_unique_jobs(jobs)
+    ordered = ordered_jobs(
         jobs,
-        key=lambda job: (-len(listener_offsets(
-            job,
-            haproxy_spoa_offset=haproxy_spoa_offset,
-            haproxy_backend_offset=haproxy_backend_offset,
-        )), job.identifier),
+        haproxy_spoa_offset=haproxy_spoa_offset,
+        haproxy_backend_offset=haproxy_backend_offset,
     )
     allocated: list[PortInterval] = []
     result: dict[str, int] = {}
     for job in ordered:
-        for base_port in range(MIN_PORT, MAX_PORT + 1):
-            intervals = intervals_for(
-                job,
-                base_port,
-                span=span,
-                haproxy_spoa_offset=haproxy_spoa_offset,
-                haproxy_backend_offset=haproxy_backend_offset,
-            )
-            if any(interval.start < MIN_PORT or interval.end > MAX_PORT for interval in intervals):
-                # Offsets are non-negative, so later candidates cannot fit.
-                break
-            if any(candidate.overlaps(existing) for candidate in intervals for existing in allocated):
-                continue
-            allocated.extend(intervals)
-            result[job.identifier] = base_port
-            break
-        else:
-            raise PortPlanError(f"no safe port range is available for {job.identifier}")
-        if job.identifier not in result:
-            raise PortPlanError(f"no safe port range is available for {job.identifier}")
+        result[job.identifier] = allocate_job_port(
+            job,
+            allocated,
+            span=span,
+            haproxy_spoa_offset=haproxy_spoa_offset,
+            haproxy_backend_offset=haproxy_backend_offset,
+        )
     return result
 
 

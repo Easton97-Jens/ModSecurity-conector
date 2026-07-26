@@ -495,3 +495,36 @@ Lock-Reuse. Diese lokalen Prüfungen ersetzen nicht den neuen Exact-Head-
 Hosted-Producer, GitHub-, SonarQube-Cloud-, Review- oder
 Integrationsnachweis, der erforderlich ist, bevor dieser Draft-PR verifiziert
 oder gemergt werden kann.
+
+## Exact-Head-SonarQube-Cloud-Korrektur (2026-07-26)
+
+Der direkte PR-#74-Readback für den veröffentlichten Head
+`a9086a4527d7c82fa4657d229099b1ef2fe12f9c` meldete trotz eines `OK` Quality
+Gates vier task-eigene `OPEN`-Befunde: unbenutztes `build_root` in
+`_current_verified_run_id_for_staging`, eine inkonsistente
+Listener-Offset-Rückgabeform sowie Cognitive-Complexity-Befunde für den
+Portplaner und den Exact-Staged-Tree-Reader. Derselbe Readback meldete
+`new_duplicated_lines=38` und
+`new_duplicated_lines_density=0.5794449527294907`, vollständig aus den zwei
+Same-File-Scheduler-Lock-Reuse-Testblöcken. Das erfüllt nicht das strengere
+Akzeptanzkriterium dieser Aufgabe von null offenen Befunden und null
+Duplizierung.
+
+Das Follow-up nimmt ausschließlich verhaltensbewahrende Parent-Änderungen
+vor. Der Receipt-Reader erhält keinen unbenutzten Pfad mehr und zerlegt seine
+descriptor-relative, `O_NOFOLLOW`- und Exact-Allowlist-Traversierung in kleine
+Helfer, ohne die Path-Containment-Prüfungen zu ändern. Der Portplaner baut
+eine typisierte Offset-Sequenz und delegiert Einzigartigkeit, Reihenfolge und
+Allokation, behält aber seine fehlgeschlossenen Kollisions- und
+Bereichsprüfungen. Die Scheduler-Tests verwenden einen gemeinsamen
+Post-Descendant-Lock-Reuse-Retry-Helper und erhalten ihre individuellen
+Assertions. Keine SonarQube-Cloud-Regel, kein Quality Gate, keine Exclusion,
+keine Suppression, keine Coverage-Einstellung, kein Framework, kein MRTS,
+kein Gitlink und kein Master-Branch wurden geändert.
+
+Der ausgewählte lokale 107-Test-Regressionbefehl mit
+`-W error::ResourceWarning` bestand nach diesen Korrekturen. Der nächste
+normale Follow-up-Commit benötigt weiterhin frisches Exact-Head-hosted-CI und
+einen direkten SonarQube-Cloud-Readback, bevor null offene Befunde, null
+Duplizierung, PR-Verifikation oder Integration behauptet werden können; PR
+#74 bleibt Draft.
