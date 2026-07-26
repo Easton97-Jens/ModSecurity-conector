@@ -22,6 +22,8 @@ VERIFIED_COMPONENT_CACHE ?= $(CACHE_ROOT)/shared
 VERIFIED_EVIDENCE_ROOT ?= $(VERIFIED_RUN_ROOT)/evidence
 RUNTIME_RUN_ROOT ?= $(VERIFIED_RUN_ROOT)/runs
 RUNTIME_LOG_ROOT ?= $(VERIFIED_RUN_ROOT)/run-logs
+APACHE_REQUEST_BODY_ROOT ?= $(RUNTIME_RUN_ROOT)/apache-request-body
+APACHE_SOAK_ROOT ?= $(RUNTIME_RUN_ROOT)/apache-soak
 STATE_HOME ?= $(VERIFIED_STATE_ROOT)
 SOURCE_ROOT ?= $(VERIFIED_SOURCE_ROOT)
 BUILD_ROOT ?= $(VERIFIED_BUILD_ROOT)
@@ -1138,6 +1140,62 @@ check-apache-c17:
 check-apache-intervention-cleanup:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_intervention_cleanup
 
+.PHONY: check-apache-ruleset-cleanup check-apache-ruleset-cleanup-lint
+check-apache-ruleset-cleanup:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_rules_set_cleanup
+	sh ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh
+
+check-apache-ruleset-cleanup-lint:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_rules_set_cleanup
+	"$(PYTHON)" ci/tools/run-check-status.py --check apache_rules_set_cleanup --allow-blocked-reason apache_development_prerequisite --blocked-if-missing-apache-development -- sh ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh
+
+.PHONY: check-apache-request-body-regression-wiring check-apache-soak-wiring
+check-apache-request-body-regression-wiring:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_request_body_regression_wiring
+	sh -n connectors/apache/harness/run_apache_smoke.sh
+	sh -n ci/runtime/lifecycle/run-apache-request-body-regression.sh
+
+check-apache-soak-wiring:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_soak_wiring
+	sh -n connectors/apache/harness/run_apache_smoke.sh
+	sh -n ci/runtime/lifecycle/run-apache-soak.sh
+
+.PHONY: apache-request-body-regression apache-request-body-small-allow apache-request-body-body-deny apache-request-body-large-multibucket apache-request-body-split-trigger-chunked apache-request-body-non-consuming-handler apache-request-body-empty-body apache-request-body-keep-alive-repeat apache-request-body-fail-closed-read-error
+apache-request-body-regression: apache-request-body-small-allow apache-request-body-body-deny apache-request-body-large-multibucket apache-request-body-split-trigger-chunked apache-request-body-non-consuming-handler apache-request-body-empty-body apache-request-body-keep-alive-repeat apache-request-body-fail-closed-read-error
+
+apache-request-body-small-allow:
+	APACHE_REQUEST_BODY_ROOT="$(APACHE_REQUEST_BODY_ROOT)" RUNTIME_ROOT="$(APACHE_REQUEST_BODY_ROOT)/small-allow/runtime" LOG_DIR="$(APACHE_REQUEST_BODY_ROOT)/small-allow/logs" PORT=18080 sh ci/runtime/lifecycle/run-apache-request-body-regression.sh small-allow
+
+apache-request-body-body-deny:
+	APACHE_REQUEST_BODY_ROOT="$(APACHE_REQUEST_BODY_ROOT)" RUNTIME_ROOT="$(APACHE_REQUEST_BODY_ROOT)/body-deny/runtime" LOG_DIR="$(APACHE_REQUEST_BODY_ROOT)/body-deny/logs" PORT=18081 sh ci/runtime/lifecycle/run-apache-request-body-regression.sh body-deny
+
+apache-request-body-large-multibucket:
+	APACHE_REQUEST_BODY_ROOT="$(APACHE_REQUEST_BODY_ROOT)" RUNTIME_ROOT="$(APACHE_REQUEST_BODY_ROOT)/large-multibucket/runtime" LOG_DIR="$(APACHE_REQUEST_BODY_ROOT)/large-multibucket/logs" PORT=18082 sh ci/runtime/lifecycle/run-apache-request-body-regression.sh large-multibucket
+
+apache-request-body-split-trigger-chunked:
+	APACHE_REQUEST_BODY_ROOT="$(APACHE_REQUEST_BODY_ROOT)" RUNTIME_ROOT="$(APACHE_REQUEST_BODY_ROOT)/split-trigger-chunked/runtime" LOG_DIR="$(APACHE_REQUEST_BODY_ROOT)/split-trigger-chunked/logs" PORT=18083 sh ci/runtime/lifecycle/run-apache-request-body-regression.sh split-trigger-chunked
+
+apache-request-body-non-consuming-handler:
+	APACHE_REQUEST_BODY_ROOT="$(APACHE_REQUEST_BODY_ROOT)" RUNTIME_ROOT="$(APACHE_REQUEST_BODY_ROOT)/non-consuming-handler/runtime" LOG_DIR="$(APACHE_REQUEST_BODY_ROOT)/non-consuming-handler/logs" PORT=18084 sh ci/runtime/lifecycle/run-apache-request-body-regression.sh non-consuming-handler
+
+apache-request-body-empty-body:
+	APACHE_REQUEST_BODY_ROOT="$(APACHE_REQUEST_BODY_ROOT)" RUNTIME_ROOT="$(APACHE_REQUEST_BODY_ROOT)/empty-body/runtime" LOG_DIR="$(APACHE_REQUEST_BODY_ROOT)/empty-body/logs" PORT=18085 sh ci/runtime/lifecycle/run-apache-request-body-regression.sh empty-body
+
+apache-request-body-keep-alive-repeat:
+	APACHE_REQUEST_BODY_ROOT="$(APACHE_REQUEST_BODY_ROOT)" RUNTIME_ROOT="$(APACHE_REQUEST_BODY_ROOT)/keep-alive-repeat/runtime" LOG_DIR="$(APACHE_REQUEST_BODY_ROOT)/keep-alive-repeat/logs" PORT=18086 sh ci/runtime/lifecycle/run-apache-request-body-regression.sh keep-alive-repeat
+
+apache-request-body-fail-closed-read-error:
+	APACHE_REQUEST_BODY_ROOT="$(APACHE_REQUEST_BODY_ROOT)" RUNTIME_ROOT="$(APACHE_REQUEST_BODY_ROOT)/fail-closed-read-error/runtime" LOG_DIR="$(APACHE_REQUEST_BODY_ROOT)/fail-closed-read-error/logs" PORT=18087 sh ci/runtime/lifecycle/run-apache-request-body-regression.sh fail-closed-read-error
+
+.PHONY: apache-soak apache-soak-memcheck apache-soak-helgrind
+apache-soak: apache-soak-memcheck apache-soak-helgrind
+
+apache-soak-memcheck:
+	APACHE_SOAK_ROOT="$(APACHE_SOAK_ROOT)" sh ci/runtime/lifecycle/run-apache-soak.sh memcheck
+
+apache-soak-helgrind:
+	APACHE_SOAK_ROOT="$(APACHE_SOAK_ROOT)" sh ci/runtime/lifecycle/run-apache-soak.sh helgrind
+
 check-apache-c17-lint:
 	@APACHE_C_STD_PROFILE=c17 sh ci/checks/connectors/apache/check-apache-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: apache C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
 
@@ -1278,6 +1336,9 @@ lint: check-framework
 	$(MAKE) check-apache-c-standard-wiring
 	$(MAKE) check-apache-c17-lint
 	$(MAKE) check-apache-intervention-cleanup
+	$(MAKE) check-apache-ruleset-cleanup-lint
+	$(MAKE) check-apache-request-body-regression-wiring
+	$(MAKE) check-apache-soak-wiring
 	$(MAKE) check-apache-request-transaction-cleanup-lint
 	$(MAKE) check-optional-prerequisite-status
 	$(MAKE) check-nginx-common-adoption

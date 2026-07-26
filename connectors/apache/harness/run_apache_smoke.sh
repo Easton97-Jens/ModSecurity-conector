@@ -71,6 +71,21 @@ APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST="${APACHE_PHASE4_NESTED_ERROR_REDIRECT_
 APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST="${APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST:-0}"
 APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST:-0}"
 APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST:-0}"
+APACHE_REQUEST_BODY_REGRESSION_TEST="${APACHE_REQUEST_BODY_REGRESSION_TEST:-0}"
+APACHE_REQUEST_BODY_MODE="${APACHE_REQUEST_BODY_MODE:-}"
+APACHE_REQUEST_BODY_EXPECT_STATUS="${APACHE_REQUEST_BODY_EXPECT_STATUS:-}"
+APACHE_REQUEST_BODY_LARGE_BYTES="${APACHE_REQUEST_BODY_LARGE_BYTES:-0}"
+APACHE_REQUEST_BODY_REPEAT_COUNT="${APACHE_REQUEST_BODY_REPEAT_COUNT:-1}"
+APACHE_REQUEST_BODY_CHUNKED="${APACHE_REQUEST_BODY_CHUNKED:-0}"
+APACHE_SOAK_TEST="${APACHE_SOAK_TEST:-0}"
+APACHE_SOAK_HTTPD_WRAPPER="${APACHE_SOAK_HTTPD_WRAPPER:-}"
+APACHE_SOAK_RUN_ROOT="${APACHE_SOAK_RUN_ROOT:-}"
+APACHE_SOAK_DURATION_SECONDS="${APACHE_SOAK_DURATION_SECONDS:-}"
+APACHE_SOAK_CONCURRENCY="${APACHE_SOAK_CONCURRENCY:-}"
+APACHE_SOAK_REQUEST_TIMEOUT_SECONDS="${APACHE_SOAK_REQUEST_TIMEOUT_SECONDS:-}"
+APACHE_SOAK_RESTART_INTERVAL_SECONDS="${APACHE_SOAK_RESTART_INTERVAL_SECONDS:-}"
+APACHE_SOAK_READY_FILE="${APACHE_SOAK_READY_FILE:-}"
+APACHE_SOAK_RESULT_FILE="${APACHE_SOAK_RESULT_FILE:-}"
 OPENSSL_BIN="${OPENSSL:-openssl}"
 
 load_connector_adapter_metadata() {
@@ -134,6 +149,81 @@ require_absolute_generated_path() {
             ;;
         *) ;;
     esac
+}
+
+require_uint_range() {
+    value=$1
+    minimum=$2
+    maximum=$3
+    label=$4
+    case "$value" in
+        ''|*[!0-9]*) fail "$label must be an integer from $minimum to $maximum" ;;
+    esac
+    [ "$value" -ge "$minimum" ] && [ "$value" -le "$maximum" ] || \
+        fail "$label must be an integer from $minimum to $maximum"
+}
+
+reject_symlink_ancestors() {
+    candidate=$1
+    label=$2
+    while [ "$candidate" != / ]; do
+        [ ! -L "$candidate" ] || \
+            blocked "$label contains an unsafe symlink component: $candidate"
+        candidate=$(dirname "$candidate")
+    done
+}
+
+require_soak_run_child() {
+    path=$1
+    label=$2
+
+    require_absolute_generated_path "$path" "$label"
+    case "$path" in
+        "$APACHE_SOAK_RUN_ROOT"/*) ;;
+        *) blocked "$label must be below APACHE_SOAK_RUN_ROOT: $path" ;;
+    esac
+    reject_symlink_ancestors "$path" "$label"
+    soak_parent=$(dirname "$path")
+    [ -d "$soak_parent" ] && [ ! -L "$soak_parent" ] || \
+        blocked "$label parent is not a real directory: $soak_parent"
+}
+
+validate_apache_soak_contract() {
+    case "$APACHE_SOAK_TEST" in
+        0) return 0 ;;
+        1) ;;
+        *) fail "APACHE_SOAK_TEST must be 0 or 1" ;;
+    esac
+    [ -n "$APACHE_SOAK_HTTPD_WRAPPER" ] || \
+        blocked "APACHE_SOAK_HTTPD_WRAPPER is required for the soak harness"
+    [ -n "$APACHE_SOAK_RUN_ROOT" ] || \
+        blocked "APACHE_SOAK_RUN_ROOT is required for the soak harness"
+    [ -n "$APACHE_SOAK_READY_FILE" ] || \
+        blocked "APACHE_SOAK_READY_FILE is required for the soak harness"
+    [ -n "$APACHE_SOAK_RESULT_FILE" ] || \
+        blocked "APACHE_SOAK_RESULT_FILE is required for the soak harness"
+    require_uint_range "$APACHE_SOAK_DURATION_SECONDS" 1 3600 \
+        APACHE_SOAK_DURATION_SECONDS
+    require_uint_range "$APACHE_SOAK_CONCURRENCY" 1 16 APACHE_SOAK_CONCURRENCY
+    require_uint_range "$APACHE_SOAK_REQUEST_TIMEOUT_SECONDS" 1 120 \
+        APACHE_SOAK_REQUEST_TIMEOUT_SECONDS
+    require_uint_range "$APACHE_SOAK_RESTART_INTERVAL_SECONDS" 1 3600 \
+        APACHE_SOAK_RESTART_INTERVAL_SECONDS
+    [ "$APACHE_REQUEST_BODY_REGRESSION_TEST" = "1" ] || \
+        fail "APACHE_SOAK_TEST requires APACHE_REQUEST_BODY_REGRESSION_TEST=1"
+
+    require_absolute_generated_path "$APACHE_SOAK_RUN_ROOT" APACHE_SOAK_RUN_ROOT
+    reject_symlink_ancestors "$APACHE_SOAK_RUN_ROOT" APACHE_SOAK_RUN_ROOT
+    [ -d "$APACHE_SOAK_RUN_ROOT" ] && [ ! -L "$APACHE_SOAK_RUN_ROOT" ] || \
+        blocked "APACHE_SOAK_RUN_ROOT must be a real directory"
+    require_absolute_generated_path "$APACHE_SOAK_HTTPD_WRAPPER" APACHE_SOAK_HTTPD_WRAPPER
+    reject_symlink_ancestors "$APACHE_SOAK_HTTPD_WRAPPER" APACHE_SOAK_HTTPD_WRAPPER
+    [ -f "$APACHE_SOAK_HTTPD_WRAPPER" ] && \
+        [ ! -L "$APACHE_SOAK_HTTPD_WRAPPER" ] && \
+        [ -x "$APACHE_SOAK_HTTPD_WRAPPER" ] || \
+        blocked "APACHE_SOAK_HTTPD_WRAPPER must be a regular executable"
+    require_soak_run_child "$APACHE_SOAK_READY_FILE" APACHE_SOAK_READY_FILE
+    require_soak_run_child "$APACHE_SOAK_RESULT_FILE" APACHE_SOAK_RESULT_FILE
 }
 
 resolve_case_path() {
@@ -932,7 +1022,12 @@ start_server() {
             return 0
         fi
 
-        "$APACHE_HTTPD_BIN" -X -f "$CONFIG_FILE" > "$LOG_DIR/httpd.log" 2>&1 &
+        if [ "$APACHE_SOAK_TEST" = "1" ]; then
+            "$APACHE_SOAK_HTTPD_WRAPPER" "$APACHE_HTTPD_BIN" -X -f \
+                "$CONFIG_FILE" > "$LOG_DIR/httpd.log" 2>&1 &
+        else
+            "$APACHE_HTTPD_BIN" -X -f "$CONFIG_FILE" > "$LOG_DIR/httpd.log" 2>&1 &
+        fi
         HTTPD_PID=$!
 
         if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
@@ -993,6 +1088,287 @@ send_case_request() {
     request_url_path=$(quote_request_path "$REQUEST_PATH")
     set -- "$@" "http://127.0.0.1:$PORT$request_url_path"
     "$@" 2>"$LOG_DIR/curl-attack.err"
+}
+
+write_request_body_regression_payload() {
+    case "$APACHE_REQUEST_BODY_MODE" in
+        small-allow|keep-alive-repeat)
+            printf '%s' 'request-body-allow-marker' > "$REQUEST_BODY_FILE"
+            ;;
+        body-deny|non-consuming-handler|split-trigger-chunked|fail-closed-read-error)
+            printf '%s' 'request-body-block-marker' > "$REQUEST_BODY_FILE"
+            ;;
+        empty-body)
+            : > "$REQUEST_BODY_FILE"
+            ;;
+        large-multibucket)
+            "$PYTHON_BIN" - "$REQUEST_BODY_FILE" "$APACHE_REQUEST_BODY_LARGE_BYTES" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+size = int(sys.argv[2])
+with path.open("wb") as stream:
+    stream.write(b"request-body-large-prefix-")
+    stream.write(b"a" * size)
+PY
+            ;;
+        *) fail "unsupported APACHE_REQUEST_BODY_MODE=$APACHE_REQUEST_BODY_MODE" ;;
+    esac
+}
+
+request_body_regression_rule_id() {
+    case "$APACHE_REQUEST_BODY_MODE" in
+        body-deny|non-consuming-handler|split-trigger-chunked)
+            printf '%s\n' 2190501
+            ;;
+        *) printf '%s\n' 2190500 ;;
+    esac
+}
+
+assert_request_body_regression_audit_count() {
+    expected_count=$1
+    rule_id=$(request_body_regression_rule_id)
+
+    [ -s "$AUDIT_LOG_FILE" ] || \
+        fail "request-body regression audit log is missing for rule $rule_id"
+    observed_count=$(grep -F -c "id \"$rule_id\"" "$AUDIT_LOG_FILE" || true)
+    [ "$observed_count" -eq "$expected_count" ] || \
+        fail "request-body regression expected $expected_count Phase-2 audit events for rule $rule_id, observed $observed_count"
+}
+
+send_request_body_regression_standard_request() {
+    : > "$RESPONSE_BODY"
+    : > "$RESPONSE_HEADERS"
+    set -- "$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
+        -o "$RESPONSE_BODY" -w '%{http_code}' -X POST
+    if [ "$APACHE_REQUEST_BODY_MODE" = "empty-body" ]; then
+        set -- "$@" -H 'Content-Length: 0'
+    else
+        set -- "$@" -H 'Content-Type: text/plain' --data-binary "@$REQUEST_BODY_FILE"
+    fi
+    set -- "$@" "http://127.0.0.1:$PORT$request_body_regression_path"
+    set +e
+    http_status=$("$@" 2>"$LOG_DIR/request-body-client.err")
+    curl_rc=$?
+    set -e
+}
+
+send_request_body_regression_chunked_request() {
+    chunked_status=$("$PYTHON_BIN" - "$PORT" "$RESPONSE_HEADERS" "$RESPONSE_BODY" <<'PY'
+from pathlib import Path
+import socket
+import sys
+
+port = int(sys.argv[1])
+headers_path = Path(sys.argv[2])
+body_path = Path(sys.argv[3])
+chunks = (b"request-body-", b"block-marker")
+request = [
+    b"POST /__request_body_consume HTTP/1.1\r\n",
+    b"Host: 127.0.0.1\r\n",
+    b"Content-Type: text/plain\r\n",
+    b"Transfer-Encoding: chunked\r\n",
+    b"Connection: close\r\n\r\n",
+]
+for chunk in chunks:
+    request.append(f"{len(chunk):X}\r\n".encode("ascii"))
+    request.append(chunk + b"\r\n")
+request.append(b"0\r\n\r\n")
+
+with socket.create_connection(("127.0.0.1", port), timeout=10) as client:
+    client.settimeout(10)
+    for part in request:
+        client.sendall(part)
+    response = bytearray()
+    while True:
+        try:
+            block = client.recv(65536)
+        except socket.timeout as exc:
+            raise SystemExit(f"chunked client timed out: {exc}")
+        if not block:
+            break
+        response.extend(block)
+
+header_bytes, separator, response_body = bytes(response).partition(b"\r\n\r\n")
+if not separator:
+    raise SystemExit("chunked client received no HTTP response headers")
+status_line = header_bytes.split(b"\r\n", 1)[0].split()
+if len(status_line) < 2 or not status_line[1].isdigit():
+    raise SystemExit("chunked client received an invalid HTTP status line")
+headers_path.write_bytes(header_bytes + separator)
+body_path.write_bytes(response_body)
+print(status_line[1].decode("ascii"))
+PY
+)
+    http_status=$chunked_status
+    curl_rc=0
+}
+
+send_request_body_regression_keepalive_requests() {
+    keepalive_statuses="$LOG_DIR/request-body-keepalive.statuses"
+
+    "$PYTHON_BIN" - "$PORT" "$REQUEST_BODY_FILE" \
+        "$APACHE_REQUEST_BODY_REPEAT_COUNT" "$keepalive_statuses" <<'PY'
+from pathlib import Path
+import socket
+import sys
+
+port = int(sys.argv[1])
+payload = Path(sys.argv[2]).read_bytes()
+count = int(sys.argv[3])
+statuses_path = Path(sys.argv[4])
+
+def receive_response(client):
+    response = bytearray()
+    while b"\r\n\r\n" not in response:
+        block = client.recv(65536)
+        if not block:
+            raise RuntimeError("connection closed before response headers")
+        response.extend(block)
+    headers, body = bytes(response).split(b"\r\n\r\n", 1)
+    status_parts = headers.split(b"\r\n", 1)[0].split()
+    if len(status_parts) < 2 or not status_parts[1].isdigit():
+        raise RuntimeError("invalid HTTP response status")
+    content_length = 0
+    for line in headers.split(b"\r\n")[1:]:
+        if line.lower().startswith(b"content-length:"):
+            content_length = int(line.split(b":", 1)[1].strip())
+            break
+    while len(body) < content_length:
+        block = client.recv(65536)
+        if not block:
+            raise RuntimeError("connection closed before complete response body")
+        body += block
+    return int(status_parts[1])
+
+statuses = []
+with socket.create_connection(("127.0.0.1", port), timeout=10) as client:
+    client.settimeout(10)
+    for index in range(count):
+        connection = b"close" if index + 1 == count else b"keep-alive"
+        request = (
+            b"POST /__request_body_consume HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: text/plain\r\n"
+            + b"Connection: " + connection + b"\r\n"
+            + f"Content-Length: {len(payload)}\r\n\r\n".encode("ascii")
+            + payload
+        )
+        client.sendall(request)
+        statuses.append(receive_response(client))
+
+statuses_path.write_text("".join(f"{status}\n" for status in statuses), encoding="ascii")
+PY
+    [ -f "$keepalive_statuses" ] || \
+        fail "request-body keep-alive client did not write status evidence"
+    observed_count=$(grep -Ec "^$APACHE_REQUEST_BODY_EXPECT_STATUS$" \
+        "$keepalive_statuses" || true)
+    [ "$observed_count" -eq "$APACHE_REQUEST_BODY_REPEAT_COUNT" ] || \
+        fail "request-body keep-alive requests did not all return $APACHE_REQUEST_BODY_EXPECT_STATUS"
+}
+
+send_request_body_regression() {
+    case "$APACHE_REQUEST_BODY_MODE" in
+        non-consuming-handler)
+            request_body_regression_path=/__request_body_nonconsume
+            ;;
+        fail-closed-read-error)
+            request_body_regression_path=/__request_body_read_error
+            ;;
+        *) request_body_regression_path=/__request_body_consume ;;
+    esac
+
+    write_request_body_regression_payload
+    if [ "$APACHE_REQUEST_BODY_MODE" = "keep-alive-repeat" ]; then
+        send_request_body_regression_keepalive_requests
+        assert_request_body_regression_audit_count "$APACHE_REQUEST_BODY_REPEAT_COUNT"
+        grep -F 'handler completed Apache body discard' "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+            fail "request-body keep-alive handler did not complete Apache body discard"
+        printf '%s\n' "$APACHE_REQUEST_BODY_EXPECT_STATUS" > "$LOG_DIR/observed-status.txt"
+        printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+        return 0
+    fi
+
+    if [ "$APACHE_REQUEST_BODY_CHUNKED" = "1" ]; then
+        [ "$APACHE_REQUEST_BODY_MODE" = "split-trigger-chunked" ] || \
+            fail "chunked request-body mode is supported only for split-trigger-chunked"
+        send_request_body_regression_chunked_request
+    else
+        send_request_body_regression_standard_request
+    fi
+    [ "$curl_rc" -eq 0 ] || \
+        fail "request-body regression client failed rc=$curl_rc"
+    [ "$http_status" = "$APACHE_REQUEST_BODY_EXPECT_STATUS" ] || \
+        fail "request-body regression expected status $APACHE_REQUEST_BODY_EXPECT_STATUS, observed $http_status"
+    assert_single_h1_status "$APACHE_REQUEST_BODY_EXPECT_STATUS"
+    case "$APACHE_REQUEST_BODY_MODE" in
+        fail-closed-read-error)
+            grep -F 'injected lower input read error' "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+                fail "request-body read-error filter did not execute"
+            grep -F 'Apache discard returned status=' "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+                fail "request-body read-error handler did not observe a non-OK discard result"
+            if grep -F 'handler completed Apache body discard' "$LOG_DIR/error.log" >/dev/null 2>&1; then
+                fail "request-body read-error handler unexpectedly completed Apache body discard"
+            fi
+            ;;
+        non-consuming-handler)
+            assert_request_body_regression_audit_count 1
+            grep -F 'handler left an advertised body unread' "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+                fail "request-body non-consuming handler did not execute"
+            ;;
+        *)
+            assert_request_body_regression_audit_count 1
+            grep -F 'handler completed Apache body discard' "$LOG_DIR/error.log" >/dev/null 2>&1 || \
+                fail "request-body consuming handler did not complete Apache body discard"
+            ;;
+    esac
+    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+    printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+}
+
+write_apache_soak_ready() {
+    ready_temporary="$APACHE_SOAK_READY_FILE.$$"
+
+    umask 077
+    printf 'ready\n' > "$ready_temporary"
+    chmod 600 "$ready_temporary"
+    mv -f "$ready_temporary" "$APACHE_SOAK_READY_FILE"
+}
+
+apache_soak_mpm() {
+    mpm_module=$(awk '/^LoadModule mpm_/ { print $2; exit }' "$MODULES_FILE")
+    if [ -n "$mpm_module" ]; then
+        printf '%s\n' "$mpm_module"
+    else
+        printf '%s\n' unavailable
+    fi
+}
+
+run_apache_soak() {
+    APACHE_SOAK_WORKLOAD="$SCRIPT_DIR/apache_soak_workload.py"
+    [ -f "$APACHE_SOAK_WORKLOAD" ] || \
+        fail "Apache soak workload helper is missing: $APACHE_SOAK_WORKLOAD"
+    write_apache_soak_ready || fail "could not publish Apache soak readiness"
+
+    httpd_version=$("$APACHE_HTTPD_BIN" -v 2>&1 || true)
+    apxs_version=unavailable
+    if [ -n "$APXS_BIN" ] && [ -x "$APXS_BIN" ]; then
+        apxs_version=$("$APXS_BIN" -q VERSION 2>&1 || true)
+    fi
+    "$PYTHON_BIN" "$APACHE_SOAK_WORKLOAD" \
+        --port "$PORT" \
+        --launch-pid "$HTTPD_PID" \
+        --duration-seconds "$APACHE_SOAK_DURATION_SECONDS" \
+        --concurrency "$APACHE_SOAK_CONCURRENCY" \
+        --request-timeout-seconds "$APACHE_SOAK_REQUEST_TIMEOUT_SECONDS" \
+        --restart-interval-seconds "$APACHE_SOAK_RESTART_INTERVAL_SECONDS" \
+        --result "$APACHE_SOAK_RESULT_FILE" \
+        --httpd-version "$httpd_version" \
+        --apxs-version "$apxs_version" \
+        --compiler "${CC:-unavailable}" \
+        --mpm "$(apache_soak_mpm)" \
+        --libmodsecurity-path "$MODSECURITY_LIB_DIR/libmodsecurity.so"
 }
 
 assert_single_h1_status() {
@@ -2046,6 +2422,35 @@ write_phase4_terminal_test_support() {
         0|1) ;;
         *) fail "APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST must be 0 or 1" ;;
     esac
+    case "$APACHE_REQUEST_BODY_REGRESSION_TEST" in
+        0|1) ;;
+        *) fail "APACHE_REQUEST_BODY_REGRESSION_TEST must be 0 or 1" ;;
+    esac
+    if [ "$APACHE_REQUEST_BODY_REGRESSION_TEST" = "1" ]; then
+        case "$APACHE_REQUEST_BODY_MODE" in
+            small-allow|body-deny|large-multibucket|split-trigger-chunked|non-consuming-handler|empty-body|keep-alive-repeat|fail-closed-read-error) ;;
+            *) fail "unsupported APACHE_REQUEST_BODY_MODE=$APACHE_REQUEST_BODY_MODE" ;;
+        esac
+        case "$APACHE_REQUEST_BODY_EXPECT_STATUS" in
+            200|400|403) ;;
+            *) fail "APACHE_REQUEST_BODY_EXPECT_STATUS must be 200, 400, or 403" ;;
+        esac
+        case "$APACHE_REQUEST_BODY_LARGE_BYTES" in
+            ''|*[!0-9]*) fail "APACHE_REQUEST_BODY_LARGE_BYTES must be numeric" ;;
+            *) [ "$APACHE_REQUEST_BODY_LARGE_BYTES" -le 16777216 ] || \
+                fail "APACHE_REQUEST_BODY_LARGE_BYTES exceeds the 16 MiB test bound" ;;
+        esac
+        case "$APACHE_REQUEST_BODY_REPEAT_COUNT" in
+            ''|*[!0-9]*) fail "APACHE_REQUEST_BODY_REPEAT_COUNT must be numeric" ;;
+            *) [ "$APACHE_REQUEST_BODY_REPEAT_COUNT" -ge 1 ] && \
+                [ "$APACHE_REQUEST_BODY_REPEAT_COUNT" -le 32 ] || \
+                fail "APACHE_REQUEST_BODY_REPEAT_COUNT must be between 1 and 32" ;;
+        esac
+        case "$APACHE_REQUEST_BODY_CHUNKED" in
+            0|1) ;;
+            *) fail "APACHE_REQUEST_BODY_CHUNKED must be 0 or 1" ;;
+        esac
+    fi
     if [ "$APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST" = "1" ] && \
         [ "$APACHE_PHASE4_ROGUE_TEST" != "1" ]; then
         fail "nested Phase-4 ErrorDocument test requires APACHE_PHASE4_ROGUE_TEST=1"
@@ -2058,7 +2463,8 @@ write_phase4_terminal_test_support() {
         [ "$APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST" = "0" ] && \
         [ "$APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST" = "0" ] && \
         [ "$APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST" = "0" ] && \
-        [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" = "0" ]; then
+        [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" = "0" ] && \
+        [ "$APACHE_REQUEST_BODY_REGRESSION_TEST" = "0" ]; then
         return 0
     fi
     case "$APACHE_PHASE4_ROGUE_EXPECT" in
@@ -2140,19 +2546,19 @@ write_phase4_terminal_test_support() {
         } > "$APACHE_PHASE4_REDIRECT_TARGET_RULES_FILE"
     fi
 
-    [ -x "$APXS_BIN" ] || blocked "missing APXS for Phase-4 rogue test: $APXS_BIN"
+    [ -x "$APXS_BIN" ] || blocked "missing APXS for Apache harness test module: $APXS_BIN"
     [ -f "$SCRIPT_DIR/mod_phase4_terminal_rogue.c" ] || \
-        blocked "missing Phase-4 rogue test source"
+        blocked "missing Apache harness test-module source"
     mkdir -p "$RUNTIME_ROOT/modules"
     cp "$SCRIPT_DIR/mod_phase4_terminal_rogue.c" "$PHASE4_ROGUE_SOURCE" || \
         not_executable "could not stage Phase-4 rogue test source"
     if ! "$APXS_BIN" -c -o "$PHASE4_ROGUE_OUTPUT" \
         "$PHASE4_ROGUE_SOURCE" \
         > "$LOG_DIR/phase4-rogue-apxs.log" 2>&1; then
-        not_executable "could not build Phase-4 rogue test module; see $LOG_DIR/phase4-rogue-apxs.log"
+        not_executable "could not build Apache harness test module; see $LOG_DIR/phase4-rogue-apxs.log"
     fi
     [ -f "$PHASE4_ROGUE_MODULE" ] || \
-        not_executable "APXS did not produce the Phase-4 rogue test module"
+        not_executable "APXS did not produce the Apache harness test module"
     printf '%s\n' 'phase4-rogue-allow-body' > \
         "$DOCROOT/__phase4_rogue_allow.txt"
     printf '%s' 'no-crs-response-body-marker' > \
@@ -2206,6 +2612,17 @@ write_phase4_terminal_test_support() {
         printf '%s\n' '<Location "/__phase4_upstream_error">'
         printf '%s\n' '    SetHandler phase4-upstream-error'
         printf '%s\n' '</Location>'
+        if [ "$APACHE_REQUEST_BODY_REGRESSION_TEST" = "1" ]; then
+            printf '%s\n' '<Location "/__request_body_consume">'
+            printf '%s\n' '    SetHandler request-body-regression-consume'
+            printf '%s\n' '</Location>'
+            printf '%s\n' '<Location "/__request_body_nonconsume">'
+            printf '%s\n' '    SetHandler request-body-regression-nonconsume'
+            printf '%s\n' '</Location>'
+            printf '%s\n' '<Location "/__request_body_read_error">'
+            printf '%s\n' '    SetHandler request-body-regression-read-error'
+            printf '%s\n' '</Location>'
+        fi
     } >> "$APACHE_PHASE4_EXTRA_CONFIG"
 
     case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
@@ -2424,6 +2841,7 @@ write_phase4_terminal_test_support
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$HTTPD_PREFIX/lib:$PCRE2_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH
 
+validate_apache_soak_contract
 trap cleanup EXIT INT TERM
 start_server
 
@@ -2433,6 +2851,20 @@ if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
 fi
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
     echo "apache_smoke: pass start_smoke (request-free host liveness verified)"
+    exit 0
+fi
+
+if [ "$APACHE_SOAK_TEST" = "1" ]; then
+    if run_apache_soak; then
+        echo "apache_smoke: pass parent-owned Apache soak"
+        exit 0
+    fi
+    fail "Parent-owned Apache soak traffic or graceful restart failed"
+fi
+
+if [ "$APACHE_REQUEST_BODY_REGRESSION_TEST" = "1" ]; then
+    send_request_body_regression
+    echo "apache_smoke: pass request-body-regression mode=$APACHE_REQUEST_BODY_MODE"
     exit 0
 fi
 

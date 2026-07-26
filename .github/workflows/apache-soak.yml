@@ -1,0 +1,130 @@
+name: manual-apache-valgrind-soak
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Valgrind tool to run against the Parent Apache harness
+        required: true
+        default: memcheck
+        type: choice
+        options:
+          - memcheck
+          - helgrind
+      duration_seconds:
+        description: Bounded soak duration in seconds (30-3600)
+        required: true
+        default: "300"
+        type: string
+      concurrency:
+        description: Bounded concurrent request workers (1-16)
+        required: true
+        default: "4"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  apache-soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SOAK_MODE: ${{ inputs.mode }}
+      SOAK_DURATION_SECONDS: ${{ inputs.duration_seconds }}
+      SOAK_CONCURRENCY: ${{ inputs.concurrency }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up toolchain
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Initialize external runtime paths
+        run: |
+          set -eu
+          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
+          {
+            echo "VERIFIED_RUN_ROOT=$verified_root"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+            echo "SOURCE_ROOT=$verified_root/src"
+            echo "BUILD_ROOT=$verified_root/build"
+            echo "APACHE_BUILD_ROOT=$verified_root/build/apache-build"
+            echo "TMP_ROOT=$verified_root/tmp"
+            echo "LOG_ROOT=$verified_root/logs"
+            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+            echo "APACHE_SOAK_ROOT=$verified_root/apache-soak"
+          } >> "$GITHUB_ENV"
+
+      - name: Prepare existing Apache runtime components
+        run: |
+          set -eu
+          make setup-dev
+          make fetch-deps
+          make build-apache
+
+      - name: Record Apache soak prerequisites
+        run: |
+          set -eu
+          if command -v valgrind >/dev/null 2>&1; then
+            valgrind --version
+          else
+            echo "Valgrind is unavailable; the Parent soak runner will report BLOCKED rather than PASS."
+          fi
+          if [ -x "$BUILD_ROOT/apache-runtime/httpd/bin/httpd" ]; then
+            "$BUILD_ROOT/apache-runtime/httpd/bin/httpd" -v
+          else
+            echo "Apache httpd is unavailable after build preparation; the Parent soak runner will report BLOCKED rather than PASS."
+          fi
+
+      - name: Run bounded Apache Valgrind soak
+        id: soak
+        run: |
+          set +e
+          case "$SOAK_MODE" in
+            memcheck|helgrind) target="apache-soak-$SOAK_MODE" ;;
+            *)
+              echo "unsupported soak mode: $SOAK_MODE" >&2
+              exit 2
+              ;;
+          esac
+          APACHE_SOAK_DURATION_SECONDS="$SOAK_DURATION_SECONDS" \
+          APACHE_SOAK_CONCURRENCY="$SOAK_CONCURRENCY" \
+          make "$target"
+          soak_rc=$?
+          if [ "$soak_rc" -eq 77 ]; then
+            {
+              echo "## BLOCKED: Apache Valgrind soak"
+              echo "Valgrind or the native Apache prerequisites were unavailable. This run is intentionally not promoted to PASS."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 77
+          fi
+          if [ "$soak_rc" -eq 78 ]; then
+            {
+              echo "## NOT_RUN: Apache Valgrind soak"
+              echo "The bounded soak was explicitly not run and is not a PASS result."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 78
+          fi
+          exit "$soak_rc"
+
+      - name: Upload bounded Apache soak evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apache-soak-${{ inputs.mode }}-evidence
+          retention-days: 1
+          if-no-files-found: warn
+          path: ${{ env.APACHE_SOAK_ROOT }}/**/upload/

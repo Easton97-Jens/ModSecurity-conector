@@ -469,6 +469,89 @@ static int phase4_upstream_error_handler(request_rec *r)
 }
 
 
+/* This module is built only by the Parent Apache harness.  It exercises the
+ * productive input-filter ownership model without adding a production handler
+ * or a second body-reading loop: the consuming control delegates to Apache's
+ * existing discard path, while the other route deliberately emits output with
+ * an unread advertised body so MODSECURITY_OUT must drain it itself. */
+static int request_body_regression_handler(request_rec *r)
+{
+    int discard_status;
+
+    if (r->handler == NULL ||
+        (strcmp(r->handler, "request-body-regression-consume") != 0 &&
+         strcmp(r->handler, "request-body-regression-nonconsume") != 0 &&
+         strcmp(r->handler, "request-body-regression-read-error") != 0))
+    {
+        return DECLINED;
+    }
+
+    r->status = HTTP_OK;
+    ap_set_content_type(r, "text/plain");
+    if (strcmp(r->handler, "request-body-regression-nonconsume") == 0)
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_NOTICE | APLOG_NOERRNO, 0, r,
+            "ModSecurity request-body regression handler left an advertised body unread");
+        ap_rputs("request-body-nonconsume-response", r);
+        return OK;
+    }
+
+    discard_status = ap_discard_request_body(r);
+    if (discard_status != OK)
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_NOTICE | APLOG_NOERRNO, 0, r,
+            "ModSecurity request-body regression Apache discard returned status=%d",
+            discard_status);
+        return discard_status;
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_NOTICE | APLOG_NOERRNO, 0, r,
+        "ModSecurity request-body regression handler completed Apache body discard");
+    ap_rputs("request-body-consume-response", r);
+    return OK;
+}
+
+
+/* The dedicated read-error route is a test-only lower input-chain failure.
+ * MODSECURITY_IN is inserted first at the same CONTENT_SET level, so its
+ * ap_get_brigade(f->next, ...) receives this APR_EGENERAL result.  This
+ * exercises the connector's existing fail-closed propagation without
+ * modifying a productive filter or introducing a second body reader. */
+static apr_status_t request_body_regression_read_error_filter(ap_filter_t *f,
+    apr_bucket_brigade *bb_out, ap_input_mode_t mode,
+    apr_read_type_e block, apr_off_t readbytes)
+{
+    (void)bb_out;
+    (void)mode;
+    (void)block;
+    (void)readbytes;
+
+    if (f == NULL || f->r == NULL)
+    {
+        return APR_EGENERAL;
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_NOTICE | APLOG_NOERRNO, 0, f->r,
+        "ModSecurity request-body regression injected lower input read error");
+    ap_remove_input_filter(f);
+    return APR_EGENERAL;
+}
+
+
+static void request_body_regression_insert_filter(request_rec *r)
+{
+    if (r == NULL || r->connection == NULL || r->handler == NULL ||
+        strcmp(r->handler, "request-body-regression-read-error") != 0)
+    {
+        return;
+    }
+    if (ap_add_input_filter("REQUEST_BODY_REGRESSION_READ_ERROR", NULL, r,
+            r->connection) == NULL)
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+            "ModSecurity request-body regression could not insert the lower input read-error filter");
+    }
+}
+
+
 static void phase4_terminal_rogue_register_hooks(apr_pool_t *pool)
 {
     (void)pool;
@@ -488,6 +571,13 @@ static void phase4_terminal_rogue_register_hooks(apr_pool_t *pool)
         APR_HOOK_MIDDLE);
     ap_hook_handler(phase4_upstream_error_handler, NULL, NULL,
         APR_HOOK_MIDDLE);
+    ap_hook_handler(request_body_regression_handler, NULL, NULL,
+        APR_HOOK_MIDDLE);
+    ap_hook_insert_filter(request_body_regression_insert_filter, NULL, NULL,
+        APR_HOOK_LAST);
+    ap_register_input_filter("REQUEST_BODY_REGRESSION_READ_ERROR",
+        request_body_regression_read_error_filter, NULL,
+        AP_FTYPE_CONTENT_SET);
     ap_register_output_filter("PHASE4_DOWNSTREAM_ERROR",
         phase4_downstream_error_filter, NULL, AP_FTYPE_CONTENT_SET - 2);
 }
