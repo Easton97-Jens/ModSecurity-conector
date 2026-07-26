@@ -103,6 +103,33 @@ printf '%s|%s|%s|%s|%s\\n' \\
         )
         return environment, owner_root, verified_root
 
+    def assert_owner_root_records(
+        self,
+        capture_file: Path,
+        expected_owner_root: Path,
+        *,
+        expected_job_build_root: Path | None = None,
+        expected_job_build_parent: Path | None = None,
+    ) -> None:
+        records = {
+            fields[0]: fields
+            for fields in (
+                line.split("|") for line in capture_file.read_text(encoding="utf-8").splitlines()
+            )
+        }
+        self.assertEqual(set(records), {"apache", "nginx"})
+        for connector, fields in records.items():
+            with self.subTest(connector=connector):
+                _, refresh, job_build_root, connector_build_root, owner_root_text = fields
+                self.assertEqual(refresh, "1")
+                self.assertEqual(owner_root_text, str(expected_owner_root))
+                self.assertTrue(Path(connector_build_root).is_relative_to(expected_owner_root))
+                if expected_job_build_root is not None:
+                    self.assertEqual(job_build_root, str(expected_job_build_root))
+                if expected_job_build_parent is not None:
+                    self.assertTrue(Path(job_build_root).is_relative_to(expected_job_build_parent))
+                self.assertNotEqual(job_build_root, owner_root_text)
+
     def test_cache_backed_refreshes_receive_one_narrow_explicit_owner_root(
         self,
     ) -> None:
@@ -134,21 +161,11 @@ printf '%s|%s|%s|%s|%s\\n' \\
             )
 
             self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
-            records = {
-                fields[0]: fields
-                for fields in (
-                    line.split("|") for line in capture_file.read_text(encoding="utf-8").splitlines()
-                )
-            }
-            self.assertEqual(set(records), {"apache", "nginx"})
-            for connector, fields in records.items():
-                with self.subTest(connector=connector):
-                    _, refresh, job_build_root, connector_build_root, owner_root_text = fields
-                    self.assertEqual(refresh, "1")
-                    self.assertEqual(owner_root_text, str(expected_owner_root))
-                    self.assertTrue(Path(connector_build_root).is_relative_to(expected_owner_root))
-                    self.assertTrue(Path(job_build_root).is_relative_to(verified_root / "matrix"))
-                    self.assertNotEqual(job_build_root, owner_root_text)
+            self.assert_owner_root_records(
+                capture_file,
+                expected_owner_root,
+                expected_job_build_parent=verified_root / "matrix",
+            )
 
     def test_outside_connector_cache_build_is_rejected_before_make(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-matrix-owner-root-reject-") as temporary:
@@ -204,14 +221,19 @@ printf '%s|%s|%s|%s|%s\\n' \\
             self.write_fake_make(bin_dir)
             fake_python = self.write_fake_python(bin_dir)
             capture_file = root / "make-capture.txt"
-            verified_root = root / "verified"
-            build_root = verified_root / "build"
-            component_cache = verified_root / "cache-v2" / "shared"
-            owner_root = component_cache / "builds" / "connectors"
+            owner_root = root / "verified" / "cache-v2" / "shared" / "builds" / "connectors"
             apache_build_root = owner_root / "apache" / "cache-key" / "build"
             nginx_build_root = owner_root / "nginx" / "cache-key" / "build"
-            for path in (apache_build_root, nginx_build_root):
-                path.mkdir(parents=True)
+            environment, expected_owner_root, verified_root = self.matrix_environment(
+                root,
+                bin_dir,
+                capture_file,
+                connectors="apache nginx",
+                apache_build_root=apache_build_root,
+                nginx_build_root=nginx_build_root,
+            )
+            build_root = verified_root / "build"
+            component_cache = expected_owner_root.parents[1]
             output_root = build_root / "runtime-component-reports"
             snapshot = output_root / "runtime-env-snapshot.matrix.sh"
             snapshot.parent.mkdir(parents=True)
@@ -231,19 +253,8 @@ printf '%s|%s|%s|%s|%s\\n' \\
                 ),
                 encoding="utf-8",
             )
-            environment = os.environ.copy()
             environment.update(
                 {
-                    "PATH": f"{bin_dir}{os.pathsep}{environment['PATH']}",
-                    "CAPTURE_FILE": str(capture_file),
-                    "CONNECTOR_ROOT": str(ROOT),
-                    "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
-                    "VERIFIED_RUN_ROOT": str(verified_root),
-                    "BUILD_ROOT": str(build_root),
-                    "TMP_ROOT": str(verified_root / "tmp"),
-                    "LOG_ROOT": str(verified_root / "logs"),
-                    "CONNECTOR_COMPONENT_CACHE": str(component_cache),
-                    "VERIFIED_COMPONENT_CACHE": str(component_cache),
                     "RUNTIME_REPORT_OUTPUT_ROOT": str(output_root),
                     "RUNTIME_COMPONENT_TARGET": "all",
                     "RUNTIME_COMPONENT_ENV_SNAPSHOT": str(snapshot),
@@ -264,21 +275,11 @@ printf '%s|%s|%s|%s|%s\\n' \\
             )
 
             self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
-            records = {
-                fields[0]: fields
-                for fields in (
-                    line.split("|") for line in capture_file.read_text(encoding="utf-8").splitlines()
-                )
-            }
-            self.assertEqual(set(records), {"apache", "nginx"})
-            for connector, fields in records.items():
-                with self.subTest(connector=connector):
-                    _, refresh, job_build_root, connector_build_root, owner_root_text = fields
-                    self.assertEqual(refresh, "1")
-                    self.assertEqual(owner_root_text, str(owner_root))
-                    self.assertTrue(Path(connector_build_root).is_relative_to(owner_root))
-                    self.assertEqual(job_build_root, str(build_root))
-                    self.assertNotEqual(job_build_root, owner_root_text)
+            self.assert_owner_root_records(
+                capture_file,
+                expected_owner_root,
+                expected_job_build_root=build_root,
+            )
 
 
 if __name__ == "__main__":
