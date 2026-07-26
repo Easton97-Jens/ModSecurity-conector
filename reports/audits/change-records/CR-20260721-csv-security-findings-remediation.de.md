@@ -203,6 +203,12 @@ Fokussierte lokale Evidence bestand: 33 Cache-Contract-/Cache-Identity-Tests, 20
 
 Diese lokalen Kontrollen sind keine gehostete Runtime-Evidence. Ein frischer Exact-Head-gehosteter strikter/vollständiger Producer und das unveränderte terminale Evidence-Gate müssen nach der normalen PR-Branch-Veröffentlichung bestehen, bevor SonarCloud-, Review-, Integrations- oder Resulting-Master-Erfolg behauptet wird.
 
+## Runtime-Matrix-Diagnose-Follow-up (2026-07-26)
+
+Am exakten Head `7238c9d0a0902affbf7dfae1d7f96d6603d80f89` bestanden im Hosted-Run `30196090664`, Job `89777788658` die Komponenten-Vorbereitung, die Runtime-Producer-Readiness und die begrenzte Apache-Kontrolle; `apache_poc` meldete das gebaute Modul. Der strikte/vollständige Producer schlug danach bei `make runtime-matrix-all-runtime` mit `rc=2` fehl; abhängige Matrix-, Report-Refresh-, Layout-, Lint- und Quick-Check-Consumer schlugen ebenfalls fehl oder wurden ungültig. Der äußere Job-Log bewahrte den festen verschachtelten Pfad `verified-runs/<validated-run-id>/logs/04-make-runtime-matrix-all-runtime.log`, aber nicht seinen kausalen Inhalt auf.
+
+Das Parent-only-Follow-up fügt keinen Akzeptanzpfad hinzu und ändert das terminale Evidence-Gate nicht. Bei Fehlern leitet es genau diesen festen Matrix-Log erst nach Validierung des vorhandenen regulären Nicht-Symlink-Run-ID-Pointers ab, verlangt auch für den Log eine reguläre Nicht-Symlink-Datei, gibt höchstens 300 Zeilen aus und schirmt rohe Inhalte mit einem frischen GitHub-`stop-commands`-Token ab. Die vorhandenen begrenzten Preparation- und Apache-Diagnosen bleiben erhalten. Der nächste exakte Hosted-Head muss die Matrix-Ursache liefern; Matrix-, SonarQube-Cloud-, Review-, Integrations- oder Resulting-Master-Erfolg wird hier nicht behauptet. Diese undurchsichtige Evidenzlücke wird als `FND-PARENT-0054` verfolgt.
+
 ## Ausgeführte Befehle
 
 | Befehl oder Kontrolle | Ergebnis |

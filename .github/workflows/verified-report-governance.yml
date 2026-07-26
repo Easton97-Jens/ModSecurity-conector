@@ -117,7 +117,9 @@ jobs:
               echo "Current verified runtime run identifier is invalid."
             else
               current_run_log="$BUILD_ROOT/verified-runs/$run_id/logs/02-make-prepare-runtime-components.log"
+              current_matrix_log="$BUILD_ROOT/verified-runs/$run_id/logs/04-make-runtime-matrix-all-runtime.log"
               tail_regular_log "current runtime preparation log" "$current_run_log"
+              tail_regular_log "current runtime matrix log" "$current_matrix_log"
             fi
           else
             echo "No safe verified runtime run identifier was created."

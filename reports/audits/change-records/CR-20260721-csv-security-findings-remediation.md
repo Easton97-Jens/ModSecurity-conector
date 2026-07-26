@@ -187,6 +187,12 @@ Focused local evidence passed: 33 cache-contract/cache-identity tests, 20 CI-sec
 
 These local controls are not hosted runtime evidence. A fresh exact-head hosted strict/full producer and unchanged terminal evidence gate must pass after normal PR-branch publication before SonarCloud, review, integration, or resulting-master success is claimed.
 
+## Runtime-matrix diagnostic follow-up (2026-07-26)
+
+At exact head `7238c9d0a0902affbf7dfae1d7f96d6603d80f89`, hosted run `30196090664`, job `89777788658` passed component preparation, runtime-producer readiness, and the bounded Apache control; `apache_poc` reported the built module. The strict/full producer then failed at `make runtime-matrix-all-runtime` with `rc=2`, and dependent matrix, report-refresh, layout, lint, and quick-check consumers also failed or became invalid. The outer job log retained the fixed nested path `verified-runs/<validated-run-id>/logs/04-make-runtime-matrix-all-runtime.log` but not its causal content.
+
+The Parent-only follow-up adds no acceptance path and does not change the terminal evidence gate. On failure it derives that one fixed matrix log only after validating the existing regular non-symlink run-ID pointer, requires the log itself to be a regular non-symlink file, emits at most 300 lines, and shields raw content with a fresh GitHub `stop-commands` token. It retains the existing bounded preparation and Apache diagnostics. The next exact hosted head must supply the matrix cause; no matrix, SonarQube Cloud, review, integration, or resulting-master success is claimed here. This opaque evidence gap is tracked as `FND-PARENT-0054`.
+
 ## Commands executed
 
 | Command or control | Result |
