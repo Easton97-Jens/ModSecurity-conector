@@ -470,7 +470,7 @@ def no_buffer_errors(
     return []
 
 
-def promotion_errors(run_dir: Path, manifest: dict[str, Any], result: dict[str, Any]) -> list[str]:
+def promotion_errors(manifest: dict[str, Any], result: dict[str, Any]) -> list[str]:
     declared = manifest.get("capabilities", {})
     if not isinstance(declared, dict):
         return ["capability manifest has no capabilities object"]
@@ -530,7 +530,7 @@ def main(argv: list[str] | None = None) -> int:
             elif args.check == "transport":
                 connector_errors += transport_artifact_errors(run_dir, connector)
             else:
-                connector_errors += promotion_errors(run_dir, manifest, result)
+                connector_errors += promotion_errors(manifest, result)
                 connector_errors += first_byte_errors(
                     run_dir, manifest, result, connector=connector, run_id=args.run_id,
                 )

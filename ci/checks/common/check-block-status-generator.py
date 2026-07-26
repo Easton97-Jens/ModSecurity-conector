@@ -19,10 +19,11 @@ HAPROXY_CFG = "haproxy-block-status-rules.generated.cfg"
 
 FULL_STATUS_LIST = "400,401,403,404,405,406,408,409,410,413,415,418,422,425,429,451,500,501,502,503,504"
 FULL_STATUSES = tuple(int(value) for value in FULL_STATUS_LIST.split(","))
+DEFAULT_WEB_SERVER_STATUSES = "403,501"
 
 RUNS = (
-    ("nginx", "403,501"),
-    ("apache", "403,501"),
+    ("nginx", DEFAULT_WEB_SERVER_STATUSES),
+    ("apache", DEFAULT_WEB_SERVER_STATUSES),
     ("haproxy", "401,403,406,429,501,503"),
     ("envoy", "403"),
     ("traefik", "403"),
@@ -135,7 +136,7 @@ def check_deterministic(tmp: Path) -> None:
     first = tmp / "deterministic-a"
     second = tmp / "deterministic-b"
     require_success(run_generator("nginx", "501,403", first))
-    require_success(run_generator("nginx", "403,501", second))
+    require_success(run_generator("nginx", DEFAULT_WEB_SERVER_STATUSES, second))
     for filename in (HEADER, SOURCE):
         require(filecmp.cmp(first / filename, second / filename, shallow=False), f"non-deterministic {filename}")
 

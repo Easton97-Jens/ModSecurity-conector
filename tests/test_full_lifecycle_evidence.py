@@ -105,17 +105,17 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
         )
         with temporary:
             self.assertEqual(
+                checker.first_byte_errors(run, manifest, result),
                 [
                     "phase4_first_byte_before_response_end: "
                     "missing synchronized first-byte event metadata",
                     "phase4_no_full_response_buffering: "
                     "missing synchronized first-byte event metadata",
                 ],
-                checker.first_byte_errors(run, manifest, result),
             )
             self.assertEqual(
-                ["no-full-response-buffering PASS lacks the causal first-byte metadata"],
                 checker.no_buffer_errors(run, manifest, result),
+                ["no-full-response-buffering PASS lacks the causal first-byte metadata"],
             )
 
     def test_phase4_events_reject_foreign_run_identity(self) -> None:
@@ -150,9 +150,9 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
     def test_phase4_events_accept_same_run_apache_control(self) -> None:
         run, manifest, result, temporary = self.phase4_identity_fixture()
         with temporary:
-            self.assertEqual([], checker.profile_errors(result, "apache"))
-            self.assertEqual([], checker.first_byte_errors(run, manifest, result))
-            self.assertEqual([], checker.no_buffer_errors(run, manifest, result))
+            self.assertEqual(checker.profile_errors(result, "apache"), [])
+            self.assertEqual(checker.first_byte_errors(run, manifest, result), [])
+            self.assertEqual(checker.no_buffer_errors(run, manifest, result), [])
 
     def test_log_sanitizer_drops_fixture_bodies_and_credentials(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-lifecycle-log-") as temporary:

@@ -138,26 +138,26 @@ class PythonVersionContractTest(unittest.TestCase):
         (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
 
     def test_expected_inventory_has_27_normal_jobs_and_one_special_job(self) -> None:
-        self.assertEqual(27, len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS))
+        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 27)
         self.assertNotIn(
             CHECKER.CANDIDATE_VALIDATION_JOB, CHECKER.EXPECTED_NORMAL_PYTHON_JOBS
         )
 
     def test_valid_yaml_control_is_accepted(self) -> None:
         version, violations, detected = self.fixture_result("valid-control.yaml")
-        self.assertEqual("3.14.6", version)
-        self.assertEqual([], violations)
+        self.assertEqual(version, "3.14.6")
+        self.assertEqual(violations, [])
         self.assertEqual(
-            {CHECKER.JobIdentity("valid-control.yaml", "fixture-job")}, detected
+            detected, {CHECKER.JobIdentity("valid-control.yaml", "fixture-job")}
         )
 
     def test_manual_mapping_parser_preserves_the_narrow_contract_shapes(self) -> None:
-        self.assertEqual(("with", ""), CHECKER.mapping_entry("with:"))
+        self.assertEqual(CHECKER.mapping_entry("with:"), ("with", ""))
         self.assertEqual(
-            ("run", "python3 -c 'print(\"value: preserved\")'"),
             CHECKER.mapping_entry("run: python3 -c 'print(\"value: preserved\")'"),
+            ("run", "python3 -c 'print(\"value: preserved\")'"),
         )
-        self.assertEqual("fixture-job", CHECKER.job_header("fixture-job: # comment"))
+        self.assertEqual(CHECKER.job_header("fixture-job: # comment"), "fixture-job")
         self.assertIsNone(CHECKER.job_header("fixture-job: unexpected-value"))
         self.assertIsNone(CHECKER.mapping_entry("not a mapping"))
 
@@ -183,21 +183,21 @@ class PythonVersionContractTest(unittest.TestCase):
 
     def test_linear_shell_parser_detects_commands_without_text_false_positives(self) -> None:
         self.assertEqual(
-            "python3.14",
             CHECKER.direct_python_or_pip_command(
                 "/opt/toolchains/python3.14 -c 'print(\"direct\")'"
             ),
+            "python3.14",
         )
         self.assertEqual(
-            "pip3",
             CHECKER.bare_pip_command("env TOOLCHAIN=checked pip3 --version"),
+            "pip3",
         )
-        self.assertEqual("quick-check", CHECKER.python_make_target("make quick-check"))
+        self.assertEqual(CHECKER.python_make_target("make quick-check"), "quick-check")
         self.assertEqual(
-            "python3",
             CHECKER.direct_python_or_pip_command(
                 "status=$(python3 -c 'print(\"substitution\")')"
             ),
+            "python3",
         )
         self.assertIsNone(CHECKER.shell_syntax_error("count=$((count + 1))"))
 
@@ -210,17 +210,17 @@ TEXT
 printf '%s\\n' 'make quick-check'
 """
         )
-        self.assertEqual((), harmless.errors)
+        self.assertEqual(harmless.errors, ())
         command_names = [
             CHECKER.static_command_basename(command.command)
             for command in harmless.commands
         ]
-        self.assertEqual(["echo", "cat", "printf"], command_names)
+        self.assertEqual(command_names, ["echo", "cat", "printf"])
 
     def test_unsupported_or_malformed_shell_syntax_fails_closed(self) -> None:
         self.assertEqual(
-            "dynamic shell command head is unsupported",
             CHECKER.shell_syntax_error('"$PYTHON" --version'),
+            "dynamic shell command head is unsupported",
         )
         malformed_error = CHECKER.shell_syntax_error("python3 -c 'unterminated")
         self.assertIsNotNone(malformed_error)
@@ -290,9 +290,9 @@ printf '%s\\n' 'make quick-check'
         ):
             with self.subTest(fixture=fixture):
                 _, violations, detected = self.fixture_result(fixture)
-                self.assertEqual([], violations, violations)
+                self.assertEqual(violations, [], violations)
                 self.assertEqual(
-                    {CHECKER.JobIdentity(fixture, "fixture-job")}, detected
+                    detected, {CHECKER.JobIdentity(fixture, "fixture-job")}
                 )
 
         self.assert_fixture_violation("make-before-setup.yml", "Make target quick-check")
@@ -305,7 +305,7 @@ printf '%s\\n' 'make quick-check'
             with self.subTest(fixture=fixture):
                 _, violations, detected = self.fixture_result(fixture)
                 self.assertEqual(
-                    {CHECKER.JobIdentity(fixture, "fixture-job")}, detected
+                    detected, {CHECKER.JobIdentity(fixture, "fixture-job")}
                 )
                 self.assertTrue(
                     any(
@@ -319,7 +319,7 @@ printf '%s\\n' 'make quick-check'
         _, violations, detected = self.fixture_root_result(
             ("shell-only.yml",), set()
         )
-        self.assertEqual([], violations, violations)
+        self.assertEqual(violations, [], violations)
         self.assertEqual(set(), detected)
 
     def test_multiple_python_jobs_are_inventory_checked_independently(self) -> None:
@@ -330,7 +330,7 @@ printf '%s\\n' 'make quick-check'
         _, violations, detected = self.fixture_root_result(
             ("multiple-python-jobs.yml",), expected
         )
-        self.assertEqual([], violations, violations)
+        self.assertEqual(violations, [], violations)
         self.assertEqual(expected, detected)
 
     def test_local_reusable_workflow_caller_is_rejected_not_silently_ignored(self) -> None:
@@ -338,8 +338,8 @@ printf '%s\\n' 'make quick-check'
         _, safe_violations, safe_detected = self.fixture_root_result(
             ("reusable-callee.yml",), {callee}
         )
-        self.assertEqual([], safe_violations, safe_violations)
-        self.assertEqual({callee}, safe_detected)
+        self.assertEqual(safe_violations, [], safe_violations)
+        self.assertEqual(safe_detected, {callee})
 
         caller = CHECKER.JobIdentity("reusable-caller.yml", "call-local-python")
         _, violations, detected = self.fixture_root_result(
@@ -362,8 +362,8 @@ printf '%s\\n' 'make quick-check'
             (root / ".github" / "workflows").mkdir(parents=True)
             shutil.copy2(FIXTURES / "malformed-version.txt", root / ".python-version")
             exit_code, payload = self.cli_json_result(root)
-        self.assertEqual(2, exit_code)
-        self.assertEqual("error", payload["status"])
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["status"], "error")
         self.assertIn("exact Python 3.14.N", payload["violations"][0])
 
     def test_json_cli_reports_contract_violations_with_exit_one(self) -> None:
@@ -374,8 +374,8 @@ printf '%s\\n' 'make quick-check'
             shutil.copy2(FIXTURES / "missing-setup.yml", workflows / "missing-setup.yml")
             (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
             exit_code, payload = self.cli_json_result(root)
-        self.assertEqual(1, exit_code)
-        self.assertEqual("violations", payload["status"])
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(payload["status"], "violations")
         self.assertTrue(payload["violations"])
 
     def test_public_cli_rejects_user_controlled_root_and_nonliteral_version_file(self) -> None:
@@ -383,7 +383,7 @@ printf '%s\\n' 'make quick-check'
         argument_parser = CHECKER.parser()
         with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as context:
             argument_parser.parse_args(["--root", "/not-a-repository"])
-        self.assertEqual(2, context.exception.code)
+        self.assertEqual(context.exception.code, 2)
 
         output = io.StringIO()
         with (
@@ -397,9 +397,9 @@ printf '%s\\n' 'make quick-check'
             exit_code = CHECKER.main(
                 ["--version-file", "../untrusted-version", "--json"]
             )
-        self.assertEqual(2, exit_code)
+        self.assertEqual(exit_code, 2)
         payload = json.loads(output.getvalue())
-        self.assertEqual("error", payload["status"])
+        self.assertEqual(payload["status"], "error")
         self.assertIn("must be exactly", payload["violations"][0])
 
     def test_public_cli_requires_a_regular_nonsymlink_canonical_version_file(self) -> None:
@@ -409,14 +409,14 @@ printf '%s\\n' 'make quick-check'
             target.write_text("3.14.6\n", encoding="utf-8")
             (root / ".python-version").symlink_to(target)
             exit_code, payload = self.cli_json_result(root)
-        self.assertEqual(2, exit_code)
+        self.assertEqual(exit_code, 2)
         self.assertIn("must not be a symlink", payload["violations"][0])
 
         with self.temporary_root() as directory:
             root = Path(directory)
             (root / ".python-version").mkdir()
             exit_code, payload = self.cli_json_result(root)
-        self.assertEqual(2, exit_code)
+        self.assertEqual(exit_code, 2)
         self.assertIn("must be a regular file", payload["violations"][0])
 
     def test_downgrade_requires_explicit_authorization(self) -> None:
@@ -441,7 +441,7 @@ printf '%s\\n' 'make quick-check'
                 expected_candidate_job=None,
             )
         self.assertTrue(any("downgrade" in violation for violation in blocked))
-        self.assertEqual([], authorized)
+        self.assertEqual(authorized, [])
 
     def test_special_candidate_job_is_strict_about_expected_outputs(self) -> None:
         malformed = self.candidate_job_block().replace(
@@ -465,9 +465,9 @@ printf '%s\\n' 'make quick-check'
             root = Path(directory)
             self.write_complete_contract_root(root)
             exit_code, payload = self.cli_json_result(root)
-        self.assertEqual(0, exit_code)
-        self.assertEqual("valid", payload["status"])
-        self.assertEqual(28, len(payload["detected_python_jobs"]))
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["status"], "valid")
+        self.assertEqual(len(payload["detected_python_jobs"]), 28)
 
 
 if __name__ == "__main__":

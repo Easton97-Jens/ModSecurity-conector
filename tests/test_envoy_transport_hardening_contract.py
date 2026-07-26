@@ -47,8 +47,8 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
 
         connection = Connection()
 
-        self.assertEqual((200, 1), helper._read_chunked_first_body(connection, timeout=1.0))
-        self.assertEqual([4096, 1], connection.recv_limits)
+        self.assertEqual(helper._read_chunked_first_body(connection, timeout=1.0), (200, 1))
+        self.assertEqual(connection.recv_limits, [4096, 1])
         self.assertTrue(all(timeout > 0 for timeout in connection.timeouts))
 
     def test_client_cancel_waits_for_one_real_body_byte_then_closes(self) -> None:
@@ -72,7 +72,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             server.server_close()
             thread.join(timeout=2)
 
-        self.assertEqual(200, observation["http_status"])
+        self.assertEqual(observation["http_status"], 200)
         self.assertTrue(observation["first_body_byte_received"])
         self.assertTrue(observation["client_closed"])
 
@@ -108,7 +108,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=2)
 
-            self.assertEqual(200, observation["http_status"])
+            self.assertEqual(observation["http_status"], 200)
             self.assertTrue(observation["client_first_byte_received"])
             self.assertTrue(observation["first_byte_before_response_end"])
             self.assertGreater(observation["first_chunk_size"], 0)
@@ -191,25 +191,25 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             self.assertTrue(result["event_appended"])
             self.assertTrue(result["evidence_written"])
             evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-            self.assertEqual("synchronized_first_byte", evidence["evidence_type"])
-            self.assertEqual("real_host", evidence["evidence_origin"])
+            self.assertEqual(evidence["evidence_type"], "synchronized_first_byte")
+            self.assertEqual(evidence["evidence_origin"], "real_host")
             self.assertTrue(evidence["promotion_eligible"])
             self.assertTrue(evidence["first_byte_before_response_end"])
             self.assertTrue(evidence["no_full_response_buffering"])
             self.assertFalse(evidence["connector_owned_full_response_buffer"])
-            self.assertEqual("http1", evidence["transport_protocol"])
+            self.assertEqual(evidence["transport_protocol"], "http1")
 
             records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
             barrier_event = records[-1]
-            self.assertEqual("phase4_first_byte_barrier", barrier_event["event"])
-            self.assertEqual("envoy-ext-proc-phase4-safe", barrier_event["transaction_id"])
-            self.assertEqual("1100301", barrier_event["rule_id"])
-            self.assertEqual(4, barrier_event["phase"])
-            self.assertEqual("safe", barrier_event["late_intervention_mode"])
-            self.assertEqual("log_only", barrier_event["actual_action"])
+            self.assertEqual(barrier_event["event"], "phase4_first_byte_barrier")
+            self.assertEqual(barrier_event["transaction_id"], "envoy-ext-proc-phase4-safe")
+            self.assertEqual(barrier_event["rule_id"], "1100301")
+            self.assertEqual(barrier_event["phase"], 4)
+            self.assertEqual(barrier_event["late_intervention_mode"], "safe")
+            self.assertEqual(barrier_event["actual_action"], "log_only")
             self.assertTrue(barrier_event["end_of_stream_evaluation"])
             self.assertTrue(barrier_event["eos_seen"])
-            self.assertEqual("normal", barrier_event["cleanup_reason"])
+            self.assertEqual(barrier_event["cleanup_reason"], "normal")
             self.assertTrue(barrier_event["first_byte_before_response_end"])
             self.assertFalse(barrier_event["upstream_eos_sent_at_first_byte"])
             self.assertTrue(barrier_event["no_full_response_buffering"])
@@ -224,7 +224,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 run_id="run-phase4-first-byte",
             )
             self.assertFalse(repeated["event_appended"])
-            self.assertEqual(2, len(event_path.read_text(encoding="utf-8").splitlines()))
+            self.assertEqual(len(event_path.read_text(encoding="utf-8").splitlines()), 2)
 
     def test_allow_event_binds_client_http200_to_one_normal_ext_proc_completion(self) -> None:
         helper = load_helper()
@@ -289,10 +289,10 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
 
             self.assertTrue(result["event_appended"])
             allow_event = json.loads(events.read_text(encoding="utf-8").splitlines()[-1])
-            self.assertEqual("ENVOY_EXT_PROC_NATIVE_P1_ALLOW", allow_event["message_id"])
-            self.assertEqual("envoy-ext-proc-allow-1", allow_event["transaction_id"])
-            self.assertEqual(1, allow_event["phase"])
-            self.assertEqual(200, allow_event["visible_http_status"])
+            self.assertEqual(allow_event["message_id"], "ENVOY_EXT_PROC_NATIVE_P1_ALLOW")
+            self.assertEqual(allow_event["transaction_id"], "envoy-ext-proc-allow-1")
+            self.assertEqual(allow_event["phase"], 1)
+            self.assertEqual(allow_event["visible_http_status"], 200)
             self.assertNotIn("requested_action", allow_event)
             self.assertNotIn("actual_action", allow_event)
             self.assertNotIn("no-crs-response-body-marker", json.dumps(allow_event))

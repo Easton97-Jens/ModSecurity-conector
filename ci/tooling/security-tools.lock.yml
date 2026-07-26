@@ -1,5 +1,5 @@
 schema_version: 1
-checked_at: "2026-07-16"
+checked_at: "2026-07-26"
 
 # These values are revalidated against official upstream tag or release APIs.
 pinned_actions:
@@ -36,8 +36,8 @@ pinned_actions:
     commit_sha: 9a498708959aeaef5ef730655706c5a1df1edbc2
     upstream: https://github.com/google/osv-scanner-action
   ossf/scorecard-action:
-    version: v2.4.3
-    commit_sha: 4eaacf0543bb3f2c246792bd56e8cdeffafb205a
+    version: v2.4.4
+    commit_sha: 2d1146689b8cda280b9bc96326124645441f03bc
     upstream: https://github.com/ossf/scorecard-action
 
 tools:

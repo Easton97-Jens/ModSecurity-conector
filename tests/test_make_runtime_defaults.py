@@ -47,13 +47,13 @@ class MakeRuntimeDefaultsTest(unittest.TestCase):
                 text=True,
                 env=environment,
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(
+                result.stdout.splitlines(),
                 [
                     str(run_root / "build" / "tmp"),
                     str(run_root / "build" / "logs"),
                 ],
-                result.stdout.splitlines(),
             )
 
 
