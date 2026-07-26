@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-07-26 |
 | Base revision | 6ca7e1536ce7e93da68099db9c586b88852ff13e |
 | Boundary | Parent runtime-matrix and prepared runtime-environment-snapshot hand-offs, Parent regression tests, and this English/German Change Record pair/index. The carried Framework Gitlink is already merged on Parent `master`; no Framework or MRTS source changes are made here. |
-| Finding linkage | FND-CROSS-0008; FND-CROSS-0001 remains open until fresh legitimate runtime evidence passes the strict terminal gate. |
+| Finding linkage | FND-CROSS-0008; FND-PARENT-0056; FND-CROSS-0001 remains open until fresh legitimate runtime evidence passes the strict terminal gate. |
 
 ## Motivation and problem statement
 
@@ -170,3 +170,23 @@ regression tests, the normal master Gitlink update, and this bilingual
 record/index. It has passed focused security/path and cache-provisioner tests;
 the broader local checks and fresh exact-head hosted validation must be rerun
 for the successor commit before protected merge.
+
+## Continuation: ready NGINX snapshot Common-source hand-off
+
+The bounded exact-head NGINX `configure` log on Parent #74 identifies the
+remaining failure: `MSCONNECTOR_COMMON_SRC` is present during managed-cache
+preparation but absent from the later invocation-local snapshot used by the
+direct runtime matrix. Parent now derives the value only from the resolved,
+reviewed `CONNECTOR_ROOT/common/src` and publishes it for a ready NGINX entry.
+It does not forward a job-supplied value, introduce a fallback, widen either
+cache owner root, or alter the Framework missing-source fail-closed behavior.
+
+`tests/test_runtime_env_snapshot_contract.py` verifies that a ready NGINX
+entry publishes exactly that Common source root and a blocked entry publishes
+no NGINX runtime values. The direct matrix fixture also proves that the
+Framework runner receives the value through the same sourceable local snapshot
+boundary as the owner roots. The focused command
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_runtime_env_snapshot_contract tests.test_full_matrix_cache_owner_root tests.test_runtime_component_cache_contract`
+passed all 38 tests. This is not native NGINX success: the new exact Parent PR
+#74 head still requires its hosted producer, strict terminal gate, SonarQube
+Cloud readback, review/protection evidence, and protected integration.

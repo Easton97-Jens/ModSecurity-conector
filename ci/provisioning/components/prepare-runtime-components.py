@@ -414,6 +414,35 @@ def write_runtime_env_snapshot(
     return destination
 
 
+def nginx_runtime_environment(
+    connector_root: Path,
+    cache_root: Path,
+    nginx: dict[str, Any],
+) -> dict[str, str]:
+    """Return the ready NGINX values for an invocation-local runtime snapshot.
+
+    The Framework materializes the NGINX adapter below the managed build root,
+    while the adapter config still compiles the Parent-owned Common sources.
+    This value must be derived from the verified connector root rather than an
+    inherited job environment so a direct runtime-matrix invocation receives
+    the same explicit source boundary as cache preparation.
+    """
+    if nginx.get("status") not in {"present", "built", "reused"}:
+        return {}
+    return {
+        "MRTS_NATIVE_NGINX_BIN": str(nginx.get("nginx_bin", "")),
+        "MRTS_NATIVE_NGINX_MODULE_DIR": str(nginx.get("module_dir", "")),
+        "MRTS_NATIVE_NGINX_MODULE_FILE": str(nginx.get("module_file", "")),
+        "MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR": str(nginx.get("modsecurity_lib_dir", "")),
+        "MSCONNECTOR_COMMON_SRC": str(connector_root / "common" / "src"),
+        "NGINX_BUILD_DIR": str(nginx.get("build_path", "")),
+        "NGINX_BUILD_OWNER_ROOT": str(cache_root / "builds" / "connectors"),
+        "NGINX_PREFIX": str(nginx.get("nginx_prefix", "")),
+        "NGINX_CONNECTOR_BUILD_ID": str(nginx.get("connector_build_id", "")),
+        "NGINX_PROTOCOL_PROFILE": str(nginx.get("protocol_profile", "h1")),
+    }
+
+
 def atomic_write_bytes(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.tmp-", dir=str(path.parent))
@@ -5829,20 +5858,7 @@ def main() -> int:
                 "APACHE_CONNECTOR_BUILD_ID": str(apache_httpd.get("connector_build_id", "")),
             }
         )
-    if nginx.get("status") in {"present", "built", "reused"}:
-        runtime_env.update(
-            {
-                "MRTS_NATIVE_NGINX_BIN": str(nginx.get("nginx_bin", "")),
-                "MRTS_NATIVE_NGINX_MODULE_DIR": str(nginx.get("module_dir", "")),
-                "MRTS_NATIVE_NGINX_MODULE_FILE": str(nginx.get("module_file", "")),
-                "MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR": str(nginx.get("modsecurity_lib_dir", "")),
-                "NGINX_BUILD_DIR": str(nginx.get("build_path", "")),
-                "NGINX_BUILD_OWNER_ROOT": str(cache_root / "builds" / "connectors"),
-                "NGINX_PREFIX": str(nginx.get("nginx_prefix", "")),
-                "NGINX_CONNECTOR_BUILD_ID": str(nginx.get("connector_build_id", "")),
-                "NGINX_PROTOCOL_PROFILE": str(nginx.get("protocol_profile", "h1")),
-            }
-        )
+    runtime_env.update(nginx_runtime_environment(connector_root, cache_root, nginx))
     if haproxy.get("status") in {"built", "reused", "present"}:
         runtime_env.update(
             {

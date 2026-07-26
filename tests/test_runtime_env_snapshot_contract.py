@@ -32,6 +32,45 @@ NATIVE_SPEC.loader.exec_module(native_comparison)
 
 
 class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
+    def test_ready_nginx_snapshot_values_bind_the_parent_common_source_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-env-nginx-common-source-") as temporary:
+            root = Path(temporary)
+            connector_root = root / "connector"
+            common_source_root = connector_root / "common" / "src"
+            common_source_root.mkdir(parents=True)
+            cache_root = root / "cache-v2" / "shared"
+
+            with mock.patch.dict(os.environ, {"MSCONNECTOR_COMMON_SRC": "/untrusted/job/path"}):
+                values = components.nginx_runtime_environment(
+                    connector_root,
+                    cache_root,
+                    {
+                        "status": "reused",
+                        "nginx_bin": "/runtime/nginx",
+                        "module_dir": "/runtime/modules",
+                        "module_file": "/runtime/modules/ngx_http_modsecurity_module.so",
+                        "modsecurity_lib_dir": "/runtime/modsecurity/lib",
+                        "build_path": "/runtime/nginx-build",
+                        "nginx_prefix": "/runtime/prefix",
+                        "connector_build_id": "cache-key",
+                        "protocol_profile": "h1",
+                    },
+                )
+
+            self.assertEqual(str(common_source_root), values["MSCONNECTOR_COMMON_SRC"])
+            self.assertEqual(
+                str(cache_root / "builds" / "connectors"),
+                values["NGINX_BUILD_OWNER_ROOT"],
+            )
+
+    def test_unready_nginx_does_not_publish_runtime_snapshot_values(self) -> None:
+        values = components.nginx_runtime_environment(
+            Path("/connector"),
+            Path("/cache"),
+            {"status": "blocked"},
+        )
+        self.assertEqual({}, values)
+
     def test_snapshot_is_unique_local_atomic_and_keeps_shared_compatibility_export(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-env-snapshot-") as temporary:
             root = Path(temporary)

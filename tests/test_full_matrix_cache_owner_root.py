@@ -38,8 +38,8 @@ case "$*" in
         ;;
 esac
 
-printf '%s|%s|%s|%s|%s\\n' \\
-    "$connector" "$REFRESH" "$BUILD_ROOT" "$connector_build_root" "$owner_root" \\
+printf '%s|%s|%s|%s|%s|%s\\n' \\
+    "$connector" "$REFRESH" "$BUILD_ROOT" "$connector_build_root" "$owner_root" "${MSCONNECTOR_COMMON_SRC:-}" \\
     >> "$CAPTURE_FILE"
 """,
             encoding="utf-8",
@@ -110,6 +110,7 @@ printf '%s|%s|%s|%s|%s\\n' \\
         *,
         expected_job_build_root: Path | None = None,
         expected_job_build_parent: Path | None = None,
+        expected_nginx_common_source_root: Path | None = None,
     ) -> None:
         records = {
             fields[0]: fields
@@ -120,7 +121,7 @@ printf '%s|%s|%s|%s|%s\\n' \\
         self.assertEqual(set(records), {"apache", "nginx"})
         for connector, fields in records.items():
             with self.subTest(connector=connector):
-                _, refresh, job_build_root, connector_build_root, owner_root_text = fields
+                _, refresh, job_build_root, connector_build_root, owner_root_text, common_source_root = fields
                 self.assertEqual(refresh, "1")
                 self.assertEqual(owner_root_text, str(expected_owner_root))
                 self.assertTrue(Path(connector_build_root).is_relative_to(expected_owner_root))
@@ -129,6 +130,8 @@ printf '%s|%s|%s|%s|%s\\n' \\
                 if expected_job_build_parent is not None:
                     self.assertTrue(Path(job_build_root).is_relative_to(expected_job_build_parent))
                 self.assertNotEqual(job_build_root, owner_root_text)
+                if connector == "nginx" and expected_nginx_common_source_root is not None:
+                    self.assertEqual(common_source_root, str(expected_nginx_common_source_root))
 
     def test_cache_backed_refreshes_receive_one_narrow_explicit_owner_root(
         self,
@@ -245,6 +248,7 @@ printf '%s|%s|%s|%s|%s\\n' \\
                         f"export APACHE_BUILD_OWNER_ROOT='{owner_root}'",
                         f"export NGINX_BUILD_DIR='{nginx_build_root}'",
                         f"export NGINX_BUILD_OWNER_ROOT='{owner_root}'",
+                        f"export MSCONNECTOR_COMMON_SRC='{ROOT / 'common' / 'src'}'",
                         "export RUNTIME_COMPONENT_ENV_SNAPSHOT_TARGET='all'",
                         f"export RUNTIME_COMPONENT_ENV_SNAPSHOT_CACHE='{component_cache}'",
                         "export RUNTIME_COMPONENT_ENV_SNAPSHOT_SCHEMA='1'",
@@ -279,6 +283,7 @@ printf '%s|%s|%s|%s|%s\\n' \\
                 capture_file,
                 expected_owner_root,
                 expected_job_build_root=build_root,
+                expected_nginx_common_source_root=ROOT / "common" / "src",
             )
 
 

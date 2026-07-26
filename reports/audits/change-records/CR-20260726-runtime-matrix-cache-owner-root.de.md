@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-07-26 |
 | Basis-Revision | 6ca7e1536ce7e93da68099db9c586b88852ff13e |
 | Grenze | Parent-Runtime-Matrix- und vorbereitete Runtime-Environment-Snapshot-Handoffs, Parent-Regressionstests und dieses englisch/deutsche Change-Record-Paar mit Index. Der mitgeführte Framework-Gitlink ist bereits auf Parent-`master` gemergt; hier werden weder Framework- noch MRTS-Quellen geändert. |
-| Finding-Verknüpfung | FND-CROSS-0008; FND-CROSS-0001 bleibt offen, bis frische legitime Runtime-Evidence das strikte Terminal-Gate besteht. |
+| Finding-Verknüpfung | FND-CROSS-0008; FND-PARENT-0056; FND-CROSS-0001 bleibt offen, bis frische legitime Runtime-Evidence das strikte Terminal-Gate besteht. |
 
 ## Motivation und Problemstellung
 
@@ -185,3 +185,27 @@ Record/Index begrenzt. Er bestand fokussierte Security-/Pfad- und Cache-
 Provisioner-Tests; die breiteren lokalen Checks und frische Exact-Head-Hosted-
 Validierung müssen vor einem geschützten Merge erneut auf dem Nachfolge-Commit
 laufen.
+
+## Fortsetzung: Common-Source-Handoff des bereiten NGINX-Snapshots
+
+Das begrenzte Exact-Head-NGINX-`configure`-Log von Parent #74 identifiziert
+den verbleibenden Fehler: `MSCONNECTOR_COMMON_SRC` ist während der
+Managed-Cache-Vorbereitung vorhanden, fehlt aber im späteren Invocation-
+lokalen Snapshot der direkten Runtime-Matrix. Der Parent leitet den Wert jetzt
+ausschließlich aus dem aufgelösten, geprüften
+`CONNECTOR_ROOT/common/src` ab und veröffentlicht ihn für einen bereiten
+NGINX-Eintrag. Er leitet keinen vom Job bereitgestellten Wert weiter, fügt
+keinen Fallback hinzu, weitet keinen Cache-Owner-Root auf und verändert nicht
+das fehlgeschlossene Framework-Verhalten für fehlende Quellen.
+
+`tests/test_runtime_env_snapshot_contract.py` prüft, dass ein bereiter
+NGINX-Eintrag genau diesen Common-Source-Root veröffentlicht und ein
+blockierter Eintrag keine NGINX-Runtime-Werte veröffentlicht. Das direkte
+Matrix-Fixture beweist außerdem, dass der Framework-Runner den Wert über
+dieselbe sourcebare lokale Snapshot-Grenze wie die Owner-Roots erhält. Der
+fokussierte Befehl
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_runtime_env_snapshot_contract tests.test_full_matrix_cache_owner_root tests.test_runtime_component_cache_contract`
+bestand alle 38 Tests. Dies ist kein nativer NGINX-Erfolg: Der neue exakte
+Parent-PR-#74-Head benötigt weiterhin Hosted-Producer, striktes Terminal-Gate,
+SonarQube-Cloud-Readback, Review-/Protection-Evidence und geschützte
+Integration.
