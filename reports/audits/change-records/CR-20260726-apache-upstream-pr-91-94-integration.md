@@ -164,7 +164,22 @@ reportable findings. Repository-wide bilingual and link checks were executed
 but are blocked only because the isolated worktree deliberately has no
 Framework submodule contents; the focused Change-Record parity suite passed.
 Only this reader-facing record changed after the executable scan snapshot.
-Final scoped diff review, exact separated commits, a non-force push, and a
-truthful PR against `master` remain required. No merge, direct default-branch
-push, Framework/MRTS delivery, Gitlink update, or risk acceptance is
-authorized by this record.
+
+Delivery update (observed before this self-updating documentation follow-up):
+
+- Branch: `codex/apache-upstream-pr-91-94-integration`.
+- Implementation commits: `3193b0ab44163f3c291f184f8d077adef602f943`,
+  `73241f2634c4c52ee1c593a5f84b122d226d60ed`, and
+  `325581ea12586f894431ccd33cc0d3cbdfb0701d`.
+- Draft PR: [#124](https://github.com/Easton97-Jens/ModSecurity-conector/pull/124)
+  against `master`.
+- At PR creation, local head, `origin/codex/apache-upstream-pr-91-94-integration`,
+  and the PR head were all
+  `325581ea12586f894431ccd33cc0d3cbdfb0701d`.
+
+This follow-up record deliberately does not self-reference its future commit
+SHA; the final local/remote/PR-head equality is retained in the PR and task
+delivery evidence. The PR remains Draft while native Apache/APR and Valgrind
+runtime prerequisites are unavailable, and its CI/review results are pending.
+No merge, direct default-branch push, Framework/MRTS delivery, Gitlink update,
+or risk acceptance is authorized by this record.

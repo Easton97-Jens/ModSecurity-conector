@@ -174,8 +174,25 @@ reportable Findings finalisiert. Repository-weite Bilingual- und Link-Checks
 wurden ausgeführt, sind aber nur blockiert, weil der isolierte Arbeitsbaum
 absichtlich keine Framework-Submodule-Inhalte enthält; die fokussierte
 Change-Record-Paritäts-Suite bestand. Nach dem ausführbaren Scan-Snapshot
-änderte sich nur dieser leserorientierte Record. Finaler eingegrenzter
-Diff-Review, exakte getrennte Commits, ein Non-Force-Push und ein
-wahrheitsgemäßer PR gegen `master` bleiben erforderlich. Kein Merge, direkter
-Default-Branch-Push, Framework-/MRTS-Delivery, Gitlink-Update oder
-Risikoakzeptanz wird durch diesen Record autorisiert.
+änderte sich nur dieser leserorientierte Record.
+
+Delivery-Update (vor diesem selbstaktualisierenden Dokumentations-Follow-up
+beobachtet):
+
+- Branch: `codex/apache-upstream-pr-91-94-integration`.
+- Implementierungs-Commits: `3193b0ab44163f3c291f184f8d077adef602f943`,
+  `73241f2634c4c52ee1c593a5f84b122d226d60ed` und
+  `325581ea12586f894431ccd33cc0d3cbdfb0701d`.
+- Draft-PR: [#124](https://github.com/Easton97-Jens/ModSecurity-conector/pull/124)
+  gegen `master`.
+- Bei der PR-Erstellung waren lokaler Head,
+  `origin/codex/apache-upstream-pr-91-94-integration` und der PR-Head alle
+  `325581ea12586f894431ccd33cc0d3cbdfb0701d`.
+
+Dieser Follow-up-Record referenziert absichtlich nicht seine zukünftige eigene
+Commit-SHA; die finale Gleichheit von lokalem, Remote- und PR-Head bleibt in
+PR- und Task-Delivery-Evidence festgehalten. Die PR bleibt Draft, solange
+native Apache/APR- und Valgrind-Runtime-Voraussetzungen nicht verfügbar sind;
+CI-/Review-Ergebnisse sind ausstehend. Kein Merge, direkter Default-Branch-
+Push, Framework-/MRTS-Delivery, Gitlink-Update oder Risikoakzeptanz wird durch
+diesen Record autorisiert.
