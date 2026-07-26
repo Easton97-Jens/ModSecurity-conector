@@ -201,6 +201,42 @@ The focused Parent-only remediation puts the observed value before the expected 
 
 Fresh exact-head SonarQube Cloud analysis is still required after publication. No zero-issue, zero-duplication, CI, review, integration, or resulting-master success is claimed by this record before that analysis completes.
 
+## Payload-safe hosted evidence retention follow-up (2026-07-26)
+
+An exact-head review of Parent PR #74 found that `make verified-report-run`
+does create the current `verified-run-manifest.generated.json`,
+`report-freshness.generated.json`, `report-refresh-manifest.generated.json`,
+`verified-commands.json`, `full-matrix-aggregate-receipt.json`, the raw
+`full-runtime-matrix-runs.jsonl` index, and the twelve job-local `job.json`
+records. They are created only in the ephemeral GitHub-hosted runner, however:
+the workflow had no artifact-upload step and its successful logs expose only
+command outcomes rather than the complete machine-readable receipt chain.
+That does not meet FND-CROSS-0001's retained freshness-manifest acceptance
+criterion.
+
+The Parent-only follow-up keeps the strict terminal gate unchanged. Only after
+that gate succeeds, it resolves one validated regular non-symlink
+`$BUILD_ROOT/verified-runs/current-run-id` pointer, verifies every selected
+regular non-symlink structured record, and uploads a uniquely
+SHA/run-bound artifact with the existing pinned
+`actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1`
+action. The artifact retains for ten days and fails when a required selected
+record is missing. It includes the three generated manifest JSON files, the
+current run's command and aggregate receipts, the raw matrix index, and all
+twelve job JSON records. It deliberately excludes build trees, raw logs,
+`run.log`, result JSONL, request/response payloads, headers, and cookies.
+The workflow keeps `permissions: contents: read`, does not use
+`pull_request_target`, does not receive secrets, and gains no write
+permission.
+
+The active pre-retention runs cannot be retroactively supplied with this
+artifact. A successor exact PR head must pass the complete hosted producer,
+the unchanged strict gate, and the new payload-safe upload before the artifact
+can be downloaded and checked for one matching run ID, current Parent and
+Framework revisions, declared hashes, and no stale or unexplained mismatch.
+No FND-CROSS-0001 closure, SonarQube Cloud result, review result, or protected
+integration success is claimed here.
+
 ## Commands executed
 
 | Command or control | Result |
@@ -234,6 +270,10 @@ Fresh exact-head SonarQube Cloud analysis is still required after publication. N
 | PR #74 bounded-diagnostic hardening: `rtk proxy env PYTHON=.venv/bin/python PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 make check-ci-security-contract` | passed: the same 19 workflow-security tests plus actionlint, zizmor, and gitleaks lock validation. |
 | PR #74 bounded-diagnostic hardening: `rtk proxy env PYTHON=.venv/bin/python PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 make check-bilingual-docs` | passed: the English/German Change Record pair remains structurally paired after the two-path diagnostic update. |
 | PR #74 bounded-diagnostic hardening: `rtk git diff --check -- .github/workflows/verified-report-governance.yml tests/test_ci_security_workflows.py reports/audits/change-records/CR-20260721-csv-security-findings-remediation.md reports/audits/change-records/CR-20260721-csv-security-findings-remediation.de.md` | passed: no whitespace error in the scoped four-file diff. |
+| Payload-safe hosted-evidence retention: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_ci_security_workflows` | passed: 20 tests, including strict-gate ordering, immutable action pin, SHA/run-bound artifact name, complete 12-job allowlist, and exclusion of logs and result payload paths. |
+| Payload-safe hosted-evidence retention: `PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` | passed: the same 20 workflow-security tests plus actionlint, zizmor, and gitleaks lock validation. |
+| Payload-safe hosted-evidence retention: `PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` | passed: the English/German Change Record pair is structurally paired. |
+| Payload-safe hosted-evidence retention: `git diff --check -- .github/workflows/verified-report-governance.yml tests/test_ci_security_workflows.py reports/audits/change-records/CR-20260721-csv-security-findings-remediation.md reports/audits/change-records/CR-20260721-csv-security-findings-remediation.de.md` | passed: no whitespace error in the scoped four-file diff. |
 
 ## Security impact
 
@@ -246,6 +286,11 @@ The bounded failure diagnostic is additional defense in depth, not a validated
 vulnerability: it treats raw local build logs as untrusted workflow output and
 prevents their content from becoming GitHub workflow commands while preserving
 the producer's nonzero failure.
+The hosted-evidence continuation is similarly allowlisted and success-only:
+it verifies the current run pointer and every selected regular non-symlink
+structured record before retaining the SHA/run-bound artifact. It does not
+upload logs, result payloads, build trees, credentials, or broad directories,
+and it preserves the existing read-only workflow permission model.
 It does not claim production-host exposure,
 a complete connector matrix, or production exploitability beyond the controls
 that were tested.

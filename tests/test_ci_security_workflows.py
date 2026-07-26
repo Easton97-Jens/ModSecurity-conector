@@ -393,6 +393,40 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertIn("make report-governance", job)
         self.assertIn("make verified-report-run", job)
         self.assertIn("make verified-report-evidence-gate", job)
+        self.assertIn("name: Resolve payload-safe verified runtime evidence paths", job)
+        self.assertIn("id: verified-evidence-paths", job)
+        self.assertIn('run_id_path="$BUILD_ROOT/verified-runs/current-run-id"', job)
+        self.assertIn('verified_run_root="$BUILD_ROOT/verified-runs/$run_id"', job)
+        self.assertIn('for crs in no-crs with-crs; do', job)
+        self.assertIn('for mrts in no-mrts with-mrts; do', job)
+        self.assertIn('for connector in apache nginx haproxy; do', job)
+        self.assertIn("name: Upload payload-safe verified runtime evidence", job)
+        self.assertIn("if: success()", job)
+        self.assertIn(
+            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            job,
+        )
+        self.assertIn("name: verified-report-evidence-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}", job)
+        self.assertIn("retention-days: 10", job)
+        self.assertIn("if-no-files-found: error", job)
+        for manifest in (
+            "verified-run-manifest.generated.json",
+            "report-freshness.generated.json",
+            "report-refresh-manifest.generated.json",
+            "verified-commands.json",
+            "full-matrix-aggregate-receipt.json",
+            "full-runtime-matrix-runs.jsonl",
+        ):
+            self.assertIn(manifest, job)
+        for crs in ("no-crs", "with-crs"):
+            for mrts in ("no-mrts", "with-mrts"):
+                for connector in ("apache", "nginx", "haproxy"):
+                    self.assertIn(f"/full-matrix/{crs}/{mrts}/{connector}/job.json", job)
+        artifact_start = job.index("name: Upload payload-safe verified runtime evidence")
+        artifact_end = job.index("name: Summarize failed runtime preparation")
+        artifact = job[artifact_start:artifact_end]
+        for excluded in ("run.log", "logs/", "results_jsonl", "/results/"):
+            self.assertNotIn(excluded, artifact)
         self.assertIn("name: Summarize failed runtime preparation", job)
         self.assertIn("if: failure()", job)
         self.assertIn('run_id_path="$BUILD_ROOT/verified-runs/current-run-id"', job)
@@ -425,6 +459,9 @@ class CiSecurityWorkflowTest(unittest.TestCase):
         self.assertLess(job.index("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock"), job.index("make report-governance"))
         self.assertLess(job.index("make report-governance"), job.index("make verified-report-run"))
         self.assertLess(job.index("make verified-report-run"), job.index("make verified-report-evidence-gate"))
+        self.assertLess(job.index("make verified-report-evidence-gate"), job.index("name: Resolve payload-safe verified runtime evidence paths"))
+        self.assertLess(job.index("name: Resolve payload-safe verified runtime evidence paths"), job.index("name: Upload payload-safe verified runtime evidence"))
+        self.assertLess(job.index("name: Upload payload-safe verified runtime evidence"), job.index("name: Summarize failed runtime preparation"))
         self.assertLess(job.index("make verified-report-evidence-gate"), job.index("name: Summarize failed runtime preparation"))
 
     def test_untrusted_pull_request_model(self) -> None:

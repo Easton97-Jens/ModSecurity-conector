@@ -217,6 +217,44 @@ Die fokussierte Parent-only-Remediation setzt in den betroffenen `unittest`-Glei
 
 Nach der Veröffentlichung bleibt eine frische Exact-Head-SonarQube-Cloud-Analyse erforderlich. Dieses Dokument behauptet vor Abschluss dieser Analyse keinen Null-Issue-, Null-Duplizierungs-, CI-, Review-, Integrations- oder Resulting-Master-Erfolg.
 
+## Payload-sichere Hosted-Evidence-Retention-Follow-up (2026-07-26)
+
+Eine Exact-Head-Prüfung von Parent-PR #74 zeigte, dass
+`make verified-report-run` die aktuellen
+`verified-run-manifest.generated.json`, `report-freshness.generated.json`,
+`report-refresh-manifest.generated.json`, `verified-commands.json`,
+`full-matrix-aggregate-receipt.json`, den rohen
+`full-runtime-matrix-runs.jsonl`-Index und die zwölf job-lokalen `job.json`-
+Records erzeugt. Sie werden jedoch nur im ephemeren GitHub-hosted Runner
+erzeugt: Der Workflow besaß keinen Artifact-Upload-Schritt und seine
+erfolgreichen Logs zeigen nur Command-Ergebnisse statt der vollständigen
+maschinenlesbaren Receipt-Kette. Das erfüllt das Akzeptanzkriterium von
+FND-CROSS-0001 für ein aufbewahrtes Freshness-Manifest nicht.
+
+Das Parent-only-Follow-up lässt das strikte Terminal-Gate unverändert. Erst
+nach erfolgreichem Gate löst es einen validierten regulären Nicht-Symlink-
+Pointer `$BUILD_ROOT/verified-runs/current-run-id` auf, prüft jeden gewählten
+regulären Nicht-Symlink-Structured-Record und lädt ein eindeutig an SHA/Run
+gebundenes Artifact mit der bereits gepinnten Action
+`actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1`
+hoch. Das Artifact wird zehn Tage aufbewahrt und schlägt fehl, wenn ein
+erforderlicher gewählter Record fehlt. Es enthält die drei generierten
+Manifest-JSON-Dateien, die Command- und Aggregate-Receipts des aktuellen Runs,
+den rohen Matrix-Index und alle zwölf Job-JSON-Records. Es schließt Build-
+Trees, rohe Logs, `run.log`, Result-JSONL, Request-/Response-Payloads, Header
+und Cookies bewusst aus. Der Workflow behält `permissions: contents: read`,
+verwendet kein `pull_request_target`, erhält keine Secrets und gewinnt keine
+Write-Permission.
+
+Die aktiven Läufe vor der Retention können dieses Artifact nicht rückwirkend
+erhalten. Ein Nachfolge-Exact-PR-Head muss den vollständigen Hosted-Producer,
+das unveränderte strikte Gate und den neuen payload-sicheren Upload bestehen,
+bevor das Artifact heruntergeladen und auf eine übereinstimmende Run-ID,
+aktuelle Parent-/Framework-Revisionen, deklarierte Hashes sowie keine stale
+oder ungeklärte Abweichung geprüft werden kann. Hier wird weder eine
+FND-CROSS-0001-Schließung noch ein SonarQube-Cloud-, Review- oder geschützter
+Integrations-Erfolg behauptet.
+
 ## Ausgeführte Befehle
 
 | Befehl oder Kontrolle | Ergebnis |
@@ -250,6 +288,10 @@ Nach der Veröffentlichung bleibt eine frische Exact-Head-SonarQube-Cloud-Analys
 | PR-#74-Härtung der begrenzten Diagnose: `rtk proxy env PYTHON=.venv/bin/python PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 make check-ci-security-contract` | bestanden: dieselben 19 Workflow-Sicherheits-Tests sowie actionlint-, zizmor- und gitleaks-Lock-Validierung. |
 | PR-#74-Härtung der begrenzten Diagnose: `rtk proxy env PYTHON=.venv/bin/python PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 make check-bilingual-docs` | bestanden: Das englisch/deutsche Change-Record-Paar bleibt nach der Zwei-Pfad-Diagnoseaktualisierung strukturell gepaart. |
 | PR-#74-Härtung der begrenzten Diagnose: `rtk git diff --check -- .github/workflows/verified-report-governance.yml tests/test_ci_security_workflows.py reports/audits/change-records/CR-20260721-csv-security-findings-remediation.md reports/audits/change-records/CR-20260721-csv-security-findings-remediation.de.md` | bestanden: kein Whitespace-Fehler im scoped Vier-Dateien-Diff. |
+| Payload-sichere Hosted-Evidence-Retention: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_ci_security_workflows` | bestanden: 20 Tests, einschließlich strikter-Gate-Reihenfolge, unveränderlichem Action-Pin, SHA/run-gebundenem Artifact-Namen, vollständiger 12-Job-Allowlist und Ausschluss von Logs und Result-Payload-Pfaden. |
+| Payload-sichere Hosted-Evidence-Retention: `PYTHONDONTWRITEBYTECODE=1 make check-ci-security-contract` | bestanden: dieselben 20 Workflow-Sicherheits-Tests sowie actionlint-, zizmor- und gitleaks-Lock-Validierung. |
+| Payload-sichere Hosted-Evidence-Retention: `PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` | bestanden: Das englisch/deutsche Change-Record-Paar ist strukturell gepaart. |
+| Payload-sichere Hosted-Evidence-Retention: `git diff --check -- .github/workflows/verified-report-governance.yml tests/test_ci_security_workflows.py reports/audits/change-records/CR-20260721-csv-security-findings-remediation.md reports/audits/change-records/CR-20260721-csv-security-findings-remediation.de.md` | bestanden: kein Whitespace-Fehler im scoped Vier-Dateien-Diff. |
 
 ## Security-Auswirkung
 
@@ -265,6 +307,12 @@ validierte Schwachstelle: Sie behandelt rohe lokale Build-Logs als nicht
 vertrauenswürdige Workflow-Ausgabe und verhindert, dass deren Inhalt zu
 GitHub-Workflow-Befehlen wird, während der Nonzero-Fehler des Producers
 erhalten bleibt.
+Die Hosted-Evidence-Fortsetzung ist ebenfalls allowlisted und nur-bei-Erfolg:
+Sie prüft den Current-Run-Pointer und jeden gewählten regulären Nicht-Symlink-
+Structured-Record, bevor sie das SHA/run-gebundene Artifact aufbewahrt. Sie
+lädt keine Logs, Result-Payloads, Build-Trees, Credentials oder breiten
+Verzeichnisse hoch und bewahrt das vorhandene Read-only-
+Workflow-Permissionsmodell.
 Es behauptet weder Produktionshost-Exposure noch eine vollständige
 Connector-Matrix oder Produktions-Exploitierbarkeit über die getesteten
 Kontrollen hinaus.
