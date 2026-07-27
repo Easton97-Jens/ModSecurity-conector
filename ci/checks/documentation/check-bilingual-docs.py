@@ -26,6 +26,7 @@ GERMAN_MARKDOWN_SUFFIX = ".de.md"
 GERMAN_GENERATED_NOTE = "Diese deutsche Datei ist eine übersetzte Begleitdatei"
 SPECIAL_LANGUAGE_INDEXES: tuple[tuple[Path, Path], ...] = ()
 CHANGE_RECORDS_DIRECTORY = Path("reports/audits/change-records")
+PR_TEMPLATE_PATH = Path(".github/pull_request_template.md")
 LOCAL_CODEX_ROOT_FILENAMES = frozenset(
     {
         "AGENTS.md",
@@ -254,7 +255,7 @@ def pair_required(path: Path) -> bool:
     name = path.name
     if name.endswith(GERMAN_MARKDOWN_SUFFIX) or is_tools_mrts(path) or is_special_language_index(path):
         return False
-    if text == ".github/pull_request_template.md":
+    if path == PR_TEMPLATE_PATH:
         return False
     if needs_structural_parity(path):
         return True
@@ -307,7 +308,7 @@ def checked_markdown_files(repo: Path) -> list[Path]:
         companion = german_counterpart(source)
         if companion.exists():
             files.add(companion)
-    pr_template = repo / ".github/pull_request_template.md"
+    pr_template = repo / PR_TEMPLATE_PATH
     if pr_template.exists():
         files.add(pr_template)
     for english_index, german_index in SPECIAL_LANGUAGE_INDEXES:
@@ -410,28 +411,29 @@ def markdown_table_value(text: str, label: str) -> str | None:
     return match.group(1) if match else None
 
 
-def check_change_record_pair(
+def check_change_record_headings(
     source: Path,
     companion: Path,
     source_text: str,
     companion_text: str,
 ) -> list[str]:
-    if source.parent != CHANGE_RECORDS_DIRECTORY:
-        return []
-
     errors: list[str] = []
-    if source.name == "README.md":
-        return errors
     for heading in CHANGE_RECORD_REQUIRED_HEADINGS["English"]:
         if heading not in source_text:
             errors.append(f"{source}: missing Change Record section {heading!r}")
     for heading in CHANGE_RECORD_REQUIRED_HEADINGS["Deutsch"]:
         if heading not in companion_text:
             errors.append(f"{companion}: missing Change Record section {heading!r}")
+    return errors
 
-    if source.name == "TEMPLATE.md":
-        return errors
 
+def check_change_record_filename_and_identity(
+    source: Path,
+    companion: Path,
+    source_text: str,
+    companion_text: str,
+) -> list[str]:
+    errors: list[str] = []
     record_name = source.name.removesuffix(".md")
     if "-" not in record_name:
         errors.append(
@@ -452,8 +454,33 @@ def check_change_record_pair(
     return errors
 
 
+def check_change_record_pair(
+    source: Path,
+    companion: Path,
+    source_text: str,
+    companion_text: str,
+) -> list[str]:
+    if source.parent != CHANGE_RECORDS_DIRECTORY or source.name == "README.md":
+        return []
+
+    errors = check_change_record_headings(source, companion, source_text, companion_text)
+
+    if source.name == "TEMPLATE.md":
+        return errors
+
+    errors.extend(
+        check_change_record_filename_and_identity(
+            source,
+            companion,
+            source_text,
+            companion_text,
+        )
+    )
+    return errors
+
+
 def check_pr_template(repo: Path) -> list[str]:
-    path = repo / ".github/pull_request_template.md"
+    path = repo / PR_TEMPLATE_PATH
     if not path.exists():
         return []
 
@@ -463,13 +490,13 @@ def check_pr_template(repo: Path) -> list[str]:
         section_heading = f"## {language}"
         if section_heading not in text:
             errors.append(
-                ".github/pull_request_template.md: missing bilingual "
+                f"{PR_TEMPLATE_PATH}: missing bilingual "
                 f"{language} section"
             )
         for heading in headings:
             if heading not in text:
                 errors.append(
-                    ".github/pull_request_template.md: missing "
+                    f"{PR_TEMPLATE_PATH}: missing "
                     f"{language} required section {heading!r}"
                 )
     return errors
