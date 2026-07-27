@@ -30,9 +30,7 @@ static const msconnector_error_description msconnector_error_descriptions[] = {
 
 static const msconnector_error_description *msconnector_error_description_for_code(
     msconnector_error_code code) {
-    size_t index;
-
-    for (index = 0U;
+    for (size_t index = 0U;
          index < sizeof(msconnector_error_descriptions) / sizeof(msconnector_error_descriptions[0]);
          ++index) {
         if (msconnector_error_descriptions[index].code == code) {
