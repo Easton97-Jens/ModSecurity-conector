@@ -1,0 +1,90 @@
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+BACKEND = ROOT / "ci" / "runtime" / "common" / "response-header-test-backend.py"
+SPEC = importlib.util.spec_from_file_location("response_header_test_backend_fixture_paths", BACKEND)
+assert SPEC is not None and SPEC.loader is not None
+BACKEND_MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = BACKEND_MODULE
+SPEC.loader.exec_module(BACKEND_MODULE)
+
+
+class ResponseHeaderBackendFixturePathTest(unittest.TestCase):
+    def test_fixture_outside_the_safe_root_is_rejected_before_listening(self) -> None:
+        with tempfile.TemporaryDirectory() as trusted_directory, tempfile.TemporaryDirectory() as outside_directory:
+            trusted_root = Path(trusted_directory)
+            body_file = trusted_root / "body.txt"
+            fixture_file = Path(outside_directory) / "fixture.json"
+            body_file.write_text("body", encoding="utf-8")
+            fixture_file.write_text('{"status": 200, "headers": []}', encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(BACKEND),
+                    "--port",
+                    "1",
+                    "--body-file",
+                    str(body_file),
+                    "--safe-root",
+                    str(trusted_root),
+                    "--fixture-file",
+                    str(fixture_file),
+                ],
+                cwd=ROOT,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("fixture file is outside the allowed fixture roots", result.stderr)
+
+    def test_fixture_symlink_outside_the_safe_root_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as trusted_directory, tempfile.TemporaryDirectory() as outside_directory:
+            trusted_root = Path(trusted_directory)
+            outside_fixture = Path(outside_directory) / "fixture.json"
+            fixture_link = trusted_root / "fixture.json"
+            outside_fixture.write_text('{"status": 200, "headers": []}', encoding="utf-8")
+            fixture_link.symlink_to(outside_fixture)
+
+            with self.assertRaisesRegex(ValueError, "fixture file is outside the allowed fixture roots"):
+                BACKEND_MODULE.load_fixture_file(fixture_link, [trusted_root])
+
+    def test_in_root_fixture_does_not_inherit_the_body_size_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as trusted_directory:
+            trusted_root = Path(trusted_directory)
+            fixture_file = trusted_root / "fixture.json"
+            fixture_file.write_text(
+                '{"status": 201, "headers": [], "padding": "'
+                + "x" * (BACKEND_MODULE.MAX_BODY_BYTES + 1)
+                + '"}',
+                encoding="utf-8",
+            )
+
+            fixture = BACKEND_MODULE.load_fixture_file(fixture_file, [trusted_root])
+
+        self.assertEqual(201, fixture.status)
+        self.assertEqual((), fixture.headers)
+
+    def test_body_file_limit_remains_enforced(self) -> None:
+        with tempfile.TemporaryDirectory() as trusted_directory:
+            trusted_root = Path(trusted_directory)
+            body_file = trusted_root / "body.txt"
+            body_file.write_bytes(b"x" * (BACKEND_MODULE.MAX_BODY_BYTES + 1))
+
+            with self.assertRaisesRegex(ValueError, "body file is too large"):
+                BACKEND_MODULE.resolve_body_file(body_file, [trusted_root])
+
+
+if __name__ == "__main__":
+    unittest.main()
