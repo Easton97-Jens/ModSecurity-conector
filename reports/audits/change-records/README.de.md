@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Common-Refaktorierung doppelter Error-Mappings](CR-20260727-sonar-common-error-duplication.de.md)
 - [Parent-PR #128 Rest-SonarQube-Cloud- und Workflow-Remediation](CR-20260727-sonar-pr128-residual-remediation.de.md)
 - [Parent-Apache-Output-Filter-Status-Shadowing für SonarQube Cloud C:S1117](CR-20260727-sonar-apache-output-filter-status-shadowing.de.md)
 - [Parent-Compiler-Guide-Metadatenliterale für SonarQube Cloud S1192](CR-20260727-sonar-compiler-guide-metadata-literals.de.md)
