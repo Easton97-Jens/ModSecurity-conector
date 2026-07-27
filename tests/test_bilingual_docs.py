@@ -97,8 +97,8 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
             errors = CHECKER.check_forbidden_local_language_companions(root)
 
         self.assertEqual(
-            ["AGENTS.de.md: local Codex configuration must not have a German companion"],
             errors,
+            ["AGENTS.de.md: local Codex configuration must not have a German companion"],
         )
 
     def test_ignored_local_markdown_is_not_repository_owned_documentation(self) -> None:
@@ -113,7 +113,7 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
             ):
                 sources = CHECKER.english_sources(root)
 
-        self.assertEqual([], sources)
+        self.assertEqual(sources, [])
 
     def test_agent_referenced_root_markdown_is_not_repository_owned_documentation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -123,7 +123,7 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
 
             sources = CHECKER.english_sources(root)
 
-        self.assertEqual([], sources)
+        self.assertEqual(sources, [])
 
     def test_pr_template_requires_all_bilingual_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -167,7 +167,7 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
         self.assertTrue(any("Base revision" in error and "differs" in error for error in errors))
 
     def test_common_design_note_current_contract_passes_for_both_languages(self) -> None:
-        self.assertEqual([], CHECKER.check_common_design_note_contract(ROOT))
+        self.assertEqual(CHECKER.check_common_design_note_contract(ROOT), [])
 
     def test_common_design_note_rejects_scaffolded_status_and_current_sidecar_route(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -244,7 +244,7 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
 
             errors = CHECKER.check_common_design_note_contract(root)
 
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
 
 if __name__ == "__main__":

@@ -534,7 +534,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 errors,
                 build_root=build_root,
             )
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_valid_full_matrix_control_uses_default_runtime_build_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -542,7 +542,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             errors: list[str] = []
             with mock.patch.object(CHECKER, "verified_runtime_paths", return_value={"BUILD_ROOT": str(build_root)}):
                 CHECKER.check_verified_runtime_artifact_chain(connector_root, errors)
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_main_threads_the_validated_build_root_to_strict_receipt_checks(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -626,7 +626,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                     errors,
                     build_root=build_root,
                 )
-        self.assertEqual(2, validation_calls)
+        self.assertEqual(validation_calls, 2)
         self.assertTrue(any("final aggregate receipt validation failed" in error for error in errors), errors)
 
     def test_post_validation_command_receipt_swap_is_rejected(self) -> None:
@@ -657,7 +657,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                     errors,
                     build_root=build_root,
                 )
-        self.assertEqual(2, validation_calls)
+        self.assertEqual(validation_calls, 2)
         self.assertTrue(any("verified command receipt hash mismatch" in error for error in errors), errors)
 
     def test_paired_mutable_job_and_raw_rewrite_is_rejected(self) -> None:
@@ -742,7 +742,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                         revisions={"connector_sha": "a" * 40, "framework_sha": "b" * 40, "mrts_sha": "c" * 40},
                     )
             self.assertTrue(swapped)
-            self.assertEqual("external bytes must never be sealed\n", external_log.read_text(encoding="utf-8"))
+            self.assertEqual(external_log.read_text(encoding="utf-8"), "external bytes must never be sealed\n")
 
     def test_oversized_structured_receipt_input_is_rejected_before_materialization(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -798,7 +798,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                     )
             self.assertTrue(swapped)
             self.assertFalse((external_runs / run_id / RECEIPT.RECEIPT_FILENAME).exists())
-            self.assertEqual("must remain untouched\n", sentinel.read_text(encoding="utf-8"))
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "must remain untouched\n")
 
     def test_runner_uses_sealed_descriptor_record_without_path_rehash(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -829,7 +829,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                     build_root=build_root,
                     verified_run_id=run_id,
                 )
-            self.assertEqual("present", manifest_record["status"])
+            self.assertEqual(manifest_record["status"], "present")
             self.assertEqual(expected["sha256"], manifest_record["sha256"])
             self.assertEqual(expected["bytes"], manifest_record["bytes"])
 
@@ -917,7 +917,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 "full",
             )
             self.assertFalse(commands["commands"][0]["runtime_complete"])
-            self.assertEqual("runtime_failed", commands["commands"][0]["runtime_status"])
+            self.assertEqual(commands["commands"][0]["runtime_status"], "runtime_failed")
             resumed = RUNNER.apply_command_semantics(
                 {
                     "logical_target": "full-matrix-resume",
@@ -939,7 +939,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 if command.get("runtime_complete") is True
                 and command.get("runtime_status") in {"runtime_completed", "runtime_completed_with_mismatches"}
             ]
-            self.assertEqual(1, len(completed))
+            self.assertEqual(len(completed), 1)
             write_json(commands_path, commands)
             receipt_path = RECEIPT.seal_full_matrix_aggregate_receipt(
                 build_root=build_root,
@@ -957,7 +957,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             write_json(manifest_path, manifest)
             errors: list[str] = []
             CHECKER.check_verified_runtime_artifact_chain(connector_root, errors, build_root=build_root)
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_redundant_resume_is_not_a_second_required_full_matrix_producer(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -988,7 +988,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             )
         self.assertTrue(RUNNER.has_completed_full_matrix_producer(commands["commands"]))
         self.assertFalse(RUNNER.qualifies_for_full_matrix_receipt(redundant_resume, "full"))
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_resume_completion_uses_all_and_only_current_run_rows(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1040,7 +1040,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                         profile="full",
                     )
                 )
-            self.assertEqual("sealed", record["aggregate_receipt"]["status"])
+            self.assertEqual(record["aggregate_receipt"]["status"], "sealed")
             self.assertTrue(receipt_path.is_file())
 
     def test_sealed_manifest_rewrite_must_be_byte_identical(self) -> None:
@@ -1092,7 +1092,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             with mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as raised:
                     GENERATOR.main()
-            self.assertEqual(2, raised.exception.code)
+            self.assertEqual(raised.exception.code, 2)
             self.assertEqual(raw_before, raw_path.read_bytes())
             self.assertEqual(receipt_before, receipt_path.read_bytes())
 
@@ -1215,7 +1215,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 errors,
                 build_root=build_root,
             )
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_force_all_summary_is_selected_when_direct_summary_exists(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1229,7 +1229,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 errors,
                 build_root=build_root,
             )
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_summary_hash_mismatch_is_rejected_for_each_canonical_path(self) -> None:
         for location in ("direct", "force-all"):
@@ -1402,7 +1402,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             )
             errors: list[str] = []
             CHECKER.check_manifest(connector_root, errors, strict_evidence=True)
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_critical_manifest_present_build_root_input_record_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1826,7 +1826,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             )
             errors: list[str] = []
             CHECKER.check_critical_report_run_consistency(connector_root, errors, strict_evidence=True)
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_critical_metadata_input_hash_mismatch_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1896,9 +1896,9 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             jsonl_counts, selected_jsonl = GENERATOR.job_case_counts(summary_path, jsonl_path, "apache")
 
         self.assertEqual(summary_path, selected_summary)
-        self.assertEqual("summary_json", summary_counts["source"])
+        self.assertEqual(summary_counts["source"], "summary_json")
         self.assertEqual(jsonl_path, selected_jsonl)
-        self.assertEqual("results_jsonl", jsonl_counts["source"])
+        self.assertEqual(jsonl_counts["source"], "results_jsonl")
 
     def test_rewritten_raw_manifest_preserves_identity_and_artifact_hashes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1924,12 +1924,12 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             GENERATOR.rewrite_manifest(manifest_path, [job])
             row = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-        self.assertEqual("verified-run-20260718", row["verified_run_id"])
-        self.assertEqual("apache:no-crs:no-mrts", row["job_id"])
+        self.assertEqual(row["verified_run_id"], "verified-run-20260718")
+        self.assertEqual(row["job_id"], "apache:no-crs:no-mrts")
         self.assertEqual(job["hashes"], row["hashes"])
         self.assertEqual(job["inputs"], row["inputs"])
         self.assertEqual(job["outputs"], row["outputs"])
-        self.assertEqual("completed", row["status"])
+        self.assertEqual(row["status"], "completed")
 
     def test_governance_record_emits_typed_input_status_arrays(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1945,7 +1945,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                 (str(input_path),),
             )
 
-        self.assertEqual("complete", record["input_status"])
+        self.assertEqual(record["input_status"], "complete")
         for key in ("missing_inputs", "empty_inputs", "unknown_inputs", "stale_inputs"):
             self.assertIsInstance(record[key], list)
 

@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -102,6 +103,16 @@ CACHE_ROOT_MARKER = ".msconnector-runtime-cache-root.json"
 CACHE_ENTRY_MARKER_DIRECTORY = ".msconnector-runtime-cache-entries"
 CACHE_MANIFEST_STATUS_COMPLETE = "complete"
 RUNTIME_ENV_SNAPSHOT_SCHEMA_VERSION = 1
+_TRUSTED_FRAMEWORK_GUARD_SHELL = Path("/bin/sh")
+_TRUSTED_FRAMEWORK_GUARD_GIT = Path("/usr/bin/git")
+_TRUSTED_FRAMEWORK_GUARD_PATH = "/usr/bin:/bin"
+GIT_STATUS_SHORT_ARGS = (
+    "status",
+    "--porcelain",
+    "--untracked-files=all",
+    "--ignored=matching",
+)
+GIT_SUBMODULE_STATUS_RECURSIVE_ARGS = ("submodule", "status", "--recursive")
 
 # Apache httpd generates several installed helper/configuration files with the
 # configured absolute prefix.  Connector cache entries are built below an
@@ -1170,10 +1181,7 @@ def git_checkout_is_reusable(
             "git",
             "-C",
             str(checkout_path),
-            "status",
-            "--porcelain",
-            "--untracked-files=all",
-            "--ignored=matching",
+            *GIT_STATUS_SHORT_ARGS,
         ]
     )
     return status.returncode == 0 and not status.stdout.strip()
@@ -1222,7 +1230,7 @@ def reusable_git_source_record(
         actual_head=actual_head,
     ):
         return None
-    submodules = git_output(checkout_path, "submodule", "status", "--recursive")
+    submodules = git_output(checkout_path, *GIT_SUBMODULE_STATUS_RECURSIVE_ARGS)
     clean, _ = submodule_status_clean(submodules)
     if not clean:
         return None
@@ -1387,12 +1395,9 @@ def prepare_git_component(
         source_cache_key = str(source_identity["cache_key"])
         status_short = git_output(
             working_path,
-            "status",
-            "--porcelain",
-            "--untracked-files=all",
-            "--ignored=matching",
+            *GIT_STATUS_SHORT_ARGS,
         )
-        submodules = git_output(working_path, "submodule", "status", "--recursive")
+        submodules = git_output(working_path, *GIT_SUBMODULE_STATUS_RECURSIVE_ARGS)
         clean, reason = submodule_status_clean(submodules)
         record.update(
             actual_head=actual_head,
@@ -3055,6 +3060,547 @@ def copy_modsecurity_outputs(source_dir: Path, prefix: Path) -> None:
             shutil.copy2(item, dest)
 
 
+_FRAMEWORK_MODSECURITY_V3_GUARD = (
+    'set -eu\n'
+    '. "$1"\n'
+    'MODSECURITY_V3_SOURCE_DIR=$2\n'
+    'export MODSECURITY_V3_SOURCE_DIR\n'
+    'ci_require_approved_modsecurity_v3_checkout "$MODSECURITY_V3_SOURCE_DIR"\n'
+)
+_FRAMEWORK_MODSECURITY_V3_PROVENANCE_GUARD = (
+    'set -eu\n'
+    '. "$1"\n'
+    'ci_require_approved_modsecurity_v3_provenance\n'
+)
+_FRAMEWORK_MODSECURITY_V3_PROVISIONING_BRIDGE = (
+    'set -eu\n'
+    '. "$1"\n'
+    'ci_provision_approved_modsecurity_v3_checkout "$2"\n'
+)
+
+
+def verified_host_guard_executable(path: Path, label: str) -> Path:
+    """Return a root-owned, non-writable host executable for guard execution."""
+    try:
+        resolved = path.resolve(strict=True)
+        details = resolved.stat()
+    except OSError as exc:
+        raise RuntimeError(f"trusted_{label}_unavailable:{exc}") from exc
+    if not stat.S_ISREG(details.st_mode) or not os.access(resolved, os.X_OK):
+        raise RuntimeError(f"trusted_{label}_not_executable:{resolved}")
+    if details.st_uid != 0 or details.st_mode & 0o022:
+        raise RuntimeError(f"trusted_{label}_ownership_or_mode_invalid:{resolved}")
+    return resolved
+
+
+def run_framework_modsecurity_v3_guard(
+    env: dict[str, str],
+    framework_root: Path | None,
+    guard_script: str,
+    guard_label: str,
+    source_path: Path | None = None,
+) -> dict[str, Any]:
+    """Run one Framework-owned V3 guard with positional path arguments."""
+    if framework_root is None:
+        return {
+            "status": "blocked",
+            "blocker_reason": "framework_root_missing_for_modsecurity_v3_provenance_guard",
+        }
+    resolved_framework_root = framework_root.resolve()
+    common_sh = resolved_framework_root / "ci" / "lib" / "common.sh"
+    if not common_sh.is_file():
+        return {
+            "status": "blocked",
+            "blocker_reason": "framework_modsecurity_v3_provenance_guard_missing",
+            "framework_common": str(common_sh),
+        }
+    guard_env = dict(os.environ)
+    guard_env.update(env)
+    try:
+        trusted_shell = verified_host_guard_executable(_TRUSTED_FRAMEWORK_GUARD_SHELL, "framework_guard_shell")
+        verified_host_guard_executable(_TRUSTED_FRAMEWORK_GUARD_GIT, "framework_guard_git")
+    except RuntimeError as exc:
+        return {
+            "status": "blocked",
+            "blocker_reason": str(exc),
+            "framework_common": str(common_sh),
+        }
+    # The Framework helper deliberately invokes `git` by name after clearing
+    # Git-specific attacker controls.  Limit that lookup to the verified host
+    # baseline and execute the shell itself by an immutable absolute path.
+    guard_env["PATH"] = _TRUSTED_FRAMEWORK_GUARD_PATH
+    guard_env.pop("ENV", None)
+    guard_env.pop("BASH_ENV", None)
+    command = [str(trusted_shell), "-c", guard_script, guard_label, str(common_sh)]
+    if source_path is not None:
+        guard_env["MODSECURITY_V3_SOURCE_DIR"] = str(source_path)
+        command.append(str(source_path))
+    proc = run_env(command, cwd=resolved_framework_root, env=guard_env)
+    diagnostic = (proc.stdout + proc.stderr).strip()
+    result: dict[str, Any] = {
+        "status": "passed" if proc.returncode == 0 else "blocked",
+        "framework_common": str(common_sh),
+        "exit_code": proc.returncode,
+    }
+    if source_path is not None:
+        result["source_path"] = str(source_path)
+    if diagnostic:
+        result["details"] = diagnostic
+    if proc.returncode != 0:
+        result["blocker_reason"] = "framework_modsecurity_v3_provenance_guard_rejected"
+    return result
+
+
+def verify_framework_approved_modsecurity_v3_provenance(
+    env: dict[str, str],
+    framework_root: Path | None,
+) -> dict[str, Any]:
+    """Fail closed before Parent asks Git to acquire the V3 source."""
+    return run_framework_modsecurity_v3_guard(
+        env,
+        framework_root,
+        _FRAMEWORK_MODSECURITY_V3_PROVENANCE_GUARD,
+        "framework-modsecurity-v3-provenance-configuration-guard",
+    )
+
+
+def verify_framework_approved_modsecurity_v3_checkout(
+    env: dict[str, str],
+    framework_root: Path | None,
+    source_path: Path,
+) -> dict[str, Any]:
+    """Ask the Framework to admit the exact V3 checkout before any build use.
+
+    The Parent deliberately delegates the immutable origin/commit/topology
+    policy to the Framework-owned guard.  The command string is constant and
+    the two filesystem paths are passed as positional arguments, so neither
+    a source checkout path nor caller-supplied environment data becomes shell
+    syntax.
+    """
+    return run_framework_modsecurity_v3_guard(
+        env,
+        framework_root,
+        _FRAMEWORK_MODSECURITY_V3_GUARD,
+        "framework-modsecurity-v3-provenance-guard",
+        source_path,
+    )
+
+
+def provision_framework_approved_modsecurity_v3_checkout(
+    env: dict[str, str],
+    framework_root: Path | None,
+    source_path: Path,
+) -> dict[str, Any]:
+    """Provision a fresh V3 checkout through the Framework-owned bridge."""
+    return run_framework_modsecurity_v3_guard(
+        env,
+        framework_root,
+        _FRAMEWORK_MODSECURITY_V3_PROVISIONING_BRIDGE,
+        "framework-modsecurity-v3-provisioning-bridge",
+        source_path,
+    )
+
+
+def reserve_framework_approved_modsecurity_v3_staging_path(
+    final_path: Path,
+    cache_root: Path,
+    *,
+    component: str,
+    cache_key: str,
+) -> Path:
+    """Reserve an absent cache child for the Framework's fresh-only V3 API.
+
+    The Framework bridge rejects an existing destination.  Unlike
+    ``temporary_cache_dir``, this helper intentionally writes only the managed
+    cache marker; the bridge is the sole creator of the checkout directory.
+    """
+    resolved_final, resolved_root = validate_managed_cache_child(final_path, cache_root)
+    resolved_final.parent.mkdir(parents=True, exist_ok=True)
+    for _ in range(32):
+        staging = resolved_final.parent / f".{resolved_final.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}"
+        marker_path = cache_entry_marker_path(staging, resolved_root)
+        if staging.exists() or staging.is_symlink() or marker_path.exists():
+            continue
+        mark_managed_cache_entry(staging, resolved_root, component=component, cache_key=cache_key)
+        # Do not create this child: ci_provision_approved_modsecurity_v3_checkout
+        # requires the destination to remain absent until it owns creation.
+        if not staging.exists() and not staging.is_symlink():
+            return staging
+        remove_managed_cache_entry_marker(staging, resolved_root)
+    raise RuntimeError(f"cache_staging_directory_collision: {resolved_final.parent}")
+
+
+def trusted_framework_modsecurity_v3_git_output(checkout_path: Path, *args: str) -> str:
+    """Read verified V3 metadata without inheriting caller-controlled Git state."""
+    trusted_git = verified_host_guard_executable(_TRUSTED_FRAMEWORK_GUARD_GIT, "framework_guard_git")
+    # Metadata is read only after the Framework's complete checkout guard has
+    # admitted the path.  Keep the follow-up probes equally independent of
+    # caller PATH, global/system Git config, hooks, fsmonitor, and loader state.
+    metadata_env = {
+        "PATH": _TRUSTED_FRAMEWORK_GUARD_PATH,
+        "LC_ALL": "C",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_COUNT": "0",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_ATTR_NOSYSTEM": "1",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+    }
+    proc = run_env(
+        [
+            str(trusted_git),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.useBuiltinFSMonitor=false",
+            "-C",
+            str(checkout_path),
+            *args,
+        ],
+        env=metadata_env,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"framework_approved_git_metadata_failed:{' '.join(args)}")
+    return proc.stdout.strip()
+
+
+def framework_approved_modsecurity_v3_checkout_metadata(
+    url: str,
+    expected_ref: str,
+    checkout_path: Path,
+) -> dict[str, Any]:
+    """Record local metadata after the Framework has verified a V3 checkout."""
+    actual_head = trusted_framework_modsecurity_v3_git_output(checkout_path, "rev-parse", "HEAD")
+    if not actual_head:
+        raise RuntimeError("git_resolved_commit_missing")
+    status_short = trusted_framework_modsecurity_v3_git_output(
+        checkout_path,
+        *GIT_STATUS_SHORT_ARGS,
+    )
+    if status_short:
+        raise RuntimeError("dirty_source_checkout")
+    submodules = trusted_framework_modsecurity_v3_git_output(
+        checkout_path,
+        *GIT_SUBMODULE_STATUS_RECURSIVE_ARGS,
+    )
+    clean, reason = submodule_status_clean(submodules)
+    if not clean:
+        raise RuntimeError(reason)
+    source_identity = source_cache_identity("modsecurity-v3", url, expected_ref, actual_head)
+    return {
+        "actual_head": actual_head,
+        "status_short": status_short,
+        "submodule_status": submodules,
+        "submodule_count": len([line for line in submodules.splitlines() if line.strip()]),
+        "submodule_status_clean": True,
+        # The Framework verifier performs fsck for the approved root and its
+        # static child graph; do not replace its fixed topology with a generic
+        # Parent acquisition path merely to gather this field.
+        "git_fsck": "PASS",
+        "tree": tree_manifest(checkout_path),
+        "cache_schema_version": CACHE_SCHEMA_VERSION,
+        "cache_identity": source_identity,
+        "cache_key": source_identity["cache_key"],
+    }
+
+
+def reusable_framework_approved_modsecurity_v3_cache_record(
+    env: dict[str, str],
+    framework_root: Path,
+    checkout_path: Path,
+    cache_root: Path,
+    *,
+    component: str,
+    url: str,
+    expected_ref: str,
+) -> dict[str, Any] | None:
+    """Return a reusable V3 record only after Framework revalidation.
+
+    A completed local marker is intentionally insufficient on its own.  The
+    Framework must first admit the exact checkout, then the Parent recomputes
+    the identity-bound metadata and verifies the completion marker.
+    """
+    if not checkout_path.exists():
+        return None
+    verification = verify_framework_approved_modsecurity_v3_checkout(
+        env,
+        framework_root,
+        checkout_path,
+    )
+    if verification.get("status") != "passed":
+        return None
+    try:
+        metadata = framework_approved_modsecurity_v3_checkout_metadata(
+            url,
+            expected_ref,
+            checkout_path,
+        )
+    except RuntimeError:
+        return None
+    if not cache_entry_complete(
+        checkout_path,
+        cache_root,
+        component=component,
+        cache_key=str(metadata["cache_key"]),
+        cache_identity=metadata["cache_identity"],
+    ):
+        return None
+    return {
+        **metadata,
+        "manifest": str(cache_entry_marker_path(checkout_path, cache_root)),
+        "status": "present",
+        "approved_acquisition": "framework_approved_v3_cache_reuse",
+        "provenance_verification": verification,
+    }
+
+
+def verified_framework_approved_modsecurity_v3_staging_metadata(
+    env: dict[str, str],
+    framework_root: Path,
+    staging_path: Path,
+    *,
+    url: str,
+    expected_ref: str,
+) -> dict[str, Any]:
+    """Provision and verify a fresh V3 staging checkout through Framework.
+
+    The returned metadata is not yet published.  The caller must bind it to a
+    complete cache marker before an existing published entry is removed.
+    """
+    provisioning = provision_framework_approved_modsecurity_v3_checkout(
+        env,
+        framework_root,
+        staging_path,
+    )
+    result: dict[str, Any] = {"provenance_provisioning": provisioning}
+    if provisioning.get("status") != "passed":
+        result.update(
+            status="blocked",
+            blocker_reason="modsecurity_v3_framework_provisioning_failed",
+            details=provisioning.get("details") or provisioning.get("blocker_reason", ""),
+        )
+        return result
+    if not staging_path.is_dir() or staging_path.is_symlink():
+        result.update(
+            status="blocked",
+            blocker_reason="modsecurity_v3_framework_provisioning_destination_missing",
+        )
+        return result
+
+    verification = verify_framework_approved_modsecurity_v3_checkout(
+        env,
+        framework_root,
+        staging_path,
+    )
+    result["provenance_verification"] = verification
+    if verification.get("status") != "passed":
+        result.update(
+            status="blocked",
+            blocker_reason="modsecurity_v3_provenance_guard_failed",
+            details=verification.get("details") or verification.get("blocker_reason", ""),
+        )
+        return result
+    try:
+        result.update(
+            framework_approved_modsecurity_v3_checkout_metadata(
+                url,
+                expected_ref,
+                staging_path,
+            )
+        )
+    except RuntimeError as exc:
+        result.update(status="blocked", blocker_reason=str(exc))
+    return result
+
+
+def remove_replaceable_framework_approved_modsecurity_v3_cache_entry(
+    checkout_path: Path,
+    cache_root: Path,
+    *,
+    component: str,
+) -> dict[str, Any]:
+    """Discard only a cache entry whose ownership permits replacement.
+
+    This is intentionally called only after a new Framework-verified staging
+    checkout has a complete, identity-bound cache marker.
+    """
+    if not checkout_path.exists():
+        return {}
+    marker = read_json(cache_entry_marker_path(checkout_path, cache_root))
+    marker_is_valid = cache_entry_marker_valid(checkout_path, cache_root)
+    if marker_is_valid:
+        if marker.get("component") != component:
+            raise RuntimeError(f"managed_cache_entry_identity_mismatch: {checkout_path}")
+    elif not (
+        cache_manifest_owns_entry(checkout_path)
+        or migrate_legacy_cache_entry_for_removal(
+            checkout_path,
+            cache_root,
+            component=component,
+        )
+    ):
+        raise RuntimeError(f"unmanaged_cache_entry_marker_missing: {checkout_path}")
+    safe_remove_dir(checkout_path, cache_root)
+    return {
+        "rebuild_required": True,
+        "invalidation_reason": "approved_source_cache_replaced",
+        "old_entry_removed": True,
+        "previous_path": str(checkout_path),
+    }
+
+
+def discard_unpublished_framework_approved_modsecurity_v3_staging_entry(
+    staging_path: Path | None,
+    cache_root: Path,
+) -> None:
+    """Best-effort cleanup for an unpublished V3 staging cache child."""
+    if staging_path is None:
+        return
+    try:
+        if staging_path.is_dir() and not staging_path.is_symlink():
+            safe_remove_dir(staging_path, cache_root)
+        elif not staging_path.exists() and not staging_path.is_symlink():
+            remove_managed_cache_entry_marker(staging_path, cache_root)
+    except RuntimeError:
+        # Cleanup cannot make an unverified staging path usable.  Preserve the
+        # original fail-closed result and never hide it with a cleanup error.
+        return
+
+
+def prepare_framework_approved_modsecurity_v3_source(
+    env: dict[str, str],
+    framework_root: Path,
+    path: Path,
+    cache_root: Path,
+) -> dict[str, Any]:
+    """Acquire V3 only through the Framework's approved provisioning bridge."""
+    url = env.get("MODSECURITY_V3_GIT_URL") or env.get("MODSECURITY_REPO_URL", "")
+    expected_ref = env.get("MODSECURITY_V3_GIT_REF") or env.get("MODSECURITY_GIT_REF", "")
+    record: dict[str, Any] = {
+        "name": "modsecurity-v3",
+        "url": url,
+        "expected_ref": expected_ref,
+        "path": str(path),
+        "recursive_submodules": True,
+        "submodule_count": 0,
+        "submodule_status_clean": False,
+        "git_fsck": "SKIPPED",
+        "status": "unknown",
+        "blocker_reason": "",
+    }
+    configuration = verify_framework_approved_modsecurity_v3_provenance(env, framework_root)
+    record["provenance_configuration"] = configuration
+    if configuration.get("status") != "passed":
+        record.update(
+            status="blocked",
+            blocker_reason="modsecurity_v3_provenance_configuration_failed",
+            details=configuration.get("details") or configuration.get("blocker_reason", ""),
+        )
+        return record
+
+    try:
+        managed_root = ensure_managed_cache_root(cache_root)
+        checkout_path, _ = validate_managed_cache_child(Path(path), managed_root)
+        record["path"] = str(checkout_path)
+    except RuntimeError as exc:
+        record.update(status="blocked", blocker_reason=str(exc))
+        return record
+    if is_system_path(checkout_path):
+        record.update(status="blocked", blocker_reason="system_path_write_forbidden")
+        return record
+
+    component = "source:modsecurity-v3"
+    ref_identity = source_cache_identity("modsecurity-v3", url, expected_ref)
+    ref_lock_key = str(ref_identity["cache_key"])
+    staging_path: Path | None = None
+    try:
+        with BuildLock(cache_entry_lock_path(managed_root, component, ref_lock_key)):
+            # A published cache hit is admitted only by the fixed Framework
+            # checkout verifier.  Its immutable provenance makes a generic
+            # Parent ls-remote/fetch recovery path both unnecessary and unsafe.
+            cached_record = reusable_framework_approved_modsecurity_v3_cache_record(
+                env,
+                framework_root,
+                checkout_path,
+                managed_root,
+                component=component,
+                url=url,
+                expected_ref=expected_ref,
+            )
+            if cached_record is not None:
+                record.update(cached_record)
+                return record
+
+            # The bridge must create the fresh child itself.  Reserve the
+            # managed registry marker first, but leave the destination absent
+            # until the Framework-owned helper has taken responsibility for it.
+            staging_path = reserve_framework_approved_modsecurity_v3_staging_path(
+                checkout_path,
+                managed_root,
+                component=component,
+                cache_key=ref_lock_key,
+            )
+            staging_record = verified_framework_approved_modsecurity_v3_staging_metadata(
+                env,
+                framework_root,
+                staging_path,
+                url=url,
+                expected_ref=expected_ref,
+            )
+            record.update(staging_record)
+            if staging_record.get("status") == "blocked":
+                return record
+
+            # Seal the staged entry before touching an existing published
+            # cache path.  A bridge, verification, or completion failure must
+            # leave that final entry available to its current consumers.
+            retag_staging_cache_entry(
+                staging_path,
+                managed_root,
+                component=component,
+                cache_key=str(staging_record["cache_key"]),
+            )
+            write_cache_entry_completion(
+                staging_path,
+                managed_root,
+                component=component,
+                cache_key=str(staging_record["cache_key"]),
+                cache_identity=staging_record["cache_identity"],
+            )
+
+            # A failed bridge or verification leaves this published entry
+            # untouched.  Only a fully verified staging checkout may replace a
+            # managed stale entry, and never an unowned or mismatched one.
+            record.update(
+                remove_replaceable_framework_approved_modsecurity_v3_cache_entry(
+                    checkout_path,
+                    managed_root,
+                    component=component,
+                )
+            )
+
+            atomic_publish_dir(staging_path, checkout_path, managed_root, require_complete=True)
+            staging_path = None
+            record.update(
+                path=str(checkout_path),
+                manifest=str(cache_entry_marker_path(checkout_path, managed_root)),
+                status="present",
+                approved_acquisition="framework_approved_v3_bridge",
+                tree=tree_manifest(checkout_path),
+            )
+            return record
+    except TimeoutError as exc:
+        record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
+        return record
+    except Exception as exc:
+        record.update(status="blocked", blocker_reason=str(exc))
+        return record
+    finally:
+        discard_unpublished_framework_approved_modsecurity_v3_staging_entry(staging_path, managed_root)
+
+
 def prepare_shared_modsecurity(
     env: dict[str, str],
     cache_root: Path,
@@ -3062,6 +3608,7 @@ def prepare_shared_modsecurity(
     git_record: dict[str, Any],
     expat: dict[str, Any],
     connector_root: Path | None = None,
+    framework_root: Path | None = None,
 ) -> dict[str, Any]:
     try:
         cache_root = ensure_managed_cache_root(cache_root)
@@ -3106,6 +3653,19 @@ def prepare_shared_modsecurity(
         if is_system_path(path) or not is_within(path, cache_root):
             record.update(status="blocked", blocker_reason="system_path_write_forbidden", blocked_path=f"{label}:{path}")
             return record
+    if git_record.get("status") == "present":
+        if not git_record.get("submodule_status_clean", False):
+            record.update(status="blocked", blocker_reason="modsecurity_submodule_missing")
+            return record
+        provenance = verify_framework_approved_modsecurity_v3_checkout(env, framework_root, source_path)
+        record["provenance_verification"] = provenance
+        if provenance.get("status") != "passed":
+            record.update(
+                status="blocked",
+                blocker_reason="modsecurity_v3_provenance_guard_failed",
+                details=provenance.get("details") or provenance.get("blocker_reason", ""),
+            )
+            return record
     if paths["build_root"].exists() and not cache_entry_marker_valid(paths["build_root"], cache_root):
         # A complete local manifest is sufficient to safely discard a stale
         # entry, never to claim it or treat it as reusable cache state.
@@ -3141,10 +3701,6 @@ def prepare_shared_modsecurity(
         return record
     if git_record.get("status") != "present":
         record.update(status="blocked", blocker_reason=git_record.get("blocker_reason") or "modsecurity_source_unavailable")
-        write_cache_manifest(manifest_path, record)
-        return record
-    if not git_record.get("submodule_status_clean", False):
-        record.update(status="blocked", blocker_reason="modsecurity_submodule_missing")
         write_cache_manifest(manifest_path, record)
         return record
 
@@ -5597,13 +6153,10 @@ def main() -> int:
     ]
 
     git_components = [
-        prepare_git_component(
-            "modsecurity-v3",
-            env.get("MODSECURITY_V3_GIT_URL") or env.get("MODSECURITY_REPO_URL", ""),
-            env.get("MODSECURITY_V3_GIT_REF") or env.get("MODSECURITY_GIT_REF", ""),
+        prepare_framework_approved_modsecurity_v3_source(
+            env,
+            framework_root,
             modsec_path,
-            previous_git,
-            strict,
             cache_root=cache_root,
         ),
         prepare_expat_git_component(
@@ -5733,7 +6286,8 @@ def main() -> int:
         build_root,
         git_by_name.get("modsecurity-v3", {}),
         expat,
-        connector_root,
+        connector_root=connector_root,
+        framework_root=framework_root,
     )
     connector_plans = {
         name: connector_plan(connector_root, framework_root, cache_root, env, name, modsecurity, expat, archives)

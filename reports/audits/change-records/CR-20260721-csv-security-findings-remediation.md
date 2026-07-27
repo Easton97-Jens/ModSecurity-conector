@@ -482,3 +482,42 @@ The selected local 107-test regression command with
 follow-up commit still requires fresh exact-head hosted CI and a direct
 SonarQube Cloud readback before zero open issues, zero duplication, PR
 verification, or integration can be claimed; PR #74 remains Draft.
+
+## Superseding slim hosted-workflow continuation (2026-07-27)
+
+This continuation supersedes only the hosted-delivery expectation in the
+earlier entries. It preserves their chronology: the former strict/full
+producer, twelve-cell runtime matrix, report refresh/generation, staged
+artifact, and their failed hosted runs remain historical diagnostic evidence,
+but they are no longer prerequisites for the slim successor of Parent PR #74.
+In particular, their Apache, PCRE2, and matrix failures do not fail the new
+hosted workflow and are not presented as resolved by this decision.
+
+The required hosted configuration is the exact current-`master` report
+governance workflow: one read-only `report-governance` job, a 20-minute
+timeout, and `make report-governance`. GitHub must not run
+`verified-report-run`, an `all`/runtime-all or twelve-cell matrix, report
+refresh or generation, the strict evidence gate, runtime downloads or builds,
+or an artifact upload. The full producer, twelve-cell matrix, and report
+generators remain available solely as intentional, manual local work; this
+continuation neither removes nor treats them as GitHub PR evidence.
+
+The PR #55 provenance source bridge is transferred separately into #74. Its
+former strict hosted gate is not retained on either slim PR; this record makes
+no claim that #55 has been closed or that either PR has been merged.
+
+The bounded baseline-Sonar objective is 103 `python:S3415`
+assertion-order corrections plus two pre-existing `S5443` secure-temporary
+file fixes. It uses real source/test corrections, not an exclusion,
+suppression, Quality-Gate change, or scanner weakening. A final reduction of
+the Sonar main-branch baseline is deliberately pending post-merge master
+analysis; PR analysis alone cannot establish that result.
+
+No post-supersession exact-head GitHub run, Sonar PR analysis, or Sonar
+main-branch analysis is claimed here. Historical local passes and historical
+full-runtime outcomes above do not validate this successor configuration. The
+remaining evidence is focused local testing of the transferred source and
+Sonar corrections, a fresh exact-head 20-minute GitHub governance run, a
+fresh Sonar PR readback with no new-code regression, normal review/ruleset
+checks, and, after an authorized merge, the master Sonar analysis that measures
+the bounded baseline reduction.

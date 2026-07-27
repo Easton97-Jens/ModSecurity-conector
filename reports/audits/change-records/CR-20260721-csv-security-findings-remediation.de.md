@@ -528,3 +528,47 @@ normale Follow-up-Commit benötigt weiterhin frisches Exact-Head-hosted-CI und
 einen direkten SonarQube-Cloud-Readback, bevor null offene Befunde, null
 Duplizierung, PR-Verifikation oder Integration behauptet werden können; PR
 #74 bleibt Draft.
+
+## Ersetzende schlanke Hosted-Workflow-Fortsetzung (2026-07-27)
+
+Diese Fortsetzung ersetzt ausschließlich die Hosted-Delivery-Erwartung der
+früheren Einträge. Ihre Chronologie bleibt erhalten: Der frühere
+strikte/vollständige Producer, die Runtime-Matrix mit zwölf Zellen,
+Report-Refresh/-Generierung, das gestagte Artifact und ihre fehlgeschlagenen
+Hosted-Läufe bleiben historische Diagnose-Evidence, sind aber keine
+Voraussetzung des schlanken Nachfolgers von Parent-PR #74 mehr. Insbesondere
+lassen ihre Apache-, PCRE2- und Matrix-Fehler den neuen Hosted-Workflow nicht
+fehlschlagen und werden durch diese Entscheidung nicht als behoben behauptet.
+
+Die erforderliche Hosted-Konfiguration ist exakt der aktuelle
+`master`-Report-Governance-Workflow: ein read-only-Job
+`report-governance`, ein 20-Minuten-Timeout und `make report-governance`.
+GitHub darf weder `verified-report-run`, einen `all`-/runtime-all- oder
+Zwölf-Zellen-Matrixlauf, Report-Refresh oder -Generierung, das strikte
+Evidence-Gate, Runtime-Downloads oder -Builds noch einen Artifact-Upload
+ausführen. Vollständiger Producer, Zwölf-Zellen-Matrix und Report-Generatoren
+bleiben ausschließlich absichtliche manuelle lokale Arbeit; diese Fortsetzung
+entfernt sie nicht und behandelt sie nicht als GitHub-PR-Evidence.
+
+Die PR-#55-Provenance-Source-Bridge wird getrennt in #74 übertragen. Ihr
+früheres striktes Hosted-Gate bleibt auf keinem der schlanken PRs erhalten;
+dieser Record behauptet weder, dass #55 geschlossen, noch dass einer der PRs
+gemergt wurde.
+
+Das begrenzte Baseline-Sonar-Ziel umfasst 103
+`python:S3415`-Korrekturen der Assertion-Reihenfolge sowie zwei bereits
+vorhandene `S5443`-Behebungen sicherer temporärer Dateien. Es verwendet echte
+Source-/Test-Korrekturen, keine Exclusion, Suppression, Quality-Gate-Änderung
+oder Scanner-Abschwächung. Eine endgültige Reduktion der Sonar-
+Main-Branch-Baseline bleibt bewusst der Post-Merge-Master-Analyse vorbehalten;
+die PR-Analyse allein kann dieses Ergebnis nicht belegen.
+
+Dieser Record behauptet keinen Post-Supersession-Exact-Head-GitHub-Lauf, keine
+Sonar-PR-Analyse und keine Sonar-Main-Branch-Analyse. Historische lokale
+Erfolge und historische Full-Runtime-Ergebnisse oben validieren diese
+Nachfolger-Konfiguration nicht. Verbleibende Evidence sind fokussierte lokale
+Tests der übertragenen Source und Sonar-Korrekturen, ein frischer Exact-Head-
+20-Minuten-GitHub-Governance-Lauf, ein frischer Sonar-PR-Readback ohne
+New-Code-Regression, normale Review-/Ruleset-Prüfungen sowie nach einem
+autorisierten Merge die Master-Sonar-Analyse, die die begrenzte
+Baseline-Reduktion misst.

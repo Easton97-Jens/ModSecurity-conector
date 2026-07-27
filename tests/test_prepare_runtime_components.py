@@ -262,25 +262,668 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            "apache_connector_build_failed",
             components.map_apache_blocker(compiler_error, ["module_file:/cache/module.so"]),
+            "apache_connector_build_failed",
         )
 
     def test_apache_blocker_detects_a_real_missing_expat_header(self) -> None:
         compiler_error = "src/parser.c:7:10: fatal error: expat.h: No such file or directory\n"
 
         self.assertEqual(
-            "missing_expat_headers",
             components.map_apache_blocker(compiler_error, []),
+            "missing_expat_headers",
         )
 
     def test_nginx_blocker_reports_connector_compile_error_before_missing_outputs(self) -> None:
         compiler_error = "src/module.c:123:28: error: field 'phase' has incomplete type\n"
 
         self.assertEqual(
-            "nginx_connector_build_failed",
             components.map_nginx_blocker(compiler_error, ["module_file:/cache/module.so"]),
+            "nginx_connector_build_failed",
         )
+
+    def test_shared_modsecurity_blocks_before_build_sinks_when_framework_guard_rejects(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provenance-guard-") as temporary:
+            root = Path(temporary)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            source = root / "source"
+            source.mkdir()
+            git_record = {
+                "status": "present",
+                "path": str(source),
+                "url": "https://github.com/example/modsecurity",
+                "expected_ref": "v3",
+                "actual_head": "deadbeef",
+                "submodule_status": "",
+                "submodule_status_clean": True,
+            }
+            toolchain = {"cc": "cc", "cc_version": "cc test", "cxx": "", "cxx_version": ""}
+            provenance = {
+                "status": "blocked",
+                "blocker_reason": "framework_modsecurity_v3_provenance_guard_rejected",
+                "details": "BLOCKED: unexpected immutable checkout",
+            }
+            with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                return_value=provenance,
+            ), mock.patch.object(components.shutil, "copytree") as copytree, mock.patch.object(
+                components, "run_env"
+            ) as run_env, mock.patch.object(components, "copy_modsecurity_outputs") as copy_outputs, mock.patch.object(
+                components, "atomic_publish_dir"
+            ) as publish:
+                record = components.prepare_shared_modsecurity(
+                    {},
+                    cache_root,
+                    root / "work",
+                    git_record,
+                    {},
+                    framework_root=root / "framework",
+                )
+
+            self.assertEqual("blocked", record["status"])
+            self.assertEqual("modsecurity_v3_provenance_guard_failed", record["blocker_reason"])
+            self.assertEqual(provenance, record["provenance_verification"])
+            self.assertFalse(Path(str(record["build_root"])).exists())
+            self.assertFalse(Path(str(record["prefix"])).exists())
+            copytree.assert_not_called()
+            run_env.assert_not_called()
+            copy_outputs.assert_not_called()
+            publish.assert_not_called()
+
+    def test_shared_modsecurity_allows_normal_preflight_after_framework_guard_passes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provenance-guard-") as temporary:
+            root = Path(temporary)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            source = root / "source"
+            source.mkdir()
+            framework_root = root / "framework"
+            git_record = {
+                "status": "present",
+                "path": str(source),
+                "url": "https://github.com/example/modsecurity",
+                "expected_ref": "v3",
+                "actual_head": "deadbeef",
+                "submodule_status": "",
+                "submodule_status_clean": True,
+            }
+            toolchain = {"cc": "cc", "cc_version": "cc test", "cxx": "", "cxx_version": ""}
+            with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                return_value={"status": "passed"},
+            ) as provenance_guard, mock.patch.object(
+                components, "first_missing_tool", return_value="missing_make"
+            ), mock.patch.object(components, "resolve_compiler", return_value="/usr/bin/cc"), mock.patch.object(
+                components.shutil, "copytree"
+            ) as copytree:
+                record = components.prepare_shared_modsecurity(
+                    {},
+                    cache_root,
+                    root / "work",
+                    git_record,
+                    {},
+                    framework_root=framework_root,
+                )
+
+            self.assertEqual("blocked", record["status"])
+            self.assertEqual("missing_modsecurity_dependency", record["blocker_reason"])
+            provenance_guard.assert_called_once_with({}, framework_root, source.resolve())
+            copytree.assert_not_called()
+
+    def test_framework_modsecurity_guard_passes_paths_as_positional_arguments(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provenance-guard-") as temporary:
+            root = Path(temporary)
+            framework_root = root / "framework"
+            common = framework_root / "ci/lib/common.sh"
+            common.parent.mkdir(parents=True)
+            common.write_text("# tested through a mocked subprocess\n", encoding="utf-8")
+            source = root / "source;not-shell"
+            source.mkdir()
+            completed = subprocess.CompletedProcess([], 0, "", "")
+            with mock.patch.object(components, "run_env", return_value=completed) as run_env:
+                result = components.verify_framework_approved_modsecurity_v3_checkout(
+                    {
+                        "MODSECURITY_V3_GIT_URL": "https://github.com/owasp-modsecurity/ModSecurity.git",
+                        "PATH": str(root / "attacker-controlled-path"),
+                        "ENV": str(root / "attacker-shell-hook"),
+                        "BASH_ENV": str(root / "attacker-bash-hook"),
+                    },
+                    framework_root,
+                    source,
+                )
+
+            self.assertEqual("passed", result["status"])
+            run_env.assert_called_once()
+            command = run_env.call_args.args[0]
+            self.assertEqual(
+                [
+                    str(
+                        components.verified_host_guard_executable(
+                            components._TRUSTED_FRAMEWORK_GUARD_SHELL,
+                            "framework_guard_shell",
+                        )
+                    ),
+                    "-c",
+                    components._FRAMEWORK_MODSECURITY_V3_GUARD,
+                    "framework-modsecurity-v3-provenance-guard",
+                    str(common),
+                    str(source),
+                ],
+                command,
+            )
+            self.assertEqual(framework_root, run_env.call_args.kwargs["cwd"])
+            self.assertEqual(str(source), run_env.call_args.kwargs["env"]["MODSECURITY_V3_SOURCE_DIR"])
+            self.assertEqual(
+                components._TRUSTED_FRAMEWORK_GUARD_PATH,
+                run_env.call_args.kwargs["env"]["PATH"],
+            )
+            self.assertNotIn("ENV", run_env.call_args.kwargs["env"])
+            self.assertNotIn("BASH_ENV", run_env.call_args.kwargs["env"])
+
+    def test_framework_modsecurity_provisioning_bridge_passes_destination_as_positional_argument(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provisioning-bridge-") as temporary:
+            root = Path(temporary)
+            framework_root = root / "framework"
+            common = framework_root / "ci/lib/common.sh"
+            common.parent.mkdir(parents=True)
+            common.write_text("# tested through a mocked subprocess\n", encoding="utf-8")
+            destination = root / "source;not-shell"
+            completed = subprocess.CompletedProcess([], 0, "", "")
+            with mock.patch.object(components, "run_env", return_value=completed) as run_env:
+                result = components.provision_framework_approved_modsecurity_v3_checkout(
+                    {
+                        "PATH": str(root / "attacker-controlled-path"),
+                        "ENV": str(root / "attacker-shell-hook"),
+                        "BASH_ENV": str(root / "attacker-bash-hook"),
+                    },
+                    framework_root,
+                    destination,
+                )
+
+            self.assertEqual("passed", result["status"])
+            run_env.assert_called_once()
+            command = run_env.call_args.args[0]
+            self.assertEqual(
+                [
+                    str(
+                        components.verified_host_guard_executable(
+                            components._TRUSTED_FRAMEWORK_GUARD_SHELL,
+                            "framework_guard_shell",
+                        )
+                    ),
+                    "-c",
+                    components._FRAMEWORK_MODSECURITY_V3_PROVISIONING_BRIDGE,
+                    "framework-modsecurity-v3-provisioning-bridge",
+                    str(common),
+                    str(destination),
+                ],
+                command,
+            )
+            self.assertEqual(framework_root, run_env.call_args.kwargs["cwd"])
+            self.assertEqual(str(destination), run_env.call_args.kwargs["env"]["MODSECURITY_V3_SOURCE_DIR"])
+            self.assertEqual(
+                components._TRUSTED_FRAMEWORK_GUARD_PATH,
+                run_env.call_args.kwargs["env"]["PATH"],
+            )
+            self.assertNotIn("ENV", run_env.call_args.kwargs["env"])
+            self.assertNotIn("BASH_ENV", run_env.call_args.kwargs["env"])
+
+    def test_framework_modsecurity_metadata_uses_trusted_git_with_scrubbed_environment(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provenance-metadata-") as temporary:
+            source = Path(temporary) / "source;not-shell"
+            completed = subprocess.CompletedProcess([], 0, "approved-head\n", "")
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "GIT_CONFIG_COUNT": "7",
+                    "GIT_DIR": str(source / "attacker-git-dir"),
+                    "LD_PRELOAD": str(source / "attacker-loader"),
+                },
+            ), mock.patch.object(components, "run_env", return_value=completed) as run_env:
+                output = components.trusted_framework_modsecurity_v3_git_output(source, "rev-parse", "HEAD")
+
+            self.assertEqual("approved-head", output)
+            self.assertEqual(
+                [
+                    str(
+                        components.verified_host_guard_executable(
+                            components._TRUSTED_FRAMEWORK_GUARD_GIT,
+                            "framework_guard_git",
+                        )
+                    ),
+                    "-c",
+                    "core.hooksPath=/dev/null",
+                    "-c",
+                    "core.fsmonitor=false",
+                    "-c",
+                    "core.useBuiltinFSMonitor=false",
+                    "-C",
+                    str(source),
+                    "rev-parse",
+                    "HEAD",
+                ],
+                run_env.call_args.args[0],
+            )
+            self.assertEqual(
+                {
+                    "PATH": components._TRUSTED_FRAMEWORK_GUARD_PATH,
+                    "LC_ALL": "C",
+                    "GIT_CONFIG_NOSYSTEM": "1",
+                    "GIT_CONFIG_GLOBAL": os.devnull,
+                    "GIT_CONFIG_COUNT": "0",
+                    "GIT_OPTIONAL_LOCKS": "0",
+                    "GIT_ATTR_NOSYSTEM": "1",
+                    "GIT_NO_REPLACE_OBJECTS": "1",
+                },
+                run_env.call_args.kwargs["env"],
+            )
+
+    def test_modsecurity_source_configuration_guard_blocks_before_git_preparation(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provenance-guard-") as temporary:
+            root = Path(temporary)
+            expected_configuration = {
+                "status": "blocked",
+                "blocker_reason": "framework_modsecurity_v3_provenance_guard_rejected",
+                "details": "BLOCKED: immutable source configuration mismatch",
+            }
+            with mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_provenance",
+                return_value=expected_configuration,
+            ), mock.patch.object(
+                components, "provision_framework_approved_modsecurity_v3_checkout"
+            ) as bridge, mock.patch.object(components, "prepare_git_component") as prepare_git:
+                record = components.prepare_framework_approved_modsecurity_v3_source(
+                    {
+                        "MODSECURITY_V3_GIT_URL": "https://github.com/example/unapproved",
+                        "MODSECURITY_V3_GIT_REF": "mutable-ref",
+                    },
+                    root / "framework",
+                    root / "source",
+                    cache_root=root / "cache",
+                )
+
+            self.assertEqual("blocked", record["status"])
+            self.assertEqual("modsecurity_v3_provenance_configuration_failed", record["blocker_reason"])
+            self.assertEqual(expected_configuration, record["provenance_configuration"])
+            bridge.assert_not_called()
+            prepare_git.assert_not_called()
+
+    def test_modsecurity_source_uses_framework_bridge_and_records_approved_provenance(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provenance-guard-") as temporary:
+            root = Path(temporary)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            source = cache_root / "sources" / "modsecurity-v3"
+            expected_head = "a" * 40
+            configuration = {"status": "passed", "details": "approved source configuration"}
+            provisioned_paths: list[Path] = []
+
+            def provision(
+                _env: dict[str, str],
+                _framework_root: Path,
+                destination: Path,
+            ) -> dict[str, object]:
+                self.assertFalse(destination.exists())
+                self.assertFalse(destination.is_symlink())
+                self.assertTrue(destination.name.startswith(".modsecurity-v3.tmp-"))
+                provisioned_paths.append(destination)
+                destination.mkdir()
+                return {"status": "passed", "source_path": str(destination)}
+
+            def git_metadata(path: Path, *args: str) -> str:
+                self.assertEqual(provisioned_paths[0], path)
+                if args == ("rev-parse", "HEAD"):
+                    return expected_head
+                if args == components.GIT_STATUS_SHORT_ARGS:
+                    return ""
+                if args == components.GIT_SUBMODULE_STATUS_RECURSIVE_ARGS:
+                    return ""
+                self.fail(f"unexpected local Git metadata request: {args}")
+
+            with mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_provenance",
+                return_value=configuration,
+            ), mock.patch.object(
+                components,
+                "provision_framework_approved_modsecurity_v3_checkout",
+                side_effect=provision,
+            ) as bridge, mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                side_effect=lambda _env, _framework_root, checkout: {
+                    "status": "passed",
+                    "source_path": str(checkout),
+                },
+            ) as verification, mock.patch.object(
+                components, "trusted_framework_modsecurity_v3_git_output", side_effect=git_metadata
+            ), mock.patch.object(components, "prepare_git_component") as prepare_git:
+                record = components.prepare_framework_approved_modsecurity_v3_source(
+                    {
+                        "MODSECURITY_V3_GIT_URL": "https://github.com/owasp-modsecurity/ModSecurity.git",
+                        "MODSECURITY_V3_GIT_REF": "v3.0.15",
+                    },
+                    root / "framework",
+                    source,
+                    cache_root=cache_root,
+                )
+
+            bridge.assert_called_once_with(
+                {
+                    "MODSECURITY_V3_GIT_URL": "https://github.com/owasp-modsecurity/ModSecurity.git",
+                    "MODSECURITY_V3_GIT_REF": "v3.0.15",
+                },
+                root / "framework",
+                provisioned_paths[0],
+            )
+            verification.assert_called_once_with(
+                {
+                    "MODSECURITY_V3_GIT_URL": "https://github.com/owasp-modsecurity/ModSecurity.git",
+                    "MODSECURITY_V3_GIT_REF": "v3.0.15",
+                },
+                root / "framework",
+                provisioned_paths[0],
+            )
+            prepare_git.assert_not_called()
+            self.assertEqual("present", record["status"])
+            self.assertEqual("framework_approved_v3_bridge", record["approved_acquisition"])
+            self.assertEqual(source, Path(str(record["path"])))
+            self.assertTrue(source.is_dir())
+            self.assertFalse(provisioned_paths[0].exists())
+            self.assertEqual(expected_head, record["actual_head"])
+            self.assertEqual("PASS", record["git_fsck"])
+            self.assertTrue(record["submodule_status_clean"])
+            self.assertEqual(configuration, record["provenance_configuration"])
+            self.assertEqual("passed", record["provenance_provisioning"]["status"])
+            self.assertEqual("passed", record["provenance_verification"]["status"])
+            self.assertIn("cache_identity", record)
+            self.assertIn("cache_key", record)
+
+    def test_modsecurity_source_reuses_only_a_framework_revalidated_complete_cache_entry(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provenance-cache-reuse-") as temporary:
+            root = Path(temporary)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            source = cache_root / "sources" / "modsecurity-v3"
+            environment = {
+                "MODSECURITY_V3_GIT_URL": "https://github.com/owasp-modsecurity/ModSecurity.git",
+                "MODSECURITY_V3_GIT_REF": "v3.0.15",
+            }
+            expected_head = "b" * 40
+            identity = components.source_cache_identity(
+                "modsecurity-v3",
+                environment["MODSECURITY_V3_GIT_URL"],
+                environment["MODSECURITY_V3_GIT_REF"],
+                expected_head,
+            )
+            components.mark_managed_cache_entry(
+                source,
+                cache_root,
+                component="source:modsecurity-v3",
+                cache_key=str(identity["cache_key"]),
+            )
+            source.parent.mkdir(parents=True)
+            source.mkdir()
+            components.write_cache_entry_completion(
+                source,
+                cache_root,
+                component="source:modsecurity-v3",
+                cache_key=str(identity["cache_key"]),
+                cache_identity=identity,
+            )
+
+            def git_metadata(path: Path, *args: str) -> str:
+                self.assertEqual(path, source)
+                if args == ("rev-parse", "HEAD"):
+                    return expected_head
+                if args == components.GIT_STATUS_SHORT_ARGS:
+                    return ""
+                if args == components.GIT_SUBMODULE_STATUS_RECURSIVE_ARGS:
+                    return ""
+                self.fail(f"unexpected local Git metadata request: {args}")
+
+            verification = {"status": "passed", "source_path": str(source)}
+            with mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_provenance",
+                return_value={"status": "passed"},
+            ), mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                return_value=verification,
+            ) as checkout_verification, mock.patch.object(
+                components,
+                "trusted_framework_modsecurity_v3_git_output",
+                side_effect=git_metadata,
+            ), mock.patch.object(
+                components,
+                "provision_framework_approved_modsecurity_v3_checkout",
+            ) as bridge, mock.patch.object(components, "prepare_git_component") as prepare_git:
+                record = components.prepare_framework_approved_modsecurity_v3_source(
+                    environment,
+                    root / "framework",
+                    source,
+                    cache_root=cache_root,
+                )
+
+            checkout_verification.assert_called_once_with(environment, root / "framework", source)
+            bridge.assert_not_called()
+            prepare_git.assert_not_called()
+            self.assertEqual(record["status"], "present")
+            self.assertEqual(record["approved_acquisition"], "framework_approved_v3_cache_reuse")
+            self.assertEqual(record["provenance_verification"], verification)
+            self.assertEqual(record["cache_key"], identity["cache_key"])
+            self.assertTrue(components.cache_entry_complete(
+                source,
+                cache_root,
+                component="source:modsecurity-v3",
+                cache_key=str(identity["cache_key"]),
+                cache_identity=identity,
+            ))
+
+    def test_modsecurity_source_bridge_failure_preserves_published_cache_without_generic_fallback(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provenance-guard-") as temporary:
+            root = Path(temporary)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            source = cache_root / "sources" / "modsecurity-v3"
+            components.mark_managed_cache_entry(
+                source,
+                cache_root,
+                component="source:modsecurity-v3",
+                cache_key="published-cache-entry",
+            )
+            source.parent.mkdir(parents=True)
+            source.mkdir()
+            sentinel = source / "preserve-on-bridge-failure"
+            sentinel.write_text("published cache must remain untouched", encoding="utf-8")
+            bridge_failure = {
+                "status": "blocked",
+                "blocker_reason": "framework_modsecurity_v3_provenance_guard_rejected",
+                "details": "BLOCKED: bridge could not provision source",
+            }
+            with mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_provenance",
+                return_value={"status": "passed"},
+            ), mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                return_value={"status": "blocked"},
+            ), mock.patch.object(
+                components,
+                "provision_framework_approved_modsecurity_v3_checkout",
+                return_value=bridge_failure,
+            ) as bridge, mock.patch.object(components, "prepare_git_component") as prepare_git:
+                record = components.prepare_framework_approved_modsecurity_v3_source(
+                    {
+                        "MODSECURITY_V3_GIT_URL": "https://github.com/owasp-modsecurity/ModSecurity.git",
+                        "MODSECURITY_V3_GIT_REF": "v3.0.15",
+                    },
+                    root / "framework",
+                    source,
+                    cache_root=cache_root,
+                )
+
+            bridge.assert_called_once()
+            prepare_git.assert_not_called()
+            self.assertEqual("blocked", record["status"])
+            self.assertEqual("modsecurity_v3_framework_provisioning_failed", record["blocker_reason"])
+            self.assertEqual(bridge_failure, record["provenance_provisioning"])
+            self.assertTrue(sentinel.is_file())
+            self.assertTrue(components.cache_entry_marker_valid(source, cache_root))
+            self.assertEqual([], list(source.parent.glob(".modsecurity-v3.tmp-*")))
+
+            with mock.patch.object(
+                components,
+                "toolchain_identity",
+                return_value={"cc": "cc", "cc_version": "cc test", "cxx": "", "cxx_version": ""},
+            ), mock.patch.object(components.shutil, "copytree") as copytree, mock.patch.object(
+                components, "run_env"
+            ) as run_env, mock.patch.object(components, "copy_modsecurity_outputs") as copy_outputs, mock.patch.object(
+                components, "atomic_publish_dir"
+            ) as publish:
+                build_record = components.prepare_shared_modsecurity(
+                    {},
+                    cache_root,
+                    root / "work",
+                    record,
+                    {},
+                    framework_root=root / "framework",
+                )
+
+            self.assertEqual("blocked", build_record["status"])
+            self.assertEqual("modsecurity_v3_framework_provisioning_failed", build_record["blocker_reason"])
+            copytree.assert_not_called()
+            run_env.assert_not_called()
+            copy_outputs.assert_not_called()
+            publish.assert_not_called()
+
+    def test_modsecurity_source_post_provision_guard_failure_preserves_published_cache_without_publish_or_generic_fallback(
+        self,
+    ) -> None:
+        """A rejected post-provision guard must discard only the staging checkout."""
+        with tempfile.TemporaryDirectory(prefix="modsecurity-provenance-guard-") as temporary:
+            root = Path(temporary)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            source = cache_root / "sources" / "modsecurity-v3"
+            component = "source:modsecurity-v3"
+            environment = {
+                "MODSECURITY_V3_GIT_URL": "https://github.com/owasp-modsecurity/ModSecurity.git",
+                "MODSECURITY_V3_GIT_REF": "v3.0.15",
+            }
+            published_identity = components.source_cache_identity(
+                "modsecurity-v3",
+                environment["MODSECURITY_V3_GIT_URL"],
+                environment["MODSECURITY_V3_GIT_REF"],
+            )
+            components.mark_managed_cache_entry(
+                source,
+                cache_root,
+                component=component,
+                cache_key=str(published_identity["cache_key"]),
+            )
+            source.parent.mkdir(parents=True)
+            source.mkdir()
+            sentinel = source / "preserve-on-post-provision-guard-failure"
+            sentinel.write_text("published cache must remain untouched", encoding="utf-8")
+            components.write_cache_entry_completion(
+                source,
+                cache_root,
+                component=component,
+                cache_key=str(published_identity["cache_key"]),
+                cache_identity=published_identity,
+            )
+            self.assertTrue(
+                components.cache_entry_complete(
+                    source,
+                    cache_root,
+                    component=component,
+                    cache_key=str(published_identity["cache_key"]),
+                    cache_identity=published_identity,
+                )
+            )
+
+            staging_paths: list[Path] = []
+            cache_reuse_rejection = {
+                "status": "blocked",
+                "blocker_reason": "framework_modsecurity_v3_provenance_guard_rejected",
+                "details": "BLOCKED: existing cache needs replacement",
+            }
+            post_provision_rejection = {
+                "status": "blocked",
+                "blocker_reason": "framework_modsecurity_v3_provenance_guard_rejected",
+                "details": "BLOCKED: bridge-created checkout failed Framework verification",
+            }
+
+            def provision(
+                _env: dict[str, str],
+                _framework_root: Path,
+                destination: Path,
+            ) -> dict[str, object]:
+                self.assertFalse(destination.exists())
+                self.assertFalse(destination.is_symlink())
+                self.assertTrue(components.cache_entry_marker_valid(destination, cache_root))
+                staging_marker = components.read_json(components.cache_entry_marker_path(destination, cache_root))
+                self.assertEqual(component, staging_marker["component"])
+                self.assertEqual(str(published_identity["cache_key"]), staging_marker["cache_key"])
+                self.assertNotEqual("complete", staging_marker.get("status"))
+                destination.mkdir()
+                (destination / "bridge-created-partial-checkout").write_text("partial", encoding="utf-8")
+                staging_paths.append(destination)
+                return {"status": "passed", "source_path": str(destination)}
+
+            with mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_provenance",
+                return_value={"status": "passed"},
+            ), mock.patch.object(
+                components,
+                "provision_framework_approved_modsecurity_v3_checkout",
+                side_effect=provision,
+            ) as bridge, mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                side_effect=[cache_reuse_rejection, post_provision_rejection],
+            ) as verification, mock.patch.object(
+                components, "write_cache_entry_completion"
+            ) as completion, mock.patch.object(components, "atomic_publish_dir") as publish, mock.patch.object(
+                components, "prepare_git_component"
+            ) as prepare_git:
+                record = components.prepare_framework_approved_modsecurity_v3_source(
+                    environment,
+                    root / "framework",
+                    source,
+                    cache_root=cache_root,
+                )
+
+            bridge.assert_called_once_with(environment, root / "framework", staging_paths[0])
+            self.assertEqual(
+                [
+                    mock.call(environment, root / "framework", source),
+                    mock.call(environment, root / "framework", staging_paths[0]),
+                ],
+                verification.call_args_list,
+            )
+            completion.assert_not_called()
+            publish.assert_not_called()
+            prepare_git.assert_not_called()
+            self.assertEqual("blocked", record["status"])
+            self.assertEqual("modsecurity_v3_provenance_guard_failed", record["blocker_reason"])
+            self.assertEqual(post_provision_rejection, record["provenance_verification"])
+            self.assertTrue(sentinel.is_file())
+            self.assertTrue(
+                components.cache_entry_complete(
+                    source,
+                    cache_root,
+                    component=component,
+                    cache_key=str(published_identity["cache_key"]),
+                    cache_identity=published_identity,
+                )
+            )
+            self.assertFalse(staging_paths[0].exists())
+            self.assertFalse(staging_paths[0].is_symlink())
+            self.assertFalse(components.cache_entry_marker_path(staging_paths[0], cache_root).exists())
+            self.assertEqual([], list(source.parent.glob(".modsecurity-v3.tmp-*")))
 
     def prepare_haproxy_with(self, returncode: int, output: str) -> dict[str, object]:
         with tempfile.TemporaryDirectory(prefix="haproxy-prepare-") as temporary:
@@ -332,15 +975,15 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             "haproxy_prepare: running haproxy-build\n"
             "haproxy_prepare: blocked command failed: make\n",
         )
-        self.assertEqual("failed", record["status"])
-        self.assertEqual(77, record["build_exit_code"])
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["build_exit_code"], 77)
 
     def test_haproxy_missing_prerequisite_remains_blocked(self) -> None:
         record = self.prepare_haproxy_with(
             77,
             "haproxy_prepare: blocked missing required command for build HAProxy: make\n",
         )
-        self.assertEqual("blocked", record["status"])
+        self.assertEqual(record["status"], "blocked")
         self.assertNotIn("build_exit_code", record)
 
     def haproxy_prepare_framework_root(self) -> Path:
@@ -531,7 +1174,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             env = self.managed_haproxy_cache_environment(Path(temporary), managed=True)
             result = self.run_haproxy_prepare_with_shared_cache(env)
             self.assertFalse((Path(env["HAPROXY_RUNTIME_BUILD_WORKTREE"]) / "Makefile").exists())
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("ready existing provenance-verified binary", result.stdout)
 
     def test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root(self) -> None:
@@ -554,7 +1197,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 separate_build_root=True,
             )
             result = self.run_haproxy_prepare_with_shared_cache(env)
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn(
             "HAPROXY_RUNTIME_BUILD_DIR must be under BUILD_ROOT",
             result.stdout + result.stderr,

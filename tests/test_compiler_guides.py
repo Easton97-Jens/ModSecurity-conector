@@ -270,11 +270,11 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                     "alternative_connector_note",
                 }.issubset(info),
             )
-            self.assertEqual(2, len(info["repository_connector_title"]))
-            self.assertEqual(f"connectors/{slug}", info["repository_connector_path"])
-            self.assertEqual(2, len(info["repository_connector_readme"]))
-            self.assertEqual(2, len(info["repository_connector_build_steps"]))
-            self.assertEqual(2, len(info["alternative_connector_note"]))
+            self.assertEqual(len(info["repository_connector_title"]), 2)
+            self.assertEqual(info["repository_connector_path"], f"connectors/{slug}")
+            self.assertEqual(len(info["repository_connector_readme"]), 2)
+            self.assertEqual(len(info["repository_connector_build_steps"]), 2)
+            self.assertEqual(len(info["alternative_connector_note"]), 2)
         self.assertEqual(set(SLUGS), set(GENERATOR.ACTIVE_MANUAL_VARIABLES))
         for slug, names in GENERATOR.ACTIVE_MANUAL_VARIABLES.items():
             available = {name for name, _, _ in GENERATOR.MANUAL_GUIDES[slug]["variables"]}
@@ -317,8 +317,8 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         german_meanings = h2_section(german, "Bedeutung der Befehle")
         english_blocks = shell_blocks(english_beginner)
         german_blocks = shell_blocks(german_beginner)
-        self.assertEqual(1, len(english_blocks))
-        self.assertEqual(1, len(german_blocks))
+        self.assertEqual(len(english_blocks), 1)
+        self.assertEqual(len(german_blocks), 1)
         self.assertEqual(list(COMMON_BEGINNER_COMMANDS), nonempty_shell_lines(english_blocks[0]))
         self.assertEqual(english_blocks, german_blocks)
 
@@ -532,7 +532,7 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                     alternative,
                 )
                 self.assertIn(upstream_name, alternative)
-                self.assertEqual([], shell_blocks(alternative), slug)
+                self.assertEqual(shell_blocks(alternative), [], slug)
                 self.assertNotIn("git clone", alternative, slug)
                 self.assertNotIn("./configure", alternative, slug)
                 self.assertNotIn("make ", alternative, slug)
@@ -801,7 +801,7 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                 result = subprocess.run(
                     ["sh", "-n"], input=block, text=True, capture_output=True, check=False
                 )
-                self.assertEqual(0, result.returncode, f"{document.name} block {index}: {result.stderr}")
+                self.assertEqual(result.returncode, 0, f"{document.name} block {index}: {result.stderr}")
 
     def test_prefix_and_cleanup_regressions_are_explicit(self) -> None:
         for content in (common_guide(), common_guide(german=True)):

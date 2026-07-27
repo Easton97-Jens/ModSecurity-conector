@@ -96,8 +96,8 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, first.returncode, first.stderr)
-            self.assertEqual(0, second.returncode, second.stderr)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertEqual(second.returncode, 0, second.stderr)
             first_snapshot = Path(first.stdout.strip())
             second_snapshot = Path(second.stdout.strip())
             self.assertNotEqual(first_snapshot, second_snapshot)
@@ -120,8 +120,8 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             # consumers.  The runner-only metadata exists only in the local
             # snapshot that replaced its placeholder atomically.
             self.assertEqual(
-                "export COMPATIBILITY_ONLY='preserved'\n",
                 shared_env.read_text(encoding="utf-8"),
+                "export COMPATIBILITY_ONLY='preserved'\n",
             )
             self.assertFalse(list(output_root.glob(".runtime-env-snapshot.*.tmp-*")))
             loaded = subprocess.run(
@@ -138,10 +138,10 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, loaded.returncode, loaded.stderr)
+            self.assertEqual(loaded.returncode, 0, loaded.stderr)
             self.assertEqual(
-                f"nginx|{cache_root}|1|/runtime/modsecurity/include",
                 loaded.stdout,
+                f"nginx|{cache_root}|1|/runtime/modsecurity/include",
             )
 
     def test_snapshot_writer_rejects_a_path_outside_the_invocation_report_root(self) -> None:
@@ -211,8 +211,8 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-            self.assertEqual(f"/correct/invocation/value|{snapshot}", result.stdout)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stdout, f"/correct/invocation/value|{snapshot}")
 
     def test_native_comparison_uses_the_wrapper_snapshot_not_shared_env(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-env-snapshot-") as temporary:
@@ -246,7 +246,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 clear=False,
             ):
                 loaded = native_comparison.load_runtime_env(root)
-            self.assertEqual("/correct/native-case/value", loaded["MODSECURITY_INCLUDE_DIR"])
+            self.assertEqual(loaded["MODSECURITY_INCLUDE_DIR"], "/correct/native-case/value")
 
     def test_native_comparison_does_not_fallback_to_shared_env_for_an_invalid_snapshot(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-env-snapshot-") as temporary:
@@ -270,7 +270,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 clear=False,
             ):
                 loaded = native_comparison.load_runtime_env(root)
-            self.assertNotEqual("/wrong/shared/value", loaded.get("MODSECURITY_INCLUDE_DIR"))
+            self.assertNotEqual(loaded.get("MODSECURITY_INCLUDE_DIR"), "/wrong/shared/value")
 
     def test_central_runners_use_the_exact_local_snapshot_not_shared_runtime_env(self) -> None:
         with_runner = (ROOT / "ci" / "provisioning" / "cache" / "with-runtime-components.sh").read_text(encoding="utf-8")

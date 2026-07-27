@@ -163,69 +163,6 @@ def checkout_step_blocks(text: str) -> list[str]:
     return blocks
 
 
-def workflow_step_blocks(text: str) -> list[str]:
-    """Return each YAML workflow step as one block without a YAML dependency."""
-
-    lines = text.splitlines()
-    blocks: list[str] = []
-    for start, line in enumerate(lines):
-        step_match = STEP_HEADER.match(line)
-        if step_match is None:
-            continue
-        step_indent = len(step_match.group("indent"))
-        end = len(lines)
-        for candidate in range(start + 1, len(lines)):
-            candidate_match = STEP_HEADER.match(lines[candidate])
-            if candidate_match and len(candidate_match.group("indent")) <= step_indent:
-                end = candidate
-                break
-        blocks.append("\n".join(lines[start:end]))
-    return blocks
-
-
-def workflow_step_with_id(text: str, step_id: str) -> str:
-    """Return exactly one step carrying ``step_id``."""
-
-    matches = [block for block in workflow_step_blocks(text) if f"id: {step_id}" in block]
-    if len(matches) != 1:
-        raise AssertionError(
-            f"expected exactly one workflow step with id {step_id!r}, found {len(matches)}"
-        )
-    return matches[0]
-
-
-def workflow_step_with_name(text: str, step_name: str) -> str:
-    """Return exactly one step named ``step_name``."""
-
-    matches = [block for block in workflow_step_blocks(text) if f"- name: {step_name}" in block]
-    if len(matches) != 1:
-        raise AssertionError(
-            f"expected exactly one workflow step named {step_name!r}, found {len(matches)}"
-        )
-    return matches[0]
-
-
-def block_run_script(step: str) -> str:
-    """Return the literal-script body from a workflow step."""
-
-    lines = step.splitlines()
-    for start, line in enumerate(lines):
-        match = re.match(r"^(?P<indent>\s*)run:\s*\|\s*$", line)
-        if match is None:
-            continue
-        run_indent = len(match.group("indent"))
-        end = len(lines)
-        for candidate in range(start + 1, len(lines)):
-            if (
-                lines[candidate].strip()
-                and len(lines[candidate]) - len(lines[candidate].lstrip()) <= run_indent
-            ):
-                end = candidate
-                break
-        return "\n".join(lines[start + 1 : end])
-    raise AssertionError("workflow step has no literal run script")
-
-
 def fixture_violations(text: str) -> set[str]:
     """Model the policy boundary exercised by the safe/unsafe fixtures."""
 
@@ -423,6 +360,27 @@ class CiSecurityWorkflowTest(unittest.TestCase):
                 path.name,
             )
 
+    def test_verified_report_governance_stays_lightweight(self) -> None:
+        """Keep expensive runtime evidence and report production local-only."""
+
+        text = self.workflow("verified-report-governance.yml")
+        jobs = self.jobs("verified-report-governance.yml")
+        self.assertEqual(set(jobs), {"report-governance"})
+        job = jobs["report-governance"]
+        self.assertIn("timeout-minutes: 20", job)
+        self.assertIn("make report-governance", job)
+        for forbidden in (
+            "verified-report-run",
+            "verified-report-evidence-gate",
+            "refresh-all-reports",
+            "generate-system-environment-proof",
+            "runtime-matrix-all",
+            "upload-artifact",
+            "ALLOW_RUNTIME_DOWNLOADS",
+            "ALLOW_RUNTIME_BUILDS",
+        ):
+            self.assertNotIn(forbidden, text)
+
     def test_job_write_permissions_are_exactly_allowlisted(self) -> None:
         observed: dict[tuple[str, str], dict[str, str]] = {}
         for path in self.workflow_paths():
@@ -439,151 +397,6 @@ class CiSecurityWorkflowTest(unittest.TestCase):
             checkout_steps = checkout_step_blocks(path.read_text(encoding="utf-8"))
             for checkout_step in checkout_steps:
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
-
-    def test_verified_report_governance_produces_current_evidence_before_the_strict_gate(self) -> None:
-        text = self.workflow("verified-report-governance.yml")
-        jobs = self.jobs("verified-report-governance.yml")
-        self.assertEqual(set(jobs), {"verified-report-contract-preflight", "report-governance"})
-        self.assertIn("  push:\n    branches: [master]\n  pull_request:\n  workflow_dispatch:", text)
-        self.assertNotIn("  push:\n  pull_request:", text)
-        self.assertIn(
-            "concurrency:\n"
-            "  group: verified-report-governance-${{ github.event.pull_request.number || github.ref }}\n"
-            "  cancel-in-progress: true",
-            text,
-        )
-        preflight = jobs["verified-report-contract-preflight"]
-        self.assertIn("timeout-minutes: 15", preflight)
-        self.assertIn("PYTHON: python3", preflight)
-        self.assertIn("make check-ci-security-contract", preflight)
-        self.assertLess(preflight.index("Verify Python interpreter contract"), preflight.index("make check-ci-security-contract"))
-        preflight_checkouts = checkout_step_blocks(preflight)
-        self.assertEqual(len(preflight_checkouts), 1)
-        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", preflight_checkouts[0])
-        self.assertIn("submodules: false", preflight_checkouts[0])
-        self.assertIn("persist-credentials: false", preflight_checkouts[0])
-        job = jobs["report-governance"]
-        self.assertIn("needs: verified-report-contract-preflight", job)
-        heavy_checkouts = checkout_step_blocks(job)
-        self.assertEqual(len(heavy_checkouts), 1)
-        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", heavy_checkouts[0])
-        self.assertIn("submodules: recursive", heavy_checkouts[0])
-        self.assertIn("persist-credentials: false", heavy_checkouts[0])
-        self.assertIn("timeout-minutes: 360", job)
-        self.assertIn('ALLOW_RUNTIME_DOWNLOADS: "1"', job)
-        self.assertIn('ALLOW_RUNTIME_BUILDS: "1"', job)
-        self.assertIn('PYTHONDONTWRITEBYTECODE: "1"', job)
-        self.assertIn('RUNTIME_COMPONENT_STRICT_VERIFY: "1"', job)
-        self.assertIn("EXPAT_GIT_REF: c61098da494eea1cbd091118118dcee417faacea", job)
-        self.assertIn("EXPAT_PROMPT_EXPECTED_LATEST: R_2_8_2", job)
-        self.assertIn("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock", job)
-        self.assertIn('python3 -m venv "$venv"', job)
-        self.assertIn('PATH="$venv/bin:$PATH" python3 -m pip install', job)
-        self.assertIn('PATH="$venv/bin:$PATH" python3 -m pip check', job)
-        self.assertIn('"$venv/bin/python" -c "import yaml"', job)
-        self.assertIn('echo "PATH=$venv/bin:$PATH"', job)
-        self.assertIn('echo "PYTHON=$venv/bin/python"', job)
-        self.assertNotIn('echo "PYTHON=python3"', job)
-        self.assertNotIn('"$PYTHON_BIN" -m venv', job)
-        self.assertNotIn('"$venv/bin/python" -m pip', job)
-        self.assertNotIn('"$PYTHON" ci/evidence/reports/stage-verified-full-matrix-evidence.py', job)
-        self.assertNotIn("make setup-dev", job)
-        self.assertNotIn("pip install --upgrade", job)
-        self.assertIn("make report-governance", job)
-        self.assertIn("make verified-report-run", job)
-        self.assertEqual(job.count("make verified-report-evidence-gate"), 2)
-        self.assertIn("Keep FULL_MATRIX_MAX_PARALLEL_JOBS unset", job)
-        parallelism = workflow_step_with_name(job, "Show detected full-matrix parallelism")
-        self.assertIn("sh ci/runtime/lifecycle/run-full-matrix-parallel.sh --print-effective-parallelism", parallelism)
-        self.assertLess(job.index("Show detected full-matrix parallelism"), job.index("make verified-report-run"))
-        stage_parent = workflow_step_with_id(job, "verified-evidence-stage-parent")
-        stage = workflow_step_with_name(job, "Stage payload-safe verified runtime evidence")
-        final_binding = workflow_step_with_name(job, "Final strict gate and staged-evidence binding")
-        stage_root_expression = "${{ steps.verified-evidence-stage-parent.outputs.stage_parent }}/evidence"
-        stage_root_environment = f"VERIFIED_EVIDENCE_STAGE_ROOT: {stage_root_expression}"
-        self.assertIn("mktemp -d", stage_parent)
-        self.assertRegex(
-            stage_parent,
-            r"(?:echo|printf)[^\n]*stage_parent=[^\n]*(?:\$stage_parent|%s)[^\n]*\$GITHUB_OUTPUT",
-        )
-        self.assertIn("stage-verified-full-matrix-evidence.py stage", stage)
-        self.assertIn(stage_root_environment, stage)
-        self.assertIn('--stage-root "$VERIFIED_EVIDENCE_STAGE_ROOT"', stage)
-        self.assertIn("stage-verified-full-matrix-evidence.py verify", final_binding)
-        self.assertIn(stage_root_environment, final_binding)
-        self.assertIn('--stage-root "$VERIFIED_EVIDENCE_STAGE_ROOT"', final_binding)
-        self.assertNotIn("--stage-parent", job)
-        self.assertNotIn("--github-output", job)
-        self.assertNotIn("verified-evidence-paths", job)
-        for step in (stage, final_binding):
-            self.assertNotIn("${{ steps.", block_run_script(step))
-        self.assertIn("name: Upload payload-safe verified runtime evidence", job)
-        self.assertIn("if: success()", job)
-        self.assertIn(
-            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
-            job,
-        )
-        self.assertIn(
-            "name: verified-report-evidence-${{ github.event.pull_request.head.sha || github.sha }}-"
-            "${{ github.run_id }}-${{ github.run_attempt }}",
-            job,
-        )
-        self.assertIn("retention-days: 10", job)
-        self.assertIn("if-no-files-found: error", job)
-        artifact_start = job.index("name: Upload payload-safe verified runtime evidence")
-        artifact_end = job.index("name: Summarize failed runtime preparation")
-        artifact = job[artifact_start:artifact_end]
-        self.assertIn(f"path: {stage_root_expression}", artifact)
-        self.assertEqual(artifact.count("path:"), 1)
-        for excluded in (
-            "reports/testing/",
-            "outputs.build_root",
-            "outputs.verified_run_root",
-            "run.log",
-            "logs/",
-            "results_jsonl",
-            "/results/",
-        ):
-            self.assertNotIn(excluded, artifact)
-        self.assertIn("name: Summarize failed runtime preparation", job)
-        self.assertIn("if: failure()", job)
-        self.assertIn('run_id_path="$BUILD_ROOT/verified-runs/current-run-id"', job)
-        self.assertIn('if [ -f "$run_id_path" ] && [ ! -L "$run_id_path" ]; then', job)
-        self.assertIn('run_id="$(cat -- "$run_id_path")"', job)
-        self.assertIn('[ -z "$run_id" ] || [ "${#run_id}" -gt 128 ]', job)
-        self.assertIn('[[ "$run_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]', job)
-        self.assertIn('current_run_log="$BUILD_ROOT/verified-runs/$run_id/logs/02-make-prepare-runtime-components.log"', job)
-        self.assertIn('current_matrix_log="$BUILD_ROOT/verified-runs/$run_id/logs/04-make-runtime-matrix-all-runtime.log"', job)
-        self.assertIn('apache_build_log="$BUILD_ROOT/logs/runtime-components/apache-build.log"', job)
-        self.assertIn('nginx_configure_log="$BUILD_ROOT/logs/nginx/nginx-configure.log"', job)
-        self.assertIn('if [ -f "$log_path" ] && [ ! -L "$log_path" ]; then', job)
-        self.assertIn('tail_regular_log "current runtime preparation log" "$current_run_log"', job)
-        self.assertIn('tail_regular_log "current runtime matrix log" "$current_matrix_log"', job)
-        self.assertIn('tail_regular_log "Apache runtime build log" "$apache_build_log"', job)
-        self.assertIn('tail_regular_log "NGINX configure log" "$nginx_configure_log"', job)
-        self.assertIn('if ! tail -n 300 -- "$log_path"; then', job)
-        self.assertIn('stop_commands_token="$(uuidgen)"', job)
-        self.assertIn('echo "::stop-commands::$stop_commands_token"', job)
-        self.assertIn('echo "::$stop_commands_token::"', job)
-        self.assertIn('echo "Current verified runtime run identifier is invalid."', job)
-        self.assertIn('echo "No safe verified runtime run identifier was created."', job)
-        self.assertIn('echo "No safe $log_label was created."', job)
-        self.assertNotIn("find ", job)
-        self.assertNotIn("-name ", job)
-        self.assertNotIn("*.log", job)
-        self.assertEqual(job.count('tail -n 300 -- "$log_path"'), 1)
-        self.assertLess(job.index('echo "::stop-commands::$stop_commands_token"'), job.index('tail -n 300 -- "$log_path"'))
-        self.assertLess(job.index('tail -n 300 -- "$log_path"'), job.index('echo "::$stop_commands_token::"'))
-        initial_gate = job.index("make verified-report-evidence-gate")
-        final_gate = job.index("make verified-report-evidence-gate", initial_gate + 1)
-        self.assertLess(job.index("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock"), job.index("make report-governance"))
-        self.assertLess(job.index("make report-governance"), job.index("make verified-report-run"))
-        self.assertLess(job.index("make verified-report-run"), initial_gate)
-        self.assertLess(initial_gate, job.index("name: Stage payload-safe verified runtime evidence"))
-        self.assertLess(job.index("name: Stage payload-safe verified runtime evidence"), final_gate)
-        self.assertLess(final_gate, job.index("name: Upload payload-safe verified runtime evidence"))
-        self.assertLess(job.index("name: Upload payload-safe verified runtime evidence"), job.index("name: Summarize failed runtime preparation"))
-        self.assertLess(final_gate, job.index("name: Summarize failed runtime preparation"))
 
     def test_untrusted_pull_request_model(self) -> None:
         sarif_write_jobs = {
