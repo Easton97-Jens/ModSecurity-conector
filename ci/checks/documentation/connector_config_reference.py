@@ -3489,13 +3489,13 @@ def _render_option(option: dict[str, Any], german: bool) -> list[str]:
         example_value_line = (f"Ausgewählter Beispielwert: {literal}." if german else f"Selected example value: {literal}.")
     else:
         example_value_line = ("Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden." if german else "Selected value: use the syntax above and the source-backed file below.")
-    source_example_line = (
-        f"Quellenbasiertes Beispiel: [{option['example_file']}](../../{option['example_file']})."
-        if german and option["example_file"].startswith("examples/")
-        else f"Source-backed example: [{option['example_file']}](../../{option['example_file']})."
-        if option["example_file"].startswith("examples/")
-        else f"Quellenbasiertes Beispiel: `{option['example_file']}`." if german else f"Source-backed example: `{option['example_file']}`."
-    )
+    source_example_label = "Quellenbasiertes Beispiel" if german else "Source-backed example"
+    source_path = option["example_file"]
+    if source_path.startswith("examples/"):
+        source_example = f"[{source_path}](../../{source_path})"
+    else:
+        source_example = f"`{source_path}`"
+    source_example_line = f"{source_example_label}: {source_example}."
     lines = [
         f'<a id="{_slug(option["name"])}"></a>',
         f"## `{option['name']}`",
