@@ -572,3 +572,34 @@ Tests der übertragenen Source und Sonar-Korrekturen, ein frischer Exact-Head-
 New-Code-Regression, normale Review-/Ruleset-Prüfungen sowie nach einem
 autorisierten Merge die Master-Sonar-Analyse, die die begrenzte
 Baseline-Reduktion misst.
+
+## Finale Exact-Head-Fortsetzung (2026-07-27)
+
+Diese Fortsetzung ergänzt finale PR-Head-Evidence, ohne die obige Chronologie
+zu ändern: Die unmittelbar vorhergehende Aussage, dass kein
+Post-Supersession-Exact-Head-Lauf oder keine Analyse behauptet wurde, war zu
+diesem Zeitpunkt zutreffend. Bei
+`975c9f6e7fbe192346c253d1d68faac360e75ee1` bleibt der Hosted-Delivery-Umfang
+der oben beschriebene schlanke GitHub-Workflow; der frühere vollständige
+Producer, die Runtime-Matrix, Report-Refresh/-Generierung, das strikte
+Evidence-Gate, Downloads/Builds und Artifacts bleiben außerhalb der gehosteten
+PR-Ausführung.
+
+Die Baseline-Sonar-Remediation umfasst nun 128
+`python:S3415`-Korrekturen der Assertion-Reihenfolge: die anfänglichen 103
+plus 25 Exact-Head-Follow-up-Korrekturen. Sie behält außerdem die zwei bereits
+vorhandenen `S5443`-Behebungen sicherer temporärer Dateien bei. Dies sind
+weiterhin Source-/Test-Korrekturen, keine Exclusion, Suppression,
+Quality-Gate-Änderung oder Scanner-Abschwächung.
+
+Für genau diesen PR-Head meldet die Sonar-PR-Analyse ein bestandenes Quality
+Gate, null neue `OPEN`/`CONFIRMED` Issues, null neue Security Hotspots und
+null New-Code-Duplizierung. Alle erforderlichen GitHub-Checks bestanden auf
+demselben Head; konfigurierte nicht anwendbare Checks bleiben absichtlich
+übersprungen.
+
+Das sind ausschließlich PR-Head-Ergebnisse. PR #74 ist zu diesem Zeitpunkt
+offen; diese Fortsetzung behauptet weder einen Merge noch ein Master-Ergebnis,
+einschließlich keiner Post-Merge-Master-Sonar-Baseline-Reduktion. Ein solches
+Ergebnis bleibt von einer autorisierten Integration und anschließenden
+Master-Analyse abhängig.

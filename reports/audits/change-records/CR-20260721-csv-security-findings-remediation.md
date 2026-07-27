@@ -521,3 +521,29 @@ Sonar corrections, a fresh exact-head 20-minute GitHub governance run, a
 fresh Sonar PR readback with no new-code regression, normal review/ruleset
 checks, and, after an authorized merge, the master Sonar analysis that measures
 the bounded baseline reduction.
+
+## Final exact-head continuation (2026-07-27)
+
+This continuation adds final PR-head evidence without revising the chronology
+above: the immediately preceding statement that no post-supersession exact-head
+run or analysis was claimed was accurate at that time. At
+`975c9f6e7fbe192346c253d1d68faac360e75ee1`, the hosted-delivery scope remains
+the slim GitHub workflow described above; the former full producer, runtime
+matrix, report refresh/generation, strict evidence gate, downloads/builds, and
+artifacts remain outside hosted PR execution.
+
+The baseline-Sonar remediation now totals 128 `python:S3415` assertion-order
+corrections: the initial 103 plus 25 exact-head follow-up corrections. It also
+retains the two existing `S5443` secure-temporary-file fixes. These remain
+source/test corrections, not an exclusion, suppression, Quality-Gate change,
+or scanner weakening.
+
+For that exact PR head, Sonar PR analysis has a passed Quality Gate, zero new
+`OPEN`/`CONFIRMED` issues, zero new security hotspots, and zero new-code
+duplication. All required GitHub checks passed on the same head; configured
+non-applicable checks remain intentionally skipped.
+
+Those are PR-head results only. PR #74 is open at this point; this continuation
+claims neither a merge nor a master result, including no post-merge master
+Sonar baseline reduction. Such a result remains contingent on an authorized
+integration and subsequent master analysis.
