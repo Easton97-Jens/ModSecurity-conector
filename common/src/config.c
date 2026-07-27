@@ -126,7 +126,7 @@ static void merge_remote_rules_pair(
     msconnector_config *out,
     const msconnector_config *parent,
     const msconnector_config *child) {
-    if (child->rules_remote_key != 0 || child->rules_remote_url != 0) {
+    if (remote_pair_requested(child)) {
         out->rules_remote_key = child->rules_remote_key;
         out->rules_remote_url = child->rules_remote_url;
         return;

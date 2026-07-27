@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent runtime-matrix cache owner-root hand-off](CR-20260726-runtime-matrix-cache-owner-root.md)
 - [OpenSSF Scorecard Action v2.4.4 immutable-lock synchronization](CR-20260726-scorecard-action-v2-4-4-lock.md)
 - [Parent adapter-helper explicit default case for SonarQube Cloud S131](CR-20260724-sonar-ci-adapter-helpers-default-case.md)
 - [Parent NGINX intervention URL ownership assertion order for SonarQube Cloud S3415](CR-20260724-sonar-tests-nginx-intervention-url-assertions.md)
@@ -41,6 +42,7 @@ must not claim unobserved CI, runtime, review, or delivery results.
 - [Python 3.14.6 and Go 1.26.5 toolchain baseline](CR-20260721-python314-go1265-toolchain-baseline.md)
 - [GitHub Actions checkout v7.0.1 immutable-lock synchronization](CR-20260721-actions-checkout-v7-lock.md)
 - [GitHub Actions setup-python v7 immutable-lock synchronization](CR-20260721-actions-setup-python-v7-lock.md)
+- [CSV security findings remediation](CR-20260721-csv-security-findings-remediation.md)
 - [Parent Python 3.13 workflow contract and safe patch updater](CR-20260720-python-313-workflow-contract.md)
 - [Apache intervention ownership cleanup](CR-20260720-apache-intervention-ownership.md)
 - [Go 1.24.13 security baseline](CR-20260720-go12413-security-baseline.md)

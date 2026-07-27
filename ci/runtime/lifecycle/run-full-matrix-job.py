@@ -16,7 +16,8 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 
 from generated_report_utils import utc_now
-from runtime_path_utils import verified_runtime_paths
+from runtime_path_utils import ensure_safe_writable_runtime_paths, verified_runtime_paths
+from verified_run_id import VerifiedRunIdError, validate_verified_run_id
 
 
 CONNECTORS = {"apache", "nginx", "haproxy"}
@@ -145,13 +146,22 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    default_paths = verified_runtime_paths(os.environ)
-    build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
-    matrix_root = Path(os.environ.get("MATRIX_ROOT", str(build_root / "full-matrix"))).resolve()
+    build_root_override = Path(os.path.abspath(args.build_root)) if args.build_root else None
+    paths = verified_runtime_paths(
+        os.environ,
+        build_root_override=build_root_override,
+    )
+    ensure_safe_writable_runtime_paths(paths)
+    build_root = Path(paths["BUILD_ROOT"])
+    matrix_root = Path(paths["MATRIX_ROOT"])
     verified_run_id = os.environ.get("VERIFIED_RUN_ID", "")
     if not verified_run_id:
         current = build_root / "verified-runs/current-run-id"
         verified_run_id = current.read_text(encoding="utf-8").strip() if current.is_file() else utc_now().replace(":", "-")
+    try:
+        verified_run_id = validate_verified_run_id(verified_run_id)
+    except VerifiedRunIdError as exc:
+        parser.error(str(exc))
     verified_commands_file = os.environ.get("VERIFIED_RUN_COMMANDS_FILE", "")
 
     root = job_root(matrix_root, args.connector, args.crs, args.mrts)

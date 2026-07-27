@@ -51,8 +51,8 @@ class JobIdentity:
         return f"{self.workflow}:{self.job}"
 
 
-# These are the final Parent-native Python jobs: the current 22 jobs, the
-# resolver and publisher in update-python-version.yml, and all three Go updater
+# These are the explicit Parent-native Python jobs, including the resolver and
+# publisher in update-python-version.yml and all three Go updater
 # jobs. The Go updater is Python-bearing because its bounded official-metadata
 # parser and workflow-contract tests use the canonical interpreter. The one
 # Python candidate job below is deliberately separate because it validates a
@@ -85,6 +85,7 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "resolve-go-patch"),
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "validate-go-patch"),
         JobIdentity("update-submodules.yml", "validate-submodule-update"),
+        JobIdentity("verified-report-governance.yml", "verified-report-contract-preflight"),
         JobIdentity("verified-report-governance.yml", "report-governance"),
     }
 )
@@ -104,6 +105,7 @@ KNOWN_PYTHON_MAKE_TARGETS = frozenset(
     {
         "capabilities-all-connectors-evidence",
         "check-envoy-common-adoption",
+        "check-ci-security-contract",
         "check-lighttpd-common-adoption",
         "check-remaining-connectors-build-wiring",
         "check-remaining-connectors-claim-policy",
