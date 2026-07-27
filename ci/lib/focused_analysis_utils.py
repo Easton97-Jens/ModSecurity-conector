@@ -4,35 +4,20 @@ from __future__ import annotations
 import importlib.util
 import sys
 from collections import Counter
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from report_path_safety import read_json_file, read_text_file, safe_existing_file, write_json_file
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def read_json(path: Any) -> dict[str, Any]:
-    return read_json_file(path)
-
-
-def write_json(path: Path, data: dict[str, Any]) -> None:
-    write_json_file(path, data)
-
-
-def read_text(path: Path | None) -> str:
-    return read_text_file(path)
+from generated_report_utils import utc_now
+from report_path_safety import read_json_file as read_json
+from report_path_safety import read_text_file as read_text
+from report_path_safety import safe_existing_file
+from report_path_safety import write_json_file as write_json
 
 
 def as_list(value: Any) -> list[str]:
-    if isinstance(value, list):
-        return [str(item) for item in value if str(item).strip()]
-    if value in (None, ""):
-        return []
-    return [str(value)]
+    if not isinstance(value, list):
+        return [] if value in (None, "") else [str(value)]
+    return [str(item) for item in value if str(item).strip()]
 
 
 def refresh_connector_queue_totals(data: dict[str, Any]) -> None:
@@ -71,21 +56,30 @@ def sanitize_path(value: Any, connector_root: Path, framework_root: Path) -> str
     return f"<runtime-artifact>/{path.name}"
 
 
+def _next_quote(quote: str | None, char: str) -> str | None:
+    if char not in {"'", '"'}:
+        return quote
+    if quote is None:
+        return char
+    return None if quote == char else quote
+
+
+def _append_action_part(parts: list[str], characters: list[str]) -> None:
+    part = "".join(characters).strip()
+    if part:
+        parts.append(part)
+
+
 def action_parts(action_text: str) -> list[str]:
     parts: list[str] = []
     current: list[str] = []
     quote: str | None = None
     for char in action_text:
-        if char in {"'", '"'}:
-            quote = None if quote == char else char if quote is None else quote
+        quote = _next_quote(quote, char)
         if char == "," and quote is None:
-            part = "".join(current).strip()
-            if part:
-                parts.append(part)
-            current = []
-            continue
-        current.append(char)
-    tail = "".join(current).strip()
-    if tail:
-        parts.append(tail)
+            _append_action_part(parts, current)
+            current.clear()
+        else:
+            current.append(char)
+    _append_action_part(parts, current)
     return parts
