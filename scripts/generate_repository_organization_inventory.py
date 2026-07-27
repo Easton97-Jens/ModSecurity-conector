@@ -22,13 +22,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK = ROOT / "modules" / "ModSecurity-test-Framework"
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
-VARIABLE_RE = re.compile(
-    r"(?:\$\{?[A-Z][A-Z0-9_]*\}?|\$\([A-Z][A-Z0-9_]*\)|\b[A-Z][A-Z0-9_]{2,}\s*(?:\?|:|\+)?=)"
+VARIABLE_REFERENCE_RE = re.compile(
+    r"\$\{?[A-Z][A-Z0-9_]*\}?|\$\([A-Z][A-Z0-9_]*\)"
 )
+VARIABLE_ASSIGNMENT_RE = re.compile(r"\b[A-Z][A-Z0-9_]{2,}\s*[?:+]?=")
+VARIABLE_PATTERNS = (VARIABLE_REFERENCE_RE, VARIABLE_ASSIGNMENT_RE)
 PLACEHOLDER_RE = re.compile(
     r"(?:<[A-Za-z][A-Za-z0-9 _-]*>|\b(?:REPLACE_ME|CHANGE_ME)\b|\{\{[^}]+\}\}|\$\{\{[^}]+\}\})"
 )
-REFERENCE_RE = re.compile(r"(?:\bci/[\w./-]+|\bdocs/[\w./-]+|\breports/[\w./-]+|\bexamples/[\w./-]+|\bmake\s+[\w.-]+)")
+REFERENCE_RE = re.compile(r"\b(?:(?:ci|docs|reports|examples)/[\w./-]+|make\s+[\w.-]+)")
 
 
 def tracked_files(directory: Path) -> list[str]:
@@ -50,6 +52,28 @@ def read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
+
+
+def variable_matches(text: str) -> list[str]:
+    """Return variable references and assignments in source order.
+
+    The two small patterns avoid a single high-complexity expression.  Keep
+    the leftmost match when a reference and an assignment overlap, matching
+    the prior regular-expression scanner behavior for inputs such as
+    ``$FOO=``.
+    """
+    matches = sorted(
+        (match for pattern in VARIABLE_PATTERNS for match in pattern.finditer(text)),
+        key=lambda match: (match.start(), -match.end()),
+    )
+    result: list[str] = []
+    consumed_until = 0
+    for match in matches:
+        if match.start() < consumed_until:
+            continue
+        result.append(match.group())
+        consumed_until = match.end()
+    return result
 
 
 def language(path: str) -> str:
@@ -127,7 +151,7 @@ def proposed_destination(path: str, is_framework: bool) -> str:
             return f"{prefix}ci/checks/protocol/{name}"
         if lower.startswith("check-") and "doc" in lower:
             return f"{prefix}ci/checks/documentation/{name}"
-        if lower.startswith("check-") or lower.startswith("check_"):
+        if lower.startswith(("check-", "check_")):
             return f"{prefix}ci/checks/catalog/{name}"
         if lower.startswith(("run-", "no_crs", "protocol_client", "response_body")):
             return f"{prefix}ci/runtime/{name}"
@@ -165,7 +189,7 @@ def inventory_row(path: str, filesystem_path: Path, is_framework: bool, source_t
     referenced = sorted(
         source for source, source_text in source_texts.items() if source != path and (path in source_text or basename in source_text)
     )
-    variables = sorted(set(VARIABLE_RE.findall(text)))
+    variables = sorted(set(variable_matches(text)))
     placeholders = sorted(set(PLACEHOLDER_RE.findall(text)))
     references = sorted(set(REFERENCE_RE.findall(text)))
     local_docs = bool(re.search(r"(?:variable|placeholder|configuration values|konfigurationsvariablen)", text, re.I))

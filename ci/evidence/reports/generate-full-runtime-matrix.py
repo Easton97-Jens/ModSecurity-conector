@@ -28,6 +28,7 @@ DEFAULT_BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", DEFAULT_PATHS["BUILD_ROOT
 MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(DEFAULT_BUILD_ROOT / "mrts"))).resolve()
 MRTS_UPSTREAM_CASE_MARKER = "/upstream-config-tests/framework-cases/"
 MRTS_FEATURE_DEMO_CASE_MARKER = "/feature-demo/framework-cases/"
+_UTC_OFFSET = "+00:00"
 NATIVE_EVIDENCE_REPORTS = {
     "apache": report_relpath("mrts_native_apache", "md"),
     "nginx": report_relpath("mrts_native_nginx", "md"),
@@ -161,7 +162,7 @@ def parse_time(value: str) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.fromisoformat(value.replace("Z", _UTC_OFFSET))
     except ValueError:
         return None
 
@@ -393,7 +394,7 @@ def main() -> int:
     manifest = Path(args.manifest).resolve() if args.manifest else build_root / "results/full-matrix/full-runtime-matrix-runs.jsonl"
 
     if not manifest.is_file() or manifest.stat().st_size == 0:
-        generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace(_UTC_OFFSET, "Z")
         status = "skipped_missing_input"
         reason = "full-runtime-matrix manifest is missing" if not manifest.exists() else "full-runtime-matrix manifest is empty"
         payload = {
@@ -447,7 +448,7 @@ def main() -> int:
         totals["not_executable"] += record.not_executable
         totals["pending"] += record.pending
 
-    generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace(_UTC_OFFSET, "Z")
     payload = {
         "generated_at": generated_at,
         "manifest": str(manifest),

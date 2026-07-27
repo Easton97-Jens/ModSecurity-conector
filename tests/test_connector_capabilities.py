@@ -139,16 +139,16 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
             )
 
         self.assertNotEqual(connector_sha, framework_sha)
-        self.assertEqual("unknown", metadata["framework_sha"])
+        self.assertEqual(metadata["framework_sha"], "unknown")
         self.assertEqual(framework_sha, metadata["framework_gitlink_sha"])
-        self.assertEqual("not_checked_out", metadata["framework_checkout_status"])
-        self.assertEqual("not_checked_out", metadata["framework_gitlink_status"])
-        self.assertEqual("unknown", metadata["framework_working_tree_dirty"])
+        self.assertEqual(metadata["framework_checkout_status"], "not_checked_out")
+        self.assertEqual(metadata["framework_gitlink_status"], "not_checked_out")
+        self.assertEqual(metadata["framework_working_tree_dirty"], "unknown")
         self.assertEqual(checked_out_sha, checked_out_metadata["framework_sha"])
-        self.assertEqual("unknown", checked_out_metadata["framework_gitlink_sha"])
-        self.assertEqual("checked_out", checked_out_metadata["framework_checkout_status"])
-        self.assertEqual("not_a_gitlink", checked_out_metadata["framework_gitlink_status"])
-        self.assertEqual("clean", checked_out_metadata["framework_working_tree_dirty"])
+        self.assertEqual(checked_out_metadata["framework_gitlink_sha"], "unknown")
+        self.assertEqual(checked_out_metadata["framework_checkout_status"], "checked_out")
+        self.assertEqual(checked_out_metadata["framework_gitlink_status"], "not_a_gitlink")
+        self.assertEqual(checked_out_metadata["framework_working_tree_dirty"], "clean")
 
     def test_framework_provenance_marks_a_matching_gitlink_checkout(self) -> None:
         with tempfile.TemporaryDirectory(prefix="framework-provenance-match-") as temporary:
@@ -173,9 +173,9 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
 
         self.assertEqual(framework_sha, provenance["sha"])
         self.assertEqual(framework_sha, provenance["gitlink_sha"])
-        self.assertEqual("checked_out", provenance["checkout_status"])
-        self.assertEqual("matches_checkout", provenance["gitlink_status"])
-        self.assertEqual("clean", provenance["working_tree_dirty"])
+        self.assertEqual(provenance["checkout_status"], "checked_out")
+        self.assertEqual(provenance["gitlink_status"], "matches_checkout")
+        self.assertEqual(provenance["working_tree_dirty"], "clean")
 
     def test_framework_provenance_marks_a_checkout_that_differs_from_its_gitlink(self) -> None:
         with tempfile.TemporaryDirectory(prefix="framework-provenance-mismatch-") as temporary:
@@ -207,9 +207,9 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
         self.assertNotEqual(framework_sha, checkout_sha)
         self.assertEqual(checkout_sha, provenance["sha"])
         self.assertEqual(framework_sha, provenance["gitlink_sha"])
-        self.assertEqual("checked_out", provenance["checkout_status"])
-        self.assertEqual("checkout_mismatch", provenance["gitlink_status"])
-        self.assertEqual("clean", provenance["working_tree_dirty"])
+        self.assertEqual(provenance["checkout_status"], "checked_out")
+        self.assertEqual(provenance["gitlink_status"], "checkout_mismatch")
+        self.assertEqual(provenance["working_tree_dirty"], "clean")
 
     def test_input_record_marks_a_missing_framework_checkout_stale(self) -> None:
         run_id = "framework-provenance-fixture"
@@ -237,15 +237,15 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
                     report, connector_root, framework_root
                 )
 
-        self.assertEqual("stale", record["status"])
-        self.assertEqual("unknown", provenance["sha"])
+        self.assertEqual(record["status"], "stale")
+        self.assertEqual(provenance["sha"], "unknown")
         self.assertEqual(framework_sha, provenance["gitlink_sha"])
-        self.assertEqual("not_checked_out", provenance["checkout_status"])
-        self.assertEqual("not_checked_out", provenance["gitlink_status"])
+        self.assertEqual(provenance["checkout_status"], "not_checked_out")
+        self.assertEqual(provenance["gitlink_status"], "not_checked_out")
         self.assertEqual(framework_sha, record["framework_sha"])
         self.assertEqual(framework_sha, record["framework_gitlink_sha"])
-        self.assertEqual("checked_out", record["framework_checkout_status"])
-        self.assertEqual("matches_checkout", record["framework_gitlink_status"])
+        self.assertEqual(record["framework_checkout_status"], "checked_out")
+        self.assertEqual(record["framework_gitlink_status"], "matches_checkout")
         self.assertIn("framework checkout is not verified (not_checked_out)", record["notes"])
 
     def test_input_record_marks_a_framework_gitlink_mismatch_stale(self) -> None:
@@ -283,7 +283,7 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
                     report, connector_root, framework_root
                 )
 
-        self.assertEqual("stale", record["status"])
+        self.assertEqual(record["status"], "stale")
         self.assertIn(
             "framework checkout differs from its recorded gitlink", record["notes"]
         )
@@ -304,34 +304,34 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            "implemented_not_asserted",
             self.manifests["apache"]["capabilities"]["request_headers"]["state"],
+            "implemented_not_asserted",
         )
         self.assertEqual(source_snapshot, self.manifests)
         self.assertEqual(
-            "verified",
             merged["apache"]["capabilities"]["request_headers"]["state"],
+            "verified",
         )
         self.assertEqual(
-            "implemented_not_asserted",
             merged["apache"]["capabilities"]["request_headers"]["declared_state"],
-        )
-        self.assertEqual(
-            "supported_and_verified",
-            merged["apache"]["evidence_stages"]["no_crs_baseline"]["status"],
-        )
-        self.assertEqual(
-            "failed",
-            merged["nginx"]["evidence_stages"]["no_crs_baseline"]["status"],
-        )
-        self.assertEqual(
             "implemented_not_asserted",
+        )
+        self.assertEqual(
+            merged["apache"]["evidence_stages"]["no_crs_baseline"]["status"],
+            "supported_and_verified",
+        )
+        self.assertEqual(
+            merged["nginx"]["evidence_stages"]["no_crs_baseline"]["status"],
+            "failed",
+        )
+        self.assertEqual(
             merged["nginx"]["capabilities"]["request_headers"]["state"],
+            "implemented_not_asserted",
         )
         self.assertFalse(evidence["connectors"]["nginx"]["promotion_eligible"])
         self.assertEqual(
-            "apache/ci-123/result.json",
             evidence["connectors"]["apache"]["result"],
+            "apache/ci-123/result.json",
         )
 
     def test_result_shape_rejects_a_negative_source_capability_promotion(self) -> None:
@@ -374,8 +374,8 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
                     self.manifests, results, "ci-123"
                 )
                 self.assertEqual(
-                    "implemented_not_asserted",
                     merged["apache"]["capabilities"]["request_headers"]["state"],
+                    "implemented_not_asserted",
                 )
                 self.assertFalse(evidence["connectors"]["apache"]["promotion_eligible"])
 
@@ -384,7 +384,7 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
             results, errors = connector_capabilities.load_validated_runtime_results(
                 self.manifests, Path(temporary), "ci-123"
             )
-        self.assertEqual({}, results)
+        self.assertEqual(results, {})
         self.assertEqual(len(connector_capabilities.CONNECTORS), len(errors))
         self.assertTrue(all("run directory is missing" in error for error in errors))
 
@@ -422,18 +422,18 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
                         str(output),
                     ]
                 )
-            self.assertEqual(0, rc)
+            self.assertEqual(rc, 0)
             payload = json.loads(
                 (output / "connector-capabilities.generated.json").read_text(
                     encoding="utf-8"
                 )
             )
         self.assertTrue(payload["runtime_promotion"])
-        self.assertEqual(run_id, payload["runtime_evidence"]["run_id"])
-        self.assertEqual(run_id, payload["metadata"]["verified_run_id"])
+        self.assertEqual(payload["runtime_evidence"]["run_id"], run_id)
+        self.assertEqual(payload["metadata"]["verified_run_id"], run_id)
         self.assertEqual(
-            "verified",
             payload["connectors"]["apache"]["capabilities"]["request_headers"]["state"],
+            "verified",
         )
 
     def test_framework_validator_is_required_for_each_runtime_result(self) -> None:
@@ -466,7 +466,7 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
                     temporary,
                 ]
             )
-        self.assertEqual(2, rc)
+        self.assertEqual(rc, 2)
 
 
 if __name__ == "__main__":

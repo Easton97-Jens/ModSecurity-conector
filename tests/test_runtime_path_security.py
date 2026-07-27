@@ -508,7 +508,6 @@ class RuntimePathSecurityTest(unittest.TestCase):
             with self.assertRaises(VerifiedRunIdError):
                 NGINX_HTTP500_ANALYSIS.build_payload(
                     ROOT,
-                    ROOT / "modules" / "ModSecurity-test-Framework",
                     build_root,
                     "../outside",
                 )

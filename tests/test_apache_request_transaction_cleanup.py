@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "connectors" / "apache" / "src" / "mod_security3.c"
 HEADER = ROOT / "connectors" / "apache" / "src" / "mod_security3.h"
 UTILS = ROOT / "connectors" / "apache" / "src" / "msc_utils.c"
+FILTERS = ROOT / "connectors" / "apache" / "src" / "msc_filters.c"
 C17_CHECK = (
     ROOT / "ci" / "checks" / "connectors" / "apache" / "check-apache-c-standards.sh"
 )
@@ -42,11 +43,16 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.module = MODULE.read_text(encoding="utf-8")
         self.header = HEADER.read_text(encoding="utf-8")
         self.utils = UTILS.read_text(encoding="utf-8")
+        self.filters = FILTERS.read_text(encoding="utf-8")
         self.create_context = c_function(
             self.module, "static msc_t *create_tx_context(request_rec *r)"
         )
         self.cleanup = c_function(
             self.utils, "apr_status_t msc_cleanup_request_transaction(void *data)"
+        )
+        self.output_filter = c_function(
+            self.filters,
+            "apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)",
         )
 
     def test_failed_native_transaction_is_never_published(self) -> None:
@@ -61,7 +67,7 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         registration = self.create_context.index("apr_pool_cleanup_register(r->pool, msr,")
 
         self.assertLess(publish, registration)
-        self.assertEqual(1, self.create_context.count("apr_pool_cleanup_register("))
+        self.assertEqual(self.create_context.count("apr_pool_cleanup_register("), 1)
         self.assertIn(
             "msc_cleanup_request_transaction, apr_pool_cleanup_null);",
             self.create_context[registration:],
@@ -96,6 +102,24 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
     def test_c17_check_compiles_the_cleanup_helper(self) -> None:
         source_list = C17_CHECK.read_text(encoding="utf-8")
         self.assertIn("connectors/apache/src/msc_utils.c", source_list)
+
+    def test_unread_request_body_failure_returns_before_response_headers(self) -> None:
+        drain = self.output_filter.index(
+            "apr_status_t request_body_rc = apache_finish_unread_request_body(f);"
+        )
+        failure_check = self.output_filter.index(
+            "if (request_body_rc != APR_SUCCESS)", drain
+        )
+        failure_return = self.output_filter.index("return request_body_rc;", failure_check)
+        response_headers = self.output_filter.index("/* response headers */")
+
+        self.assertNotIn(
+            "apr_status_t rc = apache_finish_unread_request_body(f);",
+            self.output_filter,
+        )
+        self.assertLess(drain, failure_check)
+        self.assertLess(failure_check, failure_return)
+        self.assertLess(failure_return, response_headers)
 
 
 if __name__ == "__main__":

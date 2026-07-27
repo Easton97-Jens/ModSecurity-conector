@@ -329,9 +329,7 @@ def representative_cases(rows: list[dict[str, Any]], prefix: str, connector_root
                 break
     cases: list[dict[str, Any]] = []
     for row in selected[:10]:
-        env_path = Path(str(row.get("evidence_path") or "")).parent.parent / "runtime" / "missing"
         evidence_path = Path(str(row.get("evidence_path") or ""))
-        runtime_conf = Path(str(row.get("nginx_error_log_path") or "")).parents[1] if row.get("nginx_error_log_path") else Path()
         # The result path is .../logs/<case>/result.json; runtime is under sibling runtime/<case>/conf.
         case_name = str(row.get("name") or "")
         harness_root = harness_root_from_evidence(evidence_path)
@@ -405,7 +403,7 @@ def permissions_probe(row: dict[str, Any]) -> dict[str, Any]:
     return {"index_path": str(index_path), "path_components": paths}
 
 
-def build_payload(connector_root: Path, framework_root: Path, build_root: Path, verified_run_id: str) -> dict[str, Any]:
+def build_payload(connector_root: Path, build_root: Path, verified_run_id: str) -> dict[str, Any]:
     verified_run_id = validate_verified_run_id(verified_run_id)
     job_root = build_root / "full-matrix/with-crs/with-mrts/nginx"
     job_json = job_root / "job.json"
@@ -425,7 +423,6 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path, 
     reps = representative_cases(http500_rows, prefix, connector_root)
     rewrite_count = next((item["count"] for item in patterns if item["pattern"] == "rewrite_internal_redirect_cycle_to_index"), 0)
     permission_case_count = sum(1 for row in http500_rows if "docroot_index_permission_denied" in error_patterns_for_case(row, prefix))
-    example = reps[0] if reps else {}
     minimal_case = "mrts_100000_mrts_002_args_a_get_100000_1"
     minimal_row = next((row for row in http500_rows if row.get("name") == minimal_case), http500_rows[0] if http500_rows else {})
     payload = {
@@ -667,7 +664,7 @@ def main() -> int:
     add_safe_roots(report_root, output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    payload = build_payload(connector_root, framework_root, build_root, verified_run_id)
+    payload = build_payload(connector_root, build_root, verified_run_id)
     inputs = [Path(value) for value in payload["inputs"].values()]
     metadata = build_metadata(
         generated_by="ci/evidence/reports/generate-nginx-mrts-http500-cluster-analysis.py",

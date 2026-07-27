@@ -373,7 +373,6 @@ def classify_record(record: dict[str, Any]) -> tuple[str, str, str, str]:
 
 
 def build_records(connector_root: Path, framework_root: Path) -> list[dict[str, Any]]:
-    report_dir = connector_root / REPORT_DIR
     queue = read_json(report_path(connector_root, "connector_work_queue", "json"))
     entries = [entry for entry in queue.get("entries", []) if isinstance(entry, dict)]
     selected = [
