@@ -322,7 +322,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 )
 
             self.assertEqual("blocked", record["status"])
-            self.assertEqual("modsecurity_v3_provenance_guard_failed", record["blocker_reason"])
+            self.assertEqual(record["blocker_reason"], "modsecurity_v3_provenance_guard_failed")
             self.assertEqual(provenance, record["provenance_verification"])
             self.assertFalse(Path(str(record["build_root"])).exists())
             self.assertFalse(Path(str(record["prefix"])).exists())
@@ -366,8 +366,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     framework_root=framework_root,
                 )
 
-            self.assertEqual("blocked", record["status"])
-            self.assertEqual("missing_modsecurity_dependency", record["blocker_reason"])
+            self.assertEqual(record["status"], "blocked")
+            self.assertEqual(record["blocker_reason"], "missing_modsecurity_dependency")
             provenance_guard.assert_called_once_with({}, framework_root, source.resolve())
             copytree.assert_not_called()
 
@@ -393,7 +393,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     source,
                 )
 
-            self.assertEqual("passed", result["status"])
+            self.assertEqual(result["status"], "passed")
             run_env.assert_called_once()
             command = run_env.call_args.args[0]
             self.assertEqual(
@@ -441,7 +441,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     destination,
                 )
 
-            self.assertEqual("passed", result["status"])
+            self.assertEqual(result["status"], "passed")
             run_env.assert_called_once()
             command = run_env.call_args.args[0]
             self.assertEqual(
@@ -483,7 +483,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             ), mock.patch.object(components, "run_env", return_value=completed) as run_env:
                 output = components.trusted_framework_modsecurity_v3_git_output(source, "rev-parse", "HEAD")
 
-            self.assertEqual("approved-head", output)
+            self.assertEqual(output, "approved-head")
             self.assertEqual(
                 [
                     str(
@@ -506,6 +506,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 run_env.call_args.args[0],
             )
             self.assertEqual(
+                run_env.call_args.kwargs["env"],
                 {
                     "PATH": components._TRUSTED_FRAMEWORK_GUARD_PATH,
                     "LC_ALL": "C",
@@ -516,7 +517,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     "GIT_ATTR_NOSYSTEM": "1",
                     "GIT_NO_REPLACE_OBJECTS": "1",
                 },
-                run_env.call_args.kwargs["env"],
             )
 
     def test_modsecurity_source_configuration_guard_blocks_before_git_preparation(self) -> None:
@@ -544,8 +544,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     cache_root=root / "cache",
                 )
 
-            self.assertEqual("blocked", record["status"])
-            self.assertEqual("modsecurity_v3_provenance_configuration_failed", record["blocker_reason"])
+            self.assertEqual(record["status"], "blocked")
+            self.assertEqual(record["blocker_reason"], "modsecurity_v3_provenance_configuration_failed")
             self.assertEqual(expected_configuration, record["provenance_configuration"])
             bridge.assert_not_called()
             prepare_git.assert_not_called()
@@ -626,17 +626,17 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 provisioned_paths[0],
             )
             prepare_git.assert_not_called()
-            self.assertEqual("present", record["status"])
-            self.assertEqual("framework_approved_v3_bridge", record["approved_acquisition"])
+            self.assertEqual(record["status"], "present")
+            self.assertEqual(record["approved_acquisition"], "framework_approved_v3_bridge")
             self.assertEqual(source, Path(str(record["path"])))
             self.assertTrue(source.is_dir())
             self.assertFalse(provisioned_paths[0].exists())
             self.assertEqual(expected_head, record["actual_head"])
-            self.assertEqual("PASS", record["git_fsck"])
+            self.assertEqual(record["git_fsck"], "PASS")
             self.assertTrue(record["submodule_status_clean"])
             self.assertEqual(configuration, record["provenance_configuration"])
-            self.assertEqual("passed", record["provenance_provisioning"]["status"])
-            self.assertEqual("passed", record["provenance_verification"]["status"])
+            self.assertEqual(record["provenance_provisioning"]["status"], "passed")
+            self.assertEqual(record["provenance_verification"]["status"], "passed")
             self.assertIn("cache_identity", record)
             self.assertIn("cache_key", record)
 
@@ -766,12 +766,12 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
 
             bridge.assert_called_once()
             prepare_git.assert_not_called()
-            self.assertEqual("blocked", record["status"])
-            self.assertEqual("modsecurity_v3_framework_provisioning_failed", record["blocker_reason"])
+            self.assertEqual(record["status"], "blocked")
+            self.assertEqual(record["blocker_reason"], "modsecurity_v3_framework_provisioning_failed")
             self.assertEqual(bridge_failure, record["provenance_provisioning"])
             self.assertTrue(sentinel.is_file())
             self.assertTrue(components.cache_entry_marker_valid(source, cache_root))
-            self.assertEqual([], list(source.parent.glob(".modsecurity-v3.tmp-*")))
+            self.assertEqual(list(source.parent.glob(".modsecurity-v3.tmp-*")), [])
 
             with mock.patch.object(
                 components,
@@ -791,8 +791,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     framework_root=root / "framework",
                 )
 
-            self.assertEqual("blocked", build_record["status"])
-            self.assertEqual("modsecurity_v3_framework_provisioning_failed", build_record["blocker_reason"])
+            self.assertEqual(build_record["status"], "blocked")
+            self.assertEqual(build_record["blocker_reason"], "modsecurity_v3_framework_provisioning_failed")
             copytree.assert_not_called()
             run_env.assert_not_called()
             copy_outputs.assert_not_called()
@@ -864,9 +864,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 self.assertFalse(destination.is_symlink())
                 self.assertTrue(components.cache_entry_marker_valid(destination, cache_root))
                 staging_marker = components.read_json(components.cache_entry_marker_path(destination, cache_root))
-                self.assertEqual(component, staging_marker["component"])
+                self.assertEqual(staging_marker["component"], component)
                 self.assertEqual(str(published_identity["cache_key"]), staging_marker["cache_key"])
-                self.assertNotEqual("complete", staging_marker.get("status"))
+                self.assertNotEqual(staging_marker.get("status"), "complete")
                 destination.mkdir()
                 (destination / "bridge-created-partial-checkout").write_text("partial", encoding="utf-8")
                 staging_paths.append(destination)
@@ -898,17 +898,17 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
 
             bridge.assert_called_once_with(environment, root / "framework", staging_paths[0])
             self.assertEqual(
+                verification.call_args_list,
                 [
                     mock.call(environment, root / "framework", source),
                     mock.call(environment, root / "framework", staging_paths[0]),
                 ],
-                verification.call_args_list,
             )
             completion.assert_not_called()
             publish.assert_not_called()
             prepare_git.assert_not_called()
-            self.assertEqual("blocked", record["status"])
-            self.assertEqual("modsecurity_v3_provenance_guard_failed", record["blocker_reason"])
+            self.assertEqual(record["status"], "blocked")
+            self.assertEqual(record["blocker_reason"], "modsecurity_v3_provenance_guard_failed")
             self.assertEqual(post_provision_rejection, record["provenance_verification"])
             self.assertTrue(sentinel.is_file())
             self.assertTrue(
@@ -923,7 +923,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             self.assertFalse(staging_paths[0].exists())
             self.assertFalse(staging_paths[0].is_symlink())
             self.assertFalse(components.cache_entry_marker_path(staging_paths[0], cache_root).exists())
-            self.assertEqual([], list(source.parent.glob(".modsecurity-v3.tmp-*")))
+            self.assertEqual(list(source.parent.glob(".modsecurity-v3.tmp-*")), [])
 
     def prepare_haproxy_with(self, returncode: int, output: str) -> dict[str, object]:
         with tempfile.TemporaryDirectory(prefix="haproxy-prepare-") as temporary:
