@@ -3588,7 +3588,7 @@ def apache_validation_section() -> str:
     return shell_groups(commands)
 
 
-def validation_section(item: dict[str, str], info: dict[str, object], german: bool) -> str:
+def validation_section(item: dict[str, str], info: dict[str, object]) -> str:
     if item["slug"] == "nginx":
         return nginx_validation_section()
     if item["slug"] == "apache":
@@ -3733,7 +3733,7 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
     host_build = host_provisioning_section(slug, german)
     connector_build = connector_build_section(item, info, german)
     configuration = configuration_section(item, info, german)
-    validation = validation_section(item, info, german)
+    validation = validation_section(item, info)
     http_test = runtime_section(item, info, german)
     variables = manual_variable_table(info, german, slug)
     return f"""{MARKER}

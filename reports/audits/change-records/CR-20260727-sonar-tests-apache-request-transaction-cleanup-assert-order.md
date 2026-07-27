@@ -29,6 +29,40 @@ contract remain unchanged.
 | Bilingual Change Record validation | passed: `tests.test_bilingual_docs`, 13 tests in 0.033s. |
 | `git diff --check` | passed after the full B05 traceability pair and indexes were added. |
 
+## Motivation and problem statement
+
+The concrete Sonar rule, Parent test scope, and behavior-preservation rationale
+are recorded in the preceding `## Motivation and decision` section. This
+structural correction does not change the documented source or test behavior.
+
+## Acceptance criteria
+
+- Preserve the exact remediation and focused validation already recorded.
+- Retain equivalent technical facts in this English/German Change Record pair.
+- Do not convert blocked, unrun, or pending hosted evidence into a pass.
+
+## Implementation decision and rationale
+
+Keep the existing rationale and validation intact, and restore the canonical
+Change Record headings instead of weakening the documentation checker or
+creating a record-specific exception.
+
+## Changed files
+
+The original versioned scope is recorded in `## Identity` and the preceding
+implementation narrative. This follow-up changes only the structure of this
+Change Record pair.
+
+## Commands executed
+
+The exact commands and observed outcomes remain in `## Validation`; this
+structural correction does not reclassify any result.
+
+## Security impact
+
+The existing section below remains authoritative for this record's specific
+boundary. This normalization changes no security control.
+
 ## Security impact and limitations
 
 `not_applicable`: this is test-diagnostic ordering only. The test still reads
@@ -36,3 +70,29 @@ the same Parent Apache C/header/check-script sources; no production request or
 transaction behavior changed. The local candidate is uncommitted and no hosted
 Sonar analysis, GitHub CI, commit, push, pull request, or master merge has
 occurred. The Sonar key remains OPEN until a delivered head is analyzed.
+
+## Runtime evidence
+
+No additional runtime evidence is claimed by this structural correction; the
+existing validation retains only its recorded Parent test-module scope.
+
+## Known limitations
+
+The record's focused validation is intentionally narrower than a native Apache
+build or hosted analysis.
+
+## Remaining risks
+
+No new risk is introduced by record normalization. Hosted analysis remains
+limited to results actually observed for a later delivery head.
+
+## Checks not run and rationale
+
+No additional connector runtime, native Apache build, or hosted check is run
+for this documentation-only correction.
+
+## Final diff and review status
+
+The earlier delivery wording is a snapshot of the original local validation.
+This record does not assert a final PR verification, merge, or Sonar issue
+closure for a later delivery head.

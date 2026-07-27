@@ -62,3 +62,48 @@ framework-shaped repositories and passed independently. The local candidate is
 uncommitted; no hosted Sonar analysis, GitHub CI, commit, push, pull request,
 or master merge has occurred. The listed keys remain OPEN until a delivered
 head is analyzed.
+
+## Motivation and problem statement
+
+The preceding decision describes the original assertion-order repair. This
+follow-up preserves that evidence while normalizing the record to the
+repository's required Change Record contract.
+
+## Implementation decision and rationale
+
+Retain the original identity, scope, validation evidence, and security
+classification. Add only the required section structure and explicit status
+boundaries; no test or connector source changes result from this record repair.
+
+## Commands executed
+
+The exact commands and observed results remain in `## Validation`; this
+structural repair does not recast any historical result.
+
+## Runtime evidence
+
+No additional runtime evidence is claimed. The focused Parent-only test-method
+evidence retains its documented scope.
+
+## Known limitations
+
+The existing limitations and delivery state remain controlling: the full
+Framework-dependent aggregate module and hosted analysis are outside the
+original focused evidence.
+
+## Remaining risks
+
+The record normalization adds no new risk. Framework aggregate or hosted
+analysis results remain pending until they are actually observed.
+
+## Checks not run and rationale
+
+No additional Framework-dependent aggregate suite or hosted check is run for
+this documentation-only repair; the original validation boundaries remain
+unchanged.
+
+## Final diff and review status
+
+The prior delivery wording is a snapshot of the original local validation.
+This record does not claim final PR verification, merge, or Sonar issue closure
+for a later delivery head.

@@ -63,3 +63,50 @@ temporäre Framework-ähnliche Repositories und bestanden unabhängig. Der lokal
 Kandidat ist uncommittet; es gab keine gehostete Sonar-Analyse, keine GitHub-CI,
 keinen Commit, Push, Pull Request oder Master-Merge. Die aufgeführten Keys
 bleiben OPEN, bis ein ausgelieferter Head analysiert wird.
+
+## Motivation und Problemstellung
+
+Die vorangehende Entscheidung beschreibt die ursprüngliche Reparatur der
+Assertion-Reihenfolge. Dieses Follow-up erhält diese Evidenz und normalisiert
+den Record zugleich auf den erforderlichen Change-Record-Vertrag des Projekts.
+
+## Implementierungsentscheidung und Begründung
+
+Identität, Umfang, Validierungsevidence und Security-Klassifikation bleiben
+erhalten. Es kommen ausschließlich die erforderliche Abschnittsstruktur und
+explizite Statusgrenzen hinzu; aus dieser Record-Korrektur entstehen keine
+Änderungen an Test- oder Connector-Quelltext.
+
+## Ausgeführte Befehle
+
+Die exakten Befehle und beobachteten Ergebnisse bleiben in `## Validierung`;
+diese strukturelle Korrektur klassifiziert kein historisches Ergebnis neu.
+
+## Runtime-Evidence
+
+Es wird keine zusätzliche Runtime-Evidence beansprucht. Die fokussierte
+Parent-only-Testmethoden-Evidenz behält ihren dokumentierten Umfang.
+
+## Bekannte Einschränkungen
+
+Die bestehenden Einschränkungen und der Delivery-Status bleiben maßgeblich:
+Das vollständige Framework-abhängige Aggregatmodul und die gehostete Analyse
+liegen außerhalb der ursprünglichen fokussierten Evidenz.
+
+## Verbleibende Risiken
+
+Die Record-Normalisierung führt kein neues Risiko ein. Ergebnisse eines
+Framework-Aggregats oder einer gehosteten Analyse bleiben bis zu ihrer
+tatsächlichen Beobachtung ausstehend.
+
+## Nicht ausgeführte Prüfungen mit Begründung
+
+Für diese reine Dokumentationskorrektur werden kein zusätzliches
+Framework-abhängiges Aggregat und kein gehosteter Check ausgeführt; die
+ursprünglichen Validierungsgrenzen bleiben unverändert.
+
+## Finaler Diff- und Review-Status
+
+Die frühere Delivery-Formulierung ist eine Momentaufnahme der ursprünglichen
+lokalen Validierung. Dieser Record behauptet keine finale PR-Verifikation,
+keinen Merge und keinen Sonar-Issue-Abschluss für einen späteren Delivery-Head.

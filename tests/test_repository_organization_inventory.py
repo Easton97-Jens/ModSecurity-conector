@@ -30,6 +30,7 @@ class RepositoryOrganizationInventoryTest(unittest.TestCase):
             "$FOO}": ["$FOO}"],
             f"{OPEN_BRACE}FOO": [f"{OPEN_BRACE}FOO"],
             f"{OPEN_BRACE}FOO)": [f"{OPEN_BRACE}FOO"],
+            "$FOO=": ["$FOO"],
             "$foo": [],
             "$(FOO": [],
             "AB=": [],
@@ -40,7 +41,7 @@ class RepositoryOrganizationInventoryTest(unittest.TestCase):
 
         for text, expected in cases.items():
             with self.subTest(text=text):
-                self.assertEqual(INVENTORY.VARIABLE_RE.findall(text), expected)
+                self.assertEqual(INVENTORY.variable_matches(text), expected)
 
     def test_reference_regex_preserves_known_reference_boundaries(self) -> None:
         cases = {

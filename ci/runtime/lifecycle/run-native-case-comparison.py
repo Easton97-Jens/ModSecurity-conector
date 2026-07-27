@@ -827,7 +827,6 @@ def main() -> int:
         if args.verified_run_root
         else Path(os.environ.get("VERIFIED_RUN_ROOT", "/var/tmp/ModSecurity-conector-verified")).resolve()
     )
-    build_root = Path(args.build_root).resolve() if args.build_root else verified_run_root / "build"
     output_dir = Path(args.output_dir)
     if not output_dir.is_absolute():
         output_dir = connector_root / output_dir

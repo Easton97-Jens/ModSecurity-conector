@@ -22,6 +22,7 @@ REMOTE_PREFIXES = (
 LINK_RE = re.compile(r"(?<!!)\[[^\]\n]+\]\(([^)\n]+)\)")
 REFERENCE_LINK_RE = re.compile(r"^\s*\[[^\]]+\]:\s+(\S+)")
 MARKDOWN_SUFFIX = ".md"
+GERMAN_MARKDOWN_SUFFIX = ".de.md"
 GERMAN_GENERATED_NOTE = "Diese deutsche Datei ist eine übersetzte Begleitdatei"
 SPECIAL_LANGUAGE_INDEXES: tuple[tuple[Path, Path], ...] = ()
 CHANGE_RECORDS_DIRECTORY = Path("reports/audits/change-records")
@@ -221,11 +222,11 @@ def is_git_ignored(path: Path, ignored_paths: frozenset[Path]) -> bool:
 
 
 def german_counterpart(path: Path) -> Path:
-    return path.with_name(path.name.removesuffix(MARKDOWN_SUFFIX) + ".de" + MARKDOWN_SUFFIX)
+    return path.with_name(path.name.removesuffix(MARKDOWN_SUFFIX) + GERMAN_MARKDOWN_SUFFIX)
 
 
 def english_counterpart(path: Path) -> Path:
-    return path.with_name(path.name.removesuffix(".de" + MARKDOWN_SUFFIX) + MARKDOWN_SUFFIX)
+    return path.with_name(path.name.removesuffix(GERMAN_MARKDOWN_SUFFIX) + MARKDOWN_SUFFIX)
 
 
 def is_special_language_index(path: Path) -> bool:
@@ -251,7 +252,7 @@ def needs_structural_parity(path: Path) -> bool:
 def pair_required(path: Path) -> bool:
     text = path.as_posix()
     name = path.name
-    if name.endswith(".de.md") or is_tools_mrts(path) or is_special_language_index(path):
+    if name.endswith(GERMAN_MARKDOWN_SUFFIX) or is_tools_mrts(path) or is_special_language_index(path):
         return False
     if text == ".github/pull_request_template.md":
         return False
@@ -651,7 +652,11 @@ def check_links(repo: Path) -> list[str]:
                 if not candidate.exists():
                     errors.append(f"{rel_path}:{line_number}: missing local link target: {raw_target}")
                     continue
-                if path.name.endswith(".de.md") and target.endswith(".md") and not target.endswith(".de.md"):
+                if (
+                    path.name.endswith(GERMAN_MARKDOWN_SUFFIX)
+                    and target.endswith(MARKDOWN_SUFFIX)
+                    and not target.endswith(GERMAN_MARKDOWN_SUFFIX)
+                ):
                     if "**Sprache:**" in line:
                         continue
                     german_target = german_counterpart(candidate)

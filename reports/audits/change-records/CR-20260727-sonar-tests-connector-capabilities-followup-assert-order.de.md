@@ -31,6 +31,44 @@ Runtime-Merge-Assertions unverändert.
 | Bilinguale Change-Record-Validierung | bestanden: `tests.test_bilingual_docs`, 13 Tests in 0,033 s. |
 | `git diff --check` | bestanden, nachdem das vollständige B08-Traceability-Paar und die Indizes hinzugefügt wurden. |
 
+## Motivation und Problemstellung
+
+Die konkrete Sonar-Regel, der Parent-Testumfang und die Begründung für den
+Erhalt des Verhaltens stehen im vorhergehenden Abschnitt
+`## Motivation und Entscheidung`. Diese strukturelle Korrektur ändert weder
+den dokumentierten Quelltext noch das Testverhalten.
+
+## Akzeptanzkriterien
+
+- Die bereits dokumentierte Remediation und fokussierte Validierung bleiben
+  unverändert.
+- Dieses englisch/deutsche Change-Record-Paar behält gleichwertige technische
+  Fakten.
+- Blockierte, nicht ausgeführte oder ausstehende gehostete Evidence wird nicht
+  als bestanden dargestellt.
+
+## Implementierungsentscheidung und Begründung
+
+Die bestehende Begründung und Validierung bleiben erhalten. Die kanonischen
+Change-Record-Überschriften werden ergänzt, statt den Dokumentationschecker zu
+schwächen oder eine recordspezifische Ausnahme zu schaffen.
+
+## Geänderte Dateien
+
+Der ursprüngliche versionierte Umfang steht in `## Identität` und der
+vorhergehenden Implementierungsbeschreibung. Dieses Follow-up ändert nur die
+Struktur dieses Change-Record-Paars.
+
+## Ausgeführte Befehle
+
+Die exakten Befehle und beobachteten Ergebnisse bleiben in `## Validierung`;
+diese strukturelle Korrektur klassifiziert kein Ergebnis neu.
+
+## Security-Auswirkung
+
+Der bestehende nachfolgende Abschnitt bleibt für diese konkrete Grenze
+maßgeblich. Diese Normalisierung ändert keine Sicherheitskontrolle.
+
 ## Security-Auswirkung und Einschränkungen
 
 `not_applicable` für Produktionscode: Es handelt sich ausschließlich um
@@ -39,3 +77,32 @@ Integrity-Assertions. Der lokale Kandidat ist uncommittet; es gab keine
 gehostete Sonar-Analyse, keine GitHub-CI, keinen Commit, Push, Pull Request
 oder Master-Merge. Die aufgeführten Keys bleiben OPEN, bis ein ausgelieferter
 Head analysiert wird.
+
+## Runtime-Evidence
+
+Diese strukturelle Korrektur beansprucht keine zusätzliche Runtime-Evidence;
+die bestehende Parent-Testmethoden-Validierung behält ihren dokumentierten
+Umfang.
+
+## Bekannte Einschränkungen
+
+Die fokussierte Validierung ist bewusst enger als das vollständige
+Framework-abhängige Aggregat-Testmodul und eine gehostete Analyse.
+
+## Verbleibende Risiken
+
+Die Record-Normalisierung führt kein neues Risiko ein. Ergebnisse eines
+späteren Framework-Aggregats oder einer gehosteten Analyse bleiben bis zu
+ihrer tatsächlichen Beobachtung ausstehend.
+
+## Nicht ausgeführte Prüfungen mit Begründung
+
+Für diese reine Dokumentationskorrektur werden kein zusätzlicher
+Connector-Runtime-Test, kein Framework-Aggregat und kein gehosteter Check
+ausgeführt; die ursprünglichen Validierungsgrenzen bleiben unverändert.
+
+## Finaler Diff- und Review-Status
+
+Die frühere Delivery-Formulierung ist eine Momentaufnahme der ursprünglichen
+lokalen Validierung. Dieser Record behauptet keine finale PR-Verifikation,
+keinen Merge und keinen Sonar-Issue-Abschluss für einen späteren Delivery-Head.

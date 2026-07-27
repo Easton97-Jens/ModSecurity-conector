@@ -34,6 +34,44 @@ Erfolgspfad zu diesem Abschnitt weiterläuft.
 | Native Apache-Request-Transaction-Cleanup-Prüfung | blocked_environment: Die Prüfung endete mit 77, weil keine nutzbaren `apxs`/`apxs2`-Apache-Header verfügbar sind; der C-Quelltext wurde nicht kompiliert. |
 | `git diff --check` | bestanden, nachdem das vollständige B22-Traceability-Paar und die Indizes ergänzt wurden. |
 
+## Motivation und Problemstellung
+
+Die konkrete Sonar-Regel, der Parent-Umfang und die Begründung für den Erhalt
+des Verhaltens stehen im vorhergehenden Abschnitt
+`## Motivation und Entscheidung`. Diese strukturelle Korrektur ändert weder
+den dokumentierten Quelltext noch das Testverhalten.
+
+## Akzeptanzkriterien
+
+- Die bereits dokumentierte Remediation und fokussierte Validierung bleiben
+  unverändert.
+- Dieses englisch/deutsche Change-Record-Paar behält gleichwertige technische
+  Fakten.
+- Blockierte, nicht ausgeführte oder ausstehende gehostete Evidence wird nicht
+  als bestanden dargestellt.
+
+## Implementierungsentscheidung und Begründung
+
+Die bestehende Begründung und Validierung bleiben erhalten. Die kanonischen
+Change-Record-Überschriften werden ergänzt, statt den Dokumentationschecker zu
+schwächen oder eine recordspezifische Ausnahme zu schaffen.
+
+## Geänderte Dateien
+
+Der ursprüngliche versionierte Umfang steht in `## Identität` und der
+vorhergehenden Implementierungsbeschreibung. Dieses Follow-up ändert nur die
+Struktur dieses Change-Record-Paars.
+
+## Ausgeführte Befehle
+
+Die exakten Befehle und beobachteten Ergebnisse bleiben in `## Validierung`;
+diese strukturelle Korrektur klassifiziert kein Ergebnis neu.
+
+## Security-Auswirkung
+
+Der bestehende nachfolgende Abschnitt bleibt für diese konkrete Grenze
+maßgeblich. Diese Normalisierung ändert keine Sicherheitskontrolle.
+
 ## Sicherheitsauswirkung und Einschränkungen
 
 Sicherheitsklassifikation: `not_applicable` als Sicherheitsbefund. Dies ist
@@ -46,3 +84,33 @@ bleibt wegen fehlender Apache-Entwicklungsheader blockiert. Der lokale Kandidat
 ist uncommittet; es gab keine gehostete Sonar-Analyse, keine GitHub-CI, keinen
 Commit, Push, Pull Request oder Master-Merge. Der Sonar-Key bleibt OPEN, bis
 ein ausgelieferter Head analysiert wird.
+
+## Runtime-Evidence
+
+Diese strukturelle Korrektur beansprucht keine zusätzliche Runtime-Evidence;
+die bestehende Validierung behält ausschließlich ihren dokumentierten
+Source-Contract-Umfang.
+
+## Bekannte Einschränkungen
+
+Der bestehende Security- und Validierungstext beschreibt die fehlenden
+Apache-Entwicklungsheader und die daraus folgende Begrenzung der nativen
+Validierung.
+
+## Verbleibende Risiken
+
+Die Record-Normalisierung führt kein neues Risiko ein. Gehostete Analyse und
+eventuelle native Apache-Evidence bleiben auf später tatsächlich beobachtete
+Ergebnisse begrenzt.
+
+## Nicht ausgeführte Prüfungen mit Begründung
+
+Für diese reine Dokumentationskorrektur werden kein zusätzlicher
+Connector-Runtime-Test, kein nativer Apache-Build und kein gehosteter Check
+ausgeführt; die ursprünglichen blockierten Voraussetzungen bleiben unverändert.
+
+## Finaler Diff- und Review-Status
+
+Die frühere Delivery-Formulierung ist eine Momentaufnahme der ursprünglichen
+lokalen Validierung. Dieser Record behauptet keine finale PR-Verifikation,
+keinen Merge und keinen Sonar-Issue-Abschluss für einen späteren Delivery-Head.
