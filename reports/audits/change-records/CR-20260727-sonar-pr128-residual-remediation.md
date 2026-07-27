@@ -79,6 +79,8 @@ Focused commands use the Parent `.venv` Python with
 | Combined runtime-environment module | blocked_environment: one otherwise unrelated test could not find the deliberately uninitialized `modules/ModSecurity-test-Framework/ci/lib/common.sh`; the direct native-comparison test passed. |
 | Full bilingual documentation checker | blocked_environment: 20 existing missing Framework-gitlink link targets; it emitted no missing Change Record section for any repaired pair. |
 | `git diff --check` | passed: no whitespace error. |
+| Published remediation commit `b09588c63b21be2e62fe374b15f63980e6d6293d` | passed: its local branch, `origin` branch, and PR #128 head were observed equal; all visible GitHub PR checks passed. |
+| SonarQube Cloud analysis for published remediation commit `b09588c63b21be2e62fe374b15f63980e6d6293d` | passed: Quality Gate passed with 0 New issues, 0 Security Hotspots, and 0.0% Duplication on New Code; the PR issue query returned 0 unresolved rows. |
 
 ## Security impact
 
@@ -100,15 +102,17 @@ not runtime evidence.
 
 The Parent task worktree deliberately has no initialized Framework Gitlink, so
 the complete documentation checker and one unrelated runtime-environment test
-cannot complete locally. The four keys remain externally OPEN until a new
-SonarQube Cloud analysis evaluates the pushed exact PR head.
+cannot complete locally. The published remediation commit listed above has
+hosted PR evidence; that historical evidence does not replace fresh checks for
+any later candidate head or for Parent `master`.
 
 ## Remaining risks
 
 Splitting the variable matcher could accidentally omit an edge form. The
 focused inventory regression suite, including an assignment-overlap case,
-reduces that risk but does not substitute for hosted analysis. The hosted PR
-checks and Sonar result remain pending until the follow-up commit is delivered.
+reduces that risk, and the published remediation commit received the hosted PR
+checks and Sonar analysis listed above. Any later candidate head remains
+subject to its own exact-head verification.
 
 ## Checks not run and rationale
 
@@ -118,13 +122,18 @@ checks and Sonar result remain pending until the follow-up commit is delivered.
 - Connector builds, runtime smokes, protocol matrices, Framework checks, and
   MRTS checks are not applicable: no connector/runtime implementation or
   cross-repository content changed.
-- No hosted SonarQube Cloud analysis or GitHub workflow result is claimed here;
-  they require the final pushed candidate head.
+- No connector/runtime workflow, later-head PR result, or Parent-`master`
+  result is claimed here. The observed hosted results apply only to the
+  published remediation commit identified above.
 
 ## Final diff and review status
 
 The pre-commit local diff review found only the listed Parent source, test, and
-traceability changes, with no whitespace error. The follow-up remains
-uncommitted on `agent/sonar-1125-20260727` at this record's snapshot. It does
-not claim a push, PR verification, Sonar issue closure, or master merge; those
-external states are reported only after they are observed.
+traceability changes, with no whitespace error. Its "uncommitted" state is a
+historical snapshot: the remediation commit
+`b09588c63b21be2e62fe374b15f63980e6d6293d` was subsequently published on
+`agent/sonar-1125-20260727`, and the local, `origin`, and GitHub PR #128 heads
+were observed equal at that point. The GitHub PR checks and SonarQube Cloud
+result then passed as recorded above. This record does not claim a later
+documentation-only candidate head, a master merge, or Parent-`master` checks;
+each requires separately observed exact-head evidence.

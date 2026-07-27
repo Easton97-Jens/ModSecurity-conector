@@ -86,6 +86,8 @@ Fokussierte Kommandos verwenden Parent-.venv-Python mit
 | Kombiniertes Runtime-Environment-Modul | blocked_environment: Ein ansonsten unabhängiger Test fand die bewusst uninitialisierte `modules/ModSecurity-test-Framework/ci/lib/common.sh` nicht; der direkte Native-Comparison-Test bestand. |
 | Vollständiger bilingualer Dokumentationschecker | blocked_environment: 20 vorhandene fehlende Framework-Gitlink-Linkziele; er meldete keine fehlende Change-Record-Section für ein repariertes Paar. |
 | `git diff --check` | bestanden: kein Whitespace-Fehler. |
+| Veröffentlichter Remediation-Commit `b09588c63b21be2e62fe374b15f63980e6d6293d` | bestanden: Sein lokaler Branch, der `origin`-Branch und der PR-#128-Head wurden als gleich beobachtet; alle sichtbaren GitHub-PR-Checks bestanden. |
+| SonarQube-Cloud-Analyse für den veröffentlichten Remediation-Commit `b09588c63b21be2e62fe374b15f63980e6d6293d` | bestanden: Quality Gate bestanden mit 0 New issues, 0 Security Hotspots und 0,0 % Duplication on New Code; die PR-Issue-Abfrage lieferte 0 ungelöste Zeilen. |
 
 ## Security-Auswirkung
 
@@ -108,17 +110,19 @@ Dokumentationsverträge; sie sind keine Runtime-Evidence.
 
 Der Parent-Task-Worktree besitzt bewusst keinen initialisierten
 Framework-Gitlink. Deshalb können der vollständige Dokumentationschecker und
-ein unabhängiger Runtime-Environment-Test lokal nicht vollständig laufen. Die
-vier Keys bleiben extern OPEN, bis eine neue SonarQube-Cloud-Analyse den
-gepushten exakten PR-Head auswertet.
+ein unabhängiger Runtime-Environment-Test lokal nicht vollständig laufen. Für
+den oben genannten veröffentlichten Remediation-Commit liegt gehostete
+PR-Evidence vor; diese historische Evidence ersetzt keine frischen Checks für
+einen späteren Kandidaten-Head oder für Parent-`master`.
 
 ## Verbleibende Risiken
 
 Das Aufteilen des Variable-Matchers könnte versehentlich eine Randform
 auslassen. Die fokussierte Inventory-Regression-Suite einschließlich eines
-Assignment-Overlap-Falls mindert dieses Risiko, ersetzt aber keine gehostete
-Analyse. Die gehosteten PR-Checks und das Sonar-Ergebnis bleiben bis zur
-Auslieferung des Follow-up-Commits ausstehend.
+Assignment-Overlap-Falls mindert dieses Risiko; der veröffentlichte
+Remediation-Commit erhielt außerdem die oben genannten gehosteten PR-Checks
+und die Sonar-Analyse. Jeder spätere Kandidaten-Head benötigt weiterhin seine
+eigene Exact-Head-Verifikation.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -128,15 +132,21 @@ Auslieferung des Follow-up-Commits ausstehend.
 - Connector-Builds, Runtime-Smokes, Protokollmatrizen, Framework-Checks und
   MRTS-Checks sind nicht anwendbar: Es änderte sich keine Connector-/Runtime-
   Implementierung und kein Cross-Repository-Inhalt.
-- Es wird hier keine gehostete SonarQube-Cloud-Analyse und kein GitHub-
-  Workflow-Ergebnis behauptet; beide benötigen den final gepushten
-  Kandidaten-Head.
+- Es wird hier kein Connector-/Runtime-Workflow, kein späteres PR-Head-Ergebnis
+  und kein Parent-`master`-Ergebnis behauptet. Die beobachteten gehosteten
+  Ergebnisse gelten nur für den oben identifizierten veröffentlichten
+  Remediation-Commit.
 
 ## Finaler Diff- und Review-Status
 
 Der lokale Pre-Commit-Diff-Review zeigte nur die aufgeführten Parent-Source-,
-Test- und Traceability-Änderungen und keinen Whitespace-Fehler. Das Follow-up
-ist in der Momentaufnahme dieses Records auf `agent/sonar-1125-20260727` noch
-uncommittet. Es behauptet keinen Push, keine PR-Verifikation, keinen
-Sonar-Issue-Abschluss und keinen Master-Merge; diese externen Zustände werden
-erst nach ihrer Beobachtung berichtet.
+Test- und Traceability-Änderungen und keinen Whitespace-Fehler. Sein Status
+„uncommittet“ ist eine historische Momentaufnahme: Der Remediation-Commit
+`b09588c63b21be2e62fe374b15f63980e6d6293d` wurde anschließend auf
+`agent/sonar-1125-20260727` veröffentlicht, und die lokalen, `origin`- sowie
+GitHub-PR-#128-Heads wurden zu diesem Zeitpunkt als gleich beobachtet. Die
+GitHub-PR-Checks und das SonarQube-Cloud-Ergebnis bestanden anschließend wie
+oben festgehalten. Dieser Record behauptet keinen späteren
+Dokumentations-only-Kandidaten-Head, keinen Master-Merge und keine
+Parent-`master`-Checks; jeder dieser Zustände benötigt separat beobachtete
+Exact-Head-Evidence.
