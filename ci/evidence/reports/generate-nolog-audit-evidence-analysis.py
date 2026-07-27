@@ -100,10 +100,7 @@ def action_parts(action_text: str) -> list[str]:
     quote: str | None = None
     for char in action_text:
         if char in {"'", '"'}:
-            if quote == char:
-                quote = None
-            elif quote is None:
-                quote = char
+            quote = {None: char, char: None}.get(quote, quote)
         if char == "," and quote is None:
             part = "".join(current).strip()
             if part:

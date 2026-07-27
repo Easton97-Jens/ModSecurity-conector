@@ -59,12 +59,30 @@ RULE_CHAIN = load_report_module(
 
 
 class ReportConditionalRemediationTest(unittest.TestCase):
-    def test_action_part_helpers_preserve_quoted_commas(self) -> None:
-        actions = "id:1,msg:'one,two',ctl:\"three,four\",tag:five"
-        expected = ["id:1", "msg:'one,two'", 'ctl:"three,four"', "tag:five"]
-        for module in (BODY_PROCESSOR, INTERVENTION, NOLOG, RESPONSE_HEADERS, RULE_CHAIN):
-            with self.subTest(module=module.__name__):
-                self.assertEqual(module.action_parts(actions), expected)
+    def test_action_part_helpers_preserve_quote_transitions(self) -> None:
+        cases = (
+            (
+                "id:1,msg:'one,two',ctl:\"three,four\",tag:five",
+                ["id:1", "msg:'one,two'", 'ctl:"three,four"', "tag:five"],
+            ),
+            (
+                "id:2,msg:'outer,\"inside,comma\"',ctl:\"outer,'inside,comma'\",tag:four",
+                [
+                    "id:2",
+                    "msg:'outer,\"inside,comma\"'",
+                    'ctl:"outer,\'inside,comma\'"',
+                    "tag:four",
+                ],
+            ),
+            (
+                "id:3,msg:'unterminated,tag:five",
+                ["id:3", "msg:'unterminated,tag:five"],
+            ),
+        )
+        for actions, expected in cases:
+            for module in (BODY_PROCESSOR, INTERVENTION, NOLOG, RESPONSE_HEADERS, RULE_CHAIN):
+                with self.subTest(module=module.__name__, actions=actions):
+                    self.assertEqual(module.action_parts(actions), expected)
 
     def test_connector_roadmap_keeps_production_and_partial_statuses(self) -> None:
         production = CONNECTOR_ROADMAP.connector_row(ROOT, "apache")
@@ -118,6 +136,28 @@ class ReportConditionalRemediationTest(unittest.TestCase):
 
         self.assertEqual(mismatch_summary["full_matrix_runtime_status"], "runtime_completed_with_mismatches")
         self.assertEqual(timeout_summary["full_matrix_runtime_status"], "runtime_timeout")
+
+    def test_full_runtime_status_preserves_priority_and_laziness(self) -> None:
+        class RowsMustNotBeRead(list):
+            def __iter__(self):
+                raise AssertionError("explicit runtime status must not inspect manifest rows")
+
+        self.assertEqual(
+            RUNTIME_MISMATCH.full_runtime_status({"runtime_status": "reported"}, RowsMustNotBeRead(), True),
+            "reported",
+        )
+        self.assertEqual(RUNTIME_MISMATCH.full_runtime_status({}, RowsMustNotBeRead(), False), "not_run")
+        self.assertEqual(RUNTIME_MISMATCH.full_runtime_status({}, [], True), "runtime_completed")
+        self.assertEqual(RUNTIME_MISMATCH.full_runtime_status({}, [{"return_code": None}], True), "runtime_completed")
+        self.assertEqual(
+            RUNTIME_MISMATCH.full_runtime_status({}, [{"return_code": 1}], True),
+            "runtime_completed_with_mismatches",
+        )
+        self.assertEqual(
+            RUNTIME_MISMATCH.full_runtime_status({"classification": "blocked_timeout"}, [], False),
+            "runtime_timeout",
+        )
+        self.assertEqual(RUNTIME_MISMATCH.full_runtime_status({}, [], False), "not_run")
 
     def test_report_status_branches_keep_existing_values(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

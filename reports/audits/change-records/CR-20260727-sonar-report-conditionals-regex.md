@@ -77,6 +77,27 @@ evidence-path recognition is unchanged.
   PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs check-doc-links` passed:
   `bilingual docs ok`, `repository path references: PASS`, and `doc links ok`.
 
+## Corrective follow-up after hosted analysis
+
+The original Draft PR [#138](https://github.com/Easton97-Jens/ModSecurity-conector/pull/138)
+head `e522e43f0957368853772d747a0ffaa38ba76615` received a SonarQube Cloud
+Quality Gate error: `new_duplicated_lines_density` was `5.649717514124294%`
+against a maximum of `3%`, with 20 new duplicated lines. The five repeated
+four-line quote-state blocks caused those duplicates. Sonar also reported
+`python:S3776` receipt `AZ-lYOLSGYV1PN-Q1gW4` in
+`generate-verified-runtime-mismatch-analysis.py` because `command_summary()`
+had cognitive complexity 16 against the maximum 15.
+
+The local corrective candidate keeps this PR independent of other branches:
+each quote transition is now one non-nested statement, and the pure
+runtime-status choice moved to `full_runtime_status()`. Its local focused
+tests pass 6 report-conditional, 74 evidence-integrity, and 3 presentation
+tests (83 total); `git diff --check`, bilingual documentation, and document
+link checks also pass. The added tests cover both quote directions within an
+active value, unterminated input, all status outcomes, `{0, None}` as
+non-mismatches, and both lazy short-circuits. A fresh exact-head hosted scan
+is still required before claiming that the Quality Gate or receipt is clear.
+
 ## Security impact
 
 `AZ8hz86oUa5zTy8Lzy9R` is a localized availability/performance candidate in a
@@ -129,3 +150,8 @@ push, pull request, MRTS, or Gitlink action. The Parent-pinned Framework was
 initialized read-only only for documentation checks; its source, Gitlink, and
 nested MRTS state remain unchanged. Parent delivery and the exact-head hosted
 SonarQube Cloud analysis remain separate steps.
+
+At the time of this corrective note, the initial candidate remains Draft PR
+#138 while the follow-up is locally uncommitted and unpushed. The failed
+initial analysis is negative evidence only; it does not establish the status
+of the corrected head.

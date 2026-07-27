@@ -2258,6 +2258,23 @@ def dedupe_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(deduped.values(), key=lambda item: (item["connector"], item["variant"], item["case"], item["source_scope"]))
 
 
+def full_runtime_status(
+    full: dict[str, Any],
+    manifest_rows: list[dict[str, Any]],
+    full_complete: bool,
+) -> str:
+    recorded_status: Any = full.get("runtime_status")
+    if recorded_status:
+        return str(recorded_status)
+    if full_complete:
+        if any(row.get("return_code") not in {0, None} for row in manifest_rows):
+            return "runtime_completed_with_mismatches"
+        return "runtime_completed"
+    if full.get("classification") == "blocked_timeout":
+        return "runtime_timeout"
+    return "not_run"
+
+
 def command_summary(commands: list[dict[str, Any]], manifest_rows: list[dict[str, Any]], profile: str) -> dict[str, Any]:
     full = command_for(commands, "full-matrix-parallel")
     runtime = command_for(commands, "runtime-matrix-all")
@@ -2268,24 +2285,12 @@ def command_summary(commands: list[dict[str, Any]], manifest_rows: list[dict[str
     if expected_jobs and len(manifest_rows) >= expected_jobs:
         full_runtime_complete = True
     full_complete = full_runtime_complete
-    full_runtime_status: Any = full.get("runtime_status")
-    if not full_runtime_status and full_complete and any(
-        row.get("return_code") not in {0, None} for row in manifest_rows
-    ):
-        full_runtime_status = "runtime_completed_with_mismatches"
-    if not full_runtime_status:
-        if full_complete:
-            full_runtime_status = "runtime_completed"
-        elif full.get("classification") == "blocked_timeout":
-            full_runtime_status = "runtime_timeout"
-        else:
-            full_runtime_status = "not_run"
-    full_runtime_status = str(full_runtime_status)
+    runtime_status = full_runtime_status(full, manifest_rows, full_complete)
     return {
         "runtime_matrix_all": runtime,
         "full_matrix_parallel": full,
         "full_matrix_complete": full_complete,
-        "full_matrix_runtime_status": full_runtime_status,
+        "full_matrix_runtime_status": runtime_status,
         "full_matrix_expected_jobs": expected_jobs,
         "full_matrix_completed_jobs": len(manifest_rows),
         "full_matrix_job_statuses": [

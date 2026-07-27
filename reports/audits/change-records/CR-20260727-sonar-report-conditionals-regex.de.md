@@ -80,6 +80,29 @@ Evidence-Path-Erkennung bleibt unverändert.
   check-doc-links`: `bilingual docs ok`, `repository path references: PASS`
   und `doc links ok`.
 
+## Korrigierendes Follow-up nach Hosted-Analyse
+
+Der ursprüngliche Draft-PR [#138](https://github.com/Easton97-Jens/ModSecurity-conector/pull/138)
+mit Head `e522e43f0957368853772d747a0ffaa38ba76615` erhielt einen
+SonarQube-Cloud-Quality-Gate-Fehler: `new_duplicated_lines_density` betrug
+`5.649717514124294%` gegen ein Maximum von `3%`, mit 20 neuen duplizierten
+Zeilen. Die fünf wiederholten vierzeiligen Quote-State-Blöcke verursachten
+diese Duplikate. Sonar meldete außerdem den `python:S3776`-Receipt
+`AZ-lYOLSGYV1PN-Q1gW4` in
+`generate-verified-runtime-mismatch-analysis.py`, weil `command_summary()`
+eine kognitive Komplexität von 16 statt maximal 15 hatte.
+
+Der lokale korrigierende Kandidat hält diesen PR unabhängig von anderen
+Branches: Jede Quote-Transition ist jetzt ein nicht verschachteltes Statement,
+und die reine Runtime-Status-Auswahl wanderte nach `full_runtime_status()`.
+Seine lokalen fokussierten Tests bestehen 6 Report-Conditional-, 74 Evidence-
+Integrity- und 3 Presentation-Tests (insgesamt 83); `git diff --check`,
+bilinguale Dokumentation und Dokument-Links bestehen ebenfalls. Die ergänzten
+Tests decken beide Quote-Richtungen in einem aktiven Wert, unterminierten
+Input, alle Statusausgänge, `{0, None}` als Nicht-Mismatches und beide Lazy-
+Short-Circuits ab. Ein frischer Hosted-Scan des exakten Heads muss weiterhin
+erst zeigen, dass Quality Gate und Receipt behoben sind.
+
 ## Security-Auswirkung
 
 `AZ8hz86oUa5zTy8Lzy9R` ist ein lokalisierter Verfügbarkeits-/Performance-
@@ -136,3 +159,8 @@ festgeschriebene Framework wurde ausschließlich für Dokumentationsprüfungen
 lesend initialisiert; sein Source, sein Gitlink und der verschachtelte MRTS-
 Status bleiben unverändert. Parent-Delivery und die Hosted-SonarQube-Cloud-
 Analyse des exakten Heads bleiben getrennte Schritte.
+
+Zum Zeitpunkt dieser Korrektur-Notiz bleibt der ursprüngliche Kandidat Draft
+PR #138, während das Follow-up lokal uncommittet und ungepusht ist. Die
+fehlgeschlagene erste Analyse ist nur negative Evidence; sie belegt nicht den
+Status des korrigierten Heads.
