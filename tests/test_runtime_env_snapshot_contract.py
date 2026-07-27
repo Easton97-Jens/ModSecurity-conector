@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -29,9 +30,107 @@ assert NATIVE_SPEC is not None and NATIVE_SPEC.loader is not None
 native_comparison = importlib.util.module_from_spec(NATIVE_SPEC)
 sys.modules[NATIVE_SPEC.name] = native_comparison
 NATIVE_SPEC.loader.exec_module(native_comparison)
+MISMATCH_PATH = ROOT / "ci" / "evidence" / "reports" / "generate-verified-runtime-mismatch-analysis.py"
+MISMATCH_SPEC = importlib.util.spec_from_file_location(
+    "runtime_env_snapshot_verified_runtime_mismatch", MISMATCH_PATH
+)
+assert MISMATCH_SPEC is not None and MISMATCH_SPEC.loader is not None
+runtime_mismatch = importlib.util.module_from_spec(MISMATCH_SPEC)
+sys.modules[MISMATCH_SPEC.name] = runtime_mismatch
+MISMATCH_SPEC.loader.exec_module(runtime_mismatch)
 
 
 class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
+    def test_native_summary_and_mismatch_helpers_keep_outputs_with_reduced_context_parameters(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="native-summary-signatures-") as temporary:
+            root = Path(temporary)
+            with (
+                mock.patch.object(native_comparison, "build_metadata", return_value={}),
+                mock.patch.object(native_comparison, "generated_json_text", return_value="{}\n"),
+                mock.patch.object(native_comparison, "generated_markdown_text", return_value="# test\n"),
+            ):
+                summary = native_comparison.write_summary_report(
+                    ROOT,
+                    ROOT / "modules" / "ModSecurity-test-Framework",
+                    root / "verified-runs",
+                    (),
+                    [],
+                    root / "summary",
+                )
+
+            inventory = native_comparison.inventory()
+            self.assertEqual(summary["payload"]["tool_inventory"], inventory)
+            self.assertTrue(Path(summary["json"]).is_file())
+            self.assertTrue(Path(summary["md"]).is_file())
+
+            matrix_root = root / "matrix"
+            job_path = matrix_root / "no-crs" / "no-mrts" / "apache" / "job.json"
+            job_path.parent.mkdir(parents=True)
+            job_path.write_text(
+                json.dumps(
+                    {
+                        "connector": "apache",
+                        "test_variant": "no-crs",
+                        "mrts_variant": "no-mrts",
+                        "return_code": 1,
+                        "status": "blocked",
+                        "summary_path": "",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            incomplete = runtime_mismatch.collect_incomplete_jobs(matrix_root, root / "build", None)
+            self.assertEqual(len(incomplete), 1)
+            self.assertEqual(incomplete[0]["connector"], "apache")
+            self.assertEqual(incomplete[0]["variant"], "no-crs/no-mrts")
+            self.assertEqual(
+                runtime_mismatch.variant_from_result_path(
+                    matrix_root / "with-crs" / "with-mrts" / "nginx" / "nginx-summary.json",
+                    matrix_root,
+                    "full_matrix",
+                ),
+                "with-crs/with-mrts",
+            )
+
+    def test_ready_nginx_snapshot_values_bind_the_parent_common_source_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-env-nginx-common-source-") as temporary:
+            root = Path(temporary)
+            connector_root = root / "connector"
+            common_source_root = connector_root / "common" / "src"
+            common_source_root.mkdir(parents=True)
+            cache_root = root / "cache-v2" / "shared"
+
+            with mock.patch.dict(os.environ, {"MSCONNECTOR_COMMON_SRC": "/untrusted/job/path"}):
+                values = components.nginx_runtime_environment(
+                    connector_root,
+                    cache_root,
+                    {
+                        "status": "reused",
+                        "nginx_bin": "/runtime/nginx",
+                        "module_dir": "/runtime/modules",
+                        "module_file": "/runtime/modules/ngx_http_modsecurity_module.so",
+                        "modsecurity_lib_dir": "/runtime/modsecurity/lib",
+                        "build_path": "/runtime/nginx-build",
+                        "nginx_prefix": "/runtime/prefix",
+                        "connector_build_id": "cache-key",
+                        "protocol_profile": "h1",
+                    },
+                )
+
+            self.assertEqual(str(common_source_root), values["MSCONNECTOR_COMMON_SRC"])
+            self.assertEqual(
+                str(cache_root / "builds" / "connectors"),
+                values["NGINX_BUILD_OWNER_ROOT"],
+            )
+
+    def test_unready_nginx_does_not_publish_runtime_snapshot_values(self) -> None:
+        values = components.nginx_runtime_environment(
+            Path("/connector"),
+            Path("/cache"),
+            {"status": "blocked"},
+        )
+        self.assertEqual(values, {})
+
     def test_snapshot_is_unique_local_atomic_and_keeps_shared_compatibility_export(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-env-snapshot-") as temporary:
             root = Path(temporary)
@@ -57,8 +156,8 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, first.returncode, first.stderr)
-            self.assertEqual(0, second.returncode, second.stderr)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertEqual(second.returncode, 0, second.stderr)
             first_snapshot = Path(first.stdout.strip())
             second_snapshot = Path(second.stdout.strip())
             self.assertNotEqual(first_snapshot, second_snapshot)
@@ -81,8 +180,8 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             # consumers.  The runner-only metadata exists only in the local
             # snapshot that replaced its placeholder atomically.
             self.assertEqual(
-                "export COMPATIBILITY_ONLY='preserved'\n",
                 shared_env.read_text(encoding="utf-8"),
+                "export COMPATIBILITY_ONLY='preserved'\n",
             )
             self.assertFalse(list(output_root.glob(".runtime-env-snapshot.*.tmp-*")))
             loaded = subprocess.run(
@@ -99,10 +198,10 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, loaded.returncode, loaded.stderr)
+            self.assertEqual(loaded.returncode, 0, loaded.stderr)
             self.assertEqual(
-                f"nginx|{cache_root}|1|/runtime/modsecurity/include",
                 loaded.stdout,
+                f"nginx|{cache_root}|1|/runtime/modsecurity/include",
             )
 
     def test_snapshot_writer_rejects_a_path_outside_the_invocation_report_root(self) -> None:
@@ -172,8 +271,8 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-            self.assertEqual(f"/correct/invocation/value|{snapshot}", result.stdout)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stdout, f"/correct/invocation/value|{snapshot}")
 
     def test_native_comparison_uses_the_wrapper_snapshot_not_shared_env(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-env-snapshot-") as temporary:
@@ -207,7 +306,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 clear=False,
             ):
                 loaded = native_comparison.load_runtime_env(root)
-            self.assertEqual("/correct/native-case/value", loaded["MODSECURITY_INCLUDE_DIR"])
+            self.assertEqual(loaded["MODSECURITY_INCLUDE_DIR"], "/correct/native-case/value")
 
     def test_native_comparison_does_not_fallback_to_shared_env_for_an_invalid_snapshot(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-env-snapshot-") as temporary:
@@ -231,7 +330,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 clear=False,
             ):
                 loaded = native_comparison.load_runtime_env(root)
-            self.assertNotEqual("/wrong/shared/value", loaded.get("MODSECURITY_INCLUDE_DIR"))
+            self.assertNotEqual(loaded.get("MODSECURITY_INCLUDE_DIR"), "/wrong/shared/value")
 
     def test_central_runners_use_the_exact_local_snapshot_not_shared_runtime_env(self) -> None:
         with_runner = (ROOT / "ci" / "provisioning" / "cache" / "with-runtime-components.sh").read_text(encoding="utf-8")

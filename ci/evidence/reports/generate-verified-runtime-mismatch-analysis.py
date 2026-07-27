@@ -30,6 +30,7 @@ from generated_report_utils import (
     utc_now,
 )
 from runtime_path_utils import verified_runtime_paths
+from verified_run_id import VerifiedRunIdError, validate_verified_run_id
 
 
 CRITICAL_CATEGORIES = {
@@ -2101,7 +2102,7 @@ def row_from_case(
     return row
 
 
-def variant_from_result_path(path: Path, root: Path, connector: str, source_scope: str) -> str:
+def variant_from_result_path(path: Path, root: Path, source_scope: str) -> str:
     try:
         parts = path.relative_to(root).parts
     except ValueError:
@@ -2139,7 +2140,7 @@ def collect_summary_rows(
             cases = summary.get("cases")
             if not isinstance(cases, dict):
                 continue
-            variant = variant_from_result_path(summary_path, root, connector, source_scope)
+            variant = variant_from_result_path(summary_path, root, source_scope)
             result_file = Path(str(summary.get("jsonl_path") or summary_path))
             for case in cases.values():
                 if not isinstance(case, dict):
@@ -2176,7 +2177,7 @@ def collect_jsonl_rows(
         if not new_enough(jsonl_path, min_mtime):
             continue
         connector = jsonl_path.name.removesuffix("-results.jsonl")
-        variant = variant_from_result_path(jsonl_path, root, connector, source_scope)
+        variant = variant_from_result_path(jsonl_path, root, source_scope)
         for case in read_jsonl(jsonl_path):
             row = row_from_case(
                 case=case,
@@ -2193,7 +2194,7 @@ def collect_jsonl_rows(
     return rows
 
 
-def collect_incomplete_jobs(root: Path, connector_root: Path, build_root: Path, min_mtime: float | None) -> list[dict[str, Any]]:
+def collect_incomplete_jobs(root: Path, build_root: Path, min_mtime: float | None) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for job_path in sorted(root.glob("*/*/*/job.json")):
         if not new_enough(job_path, min_mtime):
@@ -2371,7 +2372,12 @@ def main() -> int:
     default_paths = verified_runtime_paths(os.environ)
     build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     verified_run_root = Path(default_paths["VERIFIED_RUN_ROOT"]).resolve()
-    verified_run_id = args.verified_run_id or current_verified_run_id(connector_root)
+    try:
+        verified_run_id = validate_verified_run_id(
+            args.verified_run_id or current_verified_run_id(connector_root)
+        )
+    except VerifiedRunIdError as exc:
+        parser.error(str(exc))
     os.environ["VERIFIED_RUN_ID"] = verified_run_id
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / "reports/testing/generated/manifest"
     commands_file = Path(args.verified_commands_file).resolve() if args.verified_commands_file else build_root / "verified-runs" / verified_run_id / "verified-commands.json"
@@ -2466,7 +2472,7 @@ def main() -> int:
                 full_search_roots,
             )
         )
-        rows.extend(collect_incomplete_jobs(full_matrix_root, connector_root, build_root, full_cutoff))
+        rows.extend(collect_incomplete_jobs(full_matrix_root, build_root, full_cutoff))
     mismatches = dedupe_rows(rows)
     mismatches = apply_semicolon_collection_semantics_classification(
         mismatches,

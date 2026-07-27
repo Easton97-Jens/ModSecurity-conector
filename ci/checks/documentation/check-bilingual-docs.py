@@ -21,7 +21,8 @@ REMOTE_PREFIXES = (
 
 LINK_RE = re.compile(r"(?<!!)\[[^\]\n]+\]\(([^)\n]+)\)")
 REFERENCE_LINK_RE = re.compile(r"^\s*\[[^\]]+\]:\s+(\S+)")
-FENCE_PREFIXES = ("```", "~~~")
+MARKDOWN_SUFFIX = ".md"
+GERMAN_MARKDOWN_SUFFIX = ".de.md"
 GERMAN_GENERATED_NOTE = "Diese deutsche Datei ist eine übersetzte Begleitdatei"
 SPECIAL_LANGUAGE_INDEXES: tuple[tuple[Path, Path], ...] = ()
 CHANGE_RECORDS_DIRECTORY = Path("reports/audits/change-records")
@@ -221,11 +222,11 @@ def is_git_ignored(path: Path, ignored_paths: frozenset[Path]) -> bool:
 
 
 def german_counterpart(path: Path) -> Path:
-    return path.with_name(path.name.removesuffix(".md") + ".de.md")
+    return path.with_name(path.name.removesuffix(MARKDOWN_SUFFIX) + GERMAN_MARKDOWN_SUFFIX)
 
 
 def english_counterpart(path: Path) -> Path:
-    return path.with_name(path.name.removesuffix(".de.md") + ".md")
+    return path.with_name(path.name.removesuffix(GERMAN_MARKDOWN_SUFFIX) + MARKDOWN_SUFFIX)
 
 
 def is_special_language_index(path: Path) -> bool:
@@ -251,7 +252,7 @@ def needs_structural_parity(path: Path) -> bool:
 def pair_required(path: Path) -> bool:
     text = path.as_posix()
     name = path.name
-    if name.endswith(".de.md") or is_tools_mrts(path) or is_special_language_index(path):
+    if name.endswith(GERMAN_MARKDOWN_SUFFIX) or is_tools_mrts(path) or is_special_language_index(path):
         return False
     if text == ".github/pull_request_template.md":
         return False
@@ -317,14 +318,41 @@ def checked_markdown_files(repo: Path) -> list[Path]:
     return sorted(files)
 
 
+def markdown_fence_marker(line: str) -> str | None:
+    """Return a Markdown fence marker, including its delimiter and length."""
+
+    stripped = line.lstrip()
+    if not stripped or stripped[0] not in {"`", "~"}:
+        return None
+    marker = stripped[0]
+    length = 0
+    while length < len(stripped) and stripped[length] == marker:
+        length += 1
+    if length < 3:
+        return None
+    return marker * length
+
+
+def closes_markdown_fence(line: str, opener: str) -> bool:
+    """Require the opener delimiter and at least its length for a close fence."""
+
+    marker = markdown_fence_marker(line)
+    if marker is None or marker[0] != opener[0] or len(marker) < len(opener):
+        return False
+    return not line.lstrip()[len(marker) :].strip()
+
+
 def heading_levels(text: str) -> list[int]:
     levels: list[int] = []
-    in_fence = False
+    opener: str | None = None
     for line in text.splitlines():
-        if line.strip().startswith(FENCE_PREFIXES):
-            in_fence = not in_fence
+        if opener is not None:
+            if closes_markdown_fence(line, opener):
+                opener = None
             continue
-        if in_fence:
+        marker = markdown_fence_marker(line)
+        if marker is not None:
+            opener = marker
             continue
         match = HEADING_RE.match(line)
         if match:
@@ -335,12 +363,15 @@ def heading_levels(text: str) -> list[int]:
 def table_block_rows(text: str) -> list[int]:
     blocks: list[int] = []
     current = 0
-    in_fence = False
+    opener: str | None = None
     for line in text.splitlines():
-        if line.strip().startswith(FENCE_PREFIXES):
-            in_fence = not in_fence
+        if opener is not None:
+            if closes_markdown_fence(line, opener):
+                opener = None
             continue
-        if in_fence:
+        marker = markdown_fence_marker(line)
+        if marker is not None:
+            opener = marker
             continue
         if TABLE_ROW_RE.match(line):
             current += 1
@@ -355,21 +386,20 @@ def table_block_rows(text: str) -> list[int]:
 def fenced_blocks(text: str) -> list[str]:
     blocks: list[str] = []
     current: list[str] = []
-    in_fence = False
+    opener: str | None = None
     for line in text.splitlines():
-        if line.strip().startswith(FENCE_PREFIXES):
-            if in_fence:
-                current.append(line)
+        if opener is not None:
+            current.append(line)
+            if closes_markdown_fence(line, opener):
                 blocks.append("\n".join(current))
                 current = []
-                in_fence = False
-            else:
-                current = [line]
-                in_fence = True
+                opener = None
             continue
-        if in_fence:
-            current.append(line)
-    if in_fence:
+        marker = markdown_fence_marker(line)
+        if marker is not None:
+            current = [line]
+            opener = marker
+    if opener is not None:
         blocks.append("\n".join(current))
     return blocks
 
@@ -597,12 +627,15 @@ def check_links(repo: Path) -> list[str]:
     agent_referenced_paths = agent_referenced_root_markdown(repo)
     for path in checked_markdown_files(repo):
         rel_path = path.relative_to(repo)
-        in_fence = False
+        opener: str | None = None
         for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-            if line.strip().startswith(FENCE_PREFIXES):
-                in_fence = not in_fence
+            if opener is not None:
+                if closes_markdown_fence(line, opener):
+                    opener = None
                 continue
-            if in_fence:
+            marker = markdown_fence_marker(line)
+            if marker is not None:
+                opener = marker
                 continue
             for raw_target in normalized_targets(line):
                 target = normalize_local_target(raw_target)
@@ -619,7 +652,11 @@ def check_links(repo: Path) -> list[str]:
                 if not candidate.exists():
                     errors.append(f"{rel_path}:{line_number}: missing local link target: {raw_target}")
                     continue
-                if path.name.endswith(".de.md") and target.endswith(".md") and not target.endswith(".de.md"):
+                if (
+                    path.name.endswith(GERMAN_MARKDOWN_SUFFIX)
+                    and target.endswith(MARKDOWN_SUFFIX)
+                    and not target.endswith(GERMAN_MARKDOWN_SUFFIX)
+                ):
                     if "**Sprache:**" in line:
                         continue
                     german_target = german_counterpart(candidate)

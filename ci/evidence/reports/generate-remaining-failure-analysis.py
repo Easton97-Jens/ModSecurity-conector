@@ -565,7 +565,6 @@ def category_rollup(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
     for category, items in grouped.items():
         connectors = sorted({str(entry.get("connector", "-")) for entry in items})
-        examples = [example_entry(case_group_summary(case_id, grouped_entries)["example"] and grouped_entries) for case_id, grouped_entries in list(case_groups(items).items())[:3]] if items else []
         rows.append(
             {
                 "category": category,

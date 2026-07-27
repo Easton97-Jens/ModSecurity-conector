@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from verified_run_id import validate_verified_run_id
+
 
 GENERATED_ROOT = Path("reports/testing/generated")
 GENERATED_NOTICE = "Generated file - do not edit manually."
@@ -767,9 +769,9 @@ def utc_now() -> str:
 
 
 def current_verified_run_id(connector_root: Path | None = None) -> str:
-    value = os.environ.get("VERIFIED_RUN_ID", "").strip()
+    value = os.environ.get("VERIFIED_RUN_ID", "")
     if value:
-        return value
+        return validate_verified_run_id(value)
     stamp = datetime.now(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H-%M-%SZ")
     sha = git_sha(connector_root) if connector_root is not None else "unknown"
     if not sha or sha == "unknown":

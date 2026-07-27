@@ -1210,10 +1210,10 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
 
     if (!msr->request_body_processed)
     {
-        apr_status_t rc = apache_finish_unread_request_body(f);
-        if (rc != APR_SUCCESS)
+        apr_status_t request_body_rc = apache_finish_unread_request_body(f);
+        if (request_body_rc != APR_SUCCESS)
         {
-            return rc;
+            return request_body_rc;
         }
     }
 

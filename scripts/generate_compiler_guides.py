@@ -180,10 +180,15 @@ CONNECTORS: tuple[dict[str, str], ...] = (
 # The fields below are the source of truth for the detailed three-path guides.
 # Technical values (targets, package names, pins, variables, and status) are
 # shared by both language renderings.  Only explanatory prose is translated.
+PACKAGE_STATUS_ASSISTED_SOURCE_BUILD = "package-assisted source build"
+PACKAGE_STATUS_PROFILE_UNAVAILABLE = "selected profile not available package-only"
+HOST_SOURCE_PATCHED = "patched source"
+SOURCE_MAPPING_HEADING = "Source mapping"
+
 PACKAGE_STATUSES = {
     "package-only",
-    "package-assisted source build",
-    "selected profile not available package-only",
+    PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
+    PACKAGE_STATUS_PROFILE_UNAVAILABLE,
 }
 
 BASE_DEBIAN = ("build-essential", "pkg-config", "git", "curl", "ca-certificates")
@@ -191,7 +196,7 @@ BASE_FEDORA = ("gcc", "gcc-c++", "make", "pkgconf-pkg-config", "git", "curl", "c
 
 DETAILS: dict[str, dict[str, object]] = {
     "apache": {
-        "package_status": "package-assisted source build",
+        "package_status": PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
         "extra_prepare": "",
         "host_source": "source",
         "test_prerequisites": (
@@ -245,7 +250,7 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
     },
     "nginx": {
-        "package_status": "package-assisted source build",
+        "package_status": PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
         "extra_prepare": "",
         "host_source": "source",
         "test_prerequisites": (
@@ -300,7 +305,7 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
     },
     "haproxy": {
-        "package_status": "package-assisted source build",
+        "package_status": PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
         "extra_prepare": "",
         "host_source": "source",
         "test_prerequisites": (
@@ -352,7 +357,7 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
     },
     "envoy": {
-        "package_status": "package-assisted source build",
+        "package_status": PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
         "extra_prepare": "prepare-envoy-runtime",
         "host_source": "verified binary; service source",
         "go_requirement": "1.26.5",
@@ -409,7 +414,7 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
     },
     "traefik": {
-        "package_status": "package-assisted source build",
+        "package_status": PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
         "extra_prepare": "prepare-traefik-runtime",
         "host_source": "verified binary; middleware/service source",
         "go_requirement": "1.26.5",
@@ -467,9 +472,9 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
     },
     "lighttpd": {
-        "package_status": "selected profile not available package-only",
+        "package_status": PACKAGE_STATUS_PROFILE_UNAVAILABLE,
         "extra_prepare": "prepare-lighttpd-runtime-build",
-        "host_source": "patched source",
+        "host_source": HOST_SOURCE_PATCHED,
         "test_prerequisites": (
             "Git, a writable external parent, C/C++ build tools, patch/build prerequisites, libmodsecurity inputs, and the Framework submodule. The explicit lighttpd preparation target enables the pinned source-build route.",
             "Git, ein beschreibbarer externer Stamm, C/C++-Buildtools, Patch-/Buildvoraussetzungen, libmodsecurity-Eingaben und das Framework-Submodule. Das explizite lighttpd-Vorbereitungstarget aktiviert den gepinnten Source-Build-Weg.",
@@ -589,11 +594,11 @@ def status_note(status: str, german: bool) -> str:
             "Packages have been verified as the selected compatible host, development inputs, and connector path; verify the same fact again for the target release.",
             "Pakete wurden als ausgewählter kompatibler Host, Entwicklungseingaben und Connectorweg verifiziert; für den Zielrelease erneut prüfen.",
         ),
-        "package-assisted source build": (
+        PACKAGE_STATUS_ASSISTED_SOURCE_BUILD: (
             "Packages provide dependencies and possibly a host, while the repository connector or host integration remains a source build. Package installation alone is not selected-core evidence.",
             "Pakete liefern Abhängigkeiten und möglicherweise einen Host, während Repository-Connector oder Hostintegration ein Source-Build bleiben. Paketinstallation allein ist keine Evidence des ausgewählten Kerns.",
         ),
-        "selected profile not available package-only": (
+        PACKAGE_STATUS_PROFILE_UNAVAILABLE: (
             "Packages can help with dependencies or a comparison host, but no ordinary package supplies the selected profile. Build it through the repository route.",
             "Pakete können bei Abhängigkeiten oder einem Vergleichshost helfen, aber kein gewöhnliches Paket liefert das ausgewählte Profil. Es über den Repository-Weg bauen.",
         ),
@@ -601,17 +606,17 @@ def status_note(status: str, german: bool) -> str:
     return localized(notes[status], german)
 
 
-def route_comparison(item: dict[str, str], info: dict[str, object], german: bool) -> str:
+def route_comparison(info: dict[str, object], german: bool) -> str:
     status = str(info["package_status"])
     host_source = str(info["host_source"])
     if german:
         source_text = {
             "source": "Ja, Repository-Source",
-            "patched source": "Ja, gepatchte Source",
+            HOST_SOURCE_PATCHED: "Ja, gepatchte Source",
             "verified binary; service source": "Verifiziertes Binary; Service aus Source",
             "verified binary; middleware/service source": "Verifiziertes Binary; Middleware/Service aus Source",
         }[host_source]
-        package_core = "Nein, nicht package-only" if status == "selected profile not available package-only" else "Nur mit Source-Anteil"
+        package_core = "Nein, nicht package-only" if status == PACKAGE_STATUS_PROFILE_UNAVAILABLE else "Nur mit Source-Anteil"
         return markdown_table(
             ("Weg", "Für wen?", "Systemweite Änderungen", "Baut Host aus Source?", "Kernpfad möglich?", "Evidence möglich?"),
             [
@@ -622,11 +627,11 @@ def route_comparison(item: dict[str, str], info: dict[str, object], german: bool
         )
     source_text = {
         "source": "Yes, repository source",
-        "patched source": "Yes, patched source",
+        HOST_SOURCE_PATCHED: "Yes, patched source",
         "verified binary; service source": "Verified binary; service from source",
         "verified binary; middleware/service source": "Verified binary; middleware/service from source",
     }[host_source]
-    package_core = "No, not package-only" if status == "selected profile not available package-only" else "Only with source portion"
+    package_core = "No, not package-only" if status == PACKAGE_STATUS_PROFILE_UNAVAILABLE else "Only with source portion"
     return markdown_table(
         ("Path", "For whom?", "System-wide changes", "Builds host from source?", "Core path possible?", "Evidence possible?"),
         [
@@ -776,7 +781,7 @@ TEST_ARTIFACT_VALIDATION: dict[str, tuple[str, ...]] = {
 }
 
 
-def selected_preparation(item: dict[str, str], info: dict[str, object]) -> tuple[str, ...]:
+def selected_preparation(info: dict[str, object]) -> tuple[str, ...]:
     commands = ["make check-framework", "make prepare-runtime-components"]
     extra = str(info["extra_prepare"])
     if extra and extra != "prepare-runtime-components":
@@ -968,7 +973,7 @@ def expanded_guide(item: dict[str, str], german: bool) -> str:
         "# Host-package availability inquiry only; no package is selected by this query",
         *package_host_query,
     ) if package_host_query else ()
-    prepare_commands = selected_preparation(item, info)
+    prepare_commands = selected_preparation(info)
     test_flow = (
         "git clone --recurse-submodules https://github.com/Easton97-Jens/ModSecurity-conector.git",
         "cd ModSecurity-conector",
@@ -1089,7 +1094,7 @@ Smokes bleiben davon getrennt.
 
 ## Die drei Wege im Vergleich
 
-{route_comparison(item, info, True)}
+{route_comparison(info, True)}
 
 Der Paketstatus dieses Connectors lautet exakt
 `{info['package_status']}`. {status_note(str(info['package_status']), True)}
@@ -1369,7 +1374,7 @@ configuration, start, and compatibility smokes remain separate from it.
 
 ## Compare the three paths
 
-{route_comparison(item, info, False)}
+{route_comparison(info, False)}
 
 The exact package status for this connector is
 `{info['package_status']}`. {status_note(str(info['package_status']), False)}
@@ -1678,7 +1683,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
                 "../../../connectors/apache/configure.ac",
             ),
             (
-                "Source mapping",
+                SOURCE_MAPPING_HEADING,
                 "Source-Zuordnung",
                 "../../../connectors/apache/SOURCE_MAP.json",
             ),
@@ -1755,7 +1760,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
         ),
         "repository_connector_build_files": (
             (
-                "Source mapping",
+                SOURCE_MAPPING_HEADING,
                 "Source-Zuordnung",
                 "../../../connectors/nginx/SOURCE_MAP.json",
             ),
@@ -1833,7 +1838,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
                 "../../../connectors/haproxy/htx-overlay/build-overlay.sh",
             ),
             (
-                "Source mapping",
+                SOURCE_MAPPING_HEADING,
                 "Source-Zuordnung",
                 "../../../connectors/haproxy/SOURCE_MAP.json",
             ),
@@ -1951,7 +1956,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
                 "../../../connectors/envoy/build/build_ext_proc.sh",
             ),
             (
-                "Source mapping",
+                SOURCE_MAPPING_HEADING,
                 "Source-Zuordnung",
                 "../../../connectors/envoy/SOURCE_MAP.json",
             ),
@@ -2084,7 +2089,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
                 "../../../connectors/traefik/build/build-engine-service.sh",
             ),
             (
-                "Source mapping",
+                SOURCE_MAPPING_HEADING,
                 "Source-Zuordnung",
                 "../../../connectors/traefik/SOURCE_MAP.json",
             ),
@@ -2260,7 +2265,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
                 "../../../connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch",
             ),
             (
-                "Source mapping",
+                SOURCE_MAPPING_HEADING,
                 "Source-Zuordnung",
                 "../../../connectors/lighttpd/SOURCE_MAP.json",
             ),
@@ -2364,23 +2369,54 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
 # any engine-build command into their own guides.
 COMMON_MODSECURITY: dict[str, object] = {
     "common_modsecurity_beginner_commands": (
-        "git clone https://github.com/owasp-modsecurity/ModSecurity.git",
+        'MODSECURITY_REF="v3.0.16"',
+        'MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+        'git clone --branch "$MODSECURITY_REF" --single-branch https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity',
         "cd ModSecurity",
+        "git fetch --tags origin",
+        'git verify-tag "$MODSECURITY_REF"',
+        'git checkout --detach "$MODSECURITY_REF"',
+        'test "$(git rev-parse HEAD)" = "$MODSECURITY_COMMIT"',
         "git submodule update --init --recursive",
         "git submodule status",
         "./build.sh",
         "./configure",
         "make",
+        "make check",
         "sudo make install",
     ),
     "common_modsecurity_command_explanations": (
         (
-            "Downloads the ModSecurity v3 source code.",
-            "Lädt den ModSecurity-v3-Quellcode herunter.",
+            "Selects the repository-documented immutable release tag.",
+            "Wählt den im Repository dokumentierten unveränderlichen Release-Tag aus.",
+        ),
+        (
+            "Records the expected immutable commit for the selected release.",
+            "Hält den erwarteten unveränderlichen Commit für den ausgewählten Release fest.",
+        ),
+        (
+            "Downloads only the selected ModSecurity v3 release into the local source directory.",
+            "Lädt nur den ausgewählten ModSecurity-v3-Release in das lokale Source-Verzeichnis herunter.",
         ),
         (
             "Changes into the downloaded directory.",
             "Wechselt in das heruntergeladene Verzeichnis.",
+        ),
+        (
+            "Fetches release tags before their signature is verified.",
+            "Lädt Release-Tags vor der Signaturprüfung nach.",
+        ),
+        (
+            "Verifies the selected signed release tag with a trusted maintainer key.",
+            "Prüft den ausgewählten signierten Release-Tag mit einem vertrauenswürdigen Maintainer-Schlüssel.",
+        ),
+        (
+            "Checks out the selected tag in detached-HEAD mode.",
+            "Checkt den ausgewählten Tag im Detached-HEAD-Modus aus.",
+        ),
+        (
+            "Fails unless the checked-out commit equals the documented release commit.",
+            "Bricht ab, wenn der ausgecheckte Commit nicht dem dokumentierten Release-Commit entspricht.",
         ),
         (
             "Downloads the additional required subprojects.",
@@ -2401,6 +2437,10 @@ COMMON_MODSECURITY: dict[str, object] = {
         (
             "Compiles libmodsecurity.",
             "Kompiliert libmodsecurity.",
+        ),
+        (
+            "Runs the upstream test suite before installation.",
+            "Führt die Upstream-Testsuite vor der Installation aus.",
         ),
         (
             "Installs headers and the library system-wide.",
@@ -3282,7 +3322,7 @@ def common_modsecurity_guide(german: bool) -> str:
             language_switch("libmodsecurity", True),
             "## Offizielle Quellen\n\nDie aktuelle [ModSecurity-README](https://github.com/owasp-modsecurity/ModSecurity) ist die primäre Buildquelle. Die [Compilation Recipes für v3.x](https://github.com/owasp-modsecurity/ModSecurity/wiki/Compilation-recipes-for-v3.x) dienen nur als ergänzender Hinweis für distributionsspezifische Abhängigkeiten. Historische CentOS-, Ubuntu- oder andere Beispiele daraus sind kein aktueller Standard.",
             "## Voraussetzungen\n\nBenötigt werden unter anderem:\n\n- Git\n- C- und C++-Compiler\n- GNU Make\n- Autoconf und Automake\n- libtool\n- Flex und Bison\n- YAJL\n- PCRE2\n\nDie aktuelle README nennt YAJL als Pflichtabhängigkeit und PCRE2 als Standard für reguläre Ausdrücke. Für einen kompakten Einstieg sind diese gegen aktuelle Paketquellen geprüften Namen geeignet; nur den Block der eigenen Distribution ausführen.\n\n```sh\n# Debian / Ubuntu\nsudo apt update\nsudo apt install build-essential git autoconf automake libtool flex bison pkg-config libyajl-dev libpcre2-dev\n```\n\n```sh\n# Fedora / RHEL\nsudo dnf install gcc gcc-c++ make git autoconf automake libtool flex bison pkgconf-pkg-config yajl-devel pcre2-devel\n```",
-            "## Einfacher offizieller Build\n\nWenn die benötigten Entwicklungspakete bereits installiert sind, besteht der offizielle Unix-Build im Wesentlichen aus diesen acht Befehlen:\n\n"
+            "## Einfacher offizieller Build\n\nWenn die benötigten Entwicklungspakete bereits installiert sind, verwendet der Standardweg diesen überprüften, im Repository dokumentierten Release. Er ist eine Reproduzierbarkeitsbasis und keine Aussage über den neuesten oder von Upstream unterstützten Release. Die GPG-Tag-Prüfung setzt einen vertrauenswürdigen Maintainer-Schlüssel voraus.\n\n"
             + shell(beginner_commands)
             + "\n\n## Bedeutung der Befehle\n\n"
             + markdown_table(("Befehl", "Bedeutung"), explanation_rows)
@@ -3303,7 +3343,7 @@ def common_modsecurity_guide(german: bool) -> str:
         language_switch("libmodsecurity", False),
         "## Official sources\n\nThe current [ModSecurity README](https://github.com/owasp-modsecurity/ModSecurity) is the primary build source. The [v3.x compilation recipes](https://github.com/owasp-modsecurity/ModSecurity/wiki/Compilation-recipes-for-v3.x) are only supplementary context for distribution-specific dependencies. Historical CentOS, Ubuntu, or other examples there are not a current default.",
         "## Prerequisites\n\nAmong the required tools and development packages are:\n\n- Git\n- C and C++ compilers\n- GNU Make\n- Autoconf and Automake\n- libtool\n- Flex and Bison\n- YAJL\n- PCRE2\n\nThe current README identifies YAJL as mandatory and PCRE2 as the default regex engine. These compact package names were checked against current package sources; run only the block for the distribution in use.\n\n```sh\n# Debian / Ubuntu\nsudo apt update\nsudo apt install build-essential git autoconf automake libtool flex bison pkg-config libyajl-dev libpcre2-dev\n```\n\n```sh\n# Fedora / RHEL\nsudo dnf install gcc gcc-c++ make git autoconf automake libtool flex bison pkgconf-pkg-config yajl-devel pcre2-devel\n```",
-        "## Simple official build\n\nOnce the required development packages are installed, the official Unix build is essentially these eight commands:\n\n"
+        "## Simple official build\n\nOnce the required development packages are installed, the default path uses this verified, repository-documented release. It is a reproducibility baseline, not a claim about the latest or upstream-supported release. GPG tag verification requires a trusted maintainer key.\n\n"
         + shell(beginner_commands)
         + "\n\n## Meaning of the commands\n\n"
         + markdown_table(("Command", "Meaning"), explanation_rows)
@@ -3521,7 +3561,7 @@ def configuration_section(item: dict[str, str], info: dict[str, object], german:
     return f"{manual_localized(intro, german)}{note}\n\n{shell_groups(normalized_connector_commands(commands))}"
 
 
-def nginx_validation_section(german: bool) -> str:
+def nginx_validation_section() -> str:
     commands = (
         'test -x "$INSTALL_DIR/sbin/nginx"',
         'test -f "$INSTALL_DIR/modules/ngx_http_modsecurity_module.so"',
@@ -3535,7 +3575,7 @@ def nginx_validation_section(german: bool) -> str:
     return shell_groups(commands)
 
 
-def apache_validation_section(german: bool) -> str:
+def apache_validation_section() -> str:
     commands = (
         '"$HTTPD_BIN" -v',
         '"$HTTPD_BIN" -M | grep -E "(^|[[:space:]])so_module"',
@@ -3548,11 +3588,11 @@ def apache_validation_section(german: bool) -> str:
     return shell_groups(commands)
 
 
-def validation_section(item: dict[str, str], info: dict[str, object], german: bool) -> str:
+def validation_section(item: dict[str, str], info: dict[str, object]) -> str:
     if item["slug"] == "nginx":
-        return nginx_validation_section(german)
+        return nginx_validation_section()
     if item["slug"] == "apache":
-        return apache_validation_section(german)
+        return apache_validation_section()
     commands = (*CONFIGURATION_VALIDATIONS.get(item["slug"], ()), *info["validation"])
     return shell_groups(normalized_connector_commands(commands))
 
@@ -3572,7 +3612,7 @@ def nginx_runtime_section(german: bool) -> str:
     return f"{manual_localized(intro, german)}\n\n{shell_groups(commands)}"
 
 
-def apache_runtime_section(german: bool) -> str:
+def apache_runtime_section() -> str:
     commands = (
         'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HTTPD_BIN" -d "$HTTPD_RUNTIME_ROOT" -f "$HTTPD_CONFIG" -t',
         'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HTTPD_BIN" -d "$HTTPD_RUNTIME_ROOT" -f "$HTTPD_CONFIG" -k start',
@@ -3587,7 +3627,7 @@ def runtime_section(item: dict[str, str], info: dict[str, object], german: bool)
     if item["slug"] == "nginx":
         return nginx_runtime_section(german)
     if item["slug"] == "apache":
-        return apache_runtime_section(german)
+        return apache_runtime_section()
     return shell_groups(normalized_connector_commands(info["http_commands"]))
 
 
@@ -3693,7 +3733,7 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
     host_build = host_provisioning_section(slug, german)
     connector_build = connector_build_section(item, info, german)
     configuration = configuration_section(item, info, german)
-    validation = validation_section(item, info, german)
+    validation = validation_section(item, info)
     http_test = runtime_section(item, info, german)
     variables = manual_variable_table(info, german, slug)
     return f"""{MARKER}

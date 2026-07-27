@@ -29,6 +29,7 @@ REPORT_DIR = GENERATED_ROOT
 REPORT_STEM = "rule-chain-semantics-analysis.generated"
 DETECTION_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
 ABSOLUTE_RUNTIME_PATH_RE = re.compile(r"(?<![\w.-])/(?:tmp|root|src)[^\s\"']*")
+NO_ROWS_MARKDOWN = "- None."
 
 
 def utc_now() -> str:
@@ -540,7 +541,7 @@ def render_markdown(report: dict[str, Any]) -> str:
             )
         )
     else:
-        lines.append("- None.")
+        lines.append(NO_ROWS_MARKDOWN)
     lines.extend(["", "## Chain-Named Non-Rule-Chain Rows"])
     if report["chain_named_non_rule_chain_failures"]:
         lines.extend(
@@ -563,7 +564,7 @@ def render_markdown(report: dict[str, Any]) -> str:
             )
         )
     else:
-        lines.append("- None.")
+        lines.append(NO_ROWS_MARKDOWN)
     lines.extend(["", "## Single-Connector Leftovers"])
     if report["small_single_connector_failures"]:
         lines.extend(
@@ -587,7 +588,7 @@ def render_markdown(report: dict[str, Any]) -> str:
             )
         )
     else:
-        lines.append("- None.")
+        lines.append(NO_ROWS_MARKDOWN)
     rec = report.get("next_recommendation") or {}
     lines.extend(
         [

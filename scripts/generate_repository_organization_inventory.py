@@ -2,8 +2,9 @@
 """Create a temporary documentation-reorganization inventory and move plan.
 
 This repository-maintenance tool reads tracked files only. Its audit outputs
-belong below ``${TMP_ROOT:-/tmp}/modsecurity-doc-cleanup`` so a planning
-snapshot never becomes a competing versioned report.
+use a private randomly named directory below ``${TMP_ROOT:-/tmp}`` so a
+planning snapshot never becomes a competing versioned report or follows a
+pre-created shared temporary path.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,15 +21,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK = ROOT / "modules" / "ModSecurity-test-Framework"
-AUDIT_ROOT = Path(os.environ.get("TMP_ROOT", "/tmp")) / "modsecurity-doc-cleanup"
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
-VARIABLE_RE = re.compile(
-    r"(?:\$\{?[A-Z][A-Z0-9_]*\}?|\$\([A-Z][A-Z0-9_]*\)|\b[A-Z][A-Z0-9_]{2,}\s*(?:\?|:|\+)?=)"
+VARIABLE_REFERENCE_RE = re.compile(
+    r"\$\{?[A-Z][A-Z0-9_]*\}?|\$\([A-Z][A-Z0-9_]*\)"
 )
+VARIABLE_ASSIGNMENT_RE = re.compile(r"\b[A-Z][A-Z0-9_]{2,}\s*[?:+]?=")
+VARIABLE_PATTERNS = (VARIABLE_REFERENCE_RE, VARIABLE_ASSIGNMENT_RE)
 PLACEHOLDER_RE = re.compile(
     r"(?:<[A-Za-z][A-Za-z0-9 _-]*>|\b(?:REPLACE_ME|CHANGE_ME)\b|\{\{[^}]+\}\}|\$\{\{[^}]+\}\})"
 )
-REFERENCE_RE = re.compile(r"(?:\bci/[\w./-]+|\bdocs/[\w./-]+|\breports/[\w./-]+|\bexamples/[\w./-]+|\bmake\s+[\w.-]+)")
+REFERENCE_RE = re.compile(r"\b(?:(?:ci|docs|reports|examples)/[\w./-]+|make\s+[\w.-]+)")
 
 
 def tracked_files(directory: Path) -> list[str]:
@@ -35,11 +38,42 @@ def tracked_files(directory: Path) -> list[str]:
     return subprocess.check_output(command, text=True).splitlines()
 
 
+def private_audit_root() -> Path:
+    """Allocate a private audit directory without reusing a predictable name."""
+    temporary_parent = Path(os.environ.get("TMP_ROOT") or tempfile.gettempdir())
+    temporary_parent.mkdir(parents=True, exist_ok=True)
+    return Path(
+        tempfile.mkdtemp(prefix="modsecurity-doc-cleanup-", dir=temporary_parent)
+    )
+
+
 def read_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
+
+
+def variable_matches(text: str) -> list[str]:
+    """Return variable references and assignments in source order.
+
+    The two small patterns avoid a single high-complexity expression.  Keep
+    the leftmost match when a reference and an assignment overlap, matching
+    the prior regular-expression scanner behavior for inputs such as
+    ``$FOO=``.
+    """
+    matches = sorted(
+        (match for pattern in VARIABLE_PATTERNS for match in pattern.finditer(text)),
+        key=lambda match: (match.start(), -match.end()),
+    )
+    result: list[str] = []
+    consumed_until = 0
+    for match in matches:
+        if match.start() < consumed_until:
+            continue
+        result.append(match.group())
+        consumed_until = match.end()
+    return result
 
 
 def language(path: str) -> str:
@@ -117,7 +151,7 @@ def proposed_destination(path: str, is_framework: bool) -> str:
             return f"{prefix}ci/checks/protocol/{name}"
         if lower.startswith("check-") and "doc" in lower:
             return f"{prefix}ci/checks/documentation/{name}"
-        if lower.startswith("check-") or lower.startswith("check_"):
+        if lower.startswith(("check-", "check_")):
             return f"{prefix}ci/checks/catalog/{name}"
         if lower.startswith(("run-", "no_crs", "protocol_client", "response_body")):
             return f"{prefix}ci/runtime/{name}"
@@ -155,7 +189,7 @@ def inventory_row(path: str, filesystem_path: Path, is_framework: bool, source_t
     referenced = sorted(
         source for source, source_text in source_texts.items() if source != path and (path in source_text or basename in source_text)
     )
-    variables = sorted(set(VARIABLE_RE.findall(text)))
+    variables = sorted(set(variable_matches(text)))
     placeholders = sorted(set(PLACEHOLDER_RE.findall(text)))
     references = sorted(set(REFERENCE_RE.findall(text)))
     local_docs = bool(re.search(r"(?:variable|placeholder|configuration values|konfigurationsvariablen)", text, re.I))
@@ -234,10 +268,11 @@ def main() -> None:
         "allowed_actions": ["keep", "move", "merge", "rewrite", "archive", "generate", "remove_duplicate"],
         "files": rows,
     }
-    AUDIT_ROOT.mkdir(parents=True, exist_ok=True)
-    (AUDIT_ROOT / "repository-organization-inventory.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    (AUDIT_ROOT / "repository-organization-plan.md").write_text(plan(rows, german=False), encoding="utf-8")
-    (AUDIT_ROOT / "repository-organization-plan.de.md").write_text(plan(rows, german=True), encoding="utf-8")
+    audit_root = private_audit_root()
+    (audit_root / "repository-organization-inventory.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (audit_root / "repository-organization-plan.md").write_text(plan(rows, german=False), encoding="utf-8")
+    (audit_root / "repository-organization-plan.de.md").write_text(plan(rows, german=True), encoding="utf-8")
+    print(f"repository-organization-inventory: wrote temporary inventory: {audit_root}")
 
 
 if __name__ == "__main__":

@@ -35,6 +35,8 @@ URLENCODED_FORM_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
 XML_ACTIVATION_MISSING_CLASSIFICATION = "xml_processor_activation_missing"
 MULTIPART_ACTIVATION_MISSING_CLASSIFICATION = "multipart_processor_activation_missing"
 ABSOLUTE_RUNTIME_PATH_RE = re.compile(r"(?<![\w.-])/(?:tmp|root|src)[^\s\"']*")
+DISTRIBUTION_TABLE_HEADER = "| field | distribution |"
+DISTRIBUTION_TABLE_SEPARATOR = "| --- | --- |"
 
 
 def utc_now() -> str:
@@ -821,8 +823,8 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- Fix: {urlencoded['fix']}",
         f"- Risk: {urlencoded['risk']}",
         "",
-        "| field | distribution |",
-        "| --- | --- |",
+        DISTRIBUTION_TABLE_HEADER,
+        DISTRIBUTION_TABLE_SEPARATOR,
     ]
     for key in ("connectors", "variants", "case_ids", "rule_ids", "targets", "operators", "body_lengths", "request_body_seen"):
         values = ", ".join(f"`{sanitize_report_text(name)}`: {count}" for name, count in urlencoded[key].items()) or "-"
@@ -850,8 +852,8 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"- Fix: {xml_activation['fix']}",
             f"- Risk: {xml_activation['risk']}",
             "",
-            "| field | distribution |",
-            "| --- | --- |",
+            DISTRIBUTION_TABLE_HEADER,
+            DISTRIBUTION_TABLE_SEPARATOR,
         ]
     )
     for key in ("connectors", "variants", "case_ids", "rule_ids", "targets", "operators", "content_types", "body_lengths", "body_hashes", "request_body_seen"):
@@ -883,8 +885,8 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"- Fix: {multipart_activation['fix']}",
             f"- Risk: {multipart_activation['risk']}",
             "",
-            "| field | distribution |",
-            "| --- | --- |",
+            DISTRIBUTION_TABLE_HEADER,
+            DISTRIBUTION_TABLE_SEPARATOR,
         ]
     )
     for key in (

@@ -58,23 +58,23 @@ class TransportLifecycleArtifactsTest(unittest.TestCase):
             }
         ]
         observations, lifecycle, barriers, counters = artifacts.build_artifacts("nginx", "run-1", events)
-        self.assertEqual("run-1", observations["run_id"])
-        self.assertEqual("not_observable", observations["observations"][0]["client_result"])
+        self.assertEqual(observations["run_id"], "run-1")
+        self.assertEqual(observations["observations"][0]["client_result"], "not_observable")
         self.assertTrue(observations["observations"][0]["host_survived"])
         self.assertEqual(
-            "phase4_first_byte_before_response_end",
             observations["observations"][0]["case_id"],
+            "phase4_first_byte_before_response_end",
         )
-        self.assertEqual(1, counters["stream_resets"])
-        self.assertEqual(1, counters["client_disconnects"])
-        self.assertEqual(1, len(barriers))
-        self.assertEqual("nginx", barriers[0]["connector"])
-        self.assertEqual("run-1", barriers[0]["run_id"])
+        self.assertEqual(counters["stream_resets"], 1)
+        self.assertEqual(counters["client_disconnects"], 1)
+        self.assertEqual(len(barriers), 1)
+        self.assertEqual(barriers[0]["connector"], "nginx")
+        self.assertEqual(barriers[0]["run_id"], "run-1")
         self.assertNotIn("case_id", barriers[0])
         self.assertNotIn("protocol", barriers[0])
         self.assertFalse(barriers[0]["upstream_eos_sent_at_first_byte"])
-        self.assertEqual(1, len(lifecycle["records"]))
-        self.assertEqual(1, lifecycle["records"][0]["intentional_abort"])
+        self.assertEqual(len(lifecycle["records"]), 1)
+        self.assertEqual(lifecycle["records"][0]["intentional_abort"], 1)
         self.assertNotIn("body", json.dumps(observations))
 
     def test_barrier_record_is_accepted_as_a_framework_canonical_event(self) -> None:
@@ -149,8 +149,8 @@ class TransportLifecycleArtifactsTest(unittest.TestCase):
         )
         self.assertIsNone(raw_observations["observations"][0]["connection_id"])
         self.assertEqual(
-            "sha256:0123456789abcdef",
             hashed_observations["observations"][0]["connection_id"],
+            "sha256:0123456789abcdef",
         )
 
     def test_rejects_payload_bearing_source_event(self) -> None:
@@ -174,7 +174,7 @@ class TransportLifecycleArtifactsTest(unittest.TestCase):
                 [f"runtime.conf={source}"],
             )
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual("run-one", manifest["run_id"])
+            self.assertEqual(manifest["run_id"], "run-one")
             self.assertEqual(
                 hashlib.sha256(source.read_bytes()).hexdigest(),
                 manifest["files"][0]["sha256"],

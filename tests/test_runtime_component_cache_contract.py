@@ -50,7 +50,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
         self.assertNotEqual(baseline["cache_key"], self.identity(flags="-O3")["cache_key"])
         self.assertNotEqual(baseline["cache_key"], self.identity(compiler_version="cc 15")["cache_key"])
         self.assertEqual(components.CACHE_SCHEMA_VERSION, baseline["cache_schema_version"])
-        self.assertEqual("patch-a", baseline["patchset_sha256"])
+        self.assertEqual(baseline["patchset_sha256"], "patch-a")
 
     def test_patchset_hash_tracks_patch_names_order_and_contents(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
@@ -59,7 +59,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             (patches / "001-first.patch").write_text("first\n", encoding="utf-8")
             (patches / "002-second.patch").write_text("second\n", encoding="utf-8")
             first = components.patchset_identity([patches])
-            self.assertEqual(["001-first.patch", "002-second.patch"], first["files"])
+            self.assertEqual(first["files"], ["001-first.patch", "002-second.patch"])
 
             (patches / "001-first.patch").write_text("second\n", encoding="utf-8")
             (patches / "002-second.patch").write_text("first\n", encoding="utf-8")
@@ -147,7 +147,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertTrue(components.connector_manifest_ready(plan))
 
             manifest = components.read_json(Path(plan["manifest"]))
-            self.assertEqual("complete", manifest["status"])
+            self.assertEqual(manifest["status"], "complete")
             manifest["status"] = "incomplete"
             components.write_json(Path(plan["manifest"]), manifest)
             self.assertFalse(components.connector_manifest_ready(plan))
@@ -241,8 +241,8 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 )
             self.assertEqual(str(candidate_root), reused_plan["root"])
             self.assertEqual(candidate_identity["cache_key"], reused_plan["cache_key"])
-            self.assertEqual("previous-root", reused_plan["reused_from_connector_commit"])
-            self.assertEqual("connector_commit_only", reused_plan["cache_reuse_reason"])
+            self.assertEqual(reused_plan["reused_from_connector_commit"], "previous-root")
+            self.assertEqual(reused_plan["cache_reuse_reason"], "connector_commit_only")
             self.assertTrue(components.connector_cache_entry_complete(reused_plan))
 
             components.remove_managed_cache_entry_marker(candidate_root, cache_root)
@@ -420,8 +420,8 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     archive_dir,
                     cache_root,
                 )
-            self.assertEqual("corrupt", record["status"])
-            self.assertEqual("archive_list_failed", record["blocker_reason"])
+            self.assertEqual(record["status"], "corrupt")
+            self.assertEqual(record["blocker_reason"], "archive_list_failed")
             self.assertFalse(archive_path.exists())
 
     def test_archive_identity_change_rebuilds_a_same_basename_entry(self) -> None:
@@ -452,10 +452,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 record = components.prepare_archive("nginx", new_url, "", "", archive_dir, cache_root)
 
             new_key = components.archive_cache_identity("nginx", new_url, "", "")["cache_key"]
-            self.assertEqual("present", record["status"])
-            self.assertEqual([new_url], downloads)
+            self.assertEqual(record["status"], "present")
+            self.assertEqual(downloads, [new_url])
             self.assertTrue(record["rebuild_required"])
-            self.assertEqual("archive_cache_identity_changed", record["invalidation_reason"])
+            self.assertEqual(record["invalidation_reason"], "archive_cache_identity_changed")
             self.assertEqual(new_key, components.read_json(components.cache_entry_marker_path(archive_path, cache_root))["cache_key"])
 
     def test_legacy_archive_marker_is_migrated_only_to_remove_and_rebuild(self) -> None:
@@ -490,13 +490,116 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
 
             identity = components.archive_cache_identity("nginx", url, "", "")
             marker = components.read_json(components.cache_entry_marker_path(archive_path, cache_root))
-            self.assertEqual("present", record["status"])
-            self.assertEqual([url], downloads)
+            self.assertEqual(record["status"], "present")
+            self.assertEqual(downloads, [url])
             self.assertTrue(record["old_entry_removed"])
-            self.assertEqual("cache_schema_changed", record["invalidation_reason"])
+            self.assertEqual(record["invalidation_reason"], "cache_schema_changed")
             self.assertEqual(components.CACHE_SCHEMA_VERSION, marker["schema_version"])
             self.assertEqual(identity["cache_key"], marker["cache_key"])
-            self.assertEqual("complete", marker["status"])
+            self.assertEqual(marker["status"], "complete")
+
+    def test_required_pcre2_digest_rejects_unsafe_values_before_archive_handling(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            cache_root = components.ensure_managed_cache_root(Path(temporary) / "cache")
+            archive_dir = cache_root / "archives/apache"
+            archive_url = "https://example.invalid/pcre2-10.47.tar.bz2"
+            sha_url = "https://example.invalid/pcre2-10.47.tar.bz2.sha256"
+            expected_cases = (
+                ("", "missing required SHA256 digest for pcre2"),
+                ("   ", "missing required SHA256 digest for pcre2"),
+                ("not-a-sha256", "invalid SHA256 digest for pcre2"),
+            )
+
+            for digest, blocker in expected_cases:
+                with (
+                    self.subTest(digest=repr(digest)),
+                    mock.patch.object(components, "download") as download_mock,
+                    mock.patch.object(components, "archive_can_list") as archive_can_list_mock,
+                    mock.patch.object(components, "expected_sha_from_url") as checksum_url_mock,
+                ):
+                    record = components.prepare_archive(
+                        "pcre2",
+                        archive_url,
+                        digest,
+                        sha_url,
+                        archive_dir,
+                        cache_root,
+                        required_literal_sha256=True,
+                    )
+
+                self.assertEqual(record["status"], "blocked")
+                self.assertIn(blocker, record["blocker_reason"])
+                download_mock.assert_not_called()
+                archive_can_list_mock.assert_not_called()
+                checksum_url_mock.assert_not_called()
+                self.assertFalse(archive_dir.exists())
+
+    def test_required_pcre2_digest_verifies_before_cache_publication(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            source_payload = root / "pcre2.txt"
+            source_payload.write_text("pcre2 fixture\n", encoding="utf-8")
+            source_archive = root / "pcre2-10.47.tar.bz2"
+            with tarfile.open(source_archive, "w:bz2") as archive:
+                archive.add(source_payload, arcname=source_payload.name)
+            digest = components.sha256_file(source_archive)
+            archive_url = "https://example.invalid/pcre2-10.47.tar.bz2"
+            source_bytes = source_archive.read_bytes()
+            downloads: list[str] = []
+
+            def download_fixture(url: str, destination: Path) -> None:
+                downloads.append(url)
+                destination.write_bytes(source_bytes)
+
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            archive_dir = cache_root / "archives/apache"
+            with mock.patch.object(components, "download", side_effect=download_fixture):
+                record = components.prepare_archive(
+                    "pcre2",
+                    archive_url,
+                    digest.upper(),
+                    "",
+                    archive_dir,
+                    cache_root,
+                    required_literal_sha256=True,
+                )
+
+            archive_path = archive_dir / source_archive.name
+            archive_identity = components.archive_cache_identity("pcre2", archive_url, digest, "")
+            self.assertEqual(record["status"], "present")
+            self.assertEqual(record["checksum_status"], "PASS")
+            self.assertEqual(record["expected_sha256"], digest)
+            self.assertEqual(downloads, [archive_url])
+            self.assertTrue(
+                components.cache_entry_complete(
+                    archive_path,
+                    cache_root,
+                    component="archive:pcre2",
+                    cache_key=archive_identity["cache_key"],
+                    cache_identity=archive_identity,
+                )
+            )
+
+            bad_cache_root = components.ensure_managed_cache_root(root / "bad-cache")
+            bad_archive_dir = bad_cache_root / "archives/apache"
+            mismatching_digest = "0" * 64 if digest != "0" * 64 else "f" * 64
+            with mock.patch.object(components, "download", side_effect=download_fixture):
+                mismatch = components.prepare_archive(
+                    "pcre2",
+                    archive_url,
+                    mismatching_digest,
+                    "",
+                    bad_archive_dir,
+                    bad_cache_root,
+                    required_literal_sha256=True,
+                )
+
+            bad_archive_path = bad_archive_dir / source_archive.name
+            self.assertEqual(mismatch["status"], "corrupt")
+            self.assertEqual(mismatch["blocker_reason"], "sha256_mismatch")
+            self.assertEqual(mismatch["checksum_status"], "FAIL")
+            self.assertFalse(bad_archive_path.exists())
+            self.assertFalse(components.cache_entry_marker_path(bad_archive_path, bad_cache_root).exists())
 
     def test_blocked_modsecurity_manifest_claims_fresh_entry_before_writing(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
@@ -507,7 +610,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             with mock.patch.object(components, "toolchain_identity", return_value=toolchain):
                 record = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
                 paths = components.shared_modsecurity_paths(cache_root, record["build_id"])
-            self.assertEqual("blocked", record["status"])
+            self.assertEqual(record["status"], "blocked")
             self.assertTrue(paths["manifest"].is_file())
             self.assertTrue(components.cache_entry_marker_valid(paths["build_root"], cache_root))
 
@@ -518,7 +621,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             unmanaged_paths["build_root"].mkdir(parents=True)
             with mock.patch.object(components, "toolchain_identity", return_value=toolchain):
                 blocked = components.prepare_shared_modsecurity({}, unmanaged_cache, root / "work", git_record, {})
-            self.assertEqual("blocked", blocked["status"])
+            self.assertEqual(blocked["status"], "blocked")
             self.assertIn("unmanaged_cache_entry_marker_missing", blocked["blocker_reason"])
             self.assertFalse(unmanaged_paths["manifest"].exists())
 
@@ -557,12 +660,16 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
 
             with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
                 components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
-            ), mock.patch.object(components, "run_env", side_effect=fake_run_env):
+            ), mock.patch.object(components, "run_env", side_effect=fake_run_env), mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                return_value={"status": "passed"},
+            ):
                 record = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
 
             build_entry = cache_root / "builds/modsecurity" / record["cache_key"]
             prefix = cache_root / "prefix/modsecurity" / record["cache_key"]
-            self.assertEqual("built", record["status"])
+            self.assertEqual(record["status"], "built")
             self.assertTrue((prefix / "include/modsecurity/modsecurity.h").is_file())
             self.assertTrue(components.cache_manifest_complete(build_entry / "manifest.json", record["cache_identity"]))
             self.assertTrue(
@@ -594,10 +701,14 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             components.write_json(marker_path, marker)
             with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
                 components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
-            ), mock.patch.object(components, "run_env", side_effect=fake_run_env):
+            ), mock.patch.object(components, "run_env", side_effect=fake_run_env), mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                return_value={"status": "passed"},
+            ):
                 rebuilt = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
-            self.assertEqual("built", rebuilt["status"])
-            self.assertEqual(2, make_calls)
+            self.assertEqual(rebuilt["status"], "built")
+            self.assertEqual(make_calls, 2)
 
             # A lost prefix sidecar can be recovered only because the complete
             # build manifest binds this exact prefix.  It authorizes deletion
@@ -605,11 +716,15 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             components.remove_managed_cache_entry_marker(prefix, cache_root)
             with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
                 components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
-            ), mock.patch.object(components, "run_env", side_effect=fake_run_env):
+            ), mock.patch.object(components, "run_env", side_effect=fake_run_env), mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                return_value={"status": "passed"},
+            ):
                 rebuilt_prefix = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
-            self.assertEqual("built", rebuilt_prefix["status"])
-            self.assertEqual("missing_modsecurity_prefix_registry_marker", rebuilt_prefix["invalidation_reason"])
-            self.assertEqual(3, make_calls)
+            self.assertEqual(rebuilt_prefix["status"], "built")
+            self.assertEqual(rebuilt_prefix["invalidation_reason"], "missing_modsecurity_prefix_registry_marker")
+            self.assertEqual(make_calls, 3)
 
     def test_default_expat_builds_in_a_keyed_staging_entry(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
@@ -651,7 +766,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 record = components.prepare_expat({}, cache_root, root / "work", git_record)
 
             entry = cache_root / "builds/expat" / record["cache_key"]
-            self.assertEqual("built", record["status"])
+            self.assertEqual(record["status"], "built")
             self.assertEqual(str(entry / "prefix"), record["prefix"])
             self.assertTrue((entry / "prefix/include/expat.h").is_file())
             self.assertTrue(components.cache_manifest_complete(entry / "manifest.json", record["cache_identity"]))
@@ -747,9 +862,9 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
 
             entry = cache_root / "builds" / "expat" / first["cache_key"]
             manifest = components.read_json(entry / "manifest.json")
-            self.assertEqual("built", first["status"])
-            self.assertEqual("present", second["status"])
-            self.assertEqual(1, make_install_calls)
+            self.assertEqual(first["status"], "built")
+            self.assertEqual(second["status"], "present")
+            self.assertEqual(make_install_calls, 1)
             self.assertEqual(str(compiler_link), first["cache_identity"]["toolchain"]["cc"])
             self.assertEqual(first["cache_identity"], manifest["cache_identity"])
             self.assertTrue(
@@ -812,7 +927,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             ), mock.patch.object(components, "run_env", side_effect=fake_run_env):
                 record = components.prepare_expat(env, cache_root, root / "work", git_record)
 
-            self.assertEqual("built", record["status"])
+            self.assertEqual(record["status"], "built")
             self.assertTrue(str(configured_prefix).split("/")[-1].startswith(".prefix.tmp-"))
             self.assertTrue((prefix / "include/expat.h").is_file())
             for component, entry in (("expat-prefix", prefix), ("expat-build", build_dir), ("expat-source", source_copy)):
@@ -834,8 +949,8 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 root / "work",
                 git_record,
             )
-            self.assertEqual("blocked", blocked["status"])
-            self.assertEqual("expat_paths_must_be_under_connector_component_cache", blocked["blocker_reason"])
+            self.assertEqual(blocked["status"], "blocked")
+            self.assertEqual(blocked["blocker_reason"], "expat_paths_must_be_under_connector_component_cache")
             self.assertFalse(external_prefix.exists())
 
     def test_apache_rebuilds_complete_cache_with_broken_apxs(self) -> None:
@@ -913,6 +1028,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 assert isinstance(build_env, dict)
                 active_build_path = Path(build_env["APACHE_BUILD_ROOT"])
                 active_httpd_prefix = Path(build_env["HTTPD_PREFIX"])
+                self.assertEqual(
+                    str(cache_root / "builds" / "connectors"),
+                    build_env["APACHE_BUILD_OWNER_ROOT"],
+                )
                 staging_prefixes.append(active_httpd_prefix)
                 httpd = active_httpd_prefix / "bin/httpd"
                 httpd.parent.mkdir(parents=True, exist_ok=True)
@@ -961,7 +1080,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     modsecurity={"status": "built", "build_id": "modsecurity", "lib_dir": str(modsecurity_lib.parent)},
                     plan=plan,
                 )
-            self.assertEqual("built", record["status"])
+            self.assertEqual(record["status"], "built")
             self.assertTrue(run_build.called)
             self.assertTrue(components.executable(entry / "httpd/bin/httpd"))
             self.assertTrue(components.executable(entry / "httpd/bin/apxs"))
@@ -973,7 +1092,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 check=False,
             )
-            self.assertEqual(0, apxs_result.returncode, apxs_result.stderr)
+            self.assertEqual(apxs_result.returncode, 0, apxs_result.stderr)
             self.assertEqual(str(entry / "httpd/include"), apxs_result.stdout.strip())
             staging_prefix = staging_prefixes[0]
             for relative in ("bin/apxs", "build/config_vars.mk", "bin/apr-1-config", "bin/apu-1-config", "bin/apachectl-mrts", "conf/httpd.conf"):
@@ -1033,6 +1152,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 assert isinstance(build_env, dict)
                 active_build_path = Path(build_env["NGINX_BUILD_DIR"])
                 active_nginx_prefix = Path(build_env["NGINX_PREFIX"])
+                self.assertEqual(
+                    str(cache_root / "builds" / "connectors"),
+                    build_env["NGINX_BUILD_OWNER_ROOT"],
+                )
                 binary = active_nginx_prefix / "sbin/nginx"
                 binary.parent.mkdir(parents=True, exist_ok=True)
                 binary.write_text("#!/bin/sh\n", encoding="utf-8")
@@ -1057,7 +1180,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     modsecurity={"status": "built", "build_id": "modsecurity", "lib_dir": str(modsecurity_lib.parent)},
                     plan=plan,
                 )
-            self.assertEqual("built", record["status"])
+            self.assertEqual(record["status"], "built")
             self.assertTrue(run_build.called)
             self.assertFalse(partial.exists())
             self.assertTrue(components.executable(entry / "nginx/sbin/nginx"))
@@ -1107,7 +1230,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
 
             entry = cache_root / "builds/go/tool" / record["cache_key"]
             binary = entry / "bin/tool"
-            self.assertEqual("built", record["status"])
+            self.assertEqual(record["status"], "built")
             self.assertEqual(str(binary), record["path"])
             self.assertTrue(components.executable(binary))
             self.assertTrue(components.cache_manifest_complete(entry / "manifest.json", record["cache_identity"]))
@@ -1136,8 +1259,8 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 return_value=(["example/tool"], subprocess.CompletedProcess(["go", "list"], 0, "example/tool\n", "")),
             ):
                 rebuilt = components.prepare_go_tool("tool", "TOOL_BIN", cache_root, root / "work", git_record)
-            self.assertEqual("built", rebuilt["status"])
-            self.assertEqual(2, go_build_calls)
+            self.assertEqual(rebuilt["status"], "built")
+            self.assertEqual(go_build_calls, 2)
 
             # Old per-entry markers are upgraded only long enough to remove
             # their keyed entry; the Go binary is rebuilt rather than reused.
@@ -1155,9 +1278,9 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 return_value=(["example/tool"], subprocess.CompletedProcess(["go", "list"], 0, "example/tool\n", "")),
             ):
                 rebuilt_legacy = components.prepare_go_tool("tool", "TOOL_BIN", cache_root, root / "work", git_record)
-            self.assertEqual("built", rebuilt_legacy["status"])
-            self.assertEqual("cache_schema_changed", rebuilt_legacy["invalidation_reason"])
-            self.assertEqual(3, go_build_calls)
+            self.assertEqual(rebuilt_legacy["status"], "built")
+            self.assertEqual(rebuilt_legacy["invalidation_reason"], "cache_schema_changed")
+            self.assertEqual(go_build_calls, 3)
 
     def test_atomic_directory_publication_keeps_staging_invisible_until_publish(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
@@ -1169,7 +1292,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
 
             components.atomic_publish_dir(staging_path, final_path, cache_root)
             self.assertFalse(staging_path.exists())
-            self.assertEqual("complete\n", (final_path / "artifact").read_text(encoding="utf-8"))
+            self.assertEqual((final_path / "artifact").read_text(encoding="utf-8"), "complete\n")
             with self.assertRaisesRegex(RuntimeError, "cache_publish_destination_exists"):
                 components.atomic_publish_dir(final_path, final_path, cache_root)
 
@@ -1277,9 +1400,9 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     cache_root=cache_root,
                 )
 
-            self.assertEqual("present", apache_source["status"])
-            self.assertEqual("present", nginx_source["status"])
-            self.assertEqual(1, clone_count)
+            self.assertEqual(apache_source["status"], "present")
+            self.assertEqual(nginx_source["status"], "present")
+            self.assertEqual(clone_count, 1)
             self.assertEqual(commit, nginx_source["actual_head"])
             self.assertEqual(apache_source["cache_identity"], nginx_source["cache_identity"])
             self.assertTrue(
@@ -1370,11 +1493,11 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     cache_root=cache_root,
                 )
 
-            self.assertEqual("present", record["status"])
+            self.assertEqual(record["status"], "present")
             self.assertTrue(record["rebuild_required"])
             self.assertTrue(record["old_entry_removed"])
             self.assertFalse((checkout / "untracked.txt").exists())
-            self.assertEqual("", self.git(["git", "status", "--porcelain"], checkout).stdout)
+            self.assertEqual(self.git(["git", "status", "--porcelain"], checkout).stdout, "")
             self.assertFalse(any(path.name.startswith(".component.tmp-") for path in checkout.parent.iterdir()))
             self.assertTrue(
                 components.cache_entry_complete(
@@ -1452,13 +1575,13 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     cache_root=cache_root,
                 )
 
-            self.assertEqual("present", record["status"])
+            self.assertEqual(record["status"], "present")
             self.assertTrue(record["old_entry_removed"])
             # The old final checkout is left untouched while a verified
             # staging clone is resolved and published, so recovery is driven
             # by the incomplete published entry rather than an in-place Git
             # preflight mutation.
-            self.assertEqual("resolved_source_commit_changed_or_incomplete", record["invalidation_reason"])
+            self.assertEqual(record["invalidation_reason"], "resolved_source_commit_changed_or_incomplete")
             self.assertEqual(commit, self.git(["git", "rev-parse", "HEAD"], checkout).stdout.strip())
 
     def test_moving_git_ref_uses_resolved_commit_and_never_fetches_final_checkout(self) -> None:
@@ -1556,14 +1679,14 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     cache_root=cache_root,
                 )
 
-            self.assertEqual("present", record["status"])
+            self.assertEqual(record["status"], "present")
             self.assertEqual(second_commit, record["actual_head"])
             self.assertEqual(second_commit, record["cache_identity"]["resolved_commit"])
             self.assertNotEqual(first_identity["cache_key"], record["cache_key"])
             self.assertEqual(second_commit, self.git(["git", "rev-parse", "HEAD"], checkout).stdout.strip())
-            self.assertEqual("", self.git(["git", "status", "--porcelain"], checkout).stdout)
+            self.assertEqual(self.git(["git", "status", "--porcelain"], checkout).stdout, "")
             self.assertFalse((checkout / "manifest.json").exists())
-            self.assertEqual([], final_mutations)
+            self.assertEqual(final_mutations, [])
             self.assertTrue(
                 components.cache_entry_complete(
                     checkout,

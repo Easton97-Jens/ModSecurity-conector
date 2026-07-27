@@ -14,13 +14,20 @@ GENERATOR_PATH = ROOT / "scripts" / "generate_compiler_guides.py"
 GUIDE_DIRECTORY = ROOT / "docs" / "build" / "compilers"
 SLUGS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 COMMON_BEGINNER_COMMANDS = (
-    "git clone https://github.com/owasp-modsecurity/ModSecurity.git",
+    'MODSECURITY_REF="v3.0.16"',
+    'MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+    'git clone --branch "$MODSECURITY_REF" --single-branch https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity',
     "cd ModSecurity",
+    "git fetch --tags origin",
+    'git verify-tag "$MODSECURITY_REF"',
+    'git checkout --detach "$MODSECURITY_REF"',
+    'test "$(git rev-parse HEAD)" = "$MODSECURITY_COMMIT"',
     "git submodule update --init --recursive",
     "git submodule status",
     "./build.sh",
     "./configure",
     "make",
+    "make check",
     "sudo make install",
 )
 
@@ -263,11 +270,11 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                     "alternative_connector_note",
                 }.issubset(info),
             )
-            self.assertEqual(2, len(info["repository_connector_title"]))
-            self.assertEqual(f"connectors/{slug}", info["repository_connector_path"])
-            self.assertEqual(2, len(info["repository_connector_readme"]))
-            self.assertEqual(2, len(info["repository_connector_build_steps"]))
-            self.assertEqual(2, len(info["alternative_connector_note"]))
+            self.assertEqual(len(info["repository_connector_title"]), 2)
+            self.assertEqual(info["repository_connector_path"], f"connectors/{slug}")
+            self.assertEqual(len(info["repository_connector_readme"]), 2)
+            self.assertEqual(len(info["repository_connector_build_steps"]), 2)
+            self.assertEqual(len(info["alternative_connector_note"]), 2)
         self.assertEqual(set(SLUGS), set(GENERATOR.ACTIVE_MANUAL_VARIABLES))
         for slug, names in GENERATOR.ACTIVE_MANUAL_VARIABLES.items():
             available = {name for name, _, _ in GENERATOR.MANUAL_GUIDES[slug]["variables"]}
@@ -301,6 +308,46 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                 GENERATOR.OUTPUT = original_output
         self.assertEqual(first, second)
 
+    def test_selected_metadata_literals_have_single_guide_owners(self) -> None:
+        self.assertEqual(
+            GENERATOR.PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
+            "package-assisted source build",
+        )
+        self.assertEqual(
+            GENERATOR.PACKAGE_STATUS_PROFILE_UNAVAILABLE,
+            "selected profile not available package-only",
+        )
+        self.assertEqual(GENERATOR.HOST_SOURCE_PATCHED, "patched source")
+        self.assertEqual(GENERATOR.SOURCE_MAPPING_HEADING, "Source mapping")
+        self.assertEqual(
+            {
+                str(info["package_status"])
+                for info in GENERATOR.DETAILS.values()
+            },
+            {
+                GENERATOR.PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
+                GENERATOR.PACKAGE_STATUS_PROFILE_UNAVAILABLE,
+            },
+        )
+        self.assertTrue(
+            {
+                str(info["package_status"])
+                for info in GENERATOR.DETAILS.values()
+            }.issubset(GENERATOR.PACKAGE_STATUSES)
+        )
+        self.assertEqual(
+            GENERATOR.DETAILS["lighttpd"]["host_source"],
+            GENERATOR.HOST_SOURCE_PATCHED,
+        )
+        self.assertEqual(
+            sum(
+                english == GENERATOR.SOURCE_MAPPING_HEADING
+                for info in GENERATOR.MANUAL_GUIDES.values()
+                for english, _, _ in info["repository_connector_build_files"]
+            ),
+            6,
+        )
+
     def test_common_beginner_block_is_exact_and_bilingual(self) -> None:
         english = common_guide()
         german = common_guide(german=True)
@@ -310,8 +357,8 @@ class CompilerGuideGenerationTest(unittest.TestCase):
         german_meanings = h2_section(german, "Bedeutung der Befehle")
         english_blocks = shell_blocks(english_beginner)
         german_blocks = shell_blocks(german_beginner)
-        self.assertEqual(1, len(english_blocks))
-        self.assertEqual(1, len(german_blocks))
+        self.assertEqual(len(english_blocks), 1)
+        self.assertEqual(len(german_blocks), 1)
         self.assertEqual(list(COMMON_BEGINNER_COMMANDS), nonempty_shell_lines(english_blocks[0]))
         self.assertEqual(english_blocks, german_blocks)
 
@@ -327,6 +374,29 @@ class CompilerGuideGenerationTest(unittest.TestCase):
             self.assertIn(f"| `{command}` |", german_meanings)
         self.assertLess(english.index("## Simple official build"), english.index("## Meaning of the commands"))
         self.assertLess(german.index("## Einfacher offizieller Build"), german.index("## Bedeutung der Befehle"))
+
+    def test_common_beginner_build_verifies_the_pinned_release_before_building(self) -> None:
+        required_commands = (
+            'MODSECURITY_REF="v3.0.16"',
+            'MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+            'git verify-tag "$MODSECURITY_REF"',
+            'git checkout --detach "$MODSECURITY_REF"',
+            'test "$(git rev-parse HEAD)" = "$MODSECURITY_COMMIT"',
+            "git submodule update --init --recursive",
+            "git submodule status",
+            "make check",
+        )
+        for content, heading in (
+            (common_guide(), "Simple official build"),
+            (common_guide(german=True), "Einfacher offizieller Build"),
+        ):
+            beginner = h2_section(content, heading)
+            self.assertNotIn("v3/master", beginner)
+            for command in required_commands:
+                self.assertIn(command, beginner)
+            self.assertLess(beginner.index('git verify-tag "$MODSECURITY_REF"'), beginner.index('git checkout --detach "$MODSECURITY_REF"'))
+            self.assertLess(beginner.index('git checkout --detach "$MODSECURITY_REF"'), beginner.index('test "$(git rev-parse HEAD)" = "$MODSECURITY_COMMIT"'))
+            self.assertLess(beginner.index("make check"), beginner.index("sudo make install"))
 
     def test_advanced_engine_information_follows_the_simple_build(self) -> None:
         for content, beginner_heading, heading in (
@@ -502,7 +572,7 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                     alternative,
                 )
                 self.assertIn(upstream_name, alternative)
-                self.assertEqual([], shell_blocks(alternative), slug)
+                self.assertEqual(shell_blocks(alternative), [], slug)
                 self.assertNotIn("git clone", alternative, slug)
                 self.assertNotIn("./configure", alternative, slug)
                 self.assertNotIn("make ", alternative, slug)
@@ -771,7 +841,7 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                 result = subprocess.run(
                     ["sh", "-n"], input=block, text=True, capture_output=True, check=False
                 )
-                self.assertEqual(0, result.returncode, f"{document.name} block {index}: {result.stderr}")
+                self.assertEqual(result.returncode, 0, f"{document.name} block {index}: {result.stderr}")
 
     def test_prefix_and_cleanup_regressions_are_explicit(self) -> None:
         for content in (common_guide(), common_guide(german=True)):

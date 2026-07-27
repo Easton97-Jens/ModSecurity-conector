@@ -65,6 +65,21 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
         second = self.connector_plan(env, [{"name": "httpd", "url": "https://example/httpd", "sha256": "b"}])
         self.assertNotEqual(first["connector_build_id"], second["connector_build_id"])
 
+    def test_connector_id_changes_with_pcre2_digest(self) -> None:
+        env = {
+            "PCRE2_VERSION": "10.47",
+            "PCRE2_SOURCE_URL": "https://example.invalid/pcre2-10.47.tar.bz2",
+        }
+        first = self.connector_plan(
+            env,
+            [{"name": "pcre2", "url": env["PCRE2_SOURCE_URL"], "expected_sha256": "a" * 64}],
+        )
+        second = self.connector_plan(
+            env,
+            [{"name": "pcre2", "url": env["PCRE2_SOURCE_URL"], "expected_sha256": "b" * 64}],
+        )
+        self.assertNotEqual(first["connector_build_id"], second["connector_build_id"])
+
     def test_connector_id_changes_with_apr_version(self) -> None:
         first = self.connector_plan({"APR_VERSION": "1.7.5"}, [])
         second = self.connector_plan({"APR_VERSION": "1.7.6"}, [])

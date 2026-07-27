@@ -106,10 +106,10 @@ class ResponseHeaderBackendTest(unittest.TestCase):
                 for _ in range(40):
                     try:
                         with urlopen(f"http://127.0.0.1:{port}/", timeout=0.25) as response:
-                            self.assertEqual(201, response.status)
-                            self.assertEqual("block", response.headers["X-Modsec-Upstream"])
-                            self.assertEqual("text/plain; charset=utf-8", response.headers["Content-Type"])
-                            self.assertEqual(b"phase3 &lt;marker&gt;", response.read())
+                            self.assertEqual(response.status, 201)
+                            self.assertEqual(response.headers["X-Modsec-Upstream"], "block")
+                            self.assertEqual(response.headers["Content-Type"], "text/plain; charset=utf-8")
+                            self.assertEqual(response.read(), b"phase3 &lt;marker&gt;")
                         break
                     except OSError as exc:
                         last_error = exc
@@ -154,7 +154,7 @@ class ResponseHeaderBackendTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-        self.assertNotEqual(0, result.returncode)
+        self.assertNotEqual(result.returncode, 0)
         self.assertIn("invalid response header value", result.stderr)
 
     def test_apache_phase4_mode_is_case_metadata_and_is_validated(self) -> None:
@@ -195,7 +195,7 @@ expect:
                 "--framework-root",
                 str(FRAMEWORK_ROOT),
             )
-        self.assertNotEqual(0, invalid.returncode)
+        self.assertNotEqual(invalid.returncode, 0)
         self.assertIn("apache.phase4_mode", invalid.stderr)
 
     def test_both_host_harnesses_use_the_fixture_for_any_response_headers_rule(self) -> None:
