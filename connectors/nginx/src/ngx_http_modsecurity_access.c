@@ -64,9 +64,7 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     ssize_t written;
     ngx_http_modsecurity_ctx_t *ctx;
     const char *wanted;
-    const char *method = "";
-    const char *uri = "";
-    const char *content_type = "";
+    ngx_http_modsecurity_event_request_metadata_t request_metadata;
 
     if (r == NULL || mcf == NULL || mcf->phase4_log_file == NULL ||
         mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
@@ -76,26 +74,7 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     ctx = ngx_http_modsecurity_get_module_ctx(r);
     wanted = ctx != NULL && ctx->last_intervention_status >= 300 &&
         ctx->last_intervention_status < 400 ? "redirect" : "deny";
-    if (r->method_name.len > 0U) {
-        const char *value = ngx_str_to_char(r->method_name, r->pool);
-        if (value != (char *)-1 && value != NULL) {
-            method = value;
-        }
-    }
-    if (r->unparsed_uri.len > 0U) {
-        const char *value = ngx_str_to_char(r->unparsed_uri, r->pool);
-        if (value != (char *)-1 && value != NULL) {
-            uri = value;
-        }
-    }
-    if (r->headers_in.content_type != NULL &&
-        r->headers_in.content_type->value.len > 0U) {
-        const char *value = ngx_str_to_char(r->headers_in.content_type->value,
-            r->pool);
-        if (value != (char *)-1 && value != NULL) {
-            content_type = value;
-        }
-    }
+    request_metadata = ngx_http_modsecurity_event_request_metadata(r);
 
     msconnector_event_init(&event);
     event.meta.message_id = MSCONN_EVENT_REQUEST_BLOCKED;
@@ -118,9 +97,9 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
         ? (int)ctx->last_intervention_status : NGX_HTTP_FORBIDDEN;
     event.http.visible_http_status = event.http.http_status;
     event.http.transport_result = "http_status";
-    event.request.method = method;
-    event.request.uri = uri;
-    event.body.content_type = content_type;
+    event.request.method = request_metadata.method;
+    event.request.uri = request_metadata.uri;
+    event.body.content_type = request_metadata.content_type;
 
     if (!msconnector_event_write_jsonl_line(&event, line, sizeof(line),
         &json_truncated)) {

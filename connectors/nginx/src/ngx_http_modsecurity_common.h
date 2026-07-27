@@ -196,6 +196,51 @@ int ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_htt
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_create_ctx(ngx_http_request_t *r);
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r);
 char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p);
+
+typedef struct {
+    const char *method;
+    const char *uri;
+    const char *content_type;
+} ngx_http_modsecurity_event_request_metadata_t;
+
+/* Event records retain bounded request metadata only.  Keep the established
+ * empty-string fallback for absent, empty, NULL, or allocation-failure NGINX
+ * values. */
+static ngx_inline ngx_http_modsecurity_event_request_metadata_t
+ngx_http_modsecurity_event_request_metadata(ngx_http_request_t *r)
+{
+    ngx_http_modsecurity_event_request_metadata_t metadata = {
+        "", "", ""
+    };
+    char *value;
+
+    if (r == NULL) {
+        return metadata;
+    }
+
+    if (r->method_name.len > 0U) {
+        value = ngx_str_to_char(r->method_name, r->pool);
+        if (value != (char *)-1 && value != NULL) {
+            metadata.method = value;
+        }
+    }
+    if (r->unparsed_uri.len > 0U) {
+        value = ngx_str_to_char(r->unparsed_uri, r->pool);
+        if (value != (char *)-1 && value != NULL) {
+            metadata.uri = value;
+        }
+    }
+    if (r->headers_in.content_type != NULL &&
+        r->headers_in.content_type->value.len > 0U) {
+        value = ngx_str_to_char(r->headers_in.content_type->value, r->pool);
+        if (value != (char *)-1 && value != NULL) {
+            metadata.content_type = value;
+        }
+    }
+
+    return metadata;
+}
+
 #if !(NGX_PCRE) || (NGX_PCRE2)
 #define ngx_http_modsecurity_pcre_malloc_init(x) NULL
 #define ngx_http_modsecurity_pcre_malloc_done(x) (void)x
