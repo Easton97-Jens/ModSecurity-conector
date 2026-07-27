@@ -2102,7 +2102,7 @@ def row_from_case(
     return row
 
 
-def variant_from_result_path(path: Path, root: Path, connector: str, source_scope: str) -> str:
+def variant_from_result_path(path: Path, root: Path, source_scope: str) -> str:
     try:
         parts = path.relative_to(root).parts
     except ValueError:
@@ -2140,7 +2140,7 @@ def collect_summary_rows(
             cases = summary.get("cases")
             if not isinstance(cases, dict):
                 continue
-            variant = variant_from_result_path(summary_path, root, connector, source_scope)
+            variant = variant_from_result_path(summary_path, root, source_scope)
             result_file = Path(str(summary.get("jsonl_path") or summary_path))
             for case in cases.values():
                 if not isinstance(case, dict):
@@ -2177,7 +2177,7 @@ def collect_jsonl_rows(
         if not new_enough(jsonl_path, min_mtime):
             continue
         connector = jsonl_path.name.removesuffix("-results.jsonl")
-        variant = variant_from_result_path(jsonl_path, root, connector, source_scope)
+        variant = variant_from_result_path(jsonl_path, root, source_scope)
         for case in read_jsonl(jsonl_path):
             row = row_from_case(
                 case=case,
@@ -2194,7 +2194,7 @@ def collect_jsonl_rows(
     return rows
 
 
-def collect_incomplete_jobs(root: Path, connector_root: Path, build_root: Path, min_mtime: float | None) -> list[dict[str, Any]]:
+def collect_incomplete_jobs(root: Path, build_root: Path, min_mtime: float | None) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for job_path in sorted(root.glob("*/*/*/job.json")):
         if not new_enough(job_path, min_mtime):
@@ -2472,7 +2472,7 @@ def main() -> int:
                 full_search_roots,
             )
         )
-        rows.extend(collect_incomplete_jobs(full_matrix_root, connector_root, build_root, full_cutoff))
+        rows.extend(collect_incomplete_jobs(full_matrix_root, build_root, full_cutoff))
     mismatches = dedupe_rows(rows)
     mismatches = apply_semicolon_collection_semantics_classification(
         mismatches,

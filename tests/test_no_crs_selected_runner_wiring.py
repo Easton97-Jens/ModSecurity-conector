@@ -27,7 +27,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
 
     def test_consumer_requires_the_capability_selected_core_cases(self) -> None:
         result = self.consume("envoy", "allow_without_marker.yaml")
-        self.assertNotEqual(0, result.returncode)
+        self.assertNotEqual(result.returncode, 0)
         self.assertIn("deny_header_marker_403.yaml", result.stderr)
 
     def test_consumer_receipt_does_not_claim_unrun_selected_cases_passed(self) -> None:
@@ -43,7 +43,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                 )
             ),
         )
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("selected=", result.stdout)
         self.assertIn("unrun_selected_runner_cases=deny_with_alternative_status.yaml", result.stdout)
         self.assertNotIn("PASS", result.stdout)
@@ -130,15 +130,15 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             "export TRAEFIK_BIN TRAEFIK_NATIVE_RUNTIME_ROOT TRAEFIK_ENGINE_SOCKET_PARENT PYTHON",
             native_makefile,
         )
-        self.assertEqual("\tsh scripts/runtime-native-middleware.sh", native_recipe)
+        self.assertEqual(native_recipe, "\tsh scripts/runtime-native-middleware.sh")
         engine_service_recipe = native_makefile.split("test-engine-service:\n", 1)[1].split(
             "\n\nclean:",
             1,
         )[0]
         self.assertNotIn('PYTHON="$(PYTHON)"', engine_service_recipe)
         self.assertEqual(
-            "\tbuild/build-engine-service.sh test\n\tbuild/test-engine-service-runtime.sh",
             engine_service_recipe,
+            "\tbuild/build-engine-service.sh test\n\tbuild/test-engine-service-runtime.sh",
         )
         temporary_directory = tempfile.TemporaryDirectory(
             prefix="msconnector-traefik-make-values-"
@@ -165,7 +165,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             stderr=subprocess.PIPE,
             text=True,
         )
-        self.assertEqual(0, exported_parent.returncode, exported_parent.stderr)
+        self.assertEqual(exported_parent.returncode, 0, exported_parent.stderr)
         self.assertEqual(safe_parent, exported_parent.stdout.strip())
         expected_build_root = str(temporary_root / "expected-traefik-build-root")
         show_exported_default_root = (
@@ -190,10 +190,10 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             stderr=subprocess.PIPE,
             text=True,
         )
-        self.assertEqual(0, exported_default_root.returncode, exported_default_root.stderr)
+        self.assertEqual(exported_default_root.returncode, 0, exported_default_root.stderr)
         self.assertEqual(
-            f"{expected_build_root}/traefik-native-middleware/runtime-smoke",
             exported_default_root.stdout.strip(),
+            f"{expected_build_root}/traefik-native-middleware/runtime-smoke",
         )
         hostile_build_root = (
             f"{temporary_root}/$(shell printf BUILD_ROOT_MAKE_INJECTION_REACHED >&2)"
@@ -215,10 +215,10 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             stderr=subprocess.PIPE,
             text=True,
         )
-        self.assertEqual(0, hostile_default_root.returncode, hostile_default_root.stderr)
+        self.assertEqual(hostile_default_root.returncode, 0, hostile_default_root.stderr)
         self.assertEqual(
-            f"{hostile_build_root}/traefik-native-middleware/runtime-smoke",
             hostile_default_root.stdout.strip(),
+            f"{hostile_build_root}/traefik-native-middleware/runtime-smoke",
         )
         self.assertNotIn("BUILD_ROOT_MAKE_INJECTION_REACHED", hostile_default_root.stderr)
         make_function_values = (
@@ -279,7 +279,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             stderr=subprocess.PIPE,
             text=True,
         )
-        self.assertEqual(0, function_values.returncode, function_values.stderr)
+        self.assertEqual(function_values.returncode, 0, function_values.stderr)
         self.assertEqual(
             [value for _, value in make_function_values],
             function_values.stdout.splitlines(),
@@ -313,7 +313,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
             text=True,
         )
         engine_service_output = engine_service_dry_run.stdout + engine_service_dry_run.stderr
-        self.assertEqual(0, engine_service_dry_run.returncode, engine_service_output)
+        self.assertEqual(engine_service_dry_run.returncode, 0, engine_service_output)
         self.assertNotIn("PYTHON_RECIPE_INJECTION_REACHED", engine_service_output)
         self.assertNotIn(python_recipe_payload, engine_service_output)
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-make-test-") as temporary:
@@ -337,7 +337,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertEqual(0, native_make_dry_run.returncode, native_make_dry_run.stderr)
+            self.assertEqual(native_make_dry_run.returncode, 0, native_make_dry_run.stderr)
             self.assertFalse(shell_sentinel.exists())
             native_make_runtime = subprocess.run(
                 [
@@ -357,7 +357,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                 text=True,
             )
             native_make_output = native_make_runtime.stdout + native_make_runtime.stderr
-            self.assertEqual(2, native_make_runtime.returncode, native_make_output)
+            self.assertEqual(native_make_runtime.returncode, 2, native_make_output)
             self.assertIn("BLOCKED: TRAEFIK_ENGINE_SOCKET_PARENT is unavailable", native_make_output)
             self.assertIn("Error 77", native_make_output)
             self.assertIn(injected_parent, native_make_output)

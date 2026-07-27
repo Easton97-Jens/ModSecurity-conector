@@ -23,12 +23,12 @@ ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK = ROOT / "modules" / "ModSecurity-test-Framework"
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 VARIABLE_RE = re.compile(
-    r"(?:\$\{?[A-Z][A-Z0-9_]*\}?|\$\([A-Z][A-Z0-9_]*\)|\b[A-Z][A-Z0-9_]{2,}\s*(?:\?|:|\+)?=)"
+    r"\$(?:\{?[A-Z][A-Z0-9_]*\}?|\([A-Z][A-Z0-9_]*\))|\b[A-Z][A-Z0-9_]{2,}\s*[?:+]?="
 )
 PLACEHOLDER_RE = re.compile(
     r"(?:<[A-Za-z][A-Za-z0-9 _-]*>|\b(?:REPLACE_ME|CHANGE_ME)\b|\{\{[^}]+\}\}|\$\{\{[^}]+\}\})"
 )
-REFERENCE_RE = re.compile(r"(?:\bci/[\w./-]+|\bdocs/[\w./-]+|\breports/[\w./-]+|\bexamples/[\w./-]+|\bmake\s+[\w.-]+)")
+REFERENCE_RE = re.compile(r"\b(?:(?:ci|docs|reports|examples)/[\w./-]+|make\s+[\w.-]+)")
 
 
 def tracked_files(directory: Path) -> list[str]:
@@ -127,7 +127,7 @@ def proposed_destination(path: str, is_framework: bool) -> str:
             return f"{prefix}ci/checks/protocol/{name}"
         if lower.startswith("check-") and "doc" in lower:
             return f"{prefix}ci/checks/documentation/{name}"
-        if lower.startswith("check-") or lower.startswith("check_"):
+        if lower.startswith(("check-", "check_")):
             return f"{prefix}ci/checks/catalog/{name}"
         if lower.startswith(("run-", "no_crs", "protocol_client", "response_body")):
             return f"{prefix}ci/runtime/{name}"

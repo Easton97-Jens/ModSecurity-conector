@@ -580,7 +580,7 @@ def reclassified_rows(reports: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return output
 
 
-def inventory(connector_root: Path, framework_root: Path) -> list[dict[str, str]]:
+def inventory() -> list[dict[str, str]]:
     return [
         {
             "tool_target": "tools/MRTS/mrts/generate-rules.py",
@@ -756,7 +756,6 @@ def render_summary_markdown(payload: dict[str, Any]) -> str:
 def write_summary_report(
     connector_root: Path,
     framework_root: Path,
-    build_root: Path,
     verified_run_root: Path,
     cases: tuple[str, ...],
     run_reports: list[dict[str, Any]] | None,
@@ -764,7 +763,7 @@ def write_summary_report(
 ) -> dict[str, Any]:
     reports = run_reports if run_reports is not None else latest_case_runs(verified_run_root, cases)
     reports = refresh_official_context(connector_root, reports)
-    inv = inventory(connector_root, framework_root)
+    inv = inventory()
     inputs: list[Path | str] = [
         connector_root / "ci/runtime/lifecycle/run-native-case-comparison.py",
         connector_root / "ci/tools/native_modsecurity_oracle.c",
@@ -848,7 +847,7 @@ def main() -> int:
                 rc = 77 if rc == 0 else rc
             elif status == "not_executable" and rc == 0:
                 rc = 2
-    summary = write_summary_report(connector_root, framework_root, build_root, verified_run_root, cases, run_reports, output_dir)
+    summary = write_summary_report(connector_root, framework_root, verified_run_root, cases, run_reports, output_dir)
     print(summary["md"])
     print(summary["json"])
     return rc

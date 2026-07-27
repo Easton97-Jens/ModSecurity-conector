@@ -308,6 +308,46 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                 GENERATOR.OUTPUT = original_output
         self.assertEqual(first, second)
 
+    def test_selected_metadata_literals_have_single_guide_owners(self) -> None:
+        self.assertEqual(
+            GENERATOR.PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
+            "package-assisted source build",
+        )
+        self.assertEqual(
+            GENERATOR.PACKAGE_STATUS_PROFILE_UNAVAILABLE,
+            "selected profile not available package-only",
+        )
+        self.assertEqual(GENERATOR.HOST_SOURCE_PATCHED, "patched source")
+        self.assertEqual(GENERATOR.SOURCE_MAPPING_HEADING, "Source mapping")
+        self.assertEqual(
+            {
+                str(info["package_status"])
+                for info in GENERATOR.DETAILS.values()
+            },
+            {
+                GENERATOR.PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
+                GENERATOR.PACKAGE_STATUS_PROFILE_UNAVAILABLE,
+            },
+        )
+        self.assertTrue(
+            {
+                str(info["package_status"])
+                for info in GENERATOR.DETAILS.values()
+            }.issubset(GENERATOR.PACKAGE_STATUSES)
+        )
+        self.assertEqual(
+            GENERATOR.DETAILS["lighttpd"]["host_source"],
+            GENERATOR.HOST_SOURCE_PATCHED,
+        )
+        self.assertEqual(
+            sum(
+                english == GENERATOR.SOURCE_MAPPING_HEADING
+                for info in GENERATOR.MANUAL_GUIDES.values()
+                for english, _, _ in info["repository_connector_build_files"]
+            ),
+            6,
+        )
+
     def test_common_beginner_block_is_exact_and_bilingual(self) -> None:
         english = common_guide()
         german = common_guide(german=True)

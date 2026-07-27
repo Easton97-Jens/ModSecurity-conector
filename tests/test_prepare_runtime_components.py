@@ -321,7 +321,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     framework_root=root / "framework",
                 )
 
-            self.assertEqual("blocked", record["status"])
+            self.assertEqual(record["status"], "blocked")
             self.assertEqual(record["blocker_reason"], "modsecurity_v3_provenance_guard_failed")
             self.assertEqual(provenance, record["provenance_verification"])
             self.assertFalse(Path(str(record["build_root"])).exists())

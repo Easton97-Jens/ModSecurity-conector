@@ -19,6 +19,13 @@ SPEC.loader.exec_module(CHECKER)
 
 
 class BilingualDocumentationCheckerTests(unittest.TestCase):
+    def test_markdown_counterpart_constructors_are_bidirectional(self) -> None:
+        english = Path("docs/example.md")
+        german = Path("docs/example.de.md")
+
+        self.assertEqual(CHECKER.german_counterpart(english), german)
+        self.assertEqual(CHECKER.english_counterpart(german), english)
+
     def write(self, root: Path, relative: str, content: str) -> Path:
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)

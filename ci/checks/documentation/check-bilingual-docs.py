@@ -21,6 +21,7 @@ REMOTE_PREFIXES = (
 
 LINK_RE = re.compile(r"(?<!!)\[[^\]\n]+\]\(([^)\n]+)\)")
 REFERENCE_LINK_RE = re.compile(r"^\s*\[[^\]]+\]:\s+(\S+)")
+MARKDOWN_SUFFIX = ".md"
 GERMAN_GENERATED_NOTE = "Diese deutsche Datei ist eine übersetzte Begleitdatei"
 SPECIAL_LANGUAGE_INDEXES: tuple[tuple[Path, Path], ...] = ()
 CHANGE_RECORDS_DIRECTORY = Path("reports/audits/change-records")
@@ -220,11 +221,11 @@ def is_git_ignored(path: Path, ignored_paths: frozenset[Path]) -> bool:
 
 
 def german_counterpart(path: Path) -> Path:
-    return path.with_name(path.name.removesuffix(".md") + ".de.md")
+    return path.with_name(path.name.removesuffix(MARKDOWN_SUFFIX) + ".de" + MARKDOWN_SUFFIX)
 
 
 def english_counterpart(path: Path) -> Path:
-    return path.with_name(path.name.removesuffix(".de.md") + ".md")
+    return path.with_name(path.name.removesuffix(".de" + MARKDOWN_SUFFIX) + MARKDOWN_SUFFIX)
 
 
 def is_special_language_index(path: Path) -> bool:

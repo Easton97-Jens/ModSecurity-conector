@@ -165,9 +165,9 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
                 "normal diagnostic\n",
                 encoding="utf-8",
             )
-            self.assertEqual(0, sanitizer.main([
+            self.assertEqual(sanitizer.main([
                 "--input", str(source), "--output", str(destination), "--label", "unit",
-            ]))
+            ]), 0)
             text = destination.read_text(encoding="utf-8")
             self.assertNotIn("private-token", text)
             self.assertNotIn("no-crs-response-body-marker", text)
@@ -195,11 +195,11 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
             result = {"artifact_profile": "full_lifecycle", "capabilities_verified": ["first_byte_before_response_end"]}
             errors = checker.first_byte_errors(run, manifest, result)
             self.assertEqual(
+                errors,
                 [
                     "phase4_first_byte_before_response_end: missing synchronized first-byte event metadata",
                     "phase4_no_full_response_buffering: missing synchronized first-byte event metadata",
                 ],
-                errors,
             )
 
     def test_profile_contract_rejects_generic_compatibility_evidence(self) -> None:
@@ -236,7 +236,7 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
                 "executed_targets": [identity["target"]],
             }
             with self.subTest(connector=connector):
-                self.assertEqual([], checker.profile_errors(result, connector))
+                self.assertEqual(checker.profile_errors(result, connector), [])
 
     def test_profile_checker_fails_before_capability_claims_for_generic_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-lifecycle-profile-") as temporary:
@@ -249,7 +249,6 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
             )
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(
-                    1,
                     checker.main([
                         "--connector-root", str(ROOT),
                         "--evidence-root", str(evidence_root),
@@ -257,6 +256,7 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
                         "--check", "profile",
                         "--connectors", "envoy",
                     ]),
+                    1,
                 )
 
     def test_lifecycle_inventory_rejects_unbalanced_or_unattributed_counters(self) -> None:

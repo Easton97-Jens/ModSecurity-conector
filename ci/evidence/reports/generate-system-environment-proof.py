@@ -440,7 +440,7 @@ def resolve_candidate_list(
 ) -> dict[str, Any]:
     attempted = candidates[-1] if candidates else None
     for candidate in candidates:
-        resolved, error, rc = command_exists(candidate, cwd, env)
+        resolved, _, rc = command_exists(candidate, cwd, env)
         attempted = candidate
         if rc == 0 and resolved is not None:
             return run_resolved_tool(
