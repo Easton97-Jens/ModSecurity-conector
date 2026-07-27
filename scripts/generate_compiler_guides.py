@@ -2364,23 +2364,54 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
 # any engine-build command into their own guides.
 COMMON_MODSECURITY: dict[str, object] = {
     "common_modsecurity_beginner_commands": (
-        "git clone https://github.com/owasp-modsecurity/ModSecurity.git",
+        'MODSECURITY_REF="v3.0.16"',
+        'MODSECURITY_COMMIT="7ea9fefbe0ba409d8733b4d682c8c4c059cd028d"',
+        'git clone --branch "$MODSECURITY_REF" --single-branch https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity',
         "cd ModSecurity",
+        "git fetch --tags origin",
+        'git verify-tag "$MODSECURITY_REF"',
+        'git checkout --detach "$MODSECURITY_REF"',
+        'test "$(git rev-parse HEAD)" = "$MODSECURITY_COMMIT"',
         "git submodule update --init --recursive",
         "git submodule status",
         "./build.sh",
         "./configure",
         "make",
+        "make check",
         "sudo make install",
     ),
     "common_modsecurity_command_explanations": (
         (
-            "Downloads the ModSecurity v3 source code.",
-            "Lädt den ModSecurity-v3-Quellcode herunter.",
+            "Selects the repository-documented immutable release tag.",
+            "Wählt den im Repository dokumentierten unveränderlichen Release-Tag aus.",
+        ),
+        (
+            "Records the expected immutable commit for the selected release.",
+            "Hält den erwarteten unveränderlichen Commit für den ausgewählten Release fest.",
+        ),
+        (
+            "Downloads only the selected ModSecurity v3 release into the local source directory.",
+            "Lädt nur den ausgewählten ModSecurity-v3-Release in das lokale Source-Verzeichnis herunter.",
         ),
         (
             "Changes into the downloaded directory.",
             "Wechselt in das heruntergeladene Verzeichnis.",
+        ),
+        (
+            "Fetches release tags before their signature is verified.",
+            "Lädt Release-Tags vor der Signaturprüfung nach.",
+        ),
+        (
+            "Verifies the selected signed release tag with a trusted maintainer key.",
+            "Prüft den ausgewählten signierten Release-Tag mit einem vertrauenswürdigen Maintainer-Schlüssel.",
+        ),
+        (
+            "Checks out the selected tag in detached-HEAD mode.",
+            "Checkt den ausgewählten Tag im Detached-HEAD-Modus aus.",
+        ),
+        (
+            "Fails unless the checked-out commit equals the documented release commit.",
+            "Bricht ab, wenn der ausgecheckte Commit nicht dem dokumentierten Release-Commit entspricht.",
         ),
         (
             "Downloads the additional required subprojects.",
@@ -2401,6 +2432,10 @@ COMMON_MODSECURITY: dict[str, object] = {
         (
             "Compiles libmodsecurity.",
             "Kompiliert libmodsecurity.",
+        ),
+        (
+            "Runs the upstream test suite before installation.",
+            "Führt die Upstream-Testsuite vor der Installation aus.",
         ),
         (
             "Installs headers and the library system-wide.",
@@ -3282,7 +3317,7 @@ def common_modsecurity_guide(german: bool) -> str:
             language_switch("libmodsecurity", True),
             "## Offizielle Quellen\n\nDie aktuelle [ModSecurity-README](https://github.com/owasp-modsecurity/ModSecurity) ist die primäre Buildquelle. Die [Compilation Recipes für v3.x](https://github.com/owasp-modsecurity/ModSecurity/wiki/Compilation-recipes-for-v3.x) dienen nur als ergänzender Hinweis für distributionsspezifische Abhängigkeiten. Historische CentOS-, Ubuntu- oder andere Beispiele daraus sind kein aktueller Standard.",
             "## Voraussetzungen\n\nBenötigt werden unter anderem:\n\n- Git\n- C- und C++-Compiler\n- GNU Make\n- Autoconf und Automake\n- libtool\n- Flex und Bison\n- YAJL\n- PCRE2\n\nDie aktuelle README nennt YAJL als Pflichtabhängigkeit und PCRE2 als Standard für reguläre Ausdrücke. Für einen kompakten Einstieg sind diese gegen aktuelle Paketquellen geprüften Namen geeignet; nur den Block der eigenen Distribution ausführen.\n\n```sh\n# Debian / Ubuntu\nsudo apt update\nsudo apt install build-essential git autoconf automake libtool flex bison pkg-config libyajl-dev libpcre2-dev\n```\n\n```sh\n# Fedora / RHEL\nsudo dnf install gcc gcc-c++ make git autoconf automake libtool flex bison pkgconf-pkg-config yajl-devel pcre2-devel\n```",
-            "## Einfacher offizieller Build\n\nWenn die benötigten Entwicklungspakete bereits installiert sind, besteht der offizielle Unix-Build im Wesentlichen aus diesen acht Befehlen:\n\n"
+            "## Einfacher offizieller Build\n\nWenn die benötigten Entwicklungspakete bereits installiert sind, verwendet der Standardweg diesen überprüften, im Repository dokumentierten Release. Er ist eine Reproduzierbarkeitsbasis und keine Aussage über den neuesten oder von Upstream unterstützten Release. Die GPG-Tag-Prüfung setzt einen vertrauenswürdigen Maintainer-Schlüssel voraus.\n\n"
             + shell(beginner_commands)
             + "\n\n## Bedeutung der Befehle\n\n"
             + markdown_table(("Befehl", "Bedeutung"), explanation_rows)
@@ -3303,7 +3338,7 @@ def common_modsecurity_guide(german: bool) -> str:
         language_switch("libmodsecurity", False),
         "## Official sources\n\nThe current [ModSecurity README](https://github.com/owasp-modsecurity/ModSecurity) is the primary build source. The [v3.x compilation recipes](https://github.com/owasp-modsecurity/ModSecurity/wiki/Compilation-recipes-for-v3.x) are only supplementary context for distribution-specific dependencies. Historical CentOS, Ubuntu, or other examples there are not a current default.",
         "## Prerequisites\n\nAmong the required tools and development packages are:\n\n- Git\n- C and C++ compilers\n- GNU Make\n- Autoconf and Automake\n- libtool\n- Flex and Bison\n- YAJL\n- PCRE2\n\nThe current README identifies YAJL as mandatory and PCRE2 as the default regex engine. These compact package names were checked against current package sources; run only the block for the distribution in use.\n\n```sh\n# Debian / Ubuntu\nsudo apt update\nsudo apt install build-essential git autoconf automake libtool flex bison pkg-config libyajl-dev libpcre2-dev\n```\n\n```sh\n# Fedora / RHEL\nsudo dnf install gcc gcc-c++ make git autoconf automake libtool flex bison pkgconf-pkg-config yajl-devel pcre2-devel\n```",
-        "## Simple official build\n\nOnce the required development packages are installed, the official Unix build is essentially these eight commands:\n\n"
+        "## Simple official build\n\nOnce the required development packages are installed, the default path uses this verified, repository-documented release. It is a reproducibility baseline, not a claim about the latest or upstream-supported release. GPG tag verification requires a trusted maintainer key.\n\n"
         + shell(beginner_commands)
         + "\n\n## Meaning of the commands\n\n"
         + markdown_table(("Command", "Meaning"), explanation_rows)
