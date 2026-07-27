@@ -62,9 +62,10 @@ rtk proxy git diff --check
 
 | Command or check | Result |
 | --- | --- |
-| Focused fixture/backend controls | passed: 7 tests. |
+| Focused fixture/backend controls | passed: 8 tests. |
 | Legitimate in-root fixture | passed: declarative status and marker header remain served. |
 | Unsafe absolute fixture path | passed: rejected before listener startup. |
+| Parent traversal fixture path | passed: rejected after strict canonical containment. |
 | In-root symlink to outside fixture | passed: rejected by resolved containment. |
 | Compatibility | passed: a valid fixture larger than the body limit remains accepted; body files remain limited. |
 | Existing invalid header and host-harness fixture wiring | passed. |

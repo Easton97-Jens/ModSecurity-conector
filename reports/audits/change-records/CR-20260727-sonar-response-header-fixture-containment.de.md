@@ -48,9 +48,10 @@ rtk proxy git diff --check
 
 | Kommando oder Check | Ergebnis |
 | --- | --- |
-| Fokus-Fixture-/Backend-Kontrollen | bestanden: 7 Tests. |
+| Fokus-Fixture-/Backend-Kontrollen | bestanden: 8 Tests. |
 | Legitime In-Root-Fixture | bestanden: deklarativer Status und Marker-Header bleiben geliefert. |
 | Unsicherer absoluter Fixture-Pfad | bestanden: vor Listener-Start abgewiesen. |
+| Parent-Traversal-Fixture-Pfad | bestanden: nach striktem kanonischem Containment abgewiesen. |
 | In-Root-Symlink zu Outside-Fixture | bestanden: durch aufgelöstes Containment abgewiesen. |
 | Kompatibilität | bestanden: gültige große Fixture bleibt zulässig; Body-Dateien bleiben begrenzt. |
 | Vorhandene invalide Header- und Host-Harness-Fixture-Wiring | bestanden. |

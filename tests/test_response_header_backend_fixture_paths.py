@@ -60,6 +60,19 @@ class ResponseHeaderBackendFixturePathTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "fixture file is outside the allowed fixture roots"):
                 BACKEND_MODULE.load_fixture_file(fixture_link, [trusted_root])
 
+    def test_fixture_parent_traversal_outside_the_safe_root_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_root = Path(temporary)
+            trusted_root = temporary_root / "safe"
+            outside_fixture = temporary_root / "outside" / "fixture.json"
+            trusted_root.mkdir()
+            outside_fixture.parent.mkdir()
+            outside_fixture.write_text('{"status": 200, "headers": []}', encoding="utf-8")
+            traversal = trusted_root / ".." / "outside" / "fixture.json"
+
+            with self.assertRaisesRegex(ValueError, "fixture file is outside the allowed fixture roots"):
+                BACKEND_MODULE.load_fixture_file(traversal, [trusted_root])
+
     def test_in_root_fixture_does_not_inherit_the_body_size_limit(self) -> None:
         with tempfile.TemporaryDirectory() as trusted_directory:
             trusted_root = Path(trusted_directory)
