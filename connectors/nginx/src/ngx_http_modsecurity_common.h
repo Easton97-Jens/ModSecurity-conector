@@ -26,6 +26,7 @@
 #include <modsecurity/transaction.h>
 
 #include "msconnector/config.h"
+#include "msconnector/event_jsonl.h"
 #include "msconnector/limits.h"
 #include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
@@ -239,6 +240,40 @@ ngx_http_modsecurity_event_request_metadata(ngx_http_request_t *r)
     }
 
     return metadata;
+}
+
+/* Callers retain their source-specific guards and event construction.  This
+ * helper only owns the common bounded JSONL serialization and warning-only
+ * write tail used by request metadata events. */
+static ngx_inline int
+ngx_http_modsecurity_write_event_jsonl(
+    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    const msconnector_event *event,
+    const char *serialization_failure_message,
+    const char *write_failure_message)
+{
+    char line[4096];
+    int json_truncated = 0;
+    size_t line_length;
+    ssize_t written;
+
+    if (!msconnector_event_write_jsonl_line(event, line, sizeof(line),
+        &json_truncated)) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "%s%s", serialization_failure_message,
+            json_truncated ? " (truncated)" : "");
+        return 0;
+    }
+
+    line_length = ngx_strlen(line);
+    written = ngx_write_fd(mcf->phase4_log_file->fd, (u_char *)line,
+        line_length);
+    if (written < 0 || (size_t)written != line_length) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log,
+            written < 0 ? ngx_errno : 0, "%s", write_failure_message);
+    }
+
+    return 1;
 }
 
 #if !(NGX_PCRE) || (NGX_PCRE2)

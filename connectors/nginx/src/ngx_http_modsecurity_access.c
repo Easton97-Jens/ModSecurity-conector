@@ -23,7 +23,6 @@
 #include "ngx_http_modsecurity_common.h"
 #include "ngx_http_modsecurity_mapper.h"
 #include "msconnector/event.h"
-#include "msconnector/event_jsonl.h"
 
 static void ngx_http_modsecurity_request_intervention_log_event(
     ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
@@ -58,10 +57,6 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     const char *reason)
 {
     msconnector_event event;
-    char line[4096];
-    int json_truncated = 0;
-    size_t line_length;
-    ssize_t written;
     ngx_http_modsecurity_ctx_t *ctx;
     const char *wanted;
     ngx_http_modsecurity_event_request_metadata_t request_metadata;
@@ -101,21 +96,11 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     event.request.uri = request_metadata.uri;
     event.body.content_type = request_metadata.content_type;
 
-    if (!msconnector_event_write_jsonl_line(&event, line, sizeof(line),
-        &json_truncated)) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-            "modsecurity request intervention event serialization failed%s",
-            json_truncated ? " (truncated)" : "");
+    if (!ngx_http_modsecurity_write_event_jsonl(
+            r, mcf, &event,
+            "modsecurity request intervention event serialization failed",
+            "modsecurity request intervention log write failed")) {
         return;
-    }
-
-    line_length = ngx_strlen(line);
-    written = ngx_write_fd(mcf->phase4_log_file->fd, (u_char *)line,
-        line_length);
-    if (written < 0 || (size_t)written != line_length) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log,
-            written < 0 ? ngx_errno : 0,
-            "modsecurity request intervention log write failed");
     }
 }
 
