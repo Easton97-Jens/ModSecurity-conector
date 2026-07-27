@@ -35,6 +35,23 @@ FULL_MATRIX_PORT_PLANNER="$SCRIPT_DIR/plan_full_matrix_ports.py"
 HAPROXY_SPOA_PORT_OFFSET="${HAPROXY_SPOA_PORT_OFFSET:-12000}"
 HAPROXY_BACKEND_PORT_OFFSET="${HAPROXY_BACKEND_PORT_OFFSET:-24000}"
 matrix_completion_wait_timeout="${VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS:-3600}"
+print_effective_parallelism=0
+
+case "$#" in
+    0) ;;
+    1)
+        if [ "$1" = "--print-effective-parallelism" ]; then
+            print_effective_parallelism=1
+        else
+            echo "ERROR: unsupported full-matrix argument: $1" >&2
+            exit 2
+        fi
+        ;;
+    *)
+        echo "ERROR: expected no arguments or --print-effective-parallelism" >&2
+        exit 2
+        ;;
+esac
 
 is_positive_decimal() {
     case "${1:-}" in
@@ -68,8 +85,10 @@ detect_online_cpu_count() {
     return 0
 }
 
+parallelism_source=explicit
 if [ "${FULL_MATRIX_MAX_PARALLEL_JOBS+x}" != x ]; then
     FULL_MATRIX_MAX_PARALLEL_JOBS=$(detect_online_cpu_count)
+    parallelism_source=auto-detected
 fi
 if ! is_positive_decimal "$FULL_MATRIX_MAX_PARALLEL_JOBS"; then
     echo "ERROR: FULL_MATRIX_MAX_PARALLEL_JOBS must be a positive decimal integer: $FULL_MATRIX_MAX_PARALLEL_JOBS" >&2
@@ -81,6 +100,11 @@ if ! is_positive_decimal "$matrix_completion_wait_timeout"; then
     exit 2
 fi
 matrix_completion_wait_timeout=$(normalize_positive_decimal "$matrix_completion_wait_timeout")
+
+if [ "$print_effective_parallelism" -eq 1 ]; then
+    echo "full-matrix-parallel: effective parallel job cap=$FULL_MATRIX_MAX_PARALLEL_JOBS source=$parallelism_source"
+    exit 0
+fi
 
 export CONNECTOR_ROOT FRAMEWORK_ROOT SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE PYTHONDONTWRITEBYTECODE FORCE_ALL_CASES MRTS_BUILD_ROOT
 
@@ -990,7 +1014,7 @@ done
 
 matrix_rc=0
 if all_matrix_connectors_ready; then
-    echo "full-matrix-parallel: scheduling up to $FULL_MATRIX_MAX_PARALLEL_JOBS isolated runtime jobs"
+    echo "full-matrix-parallel: scheduling up to $FULL_MATRIX_MAX_PARALLEL_JOBS isolated runtime jobs (source=$parallelism_source)"
     if run_planned_jobs "$matrix_port_plan" parallel; then
         :
     else

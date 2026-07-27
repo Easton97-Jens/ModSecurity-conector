@@ -424,7 +424,64 @@ printf '%s|%s\\n' "$connector" "$PORT" >> "$CAPTURE_FILE"
 
             self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
             self.assertIn("scheduling up to 2 isolated runtime jobs", process.stdout)
+            self.assertIn("source=auto-detected", process.stdout)
             self.assertEqual((root / "state" / "maximum").read_text(encoding="utf-8").strip(), "2")
+
+    def test_parallelism_diagnostic_reports_the_effective_detected_cap_without_runtime_setup(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="full-matrix-scheduler-parallelism-diagnostic-") as temporary:
+            root = Path(temporary)
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            self.write_executable(bin_dir / "nproc", "#!/bin/sh\nprintf '%s\\n' 3\n")
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{bin_dir}{os.pathsep}{environment['PATH']}",
+                    "CONNECTOR_ROOT": str(ROOT),
+                }
+            )
+            environment.pop("FULL_MATRIX_MAX_PARALLEL_JOBS", None)
+
+            process = subprocess.run(
+                ["sh", str(MATRIX_RUNNER), "--print-effective-parallelism"],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+            self.assertEqual(
+                process.stdout,
+                "full-matrix-parallel: effective parallel job cap=3 source=auto-detected\n",
+            )
+            self.assertEqual(process.stderr, "")
+
+    def test_parallelism_diagnostic_reports_a_normalized_explicit_cap_without_runtime_setup(self) -> None:
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "CONNECTOR_ROOT": str(ROOT),
+                "FULL_MATRIX_MAX_PARALLEL_JOBS": "003",
+            }
+        )
+
+        process = subprocess.run(
+            ["sh", str(MATRIX_RUNNER), "--print-effective-parallelism"],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+        self.assertEqual(
+            process.stdout,
+            "full-matrix-parallel: effective parallel job cap=3 source=explicit\n",
+        )
+        self.assertEqual(process.stderr, "")
 
     def test_scheduler_rejects_a_live_full_matrix_lock_owner(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-matrix-scheduler-live-lock-") as temporary:

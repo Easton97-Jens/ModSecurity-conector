@@ -110,10 +110,21 @@ jobs:
             --only-binary=:all: \
             --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock
           PATH="$venv/bin:$PATH" python3 -m pip check
+          "$venv/bin/python" -c "import yaml"
           {
             echo "PATH=$venv/bin:$PATH"
-            echo "PYTHON=python3"
+            # Propagate the exact interpreter that received the hash-locked
+            # Framework dependency. A bare python3 may later resolve outside
+            # this venv when a runtime helper changes PATH.
+            echo "PYTHON=$venv/bin/python"
           } >> "$GITHUB_ENV"
+
+      # Keep FULL_MATRIX_MAX_PARALLEL_JOBS unset: the runner discovers the
+      # available online CPUs instead of pinning this workflow to one host size.
+      - name: Show detected full-matrix parallelism
+        run: |
+          set -eu
+          sh ci/runtime/lifecycle/run-full-matrix-parallel.sh --print-effective-parallelism
 
       - name: Generated report governance
         run: |

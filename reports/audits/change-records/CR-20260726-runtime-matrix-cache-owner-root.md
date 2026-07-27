@@ -190,3 +190,57 @@ boundary as the owner roots. The focused command
 passed all 38 tests. This is not native NGINX success: the new exact Parent PR
 #74 head still requires its hosted producer, strict terminal gate, SonarQube
 Cloud readback, review/protection evidence, and protected integration.
+
+## Continuation: exact CI interpreter identity and all-core visibility
+
+Hosted Parent PR #74 head
+`ef0b6ab27162e9735e9ff9d8beb3516446eed1ff` created the intended
+hash-locked `verified-report-python` venv and installed Framework
+`PyYAML==6.0.3`, but exported the bare selector `PYTHON=python3`. The Parent
+Makefile, verified-run dispatcher, and Framework runtime runner correctly
+forward that selector; it can nevertheless resolve outside the venv when a
+later runtime helper changes `PATH`. The exact hosted run `30222002129` / job
+`89845969175` consequently failed at
+`update-runtime-snapshot.py` with `ModuleNotFoundError: No module named
+'yaml'`. The failed strict producer remains rejected; this is additional
+cause evidence for `FND-CROSS-0001`, not successful runtime evidence.
+
+The workflow now retains the `PATH` convenience export but passes the exact
+created interpreter as `PYTHON=$venv/bin/python`, after a direct `import yaml`
+check. This preserves the verified setup-python, hash lock, `--only-binary`,
+`--require-hashes`, no-write permission, and fail-closed import contracts; it
+does not change Framework source, its lock, MRTS, or a Gitlink.
+
+The full-matrix runner already derives its default cap from `nproc`, then
+`getconf _NPROCESSORS_ONLN`, then `1`; a fixed workflow value would disable
+that host-aware behavior. Its new read-only
+`--print-effective-parallelism` mode reports the real selected cap and whether
+it is auto-detected or explicit, before any Python process, runtime path,
+build, port, or matrix action. The workflow invokes that mode visibly before
+the strict producer, and the normal scheduling message keeps the same source
+marker.
+
+Changed continuation files:
+
+- `.github/workflows/verified-report-governance.yml`
+- `ci/runtime/lifecycle/run-full-matrix-parallel.sh`
+- `tests/test_ci_security_workflows.py`
+- `tests/test_full_matrix_parallel_scheduler.py`
+- `docs/reference/variables.md` and `docs/reference/variables.de.md`
+- this paired Change Record
+
+Actual focused validation after this continuation:
+
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest -v tests.test_ci_security_workflows tests.test_full_matrix_parallel_scheduler` — passed, 32 tests. It proves the workflow retains its hash-locked dependency contract, exports the exact venv interpreter rather than the bare selector, invokes the visible diagnostic, rejects no existing workflow-security control, and exercises auto-detected/explicit cap diagnostics plus normal scheduler behavior.
+
+The final exact-head hosted `report-governance`, terminal evidence gate,
+SonarQube Cloud readback, review/thread, and protected-merge checks are not
+yet run for this successor commit. The local result is therefore
+`remediation_required`, not a claim that `FND-CROSS-0001` is fixed or that the
+PR can be merged.
+
+The local `check-python-interpreter-contract.py` control is
+`blocked_environment`: this task venv is CPython 3.14.4 while `.python-version`
+requires 3.14.6, and its shell cannot model the `actions/setup-python` PATH.
+It is not substituted with a different interpreter; the successor hosted
+workflow remains the authoritative compatibility control.

@@ -209,3 +209,60 @@ bestand alle 38 Tests. Dies ist kein nativer NGINX-Erfolg: Der neue exakte
 Parent-PR-#74-Head benötigt weiterhin Hosted-Producer, striktes Terminal-Gate,
 SonarQube-Cloud-Readback, Review-/Protection-Evidence und geschützte
 Integration.
+
+## Fortsetzung: exakte CI-Interpreter-Identität und All-Core-Sichtbarkeit
+
+Der gehostete Parent-PR-#74-Head
+`ef0b6ab27162e9735e9ff9d8beb3516446eed1ff` erzeugte das vorgesehene
+hash-gesperrte Venv `verified-report-python` und installierte Framework
+`PyYAML==6.0.3`, exportierte danach jedoch den bloßen Selektor
+`PYTHON=python3`. Parent-Makefile, Verified-Run-Dispatcher und Framework-
+Runtime-Runner reichen diesen Selektor korrekt weiter; er kann dennoch
+außerhalb des Venv aufgelöst werden, wenn ein späterer Runtime-Helper `PATH`
+ändert. Der exakte Hosted-Run `30222002129` / Job `89845969175` schlug deshalb
+in `update-runtime-snapshot.py` mit `ModuleNotFoundError: No module named
+'yaml'` fehl. Der fehlgeschlagene strikte Producer bleibt abgelehnt; dies ist
+zusätzliche Ursachen-Evidenz für `FND-CROSS-0001`, keine erfolgreiche
+Runtime-Evidenz.
+
+Der Workflow behält jetzt den praktischen `PATH`-Export, übergibt aber nach
+einem direkten `import yaml`-Check den exakt erzeugten Interpreter als
+`PYTHON=$venv/bin/python`. Das erhält die verifizierte setup-python-Auswahl,
+den Hash-Lock, `--only-binary`, `--require-hashes`, die No-Write-Berechtigung
+und den fail-closed Import-Vertrag; Framework-Source, dessen Lock, MRTS und
+ein Gitlink bleiben unverändert.
+
+Der Full-Matrix-Runner leitet seine Standardobergrenze bereits aus `nproc`,
+dann `getconf _NPROCESSORS_ONLN`, dann `1` ab; ein fester Workflow-Wert würde
+dieses hostbewusste Verhalten deaktivieren. Sein neuer schreibgeschützter
+Modus `--print-effective-parallelism` meldet die tatsächlich gewählte
+Obergrenze und ob sie auto-erkannt oder explizit ist, bevor irgendein Python-
+Prozess, Runtime-Pfad, Build, Port oder Matrix-Aktion startet. Der Workflow
+ruft diesen Modus sichtbar vor dem strikten Producer auf, und die normale
+Scheduling-Meldung behält dieselbe Source-Markierung.
+
+Geänderte Fortsetzungsdateien:
+
+- `.github/workflows/verified-report-governance.yml`
+- `ci/runtime/lifecycle/run-full-matrix-parallel.sh`
+- `tests/test_ci_security_workflows.py`
+- `tests/test_full_matrix_parallel_scheduler.py`
+- `docs/reference/variables.md` und `docs/reference/variables.de.md`
+- dieses gepaarte Change Record
+
+Tatsächlich ausgeführte fokussierte Validierung nach dieser Fortsetzung:
+
+- `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest -v tests.test_ci_security_workflows tests.test_full_matrix_parallel_scheduler` — bestanden, 32 Tests. Sie beweist, dass der Workflow seinen hash-gesperrten Abhängigkeitsvertrag behält, den exakten Venv-Interpreter statt des bloßen Selektors exportiert, die sichtbare Diagnose aufruft, keine bestehende Workflow-Sicherheitskontrolle zurückweist und auto-erkannte/explizite Obergrenzen-Diagnosen sowie das normale Scheduler-Verhalten ausführt.
+
+Die finalen exakten Hosted-Head-Checks `report-governance`, Terminal-
+Evidence-Gate, SonarQube-Cloud-Readback, Review-/Thread- und geschützten
+Merge-Checks sind für diesen Nachfolgecommit noch nicht gelaufen. Das lokale
+Ergebnis ist deshalb `remediation_required`, keine Behauptung, dass
+`FND-CROSS-0001` behoben ist oder der PR gemergt werden kann.
+
+Die lokale Kontrolle `check-python-interpreter-contract.py` ist
+`blocked_environment`: Dieses Task-Venv ist CPython 3.14.4, während
+`.python-version` 3.14.6 verlangt, und seine Shell kann den von
+`actions/setup-python` gesetzten PATH nicht nachbilden. Sie wird nicht durch
+einen anderen Interpreter ersetzt; der Hosted-Workflow des Nachfolgecommits
+bleibt die maßgebliche Compatibility-Kontrolle.
