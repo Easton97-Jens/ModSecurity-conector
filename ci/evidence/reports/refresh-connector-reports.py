@@ -1676,13 +1676,15 @@ def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any],
     full_matrix_timeout = bool(mismatch_full_matrix.get("timeout"))
     full_matrix_completed_jobs = int(mismatch_full_matrix.get("completed_jobs") or job_completeness.get("complete_jobs") or 0)
     full_matrix_expected_jobs = int(mismatch_full_matrix.get("expected_jobs") or job_completeness.get("total_jobs") or 0)
-    full_matrix_missing_jobs = (
-        mismatch_full_matrix.get("missing_jobs")
-        if isinstance(mismatch_full_matrix.get("missing_jobs"), list)
-        else job_completeness.get("missing_job_ids")
-        if isinstance(job_completeness.get("missing_job_ids"), list)
-        else []
-    )
+    missing_jobs = mismatch_full_matrix.get("missing_jobs")
+    if isinstance(missing_jobs, list):
+        full_matrix_missing_jobs = missing_jobs
+    else:
+        missing_job_ids = job_completeness.get("missing_job_ids")
+        if isinstance(missing_job_ids, list):
+            full_matrix_missing_jobs = missing_job_ids
+        else:
+            full_matrix_missing_jobs = []
     full_matrix_refresh_timeout = bool(mismatch_full_matrix.get("refresh_timeout")) or refresh_timeout
     evidence_scope = str(mismatch_analysis.get("evidence_scope") or "")
     critical_mismatch_count = int(mismatch_analysis.get("critical_mismatch_count") or 0)
@@ -1734,6 +1736,34 @@ def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any],
         readiness = "PASS"
     else:
         readiness = "UNKNOWN"
+    if smoke_only:
+        reason = "Smoke-only evidence is not a full verified matrix run; merge readiness remains UNKNOWN."
+    elif full_matrix_incomplete:
+        reason = (
+            "Full-Matrix evidence is incomplete; "
+            f"{full_matrix_completed_jobs}/{full_matrix_expected_jobs} jobs complete; "
+            f"missing jobs: {', '.join(str(item) for item in full_matrix_missing_jobs) or 'unknown'}."
+        )
+    elif failed:
+        reason = "Failed generator records block merge readiness."
+    elif full_matrix_complete and critical_mismatch_count > 0 and full_matrix_refresh_timeout:
+        reason = "Full-Matrix runtime completed with critical mismatches; downstream report refresh timed out."
+    elif full_matrix_complete and critical_mismatch_count > 0 and (
+        full_matrix_refresh_timeout or stale or critical_stale
+    ):
+        reason = "Full-Matrix runtime completed with critical mismatches; downstream reports remain blocked, stale, or unknown."
+    elif full_matrix_complete and critical_mismatch_count > 0:
+        reason = "Full-Matrix completed and critical runtime mismatches are present."
+    elif readiness == "UNKNOWN":
+        reason = "Critical producer evidence was not generated in this verified run."
+    elif optional_failed or optional_skipped or optional_blocked:
+        reason = "Optional producer evidence is unavailable; required critical inputs are tracked separately."
+    elif readiness == "WARN":
+        reason = "Core canonical reports are generated; warning conditions are documented."
+    elif readiness == "PASS":
+        reason = "Core canonical reports are generated and no warning conditions were found."
+    else:
+        reason = "Merge readiness could not be determined from available reports."
     return {
         "status": readiness,
         "verified_run_id": verified_run_id,
@@ -1770,38 +1800,18 @@ def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any],
         "critical_producer_not_run": [report.get("report_name") for report in critical_producer_not_run],
         "dirty_submodules": dirty,
         "submodules": submodules,
-        "reason": (
-            "Smoke-only evidence is not a full verified matrix run; merge readiness remains UNKNOWN."
-            if smoke_only
-            else (
-                "Full-Matrix evidence is incomplete; "
-                f"{full_matrix_completed_jobs}/{full_matrix_expected_jobs} jobs complete; "
-                f"missing jobs: {', '.join(str(item) for item in full_matrix_missing_jobs) or 'unknown'}."
-            )
-            if full_matrix_incomplete
-            else "Failed generator records block merge readiness."
-            if failed
-            else "Full-Matrix runtime completed with critical mismatches; downstream report refresh timed out."
-            if full_matrix_complete and critical_mismatch_count > 0 and full_matrix_refresh_timeout
-            else "Full-Matrix runtime completed with critical mismatches; downstream reports remain blocked, stale, or unknown."
-            if full_matrix_complete and critical_mismatch_count > 0 and (full_matrix_refresh_timeout or stale or critical_stale)
-            else "Full-Matrix completed and critical runtime mismatches are present."
-            if full_matrix_complete and critical_mismatch_count > 0
-            else "Critical producer evidence was not generated in this verified run."
-            if readiness == "UNKNOWN"
-            else "Optional producer evidence is unavailable; required critical inputs are tracked separately."
-            if optional_failed or optional_skipped or optional_blocked
-            else "Core canonical reports are generated; warning conditions are documented."
-            if readiness == "WARN"
-            else "Core canonical reports are generated and no warning conditions were found."
-            if readiness == "PASS"
-            else "Merge readiness could not be determined from available reports."
-        ),
+        "reason": reason,
     }
 
 
 def render_merge_dashboard_md(payload: dict[str, Any]) -> str:
     totals = payload.get("full_matrix_totals", {})
+    if not payload.get("full_matrix_complete"):
+        runtime_mismatch_status = "UNKNOWN"
+    elif payload.get("critical_runtime_mismatch_count"):
+        runtime_mismatch_status = "FAIL"
+    else:
+        runtime_mismatch_status = "PASS"
     checks = [
         (
             "Full Runtime Matrix",
@@ -1810,11 +1820,7 @@ def render_merge_dashboard_md(payload: dict[str, Any]) -> str:
         ),
         (
             "Runtime Mismatch Analysis",
-            "UNKNOWN"
-            if not payload.get("full_matrix_complete")
-            else "FAIL"
-            if payload.get("critical_runtime_mismatch_count")
-            else "PASS",
+            runtime_mismatch_status,
             f"mismatches={payload.get('runtime_mismatch_count', 0)} critical={payload.get('critical_runtime_mismatch_count', 0)} categories={payload.get('runtime_mismatch_categories', {})}",
         ),
         ("Final Consistency Audit", "PASS" if payload.get("final_consistency_status") else "UNKNOWN", payload.get("final_consistency_status", "unknown")),

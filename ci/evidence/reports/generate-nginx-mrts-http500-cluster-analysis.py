@@ -99,6 +99,33 @@ def final_error_lines(path: str | Path, prefix: str) -> list[str]:
     return [line for line in lines if line.startswith(prefix)]
 
 
+def access_log_status(line: str) -> str | None:
+    search_from = 0
+    while True:
+        request_start = line.find('"', search_from)
+        if request_start < 0:
+            return None
+        request_end = line.find('"', request_start + 1)
+        if request_end < 0:
+            return None
+        request = line[request_start + 1 : request_end]
+        first_space = request.find(" ")
+        protocol_marker = request.find(" HTTP/", first_space + 2)
+        status_start = request_end + 1
+        if (
+            first_space > 0
+            and not any(char.isspace() for char in request[:first_space])
+            and protocol_marker >= first_space + 2
+            and protocol_marker + len(" HTTP/") < len(request)
+            and status_start + 5 <= len(line)
+            and line[status_start] == " "
+            and line[status_start + 1 : status_start + 4].isdigit()
+            and line[status_start + 4] == " "
+        ):
+            return line[status_start + 1 : status_start + 4]
+        search_from = request_start + 1
+
+
 def access_status(path: str | Path, prefix_date: str) -> str:
     prefix = ""
     if prefix_date:
@@ -109,9 +136,9 @@ def access_status(path: str | Path, prefix_date: str) -> str:
     for line in read_lines(path):
         if prefix and prefix not in line:
             continue
-        match = re.search(r'"\S+ [^"]+ HTTP/[^"]+" (\d{3}) ', line)
-        if match:
-            statuses.append(match.group(1))
+        status = access_log_status(line)
+        if status is not None:
+            statuses.append(status)
     return statuses[-1] if statuses else "-"
 
 

@@ -2268,11 +2268,19 @@ def command_summary(commands: list[dict[str, Any]], manifest_rows: list[dict[str
     if expected_jobs and len(manifest_rows) >= expected_jobs:
         full_runtime_complete = True
     full_complete = full_runtime_complete
-    full_runtime_status = str(
-        full.get("runtime_status")
-        or ("runtime_completed_with_mismatches" if full_complete and any(row.get("return_code") not in {0, None} for row in manifest_rows) else "")
-        or ("runtime_completed" if full_complete else "runtime_timeout" if full.get("classification") == "blocked_timeout" else "not_run")
-    )
+    full_runtime_status: Any = full.get("runtime_status")
+    if not full_runtime_status and full_complete and any(
+        row.get("return_code") not in {0, None} for row in manifest_rows
+    ):
+        full_runtime_status = "runtime_completed_with_mismatches"
+    if not full_runtime_status:
+        if full_complete:
+            full_runtime_status = "runtime_completed"
+        elif full.get("classification") == "blocked_timeout":
+            full_runtime_status = "runtime_timeout"
+        else:
+            full_runtime_status = "not_run"
+    full_runtime_status = str(full_runtime_status)
     return {
         "runtime_matrix_all": runtime,
         "full_matrix_parallel": full,
@@ -2507,13 +2515,35 @@ def main() -> int:
     by_classification = Counter(row["classification"] for row in mismatches)
     top_cases = Counter(row["case"] for row in mismatches).most_common(50)
     critical_count = sum(1 for row in mismatches if row["classification"] in CRITICAL_CATEGORIES)
+    if profile == "smoke":
+        evidence_scope = "smoke-only"
+    elif command_state["full_matrix_complete"]:
+        evidence_scope = "full"
+    else:
+        evidence_scope = "partial"
+    if profile == "smoke":
+        merge_readiness = "UNKNOWN"
+    elif not command_state["full_matrix_complete"]:
+        merge_readiness = "UNKNOWN"
+    elif critical_count:
+        merge_readiness = "FAIL"
+    else:
+        merge_readiness = "PASS"
+    if profile == "smoke":
+        merge_readiness_reason = "not a full verified matrix run"
+    elif not command_state["full_matrix_complete"]:
+        merge_readiness_reason = "full matrix runtime incomplete"
+    elif critical_count:
+        merge_readiness_reason = "critical mismatches present"
+    else:
+        merge_readiness_reason = "no critical runtime mismatches"
     payload = {
         "verified_run_id": verified_run_id,
         "data_source_policy": DATA_SOURCE_POLICY,
         "generated_at": utc_now(),
-        "evidence_scope": "smoke-only" if profile == "smoke" else "full" if command_state["full_matrix_complete"] else "partial",
-        "merge_readiness": "UNKNOWN" if profile == "smoke" else "UNKNOWN" if not command_state["full_matrix_complete"] else "FAIL" if critical_count else "PASS",
-        "merge_readiness_reason": "not a full verified matrix run" if profile == "smoke" else "full matrix runtime incomplete" if not command_state["full_matrix_complete"] else "critical mismatches present" if critical_count else "no critical runtime mismatches",
+        "evidence_scope": evidence_scope,
+        "merge_readiness": merge_readiness,
+        "merge_readiness_reason": merge_readiness_reason,
         "inputs": input_records_for_sources(
             commands_file=commands_file,
             manifest_path=manifest_path,

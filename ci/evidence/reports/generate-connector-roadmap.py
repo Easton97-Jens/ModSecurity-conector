@@ -632,7 +632,18 @@ def connector_row(root: Path, name: str) -> dict[str, Any]:
     )
     makefile_text = (root / "Makefile").read_text(encoding="utf-8")
     verified_case = name in PRODUCTION and f"verified-{name}-case" in makefile_text
-    runtime_evidence = "yes" if name in PRODUCTION else "targeted proof required" if name in PARTIAL else "no"
+    if name in PRODUCTION:
+        runtime_evidence = "yes"
+    elif name in PARTIAL:
+        runtime_evidence = "targeted proof required"
+    else:
+        runtime_evidence = "no"
+    if name in PRODUCTION:
+        modsecurity_integration = "yes"
+    elif name in PARTIAL:
+        modsecurity_integration = "starter_only"
+    else:
+        modsecurity_integration = "no"
     full_matrix = "yes" if name in PRODUCTION else "no"
     details = STATUS_DETAILS[name]
     return {
@@ -647,7 +658,7 @@ def connector_row(root: Path, name: str) -> dict[str, Any]:
         "build_scripts": "yes" if has_files(root, f"connectors/{name}/build", ("*.sh", "*")) or build_target else "no",
         "runtime_harness": "yes" if has_files(root, f"connectors/{name}/harness", ("*.sh", "*.conf")) else "no",
         "example_config": "yes" if has_files(root, f"connectors/{name}/harness", ("*.conf", "*.example")) or has_files(root, f"connectors/{name}/poc", ("**/*.example", "**/*.cfg")) else "no",
-        "modsecurity_integration": "yes" if name in PRODUCTION else "starter_only" if name in PARTIAL else "no",
+        "modsecurity_integration": modsecurity_integration,
         "tests": "framework_owned" if name in PRODUCTION or name in PARTIAL else "no",
         "build_target": "yes" if build_target else "no",
         "make_targets": "yes" if name in {"apache", "nginx", "haproxy", "envoy", "lighttpd", "traefik"} else "no",

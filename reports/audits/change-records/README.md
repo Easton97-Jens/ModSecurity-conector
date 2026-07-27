@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent report-generator conditionals and access-log regex for SonarQube Cloud](CR-20260727-sonar-report-conditionals-regex.md)
 - [Parent PR #128 residual SonarQube Cloud and workflow remediation](CR-20260727-sonar-pr128-residual-remediation.md)
 - [Parent Apache output-filter status shadowing for SonarQube Cloud C:S1117](CR-20260727-sonar-apache-output-filter-status-shadowing.md)
 - [Parent compiler-guide metadata literals for SonarQube Cloud S1192](CR-20260727-sonar-compiler-guide-metadata-literals.md)

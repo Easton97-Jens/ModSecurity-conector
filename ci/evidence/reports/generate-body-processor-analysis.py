@@ -109,7 +109,10 @@ def action_parts(action_text: str) -> list[str]:
     quote: str | None = None
     for char in action_text:
         if char in {"'", '"'}:
-            quote = None if quote == char else char if quote is None else quote
+            if quote == char:
+                quote = None
+            elif quote is None:
+                quote = char
         if char == "," and quote is None:
             part = "".join(current).strip()
             if part:
@@ -336,7 +339,12 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
     config_path = generated_config_path(entry, evidence_path) if evidence_path is not None else None
     config = read_text(config_path)
     logs = "\n".join(read_text(path_item) for path_item in log_paths(evidence))
-    request_body_access = "yes" if "SecRequestBodyAccess On" in config else "no" if "SecRequestBodyAccess Off" in config else "unknown"
+    if "SecRequestBodyAccess On" in config:
+        request_body_access = "yes"
+    elif "SecRequestBodyAccess Off" in config:
+        request_body_access = "no"
+    else:
+        request_body_access = "unknown"
     xml_processor = "yes" if "ctl:requestBodyProcessor=XML" in config else "unknown"
     rule_id = str(rule["rule_id"])
     matched = rule_logged(logs, rule_id)

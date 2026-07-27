@@ -89,7 +89,10 @@ def action_parts(action_text: str) -> list[str]:
     quote: str | None = None
     for char in action_text:
         if char in {"'", '"'}:
-            quote = None if quote == char else char if quote is None else quote
+            if quote == char:
+                quote = None
+            elif quote is None:
+                quote = char
         if char == "," and quote is None:
             part = "".join(current).strip()
             if part:
@@ -279,6 +282,12 @@ def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
         fixability = "analysis_required"
         risk = "medium"
         root_cause = "The report cannot prove full-chain match evidence from available logs."
+    if detection_only:
+        intervention_created = "no"
+    elif entry.get("actual_status") in {401, 403, 302}:
+        intervention_created = "yes"
+    else:
+        intervention_created = "unknown"
     return {
         "connector": entry.get("connector", "-"),
         "variant": variant(entry),
@@ -301,7 +310,7 @@ def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
         "chain_parent_matched": "yes" if parent_observed else "unknown",
         "chain_child_matched": "yes" if child_observed else "unknown",
         "full_chain_matched": "yes" if full_chain_observed else "unknown",
-        "intervention_created": "no" if detection_only else "yes" if entry.get("actual_status") in {401, 403, 302} else "unknown",
+        "intervention_created": intervention_created,
         "backend_reached": entry.get("actual_status") == 200,
         "audit_error_debug_evidence": "yes" if logs else "no",
         "current_classification": entry.get("classification", "-"),
