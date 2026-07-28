@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-07-28 |
 | Base revision | 8e8acb8dab1cd03723de269cab7da7dd62e5e010 |
 | Boundary | Parent Traefik result serialization, its direct C17 source-contract test, this English/German pair, and its indexes only. Framework, MRTS, gitlinks, workflows, Sonar policy, and generated reports remain unchanged. |
-| Finding linkage | Targets `c:S2637` keys `AZ9cRyv8HhV2CayPTP10`, `AZ9cRyv8HhV2CayPTP11`, and `AZ9cRyv8HhV2CayPTP12`, plus the first candidate's `c:S3519` keys `AZ-oL-mYW3nRPo6lC6ub`, `AZ-oL-mYW3nRPo6lC6uc`, and `AZ-oL-mYW3nRPo6lC6ud` tracked by `FND-SONAR-0019`. No external issue is claimed closed before exact-head hosted evidence. |
+| Finding linkage | Targets `c:S2637` keys `AZ9cRyv8HhV2CayPTP10`, `AZ9cRyv8HhV2CayPTP11`, and `AZ9cRyv8HhV2CayPTP12`, plus the first candidate's `c:S3519` keys `AZ-oL-mYW3nRPo6lC6ub`, `AZ-oL-mYW3nRPo6lC6uc`, and `AZ-oL-mYW3nRPo6lC6ud`. Exact PR #150 head `00b3fcd` cleared those reliability reports and revealed the remaining MINOR scope smell `c:S5955` key `AZ-oe7AILJoACkbdWT_s`; all are tracked by `FND-SONAR-0019`. No external issue is claimed closed before exact-head hosted evidence for the final follow-up. |
 
 ## Motivation and problem statement
 
@@ -27,11 +27,19 @@ Quality-Gate blocker. The correction must preserve zero-length absent fields,
 field order, bytes, maxima, action, phase, status, and flags without a
 suppression, protocol change, or weaker limit.
 
+The exact hosted successor head `00b3fcd` received a Quality Gate `OK` and no
+remaining new reliability report, but Sonar then reported one MINOR `c:S5955`
+scope smell in the private bounded-copy loop. This follow-up narrows the
+counter declaration to the C17 `for` initializer; it does not change the loop
+condition, increment, copied bytes, or any serialization boundary.
+
 ## Acceptance criteria
 
 - Nullable optional pointers retain size zero for absent values.
 - One private bounded copy helper accepts size zero without a source and
   rejects a positive-length null source before reading or writing bytes.
+- The bounded-copy loop counter has C17 loop-local scope and a source-contract
+  assertion preserves that remediation.
 - The direct C17 socketpair harness verifies absent, populated, and
   maximum-length fields byte-for-byte plus the null-source negative control.
 - Focused C17, diagnostics, Traefik security contracts, documentation, and
@@ -49,6 +57,10 @@ rejects a null destination or source before its bounded byte loop.
 invariant is violated. Decision/session control flow, frame layout, maxima,
 clamping, and decision metadata remain unchanged.
 
+The scope-only follow-up declares the counter in the `for` initializer. The
+counter was used only by that loop and is not read after it, so the helper's
+return values, bounds, allocation, and protocol bytes remain unchanged.
+
 ## Changed files
 
 - `connectors/traefik/src/traefik_engine_service.c`
@@ -60,7 +72,7 @@ clamping, and decision metadata remain unchanged.
 
 | Command or control | Result |
 | --- | --- |
-| `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 <workspace-venv>/python -B tests/test_sonar_reliability_contract.py` | passed: 11 tests, including absent, populated, maximum-length, and positive-length-null-source C17 harness controls. |
+| `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 <workspace-venv>/python -B tests/test_sonar_reliability_contract.py` | passed: 11 tests, including absent, populated, maximum-length, and positive-length-null-source C17 harness controls plus the loop-local-scope source contract. |
 | `<workspace-venv>/python -B -m unittest -v tests.test_c_cpp_diagnostics` | passed: 7 C/C++ diagnostics-contract tests. |
 | `TMPDIR=<task-owned external root> make check-remaining-connectors-c17` | passed: every remaining-connector C translation unit, including Traefik, compiles under C17 with `-Wall -Wextra -Werror`. |
 | `<workspace-venv>/python -B -m unittest -v tests.test_bilingual_docs tests.test_traefik_native_local_plugin tests.test_traefik_runtime_smoke_security` | passed: 39 focused documentation and Traefik runtime/security-contract tests. |
@@ -74,7 +86,8 @@ a demonstrated runtime out-of-bounds read: the prior `c:S3519` path lacks the
 interprocedural size relation. The revised helper nevertheless fails closed for
 a positive-length null source without expanding serialization. The sealed local
 security review found no reportable vulnerability in the changed serializer or
-its directly supporting test.
+its directly supporting test. The `c:S5955` follow-up changes only the lifetime
+of an internal loop counter; it does not alter a source-to-sink control.
 
 ## Runtime evidence
 
@@ -94,22 +107,26 @@ two changed files and does not replace exact-head hosted Sonar analysis.
 
 A deployed Traefik host, loaded plugin, and live Common/libmodsecurity
 transaction can add behavior that the local harness does not execute. The
-external `c:S2637` and `c:S3519` dispositions remain open until a fresh hosted
-analysis observes the successor PR head.
+external `c:S2637` and `c:S3519` reports cleared on exact head `00b3fcd`; the
+scope-only `c:S5955` follow-up still requires a fresh hosted analysis of its
+own final PR head.
 
 ## Checks not run and rationale
 
 - The full Traefik host/plugin runtime was not run because no verified
   libmodsecurity development header/library pair is available in the approved
   local environment.
-- Exact-head GitHub, SonarQube Cloud, review, and merge checks are not
-  currently observed for this successor; they must be re-read after its normal
-  update to Draft PR #150.
+- Exact-head GitHub, SonarQube Cloud, review, and merge checks must be re-read
+  after the normal Draft PR #150 update carrying the `c:S5955` scope-only
+  follow-up. The prior exact head `00b3fcd` is already observed as Quality Gate
+  `OK`, but that result cannot prove a later commit.
 
 ## Final diff and review status
 
 Draft Parent PR #150 remains open against `master`; its first published head
-failed on the new `c:S3519` blockers. The local successor has passed its sealed
-security-diff review and focused local checks, but makes no hosted result
-claim. After its normal update, exact-head checks, SonarQube Cloud readback,
-and review remain mandatory.
+failed on the new `c:S3519` blockers, while exact successor head `00b3fcd`
+cleared them with a Quality Gate `OK`. The current local C17 scope-only
+follow-up addresses the remaining `c:S5955` code smell and has focused local
+checks, but makes no hosted result claim for its later head. After its normal
+update, exact-head checks, SonarQube Cloud readback, and review remain
+mandatory.

@@ -28,6 +28,7 @@ class SonarReliabilityContractTests(unittest.TestCase):
         self.assertNotIn("traefik_engine_empty_text", source)
         self.assertIn("if (size == 0U)", helper)
         self.assertIn("if (destination == NULL || source == NULL)", helper)
+        self.assertIn("for (size_t offset = 0U; offset < size; ++offset)", helper)
         self.assertIn("destination[offset] = (unsigned char)source[offset];", helper)
         for field in ("transaction_id", "rule_id", "redirect"):
             self.assertIn(f"const char *{field} = NULL;", send_result)

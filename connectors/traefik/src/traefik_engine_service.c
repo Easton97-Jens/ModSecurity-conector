@@ -172,15 +172,13 @@ static size_t traefik_engine_bounded_string_size(const char *value, size_t maxim
 static int traefik_engine_copy_bounded_text(unsigned char *destination,
     const char *source, size_t size)
 {
-    size_t offset;
-
     if (size == 0U) {
         return 1;
     }
     if (destination == NULL || source == NULL) {
         return 0;
     }
-    for (offset = 0U; offset < size; ++offset) {
+    for (size_t offset = 0U; offset < size; ++offset) {
         destination[offset] = (unsigned char)source[offset];
     }
     return 1;
