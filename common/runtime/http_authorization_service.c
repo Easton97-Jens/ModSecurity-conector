@@ -104,10 +104,9 @@ static int parse_unsigned_long(const char *value, unsigned long *out) {
 }
 
 static int parse_cli(int argc, char **argv, authorization_cli *cli) {
-    int index;
     memset(cli, 0, sizeof(*cli));
     cli->connection_timeout_ms = AUTH_CONNECTION_TIMEOUT_DEFAULT_MS;
-    for (index = 1; index < argc; ++index) {
+    for (int index = 1; index < argc; ++index) {
         if (strcmp(argv[index], "--check-config") == 0) {
             cli->check_config = 1;
         } else if (strcmp(argv[index], "--serve") == 0) {
