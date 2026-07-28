@@ -22,7 +22,6 @@
 
 #include "ngx_http_modsecurity_common.h"
 #include "msconnector/event.h"
-#include "msconnector/event_jsonl.h"
 #include "msconnector/limits.h"
 #include "msconnector/rule_id.h"
 
@@ -32,15 +31,9 @@ ngx_http_modsecurity_log_rule_match_event(ngx_http_request_t *r,
     enum msconnector_phase phase, const char *rule_id)
 {
     msconnector_event event;
-    char line[4096];
-    char *method = "";
-    char *uri = "";
-    char *content_type = "";
-    int json_truncated = 0;
-    size_t line_length;
-    ssize_t written;
     ngx_http_modsecurity_ctx_t *ctx;
     ngx_http_modsecurity_conf_t *mcf;
+    ngx_http_modsecurity_event_request_metadata_t request_metadata;
 
     if (r == NULL || !msconnector_rule_id_validate(rule_id)) {
         return;
@@ -52,26 +45,7 @@ ngx_http_modsecurity_log_rule_match_event(ngx_http_request_t *r,
         return;
     }
 
-    if (r->method_name.len > 0U) {
-        char *value = ngx_str_to_char(r->method_name, r->pool);
-        if (value != (char *)-1 && value != NULL) {
-            method = value;
-        }
-    }
-    if (r->unparsed_uri.len > 0U) {
-        char *value = ngx_str_to_char(r->unparsed_uri, r->pool);
-        if (value != (char *)-1 && value != NULL) {
-            uri = value;
-        }
-    }
-    if (r->headers_in.content_type != NULL &&
-        r->headers_in.content_type->value.len > 0U) {
-        char *value = ngx_str_to_char(r->headers_in.content_type->value,
-            r->pool);
-        if (value != (char *)-1 && value != NULL) {
-            content_type = value;
-        }
-    }
+    request_metadata = ngx_http_modsecurity_event_request_metadata(r);
 
     /* This callback runs synchronously while the native module is executing
      * request processing.  It records only the rule identifier and host
@@ -94,25 +68,15 @@ ngx_http_modsecurity_log_rule_match_event(ngx_http_request_t *r,
     event.decision.rule_id = rule_id;
     event.decision.reason = "non_disruptive_rule_match";
     event.http.transport_result = "not_observable";
-    event.request.method = method;
-    event.request.uri = uri;
-    event.body.content_type = content_type;
+    event.request.method = request_metadata.method;
+    event.request.uri = request_metadata.uri;
+    event.body.content_type = request_metadata.content_type;
 
-    if (!msconnector_event_write_jsonl_line(&event, line, sizeof(line),
-        &json_truncated)) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-            "modsecurity native rule-match event serialization failed%s",
-            json_truncated ? " (truncated)" : "");
+    if (!ngx_http_modsecurity_write_event_jsonl(
+            r, mcf, &event,
+            "modsecurity native rule-match event serialization failed",
+            "modsecurity native rule-match log write failed")) {
         return;
-    }
-
-    line_length = ngx_strlen(line);
-    written = ngx_write_fd(mcf->phase4_log_file->fd, (u_char *)line,
-        line_length);
-    if (written < 0 || (size_t)written != line_length) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log,
-            written < 0 ? ngx_errno : 0,
-            "modsecurity native rule-match log write failed");
     }
 }
 
