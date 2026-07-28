@@ -10,9 +10,10 @@
 | Date (UTC) | `2026-07-27` |
 | Base revision | `1b0f8825f3510b99b603bb6cd6f0777e1710358e` |
 | Corrective base revision | `30bd39faf4214dd27f5fd095def71b07d97ccd3b` |
-| Tracking | Exact Draft PR #144 Quality Gate failure at the corrective base: `8.6%` new-code duplication, two S1192 literal candidates (`AZ-l0E9Sjq1bd7qgEUwj` and `AZ-l0E9Sjq1bd7qgEUwk`), and a remaining 22-line JSONL serializer/write-tail clone. The local correction has no new exact-head remote result. |
+| Second corrective head | `116a50d0abd7c36471868e7b77d533d1a78ebda5` |
+| Tracking | The earlier corrective-base Quality Gate failed with `8.6%` new-code duplication, two S1192 literal candidates (`AZ-l0E9Sjq1bd7qgEUwj` and `AZ-l0E9Sjq1bd7qgEUwk`), and a remaining 22-line JSONL serializer/write-tail clone. The exact second corrective head has observed Quality Gate `OK`, `0` new duplicated lines, and `0.0%` new-code duplication, but one new task-owned `python:S1192` issue (`AZ-l_JOYhdUH4Iu4ldmS`) at `ci/checks/connectors/nginx/check-nginx-common-adoption.py:68` for the three occurrences of `"msconnector/event_jsonl.h"`. |
 | Boundary | Parent NGINX request-event metadata and JSONL writer source, its Parent source-contract checker, and this English/German Change Record pair and indexes. Framework and MRTS source and gitlinks, scanner configuration, Quality Gates, remote analysis, and delivery remain unchanged. |
-| Delivery status | Draft PR #144's observed Quality Gate is failed for its earlier exact head. The local correction is unstaged; this record claims no new remote success, staging, commit, push, pull request, merge, SonarQube issue closure, or remote analysis. |
+| Delivery status | The exact second corrective head has the observed remote Quality Gate `OK` result above. At authoring of this third-follow-up record, the minimal checker-only correction was locally validated and staged for the authorized normal commit/Draft-PR cycle. No third corrective head had then been created or pushed, so this record claims no third-head remote success, duplication metric, SonarQube issue closure, push, or merge. |
 
 ## Motivation and problem statement
 
@@ -31,7 +32,16 @@ The exact Draft PR #144 Quality Gate for the corrective base
 new-code duplication. Its retained failure evidence is the two S1192 string
 candidates `AZ-l0E9Sjq1bd7qgEUwj` and `AZ-l0E9Sjq1bd7qgEUwk` plus the remaining
 22-line serializer/write-tail clone. Those facts describe the earlier remote
-head; they do not evaluate the currently unstaged local correction.
+head; they do not evaluate the then-local third correction.
+
+The exact second corrective head
+`116a50d0abd7c36471868e7b77d533d1a78ebda5` then received the observed
+SonarQube Cloud Quality Gate `OK`, `0` new duplicated lines, and `0.0%`
+new-code duplication. That same analysis opened one new task-owned
+`python:S1192` issue, `AZ-l_JOYhdUH4Iu4ldmS`, at
+`ci/checks/connectors/nginx/check-nginx-common-adoption.py:68`: the literal
+`"msconnector/event_jsonl.h"` occurred three times. The minimal third
+correction is local only; it has no third-head remote result or issue closure.
 
 ## Acceptance criteria
 
@@ -51,8 +61,14 @@ head; they do not evaluate the currently unstaged local correction.
   messages, return behavior, and warning-only short-write behavior.
 - Replace the two S1192 Python literal candidates with named constants without
   suppressions, exclusions, or Quality-Gate changes.
-- Do not claim a SonarQube Cloud duplicate reduction, issue resolution, Quality
-  Gate, remote analysis, pull request, or merge before exact-head evidence
+- Record the exact second-head Quality Gate `OK`, `0` new duplicated lines,
+  `0.0%` new-code duplication, and task-owned `python:S1192`
+  `AZ-l_JOYhdUH4Iu4ldmS` truthfully.
+- Correct only the newly reported checker literal locally with
+  `EVENT_JSONL_HEADER` in its one header-ownership assertion, without a
+  suppression, exclusion, or Quality-Gate change.
+- Do not claim a third-head remote success, duplication metric, SonarQube
+  issue closure, push, pull request, or merge before exact-head evidence
   exists.
 
 ## Implementation decision and rationale
@@ -111,7 +127,13 @@ S1192 body-counter literal candidates with `EVENT_BODY_BYTES_SEEN` and
 assertion `REQUEST_BODY_ACCESS` and verifies the new writer's single
 serialization/write, preserved warning/return contract, metadata-only scope,
 source-specific guards/messages/rule semantics, and removal of both direct
-caller tails.
+caller tails. The exact second-head remote observation then reported the
+separate `python:S1192` issue `AZ-l_JOYhdUH4Iu4ldmS` at line `68` for the
+three `"msconnector/event_jsonl.h"` occurrences. The current minimal third
+local correction defines `EVENT_JSONL_HEADER = '"msconnector/event_jsonl.h"'`
+and uses that constant in the one header-ownership assertion. It removes the
+three reported assertion occurrences from current local source, but does not
+claim a remote third-head analysis or issue closure.
 
 ## Changed files
 
@@ -122,22 +144,26 @@ caller tails.
 - `reports/audits/change-records/README.md` and `README.de.md`
 - this English/German Change Record pair
 
-The corrective batch changes no additional product path: the same three NGINX
-files now contain the header-local writer and its two caller delegations, while
-the existing source-contract checker covers the writer boundary and the two
-S1192 constants.
+The second corrective head changes no additional product path: the same three
+NGINX files contain the header-local writer and its two caller delegations,
+while the existing source-contract checker covers the writer boundary and the
+two earlier S1192 constants. The current third local correction changes only
+`ci/checks/connectors/nginx/check-nginx-common-adoption.py`; it adds
+`EVENT_JSONL_HEADER` and uses it in the one header-ownership assertion. It
+does not alter C source, the C17 source-only evidence boundary, or the NGINX
+runtime scope.
 
 ## Commands executed
 
 | Command | Result |
 | --- | --- |
-| `rtk proxy make check-nginx-common-adoption` | passed after the local JSONL-writer correction; it covers header ownership, one serialization/write tail, the no-body boundary, direct-tail removal, and source-specific guards/messages/rule semantics. |
+| `rtk proxy make check-nginx-common-adoption` | passed after the minimal third local `EVENT_JSONL_HEADER` checker correction; it covers header ownership, one serialization/write tail, the no-body boundary, direct-tail removal, and source-specific guards/messages/rule semantics. |
 | `rtk proxy make check-nginx-c-standard-wiring` | passed after the local correction. |
 | `rtk proxy make check-common-helpers` | passed: `common_helper_smoke`. |
 | `rtk proxy make --no-print-directory check-nginx-c17` | passed (exit `0`): `PASS: nginx_c_standards c17 compile completed` against the isolated, digest-verified NGINX `release-1.31.2` header source. All source, build, and include roots were explicit, including the trusted existing ModSecurity include root. The run used only header-only `./configure --with-compat`; it did not build, install, or start NGINX. |
 | `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_bilingual_docs` | passed: 14 tests in 0.036s for this correction-only update. |
-| `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs check-doc-links` | passed after this English/German C17-evidence update: bilingual documentation, repository path references, and documentation links all passed. |
-| `rtk git diff --check` | passed after this English/German record and index update. |
+| `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs check-doc-links` | passed after this English/German second-head/third-local evidence update: bilingual documentation, repository path references, and documentation links all passed. |
+| `rtk git diff --check` | passed after the third local checker correction and this English/German second-head/third-local record and index update. |
 
 ## Security impact
 
@@ -161,6 +187,11 @@ no request body or event field. Warning-only handling of a negative or short
 availability/security claim. The focused correction review found no
 refactor-introduced security candidate; the earlier non-UTF8 assurance lead
 remains outside this batch.
+
+The third correction changes only a source-contract checker literal into the
+named `EVENT_JSONL_HEADER` constant. It neither reads request data nor changes
+the JSONL sink, parser, serializer, allocation, event, guard, or logging
+security boundary.
 
 ## Runtime evidence
 
@@ -199,17 +230,21 @@ not replace a module build or native host request.
 
 ## Remaining risks
 
-The `22+22` figure is static candidate evidence, not proof of how a future
-SonarQube Cloud analysis will classify the current diff. No new-duplicate
-reduction or zero-duplication result is claimed until a remote analysis for an
-exact delivery head is observed.
+The `22+22` figure is static candidate evidence for the earlier correction,
+not a prediction of a future analysis. The exact second corrective head
+`116a50d0abd7c36471868e7b77d533d1a78ebda5` has observed Quality Gate `OK`,
+`0` new duplicated lines, and `0.0%` new-code duplication. That evidence is
+bounded to that exact remote head and does not establish a result for the
+current local third correction.
 
-Draft PR #144's `8.6%` Quality-Gate failure and
-`AZ-l0E9Sjq1bd7qgEUwj`/`AZ-l0E9Sjq1bd7qgEUwk` are evidence for the previous
-exact head, not a current failure or success result for the local correction.
-The remaining writer-tail clone and two S1192 literals were addressed locally,
-but only a newly delivered exact head can establish a changed remote
-duplication metric, Quality Gate, or issue disposition.
+The second-head analysis opened the task-owned `python:S1192`
+`AZ-l_JOYhdUH4Iu4ldmS` at
+`ci/checks/connectors/nginx/check-nginx-common-adoption.py:68` for three
+`"msconnector/event_jsonl.h"` literals. `EVENT_JSONL_HEADER` addresses those
+assertion occurrences locally, but the issue remains unclosed remotely until a
+new exact third head is delivered and read back. Draft PR #144's earlier
+`8.6%` failure and `AZ-l0E9Sjq1bd7qgEUwj`/`AZ-l0E9Sjq1bd7qgEUwk` remain
+historical evidence for their previous exact head.
 
 Native integration could expose a NGINX allocation or lifecycle difference not
 represented by the source contracts. The retained fallback semantics and the
@@ -223,22 +258,28 @@ NGINX/libModSecurity runtime control.
   compilation; it selected no NGINX/module build or link, installation,
   service start, connector load, or request path. It is not inferred from the
   compile or source-contract checks.
-- Fresh exact-head SonarQube Cloud and GitHub CI evidence was not run. It
-  requires a newly delivered remote head after the local correction and must
-  be read back for that exact head; the failed Draft PR #144 result is not
-  reused as current evidence.
+- Fresh third-head SonarQube Cloud and GitHub CI evidence was not run. The
+  second-head Quality Gate `OK`, `0` new duplicated lines, and `0.0%` facts
+  are recorded only for `116a50d0abd7c36471868e7b77d533d1a78ebda5`; at
+  record authoring the third checker-only correction had not yet been
+  committed or pushed and had to be read back for its own exact head. No issue
+  closure is inferred from the local
+  constant substitution.
 ## Final diff and review status
 
-The scoped correction retains the request-event metadata helper and empty
+The second corrective head retains the request-event metadata helper and empty
 fallbacks, then factors only the identical JSONL serializer/write tail into a
 header-local helper. Caller-specific guards, messages, returns, short-write
 warnings, intervention/rule-match semantics, and metadata-only output remain
-as recorded. The focused source checks and isolated C17 compilation passed at
-their stated scope; module-build and native-runtime evidence remain limited as
-recorded.
+as recorded. Its exact remote analysis has Quality Gate `OK`, `0` new
+duplicated lines, and `0.0%` new-code duplication, while identifying the one
+new checker-only `python:S1192` issue. The current third local correction only
+names `EVENT_JSONL_HEADER` and uses it in the one header-ownership assertion.
+The focused source checks and isolated C17 compilation passed at their stated
+scope; module-build and native-runtime evidence remain limited as recorded.
 
 This record, its German companion, and their index entries are updated for
-local review. The source correction and documentation changes remain unstaged
-and uncommitted. No new remote success, merge, SonarQube Cloud issue closure,
-new-duplicate reduction, Quality-Gate pass, or exact-head remote analysis is
-claimed.
+local review. At record authoring, the third checker correction and
+documentation changes were staged but uncommitted. No third corrective head,
+third-head remote success or metric, SonarQube Cloud issue closure, push, or
+merge is claimed by this record.
