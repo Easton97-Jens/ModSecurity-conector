@@ -69,6 +69,44 @@ VERIFIED_CRITICAL_INPUT_RECORD_STATUSES = {"present"}
 SELF_GENERATED_CRITICAL_INPUT_STATUS = "self_generated_no_direct_input"
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 GERMAN_GENERATED_NOTICE = "Generierte Datei – nicht manuell bearbeiten."
+ALLOW_IN_PROGRESS_SYSTEM_PROOF_ENV = "ALLOW_IN_PROGRESS_SYSTEM_PROOF"
+ALLOW_IN_PROGRESS_SYSTEM_PROOF_VALUE = "1"
+SYSTEM_ENVIRONMENT_PROOF_GENERATED_PREFIX = "system-environment-proof.generated."
+SYSTEM_ENVIRONMENT_PROOF_MARKDOWN_REQUIREMENTS = (
+    ("## Framework Environment Resolution", "missing Framework Environment Resolution section"),
+    ("## Runtime Component Readiness", "missing Runtime Component Readiness section"),
+    ("## NGINX Runtime Module Readiness", "missing NGINX Runtime Module Readiness section"),
+    ("## HTTPS Repository URL Policy", "missing HTTPS Repository URL Policy section"),
+    (
+        "| Tool | Status | Resolved Command | Source | Candidates | Version / Output | Notes |",
+        "tool table missing Candidates/Notes columns",
+    ),
+    (
+        "| Component | Status | Expected Path | Source URL | Version / Ref | How to Prepare |",
+        "runtime readiness table missing Source URL/Version columns",
+    ),
+)
+SYSTEM_ENVIRONMENT_PROOF_FRAMEWORK_MARKERS = (
+    "CI_APACHE_BIN_CANDIDATES",
+    "CI_APXS_BIN_CANDIDATES",
+    "CI_NGINX_BIN_CANDIDATES",
+    "GO_FTW_SOURCE_URL",
+    "GO_FTW_PROMPT_EXPECTED_LATEST",
+    "ALBEDO_SOURCE_URL",
+    "ALBEDO_PROMPT_EXPECTED_LATEST",
+    "EXPAT_SOURCE_URL",
+)
+HTTPS_REPO_URL_POLICY_FIELDS = ("status", "blocked_protocols", "allowed_protocol", "notes")
+RUNTIME_COMPONENT_READINESS_FIELDS = ("source_url", "version_ref")
+SYSTEM_ENVIRONMENT_PROOF_TOOL_FIELDS = (
+    "resolved_command",
+    "source",
+    "candidates",
+    "version_output",
+    "return_code",
+    "notes",
+)
+REPO_URL_TEXT_SUFFIXES = ("", ".md", ".py", ".sh", ".json", ".yml", ".yaml", ".mk")
 
 
 def rel(path: Path, root: Path) -> str:
@@ -411,7 +449,7 @@ def check_empty_tables_explained(
 def check_existing_generated_reports(connector_root: Path, errors: list[str]) -> None:
     generated_root = connector_root / GENERATED_ROOT
     for path in sorted(generated_root.rglob("*.generated.*")):
-        if os.environ.get("ALLOW_IN_PROGRESS_SYSTEM_PROOF") == "1" and path.name.startswith("system-environment-proof.generated."):
+        if os.environ.get(ALLOW_IN_PROGRESS_SYSTEM_PROOF_ENV) == ALLOW_IN_PROGRESS_SYSTEM_PROOF_VALUE and path.name.startswith(SYSTEM_ENVIRONMENT_PROOF_GENERATED_PREFIX):
             continue
         if path.suffix == ".json":
             check_json_metadata(path, errors, connector_root)
@@ -556,75 +594,117 @@ def check_manifest(
             )
 
 
+def _check_system_environment_proof_markdown(
+    path: Path,
+    text: str,
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    for marker, message in SYSTEM_ENVIRONMENT_PROOF_MARKDOWN_REQUIREMENTS:
+        if marker not in text:
+            errors.append(f"{rel(path, connector_root)}: {message}")
+    for marker in SYSTEM_ENVIRONMENT_PROOF_FRAMEWORK_MARKERS:
+        if marker not in text:
+            errors.append(f"{rel(path, connector_root)}: missing {marker} in framework environment section")
+
+
+def _check_system_environment_proof_framework_status(
+    path: Path,
+    data: dict[str, Any],
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    if "framework_common_sh_status" not in data:
+        errors.append(f"{rel(path, connector_root)}: missing framework_common_sh_status")
+    framework_environment = data.get("framework_environment")
+    if not isinstance(framework_environment, dict):
+        errors.append(f"{rel(path, connector_root)}: missing framework_environment object")
+    elif "common_sh_status" not in framework_environment:
+        errors.append(f"{rel(path, connector_root)}: missing framework_environment.common_sh_status")
+
+
+def _check_system_environment_proof_https_policy(
+    path: Path,
+    data: dict[str, Any],
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    https_policy = data.get("https_repo_url_policy")
+    if not isinstance(https_policy, dict):
+        errors.append(f"{rel(path, connector_root)}: missing https_repo_url_policy object")
+        return
+    for key in HTTPS_REPO_URL_POLICY_FIELDS:
+        if key not in https_policy:
+            errors.append(f"{rel(path, connector_root)}: https_repo_url_policy missing {key}")
+
+
+def _check_system_environment_proof_runtime_readiness(
+    path: Path,
+    data: dict[str, Any],
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    readiness = data.get("runtime_component_readiness")
+    if not isinstance(readiness, list) or not readiness:
+        errors.append(f"{rel(path, connector_root)}: runtime_component_readiness list is missing")
+        return
+    for item in readiness:
+        if not isinstance(item, dict):
+            errors.append(f"{rel(path, connector_root)}: runtime readiness entry must be an object")
+            continue
+        for key in RUNTIME_COMPONENT_READINESS_FIELDS:
+            if key not in item:
+                errors.append(f"{rel(path, connector_root)}: runtime readiness {item.get('component', '<unknown>')} missing {key}")
+
+
+def _check_system_environment_proof_tools(
+    path: Path,
+    data: dict[str, Any],
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    tools = data.get("tools")
+    if not isinstance(tools, list) or not tools:
+        errors.append(f"{rel(path, connector_root)}: tools list is missing")
+        return
+    for tool in tools:
+        if not isinstance(tool, dict):
+            errors.append(f"{rel(path, connector_root)}: tool entry must be an object")
+            continue
+        for key in SYSTEM_ENVIRONMENT_PROOF_TOOL_FIELDS:
+            if key not in tool:
+                errors.append(f"{rel(path, connector_root)}: tool {tool.get('tool', '<unknown>')} missing {key}")
+
+
+def _check_system_environment_proof_json(
+    path: Path,
+    data: dict[str, Any],
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    _check_system_environment_proof_framework_status(path, data, connector_root, errors)
+    _check_system_environment_proof_https_policy(path, data, connector_root, errors)
+    _check_system_environment_proof_runtime_readiness(path, data, connector_root, errors)
+    _check_system_environment_proof_tools(path, data, connector_root, errors)
+
+
 def check_system_environment_proof(connector_root: Path, errors: list[str]) -> None:
     md_path = report_path(connector_root, "system_environment_proof", "md")
     json_path = report_path(connector_root, "system_environment_proof", "json")
     if md_path.is_file():
-        text = md_path.read_text(encoding="utf-8", errors="replace")
-        if "## Framework Environment Resolution" not in text:
-            errors.append(f"{rel(md_path, connector_root)}: missing Framework Environment Resolution section")
-        if "## Runtime Component Readiness" not in text:
-            errors.append(f"{rel(md_path, connector_root)}: missing Runtime Component Readiness section")
-        if "## NGINX Runtime Module Readiness" not in text:
-            errors.append(f"{rel(md_path, connector_root)}: missing NGINX Runtime Module Readiness section")
-        if "## HTTPS Repository URL Policy" not in text:
-            errors.append(f"{rel(md_path, connector_root)}: missing HTTPS Repository URL Policy section")
-        expected_header = "| Tool | Status | Resolved Command | Source | Candidates | Version / Output | Notes |"
-        if expected_header not in text:
-            errors.append(f"{rel(md_path, connector_root)}: tool table missing Candidates/Notes columns")
-        readiness_header = "| Component | Status | Expected Path | Source URL | Version / Ref | How to Prepare |"
-        if readiness_header not in text:
-            errors.append(f"{rel(md_path, connector_root)}: runtime readiness table missing Source URL/Version columns")
-        for marker in (
-            "CI_APACHE_BIN_CANDIDATES",
-            "CI_APXS_BIN_CANDIDATES",
-            "CI_NGINX_BIN_CANDIDATES",
-            "GO_FTW_SOURCE_URL",
-            "GO_FTW_PROMPT_EXPECTED_LATEST",
-            "ALBEDO_SOURCE_URL",
-            "ALBEDO_PROMPT_EXPECTED_LATEST",
-            "EXPAT_SOURCE_URL",
-        ):
-            if marker not in text:
-                errors.append(f"{rel(md_path, connector_root)}: missing {marker} in framework environment section")
+        _check_system_environment_proof_markdown(
+            md_path,
+            md_path.read_text(encoding="utf-8", errors="replace"),
+            connector_root,
+            errors,
+        )
     if json_path.is_file():
-        data = load_json(json_path, errors, connector_root)
-        if "framework_common_sh_status" not in data:
-            errors.append(f"{rel(json_path, connector_root)}: missing framework_common_sh_status")
-        framework_environment = data.get("framework_environment")
-        if not isinstance(framework_environment, dict):
-            errors.append(f"{rel(json_path, connector_root)}: missing framework_environment object")
-        elif "common_sh_status" not in framework_environment:
-            errors.append(f"{rel(json_path, connector_root)}: missing framework_environment.common_sh_status")
-        https_policy = data.get("https_repo_url_policy")
-        if not isinstance(https_policy, dict):
-            errors.append(f"{rel(json_path, connector_root)}: missing https_repo_url_policy object")
-        else:
-            for key in ("status", "blocked_protocols", "allowed_protocol", "notes"):
-                if key not in https_policy:
-                    errors.append(f"{rel(json_path, connector_root)}: https_repo_url_policy missing {key}")
-        readiness = data.get("runtime_component_readiness")
-        if not isinstance(readiness, list) or not readiness:
-            errors.append(f"{rel(json_path, connector_root)}: runtime_component_readiness list is missing")
-        else:
-            for item in readiness:
-                if not isinstance(item, dict):
-                    errors.append(f"{rel(json_path, connector_root)}: runtime readiness entry must be an object")
-                    continue
-                for key in ("source_url", "version_ref"):
-                    if key not in item:
-                        errors.append(f"{rel(json_path, connector_root)}: runtime readiness {item.get('component', '<unknown>')} missing {key}")
-        tools = data.get("tools")
-        if not isinstance(tools, list) or not tools:
-            errors.append(f"{rel(json_path, connector_root)}: tools list is missing")
-            return
-        for tool in tools:
-            if not isinstance(tool, dict):
-                errors.append(f"{rel(json_path, connector_root)}: tool entry must be an object")
-                continue
-            for key in ("resolved_command", "source", "candidates", "version_output", "return_code", "notes"):
-                if key not in tool:
-                    errors.append(f"{rel(json_path, connector_root)}: tool {tool.get('tool', '<unknown>')} missing {key}")
+        _check_system_environment_proof_json(
+            json_path,
+            load_json(json_path, errors, connector_root),
+            connector_root,
+            errors,
+        )
 
 
 def legacy_reference_regex() -> re.Pattern[str]:
@@ -634,8 +714,7 @@ def legacy_reference_regex() -> re.Pattern[str]:
     )
 
 
-def check_no_legacy_references(connector_root: Path, errors: list[str]) -> None:
-    pattern = legacy_reference_regex()
+def _legacy_reference_candidates(connector_root: Path) -> list[Path]:
     candidates: list[Path] = [connector_root / "README.md", connector_root / "Makefile"]
     for base in (connector_root / "docs", connector_root / "reports/testing"):
         if not base.is_dir():
@@ -647,10 +726,15 @@ def check_no_legacy_references(connector_root: Path, errors: list[str]) -> None:
                 candidates.append(path)
     candidates.extend(sorted((connector_root / "reports/testing/generated").rglob("*.generated.md")))
     candidates.extend(sorted((connector_root / "reports/testing/generated").rglob("*.generated.json")))
-    for path in candidates:
+    return candidates
+
+
+def check_no_legacy_references(connector_root: Path, errors: list[str]) -> None:
+    pattern = legacy_reference_regex()
+    for path in _legacy_reference_candidates(connector_root):
         if not path.is_file():
             continue
-        if path.name.startswith("system-environment-proof.generated."):
+        if path.name.startswith(SYSTEM_ENVIRONMENT_PROOF_GENERATED_PREFIX):
             continue
         for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), start=1):
             if pattern.search(line):
@@ -690,7 +774,7 @@ def check_no_runtime_source_url_hardcoding(connector_root: Path, errors: list[st
             errors.append(f"{rel(path, connector_root)}: hard-coded runtime source URL must live in framework common.sh: {url}")
 
 
-def check_no_insecure_repo_url_literals(connector_root: Path, framework_root: Path, errors: list[str]) -> None:
+def _check_insecure_repo_url_policy_examples(errors: list[str]) -> None:
     for pattern in INSECURE_REPO_URL_PATTERNS:
         if not any(pattern in sample for sample in negative_tests):
             errors.append(f"internal https-url-policy negative tests do not cover: {pattern}")
@@ -700,7 +784,9 @@ def check_no_insecure_repo_url_literals(connector_root: Path, framework_root: Pa
     for sample in allowed_examples:
         if not is_plain_https_github_repo_url(sample):
             errors.append(f"internal https-url-policy allowed example was rejected: {sample}")
-    text_suffixes = {"", ".md", ".py", ".sh", ".json", ".yml", ".yaml", ".mk"}
+
+
+def _insecure_repo_url_scan_paths(connector_root: Path, framework_root: Path) -> list[Path]:
     scan_paths: list[Path] = [
         connector_root / "Makefile",
         connector_root / "README.md",
@@ -714,54 +800,78 @@ def check_no_insecure_repo_url_literals(connector_root: Path, framework_root: Pa
     ):
         if base.is_dir():
             scan_paths.extend(path for path in sorted(base.rglob("*")) if path.is_file())
-    for path in scan_paths:
-        if not path.is_file():
+    return scan_paths
+
+
+def _is_insecure_repo_url_scan_candidate(path: Path, connector_root: Path) -> bool:
+    if not path.is_file() or "__pycache__" in path.parts or path.suffix not in REPO_URL_TEXT_SUFFIXES:
+        return False
+    try:
+        if (connector_root / GENERATED_ROOT).resolve(strict=False) in path.resolve(strict=False).parents:
+            return False
+    except OSError:
+        return False
+    if path.resolve(strict=False) == Path(__file__).resolve(strict=False):
+        return False
+    if path.name == "generate-system-environment-proof.py":
+        return False
+    return not path.name.startswith(SYSTEM_ENVIRONMENT_PROOF_GENERATED_PREFIX)
+
+
+def _check_insecure_repo_url_literals_in_path(path: Path, connector_root: Path, errors: list[str]) -> None:
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except UnicodeDecodeError:
+        return
+    for line_number, line in enumerate(lines, start=1):
+        for pattern in INSECURE_REPO_URL_PATTERNS:
+            if pattern in line:
+                errors.append(f"{rel(path, connector_root)}:{line_number}: insecure repo URL protocol literal: {pattern}")
+
+
+def check_no_insecure_repo_url_literals(connector_root: Path, framework_root: Path, errors: list[str]) -> None:
+    _check_insecure_repo_url_policy_examples(errors)
+    for path in _insecure_repo_url_scan_paths(connector_root, framework_root):
+        if not _is_insecure_repo_url_scan_candidate(path, connector_root):
             continue
-        if "__pycache__" in path.parts or path.suffix not in text_suffixes:
-            continue
-        try:
-            if (connector_root / GENERATED_ROOT).resolve(strict=False) in path.resolve(strict=False).parents:
-                continue
-        except OSError:
-            continue
-        if path.resolve(strict=False) == Path(__file__).resolve(strict=False):
-            continue
-        if path.name == "generate-system-environment-proof.py":
-            continue
-        if path.name.startswith("system-environment-proof.generated."):
-            continue
-        try:
-            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        except UnicodeDecodeError:
-            continue
-        for line_number, line in enumerate(lines, start=1):
-            for pattern in INSECURE_REPO_URL_PATTERNS:
-                if pattern in line:
-                    errors.append(f"{rel(path, connector_root)}:{line_number}: insecure repo URL protocol literal: {pattern}")
+        _check_insecure_repo_url_literals_in_path(path, connector_root, errors)
+
+
+def _check_registry_report_metadata(key: str, report: Any, errors: list[str]) -> None:
+    if not report.category:
+        errors.append(f"registry:{key}: missing category")
+    if not report.owner:
+        errors.append(f"registry:{key}: missing owner")
+    if not report.severity:
+        errors.append(f"registry:{key}: missing severity")
+
+
+def _check_registry_report_outputs(
+    key: str,
+    report: Any,
+    connector_root: Path,
+    errors: list[str],
+) -> None:
+    for ext in report.formats:
+        path = report_path(connector_root, key, ext)
+        paths = (path, german_generated_markdown_path(path)) if ext == "md" else (path,)
+        for registered_path in paths:
+            if registered_path.parent.name != report.category:
+                errors.append(f"{rel(registered_path, connector_root)}: registry category mismatch")
+            if (
+                not registered_path.is_file()
+                and report.commit_policy not in {"local-only", "do-not-commit"}
+                and report.data_kind != "system-proof"
+            ):
+                errors.append(f"{rel(registered_path, connector_root)}: registry output missing")
 
 
 def check_registry_paths(connector_root: Path, errors: list[str]) -> None:
     for key, report in GENERATED_REPORTS.items():
-        if os.environ.get("ALLOW_IN_PROGRESS_SYSTEM_PROOF") == "1" and key == "verified_run_manifest":
+        if os.environ.get(ALLOW_IN_PROGRESS_SYSTEM_PROOF_ENV) == ALLOW_IN_PROGRESS_SYSTEM_PROOF_VALUE and key == "verified_run_manifest":
             continue
-        if not report.category:
-            errors.append(f"registry:{key}: missing category")
-        if not report.owner:
-            errors.append(f"registry:{key}: missing owner")
-        if not report.severity:
-            errors.append(f"registry:{key}: missing severity")
-        for ext in report.formats:
-            path = report_path(connector_root, key, ext)
-            paths = (path, german_generated_markdown_path(path)) if ext == "md" else (path,)
-            for registered_path in paths:
-                if registered_path.parent.name != report.category:
-                    errors.append(f"{rel(registered_path, connector_root)}: registry category mismatch")
-                if (
-                    not registered_path.is_file()
-                    and report.commit_policy not in {"local-only", "do-not-commit"}
-                    and report.data_kind != "system-proof"
-                ):
-                    errors.append(f"{rel(registered_path, connector_root)}: registry output missing")
+        _check_registry_report_metadata(key, report, errors)
+        _check_registry_report_outputs(key, report, connector_root, errors)
 
 
 def check_no_orphan_generated_reports(connector_root: Path, errors: list[str]) -> None:
@@ -847,7 +957,7 @@ def check_critical_report_run_consistency(
 ) -> None:
     run_ids: dict[str, set[str]] = {}
     keys = critical_run_keys()
-    if os.environ.get("ALLOW_IN_PROGRESS_SYSTEM_PROOF") == "1":
+    if os.environ.get(ALLOW_IN_PROGRESS_SYSTEM_PROOF_ENV) == ALLOW_IN_PROGRESS_SYSTEM_PROOF_VALUE:
         keys = keys - {"system_environment_proof", "verified_run_manifest"}
     for key in sorted(keys):
         report = GENERATED_REPORTS[key]
@@ -1398,6 +1508,42 @@ def check_verified_runtime_artifact_chain(
     )
 
 
+def _check_completed_runtime_diagnostics(
+    *,
+    runtime_complete: bool,
+    stale_reports: list[Any],
+    refresh_timeout: bool,
+    critical_mismatches: int,
+    errors: list[str],
+) -> None:
+    if runtime_complete and stale_reports:
+        errors.append(
+            "critical runtime evidence exists but downstream reports are stale: "
+            + ", ".join(str(item) for item in stale_reports)
+        )
+    if runtime_complete and refresh_timeout:
+        errors.append("refresh timeout after runtime completed; merge dashboard cannot PASS until downstream reports are fresh")
+    if runtime_complete and critical_mismatches:
+        errors.append(f"full-matrix critical mismatches detected: {critical_mismatches}; merge dashboard cannot PASS")
+
+
+def _check_incomplete_runtime_diagnostics(
+    *,
+    runtime_complete: bool,
+    mismatch: dict[str, Any],
+    full_matrix: dict[str, Any],
+    errors: list[str],
+) -> None:
+    if not runtime_complete and mismatch:
+        completed = full_matrix.get("completed_jobs", "unknown")
+        expected = full_matrix.get("expected_jobs", "unknown")
+        missing = full_matrix.get("missing_jobs") if isinstance(full_matrix.get("missing_jobs"), list) else []
+        errors.append(
+            f"full-matrix incomplete: {completed}/{expected} jobs complete; missing jobs: "
+            + (", ".join(str(item) for item in missing) if missing else "unknown")
+        )
+
+
 def check_verified_runtime_diagnostics(connector_root: Path, errors: list[str], *, strict_evidence: bool) -> None:
     if not strict_evidence:
         return
@@ -1412,23 +1558,19 @@ def check_verified_runtime_diagnostics(connector_root: Path, errors: list[str], 
     refresh_timeout = bool(dashboard.get("full_matrix_refresh_timeout") or full_matrix.get("refresh_timeout"))
     critical_mismatches = int(mismatch.get("critical_mismatch_count") or dashboard.get("critical_runtime_mismatch_count") or 0)
     stale_reports = dashboard.get("stale_reports") if isinstance(dashboard.get("stale_reports"), list) else []
-    if runtime_complete and stale_reports:
-        errors.append(
-            "critical runtime evidence exists but downstream reports are stale: "
-            + ", ".join(str(item) for item in stale_reports)
-        )
-    if runtime_complete and refresh_timeout:
-        errors.append("refresh timeout after runtime completed; merge dashboard cannot PASS until downstream reports are fresh")
-    if runtime_complete and critical_mismatches:
-        errors.append(f"full-matrix critical mismatches detected: {critical_mismatches}; merge dashboard cannot PASS")
-    if not runtime_complete and mismatch:
-        completed = full_matrix.get("completed_jobs", "unknown")
-        expected = full_matrix.get("expected_jobs", "unknown")
-        missing = full_matrix.get("missing_jobs") if isinstance(full_matrix.get("missing_jobs"), list) else []
-        errors.append(
-            f"full-matrix incomplete: {completed}/{expected} jobs complete; missing jobs: "
-            + (", ".join(str(item) for item in missing) if missing else "unknown")
-        )
+    _check_completed_runtime_diagnostics(
+        runtime_complete=runtime_complete,
+        stale_reports=stale_reports,
+        refresh_timeout=refresh_timeout,
+        critical_mismatches=critical_mismatches,
+        errors=errors,
+    )
+    _check_incomplete_runtime_diagnostics(
+        runtime_complete=runtime_complete,
+        mismatch=mismatch,
+        full_matrix=full_matrix,
+        errors=errors,
+    )
 
 
 def main() -> int:
