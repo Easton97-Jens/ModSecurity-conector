@@ -23,7 +23,6 @@
 #include "ngx_http_modsecurity_common.h"
 #include "ngx_http_modsecurity_mapper.h"
 #include "msconnector/event.h"
-#include "msconnector/event_jsonl.h"
 
 static void ngx_http_modsecurity_request_intervention_log_event(
     ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
@@ -58,15 +57,9 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     const char *reason)
 {
     msconnector_event event;
-    char line[4096];
-    int json_truncated = 0;
-    size_t line_length;
-    ssize_t written;
     ngx_http_modsecurity_ctx_t *ctx;
     const char *wanted;
-    const char *method = "";
-    const char *uri = "";
-    const char *content_type = "";
+    ngx_http_modsecurity_event_request_metadata_t request_metadata;
 
     if (r == NULL || mcf == NULL || mcf->phase4_log_file == NULL ||
         mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
@@ -76,26 +69,7 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     ctx = ngx_http_modsecurity_get_module_ctx(r);
     wanted = ctx != NULL && ctx->last_intervention_status >= 300 &&
         ctx->last_intervention_status < 400 ? "redirect" : "deny";
-    if (r->method_name.len > 0U) {
-        const char *value = ngx_str_to_char(r->method_name, r->pool);
-        if (value != (char *)-1 && value != NULL) {
-            method = value;
-        }
-    }
-    if (r->unparsed_uri.len > 0U) {
-        const char *value = ngx_str_to_char(r->unparsed_uri, r->pool);
-        if (value != (char *)-1 && value != NULL) {
-            uri = value;
-        }
-    }
-    if (r->headers_in.content_type != NULL &&
-        r->headers_in.content_type->value.len > 0U) {
-        const char *value = ngx_str_to_char(r->headers_in.content_type->value,
-            r->pool);
-        if (value != (char *)-1 && value != NULL) {
-            content_type = value;
-        }
-    }
+    request_metadata = ngx_http_modsecurity_event_request_metadata(r);
 
     msconnector_event_init(&event);
     event.meta.message_id = MSCONN_EVENT_REQUEST_BLOCKED;
@@ -118,25 +92,15 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
         ? (int)ctx->last_intervention_status : NGX_HTTP_FORBIDDEN;
     event.http.visible_http_status = event.http.http_status;
     event.http.transport_result = "http_status";
-    event.request.method = method;
-    event.request.uri = uri;
-    event.body.content_type = content_type;
+    event.request.method = request_metadata.method;
+    event.request.uri = request_metadata.uri;
+    event.body.content_type = request_metadata.content_type;
 
-    if (!msconnector_event_write_jsonl_line(&event, line, sizeof(line),
-        &json_truncated)) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-            "modsecurity request intervention event serialization failed%s",
-            json_truncated ? " (truncated)" : "");
+    if (!ngx_http_modsecurity_write_event_jsonl(
+            r, mcf, &event,
+            "modsecurity request intervention event serialization failed",
+            "modsecurity request intervention log write failed")) {
         return;
-    }
-
-    line_length = ngx_strlen(line);
-    written = ngx_write_fd(mcf->phase4_log_file->fd, (u_char *)line,
-        line_length);
-    if (written < 0 || (size_t)written != line_length) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log,
-            written < 0 ? ngx_errno : 0,
-            "modsecurity request intervention log write failed");
     }
 }
 
@@ -154,15 +118,6 @@ ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
         dd("ModSecurity not enabled... returning");
         return NGX_DECLINED;
     }
-
-    /*
-    if (r->method != NGX_HTTP_GET &&
-        r->method != NGX_HTTP_POST && r->method != NGX_HTTP_HEAD) {
-        dd("ModSecurity is not ready to deal with anything different from " \
-            "POST, GET or HEAD");
-        return NGX_DECLINED;
-    }
-    */
 
     dd("catching a new _access_ phase handler");
 

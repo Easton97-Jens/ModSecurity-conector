@@ -81,6 +81,25 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
         )
         self._git(connector_root, "commit", "--quiet", "-m", "record framework gitlink")
 
+    def _framework_checkout_with_recorded_gitlink(
+        self,
+        root: Path,
+    ) -> tuple[Path, Path, str]:
+        framework_source = root / "framework-source"
+        framework_sha = self._init_repository(framework_source)
+        connector_root = root / "connector"
+        self._init_repository(connector_root)
+        framework_root = connector_root / "modules" / "ModSecurity-test-Framework"
+        self._git(
+            connector_root,
+            "clone",
+            "--quiet",
+            str(framework_source),
+            str(framework_root),
+        )
+        self._record_framework_gitlink(connector_root, framework_sha)
+        return connector_root, framework_root, framework_sha
+
     def _write_generated_framework_input(
         self,
         connector_root: Path,
@@ -153,19 +172,9 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
     def test_framework_provenance_marks_a_matching_gitlink_checkout(self) -> None:
         with tempfile.TemporaryDirectory(prefix="framework-provenance-match-") as temporary:
             root = Path(temporary)
-            framework_source = root / "framework-source"
-            framework_sha = self._init_repository(framework_source)
-            connector_root = root / "connector"
-            self._init_repository(connector_root)
-            framework_root = connector_root / "modules" / "ModSecurity-test-Framework"
-            self._git(
-                connector_root,
-                "clone",
-                "--quiet",
-                str(framework_source),
-                str(framework_root),
+            connector_root, framework_root, framework_sha = (
+                self._framework_checkout_with_recorded_gitlink(root)
             )
-            self._record_framework_gitlink(connector_root, framework_sha)
 
             provenance = generated_report_utils.framework_provenance(
                 connector_root, framework_root
@@ -180,19 +189,9 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
     def test_framework_provenance_marks_a_checkout_that_differs_from_its_gitlink(self) -> None:
         with tempfile.TemporaryDirectory(prefix="framework-provenance-mismatch-") as temporary:
             root = Path(temporary)
-            framework_source = root / "framework-source"
-            framework_sha = self._init_repository(framework_source)
-            connector_root = root / "connector"
-            self._init_repository(connector_root)
-            framework_root = connector_root / "modules" / "ModSecurity-test-Framework"
-            self._git(
-                connector_root,
-                "clone",
-                "--quiet",
-                str(framework_source),
-                str(framework_root),
+            connector_root, framework_root, framework_sha = (
+                self._framework_checkout_with_recorded_gitlink(root)
             )
-            self._record_framework_gitlink(connector_root, framework_sha)
             self._git(framework_root, "config", "user.email", "tests@example.invalid")
             self._git(framework_root, "config", "user.name", "Connector tests")
             (framework_root / "tracked.txt").write_text("mismatch\n", encoding="utf-8")
@@ -252,19 +251,9 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
         run_id = "framework-provenance-fixture"
         with tempfile.TemporaryDirectory(prefix="framework-input-mismatch-") as temporary:
             root = Path(temporary)
-            framework_source = root / "framework-source"
-            framework_sha = self._init_repository(framework_source)
-            connector_root = root / "connector"
-            self._init_repository(connector_root)
-            framework_root = connector_root / "modules" / "ModSecurity-test-Framework"
-            self._git(
-                connector_root,
-                "clone",
-                "--quiet",
-                str(framework_source),
-                str(framework_root),
+            connector_root, framework_root, framework_sha = (
+                self._framework_checkout_with_recorded_gitlink(root)
             )
-            self._record_framework_gitlink(connector_root, framework_sha)
             self._git(framework_root, "config", "user.email", "tests@example.invalid")
             self._git(framework_root, "config", "user.name", "Connector tests")
             (framework_root / "tracked.txt").write_text("mismatch\n", encoding="utf-8")
@@ -447,11 +436,11 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
                 "apache", run_dir, manifest_path
             )
 
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
         command = run.call_args.args[0]
         self.assertIn("validate", command)
         self.assertIn("--check", command)
-        self.assertEqual("all", command[command.index("--check") + 1])
+        self.assertEqual(command[command.index("--check") + 1], "all")
         self.assertIn("--connector-root", command)
         self.assertEqual(str(ROOT), command[command.index("--connector-root") + 1])
 

@@ -133,6 +133,57 @@ class SonarReliabilityContractTests(unittest.TestCase):
         self.assertIn('return "internal";', descriptions)
         self.assertIn('return "Internal connector error";', descriptions)
 
+    def test_haproxy_accept_loop_retries_only_interrupted_accepts(self) -> None:
+        source = (
+            ROOT
+            / "connectors"
+            / "haproxy"
+            / "src"
+            / "haproxy_spop_diagnostic_runtime.c"
+        ).read_text(encoding="utf-8")
+        accept_loop_start = source.index("static int accept_loop(")
+        accept_loop_end = source.index(
+            "\n}\n\nstatic int client_expect_frame", accept_loop_start
+        )
+        accept_loop = source[accept_loop_start:accept_loop_end]
+        failed_accept_start = accept_loop.index("if (fd < 0) {")
+        success_start = accept_loop.index("handle_connection(", failed_accept_start)
+        failed_accept = accept_loop[failed_accept_start:success_start]
+        terminal_error_start = failed_accept.index("if (errno != EINTR) {")
+        interrupted_stop_start = failed_accept.index("if (stop_requested) {")
+        terminal_error = failed_accept[
+            terminal_error_start:interrupted_stop_start
+        ]
+        interrupted_accept = failed_accept[interrupted_stop_start:]
+
+        self.assertNotIn("if (errno == EINTR)", failed_accept)
+        self.assertIn(
+            'log_line(log, "accept failed errno=%d", errno);', terminal_error
+        )
+        self.assertIn("return 1;", terminal_error)
+        self.assertLess(
+            terminal_error.index('log_line(log, "accept failed errno=%d", errno);'),
+            terminal_error.index("return 1;"),
+        )
+        self.assertNotIn("if (stop_requested)", terminal_error)
+        self.assertIn("break;", interrupted_accept)
+        self.assertIn("continue;", interrupted_accept)
+        self.assertLess(
+            interrupted_accept.index("break;"), interrupted_accept.index("continue;")
+        )
+        self.assertNotIn("return 1;", interrupted_accept)
+        self.assertNotIn("handle_connection(", failed_accept)
+        self.assertNotIn("close(fd);", failed_accept)
+        self.assertNotIn("handled++;", failed_accept)
+
+        success_path = accept_loop[success_start:]
+        self.assertLess(
+            success_path.index("handle_connection("), success_path.index("close(fd);")
+        )
+        self.assertLess(
+            success_path.index("close(fd);"), success_path.index("handled++;"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

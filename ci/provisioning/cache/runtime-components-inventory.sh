@@ -128,7 +128,8 @@ local_status_for_binary() {
 }
 
 connector_result_root() {
-    case "$1" in
+    result_connector=$1
+    case "$result_connector" in
         envoy) printf '%s\n' "$ENVOY_RESULT_ROOT" ;;
         traefik) printf '%s\n' "$TRAEFIK_RESULT_ROOT" ;;
         lighttpd) printf '%s\n' "$LIGHTTPD_RESULT_ROOT" ;;
@@ -145,6 +146,7 @@ ruleset_result_file() {
         crs) printf '%s\n' "$result_root/crs-result.json" ;;
         crs-secondary) printf '%s\n' "$result_root/crs-secondary-result.json" ;;
         current) printf '%s\n' "$result_root/result.json" ;;
+        *) printf '%s\n' "" ;;
     esac
 }
 
