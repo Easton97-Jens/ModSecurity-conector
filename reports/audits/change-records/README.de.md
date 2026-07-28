@@ -13,6 +13,7 @@ Review- oder Delivery-Ergebnisse behaupten.
 - [Parent-Report-Generator-Conditionals und Access-Log-Regex für SonarQube Cloud](CR-20260727-sonar-report-conditionals-regex.de.md)
 - [Parent-Python-Generator-Conditionals für SonarQube Cloud python:S3358](CR-20260727-sonar-generator-conditionals.de.md)
 - [Parent-Zerlegung des Generated-Report-Layouts für SonarQube Cloud](CR-20260728-sonar-generated-report-layout-decomposition.de.md)
+- [Parent-Runtime-Mismatch-Control-Path-Deduplizierung für SonarQube Cloud](CR-20260728-sonar-runtime-mismatch-control-path-deduplication.de.md)
 - [Parent-Repository-Inventar-Komplexitätsbehebung für SonarQube Cloud S3776](CR-20260727-sonar-s3776-repository-inventory.de.md)
 - [Parent-Shell-Dispatch-Rule-Remediation für SonarQube Cloud S131 und S7679](CR-20260727-sonar-shell-dispatch-rules.de.md)
 Der führende Eintrag dokumentiert das SonarQube-Cloud-Ergebnis des initialen

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -18,6 +19,11 @@ def load_report_module(relative_path: str, module_name: str):
     sys.modules[module_name] = module
     specification.loader.exec_module(module)
     return module
+
+
+def write_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value), encoding="utf-8")
 
 
 CONNECTOR_ROADMAP = load_report_module(
@@ -158,6 +164,150 @@ class ReportConditionalRemediationTest(unittest.TestCase):
             "runtime_timeout",
         )
         self.assertEqual(RUNTIME_MISMATCH.full_runtime_status({}, [], False), "not_run")
+
+    def test_no_mrts_control_identity_uses_fixed_connector_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            build_root = Path(temporary) / "build"
+            for connector in ("apache", "haproxy", "nginx"):
+                with self.subTest(connector=connector):
+                    identity = RUNTIME_MISMATCH._no_mrts_control_identity(
+                        build_root=build_root,
+                        connector=connector,
+                        variant="with-crs/with-mrts",
+                    )
+                    self.assertEqual(
+                        identity,
+                        ("with-crs", build_root / "full-matrix" / "with-crs" / "no-mrts" / connector),
+                    )
+
+            self.assertIsNone(
+                RUNTIME_MISMATCH._no_mrts_control_identity(
+                    build_root=build_root,
+                    connector="envoy",
+                    variant="with-crs/with-mrts",
+                )
+            )
+            self.assertIsNone(
+                RUNTIME_MISMATCH._no_mrts_control_identity(
+                    build_root=build_root,
+                    connector="apache",
+                    variant="with-crs",
+                )
+            )
+
+    def test_no_mrts_controls_keep_pass_403_and_missing_evidence_predicates(self) -> None:
+        case_name = "control-case"
+        with tempfile.TemporaryDirectory() as temporary:
+            build_root = Path(temporary) / "build"
+            for connector in ("apache", "haproxy", "nginx"):
+                with self.subTest(connector=connector):
+                    row = {"connector": connector, "variant": "with-crs/with-mrts"}
+                    self.assertIsNone(RUNTIME_MISMATCH.no_mrts_control_evidence(row, build_root=build_root))
+                    self.assertIsNone(
+                        RUNTIME_MISMATCH.no_mrts_case_control_evidence(
+                            row,
+                            build_root=build_root,
+                            case_name=case_name,
+                        )
+                    )
+
+                    control_root = build_root / "full-matrix" / "with-crs" / "no-mrts" / connector
+                    if connector in {"apache", "haproxy"}:
+                        secaction_result = (
+                            control_root
+                            / "logs"
+                            / f"{connector}-runtime"
+                            / RUNTIME_MISMATCH.SECACTION_DETECTION_ONLY_CASE
+                            / "result.json"
+                        )
+                        case_result = control_root / "logs" / f"{connector}-runtime" / case_name / "result.json"
+                    else:
+                        secaction_result = build_root / "nginx-results" / "secaction-result.json"
+                        case_result = build_root / "nginx-results" / "case-result.json"
+                        write_json(
+                            control_root / "results" / "force-all" / "nginx-summary.json",
+                            {
+                                "nginx": {
+                                    "cases": [
+                                        {
+                                            "name": RUNTIME_MISMATCH.SECACTION_DETECTION_ONLY_CASE,
+                                            "evidence_path": str(secaction_result),
+                                        },
+                                        {"name": case_name, "evidence_path": str(case_result)},
+                                    ]
+                                }
+                            },
+                        )
+
+                    write_json(secaction_result, {"status": "pass", "actual_status": 403})
+                    write_json(case_result, {"status": "pass", "actual_status": 403})
+                    if connector == "nginx":
+                        secaction_result.parent.joinpath("error.log").write_text('[id "3312"]\n', encoding="utf-8")
+
+                    self.assertEqual(
+                        RUNTIME_MISMATCH.no_mrts_control_evidence(row, build_root=build_root)["variant"],
+                        "with-crs/no-mrts",
+                    )
+                    self.assertEqual(
+                        RUNTIME_MISMATCH.no_mrts_case_control_evidence(
+                            row,
+                            build_root=build_root,
+                            case_name=case_name,
+                        )["actual"],
+                        "403",
+                    )
+
+                    write_json(secaction_result, {"status": "pass", "actual_status": 200})
+                    self.assertIsNone(RUNTIME_MISMATCH.no_mrts_control_evidence(row, build_root=build_root))
+                    write_json(case_result, {"status": "fail", "actual_status": 403})
+                    self.assertIsNone(
+                        RUNTIME_MISMATCH.no_mrts_case_control_evidence(
+                            row,
+                            build_root=build_root,
+                            case_name=case_name,
+                        )
+                    )
+
+    def test_nginx_no_mrts_phase4_control_keeps_summary_and_marker_predicates(self) -> None:
+        case_name = "phase4-control"
+        row = {"connector": "nginx", "variant": "with-crs/with-mrts", "case": case_name}
+        with tempfile.TemporaryDirectory() as temporary:
+            build_root = Path(temporary) / "build"
+            control_root = build_root / "full-matrix" / "with-crs" / "no-mrts" / "nginx"
+            summary_path = control_root / "results" / "force-all" / "nginx-summary.json"
+            evidence_path = build_root / "nginx-results" / "phase4-result.json"
+            phase4_log_path = evidence_path.parent / "phase4.log"
+
+            self.assertIsNone(RUNTIME_MISMATCH.nginx_no_mrts_phase4_log_control(row, build_root=build_root))
+            phase4_log_path.parent.mkdir(parents=True, exist_ok=True)
+            phase4_log_path.write_text("phase4_intervention\n", encoding="utf-8")
+            write_json(evidence_path, {"connector_phase4_log_path": str(phase4_log_path)})
+            write_json(
+                summary_path,
+                {"nginx": {"cases": [{"name": case_name, "status": "pass", "evidence_path": str(evidence_path)}]}},
+            )
+
+            self.assertEqual(
+                RUNTIME_MISMATCH.nginx_no_mrts_phase4_log_control(row, build_root=build_root),
+                {
+                    "variant": "with-crs/no-mrts",
+                    "result": "nginx-results/phase4-result.json",
+                    "phase4_log": "nginx-results/phase4.log",
+                    "status": "pass",
+                },
+            )
+
+            write_json(
+                summary_path,
+                {"nginx": {"cases": [{"name": case_name, "status": "fail", "evidence_path": str(evidence_path)}]}},
+            )
+            self.assertIsNone(RUNTIME_MISMATCH.nginx_no_mrts_phase4_log_control(row, build_root=build_root))
+            write_json(
+                summary_path,
+                {"nginx": {"cases": [{"name": case_name, "status": "pass", "evidence_path": str(evidence_path)}]}},
+            )
+            phase4_log_path.write_text("no intervention marker\n", encoding="utf-8")
+            self.assertIsNone(RUNTIME_MISMATCH.nginx_no_mrts_phase4_log_control(row, build_root=build_root))
 
     def test_report_status_branches_keep_existing_values(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
