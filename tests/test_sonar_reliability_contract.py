@@ -15,19 +15,26 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class SonarReliabilityContractTests(unittest.TestCase):
-    def test_traefik_result_payload_uses_non_null_optional_defaults(self) -> None:
+    def test_traefik_result_payload_uses_fail_closed_bounded_copies(self) -> None:
         source = (
             ROOT / "connectors" / "traefik" / "src" / "traefik_engine_service.c"
         ).read_text(encoding="utf-8")
         send_result = source[source.index("static int traefik_engine_send_result") :]
 
-        self.assertIn("static const char traefik_engine_empty_text[] = \"\";", source)
+        helper_start = source.index("static int traefik_engine_copy_bounded_text")
+        helper_end = source.index("\n}\n\nstatic uint16_t", helper_start)
+        helper = source[helper_start:helper_end]
+
+        self.assertNotIn("traefik_engine_empty_text", source)
+        self.assertIn("if (size == 0U)", helper)
+        self.assertIn("if (destination == NULL || source == NULL)", helper)
+        self.assertIn("destination[offset] = (unsigned char)source[offset];", helper)
         for field in ("transaction_id", "rule_id", "redirect"):
-            self.assertIn(
-                f"const char *{field} = traefik_engine_empty_text;", send_result
-            )
-            self.assertIn(f"if ({field}_size > 0U)", send_result)
-            self.assertNotIn(f"if ({field} != NULL &&", send_result)
+            self.assertIn(f"const char *{field} = NULL;", send_result)
+            self.assertIn(f"{field}_size", send_result)
+
+        self.assertEqual(send_result.count("traefik_engine_copy_bounded_text("), 3)
+        self.assertNotIn("memcpy(payload + offset", send_result)
 
         self.assertIn("const char *const runtime_transaction_id", send_result)
         self.assertIn("const char *const decision_rule_id", send_result)
@@ -110,8 +117,15 @@ int main(void)
     int sockets[2];
     traefik_engine_session session;
     msconnector_decision decision;
+    unsigned char copy_probe[2U] = {0xa5U, 0x5aU};
+    char maximum_transaction_id[TRAEFIK_ENGINE_PROTOCOL_MAX_TRANSACTION_ID + 1U];
+    char maximum_rule_id[TRAEFIK_ENGINE_PROTOCOL_MAX_RULE_ID + 1U];
+    char maximum_redirect[TRAEFIK_ENGINE_PROTOCOL_MAX_REDIRECT + 1U];
 
     assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+    assert(traefik_engine_copy_bounded_text(copy_probe, NULL, 0U) == 1);
+    assert(traefik_engine_copy_bounded_text(copy_probe, NULL, 1U) == 0);
+    assert(copy_probe[0] == 0xa5U && copy_probe[1] == 0x5aU);
     memset(&session, 0, sizeof(session));
     session.transaction = (msconnector_runtime_transaction *)(uintptr_t)1U;
     memset(&decision, 0, sizeof(decision));
@@ -142,6 +156,27 @@ int main(void)
         TRAEFIK_ENGINE_PROTOCOL_RESULT_DISRUPTIVE |
             TRAEFIK_ENGINE_PROTOCOL_RESULT_LATE,
         "transaction-7", "942100", "https://example.test/blocked");
+
+    memset(maximum_transaction_id, 't',
+        TRAEFIK_ENGINE_PROTOCOL_MAX_TRANSACTION_ID);
+    maximum_transaction_id[TRAEFIK_ENGINE_PROTOCOL_MAX_TRANSACTION_ID] = '\0';
+    memset(maximum_rule_id, 'r', TRAEFIK_ENGINE_PROTOCOL_MAX_RULE_ID);
+    maximum_rule_id[TRAEFIK_ENGINE_PROTOCOL_MAX_RULE_ID] = '\0';
+    memset(maximum_redirect, 'u', TRAEFIK_ENGINE_PROTOCOL_MAX_REDIRECT);
+    maximum_redirect[TRAEFIK_ENGINE_PROTOCOL_MAX_REDIRECT] = '\0';
+    test_runtime_transaction_id = maximum_transaction_id;
+    decision.rule_id = maximum_rule_id;
+    decision.redirect_url = maximum_redirect;
+    assert(traefik_engine_send_result(sockets[0],
+        TRAEFIK_ENGINE_PROTOCOL_RESPONSE_HEADERS,
+        TRAEFIK_ENGINE_PROTOCOL_RESULT_RUNTIME, &session, &decision) == 1);
+    assert_result_frame(sockets[1], TRAEFIK_ENGINE_PROTOCOL_RESPONSE_HEADERS,
+        TRAEFIK_ENGINE_PROTOCOL_RESULT_RUNTIME,
+        MSCONNECTOR_DECISION_KIND_REDIRECT,
+        MSCONNECTOR_PHASE_RESPONSE_HEADERS, 307U,
+        TRAEFIK_ENGINE_PROTOCOL_RESULT_DISRUPTIVE |
+            TRAEFIK_ENGINE_PROTOCOL_RESULT_LATE,
+        maximum_transaction_id, maximum_rule_id, maximum_redirect);
 
     assert(close(sockets[0]) == 0);
     assert(close(sockets[1]) == 0);
