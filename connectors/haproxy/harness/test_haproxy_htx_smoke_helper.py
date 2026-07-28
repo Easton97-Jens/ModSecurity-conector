@@ -57,6 +57,42 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertIn(key, runtime)
 
+    def test_runtime_diagnostic_range_is_centralized_without_changing_sed_calls(self) -> None:
+        runtime = RUNTIME_PATH.read_text(encoding="utf-8")
+        HTX_DIAGNOSTIC_RANGE = "1,160p"
+        diagnostic_variable = "HAPROXY_HTX_DIAGNOSTIC_RANGE"
+        declaration = f"readonly {diagnostic_variable}='{HTX_DIAGNOSTIC_RANGE}'"
+        config_check_log = "$case_root/config-check.stderr.log"
+        haproxy_log = "$log_file"
+        synchronized_upstream_log = "$case_root/synchronized-upstream.stderr.log"
+        streaming_client_log = "$case_root/streaming-client.stderr.log"
+        diagnostic_sed = f'sed -n "${diagnostic_variable}"'
+
+        self.assertEqual(runtime.count(declaration), 1)
+        self.assertNotIn(f"sed -n '{HTX_DIAGNOSTIC_RANGE}'", runtime)
+
+        expected_sed_invocations = [
+            "sed -n '1,40p' \"$VERSION_FILE\" >&2 || true",
+            f'{diagnostic_sed} "{config_check_log}" >&2 || true',
+            f'{diagnostic_sed} "{haproxy_log}" >&2 || true',
+            f'{diagnostic_sed} "{haproxy_log}" >&2 || true',
+            f'{diagnostic_sed} "{synchronized_upstream_log}" >&2 || true',
+            f'{diagnostic_sed} "{config_check_log}" >&2 || true',
+            f'{diagnostic_sed} "{haproxy_log}" >&2 || true',
+            f'{diagnostic_sed} "{streaming_client_log}" >&2 || true',
+            f'{diagnostic_sed} "{synchronized_upstream_log}" >&2 || true',
+            f'{diagnostic_sed} "{haproxy_log}" >&2 || true',
+            f'{diagnostic_sed} "{streaming_client_log}" >&2 || true',
+            f'{diagnostic_sed} "{streaming_client_log}" >&2 || true',
+            f'{diagnostic_sed} "{synchronized_upstream_log}" >&2 || true',
+            f'{diagnostic_sed} "{haproxy_log}" >&2 || true',
+        ]
+        actual_sed_invocations = [
+            line.strip() for line in runtime.splitlines() if line.strip().startswith("sed -n ")
+        ]
+
+        self.assertEqual(actual_sed_invocations, expected_sed_invocations)
+
     def test_generated_config_selects_only_native_htx_filter(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
