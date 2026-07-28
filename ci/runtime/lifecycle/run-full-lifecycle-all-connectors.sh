@@ -25,6 +25,7 @@ case "$NO_CRS_RUN_ID" in
 esac
 case "$NO_CRS_RUN_ID" in
     *[!A-Za-z0-9._-]*) echo "FAIL: unsafe NO_CRS_RUN_ID: $NO_CRS_RUN_ID" >&2; exit 2 ;;
+    *) ;;
 esac
 [ "${#NO_CRS_RUN_ID}" -le 128 ] || {
     echo "FAIL: NO_CRS_RUN_ID is too long" >&2
@@ -37,7 +38,8 @@ summary_file=$summary_root/full-lifecycle-run.jsonl
 : > "$summary_file"
 
 selected_profile() {
-    case "$1" in
+    requested_connector=$1
+    case "$requested_connector" in
         apache) printf '%s\n' native-httpd-module ;;
         nginx) printf '%s\n' native-nginx-http-module ;;
         haproxy) printf '%s\n' native-htx-filter ;;
@@ -49,7 +51,8 @@ selected_profile() {
 }
 
 selected_target() {
-    case "$1" in
+    requested_connector=$1
+    case "$requested_connector" in
         apache) printf '%s\n' full-lifecycle-apache ;;
         nginx) printf '%s\n' full-lifecycle-nginx ;;
         haproxy) printf '%s\n' full-lifecycle-haproxy-htx ;;

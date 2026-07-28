@@ -36,6 +36,7 @@ for runner_case in $selected_cases; do
             echo "FAIL: $connector No-CRS selected runner case contains unsafe characters: $runner_case" >&2
             exit 1
             ;;
+        *) ;;
     esac
     case "$seen_cases" in
         *" $runner_case "*)

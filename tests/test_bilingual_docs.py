@@ -135,12 +135,103 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
     def test_pr_template_requires_all_bilingual_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
-            self.write(root, ".github/pull_request_template.md", "## English\n\n## Deutsch\n")
+            self.write(
+                root,
+                CHECKER.PR_TEMPLATE_PATH.as_posix(),
+                "## English\n\n## Deutsch\n",
+            )
 
             errors = CHECKER.check_pr_template(root)
 
         self.assertTrue(any("English required section" in error for error in errors))
         self.assertTrue(any("Deutsch required section" in error for error in errors))
+
+    def test_pr_template_is_exempt_from_pairing_but_included_for_template_checks(self) -> None:
+        self.assertFalse(CHECKER.pair_required(CHECKER.PR_TEMPLATE_PATH))
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            pr_template = self.write(
+                root,
+                CHECKER.PR_TEMPLATE_PATH.as_posix(),
+                "## English\n\n## Deutsch\n",
+            )
+
+            self.assertEqual(CHECKER.checked_markdown_files(root), [pr_template])
+            errors = CHECKER.check_pr_template(root)
+
+        self.assertEqual(
+            errors[0],
+            f"{CHECKER.PR_TEMPLATE_PATH}: missing English required section '### Summary'",
+        )
+
+    def test_change_record_pair_skips_non_records_and_readme(self) -> None:
+        self.assertEqual(
+            CHECKER.check_change_record_pair(
+                Path("docs/example.md"),
+                Path("docs/example.de.md"),
+                "",
+                "",
+            ),
+            [],
+        )
+        self.assertEqual(
+            CHECKER.check_change_record_pair(
+                Path("reports/audits/change-records/README.md"),
+                Path("reports/audits/change-records/README.de.md"),
+                "",
+                "",
+            ),
+            [],
+        )
+
+    def test_change_record_template_reports_only_heading_errors(self) -> None:
+        source = Path("reports/audits/change-records/TEMPLATE.md")
+        companion = Path("reports/audits/change-records/TEMPLATE.de.md")
+
+        errors = CHECKER.check_change_record_pair(source, companion, "", "")
+
+        expected = [
+            *(
+                f"{source}: missing Change Record section {heading!r}"
+                for heading in CHECKER.CHANGE_RECORD_REQUIRED_HEADINGS["English"]
+            ),
+            *(
+                f"{companion}: missing Change Record section {heading!r}"
+                for heading in CHECKER.CHANGE_RECORD_REQUIRED_HEADINGS["Deutsch"]
+            ),
+        ]
+        self.assertEqual(errors, expected)
+
+    def test_change_record_pair_preserves_diagnostic_order(self) -> None:
+        source = Path("reports/audits/change-records/invalid.md")
+        companion = Path("reports/audits/change-records/invalid.de.md")
+        source_text = "| Change ID | english-id |\n| Date (UTC) | same-date |\n"
+        companion_text = "| Change-ID | german-id |\n| Datum (UTC) | same-date |\n"
+
+        errors = CHECKER.check_change_record_pair(
+            source,
+            companion,
+            source_text,
+            companion_text,
+        )
+
+        expected = [
+            *(
+                f"{source}: missing Change Record section {heading!r}"
+                for heading in CHECKER.CHANGE_RECORD_REQUIRED_HEADINGS["English"]
+            ),
+            *(
+                f"{companion}: missing Change Record section {heading!r}"
+                for heading in CHECKER.CHANGE_RECORD_REQUIRED_HEADINGS["Deutsch"]
+            ),
+            f"{source}: Change Record filename must use <change-id>-<name>.md",
+            f"{source}: Change Record identity field 'Change ID' differs from "
+            f"{companion} ('english-id' != 'german-id')",
+            f"{source}: missing Change Record identity field 'Base revision'",
+            f"{companion}: missing Change Record identity field 'Basis-Revision'",
+        ]
+        self.assertEqual(errors, expected)
 
     def test_change_record_identity_values_must_match(self) -> None:
         english_headings = "\n".join(CHECKER.CHANGE_RECORD_REQUIRED_HEADINGS["English"])

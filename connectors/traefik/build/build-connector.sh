@@ -24,6 +24,7 @@ case "$OUT_DIR" in
         echo "BLOCKED: Traefik connector build output is too broad: $OUT_DIR" >&2
         exit 77
         ;;
+    *) ;;
 esac
 case "$CONNECTOR_BIN" in
     /*) ;;
@@ -34,12 +35,14 @@ case "$OUT_DIR" in
         echo "BLOCKED: Traefik connector build output must be outside the checkout: $OUT_DIR" >&2
         exit 77
         ;;
+    *) ;;
 esac
 case "$CONNECTOR_BIN" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
         echo "BLOCKED: Traefik connector binary must be outside the checkout: $CONNECTOR_BIN" >&2
         exit 77
         ;;
+    *) ;;
 esac
 
 case "$MODE" in

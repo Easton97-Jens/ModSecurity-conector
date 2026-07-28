@@ -24,9 +24,10 @@ absolute_existing_file() {
 }
 
 absolute_path() {
-    case "$1" in
-        /*) printf '%s\n' "$1" ;;
-        *) printf '%s/%s\n' "$(pwd)" "$1" ;;
+    input_path=$1
+    case "$input_path" in
+        /*) printf '%s\n' "$input_path" ;;
+        *) printf '%s/%s\n' "$(pwd)" "$input_path" ;;
     esac
 }
 
@@ -45,11 +46,13 @@ case "$OUTPUT_CONFIG" in
         echo "envoy_ext_proc_config: generated configuration must not be inside the checkout: $OUTPUT_CONFIG" >&2
         exit 2
         ;;
+    *) ;;
 esac
 
 for port in "$LISTEN_PORT" "$UPSTREAM_PORT" "$EXT_PROC_PORT" "$ADMIN_PORT"; do
     case "$port" in
         *[!0-9]*|'') echo "envoy_ext_proc_config: invalid port: $port" >&2; exit 2 ;;
+        *) ;;
     esac
     [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || {
         echo "envoy_ext_proc_config: port out of range: $port" >&2
