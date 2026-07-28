@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Common event provenance short-circuit refactor for SonarQube Cloud c:S1066](CR-20260728-sonar-common-event-s1066.md)
 - [Parent HTTP authorization CLI loop control for SonarQube Cloud c:S5955, c:S886, and c:S3776](CR-20260728-sonar-http-authorization-cli-scope.md)
 - [Traefik result optional-text nullability remediation for SonarQube Cloud](CR-20260728-sonar-traefik-result-nullability.md)
 - [Parent HAProxy append-string preflight for SonarQube Cloud c:S3519](CR-20260727-sonar-haproxy-append-string-s3519.md)

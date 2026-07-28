@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Common-Event-Provenance-Short-Circuit-Refaktorierung für SonarQube Cloud c:S1066](CR-20260728-sonar-common-event-s1066.de.md)
 - [Parent-HTTP-Authorization-CLI-Schleifensteuerung für SonarQube Cloud c:S5955, c:S886 und c:S3776](CR-20260728-sonar-http-authorization-cli-scope.de.md)
 - [Traefik-Resultat-Optionaltext-Nullability-Remediation für SonarQube Cloud](CR-20260728-sonar-traefik-result-nullability.de.md)
 - [Parent-HAProxy-Append-String-Preflight für SonarQube Cloud c:S3519](CR-20260727-sonar-haproxy-append-string-s3519.de.md)
