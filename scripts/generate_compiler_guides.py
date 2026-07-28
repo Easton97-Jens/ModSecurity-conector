@@ -16,12 +16,69 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "docs" / "build" / "compilers"
 MARKER = "<!-- Generated from scripts/generate_compiler_guides.py; do not edit directly. -->"
 
+APACHE_HTTP_SERVER = "Apache HTTP Server"
+MODSECURITY_GIT_REF_PIN = "configured `MODSECURITY_GIT_REF` (default `v3/master`)"
+MODSECURITY_GIT_REPOSITORY = "https://github.com/owasp-modsecurity/ModSecurity.git"
+MODSECURITY_RESOLVED_COMMIT_NOTE = "resolved commit is recorded in Cache-v2 provenance"
+MODSECURITY_REPOSITORY_LABEL = "ModSecurity repository"
+MODSECURITY_REPOSITORY_URL = "https://github.com/owasp-modsecurity/ModSecurity"
+MODSECURITY_ENGINE_SOURCE = "The libmodsecurity v3 engine source."
+MODSECURITY_ENGINE_SOURCE_DE = "Die libmodsecurity-v3-Enginequelle."
+MODSECURITY_SHARED_TAG_NOTE = "The selected tag/commit is shown in the shared build section."
+MODSECURITY_OFFICIAL_SOURCE = (
+    MODSECURITY_REPOSITORY_LABEL,
+    MODSECURITY_REPOSITORY_URL,
+    MODSECURITY_ENGINE_SOURCE,
+    MODSECURITY_ENGINE_SOURCE_DE,
+    MODSECURITY_SHARED_TAG_NOTE,
+)
+HOST_DISCOVERY_OR_PREPARATION = "host discovery or preparation"
+FRAMEWORK_DEFAULT = "Framework default"
+NGINX_RELEASE_TAG = "release-1.31.2"
+VERIFIED_BINARY_SERVICE_SOURCE = "verified binary; service source"
+VERIFIED_BINARY_MIDDLEWARE_SERVICE_SOURCE = "verified binary; middleware/service source"
+CURRENT_CHECKOUT_COMMIT = "current checkout commit"
+CONNECTOR_CONFIGURATION_FILE = "connector configuration file"
+DEFAULT_COMPILER_FLAGS = "-O2 -g"
+DEFAULT_MODSECURITY_LIBRARY_FLAGS = "-L/opt/modsecurity-connector/lib"
+TOOLCHAIN_DEFAULT = "toolchain default"
+GO_VERSION_COMMAND = "go version"
+DEFAULT_VERIFIED_RUN_PARENT = "$HOME/modsecurity-connector-work"
+DEFAULT_VERIFIED_RUN_ROOT = f"{DEFAULT_VERIFIED_RUN_PARENT}/ModSecurity-conector-verified"
+EXPORT_VERIFIED_RUN_PARENT = f'export VERIFIED_RUN_PARENT="{DEFAULT_VERIFIED_RUN_PARENT}"'
+EXPORT_VERIFIED_RUN_ROOT = 'export VERIFIED_RUN_ROOT="$VERIFIED_RUN_PARENT/ModSecurity-conector-verified"'
+EXPORT_CACHE_ROOT = 'export CACHE_ROOT="$VERIFIED_RUN_ROOT/cache-v2"'
+RUNTIME_COMPONENTS_INVENTORY_COMMAND = "make runtime-components-inventory"
+RUNTIME_COMPONENTS_SOURCES_COMMAND = "make runtime-components-sources"
+APT_PACKAGE_SECTION_HEADER = "# Debian / Ubuntu (apt)"
+DNF_PACKAGE_SECTION_HEADER = "# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)"
+RULES_FILE_EXPORT_COMMAND = 'export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"'
+BUILD_ROOT_EXPORT_COMMAND = 'export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"'
+LOCAL_RULES_FILE_COMMAND = (
+    'cat > "$RULES_FILE" <<EOF\n'
+    "SecRuleEngine On\n"
+    'SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\n'
+    "EOF"
+)
+HTTP_READINESS_CHECK = 'test "$attempt" -lt 50'
+HTTP_ALLOW_RESPONSE_CHECK = 'test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/)" = "200"'
+HTTP_BLOCK_RESPONSE_CHECK = 'test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/blocked)" = "403"'
+APXS_DISCOVERY_COMMAND = 'APXS="${APXS:-$(command -v apxs || command -v apxs2)}"'
+APXS_EXECUTABLE_CHECK = 'test -x "$APXS"'
+HTTPD_DISCOVERY_COMMAND = 'HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"'
+CREATE_WORKDIR_COMMAND = 'mkdir -p "$WORKDIR"'
+CHANGE_TO_WORKDIR_COMMAND = 'cd "$WORKDIR"'
+MAKE_J2_COMMAND = "make -j2"
+MAKE_INSTALL_COMMAND = "make install"
+SHARED_ENGINE_REFERENCE = "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)"
+SHARED_ENGINE_REFERENCE_DE = "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)"
+
 
 CONNECTORS: tuple[dict[str, str], ...] = (
     {
         "slug": "apache",
-        "name": "Apache HTTP Server",
-        "name_de": "Apache HTTP Server",
+        "name": APACHE_HTTP_SERVER,
+        "name_de": APACHE_HTTP_SERVER,
         "profile": "native-httpd-module",
         "mode": "native httpd module built through APXS",
         "mode_de": "natives httpd-Modul, das über APXS gebaut wird",
@@ -221,11 +278,11 @@ DETAILS: dict[str, dict[str, object]] = {
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-apache",
         ),
         "pins": (
-            ("Apache HTTP Server", "2.4.68 (`HTTPD_VERSION`)", "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2", "SHA256 `68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06`"),
+            (APACHE_HTTP_SERVER, "2.4.68 (`HTTPD_VERSION`)", "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2", "SHA256 `68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06`"),
             ("APR", "1.7.6 (`APR_VERSION`)", "https://downloads.apache.org/apr/apr-1.7.6.tar.bz2", "SHA256 `49030d92d2575da735791b496dc322f3ce5cff9494779ba8cc28c7f46c5deb32`"),
             ("APR-util", "1.6.3 (`APR_UTIL_VERSION`)", "https://downloads.apache.org/apr/apr-util-1.6.3.tar.bz2", "SHA256 `a41076e3710746326c3945042994ad9a4fcac0ce0277dd8fea076fec3c9772b5`"),
             ("PCRE2", "10.47 (`PCRE2_VERSION`)", "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.47/pcre2-10.47.tar.bz2", "effective source identity is recorded by preparation"),
-            ("libmodsecurity", "configured `MODSECURITY_GIT_REF` (default `v3/master`)", "https://github.com/owasp-modsecurity/ModSecurity.git", "resolved commit is recorded in Cache-v2 provenance"),
+            ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
         "abi": (
             "`APXS_BIN`, `APACHE_BIN`, and the executed httpd binary must belong to the same Apache ABI. The module path and `LoadModule` entry are generated and checked by the selected route; do not combine distribution headers with another httpd build.",
@@ -244,9 +301,9 @@ DETAILS: dict[str, dict[str, object]] = {
         "cleanup": ("sudo apt remove apache2 apache2-dev", "sudo dnf remove httpd httpd-devel"),
         "vars": (
             ("BUILD_HTTPD_FROM_SOURCE", "0", "1", "Opt in to the Framework-managed Apache source host.", "Opt-in für den Framework-gesteuerten Apache-Source-Host."),
-            ("APACHE_BIN", "host discovery or preparation", "external selected httpd path", "Apache executable that must match APXS and module headers.", "Apache-Executable, das zu APXS und Modulheadern passen muss."),
-            ("APACHECTL_BIN", "host discovery or preparation", "external selected apachectl path", "Optional apachectl-compatible control command for the same host.", "Optionaler apachectl-kompatibler Steuerbefehl für denselben Host."),
-            ("APXS_BIN", "host discovery or preparation", "external selected APXS path", "APXS used to compile the module for the selected httpd.", "APXS zum Kompilieren des Moduls für das ausgewählte httpd."),
+            ("APACHE_BIN", HOST_DISCOVERY_OR_PREPARATION, "external selected httpd path", "Apache executable that must match APXS and module headers.", "Apache-Executable, das zu APXS und Modulheadern passen muss."),
+            ("APACHECTL_BIN", HOST_DISCOVERY_OR_PREPARATION, "external selected apachectl path", "Optional apachectl-compatible control command for the same host.", "Optionaler apachectl-kompatibler Steuerbefehl für denselben Host."),
+            ("APXS_BIN", HOST_DISCOVERY_OR_PREPARATION, "external selected APXS path", "APXS used to compile the module for the selected httpd.", "APXS zum Kompilieren des Moduls für das ausgewählte httpd."),
         ),
     },
     "nginx": {
@@ -276,7 +333,7 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
         "pins": (
             ("NGINX", "release-1.31.2 (`NGINX_SOURCE_GIT_REF`)", "https://github.com/nginx/nginx", "release-tag provenance; no configured archive SHA256"),
-            ("libmodsecurity", "configured `MODSECURITY_GIT_REF` (default `v3/master`)", "https://github.com/owasp-modsecurity/ModSecurity.git", "resolved commit is recorded in Cache-v2 provenance"),
+            ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
         "abi": (
             "A dynamic NGINX module must match the exact host build, configure arguments, prefix, and module ABI. A module from another distribution or build can be binary-incompatible.",
@@ -296,9 +353,9 @@ DETAILS: dict[str, dict[str, object]] = {
         "vars": (
             ("BUILD_NGINX_FROM_SOURCE", "1", "1", "Require the Framework-managed NGINX source build.", "Erfordert den Framework-gesteuerten NGINX-Source-Build."),
             ("NGINX_SOURCE_MODE", "github-release", "github-release", "Supported NGINX source acquisition mode.", "Unterstützter NGINX-Quellbezugmodus."),
-            ("NGINX_SOURCE_REPO_URL", "Framework default", "https://github.com/nginx/nginx", "HTTPS GitHub repository used for release acquisition.", "HTTPS-GitHub-Repository für den Release-Bezug."),
-            ("NGINX_SOURCE_GIT_REF", "release-1.31.2", "release-1.31.2", "Selected NGINX Git reference; provenance is authoritative.", "Ausgewählte NGINX-Git-Referenz; die Provenienz ist maßgeblich."),
-            ("NGINX_RELEASE_TAG", "release-1.31.2", "release-1.31.2", "Requested NGINX release tag; preparation records the resolved release provenance.", "Angefragtes NGINX-Release-Tag; die Vorbereitung protokolliert die aufgelöste Release-Provenienz."),
+            ("NGINX_SOURCE_REPO_URL", FRAMEWORK_DEFAULT, "https://github.com/nginx/nginx", "HTTPS GitHub repository used for release acquisition.", "HTTPS-GitHub-Repository für den Release-Bezug."),
+            ("NGINX_SOURCE_GIT_REF", NGINX_RELEASE_TAG, NGINX_RELEASE_TAG, "Selected NGINX Git reference; provenance is authoritative.", "Ausgewählte NGINX-Git-Referenz; die Provenienz ist maßgeblich."),
+            ("NGINX_RELEASE_TAG", NGINX_RELEASE_TAG, NGINX_RELEASE_TAG, "Requested NGINX release tag; preparation records the resolved release provenance.", "Angefragtes NGINX-Release-Tag; die Vorbereitung protokolliert die aufgelöste Release-Provenienz."),
             ("NGINX_BIN", "resolved by preparation", "external selected nginx path", "NGINX executable paired with the selected dynamic module.", "NGINX-Executable, das mit dem ausgewählten dynamischen Modul zusammengehört."),
             ("NGINX_PREFIX", "generated external staging prefix", "external staging prefix", "Host prefix that must remain paired with the module ABI.", "Host-Prefix, der mit der Modul-ABI zusammenbleiben muss."),
             ("NGINX_MODULE", "generated module path", "external module path", "Generated native module path loaded by selected configuration.", "Erzeugter nativer Modulpfad der ausgewählten Konfiguration."),
@@ -329,7 +386,7 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
         "pins": (
             ("HAProxy", "3.2.21 (`HAPROXY_VERSION`)", "https://www.haproxy.org/download/3.2/src/haproxy-3.2.21.tar.gz", "SHA256 `0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339`"),
-            ("libmodsecurity", "configured `MODSECURITY_GIT_REF` (default `v3/master`)", "https://github.com/owasp-modsecurity/ModSecurity.git", "resolved commit is recorded in Cache-v2 provenance"),
+            ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
         "abi": (
             "The SPOA/SPOP compatibility route and a package-host smoke are separate diagnostics. They do not replace the selected native HTX overlay, its source/build flags, or its `haproxy -c` parser check.",
@@ -348,8 +405,8 @@ DETAILS: dict[str, dict[str, object]] = {
         "cleanup": ("sudo apt remove haproxy", "sudo dnf remove haproxy"),
         "vars": (
             ("HAPROXY_VERSION", "3.2.21", "3.2.21", "Pinned HAProxy source version for selected overlay.", "Gepinnte HAProxy-Source-Version für das ausgewählte Overlay."),
-            ("HAPROXY_SOURCE_URL", "Framework default", "official HAProxy source URL", "Source URL verified by preparation.", "Von der Vorbereitung verifizierte Source-URL."),
-            ("HAPROXY_SHA256", "Framework default", "pinned SHA256", "Integrity input for selected HAProxy archive.", "Integritätseingabe für das ausgewählte HAProxy-Archiv."),
+            ("HAPROXY_SOURCE_URL", FRAMEWORK_DEFAULT, "official HAProxy source URL", "Source URL verified by preparation.", "Von der Vorbereitung verifizierte Source-URL."),
+            ("HAPROXY_SHA256", FRAMEWORK_DEFAULT, "pinned SHA256", "Integrity input for selected HAProxy archive.", "Integritätseingabe für das ausgewählte HAProxy-Archiv."),
             ("HAPROXY_SOURCE_DIR", "generated external source directory", "external HAProxy source directory", "Provisioned source for native HTX overlay.", "Provisionierte Quelle für das native HTX-Overlay."),
             ("HAPROXY_BIN", "resolved by preparation", "external HTX haproxy path", "HAProxy executable used by the selected HTX runtime.", "HAProxy-Executable des ausgewählten HTX-Runtimewegs."),
             ("HAPROXY_HTX_RUNTIME_ROOT", "derived below BUILD_ROOT", "external HTX runtime directory", "Runtime, event, and overlay files for the selected HTX route.", "Runtime-, Event- und Overlaydateien des ausgewählten HTX-Wegs."),
@@ -359,7 +416,7 @@ DETAILS: dict[str, dict[str, object]] = {
     "envoy": {
         "package_status": PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
         "extra_prepare": "prepare-envoy-runtime",
-        "host_source": "verified binary; service source",
+        "host_source": VERIFIED_BINARY_SERVICE_SOURCE,
         "go_requirement": "1.26.5",
         "go_module": "connectors/envoy/ext_proc/go.mod",
         "test_prerequisites": (
@@ -377,15 +434,15 @@ DETAILS: dict[str, dict[str, object]] = {
             "NO_CRS_RUN_ID=\"$run_id\" make full-lifecycle-envoy-ext-proc",
         ),
         "source_validation": (
-            "go version",
+            GO_VERSION_COMMAND,
             "grep -Fx 'go 1.26.5' connectors/envoy/ext_proc/go.mod",
             "make -C connectors/envoy check-envoy-ext-proc-config",
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-envoy",
         ),
         "pins": (
             ("Envoy host binary", "1.38.2 (`ENVOY_VERSION`)", "https://github.com/envoyproxy/envoy/releases/download/v1.38.2/envoy-1.38.2-linux-x86_64", "SHA256 `87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899`"),
-            ("repository ext_proc service", "current checkout commit", "connectors/envoy", "Git commit plus external build provenance"),
-            ("libmodsecurity", "configured `MODSECURITY_GIT_REF` (default `v3/master`)", "https://github.com/owasp-modsecurity/ModSecurity.git", "resolved commit is recorded in Cache-v2 provenance"),
+            ("repository ext_proc service", CURRENT_CHECKOUT_COMMIT, "connectors/envoy", "Git commit plus external build provenance"),
+            ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
         "abi": (
             "The Envoy binary is a verified host input; the ext_proc executable is the repository-owned source build. Generated configuration, ports, CGo bridge, and libmodsecurity runtime library must stay in one external invocation root.",
@@ -405,7 +462,7 @@ DETAILS: dict[str, dict[str, object]] = {
         "cleanup": ("sudo apt remove golang-go protobuf-compiler libprotobuf-dev libgrpc-dev", "sudo dnf remove golang protobuf-devel grpc-devel"),
         "vars": (
             ("ENVOY_BIN", "generated external cache binary", "verified external Envoy binary", "Resolved host binary for pinned Envoy release.", "Aufgelöstes Hostbinary für den gepinnten Envoy-Release."),
-            ("EXT_PROC_CONFIG", "connector configuration file", "connector ext_proc configuration", "Repository ext_proc service config used by checks.", "Repository-ext_proc-Servicekonfiguration für Checks."),
+            ("EXT_PROC_CONFIG", CONNECTOR_CONFIGURATION_FILE, "connector ext_proc configuration", "Repository ext_proc service config used by checks.", "Repository-ext_proc-Servicekonfiguration für Checks."),
             ("EXT_PROC_RUNTIME_CONFIG", "derived external runtime file", "external runtime config", "Generated selected ext_proc runtime configuration.", "Erzeugte Laufzeitkonfiguration des ausgewählten ext_proc-Wegs."),
             ("EXT_PROC_RUNTIME_ROOT", "derived under BUILD_ROOT", "external ext_proc runtime directory", "Runtime files and event logs for ext_proc.", "Laufzeitdateien und Eventlogs von ext_proc."),
             ("RULES_FILE", "connector default", "absolute rules file", "Rules-file input for local connector diagnostics; canonical runs provide their own selected rules.", "Rules-Datei für lokale Connector-Diagnosen; kanonische Runs liefern ihre eigenen ausgewählten Regeln."),
@@ -416,7 +473,7 @@ DETAILS: dict[str, dict[str, object]] = {
     "traefik": {
         "package_status": PACKAGE_STATUS_ASSISTED_SOURCE_BUILD,
         "extra_prepare": "prepare-traefik-runtime",
-        "host_source": "verified binary; middleware/service source",
+        "host_source": VERIFIED_BINARY_MIDDLEWARE_SERVICE_SOURCE,
         "go_requirement": "1.26.5",
         "go_module": "connectors/traefik/native_middleware/go.mod",
         "test_prerequisites": (
@@ -435,15 +492,15 @@ DETAILS: dict[str, dict[str, object]] = {
             "NO_CRS_RUN_ID=\"$run_id\" make full-lifecycle-traefik-native",
         ),
         "source_validation": (
-            "go version",
+            GO_VERSION_COMMAND,
             "grep -Fx 'go 1.26.5' connectors/traefik/native_middleware/go.mod",
             "make -C connectors/traefik test-engine-service",
             "NO_CRS_RUN_ID=\"$run_id\" make evidence-check-traefik",
         ),
         "pins": (
             ("Traefik host binary", "3.7.5 (`TRAEFIK_VERSION`)", "https://github.com/traefik/traefik/releases/download/v3.7.5/traefik_v3.7.5_linux_amd64.tar.gz", "SHA256 `9da81a928fde965c2c4678698bbc28bc3f600223b14c32b35bd480bf5ec863dc`"),
-            ("native middleware and engine service", "current checkout commit", "connectors/traefik", "Git commit plus external build provenance"),
-            ("libmodsecurity", "configured `MODSECURITY_GIT_REF` (default `v3/master`)", "https://github.com/owasp-modsecurity/ModSecurity.git", "resolved commit is recorded in Cache-v2 provenance"),
+            ("native middleware and engine service", CURRENT_CHECKOUT_COMMIT, "connectors/traefik", "Git commit plus external build provenance"),
+            ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
         "abi": (
             "The host binary, local plugin, File Provider configuration, UDS permissions, engine service, and libmodsecurity runtime library are one invocation-local set. A standard host package does not include native middleware or its engine service.",
@@ -464,11 +521,11 @@ DETAILS: dict[str, dict[str, object]] = {
         "vars": (
             ("TRAEFIK_BIN", "generated external cache binary", "verified external Traefik binary", "Resolved pinned Traefik host binary.", "Aufgelöstes gepinntes Traefik-Hostbinary."),
             ("TRAEFIK_NATIVE_RUNTIME_ROOT", "derived under BUILD_ROOT", "external native runtime directory", "Invocation-local native middleware files.", "Invocationslokale Native-Middleware-Dateien."),
-            ("TRAEFIK_CONNECTOR_CONFIG", "connector configuration file", "connector configuration file", "Repository connector configuration.", "Repository-Connectorkonfiguration."),
+            ("TRAEFIK_CONNECTOR_CONFIG", CONNECTOR_CONFIGURATION_FILE, CONNECTOR_CONFIGURATION_FILE, "Repository connector configuration.", "Repository-Connectorkonfiguration."),
             ("TRAEFIK_ENGINE_SERVICE_BIN", "derived external executable", "external engine-service executable", "Repository-built private UDS engine service.", "Repository-gebauter privater UDS-Engine-Service."),
             ("MSCONNECTOR_RULES_FILE", "unset", "absolute no-CRS rules file", "Canonical rule input for the selected native runtime when exported by the dispatcher.", "Kanonische Regeleingabe für die ausgewählte native Runtime, wenn der Dispatcher sie exportiert."),
-            ("TRAEFIK_ENGINE_SERVICE_CFLAGS", "unset", "-O2 -g", "Optional C flags for the C/C++ engine-service build only.", "Optionale C-Flags nur für den C/C++-Engine-Service-Build."),
-            ("TRAEFIK_ENGINE_SERVICE_LDFLAGS", "unset", "-L/opt/modsecurity-connector/lib", "Optional linker flags for the engine service only.", "Optionale Linkerflags nur für den Engine-Service."),
+            ("TRAEFIK_ENGINE_SERVICE_CFLAGS", "unset", DEFAULT_COMPILER_FLAGS, "Optional C flags for the C/C++ engine-service build only.", "Optionale C-Flags nur für den C/C++-Engine-Service-Build."),
+            ("TRAEFIK_ENGINE_SERVICE_LDFLAGS", "unset", DEFAULT_MODSECURITY_LIBRARY_FLAGS, "Optional linker flags for the engine service only.", "Optionale Linkerflags nur für den Engine-Service."),
         ),
     },
     "lighttpd": {
@@ -495,8 +552,8 @@ DETAILS: dict[str, dict[str, object]] = {
         ),
         "pins": (
             ("lighttpd host source", "1.4.84 (`LIGHTTPD_VERSION`)", "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.84.tar.xz", "SHA256 `076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70`"),
-            ("repository patchset", "current checkout commit", "connectors/lighttpd/patches", "Git commit plus patch-check provenance"),
-            ("libmodsecurity", "configured `MODSECURITY_GIT_REF` (default `v3/master`)", "https://github.com/owasp-modsecurity/ModSecurity.git", "resolved commit is recorded in Cache-v2 provenance"),
+            ("repository patchset", CURRENT_CHECKOUT_COMMIT, "connectors/lighttpd/patches", "Git commit plus patch-check provenance"),
+            ("libmodsecurity", MODSECURITY_GIT_REF_PIN, MODSECURITY_GIT_REPOSITORY, MODSECURITY_RESOLVED_COMMIT_NOTE),
         ),
         "abi": (
             "The selected host is not stock lighttpd. Patch verification/application, core build, module build, Entity-Body hook, and module/header ABI are one source set. Do not load the module into a stock binary built from different headers.",
@@ -613,8 +670,8 @@ def route_comparison(info: dict[str, object], german: bool) -> str:
         source_text = {
             "source": "Ja, Repository-Source",
             HOST_SOURCE_PATCHED: "Ja, gepatchte Source",
-            "verified binary; service source": "Verifiziertes Binary; Service aus Source",
-            "verified binary; middleware/service source": "Verifiziertes Binary; Middleware/Service aus Source",
+            VERIFIED_BINARY_SERVICE_SOURCE: "Verifiziertes Binary; Service aus Source",
+            VERIFIED_BINARY_MIDDLEWARE_SERVICE_SOURCE: "Verifiziertes Binary; Middleware/Service aus Source",
         }[host_source]
         package_core = "Nein, nicht package-only" if status == PACKAGE_STATUS_PROFILE_UNAVAILABLE else "Nur mit Source-Anteil"
         return markdown_table(
@@ -628,8 +685,8 @@ def route_comparison(info: dict[str, object], german: bool) -> str:
     source_text = {
         "source": "Yes, repository source",
         HOST_SOURCE_PATCHED: "Yes, patched source",
-        "verified binary; service source": "Verified binary; service from source",
-        "verified binary; middleware/service source": "Verified binary; middleware/service from source",
+        VERIFIED_BINARY_SERVICE_SOURCE: "Verified binary; service from source",
+        VERIFIED_BINARY_MIDDLEWARE_SERVICE_SOURCE: "Verified binary; middleware/service from source",
     }[host_source]
     package_core = "No, not package-only" if status == PACKAGE_STATUS_PROFILE_UNAVAILABLE else "Only with source portion"
     return markdown_table(
@@ -650,17 +707,17 @@ def pin_table(info: dict[str, object], german: bool) -> str:
 def common_variable_rows(german: bool) -> list[tuple[str, str, str, str, str]]:
     if german:
         return [
-            ("VERIFIED_RUN_PARENT", "ja", "vom Makefile gewählt, wenn nicht gesetzt", "$HOME/modsecurity-connector-work", "Beschreibbarer externer Stamm für Build, Cache, Runtime, Logs und Evidence; außerhalb des Checkouts und ohne Secrets im Namen."),
-            ("VERIFIED_RUN_ROOT", "nein", "unter VERIFIED_RUN_PARENT abgeleitet", "$HOME/modsecurity-connector-work/ModSecurity-conector-verified", "Run-gebundener externer Stamm; enthält abgeleitete Build-, Run-, Log- und Evidence-Pfade."),
+            ("VERIFIED_RUN_PARENT", "ja", "vom Makefile gewählt, wenn nicht gesetzt", DEFAULT_VERIFIED_RUN_PARENT, "Beschreibbarer externer Stamm für Build, Cache, Runtime, Logs und Evidence; außerhalb des Checkouts und ohne Secrets im Namen."),
+            ("VERIFIED_RUN_ROOT", "nein", "unter VERIFIED_RUN_PARENT abgeleitet", DEFAULT_VERIFIED_RUN_ROOT, "Run-gebundener externer Stamm; enthält abgeleitete Build-, Run-, Log- und Evidence-Pfade."),
             ("BUILD_ROOT", "nein", "unter dem verifizierten Run abgeleitet", "externes Build-Unterverzeichnis", "Staging- und Buildausgabe; nicht in den Git-Checkout legen."),
             ("CACHE_ROOT", "nein", "als Cache-v2 unter dem verifizierten Run abgeleitet", "externes Cache-v2-Unterverzeichnis", "Wiederverwendbare Eingaben; kein PASS und keine kanonische Evidence."),
             ("NO_CRS_RUN_ID", "für Full Lifecycle", "leer", "nginx-core-20260712T120000Z", "Dateisicherer Name eines Evidence-Runs; denselben Wert für Full Lifecycle und Evidence-Check verwenden."),
             ("CC", "nein", "Toolchain-Default", "gcc", "C-Compiler für C- und CGo-nahe Buildschritte."),
             ("CXX", "nein", "Toolchain-Default", "g++", "C++-Compiler für Abhängigkeiten, die ihn benötigen."),
-            ("CFLAGS", "nein", "Toolchain-Default", "-O2 -g", "Zusätzliche C-Flags; Beispiel ist Entwicklungswert, kein Repository- oder Produktionsdefault."),
-            ("CXXFLAGS", "nein", "Toolchain-Default", "-O2 -g", "Zusätzliche C++-Flags; kein Produktionsprofil."),
+            ("CFLAGS", "nein", "Toolchain-Default", DEFAULT_COMPILER_FLAGS, "Zusätzliche C-Flags; Beispiel ist Entwicklungswert, kein Repository- oder Produktionsdefault."),
+            ("CXXFLAGS", "nein", "Toolchain-Default", DEFAULT_COMPILER_FLAGS, "Zusätzliche C++-Flags; kein Produktionsprofil."),
             ("CPPFLAGS", "nein", "leer oder Toolchain-Default", "-I/opt/modsecurity-connector/include", "Zusätzliche Include-Flags für bewusst gewählte Headerpfade."),
-            ("LDFLAGS", "nein", "leer oder Toolchain-Default", "-L/opt/modsecurity-connector/lib", "Zusätzliche Linkerflags für bewusst gewählte Bibliothekspfade."),
+            ("LDFLAGS", "nein", "leer oder Toolchain-Default", DEFAULT_MODSECURITY_LIBRARY_FLAGS, "Zusätzliche Linkerflags für bewusst gewählte Bibliothekspfade."),
             ("PKG_CONFIG_PATH", "nein", "Paketmanager-/Toolchain-Default", "/opt/modsecurity-connector/lib/pkgconfig", "Zusätzlicher Suchpfad für pkg-config-Metadaten; kein ABI-Ersatz."),
             ("LD_LIBRARY_PATH", "nein", "Loader-Default", "/opt/modsecurity-connector/lib", "Temporärer Suchpfad für Shared Libraries; keine globale Installation."),
             ("MAKE_JOBS", "nein", "vom Framework ermittelt", "2", "Anzahl paralleler Compilerprozesse; bei wenig RAM kleiner wählen."),
@@ -669,17 +726,17 @@ def common_variable_rows(german: bool) -> list[tuple[str, str, str, str, str]]:
             ("run_id", "nein", "nicht gesetzt", "apache-core-20260712T120000Z", "Lokale Shellvariable, aus der `NO_CRS_RUN_ID` gesetzt wird."),
         ]
     return [
-        ("VERIFIED_RUN_PARENT", "yes", "chosen by Make when unset", "$HOME/modsecurity-connector-work", "Writable external parent for build, cache, runtime, logs, and evidence; outside the checkout and without secrets in its name."),
-        ("VERIFIED_RUN_ROOT", "no", "derived below VERIFIED_RUN_PARENT", "$HOME/modsecurity-connector-work/ModSecurity-conector-verified", "Run-bound external root; holds derived build, run, log, and evidence paths."),
+        ("VERIFIED_RUN_PARENT", "yes", "chosen by Make when unset", DEFAULT_VERIFIED_RUN_PARENT, "Writable external parent for build, cache, runtime, logs, and evidence; outside the checkout and without secrets in its name."),
+        ("VERIFIED_RUN_ROOT", "no", "derived below VERIFIED_RUN_PARENT", DEFAULT_VERIFIED_RUN_ROOT, "Run-bound external root; holds derived build, run, log, and evidence paths."),
         ("BUILD_ROOT", "no", "derived below verified run", "external build subdirectory", "Staging and build output; keep it outside the Git checkout."),
         ("CACHE_ROOT", "no", "derived as cache-v2 below verified run", "external cache-v2 subdirectory", "Reusable inputs; not a PASS and not canonical evidence."),
         ("NO_CRS_RUN_ID", "for full lifecycle", "empty", "nginx-core-20260712T120000Z", "Filesystem-safe name of one evidence run; use it for both full lifecycle and evidence check."),
-        ("CC", "no", "toolchain default", "gcc", "C compiler for C and CGo-adjacent build steps."),
-        ("CXX", "no", "toolchain default", "g++", "C++ compiler for dependencies that need it."),
-        ("CFLAGS", "no", "toolchain default", "-O2 -g", "Additional C flags; example is a development value, not a repository or production default."),
-        ("CXXFLAGS", "no", "toolchain default", "-O2 -g", "Additional C++ flags; not a production profile."),
+        ("CC", "no", TOOLCHAIN_DEFAULT, "gcc", "C compiler for C and CGo-adjacent build steps."),
+        ("CXX", "no", TOOLCHAIN_DEFAULT, "g++", "C++ compiler for dependencies that need it."),
+        ("CFLAGS", "no", TOOLCHAIN_DEFAULT, DEFAULT_COMPILER_FLAGS, "Additional C flags; example is a development value, not a repository or production default."),
+        ("CXXFLAGS", "no", TOOLCHAIN_DEFAULT, DEFAULT_COMPILER_FLAGS, "Additional C++ flags; not a production profile."),
         ("CPPFLAGS", "no", "empty or toolchain default", "-I/opt/modsecurity-connector/include", "Additional include flags for deliberately selected header paths."),
-        ("LDFLAGS", "no", "empty or toolchain default", "-L/opt/modsecurity-connector/lib", "Additional linker flags for deliberately selected library paths."),
+        ("LDFLAGS", "no", "empty or toolchain default", DEFAULT_MODSECURITY_LIBRARY_FLAGS, "Additional linker flags for deliberately selected library paths."),
         ("PKG_CONFIG_PATH", "no", "package-manager/toolchain default", "/opt/modsecurity-connector/lib/pkgconfig", "Additional pkg-config metadata search path; not an ABI substitute."),
         ("LD_LIBRARY_PATH", "no", "loader default", "/opt/modsecurity-connector/lib", "Temporary shared-library search path; not a global installation."),
         ("MAKE_JOBS", "no", "detected by Framework", "2", "Number of parallel compiler processes; choose lower on a memory-constrained machine."),
@@ -979,9 +1036,9 @@ def expanded_guide(item: dict[str, str], german: bool) -> str:
         "cd ModSecurity-conector",
         "git switch feature/all-connectors-no-crs-baseline",
         "git submodule update --init --recursive",
-        "export VERIFIED_RUN_PARENT=\"$HOME/modsecurity-connector-work\"",
-        "export VERIFIED_RUN_ROOT=\"$VERIFIED_RUN_PARENT/ModSecurity-conector-verified\"",
-        "export CACHE_ROOT=\"$VERIFIED_RUN_ROOT/cache-v2\"",
+        EXPORT_VERIFIED_RUN_PARENT,
+        EXPORT_VERIFIED_RUN_ROOT,
+        EXPORT_CACHE_ROOT,
         "export BUILD_ROOT=\"$VERIFIED_RUN_ROOT/build\"",
         *prepare_commands,
         *test_commands[:4],
@@ -989,57 +1046,57 @@ def expanded_guide(item: dict[str, str], german: bool) -> str:
         *test_commands[4:],
     )
     source_environment = (
-        "export VERIFIED_RUN_PARENT=\"$HOME/modsecurity-connector-work\"",
-        "export VERIFIED_RUN_ROOT=\"$VERIFIED_RUN_PARENT/ModSecurity-conector-verified\"",
-        "export CACHE_ROOT=\"$VERIFIED_RUN_ROOT/cache-v2\"",
+        EXPORT_VERIFIED_RUN_PARENT,
+        EXPORT_VERIFIED_RUN_ROOT,
+        EXPORT_CACHE_ROOT,
         f"export BUILD_ROOT=\"$VERIFIED_RUN_ROOT/build/{slug}-source\"",
         "export CC=gcc",
         "export CXX=g++",
-        "export CFLAGS=\"-O2 -g\"",
-        "export CXXFLAGS=\"-O2 -g\"",
+        f'export CFLAGS="{DEFAULT_COMPILER_FLAGS}"',
+        f'export CXXFLAGS="{DEFAULT_COMPILER_FLAGS}"',
         "jobs=\"$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')\"",
         *prepare_commands,
-        "make runtime-components-inventory",
-        "make runtime-components-sources",
+        RUNTIME_COMPONENTS_INVENTORY_COMMAND,
+        RUNTIME_COMPONENTS_SOURCES_COMMAND,
         f'run_id="{slug}-source-$(date -u +%Y%m%dT%H%M%SZ)"',
         *source_commands,
     )
     package_query = (
-        "# Debian / Ubuntu (apt)",
+        APT_PACKAGE_SECTION_HEADER,
         f"apt-cache policy {packages(BASE_DEBIAN)}",
         f"apt-cache policy {packages(tuple(info['package_debian']))}",
-        "# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)",
+        DNF_PACKAGE_SECTION_HEADER,
         f"dnf info {packages(BASE_FEDORA)}",
         f"dnf info {packages(tuple(info['package_fedora']))}",
         *package_host_queries,
     )
     package_install = (
-        "# Debian / Ubuntu (apt)",
+        APT_PACKAGE_SECTION_HEADER,
         "sudo apt update",
         f"sudo apt install --yes {packages(BASE_DEBIAN)}",
         f"sudo apt install --yes {packages(tuple(info['package_debian']))}",
-        "# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)",
+        DNF_PACKAGE_SECTION_HEADER,
         f"sudo dnf install -y {packages(BASE_FEDORA)}",
         f"sudo dnf install -y {packages(tuple(info['package_fedora']))}",
     )
     package_source_followup = (
-        "export VERIFIED_RUN_PARENT=\"$HOME/modsecurity-connector-work\"",
-        "export VERIFIED_RUN_ROOT=\"$VERIFIED_RUN_PARENT/ModSecurity-conector-verified\"",
-        "export CACHE_ROOT=\"$VERIFIED_RUN_ROOT/cache-v2\"",
+        EXPORT_VERIFIED_RUN_PARENT,
+        EXPORT_VERIFIED_RUN_ROOT,
+        EXPORT_CACHE_ROOT,
         f"export BUILD_ROOT=\"$VERIFIED_RUN_ROOT/build/{slug}-package\"",
         "jobs=\"$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '2')\"",
         *prepare_commands,
-        "make runtime-components-inventory",
-        "make runtime-components-sources",
+        RUNTIME_COMPONENTS_INVENTORY_COMMAND,
+        RUNTIME_COMPONENTS_SOURCES_COMMAND,
         f'run_id="{slug}-package-$(date -u +%Y%m%dT%H%M%SZ)"',
         *source_commands,
     )
     if str(info["package_status"]) == "package-only":
         package_source_followup = ()
     base_package_query = (
-        "# Debian / Ubuntu (apt)",
+        APT_PACKAGE_SECTION_HEADER,
         f"apt-cache policy {packages(BASE_DEBIAN)}",
-        "# Fedora / RHEL / Rocky Linux / AlmaLinux (dnf)",
+        DNF_PACKAGE_SECTION_HEADER,
         f"dnf info {packages(BASE_FEDORA)}",
     )
     cleanup_commands = tuple(info["cleanup_commands"])
@@ -1054,8 +1111,8 @@ def expanded_guide(item: dict[str, str], german: bool) -> str:
         f"make {item['start']}",
         f"make {item['runtime']}",
         f'NO_CRS_RUN_ID="$run_id" make evidence-check-{slug}',
-        "make runtime-components-inventory",
-        "make runtime-components-sources",
+        RUNTIME_COMPONENTS_INVENTORY_COMMAND,
+        RUNTIME_COMPONENTS_SOURCES_COMMAND,
     )
     package_followup_note = localized(
         (
@@ -1067,16 +1124,19 @@ def expanded_guide(item: dict[str, str], german: bool) -> str:
         ),
         german,
     )
-    package_host_note = localized(
-        (
+    if slug == "envoy":
+        package_host_note_text = (
             "The final query lines only discover whether a distribution offers an Envoy host package; no result is treated as the selected host, because the repository uses its verified binary plus the source-built ext_proc service.",
             "Die letzten Abfragezeilen ermitteln nur, ob eine Distribution ein Envoy-Hostpaket anbietet; kein Ergebnis gilt als ausgewählter Host, weil das Repository sein verifiziertes Binary samt Source-gebautem ext_proc-Service nutzt.",
-        ) if slug == "envoy" else (
+        )
+    elif slug == "traefik":
+        package_host_note_text = (
             "The final query lines only discover whether a distribution offers a Traefik host package; no result is treated as the selected host, because the repository uses its verified binary plus source-built native middleware and engine service.",
             "Die letzten Abfragezeilen ermitteln nur, ob eine Distribution ein Traefik-Hostpaket anbietet; kein Ergebnis gilt als ausgewählter Host, weil das Repository sein verifiziertes Binary samt Source-gebauter nativer Middleware und Engine-Service nutzt.",
-        ) if slug == "traefik" else ("", ""),
-        german,
-    )
+        )
+    else:
+        package_host_note_text = ("", "")
+    package_host_note = localized(package_host_note_text, german)
 
     if german:
         return f"""{MARKER}
@@ -1116,7 +1176,7 @@ Build-, Cache-, Runtime-, Log- und Evidence-Dateien und darf keine Secrets im
 Namen tragen. `CACHE_ROOT` ist Cache-v2 mit wiederverwendbaren Eingaben, nicht
 mit kanonischer Evidence. Die vorbereiteten, wirksamen Quellen zeigt:
 
-{shell(("make runtime-components-inventory", "make runtime-components-sources"))}
+{shell((RUNTIME_COMPONENTS_INVENTORY_COMMAND, RUNTIME_COMPONENTS_SOURCES_COMMAND))}
 
 ## Weg 1: Repository-gesteuert testen
 
@@ -1287,7 +1347,7 @@ sanitisierte Logs in `run-logs/{slug}/$run_id`. Allgemeine Stufenresultate
 liegen unter `$BUILD_ROOT/stages/{slug}`. Pfade sind abgeleitet, nicht feste
 Systempfade.
 
-{shell((f'NO_CRS_RUN_ID="$run_id" make evidence-check-{slug}', "make runtime-components-inventory", "make runtime-components-sources"))}
+{shell((f'NO_CRS_RUN_ID="$run_id" make evidence-check-{slug}', RUNTIME_COMPONENTS_INVENTORY_COMMAND, RUNTIME_COMPONENTS_SOURCES_COMMAND))}
 
 Evidence erst nach dem Check teilen und sensible Werte vorher entfernen. Cache
 und Downloads sind wiederverwendbare Eingaben, keine Evidence.
@@ -1297,7 +1357,7 @@ und Downloads sind wiederverwendbare Eingaben, keine Evidence.
 Den Checkout nur kontrolliert aktualisieren, danach Submodule und Provenienz
 erneut prüfen. Einen alten Cache nicht als Beleg für neue Pins behandeln.
 
-{shell(("git pull --ff-only", "git submodule update --init --recursive", "make runtime-components-inventory", "make runtime-components-sources", *prepare_commands, f"make {item['build']}"))}
+{shell(("git pull --ff-only", "git submodule update --init --recursive", RUNTIME_COMPONENTS_INVENTORY_COMMAND, RUNTIME_COMPONENTS_SOURCES_COMMAND, *prepare_commands, f"make {item['build']}"))}
 
 ## Deinstallieren und bereinigen
 
@@ -1396,7 +1456,7 @@ cache, runtime, log, and evidence files and must not contain secrets in its
 name. `CACHE_ROOT` is Cache-v2 with reusable inputs, not canonical evidence.
 Show the prepared, effective sources with:
 
-{shell(("make runtime-components-inventory", "make runtime-components-sources"))}
+{shell((RUNTIME_COMPONENTS_INVENTORY_COMMAND, RUNTIME_COMPONENTS_SOURCES_COMMAND))}
 
 ## Path 1: Repository-controlled test
 
@@ -1561,7 +1621,7 @@ After a full lifecycle, derived run-bound directories are below
 logs at `run-logs/{slug}/$run_id`. General stage results are below
 `$BUILD_ROOT/stages/{slug}`. These are derived paths, not fixed system paths.
 
-{shell((f'NO_CRS_RUN_ID="$run_id" make evidence-check-{slug}', "make runtime-components-inventory", "make runtime-components-sources"))}
+{shell((f'NO_CRS_RUN_ID="$run_id" make evidence-check-{slug}', RUNTIME_COMPONENTS_INVENTORY_COMMAND, RUNTIME_COMPONENTS_SOURCES_COMMAND))}
 
 Share evidence only after the check and remove sensitive values first. Caches
 and downloads are reusable inputs, not evidence.
@@ -1571,7 +1631,7 @@ and downloads are reusable inputs, not evidence.
 Update a checkout deliberately, then recheck submodules and provenance. Do not
 treat an old cache as proof for changed pins.
 
-{shell(("git pull --ff-only", "git submodule update --init --recursive", "make runtime-components-inventory", "make runtime-components-sources", *prepare_commands, f"make {item['build']}"))}
+{shell(("git pull --ff-only", "git submodule update --init --recursive", RUNTIME_COMPONENTS_INVENTORY_COMMAND, RUNTIME_COMPONENTS_SOURCES_COMMAND, *prepare_commands, f"make {item['build']}"))}
 
 ## Uninstall and clean up
 
@@ -1707,7 +1767,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("Compiling and Installing", "https://httpd.apache.org/docs/2.4/install.html", "Apache's official source release, APR/APR-util and PCRE2 prerequisites, configure, make, installation, start, and stop sequence.", "Offizieller Apache-Quellrelease sowie Voraussetzungen für APR/APR-util und PCRE2, Configure, Make, Installation, Start und Stop.", "HTTP Server 2.4; choose and verify the release again before building."),
             ("APXS", "https://httpd.apache.org/docs/2.4/programs/apxs.html", "The DSO build/install interface and the queries that bind a module to one httpd build.", "Die DSO-Build-/Installationsschnittstelle und die Abfragen, die ein Modul an genau einen httpd-Build binden.", "HTTP Server 2.4 APXS reference."),
             ("Apache HTTP Server Download", "https://httpd.apache.org/download.cgi", "Official release archives, PGP signatures, checksums, and Apache KEYS.", "Offizielle Releasearchive, PGP-Signaturen, Prüfsummen und Apache KEYS.", "The page changes when Apache publishes a release."),
-            ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 source and its Autotools build instructions.", "Die libmodsecurity-v3-Quelle und ihre Autotools-Buildanleitung.", "The selected Git tag/commit is recorded below."),
+            (MODSECURITY_REPOSITORY_LABEL, MODSECURITY_REPOSITORY_URL, "The libmodsecurity v3 source and its Autotools build instructions.", "Die libmodsecurity-v3-Quelle und ihre Autotools-Buildanleitung.", "The selected Git tag/commit is recorded below."),
         ),
         "package_queries": ('apt-cache search apache2', 'dnf search httpd', 'apache2 -v 2>/dev/null || httpd -v 2>/dev/null || true'),
         "package_note": (
@@ -1778,7 +1838,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
         "official_sources": (
             ("Building nginx from Sources", "https://nginx.org/en/docs/configure.html", "The official configure options, including prefix paths, compatibility, compiler, and linker flags.", "Die offiziellen Configure-Optionen einschließlich Prefix-Pfaden, Kompatibilität sowie Compiler- und Linkerflags.", "NGINX options are release-dependent; inspect `./configure --help` for the selected source archive."),
             ("Official NGINX packages", "https://nginx.org/en/linux_packages.html", "Official distribution package repositories and package-install context; not an ABI-equivalence claim for a source-built module.", "Offizielle Distributionsrepositories und Paketinstallationskontext; kein ABI-Gleichwertigkeitsclaim für ein aus Source gebautes Modul.", "Package layout changes by distribution and release."),
-            ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
+            MODSECURITY_OFFICIAL_SOURCE,
         ),
         "config_note": (
             "For the complete directive-level contract, read the repository [NGINX configuration reference](../../../examples/nginx/configuration-reference.md) before adapting this local example.",
@@ -1859,7 +1919,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("HAProxy INSTALL", "https://github.com/haproxy/haproxy/blob/master/INSTALL", "Official target selection, build options, compilation, and installation guidance.", "Offizielle Anleitung zur Target-Auswahl, Buildoptionen, Kompilierung und Installation.", "Read the INSTALL file for the exact selected HAProxy release."),
             ("HAProxy Documentation", "https://docs.haproxy.org/", "Configuration syntax and CLI documentation for `haproxy -c` and runtime operation.", "Konfigurationssyntax und CLI-Dokumentation für `haproxy -c` und den Laufzeitbetrieb.", "Use documentation matching the selected major/minor series."),
             ("HAProxy Releases", "https://www.haproxy.org/download/", "Official source downloads and release series selection.", "Offizielle Source-Downloads und Auswahl der Release-Serie.", "The repository overlay currently fixes its compatible source to 3.2.21."),
-            ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
+            MODSECURITY_OFFICIAL_SOURCE,
         ),
         "connector_intro": (
             "The official HAProxy release does not contain this connector. The repository native HTX integration copies the compatible source to a fresh external worktree, checks and applies its overlay, adds the HTX filter plus Common/libmodsecurity bridge, and rebuilds the host. The timestamped worktree avoids accidental reuse because the builder refuses an existing worktree. SPOE/SPOP is a separate compatibility path and is not evidence for this native filter.",
@@ -1875,9 +1935,9 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             '"$HAPROXY_HTX_BIN" -vv',
         ),
         "config_commands": (
-            'export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"',
+            RULES_FILE_EXPORT_COMMAND,
             'export HAPROXY_CONFIG="$HOST_BUILD_BASE/haproxy-local.cfg"',
-            'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
+            LOCAL_RULES_FILE_COMMAND,
             'cat > "$HAPROXY_CONFIG" <<EOF\nglobal\n    daemon\ndefaults\n    mode http\n    timeout connect 5s\n    timeout client 30s\n    timeout server 30s\nfrontend local\n    bind 127.0.0.1:8080\n    filter modsecurity-htx rules-file "$RULES_FILE" phase4-mode safe\n    default_backend local_upstream\nbackend local_upstream\n    server app 127.0.0.1:8081\nEOF',
             '"$HAPROXY_HTX_BIN" -c -f "$HAPROXY_CONFIG"',
         ),
@@ -1896,9 +1956,9 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HAPROXY_HTX_BIN" -db -f "$HAPROXY_CONFIG" > "$HOST_BUILD_BASE/haproxy.log" 2>&1 &',
             'haproxy_pid=$!',
             'attempt=0\nwhile [ "$attempt" -lt 50 ]; do\n    if ! kill -0 "$upstream_pid" 2>/dev/null || ! kill -0 "$haproxy_pid" 2>/dev/null; then\n        exit 1\n    fi\n    if [ "$(curl -sS --connect-timeout 1 -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/ 2>/dev/null)" = "200" ]; then\n        break\n    fi\n    attempt=$((attempt + 1))\n    sleep 0.1\ndone',
-            'test "$attempt" -lt 50',
-            'test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/)" = "200"',
-            'test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/blocked)" = "403"',
+            HTTP_READINESS_CHECK,
+            HTTP_ALLOW_RESPONSE_CHECK,
+            HTTP_BLOCK_RESPONSE_CHECK,
             'kill "$haproxy_pid" "$upstream_pid"',
         ),
         "package_queries": ('apt-cache search haproxy', 'dnf search haproxy', 'haproxy -vv 2>/dev/null || true'),
@@ -1976,21 +2036,21 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("Envoy admin interface", "https://www.envoyproxy.io/docs/envoy/latest/operations/admin.html", "Loopback-only admin endpoints and their local diagnostic purpose.", "Nur auf Loopback gebundene Admin-Endpunkte und ihren lokalen Diagnosezweck.", "Do not expose the local example as a general management interface."),
             ("Envoy v1.38.2 release", "https://github.com/envoyproxy/envoy/releases/tag/v1.38.2", "Official selected release page, binary asset, and checksum material.", "Offizielle Seite des ausgewählten Releases, Binary-Asset und Prüfsummenmaterial.", "This guide pins the binary route to v1.38.2."),
             ("Envoy source/Bazel guidance", "https://github.com/envoyproxy/envoy/blob/v1.38.2/bazel/README.md", "Official optional source-build guidance; it is resource-intensive and not the default route.", "Offizielle optionale Source-Build-Anleitung; sie ist ressourcenintensiv und nicht der Standardweg.", "Use only with the selected tag and sufficient CPU, memory, and storage."),
-            ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
+            MODSECURITY_OFFICIAL_SOURCE,
         ),
         "connector_intro": (
             "The repository ext_proc executable is the source-built component. It links the Common/libmodsecurity bridge and is not part of an official Envoy binary. The generated host configuration uses `envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor`, an HTTP/2 gRPC cluster, and a router after that filter. Build the service into an external root, then generate both configurations there.",
             "Das repository-eigene ext_proc-Executable ist die aus Source gebaute Komponente. Es linkt die Common-/libmodsecurity-Bridge und ist nicht Teil eines offiziellen Envoy-Binaries. Die erzeugte Hostkonfiguration verwendet `envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor`, einen HTTP/2-gRPC-Cluster und einen Router nach diesem Filter. Den Service in einen externen Root bauen und danach beide Konfigurationen erzeugen.",
         ),
         "connector_commands": (
-            'export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"',
+            BUILD_ROOT_EXPORT_COMMAND,
             'BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh "$CONNECTOR_ROOT/connectors/envoy/build/build_ext_proc.sh"',
             'export EXT_PROC_BIN="$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc"',
             'test -x "$EXT_PROC_BIN"',
             'BUILD_ROOT="$BUILD_ROOT" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh "$CONNECTOR_ROOT/connectors/envoy/build/test_ext_proc.sh"',
         ),
         "config_commands": (
-            'export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"',
+            RULES_FILE_EXPORT_COMMAND,
             'export ENVOY_CONFIG="$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc.yaml"',
             'export EXT_PROC_CONFIG="$CONNECTOR_ROOT/connectors/envoy/config/envoy-ext-proc-service.json"',
             'export RUNTIME_ROOT="$BUILD_ROOT/envoy-ext-proc/runtime-smoke"',
@@ -1999,7 +2059,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             'export ENVOY_UPSTREAM_PORT=18081',
             'export EXT_PROC_PORT=18083',
             'export ENVOY_ADMIN_PORT=19001',
-            'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
+            LOCAL_RULES_FILE_COMMAND,
             'OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$ENVOY_PORT" UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" EXT_PROC_PORT="$EXT_PROC_PORT" ADMIN_PORT="$ENVOY_ADMIN_PORT" sh "$CONNECTOR_ROOT/connectors/envoy/config/prepare_envoy_ext_proc_config.sh"',
             'OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG" RULES_FILE="$RULES_FILE" EVENT_PATH="$RUNTIME_ROOT/events.jsonl" sh "$CONNECTOR_ROOT/connectors/envoy/config/prepare_envoy_ext_proc_runtime_config.sh"',
             '"$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG"',
@@ -2126,7 +2186,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             "Ein Standard-Traefik-Binary enthält weder die native ModSecurity-Middleware noch den persistenten Engine-Service. Abschnitt 7 kompiliert und testet das repository-eigene Go-Middleware-Paket und baut danach den C/C++-Service außerhalb dieses Checkouts; Abschnitt 8 stellt die Pluginquelle für den lokalen Lauf bereit. Der Engine-Socket muss für den lokalen Run privat sein und darf nicht als geteilter Systemendpunkt wiederverwendet werden.",
         ),
         "connector_commands": (
-            'export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"',
+            BUILD_ROOT_EXPORT_COMMAND,
             'export TRAEFIK_NATIVE_MIDDLEWARE_BUILD_DIR="$BUILD_ROOT/traefik-native-middleware"',
             'export TRAEFIK_ENGINE_SERVICE_BUILD_DIR="$BUILD_ROOT/traefik-engine-service"',
             'export TRAEFIK_ENGINE_SERVICE_BIN="$TRAEFIK_ENGINE_SERVICE_BUILD_DIR/traefik-engine-service"',
@@ -2184,7 +2244,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             '( cd "$TRAEFIK_RUNTIME_ROOT" && LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$TRAEFIK_BIN" --configFile="$TRAEFIK_STATIC_CONFIG" ) > "$TRAEFIK_RUNTIME_ROOT/logs/traefik.log" 2>&1 &',
             'traefik_pid=$!',
             'attempt=0\nwhile [ "$attempt" -lt 50 ]; do\n    if ! kill -0 "$traefik_pid" 2>/dev/null; then\n        exit 1\n    fi\n    if curl --http1.1 -fsS "http://127.0.0.1:$TRAEFIK_PING_PORT/ping" >/dev/null; then\n        break\n    fi\n    attempt=$((attempt + 1))\n    sleep 0.1\ndone',
-            'test "$attempt" -lt 50',
+            HTTP_READINESS_CHECK,
             'curl --http1.1 -fsS "http://127.0.0.1:$TRAEFIK_PING_PORT/ping"',
             'test "$(curl --http1.1 -sS -o /dev/null -w "%{http_code}" -H "X-Request-Id: traefik-native-allow" http://127.0.0.1:$TRAEFIK_PORT/native)" = "200"',
             'test "$(curl --http1.1 -sS -o /dev/null -w "%{http_code}" -H "X-Modsec-Smoke: block" -H "X-Request-Id: traefik-native-deny" http://127.0.0.1:$TRAEFIK_PORT/native)" = "403"',
@@ -2286,27 +2346,27 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("lighttpd INSTALL", "https://github.com/lighttpd/lighttpd1.4/blob/master/INSTALL", "Official prerequisites, Autotools/source-build, test, installation, and startup guidance.", "Offizielle Voraussetzungen sowie Autotools-/Source-Build-, Test-, Installations- und Startanleitung.", "Re-check INSTALL for the selected lighttpd release."),
             ("lighttpd Source Downloads", "https://download.lighttpd.net/lighttpd/", "Official release archives and checksum material.", "Offizielle Releasearchive und Prüfsummenmaterial.", "The latest upstream release can differ from the repository patch pin."),
             ("lighttpd Documentation", "https://redmine.lighttpd.net/projects/lighttpd/wiki", "Official configuration and command documentation when applicable to the selected host release.", "Offizielle Konfigurations- und Befehlsdokumentation, soweit sie für den ausgewählten Hostrelease gilt.", "Check accessibility and release relevance before relying on a page."),
-            ("ModSecurity repository", "https://github.com/owasp-modsecurity/ModSecurity", "The libmodsecurity v3 engine source.", "Die libmodsecurity-v3-Enginequelle.", "The selected tag/commit is shown in the shared build section."),
+            MODSECURITY_OFFICIAL_SOURCE,
         ),
         "connector_intro": (
             "The repository module must use the same patched source headers and generated `config.h` as the host. The source build script links it to libmodsecurity and writes the module to an external directory. The selected source host builds its index and static-file modules into the binary; Section 8 names them explicitly because compatibility module loading stays disabled. A normal lighttpd package lacks the Entity-Body hook and cannot load this selected module as an equivalent path.",
             "Das Repository-Modul muss dieselben gepatchten Source-Header und dieselbe generierte `config.h` wie der Host verwenden. Das Source-Buildskript linkt es mit libmodsecurity und schreibt das Modul in ein externes Verzeichnis. Der ausgewählte Source-Host baut seine Index- und Static-File-Module in das Binary ein; Abschnitt 8 nennt sie ausdrücklich, weil das Kompatibilitätsladen deaktiviert bleibt. Ein normales lighttpd-Paket besitzt den Entity-Body-Hook nicht und kann dieses ausgewählte Modul nicht als gleichwertigen Weg laden.",
         ),
         "connector_commands": (
-            'export BUILD_ROOT="$HOST_BUILD_BASE/repository-build"',
+            BUILD_ROOT_EXPORT_COMMAND,
             'export LIGHTTPD_MODULE_DIR="$BUILD_ROOT/modules"',
             'BUILD_ROOT="$BUILD_ROOT" LIGHTTPD_CONNECTOR_OUT_DIR="$BUILD_ROOT/connector" LIGHTTPD_MODULE_DIR="$LIGHTTPD_MODULE_DIR" LIGHTTPD_MSCONNECTOR_CORE_MODE=patched LIGHTTPD_SOURCE_DIR="$LIGHTTPD_PATCHED_SRC" LIGHTTPD_BUILD_ROOT="$LIGHTTPD_BUILD_DIR" MODSECURITY_INCLUDE_DIR="$MODSECURITY_INCLUDE_DIR" MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" sh "$CONNECTOR_ROOT/connectors/lighttpd/build/build_module.sh"',
             'export LIGHTTPD_MODULE="$LIGHTTPD_MODULE_DIR/mod_msconnector.so"',
             'test -f "$LIGHTTPD_MODULE"',
         ),
         "config_commands": (
-            'export RULES_FILE="$HOST_BUILD_BASE/modsecurity-local.conf"',
+            RULES_FILE_EXPORT_COMMAND,
             'export LIGHTTPD_RUNTIME_CONFIG="$HOST_BUILD_BASE/msconnector-runtime.conf"',
             'export LIGHTTPD_CONFIG="$HOST_BUILD_BASE/lighttpd-local.conf"',
             'export LIGHTTPD_DOCUMENT_ROOT="$HOST_BUILD_BASE/htdocs"',
             'mkdir -p "$LIGHTTPD_DOCUMENT_ROOT"',
             'printf "lighttpd modsecurity test\\n" > "$LIGHTTPD_DOCUMENT_ROOT/index.html"',
-            'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
+            LOCAL_RULES_FILE_COMMAND,
             'cat > "$LIGHTTPD_RUNTIME_CONFIG" <<EOF\nrules_file=$RULES_FILE\nrequest_body_mode=none\nresponse_body_mode=none\nphase4_mode=safe\nEOF',
             'cat > "$LIGHTTPD_CONFIG" <<EOF\nserver.compat-module-load = "disable"\nserver.modules = ( "mod_indexfile", "mod_msconnector", "mod_staticfile" )\nindex-file.names = ( "index.html" )\nserver.bind = "127.0.0.1"\nserver.port = 8080\nserver.document-root = "$LIGHTTPD_DOCUMENT_ROOT"\nserver.pid-file = "$HOST_BUILD_BASE/lighttpd.pid"\nserver.errorlog = "$HOST_BUILD_BASE/lighttpd-error.log"\nmsconnector.enabled = "enable"\nmsconnector.config-file = "$LIGHTTPD_RUNTIME_CONFIG"\nEOF',
             '"$LIGHTTPD_PREFIX/sbin/lighttpd" -tt -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR"',
@@ -2323,9 +2383,9 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$LIGHTTPD_PREFIX/sbin/lighttpd" -D -f "$LIGHTTPD_CONFIG" -m "$LIGHTTPD_MODULE_DIR" &',
             'lighttpd_pid=$!',
             'attempt=0\nwhile [ "$attempt" -lt 50 ]; do\n    if ! kill -0 "$lighttpd_pid" 2>/dev/null; then\n        exit 1\n    fi\n    if [ "$(curl -sS --connect-timeout 1 -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/ 2>/dev/null)" = "200" ]; then\n        break\n    fi\n    attempt=$((attempt + 1))\n    sleep 0.1\ndone',
-            'test "$attempt" -lt 50',
-            'test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/)" = "200"',
-            'test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/blocked)" = "403"',
+            HTTP_READINESS_CHECK,
+            HTTP_ALLOW_RESPONSE_CHECK,
+            HTTP_BLOCK_RESPONSE_CHECK,
             'kill "$lighttpd_pid"',
         ),
         "package_queries": ('apt-cache search lighttpd', 'dnf search lighttpd', 'lighttpd -V 2>/dev/null || true'),
@@ -2465,7 +2525,7 @@ COMMON_MODSECURITY: dict[str, object] = {
             'JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)"',
             'make -j"$JOBS"',
             'make check',
-            'make install',
+            MAKE_INSTALL_COMMAND,
             'export PKG_CONFIG_PATH="$MODSECURITY_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"',
             'export LD_LIBRARY_PATH="$MODSECURITY_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"',
             '{ git rev-parse HEAD; git submodule status; cc --version; c++ --version; } > build-provenance.txt',
@@ -2473,28 +2533,28 @@ COMMON_MODSECURITY: dict[str, object] = {
     },
     "connector_engine_reference": {
         "apache": (
-            "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)",
-            "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)",
+            SHARED_ENGINE_REFERENCE,
+            SHARED_ENGINE_REFERENCE_DE,
         ),
         "nginx": (
             "Install libmodsecurity v3 first:\n\n[Simple libmodsecurity v3 build](libmodsecurity.md)\n\nNGINX and the repository-owned NGINX connector are built afterwards.",
             "Installiere zuerst libmodsecurity v3:\n\n[Einfacher libmodsecurity-v3-Build](libmodsecurity.de.md)\n\nDanach werden NGINX und der repository-eigene NGINX-Connector gebaut.",
         ),
         "haproxy": (
-            "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)",
-            "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)",
+            SHARED_ENGINE_REFERENCE,
+            SHARED_ENGINE_REFERENCE_DE,
         ),
         "envoy": (
-            "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)",
-            "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)",
+            SHARED_ENGINE_REFERENCE,
+            SHARED_ENGINE_REFERENCE_DE,
         ),
         "traefik": (
-            "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)",
-            "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)",
+            SHARED_ENGINE_REFERENCE,
+            SHARED_ENGINE_REFERENCE_DE,
         ),
         "lighttpd": (
-            "Build libmodsecurity v3 first with the shared guide:\n\n[Build libmodsecurity v3](libmodsecurity.md)",
-            "Baue zuerst libmodsecurity v3 nach der gemeinsamen Anleitung:\n\n[libmodsecurity v3 bauen](libmodsecurity.de.md)",
+            SHARED_ENGINE_REFERENCE,
+            SHARED_ENGINE_REFERENCE_DE,
         ),
     },
 }
@@ -2539,9 +2599,9 @@ HOST_SETUP: dict[str, dict[str, object]] = {
             "These queries show the host prefix, header directory, module directory, and Apache version. They must describe the same Apache installation.",
             "Diese Abfragen zeigen Host-Prefix, Headerverzeichnis, Modulverzeichnis und Apache-Version. Sie müssen dieselbe Apache-Installation beschreiben.",
             (
-                'APXS="${APXS:-$(command -v apxs || command -v apxs2)}"',
-                'test -x "$APXS"',
-                'HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"',
+                APXS_DISCOVERY_COMMAND,
+                APXS_EXECUTABLE_CHECK,
+                HTTPD_DISCOVERY_COMMAND,
                 '"$APXS" -q PREFIX',
                 '"$APXS" -q INCLUDEDIR',
                 '"$APXS" -q LIBEXECDIR',
@@ -2566,8 +2626,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 "This verifies the archive before unpacking it and creates an isolated source tree; it does not build the adapter. Import the Apache release signing key from the official download page before running the GPG check.",
                 "Dies prüft das Archiv vor dem Entpacken und erstellt einen isolierten Source-Baum; der Adapter wird dadurch noch nicht gebaut. Vor der GPG-Prüfung den Apache-Release-Signaturschlüssel von der offiziellen Downloadseite importieren.",
                 (
-                    'mkdir -p "$WORKDIR"',
-                    'cd "$WORKDIR"',
+                    CREATE_WORKDIR_COMMAND,
+                    CHANGE_TO_WORKDIR_COMMAND,
                     'curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2"',
                     'curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.sha256"',
                     'curl -fLO "https://downloads.apache.org/httpd/httpd-$VERSION.tar.bz2.asc"',
@@ -2584,8 +2644,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 (
                     'cd "$WORKDIR/httpd-$VERSION"',
                     './configure --prefix="$INSTALL_DIR" --enable-mods-shared=most --with-pcre="$(command -v pcre2-config)"',
-                    "make -j2",
-                    "make install",
+                    MAKE_J2_COMMAND,
+                    MAKE_INSTALL_COMMAND,
                 ),
             ),
             (
@@ -2626,8 +2686,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 "This verifies the selected NGINX archive before unpacking it and creates only the host source tree. Import the NGINX release signing key from the official release site before running the GPG check. Section 7 adds the repository-owned dynamic connector from the current checkout.",
                 "Dies prüft das ausgewählte NGINX-Archiv vor dem Entpacken und erstellt nur den Host-Source-Baum. Vor der GPG-Prüfung den NGINX-Release-Signaturschlüssel von der offiziellen Release-Seite importieren. Abschnitt 7 fügt den repository-eigenen dynamischen Connector aus dem aktuellen Checkout hinzu.",
                 (
-                    'mkdir -p "$WORKDIR"',
-                    'cd "$WORKDIR"',
+                    CREATE_WORKDIR_COMMAND,
+                    CHANGE_TO_WORKDIR_COMMAND,
                     'curl -fLO "https://nginx.org/download/nginx-$VERSION.tar.gz"',
                     'curl -fLO "https://nginx.org/download/nginx-$VERSION.tar.gz.asc"',
                     'gpg --verify "nginx-$VERSION.tar.gz.asc" "nginx-$VERSION.tar.gz"',
@@ -2674,8 +2734,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 "This downloads the selected official host source into an isolated workspace.",
                 "Dies lädt die ausgewählte offizielle Hostquelle in ein isoliertes Arbeitsverzeichnis.",
                 (
-                    'mkdir -p "$WORKDIR"',
-                    'cd "$WORKDIR"',
+                    CREATE_WORKDIR_COMMAND,
+                    CHANGE_TO_WORKDIR_COMMAND,
                     'curl -fLO "https://www.haproxy.org/download/3.2/src/haproxy-$VERSION.tar.gz"',
                     'curl -fLO "https://www.haproxy.org/download/3.2/src/haproxy-$VERSION.tar.gz.sha256"',
                     'sha256sum -c "haproxy-$VERSION.tar.gz.sha256"',
@@ -2745,8 +2805,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 "The official x86_64 asset is written to a local workspace and made executable.",
                 "Das offizielle x86_64-Artefakt wird in ein lokales Arbeitsverzeichnis geschrieben und ausführbar gemacht.",
                 (
-                    'mkdir -p "$WORKDIR"',
-                    'cd "$WORKDIR"',
+                    CREATE_WORKDIR_COMMAND,
+                    CHANGE_TO_WORKDIR_COMMAND,
                     'curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.38.2/envoy-1.38.2-linux-x86_64" -o envoy',
                     'printf "%s  %s\\n" "87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899" "envoy" | sha256sum -c -',
                     "chmod 755 envoy",
@@ -2793,8 +2853,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 "The official linux_amd64 release archive contains the host binary; no repository middleware is built here.",
                 "Das offizielle linux_amd64-Releasearchiv enthält das Hostbinary; hier wird keine Repository-Middleware gebaut.",
                 (
-                    'mkdir -p "$WORKDIR"',
-                    'cd "$WORKDIR"',
+                    CREATE_WORKDIR_COMMAND,
+                    CHANGE_TO_WORKDIR_COMMAND,
                     'curl -fLO "https://github.com/traefik/traefik/releases/download/v${VERSION}/traefik_v${VERSION}_linux_amd64.tar.gz"',
                     'curl -fLO "https://github.com/traefik/traefik/releases/download/v${VERSION}/traefik_v${VERSION}_checksums.txt"',
                     'grep "traefik_v${VERSION}_linux_amd64.tar.gz" "traefik_v${VERSION}_checksums.txt" | sha256sum -c -',
@@ -2819,7 +2879,7 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 "Traefik v3.7.5's selected source declares Go 1.25.0 in go.mod; check that exact requirement before cloning it. This path builds only the Traefik host; the repository middleware and engine still belong to Section 7.",
                 "Die ausgewählte Traefik-v3.7.5-Quelle deklariert Go 1.25.0 in go.mod; diese exakte Anforderung vor dem Klonen prüfen. Dieser Weg baut nur den Traefik-Host; Repository-Middleware und Engine bleiben Abschnitt 7.",
                 (
-                    "go version",
+                    GO_VERSION_COMMAND,
                     'git clone https://github.com/traefik/traefik.git "$WORKDIR/traefik-source"',
                     'cd "$WORKDIR/traefik-source"',
                     'git checkout --detach "v$VERSION"',
@@ -2865,8 +2925,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 "This leaves the verified upstream source untouched so that the patch is applied only to a disposable copy.",
                 "Dadurch bleibt die verifizierte Upstream-Quelle unverändert; der Patch wird nur auf eine disponierbare Kopie angewendet.",
                 (
-                    'mkdir -p "$WORKDIR"',
-                    'cd "$WORKDIR"',
+                    CREATE_WORKDIR_COMMAND,
+                    CHANGE_TO_WORKDIR_COMMAND,
                     'curl -fLO "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.tar.xz"',
                     'curl -fL "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$VERSION.sha256sum" -o "lighttpd-$VERSION.sha256sum"',
                     "awk -v archive=\"lighttpd-$VERSION.tar.xz\" '$2 == archive { print }' \"lighttpd-$VERSION.sha256sum\" | sha256sum -c -",
@@ -2882,7 +2942,7 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 "The first patch command only tests whether the selected source accepts the patch. The second command changes the disposable working copy.",
                 "Der erste Patchbefehl testet nur, ob die ausgewählte Quelle den Patch akzeptiert. Der zweite Befehl verändert die disponierbare Arbeitskopie.",
                 (
-                    'cd "$WORKDIR"',
+                    CHANGE_TO_WORKDIR_COMMAND,
                     'export LIGHTTPD_PATCHED_SRC="$WORKDIR/lighttpd-$VERSION-patched"',
                     'test ! -e "$LIGHTTPD_PATCHED_SRC"',
                     'cp -a "lighttpd-$VERSION" "$LIGHTTPD_PATCHED_SRC"',
@@ -2899,8 +2959,8 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                 (
                     "test -x ./autogen.sh && ./autogen.sh",
                     './configure --prefix="$INSTALL_DIR"',
-                    "make -j2",
-                    "make install",
+                    MAKE_J2_COMMAND,
+                    MAKE_INSTALL_COMMAND,
                 ),
             ),
         ),
@@ -2926,9 +2986,9 @@ HOST_SETUP: dict[str, dict[str, object]] = {
                     'mkdir -p "$LIGHTTPD_BUILD_DIR"',
                     'cd "$LIGHTTPD_BUILD_DIR"',
                     '"$WORKDIR/lighttpd-$VERSION-patched/configure" --prefix="$INSTALL_DIR"',
-                    "make -j2",
+                    MAKE_J2_COMMAND,
                     "make check",
-                    "make install",
+                    MAKE_INSTALL_COMMAND,
                 ),
             ),
         ),
@@ -3123,7 +3183,7 @@ def alternative_connector_section(info: dict[str, object], german: bool) -> str:
 def manual_official_sources(info: dict[str, object], german: bool) -> str:
     rows: list[str] = []
     for title, url, english_scope, german_scope, version_scope in info["official_sources"]:
-        if url == "https://github.com/owasp-modsecurity/ModSecurity":
+        if url == MODSECURITY_REPOSITORY_URL:
             continue
         purpose = "Quelle und Umfang" if german else "Source and scope"
         scope = german_scope if german else english_scope
@@ -3443,7 +3503,7 @@ def nginx_connector_build(german: bool) -> str:
             )
         ),
         'make -j"$JOBS"',
-        "make install",
+        MAKE_INSTALL_COMMAND,
     )
     return f"{manual_localized(intro, german)}\n\n{shell_groups(commands)}"
 
@@ -3458,9 +3518,9 @@ def apache_connector_build(german: bool) -> str:
         "#### Optional: Source-Host-APXS auswählen\n\nWenn der optionale Apache-Source-Host aus Abschnitt 6 gebaut wurde, diese Zuweisung vor den Adapterbefehlen in derselben Shell ausführen. Nutzer des Pakethosts überspringen sie.\n\n```sh\nAPXS=\"$HOME/.local/apache-modsecurity/bin/apxs\"\n```",
     )
     commands = (
-        'APXS="${APXS:-$(command -v apxs || command -v apxs2)}"',
-        'test -x "$APXS"',
-        'HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"',
+        APXS_DISCOVERY_COMMAND,
+        APXS_EXECUTABLE_CHECK,
+        HTTPD_DISCOVERY_COMMAND,
         'cd "$CONNECTOR_ROOT/connectors/apache"',
         'test -f "$CONNECTOR_ROOT/connectors/apache/configure.ac"',
         'mkdir -p "$HOME/connector-build/apache"',
@@ -3469,7 +3529,7 @@ def apache_connector_build(german: bool) -> str:
         'cd "$CONNECTOR_BUILD_DIR"',
         "./autogen.sh",
         './configure --with-libmodsecurity="$MODSECURITY_PREFIX" --with-apxs="$APXS" --with-apache="$HTTPD_BIN"',
-        "make -j2",
+        MAKE_J2_COMMAND,
         'if [ -w "$("$APXS" -q LIBEXECDIR)" ]; then\n    make install\nelse\n    sudo make install\nfi',
         'MODULE_PATH="$("$APXS" -q LIBEXECDIR)/mod_security3.so"',
         'test -f "$MODULE_PATH"',
@@ -3524,9 +3584,9 @@ def apache_configuration_section(german: bool) -> str:
         "Die lokale Testregel und eine isolierte, beschreibbare Apache-Konfiguration erstellen. Dieser Abschnitt startet Apache nicht; Abschnitt 10 führt Syntaxprüfung und Loopback-Anfragen aus. Die erzeugte Moduldatei wählt bei Vorhandensein einen Pakethost-MPM und unterstützende DSOs; ein Source-Host mit statischem MPM bleibt ohne zusätzliche MPM-Zeile gültig.",
     )
     commands = (
-        'APXS="${APXS:-$(command -v apxs || command -v apxs2)}"',
-        'test -x "$APXS"',
-        'HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"',
+        APXS_DISCOVERY_COMMAND,
+        APXS_EXECUTABLE_CHECK,
+        HTTPD_DISCOVERY_COMMAND,
         'HTTPD_MODULE_DIR="$("$APXS" -q LIBEXECDIR)"',
         'HTTPD_RUNTIME_ROOT="$HOME/connector-build/apache/runtime"',
         'HTTPD_DOCUMENT_ROOT="$HTTPD_RUNTIME_ROOT/htdocs"',
@@ -3538,7 +3598,7 @@ def apache_configuration_section(german: bool) -> str:
         ': > "$HTTPD_MODULES"',
         'for mpm in mpm_event mpm_worker mpm_prefork; do\n    if [ -f "$HTTPD_MODULE_DIR/mod_$mpm.so" ]; then\n        printf "LoadModule %s_module \\"%s/mod_%s.so\\"\\n" "$mpm" "$HTTPD_MODULE_DIR" "$mpm" >> "$HTTPD_MODULES"\n        break\n    fi\ndone',
         'for module in authz_core authz_host mime dir unixd; do\n    if [ -f "$HTTPD_MODULE_DIR/mod_$module.so" ]; then\n        printf "LoadModule %s_module \\"%s/mod_%s.so\\"\\n" "$module" "$HTTPD_MODULE_DIR" "$module" >> "$HTTPD_MODULES"\n    fi\ndone',
-        'cat > "$RULES_FILE" <<EOF\nSecRuleEngine On\nSecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"\nEOF',
+        LOCAL_RULES_FILE_COMMAND,
         'cat > "$HTTPD_CONFIG" <<EOF\nServerRoot "$HTTPD_RUNTIME_ROOT"\nPidFile "run/httpd.pid"\nDefaultRuntimeDir "run"\nListen 127.0.0.1:8080\nServerName 127.0.0.1\nErrorLog "logs/error.log"\nInclude "$HTTPD_MODULES"\nLoadModule security3_module "$MODULE_PATH"\nDocumentRoot "$HTTPD_DOCUMENT_ROOT"\n<Directory "$HTTPD_DOCUMENT_ROOT">\n    Require all granted\n</Directory>\n<Location "/">\n    modsecurity on\n    modsecurity_rules_file "$RULES_FILE"\n</Location>\nEOF',
     )
     return f"{manual_localized(intro, german)}\n\n{shell_groups(commands)}"
@@ -3605,8 +3665,8 @@ def nginx_runtime_section(german: bool) -> str:
     commands = (
         '"$INSTALL_DIR/sbin/nginx" -t -p "$INSTALL_DIR" -c conf/nginx.conf',
         '"$INSTALL_DIR/sbin/nginx" -p "$INSTALL_DIR" -c conf/nginx.conf',
-        'test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/)" = "200"',
-        'test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/blocked)" = "403"',
+        HTTP_ALLOW_RESPONSE_CHECK,
+        HTTP_BLOCK_RESPONSE_CHECK,
         '"$INSTALL_DIR/sbin/nginx" -p "$INSTALL_DIR" -c conf/nginx.conf -s quit',
     )
     return f"{manual_localized(intro, german)}\n\n{shell_groups(commands)}"
@@ -3616,8 +3676,8 @@ def apache_runtime_section() -> str:
     commands = (
         'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HTTPD_BIN" -d "$HTTPD_RUNTIME_ROOT" -f "$HTTPD_CONFIG" -t',
         'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HTTPD_BIN" -d "$HTTPD_RUNTIME_ROOT" -f "$HTTPD_CONFIG" -k start',
-        'test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/)" = "200"',
-        'test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/blocked)" = "403"',
+        HTTP_ALLOW_RESPONSE_CHECK,
+        HTTP_BLOCK_RESPONSE_CHECK,
         'LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HTTPD_BIN" -d "$HTTPD_RUNTIME_ROOT" -f "$HTTPD_CONFIG" -k stop',
     )
     return shell_groups(commands)
@@ -3638,7 +3698,7 @@ def runtime_section(item: dict[str, str], info: dict[str, object], german: bool)
 def repository_test_path(item: dict[str, str], german: bool) -> str:
     slug = item["slug"]
     flow = (
-        'export VERIFIED_RUN_PARENT="$HOME/modsecurity-connector-work"',
+        EXPORT_VERIFIED_RUN_PARENT,
         'mkdir -p "$VERIFIED_RUN_PARENT"',
         'cd "$VERIFIED_RUN_PARENT"',
         'git clone --recurse-submodules https://github.com/Easton97-Jens/ModSecurity-conector.git',
@@ -3683,12 +3743,12 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
         "envoy": (
             "The repository ext_proc module requires Go 1.26.5; verify the pinned module declaration before its Section 7 build.",
             "Das repository-eigene ext_proc-Modul verlangt Go 1.26.5; die gepinnte Moduldeklaration vor dem Build in Abschnitt 7 prüfen.",
-            ('go version', 'grep -Fx "go 1.26.5" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"'),
+            (GO_VERSION_COMMAND, 'grep -Fx "go 1.26.5" "$CONNECTOR_ROOT/connectors/envoy/ext_proc/go.mod"'),
         ),
         "traefik": (
             "The repository native middleware module requires Go 1.26.5; this differs from the optional Traefik-v3.7.5 host-source requirement in Section 6.",
             "Das repository-eigene native Middleware-Modul verlangt Go 1.26.5; dies unterscheidet sich von der optionalen Traefik-v3.7.5-Host-Source-Anforderung in Abschnitt 6.",
-            ('go version', 'grep -Fx "go 1.26.5" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"'),
+            (GO_VERSION_COMMAND, 'grep -Fx "go 1.26.5" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"'),
         ),
     }
     go_prereq = go_prereqs.get(slug)
@@ -3702,12 +3762,12 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
         '# Rebuild the selected host and connector with the commands above.',
     )
     cleanup_paths: dict[str, tuple[str, ...]] = {
-        "apache": ("$HOME/connector-build/apache", "$HOME/.local/apache-modsecurity", "$HOME/modsecurity-connector-work"),
-        "nginx": ("$HOME/nginx-modsecurity", "$HOME/.local/nginx-modsecurity", "$HOME/modsecurity-connector-work"),
-        "haproxy": ("$HOME/connector-build/haproxy", "$HOME/.local/haproxy-modsecurity", "$HOME/modsecurity-connector-work"),
-        "envoy": ("$HOME/connector-build/envoy", "$HOME/modsecurity-connector-work"),
-        "traefik": ("$HOME/connector-build/traefik", "$HOME/modsecurity-connector-work"),
-        "lighttpd": ("$HOME/connector-build/lighttpd", "$HOME/.local/lighttpd-modsecurity", "$HOME/modsecurity-connector-work"),
+        "apache": ("$HOME/connector-build/apache", "$HOME/.local/apache-modsecurity", DEFAULT_VERIFIED_RUN_PARENT),
+        "nginx": ("$HOME/nginx-modsecurity", "$HOME/.local/nginx-modsecurity", DEFAULT_VERIFIED_RUN_PARENT),
+        "haproxy": ("$HOME/connector-build/haproxy", "$HOME/.local/haproxy-modsecurity", DEFAULT_VERIFIED_RUN_PARENT),
+        "envoy": ("$HOME/connector-build/envoy", DEFAULT_VERIFIED_RUN_PARENT),
+        "traefik": ("$HOME/connector-build/traefik", DEFAULT_VERIFIED_RUN_PARENT),
+        "lighttpd": ("$HOME/connector-build/lighttpd", "$HOME/.local/lighttpd-modsecurity", DEFAULT_VERIFIED_RUN_PARENT),
     }
     cleanup_commands = (
         *(f'test ! -e "{path}" || find "{path}" -maxdepth 2 -mindepth 1 -print' for path in cleanup_paths[slug]),
@@ -3736,6 +3796,14 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
     validation = validation_section(item, info)
     http_test = runtime_section(item, info, german)
     variables = manual_variable_table(info, german, slug)
+    default_http_note = (
+        "Run only against loopback. A 200 response on `/` and a 403 response on `/blocked` demonstrate the local rule path; they do not establish a broader claim.",
+        "Nur gegen Loopback ausführen. Eine 200-Antwort auf `/` und eine 403-Antwort auf `/blocked` zeigen den lokalen Regelweg; sie begründen keinen weitergehenden Claim.",
+    )
+    if "http_note" in info:
+        http_note = manual_localized(info["http_note"], german)
+    else:
+        http_note = manual_localized(default_http_note, german)
     return f"""{MARKER}
 
 # {"Manueller Source-Build" if german else "Manual source build"}: {name}
@@ -3790,7 +3858,7 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
 
 {manual_heading(10, "Local HTTP/1.1 functional test", "Lokaler HTTP/1.1-Funktionstest", german)}
 
-{manual_localized(info['http_note'], german) if 'http_note' in info else ("Run only against loopback. A 200 response on `/` and a 403 response on `/blocked` demonstrate the local rule path; they do not establish a broader claim." if not german else "Nur gegen Loopback ausführen. Eine 200-Antwort auf `/` und eine 403-Antwort auf `/blocked` zeigen den lokalen Regelweg; sie begründen keinen weitergehenden Claim.")}
+{http_note}
 
 {http_test}
 

@@ -892,17 +892,17 @@ def framework_provenance(
     recorded_gitlink = gitlink_sha(connector_root, framework_root)
     if git_worktree_root(framework_root) is not None:
         checkout_sha = git_sha(framework_root)
+        if recorded_gitlink == "unknown":
+            gitlink_status = "not_a_gitlink"
+        elif recorded_gitlink == checkout_sha:
+            gitlink_status = "matches_checkout"
+        else:
+            gitlink_status = "checkout_mismatch"
         return {
             "sha": checkout_sha,
             "gitlink_sha": recorded_gitlink,
             "checkout_status": "checked_out",
-            "gitlink_status": (
-                "matches_checkout"
-                if recorded_gitlink != "unknown" and recorded_gitlink == checkout_sha
-                else "checkout_mismatch"
-                if recorded_gitlink != "unknown"
-                else "not_a_gitlink"
-            ),
+            "gitlink_status": gitlink_status,
             "working_tree_dirty": git_dirty(framework_root),
         }
     if recorded_gitlink != "unknown":

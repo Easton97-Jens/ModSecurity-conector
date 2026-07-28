@@ -6,7 +6,6 @@ import json
 import os
 import re
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 
 # CI helpers are shared from ci/lib even when this file is executed directly.
@@ -16,8 +15,9 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
+from focused_analysis_utils import action_parts, as_list, read_json, read_text, utc_now, write_json
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, resolve_output_dir, safe_existing_file, write_text_file
 
 try:
     import yaml
@@ -32,32 +32,8 @@ ABSOLUTE_RUNTIME_PATH_RE = re.compile(r"(?<![\w.-])/(?:tmp|root|src)[^\s\"']*")
 NO_ROWS_MARKDOWN = "- None."
 
 
-def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def read_json(path: Any) -> dict[str, Any]:
-    return read_json_file(path)
-
-
-def write_json(path: Path, value: dict[str, Any]) -> None:
-    write_json_file(path, value)
-
-
-def read_text(path: Path | None) -> str:
-    return read_text_file(path)
-
-
 def sanitize_report_text(value: Any) -> str:
     return ABSOLUTE_RUNTIME_PATH_RE.sub("<evidence-path>", str(value or ""))
-
-
-def as_list(value: Any) -> list[str]:
-    if isinstance(value, list):
-        return [str(item) for item in value if str(item).strip()]
-    if value in (None, ""):
-        return []
-    return [str(value)]
 
 
 def display_case_path(value: Any, framework_root: Path) -> str:
@@ -81,26 +57,6 @@ def load_case(path_value: Any) -> dict[str, Any]:
     except Exception:
         return {}
     return loaded if isinstance(loaded, dict) else {}
-
-
-def action_parts(action_text: str) -> list[str]:
-    parts: list[str] = []
-    current: list[str] = []
-    quote: str | None = None
-    for char in action_text:
-        if char in {"'", '"'}:
-            quote = {None: char, char: None}.get(quote, quote)
-        if char == "," and quote is None:
-            part = "".join(current).strip()
-            if part:
-                parts.append(part)
-            current = []
-            continue
-        current.append(char)
-    tail = "".join(current).strip()
-    if tail:
-        parts.append(tail)
-    return parts
 
 
 def action_value(actions: list[str], name: str) -> str:
