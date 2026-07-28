@@ -543,8 +543,8 @@ int msconnector_event_write_json_ex(
         event->protocol.connection_reused != 0 ||
         event->protocol.quic_connection_id_present != 0 ||
         event->protocol.fallback_used != 0 || event->protocol.stream_reset != 0;
-    if (protocol_present) {
-        if (!append_protocol_string(provenance_json, sizeof(provenance_json),
+    if (protocol_present &&
+        (!append_protocol_string(provenance_json, sizeof(provenance_json),
                 &provenance_offset, "requested_protocol", requested_protocol) ||
             !append_protocol_string(provenance_json, sizeof(provenance_json),
                 &provenance_offset, "downstream_protocol", downstream_protocol) ||
@@ -582,10 +582,9 @@ int msconnector_event_write_json_ex(
             !append_protocol_bool(provenance_json, sizeof(provenance_json),
                 &provenance_offset, "fallback_used", event->protocol.fallback_used) ||
             !append_protocol_bool(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "stream_reset", event->protocol.stream_reset)) {
-            was_truncated = 1;
-            provenance_json[0] = '\0';
-        }
+                &provenance_offset, "stream_reset", event->protocol.stream_reset))) {
+        was_truncated = 1;
+        provenance_json[0] = '\0';
     }
 
     parts.text[EVENT_JSON_TIMESTAMP] = timestamp;

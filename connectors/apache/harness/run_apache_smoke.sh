@@ -74,6 +74,10 @@ APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKET
 readonly PHASE4_FIRST_BYTE_PREFIX='first-byte-prefix'
 readonly PHASE4_TRANSACTION_REBIND_REFUSAL='request transaction cannot be safely rebound to the target URI'
 OPENSSL_BIN="${OPENSSL:-openssl}"
+readonly CURL_HTTP2_FEATURE_PATTERN='Features:.*HTTP2'
+readonly CURL_HTTP_STATUS_VERSION_FORMAT='%{http_code}\t%{http_version}\n'
+readonly AWK_FIRST_TAB_RECORD_STATUS='NR == 1 { print $1; exit }'
+readonly AWK_FIRST_TAB_RECORD_VERSION='NR == 1 { print $2; exit }'
 
 load_connector_adapter_metadata() {
     eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell apache --prefix CONNECTOR_ADAPTER)"
@@ -1277,7 +1281,7 @@ send_phase4_internal_redirect_request() {
             esac
             ;;
         h2)
-            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+            "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
                 blocked "curl lacks HTTP/2 support required for the Phase-4 internal redirect H2 test"
             : > "$RESPONSE_BODY"
             : > "$RESPONSE_HEADERS"
@@ -1285,15 +1289,15 @@ send_phase4_internal_redirect_request() {
             "$CURL_BIN" -sS -k --http2 --trace-ids \
                 --trace-ascii "$PHASE4_ROGUE_TRACE" \
                 -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
-                -w '%{http_code}\t%{http_version}\n' \
+                -w "$CURL_HTTP_STATUS_VERSION_FORMAT" \
                 "https://127.0.0.1:$PORT$redirect_request_uri" \
                 > "$PHASE4_ROGUE_TRANSFERS" \
                 2> "$LOG_DIR/phase4-internal-redirect-h2-client.err"
             curl_rc=$?
             set -e
-            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+            http_status=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_STATUS" \
                 "$PHASE4_ROGUE_TRANSFERS")
-            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+            http_version=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_VERSION" \
                 "$PHASE4_ROGUE_TRANSFERS")
             case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
                 abort|target_config_abort|uri_policy_abort|target_handler_abort)
@@ -1457,7 +1461,7 @@ send_phase4_downstream_error_request() {
                 fail "Phase-4 downstream error H1 client failed rc=$curl_rc"
             ;;
         h2)
-            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+            "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
                 blocked "curl lacks HTTP/2 support required for the Phase-4 downstream error H2 test"
             : > "$RESPONSE_BODY"
             : > "$RESPONSE_HEADERS"
@@ -1465,7 +1469,7 @@ send_phase4_downstream_error_request() {
             "$CURL_BIN" -sS -k --http2 --trace-ids \
                 --trace-ascii "$PHASE4_ROGUE_TRACE" \
                 -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
-                -w '%{http_code}\t%{http_version}\n' \
+                -w "$CURL_HTTP_STATUS_VERSION_FORMAT" \
                 "https://127.0.0.1:$PORT/__phase4_downstream_error" \
                 > "$PHASE4_ROGUE_TRANSFERS" \
                 2> "$LOG_DIR/phase4-downstream-error-h2-client.err"
@@ -1473,9 +1477,9 @@ send_phase4_downstream_error_request() {
             set -e
             [ "$curl_rc" -eq 0 ] || \
                 fail "Phase-4 downstream error H2 client failed rc=$curl_rc"
-            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+            http_status=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_STATUS" \
                 "$PHASE4_ROGUE_TRANSFERS")
-            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+            http_version=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_VERSION" \
                 "$PHASE4_ROGUE_TRANSFERS")
             [ "$http_version" = "2" ] || \
                 fail "Phase-4 downstream error TLS client did not negotiate HTTP/2"
@@ -1533,7 +1537,7 @@ send_phase4_upstream_error_request() {
                 fail "Phase-4 upstream error H1 client failed rc=$curl_rc"
             ;;
         h2)
-            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+            "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
                 blocked "curl lacks HTTP/2 support required for the Phase-4 upstream error H2 test"
             : > "$RESPONSE_BODY"
             : > "$RESPONSE_HEADERS"
@@ -1541,7 +1545,7 @@ send_phase4_upstream_error_request() {
             "$CURL_BIN" -sS -k --http2 --trace-ids \
                 --trace-ascii "$PHASE4_ROGUE_TRACE" \
                 -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
-                -w '%{http_code}\t%{http_version}\n' \
+                -w "$CURL_HTTP_STATUS_VERSION_FORMAT" \
                 "https://127.0.0.1:$PORT/__phase4_upstream_error" \
                 > "$PHASE4_ROGUE_TRANSFERS" \
                 2> "$LOG_DIR/phase4-upstream-error-h2-client.err"
@@ -1549,9 +1553,9 @@ send_phase4_upstream_error_request() {
             set -e
             [ "$curl_rc" -eq 0 ] || \
                 fail "Phase-4 upstream error H2 client failed rc=$curl_rc"
-            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+            http_status=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_STATUS" \
                 "$PHASE4_ROGUE_TRANSFERS")
-            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+            http_version=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_VERSION" \
                 "$PHASE4_ROGUE_TRANSFERS")
             [ "$http_version" = "2" ] || \
                 fail "Phase-4 upstream error TLS client did not negotiate HTTP/2"
@@ -1640,7 +1644,7 @@ send_phase4_preoutput_error_document_request() {
             set -e
             ;;
         h2)
-            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+            "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
                 blocked "curl lacks HTTP/2 support required for the pre-output ErrorDocument H2 test"
             : > "$RESPONSE_BODY"
             : > "$RESPONSE_HEADERS"
@@ -1648,15 +1652,15 @@ send_phase4_preoutput_error_document_request() {
             "$CURL_BIN" -sS -k --http2 --trace-ids \
                 --trace-ascii "$PHASE4_ROGUE_TRACE" \
                 -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
-                -w '%{http_code}\t%{http_version}\n' \
+                -w "$CURL_HTTP_STATUS_VERSION_FORMAT" \
                 "https://127.0.0.1:$PORT/__phase4_preoutput_error" \
                 > "$PHASE4_ROGUE_TRANSFERS" \
                 2> "$LOG_DIR/phase4-preoutput-error-document-h2-client.err"
             curl_rc=$?
             set -e
-            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+            http_status=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_STATUS" \
                 "$PHASE4_ROGUE_TRANSFERS")
-            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+            http_version=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_VERSION" \
                 "$PHASE4_ROGUE_TRANSFERS")
             if [ "$curl_rc" -eq 0 ]; then
                 [ "$http_version" = "2" ] || \
@@ -1804,7 +1808,7 @@ send_phase4_rogue_request() {
             printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
             ;;
         h2)
-            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+            "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
                 blocked "curl lacks HTTP/2 support required for the Phase-4 rogue H2 test"
             if [ "$APACHE_PHASE4_ROGUE_HEADER_MUTATION" = "1" ]; then
                 [ "$APACHE_PHASE4_ROGUE_EXPECT" = "allow" ] || \
@@ -1817,7 +1821,7 @@ send_phase4_rogue_request() {
                 "$CURL_BIN" -sS -k --http2 --trace-ids \
                     --trace-ascii "$PHASE4_ROGUE_TRACE" \
                     -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
-                    -w '%{http_code}\t%{http_version}\n' \
+                    -w "$CURL_HTTP_STATUS_VERSION_FORMAT" \
                     "https://127.0.0.1:$PORT$rogue_path" \
                     > "$PHASE4_ROGUE_TRANSFERS" \
                     2> "$LOG_DIR/phase4-rogue-h2-client.err"
@@ -1825,9 +1829,9 @@ send_phase4_rogue_request() {
                 set -e
                 [ "$curl_rc" -eq 0 ] || \
                     fail "Phase-3 header-freeze H2 client failed rc=$curl_rc"
-                rogue_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+                rogue_status=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_STATUS" \
                     "$PHASE4_ROGUE_TRANSFERS")
-                rogue_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+                rogue_version=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_VERSION" \
                     "$PHASE4_ROGUE_TRANSFERS")
                 [ "$rogue_status" = "200" ] || \
                     fail "Phase-3 header-freeze H2 expected status 200, observed ${rogue_status:-missing}"
