@@ -58,6 +58,7 @@ case "$NO_CRS_RUN_ID" in
 esac
 case "$NO_CRS_RUN_ID" in
     *[!A-Za-z0-9._-]*) echo "FAIL: run id contains unsafe characters: $NO_CRS_RUN_ID" >&2; exit 1 ;;
+    *) ;;
 esac
 if [ "${#NO_CRS_RUN_ID}" -gt 128 ]; then
     echo "FAIL: run id exceeds 128 characters" >&2
@@ -109,24 +110,28 @@ SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 }
 
 expected_full_lifecycle_profile() {
-    case "$1" in
+    requested_connector=$1
+    case "$requested_connector" in
         apache) printf '%s\n' native-httpd-module ;;
         nginx) printf '%s\n' native-nginx-http-module ;;
         haproxy) printf '%s\n' native-htx-filter ;;
         envoy) printf '%s\n' ext_proc ;;
         traefik) printf '%s\n' native-middleware ;;
         lighttpd) printf '%s\n' patched-native ;;
+        *) return 1 ;;
     esac
 }
 
 expected_full_lifecycle_target() {
-    case "$1" in
+    requested_connector=$1
+    case "$requested_connector" in
         apache) printf '%s\n' full-lifecycle-apache ;;
         nginx) printf '%s\n' full-lifecycle-nginx ;;
         haproxy) printf '%s\n' full-lifecycle-haproxy-htx ;;
         envoy) printf '%s\n' full-lifecycle-envoy-ext-proc ;;
         traefik) printf '%s\n' full-lifecycle-traefik-native ;;
         lighttpd) printf '%s\n' full-lifecycle-lighttpd-patched ;;
+        *) return 1 ;;
     esac
 }
 
@@ -199,6 +204,7 @@ case "$connector" in
         STAGE_RESULTS_DIR=$STAGE_BUILD_ROOT/results
         STAGE_RUNTIME_ROOT=$STAGE_BUILD_ROOT/runtime
         ;;
+    *) ;;
 esac
 NGINX_RUN_ROOT=$CONNECTOR_RUN_ROOT/nginx-harness
 TRAEFIK_RUNTIME_ROOT=$CONNECTOR_RUN_ROOT/traefik-runtime
@@ -261,6 +267,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
         lighttpd)
             FULL_LIFECYCLE_STAGE_REASON="patched lighttpd host runs real request/response entity-body ingestion before HTTP/1 transfer framing, end-of-stream Phase-4 evaluation, and a safe HTTP/1.1 first-byte barrier"
             ;;
+        *) ;;
     esac
 fi
 canonical_rules_file=$("$PYTHON" -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve(strict=True))' \
@@ -288,6 +295,7 @@ case "$RUN_DIR" in
         echo "BLOCKED: canonical evidence must be outside the checkout: $RUN_DIR" >&2
         exit 77
         ;;
+    *) ;;
 esac
 
 reject_symlink_components() {
@@ -310,6 +318,7 @@ case "$RAW_DIR" in
         echo "BLOCKED: raw evidence must be outside the checkout: $RAW_DIR" >&2
         exit 77
         ;;
+    *) ;;
 esac
 reject_symlink_components "$RUN_DIR"
 reject_symlink_components "$RAW_DIR"
@@ -346,6 +355,10 @@ RUNTIME_REPORT_OUTPUT_ROOT=$CONNECTOR_BUILD_ROOT/runtime-component-reports
 case "$connector" in
     apache|nginx|haproxy) canonical_runtime_component_target=$connector ;;
     envoy|traefik|lighttpd) canonical_runtime_component_target=shared ;;
+    *)
+        echo "FAIL: unsupported canonical runtime-component target: $connector" >&2
+        exit 2
+        ;;
 esac
 reject_symlink_components "$RUNTIME_REPORT_OUTPUT_ROOT"
 if [ -z "${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" ]; then
@@ -541,6 +554,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
                 fi
             fi
             ;;
+        *) ;;
     esac
 fi
 
@@ -574,6 +588,10 @@ case "$connector" in
         source_results=$LIGHTTPD_RUNTIME_ROOT/results.jsonl
         source_result=$LIGHTTPD_RUNTIME_ROOT/runtime-summary.txt
         source_events=$LIGHTTPD_RUNTIME_ROOT/events.jsonl
+        ;;
+    *)
+        echo "FAIL: unsupported connector source-result mapping: $connector" >&2
+        exit 2
         ;;
 esac
 
@@ -779,6 +797,10 @@ case "$connector" in
             host_binary=$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd
         fi
         ;;
+    *)
+        echo "FAIL: unsupported connector host-binary mapping: $connector" >&2
+        exit 2
+        ;;
 esac
 if [ -x "$host_binary" ]; then
     case "$connector" in
@@ -792,6 +814,10 @@ if [ -x "$host_binary" ]; then
         envoy) host_version=$($host_binary --version 2>&1 | sed -n '/./{p;q;}') ;;
         traefik) host_version=$($host_binary version 2>&1 | sed -n '/./{p;q;}') ;;
         lighttpd) host_version=$($host_binary -v 2>&1 | sed -n '/./{p;q;}') ;;
+        *)
+            echo "FAIL: unsupported connector host-version mapping: $connector" >&2
+            exit 2
+            ;;
     esac
 fi
 [ -n "$host_version" ] || host_version=unknown

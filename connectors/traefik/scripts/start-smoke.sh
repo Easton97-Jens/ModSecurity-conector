@@ -35,12 +35,14 @@ case "$START_ROOT" in
         echo "BLOCKED: TRAEFIK_CONNECTOR_START_ROOT is too broad: $START_ROOT" >&2
         exit 77
         ;;
+    *) ;;
 esac
 case "$START_ROOT" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
         echo "BLOCKED: start-smoke output must be outside the checkout: $START_ROOT" >&2
         exit 77
         ;;
+    *) ;;
 esac
 if [ -L "$START_ROOT" ]; then
     echo "BLOCKED: TRAEFIK_CONNECTOR_START_ROOT must not be a symlink: $START_ROOT" >&2
@@ -59,6 +61,7 @@ require_executable() {
             echo "BLOCKED: $label binary must not use a global system path: $executable" >&2
             exit 77
             ;;
+        *) ;;
     esac
     if [ ! -x "$executable" ]; then
         echo "BLOCKED: $label binary is not executable: $executable" >&2
@@ -75,6 +78,7 @@ require_loopback_address() {
     esac
     case "$port" in
         ''|*[!0-9]*) echo "BLOCKED: $label has an invalid port: $address" >&2; exit 77 ;;
+        *) ;;
     esac
 }
 
