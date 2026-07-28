@@ -1124,16 +1124,19 @@ def expanded_guide(item: dict[str, str], german: bool) -> str:
         ),
         german,
     )
-    package_host_note = localized(
-        (
+    if slug == "envoy":
+        package_host_note_text = (
             "The final query lines only discover whether a distribution offers an Envoy host package; no result is treated as the selected host, because the repository uses its verified binary plus the source-built ext_proc service.",
             "Die letzten Abfragezeilen ermitteln nur, ob eine Distribution ein Envoy-Hostpaket anbietet; kein Ergebnis gilt als ausgewählter Host, weil das Repository sein verifiziertes Binary samt Source-gebautem ext_proc-Service nutzt.",
-        ) if slug == "envoy" else (
+        )
+    elif slug == "traefik":
+        package_host_note_text = (
             "The final query lines only discover whether a distribution offers a Traefik host package; no result is treated as the selected host, because the repository uses its verified binary plus source-built native middleware and engine service.",
             "Die letzten Abfragezeilen ermitteln nur, ob eine Distribution ein Traefik-Hostpaket anbietet; kein Ergebnis gilt als ausgewählter Host, weil das Repository sein verifiziertes Binary samt Source-gebauter nativer Middleware und Engine-Service nutzt.",
-        ) if slug == "traefik" else ("", ""),
-        german,
-    )
+        )
+    else:
+        package_host_note_text = ("", "")
+    package_host_note = localized(package_host_note_text, german)
 
     if german:
         return f"""{MARKER}
@@ -3793,6 +3796,14 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
     validation = validation_section(item, info)
     http_test = runtime_section(item, info, german)
     variables = manual_variable_table(info, german, slug)
+    default_http_note = (
+        "Run only against loopback. A 200 response on `/` and a 403 response on `/blocked` demonstrate the local rule path; they do not establish a broader claim.",
+        "Nur gegen Loopback ausführen. Eine 200-Antwort auf `/` und eine 403-Antwort auf `/blocked` zeigen den lokalen Regelweg; sie begründen keinen weitergehenden Claim.",
+    )
+    if "http_note" in info:
+        http_note = manual_localized(info["http_note"], german)
+    else:
+        http_note = manual_localized(default_http_note, german)
     return f"""{MARKER}
 
 # {"Manueller Source-Build" if german else "Manual source build"}: {name}
@@ -3847,7 +3858,7 @@ def source_first_guide(item: dict[str, str], german: bool) -> str:
 
 {manual_heading(10, "Local HTTP/1.1 functional test", "Lokaler HTTP/1.1-Funktionstest", german)}
 
-{manual_localized(info['http_note'], german) if 'http_note' in info else ("Run only against loopback. A 200 response on `/` and a 403 response on `/blocked` demonstrate the local rule path; they do not establish a broader claim." if not german else "Nur gegen Loopback ausführen. Eine 200-Antwort auf `/` und eine 403-Antwort auf `/blocked` zeigen den lokalen Regelweg; sie begründen keinen weitergehenden Claim.")}
+{http_note}
 
 {http_test}
 
