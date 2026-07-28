@@ -23,12 +23,14 @@ case "$OUT_DIR" in
         echo "BLOCKED: Traefik native middleware output is too broad: $OUT_DIR" >&2
         exit 77
         ;;
+    *) ;;
 esac
 case "$OUT_DIR" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
         echo "BLOCKED: Traefik native middleware output must be outside the checkout: $OUT_DIR" >&2
         exit 77
         ;;
+    *) ;;
 esac
 
 case "$MODE" in
