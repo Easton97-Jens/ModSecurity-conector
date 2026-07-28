@@ -15,13 +15,186 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class SonarReliabilityContractTests(unittest.TestCase):
-    def test_traefik_result_payload_never_copies_a_null_optional_field(self) -> None:
+    def test_traefik_result_payload_uses_non_null_optional_defaults(self) -> None:
         source = (
             ROOT / "connectors" / "traefik" / "src" / "traefik_engine_service.c"
         ).read_text(encoding="utf-8")
-        self.assertIn("transaction_id != NULL && transaction_id_size > 0U", source)
-        self.assertIn("rule_id != NULL && rule_id_size > 0U", source)
-        self.assertIn("redirect != NULL && redirect_size > 0U", source)
+        send_result = source[source.index("static int traefik_engine_send_result") :]
+
+        self.assertIn("static const char traefik_engine_empty_text[] = \"\";", source)
+        for field in ("transaction_id", "rule_id", "redirect"):
+            self.assertIn(
+                f"const char *{field} = traefik_engine_empty_text;", send_result
+            )
+            self.assertIn(f"if ({field}_size > 0U)", send_result)
+            self.assertNotIn(f"if ({field} != NULL &&", send_result)
+
+        self.assertIn("const char *const runtime_transaction_id", send_result)
+        self.assertIn("const char *const decision_rule_id", send_result)
+        self.assertIn("const char *const decision_redirect", send_result)
+
+    def test_traefik_result_payload_wire_contract_for_optional_text(self) -> None:
+        compiler = shutil.which("cc")
+        if compiler is None:
+            self.skipTest("requires a C compiler")
+
+        engine_source = (
+            ROOT / "connectors" / "traefik" / "src" / "traefik_engine_service.c"
+        )
+        harness_source = r'''
+#define main traefik_engine_service_program_main
+#include "__ENGINE_SOURCE__"
+#undef main
+
+#include <assert.h>
+
+static const char *test_runtime_transaction_id = NULL;
+
+const char *msconnector_runtime_transaction_id(
+    const msconnector_runtime_transaction *transaction)
+{
+    (void)transaction;
+    return test_runtime_transaction_id;
+}
+
+static void read_exact(int fd, unsigned char *out, size_t size)
+{
+    size_t offset = 0U;
+
+    while (offset < size) {
+        ssize_t received = recv(fd, out + offset, size - offset, 0);
+
+        assert(received > 0);
+        offset += (size_t)received;
+    }
+}
+
+static void assert_result_frame(int fd, uint8_t command, uint8_t result_code,
+    uint8_t action, uint8_t phase, uint16_t status, uint16_t flags,
+    const char *transaction_id, const char *rule_id, const char *redirect)
+{
+    unsigned char header[TRAEFIK_ENGINE_PROTOCOL_HEADER_SIZE];
+    unsigned char payload[4096U];
+    size_t transaction_id_size = strlen(transaction_id);
+    size_t rule_id_size = strlen(rule_id);
+    size_t redirect_size = strlen(redirect);
+    size_t expected_size = 14U + transaction_id_size + rule_id_size + redirect_size;
+    size_t offset = 14U;
+
+    assert(expected_size <= sizeof(payload));
+    read_exact(fd, header, sizeof(header));
+    assert(memcmp(header, "MSE1", 4U) == 0);
+    assert(header[4] == TRAEFIK_ENGINE_PROTOCOL_VERSION);
+    assert(header[5] == TRAEFIK_ENGINE_PROTOCOL_RESULT);
+    assert(header[6] == 0U && header[7] == 0U);
+    assert(traefik_engine_read_u32(header + 8U) == expected_size);
+    read_exact(fd, payload, expected_size);
+    assert(payload[0] == command);
+    assert(payload[1] == result_code);
+    assert(payload[2] == action);
+    assert(payload[3] == phase);
+    assert(traefik_engine_read_u16(payload + 4U) == status);
+    assert(traefik_engine_read_u16(payload + 6U) == flags);
+    assert(traefik_engine_read_u16(payload + 8U) == transaction_id_size);
+    assert(traefik_engine_read_u16(payload + 10U) == rule_id_size);
+    assert(traefik_engine_read_u16(payload + 12U) == redirect_size);
+    assert(memcmp(payload + offset, transaction_id, transaction_id_size) == 0);
+    offset += transaction_id_size;
+    assert(memcmp(payload + offset, rule_id, rule_id_size) == 0);
+    offset += rule_id_size;
+    assert(memcmp(payload + offset, redirect, redirect_size) == 0);
+}
+
+int main(void)
+{
+    int sockets[2];
+    traefik_engine_session session;
+    msconnector_decision decision;
+
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+    memset(&session, 0, sizeof(session));
+    session.transaction = (msconnector_runtime_transaction *)(uintptr_t)1U;
+    memset(&decision, 0, sizeof(decision));
+    test_runtime_transaction_id = NULL;
+    assert(traefik_engine_send_result(sockets[0],
+        TRAEFIK_ENGINE_PROTOCOL_BEGIN, TRAEFIK_ENGINE_PROTOCOL_RESULT_OK,
+        &session, &decision) == 1);
+    assert_result_frame(sockets[1], TRAEFIK_ENGINE_PROTOCOL_BEGIN,
+        TRAEFIK_ENGINE_PROTOCOL_RESULT_OK, MSCONNECTOR_DECISION_KIND_ALLOW,
+        MSCONNECTOR_PHASE_CONNECTION, 0U, 0U, "", "", "");
+
+    test_runtime_transaction_id = "transaction-7";
+    memset(&decision, 0, sizeof(decision));
+    decision.kind = MSCONNECTOR_DECISION_KIND_REDIRECT;
+    decision.phase = MSCONNECTOR_PHASE_RESPONSE_HEADERS;
+    decision.http_status = 307;
+    decision.rule_id = "942100";
+    decision.redirect_url = "https://example.test/blocked";
+    decision.disruptive = 1;
+    decision.late_intervention = 1;
+    assert(traefik_engine_send_result(sockets[0],
+        TRAEFIK_ENGINE_PROTOCOL_RESPONSE_HEADERS,
+        TRAEFIK_ENGINE_PROTOCOL_RESULT_RUNTIME, &session, &decision) == 1);
+    assert_result_frame(sockets[1], TRAEFIK_ENGINE_PROTOCOL_RESPONSE_HEADERS,
+        TRAEFIK_ENGINE_PROTOCOL_RESULT_RUNTIME,
+        MSCONNECTOR_DECISION_KIND_REDIRECT,
+        MSCONNECTOR_PHASE_RESPONSE_HEADERS, 307U,
+        TRAEFIK_ENGINE_PROTOCOL_RESULT_DISRUPTIVE |
+            TRAEFIK_ENGINE_PROTOCOL_RESULT_LATE,
+        "transaction-7", "942100", "https://example.test/blocked");
+
+    assert(close(sockets[0]) == 0);
+    assert(close(sockets[1]) == 0);
+    return 0;
+}
+'''.replace("__ENGINE_SOURCE__", engine_source.as_posix())
+        temporary_parent = os.environ.get("TMPDIR")
+        with tempfile.TemporaryDirectory(
+            prefix="traefik-result-optional-text-", dir=temporary_parent
+        ) as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            harness = temporary_root / "traefik_result_optional_text.c"
+            binary = temporary_root / "traefik_result_optional_text"
+            harness.write_text(harness_source, encoding="utf-8")
+            compile_result = subprocess.run(
+                [
+                    compiler,
+                    "-std=c17",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    "-ffunction-sections",
+                    "-fdata-sections",
+                    "-I",
+                    str(ROOT),
+                    "-I",
+                    str(ROOT / "common" / "include"),
+                    "-I",
+                    str(ROOT / "common" / "runtime"),
+                    "-I",
+                    str(ROOT / "connectors" / "traefik"),
+                    "-I",
+                    str(ROOT / "connectors" / "traefik" / "src"),
+                    str(harness),
+                    "-Wl,--gc-sections",
+                    "-pthread",
+                    "-o",
+                    str(binary),
+                ],
+                cwd=ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
+            run_result = subprocess.run(
+                [str(binary)],
+                cwd=ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(run_result.returncode, 0, run_result.stderr)
 
     def test_authorization_listener_initializes_peer_and_local_socket_state(self) -> None:
         source = (
