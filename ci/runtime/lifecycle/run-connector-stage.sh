@@ -31,24 +31,28 @@ case "$stage" in
 esac
 
 expected_full_lifecycle_profile() {
-    case "$1" in
+    requested_connector=$1
+    case "$requested_connector" in
         apache) printf '%s\n' native-httpd-module ;;
         nginx) printf '%s\n' native-nginx-http-module ;;
         haproxy) printf '%s\n' native-htx-filter ;;
         envoy) printf '%s\n' ext_proc ;;
         traefik) printf '%s\n' native-middleware ;;
         lighttpd) printf '%s\n' patched-native ;;
+        *) return 1 ;;
     esac
 }
 
 expected_full_lifecycle_target() {
-    case "$1" in
+    requested_connector=$1
+    case "$requested_connector" in
         apache) printf '%s\n' full-lifecycle-apache ;;
         nginx) printf '%s\n' full-lifecycle-nginx ;;
         haproxy) printf '%s\n' full-lifecycle-haproxy-htx ;;
         envoy) printf '%s\n' full-lifecycle-envoy-ext-proc ;;
         traefik) printf '%s\n' full-lifecycle-traefik-native ;;
         lighttpd) printf '%s\n' full-lifecycle-lighttpd-patched ;;
+        *) return 1 ;;
     esac
 }
 
@@ -80,6 +84,7 @@ case "$BUILD_ROOT" in
         echo "BLOCKED: BUILD_ROOT must be outside the checkout: $BUILD_ROOT" >&2
         exit 77
         ;;
+    *) ;;
 esac
 
 export CONNECTOR_ROOT FRAMEWORK_ROOT VERIFIED_RUN_ROOT BUILD_ROOT CACHE_ROOT VERIFIED_COMPONENT_CACHE CONNECTOR_COMPONENT_CACHE TMP_ROOT LOG_ROOT RESULTS_DIR
@@ -87,6 +92,10 @@ export RUNTIME_REPORT_OUTPUT_ROOT RUNTIME_ROOT RUNTIME_BASE PYTHON RUNTIME_COMPO
 case "$connector" in
     apache|nginx|haproxy) RUNTIME_COMPONENT_TARGET=$connector ;;
     envoy|traefik|lighttpd) RUNTIME_COMPONENT_TARGET=shared ;;
+    *)
+        echo "FAIL: unsupported connector runtime-component target: $connector" >&2
+        exit 2
+        ;;
 esac
 export RUNTIME_COMPONENT_TARGET
 
@@ -289,5 +298,9 @@ case "$connector:$stage" in
             # evidence instead of being implied by a 200/403 smoke.
             run_remaining_connector no-crs-baseline-lighttpd
         fi
+        ;;
+    *)
+        echo "FAIL: unsupported connector stage dispatch: $connector:$stage" >&2
+        exit 2
         ;;
 esac

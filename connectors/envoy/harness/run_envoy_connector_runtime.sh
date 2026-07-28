@@ -71,6 +71,7 @@ case "$RUNTIME_ROOT" in
         echo "envoy_runtime_smoke: FAIL - RUNTIME_ROOT must not be inside the checkout" >&2
         exit 1
         ;;
+    *) ;;
 esac
 mkdir -p "$RUNTIME_ROOT"
 case "$EVENT_LOG_PATH" in
