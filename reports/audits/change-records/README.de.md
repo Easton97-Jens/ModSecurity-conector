@@ -8,6 +8,15 @@ englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-Shell-Dispatch-Rule-Remediation für SonarQube Cloud S131 und S7679](CR-20260727-sonar-shell-dispatch-rules.de.md)
+Der führende Eintrag dokumentiert das SonarQube-Cloud-Ergebnis des initialen
+exakten Heads von Draft PR #131—Quality Gate `OK` mit keiner neuen
+Duplizierung und einem task-owned `python:S3358`—seine lokale normale
+Korrektur der verschachtelten Bedingung sowie das Fehlen einer Remote-Analyse
+nach der Korrektur oder eines Merge.
+
+- [Parent-Connector-Config-Reference-Literal-Deduplizierung und SonarQube-Cloud-S3358-Follow-up](CR-20260727-sonar-config-reference-literal-deduplication.de.md)
+- [Parent-Compiler-Guide-Literal-Deduplizierung für SonarQube Cloud S1192](CR-20260727-sonar-compiler-guides-literal-deduplication.de.md)
+- [Parent-Test-Assertion-Order-Remediation für SonarQube Cloud S3415](CR-20260727-sonar-s3415-parent-test-assertions.de.md)
 - [Parent-PR #128 Rest-SonarQube-Cloud- und Workflow-Remediation](CR-20260727-sonar-pr128-residual-remediation.de.md)
 - [Parent-Apache-Output-Filter-Status-Shadowing für SonarQube Cloud C:S1117](CR-20260727-sonar-apache-output-filter-status-shadowing.de.md)
 - [Parent-Compiler-Guide-Metadatenliterale für SonarQube Cloud S1192](CR-20260727-sonar-compiler-guide-metadata-literals.de.md)

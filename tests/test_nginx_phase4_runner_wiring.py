@@ -46,9 +46,9 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
 
         self.assertEqual(case["name"], "phase4_deny_after_commit_abort")
         self.assertTrue(case["no_crs_baseline"])
-        self.assertEqual("strict", case["nginx"]["phase4_mode"])
-        self.assertEqual(200, expect["status"])
-        self.assertEqual("connection_aborted", expect["transport"])
+        self.assertEqual(case["nginx"]["phase4_mode"], "strict")
+        self.assertEqual(expect["status"], 200)
+        self.assertEqual(expect["transport"], "connection_aborted")
         self.assertIn("event", case["expected_event_fields"])
         self.assertIn("message_id", case["expected_event_fields"])
         self.assertIn('"message_id":"MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200"', phase4_log["contains"])
@@ -93,7 +93,7 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
             (ROOT / "connectors" / "nginx" / "capabilities.json").read_text(encoding="utf-8")
         )
         declaration = manifest["capabilities"]["phase4_pre_commit_deny"]
-        self.assertEqual("not_implemented", declaration["state"])
+        self.assertEqual(declaration["state"], "not_implemented")
         self.assertIn("body filter", declaration["reason"])
 
     def test_apache_declares_a_gate_backed_precommit_phase4_deny(self) -> None:
@@ -103,7 +103,7 @@ class NginxPhase4RunnerWiringTest(unittest.TestCase):
             (ROOT / "connectors" / "apache" / "capabilities.json").read_text(encoding="utf-8")
         )
         declaration = manifest["capabilities"]["phase4_pre_commit_deny"]
-        self.assertEqual("implemented_not_asserted", declaration["state"])
+        self.assertEqual(declaration["state"], "implemented_not_asserted")
         self.assertIn("retains original response bytes", declaration["reason"])
         self.assertIn("terminal error", declaration["reason"])
 
