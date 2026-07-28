@@ -1,6 +1,7 @@
 package native_middleware
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -172,6 +173,156 @@ func TestUDSConfigRejectsValuesOutsideTheWireContract(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUDSBuildersPreserveWireFormatAndDefaultHTTPVersion(t *testing.T) {
+	headers := []Header{
+		{Name: "X-One", Value: "alpha"},
+		{Name: "X-Two", Value: ""},
+	}
+	metadata := Metadata{
+		TransactionID: "request-7",
+		Method:        http.MethodPost,
+		RequestURI:    "/orders?a=1",
+		Hostname:      "example.test",
+		ClientAddress: "192.0.2.10",
+		ClientPort:    1234,
+		ServerAddress: "198.51.100.2",
+		ServerPort:    443,
+	}
+
+	begin, err := buildUDSBegin(metadata, headers)
+	if err != nil {
+		t.Fatalf("buildUDSBegin() error = %v", err)
+	}
+	wantBegin := make([]byte, 0, len(begin))
+	wantBegin = appendUDSWireText(wantBegin, http.MethodPost)
+	wantBegin = appendUDSWireText(wantBegin, "/orders?a=1")
+	wantBegin = appendUDSWireText(wantBegin, "HTTP/1.1")
+	wantBegin = appendUDSWireText(wantBegin, "example.test")
+	wantBegin = appendUDSWireText(wantBegin, "192.0.2.10")
+	wantBegin = appendUDSWireUint16(wantBegin, 1234)
+	wantBegin = appendUDSWireText(wantBegin, "198.51.100.2")
+	wantBegin = appendUDSWireUint16(wantBegin, 443)
+	wantBegin = appendUDSWireText(wantBegin, "request-7")
+	wantBegin = appendUDSWireUint16(wantBegin, 2)
+	wantBegin = appendUDSWireText(wantBegin, "X-One")
+	wantBegin = appendUDSWireText(wantBegin, "alpha")
+	wantBegin = appendUDSWireText(wantBegin, "X-Two")
+	wantBegin = appendUDSWireText(wantBegin, "")
+	if !bytes.Equal(begin, wantBegin) {
+		t.Fatalf("buildUDSBegin() payload = %#v, want %#v", begin, wantBegin)
+	}
+
+	response, err := buildUDSResponseHeaders(http.StatusCreated, "", headers)
+	if err != nil {
+		t.Fatalf("buildUDSResponseHeaders() error = %v", err)
+	}
+	wantResponse := make([]byte, 0, len(response))
+	wantResponse = appendUDSWireUint16(wantResponse, http.StatusCreated)
+	wantResponse = appendUDSWireText(wantResponse, "HTTP/1.1")
+	wantResponse = appendUDSWireUint16(wantResponse, 2)
+	wantResponse = appendUDSWireText(wantResponse, "X-One")
+	wantResponse = appendUDSWireText(wantResponse, "alpha")
+	wantResponse = appendUDSWireText(wantResponse, "X-Two")
+	wantResponse = appendUDSWireText(wantResponse, "")
+	if !bytes.Equal(response, wantResponse) {
+		t.Fatalf("buildUDSResponseHeaders() payload = %#v, want %#v", response, wantResponse)
+	}
+}
+
+func TestUDSBuildersRejectInvalidHeaderSerialization(t *testing.T) {
+	builders := []struct {
+		name  string
+		build func([]Header) ([]byte, error)
+	}{
+		{
+			name: "begin",
+			build: func(headers []Header) ([]byte, error) {
+				return buildUDSBegin(Metadata{Method: http.MethodGet, RequestURI: "/"}, headers)
+			},
+		},
+		{
+			name: "response-headers",
+			build: func(headers []Header) ([]byte, error) {
+				return buildUDSResponseHeaders(http.StatusOK, "HTTP/1.1", headers)
+			},
+		},
+	}
+	tests := []struct {
+		name        string
+		makeHeaders func() []Header
+	}{
+		{
+			name: "too-many-headers",
+			makeHeaders: func() []Header {
+				return make([]Header, udsMaxHeaders+1)
+			},
+		},
+		{
+			name: "empty-name",
+			makeHeaders: func() []Header {
+				return []Header{{Name: "", Value: "value"}}
+			},
+		},
+		{
+			name: "nul-name",
+			makeHeaders: func() []Header {
+				return []Header{{Name: "X\x00Name", Value: "value"}}
+			},
+		},
+		{
+			name: "nul-value",
+			makeHeaders: func() []Header {
+				return []Header{{Name: "X-Name", Value: "value\x00"}}
+			},
+		},
+		{
+			name: "oversized-name",
+			makeHeaders: func() []Header {
+				return []Header{{Name: strings.Repeat("n", udsMaxHeaderName+1), Value: "value"}}
+			},
+		},
+		{
+			name: "oversized-value",
+			makeHeaders: func() []Header {
+				return []Header{{Name: "X-Name", Value: strings.Repeat("v", udsMaxHeaderValue+1)}}
+			},
+		},
+		{
+			name: "oversized-aggregate-payload",
+			makeHeaders: func() []Header {
+				headers := make([]Header, 8)
+				for index := range headers {
+					headers[index] = Header{Name: "X", Value: strings.Repeat("v", udsMaxHeaderValue)}
+				}
+				return headers
+			},
+		},
+	}
+
+	for _, builder := range builders {
+		for _, test := range tests {
+			t.Run(builder.name+"/"+test.name, func(t *testing.T) {
+				payload, err := builder.build(test.makeHeaders())
+				if !errors.Is(err, errUDSEngineProtocol) {
+					t.Fatalf("builder error = %v, want errUDSEngineProtocol", err)
+				}
+				if payload != nil {
+					t.Fatalf("builder payload = %#v, want nil after invalid header serialization", payload)
+				}
+			})
+		}
+	}
+}
+
+func appendUDSWireText(payload []byte, value string) []byte {
+	payload = appendUDSWireUint16(payload, uint16(len(value)))
+	return append(payload, value...)
+}
+
+func appendUDSWireUint16(payload []byte, value uint16) []byte {
+	return append(payload, byte(value>>8), byte(value))
 }
 
 func TestUDSEngineUsesOneSessionForFullLifecycle(t *testing.T) {

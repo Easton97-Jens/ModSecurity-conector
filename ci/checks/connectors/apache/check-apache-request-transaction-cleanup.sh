@@ -63,6 +63,7 @@ for APR_LINK_FLAG in $APR_LINK_FLAGS; do
             APR_LIBDIR=${APR_LINK_FLAG#-L}
             break
             ;;
+        *) ;;
     esac
 done
 
