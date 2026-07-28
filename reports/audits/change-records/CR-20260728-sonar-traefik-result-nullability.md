@@ -72,6 +72,7 @@ missing value has the same zero size as before, so it writes no payload bytes.
 | `git diff --check` | passed; no whitespace errors. |
 | Repository bilingual-documentation checker against a task-owned external candidate overlay with the Parent-pinned Framework revision `47e50e7bc43ba7a3b5bad1a9448111794f664cc0` | passed: language pairs, Change Record structure, links, and Framework references resolve without changing any checkout. |
 | Focused `codex-security:security-diff-scan` of the exact local patch | passed; no reportable vulnerability candidate. The sealed scan report is bound to patch SHA-256 `f221a59b23fe79abd46f3f0ec9a3364030492960d0381c8552c8bd4c415a2df7`. |
+| Normal task-branch push and Draft PR creation | completed: [Parent PR #150](https://github.com/Easton97-Jens/ModSecurity-conector/pull/150) is open against `master`; its exact-head hosted checks remain pending. |
 
 ## Security impact
 
@@ -110,13 +111,15 @@ analysis of the candidate head has completed.
 - The full `connectors/traefik` native host-runtime target was not run because
   its required verified libmodsecurity development dependency is absent; no
   substitute full-runtime claim is made.
-- Exact PR-head CI, SonarQube Cloud analysis, review, and merge have not run
-  because this candidate has not yet entered the delivery cycle.
+- Exact PR-head CI, SonarQube Cloud analysis, review, and merge remain pending
+  for Draft PR #150. The Draft state deliberately does not assert a quality
+  result or merge eligibility.
 
 ## Final diff and review status
 
-This record describes the local candidate before staging, commit, push,
-pull-request creation, external analysis, or master integration. Its focused
-source contract and security-diff review passed. The three targeted external
-issues are not claimed closed until fresh exact-head SonarQube Cloud evidence
-confirms it.
+The implementation was committed and normally pushed on its task branch, and
+[Draft Parent PR #150](https://github.com/Easton97-Jens/ModSecurity-conector/pull/150)
+is open against `master`. Its focused source contract and security-diff review
+passed. GitHub Actions, SonarQube Cloud, review, and every master action remain
+unobserved for the current PR head. The three targeted external issues are not
+claimed closed until fresh exact-head SonarQube Cloud evidence confirms it.
