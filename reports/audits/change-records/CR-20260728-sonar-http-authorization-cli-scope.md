@@ -1,4 +1,4 @@
-# Change Record: Parent HTTP authorization CLI loop control for SonarQube Cloud c:S5955 and c:S886
+# Change Record: Parent HTTP authorization CLI loop control for SonarQube Cloud c:S5955, c:S886, and c:S3776
 
 **Language:** English | [Deutsch](CR-20260728-sonar-http-authorization-cli-scope.de.md)
 
@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-07-28 |
 | Base revision | 8e8acb8dab1cd03723de269cab7da7dd62e5e010 |
 | Boundary | Parent `common/runtime/http_authorization_service.c`, this English/German Change Record pair, and the Change Record indexes. Framework, MRTS, both gitlinks, workflows, scanner policy, generated reports, and connector behavior remain unchanged. |
-| Finding linkage | SonarQube Cloud code smell `AZ9MwjL6-bUaKQ_zSGBL`, rule `c:S5955`, at `parse_cli` line 110, followed by exact-PR-head code smell `AZ-orCBNFp8FN2qblodn`, rule `c:S886`, at line 109. |
+| Finding linkage | SonarQube Cloud code smells `AZ9MwjL6-bUaKQ_zSGBL` (`c:S5955`), `AZ-orCBNFp8FN2qblodn` (`c:S886`), and exact-PR-head `AZ-ovroGM5o_ow3fPM0Z` (`c:S3776`) at `parse_cli`. |
 
 ## Motivation and problem statement
 
@@ -18,10 +18,13 @@ The shared HTTP authorization-service CLI parser declared its loop counter
 outside the only loop that uses it. SonarQube Cloud reports this as `c:S5955`.
 The initial loop-local correction then exposed `c:S886` on the same touched
 parser because direct `argv[++index]` expressions also changed the `for`
-counter inside its body. The parser is shared by Parent authorization-service
-wrappers, so the follow-up must retain argument consumption, timeout-bound
-enforcement, and invalid-input rejection exactly while leaving counter updates
-in the `for` header.
+counter inside its body. Making the two-token skip explicit cleared that
+counter concern but raised `parse_cli` cognitive complexity from 25 to 29,
+which SonarQube Cloud reports as `c:S3776` despite a Quality Gate `OK`.
+The parser is shared by Parent authorization-service wrappers, so the
+follow-up must retain argument consumption, timeout-bound enforcement, and
+invalid-input rejection exactly while keeping both loop control and function
+complexity within the analyzer's expectation.
 
 ## Acceptance criteria
 
@@ -31,6 +34,10 @@ in the `for` header.
   `AUTH_CONNECTION_TIMEOUT_*` bounds remain unchanged.
 - Missing values after `--config`, `--listen`, `--max-requests`, and
   `--connection-timeout-ms` are rejected with the existing CLI failure status.
+- Unknown options and non-numeric `--max-requests` values retain their
+  existing CLI failure status.
+- The value-bearing option dispatch is factored so that `parse_cli` no longer
+  exceeds SonarQube Cloud's cognitive-complexity maximum.
 - The timeout/invalid-input smoke passes with both available C17 compilers
   under `-std=c17 -Wall -Wextra -Werror` using task-owned external outputs.
 - Focused Parent source-contract validation and whitespace validation pass.
@@ -44,6 +51,11 @@ preserves the existing two-token option behavior: the option iteration reads
 `argv[index + 1]`, validates it where required, and marks the following
 iteration as the consumed value. The next iteration clears that flag and
 continues, while `++index` remains solely in the `for` header.
+
+`parse_cli_value_option` owns only the four existing value-bearing option
+cases and their existing numeric/timeout predicates. This removes the repeated
+branches from `parse_cli`; it does not introduce a new option, accept a missing
+value, or change the first-invalid-argument failure result.
 
 This replaces no parser grammar, command-line option, timeout default, timeout
 maximum, allocation, socket operation, or authorization decision. It makes
@@ -70,7 +82,7 @@ authorization, request, network, filesystem, or command-execution path.
 
 | Command or control | Actual result |
 | --- | --- |
-| `make check-http-authorization-service-timeout` with GCC, explicit task-owned `TMPDIR`, `VERIFIED_RUN_ROOT`, `VERIFIED_BUILD_ROOT`, and `BUILD_ROOT` | passed; the smoke compiled the changed translation unit with `-std=c17 -Wall -Wextra -Werror` and exercised stalled requests, drip headers, zero-timeout rejection, and all four missing-option-value rejections. |
+| `make check-http-authorization-service-timeout` with GCC, explicit task-owned `TMPDIR`, `VERIFIED_RUN_ROOT`, `VERIFIED_BUILD_ROOT`, and `BUILD_ROOT` | passed; the smoke compiled the changed translation unit with `-std=c17 -Wall -Wextra -Werror` and exercised stalled requests, drip headers, zero-timeout rejection, all four missing-option-value rejections, unknown-option rejection, and non-numeric max-request rejection. |
 | `make check-http-authorization-service-timeout` with `CC=clang` and the same explicit C17 flags and isolated roots | passed with the same valid and invalid CLI controls. |
 | `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_sonar_reliability_contract` | passed, 10 tests. |
 | Task-owned external overlay of the exact Parent candidate plus the read-only Parent-pinned Framework archive `47e50e7bc43ba7a3b5bad1a9448111794f664cc0`: `check-bilingual-docs.py`, `check-repository-path-references.py`, and Framework `check-doc-links.py` | passed: `bilingual docs ok`, `repository path references: PASS`, and `doc links ok`. |
@@ -92,10 +104,10 @@ a claim about a full deployment.
 
 ## Known limitations
 
-SonarQube Cloud is the authority for removing `AZ9MwjL6-bUaKQ_zSGBL` and
-`AZ-orCBNFp8FN2qblodn`; local C17 compilation cannot prove the hosted rule
-disposition. The project-wide 652-issue and duplicate-line backlog remains
-outside this one parser-focused remediation.
+SonarQube Cloud is the authority for removing `AZ9MwjL6-bUaKQ_zSGBL`,
+`AZ-orCBNFp8FN2qblodn`, and `AZ-ovroGM5o_ow3fPM0Z`; local C17 compilation
+cannot prove the hosted rule disposition. The project-wide 652-issue and
+duplicate-line backlog remains outside this one parser-focused remediation.
 
 ## Remaining risks
 
@@ -106,9 +118,10 @@ policy, and authorization-service wrapper behavior.
 ## Final diff and review status
 
 The initial scope correction was committed as
-`8fa2f2cf8e8c6130ee1530f97008284c63bf298b` and the initial bilingual Change
-Record/index commits were pushed to the task branch. Its exact hosted head
-reported `c:S886`, so this follow-up adds only the explicit skip and its
-missing-value regression control. The reviewed candidate remains a Draft PR;
-fresh exact-head hosted evidence is required after the normal follow-up push.
-No Ready-for-review transition or merge is claimed.
+`8fa2f2cf8e8c6130ee1530f97008284c63bf298b`. Exact PR head
+`ea52192f30ca091f9389eb10c87e9a99e2bbab4c` then had a successful Quality Gate
+and zero new duplicated lines, but one OPEN `c:S3776` receipt. This follow-up
+adds only the value-option helper needed to lower that function's complexity;
+the reviewed candidate remains a Draft PR. Fresh issue-free exact-head hosted
+evidence is required after the normal follow-up push. No Ready-for-review
+transition or merge is claimed.

@@ -103,6 +103,29 @@ static int parse_unsigned_long(const char *value, unsigned long *out) {
     return 1;
 }
 
+static int parse_cli_value_option(
+    const char *argument,
+    const char *value,
+    authorization_cli *cli) {
+    if (strcmp(argument, "--config") == 0) {
+        cli->config_path = value;
+        return 1;
+    }
+    if (strcmp(argument, "--listen") == 0) {
+        cli->listen_spec = value;
+        return 1;
+    }
+    if (strcmp(argument, "--max-requests") == 0) {
+        return parse_unsigned_long(value, &cli->max_requests);
+    }
+    if (strcmp(argument, "--connection-timeout-ms") == 0) {
+        return parse_unsigned_long(value, &cli->connection_timeout_ms) &&
+            cli->connection_timeout_ms != 0UL &&
+            cli->connection_timeout_ms <= AUTH_CONNECTION_TIMEOUT_MAX_MS;
+    }
+    return 0;
+}
+
 static int parse_cli(int argc, char **argv, authorization_cli *cli) {
     int skip_option_value = 0;
     memset(cli, 0, sizeof(*cli));
@@ -116,31 +139,8 @@ static int parse_cli(int argc, char **argv, authorization_cli *cli) {
             cli->check_config = 1;
         } else if (strcmp(argv[index], "--serve") == 0) {
             cli->serve = 1;
-        } else if (strcmp(argv[index], "--config") == 0) {
-            if (index + 1 >= argc) {
-                return 0;
-            }
-            cli->config_path = argv[index + 1];
-            skip_option_value = 1;
-        } else if (strcmp(argv[index], "--listen") == 0) {
-            if (index + 1 >= argc) {
-                return 0;
-            }
-            cli->listen_spec = argv[index + 1];
-            skip_option_value = 1;
-        } else if (strcmp(argv[index], "--max-requests") == 0) {
-            if (index + 1 >= argc ||
-                !parse_unsigned_long(argv[index + 1], &cli->max_requests)) {
-                return 0;
-            }
-            skip_option_value = 1;
-        } else if (strcmp(argv[index], "--connection-timeout-ms") == 0) {
-            if (index + 1 >= argc ||
-                !parse_unsigned_long(argv[index + 1], &cli->connection_timeout_ms) ||
-                cli->connection_timeout_ms == 0UL ||
-                cli->connection_timeout_ms > AUTH_CONNECTION_TIMEOUT_MAX_MS) {
-                return 0;
-            }
+        } else if (index + 1 < argc &&
+            parse_cli_value_option(argv[index], argv[index + 1], cli)) {
             skip_option_value = 1;
         } else {
             return 0;
