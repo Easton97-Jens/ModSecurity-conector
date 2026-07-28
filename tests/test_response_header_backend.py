@@ -59,10 +59,10 @@ class ResponseHeaderBackendTest(unittest.TestCase):
                     "--output",
                     str(output),
                 )
-                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(result.returncode, 0, result.stderr)
                 fixture = json.loads(output.read_text(encoding="utf-8"))
-                self.assertEqual(200, fixture["status"])
-                self.assertEqual([["X-Modsec-Upstream", marker]], fixture["headers"])
+                self.assertEqual(fixture["status"], 200)
+                self.assertEqual(fixture["headers"], [["X-Modsec-Upstream", marker]])
 
     def test_backend_uses_declarative_status_and_marker_header(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -184,8 +184,8 @@ expect:
                 "--framework-root",
                 str(FRAMEWORK_ROOT),
             )
-            self.assertEqual(0, result.returncode, result.stderr)
-            self.assertEqual("strict\n", result.stdout)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "strict\n")
 
             case.write_text(case.read_text(encoding="utf-8").replace("strict", "unsafe"), encoding="utf-8")
             invalid = self.metadata(

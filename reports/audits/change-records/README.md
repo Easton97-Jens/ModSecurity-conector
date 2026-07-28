@@ -7,6 +7,16 @@ limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent test-fixture duplication reduction for SonarQube Cloud](CR-20260727-sonar-parent-test-duplication.md)
+- [Parent repository inventory complexity remediation for SonarQube Cloud S3776](CR-20260727-sonar-s3776-repository-inventory.md)
+- [Parent shell dispatch-rule remediation for SonarQube Cloud S131 and S7679](CR-20260727-sonar-shell-dispatch-rules.md)
+The leading entry records Draft PR #131's initial exact-head SonarQube Cloud
+result—Quality Gate `OK` with zero new duplication and one task-owned
+`python:S3358`—its local normal nested-conditional correction, and the absence
+of a post-correction remote analysis or merge.
+
+- [Parent connector-config-reference literal deduplication and SonarQube Cloud S3358 follow-up](CR-20260727-sonar-config-reference-literal-deduplication.md)
+- [Parent compiler-guide literal deduplication for SonarQube Cloud S1192](CR-20260727-sonar-compiler-guides-literal-deduplication.md)
+- [Parent test assertion-order remediation for SonarQube Cloud S3415](CR-20260727-sonar-s3415-parent-test-assertions.md)
 - [Parent PR #128 residual SonarQube Cloud and workflow remediation](CR-20260727-sonar-pr128-residual-remediation.md)
 - [Parent Apache output-filter status shadowing for SonarQube Cloud C:S1117](CR-20260727-sonar-apache-output-filter-status-shadowing.md)
 - [Parent compiler-guide metadata literals for SonarQube Cloud S1192](CR-20260727-sonar-compiler-guide-metadata-literals.md)

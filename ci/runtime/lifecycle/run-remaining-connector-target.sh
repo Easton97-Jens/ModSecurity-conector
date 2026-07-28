@@ -152,6 +152,7 @@ require_modsecurity_build_environment() {
 require_host=0
 case "$target" in
     start-smoke-*|runtime-smoke-*|no-crs-baseline-*) require_host=1 ;;
+    *) ;;
 esac
 
 require_modsecurity_build_environment

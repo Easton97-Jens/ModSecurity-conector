@@ -123,7 +123,7 @@ class TransportLifecycleArtifactsTest(unittest.TestCase):
             capture_output=True,
             text=True,
         )
-        self.assertEqual(0, completed.returncode, completed.stderr + completed.stdout)
+        self.assertEqual(completed.returncode, 0, completed.stderr + completed.stdout)
 
     def test_h3_connection_id_is_retained_only_as_a_hash(self) -> None:
         base = {

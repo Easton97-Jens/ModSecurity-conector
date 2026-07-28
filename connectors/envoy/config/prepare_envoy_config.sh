@@ -44,16 +44,19 @@ case "$OUTPUT_CONFIG" in
         echo "envoy_config: generated config must not be inside the checkout: $OUTPUT_CONFIG" >&2
         exit 2
         ;;
+    *) ;;
 esac
 case "$EVENT_LOG_PATH" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
         echo "envoy_config: event log must not be inside the checkout: $EVENT_LOG_PATH" >&2
         exit 2
         ;;
+    *) ;;
 esac
 
 escape_replacement() {
-    printf '%s' "$1" | sed 's/[\\&|]/\\&/g'
+    replacement_value=$1
+    printf '%s' "$replacement_value" | sed 's/[\\&|]/\\&/g'
 }
 
 rules_replacement=$(escape_replacement "$RULES_FILE")
