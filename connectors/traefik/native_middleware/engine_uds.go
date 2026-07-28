@@ -380,14 +380,8 @@ func buildUDSBegin(metadata Metadata, headers []Header) ([]byte, error) {
 	if payload, err = appendUDSText(payload, metadata.TransactionID, udsMaxHostRequestID, false); err != nil {
 		return nil, err
 	}
-	payload = appendUDSUint16(payload, uint16(len(headers)))
-	for _, header := range headers {
-		if payload, err = appendUDSText(payload, header.Name, udsMaxHeaderName, true); err != nil {
-			return nil, err
-		}
-		if payload, err = appendUDSText(payload, header.Value, udsMaxHeaderValue, false); err != nil {
-			return nil, err
-		}
+	if payload, err = appendUDSHeaderPairs(payload, headers); err != nil {
+		return nil, err
 	}
 	if len(payload) > udsMaxPayload {
 		return nil, errUDSEngineProtocol
@@ -407,17 +401,25 @@ func buildUDSResponseHeaders(status int, httpVersion string, headers []Header) (
 	if payload, err = appendUDSText(payload, httpVersion, udsMaxHTTPVersion, true); err != nil {
 		return nil, err
 	}
+	if payload, err = appendUDSHeaderPairs(payload, headers); err != nil {
+		return nil, err
+	}
+	if len(payload) > udsMaxPayload {
+		return nil, errUDSEngineProtocol
+	}
+	return payload, nil
+}
+
+func appendUDSHeaderPairs(payload []byte, headers []Header) ([]byte, error) {
 	payload = appendUDSUint16(payload, uint16(len(headers)))
 	for _, header := range headers {
+		var err error
 		if payload, err = appendUDSText(payload, header.Name, udsMaxHeaderName, true); err != nil {
 			return nil, err
 		}
 		if payload, err = appendUDSText(payload, header.Value, udsMaxHeaderValue, false); err != nil {
 			return nil, err
 		}
-	}
-	if len(payload) > udsMaxPayload {
-		return nil, errUDSEngineProtocol
 	}
 	return payload, nil
 }

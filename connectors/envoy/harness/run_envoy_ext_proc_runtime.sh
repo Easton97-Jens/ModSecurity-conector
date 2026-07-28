@@ -99,6 +99,7 @@ case "$RUNTIME_ROOT" in
         echo "envoy_ext_proc_runtime: FAIL - RUNTIME_ROOT must not be inside the checkout" >&2
         exit 1
         ;;
+    *) ;;
 esac
 case "$COMMON_EVENT_LOG_PATH" in
     "$RUNTIME_ROOT"/*) ;;
@@ -146,6 +147,7 @@ if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ]; then
             echo "envoy_ext_proc_runtime: FAIL - first-byte evidence output must be outside the checkout" >&2
             exit 1
             ;;
+        *) ;;
     esac
 fi
 mkdir -p "$RUNTIME_ROOT" "$PHASE4_BARRIER_DIR"
@@ -537,6 +539,7 @@ PY
                 cancel_ready=1
                 break
                 ;;
+            *) ;;
         esac
         sleep 1
     done
