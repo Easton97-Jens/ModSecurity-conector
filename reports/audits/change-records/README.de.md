@@ -13,6 +13,7 @@ Review- oder Delivery-Ergebnisse behaupten.
 - [Parent-Common-Event-Provenance-Short-Circuit-Refaktorierung für SonarQube Cloud c:S1066](CR-20260728-sonar-common-event-s1066.de.md)
 - [Parent-HTTP-Authorization-CLI-Schleifensteuerung für SonarQube Cloud c:S5955, c:S886 und c:S3776](CR-20260728-sonar-http-authorization-cli-scope.de.md)
 - [Traefik-Resultat-Optionaltext-Nullability-Remediation für SonarQube Cloud](CR-20260728-sonar-traefik-result-nullability.de.md)
+- [Parent-`tools/MRTS`-Literalextraktion und direkte Git-Fixture-Abdeckung für SonarQube Cloud S1192](CR-20260728-sonar-bilingual-tools-mrts-s1192.de.md)
 - [Parent-HAProxy-Append-String-Preflight für SonarQube Cloud c:S3519](CR-20260727-sonar-haproxy-append-string-s3519.de.md)
 - [Parent-Common-Refaktorierung doppelter Error-Mappings](CR-20260727-sonar-common-error-duplication.de.md)
 - [Parent-NGINX-Event-Metadaten- und JSONL-Writer-Deduplizierung: Second-Head-Quality-Gate und lokales S1192-Follow-up](CR-20260727-sonar-nginx-event-metadata-duplication.de.md)
