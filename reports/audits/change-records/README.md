@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent report-generator conditionals and access-log regex for SonarQube Cloud](CR-20260727-sonar-report-conditionals-regex.md)
 - [Parent Python generator conditionals for SonarQube Cloud python:S3358](CR-20260727-sonar-generator-conditionals.md)
 - [Parent generated-report layout decomposition for SonarQube Cloud](CR-20260728-sonar-generated-report-layout-decomposition.md)
 - [Parent repository inventory complexity remediation for SonarQube Cloud S3776](CR-20260727-sonar-s3776-repository-inventory.md)
