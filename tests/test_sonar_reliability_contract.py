@@ -107,6 +107,32 @@ class SonarReliabilityContractTests(unittest.TestCase):
             source,
         )
 
+    def test_common_error_descriptions_are_private_and_keyed(self) -> None:
+        source = (ROOT / "common" / "src" / "error.c").read_text(encoding="utf-8")
+        descriptions = source[
+            source.index("const char *msconnector_error_code_name") : source.index(
+                "enum msconnector_status msconnector_error_status"
+            )
+        ]
+
+        self.assertIn("typedef struct msconnector_error_description", source)
+        self.assertIn(
+            "static const msconnector_error_description msconnector_error_descriptions[]",
+            source,
+        )
+        self.assertIn(
+            "msconnector_error_descriptions[index].code == code",
+            source,
+        )
+        self.assertIn("return &msconnector_error_descriptions[index];", source)
+        self.assertNotIn("msconnector_error_descriptions[code]", source)
+        self.assertNotIn("switch (code)", descriptions)
+        self.assertIn("msconnector_error_description_for_code(code)", descriptions)
+        self.assertIn("return description->name;", descriptions)
+        self.assertIn("return description->default_message;", descriptions)
+        self.assertIn('return "internal";', descriptions)
+        self.assertIn('return "Internal connector error";', descriptions)
+
     def test_haproxy_accept_loop_retries_only_interrupted_accepts(self) -> None:
         source = (
             ROOT
