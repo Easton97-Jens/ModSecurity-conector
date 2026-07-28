@@ -71,6 +71,8 @@ APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST="${APACHE_PHASE4_NESTED_ERROR_REDIRECT_
 APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST="${APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST:-0}"
 APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST:-0}"
 APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST:-0}"
+readonly PHASE4_FIRST_BYTE_PREFIX='first-byte-prefix'
+readonly PHASE4_TRANSACTION_REBIND_REFUSAL='request transaction cannot be safely rebound to the target URI'
 OPENSSL_BIN="${OPENSSL:-openssl}"
 
 load_connector_adapter_metadata() {
@@ -720,7 +722,7 @@ send_synchronized_first_byte_request() {
                 fail "bypass reproduction client failed after release rc=$client_rc"
             [ "$http_status" = "200" ] || \
                 fail "bypass reproduction expected status 200, observed $http_status"
-            grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+            grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 fail "bypass reproduction body omitted the pre-EOS prefix"
             grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 fail "bypass reproduction body omitted the Phase-4 marker"
@@ -743,7 +745,7 @@ send_synchronized_first_byte_request() {
             [ "$http_status" = "403" ] || \
                 fail "pre-commit deny expected status 403, observed $http_status"
             assert_single_h1_status 403
-            if grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+            if grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "pre-commit deny leaked original response bytes"
             fi
@@ -770,7 +772,7 @@ send_synchronized_first_byte_request() {
             [ "$http_status" = "403" ] || \
                 fail "custom-MIME pre-commit deny expected status 403, observed $http_status"
             assert_single_h1_status 403
-            if grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+            if grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "custom-MIME pre-commit deny leaked original response bytes"
             fi
@@ -793,7 +795,7 @@ send_synchronized_first_byte_request() {
             [ "$http_status" = "500" ] || \
                 fail "engine ProcessPartial failure expected status 500, observed $http_status"
             assert_single_h1_status 500
-            if grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+            if grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "engine ProcessPartial failure released an uninspected original response byte"
             fi
@@ -1368,7 +1370,7 @@ send_phase4_internal_redirect_request() {
             if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 target configuration redirect abort leaked the marker body"
             fi
-            grep -F 'request transaction cannot be safely rebound to the target URI' \
+            grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
                 "$LOG_DIR/error.log" >/dev/null 2>&1 || \
                 fail "Phase-4 target configuration redirect lacks the transaction-rebind refusal"
             redirect_direct_rule_events_after=$(phase4_redirect_direct_rule_event_count \
@@ -1397,7 +1399,7 @@ send_phase4_internal_redirect_request() {
             if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 URI policy redirect abort leaked the marker body"
             fi
-            grep -F 'request transaction cannot be safely rebound to the target URI' \
+            grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
                 "$LOG_DIR/error.log" >/dev/null 2>&1 || \
                 fail "Phase-4 URI policy redirect lacks the transaction-rebind refusal"
             redirect_direct_rule_events_after=$(phase4_redirect_direct_rule_event_count \
@@ -1414,7 +1416,7 @@ send_phase4_internal_redirect_request() {
             if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 target-handler redirect abort leaked the marker body"
             fi
-            grep -F 'request transaction cannot be safely rebound to the target URI' \
+            grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
                 "$LOG_DIR/error.log" >/dev/null 2>&1 || \
                 fail "Phase-4 target-handler redirect lacks the transaction-rebind refusal"
             assert_phase4_internal_redirect_target_handler_was_not_run
@@ -1427,7 +1429,7 @@ send_phase4_internal_redirect_request() {
             if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 internal redirect abort leaked the marker body"
             fi
-            grep -F 'request transaction cannot be safely rebound to the target URI' \
+            grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
                 "$LOG_DIR/error.log" >/dev/null 2>&1 || \
                 fail "Phase-4 internal redirect abort lacks the transaction-rebind refusal"
             ;;
@@ -1611,7 +1613,7 @@ send_phase4_nested_error_document_redirect_request() {
     grep -F 'ModSecurity Phase4 nested ErrorDocument test issued a second internal redirect' \
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "nested ErrorDocument test handler did not issue its second redirect"
-    grep -F 'request transaction cannot be safely rebound to the target URI' \
+    grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "nested ErrorDocument redirect lacks the transaction-rebind refusal"
     assert_phase4_rogue_evidence
@@ -1679,7 +1681,7 @@ send_phase4_preoutput_error_document_request() {
     grep -F 'ModSecurity Phase4 preoutput ErrorDocument test returned HTTP_NOT_FOUND before any response brigade' \
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "pre-output ErrorDocument test handler did not return HTTP_NOT_FOUND"
-    grep -F 'request transaction cannot be safely rebound to the target URI' \
+    grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "pre-output ErrorDocument redirect lacks the transaction-rebind refusal"
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"

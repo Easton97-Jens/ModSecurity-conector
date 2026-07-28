@@ -28,6 +28,61 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertIn("assert_text_response_headers", source)
         self.assertIn("--http1.1", source)
 
+    def test_harness_extracts_repeated_phase4_grep_literals_without_relaxing_controls(self) -> None:
+        harness = HARNESS.read_text(encoding="utf-8")
+
+        self.assertEqual(
+            1,
+            harness.count("readonly PHASE4_FIRST_BYTE_PREFIX='first-byte-prefix'"),
+        )
+        self.assertEqual(3, harness.count("first-byte-prefix"))
+        self.assertNotIn("grep -F 'first-byte-prefix'", harness)
+        self.assertNotIn("grep -F $PHASE4_FIRST_BYTE_PREFIX", harness)
+        self.assertEqual(4, harness.count('grep -F "$PHASE4_FIRST_BYTE_PREFIX"'))
+        self.assertEqual(
+            2,
+            harness.count("expected_body='first-byte-prefixno-crs-response-body-marker'"),
+        )
+        self.assertIn("pre-commit deny leaked original response bytes", harness)
+        self.assertIn("custom-MIME pre-commit deny leaked original response bytes", harness)
+        self.assertIn(
+            "engine ProcessPartial failure released an uninspected original response byte",
+            harness,
+        )
+
+        self.assertEqual(
+            1,
+            harness.count(
+                "readonly PHASE4_TRANSACTION_REBIND_REFUSAL="
+                "'request transaction cannot be safely rebound to the target URI'"
+            ),
+        )
+        self.assertEqual(
+            1,
+            harness.count("request transaction cannot be safely rebound to the target URI"),
+        )
+        self.assertNotIn(
+            "grep -F 'request transaction cannot be safely rebound to the target URI'",
+            harness,
+        )
+        self.assertNotIn("grep -F $PHASE4_TRANSACTION_REBIND_REFUSAL", harness)
+        self.assertEqual(
+            6,
+            harness.count('grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL"'),
+        )
+        self.assertIn(
+            "Phase-4 internal redirect abort lacks the transaction-rebind refusal",
+            harness,
+        )
+        self.assertIn(
+            "nested ErrorDocument redirect lacks the transaction-rebind refusal",
+            harness,
+        )
+        self.assertIn(
+            "pre-output ErrorDocument redirect lacks the transaction-rebind refusal",
+            harness,
+        )
+
     def test_synchronized_upstream_cli_contract_selects_only_supported_arguments(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
         runner = RUNNER.read_text(encoding="utf-8")
