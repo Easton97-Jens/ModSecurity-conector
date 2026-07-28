@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Apache Phase-4 control-literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-phase4-literals.md)
 - [Parent Apache H2 transport-result literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-h2-transport-s1192.md)
 - [Parent Envoy lifecycle literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-s1192-envoy-lifecycle.md)
 - [Parent Common event provenance short-circuit refactor for SonarQube Cloud c:S1066](CR-20260728-sonar-common-event-s1066.md)
