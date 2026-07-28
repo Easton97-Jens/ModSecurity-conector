@@ -28,7 +28,8 @@ manifest_value() {
 }
 
 sha256_file() {
-    sha256sum "$1" | awk '{print $1}'
+    input_path=$1
+    sha256sum "$input_path" | awk '{print $1}'
 }
 
 require_absolute_outside_checkout() {

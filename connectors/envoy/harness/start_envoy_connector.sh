@@ -60,6 +60,7 @@ case "$START_ROOT" in
         echo "envoy_start_smoke: FAIL - START_ROOT must not be inside the checkout" >&2
         exit 1
         ;;
+    *) ;;
 esac
 mkdir -p "$START_ROOT"
 rm -f "$SUMMARY"

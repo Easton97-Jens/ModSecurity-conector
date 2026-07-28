@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent shell dispatch-rule remediation for SonarQube Cloud S131 and S7679](CR-20260727-sonar-shell-dispatch-rules.md)
 The leading entry records Draft PR #131's initial exact-head SonarQube Cloud
 result—Quality Gate `OK` with zero new duplication and one task-owned
 `python:S3358`—its local normal nested-conditional correction, and the absence

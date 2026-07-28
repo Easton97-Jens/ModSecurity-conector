@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Shell-Dispatch-Rule-Remediation für SonarQube Cloud S131 und S7679](CR-20260727-sonar-shell-dispatch-rules.de.md)
 Der führende Eintrag dokumentiert das SonarQube-Cloud-Ergebnis des initialen
 exakten Heads von Draft PR #131—Quality Gate `OK` mit keiner neuen
 Duplizierung und einem task-owned `python:S3358`—seine lokale normale

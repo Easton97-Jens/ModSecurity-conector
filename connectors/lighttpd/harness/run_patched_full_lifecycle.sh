@@ -49,7 +49,8 @@ blocked() {
 }
 
 fail() {
-    printf 'lighttpd_patched_full_lifecycle: FAIL %s\n' "$1" >&2
+    reason=$1
+    printf 'lighttpd_patched_full_lifecycle: FAIL %s\n' "$reason" >&2
     exit 1
 }
 
@@ -94,7 +95,8 @@ wait_for_file() {
 }
 
 ready_port() {
-    "$PYTHON_BIN" - "$1" <<'PY'
+    metadata_path=$1
+    "$PYTHON_BIN" - "$metadata_path" <<'PY'
 import json
 import sys
 
