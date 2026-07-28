@@ -395,6 +395,20 @@ static int append_uint32(spop_buffer *buf, uint32_t value) {
     return append_bytes(buf, &net, sizeof(net), sizeof(net));
 }
 
+static size_t varint_encoded_length(uint64_t value) {
+    size_t encoded_len = 1U;
+
+    if (value >= 240U) {
+        encoded_len++;
+        value = (value - 240U) >> 4;
+        while (value >= 128U) {
+            encoded_len++;
+            value = (value - 128U) >> 7;
+        }
+    }
+    return encoded_len;
+}
+
 static int append_varint(spop_buffer *buf, uint64_t value) {
     if (value < 240U) {
         return append_byte(buf, (unsigned int)value);
@@ -440,14 +454,27 @@ static int read_varint(const unsigned char *data, size_t len, size_t *pos, uint6
 
 static int append_string(spop_buffer *buf, const char *value) {
     size_t len;
+    size_t encoded_len;
+    size_t remaining;
 
-    if (bounded_cstring_length(value, SPOP_FRAME_MAX, &len) != 0) {
+    if (buf == 0 || bounded_cstring_length(value, SPOP_FRAME_MAX, &len) != 0 ||
+            buf->len > sizeof(buf->data)) {
+        return -1;
+    }
+    encoded_len = varint_encoded_length(len);
+    remaining = sizeof(buf->data) - buf->len;
+    if (encoded_len > remaining || len > remaining - encoded_len) {
         return -1;
     }
     if (append_varint(buf, len) != 0) {
         return -1;
     }
-    return append_bytes(buf, value, len, len);
+    for (size_t index = 0; index < len; ++index) {
+        if (append_byte(buf, (unsigned int)(unsigned char)value[index]) != 0) {
+            return -1;
+        }
+    }
+    return 0;
 }
 
 static int append_typed_string(spop_buffer *buf, const char *value) {
