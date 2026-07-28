@@ -181,6 +181,7 @@ case "$CONNECTOR_NAME" in
             $lookup_args
         exit $?
         ;;
+    *) ;;
 esac
 
 connector_skip_missing_dependency \

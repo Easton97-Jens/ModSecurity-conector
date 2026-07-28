@@ -3,13 +3,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
 import json
 import os
 import re
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 
 # CI helpers are shared from ci/lib even when this file is executed directly.
@@ -18,8 +16,17 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
+from focused_analysis_utils import (
+    action_parts,
+    as_list,
+    import_script,
+    read_json,
+    read_text,
+    utc_now,
+    write_json,
+)
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, resolve_output_dir, safe_existing_file, write_text_file
 
 try:
     import yaml
@@ -39,46 +46,12 @@ DISTRIBUTION_TABLE_HEADER = "| field | distribution |"
 DISTRIBUTION_TABLE_SEPARATOR = "| --- | --- |"
 
 
-def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def read_json(path: Any) -> dict[str, Any]:
-    return read_json_file(path)
-
-
-def read_text(path: Path | None) -> str:
-    return read_text_file(path)
-
-
-def write_json(path: Path, value: dict[str, Any]) -> None:
-    write_json_file(path, value)
-
-
 def sanitize_report_text(value: Any) -> str:
     return ABSOLUTE_RUNTIME_PATH_RE.sub("<evidence-path>", str(value or ""))
 
 
 def normalized_content_type(value: Any) -> str:
     return str(value or "").split(";", 1)[0].strip().lower()
-
-
-def as_list(value: Any) -> list[str]:
-    if isinstance(value, list):
-        return [str(item) for item in value if str(item).strip()]
-    if value in (None, ""):
-        return []
-    return [str(value)]
-
-
-def import_script(path: Path, module_name: str) -> Any:
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"cannot import {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
 
 
 def display_case_path(path_value: Any, framework_root: Path) -> str:
@@ -101,26 +74,6 @@ def generated_config_path(entry: dict[str, Any], evidence_path: Path) -> Path | 
     if connector == "haproxy":
         return evidence_path.parent.parent.parent.parent / "haproxy-runtime-cases" / case_id / "conf/modsecurity-smoke.conf"
     return None
-
-
-def action_parts(action_text: str) -> list[str]:
-    parts: list[str] = []
-    current: list[str] = []
-    quote: str | None = None
-    for char in action_text:
-        if char in {"'", '"'}:
-            quote = None if quote == char else char if quote is None else quote
-        if char == "," and quote is None:
-            part = "".join(current).strip()
-            if part:
-                parts.append(part)
-            current = []
-            continue
-        current.append(char)
-    tail = "".join(current).strip()
-    if tail:
-        parts.append(tail)
-    return parts
 
 
 def action_value(actions: list[str], name: str) -> str:
@@ -336,7 +289,12 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
     config_path = generated_config_path(entry, evidence_path) if evidence_path is not None else None
     config = read_text(config_path)
     logs = "\n".join(read_text(path_item) for path_item in log_paths(evidence))
-    request_body_access = "yes" if "SecRequestBodyAccess On" in config else "no" if "SecRequestBodyAccess Off" in config else "unknown"
+    if "SecRequestBodyAccess On" in config:
+        request_body_access = "yes"
+    elif "SecRequestBodyAccess Off" in config:
+        request_body_access = "no"
+    else:
+        request_body_access = "unknown"
     xml_processor = "yes" if "ctl:requestBodyProcessor=XML" in config else "unknown"
     rule_id = str(rule["rule_id"])
     matched = rule_logged(logs, rule_id)

@@ -26,6 +26,7 @@
 #include <modsecurity/transaction.h>
 
 #include "msconnector/config.h"
+#include "msconnector/event_jsonl.h"
 #include "msconnector/limits.h"
 #include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
@@ -196,6 +197,85 @@ int ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_htt
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_create_ctx(ngx_http_request_t *r);
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r);
 char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p);
+
+typedef struct {
+    const char *method;
+    const char *uri;
+    const char *content_type;
+} ngx_http_modsecurity_event_request_metadata_t;
+
+/* Event records retain bounded request metadata only.  Keep the established
+ * empty-string fallback for absent, empty, NULL, or allocation-failure NGINX
+ * values. */
+static ngx_inline ngx_http_modsecurity_event_request_metadata_t
+ngx_http_modsecurity_event_request_metadata(ngx_http_request_t *r)
+{
+    ngx_http_modsecurity_event_request_metadata_t metadata = {
+        "", "", ""
+    };
+    char *value;
+
+    if (r == NULL) {
+        return metadata;
+    }
+
+    if (r->method_name.len > 0U) {
+        value = ngx_str_to_char(r->method_name, r->pool);
+        if (value != (char *)-1 && value != NULL) {
+            metadata.method = value;
+        }
+    }
+    if (r->unparsed_uri.len > 0U) {
+        value = ngx_str_to_char(r->unparsed_uri, r->pool);
+        if (value != (char *)-1 && value != NULL) {
+            metadata.uri = value;
+        }
+    }
+    if (r->headers_in.content_type != NULL &&
+        r->headers_in.content_type->value.len > 0U) {
+        value = ngx_str_to_char(r->headers_in.content_type->value, r->pool);
+        if (value != (char *)-1 && value != NULL) {
+            metadata.content_type = value;
+        }
+    }
+
+    return metadata;
+}
+
+/* Callers retain their source-specific guards and event construction.  This
+ * helper only owns the common bounded JSONL serialization and warning-only
+ * write tail used by request metadata events. */
+static ngx_inline int
+ngx_http_modsecurity_write_event_jsonl(
+    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    const msconnector_event *event,
+    const char *serialization_failure_message,
+    const char *write_failure_message)
+{
+    char line[4096];
+    int json_truncated = 0;
+    size_t line_length;
+    ssize_t written;
+
+    if (!msconnector_event_write_jsonl_line(event, line, sizeof(line),
+        &json_truncated)) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "%s%s", serialization_failure_message,
+            json_truncated ? " (truncated)" : "");
+        return 0;
+    }
+
+    line_length = ngx_strlen(line);
+    written = ngx_write_fd(mcf->phase4_log_file->fd, (u_char *)line,
+        line_length);
+    if (written < 0 || (size_t)written != line_length) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log,
+            written < 0 ? ngx_errno : 0, "%s", write_failure_message);
+    }
+
+    return 1;
+}
+
 #if !(NGX_PCRE) || (NGX_PCRE2)
 #define ngx_http_modsecurity_pcre_malloc_init(x) NULL
 #define ngx_http_modsecurity_pcre_malloc_done(x) (void)x

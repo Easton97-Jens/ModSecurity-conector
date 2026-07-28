@@ -97,6 +97,7 @@ case "$RUNTIME_ROOT" in
         echo "haproxy_htx_runtime: FAIL - RUNTIME_ROOT must not be inside the checkout" >&2
         exit 1
         ;;
+    *) ;;
 esac
 case "$EVENT_LOG_PATH" in
     "$RUNTIME_ROOT"/*) ;;
@@ -115,6 +116,7 @@ case "$FIRST_BYTE_EVIDENCE_PATH" in
         echo "haproxy_htx_runtime: FAIL - FULL_LIFECYCLE_EVIDENCE_OUTPUT must not be inside the checkout" >&2
         exit 1
         ;;
+    *) ;;
 esac
 case "$RUN_ID" in
     [A-Za-z0-9]*) ;;
@@ -122,6 +124,7 @@ case "$RUN_ID" in
 esac
 case "$RUN_ID" in
     *[!A-Za-z0-9._-]*) echo "haproxy_htx_runtime: FAIL - NO_CRS_RUN_ID is unsafe" >&2; exit 1 ;;
+    *) ;;
 esac
 mkdir -p "$RUNTIME_ROOT/cases"
 [ ! -e "$FIRST_BYTE_EVIDENCE_PATH" ] || {
@@ -270,6 +273,10 @@ run_case() {
             1)
                 phase2_request_dispatch_observed=true
                 ;;
+            *)
+                echo "haproxy_htx_runtime: FAIL - phase2 upstream count escaped the validated 0-or-1 range: $actual_upstream_requests" >&2
+                exit 1
+                ;;
         esac
     fi
     if [ -n "$expected_log" ] && ! grep -Eq "$expected_log" "$log_file"; then
@@ -298,6 +305,10 @@ run_case() {
                     --decision-log "$log_file" --phase "$phase" --rule-id "$rule_id" \
                     --observed-status "$status" --host-action enforced_reply
             fi
+            ;;
+        *)
+            echo "haproxy_htx_runtime: FAIL - unsupported host action: $host_action" >&2
+            exit 1
             ;;
     esac
 }

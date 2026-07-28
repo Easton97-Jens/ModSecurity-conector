@@ -13,37 +13,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from patched_event_validation import load_events, nonnegative, phase_is_four
 
-def load_events(path: Path) -> list[dict[str, Any]]:
-    events: list[dict[str, Any]] = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        value = json.loads(line)
-        if not isinstance(value, dict):
-            raise ValueError(f"{path}:{line_number}: event must be an object")
-        events.append(value)
-    return events
-
-
-def phase_is_four(value: object) -> bool:
-    return str(value or "").strip().replace("-", "_").lower() in {
-        "4",
-        "phase4",
-        "response_body",
-    }
-
-
-def nonnegative(value: object, field: str) -> int:
-    if isinstance(value, bool):
-        raise ValueError(f"{field} must be a non-negative integer")
-    try:
-        number = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{field} must be a non-negative integer") from exc
-    if number < 0:
-        raise ValueError(f"{field} must be a non-negative integer")
-    return number
+NON_OBJECT_ERROR = "{path}:{line_number}: event must be an object"
 
 
 def safe_host_action(events: list[dict[str, Any]]) -> dict[str, Any]:
@@ -81,7 +53,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args(argv)
 
-    event = safe_host_action(load_events(args.events))
+    event = safe_host_action(
+        load_events(args.events, non_object_error=NON_OBJECT_ERROR)
+    )
     seen = nonnegative(event.get("body_bytes_seen"), "body_bytes_seen")
     inspected = nonnegative(event.get("body_bytes_inspected"), "body_bytes_inspected")
     if inspected > seen:

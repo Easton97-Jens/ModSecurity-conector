@@ -2477,14 +2477,14 @@ static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_con
     while (!stop_requested && (max_connections <= 0 || handled < max_connections)) {
         int fd = accept(listen_fd, 0, 0);
         if (fd < 0) {
-            if (errno == EINTR) {
-                if (stop_requested) {
-                    break;
-                }
-                continue;
+            if (errno != EINTR) {
+                log_line(log, "accept failed errno=%d", errno);
+                return 1;
             }
-            log_line(log, "accept failed errno=%d", errno);
-            return 1;
+            if (stop_requested) {
+                break;
+            }
+            continue;
         }
         handle_connection(fd, state, log, rules_file, crs_preamble_file);
         close(fd);
