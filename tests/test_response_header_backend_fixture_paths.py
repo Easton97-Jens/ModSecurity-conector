@@ -46,7 +46,7 @@ class ResponseHeaderBackendFixturePathTest(unittest.TestCase):
                 text=True,
             )
 
-        self.assertNotEqual(0, result.returncode)
+        self.assertNotEqual(result.returncode, 0)
         self.assertIn("fixture file is outside the allowed fixture roots", result.stderr)
 
     def test_fixture_symlink_outside_the_safe_root_is_rejected(self) -> None:
@@ -86,8 +86,8 @@ class ResponseHeaderBackendFixturePathTest(unittest.TestCase):
 
             fixture = BACKEND_MODULE.load_fixture_file(fixture_file, [trusted_root])
 
-        self.assertEqual(201, fixture.status)
-        self.assertEqual((), fixture.headers)
+        self.assertEqual(fixture.status, 201)
+        self.assertEqual(fixture.headers, ())
 
     def test_body_file_limit_remains_enforced(self) -> None:
         with tempfile.TemporaryDirectory() as trusted_directory:

@@ -73,7 +73,7 @@ Die fokussierten Tests üben nur lokales Python-Backend und statisches Host-Harn
 
 ## Bekannte Einschränkungen
 
-Das vollständige Modul `tests.test_response_header_backend` enthält Framework-abhängige Metadatenfälle außerhalb dieser engen Path-Control-Änderung und war nicht erforderlich, um die geänderte Read-Grenze auszuüben. Gehostete GitHub- und SonarQube-Cloud-Analyse haben den Kandidaten noch nicht geprüft.
+Das vollständige Modul `tests.test_response_header_backend` enthält Framework-abhängige Metadatenfälle außerhalb dieser engen Path-Control-Änderung und war nicht erforderlich, um die geänderte Read-Grenze auszuüben. Der task-owned-`python:S3415`-Follow-up vertauscht ausschließlich drei Test-Assertion-Argumentpaare in die Reihenfolge Actual-dann-Expected; weder `resolve_regular_file`, eine Sicherheitsinvariante, Testeingaben noch ein sicherheitsrelevanter Sink ändern sich. Gehostete Final-Head-Fakten werden in PR-/Lifecycle-Evidence festgehalten, statt einen selbstreferenziellen Delivery-Commit in diesem Change Record zu erfordern.
 
 ## Verbleibende Risiken
 
@@ -82,8 +82,8 @@ Die Sicherheit des No-`--safe-root`-CWD-Fallbacks hängt weiterhin von einem ver
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - Vollständige Connector-Builds, Runtime-Matrizen, Framework/MRTS-Tests und Report-Generierung sind für diese enge Parent-Backend-Grenze nicht anwendbar.
-- Gehostete GitHub-Checks und die exakte SonarQube-Cloud-Head-Analyse sind offen. Dieser Record gibt weder externes Issue-Closure noch Master-Merge-Autorisierung.
+- Gehostete GitHub-Checks und die exakte SonarQube-Cloud-Head-Analyse müssen gegen den finalen Delivery-Head gelesen werden und werden in PR-/Lifecycle-Evidence festgehalten. Dieser Record gibt weder externes Issue-Closure noch Master-Merge-Autorisierung.
 
 ## Finaler Diff- und Review-Status
 
-Der Kandidat enthält nur die kleinste Parent-Path-Control-Reparatur, direkte Negative-/Kompatibilitätsregressionstests und zweisprachige Traceability. Eine unabhängige Securityreview bewertete die Baseline-Control-Lücke als validiert und den Kandidaten unter der Harness-Owned-Root-Annahme als geeignet. Commit-, Push-, PR-, gehostete Checks-, externe Sonar-Disposition- und Merge-Fakten werden erst nach Beobachtung ergänzt.
+Der Kandidat enthält nur die kleinste Parent-Path-Control-Reparatur, direkte Negative-/Kompatibilitätsregressionstests, den Test-only-S3415-Argumentreihenfolge-Follow-up und zweisprachige Traceability. Eine unabhängige Securityreview bewertete die Baseline-Control-Lücke als validiert und den Kandidaten unter der Harness-Owned-Root-Annahme als geeignet. Commit-, Push-, PR-, gehostete Checks-, externe Sonar-Disposition- und Merge-Fakten werden nur nach Beobachtung in PR-/Lifecycle-Evidence festgehalten; aus Assertion-Order-Maintenance wird kein Sicherheitsclaim abgeleitet.

@@ -104,8 +104,12 @@ was run or claimed.
 
 The full `tests.test_response_header_backend` module contains Framework-
 dependent metadata cases that are outside this narrow path-control change and
-were not needed to exercise the changed read boundary. Hosted GitHub and
-SonarQube Cloud analysis have not yet examined the candidate.
+were not needed to exercise the changed read boundary. The task-owned
+`python:S3415` follow-up swaps three test assertion argument pairs to actual-
+then-expected order only; it changes neither `resolve_regular_file`, a security
+invariant, test input, nor a security-sensitive sink. Hosted final-head facts
+are retained in PR/lifecycle evidence rather than requiring a self-referential
+delivery commit in this Change Record.
 
 ## Remaining risks
 
@@ -120,14 +124,16 @@ the broader 1,022-item backlog.
 
 - Full connector builds, runtime matrices, Framework/MRTS tests, and report
   generation are not applicable to this narrow Parent backend boundary.
-- Hosted GitHub checks and exact-head SonarQube Cloud analysis are pending.
+- Hosted GitHub checks and exact-head SonarQube Cloud analysis must be read
+  against the final delivery head and are retained in PR/lifecycle evidence.
   This record grants neither external issue closure nor master-merge authority.
 
 ## Final diff and review status
 
 The candidate contains only the minimal Parent path-control repair, direct
-negative/compatibility regression tests, and required bilingual traceability.
-An independent security review found the baseline control gap validated and
-the candidate adequate under the harness-owned-root assumption. Commit, push,
-PR, hosted checks, external Sonar disposition, and merge facts will be added
-only after they are observed.
+negative/compatibility regression tests, the test-only S3415 argument-order
+follow-up, and required bilingual traceability. An independent security review
+found the baseline control gap validated and the candidate adequate under the
+harness-owned-root assumption. Commit, push, PR, hosted checks, external Sonar
+disposition, and merge facts are retained only after observation in PR/lifecycle
+evidence; no security claim is inferred from assertion-order maintenance.

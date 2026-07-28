@@ -21,6 +21,80 @@ ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 
 
+# Reused source-backed text values.  Keeping these constants local to the
+# inventory renderer preserves the emitted JSON and Markdown bytes while
+# making one authoritative source explicit for each repeated literal.
+DEFAULT_SOURCE_ENABLE = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_ENABLE"
+DEFAULT_NONE_OPTIONAL = "none; optional"
+DEFAULT_SOURCE_PARSER_REGISTRATION = "parser registration has no default"
+ALLOWED_VALUES_ON_OFF = "on | off"
+DEFAULT_SOURCE_USE_ERROR_LOG = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_USE_ERROR_LOG"
+ALLOWED_VALUES_PHASE4_MODE = "minimal | safe | strict"
+DEFAULT_SOURCE_PHASE4_MODE = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE"
+ALLOWED_VALUES_POSITIVE_INTEGER = "positive integer"
+DEFAULT_SOURCE_PHASE4_BODY_LIMIT = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT"
+NGINX_CONFIGURATION_CONTEXTS = "NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location)"
+DEFAULT_SOURCE_COMPATIBILITY_EXAMPLE = "compatibility example"
+NOT_APPLICABLE = "not applicable"
+LIGHTTPD_SIDECAR_CONFIGURATION = "examples/lighttpd/compatibility-sidecar/lighttpd-sidecar-proxy.conf"
+LIGHTTPD_SIDECAR_VALIDATION = "Validate as ordinary lighttpd proxy configuration."
+ALLOWED_VALUES_COMMON_BOOLEAN = "on | off | true | false | 1 | 0 | yes | no"
+DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS = "common/src/config.c:msconnector_config_apply_defaults"
+DEFAULT_SOURCE_RUNTIME_PARSER = "runtime parser has no default"
+ALLOWED_VALUES_HEADER_NAME = "non-empty HTTP header name"
+DEFAULT_SOURCE_RUNTIME_DEFAULTS = "common/runtime/msconnector_runtime.c:runtime_defaults"
+ALLOWED_VALUES_BODY_MODE = "none | buffered | streaming"
+VALUE_TYPE_POSITIVE_DECIMAL_BYTES = "positive decimal bytes"
+DEFAULT_SOURCE_MAX_BODY_BUFFER = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE"
+DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE"
+DEFAULT_SOURCE_DEFAULT_BLOCK_STATUS = "common/include/msconnector/block_statuses.h:MSCONNECTOR_DEFAULT_BLOCK_STATUS"
+DEFAULT_SOURCE_DEFAULT_ERROR_STATUS = "common/include/msconnector/block_statuses.h:MSCONNECTOR_DEFAULT_ERROR_STATUS"
+DEFAULT_SOURCE_MAX_HEADER_COUNT = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_COUNT"
+DEFAULT_SOURCE_MAX_HEADER_NAME_LENGTH = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_NAME_LENGTH"
+DEFAULT_SOURCE_MAX_HEADER_VALUE_LENGTH = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_VALUE_LENGTH"
+DEFAULT_SOURCE_MAX_TOTAL_HEADER_BYTES = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_TOTAL_HEADER_BYTES"
+DEFAULT_SOURCE_MAX_EVENT_JSON_BYTES = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_EVENT_JSON_BYTES"
+ALLOWED_VALUES_RULE_ENGINE = "On | Off | DetectionOnly"
+DEFAULT_NO_EXAMPLE = "No default is inferred from examples."
+ALLOWED_VALUES_TITLE_CASE_ON_OFF = "On | Off"
+ALLOWED_VALUES_LIMIT_ACTION = "ProcessPartial | Reject"
+HOST_DEFINED_NOT_IMPLEMENTED = "Host-defined; not implemented by this connector."
+VALIDATE_APACHE = "apachectl -t"
+VALIDATE_NGINX = "nginx -t"
+VALIDATE_HAPROXY = "haproxy -c -f <config>"
+VALIDATE_LIGHTTPD = "lighttpd -tt -f <config>"
+COMPATIBILITY_PATH_PREFIX = "compatibility."
+DEFAULT_SOURCE_ENVOY_TEMPLATE = "selected Envoy v3 template; connector owns no bootstrap default"
+ALLOWED_VALUES_MATERIALIZED_PORT = "materializer-validated decimal port 1..65535"
+DEFAULT_SOURCE_ENVOY_MATERIALIZER = "selected template and prepare_envoy_ext_proc_config.sh materializer"
+ALLOWED_VALUES_SELECTED_DURATION = "non-negative duration; selected value is 0.2s"
+ALLOWED_VALUES_BODY_SEND_MODE = "NONE | STREAMED | BUFFERED | BUFFERED_PARTIAL | FULL_DUPLEX_STREAMED | GRPC"
+ALLOWED_VALUES_HEADER_SEND_MODE = "DEFAULT | SEND | SKIP"
+VALUE_TYPE_ENVOY_BOOLEAN = "Envoy ext_proc boolean"
+ALLOWED_VALUES_TRUE_FALSE = "true | false"
+DEFAULT_ENVOY_FALSE = "Envoy proto default false; the selected template explicitly sets false."
+DEFAULT_SOURCE_ENVOY_API = "Envoy ext_proc v3 ExternalProcessor API pinned by connectors/envoy/ext_proc/go.mod"
+DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE = "compatibility template"
+MANAGEMENT_PLANE_PHASE = "Management-plane only; independent of P1–P4 transaction processing."
+ENVOY_EXT_AUTHZ_CONFIGURATION = "examples/envoy/compatibility-ext-authz/envoy-ext-authz.yaml"
+ALLOWED_VALUES_TRAEFIK_UDS_CHUNK = "positive; uds maximum 32768"
+ALLOWED_VALUES_TRAEFIK_ENGINE_MODE = "passthrough | uds"
+DEFAULT_SOURCE_TRAEFIK_CREATE_CONFIG = "connectors/traefik/native_middleware/middleware.go:CreateConfig"
+TRAEFIK_PLUGIN_CONFIGURATION_PATH = "http.middlewares.<name>.plugin.modsecurityNative"
+TRAEFIK_FORWARDAUTH_VALIDATION = "Validate as a Traefik forwardAuth compatibility configuration."
+TRAEFIK_FORWARDAUTH_CONFIGURATION = "examples/traefik/compatibility-forwardauth/traefik-dynamic.yaml"
+NOT_PART_OF_NATIVE_MIDDLEWARE = "not part of native middleware"
+LAYER_HOST_CONNECTOR = "Host / Connector"
+MARKDOWN_THREE_COLUMN_SEPARATOR = "| --- | --- | --- |"
+MARKDOWN_OPTION_HEADER = "| Option | Layer | Type | Required | Default | Context | Short description |"
+MARKDOWN_OPTION_SEPARATOR = "| --- | --- | --- | --- | --- | --- | --- |"
+GERMAN_OPTION_DETAILS_HEADER = "## Optionsdetails"
+ENGLISH_OPTION_DETAILS_HEADER = "## Option details"
+APACHE_RULE_EXPRESSION = 'SecRule RESPONSE_BODY "@contains response-attack" \\'
+APACHE_RULE_ACTIONS = '    "id:1100301,phase:4,deny,log,status:403"'
+MARKDOWN_APACHE_FENCE = "```apache"
+
+
 @dataclass(frozen=True)
 class StackEntry:
     indent: int
@@ -146,31 +220,31 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
         "type": "boolean",
         "values": "on | off (the shared parser additionally accepts true/false/1/0/yes/no where the host passes it through)",
         "default": "off",
-        "default_source": "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_ENABLE",
+        "default_source": DEFAULT_SOURCE_ENABLE,
         "effect": "Gates connector transaction creation; it is not SecRuleEngine.",
         "security": "off bypasses connector P1–P4 processing even if a rule file is configured.",
     },
     "modsecurity_rules": {
         "type": "string",
         "values": "one inline ModSecurity rule/configuration string",
-        "default": "none; optional",
-        "default_source": "parser registration has no default",
+        "default": DEFAULT_NONE_OPTIONAL,
+        "default_source": DEFAULT_SOURCE_PARSER_REGISTRATION,
         "effect": "Loads inline content through libmodsecurity during configuration loading.",
         "security": "Inline rules are executable policy; restrict who may alter host configuration.",
     },
     "modsecurity_rules_file": {
         "type": "path",
         "values": "readable ModSecurity configuration/rules file path",
-        "default": "none; optional",
-        "default_source": "parser registration has no default",
+        "default": DEFAULT_NONE_OPTIONAL,
+        "default_source": DEFAULT_SOURCE_PARSER_REGISTRATION,
         "effect": "Loads a local rule file through libmodsecurity during configuration loading.",
         "security": "Keep the file and parent directories non-writable by untrusted identities.",
     },
     "modsecurity_rules_remote": {
         "type": "two strings",
         "values": "key and URL",
-        "default": "none; optional",
-        "default_source": "parser registration has no default",
+        "default": DEFAULT_NONE_OPTIONAL,
+        "default_source": DEFAULT_SOURCE_PARSER_REGISTRATION,
         "effect": "Passes the key/URL pair to libmodsecurity's remote-rule loader.",
         "security": "Remote policy is not exercised by the selected no-CRS examples; do not treat it as a local-file substitute.",
     },
@@ -192,17 +266,17 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
     },
     "modsecurity_use_error_log": {
         "type": "boolean",
-        "values": "on | off",
+        "values": ALLOWED_VALUES_ON_OFF,
         "default": "on",
-        "default_source": "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_USE_ERROR_LOG",
+        "default_source": DEFAULT_SOURCE_USE_ERROR_LOG,
         "effect": "Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation.",
         "security": "Error logs can contain security metadata; protect and rotate them.",
     },
     "modsecurity_phase4_mode": {
         "type": "enum",
-        "values": "minimal | safe | strict",
+        "values": ALLOWED_VALUES_PHASE4_MODE,
         "default": "safe",
-        "default_source": "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE",
+        "default_source": DEFAULT_SOURCE_PHASE4_MODE,
         "effect": "Selects the requested late P4 policy. Before response commit a deny can be applied; after commit the current Apache/NGINX/HTX paths distinguish strict from non-strict only. Minimal and safe therefore share the current non-strict log-only path.",
         "security": "strict must not be described as a guaranteed later 403; host-specific abort evidence is required.",
     },
@@ -218,15 +292,15 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
         "type": "path",
         "values": "one connector JSONL event/intervention-log path",
         "default": "none",
-        "default_source": "parser registration has no default",
+        "default_source": DEFAULT_SOURCE_PARSER_REGISTRATION,
         "effect": "Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4.",
         "security": "Treat JSONL metadata as sensitive operational data and set safe ownership/rotation.",
     },
     "modsecurity_phase4_body_limit": {
         "type": "positive decimal byte count",
-        "values": "positive integer",
+        "values": ALLOWED_VALUES_POSITIVE_INTEGER,
         "default": "1048576",
-        "default_source": "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT",
+        "default_source": DEFAULT_SOURCE_PHASE4_BODY_LIMIT,
         "effect": "Bounds response bytes offered to P4 processing by the native connector.",
         "security": "A larger limit raises memory/CPU exposure; zero is invalid in the native setters.",
     },
@@ -409,7 +483,7 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
             syntax = "modsecurity_rules_remote <key> <url>;"
         option = _directive_option(
             "nginx", name, source, f"ngx_http_modsecurity_commands[] / {handler}", syntax,
-            "NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location)",
+            NGINX_CONFIGURATION_CONTEXTS,
             "http → server → location; a child inherits if it does not set a value.",
             "ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_merge combines parent and child rules.",
             f"{handler} rejects invalid values during nginx -t; {context_flags.strip()} is the registered context mask.",
@@ -528,8 +602,8 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
                 example_file=common["example"], description="Required native HTX rule-file argument."),
         _option("haproxy", "phase4-mode", "host_connector_directive", source,
                 "haproxy_modsecurity_htx_filter_parse / msconnector_parse_phase4_mode",
-                syntax="phase4-mode minimal | safe | strict", value_type="enum", allowed_values="minimal | safe | strict",
-                default="safe", default_source="common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE",
+                syntax="phase4-mode minimal | safe | strict", value_type="enum", allowed_values=ALLOWED_VALUES_PHASE4_MODE,
+                default="safe", default_source=DEFAULT_SOURCE_PHASE4_MODE,
                 required=False, contexts=common["contexts"], inheritance=common["inheritance"], merge_behavior=common["merge_behavior"],
                 validation="Unknown mode fails parsing. The selected host uses haproxy -c -f <config>.",
                 phase_relevance="P4 only. The current HTX host action distinguishes strict from non-strict; minimal and safe share the non-strict late log-only path.",
@@ -537,7 +611,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
                 runtime_effect="Initialises common_config.phase4_mode for the filter.", example_file=common["example"], description="Native HTX late-P4 policy argument."),
         _option("haproxy", "filter spoe", "compatibility", "examples/haproxy/compatibility-spoe/haproxy-request-only.cfg",
                 "compatibility-spoe example", syntax="filter spoe engine <name> config <file>", value_type="compatibility filter", allowed_values="HAProxy SPOE syntax only",
-                default="not part of the native HTX path", default_source="compatibility example", required=False,
+                default="not part of the native HTX path", default_source=DEFAULT_SOURCE_COMPATIBILITY_EXAMPLE, required=False,
                 contexts="Compatibility frontend only", inheritance="not documented as native inheritance", merge_behavior="not part of native HTX merge", validation="Separate compatibility smoke/configuration only.",
                 phase_relevance="Compatibility request path; it is not a native HTX P3/P4 configuration.", security_relevance="Do not promote this historical path as the selected native core.",
                 runtime_effect="Routes to the separate SPOE/SPOP compatibility service.", example_file="examples/haproxy/compatibility-spoe/haproxy-request-only.cfg", description="Compatibility-only SPOE filter.", compatibility_only=True),
@@ -584,7 +658,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
     result.append(_option(
         "haproxy", "legacy-phase4-strict-abort", "compatibility", "examples/haproxy/compatibility-spoe/legacy-phase4-strict-abort.cfg", "disabled historical example",
         syntax="legacy / disabled example", value_type="historical configuration", allowed_values="not an active selected option", default="not available", default_source="legacy example header", required=False,
-        contexts="Historical compatibility documentation only", inheritance="not applicable", merge_behavior="not applicable", validation="Do not use for native validation.",
+        contexts="Historical compatibility documentation only", inheritance=NOT_APPLICABLE, merge_behavior=NOT_APPLICABLE, validation="Do not use for native validation.",
         phase_relevance="No selected response-body P4 path.", security_relevance="Never use as P4 or strict-abort evidence.", runtime_effect="Retained solely to explain retired compatibility material.",
         example_file="examples/haproxy/compatibility-spoe/legacy-phase4-strict-abort.cfg", description="Disabled historical compatibility material.", implemented=False, compatibility_only=True, deprecated=True,
     ))
@@ -623,21 +697,21 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
         runtime_effect="Loads and creates the connector-neutral runtime before requests are served.", example_file="examples/lighttpd/minimal/lighttpd.conf",
         description="Path to the Common Runtime configuration used by the native plugin."))
     values.append(_option(
-        "lighttpd", "sidecar proxy", "compatibility", "examples/lighttpd/compatibility-sidecar/lighttpd-sidecar-proxy.conf",
+        "lighttpd", "sidecar proxy", "compatibility", LIGHTTPD_SIDECAR_CONFIGURATION,
         "compatibility-sidecar example", syntax="proxy.server = (...)", value_type="compatibility host setup", allowed_values="ordinary lighttpd proxy fields",
-        default="not a native connector option", default_source="compatibility example", required=False,
-        contexts="Compatibility example", inheritance="not applicable to native plugin", merge_behavior="not part of mod_msconnector", validation="Validate as ordinary lighttpd proxy configuration.",
+        default="not a native connector option", default_source=DEFAULT_SOURCE_COMPATIBILITY_EXAMPLE, required=False,
+        contexts="Compatibility example", inheritance="not applicable to native plugin", merge_behavior="not part of mod_msconnector", validation=LIGHTTPD_SIDECAR_VALIDATION,
         phase_relevance="No native mod_msconnector lifecycle claim.", security_relevance="Do not treat a proxy endpoint as a configured native ModSecurity integration.",
-        runtime_effect="Compatibility-only proxy routing.", example_file="examples/lighttpd/compatibility-sidecar/lighttpd-sidecar-proxy.conf", description="Compatibility-only sidecar proxy setup.", compatibility_only=True))
-    compatibility_example = "examples/lighttpd/compatibility-sidecar/lighttpd-sidecar-proxy.conf"
+        runtime_effect="Compatibility-only proxy routing.", example_file=LIGHTTPD_SIDECAR_CONFIGURATION, description="Compatibility-only sidecar proxy setup.", compatibility_only=True))
+    compatibility_example = LIGHTTPD_SIDECAR_CONFIGURATION
     compatibility_fields = sorted(set(re.findall(r"^\s*([A-Za-z0-9_.-]+)\s*=", _read(root, compatibility_example), flags=re.M)))
     for field in compatibility_fields:
         values.append(_option(
-            "lighttpd", f"compatibility.{field}", "compatibility", compatibility_example, f"compatibility-sidecar field {field}",
+            "lighttpd", f"{COMPATIBILITY_PATH_PREFIX}{field}", "compatibility", compatibility_example, f"compatibility-sidecar field {field}",
             syntax=f"{field} = <value>", value_type="lighttpd compatibility host field", allowed_values="explicit compatibility example value",
-            default="not part of native mod_msconnector", default_source="compatibility example", required=False,
+            default="not part of native mod_msconnector", default_source=DEFAULT_SOURCE_COMPATIBILITY_EXAMPLE, required=False,
             contexts="lighttpd sidecar compatibility configuration", inheritance="Host-defined compatibility behavior; not native plugin inheritance.",
-            merge_behavior="Host-defined compatibility behavior; not part of mod_msconnector.", validation="Validate as ordinary lighttpd proxy configuration.",
+            merge_behavior="Host-defined compatibility behavior; not part of mod_msconnector.", validation=LIGHTTPD_SIDECAR_VALIDATION,
             phase_relevance="No native connector lifecycle claim.", security_relevance="Compatibility-only host routing; do not represent it as native ModSecurity configuration.",
             runtime_effect="Configures the retained sidecar compatibility example.", example_file=compatibility_example,
             description="Compatibility-only lighttpd host field.", compatibility_only=True,
@@ -646,31 +720,31 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
 
 
 COMMON_DETAILS: dict[str, dict[str, str]] = {
-    "enabled": ("boolean", "on | off | true | false | 1 | 0 | yes | no", "off", "common/src/config.c:msconnector_config_apply_defaults", "Enables the Common Runtime; enabled runtime requires an inline, file, or remote rule source."),
-    "use_error_log": ("boolean", "on | off | true | false | 1 | 0 | yes | no", "on", "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_USE_ERROR_LOG", "Stores the Common logging preference. A connector must consume it before a host logging effect can be claimed."),
-    "rules_inline": ("string", "one inline rule/configuration string", "none", "runtime parser has no default", "Adds inline rule configuration."),
-    "rules_file": ("path", "one readable rule/configuration file", "none", "runtime parser has no default", "Loads rules from a local file."),
-    "rules_remote_key": ("string", "remote key paired with rules_remote_url", "none", "runtime parser has no default", "Supplies one half of a remote-rule pair."),
-    "rules_remote_url": ("URL", "remote URL paired with rules_remote_key", "none", "runtime parser has no default", "Supplies the remote-rule endpoint; the selected examples do not exercise it."),
-    "transaction_id": ("string", "non-empty text", "none", "runtime parser has no default", "Sets a static runtime transaction identifier."),
-    "transaction_id_header": ("header name", "non-empty HTTP header name", "x-request-id", "common/runtime/msconnector_runtime.c:runtime_defaults", "Selects the fallback correlation-header name."),
-    "phase4_mode": ("enum", "minimal | safe | strict", "safe", "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE", "Stores the late P4 policy. Common alone owns no host abort primitive."),
-    "phase4_content_types_file": ("path", "one configuration path", "none", "runtime parser has no default", "Stores a content-type file path; consumption is connector-specific."),
-    "event_path": ("path", "path without a parent-directory segment", "none", "runtime parser has no default", "Appends metadata-only JSONL events when configured."),
-    "phase4_event_log": ("path alias", "same grammar as event_path", "none", "runtime parser has no default", "Alias for event_path."),
-    "request_body_mode": ("enum", "none | buffered | streaming", "buffered", "common/runtime/msconnector_runtime.c:runtime_defaults", "Selects the Common request-body handling mode; a particular host may support only a subset."),
-    "response_body_mode": ("enum", "none | buffered | streaming", "none", "common/runtime/msconnector_runtime.c:runtime_defaults", "Selects the Common response-body handling mode; a particular host may support only a subset."),
-    "request_body_limit": ("positive decimal bytes", "positive integer", "1048576", "common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE", "Bounds request bytes offered to the engine."),
-    "response_body_limit": ("positive decimal bytes", "positive integer", "1048576", "common/include/msconnector/limits.h:MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE", "Bounds response bytes offered to the engine."),
-    "body_limit_action": ("enum", "reject | process_partial (accepted spelling variants are parser-specific)", "reject", "common/src/config.c:msconnector_config_apply_defaults", "Controls whether an over-limit chunk is rejected or truncated before engine input."),
-    "late_intervention_timeout": ("non-negative decimal milliseconds", "0 or positive integer", "0", "common/src/config.c:msconnector_config_apply_defaults", "Stores an optional late-intervention budget; Common owns no timer/cancellation primitive."),
-    "default_block_status": ("HTTP status", "allowed blocking status", "403", "common/include/msconnector/block_statuses.h:MSCONNECTOR_DEFAULT_BLOCK_STATUS", "Fallback status for supported pre-commit block actions."),
-    "default_error_status": ("HTTP error status", "valid HTTP error status", "500", "common/include/msconnector/block_statuses.h:MSCONNECTOR_DEFAULT_ERROR_STATUS", "Fallback status for runtime errors."),
-    "max_header_count": ("positive decimal count", "positive integer", "256", "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_COUNT", "Bounds accepted header count."),
-    "max_header_name_size": ("positive decimal bytes", "positive integer", "256", "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_NAME_LENGTH", "Bounds each header-name size."),
-    "max_header_value_size": ("positive decimal bytes", "positive integer", "8192", "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_VALUE_LENGTH", "Bounds each header-value size."),
-    "max_total_header_bytes": ("positive decimal bytes", "positive integer", "65536", "common/include/msconnector/limits.h:MSCONNECTOR_MAX_TOTAL_HEADER_BYTES", "Bounds total header bytes."),
-    "max_event_json_bytes": ("positive decimal bytes", "positive integer", "16384", "common/include/msconnector/limits.h:MSCONNECTOR_MAX_EVENT_JSON_BYTES", "Bounds serialized metadata event size."),
+    "enabled": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, "off", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Enables the Common Runtime; enabled runtime requires an inline, file, or remote rule source."),
+    "use_error_log": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, "on", DEFAULT_SOURCE_USE_ERROR_LOG, "Stores the Common logging preference. A connector must consume it before a host logging effect can be claimed."),
+    "rules_inline": ("string", "one inline rule/configuration string", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Adds inline rule configuration."),
+    "rules_file": ("path", "one readable rule/configuration file", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Loads rules from a local file."),
+    "rules_remote_key": ("string", "remote key paired with rules_remote_url", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Supplies one half of a remote-rule pair."),
+    "rules_remote_url": ("URL", "remote URL paired with rules_remote_key", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Supplies the remote-rule endpoint; the selected examples do not exercise it."),
+    "transaction_id": ("string", "non-empty text", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Sets a static runtime transaction identifier."),
+    "transaction_id_header": ("header name", ALLOWED_VALUES_HEADER_NAME, "x-request-id", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the fallback correlation-header name."),
+    "phase4_mode": ("enum", ALLOWED_VALUES_PHASE4_MODE, "safe", DEFAULT_SOURCE_PHASE4_MODE, "Stores the late P4 policy. Common alone owns no host abort primitive."),
+    "phase4_content_types_file": ("path", "one configuration path", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Stores a content-type file path; consumption is connector-specific."),
+    "event_path": ("path", "path without a parent-directory segment", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Appends metadata-only JSONL events when configured."),
+    "phase4_event_log": ("path alias", "same grammar as event_path", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Alias for event_path."),
+    "request_body_mode": ("enum", ALLOWED_VALUES_BODY_MODE, "buffered", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the Common request-body handling mode; a particular host may support only a subset."),
+    "response_body_mode": ("enum", ALLOWED_VALUES_BODY_MODE, "none", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the Common response-body handling mode; a particular host may support only a subset."),
+    "request_body_limit": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "1048576", DEFAULT_SOURCE_MAX_BODY_BUFFER, "Bounds request bytes offered to the engine."),
+    "response_body_limit": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "1048576", DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER, "Bounds response bytes offered to the engine."),
+    "body_limit_action": ("enum", "reject | process_partial (accepted spelling variants are parser-specific)", "reject", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Controls whether an over-limit chunk is rejected or truncated before engine input."),
+    "late_intervention_timeout": ("non-negative decimal milliseconds", "0 or positive integer", "0", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Stores an optional late-intervention budget; Common owns no timer/cancellation primitive."),
+    "default_block_status": ("HTTP status", "allowed blocking status", "403", DEFAULT_SOURCE_DEFAULT_BLOCK_STATUS, "Fallback status for supported pre-commit block actions."),
+    "default_error_status": ("HTTP error status", "valid HTTP error status", "500", DEFAULT_SOURCE_DEFAULT_ERROR_STATUS, "Fallback status for runtime errors."),
+    "max_header_count": ("positive decimal count", ALLOWED_VALUES_POSITIVE_INTEGER, "256", DEFAULT_SOURCE_MAX_HEADER_COUNT, "Bounds accepted header count."),
+    "max_header_name_size": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "256", DEFAULT_SOURCE_MAX_HEADER_NAME_LENGTH, "Bounds each header-name size."),
+    "max_header_value_size": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "8192", DEFAULT_SOURCE_MAX_HEADER_VALUE_LENGTH, "Bounds each header-value size."),
+    "max_total_header_bytes": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "65536", DEFAULT_SOURCE_MAX_TOTAL_HEADER_BYTES, "Bounds total header bytes."),
+    "max_event_json_bytes": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "16384", DEFAULT_SOURCE_MAX_EVENT_JSON_BYTES, "Bounds serialized metadata event size."),
 }
 
 
@@ -714,18 +788,18 @@ def extract_common_runtime(root: Path) -> list[dict[str, Any]]:
 
 
 ENGINE_DETAILS: dict[str, tuple[str, str, str, str]] = {
-    "SecRuleEngine": ("SecRuleEngine On | Off | DetectionOnly", "On | Off | DetectionOnly", "The used examples select On; no repository source establishes a global engine default.", "Controls rule execution/disruptive action inside libmodsecurity, independently of the host connector switch."),
-    "SecRequestBodyAccess": ("SecRequestBodyAccess On | Off", "On | Off", "No default is inferred from examples.", "On makes request-body input available to engine P2 only when the host supplies it; Off leaves P1 headers available but removes body input from P2. The directive itself sets neither a body-size limit nor a request MIME scope: those remain host/engine mapping choices and, where selected, Common Runtime request_body_limit/body mode controls. Enabling body handling can add buffering, memory, CPU, and logging exposure, so retain bounded host input."),
-    "SecResponseBodyAccess": ("SecResponseBodyAccess On | Off", "On | Off", "No default is inferred from examples.", "On makes P4 possible only when the host supplies response bytes that are in scope; Off removes response-body input from P4. It does not widen SecResponseBodyMimeType, override SecResponseBodyLimit/SecResponseBodyLimitAction, or force a status change after headers commit. With the selected safe late-intervention policy, a post-commit disruptive result is recorded as log_only rather than a promised later 403; response capture can add bounded memory, CPU, and sensitive-data exposure."),
-    "SecResponseBodyMimeType": ("SecResponseBodyMimeType <type/subtype> [...]", "one or more MIME types", "No default is inferred from examples.", "Scopes engine response-body inspection by MIME type."),
-    "SecResponseBodyLimit": ("SecResponseBodyLimit <bytes>", "positive byte count", "No default is inferred from examples.", "Caps engine response-body input."),
-    "SecResponseBodyLimitAction": ("SecResponseBodyLimitAction ProcessPartial | Reject", "ProcessPartial | Reject", "No default is inferred from examples.", "Defines engine behavior when the response body exceeds the engine limit."),
-    "SecAuditEngine": ("SecAuditEngine RelevantOnly", "engine audit mode", "No default is inferred from examples.", "Enables the selected audit-log policy."),
-    "SecAuditLogType": ("SecAuditLogType Serial", "audit log type", "No default is inferred from examples.", "Sets the selected audit-log write mode."),
-    "SecAuditLogParts": ("SecAuditLogParts <parts>", "audit part letters", "No default is inferred from examples.", "Selects audit-log parts."),
-    "SecAuditLog": ("SecAuditLog <path>", "path", "No default is inferred from examples.", "Sets the engine audit-log path."),
-    "IncludeOptional": ("IncludeOptional <path-or-glob>", "path or glob", "No default is inferred from examples.", "Loads optional engine configuration/rules if present."),
-    "SecRule": ("SecRule VARIABLE \"OPERATOR\" \"id:<id>,phase:<n>,actions\"", "rule expression", "No default is inferred from examples.", "Defines a rule from a variable, operator, and comma-separated actions. The local illustration uses RESPONSE_BODY, @contains, id, phase, deny, log, and status; redirect and transformations are separate action forms whose validity and observable effect remain engine/host- and commit-boundary dependent."),
+    "SecRuleEngine": ("SecRuleEngine On | Off | DetectionOnly", ALLOWED_VALUES_RULE_ENGINE, "The used examples select On; no repository source establishes a global engine default.", "Controls rule execution/disruptive action inside libmodsecurity, independently of the host connector switch."),
+    "SecRequestBodyAccess": ("SecRequestBodyAccess On | Off", ALLOWED_VALUES_TITLE_CASE_ON_OFF, DEFAULT_NO_EXAMPLE, "On makes request-body input available to engine P2 only when the host supplies it; Off leaves P1 headers available but removes body input from P2. The directive itself sets neither a body-size limit nor a request MIME scope: those remain host/engine mapping choices and, where selected, Common Runtime request_body_limit/body mode controls. Enabling body handling can add buffering, memory, CPU, and logging exposure, so retain bounded host input."),
+    "SecResponseBodyAccess": ("SecResponseBodyAccess On | Off", ALLOWED_VALUES_TITLE_CASE_ON_OFF, DEFAULT_NO_EXAMPLE, "On makes P4 possible only when the host supplies response bytes that are in scope; Off removes response-body input from P4. It does not widen SecResponseBodyMimeType, override SecResponseBodyLimit/SecResponseBodyLimitAction, or force a status change after headers commit. With the selected safe late-intervention policy, a post-commit disruptive result is recorded as log_only rather than a promised later 403; response capture can add bounded memory, CPU, and sensitive-data exposure."),
+    "SecResponseBodyMimeType": ("SecResponseBodyMimeType <type/subtype> [...]", "one or more MIME types", DEFAULT_NO_EXAMPLE, "Scopes engine response-body inspection by MIME type."),
+    "SecResponseBodyLimit": ("SecResponseBodyLimit <bytes>", "positive byte count", DEFAULT_NO_EXAMPLE, "Caps engine response-body input."),
+    "SecResponseBodyLimitAction": ("SecResponseBodyLimitAction ProcessPartial | Reject", ALLOWED_VALUES_LIMIT_ACTION, DEFAULT_NO_EXAMPLE, "Defines engine behavior when the response body exceeds the engine limit."),
+    "SecAuditEngine": ("SecAuditEngine RelevantOnly", "engine audit mode", DEFAULT_NO_EXAMPLE, "Enables the selected audit-log policy."),
+    "SecAuditLogType": ("SecAuditLogType Serial", "audit log type", DEFAULT_NO_EXAMPLE, "Sets the selected audit-log write mode."),
+    "SecAuditLogParts": ("SecAuditLogParts <parts>", "audit part letters", DEFAULT_NO_EXAMPLE, "Selects audit-log parts."),
+    "SecAuditLog": ("SecAuditLog <path>", "path", DEFAULT_NO_EXAMPLE, "Sets the engine audit-log path."),
+    "IncludeOptional": ("IncludeOptional <path-or-glob>", "path or glob", DEFAULT_NO_EXAMPLE, "Loads optional engine configuration/rules if present."),
+    "SecRule": ("SecRule VARIABLE \"OPERATOR\" \"id:<id>,phase:<n>,actions\"", "rule expression", DEFAULT_NO_EXAMPLE, "Defines a rule from a variable, operator, and comma-separated actions. The local illustration uses RESPONSE_BODY, @contains, id, phase, deny, log, and status; redirect and transformations are separate action forms whose validity and observable effect remain engine/host- and commit-boundary dependent."),
 }
 
 
@@ -816,7 +890,7 @@ def _host_example_option(connector: str, name: str, example_file: str, validatio
         syntax=f"{name} <host-specific-value>", value_type="host-owned configuration field", allowed_values="the explicit value in the selected checked-in example",
         default="No connector default; this host field is explicit in the example.", default_source="active example configuration", required=False,
         contexts="The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts.",
-        inheritance="Host-defined; not implemented by this connector.", merge_behavior="Host-defined; not implemented by this connector.", validation=validation,
+        inheritance=HOST_DEFINED_NOT_IMPLEMENTED, merge_behavior=HOST_DEFINED_NOT_IMPLEMENTED, validation=validation,
         phase_relevance="Host setup/routing/logging; it does not itself configure ModSecurity rule-engine phases.",
         security_relevance="Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.",
         runtime_effect="Provides surrounding host setup used by the selected connector example.", example_file=example_file,
@@ -876,10 +950,10 @@ def extract_host_example_fields(root: Path, existing: Iterable[dict[str, Any]]) 
         existing_by_connector[option["connector"]].add(option["name"])
     result: list[dict[str, Any]] = []
     groups = {
-        "apache": (_apache_example_names(root), "examples/apache/safe/httpd.conf", "apachectl -t"),
-        "nginx": (_nginx_example_names(root), "examples/nginx/safe/nginx.conf", "nginx -t"),
-        "haproxy": (_haproxy_example_names(root), "examples/haproxy/safe/haproxy-htx.cfg", "haproxy -c -f <config>"),
-        "lighttpd": (_lighttpd_example_names(root), "examples/lighttpd/safe/lighttpd-http1-identity.conf", "lighttpd -tt -f <config>"),
+        "apache": (_apache_example_names(root), "examples/apache/safe/httpd.conf", VALIDATE_APACHE),
+        "nginx": (_nginx_example_names(root), "examples/nginx/safe/nginx.conf", VALIDATE_NGINX),
+        "haproxy": (_haproxy_example_names(root), "examples/haproxy/safe/haproxy-htx.cfg", VALIDATE_HAPROXY),
+        "lighttpd": (_lighttpd_example_names(root), "examples/lighttpd/safe/lighttpd-http1-identity.conf", VALIDATE_LIGHTTPD),
     }
     for connector, (names, example, validation) in groups.items():
         for name in names:
@@ -992,7 +1066,7 @@ def _selected_template_default(subject: str, selected: str) -> str:
 
 def _without_compatibility_prefix(path: str) -> str:
     """Recover the real host path from an inventory-only compatibility name."""
-    if not path.startswith("compatibility."):
+    if not path.startswith(COMPATIBILITY_PATH_PREFIX):
         return path
     _, _, remaining = path.partition(".")
     _, _, remaining = remaining.partition(".")
@@ -1009,7 +1083,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
     """
     prefix = "static_resources.listeners[]"
     tail = path.removeprefix(prefix).lstrip(".")
-    base_default_source = "selected Envoy v3 template; connector owns no bootstrap default"
+    base_default_source = DEFAULT_SOURCE_ENVOY_TEMPLATE
     listener_phase = (
         "Compatibility bootstrap only; this listener carries ext_authz request authorization before the router and does not establish selected native P2/P3/P4 visibility."
         if compatibility else
@@ -1070,12 +1144,12 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
     if tail == "address.socket_address.port_value":
         return _yaml_detail(
             "Envoy SocketAddress uint32 TCP port",
-            "materializer-validated decimal port 1..65535",
+            ALLOWED_VALUES_MATERIALIZED_PORT,
             _selected_template_default("listener port", "the @LISTEN_PORT@ materializer input"),
             "Selects the TCP port on which downstream requests enter the ext_proc filter chain.",
             "Use a private, non-conflicting port; port selection affects reachability before P1.",
             listener_phase,
-            default_source="selected template and prepare_envoy_ext_proc_config.sh materializer",
+            default_source=DEFAULT_SOURCE_ENVOY_MATERIALIZER,
         )
     if tail == "filter_chains":
         return _yaml_detail(
@@ -1351,7 +1425,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
     if http_tail == "typed_config.grpc_service.timeout":
         return _yaml_detail(
             "Envoy protobuf Duration",
-            "non-negative duration; selected value is 0.2s",
+            ALLOWED_VALUES_SELECTED_DURATION,
             _selected_template_default("gRPC service timeout", "0.2s"),
             "Bounds service establishment/operation as configured on the ext_proc gRPC service reference.",
             "A value that is too small creates avoidable processor failures; too large retains request resources longer.",
@@ -1375,7 +1449,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
         direction = "request/P2" if "request_" in http_tail else "response/P4"
         return _yaml_detail(
             "Envoy ext_proc BodySendMode enum",
-            "NONE | STREAMED | BUFFERED | BUFFERED_PARTIAL | FULL_DUPLEX_STREAMED | GRPC",
+            ALLOWED_VALUES_BODY_SEND_MODE,
             "Envoy proto default NONE; the selected template explicitly sets STREAMED.",
             f"Selects {direction} body delivery to ext_proc; STREAMED sends incremental body chunks.",
             "Body delivery exposes payload data and consumes stream resources; the selected Common bridge requires STREAMED with bounded service controls.",
@@ -1389,7 +1463,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
         direction = "request/P1" if "request_" in http_tail else "response/P3"
         return _yaml_detail(
             "Envoy ext_proc HeaderSendMode enum",
-            "DEFAULT | SEND | SKIP",
+            ALLOWED_VALUES_HEADER_SEND_MODE,
             "Envoy effective default SEND for request and response headers; the selected template explicitly sets SEND.",
             f"Selects whether {direction} headers are sent to the external processor.",
             "Headers can include security-sensitive metadata; use the private local ext_proc service and its configured bounds.",
@@ -1403,7 +1477,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
         direction = "request" if "request_" in http_tail else "response"
         return _yaml_detail(
             "Envoy ext_proc HeaderSendMode enum for trailers",
-            "DEFAULT | SEND | SKIP",
+            ALLOWED_VALUES_HEADER_SEND_MODE,
             "Envoy effective default SKIP for trailers; the selected template explicitly sets SEND.",
             f"Sends {direction} trailers/EOS metadata to the external processor when trailers are present.",
             "Trailer metadata is part of the transaction; do not treat it as a body-size bypass.",
@@ -1432,43 +1506,43 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
         )
     if http_tail == "typed_config.send_body_without_waiting_for_header_response":
         return _yaml_detail(
-            "Envoy ext_proc boolean",
-            "true | false",
-            "Envoy proto default false; the selected template explicitly sets false.",
+            VALUE_TYPE_ENVOY_BOOLEAN,
+            ALLOWED_VALUES_TRUE_FALSE,
+            DEFAULT_ENVOY_FALSE,
             "When true with STREAMED bodies, Envoy sends body chunks before the processor's header response; false retains header-response ordering.",
             "Keeping false preserves the selected decision ordering and avoids uncontrolled early body delivery to the processor.",
             "Controls P1-to-P2/P3-to-P4 sequencing for STREAMED bodies; it does not itself enable body visibility.",
-            default_source="Envoy ext_proc v3 ExternalProcessor API pinned by connectors/envoy/ext_proc/go.mod",
+            default_source=DEFAULT_SOURCE_ENVOY_API,
         )
     if http_tail == "typed_config.allow_mode_override":
         return _yaml_detail(
-            "Envoy ext_proc boolean",
-            "true | false",
-            "Envoy proto default false; the selected template explicitly sets false.",
+            VALUE_TYPE_ENVOY_BOOLEAN,
+            ALLOWED_VALUES_TRUE_FALSE,
+            DEFAULT_ENVOY_FALSE,
             "Allows or ignores a processor-supplied mode_override that would change processing_mode after request headers.",
             "false prevents the remote processor from widening/narrowing configured P1–P4 visibility at runtime.",
             "Guards the configured P1–P4 processing_mode contract; false keeps the static selected lifecycle surface.",
-            default_source="Envoy ext_proc v3 ExternalProcessor API pinned by connectors/envoy/ext_proc/go.mod",
+            default_source=DEFAULT_SOURCE_ENVOY_API,
         )
     if http_tail == "typed_config.failure_mode_allow":
         return _yaml_detail(
-            "Envoy ext_proc boolean",
-            "true | false",
-            "Envoy proto default false; the selected template explicitly sets false.",
+            VALUE_TYPE_ENVOY_BOOLEAN,
+            ALLOWED_VALUES_TRUE_FALSE,
+            DEFAULT_ENVOY_FALSE,
             "Chooses whether processor stream errors/timeouts fail open (true) or produce Envoy's error handling (false).",
             "false avoids silently allowing traffic when the local processor cannot be reached; availability and denial behavior still need runtime evidence.",
             "Failure behavior for the ext_proc stream serving all selected P1–P4 callbacks.",
-            default_source="Envoy ext_proc v3 ExternalProcessor API pinned by connectors/envoy/ext_proc/go.mod",
+            default_source=DEFAULT_SOURCE_ENVOY_API,
         )
     if http_tail == "typed_config.message_timeout":
         return _yaml_detail(
             "Envoy protobuf Duration per ext_proc message",
-            "non-negative duration; selected value is 0.2s",
+            ALLOWED_VALUES_SELECTED_DURATION,
             "Envoy ext_proc default 200 milliseconds when omitted; the selected template explicitly sets 0.2s.",
             "Limits how long Envoy waits for each required external-processor response.",
             "Too large a timeout retains stream resources; too small a timeout creates processor failures governed by failure_mode_allow.",
             "Applies to per-message P1/P2/P3/P4 ext_proc exchanges except observability/full-duplex/gRPC cases documented by Envoy.",
-            default_source="Envoy ext_proc v3 ExternalProcessor API pinned by connectors/envoy/ext_proc/go.mod",
+            default_source=DEFAULT_SOURCE_ENVOY_API,
         )
     if http_tail == "typed_config.max_message_timeout":
         return _yaml_detail(
@@ -1478,7 +1552,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Caps a processor-requested extension of the per-message timeout.",
             "A finite cap limits remote processor influence over stream retention; setting a positive cap deliberately enables this API.",
             "Applies to timeout control for selected P1–P4 ext_proc exchanges; it does not change their visibility modes.",
-            default_source="Envoy ext_proc v3 ExternalProcessor API pinned by connectors/envoy/ext_proc/go.mod",
+            default_source=DEFAULT_SOURCE_ENVOY_API,
         )
     if http_tail == "typed_config.http_service":
         return _yaml_detail(
@@ -1498,7 +1572,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Groups the compatibility service URI, logical cluster, and deadline.",
             "Keep the authorization service private and do not embed credentials in a URI.",
             "Compatibility request authorization only; no selected full response lifecycle.",
-            default_source="compatibility template",
+            default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
     if http_tail == "typed_config.http_service.server_uri.uri":
         return _yaml_detail(
@@ -1508,7 +1582,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Identifies the HTTP authorization endpoint for compatibility ext_authz requests.",
             "Loopback limits the example exposure; a remote URI needs TLS, identity, and egress review.",
             "Compatibility request authorization only; no native response-body P4 visibility.",
-            default_source="compatibility template",
+            default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
     if http_tail == "typed_config.http_service.server_uri.cluster":
         return _yaml_detail(
@@ -1518,17 +1592,17 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Associates the HTTP authorization URI with its configured Envoy cluster.",
             "The name must resolve to a reviewed service cluster; do not treat it as the native ext_proc target.",
             "Compatibility request authorization only; no selected P3/P4 coverage.",
-            default_source="compatibility template",
+            default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
     if http_tail == "typed_config.http_service.server_uri.timeout":
         return _yaml_detail(
             "Envoy protobuf Duration (compatibility HTTP authorization timeout)",
-            "non-negative duration; selected value is 0.2s",
+            ALLOWED_VALUES_SELECTED_DURATION,
             "No repository default; compatibility template explicitly sets 0.2s.",
             "Bounds one compatibility authorization HTTP request.",
             "Deadline choice changes failure pressure; it is not an ext_proc full-lifecycle timeout guarantee.",
             "Compatibility request authorization only; no P3/P4 response inspection.",
-            default_source="compatibility template",
+            default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
     if http_tail == "typed_config.http_service.authorization_request":
         return _yaml_detail(
@@ -1538,7 +1612,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Groups the header-forwarding policy for the compatibility authorization request.",
             "Only forward the headers the compatibility service needs; extra headers may disclose credentials or user data.",
             "Compatibility P1 request-header authorization only; no selected body or response visibility.",
-            default_source="compatibility template",
+            default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
     if http_tail in {
         "typed_config.http_service.authorization_request.allowed_headers",
@@ -1551,7 +1625,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Groups the allow-list of request headers forwarded to the compatibility authorization service.",
             "Header forwarding can expose credentials; keep the matcher list minimal and audit changes.",
             "Compatibility P1 request-header authorization only; no native P2/P3/P4 visibility.",
-            default_source="compatibility template",
+            default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
     if http_tail == "typed_config.http_service.authorization_request.allowed_headers.patterns[].exact":
         return _yaml_detail(
@@ -1561,7 +1635,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Forwards only matching request headers to the compatibility authorization service.",
             "The authorization value is sensitive; ensure the compatibility service and its logs are trusted.",
             "Compatibility P1 request-header authorization only; no selected P2/P3/P4 visibility.",
-            default_source="compatibility template",
+            default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
     return None
 
@@ -1570,7 +1644,7 @@ def _envoy_cluster_yaml_detail(path: str, compatibility: bool = False) -> dict[s
     """Describe endpoint and transport fields under static_resources.clusters[]."""
     prefix = "static_resources.clusters[]"
     tail = path.removeprefix(prefix).lstrip(".")
-    source = "selected Envoy v3 template; connector owns no bootstrap default"
+    source = DEFAULT_SOURCE_ENVOY_TEMPLATE
     lifecycle = (
         "The compatibility cluster list contains modsecurity_authz for request authorization and app_backend for the allowed upstream flow; "
         "it does not establish selected native P2/P3/P4 coverage."
@@ -1702,12 +1776,12 @@ def _envoy_cluster_yaml_detail(path: str, compatibility: bool = False) -> dict[s
     if tail == f"{endpoint_prefix}.socket_address.port_value":
         return _yaml_detail(
             "Envoy SocketAddress uint32 TCP port",
-            "materializer-validated decimal port 1..65535",
+            ALLOWED_VALUES_MATERIALIZED_PORT,
             _selected_template_default("cluster endpoint port", "the @UPSTREAM_PORT@ or @EXT_PROC_PORT@ materializer input"),
             "Targets the TCP port of the selected upstream or ext_proc endpoint.",
             "Port changes can send traffic to a different local service; retain explicit private service ownership.",
             lifecycle,
-            default_source="selected template and prepare_envoy_ext_proc_config.sh materializer",
+            default_source=DEFAULT_SOURCE_ENVOY_MATERIALIZER,
         )
     return None
 
@@ -1715,7 +1789,7 @@ def _envoy_cluster_yaml_detail(path: str, compatibility: bool = False) -> dict[s
 def _envoy_admin_yaml_detail(path: str) -> dict[str, str] | None:
     """Describe management-plane fields separately from the HTTP data path."""
     tail = path.removeprefix("admin").lstrip(".")
-    source = "selected Envoy v3 template; connector owns no bootstrap default"
+    source = DEFAULT_SOURCE_ENVOY_TEMPLATE
     if tail == "access_log_path":
         return _yaml_detail(
             "filesystem path string",
@@ -1733,7 +1807,7 @@ def _envoy_admin_yaml_detail(path: str) -> dict[str, str] | None:
             _selected_template_default("admin address", "127.0.0.1 and @ADMIN_PORT@"),
             "Groups the Envoy administration listener address.",
             "Admin endpoints are sensitive; keep the selected listener loopback/private.",
-            "Management-plane only; independent of P1–P4 transaction processing.",
+            MANAGEMENT_PLANE_PHASE,
             default_source=source,
         )
     if tail == "address.socket_address":
@@ -1743,7 +1817,7 @@ def _envoy_admin_yaml_detail(path: str) -> dict[str, str] | None:
             _selected_template_default("admin socket-address", "127.0.0.1 plus @ADMIN_PORT@"),
             "Pairs the Envoy administration host and TCP port.",
             "Do not bind the administration socket publicly without a separate access-control design.",
-            "Management-plane only; independent of P1–P4 transaction processing.",
+            MANAGEMENT_PLANE_PHASE,
             default_source=source,
         )
     if tail == "address.socket_address.address":
@@ -1753,27 +1827,27 @@ def _envoy_admin_yaml_detail(path: str) -> dict[str, str] | None:
             _selected_template_default("admin host", "127.0.0.1"),
             "Binds the Envoy administration listener to the selected interface.",
             "Loopback prevents the example admin interface from being reachable remotely.",
-            "Management-plane only; independent of P1–P4 transaction processing.",
+            MANAGEMENT_PLANE_PHASE,
             default_source=source,
         )
     if tail == "address.socket_address.port_value":
         return _yaml_detail(
             "Envoy admin uint32 TCP port",
-            "materializer-validated decimal port 1..65535",
+            ALLOWED_VALUES_MATERIALIZED_PORT,
             _selected_template_default("admin port", "the @ADMIN_PORT@ materializer input"),
             "Selects the local TCP port for Envoy administration endpoints.",
             "Use a private, non-conflicting port; exposing admin APIs is unrelated to ModSecurity enforcement.",
-            "Management-plane only; independent of P1–P4 transaction processing.",
-            default_source="selected template and prepare_envoy_ext_proc_config.sh materializer",
+            MANAGEMENT_PLANE_PHASE,
+            default_source=DEFAULT_SOURCE_ENVOY_MATERIALIZER,
         )
     return None
 
 
 def _envoy_yaml_detail(path: str, example_value: str) -> dict[str, str] | None:
     """Return non-generic metadata for every Envoy example YAML path."""
-    compatibility = path.startswith("compatibility.")
+    compatibility = path.startswith(COMPATIBILITY_PATH_PREFIX)
     selected_path = _without_compatibility_prefix(path)
-    source = "selected Envoy v3 template; connector owns no bootstrap default"
+    source = DEFAULT_SOURCE_ENVOY_TEMPLATE
     if selected_path == "static_resources":
         return _yaml_detail(
             "Envoy Bootstrap static_resources mapping",
@@ -1831,7 +1905,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
     function covers the surrounding Traefik host topology so those fields do
     not accidentally inherit generic YAML wording.
     """
-    compatibility = path.startswith("compatibility.")
+    compatibility = path.startswith(COMPATIBILITY_PATH_PREFIX)
     selected_path = _without_compatibility_prefix(path)
     host_source = "selected Traefik example; no connector-owned Traefik host default"
     native_lifecycle = (
@@ -1966,7 +2040,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
         selected = "true" if example_value == "true" else "false"
         return _yaml_detail(
             "Traefik File Provider boolean",
-            "true | false",
+            ALLOWED_VALUES_TRUE_FALSE,
             _selected_template_default("File Provider watch behavior", selected),
             "Controls whether Traefik watches the dynamic file for reloads after initial load.",
             "watch=true makes future file writes live configuration changes; selected native file uses false, compatibility example uses true.",
@@ -2139,17 +2213,17 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
                 "Targets the external forwardAuth decision service before the app service is contacted.",
                 "Use a trusted, private service and do not embed credentials in the URL; it is distinct from the native UDS engine.",
                 compatibility_lifecycle,
-                default_source="compatibility template",
+                default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
             )
         if tail == "trustForwardHeader":
             return _yaml_detail(
                 "Traefik ForwardAuth boolean (compatibility only)",
-                "true | false",
+                ALLOWED_VALUES_TRUE_FALSE,
                 "No selected native default; compatibility template explicitly sets false.",
                 "Controls whether forwarded request headers are trusted when calling the compatibility authorization service.",
                 "false avoids trusting client-supplied forwarded identity/route headers by default; deploy explicit proxy trust boundaries if changing it.",
                 compatibility_lifecycle,
-                default_source="compatibility template",
+                default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
             )
     if selected_path == "http.services":
         return _yaml_detail(
@@ -2251,7 +2325,7 @@ def _compatibility_yaml_options(
     result: list[dict[str, Any]] = []
     example_values = extract_yaml_example_values(root / source_file)
     for path in extract_yaml_paths(root / source_file):
-        option = _yaml_option(connector, f"compatibility.{compatibility_name}.{path}", source_file, source_file, validation, example_values.get(path, ""))
+        option = _yaml_option(connector, f"{COMPATIBILITY_PATH_PREFIX}{compatibility_name}.{path}", source_file, source_file, validation, example_values.get(path, ""))
         option["source_symbol"] = f"compatibility YAML path {path}"
         option["configuration_layer"] = "compatibility"
         option["compatibility_only"] = True
@@ -2309,9 +2383,9 @@ def extract_envoy(root: Path) -> list[dict[str, Any]]:
         if json_name == "listen_address":
             allowed = "non-empty host:port"
         elif json_name == "transaction_id_header":
-            allowed = "non-empty HTTP header name"
+            allowed = ALLOWED_VALUES_HEADER_NAME
         elif json_name == "late_action_policy":
-            allowed = "minimal | safe | strict"
+            allowed = ALLOWED_VALUES_PHASE4_MODE
         effect = "Sets one bounded ext_proc service control."
         if json_name == "late_action_policy":
             effect = "Selects late decision reporting; minimal and safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset."
@@ -2336,7 +2410,7 @@ def extract_envoy(root: Path) -> list[dict[str, Any]]:
             "envoy", f"--{flag}", "runtime_cli_flag", main_source, f"main / flag.{kind}",
             syntax=f"--{flag}" + (" PATH" if kind == "StringVar" else ""), value_type="CLI flag", allowed_values="see CLI usage; path/host:port where applicable",
             default="required" if required else "optional", default_source="main.go flag registration", required=required,
-            contexts="msconnector_envoy_ext_proc command line", inheritance="not applicable", merge_behavior="--listen overrides listen_address after JSON decoding; other flags are direct process inputs.",
+            contexts="msconnector_envoy_ext_proc command line", inheritance=NOT_APPLICABLE, merge_behavior="--listen overrides listen_address after JSON decoding; other flags are direct process inputs.",
             validation="main validates JSON and, where selected, Common Runtime before serving.", phase_relevance="Runtime service setup; --runtime-config selects the actual engine path.",
             security_relevance="Use absolute controlled paths for runtime/event files and a private service listener.", runtime_effect="Controls ext_proc service startup/check behavior.",
             example_file="connectors/envoy/config/prepare_envoy_ext_proc_config.sh", description="ext_proc service CLI flag."))
@@ -2348,20 +2422,20 @@ def extract_envoy(root: Path) -> list[dict[str, Any]]:
         options.append(_option(
             "envoy", f"@{placeholder}@", "example_placeholder", yaml_source, "prepare_envoy_ext_proc_config.sh materializer",
             syntax=f"@{placeholder}@", value_type="template placeholder", allowed_values="materializer-provided, validated value", default="none; must be materialized", default_source="template contains a required placeholder", required=True,
-            contexts="Envoy YAML template before materialization", inheritance="not applicable", merge_behavior="substituted once by the repository materializer.",
+            contexts="Envoy YAML template before materialization", inheritance=NOT_APPLICABLE, merge_behavior="substituted once by the repository materializer.",
             validation="The materializer rejects unresolved placeholders and invalid ports; output must be outside the checkout.", phase_relevance="Host bootstrap only.",
             security_relevance="Use private, non-conflicting ports; never place generated runtime output in the checkout.", runtime_effect="Supplies a release marker or local endpoint value to the generated Envoy configuration.",
             example_file=yaml_source, description="Template placeholder, not an Envoy configuration field."))
     options.extend(_compatibility_yaml_options(
-        root, "envoy", "examples/envoy/compatibility-ext-authz/envoy-ext-authz.yaml", "ext_authz",
+        root, "envoy", ENVOY_EXT_AUTHZ_CONFIGURATION, "ext_authz",
         "Validate as an Envoy ext_authz compatibility configuration.", deprecated_fragment="authorization_request.allowed_headers",
     ))
     options.append(_option(
-        "envoy", "envoy.filters.http.ext_authz", "compatibility", "examples/envoy/compatibility-ext-authz/envoy-ext-authz.yaml", "ext_authz compatibility filter",
-        syntax="name: envoy.filters.http.ext_authz", value_type="Envoy compatibility filter", allowed_values="ext_authz v3 configuration", default="not part of selected ext_proc path", default_source="compatibility template", required=False,
+        "envoy", "envoy.filters.http.ext_authz", "compatibility", ENVOY_EXT_AUTHZ_CONFIGURATION, "ext_authz compatibility filter",
+        syntax="name: envoy.filters.http.ext_authz", value_type="Envoy compatibility filter", allowed_values="ext_authz v3 configuration", default="not part of selected ext_proc path", default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE, required=False,
         contexts="Compatibility Envoy HTTP filter chain", inheritance="not part of ext_proc configuration", merge_behavior="not part of selected full-lifecycle configuration", validation="Separate ext_authz configuration validation.",
         phase_relevance="Request authorization compatibility path; no selected P3/P4 coverage.", security_relevance="Do not represent it as the native ext_proc full-lifecycle configuration.", runtime_effect="Routes to separate authorization compatibility service.",
-        example_file="examples/envoy/compatibility-ext-authz/envoy-ext-authz.yaml", description="Compatibility-only ext_authz filter.", compatibility_only=True, deprecated=True))
+        example_file=ENVOY_EXT_AUTHZ_CONFIGURATION, description="Compatibility-only ext_authz filter.", compatibility_only=True, deprecated=True))
     return options
 
 
@@ -2386,7 +2460,7 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
         },
         "maxRequestChunkBytes": {
             "type": "integer request-body chunk-byte bound",
-            "values": "positive; uds maximum 32768",
+            "values": ALLOWED_VALUES_TRAEFIK_UDS_CHUNK,
             "default": "32768",
             "effect": "Caps each streamed request-body chunk offered to the native middleware engine.",
             "phase": "P2 request-body callback bound; it is a per-chunk limit, not a total request-body limit.",
@@ -2394,7 +2468,7 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
         },
         "maxResponseChunkBytes": {
             "type": "integer response-body chunk-byte bound",
-            "values": "positive; uds maximum 32768",
+            "values": ALLOWED_VALUES_TRAEFIK_UDS_CHUNK,
             "default": "32768",
             "effect": "Caps each streamed response-body chunk offered to the native middleware engine.",
             "phase": "P4 response-body callback bound; a late disruptive result remains log-only after response commitment.",
@@ -2410,7 +2484,7 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
         },
         "engineMode": {
             "type": "native middleware engine-mode enum",
-            "values": "passthrough | uds",
+            "values": ALLOWED_VALUES_TRAEFIK_ENGINE_MODE,
             "default": "passthrough",
             "effect": "Selects source-only passthrough or the persistent UDS engine; the selected rule-evaluating example uses uds.",
             "phase": "passthrough always allows and supplies no rule evaluation; uds is the engine transport for native P1/P2/P3/P4 callbacks.",
@@ -2428,8 +2502,8 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
     return _option(
         "traefik", path, "host_connector_yaml", source_file, f"native_middleware.Config.{leaf} / normalizedConfig",
         syntax=f"{path}: <{leaf}>", value_type=data["type"], allowed_values=data["values"], default=data["default"],
-        default_source="connectors/traefik/native_middleware/middleware.go:CreateConfig", required=False,
-        contexts="http.middlewares.<name>.plugin.modsecurityNative", inheritance="Traefik dynamic configuration object; no Common Runtime merge.",
+        default_source=DEFAULT_SOURCE_TRAEFIK_CREATE_CONFIG, required=False,
+        contexts=TRAEFIK_PLUGIN_CONFIGURATION_PATH, inheritance="Traefik dynamic configuration object; no Common Runtime merge.",
         merge_behavior="Traefik/plugin configuration is normalized once by the plugin.", validation="normalizedConfig rejects invalid values; Traefik parses the containing dynamic configuration.",
         phase_relevance=data["phase"], security_relevance=data["security"],
         runtime_effect=data["effect"], example_file=example_file, description=data["effect"],
@@ -2463,18 +2537,18 @@ def extract_traefik(root: Path) -> list[dict[str, Any]]:
         raise ValueError("Traefik minimal dynamic YAML fields drift from the documented selected middleware surface")
     options.extend(_compatibility_yaml_options(
         root, "traefik", "examples/traefik/compatibility-forwardauth/traefik-static.yaml", "forwardauth-static",
-        "Validate as a Traefik forwardAuth compatibility configuration.",
+        TRAEFIK_FORWARDAUTH_VALIDATION,
     ))
     options.extend(_compatibility_yaml_options(
-        root, "traefik", "examples/traefik/compatibility-forwardauth/traefik-dynamic.yaml", "forwardauth-dynamic",
-        "Validate as a Traefik forwardAuth compatibility configuration.",
+        root, "traefik", TRAEFIK_FORWARDAUTH_CONFIGURATION, "forwardauth-dynamic",
+        TRAEFIK_FORWARDAUTH_VALIDATION,
     ))
     options.append(_option(
-        "traefik", "forwardAuth", "compatibility", "examples/traefik/compatibility-forwardauth/traefik-dynamic.yaml", "forwardAuth compatibility middleware",
+        "traefik", "forwardAuth", "compatibility", TRAEFIK_FORWARDAUTH_CONFIGURATION, "forwardAuth compatibility middleware",
         syntax="forwardAuth: { address: <url>, trustForwardHeader: <bool> }", value_type="Traefik compatibility middleware", allowed_values="forwardAuth fields in the compatibility example",
-        default="not part of selected native middleware path", default_source="compatibility template", required=False, contexts="Compatibility dynamic middleware", inheritance="not part of native middleware", merge_behavior="not part of native middleware", validation="Separate Traefik compatibility configuration validation.",
+        default="not part of selected native middleware path", default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE, required=False, contexts="Compatibility dynamic middleware", inheritance=NOT_PART_OF_NATIVE_MIDDLEWARE, merge_behavior=NOT_PART_OF_NATIVE_MIDDLEWARE, validation="Separate Traefik compatibility configuration validation.",
         phase_relevance="Request-authorization compatibility path; no selected P3/P4 configuration.", security_relevance="Do not present forwardAuth as the native UDS rule-evaluating path.", runtime_effect="Routes to separate authorization service.",
-        example_file="examples/traefik/compatibility-forwardauth/traefik-dynamic.yaml", description="Compatibility-only forwardAuth middleware.", compatibility_only=True))
+        example_file=TRAEFIK_FORWARDAUTH_CONFIGURATION, description="Compatibility-only forwardAuth middleware.", compatibility_only=True))
     return options
 
 
@@ -2604,7 +2678,7 @@ GERMAN_TEXT: dict[str, str] = {
     "enum": "Aufzählung",
     "header name": "Headername",
     "positive decimal byte count": "positive dezimale Byteanzahl",
-    "positive decimal bytes": "positive dezimale Byteanzahl",
+    VALUE_TYPE_POSITIVE_DECIMAL_BYTES: "positive dezimale Byteanzahl",
     "positive decimal count": "positive dezimale Anzahl",
     "non-negative decimal milliseconds": "nichtnegative dezimale Millisekundenanzahl",
     "HAProxy filter declaration": "HAProxy-Filterdeklaration",
@@ -2649,7 +2723,7 @@ GERMAN_TEXT: dict[str, str] = {
     "lighttpd boolean values; examples use enable/disable": "lighttpd-Boolean-Werte; die Beispiele verwenden enable/disable",
     "materializer placeholder resolved to decimal 1..65535": "vom Materializer auf dezimal 1..65535 aufgelöster Platzhalter",
     "materializer-provided, validated value": "vom Materializer bereitgestellter und validierter Wert",
-    "non-empty HTTP header name": "nichtleerer HTTP-Headername",
+    ALLOWED_VALUES_HEADER_NAME: "nichtleerer HTTP-Headername",
     "non-empty host-specific transaction identifier": "nichtleere hostspezifische Transaktionskennung",
     "non-empty host:port": "nichtleeres host:port",
     "non-empty non-whitespace header name": "nichtleerer Headername ohne Leerraum",
@@ -2672,10 +2746,10 @@ GERMAN_TEXT: dict[str, str] = {
     "path or glob": "Pfad oder Glob",
     "path without a parent-directory segment": "Pfad ohne übergeordnetes Verzeichnissegment",
     "positive byte count": "positive Byteanzahl",
-    "positive integer": "positive Ganzzahl",
+    ALLOWED_VALUES_POSITIVE_INTEGER: "positive Ganzzahl",
     "positive value": "positiver Wert",
     "positive; uds maximum 128": "positiv; UDS-Maximum 128",
-    "positive; uds maximum 32768": "positiv; UDS-Maximum 32768",
+    ALLOWED_VALUES_TRAEFIK_UDS_CHUNK: "positiv; UDS-Maximum 32768",
     "positive; uds maximum 65536": "positiv; UDS-Maximum 65536",
     "readable ModSecurity configuration/rules file path": "lesbarer ModSecurity-Konfigurations-/Regeldateipfad",
     "reject | process_partial (accepted spelling variants are parser-specific)": "reject | process_partial (akzeptierte Schreibvarianten sind parserspezifisch)",
@@ -2694,14 +2768,14 @@ GERMAN_TEXT: dict[str, str] = {
     "Envoy proto effective default SEND; selected template explicitly sets SEND.": "Effektiver Envoy-Proto-Standard SEND; das ausgewählte Template setzt ausdrücklich SEND.",
     "No connector default; the host API validates the explicit example value.": "Kein Connector-Standardwert; die Host-API validiert den expliziten Beispielwert.",
     "No connector default; this host field is explicit in the example.": "Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt.",
-    "No default is inferred from examples.": "Aus den Beispielen wird kein Standardwert abgeleitet.",
+    DEFAULT_NO_EXAMPLE: "Aus den Beispielen wird kein Standardwert abgeleitet.",
     "Not part of the selected native integration path; explicit compatibility example value.": "Nicht Teil des ausgewählten nativen Integrationspfads; expliziter Wert des Kompatibilitätsbeispiels.",
     "The used examples select On; no repository source establishes a global engine default.": "Die verwendeten Beispiele wählen On; keine Repository-Quelle legt einen globalen Engine-Standardwert fest.",
     "host defaults when omitted": "Host-Standardwerte bei Auslassung",
     "none; JSON decoder/Config.Validate requires every selected field": "kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld",
     "none; connector creates a fallback identifier": "kein Wert; der Connector erzeugt eine Ersatzkennung",
     "none; must be materialized": "kein Wert; muss materialisiert werden",
-    "none; optional": "kein Wert; optional",
+    DEFAULT_NONE_OPTIONAL: "kein Wert; optional",
     "none; required": "kein Wert; erforderlich",
     "not a native connector option": "keine native Connector-Option",
     "not applicable; a filter is active only when declared": "nicht anwendbar; ein Filter ist nur aktiv, wenn er deklariert ist",
@@ -2735,7 +2809,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Engine-specific; not a host connector merge setting.": "Engine-spezifisch; keine Merge-Einstellung des Hostconnectors.",
     "Host YAML/API defined; not a Common Runtime merge setting.": "Durch Host-YAML/API bestimmt; keine Common-Runtime-Merge-Einstellung.",
     "Host-defined compatibility behavior; not native plugin inheritance.": "Hostdefiniertes Kompatibilitätsverhalten; keine native Plugin-Vererbung.",
-    "Host-defined; not implemented by this connector.": "Hostdefiniert; nicht durch diesen Connector implementiert.",
+    HOST_DEFINED_NOT_IMPLEMENTED: "Hostdefiniert; nicht durch diesen Connector implementiert.",
     "No connector-local inheritance callback is registered; each filter declaration owns one filter configuration.": "Es ist kein Connector-lokaler Vererbungs-Callback registriert; jede Filterdeklaration besitzt eine Filterkonfiguration.",
     "No file-level inheritance; host integrations may merge their own configuration before starting Common Runtime.": "Keine Vererbung auf Dateiebene; Hostintegrationen können ihre eigene Konfiguration vor dem Start der Common Runtime zusammenführen.",
     "No inheritance; one JSON object is decoded with unknown fields rejected.": "Keine Vererbung; ein JSON-Objekt wird dekodiert, unbekannte Felder werden abgewiesen.",
@@ -2745,11 +2819,11 @@ GERMAN_TEXT: dict[str, str] = {
     "Parent value is available to the child unless a child value is set; see the Apache directory-config merge function.": "Der Elternwert steht dem Kind zur Verfügung, sofern kein Kindwert gesetzt ist; siehe die Apache-Merge-Funktion für Verzeichniskonfigurationen.",
     "Traefik dynamic configuration object; no Common Runtime merge.": "Dynamisches Traefik-Konfigurationsobjekt; kein Common-Runtime-Merge.",
     "http → server → location; a child inherits if it does not set a value.": "http → server → location; ein Kind erbt, wenn es keinen Wert setzt.",
-    "not applicable": "nicht anwendbar",
+    NOT_APPLICABLE: "nicht anwendbar",
     "not applicable to native plugin": "nicht auf das native Plugin anwendbar",
     "not documented as native inheritance": "nicht als native Vererbung dokumentiert",
     "not part of ext_proc configuration": "nicht Teil der ext_proc-Konfiguration",
-    "not part of native middleware": "nicht Teil der nativen Middleware",
+    NOT_PART_OF_NATIVE_MIDDLEWARE: "nicht Teil der nativen Middleware",
 
     "--listen overrides listen_address after JSON decoding; other flags are direct process inputs.": "--listen überschreibt listen_address nach dem JSON-Dekodieren; andere Optionen sind direkte Prozesseingaben.",
     "Common scalar values use child-over-parent merge; rule sets are merged through msc_rules_merge. Transaction-id expression/static-id are mutually exclusive.": "Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Regelsätze werden über msc_rules_merge zusammengeführt. Transaktions-ID-Ausdruck und statische ID schließen sich gegenseitig aus.",
@@ -2757,7 +2831,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Engine-specific; include order and rule configuration determine effective behavior.": "Engine-spezifisch; Include-Reihenfolge und Regelkonfiguration bestimmen das wirksame Verhalten.",
     "Host YAML/API defined; checked-in static and dynamic configurations are separate layers.": "Durch Host-YAML/API bestimmt; eingecheckte statische und dynamische Konfigurationen sind getrennte Ebenen.",
     "Host-defined compatibility behavior; not part of mod_msconnector.": "Hostdefiniertes Kompatibilitätsverhalten; nicht Teil von mod_msconnector.",
-    "Host-defined; not implemented by this connector.": "Hostdefiniert; nicht durch diesen Connector implementiert.",
+    HOST_DEFINED_NOT_IMPLEMENTED: "Hostdefiniert; nicht durch diesen Connector implementiert.",
     "No connector-local merge; filter arguments initialise a per-filter common configuration.": "Kein Connector-lokaler Merge; Filterargumente initialisieren eine Common-Konfiguration pro Filter.",
     "No merge; a second JSON value is rejected after the one configuration object.": "Kein Merge; ein zweiter JSON-Wert wird nach dem einen Konfigurationsobjekt abgewiesen.",
     "No merge; config_set applies one parsed value.": "Kein Merge; config_set übernimmt einen geparsten Wert.",
@@ -2768,7 +2842,7 @@ GERMAN_TEXT: dict[str, str] = {
     "ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_merge combines parent and child rules.": "ngx_conf_merge_* führt Skalar-/Zeigerkonfiguration zusammen, während msc_rules_merge Eltern- und Kindregeln zusammenführt.",
     "not part of mod_msconnector": "nicht Teil von mod_msconnector",
     "not part of native HTX merge": "nicht Teil des nativen HTX-Merge",
-    "not part of native middleware": "nicht Teil der nativen Middleware",
+    NOT_PART_OF_NATIVE_MIDDLEWARE: "nicht Teil der nativen Middleware",
     "not part of selected full-lifecycle configuration": "nicht Teil der ausgewählten Full-Lifecycle-Konfiguration",
     "substituted once by the repository materializer.": "wird einmalig durch den Repository-Materializer ersetzt.",
 
@@ -2778,21 +2852,21 @@ GERMAN_TEXT: dict[str, str] = {
     # still needs a translation.
     "LateActionPolicy": "LateActionPolicy",
     "string/path": "Zeichenkette/Pfad",
-    "DEFAULT | SEND | SKIP": "DEFAULT | SEND | SKIP",
+    ALLOWED_VALUES_HEADER_SEND_MODE: ALLOWED_VALUES_HEADER_SEND_MODE,
     "HAProxy SPOE syntax only": "nur HAProxy-SPOE-Syntax",
-    "NONE | STREAMED | BUFFERED | BUFFERED_PARTIAL | FULL_DUPLEX_STREAMED | GRPC": "NONE | STREAMED | BUFFERED | BUFFERED_PARTIAL | FULL_DUPLEX_STREAMED | GRPC",
-    "On | Off": "On | Off",
-    "On | Off | DetectionOnly": "On | Off | DetectionOnly",
-    "ProcessPartial | Reject": "ProcessPartial | Reject",
-    "minimal | safe | strict": "minimal | safe | strict",
+    ALLOWED_VALUES_BODY_SEND_MODE: ALLOWED_VALUES_BODY_SEND_MODE,
+    ALLOWED_VALUES_TITLE_CASE_ON_OFF: ALLOWED_VALUES_TITLE_CASE_ON_OFF,
+    ALLOWED_VALUES_RULE_ENGINE: ALLOWED_VALUES_RULE_ENGINE,
+    ALLOWED_VALUES_LIMIT_ACTION: ALLOWED_VALUES_LIMIT_ACTION,
+    ALLOWED_VALUES_PHASE4_MODE: ALLOWED_VALUES_PHASE4_MODE,
     "minimal | safe | strict; before commit all use deny_if_possible, after commit minimal/safe are log_only and strict is abort_connection": "minimal | safe | strict; vor dem Commit verwenden alle deny_if_possible, nach dem Commit verwenden minimal/safe log_only und strict abort_connection",
-    "none | buffered | streaming": "none | buffered | streaming",
-    "on | off": "on | off",
+    ALLOWED_VALUES_BODY_MODE: ALLOWED_VALUES_BODY_MODE,
+    ALLOWED_VALUES_ON_OFF: ALLOWED_VALUES_ON_OFF,
     "on | off (the shared parser additionally accepts true/false/1/0/yes/no where the host passes it through)": "on | off (der gemeinsame Parser akzeptiert zusätzlich true/false/1/0/yes/no, sofern der Host diese Werte durchreicht)",
-    "on | off | true | false | 1 | 0 | yes | no": "on | off | true | false | 1 | 0 | yes | no",
+    ALLOWED_VALUES_COMMON_BOOLEAN: ALLOWED_VALUES_COMMON_BOOLEAN,
     "one readable libmodsecurity configuration/rules path; absolute paths are recommended, while relative-path resolution is delegated to libmodsecurity": "ein lesbarer libmodsecurity-Konfigurations-/Regelpfad; absolute Pfade werden empfohlen, während die Auflösung relativer Pfade libmodsecurity überlassen wird",
-    "passthrough | uds": "passthrough | uds",
-    "true | false": "true | false",
+    ALLOWED_VALUES_TRAEFIK_ENGINE_MODE: ALLOWED_VALUES_TRAEFIK_ENGINE_MODE,
+    ALLOWED_VALUES_TRUE_FALSE: ALLOWED_VALUES_TRUE_FALSE,
     "-": "-",
     "0": "0",
     "1": "1",
@@ -2830,8 +2904,8 @@ GERMAN_TEXT: dict[str, str] = {
     "Apache parser registration has no default": "Die Apache-Parserregistrierung hat keinen Standardwert",
     "active example configuration": "aktive Beispielkonfiguration",
     "ck_calloc plugin_data allocation and default config": "ck_calloc-Allocation von plugin_data und Standardkonfiguration",
-    "compatibility example": "Kompatibilitätsbeispiel",
-    "compatibility template": "Kompatibilitäts-Template",
+    DEFAULT_SOURCE_COMPATIBILITY_EXAMPLE: "Kompatibilitätsbeispiel",
+    DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE: "Kompatibilitäts-Template",
     "config_init() where stated; otherwise zero/empty initialization": "config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten",
     "connector transaction creation path": "Connector-Pfad zur Transaktionserzeugung",
     "connector-specific default content-type loader": "connectorspezifischer Standard-Content-Type-Loader",
@@ -2840,28 +2914,28 @@ GERMAN_TEXT: dict[str, str] = {
     "native HTX keyword parser": "nativer HTX-Schlüsselwortparser",
     "native HTX parser requires rules-file": "nativer HTX-Parser verlangt rules-file",
     "not inferred; only checked-in example usage is documented": "nicht abgeleitet; dokumentiert ist nur die Nutzung in eingecheckten Beispielen",
-    "parser registration has no default": "Parserregistrierung hat keinen Standardwert",
+    DEFAULT_SOURCE_PARSER_REGISTRATION: "Parserregistrierung hat keinen Standardwert",
     "plugin config_file defaults to NULL": "plugin config_file hat den Standardwert NULL",
     "processor.Config has no implicit field defaults": "processor.Config besitzt keine impliziten Feldstandardwerte",
-    "runtime parser has no default": "Runtime-Parser hat keinen Standardwert",
+    DEFAULT_SOURCE_RUNTIME_PARSER: "Runtime-Parser hat keinen Standardwert",
     "selected template and connector validation code where stated": "ausgewähltes Template und Connector-Validierungscode, sofern angegeben",
     "template contains a required placeholder": "Template enthält einen erforderlichen Platzhalter",
-    "common/include/msconnector/block_statuses.h:MSCONNECTOR_DEFAULT_BLOCK_STATUS": "common/include/msconnector/block_statuses.h:MSCONNECTOR_DEFAULT_BLOCK_STATUS",
-    "common/include/msconnector/block_statuses.h:MSCONNECTOR_DEFAULT_ERROR_STATUS": "common/include/msconnector/block_statuses.h:MSCONNECTOR_DEFAULT_ERROR_STATUS",
-    "common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE": "common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE",
-    "common/include/msconnector/limits.h:MSCONNECTOR_MAX_EVENT_JSON_BYTES": "common/include/msconnector/limits.h:MSCONNECTOR_MAX_EVENT_JSON_BYTES",
-    "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_COUNT": "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_COUNT",
-    "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_NAME_LENGTH": "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_NAME_LENGTH",
-    "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_VALUE_LENGTH": "common/include/msconnector/limits.h:MSCONNECTOR_MAX_HEADER_VALUE_LENGTH",
-    "common/include/msconnector/limits.h:MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE": "common/include/msconnector/limits.h:MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE",
-    "common/include/msconnector/limits.h:MSCONNECTOR_MAX_TOTAL_HEADER_BYTES": "common/include/msconnector/limits.h:MSCONNECTOR_MAX_TOTAL_HEADER_BYTES",
-    "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_ENABLE": "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_ENABLE",
-    "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT": "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT",
-    "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE": "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE",
-    "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_USE_ERROR_LOG": "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_USE_ERROR_LOG",
-    "common/runtime/msconnector_runtime.c:runtime_defaults": "common/runtime/msconnector_runtime.c:runtime_defaults",
-    "common/src/config.c:msconnector_config_apply_defaults": "common/src/config.c:msconnector_config_apply_defaults",
-    "connectors/traefik/native_middleware/middleware.go:CreateConfig": "connectors/traefik/native_middleware/middleware.go:CreateConfig",
+    DEFAULT_SOURCE_DEFAULT_BLOCK_STATUS: DEFAULT_SOURCE_DEFAULT_BLOCK_STATUS,
+    DEFAULT_SOURCE_DEFAULT_ERROR_STATUS: DEFAULT_SOURCE_DEFAULT_ERROR_STATUS,
+    DEFAULT_SOURCE_MAX_BODY_BUFFER: DEFAULT_SOURCE_MAX_BODY_BUFFER,
+    DEFAULT_SOURCE_MAX_EVENT_JSON_BYTES: DEFAULT_SOURCE_MAX_EVENT_JSON_BYTES,
+    DEFAULT_SOURCE_MAX_HEADER_COUNT: DEFAULT_SOURCE_MAX_HEADER_COUNT,
+    DEFAULT_SOURCE_MAX_HEADER_NAME_LENGTH: DEFAULT_SOURCE_MAX_HEADER_NAME_LENGTH,
+    DEFAULT_SOURCE_MAX_HEADER_VALUE_LENGTH: DEFAULT_SOURCE_MAX_HEADER_VALUE_LENGTH,
+    DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER: DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER,
+    DEFAULT_SOURCE_MAX_TOTAL_HEADER_BYTES: DEFAULT_SOURCE_MAX_TOTAL_HEADER_BYTES,
+    DEFAULT_SOURCE_ENABLE: DEFAULT_SOURCE_ENABLE,
+    DEFAULT_SOURCE_PHASE4_BODY_LIMIT: DEFAULT_SOURCE_PHASE4_BODY_LIMIT,
+    DEFAULT_SOURCE_PHASE4_MODE: DEFAULT_SOURCE_PHASE4_MODE,
+    DEFAULT_SOURCE_USE_ERROR_LOG: DEFAULT_SOURCE_USE_ERROR_LOG,
+    DEFAULT_SOURCE_RUNTIME_DEFAULTS: DEFAULT_SOURCE_RUNTIME_DEFAULTS,
+    DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS: DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS,
+    DEFAULT_SOURCE_TRAEFIK_CREATE_CONFIG: DEFAULT_SOURCE_TRAEFIK_CREATE_CONFIG,
 
     # Validation descriptions.  The command itself stays unchanged.
     "Config.Validate rejects empty, non-positive, invalid enum, invalid host:port, and inconsistent gRPC/body limits.": "Config.Validate weist leere, nichtpositive, ungültige Enum- und host:port-Werte sowie widersprüchliche gRPC-/Body-Limits ab.",
@@ -2878,13 +2952,13 @@ GERMAN_TEXT: dict[str, str] = {
     "Unknown keys fail compatibility-agent configuration parsing.": "Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.",
     "Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check.": "Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.",
     "Unknown mode fails parsing. The selected host uses haproxy -c -f <config>.": "Ein unbekannter Modus lässt das Parsen fehlschlagen. Der ausgewählte Host verwendet haproxy -c -f <config>.",
-    "Validate as a Traefik forwardAuth compatibility configuration.": "Als Traefik-forwardAuth-Kompatibilitätskonfiguration validieren.",
+    TRAEFIK_FORWARDAUTH_VALIDATION: "Als Traefik-forwardAuth-Kompatibilitätskonfiguration validieren.",
     "Validate as an Envoy ext_authz compatibility configuration.": "Als Envoy-ext_authz-Kompatibilitätskonfiguration validieren.",
-    "Validate as ordinary lighttpd proxy configuration.": "Als normale lighttpd-Proxy-Konfiguration validieren.",
+    LIGHTTPD_SIDECAR_VALIDATION: "Als normale lighttpd-Proxy-Konfiguration validieren.",
     "When enabled, lighttpd validates the runtime file during set-defaults; validate host syntax with lighttpd -tt -f <config>.": "Bei Aktivierung validiert lighttpd die Runtime-Datei während set-defaults; Hostsyntax mit lighttpd -tt -f <config> validieren.",
-    "apachectl -t": "apachectl -t",
-    "haproxy -c -f <config>": "haproxy -c -f <config>",
-    "lighttpd -tt -f <config>": "lighttpd -tt -f <config>",
+    VALIDATE_APACHE: VALIDATE_APACHE,
+    VALIDATE_HAPROXY: VALIDATE_HAPROXY,
+    VALIDATE_LIGHTTPD: VALIDATE_LIGHTTPD,
     "main validates JSON and, where selected, Common Runtime before serving.": "main validiert JSON und, sofern ausgewählt, die Common Runtime vor dem Bereitstellen.",
     "normalizedConfig rejects invalid values; Traefik parses the containing dynamic configuration.": "normalizedConfig weist ungültige Werte ab; Traefik parst die enthaltende dynamische Konfiguration.",
     "traefik check --configFile=<static-config>; load the selected File Provider configuration.": "traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfiguration laden.",
@@ -3061,10 +3135,10 @@ GERMAN_TEXT: dict[str, str] = {
     # Further source-backed Engine details.  These are kept alongside the
     # connector metadata so updates to the actual rule examples cannot leave
     # their German companion with an English explanation.
-    "NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location)": "NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location)",
+    NGINX_CONFIGURATION_CONTEXTS: NGINX_CONFIGURATION_CONTEXTS,
     "T_CONFIG_SCOPE_SERVER": "T_CONFIG_SCOPE_SERVER",
-    "http.middlewares.<name>.plugin.modsecurityNative": "http.middlewares.<name>.plugin.modsecurityNative",
-    "nginx -t": "nginx -t",
+    TRAEFIK_PLUGIN_CONFIGURATION_PATH: TRAEFIK_PLUGIN_CONFIGURATION_PATH,
+    VALIDATE_NGINX: VALIDATE_NGINX,
     "ngx_conf_set_phase4_mode accepts only minimal|safe|strict during nginx -t. Runtime late behavior is source-defined: non-strict post-commit paths emit log_only; strict marks the connection errored and returns NGX_ERROR, without manufacturing a later 403.": "ngx_conf_set_phase4_mode akzeptiert während nginx -t nur minimal|safe|strict. Das späte Runtime-Verhalten ist quellendefiniert: Nicht-strict-Pfade nach dem Commit geben log_only aus; strict markiert die Verbindung als fehlerhaft und gibt NGX_ERROR zurück, ohne eine spätere 403 zu erfinden.",
     "ngx_conf_set_rules_file calls msc_rules_add_file while nginx -t/configuration loading runs. A missing, unreadable, or syntactically invalid top-level rule file (including an engine Include failure) returns the loader error and rejects the NGINX configuration.": "ngx_conf_set_rules_file ruft msc_rules_add_file während nginx -t/des Konfigurationsladens auf. Eine fehlende, unlesbare oder syntaktisch ungültige Regeldatei der obersten Ebene (einschließlich eines fehlgeschlagenen Engine-Include) liefert den Loader-Fehler und weist die NGINX-Konfiguration ab.",
     "The host/libmodsecurity rejects invalid engine syntax when loading the rule file. A syntactically valid On still cannot create P2 input when the selected host path does not expose a request body.": "Der Host/libmodsecurity weist beim Laden der Regeldatei ungültige Engine-Syntax ab. Ein syntaktisch gültiges On kann dennoch keine P2-Eingabe erzeugen, wenn der ausgewählte Hostpfad keinen Request-Body bereitstellt.",
@@ -3376,9 +3450,9 @@ def _german_option(option: dict[str, Any]) -> dict[str, Any]:
 
 def layer_name(layer: str, german: bool) -> str:
     names = {
-        "host_connector_directive": ("Host / Connector", "Host / Connector"),
+        "host_connector_directive": (LAYER_HOST_CONNECTOR, LAYER_HOST_CONNECTOR),
         "host_example_field": ("Host", "Host"),
-        "host_connector_yaml": ("Host / Connector", "Host / Connector"),
+        "host_connector_yaml": (LAYER_HOST_CONNECTOR, LAYER_HOST_CONNECTOR),
         "service_json_field": ("Connector service", "Connector-Service"),
         "runtime_cli_flag": ("Environment / runtime", "Umgebung / Laufzeit"),
         "common_runtime": ("Common Runtime", "Common Runtime"),
@@ -3415,13 +3489,13 @@ def _render_option(option: dict[str, Any], german: bool) -> list[str]:
         example_value_line = (f"Ausgewählter Beispielwert: {literal}." if german else f"Selected example value: {literal}.")
     else:
         example_value_line = ("Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden." if german else "Selected value: use the syntax above and the source-backed file below.")
-    source_example_line = (
-        f"Quellenbasiertes Beispiel: [{option['example_file']}](../../{option['example_file']})."
-        if german and option["example_file"].startswith("examples/")
-        else f"Source-backed example: [{option['example_file']}](../../{option['example_file']})."
-        if option["example_file"].startswith("examples/")
-        else f"Quellenbasiertes Beispiel: `{option['example_file']}`." if german else f"Source-backed example: `{option['example_file']}`."
-    )
+    source_example_label = "Quellenbasiertes Beispiel" if german else "Source-backed example"
+    source_path = option["example_file"]
+    if source_path.startswith("examples/"):
+        source_example = f"[{source_path}](../../{source_path})"
+    else:
+        source_example = f"`{source_path}`"
+    source_example_line = f"{source_example_label}: {source_example}."
     lines = [
         f'<a id="{_slug(option["name"])}"></a>',
         f"## `{option['name']}`",
@@ -3443,7 +3517,7 @@ def _render_option(option: dict[str, Any], german: bool) -> list[str]:
         f"### {labels['values']}",
         "",
         "| Typ | Zulässige Werte | Erforderlich |" if german else "| Type | Allowed values | Required |",
-        "| --- | --- | --- |",
+        MARKDOWN_THREE_COLUMN_SEPARATOR,
         f"| {_table_cell(option['value_type'])} | {_table_cell(option['allowed_values'])} | {('ja' if option['required'] else 'nein') if german else ('yes' if option['required'] else 'no')} |",
         "",
         f"### {labels['default']}",
@@ -3520,7 +3594,7 @@ def render_connector_reference(options: list[dict[str, Any]], connector: str, ge
             f"Selected integration mode: `{mode}`. This file is generated from registered parsers, configuration structures, checked service contracts, and active examples.",
             "Compatibility entries are explicitly labelled and are not part of the selected core path.",
         ])
-    lines.extend(["", "## Configuration inventory" if not german else "## Konfigurationsinventar", "", "| Option | Layer | Type | Required | Default | Context | Short description |", "| --- | --- | --- | --- | --- | --- | --- |"])
+    lines.extend(["", "## Configuration inventory" if not german else "## Konfigurationsinventar", "", MARKDOWN_OPTION_HEADER, MARKDOWN_OPTION_SEPARATOR])
     lines.extend(_table_row(option, german) for option in local)
     lines.extend(["", "## Layer separation" if not german else "## Trennung der Ebenen", ""])
     if german:
@@ -3552,7 +3626,7 @@ def render_connector_reference(options: list[dict[str, Any]], connector: str, ge
         lines.append("The selected native path does not parse a Common Runtime `key=value` file; shared model fields are exposed only through registered host directives." if not german else "Der ausgewählte native Pfad parst keine Common-Runtime-`key=value`-Datei; gemeinsame Modellfelder werden nur über registrierte Hostdirektiven angeboten.")
     else:
         common_reference = "../common/common-connector-configuration.de.md" if german else "../common/common-connector-configuration.md"
-        lines.extend(["| Key | Local use | Detailed reference |" if not german else "| Schlüssel | Lokale Verwendung | Detailreferenz |", "| --- | --- | --- |"])
+        lines.extend(["| Key | Local use | Detailed reference |" if not german else "| Schlüssel | Lokale Verwendung | Detailreferenz |", MARKDOWN_THREE_COLUMN_SEPARATOR])
         for key in runtime_keys:
             local_use = "Selected runtime profile key" if not german else "Schlüssel des ausgewählten Runtime-Profils"
             lines.append(f"| `{key}` | {local_use} | [{key}]({common_reference}#{_slug(key)}) |")
@@ -3574,7 +3648,7 @@ def render_connector_reference(options: list[dict[str, Any]], connector: str, ge
     labels = ("Minimal", "Safe full lifecycle", "Strict", "DetectionOnly", "Disabled")
     if german:
         labels = ("Minimal", "Sicherer vollständiger Lebenszyklus", "Strikt", "DetectionOnly", "Deaktiviert")
-    lines.extend(["", "## Profiles" if not german else "## Profile", "", "| Profile | File | Status |" if not german else "| Profil | Datei | Status |", "| --- | --- | --- |"])
+    lines.extend(["", "## Profiles" if not german else "## Profile", "", "| Profile | File | Status |" if not german else "| Profil | Datei | Status |", MARKDOWN_THREE_COLUMN_SEPARATOR])
     statuses = (
         "Active starter configuration", "Selected bounded reference", "Parser-supported or explicitly optional boundary", "Engine evaluates/logs without disruptive action", "Connector or engine path disabled",
     )
@@ -3614,11 +3688,11 @@ def render_connector_reference(options: list[dict[str, Any]], connector: str, ge
         lines.append("| " + " | ".join(row) + " |")
     lines.extend(["", "## Validation" if not german else "## Validierung", ""])
     validation = {
-        "apache": "apachectl -t", "nginx": "nginx -t", "haproxy": "haproxy -c -f <config>",
-        "envoy": "envoy --mode validate -c <generated-config>", "traefik": "traefik check --configFile=<static-config>", "lighttpd": "lighttpd -tt -f <config>",
+        "apache": VALIDATE_APACHE, "nginx": VALIDATE_NGINX, "haproxy": VALIDATE_HAPROXY,
+        "envoy": "envoy --mode validate -c <generated-config>", "traefik": "traefik check --configFile=<static-config>", "lighttpd": VALIDATE_LIGHTTPD,
     }[connector]
     lines.extend(["```sh", validation, "```", "", "Repository targets: `make check-config-" + connector + "` and `make check-config-all-connectors`." if not german else "Repository-Ziele: `make check-config-" + connector + "` und `make check-config-all-connectors`.", ""])
-    lines.extend(["## Option details" if not german else "## Optionsdetails", ""])
+    lines.extend([ENGLISH_OPTION_DETAILS_HEADER if not german else GERMAN_OPTION_DETAILS_HEADER, ""])
     for option in local:
         lines.extend(_render_option(option, german))
     return "\n".join(lines).rstrip() + "\n"
@@ -3631,10 +3705,10 @@ def render_common_configuration(options: list[dict[str, Any]], german: bool) -> 
     lines.extend([
         "This is the complete current `key=value` parser surface of `common/runtime/msconnector_runtime.c`. It is not a claim that every host exposes every key as a host directive." if not german else "Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/runtime/msconnector_runtime.c`. Daraus folgt nicht, dass jeder Host jeden Schlüssel als Hostdirektive anbietet.",
         "",
-        "| Option | Layer | Type | Required | Default | Context | Short description |", "| --- | --- | --- | --- | --- | --- | --- |",
+        MARKDOWN_OPTION_HEADER, MARKDOWN_OPTION_SEPARATOR,
     ])
     lines.extend(_table_row(option, german) for option in local)
-    lines.extend(["", "## Option details" if not german else "## Optionsdetails", ""])
+    lines.extend(["", ENGLISH_OPTION_DETAILS_HEADER if not german else GERMAN_OPTION_DETAILS_HEADER, ""])
     for option in local:
         lines.extend(_render_option(option, german))
     return "\n".join(lines).rstrip() + "\n"
@@ -3647,10 +3721,10 @@ def render_engine_directives(options: list[dict[str, Any]], german: bool) -> str
     lines.extend([
         "Only directives actually used in checked-in example rule files are listed. They belong to libmodsecurity, not to an Apache, NGINX, HAProxy, Envoy, Traefik, or lighttpd host parser." if not german else "Aufgeführt werden nur Direktiven, die tatsächlich in eingecheckten Beispielregeldateien verwendet werden. Sie gehören zu libmodsecurity und nicht zu einem Apache-, NGINX-, HAProxy-, Envoy-, Traefik- oder lighttpd-Hostparser.",
         "",
-        "| Option | Layer | Type | Required | Default | Context | Short description |", "| --- | --- | --- | --- | --- | --- | --- |",
+        MARKDOWN_OPTION_HEADER, MARKDOWN_OPTION_SEPARATOR,
     ])
     lines.extend(_table_row(option, german) for option in local)
-    lines.extend(["", "## Rule syntax walkthrough" if not german else "## Regel-Syntax im Detail", "", "```apache", "SecRule RESPONSE_BODY \"@contains response-attack\" \\", "    \"id:1100301,phase:4,deny,log,status:403\"", "```", ""])
+    lines.extend(["", "## Rule syntax walkthrough" if not german else "## Regel-Syntax im Detail", "", MARKDOWN_APACHE_FENCE, APACHE_RULE_EXPRESSION, APACHE_RULE_ACTIONS, "```", ""])
     if german:
         lines.extend([
             "`RESPONSE_BODY` ist die Variable, `@contains` der Operator und `response-attack` dessen Argument. Die Actions setzen eine eindeutige `id`, wählen `phase:4`, verlangen `deny`, schreiben mit `log` ein Ereignis und wünschen `status:403` vor dem Host-Commit.",
@@ -3663,7 +3737,7 @@ def render_engine_directives(options: list[dict[str, Any]], german: bool) -> str
             "After response commit a connector cannot reliably replace the visible status line. `SecResponseBodyAccess On` and a P4 rule therefore do not guarantee a later 403 response.",
             "`VARIABLE` selects the data to inspect, `OPERATOR` defines the comparison, and `ACTIONS` is the comma-separated control list. `id` uniquely identifies the rule, `phase` selects evaluation timing, `deny` requests a disruptive decision, and `log` records the match. `status` applies only while the host can still change the HTTP status; `redirect` additionally needs a target and has the same commit-boundary constraint. Transformations are explicit actions that alter input before the operator, so keep them minimal and reviewable. The illustrated rule does not use redirect or a transformation action.",
         ])
-    lines.extend(["", "## Option details" if not german else "## Optionsdetails", ""])
+    lines.extend(["", ENGLISH_OPTION_DETAILS_HEADER if not german else GERMAN_OPTION_DETAILS_HEADER, ""])
     for option in local:
         lines.extend(_render_option(option, german))
     return "\n".join(lines).rstrip() + "\n"
@@ -3677,7 +3751,7 @@ def render_common_readme(german: bool) -> str:
             "Diese zentrale Referenz trennt vier Ebenen: Host-/Connector-Konfiguration, Common Runtime, ModSecurity Engine und Beispielplatzhalter. Die sechs Connector-Referenzen verlinken hierher, ohne Common-Schlüssel als nicht registrierte Hostdirektiven auszugeben.",
             "",
             "| Material | Ebene | Zweck |",
-            "| --- | --- | --- |",
+            MARKDOWN_THREE_COLUMN_SEPARATOR,
             "| [Common-Runtime-Konfiguration](common-connector-configuration.de.md) | Common Runtime | Vollständige aktuelle `key=value`-Parseroptionen. |",
             "| [ModSecurity-Engine-Direktiven](modsecurity-directives.de.md) | ModSecurity Engine | Tatsächlich in Beispielregeldateien verwendete `Sec*`-Direktiven. |",
             "| [Regelbeispiele](rule-examples.de.md) | ModSecurity Engine | On, DetectionOnly, Off sowie P1/P4-Erklärung. |",
@@ -3692,7 +3766,7 @@ def render_common_readme(german: bool) -> str:
             "This central reference separates four layers: host/connector configuration, Common Runtime, ModSecurity Engine, and example placeholders. The six connector references link here without presenting Common keys as unregistered host directives.",
             "",
             "| Material | Layer | Purpose |",
-            "| --- | --- | --- |",
+            MARKDOWN_THREE_COLUMN_SEPARATOR,
             "| [Common Runtime](common-connector-configuration.md) | Common Runtime | Complete current `key=value` parser options. |",
             "| [ModSecurity Engine](modsecurity-directives.md) | ModSecurity Engine | `Sec*` directives actually used by example rule files. |",
             "| [Rule examples](rule-examples.md) | ModSecurity Engine | On, DetectionOnly, Off, plus P1/P4 explanation. |",
@@ -3718,21 +3792,21 @@ def render_rule_examples(german: bool) -> str:
             "# Ohne disruptive Action treffen und protokollieren.",
             "# Regeln nach dem Laden nicht auswerten.",
         )
-    lines = [f"# {title}", "", _language_switch("rule-examples", german), "", "## Rule-engine modes" if not german else "## Regel-Engine-Modi", "", "```apache", comments[0], "SecRuleEngine On", "", comments[1], "SecRuleEngine DetectionOnly", "", comments[2], "SecRuleEngine Off", "```", ""]
+    lines = [f"# {title}", "", _language_switch("rule-examples", german), "", "## Rule-engine modes" if not german else "## Regel-Engine-Modi", "", MARKDOWN_APACHE_FENCE, comments[0], "SecRuleEngine On", "", comments[1], "SecRuleEngine DetectionOnly", "", comments[2], "SecRuleEngine Off", "```", ""]
     if german:
         lines.extend([
             "`DetectionOnly` lädt und bewertet Regeln, protokolliert Treffer, führt disruptive Actions aber nicht durch. `Off` deaktiviert die Engine-Regelauswertung; ein Connector-Schalter kann dabei weiterhin aktiv sein. Umgekehrt erreicht `SecRuleEngine On` keinen Verkehr, wenn der Hostconnector abgeschaltet ist.",
             "",
             "## P1–P4-Beispiel",
             "",
-            "```apache",
+            MARKDOWN_APACHE_FENCE,
             "SecRequestBodyAccess On",
             "SecResponseBodyAccess On",
             "SecResponseBodyMimeType text/plain text/html application/json",
             "SecResponseBodyLimit 1048576",
             "SecResponseBodyLimitAction ProcessPartial",
-            "SecRule RESPONSE_BODY \"@contains response-attack\" \\",
-            "    \"id:1100301,phase:4,deny,log,status:403\"",
+            APACHE_RULE_EXPRESSION,
+            APACHE_RULE_ACTIONS,
             "```",
             "",
             "P1 sind Request-Header, P2 der Request-Body, P3 Response-Header und P4 der Response-Body. Die P4-Regel wünscht vor Commit eine 403; nach Commit bleibt der sichtbare Status hostabhängig und darf nicht als garantiert dokumentiert werden.",
@@ -3743,14 +3817,14 @@ def render_rule_examples(german: bool) -> str:
             "",
             "## P1–P4 example",
             "",
-            "```apache",
+            MARKDOWN_APACHE_FENCE,
             "SecRequestBodyAccess On",
             "SecResponseBodyAccess On",
             "SecResponseBodyMimeType text/plain text/html application/json",
             "SecResponseBodyLimit 1048576",
             "SecResponseBodyLimitAction ProcessPartial",
-            "SecRule RESPONSE_BODY \"@contains response-attack\" \\",
-            "    \"id:1100301,phase:4,deny,log,status:403\"",
+            APACHE_RULE_EXPRESSION,
+            APACHE_RULE_ACTIONS,
             "```",
             "",
             "P1 is request headers, P2 request body, P3 response headers, and P4 response body. The P4 rule requests a 403 before commit; after commit the visible status remains host-dependent and must not be documented as guaranteed.",

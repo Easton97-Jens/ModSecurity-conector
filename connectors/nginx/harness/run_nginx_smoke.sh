@@ -596,6 +596,7 @@ nginx_downstream_transport() {
         http1) printf '%s\n' tcp ;;
         h2) printf '%s\n' tls_tcp ;;
         h3) printf '%s\n' quic_udp ;;
+        *) blocked "unsupported NGINX_DOWNSTREAM_PROTOCOL=$NGINX_DOWNSTREAM_PROTOCOL" ;;
     esac
 }
 
@@ -611,6 +612,7 @@ verify_nginx_protocol_build() {
         h1-h2-h3-quic)
             required_flags='--with-http_ssl_module --with-http_v2_module --with-http_v3_module'
             ;;
+        *) blocked "unsupported NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE" ;;
     esac
     for required_flag in $required_flags; do
         grep -F -- "$required_flag" "$version_log" >/dev/null 2>&1 || \
@@ -783,6 +785,7 @@ write_nginx_protocol_directives() {
                 printf 'add_header Alt-Svc '\''h3=":%s"; ma=60'\'' always;\n' "$PORT"
             } > "$NGINX_PROTOCOL_SERVER_DIRECTIVES_FILE"
             ;;
+        *) blocked "unsupported NGINX_DOWNSTREAM_PROTOCOL=$NGINX_DOWNSTREAM_PROTOCOL" ;;
     esac
 }
 
