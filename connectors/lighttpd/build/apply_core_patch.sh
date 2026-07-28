@@ -36,6 +36,7 @@ case "$PATCHED_SOURCE_DIR" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
         blocked "LIGHTTPD_PATCHED_SOURCE_DIR must not be inside the checkout"
         ;;
+    *) ;;
 esac
 
 [ -f "$PATCH_FILE" ] || blocked "missing versioned patch: $PATCH_FILE"

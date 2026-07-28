@@ -9,8 +9,8 @@
 | Change ID | CR-20260727-sonar-generator-conditionals |
 | Date (UTC) | 2026-07-27 |
 | Base revision | 1b0f8825f3510b99b603bb6cd6f0777e1710358e |
-| Tracking | Parent SonarQube Cloud Code Smell `python:S3358`. No external Sonar analysis result is asserted. |
-| Boundary | Parent conditional refactoring in `ci/lib/generated_report_utils.py` and `scripts/generate_compiler_guides.py`, the focused existing test sources, this English/German pair, and its indexes. No generated output, workflow, configuration, Framework, MRTS, Gitlink, or delivery change is part of this candidate. |
+| Tracking | Parent SonarQube Cloud Code Smell `python:S3358`. The original candidate's local evidence is recorded below; the normal current-master refresh creates a new exact head that requires its own hosted analysis. |
+| Boundary | Parent conditional refactoring in `ci/lib/generated_report_utils.py` and `scripts/generate_compiler_guides.py`, the focused existing test sources, this English/German pair, and its indexes. No generated output, workflow, configuration, Framework, MRTS, or Gitlink change is part of the candidate; this record is refreshed only to correct its PR delivery-state description. |
 
 ## Motivation and problem statement
 
@@ -101,16 +101,18 @@ external Sonar evidence.
   generated output is explicitly outside this refactor/documentation scope.
 - After a read-only checkout of the Parent-pinned Framework revision,
   `make check-doc-links` passed together with `make check-bilingual-docs`.
-  GitHub CI, pull-request review, delivery, Framework/MRTS operations, and
-  SonarQube Cloud analysis were not run. A fresh exact-head Sonar analysis
-  remains required later.
+  The earlier candidate later became Draft PR #140, so its former head-specific
+  hosted CI/Sonar/review state is no longer represented as absent. This normal
+  current-master refresh creates a different head; no fresh hosted result,
+  review result, or merge outcome for that refreshed head is asserted here.
 
 ## Known limitations
 
-The candidate is local and uncommitted at base
-`1b0f8825f3510b99b603bb6cd6f0777e1710358e`. The 108-test result is focused
-local evidence only; it does not establish a fresh exact-head Sonar result,
-CI result, runtime result, review, or delivery outcome.
+The original source base is
+`1b0f8825f3510b99b603bb6cd6f0777e1710358e`; the candidate is now Draft PR
+#140 and receives a normal current-master refresh. The 108-test result is
+focused local evidence only; it does not establish a result for the refreshed
+exact head, runtime result, review, or delivery outcome.
 
 ## Remaining risks
 
@@ -123,7 +125,7 @@ resolved.
 
 ## Final diff and review status
 
-This is a local, uncommitted, and unpushed candidate. No generated output,
-workflow, configuration, Framework, MRTS, Gitlink, staging, commit, push,
-pull request, merge, or other delivery action occurred. Fresh exact-head Sonar
-analysis remains required.
+The candidate is an open Draft PR. No generated output, workflow,
+configuration, Framework, MRTS, or Gitlink change is included. No merge or
+other delivery outcome is asserted by this record; a fresh exact-head hosted
+analysis remains required after the current-master refresh.

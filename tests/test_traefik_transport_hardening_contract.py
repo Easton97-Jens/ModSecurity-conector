@@ -70,8 +70,8 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
             thread.join(timeout=2)
 
         self.assertTrue(observation["connection_reused"])
-        self.assertEqual(200, observation["safe_status"])
-        self.assertEqual(200, observation["followup_status"])
+        self.assertEqual(observation["safe_status"], 200)
+        self.assertEqual(observation["followup_status"], 200)
         self.assertTrue(observation["safe_first_byte_received"])
         self.assertTrue(observation["followup_first_byte_received"])
 
@@ -119,8 +119,8 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
         runtime = load_runtime_module()
         source = RUNTIME_SCRIPT.read_text(encoding="utf-8")
         rules = STANDALONE_RULES.read_text(encoding="utf-8")
-        self.assertEqual("1100002", runtime.CANONICAL_RULE_IDS["p1_alternative"])
-        self.assertEqual("1000005", runtime.STANDALONE_RULE_IDS["p1_alternative"])
+        self.assertEqual(runtime.CANONICAL_RULE_IDS["p1_alternative"], "1100002")
+        self.assertEqual(runtime.STANDALONE_RULE_IDS["p1_alternative"], "1000005")
         self.assertIn("http.HTTPStatus.TOO_MANY_REQUESTS", source)
         self.assertIn('"X-Modsec-Smoke": "alternative-status"', source)
         self.assertIn('"phase1_alternative_status_client_status": p1_alternative_status', source)
@@ -162,14 +162,14 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
             events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
         allow_event = events[-1]
-        self.assertEqual("traefik", allow_event["connector"])
-        self.assertEqual("native-traefik-middleware", allow_event["integration_mode"])
-        self.assertEqual("core-run-1", allow_event["run_id"])
-        self.assertEqual("traefik-native-p1-allow", allow_event["transaction_id"])
-        self.assertEqual(1, allow_event["phase"])
-        self.assertEqual(200, allow_event["http_status"])
-        self.assertEqual(200, allow_event["visible_http_status"])
-        self.assertEqual("http_status", allow_event["transport_result"])
+        self.assertEqual(allow_event["connector"], "traefik")
+        self.assertEqual(allow_event["integration_mode"], "native-traefik-middleware")
+        self.assertEqual(allow_event["run_id"], "core-run-1")
+        self.assertEqual(allow_event["transaction_id"], "traefik-native-p1-allow")
+        self.assertEqual(allow_event["phase"], 1)
+        self.assertEqual(allow_event["http_status"], 200)
+        self.assertEqual(allow_event["visible_http_status"], 200)
+        self.assertEqual(allow_event["transport_result"], "http_status")
         self.assertNotIn("requested_action", allow_event)
         self.assertNotIn("actual_action", allow_event)
         self.assertNotIn("rule_id", allow_event)
@@ -185,8 +185,8 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
         )
         self.assertIsNotNone(selected)
         assert selected is not None
-        self.assertEqual("traefik-native-p1-allow", selected["transaction_id"])
-        self.assertEqual(1, selected["phase"])
+        self.assertEqual(selected["transaction_id"], "traefik-native-p1-allow")
+        self.assertEqual(selected["phase"], 1)
 
     def test_p1_allow_event_rejects_noncausal_client_or_upstream_observation(self) -> None:
         runtime = load_runtime_module()
@@ -245,16 +245,16 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
             )
             barrier_event = json.loads(path.read_text(encoding="utf-8").strip())
 
-        self.assertEqual("core-run-1", barrier_event["run_id"])
-        self.assertEqual("traefik-native-p4-safe", barrier_event["transaction_id"])
-        self.assertEqual(1100301, barrier_event["rule_id"])
-        self.assertEqual(4, barrier_event["phase"])
+        self.assertEqual(barrier_event["run_id"], "core-run-1")
+        self.assertEqual(barrier_event["transaction_id"], "traefik-native-p4-safe")
+        self.assertEqual(barrier_event["rule_id"], 1100301)
+        self.assertEqual(barrier_event["phase"], 4)
         self.assertTrue(barrier_event["eos_seen"])
         self.assertTrue(barrier_event["end_of_stream_evaluation"])
         self.assertTrue(barrier_event["first_byte_before_response_end"])
         self.assertTrue(barrier_event["no_full_response_buffering"])
-        self.assertEqual("http1", barrier_event["negotiated_protocol"])
-        self.assertEqual("phase4-first-byte-traefik", barrier_event["transport_case_id"])
+        self.assertEqual(barrier_event["negotiated_protocol"], "http1")
+        self.assertEqual(barrier_event["transport_case_id"], "phase4-first-byte-traefik")
         record = {
             "connector": "traefik",
             "phase": 4,
@@ -268,13 +268,13 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
             "transport_case_id": "phase4-first-byte-traefik",
         }
         self.assertEqual(
-            [],
             framework_baseline.protocol_pass_errors(
                 record,
                 barrier_event,
                 expected_run_id="core-run-1",
                 expected_integration_mode="native-traefik-middleware",
             ),
+            [],
         )
 
 

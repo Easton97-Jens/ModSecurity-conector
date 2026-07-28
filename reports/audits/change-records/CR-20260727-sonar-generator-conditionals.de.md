@@ -9,8 +9,8 @@
 | Change-ID | CR-20260727-sonar-generator-conditionals |
 | Datum (UTC) | 2026-07-27 |
 | Basis-Revision | 1b0f8825f3510b99b603bb6cd6f0777e1710358e |
-| Tracking | Parent-SonarQube-Cloud-Code-Smell `python:S3358`. Es wird kein externes Sonar-Analyseergebnis behauptet. |
-| Grenze | Parent-Conditional-Refactoring in `ci/lib/generated_report_utils.py` und `scripts/generate_compiler_guides.py`, die fokussierten vorhandenen Testquellen, dieses englisch/deutsche Paar und seine Indizes. Kein Generated Output, Workflow, keine Konfiguration, kein Framework, kein MRTS, kein Gitlink und keine Delivery-Änderung gehören zu diesem Kandidaten. |
+| Tracking | Parent-SonarQube-Cloud-Code-Smell `python:S3358`. Die lokale Evidence des ursprünglichen Kandidaten ist unten festgehalten; die normale Aktualisierung auf den aktuellen Master erzeugt einen neuen exakten Head, der eine eigene Hosted-Analyse benötigt. |
+| Grenze | Parent-Conditional-Refactoring in `ci/lib/generated_report_utils.py` und `scripts/generate_compiler_guides.py`, die fokussierten vorhandenen Testquellen, dieses englisch/deutsche Paar und seine Indizes. Kein Generated Output, Workflow, keine Konfiguration, kein Framework, kein MRTS und kein Gitlink gehören zum Kandidaten; dieser Record wird nur aktualisiert, um seine PR-Delivery-Statusbeschreibung zu korrigieren. |
 
 ## Motivation und Problemstellung
 
@@ -106,16 +106,19 @@ Evidence und keine Runtime- oder externe Sonar-Evidence.
   Refactoring-/Documentation-Scopes liegt.
 - Nach einem ausschließlich lesenden Checkout der im Parent festgeschriebenen
   Framework-Revision bestand `make check-doc-links` gemeinsam mit
-  `make check-bilingual-docs`. GitHub-CI, Pull-Request-Review, Delivery,
-  Framework-/MRTS-Operationen und SonarQube-Cloud-Analyse liefen nicht. Eine
-  frische Exact-Head-Sonar-Analyse bleibt erforderlich.
+  `make check-bilingual-docs`. Der frühere Kandidat wurde später zu Draft PR
+  #140; sein früherer head-spezifischer Hosted-CI-/Sonar-/Review-Status wird
+  daher nicht mehr als nicht ausgeführt dargestellt. Diese normale
+  Current-Master-Aktualisierung erzeugt einen anderen Head; für ihn wird hier
+  kein frisches Hosted-, Review- oder Merge-Ergebnis behauptet.
 
 ## Bekannte Einschränkungen
 
-Der Kandidat ist lokal und uncommittet auf der Basis
-`1b0f8825f3510b99b603bb6cd6f0777e1710358e`. Das 108-Test-Ergebnis ist nur
-fokussierte lokale Evidence; es belegt kein frisches Exact-Head-Sonar-
-Ergebnis, kein CI-Ergebnis, kein Runtime-Ergebnis, kein Review und kein
+Die ursprüngliche Source-Basis ist
+`1b0f8825f3510b99b603bb6cd6f0777e1710358e`; der Kandidat ist jetzt Draft PR
+#140 und erhält eine normale Current-Master-Aktualisierung. Das 108-Test-
+Ergebnis ist nur fokussierte lokale Evidence; es belegt kein Ergebnis für den
+aktualisierten exakten Head, kein Runtime-Ergebnis, kein Review und kein
 Delivery-Ergebnis.
 
 ## Verbleibende Risiken
@@ -129,7 +132,8 @@ Analyse für den exakten Delivered Head bleibt erforderlich, bevor der
 
 ## Finaler Diff- und Review-Status
 
-Dies ist ein lokaler, uncommitteter und ungepushter Kandidat. Kein Generated
-Output, Workflow, keine Konfiguration, kein Framework, kein MRTS, kein Gitlink,
-kein Staging, Commit, Push, Pull Request, Merge oder andere Delivery-Action
-fand statt. Frische Exact-Head-Sonar-Analyse bleibt erforderlich.
+Der Kandidat ist ein offener Draft-PR. Kein Generated Output, Workflow, keine
+Konfiguration, kein Framework, kein MRTS und kein Gitlink gehören dazu. Dieser
+Record behauptet kein Merge- oder anderes Delivery-Ergebnis; eine frische
+Exact-Head-Hosted-Analyse bleibt nach der Current-Master-Aktualisierung
+erforderlich.
