@@ -169,6 +169,21 @@ static size_t traefik_engine_bounded_string_size(const char *value, size_t maxim
     return size;
 }
 
+static int traefik_engine_copy_bounded_text(unsigned char *destination,
+    const char *source, size_t size)
+{
+    if (size == 0U) {
+        return 1;
+    }
+    if (destination == NULL || source == NULL) {
+        return 0;
+    }
+    for (size_t offset = 0U; offset < size; ++offset) {
+        destination[offset] = (unsigned char)source[offset];
+    }
+    return 1;
+}
+
 static uint16_t traefik_engine_clamp_u16(size_t value)
 {
     return value > UINT16_MAX ? UINT16_MAX : (uint16_t)value;
@@ -562,16 +577,21 @@ static int traefik_engine_send_result(int socket_fd, uint8_t command,
     uint16_t status = 0U;
 
     if (session != NULL && session->transaction != NULL) {
-        transaction_id = msconnector_runtime_transaction_id(session->transaction);
+        const char *const runtime_transaction_id =
+            msconnector_runtime_transaction_id(session->transaction);
+        transaction_id = runtime_transaction_id;
     }
     if (decision != NULL) {
+        const char *const decision_rule_id = decision->rule_id;
+        const char *const decision_redirect = decision->redirect_url;
+
         action = (uint8_t)decision->kind;
         phase = (uint8_t)decision->phase;
         if (decision->http_status > 0 && decision->http_status <= UINT16_MAX) {
             status = (uint16_t)decision->http_status;
         }
-        rule_id = decision->rule_id;
-        redirect = decision->redirect_url;
+        rule_id = decision_rule_id;
+        redirect = decision_redirect;
     }
     transaction_id_size = traefik_engine_bounded_string_size(transaction_id,
         TRAEFIK_ENGINE_PROTOCOL_MAX_TRANSACTION_ID);
@@ -598,16 +618,22 @@ static int traefik_engine_send_result(int socket_fd, uint8_t command,
     traefik_engine_write_u16(payload + 12U,
         traefik_engine_clamp_u16(redirect_size));
     offset = 14U;
-    if (transaction_id != NULL && transaction_id_size > 0U) {
-        memcpy(payload + offset, transaction_id, transaction_id_size);
-        offset += transaction_id_size;
+    if (!traefik_engine_copy_bounded_text(payload + offset, transaction_id,
+            transaction_id_size)) {
+        free(payload);
+        return 0;
     }
-    if (rule_id != NULL && rule_id_size > 0U) {
-        memcpy(payload + offset, rule_id, rule_id_size);
-        offset += rule_id_size;
+    offset += transaction_id_size;
+    if (!traefik_engine_copy_bounded_text(payload + offset, rule_id,
+            rule_id_size)) {
+        free(payload);
+        return 0;
     }
-    if (redirect != NULL && redirect_size > 0U) {
-        memcpy(payload + offset, redirect, redirect_size);
+    offset += rule_id_size;
+    if (!traefik_engine_copy_bounded_text(payload + offset, redirect,
+            redirect_size)) {
+        free(payload);
+        return 0;
     }
     if (!traefik_engine_send_frame(socket_fd, TRAEFIK_ENGINE_PROTOCOL_RESULT,
             payload, payload_size)) {
