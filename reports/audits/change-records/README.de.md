@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-NGINX-Response-Mapper-Validation-Tail-Deduplizierungskandidat (36 Parent-Duplikatzeilen)](CR-20260728-sonar-nginx-response-mapper-duplication.de.md)
+  — lokale Source-Contract- und eingeschränkte Whitespace-Validierung
+  bestanden; der exakte C17-Control ist wegen fehlender NGINX-Header/Source
+  blocked_external_dependency (Script-Exit 77, make-Exit 2), und es werden
+  keine Host-Runtime, kein Commit, Push, PR oder gehosteter Abschluss
+  behauptet.
 - [Parent-HAProxy-Append-String-Preflight für SonarQube Cloud c:S3519](CR-20260727-sonar-haproxy-append-string-s3519.de.md)
 - [Parent-Common-Refaktorierung doppelter Error-Mappings](CR-20260727-sonar-common-error-duplication.de.md)
 - [Parent-NGINX-Event-Metadaten- und JSONL-Writer-Deduplizierung: Second-Head-Quality-Gate und lokales S1192-Follow-up](CR-20260727-sonar-nginx-event-metadata-duplication.de.md)

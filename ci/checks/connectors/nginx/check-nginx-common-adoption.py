@@ -41,6 +41,40 @@ custom_server_header_marker = 'ngx_table_elt_t *h = r->headers_out.server;'
 custom_server_header_start = server_header_resolver.find(custom_server_header_marker)
 custom_server_header_end = server_header_resolver.find('\n#if', custom_server_header_start)
 custom_server_header_branch = server_header_resolver[custom_server_header_start:custom_server_header_end] if custom_server_header_start != -1 and custom_server_header_end != -1 else ''
+
+def c_function(source, signature):
+    start = source.find(signature)
+    if start == -1:
+        return ''
+    opening_brace = source.find('{', start)
+    if opening_brace == -1:
+        return ''
+    depth = 0
+    for position in range(opening_brace, len(source)):
+        if source[position] == '{':
+            depth += 1
+        elif source[position] == '}':
+            depth -= 1
+            if depth == 0:
+                return source[start:position + 1]
+    return ''
+
+response_mapper_helper = c_function(mapper_c,
+    'void\nngx_http_modsecurity_validate_response_mapper')
+response_mapper_from_ctx = c_function(mapper_c,
+    'int ngx_http_modsecurity_map_response_from_ctx')
+body_response_mapper_once = c_function(body_c,
+    'static ngx_int_t\nngx_http_modsecurity_validate_response_mapper_once')
+body_filter = c_function(body_c,
+    'ngx_int_t\nngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)')
+header_filter = c_function(header_c,
+    'ngx_int_t\nngx_http_modsecurity_header_filter(ngx_http_request_t *r)')
+mapper_validation_call = 'ngx_http_modsecurity_validate_response_mapper(ctx, r,'
+body_mapper_validation_call = (mapper_validation_call + '\n'
+    '        NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_BODY);')
+header_mapper_validation_call = (mapper_validation_call + '\n'
+    '        NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_HEADER);')
+caller_mapper_validation = body_response_mapper_once + header_filter
 checks = [
 ('msconnector_config common_config' in common_h or 'msconnector_config        common_config' in common_h, 'NGINX config embeds msconnector_config common_config'),
 ('"msconnector/phase.h"' in common_h and 'enum msconnector_phase native_event_phase;' in common_h, 'NGINX native event phase has its complete Common enum declaration'),
@@ -55,8 +89,15 @@ checks = [
 ('ngx_http_modsecurity_map_request' in access_c and 'msconnector_request_mapper_contract_init' in access_c, 'NGINX request mapper is exercised in access path'),
 ('common request mapper validation skipped' in access_c and 'NGX_LOG_WARN' in access_c and 'return NGX_HTTP_INTERNAL_SERVER_ERROR;' not in access_c.split('ngx_http_modsecurity_map_request', 1)[1].split('}', 1)[0], 'NGINX request mapper validation is non-fatal in access path'),
 ('msconnector_response' in mapper_h and 'msconnector_response_mapper_contract' in mapper_h and 'msconnector_response_mapper_validate_output' in mapper_c, 'NGINX response mapper contract is present'),
-(('ngx_http_modsecurity_map_response_from_ctx' in header_c or 'ngx_http_modsecurity_map_response' in header_c) and 'msconnector_response_mapper_contract_init' in header_c and 'ngx_http_modsecurity_map_response_from_ctx' in body_c, 'NGINX response mapper is exercised in header/body paths'),
-('common response mapper validation skipped' in header_c and 'NGX_LOG_WARN' in header_c and 'NGX_HTTP_INTERNAL_SERVER_ERROR' not in header_c.split('ngx_http_modsecurity_map_response_from_ctx', 1)[1].split('ctx->common_response_validated = 1', 1)[0], 'NGINX response mapper validation is non-fatal in header path'),
+('typedef enum {' in mapper_h and 'NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_HEADER' in mapper_h and 'NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_BODY' in mapper_h and 'void ngx_http_modsecurity_validate_response_mapper(' in mapper_h, 'NGINX mapper owns an internal compile-time response diagnostic discriminator'),
+('msconnector_response_mapper_contract contract;' in response_mapper_helper and 'msconnector_response mapped_response;' in response_mapper_helper and 'char mapper_error[128];' in response_mapper_helper and 'msconnector_response_mapper_contract_init(&contract);' in response_mapper_helper and response_mapper_helper.count('ngx_http_modsecurity_map_response_from_ctx') == 1, 'NGINX mapper helper exclusively owns the common response mapper contract/map tail'),
+('void\nngx_http_modsecurity_validate_response_mapper' in response_mapper_helper and 'NGX_LOG_WARN' in response_mapper_helper and 'NGX_ERROR' not in response_mapper_helper and 'NGX_HTTP_INTERNAL_SERVER_ERROR' not in response_mapper_helper, 'NGINX response mapper helper is void and warning-only'),
+(not any(marker in response_mapper_helper for marker in ('common_response_validated', 'ctx->processed', 'ctx->intervention_triggered', 'ctx->phase4_', 'ctx->response_body_', 'ctx->response_committed', 'msc_process_response_headers', 'msc_process_response_body', 'msc_add_n_response_header', 'ngx_http_next_', 'ngx_http_filter_finalize_request', 'ngx_palloc', 'ngx_pnalloc', 'ngx_pcalloc')), 'NGINX response mapper helper excludes caller lifecycle, body, enforcement, filter-chain, and allocation control'),
+(mapper_validation_call in body_response_mapper_once and mapper_validation_call in header_filter and not any(marker in caller_mapper_validation for marker in ('msconnector_response_mapper_contract contract;', 'msconnector_response mapped_response;', 'char mapper_error[128];', 'msconnector_response_mapper_contract_init(&contract);', 'ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,')), 'NGINX filter callers delegate instead of retaining a direct mapper-tail duplicate'),
+('if (ctx->common_response_validated) {\n        return NGX_OK;\n    }' in body_response_mapper_once and body_mapper_validation_call in body_response_mapper_once and 'NGX_ERROR' not in body_response_mapper_once and body_response_mapper_once.count('return NGX_OK;') == 2 and body_response_mapper_once.find('if (ctx->common_response_validated)') < body_response_mapper_once.find(mapper_validation_call) < body_response_mapper_once.find('ctx->common_response_validated = 1;') < body_response_mapper_once.rfind('return NGX_OK;') and all(marker in body_filter for marker in ('if (ctx == NULL)', 'if (ctx->intervention_triggered)', 'ngx_http_modsecurity_validate_response_mapper_once(r, ctx)')) and body_filter.find('if (ctx == NULL)') < body_filter.find('if (ctx->intervention_triggered)') < body_filter.find('ngx_http_modsecurity_validate_response_mapper_once(r, ctx)'), 'NGINX body mapper validation remains once-only, post-guard, and non-fatal'),
+(header_mapper_validation_call in header_filter and header_filter.count(mapper_validation_call) == 1 and 'if (ctx->common_response_validated)' not in header_filter and all(marker in header_filter for marker in ('if (ctx == NULL)', 'if (ctx->intervention_triggered)', header_mapper_validation_call, 'ctx->common_response_validated = 1;', 'if (ctx && ctx->processed)')) and header_filter.find('if (ctx == NULL)') < header_filter.find('if (ctx->intervention_triggered)') < header_filter.find(header_mapper_validation_call) < header_filter.find('ctx->common_response_validated = 1;') < header_filter.find('if (ctx && ctx->processed)'), 'NGINX header mapper validation retains its existing eligibility and ordering without a once gate'),
+('if (diagnostic == NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_BODY)' in response_mapper_helper and '"modsecurity common response-body mapper validation skipped: %s"' in response_mapper_helper and '"modsecurity common response mapper validation skipped: %s"' in response_mapper_helper and 'const char *' not in response_mapper_helper and body_mapper_validation_call in body_response_mapper_once and header_mapper_validation_call in header_filter, 'NGINX response mapper helper retains fixed caller-specific warning diagnostics'),
+('ngx_http_modsecurity_add_synthetic_response_headers(r, headers, &header_count)' in response_mapper_from_ctx and response_mapper_from_ctx.find('r->err_status != 0') < response_mapper_from_ctx.find('r->headers_out.status != 0') and 'out->status = (int) r->err_status' in response_mapper_from_ctx, 'NGINX response mapper retains synthetic-header and err_status contracts'),
 ('msconnector_headers_find_first' in mapper_c, 'NGINX mapper uses Common header helpers'),
 ('msconnector_validate_content_type_token' in module_c and 'ngx_http_modsecurity_validate_strict_mime_token' in module_c and "c == '*'" in module_c and "c == '@'" not in module_c, 'NGINX content-type validation uses Common parser/helper and strict local MIME validation'),
 (not re.search(r'ngx_http_modsecurity_[a-z0-9_]*json_escape\s*\(', all_nginx), 'Duplicate NGINX JSON escape helper is absent'),

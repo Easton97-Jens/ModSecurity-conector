@@ -530,19 +530,9 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         return ngx_http_next_header_filter(r);
     }
 
-    {
-        msconnector_response_mapper_contract contract;
-        msconnector_response mapped_response;
-        char mapper_error[128];
-
-        msconnector_response_mapper_contract_init(&contract);
-        if (!ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,
-                &mapped_response, mapper_error, sizeof(mapper_error))) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                "modsecurity common response mapper validation skipped: %s", mapper_error);
-        }
-        ctx->common_response_validated = 1;
-    }
+    ngx_http_modsecurity_validate_response_mapper(ctx, r,
+        NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_HEADER);
+    ctx->common_response_validated = 1;
 
 /* XXX: can it happen ?  already processed i mean */
 /* XXX: check behaviour on 'ModSecurity off' */

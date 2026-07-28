@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent NGINX response-mapper validation-tail deduplication candidate (36 Parent duplicate lines)](CR-20260728-sonar-nginx-response-mapper-duplication.md)
+  — local source-contract and scoped whitespace validation passed; the exact
+  C17 control is blocked_external_dependency by absent NGINX headers/source
+  (script exit 77, make exit 2), and no host runtime, commit, push, PR, or
+  hosted closure is claimed.
 - [Parent HAProxy append-string preflight for SonarQube Cloud c:S3519](CR-20260727-sonar-haproxy-append-string-s3519.md)
 - [Parent common error duplicate-mapping refactor](CR-20260727-sonar-common-error-duplication.md)
 - [Parent NGINX event metadata and JSONL writer deduplication: second-head Quality Gate and local S1192 follow-up](CR-20260727-sonar-nginx-event-metadata-duplication.md)

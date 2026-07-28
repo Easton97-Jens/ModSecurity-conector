@@ -5,6 +5,11 @@
 #include "msconnector/request_mapper_contract.h"
 #include "msconnector/response_mapper_contract.h"
 
+typedef enum {
+    NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_HEADER,
+    NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_BODY
+} ngx_http_modsecurity_response_mapper_diagnostic_t;
+
 int ngx_http_modsecurity_map_request(
     ngx_http_request_t *r,
     const msconnector_request_mapper_contract *contract,
@@ -26,5 +31,10 @@ int ngx_http_modsecurity_map_response(
     msconnector_response *out,
     char *error,
     size_t error_len);
+
+void ngx_http_modsecurity_validate_response_mapper(
+    const ngx_http_modsecurity_ctx_t *ctx,
+    ngx_http_request_t *r,
+    ngx_http_modsecurity_response_mapper_diagnostic_t diagnostic);
 
 #endif
