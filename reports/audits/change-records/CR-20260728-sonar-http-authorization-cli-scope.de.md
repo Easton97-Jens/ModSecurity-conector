@@ -1,4 +1,4 @@
-# Change Record: Parent-HTTP-Authorization-CLI-Zählerbereich für SonarQube Cloud c:S5955
+# Change Record: Parent-HTTP-Authorization-CLI-Schleifensteuerung für SonarQube Cloud c:S5955 und c:S886
 
 **Sprache:** [English](CR-20260728-sonar-http-authorization-cli-scope.md) | Deutsch
 
@@ -10,22 +10,29 @@
 | Datum (UTC) | 2026-07-28 |
 | Basis-Revision | 8e8acb8dab1cd03723de269cab7da7dd62e5e010 |
 | Grenze | Parent `common/runtime/http_authorization_service.c`, dieses englische/deutsche Change-Record-Paar und die Change-Record-Indizes. Framework, MRTS, beide Gitlinks, Workflows, Scanner-Policy, generierte Reports und Connector-Verhalten bleiben unverändert. |
-| Finding-Verknüpfung | SonarQube-Cloud-Code-Smell `AZ9MwjL6-bUaKQ_zSGBL`, Regel `c:S5955`, bei `parse_cli` Zeile 110. |
+| Finding-Verknüpfung | SonarQube-Cloud-Code-Smell `AZ9MwjL6-bUaKQ_zSGBL`, Regel `c:S5955`, bei `parse_cli` Zeile 110, gefolgt vom Exact-PR-Head-Code-Smell `AZ-orCBNFp8FN2qblodn`, Regel `c:S886`, bei Zeile 109. |
 
 ## Motivation und Problemstellung
 
 Der gemeinsame CLI-Parser des HTTP-Authorization-Service deklarierte seinen
 Schleifenzähler außerhalb der einzigen Schleife, die ihn verwendet. SonarQube
-Cloud meldet dies als `c:S5955`. Der Parser wird von Parent-
-Authorization-Service-Wrappern gemeinsam verwendet; daher muss die Änderung
-Argumentverbrauch, Timeout-Grenzdurchsetzung und Rejection ungültiger Eingaben
-exakt erhalten.
+Cloud meldet dies als `c:S5955`. Die initiale schleifenlokale Korrektur legte
+daraufhin `c:S886` in demselben berührten Parser offen, weil direkte
+`argv[++index]`-Ausdrücke den `for`-Zähler auch im Schleifenrumpf änderten. Der
+Parser wird von Parent-Authorization-Service-Wrappern gemeinsam verwendet;
+daher muss die Folgekorrektur Argumentverbrauch, Timeout-Grenzdurchsetzung und
+Rejection ungültiger Eingaben exakt erhalten, während Zähleränderungen im
+`for`-Kopf bleiben.
 
 ## Akzeptanzkriterien
 
-- Der Zähler wird nur im C17-`for`-Initializer deklariert.
-- CLI-Grammatik, `argv[++index]`-Verbrauch, Parsing-Reihenfolge, Rückgabepfade
-  und `AUTH_CONNECTION_TIMEOUT_*`-Grenzen bleiben unverändert.
+- Der Zähler wird nur im C17-`for`-Initializer deklariert und nur durch dessen
+  Update-Ausdruck geändert.
+- CLI-Grammatik, Parsing-Reihenfolge, Rückgabepfade, Werteverbrauch und
+  `AUTH_CONNECTION_TIMEOUT_*`-Grenzen bleiben unverändert.
+- Fehlende Werte nach `--config`, `--listen`, `--max-requests` und
+  `--connection-timeout-ms` werden mit dem vorhandenen CLI-Fehlerstatus
+  abgelehnt.
 - Der Timeout-/Ungültigeingaben-Smoke besteht mit beiden verfügbaren C17-
   Compilern unter `-std=c17 -Wall -Wextra -Werror` und task-eigenen externen
   Outputs.
@@ -36,29 +43,32 @@ exakt erhalten.
 
 ## Implementierungsentscheidung und Begründung
 
-Die einzige Source-Änderung entfernt die eigenständige Deklaration `int index;`
-und verwendet `for (int index = 1; index < argc; ++index)`. C17 unterstützt
-die schleifenlokale Deklaration. Der Zähler wird nach der Schleife nicht
-verwendet; deshalb bleiben Initialisierung, Bedingung, Inkremente und alle
-indizierten Zugriffe identisch.
+Die schleifenlokale C17-Deklaration bleibt erhalten. Ein explizites Flag
+`skip_option_value` erhält das vorhandene Verhalten zweigliedriger Optionen:
+Die Optionsiteration liest `argv[index + 1]`, validiert ihn bei Bedarf und
+markiert die folgende Iteration als bereits konsumierten Wert. Die nächste
+Iteration löscht das Flag und fährt fort, während `++index` ausschließlich im
+`for`-Kopf bleibt.
 
-Weder Helper noch Parser-Refactor, Kommandozeilenoption, Timeout-Default,
-Timeout-Maximum, Allokation, Socket-Operation oder Authorization-Entscheidung
-ändern sich.
+Dies ersetzt weder Parser-Grammatik, Kommandozeilenoption, Timeout-Default,
+Timeout-Maximum, Allokation, Socket-Operation noch Authorization-Entscheidung.
+Es macht den vorhandenen Skip explizit, statt den Schleifenzähler durch einen
+Ausdruck im Branch-Rumpf zu verändern.
 
 ## Security-Auswirkung
 
 Dies ist eine verhaltensbewahrende Maintainability-Korrektur neben einem
 Authorization-Service-Parser und kein validierter Security-Befund. Unverändert
-bleibende legitime Controls sind der geordnete `argv[++index]`-Werteverbrauch,
-die Rejection ungültiger Zahlen, die Zero-Timeout-Rejection und die
-konfigurierte maximale Timeout-Grenze. Die fokussierte Review fand keinen
+bleibende legitime Controls sind geordneter Optionswerteverbrauch, die
+Rejection ungültiger Zahlen und fehlender Werte, die Zero-Timeout-Rejection und
+die konfigurierte maximale Timeout-Grenze. Die fokussierte Review fand keinen
 geänderten Authentication-, Authorization-, Request-, Netzwerk-, Dateisystem-
 oder Command-Execution-Pfad.
 
 ## Geänderte Dateien
 
 - `common/runtime/http_authorization_service.c`
+- `ci/checks/common/http_authorization_service_timeout_smoke.c`
 - `reports/audits/change-records/README.md` und `README.de.md`
 - dieses englische/deutsche Change-Record-Paar
 
@@ -66,8 +76,8 @@ oder Command-Execution-Pfad.
 
 | Befehl oder Kontrolle | Tatsächliches Ergebnis |
 | --- | --- |
-| `make check-http-authorization-service-timeout` mit GCC, explizitem task-eigenem `TMPDIR`, `VERIFIED_RUN_ROOT`, `VERIFIED_BUILD_ROOT` und `BUILD_ROOT` | bestanden; der Smoke kompilierte die geänderte Translation Unit mit `-std=c17 -Wall -Wextra -Werror` und übte blockierte Requests, Drip-Header und Zero-Timeout-Rejection aus. |
-| `make check-http-authorization-service-timeout` mit `CC=clang`, denselben expliziten C17-Flags und isolierten Roots | bestanden. |
+| `make check-http-authorization-service-timeout` mit GCC, explizitem task-eigenem `TMPDIR`, `VERIFIED_RUN_ROOT`, `VERIFIED_BUILD_ROOT` und `BUILD_ROOT` | bestanden; der Smoke kompilierte die geänderte Translation Unit mit `-std=c17 -Wall -Wextra -Werror` und übte blockierte Requests, Drip-Header, Zero-Timeout-Rejection sowie alle vier Rejections fehlender Optionswerte aus. |
+| `make check-http-authorization-service-timeout` mit `CC=clang`, denselben expliziten C17-Flags und isolierten Roots | bestanden mit denselben gültigen und ungültigen CLI-Controls. |
 | `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_sonar_reliability_contract` | bestanden, 10 Tests. |
 | Task-eigenes externes Overlay aus dem exakten Parent-Kandidaten und dem read-only Parent-gebundenen Framework-Archiv `47e50e7bc43ba7a3b5bad1a9448111794f664cc0`: `check-bilingual-docs.py`, `check-repository-path-references.py` und Framework-`check-doc-links.py` | bestanden: `bilingual docs ok`, `repository path references: PASS` und `doc links ok`. |
 | `git diff --check` | bestanden; keine Ausgabe. |
@@ -80,8 +90,8 @@ behauptet nichts über eine vollständige Deployment-Umgebung.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Exact-PR-Head-GitHub-Checks und SonarQube-Cloud-Analyse stehen bis zum
-  normalen task-eigenen Draft-PR-Zyklus aus.
+- Frische Exact-PR-Head-GitHub-Checks und SonarQube-Cloud-Analyse stehen bis
+  zum normalen task-eigenen Draft-PR-Folgezyklus aus.
 - Vollständige Connector-Matrizen und Host-Runtime-Suites sind für diese
   lexikalische Parserbereichsänderung nicht anwendbar und wurden nicht als
   Ersatz für den fokussierten Authorization-Service-Control verwendet.
@@ -89,23 +99,24 @@ behauptet nichts über eine vollständige Deployment-Umgebung.
 ## Bekannte Einschränkungen
 
 SonarQube Cloud ist die Autorität für die Entfernung von
-`AZ9MwjL6-bUaKQ_zSGBL`; lokale C17-Kompilierung kann die gehostete
-Regeldisposition nicht beweisen. Der projektweite Backlog aus 652 Issues und
-Duplikatzeilen liegt außerhalb dieses einzelnen Befunds.
+`AZ9MwjL6-bUaKQ_zSGBL` und `AZ-orCBNFp8FN2qblodn`; lokale C17-Kompilierung
+kann die gehostete Regeldisposition nicht beweisen. Der projektweite Backlog
+aus 652 Issues und Duplikatzeilen liegt außerhalb dieser einzelnen
+parserfokussierten Korrektur.
 
 ## Verbleibende Risiken
 
-Die Korrektur lässt das vorhandene Parser-Design absichtlich unverändert. Jede
+Die Korrektur lässt das öffentliche CLI-Design absichtlich unverändert. Jede
 künftige funktionale CLI-Änderung muss Argumentreihenfolge, Timeout-Policy und
 Authorization-Service-Wrapper-Verhalten separat neu bewerten.
 
 ## Finaler Diff- und Review-Status
 
-Die Source-Korrektur wurde als `8fa2f2cf8e8c6130ee1530f97008284c63bf298b`
-committet und auf ihren Task-Branch gepusht. Das initiale zweisprachige
-Change-Record-Paar und die Indizes wurden lokal als
-`8e7da53cbd0a40534e7310f949d1ca1f63d7facf` committet. Der geprüfte
-Source-Diff ist auf die Schleifenzählerbereichs-Korrektur und die erforderlichen
-Traceability-Dokumente begrenzt. Es werden noch kein Pull Request, kein
-gehostetes Ergebnis, keine Review, kein Ready-for-review-Übergang und kein
-Merge behauptet.
+Die initiale Bereichskorrektur wurde als
+`8fa2f2cf8e8c6130ee1530f97008284c63bf298b` committet und die initialen
+zweisprachigen Change-Record-/Index-Commits auf den Task-Branch gepusht. Dessen
+Exact Hosted Head meldete `c:S886`; daher ergänzt diese Folgeänderung nur den
+expliziten Skip und dessen Missing-Value-Regression-Control. Der geprüfte
+Kandidat bleibt ein Draft-PR; nach dem normalen Folge-Push ist frische
+Exact-Head-Hosted-Evidence erforderlich. Kein Ready-for-review-Übergang und
+kein Merge werden behauptet.
