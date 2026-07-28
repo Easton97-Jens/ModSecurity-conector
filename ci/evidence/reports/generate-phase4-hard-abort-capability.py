@@ -16,6 +16,7 @@ if str(_CI_ROOT / "lib") not in sys.path:
 from typing import Any
 
 from focused_analysis_utils import read_json, read_text, utc_now, write_json
+from focused_analysis_utils import upsert_marked_section
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, resolve_output_dir, safe_existing_file, write_text_file
 
@@ -702,16 +703,13 @@ def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
         )
         start = "<!-- phase4-hard-abort-capability:start -->"
         end = "<!-- phase4-hard-abort-capability:end -->"
-        marked = f"{start}\n{section}\n{end}"
-        if start in text and end in text:
-            prefix = text.split(start, 1)[0].rstrip()
-            suffix = text.split(end, 1)[1].lstrip()
-            text = f"{prefix}\n\n{marked}\n\n{suffix}".rstrip() + "\n"
-        elif "## Reports And Logs" in text:
-            prefix, suffix = text.split("## Reports And Logs", 1)
-            text = f"{prefix.rstrip()}\n\n{marked}\n\n## Reports And Logs{suffix}".rstrip() + "\n"
-        else:
-            text = text.rstrip() + "\n\n" + marked + "\n"
+        text = upsert_marked_section(
+            text,
+            start=start,
+            end=end,
+            section=section,
+            insert_before="## Reports And Logs",
+        )
         write_text_file(md_path, text)
 
 

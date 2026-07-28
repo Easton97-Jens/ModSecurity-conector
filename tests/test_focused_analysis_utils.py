@@ -63,6 +63,8 @@ FOCUSED_GENERATOR_UTILITIES = (
     "refresh_connector_queue_totals",
     "sanitize_path",
 )
+CASE_PATH_UTILITIES = (*FOCUSED_GENERATOR_UTILITIES, "find_framework_case_path")
+SECTION_UPSERT_UTILITIES = (*FILE_UTILITIES, "upsert_marked_section")
 
 
 class FocusedAnalysisUtilsTest(unittest.TestCase):
@@ -76,14 +78,14 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
 
     def test_consumers_use_shared_safe_primitives(self) -> None:
         consumer_bindings = {
-            NOLOG: FOCUSED_GENERATOR_UTILITIES,
-            RESPONSE_HEADER: FOCUSED_GENERATOR_UTILITIES,
+            NOLOG: (*CASE_PATH_UTILITIES, "upsert_marked_section"),
+            RESPONSE_HEADER: (*CASE_PATH_UTILITIES, "upsert_marked_section"),
             BODY_PROCESSOR: BODY_PROCESSOR_UTILITIES,
-            RULE_CHAIN: ACTION_UTILITIES,
-            NO_MRTS_NOMATCH: LIST_UTILITIES,
+            RULE_CHAIN: (*ACTION_UTILITIES, "upsert_marked_section"),
+            NO_MRTS_NOMATCH: (*LIST_UTILITIES, "upsert_marked_section"),
             INTERVENTION_BLOCKING: ACTION_UTILITIES,
-            PHASE4_HARD_ABORT: FILE_UTILITIES,
-            REMAINING_FAILURE: ("utc_now", "read_json", "read_text"),
+            PHASE4_HARD_ABORT: SECTION_UPSERT_UTILITIES,
+            REMAINING_FAILURE: ("utc_now", "read_json", "read_text", "upsert_marked_section"),
             FINAL_CONSISTENCY: ("utc_now", "read_json", "write_json"),
         }
         for consumer, names in consumer_bindings.items():
@@ -105,6 +107,63 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
         self.assertEqual(UTILS.as_list(7), ["7"])
         self.assertEqual(UTILS.as_list("  "), ["  "])
         self.assertEqual(UTILS.as_list(["kept", "", "  ", 3, None]), ["kept", "3", "None"])
+
+    def test_find_framework_case_path_rejects_unsafe_names_and_keeps_safe_cases(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="focused-analysis-utils-") as temporary:
+            framework_root = Path(temporary) / "framework"
+            case_path = framework_root / "tests" / "cases" / "safe-case.yaml"
+            upstream_path = framework_root / "tests" / "upstream" / "upstream-case.yaml"
+            case_path.parent.mkdir(parents=True)
+            upstream_path.parent.mkdir(parents=True)
+            case_path.write_text("name: safe-case\n", encoding="utf-8")
+            upstream_path.write_text("name: upstream-case\n", encoding="utf-8")
+            report_path_safety.add_safe_roots(framework_root)
+
+            self.assertEqual(UTILS.find_framework_case_path(framework_root, "safe-case"), case_path.resolve())
+            self.assertEqual(UTILS.find_framework_case_path(framework_root, "upstream-case"), upstream_path.resolve())
+            for unsafe_name in (None, "", "../safe-case", "nested/safe-case", r"nested\\safe-case"):
+                with self.subTest(case_id=unsafe_name):
+                    self.assertIsNone(UTILS.find_framework_case_path(framework_root, unsafe_name))
+
+    def test_upsert_marked_section_preserves_replace_anchor_and_append_layout(self) -> None:
+        start = "<!-- report:start -->"
+        end = "<!-- report:end -->"
+        section = "## Report\n- refreshed"
+
+        self.assertEqual(
+            UTILS.upsert_marked_section(
+                "before\n\n<!-- report:start -->\nold\n<!-- report:end -->\n\nafter\n",
+                start=start,
+                end=end,
+                section=section,
+                insert_before="## Reports And Logs",
+            ),
+            "before\n\n<!-- report:start -->\n## Report\n- refreshed\n<!-- report:end -->\n\nafter\n",
+        )
+        self.assertEqual(
+            UTILS.upsert_marked_section(
+                "before\n\n## Reports And Logs\nafter\n",
+                start=start,
+                end=end,
+                section=section,
+                insert_before="## Reports And Logs",
+            ),
+            "before\n\n<!-- report:start -->\n## Report\n- refreshed\n<!-- report:end -->\n\n## Reports And Logs\nafter\n",
+        )
+        self.assertEqual(
+            UTILS.upsert_marked_section(
+                "before\n\n<!-- next:start -->\nafter\n",
+                start=start,
+                end=end,
+                section=section,
+                insert_before="<!-- next:start -->",
+            ),
+            "before\n\n<!-- report:start -->\n## Report\n- refreshed\n<!-- report:end -->\n\n<!-- next:start -->\nafter\n",
+        )
+        self.assertEqual(
+            UTILS.upsert_marked_section("before\n", start=start, end=end, section=section),
+            "before\n\n<!-- report:start -->\n## Report\n- refreshed\n<!-- report:end -->\n",
+        )
 
     def test_quoted_commas_and_nolog_value_selection_are_preserved(self) -> None:
         actions = UTILS.action_parts('id:123,msg:"comma, preserved",phase:2,logdata:\'also, preserved\'')

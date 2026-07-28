@@ -11,6 +11,7 @@ must not claim unobserved CI, runtime, review, or delivery results.
   C17 control is blocked_external_dependency by absent NGINX headers/source
   (script exit 77, make exit 2), and no host runtime, commit, push, PR, or
   hosted closure is claimed.
+- [Parent CI marker-section and script-literal deduplication for SonarQube Cloud](CR-20260728-sonar-ci-marker-script-deduplication.md)
 - [Parent Traefik start-smoke diagnostic-literal cleanup for SonarQube Cloud S1192](CR-20260728-sonar-traefik-start-smoke-literal.md)
 - [Parent Apache Phase-4 control-literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-phase4-literals.md)
 - [Parent Apache H2 transport-result literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-h2-transport-s1192.md)

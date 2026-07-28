@@ -21,6 +21,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK = ROOT / "modules" / "ModSecurity-test-Framework"
+FRAMEWORK_PATH_PREFIX = "modules/ModSecurity-test-Framework/"
+GERMAN_MARKDOWN_SUFFIX = ".de.md"
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 VARIABLE_REFERENCE_RE = re.compile(
     r"\$\{?[A-Z][A-Z0-9_]*\}?|\$\([A-Z][A-Z0-9_]*\)"
@@ -107,7 +109,7 @@ def variable_matches(text: str) -> list[str]:
 
 
 def language(path: str) -> str:
-    if path.endswith(".de.md"):
+    if path.endswith(GERMAN_MARKDOWN_SUFFIX):
         return "de"
     if path.endswith(".md"):
         return "en"
@@ -207,11 +209,11 @@ def _compiler_destination(name: str) -> str | None:
 
 def _parent_report_destination(name: str) -> str:
     if "six-connector" in name:
-        return "reports/current/core-completion.de.md" if name.endswith(".de.md") else "reports/current/core-completion.md"
+        return "reports/current/core-completion.de.md" if name.endswith(GERMAN_MARKDOWN_SUFFIX) else "reports/current/core-completion.md"
     if "full-lifecycle-readiness" in name:
-        return "reports/current/readiness.de.md" if name.endswith(".de.md") else "reports/current/readiness.md"
+        return "reports/current/readiness.de.md" if name.endswith(GERMAN_MARKDOWN_SUFFIX) else "reports/current/readiness.md"
     if "audit" in name or "adoption" in name:
-        return "reports/audits/architecture-and-evidence.de.md" if name.endswith(".de.md") else "reports/audits/architecture-and-evidence.md"
+        return "reports/audits/architecture-and-evidence.de.md" if name.endswith(GERMAN_MARKDOWN_SUFFIX) else "reports/audits/architecture-and-evidence.md"
     return "remove"
 
 
@@ -233,7 +235,7 @@ def _framework_destination(prefix: str, local: str, name: str) -> str | None:
 
 
 def proposed_destination(path: str, is_framework: bool) -> str:
-    prefix = "modules/ModSecurity-test-Framework/" if is_framework else ""
+    prefix = FRAMEWORK_PATH_PREFIX if is_framework else ""
     local = path[len(prefix) :] if prefix else path
     name = Path(local).name
     destination = (
@@ -322,16 +324,16 @@ def plan(rows: list[dict[str, object]], german: bool) -> str:
 def main() -> None:
     root_paths = tracked_files(ROOT)
     framework_paths = tracked_files(FRAMEWORK)
-    prefixed_framework = [f"modules/ModSecurity-test-Framework/{path}" for path in framework_paths]
+    prefixed_framework = [f"{FRAMEWORK_PATH_PREFIX}{path}" for path in framework_paths]
     all_paths = root_paths + prefixed_framework
     source_texts: dict[str, str] = {}
     for path in all_paths:
         physical = ROOT / path
         source_texts[path] = read_text(physical)
     rows = [
-        inventory_row(path, ROOT / path, path.startswith("modules/ModSecurity-test-Framework/"), source_texts)
+        inventory_row(path, ROOT / path, path.startswith(FRAMEWORK_PATH_PREFIX), source_texts)
         for path in all_paths
-        if path.startswith(("ci/", "docs/", "examples/", "reports/", "modules/ModSecurity-test-Framework/"))
+        if path.startswith(("ci/", "docs/", "examples/", "reports/", FRAMEWORK_PATH_PREFIX))
         or ("/" not in path and path.endswith(".md"))
     ]
     payload = {
