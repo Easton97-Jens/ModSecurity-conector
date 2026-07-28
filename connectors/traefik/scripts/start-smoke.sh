@@ -109,6 +109,8 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+TRAEFIK_DIAGNOSTIC_SED_RANGE='1,160p'
+
 rm -rf "$START_ROOT"
 mkdir -p "$START_ROOT"
 sed \
@@ -122,7 +124,7 @@ sed \
 ) >"$CONFIG_STDOUT" 2>"$CONFIG_STDERR" || {
     rc=$?
     echo "FAIL: Traefik connector config check failed (rc=$rc)" >&2
-    sed -n '1,160p' "$CONFIG_STDERR" >&2
+    sed -n "$TRAEFIK_DIAGNOSTIC_SED_RANGE" "$CONFIG_STDERR" >&2
     exit "$rc"
 }
 
@@ -153,14 +155,14 @@ while [ "$attempt" -lt 20 ]; do
         wait "$service_pid" || rc=$?
         rc=${rc:-1}
         echo "FAIL: Traefik forwardAuth service exited during start smoke (rc=$rc)" >&2
-        sed -n '1,160p' "$SERVICE_STDERR" >&2
+        sed -n "$TRAEFIK_DIAGNOSTIC_SED_RANGE" "$SERVICE_STDERR" >&2
         exit "$rc"
     fi
     if ! kill -0 "$traefik_pid" 2>/dev/null; then
         wait "$traefik_pid" || rc=$?
         rc=${rc:-1}
         echo "FAIL: Traefik exited during start smoke (rc=$rc)" >&2
-        sed -n '1,160p' "$TRAEFIK_STDERR" >&2
+        sed -n "$TRAEFIK_DIAGNOSTIC_SED_RANGE" "$TRAEFIK_STDERR" >&2
         exit "$rc"
     fi
     attempt=$((attempt + 1))
@@ -169,7 +171,7 @@ done
 
 if [ -s "$TRAEFIK_STDERR" ]; then
     echo "FAIL: Traefik reported a configuration/start error" >&2
-    sed -n '1,160p' "$TRAEFIK_STDERR" >&2
+    sed -n "$TRAEFIK_DIAGNOSTIC_SED_RANGE" "$TRAEFIK_STDERR" >&2
     exit 1
 fi
 

@@ -1327,6 +1327,8 @@ int main(void) {
         assert(msconnector_event_write_json(&event, json, sizeof(json)));
         assert(strstr(json, "\"integration_mode\":\"native-smoke\"") != 0);
         assert(strstr(json, "\"body_limit_outcome\"") == 0);
+        assert(strstr(json, "\"requested_protocol\":") == 0);
+        assert(strstr(json, "\"connection_reused\":") == 0);
         event.meta.run_id = "protocol-smoke";
         event.meta.transport_case_id = "case-h3-negotiated";
         event.protocol.requested_protocol = "h3";
@@ -1353,8 +1355,10 @@ int main(void) {
         assert(msconnector_event_write_json(&event, json, sizeof(json)));
         assert(strstr(json, "\"run_id\":\"protocol-smoke\"") != 0);
         assert(strstr(json, "\"transport_case_id\":\"case-h3-negotiated\"") != 0);
+        assert(strstr(json, "\"requested_protocol\":\"h3\"") != 0);
         assert(strstr(json, "\"negotiated_protocol\":\"h3\"") != 0);
         assert(strstr(json, "\"transport\":\"quic_udp\"") != 0);
+        assert(strstr(json, "\"connection_reused\":false") != 0);
         assert(strstr(json, "\"quic_connection_id_present\":true") != 0);
         assert(strstr(json, "\"fallback_used\":false") != 0);
         assert(strstr(json, "\"stream_reset\":true") != 0);

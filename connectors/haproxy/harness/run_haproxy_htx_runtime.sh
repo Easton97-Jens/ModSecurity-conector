@@ -19,6 +19,7 @@ UPSTREAM_LOG="$RUNTIME_ROOT/upstream-requests.jsonl"
 BUILD_PROVENANCE=${HAPROXY_HTX_BUILD_PROVENANCE:-$(dirname "$(dirname "$HAPROXY_BIN")")/overlay-build.env}
 FIRST_BYTE_EVIDENCE_PATH=${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-$RUNTIME_ROOT/first-byte-evidence.json}
 RUN_ID=${NO_CRS_RUN_ID:-haproxy-htx-local}
+readonly HAPROXY_HTX_DIAGNOSTIC_RANGE='1,160p'
 upstream_pid=
 haproxy_pid=
 sync_upstream_pid=
@@ -183,7 +184,7 @@ run_case() {
     if ! "$HAPROXY_BIN" -c -f "$config_file" >"$case_root/config-check.stdout.log" \
         2>"$case_root/config-check.stderr.log"; then
         echo "haproxy_htx_runtime: FAIL - HAProxy rejected $case_name HTX config" >&2
-        sed -n '1,160p' "$case_root/config-check.stderr.log" >&2 || true
+        sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/config-check.stderr.log" >&2 || true
         exit 1
     fi
 
@@ -195,7 +196,7 @@ run_case() {
         attempt=$((attempt + 1))
         if ! kill -0 "$haproxy_pid" 2>/dev/null; then
             echo "haproxy_htx_runtime: FAIL - $case_name HAProxy exited early" >&2
-            sed -n '1,160p' "$log_file" >&2 || true
+            sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$log_file" >&2 || true
             exit 1
         fi
         if "$PYTHON_BIN" "$HELPER" wait-port --port "$listener_port" >/dev/null 2>&1; then
@@ -281,7 +282,7 @@ run_case() {
     fi
     if [ -n "$expected_log" ] && ! grep -Eq "$expected_log" "$log_file"; then
         echo "haproxy_htx_runtime: FAIL - $case_name lacks the expected HAProxy/libmodsecurity observation" >&2
-        sed -n '1,160p' "$log_file" >&2 || true
+        sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$log_file" >&2 || true
         exit 1
     fi
     if [ -n "$expected_log" ]; then
@@ -346,7 +347,7 @@ run_phase4_safe_barrier() {
     sync_upstream_pid=$!
     if ! "$PYTHON_BIN" "$HELPER" wait-file --path "$ready_file" --timeout 10; then
         echo "haproxy_htx_runtime: FAIL - $case_name synchronized upstream did not become ready" >&2
-        sed -n '1,160p' "$case_root/synchronized-upstream.stderr.log" >&2 || true
+        sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/synchronized-upstream.stderr.log" >&2 || true
         exit 1
     fi
     synchronized_upstream_port=$("$PYTHON_BIN" "$HELPER" synchronized-upstream-port --path "$ready_file")
@@ -369,7 +370,7 @@ run_phase4_safe_barrier() {
     if ! "$HAPROXY_BIN" -c -f "$config_file" >"$case_root/config-check.stdout.log" \
         2>"$case_root/config-check.stderr.log"; then
         echo "haproxy_htx_runtime: FAIL - HAProxy rejected $case_name HTX config" >&2
-        sed -n '1,160p' "$case_root/config-check.stderr.log" >&2 || true
+        sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/config-check.stderr.log" >&2 || true
         exit 1
     fi
 
@@ -381,7 +382,7 @@ run_phase4_safe_barrier() {
         attempt=$((attempt + 1))
         if ! kill -0 "$haproxy_pid" 2>/dev/null; then
             echo "haproxy_htx_runtime: FAIL - $case_name HAProxy exited early" >&2
-            sed -n '1,160p' "$log_file" >&2 || true
+            sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$log_file" >&2 || true
             exit 1
         fi
         if "$PYTHON_BIN" "$HELPER" wait-port --port "$listener_port" >/dev/null 2>&1; then
@@ -405,14 +406,14 @@ run_phase4_safe_barrier() {
     if ! "$PYTHON_BIN" "$HELPER" wait-file --path "$paused_file" --timeout 10 || \
         ! "$PYTHON_BIN" "$HELPER" wait-file --path "$client_first_byte_file" --timeout 10; then
         echo "haproxy_htx_runtime: FAIL - $case_name did not observe a client first byte before upstream EOS" >&2
-        sed -n '1,160p' "$case_root/streaming-client.stderr.log" >&2 || true
-        sed -n '1,160p' "$case_root/synchronized-upstream.stderr.log" >&2 || true
+        sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/streaming-client.stderr.log" >&2 || true
+        sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/synchronized-upstream.stderr.log" >&2 || true
         exit 1
     fi
     if ! kill -0 "$haproxy_pid" 2>/dev/null || ! kill -0 "$streaming_client_pid" 2>/dev/null; then
         echo "haproxy_htx_runtime: FAIL - $case_name host or barrier client exited before upstream release" >&2
-        sed -n '1,160p' "$log_file" >&2 || true
-        sed -n '1,160p' "$case_root/streaming-client.stderr.log" >&2 || true
+        sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$log_file" >&2 || true
+        sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/streaming-client.stderr.log" >&2 || true
         exit 1
     fi
     "$PYTHON_BIN" "$HELPER" write-first-byte-evidence \
@@ -422,13 +423,13 @@ run_phase4_safe_barrier() {
     : > "$release_file"
     if ! wait "$streaming_client_pid"; then
         echo "haproxy_htx_runtime: FAIL - $case_name streaming client failed after release" >&2
-        sed -n '1,160p' "$case_root/streaming-client.stderr.log" >&2 || true
+        sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/streaming-client.stderr.log" >&2 || true
         exit 1
     fi
     streaming_client_pid=
     if ! wait "$sync_upstream_pid"; then
         echo "haproxy_htx_runtime: FAIL - $case_name synchronized upstream failed after release" >&2
-        sed -n '1,160p' "$case_root/synchronized-upstream.stderr.log" >&2 || true
+        sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/synchronized-upstream.stderr.log" >&2 || true
         exit 1
     fi
     sync_upstream_pid=
@@ -442,7 +443,7 @@ run_phase4_safe_barrier() {
     expected_log="modsecurity-htx: response-body late intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=4 status=403 rule_id=$rule_id requested_action=deny resolved_policy_action=log_only host_action=log_only"
     if ! grep -Eq "$expected_log" "$log_file"; then
         echo "haproxy_htx_runtime: FAIL - $case_name lacks the expected post-EOS safe intervention" >&2
-        sed -n '1,160p' "$log_file" >&2 || true
+        sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$log_file" >&2 || true
         exit 1
     fi
     cleanup_haproxy

@@ -13,12 +13,23 @@ Review- oder Delivery-Ergebnisse behaupten.
   blocked_external_dependency (Script-Exit 77, make-Exit 2), und es werden
   keine Host-Runtime, kein Commit, Push, PR oder gehosteter Abschluss
   behauptet.
+- [Parent-Traefik-Start-Smoke-Diagnostikliteral-Bereinigung für SonarQube Cloud S1192](CR-20260728-sonar-traefik-start-smoke-literal.de.md)
+- [Parent-Apache-Phase-4-Control-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-apache-phase4-literals.de.md)
+- [Parent-Apache-H2-Transport-Result-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-apache-h2-transport-s1192.de.md)
+- [Parent-Envoy-Lifecycle-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-s1192-envoy-lifecycle.de.md)
+- [Parent-Common-Event-Provenance-Short-Circuit-Refaktorierung für SonarQube Cloud c:S1066](CR-20260728-sonar-common-event-s1066.de.md)
+- [Parent-HTTP-Authorization-CLI-Schleifensteuerung für SonarQube Cloud c:S5955, c:S886 und c:S3776](CR-20260728-sonar-http-authorization-cli-scope.de.md)
+- [Traefik-Resultat-Optionaltext-Nullability-Remediation für SonarQube Cloud](CR-20260728-sonar-traefik-result-nullability.de.md)
+- [Parent-`tools/MRTS`-Literalextraktion und direkte Git-Fixture-Abdeckung für SonarQube Cloud S1192](CR-20260728-sonar-bilingual-tools-mrts-s1192.de.md)
+- [Parent-HAProxy-HTX-Diagnosebereichsliteral für SonarQube Cloud shelldre:S1192](CR-20260728-sonar-haproxy-htx-diagnostic-s1192.de.md)
 - [Parent-HAProxy-Append-String-Preflight für SonarQube Cloud c:S3519](CR-20260727-sonar-haproxy-append-string-s3519.de.md)
 - [Parent-Common-Refaktorierung doppelter Error-Mappings](CR-20260727-sonar-common-error-duplication.de.md)
 - [Parent-NGINX-Event-Metadaten- und JSONL-Writer-Deduplizierung: Second-Head-Quality-Gate und lokales S1192-Follow-up](CR-20260727-sonar-nginx-event-metadata-duplication.de.md)
 - [Parent-Report-Generator-Conditionals und Access-Log-Regex für SonarQube Cloud](CR-20260727-sonar-report-conditionals-regex.de.md)
 - [Parent-Python-Generator-Conditionals für SonarQube Cloud python:S3358](CR-20260727-sonar-generator-conditionals.de.md)
 - [Parent-Zerlegung des Generated-Report-Layouts für SonarQube Cloud](CR-20260728-sonar-generated-report-layout-decomposition.de.md)
+- [Parent-Runtime-Mismatch-Control-Path-Deduplizierung für SonarQube Cloud](CR-20260728-sonar-runtime-mismatch-control-path-deduplication.de.md)
+- [Parent-Lighttpd-Lifecycle-Literal-Deduplizierung für SonarQube Cloud](CR-20260728-sonar-lighttpd-lifecycle-literals.de.md)
 - [Parent-Repository-Inventar-Komplexitätsbehebung für SonarQube Cloud S3776](CR-20260727-sonar-s3776-repository-inventory.de.md)
 - [Parent-Shell-Dispatch-Rule-Remediation für SonarQube Cloud S131 und S7679](CR-20260727-sonar-shell-dispatch-rules.de.md)
 Der führende Eintrag dokumentiert das SonarQube-Cloud-Ergebnis des initialen
