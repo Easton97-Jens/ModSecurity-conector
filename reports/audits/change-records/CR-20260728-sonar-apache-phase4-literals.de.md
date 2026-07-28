@@ -9,7 +9,7 @@
 | Change-ID | `CR-20260728-sonar-apache-phase4-literals` |
 | Datum (UTC) | `2026-07-28` |
 | Basis-Revision | `8e8acb8dab1cd03723de269cab7da7dd62e5e010` |
-| Kandidatenbezeichnung | Parent-Task-Kandidat. Diese lokale Bezeichnung behauptet keinen gehosteten Pull Request, Remote-Head, Review, Quality Gate oder Delivery-Ergebnis. |
+| Kandidatenbezeichnung | Draft-Parent-PR [#156](https://github.com/Easton97-Jens/ModSecurity-conector/pull/156). Sein initialer exakter Head `e2b1370caa32e621ada4ce96ad03f603904cee49` besitzt gehostete Checks und ein Quality-Gate-Ergebnis; ein task-owned S3415-Follow-up wartet nun auf einen neuen Exact-Head-Zyklus. Kein Review- oder Merge-Ergebnis wird behauptet. |
 | Tracking | `AZ98JczJLJyjbmyNA5LT` und `AZ98JczJLJyjbmyNA5LN`; beide sind vor diesem Kandidaten Live-Parent-`shelldre:S1192`-Findings. |
 | Grenze | Parent-Apache-Phase-4-Smoke-Harness, sein direkter Source-Wiring-Test, dieses englisch/deutsche Change-Record-Paar und seine zwei Indizes. Framework, MRTS, Gitlinks, Workflows, Reports, Scanner-Policy und gehosteter Status bleiben unverändert. |
 
@@ -78,6 +78,8 @@ Transaction-Rebind-Diagnose-Contracts.
 | `git diff --check` | bestanden; kein Whitespace-Fehler. |
 | Fokussierte Shell-/Protocol-Sicherheitsreview | genehmigt; kein plausibles oder validiertes Finding. |
 | Disposable Exact-Candidate-Parent-/Framework-Dokumentationsoverlay | bestanden: bilinguale Dokumentation, Repository-Pfad-Referenzen und Framework-Dokumentlinks. |
+| Initiale Exact-Head-Hosted-Runde für PR #156 | GitHub-Checks terminal success/scope-justified skip und Quality Gate `OK` mit `0.0` neuer Duplizierung; nicht sauber, weil sieben task-owned `python:S3415`-Issues verblieben. |
+| Follow-up direktes Source-Wiring-Modul | bestanden: 11/11 Tests nach ausschließlich dem Vertauschen der sieben `assertEqual(actual, expected)`-Argumentreihenfolgen. |
 
 ## Security-Auswirkung
 
@@ -104,10 +106,12 @@ noch ein End-to-End-Apache-Runtime-Ergebnis.
 
 ## Bekannte Einschränkungen
 
-Dieser Record besitzt noch keine gehostete Exact-Head-Pull-Request-,
-SonarQube-Cloud-Post-Change-Issue-, Quality-Gate-, Workflow-, Review-, Merge-
-oder Default-Branch-Evidence. Die bestehende Apache-Runtime/Matrix bleibt
-absichtlich außerhalb dieses Literal-Extraction-Scopes.
+Die initiale Exact-Hosted-Runde ist aufbewahrt, aber keine finale Evidence: Sie
+fand sieben task-owned `python:S3415`-Test-Assertion-Order-Issues. Das normale
+Follow-up ändert nur die Argumentreihenfolge und benötigt einen neuen Exact-
+Head-PR-, SonarQube-Cloud-, Workflow-, Review- und Quality-Gate-Zyklus. Die
+bestehende Apache-Runtime/Matrix bleibt absichtlich außerhalb dieses Literal-
+Extraction-Scopes.
 
 ## Verbleibende Risiken
 
@@ -128,15 +132,17 @@ Cloud-Receipts als behoben gelten können.
   der exakte Kandidat zusammen mit dem read-only Parent-gepinnten Framework-
   Archiv die drei Repository-Dokumentationschecks in einem disposable externen
   Overlay.
-- Gehostete PR-/Sonar-Evidence liegt noch nicht vor. Ein Exact-Head-Hosted-
-  Zyklus ist erforderlich, bevor die Delivery als verifiziert gilt.
+- Der finale korrigierte Head ist noch nicht gepusht oder analysiert. Seine
+  Exact-Head-Hosted-PR-/Sonar-Evidence ist erforderlich, bevor die Delivery als
+  verifiziert gilt.
 
 ## Finaler Diff- und Review-Status
 
-Der lokale Kandidat ändert nur die zwei festen Literal-Owner, ihre vier und
-sechs bestehenden Grep-Verwendungen, direktes Wiring-Coverage und dieses
-gepaarte Traceability-Update. Die oben genannte Syntax-/Test-/Whitespace- /
-Security-Evidence besteht. Es werden weder Commit, Push, Pull Request,
-gehosteter Check, Quality Gate, Review, Merge, Master-Änderung, Framework-/
-MRTS-Änderung, Gitlink-Update, Workflow-Änderung noch Scanner-Policy-Aktion
-behauptet.
+Initial Commit `e2b1370caa32e621ada4ce96ad03f603904cee49` ist als Draft-PR #156
+gepusht. Seine initialen Checks und sein Quality Gate bestanden, aber sieben
+task-owned `python:S3415`-Issues benötigen ein normales source-only Follow-up.
+Das aktuelle uncommittete Follow-up vertauscht nur Actual-/Expected-Reihenfolge
+in diesen Assertions; alle ursprünglichen Vergleiche und Phase-4-Contracts
+bleiben unverändert. Es werden weder Ready-for-review, Merge,
+Master-Änderung, Framework-/MRTS-Änderung, Gitlink-Update, Workflow-Änderung
+noch Scanner-Policy-Aktion behauptet.

@@ -32,16 +32,16 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         harness = HARNESS.read_text(encoding="utf-8")
 
         self.assertEqual(
-            1,
             harness.count("readonly PHASE4_FIRST_BYTE_PREFIX='first-byte-prefix'"),
+            1,
         )
-        self.assertEqual(3, harness.count("first-byte-prefix"))
+        self.assertEqual(harness.count("first-byte-prefix"), 3)
         self.assertNotIn("grep -F 'first-byte-prefix'", harness)
         self.assertNotIn("grep -F $PHASE4_FIRST_BYTE_PREFIX", harness)
-        self.assertEqual(4, harness.count('grep -F "$PHASE4_FIRST_BYTE_PREFIX"'))
+        self.assertEqual(harness.count('grep -F "$PHASE4_FIRST_BYTE_PREFIX"'), 4)
         self.assertEqual(
-            2,
             harness.count("expected_body='first-byte-prefixno-crs-response-body-marker'"),
+            2,
         )
         self.assertIn("pre-commit deny leaked original response bytes", harness)
         self.assertIn("custom-MIME pre-commit deny leaked original response bytes", harness)
@@ -51,15 +51,15 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            1,
             harness.count(
                 "readonly PHASE4_TRANSACTION_REBIND_REFUSAL="
                 "'request transaction cannot be safely rebound to the target URI'"
             ),
+            1,
         )
         self.assertEqual(
-            1,
             harness.count("request transaction cannot be safely rebound to the target URI"),
+            1,
         )
         self.assertNotIn(
             "grep -F 'request transaction cannot be safely rebound to the target URI'",
@@ -67,8 +67,8 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         )
         self.assertNotIn("grep -F $PHASE4_TRANSACTION_REBIND_REFUSAL", harness)
         self.assertEqual(
-            6,
             harness.count('grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL"'),
+            6,
         )
         self.assertIn(
             "Phase-4 internal redirect abort lacks the transaction-rebind refusal",

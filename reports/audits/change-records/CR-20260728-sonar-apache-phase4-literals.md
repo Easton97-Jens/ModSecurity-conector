@@ -9,7 +9,7 @@
 | Change ID | `CR-20260728-sonar-apache-phase4-literals` |
 | Date (UTC) | `2026-07-28` |
 | Base revision | `8e8acb8dab1cd03723de269cab7da7dd62e5e010` |
-| Candidate designation | Parent task candidate. This local designation does not claim a hosted pull request, remote head, review, Quality Gate, or delivery outcome. |
+| Candidate designation | Draft Parent PR [#156](https://github.com/Easton97-Jens/ModSecurity-conector/pull/156). Its initial exact head `e2b1370caa32e621ada4ce96ad03f603904cee49` has hosted checks and a Quality Gate result; a task-owned S3415 follow-up is now awaiting a new exact-head cycle. No review or merge outcome is claimed. |
 | Tracking | `AZ98JczJLJyjbmyNA5LT` and `AZ98JczJLJyjbmyNA5LN`; both are live Parent `shelldre:S1192` findings before this candidate. |
 | Boundary | Parent Apache Phase-4 smoke harness, its direct source-wiring test, this English/German Change Record pair, and its two indexes. Framework, MRTS, Gitlinks, workflows, reports, scanner policy, and hosted state remain unchanged. |
 
@@ -75,6 +75,8 @@ diagnostic contracts.
 | `git diff --check` | passed; no whitespace error. |
 | Focused shell/protocol security review | approved; no plausible or validated finding. |
 | Disposable exact-candidate Parent/Framework documentation overlay | passed: bilingual documentation, repository path references, and Framework document links. |
+| Initial exact-head hosted round for PR #156 | GitHub checks terminal success/scope-justified skip and Quality Gate `OK` with `0.0` new duplication; not clean because seven task-owned `python:S3415` issues remained. |
+| Follow-up direct source-wiring module | passed: 11/11 tests after only swapping the seven `assertEqual(actual, expected)` argument orders. |
 
 ## Security impact
 
@@ -100,10 +102,11 @@ end-to-end Apache runtime result.
 
 ## Known limitations
 
-This record has no hosted exact-head pull request, SonarQube Cloud post-change
-issue, Quality Gate, workflow, review, merge, or default-branch evidence yet.
-The existing Apache runtime/matrix remains intentionally out of scope for this
-literal extraction.
+The initial exact hosted round is retained, but it is not final evidence: it
+found seven task-owned `python:S3415` test-assertion-order issues. The normal
+follow-up changes only argument ordering and requires a new exact-head PR,
+SonarQube Cloud, workflow, review, and Quality Gate cycle. The existing Apache
+runtime/matrix remains intentionally out of scope for this literal extraction.
 
 ## Remaining risks
 
@@ -122,14 +125,15 @@ receipts can be treated as fixed.
   its pinned Framework Gitlink is intentionally absent. Instead, the exact
   candidate plus the read-only Parent-pinned Framework archive passed the
   three repository documentation checks in a disposable external overlay.
-- Hosted PR/Sonar evidence is not yet available. An exact-head hosted cycle is
-  required before delivery is considered verified.
+- The final corrected head has not yet been pushed or analyzed. Its exact-head
+  hosted PR/Sonar evidence is required before delivery is considered verified.
 
 ## Final diff and review status
 
-The local candidate changes only the two fixed literal owners, their four and
-six existing grep uses, direct wiring coverage, and this paired traceability
-update. The syntax/test/whitespace/security evidence listed above passed. No
-commit, push, pull request, hosted check, Quality Gate, review, merge, master
-change, Framework/MRTS change, Gitlink update, workflow change, or scanner-
-policy action is claimed.
+Initial commit `e2b1370caa32e621ada4ce96ad03f603904cee49` is pushed as Draft
+PR #156. Its initial checks and Quality Gate passed, but seven task-owned
+`python:S3415` issues require a normal source-only follow-up. The current
+uncommitted follow-up swaps only actual/expected order in those assertions;
+all original comparisons and Phase-4 contracts remain unchanged. No
+Ready-for-review, merge, master change, Framework/MRTS change, Gitlink update,
+workflow change, or scanner-policy action is claimed.
