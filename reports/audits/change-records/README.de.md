@@ -21,6 +21,7 @@ nach der Korrektur oder eines Merge.
 - [Parent-Testfixture-Duplikatreduzierung für SonarQube Cloud](CR-20260727-sonar-parent-test-duplication.de.md)
 - [Parent-Focused-Report-Hilfsduplikatreduzierung für SonarQube Cloud](CR-20260727-sonar-focused-report-utility-duplication.de.md)
 - [Parent-Response-Header-Fixture-Containment für SonarQube Cloud S8707](CR-20260727-sonar-response-header-fixture-containment.de.md)
+- [Parent-Apache/NGINX-Bereinigung auskommentierten Codes für SonarQube Cloud C:S125](CR-20260727-sonar-c-commented-code-cleanup.de.md)
 - [Parent-PR #128 Rest-SonarQube-Cloud- und Workflow-Remediation](CR-20260727-sonar-pr128-residual-remediation.de.md)
 - [Parent-Apache-Output-Filter-Status-Shadowing für SonarQube Cloud C:S1117](CR-20260727-sonar-apache-output-filter-status-shadowing.de.md)
 - [Parent-Compiler-Guide-Metadatenliterale für SonarQube Cloud S1192](CR-20260727-sonar-compiler-guide-metadata-literals.de.md)
