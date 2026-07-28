@@ -287,6 +287,60 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn("phase4_no_full_response_buffering_status", runner)
         self.assertNotIn("wire bytes", runner)
 
+    def test_full_lifecycle_runner_centralizes_fixed_status_and_diagnostic_literals(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        status_name = "HTTP_STATUS_FORMAT"
+        diagnostic_name = "DIAGNOSTIC_LINES"
+        status_value = "%{" + "http_code" + "}"
+        diagnostic_value = ",".join(("1", "200")) + "p"
+        status_declaration = f"{status_name}='{status_value}'"
+        diagnostic_declaration = f"{diagnostic_name}='{diagnostic_value}'"
+        status_use = f'--write-out "${status_name}"'
+        diagnostic_use = f'sed -n "${diagnostic_name}"'
+
+        self.assertEqual(runner.count(status_declaration), 1)
+        self.assertEqual(runner.count(diagnostic_declaration), 1)
+        self.assertLess(runner.index(status_declaration), runner.index(status_use))
+        self.assertLess(runner.index(diagnostic_declaration), runner.index(diagnostic_use))
+        self.assertLess(runner.index(status_declaration), runner.index("blocked() {"))
+        self.assertLess(runner.index(diagnostic_declaration), runner.index("blocked() {"))
+        self.assertEqual(runner.count(status_use), 8)
+        self.assertEqual(runner.count(diagnostic_use), 6)
+
+        source_without_declarations = runner.replace(status_declaration, "").replace(
+            diagnostic_declaration, ""
+        )
+        self.assertNotIn(status_value, source_without_declarations)
+        self.assertNotIn(diagnostic_value, source_without_declarations)
+        self.assertNotIn(f"export {status_name}", runner)
+        self.assertNotIn(f"export {diagnostic_name}", runner)
+
+        for control in (
+            "set -eu",
+            "trap cleanup EXIT HUP INT TERM",
+            "trap - EXIT HUP INT TERM",
+            'if ! wait "$FIRST_BYTE_CLIENT_PID"; then',
+            'if grep -Fq \'"status": "FAIL"\' "$RESULTS_PATH"; then',
+        ):
+            self.assertIn(control, runner)
+
+        success = "2" + "00"
+        denied = "4" + "03"
+        alternative = "4" + "29"
+        for result_name, expected in (
+            ("allow_status", success),
+            ("deny_status", denied),
+            ("alternative_status", alternative),
+            ("request_body_status", denied),
+            ("response_header_status", denied),
+            ("content_length_status", success),
+            ("chunked_status", success),
+            ("phase4_safe_status", success),
+        ):
+            self.assertIn(f'[ "${result_name}" = {expected} ] || fail', runner)
+
     def test_result_writer_projects_only_bounded_eos_metadata_from_one_safe_event(self) -> None:
         writer = CONNECTOR / "harness" / "write_patched_lifecycle_results.py"
         with tempfile.TemporaryDirectory() as temporary:
