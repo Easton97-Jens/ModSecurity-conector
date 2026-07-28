@@ -6,6 +6,13 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Apache Phase-4 control-literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-phase4-literals.md)
+- [Parent Apache H2 transport-result literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-h2-transport-s1192.md)
+- [Parent Envoy lifecycle literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-s1192-envoy-lifecycle.md)
+- [Parent Common event provenance short-circuit refactor for SonarQube Cloud c:S1066](CR-20260728-sonar-common-event-s1066.md)
+- [Parent HTTP authorization CLI loop control for SonarQube Cloud c:S5955, c:S886, and c:S3776](CR-20260728-sonar-http-authorization-cli-scope.md)
+- [Traefik result optional-text nullability remediation for SonarQube Cloud](CR-20260728-sonar-traefik-result-nullability.md)
+- [Parent `tools/MRTS` literal extraction and direct Git-fixture coverage for SonarQube Cloud S1192](CR-20260728-sonar-bilingual-tools-mrts-s1192.md)
 - [Parent HAProxy HTX diagnostic-range literal for SonarQube Cloud shelldre:S1192](CR-20260728-sonar-haproxy-htx-diagnostic-s1192.md)
 - [Parent HAProxy append-string preflight for SonarQube Cloud c:S3519](CR-20260727-sonar-haproxy-append-string-s3519.md)
 - [Parent common error duplicate-mapping refactor](CR-20260727-sonar-common-error-duplication.md)
@@ -13,6 +20,7 @@ must not claim unobserved CI, runtime, review, or delivery results.
 - [Parent report-generator conditionals and access-log regex for SonarQube Cloud](CR-20260727-sonar-report-conditionals-regex.md)
 - [Parent Python generator conditionals for SonarQube Cloud python:S3358](CR-20260727-sonar-generator-conditionals.md)
 - [Parent generated-report layout decomposition for SonarQube Cloud](CR-20260728-sonar-generated-report-layout-decomposition.md)
+- [Parent runtime-mismatch control-path deduplication for SonarQube Cloud](CR-20260728-sonar-runtime-mismatch-control-path-deduplication.md)
 - [Parent repository inventory complexity remediation for SonarQube Cloud S3776](CR-20260727-sonar-s3776-repository-inventory.md)
 - [Parent shell dispatch-rule remediation for SonarQube Cloud S131 and S7679](CR-20260727-sonar-shell-dispatch-rules.md)
 The leading entry records Draft PR #131's initial exact-head SonarQube Cloud
