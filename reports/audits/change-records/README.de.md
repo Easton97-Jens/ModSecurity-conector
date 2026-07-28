@@ -18,6 +18,7 @@ nach der Korrektur oder eines Merge.
 - [Parent-Connector-Config-Reference-Literal-Deduplizierung und SonarQube-Cloud-S3358-Follow-up](CR-20260727-sonar-config-reference-literal-deduplication.de.md)
 - [Parent-Compiler-Guide-Literal-Deduplizierung für SonarQube Cloud S1192](CR-20260727-sonar-compiler-guides-literal-deduplication.de.md)
 - [Parent-Test-Assertion-Order-Remediation für SonarQube Cloud S3415](CR-20260727-sonar-s3415-parent-test-assertions.de.md)
+- [Parent-Testfixture-Duplikatreduzierung für SonarQube Cloud](CR-20260727-sonar-parent-test-duplication.de.md)
 - [Parent-PR #128 Rest-SonarQube-Cloud- und Workflow-Remediation](CR-20260727-sonar-pr128-residual-remediation.de.md)
 - [Parent-Apache-Output-Filter-Status-Shadowing für SonarQube Cloud C:S1117](CR-20260727-sonar-apache-output-filter-status-shadowing.de.md)
 - [Parent-Compiler-Guide-Metadatenliterale für SonarQube Cloud S1192](CR-20260727-sonar-compiler-guide-metadata-literals.de.md)
