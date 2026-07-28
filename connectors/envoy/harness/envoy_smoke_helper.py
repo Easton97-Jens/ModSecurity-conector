@@ -15,6 +15,10 @@ import urllib.error
 import urllib.request
 
 
+PHASE4_MARKER_PATH = "/phase4-marker"
+TEXT_PLAIN_CONTENT_TYPE = "text/plain"
+
+
 class UpstreamHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     client_cancel_delay_seconds = 5.0
@@ -28,7 +32,7 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
         content_length = int(self.headers.get("content-length") or "0")
         if content_length > 0:
             self.rfile.read(content_length)
-        if self.path == "/phase4-marker" and self.phase4_barrier_dir is not None:
+        if self.path == PHASE4_MARKER_PATH and self.phase4_barrier_dir is not None:
             self._answer_phase4_barrier()
             return
         if self.path == "/client-cancel":
@@ -39,7 +43,7 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
             first_chunk = b"envoy-client-cancel-first-byte\n"
             final_chunk = b"envoy-client-cancel-final-byte\n"
             self.send_response(200)
-            self.send_header("content-type", "text/plain")
+            self.send_header("content-type", TEXT_PLAIN_CONTENT_TYPE)
             self.send_header("content-length", str(len(first_chunk) + len(final_chunk)))
             self.end_headers()
             try:
@@ -56,12 +60,12 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
             response_headers.append(("X-Modsec-Upstream", "block"))
         elif self.path == "/phase3-redirect":
             response_headers.append(("X-Modsec-Upstream", "redirect"))
-        if self.path == "/phase4-marker":
+        if self.path == PHASE4_MARKER_PATH:
             body = b"no-crs-response-body-marker\n"
         else:
             body = b"envoy connector upstream ok\n"
         self.send_response(200)
-        self.send_header("content-type", "text/plain")
+        self.send_header("content-type", TEXT_PLAIN_CONTENT_TYPE)
         for name, value in response_headers:
             self.send_header(name, value)
         self.send_header("content-length", str(len(body)))
@@ -83,7 +87,7 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
         first_chunk = b"envoy-first-byte-prefix\n"
         later_chunk = b"no-crs-response-body-marker\n"
         self.send_response(200)
-        self.send_header("content-type", "text/plain")
+        self.send_header("content-type", TEXT_PLAIN_CONTENT_TYPE)
         self.send_header("transfer-encoding", "chunked")
         self.send_header("connection", "close")
         self.end_headers()
@@ -861,7 +865,7 @@ def parse_args() -> argparse.Namespace:
     phase4 = subparsers.add_parser("phase4-first-byte")
     phase4.add_argument("--host", required=True)
     phase4.add_argument("--port", required=True, type=int)
-    phase4.add_argument("--path", default="/phase4-marker")
+    phase4.add_argument("--path", default=PHASE4_MARKER_PATH)
     phase4.add_argument("--header", action="append", default=[])
     phase4.add_argument("--barrier-dir", required=True)
     phase4.add_argument("--timeout", default=10.0, type=float)
