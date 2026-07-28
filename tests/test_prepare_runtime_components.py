@@ -397,6 +397,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             run_env.assert_called_once()
             command = run_env.call_args.args[0]
             self.assertEqual(
+                command,
                 [
                     str(
                         components.verified_host_guard_executable(
@@ -410,7 +411,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     str(common),
                     str(source),
                 ],
-                command,
             )
             self.assertEqual(framework_root, run_env.call_args.kwargs["cwd"])
             self.assertEqual(str(source), run_env.call_args.kwargs["env"]["MODSECURITY_V3_SOURCE_DIR"])
@@ -445,6 +445,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             run_env.assert_called_once()
             command = run_env.call_args.args[0]
             self.assertEqual(
+                command,
                 [
                     str(
                         components.verified_host_guard_executable(
@@ -458,7 +459,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     str(common),
                     str(destination),
                 ],
-                command,
             )
             self.assertEqual(framework_root, run_env.call_args.kwargs["cwd"])
             self.assertEqual(str(destination), run_env.call_args.kwargs["env"]["MODSECURITY_V3_SOURCE_DIR"])
@@ -485,6 +485,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
 
             self.assertEqual(output, "approved-head")
             self.assertEqual(
+                run_env.call_args.args[0],
                 [
                     str(
                         components.verified_host_guard_executable(
@@ -503,7 +504,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     "rev-parse",
                     "HEAD",
                 ],
-                run_env.call_args.args[0],
             )
             self.assertEqual(
                 run_env.call_args.kwargs["env"],

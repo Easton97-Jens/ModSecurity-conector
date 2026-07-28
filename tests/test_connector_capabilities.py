@@ -447,11 +447,11 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
                 "apache", run_dir, manifest_path
             )
 
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
         command = run.call_args.args[0]
         self.assertIn("validate", command)
         self.assertIn("--check", command)
-        self.assertEqual("all", command[command.index("--check") + 1])
+        self.assertEqual(command[command.index("--check") + 1], "all")
         self.assertIn("--connector-root", command)
         self.assertEqual(str(ROOT), command[command.index("--connector-root") + 1])
 

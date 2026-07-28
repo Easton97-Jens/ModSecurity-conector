@@ -7,6 +7,7 @@ limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent compiler-guide literal deduplication for SonarQube Cloud S1192](CR-20260727-sonar-compiler-guides-literal-deduplication.md)
+- [Parent test assertion-order remediation for SonarQube Cloud S3415](CR-20260727-sonar-s3415-parent-test-assertions.md)
 - [Parent PR #128 residual SonarQube Cloud and workflow remediation](CR-20260727-sonar-pr128-residual-remediation.md)
 - [Parent Apache output-filter status shadowing for SonarQube Cloud C:S1117](CR-20260727-sonar-apache-output-filter-status-shadowing.md)
 - [Parent compiler-guide metadata literals for SonarQube Cloud S1192](CR-20260727-sonar-compiler-guide-metadata-literals.md)
