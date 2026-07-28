@@ -63,6 +63,7 @@ network, filesystem, or command-execution path.
 | `make check-http-authorization-service-timeout` with GCC, explicit task-owned `TMPDIR`, `VERIFIED_RUN_ROOT`, `VERIFIED_BUILD_ROOT`, and `BUILD_ROOT` | passed; the smoke compiled the changed translation unit with `-std=c17 -Wall -Wextra -Werror` and exercised stalled requests, drip headers, and zero-timeout rejection. |
 | `make check-http-authorization-service-timeout` with `CC=clang` and the same explicit C17 flags and isolated roots | passed. |
 | `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_sonar_reliability_contract` | passed, 10 tests. |
+| Task-owned external overlay of the exact Parent candidate plus the read-only Parent-pinned Framework archive `47e50e7bc43ba7a3b5bad1a9448111794f664cc0`: `check-bilingual-docs.py`, `check-repository-path-references.py`, and Framework `check-doc-links.py` | passed: `bilingual docs ok`, `repository path references: PASS`, and `doc links ok`. |
 | `git diff --check` | passed; no output. |
 
 ## Runtime evidence
@@ -94,8 +95,8 @@ timeout policy, and authorization-service wrapper behavior.
 ## Final diff and review status
 
 The source correction was committed as `8fa2f2cf8e8c6130ee1530f97008284c63bf298b`
-and pushed to its task branch before this required documentation amendment.
-The reviewed source diff is limited to the loop-counter scope correction.
-This record and its index entries are the pending documentation amendment;
-no pull request, hosted result, review, Ready-for-review transition, or merge
-is claimed yet.
+and pushed to its task branch. The initial bilingual Change Record pair and
+indexes were committed locally as `8e7da53cbd0a40534e7310f949d1ca1f63d7facf`.
+The reviewed source diff is limited to the loop-counter scope correction and
+the required traceability documents. No pull request, hosted result, review,
+Ready-for-review transition, or merge is claimed yet.

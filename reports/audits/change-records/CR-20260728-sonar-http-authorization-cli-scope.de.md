@@ -69,6 +69,7 @@ oder Command-Execution-Pfad.
 | `make check-http-authorization-service-timeout` mit GCC, explizitem task-eigenem `TMPDIR`, `VERIFIED_RUN_ROOT`, `VERIFIED_BUILD_ROOT` und `BUILD_ROOT` | bestanden; der Smoke kompilierte die geänderte Translation Unit mit `-std=c17 -Wall -Wextra -Werror` und übte blockierte Requests, Drip-Header und Zero-Timeout-Rejection aus. |
 | `make check-http-authorization-service-timeout` mit `CC=clang`, denselben expliziten C17-Flags und isolierten Roots | bestanden. |
 | `PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 /root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_sonar_reliability_contract` | bestanden, 10 Tests. |
+| Task-eigenes externes Overlay aus dem exakten Parent-Kandidaten und dem read-only Parent-gebundenen Framework-Archiv `47e50e7bc43ba7a3b5bad1a9448111794f664cc0`: `check-bilingual-docs.py`, `check-repository-path-references.py` und Framework-`check-doc-links.py` | bestanden: `bilingual docs ok`, `repository path references: PASS` und `doc links ok`. |
 | `git diff --check` | bestanden; keine Ausgabe. |
 
 ## Runtime-Evidence
@@ -101,9 +102,10 @@ Authorization-Service-Wrapper-Verhalten separat neu bewerten.
 ## Finaler Diff- und Review-Status
 
 Die Source-Korrektur wurde als `8fa2f2cf8e8c6130ee1530f97008284c63bf298b`
-committet und auf ihren Task-Branch gepusht, bevor diese erforderliche
-Dokumentationsänderung erfolgte. Der geprüfte Source-Diff ist auf die
-Schleifenzählerbereichs-Korrektur begrenzt. Dieser Record und seine
-Index-Einträge sind die ausstehende Dokumentationsänderung; es werden noch
-kein Pull Request, kein gehostetes Ergebnis, keine Review, kein
-Ready-for-review-Übergang und kein Merge behauptet.
+committet und auf ihren Task-Branch gepusht. Das initiale zweisprachige
+Change-Record-Paar und die Indizes wurden lokal als
+`8e7da53cbd0a40534e7310f949d1ca1f63d7facf` committet. Der geprüfte
+Source-Diff ist auf die Schleifenzählerbereichs-Korrektur und die erforderlichen
+Traceability-Dokumente begrenzt. Es werden noch kein Pull Request, kein
+gehostetes Ergebnis, keine Review, kein Ready-for-review-Übergang und kein
+Merge behauptet.
