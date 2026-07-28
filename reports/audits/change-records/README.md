@@ -18,6 +18,7 @@ of a post-correction remote analysis or merge.
 - [Parent test assertion-order remediation for SonarQube Cloud S3415](CR-20260727-sonar-s3415-parent-test-assertions.md)
 - [Parent test-fixture duplication reduction for SonarQube Cloud](CR-20260727-sonar-parent-test-duplication.md)
 - [Parent focused report-utility duplication reduction for SonarQube Cloud](CR-20260727-sonar-focused-report-utility-duplication.md)
+- [Parent response-header fixture containment for SonarQube Cloud S8707](CR-20260727-sonar-response-header-fixture-containment.md)
 - [Parent PR #128 residual SonarQube Cloud and workflow remediation](CR-20260727-sonar-pr128-residual-remediation.md)
 - [Parent Apache output-filter status shadowing for SonarQube Cloud C:S1117](CR-20260727-sonar-apache-output-filter-status-shadowing.md)
 - [Parent compiler-guide metadata literals for SonarQube Cloud S1192](CR-20260727-sonar-compiler-guide-metadata-literals.md)

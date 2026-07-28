@@ -39,16 +39,30 @@ def _is_relative_to(path: Path, root: Path) -> bool:
     return True
 
 
-def resolve_body_file(path: Path, safe_roots: list[Path]) -> Path:
+def resolve_regular_file(
+    path: Path,
+    safe_roots: list[Path],
+    label: str,
+    *,
+    maximum_bytes: int | None = None,
+) -> Path:
     resolved = path.resolve(strict=True)
     roots = [root.resolve(strict=True) for root in safe_roots] if safe_roots else [Path.cwd().resolve(strict=True)]
     if not resolved.is_file():
-        raise ValueError(f"body file is not a regular file: {path}")
+        raise ValueError(f"{label} is not a regular file: {path}")
     if not any(_is_relative_to(resolved, root) for root in roots):
-        raise ValueError(f"body file is outside the allowed fixture roots: {path}")
-    if resolved.stat().st_size > MAX_BODY_BYTES:
-        raise ValueError(f"body file is too large: {path}")
+        raise ValueError(f"{label} is outside the allowed fixture roots: {path}")
+    if maximum_bytes is not None and resolved.stat().st_size > maximum_bytes:
+        raise ValueError(f"{label} is too large: {path}")
     return resolved
+
+
+def resolve_body_file(path: Path, safe_roots: list[Path]) -> Path:
+    return resolve_regular_file(path, safe_roots, "body file", maximum_bytes=MAX_BODY_BYTES)
+
+
+def resolve_fixture_file(path: Path, safe_roots: list[Path]) -> Path:
+    return resolve_regular_file(path, safe_roots, "fixture file")
 
 
 def normalize_status(value: object) -> int:
@@ -96,11 +110,12 @@ def fixture_headers(value: object) -> tuple[tuple[str, str], ...]:
     return tuple(headers)
 
 
-def load_fixture_file(path: Path) -> ResponseFixture:
+def load_fixture_file(path: Path, safe_roots: list[Path]) -> ResponseFixture:
+    fixture_file = resolve_fixture_file(path, safe_roots)
     try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
+        loaded = json.loads(fixture_file.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid response fixture JSON: {path}") from exc
+        raise ValueError(f"invalid response fixture JSON: {fixture_file}") from exc
     if not isinstance(loaded, Mapping):
         raise ValueError("response fixture must be a JSON object")
     return ResponseFixture(
@@ -114,8 +129,13 @@ def response_fixture(
     status: int | None,
     headers: list[tuple[str, str]] | None,
     fixture_file: Path | None,
+    safe_roots: list[Path],
 ) -> ResponseFixture:
-    configured = load_fixture_file(fixture_file) if fixture_file is not None else ResponseFixture(200, ())
+    configured = (
+        load_fixture_file(fixture_file, safe_roots)
+        if fixture_file is not None
+        else ResponseFixture(200, ())
+    )
     return ResponseFixture(
         status=configured.status if status is None else status,
         headers=configured.headers + tuple(headers or ()),
@@ -183,6 +203,7 @@ def main() -> int:
             status=status,
             headers=args.header,
             fixture_file=args.fixture_file,
+            safe_roots=args.safe_root,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
