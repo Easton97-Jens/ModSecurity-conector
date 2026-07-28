@@ -106,7 +106,8 @@ SYSTEM_ENVIRONMENT_PROOF_TOOL_FIELDS = (
     "return_code",
     "notes",
 )
-REPO_URL_TEXT_SUFFIXES = ("", ".md", ".py", ".sh", ".json", ".yml", ".yaml", ".mk")
+JSON_FILE_SUFFIX = ".json"
+REPO_URL_TEXT_SUFFIXES = ("", ".md", ".py", ".sh", JSON_FILE_SUFFIX, ".yml", ".yaml", ".mk")
 
 
 def rel(path: Path, root: Path) -> str:
@@ -451,7 +452,7 @@ def check_existing_generated_reports(connector_root: Path, errors: list[str]) ->
     for path in sorted(generated_root.rglob("*.generated.*")):
         if os.environ.get(ALLOW_IN_PROGRESS_SYSTEM_PROOF_ENV) == ALLOW_IN_PROGRESS_SYSTEM_PROOF_VALUE and path.name.startswith(SYSTEM_ENVIRONMENT_PROOF_GENERATED_PREFIX):
             continue
-        if path.suffix == ".json":
+        if path.suffix == JSON_FILE_SUFFIX:
             check_json_metadata(path, errors, connector_root)
         elif path.suffix == ".md":
             check_markdown_metadata(path, errors, connector_root)
@@ -927,7 +928,7 @@ def check_critical_report_artifact(
     for sha_key in ("connector_sha", "framework_sha"):
         if str(metadata.get(sha_key) or "unknown") == "unknown":
             errors.append(f"{rel(path, connector_root)}: critical report has unknown {sha_key}")
-    if path.suffix != ".json":
+    if path.suffix != JSON_FILE_SUFFIX:
         return
     data = load_json(path, errors, connector_root)
     metadata_obj = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
