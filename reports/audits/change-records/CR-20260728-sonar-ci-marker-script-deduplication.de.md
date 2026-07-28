@@ -8,9 +8,9 @@
 | --- | --- |
 | Change-ID | CR-20260728-sonar-ci-marker-script-deduplication |
 | Datum (UTC) | 2026-07-28 |
-| Basis-Revision | `cf7849c4d2edc92b3f5360dca348ddfa6e4c1d2f` |
+| Basis-Revision | `8a3872e5e63f93e202bed24e0dcbad7bdf110ede` |
 | Umfang und Grenze | Ausschließlich Parent `ci/`, `scripts/`, direkt fokussierte Parent-Tests sowie dieses englisch/deutsche Change-Record-Paar mit seinen Indizes. `.github/`, Framework, MRTS, Gitlinks, generierte Reports und SonarQube-Konfiguration bleiben unverändert. |
-| Finding-Verknüpfung | Die aktuelle SonarQube-Cloud-Master-Analyse meldete 631 offene Issues, 0,2 % Projektduplikation (1.260 Zeilen) und die `python:S1192`-Issues `AZ9cRzA4HhV2CayPTP47` sowie `AZ9cRzA4HhV2CayPTP46` im Repository-Organisationsinventar. Die CI-Clone-Evidence enthält das 113-Zeilen-Paar Nolog/Response-Header. Dieser Record behauptet keine Hosted-Issue-Closure. |
+| Finding-Verknüpfung | Die SonarQube-Cloud-Master-Analyse vor dem PR meldete 631 offene Issues, 0,2 % Projektduplikation (1.260 Zeilen) und die `python:S1192`-Issues `AZ9cRzA4HhV2CayPTP47` sowie `AZ9cRzA4HhV2CayPTP46` im Repository-Organisationsinventar. Die CI-Clone-Evidence enthält das 113-Zeilen-Paar Nolog/Response-Header. Dieser Record behauptet weder die Schließung historischer Issues noch eine Master-Integration. |
 
 ## Motivation und Problemstellung
 
@@ -107,11 +107,11 @@ Hosted-CI-/SonarQube-Cloud-Analyse.
 ## Bekannte Einschränkungen
 
 Die Änderung bearbeitet bewusst nur einen begrenzten Teil der 1.260
-Projektduplikatzeilen. Eine aktuelle SonarQube-Cloud-Reanalyse des exakten
-PR-Heads ist erforderlich, um den finalen Projekt- und New-Code-
-Duplikationsdelta zu quantifizieren und die Schließung der zwei
-`python:S1192`-Issues zu beobachten. Ein künftiger Report-Generator mit
-materiell anderem Anchor liegt außerhalb dieses Batches.
+Projektduplikatzeilen. Die aktuelle SonarQube-Cloud-Analyse des aktiven
+PR-Heads ist externe Delivery-Evidence und muss für genau diesen Head
+verifiziert werden; sie wird nicht in diesem statischen Source-Record
+eingefroren. Ein künftiger Report-Generator mit materiell anderem Anchor liegt
+außerhalb dieses Batches.
 
 ## Verbleibende Risiken
 
@@ -134,8 +134,9 @@ evidenzbasierte Auswahl statt eines ungeprüften großen Refactors.
 - Die direkten Dokumentationsprüfungen können nicht vollständig enden, solange
   derselbe Framework-Gitlink nicht ausgefüllt ist; ihre Diagnosen nannten
   weder dieses Record-Paar noch einen seiner Indizes als Fehler.
-- Hosted-Checks und SonarQube-Cloud-PR-Analyse stehen bis Task-Branch, Commit,
-  Push und Draft-PR-Erstellung aus.
+- Hosted-CI und SonarQube Cloud sind externe Delivery-Controls. Ihr Ergebnis
+  muss für den aktiven PR-Head verifiziert werden, statt es in diesen
+  statischen Record zu kopieren.
 
 ## Finaler Diff- und Review-Status
 

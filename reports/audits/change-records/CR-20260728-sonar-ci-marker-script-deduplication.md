@@ -8,9 +8,9 @@
 | --- | --- |
 | Change ID | CR-20260728-sonar-ci-marker-script-deduplication |
 | Date (UTC) | 2026-07-28 |
-| Base revision | `cf7849c4d2edc92b3f5360dca348ddfa6e4c1d2f` |
+| Base revision | `8a3872e5e63f93e202bed24e0dcbad7bdf110ede` |
 | Scope and boundary | Parent `ci/`, `scripts/`, directly focused Parent tests, and this English/German Change Record pair with its indexes only. `.github/`, Framework, MRTS, gitlinks, generated reports, and SonarQube configuration remain unchanged. |
-| Finding linkage | Current SonarQube Cloud master analysis reported 631 open issues, 0.2% project duplication (1,260 lines), and `python:S1192` issues `AZ9cRzA4HhV2CayPTP47` and `AZ9cRzA4HhV2CayPTP46` in the repository-organization inventory. The CI clone evidence includes the 113-line nolog/response-header pair. This record does not claim hosted issue closure. |
+| Finding linkage | The pre-PR SonarQube Cloud master analysis reported 631 open issues, 0.2% project duplication (1,260 lines), and `python:S1192` issues `AZ9cRzA4HhV2CayPTP47` and `AZ9cRzA4HhV2CayPTP46` in the repository-organization inventory. The CI clone evidence includes the 113-line nolog/response-header pair. This record does not claim historical issue closure or a master integration. |
 
 ## Motivation and problem statement
 
@@ -102,10 +102,10 @@ runtime, Framework/MRTS execution, or hosted CI/SonarQube Cloud analysis.
 ## Known limitations
 
 The change intentionally addresses a bounded subset of the 1,260 project
-duplicate lines. Current SonarQube Cloud re-analysis of the exact PR head is
-required to quantify the final project and new-code duplication delta and to
-observe closure of the two `python:S1192` issues. A future report generator
-with a materially different anchor is outside this batch.
+duplicate lines. Current SonarQube Cloud analysis of the active PR head is
+external delivery evidence and must be verified at that exact head; it is not
+frozen in this static source record. A future report generator with a materially
+different anchor is outside this batch.
 
 ## Remaining risks
 
@@ -127,8 +127,9 @@ large refactor.
 - The direct documentation checks cannot complete while the same Framework
   gitlink is unpopulated; their diagnostics did not identify this record pair
   or either index as a defect.
-- Hosted checks and SonarQube Cloud PR analysis are pending the task branch,
-  commit, push, and Draft PR creation.
+- Hosted CI and SonarQube Cloud are external delivery controls. Their result
+  must be verified at the active PR head rather than copied into this static
+  record.
 
 ## Final diff and review status
 
