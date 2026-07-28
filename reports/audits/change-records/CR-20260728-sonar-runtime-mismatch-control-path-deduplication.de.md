@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-07-28 |
 | Basis-Revision | 8e8acb8dab1cd03723de269cab7da7dd62e5e010 |
 | Umfang und Grenze | Ausschließlich Parent `ci/evidence/reports/generate-verified-runtime-mismatch-analysis.py` und der fokussierte Test `tests/test_report_conditional_remediation.py` sowie dieses englisch/deutsche Change-Record-Paar und seine Indizes. Framework, MRTS, beide Gitlinks, Workflows und generierte Reports bleiben unverändert. |
-| Finding-Verknüpfung | Reviewte Parent-SonarQube-Cloud-Remediation eines doppelten Runtime-Mismatch-Control-Pfads. Dieser lokale Kandidat behauptet weder eine Exact-Head-Hosted-Analyse noch eine Alert-Closure oder ein Delivery-Ergebnis. |
+| Finding-Verknüpfung | Parent-SonarQube-Cloud-Remediation eines doppelten Runtime-Mismatch-Control-Pfads, gefolgt vom Exact-PR-Head-Code-Smell `AZ-o2G_i1eeMvlV2C-0t`, Regel `python:S1192`, für das wiederholte Literal `nginx-summary.json`. Der Folge-Kandidat behauptet keine Alert-Closure oder Delivery-Vollständigkeit. |
 
 ## Motivation und Problemstellung
 
@@ -24,6 +24,11 @@ Root-Zusammensetzung im privaten Helper `_no_mrts_control_identity`. Sie ist
 bewusst keine Änderung daran, welche Evidence akzeptiert wird oder wie ein
 Report erzeugt wird.
 
+Der erste exakte Draft-PR-Head legte danach drei wiederholte Verwendungen des
+NGINX-Force-All-Summary-Dateinamens im neu konzentrierten Source-Bereich offen.
+Das Follow-up verwendet eine private benannte Konstante für diesen unveränderten
+Dateinamen; es ändert weder Summary-Location noch Reader-Verhalten.
+
 ## Akzeptanzkriterien
 
 - `_no_mrts_control_identity` erhält das bestehende Slash- und First-CRS-
@@ -33,6 +38,8 @@ Report erzeugt wird.
   seine vorhandene Summary-Traversal.
 - Die vorhandenen Pass/`403`-Gates und die NGINX-Phase-4-Marker-Semantik
   bleiben unverändert.
+- Eine private NGINX-Force-All-Summary-Dateinamen-Konstante erhält den exakt
+  vorhandenen Dateinamen an allen drei vorhandenen Reader-Stellen.
 - Die fokussierte Conditional-Remediation-Testkontrolle besteht alle 9 Tests.
 - Die Runtime-Environment-Snapshot-Contract-Testkontrolle besteht alle 9
   Tests nur in ihrem disposablen externen Overlay mit dem read-only
@@ -54,6 +61,11 @@ ihre eigene Result-Auswahl und Prädikate. Apache und HAProxy behalten ihre
 vorhandenen Runtime-Result-Layouts. NGINX behält seine vorhandene
 Summary-File-Traversal einschließlich der Phase-4-Marker-Behandlung. Der
 Refactor führt keine neue Connector-Route und keine Path-Broadening ein.
+
+`NGINX_FORCE_ALL_SUMMARY_FILE` liefert denselben Leaf `nginx-summary.json` an
+alle drei unveränderten NGINX-Summary-Pfade. Der fokussierte Test prüft den
+Wert der Konstante, während seine vorhandenen Temporary-Tree-Kontrollen alle
+drei Consumer ausüben.
 
 ## Geänderte Dateien
 
@@ -95,9 +107,11 @@ eine Framework/MRTS-Runtime oder ein Hosted-Ergebnis.
 ## Bekannte Einschränkungen
 
 Für diesen Kandidaten wurden weder Report-Generation noch `runtime-all`,
-Connector/CRS-Matrix, Framework/MRTS-Check oder Hosted-Check ausgeführt. Es
-wurde kein generierter Report oder Runtime-Matrix-Artefakt erstellt oder
-aktualisiert.
+Connector/CRS-Matrix oder Framework/MRTS-Check ausgeführt. Der vorherige
+exakte PR-Head hatte ein `OK` Quality Gate und null neue Duplikation, legte
+aber `AZ-o2G_i1eeMvlV2C-0t` offen; frischer Hosted-Nachweis für das
+Dateinamen-Konstanten-Follow-up bleibt erforderlich. Es wurde kein generierter
+Report oder Runtime-Matrix-Artefakt erstellt oder aktualisiert.
 
 ## Verbleibende Risiken
 
@@ -128,12 +142,15 @@ Integrationsdifferenz außerhalb dieses Batch zeigen.
 
 ## Finaler Diff- und Review-Status
 
-Der reviewte Kandidat beschränkt sich auf die zwei Parent-Source/Test-Dateien
-und dieses Traceability-Paar mit seinen Indizes. Die bereitgestellte fokussierte
-Test-Evidence und `git diff --check` bestehen. Das direkte repository-weite
-Bilingual-Target war durch fehlende Framework-Ziele blockiert, aber das
-Exact-Candidate-Overlay bestand Bilingual-, Repository-Pfad- und Framework-
-Dokumentlink-Prüfung. Die fokussierte Security-Review fand keinen validierten
-Befund und hielt zugleich die Evidence-Reclassification-Grenze fest. Es werden
-weder Staging, Commit, Push, Pull-Request, Merge, Master-Update, Report-
-Generation noch Hosted-Analyse-Ergebnis behauptet.
+Der initiale Commit `ba8d2b2b9048ccc0d1716cc2d5b689bbe24c64c8` liegt auf
+Draft-PR #152. Seine exakte Hosted-Analyse bestand das Quality Gate und hatte
+null neue Duplikation, meldete aber `AZ-o2G_i1eeMvlV2C-0t`. Dieser Kandidat
+ergänzt nur die private Dateinamen-Konstante und ihre fokussierte Assertion.
+Die bereitgestellte fokussierte Test-Evidence und `git diff --check` bestehen
+vor diesem normalen Follow-up-Push; das direkte repository-weite Bilingual-
+Target war durch fehlende Framework-Ziele blockiert, aber das Exact-Candidate-
+Overlay bestand Bilingual-, Repository-Pfad- und Framework-Dokumentlink-
+Prüfung. Die fokussierte Security-Review fand keinen validierten Befund und
+hielt zugleich die Evidence-Reclassification-Grenze fest. Es werden weder
+Merge, Master-Update, Report-Generation noch finales Hosted-Analyse-Ergebnis
+behauptet.

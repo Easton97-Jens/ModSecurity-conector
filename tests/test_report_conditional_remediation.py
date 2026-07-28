@@ -168,6 +168,7 @@ class ReportConditionalRemediationTest(unittest.TestCase):
     def test_no_mrts_control_identity_uses_fixed_connector_roots(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             build_root = Path(temporary) / "build"
+            self.assertEqual(RUNTIME_MISMATCH.NGINX_FORCE_ALL_SUMMARY_FILE, "nginx-summary.json")
             for connector in ("apache", "haproxy", "nginx"):
                 with self.subTest(connector=connector):
                     identity = RUNTIME_MISMATCH._no_mrts_control_identity(
@@ -225,7 +226,10 @@ class ReportConditionalRemediationTest(unittest.TestCase):
                         secaction_result = build_root / "nginx-results" / "secaction-result.json"
                         case_result = build_root / "nginx-results" / "case-result.json"
                         write_json(
-                            control_root / "results" / "force-all" / "nginx-summary.json",
+                            control_root
+                            / "results"
+                            / "force-all"
+                            / RUNTIME_MISMATCH.NGINX_FORCE_ALL_SUMMARY_FILE,
                             {
                                 "nginx": {
                                     "cases": [
@@ -274,7 +278,12 @@ class ReportConditionalRemediationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             build_root = Path(temporary) / "build"
             control_root = build_root / "full-matrix" / "with-crs" / "no-mrts" / "nginx"
-            summary_path = control_root / "results" / "force-all" / "nginx-summary.json"
+            summary_path = (
+                control_root
+                / "results"
+                / "force-all"
+                / RUNTIME_MISMATCH.NGINX_FORCE_ALL_SUMMARY_FILE
+            )
             evidence_path = build_root / "nginx-results" / "phase4-result.json"
             phase4_log_path = evidence_path.parent / "phase4.log"
 

@@ -111,6 +111,7 @@ NGINX_PHASE4_LOG_ONLY_CASES = {
     "nginx_phase4_minimal_log_only": "910001",
     "nginx_phase4_safe_log_only": "910002",
 }
+NGINX_FORCE_ALL_SUMMARY_FILE = "nginx-summary.json"
 CRS_SQLI_WITH_MRTS_DETECTION_ONLY_CASE = "crs_sqli_anomaly_block"
 CRS_SQLI_WITH_MRTS_RULE_IDS = {"942100", "942190", "942270", "942360", "949110"}
 CRS_SQLI_WITH_MRTS_DETECTION_ONLY_NOTE = (
@@ -591,7 +592,7 @@ def no_mrts_control_evidence(
     if connector in {"apache", "haproxy"}:
         result_path = control_root / "logs" / f"{connector}-runtime" / SECACTION_DETECTION_ONLY_CASE / "result.json"
     if connector == "nginx":
-        summary_path = control_root / "results" / "force-all" / "nginx-summary.json"
+        summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
         summary = read_json(summary_path)
         for item in walk_dicts(summary):
             if str(item.get("name") or item.get("case") or "") != SECACTION_DETECTION_ONLY_CASE:
@@ -639,7 +640,7 @@ def no_mrts_case_control_evidence(
     if connector in {"apache", "haproxy"}:
         result_path = control_root / "logs" / f"{connector}-runtime" / case_name / "result.json"
     elif connector == "nginx":
-        summary_path = control_root / "results" / "force-all" / "nginx-summary.json"
+        summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
         summary = read_json(summary_path)
         for item in walk_dicts(summary):
             if str(item.get("name") or item.get("case") or "") != case_name:
@@ -734,7 +735,7 @@ def nginx_no_mrts_phase4_log_control(
     if identity is None:
         return None
     crs, control_root = identity
-    summary_path = control_root / "results" / "force-all" / "nginx-summary.json"
+    summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
     summary = read_json(summary_path)
     cases = summary.get("nginx", {}).get("cases")
     if isinstance(cases, dict):

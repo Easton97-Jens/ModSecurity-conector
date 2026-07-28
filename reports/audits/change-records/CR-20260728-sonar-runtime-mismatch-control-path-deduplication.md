@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-07-28 |
 | Base revision | 8e8acb8dab1cd03723de269cab7da7dd62e5e010 |
 | Scope and boundary | Parent `ci/evidence/reports/generate-verified-runtime-mismatch-analysis.py` and its focused `tests/test_report_conditional_remediation.py`, plus this English/German Change Record pair and its indexes only. Framework, MRTS, both gitlinks, workflows, and generated reports remain unchanged. |
-| Finding linkage | Reviewed Parent SonarQube Cloud runtime-mismatch duplicate-control-path remediation. This local candidate does not claim an exact-head hosted analysis, alert closure, or delivery result. |
+| Finding linkage | Parent SonarQube Cloud runtime-mismatch duplicate-control-path remediation, followed by exact-PR-head code smell `AZ-o2G_i1eeMvlV2C-0t`, rule `python:S1192`, for the repeated `nginx-summary.json` literal. The follow-up candidate does not claim alert closure or delivery completion. |
 
 ## Motivation and problem statement
 
@@ -23,6 +23,11 @@ The requested remediation centralizes only that existing root composition in
 the private `_no_mrts_control_identity` helper. It is deliberately not a
 change to what evidence is accepted or how a report is generated.
 
+The first exact Draft PR head then exposed three repeated uses of the NGINX
+force-all summary filename in the newly concentrated source region. The
+follow-up uses one private named constant for that unchanged filename; it does
+not alter any summary location or reader behavior.
+
 ## Acceptance criteria
 
 - `_no_mrts_control_identity` preserves the existing slash and first-CRS
@@ -32,6 +37,8 @@ change to what evidence is accepted or how a report is generated.
   existing summary traversal.
 - The existing pass/`403` gates and NGINX phase-4 marker semantics remain
   unchanged.
+- One private NGINX force-all summary filename constant preserves the exact
+  existing filename at all three existing reader sites.
 - The focused conditional-remediation test control passes all 9 tests.
 - The runtime-environment snapshot-contract test control passes all 9 tests
   only in its disposable external overlay using the read-only Parent-pinned
@@ -53,6 +60,11 @@ own result selection and predicates. Apache and HAProxy keep their existing
 runtime-result layouts. NGINX keeps its existing summary-file traversal,
 including its phase-4 marker handling. The refactor introduces no new
 connector route or path broadening.
+
+`NGINX_FORCE_ALL_SUMMARY_FILE` supplies the same `nginx-summary.json` leaf to
+each of those three unchanged NGINX summary paths. The focused test asserts
+that constant's value while its existing temporary-tree controls exercise all
+three consumers.
 
 ## Changed files
 
@@ -92,9 +104,11 @@ hosted result.
 
 ## Known limitations
 
-No report generation, `runtime-all`, connector/CRS matrix, Framework/MRTS
-check, or hosted check was run for this candidate. No generated report or
-runtime matrix artifact was created or refreshed.
+No report generation, `runtime-all`, connector/CRS matrix, or Framework/MRTS
+check was run for this candidate. The preceding exact PR head had an `OK`
+Quality Gate and zero new duplication but exposed `AZ-o2G_i1eeMvlV2C-0t`;
+fresh hosted proof for the filename-constant follow-up remains required. No
+generated report or runtime matrix artifact was created or refreshed.
 
 ## Remaining risks
 
@@ -120,11 +134,14 @@ could expose an integration difference outside this batch.
 
 ## Final diff and review status
 
-The reviewed candidate is limited to the two Parent source/test files and
-this traceability pair with its indexes. The supplied focused test evidence
-and `git diff --check` passed. The direct repository-wide bilingual target was
-blocked by absent Framework targets, but the exact-candidate external overlay
-passed bilingual, repository-path, and Framework document-link checking. The
-focused security review found no validated issue while recording the
-evidence-reclassification boundary. No staging, commit, push, pull request,
-merge, master update, report generation, or hosted-analysis result is claimed.
+Initial commit `ba8d2b2b9048ccc0d1716cc2d5b689bbe24c64c8` is on Draft PR #152.
+Its exact hosted analysis passed the Quality Gate and had zero new duplication,
+but reported `AZ-o2G_i1eeMvlV2C-0t`. This candidate adds only the private
+filename constant and its focused assertion. The supplied focused test evidence
+and `git diff --check` passed before this normal follow-up push; the direct
+repository-wide bilingual target was blocked by absent Framework targets, but
+the exact-candidate external overlay passed bilingual, repository-path, and
+Framework document-link checking. The focused security review found no
+validated issue while recording the evidence-reclassification boundary. No
+merge, master update, report generation, or final hosted-analysis result is
+claimed.
