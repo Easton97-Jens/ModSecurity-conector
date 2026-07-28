@@ -50,20 +50,12 @@ ngx_http_modsecurity_body_filter_init(void)
 static ngx_int_t
 ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx)
 {
-    msconnector_response_mapper_contract contract;
-    msconnector_response mapped_response;
-    char mapper_error[128];
-
     if (ctx->common_response_validated) {
         return NGX_OK;
     }
 
-    msconnector_response_mapper_contract_init(&contract);
-    if (!ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,
-            &mapped_response, mapper_error, sizeof(mapper_error))) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-            "modsecurity common response-body mapper validation skipped: %s", mapper_error);
-    }
+    ngx_http_modsecurity_validate_response_mapper(ctx, r,
+        NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_BODY);
     ctx->common_response_validated = 1;
 
     return NGX_OK;

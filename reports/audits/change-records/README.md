@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent NGINX response-mapper validation-tail deduplication candidate (36 Parent duplicate lines)](CR-20260728-sonar-nginx-response-mapper-duplication.md)
+  — local source-contract and scoped whitespace validation passed; the exact
+  C17 control is blocked_external_dependency by absent NGINX headers/source
+  (script exit 77, make exit 2), and no host runtime, commit, push, PR, or
+  hosted closure is claimed.
 - [Parent Traefik start-smoke diagnostic-literal cleanup for SonarQube Cloud S1192](CR-20260728-sonar-traefik-start-smoke-literal.md)
 - [Parent Apache Phase-4 control-literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-phase4-literals.md)
 - [Parent Apache H2 transport-result literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-h2-transport-s1192.md)
