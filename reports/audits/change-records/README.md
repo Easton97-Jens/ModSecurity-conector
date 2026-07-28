@@ -13,6 +13,7 @@ must not claim unobserved CI, runtime, review, or delivery results.
 - [Parent HTTP authorization CLI loop control for SonarQube Cloud c:S5955, c:S886, and c:S3776](CR-20260728-sonar-http-authorization-cli-scope.md)
 - [Traefik result optional-text nullability remediation for SonarQube Cloud](CR-20260728-sonar-traefik-result-nullability.md)
 - [Parent `tools/MRTS` literal extraction and direct Git-fixture coverage for SonarQube Cloud S1192](CR-20260728-sonar-bilingual-tools-mrts-s1192.md)
+- [Parent HAProxy HTX diagnostic-range literal for SonarQube Cloud shelldre:S1192](CR-20260728-sonar-haproxy-htx-diagnostic-s1192.md)
 - [Parent HAProxy append-string preflight for SonarQube Cloud c:S3519](CR-20260727-sonar-haproxy-append-string-s3519.md)
 - [Parent common error duplicate-mapping refactor](CR-20260727-sonar-common-error-duplication.md)
 - [Parent NGINX event metadata and JSONL writer deduplication: second-head Quality Gate and local S1192 follow-up](CR-20260727-sonar-nginx-event-metadata-duplication.md)
