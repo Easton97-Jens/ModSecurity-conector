@@ -7,6 +7,22 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Repository-Inventar-Komplexitätsbehebung für SonarQube Cloud S3776](CR-20260727-sonar-s3776-repository-inventory.de.md)
+- [Parent-Shell-Dispatch-Rule-Remediation für SonarQube Cloud S131 und S7679](CR-20260727-sonar-shell-dispatch-rules.de.md)
+Der führende Eintrag dokumentiert das SonarQube-Cloud-Ergebnis des initialen
+exakten Heads von Draft PR #131—Quality Gate `OK` mit keiner neuen
+Duplizierung und einem task-owned `python:S3358`—seine lokale normale
+Korrektur der verschachtelten Bedingung sowie das Fehlen einer Remote-Analyse
+nach der Korrektur oder eines Merge.
+
+- [Parent-Connector-Config-Reference-Literal-Deduplizierung und SonarQube-Cloud-S3358-Follow-up](CR-20260727-sonar-config-reference-literal-deduplication.de.md)
+- [Parent-Compiler-Guide-Literal-Deduplizierung für SonarQube Cloud S1192](CR-20260727-sonar-compiler-guides-literal-deduplication.de.md)
+- [Parent-Test-Assertion-Order-Remediation für SonarQube Cloud S3415](CR-20260727-sonar-s3415-parent-test-assertions.de.md)
+- [Parent-Testfixture-Duplikatreduzierung für SonarQube Cloud](CR-20260727-sonar-parent-test-duplication.de.md)
+- [Parent-Focused-Report-Hilfsduplikatreduzierung für SonarQube Cloud](CR-20260727-sonar-focused-report-utility-duplication.de.md)
+- [Parent-Response-Header-Fixture-Containment für SonarQube Cloud S8707](CR-20260727-sonar-response-header-fixture-containment.de.md)
+- [Parent-Apache/NGINX-Bereinigung auskommentierten Codes für SonarQube Cloud C:S125](CR-20260727-sonar-c-commented-code-cleanup.de.md)
+- [Parent-HAProxy-Accept-Loop-Fehlerpfadbereinigung für SonarQube Cloud C:S134](CR-20260727-sonar-haproxy-accept-loop-s134.de.md)
 - [Parent-Bilingual-Dokumentationschecker-PR-Template-Literalextraktion und Erhalt der Diagnose-Reihenfolge für SonarQube Cloud S1192 und S3776](CR-20260727-sonar-bilingual-doc-checker.de.md)
 - [Parent-PR #128 Rest-SonarQube-Cloud- und Workflow-Remediation](CR-20260727-sonar-pr128-residual-remediation.de.md)
 - [Parent-Apache-Output-Filter-Status-Shadowing für SonarQube Cloud C:S1117](CR-20260727-sonar-apache-output-filter-status-shadowing.de.md)

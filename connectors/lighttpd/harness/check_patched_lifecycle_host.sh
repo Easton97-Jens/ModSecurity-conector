@@ -23,7 +23,8 @@ manifest_value() {
 }
 
 sha256_file() {
-    sha256sum "$1" | awk '{print $1}'
+    input_path=$1
+    sha256sum "$input_path" | awk '{print $1}'
 }
 
 [ -f "$HOST_MANIFEST" ] || blocked "patched host manifest is missing; run build-lighttpd-patched-host first"

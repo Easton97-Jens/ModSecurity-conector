@@ -7,7 +7,6 @@ import os
 import subprocess
 import sys
 from collections import Counter
-from datetime import datetime, timezone
 from pathlib import Path
 
 # CI helpers are shared from ci/lib even when this file is executed directly.
@@ -16,8 +15,10 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
+from focused_analysis_utils import as_list as listify
+from focused_analysis_utils import read_json, utc_now, write_json
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_at_from_json, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, read_text_file, resolve_output_dir, write_text_file
 
 
 REPORT_DIR = GENERATED_ROOT
@@ -86,18 +87,6 @@ STALE_CLUSTER_NAMES = (
 )
 
 
-def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def read_json(path: Path) -> dict[str, Any]:
-    return read_json_file(path)
-
-
-def write_json(path: Path, data: dict[str, Any]) -> None:
-    write_json_file(path, data)
-
-
 def git_stdout(root: Path, args: list[str]) -> str:
     try:
         result = subprocess.run(
@@ -117,14 +106,6 @@ def git_status(root: Path) -> list[str]:
     if not output or output == "unknown":
         return []
     return output.splitlines()
-
-
-def listify(value: Any) -> list[str]:
-    if isinstance(value, list):
-        return [str(item) for item in value if str(item).strip()]
-    if value in (None, ""):
-        return []
-    return [str(value)]
 
 
 def counter_dict(counter: Counter[str]) -> dict[str, int]:

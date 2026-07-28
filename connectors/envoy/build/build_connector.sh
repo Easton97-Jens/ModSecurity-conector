@@ -20,6 +20,7 @@ case "$(CDPATH= cd "$BUILD_ROOT" 2>/dev/null && pwd 2>/dev/null || printf '%s' "
         echo "envoy_connector: BUILD_ROOT must not be inside the checkout: $BUILD_ROOT" >&2
         exit 77
         ;;
+    *) ;;
 esac
 
 command -v "$CC_BIN" >/dev/null 2>&1 || {

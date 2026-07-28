@@ -39,8 +39,8 @@ SYNCHRONIZED_UPSTREAM_SPEC.loader.exec_module(SYNCHRONIZED_UPSTREAM)
 class HAProxyHTXSmokeHelperTest(unittest.TestCase):
     def test_phase2_upstream_profile_is_isolated_from_ordinary_requests(self) -> None:
         self.assertEqual(
-            ("phase2", None, HELPER.UPSTREAM_OK_BODY),
             HELPER.upstream_profile("/no-crs/request-body?trace=ignored"),
+            ("phase2", None, HELPER.UPSTREAM_OK_BODY),
         )
 
     def test_runtime_summary_uses_collector_recognized_phase_keys(self) -> None:
@@ -258,10 +258,10 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             self.assertEqual(record["body_bytes_seen"], 37)
             self.assertEqual(record["body_bytes_inspected"], 37)
             self.assertEqual(
-                [],
                 SYNCHRONIZED_UPSTREAM.first_byte_evidence_errors(
                     record, require_real_host=True, require_complete_proof=True,
                 ),
+                [],
             )
             self.assertNotIn("no-crs-response-body-marker", evidence.read_text(encoding="utf-8"))
 

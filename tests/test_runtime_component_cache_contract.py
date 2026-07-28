@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import importlib.util
 import json
 from pathlib import Path
@@ -41,6 +42,55 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             configuration_flags={"CFLAGS": flags},
             toolchain={"cc": "cc", "cc_version": compiler_version},
         )
+
+    def _expat_fixture(
+        self,
+        root: Path,
+    ) -> tuple[
+        dict[str, str | bool],
+        dict[str, str],
+        list[Path | None],
+        Callable[
+            [list[str], Path | None, dict[str, str] | None],
+            subprocess.CompletedProcess[str],
+        ],
+    ]:
+        source = root / "expat-source"
+        source.mkdir()
+        (source / "configure").write_text("#!/bin/sh\n", encoding="utf-8")
+        git_record = {
+            "status": "present",
+            "path": str(source),
+            "url": "https://github.com/example/expat",
+            "expected_ref": "v2",
+            "release_tag": "v2",
+            "actual_head": "deadbeef",
+            "submodule_status": "",
+            "submodule_status_clean": True,
+        }
+        toolchain = {"cc": "cc", "cc_version": "cc test", "cxx": "", "cxx_version": ""}
+        configured_prefix: list[Path | None] = [None]
+
+        def fake_run_env(
+            command: list[str],
+            cwd: Path | None = None,
+            env: dict[str, str] | None = None,
+        ) -> subprocess.CompletedProcess[str]:
+            if command and str(command[0]).endswith("configure"):
+                configured_prefix[0] = Path(
+                    next(item.split("=", 1)[1] for item in command if item.startswith("--prefix="))
+                )
+            if command[:2] == ["make", "install"]:
+                assert configured_prefix[0] is not None
+                include = configured_prefix[0] / "include"
+                lib = configured_prefix[0] / "lib"
+                include.mkdir(parents=True, exist_ok=True)
+                lib.mkdir(parents=True, exist_ok=True)
+                (include / "expat.h").write_text("header\n", encoding="utf-8")
+                (lib / "libexpat.so").write_text("library\n", encoding="utf-8")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        return git_record, toolchain, configured_prefix, fake_run_env
 
     def test_canonical_identity_covers_schema_patchset_toolchain_architecture_and_flags(self) -> None:
         baseline = self.identity()
@@ -730,35 +780,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
             cache_root = components.ensure_managed_cache_root(root / "cache")
-            source = root / "expat-source"
-            source.mkdir()
-            (source / "configure").write_text("#!/bin/sh\n", encoding="utf-8")
-            git_record = {
-                "status": "present",
-                "path": str(source),
-                "url": "https://github.com/example/expat",
-                "expected_ref": "v2",
-                "release_tag": "v2",
-                "actual_head": "deadbeef",
-                "submodule_status": "",
-                "submodule_status_clean": True,
-            }
-            toolchain = {"cc": "cc", "cc_version": "cc test", "cxx": "", "cxx_version": ""}
-            configured_prefix: Path | None = None
-
-            def fake_run_env(command: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-                nonlocal configured_prefix
-                if command and str(command[0]).endswith("configure"):
-                    configured_prefix = Path(next(item.split("=", 1)[1] for item in command if item.startswith("--prefix=")))
-                if command[:2] == ["make", "install"]:
-                    assert configured_prefix is not None
-                    include = configured_prefix / "include"
-                    lib = configured_prefix / "lib"
-                    include.mkdir(parents=True, exist_ok=True)
-                    lib.mkdir(parents=True, exist_ok=True)
-                    (include / "expat.h").write_text("header\n", encoding="utf-8")
-                    (lib / "libexpat.so").write_text("library\n", encoding="utf-8")
-                return subprocess.CompletedProcess(command, 0, "", "")
+            git_record, toolchain, _, fake_run_env = self._expat_fixture(root)
 
             with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
                 components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
@@ -884,35 +906,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
             cache_root = components.ensure_managed_cache_root(root / "cache")
-            source = root / "expat-source"
-            source.mkdir()
-            (source / "configure").write_text("#!/bin/sh\n", encoding="utf-8")
-            git_record = {
-                "status": "present",
-                "path": str(source),
-                "url": "https://github.com/example/expat",
-                "expected_ref": "v2",
-                "release_tag": "v2",
-                "actual_head": "deadbeef",
-                "submodule_status": "",
-                "submodule_status_clean": True,
-            }
-            toolchain = {"cc": "cc", "cc_version": "cc test", "cxx": "", "cxx_version": ""}
-            configured_prefix: Path | None = None
-
-            def fake_run_env(command: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-                nonlocal configured_prefix
-                if command and str(command[0]).endswith("configure"):
-                    configured_prefix = Path(next(item.split("=", 1)[1] for item in command if item.startswith("--prefix=")))
-                if command[:2] == ["make", "install"]:
-                    assert configured_prefix is not None
-                    include = configured_prefix / "include"
-                    lib = configured_prefix / "lib"
-                    include.mkdir(parents=True, exist_ok=True)
-                    lib.mkdir(parents=True, exist_ok=True)
-                    (include / "expat.h").write_text("header\n", encoding="utf-8")
-                    (lib / "libexpat.so").write_text("library\n", encoding="utf-8")
-                return subprocess.CompletedProcess(command, 0, "", "")
+            git_record, toolchain, configured_prefix, fake_run_env = self._expat_fixture(root)
 
             prefix = cache_root / "overrides/expat/prefix"
             build_dir = cache_root / "overrides/expat/build"
@@ -928,7 +922,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 record = components.prepare_expat(env, cache_root, root / "work", git_record)
 
             self.assertEqual(record["status"], "built")
-            self.assertTrue(str(configured_prefix).split("/")[-1].startswith(".prefix.tmp-"))
+            self.assertTrue(str(configured_prefix[0]).split("/")[-1].startswith(".prefix.tmp-"))
             self.assertTrue((prefix / "include/expat.h").is_file())
             for component, entry in (("expat-prefix", prefix), ("expat-build", build_dir), ("expat-source", source_copy)):
                 self.assertTrue(
@@ -1316,6 +1310,56 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
     def git(command: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
 
+    def _init_local_upstream(
+        self,
+        root: Path,
+        *,
+        content: str = "pristine\n",
+        message: str = "initial",
+    ) -> tuple[Path, str, str]:
+        upstream = root / "upstream"
+        upstream.mkdir()
+        self.git(["git", "init"], upstream)
+        self.git(["git", "config", "user.email", "cache-test@example.invalid"], upstream)
+        self.git(["git", "config", "user.name", "Cache Test"], upstream)
+        (upstream / "tracked.txt").write_text(content, encoding="utf-8")
+        self.git(["git", "add", "tracked.txt"], upstream)
+        self.git(["git", "commit", "-m", message], upstream)
+        commit = self.git(["git", "rev-parse", "HEAD"], upstream).stdout.strip()
+        branch = self.git(["git", "branch", "--show-current"], upstream).stdout.strip()
+        return upstream, commit, branch
+
+    def _local_clone_or_fetch(
+        self,
+        command: list[str],
+        *,
+        upstream: Path,
+        expected_url: str,
+        check: bool,
+        raise_on_clone_failure: bool,
+    ) -> subprocess.CompletedProcess[str] | None:
+        if command[:3] == ["git", "clone", "--recursive"]:
+            clone = subprocess.run(
+                ["git", "clone", "--recursive", str(upstream), command[-1]],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if clone.returncode == 0:
+                subprocess.run(
+                    ["git", "-C", command[-1], "remote", "set-url", "origin", expected_url],
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=True,
+                )
+            if raise_on_clone_failure and check and clone.returncode != 0:
+                raise RuntimeError(clone.stderr)
+            return clone
+        if len(command) >= 5 and command[:2] == ["git", "-C"] and command[3:5] == ["fetch", "--tags"]:
+            return subprocess.CompletedProcess(command, 0, "", "")
+        return None
+
     def test_clean_managed_git_checkout_is_reused_across_target_preparations(self) -> None:
         """The second target reuses a published ModSecurity source checkout.
 
@@ -1327,16 +1371,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
-            upstream = root / "upstream"
-            upstream.mkdir()
-            self.git(["git", "init"], upstream)
-            self.git(["git", "config", "user.email", "cache-test@example.invalid"], upstream)
-            self.git(["git", "config", "user.name", "Cache Test"], upstream)
-            (upstream / "tracked.txt").write_text("pristine\n", encoding="utf-8")
-            self.git(["git", "add", "tracked.txt"], upstream)
-            self.git(["git", "commit", "-m", "initial"], upstream)
-            commit = self.git(["git", "rev-parse", "HEAD"], upstream).stdout.strip()
-            branch = self.git(["git", "branch", "--show-current"], upstream).stdout.strip()
+            upstream, commit, branch = self._init_local_upstream(root)
 
             cache_root = components.ensure_managed_cache_root(root / "cache")
             checkout = cache_root / "sources" / "ModSecurity_V3"
@@ -1359,25 +1394,15 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     )
                 if command[:3] == ["git", "clone", "--recursive"]:
                     clone_count += 1
-                    clone = subprocess.run(
-                        ["git", "clone", "--recursive", str(upstream), command[-1]],
-                        text=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                    )
-                    if clone.returncode == 0:
-                        subprocess.run(
-                            ["git", "-C", command[-1], "remote", "set-url", "origin", expected_url],
-                            text=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            check=True,
-                        )
-                    if check and clone.returncode != 0:
-                        raise RuntimeError(clone.stderr)
-                    return clone
-                if len(command) >= 5 and command[:2] == ["git", "-C"] and command[3:5] == ["fetch", "--tags"]:
-                    return subprocess.CompletedProcess(command, 0, "", "")
+                local_result = self._local_clone_or_fetch(
+                    command,
+                    upstream=upstream,
+                    expected_url=expected_url,
+                    check=check,
+                    raise_on_clone_failure=True,
+                )
+                if local_result is not None:
+                    return local_result
                 return original_run(command, cwd=cwd, check=check)
 
             with mock.patch.object(components, "run", side_effect=local_clone_run):
@@ -1419,15 +1444,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
     def test_dirty_managed_git_checkout_is_replaced_and_atomically_republished(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
-            upstream = root / "upstream"
-            upstream.mkdir()
-            self.git(["git", "init"], upstream)
-            self.git(["git", "config", "user.email", "cache-test@example.invalid"], upstream)
-            self.git(["git", "config", "user.name", "Cache Test"], upstream)
-            (upstream / "tracked.txt").write_text("pristine\n", encoding="utf-8")
-            self.git(["git", "add", "tracked.txt"], upstream)
-            self.git(["git", "commit", "-m", "initial"], upstream)
-            commit = self.git(["git", "rev-parse", "HEAD"], upstream).stdout.strip()
+            upstream, commit, _ = self._init_local_upstream(root)
 
             cache_root = components.ensure_managed_cache_root(root / "cache")
             checkout = cache_root / "sources/component"
@@ -1452,26 +1469,15 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             original_run = components.run
 
             def local_clone_run(command: list[str], cwd: Path | None = None, check: bool = False) -> subprocess.CompletedProcess[str]:
-                if command[:3] == ["git", "clone", "--recursive"]:
-                    clone = subprocess.run(
-                        ["git", "clone", "--recursive", str(upstream), command[-1]],
-                        text=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                    )
-                    if clone.returncode == 0:
-                        subprocess.run(
-                            ["git", "-C", command[-1], "remote", "set-url", "origin", expected_url],
-                            text=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            check=True,
-                        )
-                    if check and clone.returncode != 0:
-                        raise RuntimeError(clone.stderr)
-                    return clone
-                if len(command) >= 5 and command[:2] == ["git", "-C"] and command[3:5] == ["fetch", "--tags"]:
-                    return subprocess.CompletedProcess(command, 0, "", "")
+                local_result = self._local_clone_or_fetch(
+                    command,
+                    upstream=upstream,
+                    expected_url=expected_url,
+                    check=check,
+                    raise_on_clone_failure=True,
+                )
+                if local_result is not None:
+                    return local_result
                 return original_run(command, cwd=cwd, check=check)
 
             with mock.patch.object(components, "run", side_effect=local_clone_run):
@@ -1512,15 +1518,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
     def test_corrupt_managed_git_checkout_is_replaced_before_fetch(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
-            upstream = root / "upstream"
-            upstream.mkdir()
-            self.git(["git", "init"], upstream)
-            self.git(["git", "config", "user.email", "cache-test@example.invalid"], upstream)
-            self.git(["git", "config", "user.name", "Cache Test"], upstream)
-            (upstream / "tracked.txt").write_text("pristine\n", encoding="utf-8")
-            self.git(["git", "add", "tracked.txt"], upstream)
-            self.git(["git", "commit", "-m", "initial"], upstream)
-            commit = self.git(["git", "rev-parse", "HEAD"], upstream).stdout.strip()
+            upstream, commit, _ = self._init_local_upstream(root)
             cache_root = components.ensure_managed_cache_root(root / "cache")
             checkout = cache_root / "sources/component"
             expected_url = "https://github.com/example/component"
@@ -1544,24 +1542,15 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             original_run = components.run
 
             def local_clone_run(command: list[str], cwd: Path | None = None, check: bool = False) -> subprocess.CompletedProcess[str]:
-                if command[:3] == ["git", "clone", "--recursive"]:
-                    clone = subprocess.run(
-                        ["git", "clone", "--recursive", str(upstream), command[-1]],
-                        text=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                    )
-                    if clone.returncode == 0:
-                        subprocess.run(
-                            ["git", "-C", command[-1], "remote", "set-url", "origin", expected_url],
-                            text=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            check=True,
-                        )
-                    return clone
-                if len(command) >= 5 and command[:2] == ["git", "-C"] and command[3:5] == ["fetch", "--tags"]:
-                    return subprocess.CompletedProcess(command, 0, "", "")
+                local_result = self._local_clone_or_fetch(
+                    command,
+                    upstream=upstream,
+                    expected_url=expected_url,
+                    check=check,
+                    raise_on_clone_failure=False,
+                )
+                if local_result is not None:
+                    return local_result
                 return original_run(command, cwd=cwd, check=check)
 
             with mock.patch.object(components, "run", side_effect=local_clone_run):
@@ -1587,16 +1576,11 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
     def test_moving_git_ref_uses_resolved_commit_and_never_fetches_final_checkout(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
-            upstream = root / "upstream"
-            upstream.mkdir()
-            self.git(["git", "init"], upstream)
-            self.git(["git", "config", "user.email", "cache-test@example.invalid"], upstream)
-            self.git(["git", "config", "user.name", "Cache Test"], upstream)
-            (upstream / "tracked.txt").write_text("first\n", encoding="utf-8")
-            self.git(["git", "add", "tracked.txt"], upstream)
-            self.git(["git", "commit", "-m", "first"], upstream)
-            first_commit = self.git(["git", "rev-parse", "HEAD"], upstream).stdout.strip()
-            branch = self.git(["git", "branch", "--show-current"], upstream).stdout.strip()
+            upstream, first_commit, branch = self._init_local_upstream(
+                root,
+                content="first\n",
+                message="first",
+            )
 
             cache_root = components.ensure_managed_cache_root(root / "cache")
             checkout = cache_root / "sources/component"
@@ -1633,22 +1617,6 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                         f"{second_commit}\trefs/heads/{branch}\n",
                         "",
                     )
-                if command[:3] == ["git", "clone", "--recursive"]:
-                    clone = subprocess.run(
-                        ["git", "clone", "--recursive", str(upstream), command[-1]],
-                        text=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                    )
-                    if clone.returncode == 0:
-                        subprocess.run(
-                            ["git", "-C", command[-1], "remote", "set-url", "origin", expected_url],
-                            text=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            check=True,
-                        )
-                    return clone
                 if len(command) >= 4 and command[:3] == ["git", "-C", str(checkout)] and command[3] in {
                     "fetch",
                     "checkout",
@@ -1656,8 +1624,15 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     "submodule",
                 }:
                     final_mutations.append(command)
-                if len(command) >= 5 and command[:2] == ["git", "-C"] and command[3:5] == ["fetch", "--tags"]:
-                    return subprocess.CompletedProcess(command, 0, "", "")
+                local_result = self._local_clone_or_fetch(
+                    command,
+                    upstream=upstream,
+                    expected_url=expected_url,
+                    check=check,
+                    raise_on_clone_failure=False,
+                )
+                if local_result is not None:
+                    return local_result
                 return original_run(command, cwd=cwd, check=check)
 
             with mock.patch.object(components, "run", side_effect=local_clone_run):

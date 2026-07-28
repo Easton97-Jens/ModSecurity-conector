@@ -5,7 +5,6 @@ import argparse
 import json
 import re
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 
 # CI helpers are shared from ci/lib even when this file is executed directly.
@@ -24,7 +23,8 @@ from generated_report_utils import (
     report_path_from_root,
     report_relpath,
 )
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
+from focused_analysis_utils import read_json, read_text, utc_now
+from report_path_safety import add_report_roots, add_safe_roots, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
     import yaml
@@ -156,18 +156,6 @@ NOT_NEXT_RECOMMENDATIONS = (
         "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes",
     },
 )
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def read_json(path: Any) -> dict[str, Any]:
-    return read_json_file(path)
-
-
-def read_text(path: Any) -> str:
-    return read_text_file(path)
 
 
 def normalize_list(value: Any) -> list[str]:
