@@ -45,7 +45,6 @@
 
 #define NOTE_MSR "modsecurity3-tx-context"
 #define MSC_APACHE_CONNECTOR "ModSecurity-Apache v0.1.1-beta"
-/* #define REQUEST_EARLY */
 #define LATE_CONNECTION_PROCESS
 
 #define N_INTERVENTION_STATUS 200

@@ -14,6 +14,8 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
+from patched_event_validation import load_events, nonnegative, phase_is_four
+
 
 CASE_RULES = {
     "deny_header_marker_403": (1100001, 403),
@@ -53,38 +55,7 @@ P4_SEMANTIC_FIELDS = (
     "eos_seen",
     "end_of_stream_evaluation",
 )
-
-
-def load_events(path: Path) -> list[dict[str, Any]]:
-    events: list[dict[str, Any]] = []
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        value = json.loads(line)
-        if not isinstance(value, dict):
-            raise ValueError(f"{path}:{number} is not an object")
-        events.append(value)
-    return events
-
-
-def phase_is_four(value: object) -> bool:
-    return str(value or "").strip().replace("-", "_").lower() in {
-        "4",
-        "phase4",
-        "response_body",
-    }
-
-
-def nonnegative(value: object, field: str) -> int:
-    if isinstance(value, bool):
-        raise ValueError(f"{field} must be a non-negative integer")
-    try:
-        number = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{field} must be a non-negative integer") from exc
-    if number < 0:
-        raise ValueError(f"{field} must be a non-negative integer")
-    return number
+NON_OBJECT_ERROR = "{path}:{line_number} is not an object"
 
 
 def has_transaction_id(event: dict[str, Any]) -> bool:
@@ -247,7 +218,9 @@ def load_fixture_result(path: Path) -> tuple[int, int]:
 def validate_entity_boundary(
     path: Path, *, expected_bytes: int, label: str
 ) -> dict[str, Any]:
-    event = one_safe_phase4_event(load_events(path), label)
+    event = one_safe_phase4_event(
+        load_events(path, non_object_error=NON_OBJECT_ERROR), label
+    )
     seen = nonnegative(event.get("body_bytes_seen"), f"{label}.body_bytes_seen")
     inspected = nonnegative(
         event.get("body_bytes_inspected"), f"{label}.body_bytes_inspected"
@@ -313,7 +286,7 @@ def main() -> int:
     parser.add_argument("--phase4-summary-output", required=True, type=Path)
     args = parser.parse_args()
 
-    events = load_events(args.events)
+    events = load_events(args.events, non_object_error=NON_OBJECT_ERROR)
     selected = requested_cases(args.selected_case_ids)
     content_length_bytes, chunked_bytes = load_fixture_result(args.entity_fixture_result)
     validate_entity_boundary(
@@ -327,7 +300,8 @@ def main() -> int:
         label="chunked entity boundary",
     )
     raw_safe_event = one_safe_phase4_event(
-        load_events(args.phase4_safe_events), "synchronized first-byte barrier"
+        load_events(args.phase4_safe_events, non_object_error=NON_OBJECT_ERROR),
+        "synchronized first-byte barrier",
     )
     safe_event = one_safe_phase4_event(
         [write_eos_projection(args.phase4_projected_events_output, raw_safe_event)],

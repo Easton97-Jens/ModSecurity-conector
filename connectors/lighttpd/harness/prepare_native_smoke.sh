@@ -100,7 +100,8 @@ printf '%s\n' 'lighttpd phase-3 redirect header probe' > "$SMOKE_DIR/document-ro
 } > "$RUNTIME_CONFIG"
 
 escape_lighttpd_string() {
-    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+    input_value=$1
+    printf '%s' "$input_value" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
 DOCUMENT_ROOT_ESCAPED=$(escape_lighttpd_string "$SMOKE_DIR/document-root")

@@ -71,7 +71,13 @@ APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST="${APACHE_PHASE4_NESTED_ERROR_REDIRECT_
 APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST="${APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST:-0}"
 APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST:-0}"
 APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST:-0}"
+readonly PHASE4_FIRST_BYTE_PREFIX='first-byte-prefix'
+readonly PHASE4_TRANSACTION_REBIND_REFUSAL='request transaction cannot be safely rebound to the target URI'
 OPENSSL_BIN="${OPENSSL:-openssl}"
+readonly CURL_HTTP2_FEATURE_PATTERN='Features:.*HTTP2'
+readonly CURL_HTTP_STATUS_VERSION_FORMAT='%{http_code}\t%{http_version}\n'
+readonly AWK_FIRST_TAB_RECORD_STATUS='NR == 1 { print $1; exit }'
+readonly AWK_FIRST_TAB_RECORD_VERSION='NR == 1 { print $2; exit }'
 
 load_connector_adapter_metadata() {
     eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell apache --prefix CONNECTOR_ADAPTER)"
@@ -720,7 +726,7 @@ send_synchronized_first_byte_request() {
                 fail "bypass reproduction client failed after release rc=$client_rc"
             [ "$http_status" = "200" ] || \
                 fail "bypass reproduction expected status 200, observed $http_status"
-            grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+            grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 fail "bypass reproduction body omitted the pre-EOS prefix"
             grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 fail "bypass reproduction body omitted the Phase-4 marker"
@@ -743,7 +749,7 @@ send_synchronized_first_byte_request() {
             [ "$http_status" = "403" ] || \
                 fail "pre-commit deny expected status 403, observed $http_status"
             assert_single_h1_status 403
-            if grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+            if grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "pre-commit deny leaked original response bytes"
             fi
@@ -770,7 +776,7 @@ send_synchronized_first_byte_request() {
             [ "$http_status" = "403" ] || \
                 fail "custom-MIME pre-commit deny expected status 403, observed $http_status"
             assert_single_h1_status 403
-            if grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+            if grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "custom-MIME pre-commit deny leaked original response bytes"
             fi
@@ -793,7 +799,7 @@ send_synchronized_first_byte_request() {
             [ "$http_status" = "500" ] || \
                 fail "engine ProcessPartial failure expected status 500, observed $http_status"
             assert_single_h1_status 500
-            if grep -F 'first-byte-prefix' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+            if grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "engine ProcessPartial failure released an uninspected original response byte"
             fi
@@ -1275,7 +1281,7 @@ send_phase4_internal_redirect_request() {
             esac
             ;;
         h2)
-            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+            "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
                 blocked "curl lacks HTTP/2 support required for the Phase-4 internal redirect H2 test"
             : > "$RESPONSE_BODY"
             : > "$RESPONSE_HEADERS"
@@ -1283,15 +1289,15 @@ send_phase4_internal_redirect_request() {
             "$CURL_BIN" -sS -k --http2 --trace-ids \
                 --trace-ascii "$PHASE4_ROGUE_TRACE" \
                 -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
-                -w '%{http_code}\t%{http_version}\n' \
+                -w "$CURL_HTTP_STATUS_VERSION_FORMAT" \
                 "https://127.0.0.1:$PORT$redirect_request_uri" \
                 > "$PHASE4_ROGUE_TRANSFERS" \
                 2> "$LOG_DIR/phase4-internal-redirect-h2-client.err"
             curl_rc=$?
             set -e
-            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+            http_status=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_STATUS" \
                 "$PHASE4_ROGUE_TRANSFERS")
-            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+            http_version=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_VERSION" \
                 "$PHASE4_ROGUE_TRANSFERS")
             case "$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" in
                 abort|target_config_abort|uri_policy_abort|target_handler_abort)
@@ -1368,7 +1374,7 @@ send_phase4_internal_redirect_request() {
             if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 target configuration redirect abort leaked the marker body"
             fi
-            grep -F 'request transaction cannot be safely rebound to the target URI' \
+            grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
                 "$LOG_DIR/error.log" >/dev/null 2>&1 || \
                 fail "Phase-4 target configuration redirect lacks the transaction-rebind refusal"
             redirect_direct_rule_events_after=$(phase4_redirect_direct_rule_event_count \
@@ -1397,7 +1403,7 @@ send_phase4_internal_redirect_request() {
             if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 URI policy redirect abort leaked the marker body"
             fi
-            grep -F 'request transaction cannot be safely rebound to the target URI' \
+            grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
                 "$LOG_DIR/error.log" >/dev/null 2>&1 || \
                 fail "Phase-4 URI policy redirect lacks the transaction-rebind refusal"
             redirect_direct_rule_events_after=$(phase4_redirect_direct_rule_event_count \
@@ -1414,7 +1420,7 @@ send_phase4_internal_redirect_request() {
             if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 target-handler redirect abort leaked the marker body"
             fi
-            grep -F 'request transaction cannot be safely rebound to the target URI' \
+            grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
                 "$LOG_DIR/error.log" >/dev/null 2>&1 || \
                 fail "Phase-4 target-handler redirect lacks the transaction-rebind refusal"
             assert_phase4_internal_redirect_target_handler_was_not_run
@@ -1427,7 +1433,7 @@ send_phase4_internal_redirect_request() {
             if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 internal redirect abort leaked the marker body"
             fi
-            grep -F 'request transaction cannot be safely rebound to the target URI' \
+            grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
                 "$LOG_DIR/error.log" >/dev/null 2>&1 || \
                 fail "Phase-4 internal redirect abort lacks the transaction-rebind refusal"
             ;;
@@ -1455,7 +1461,7 @@ send_phase4_downstream_error_request() {
                 fail "Phase-4 downstream error H1 client failed rc=$curl_rc"
             ;;
         h2)
-            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+            "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
                 blocked "curl lacks HTTP/2 support required for the Phase-4 downstream error H2 test"
             : > "$RESPONSE_BODY"
             : > "$RESPONSE_HEADERS"
@@ -1463,7 +1469,7 @@ send_phase4_downstream_error_request() {
             "$CURL_BIN" -sS -k --http2 --trace-ids \
                 --trace-ascii "$PHASE4_ROGUE_TRACE" \
                 -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
-                -w '%{http_code}\t%{http_version}\n' \
+                -w "$CURL_HTTP_STATUS_VERSION_FORMAT" \
                 "https://127.0.0.1:$PORT/__phase4_downstream_error" \
                 > "$PHASE4_ROGUE_TRANSFERS" \
                 2> "$LOG_DIR/phase4-downstream-error-h2-client.err"
@@ -1471,9 +1477,9 @@ send_phase4_downstream_error_request() {
             set -e
             [ "$curl_rc" -eq 0 ] || \
                 fail "Phase-4 downstream error H2 client failed rc=$curl_rc"
-            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+            http_status=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_STATUS" \
                 "$PHASE4_ROGUE_TRANSFERS")
-            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+            http_version=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_VERSION" \
                 "$PHASE4_ROGUE_TRANSFERS")
             [ "$http_version" = "2" ] || \
                 fail "Phase-4 downstream error TLS client did not negotiate HTTP/2"
@@ -1531,7 +1537,7 @@ send_phase4_upstream_error_request() {
                 fail "Phase-4 upstream error H1 client failed rc=$curl_rc"
             ;;
         h2)
-            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+            "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
                 blocked "curl lacks HTTP/2 support required for the Phase-4 upstream error H2 test"
             : > "$RESPONSE_BODY"
             : > "$RESPONSE_HEADERS"
@@ -1539,7 +1545,7 @@ send_phase4_upstream_error_request() {
             "$CURL_BIN" -sS -k --http2 --trace-ids \
                 --trace-ascii "$PHASE4_ROGUE_TRACE" \
                 -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
-                -w '%{http_code}\t%{http_version}\n' \
+                -w "$CURL_HTTP_STATUS_VERSION_FORMAT" \
                 "https://127.0.0.1:$PORT/__phase4_upstream_error" \
                 > "$PHASE4_ROGUE_TRANSFERS" \
                 2> "$LOG_DIR/phase4-upstream-error-h2-client.err"
@@ -1547,9 +1553,9 @@ send_phase4_upstream_error_request() {
             set -e
             [ "$curl_rc" -eq 0 ] || \
                 fail "Phase-4 upstream error H2 client failed rc=$curl_rc"
-            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+            http_status=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_STATUS" \
                 "$PHASE4_ROGUE_TRANSFERS")
-            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+            http_version=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_VERSION" \
                 "$PHASE4_ROGUE_TRANSFERS")
             [ "$http_version" = "2" ] || \
                 fail "Phase-4 upstream error TLS client did not negotiate HTTP/2"
@@ -1611,7 +1617,7 @@ send_phase4_nested_error_document_redirect_request() {
     grep -F 'ModSecurity Phase4 nested ErrorDocument test issued a second internal redirect' \
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "nested ErrorDocument test handler did not issue its second redirect"
-    grep -F 'request transaction cannot be safely rebound to the target URI' \
+    grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "nested ErrorDocument redirect lacks the transaction-rebind refusal"
     assert_phase4_rogue_evidence
@@ -1638,7 +1644,7 @@ send_phase4_preoutput_error_document_request() {
             set -e
             ;;
         h2)
-            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+            "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
                 blocked "curl lacks HTTP/2 support required for the pre-output ErrorDocument H2 test"
             : > "$RESPONSE_BODY"
             : > "$RESPONSE_HEADERS"
@@ -1646,15 +1652,15 @@ send_phase4_preoutput_error_document_request() {
             "$CURL_BIN" -sS -k --http2 --trace-ids \
                 --trace-ascii "$PHASE4_ROGUE_TRACE" \
                 -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
-                -w '%{http_code}\t%{http_version}\n' \
+                -w "$CURL_HTTP_STATUS_VERSION_FORMAT" \
                 "https://127.0.0.1:$PORT/__phase4_preoutput_error" \
                 > "$PHASE4_ROGUE_TRANSFERS" \
                 2> "$LOG_DIR/phase4-preoutput-error-document-h2-client.err"
             curl_rc=$?
             set -e
-            http_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+            http_status=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_STATUS" \
                 "$PHASE4_ROGUE_TRANSFERS")
-            http_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+            http_version=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_VERSION" \
                 "$PHASE4_ROGUE_TRANSFERS")
             if [ "$curl_rc" -eq 0 ]; then
                 [ "$http_version" = "2" ] || \
@@ -1679,7 +1685,7 @@ send_phase4_preoutput_error_document_request() {
     grep -F 'ModSecurity Phase4 preoutput ErrorDocument test returned HTTP_NOT_FOUND before any response brigade' \
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "pre-output ErrorDocument test handler did not return HTTP_NOT_FOUND"
-    grep -F 'request transaction cannot be safely rebound to the target URI' \
+    grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "pre-output ErrorDocument redirect lacks the transaction-rebind refusal"
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
@@ -1802,7 +1808,7 @@ send_phase4_rogue_request() {
             printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
             ;;
         h2)
-            "$CURL_BIN" --version | grep -E 'Features:.*HTTP2' >/dev/null 2>&1 || \
+            "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
                 blocked "curl lacks HTTP/2 support required for the Phase-4 rogue H2 test"
             if [ "$APACHE_PHASE4_ROGUE_HEADER_MUTATION" = "1" ]; then
                 [ "$APACHE_PHASE4_ROGUE_EXPECT" = "allow" ] || \
@@ -1815,7 +1821,7 @@ send_phase4_rogue_request() {
                 "$CURL_BIN" -sS -k --http2 --trace-ids \
                     --trace-ascii "$PHASE4_ROGUE_TRACE" \
                     -D "$RESPONSE_HEADERS" -o "$RESPONSE_BODY" \
-                    -w '%{http_code}\t%{http_version}\n' \
+                    -w "$CURL_HTTP_STATUS_VERSION_FORMAT" \
                     "https://127.0.0.1:$PORT$rogue_path" \
                     > "$PHASE4_ROGUE_TRANSFERS" \
                     2> "$LOG_DIR/phase4-rogue-h2-client.err"
@@ -1823,9 +1829,9 @@ send_phase4_rogue_request() {
                 set -e
                 [ "$curl_rc" -eq 0 ] || \
                     fail "Phase-3 header-freeze H2 client failed rc=$curl_rc"
-                rogue_status=$(awk -F '\t' 'NR == 1 { print $1; exit }' \
+                rogue_status=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_STATUS" \
                     "$PHASE4_ROGUE_TRANSFERS")
-                rogue_version=$(awk -F '\t' 'NR == 1 { print $2; exit }' \
+                rogue_version=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_VERSION" \
                     "$PHASE4_ROGUE_TRANSFERS")
                 [ "$rogue_status" = "200" ] || \
                     fail "Phase-3 header-freeze H2 expected status 200, observed ${rogue_status:-missing}"

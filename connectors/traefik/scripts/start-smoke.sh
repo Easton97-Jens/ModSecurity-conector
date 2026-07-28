@@ -35,12 +35,14 @@ case "$START_ROOT" in
         echo "BLOCKED: TRAEFIK_CONNECTOR_START_ROOT is too broad: $START_ROOT" >&2
         exit 77
         ;;
+    *) ;;
 esac
 case "$START_ROOT" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
         echo "BLOCKED: start-smoke output must be outside the checkout: $START_ROOT" >&2
         exit 77
         ;;
+    *) ;;
 esac
 if [ -L "$START_ROOT" ]; then
     echo "BLOCKED: TRAEFIK_CONNECTOR_START_ROOT must not be a symlink: $START_ROOT" >&2
@@ -59,6 +61,7 @@ require_executable() {
             echo "BLOCKED: $label binary must not use a global system path: $executable" >&2
             exit 77
             ;;
+        *) ;;
     esac
     if [ ! -x "$executable" ]; then
         echo "BLOCKED: $label binary is not executable: $executable" >&2
@@ -75,6 +78,7 @@ require_loopback_address() {
     esac
     case "$port" in
         ''|*[!0-9]*) echo "BLOCKED: $label has an invalid port: $address" >&2; exit 77 ;;
+        *) ;;
     esac
 }
 
@@ -105,6 +109,8 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+TRAEFIK_DIAGNOSTIC_SED_RANGE='1,160p'
+
 rm -rf "$START_ROOT"
 mkdir -p "$START_ROOT"
 sed \
@@ -118,7 +124,7 @@ sed \
 ) >"$CONFIG_STDOUT" 2>"$CONFIG_STDERR" || {
     rc=$?
     echo "FAIL: Traefik connector config check failed (rc=$rc)" >&2
-    sed -n '1,160p' "$CONFIG_STDERR" >&2
+    sed -n "$TRAEFIK_DIAGNOSTIC_SED_RANGE" "$CONFIG_STDERR" >&2
     exit "$rc"
 }
 
@@ -149,14 +155,14 @@ while [ "$attempt" -lt 20 ]; do
         wait "$service_pid" || rc=$?
         rc=${rc:-1}
         echo "FAIL: Traefik forwardAuth service exited during start smoke (rc=$rc)" >&2
-        sed -n '1,160p' "$SERVICE_STDERR" >&2
+        sed -n "$TRAEFIK_DIAGNOSTIC_SED_RANGE" "$SERVICE_STDERR" >&2
         exit "$rc"
     fi
     if ! kill -0 "$traefik_pid" 2>/dev/null; then
         wait "$traefik_pid" || rc=$?
         rc=${rc:-1}
         echo "FAIL: Traefik exited during start smoke (rc=$rc)" >&2
-        sed -n '1,160p' "$TRAEFIK_STDERR" >&2
+        sed -n "$TRAEFIK_DIAGNOSTIC_SED_RANGE" "$TRAEFIK_STDERR" >&2
         exit "$rc"
     fi
     attempt=$((attempt + 1))
@@ -165,7 +171,7 @@ done
 
 if [ -s "$TRAEFIK_STDERR" ]; then
     echo "FAIL: Traefik reported a configuration/start error" >&2
-    sed -n '1,160p' "$TRAEFIK_STDERR" >&2
+    sed -n "$TRAEFIK_DIAGNOSTIC_SED_RANGE" "$TRAEFIK_STDERR" >&2
     exit 1
 fi
 

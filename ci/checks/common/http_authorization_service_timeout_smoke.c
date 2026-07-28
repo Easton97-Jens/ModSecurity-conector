@@ -557,6 +557,81 @@ static int rejects_unbounded_timeout_override(void) {
     return msconnector_http_authorization_service_main(9, argv, &smoke_profile) == 2;
 }
 
+static int rejects_missing_option_values(void) {
+    char *missing_config[] = {
+        "timeout-smoke-service",
+        "--serve",
+        "--config",
+        NULL,
+    };
+    char *missing_listen[] = {
+        "timeout-smoke-service",
+        "--serve",
+        "--config",
+        "timeout-smoke.conf",
+        "--listen",
+        NULL,
+    };
+    char *missing_max_requests[] = {
+        "timeout-smoke-service",
+        "--serve",
+        "--config",
+        "timeout-smoke.conf",
+        "--listen",
+        "127.0.0.1:18000",
+        "--max-requests",
+        NULL,
+    };
+    char *missing_timeout[] = {
+        "timeout-smoke-service",
+        "--serve",
+        "--config",
+        "timeout-smoke.conf",
+        "--listen",
+        "127.0.0.1:18000",
+        "--connection-timeout-ms",
+        NULL,
+    };
+
+    return msconnector_http_authorization_service_main(3, missing_config,
+               &smoke_profile) == 2 &&
+        msconnector_http_authorization_service_main(5, missing_listen,
+               &smoke_profile) == 2 &&
+        msconnector_http_authorization_service_main(7, missing_max_requests,
+               &smoke_profile) == 2 &&
+        msconnector_http_authorization_service_main(7, missing_timeout,
+               &smoke_profile) == 2;
+}
+
+static int rejects_unknown_or_invalid_option_values(void) {
+    char *unknown_option[] = {
+        "timeout-smoke-service",
+        "--serve",
+        "--config",
+        "timeout-smoke.conf",
+        "--listen",
+        "127.0.0.1:18000",
+        "--unknown",
+        NULL,
+    };
+    char *invalid_max_requests[] = {
+        "timeout-smoke-service",
+        "--serve",
+        "--config",
+        "timeout-smoke.conf",
+        "--listen",
+        "127.0.0.1:18000",
+        "--max-requests",
+        "not-a-number",
+        NULL,
+    };
+
+    return msconnector_http_authorization_service_main(7, unknown_option,
+               &smoke_profile) == 2 &&
+        msconnector_http_authorization_service_main(8, invalid_max_requests,
+               &smoke_profile) == 2;
+}
+
 int main(void) {
     const char incomplete_headers[] =
         "GET /stall HTTP/1.1\r\nHost: slow.example\r\n";
@@ -566,6 +641,14 @@ int main(void) {
     (void)signal(SIGPIPE, SIG_IGN);
     if (!rejects_unbounded_timeout_override()) {
         (void)fprintf(stderr, "timeout override of zero was unexpectedly accepted\n");
+        return 1;
+    }
+    if (!rejects_missing_option_values()) {
+        (void)fprintf(stderr, "missing option value was unexpectedly accepted\n");
+        return 1;
+    }
+    if (!rejects_unknown_or_invalid_option_values()) {
+        (void)fprintf(stderr, "invalid option was unexpectedly accepted\n");
         return 1;
     }
     if (!run_stalled_request_case("incomplete_headers", incomplete_headers) ||

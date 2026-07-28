@@ -530,19 +530,9 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         return ngx_http_next_header_filter(r);
     }
 
-    {
-        msconnector_response_mapper_contract contract;
-        msconnector_response mapped_response;
-        char mapper_error[128];
-
-        msconnector_response_mapper_contract_init(&contract);
-        if (!ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,
-                &mapped_response, mapper_error, sizeof(mapper_error))) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                "modsecurity common response mapper validation skipped: %s", mapper_error);
-        }
-        ctx->common_response_validated = 1;
-    }
+    ngx_http_modsecurity_validate_response_mapper(ctx, r,
+        NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_HEADER);
+    ctx->common_response_validated = 1;
 
 /* XXX: can it happen ?  already processed i mean */
 /* XXX: check behaviour on 'ModSecurity off' */
@@ -652,25 +642,8 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         return ngx_http_filter_finalize_request(r, &ngx_http_modsecurity_module, ret);
     }
 
-    /*
-     * Proxies will not like this... but it is necessary to unset
-     * the content length in order to manipulate the content of
-     * response body in ModSecurity.
-     *
-     * This header may arrive at the client before ModSecurity had
-     * a change to make any modification. That is why it is necessary
-     * to set this to -1 here.
-     *
-     * We need to have some kind of flag the decide if ModSecurity
-     * will make a modification or not. If not, keep the content and
-     * make the proxy servers happy.
-     *
-     */
-
-    /*
-     * The line below is commented to make the spdy test to work
-     */
-     //r->headers_out.content_length_n = -1;
+    /* Preserve the upstream Content-Length; this filter does not rewrite
+     * response framing. */
 
     return ngx_http_next_header_filter(r);
 }

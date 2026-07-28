@@ -111,6 +111,7 @@ NGINX_PHASE4_LOG_ONLY_CASES = {
     "nginx_phase4_minimal_log_only": "910001",
     "nginx_phase4_safe_log_only": "910002",
 }
+NGINX_FORCE_ALL_SUMMARY_FILE = "nginx-summary.json"
 CRS_SQLI_WITH_MRTS_DETECTION_ONLY_CASE = "crs_sqli_anomaly_block"
 CRS_SQLI_WITH_MRTS_RULE_IDS = {"942100", "942190", "942270", "942360", "949110"}
 CRS_SQLI_WITH_MRTS_DETECTION_ONLY_NOTE = (
@@ -560,39 +561,38 @@ def secaction_rule_loaded(smoke_rules_file: Path) -> bool:
     )
 
 
+def _no_mrts_control_identity(
+    *,
+    build_root: Path,
+    connector: str,
+    variant: str,
+) -> tuple[str, Path] | None:
+    if "/" not in variant or connector not in {"apache", "haproxy", "nginx"}:
+        return None
+    crs, _mrts = variant.split("/", 1)
+    control_root = build_root / "full-matrix" / crs / "no-mrts" / connector
+    return crs, control_root
+
+
 def no_mrts_control_evidence(
     row: dict[str, Any],
     *,
     build_root: Path,
 ) -> dict[str, str] | None:
     connector = str(row.get("connector") or "")
-    variant = str(row.get("variant") or "")
-    if "/" not in variant:
+    identity = _no_mrts_control_identity(
+        build_root=build_root,
+        connector=connector,
+        variant=str(row.get("variant") or ""),
+    )
+    if identity is None:
         return None
-    crs, _mrts = variant.split("/", 1)
-    patterns = {
-        "apache": build_root
-        / "full-matrix"
-        / crs
-        / "no-mrts"
-        / "apache"
-        / "logs"
-        / "apache-runtime"
-        / SECACTION_DETECTION_ONLY_CASE
-        / "result.json",
-        "haproxy": build_root
-        / "full-matrix"
-        / crs
-        / "no-mrts"
-        / "haproxy"
-        / "logs"
-        / "haproxy-runtime"
-        / SECACTION_DETECTION_ONLY_CASE
-        / "result.json",
-    }
-    result_path = patterns.get(connector)
+    crs, control_root = identity
+    result_path: Path | None = None
+    if connector in {"apache", "haproxy"}:
+        result_path = control_root / "logs" / f"{connector}-runtime" / SECACTION_DETECTION_ONLY_CASE / "result.json"
     if connector == "nginx":
-        summary_path = build_root / "full-matrix" / crs / "no-mrts" / "nginx" / "results" / "force-all" / "nginx-summary.json"
+        summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
         summary = read_json(summary_path)
         for item in walk_dicts(summary):
             if str(item.get("name") or item.get("case") or "") != SECACTION_DETECTION_ONLY_CASE:
@@ -628,37 +628,19 @@ def no_mrts_case_control_evidence(
     case_name: str,
 ) -> dict[str, str] | None:
     connector = str(row.get("connector") or "")
-    variant = str(row.get("variant") or "")
-    if "/" not in variant:
+    identity = _no_mrts_control_identity(
+        build_root=build_root,
+        connector=connector,
+        variant=str(row.get("variant") or ""),
+    )
+    if identity is None:
         return None
-    crs, _mrts = variant.split("/", 1)
+    crs, control_root = identity
     result_path: Path | None = None
-    if connector == "apache":
-        result_path = (
-            build_root
-            / "full-matrix"
-            / crs
-            / "no-mrts"
-            / "apache"
-            / "logs"
-            / "apache-runtime"
-            / case_name
-            / "result.json"
-        )
-    elif connector == "haproxy":
-        result_path = (
-            build_root
-            / "full-matrix"
-            / crs
-            / "no-mrts"
-            / "haproxy"
-            / "logs"
-            / "haproxy-runtime"
-            / case_name
-            / "result.json"
-        )
+    if connector in {"apache", "haproxy"}:
+        result_path = control_root / "logs" / f"{connector}-runtime" / case_name / "result.json"
     elif connector == "nginx":
-        summary_path = build_root / "full-matrix" / crs / "no-mrts" / "nginx" / "results" / "force-all" / "nginx-summary.json"
+        summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
         summary = read_json(summary_path)
         for item in walk_dicts(summary):
             if str(item.get("name") or item.get("case") or "") != case_name:
@@ -745,11 +727,15 @@ def nginx_no_mrts_phase4_log_control(
     *,
     build_root: Path,
 ) -> dict[str, str] | None:
-    variant = str(row.get("variant") or "")
-    if "/" not in variant:
+    identity = _no_mrts_control_identity(
+        build_root=build_root,
+        connector="nginx",
+        variant=str(row.get("variant") or ""),
+    )
+    if identity is None:
         return None
-    crs, _mrts = variant.split("/", 1)
-    summary_path = build_root / "full-matrix" / crs / "no-mrts" / "nginx" / "results" / "force-all" / "nginx-summary.json"
+    crs, control_root = identity
+    summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
     summary = read_json(summary_path)
     cases = summary.get("nginx", {}).get("cases")
     if isinstance(cases, dict):
@@ -2258,6 +2244,23 @@ def dedupe_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(deduped.values(), key=lambda item: (item["connector"], item["variant"], item["case"], item["source_scope"]))
 
 
+def full_runtime_status(
+    full: dict[str, Any],
+    manifest_rows: list[dict[str, Any]],
+    full_complete: bool,
+) -> str:
+    recorded_status: Any = full.get("runtime_status")
+    if recorded_status:
+        return str(recorded_status)
+    if full_complete:
+        if any(row.get("return_code") not in {0, None} for row in manifest_rows):
+            return "runtime_completed_with_mismatches"
+        return "runtime_completed"
+    if full.get("classification") == "blocked_timeout":
+        return "runtime_timeout"
+    return "not_run"
+
+
 def command_summary(commands: list[dict[str, Any]], manifest_rows: list[dict[str, Any]], profile: str) -> dict[str, Any]:
     full = command_for(commands, "full-matrix-parallel")
     runtime = command_for(commands, "runtime-matrix-all")
@@ -2268,16 +2271,12 @@ def command_summary(commands: list[dict[str, Any]], manifest_rows: list[dict[str
     if expected_jobs and len(manifest_rows) >= expected_jobs:
         full_runtime_complete = True
     full_complete = full_runtime_complete
-    full_runtime_status = str(
-        full.get("runtime_status")
-        or ("runtime_completed_with_mismatches" if full_complete and any(row.get("return_code") not in {0, None} for row in manifest_rows) else "")
-        or ("runtime_completed" if full_complete else "runtime_timeout" if full.get("classification") == "blocked_timeout" else "not_run")
-    )
+    runtime_status = full_runtime_status(full, manifest_rows, full_complete)
     return {
         "runtime_matrix_all": runtime,
         "full_matrix_parallel": full,
         "full_matrix_complete": full_complete,
-        "full_matrix_runtime_status": full_runtime_status,
+        "full_matrix_runtime_status": runtime_status,
         "full_matrix_expected_jobs": expected_jobs,
         "full_matrix_completed_jobs": len(manifest_rows),
         "full_matrix_job_statuses": [
@@ -2507,13 +2506,35 @@ def main() -> int:
     by_classification = Counter(row["classification"] for row in mismatches)
     top_cases = Counter(row["case"] for row in mismatches).most_common(50)
     critical_count = sum(1 for row in mismatches if row["classification"] in CRITICAL_CATEGORIES)
+    if profile == "smoke":
+        evidence_scope = "smoke-only"
+    elif command_state["full_matrix_complete"]:
+        evidence_scope = "full"
+    else:
+        evidence_scope = "partial"
+    if profile == "smoke":
+        merge_readiness = "UNKNOWN"
+    elif not command_state["full_matrix_complete"]:
+        merge_readiness = "UNKNOWN"
+    elif critical_count:
+        merge_readiness = "FAIL"
+    else:
+        merge_readiness = "PASS"
+    if profile == "smoke":
+        merge_readiness_reason = "not a full verified matrix run"
+    elif not command_state["full_matrix_complete"]:
+        merge_readiness_reason = "full matrix runtime incomplete"
+    elif critical_count:
+        merge_readiness_reason = "critical mismatches present"
+    else:
+        merge_readiness_reason = "no critical runtime mismatches"
     payload = {
         "verified_run_id": verified_run_id,
         "data_source_policy": DATA_SOURCE_POLICY,
         "generated_at": utc_now(),
-        "evidence_scope": "smoke-only" if profile == "smoke" else "full" if command_state["full_matrix_complete"] else "partial",
-        "merge_readiness": "UNKNOWN" if profile == "smoke" else "UNKNOWN" if not command_state["full_matrix_complete"] else "FAIL" if critical_count else "PASS",
-        "merge_readiness_reason": "not a full verified matrix run" if profile == "smoke" else "full matrix runtime incomplete" if not command_state["full_matrix_complete"] else "critical mismatches present" if critical_count else "no critical runtime mismatches",
+        "evidence_scope": evidence_scope,
+        "merge_readiness": merge_readiness,
+        "merge_readiness_reason": merge_readiness_reason,
         "inputs": input_records_for_sources(
             commands_file=commands_file,
             manifest_path=manifest_path,

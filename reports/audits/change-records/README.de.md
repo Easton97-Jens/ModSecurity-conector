@@ -7,6 +7,50 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-NGINX-Response-Mapper-Validation-Tail-Deduplizierungskandidat (36 Parent-Duplikatzeilen)](CR-20260728-sonar-nginx-response-mapper-duplication.de.md)
+  — lokale Source-Contract- und eingeschränkte Whitespace-Validierung
+  bestanden; der exakte C17-Control ist wegen fehlender NGINX-Header/Source
+  blocked_external_dependency (Script-Exit 77, make-Exit 2), und es werden
+  keine Host-Runtime, kein Commit, Push, PR oder gehosteter Abschluss
+  behauptet.
+- [Parent-Traefik-Start-Smoke-Diagnostikliteral-Bereinigung für SonarQube Cloud S1192](CR-20260728-sonar-traefik-start-smoke-literal.de.md)
+- [Parent-Apache-Phase-4-Control-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-apache-phase4-literals.de.md)
+- [Parent-Apache-H2-Transport-Result-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-apache-h2-transport-s1192.de.md)
+- [Parent-Envoy-Lifecycle-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-s1192-envoy-lifecycle.de.md)
+- [Parent-Common-Event-Provenance-Short-Circuit-Refaktorierung für SonarQube Cloud c:S1066](CR-20260728-sonar-common-event-s1066.de.md)
+- [Parent-HTTP-Authorization-CLI-Schleifensteuerung für SonarQube Cloud c:S5955, c:S886 und c:S3776](CR-20260728-sonar-http-authorization-cli-scope.de.md)
+- [Traefik-Resultat-Optionaltext-Nullability-Remediation für SonarQube Cloud](CR-20260728-sonar-traefik-result-nullability.de.md)
+- [Parent-`tools/MRTS`-Literalextraktion und direkte Git-Fixture-Abdeckung für SonarQube Cloud S1192](CR-20260728-sonar-bilingual-tools-mrts-s1192.de.md)
+- [Parent-HAProxy-HTX-Diagnosebereichsliteral für SonarQube Cloud shelldre:S1192](CR-20260728-sonar-haproxy-htx-diagnostic-s1192.de.md)
+- [Parent-HAProxy-Append-String-Preflight für SonarQube Cloud c:S3519](CR-20260727-sonar-haproxy-append-string-s3519.de.md)
+- [Parent-Common-Refaktorierung doppelter Error-Mappings](CR-20260727-sonar-common-error-duplication.de.md)
+- [Parent-NGINX-Event-Metadaten- und JSONL-Writer-Deduplizierung: Second-Head-Quality-Gate und lokales S1192-Follow-up](CR-20260727-sonar-nginx-event-metadata-duplication.de.md)
+- [Parent-Report-Generator-Conditionals und Access-Log-Regex für SonarQube Cloud](CR-20260727-sonar-report-conditionals-regex.de.md)
+- [Parent-Python-Generator-Conditionals für SonarQube Cloud python:S3358](CR-20260727-sonar-generator-conditionals.de.md)
+- [Parent-Zerlegung des Generated-Report-Layouts für SonarQube Cloud](CR-20260728-sonar-generated-report-layout-decomposition.de.md)
+- [Parent-Runtime-Mismatch-Control-Path-Deduplizierung für SonarQube Cloud](CR-20260728-sonar-runtime-mismatch-control-path-deduplication.de.md)
+- [Parent-Lighttpd-Lifecycle-Literal-Deduplizierung für SonarQube Cloud](CR-20260728-sonar-lighttpd-lifecycle-literals.de.md)
+- [Parent-Repository-Inventar-Komplexitätsbehebung für SonarQube Cloud S3776](CR-20260727-sonar-s3776-repository-inventory.de.md)
+- [Parent-Shell-Dispatch-Rule-Remediation für SonarQube Cloud S131 und S7679](CR-20260727-sonar-shell-dispatch-rules.de.md)
+Der führende Eintrag dokumentiert das SonarQube-Cloud-Ergebnis des initialen
+exakten Heads von Draft PR #131—Quality Gate `OK` mit keiner neuen
+Duplizierung und einem task-owned `python:S3358`—seine lokale normale
+Korrektur der verschachtelten Bedingung sowie das Fehlen einer Remote-Analyse
+nach der Korrektur oder eines Merge.
+
+- [Parent-Connector-Config-Reference-Literal-Deduplizierung und SonarQube-Cloud-S3358-Follow-up](CR-20260727-sonar-config-reference-literal-deduplication.de.md)
+- [Parent-Compiler-Guide-Literal-Deduplizierung für SonarQube Cloud S1192](CR-20260727-sonar-compiler-guides-literal-deduplication.de.md)
+- [Parent-Test-Assertion-Order-Remediation für SonarQube Cloud S3415](CR-20260727-sonar-s3415-parent-test-assertions.de.md)
+- [Parent-Testfixture-Duplikatreduzierung für SonarQube Cloud](CR-20260727-sonar-parent-test-duplication.de.md)
+- [Parent-Focused-Report-Hilfsduplikatreduzierung für SonarQube Cloud](CR-20260727-sonar-focused-report-utility-duplication.de.md)
+- [Parent-Response-Header-Fixture-Containment für SonarQube Cloud S8707](CR-20260727-sonar-response-header-fixture-containment.de.md)
+- [Parent-Apache/NGINX-Bereinigung auskommentierten Codes für SonarQube Cloud C:S125](CR-20260727-sonar-c-commented-code-cleanup.de.md)
+- [Parent-HAProxy-Accept-Loop-Fehlerpfadbereinigung für SonarQube Cloud C:S134](CR-20260727-sonar-haproxy-accept-loop-s134.de.md)
+- [Parent-Bilingual-Dokumentationschecker-PR-Template-Literalextraktion und Erhalt der Diagnose-Reihenfolge für SonarQube Cloud S1192 und S3776](CR-20260727-sonar-bilingual-doc-checker.de.md)
+- [Parent-Lighttpd-Harness-JSONL-Validierungs-Deduplizierungskandidat](CR-20260727-sonar-lighttpd-harness-duplication.de.md)
+  — lokale Source-, Lifecycle-Contract-, Dokumentations- und
+  Whitespace-Validierung `passed`; `Draft` Delivery steht aus.
+- [Traefik-UDS-Header-Serialisierungs-Deduplizierung für SonarQube Cloud](CR-20260728-sonar-traefik-uds-header-serialization-duplication.de.md)
 - [Parent-PR #128 Rest-SonarQube-Cloud- und Workflow-Remediation](CR-20260727-sonar-pr128-residual-remediation.de.md)
 - [Parent-Apache-Output-Filter-Status-Shadowing für SonarQube Cloud C:S1117](CR-20260727-sonar-apache-output-filter-status-shadowing.de.md)
 - [Parent-Compiler-Guide-Metadatenliterale für SonarQube Cloud S1192](CR-20260727-sonar-compiler-guide-metadata-literals.de.md)

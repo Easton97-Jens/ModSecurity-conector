@@ -41,6 +41,8 @@ SERVER_PID=
 FIXTURE_PID=
 BARRIER_PID=
 BARRIER_RELEASE_FILE=
+HTTP_STATUS_FORMAT='%{http_code}'
+DIAGNOSTIC_LINES='1,200p'
 
 blocked() {
     reason=$1
@@ -49,7 +51,8 @@ blocked() {
 }
 
 fail() {
-    printf 'lighttpd_patched_full_lifecycle: FAIL %s\n' "$1" >&2
+    reason=$1
+    printf 'lighttpd_patched_full_lifecycle: FAIL %s\n' "$reason" >&2
     exit 1
 }
 
@@ -94,7 +97,8 @@ wait_for_file() {
 }
 
 ready_port() {
-    "$PYTHON_BIN" - "$1" <<'PY'
+    metadata_path=$1
+    "$PYTHON_BIN" - "$metadata_path" <<'PY'
 import json
 import sys
 
@@ -207,7 +211,7 @@ MODULE_DIR=$(dirname "$MODULE_PATH")
 if ! "$CORE_BIN" -m "$MODULE_DIR" -tt -f "$LIGHTTPD_CONFIG" \
     >"$SMOKE_DIR/runtime-config-check.stdout" \
     2>"$SMOKE_DIR/runtime-config-check.stderr"; then
-    sed -n '1,200p' "$SMOKE_DIR/runtime-config-check.stderr" >&2
+    sed -n "$DIAGNOSTIC_LINES" "$SMOKE_DIR/runtime-config-check.stderr" >&2
     fail "config-load"
 fi
 
@@ -225,31 +229,31 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
     sleep 1
 done
 [ "$server_ready" -eq 1 ] || {
-    sed -n '1,200p' "$SERVER_STDERR" >&2
+    sed -n "$DIAGNOSTIC_LINES" "$SERVER_STDERR" >&2
     fail "process did not become ready"
 }
 kill -0 "$SERVER_PID" 2>/dev/null || {
-    sed -n '1,200p' "$SERVER_STDERR" >&2
+    sed -n "$DIAGNOSTIC_LINES" "$SERVER_STDERR" >&2
     fail "process did not remain alive"
 }
 
 base_url=http://127.0.0.1:$SMOKE_PORT/
-allow_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+allow_status=$(curl --silent --show-error --output /dev/null --write-out "$HTTP_STATUS_FORMAT" \
     --request OPTIONS --request-target '*' \
     --header 'X-Modsec-Transaction-Id: lighttpd-p1-allow' "$base_url")
-deny_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+deny_status=$(curl --silent --show-error --output /dev/null --write-out "$HTTP_STATUS_FORMAT" \
     --request OPTIONS --request-target '*' \
     --header 'X-Modsec-Smoke: block' \
     --header 'X-Modsec-Transaction-Id: lighttpd-p1-deny' "$base_url")
-alternative_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+alternative_status=$(curl --silent --show-error --output /dev/null --write-out "$HTTP_STATUS_FORMAT" \
     --request OPTIONS --request-target '*' \
     --header 'X-Modsec-Smoke: alternative-status' \
     --header 'X-Modsec-Transaction-Id: lighttpd-p1-alternative' "$base_url")
-request_body_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+request_body_status=$(curl --silent --show-error --output /dev/null --write-out "$HTTP_STATUS_FORMAT" \
     --request OPTIONS --request-target '*' --data-binary 'no-crs-request-body-marker' \
     --header 'Content-Type: text/plain' \
     --header 'X-Modsec-Transaction-Id: lighttpd-p2-deny' "$base_url")
-response_header_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+response_header_status=$(curl --silent --show-error --output /dev/null --write-out "$HTTP_STATUS_FORMAT" \
     --request OPTIONS \
     --header 'X-Modsec-Transaction-Id: lighttpd-p3-deny' \
     "http://127.0.0.1:$SMOKE_PORT/phase3-block")
@@ -262,7 +266,7 @@ response_header_status=$(curl --silent --show-error --output /dev/null --write-o
 
 content_length_cursor=$(event_cursor)
 content_length_status=$(curl --http1.1 --silent --show-error --no-buffer \
-    --dump-header "$FIXTURE_DIR/content-length.headers" --output /dev/null --write-out '%{http_code}' \
+    --dump-header "$FIXTURE_DIR/content-length.headers" --output /dev/null --write-out "$HTTP_STATUS_FORMAT" \
     --header 'X-Modsec-Transaction-Id: lighttpd-p4-content-length' \
     "http://127.0.0.1:$SMOKE_PORT/p4/fixture/content-length")
 snapshot_events "$content_length_cursor" "$P4_CONTENT_LENGTH_EVENTS"
@@ -275,7 +279,7 @@ fi
 
 chunked_cursor=$(event_cursor)
 chunked_status=$(curl --http1.1 --silent --show-error --no-buffer \
-    --dump-header "$FIXTURE_DIR/chunked.headers" --output /dev/null --write-out '%{http_code}' \
+    --dump-header "$FIXTURE_DIR/chunked.headers" --output /dev/null --write-out "$HTTP_STATUS_FORMAT" \
     --header 'X-Modsec-Transaction-Id: lighttpd-p4-chunked' \
     "http://127.0.0.1:$SMOKE_PORT/p4/fixture/chunked")
 snapshot_events "$chunked_cursor" "$P4_CHUNKED_EVENTS"
@@ -284,7 +288,7 @@ grep -Eqi '^Transfer-Encoding:[[:space:]]*chunked' "$FIXTURE_DIR/chunked.headers
     fail "chunked entity response lost its chunked boundary"
 
 if ! wait "$FIXTURE_PID"; then
-    sed -n '1,200p' "$FIXTURE_DIR/upstream.stderr" >&2
+    sed -n "$DIAGNOSTIC_LINES" "$FIXTURE_DIR/upstream.stderr" >&2
     fail "HTTP/1.1 entity fixture failed"
 fi
 FIXTURE_PID=
@@ -292,7 +296,7 @@ FIXTURE_PID=
 barrier_cursor=$(event_cursor)
 : > "$FIRST_BYTE_DIR/client-body.bin"
 curl --http1.1 --silent --show-error --no-buffer --output "$FIRST_BYTE_DIR/client-body.bin" \
-    --write-out '%{http_code}' \
+    --write-out "$HTTP_STATUS_FORMAT" \
     --header 'X-Modsec-Transaction-Id: lighttpd-p4-barrier' \
     "http://127.0.0.1:$SMOKE_PORT/p4/barrier/first-byte" \
     >"$FIRST_BYTE_DIR/client-status.txt" 2>"$FIRST_BYTE_DIR/client.stderr" &
@@ -334,7 +338,7 @@ snapshot_events "$barrier_cursor" "$P4_BARRIER_EVENTS"
     fail "could not write payload-free synchronized first-byte evidence"
 rm -f "$FIRST_BYTE_DIR/client-body.bin"
 if ! wait "$BARRIER_PID"; then
-    sed -n '1,200p' "$FIRST_BYTE_DIR/upstream.stderr" >&2
+    sed -n "$DIAGNOSTIC_LINES" "$FIRST_BYTE_DIR/upstream.stderr" >&2
     fail "synchronized upstream failed"
 fi
 BARRIER_PID=
@@ -362,7 +366,7 @@ if grep -Fq '"status": "FAIL"' "$RESULTS_PATH"; then
     fail "a host-confirmed case result did not match"
 fi
 if grep -Eq 'msconnector (request-body|response-body) finalization failed|host-action event was not recorded' "$ERROR_LOG"; then
-    sed -n '1,200p' "$ERROR_LOG" >&2
+    sed -n "$DIAGNOSTIC_LINES" "$ERROR_LOG" >&2
     fail "runtime lifecycle error"
 fi
 

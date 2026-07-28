@@ -28,6 +28,7 @@ case "$(CDPATH= cd "$BUILD_ROOT" 2>/dev/null && pwd 2>/dev/null || printf '%s' "
         echo "common_helper_smoke: BUILD_ROOT must not be inside the checkout: $BUILD_ROOT"
         exit 77
         ;;
+    *) ;;
 esac
 
 command -v "$CC_BIN" >/dev/null 2>&1 || {
@@ -99,6 +100,7 @@ cat > "$SMOKE_C" <<'EOF'
 #include "msconnector/generic_mapper.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <string.h>
 
 typedef struct fake_backend_state {
@@ -304,6 +306,90 @@ static int fake_adapter_phase(void *userdata, msconnector_transaction_view *tx, 
     return 1;
 }
 
+typedef struct error_expectation {
+    msconnector_error_code code;
+    const char *name;
+    const char *default_message;
+    enum msconnector_status status;
+    int http_status;
+    int fatal;
+    const char *event_message_id;
+    const char *event_level;
+} error_expectation;
+
+static const error_expectation error_expectations[] = {
+    {MSCONNECTOR_ERROR_NONE, "none", "No error", MSCONNECTOR_STATUS_OK, 0, 0, 0, 0},
+    {MSCONNECTOR_ERROR_INVALID_CONFIG, "invalid_config", "Invalid connector configuration", MSCONNECTOR_STATUS_ERROR, 500, 1, MSCONN_EVENT_CONFIG_ERROR, "error"},
+    {MSCONNECTOR_ERROR_RULE_PARSE_FAILED, "rule_parse_failed", "ModSecurity rule parsing failed", MSCONNECTOR_STATUS_ERROR, 500, 1, MSCONN_EVENT_RULE_PARSE_ERROR, "error"},
+    {MSCONNECTOR_ERROR_RULE_LOAD_FAILED, "rule_load_failed", "ModSecurity rule loading failed", MSCONNECTOR_STATUS_ERROR, 500, 1, MSCONN_EVENT_INTERNAL_ERROR, "error"},
+    {MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE, "runtime_unavailable", "Runtime is unavailable", MSCONNECTOR_STATUS_ERROR, 503, 1, MSCONN_EVENT_INTERNAL_ERROR, "error"},
+    {MSCONNECTOR_ERROR_UNSUPPORTED_PHASE, "unsupported_phase", "Unsupported transaction phase", MSCONNECTOR_STATUS_UNSUPPORTED, 501, 0, MSCONN_EVENT_UNSUPPORTED_CAPABILITY, "warn"},
+    {MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY, "unsupported_capability", "Requested capability is not implemented", MSCONNECTOR_STATUS_UNSUPPORTED, 501, 0, MSCONN_EVENT_UNSUPPORTED_CAPABILITY, "warn"},
+    {MSCONNECTOR_ERROR_BODY_TOO_LARGE, "body_too_large", "Body is too large", MSCONNECTOR_STATUS_ERROR, 413, 0, MSCONN_EVENT_INTERNAL_ERROR, "error"},
+    {MSCONNECTOR_ERROR_HEADER_TOO_LARGE, "header_too_large", "Header data is too large", MSCONNECTOR_STATUS_ERROR, 413, 0, MSCONN_EVENT_INTERNAL_ERROR, "error"},
+    {MSCONNECTOR_ERROR_EVENT_TOO_LARGE, "event_too_large", "Event JSON is too large", MSCONNECTOR_STATUS_ERROR, 413, 0, MSCONN_EVENT_INTERNAL_ERROR, "error"},
+    {MSCONNECTOR_ERROR_LOG_MESSAGE_TOO_LARGE, "log_message_too_large", "Log message is too large", MSCONNECTOR_STATUS_ERROR, 413, 0, MSCONN_EVENT_INTERNAL_ERROR, "error"},
+    {MSCONNECTOR_ERROR_HOST_API_FAILURE, "host_api_failure", "Host API failure", MSCONNECTOR_STATUS_ERROR, 500, 1, MSCONN_EVENT_INTERNAL_ERROR, "error"},
+    {MSCONNECTOR_ERROR_MODSECURITY_FAILURE, "modsecurity_failure", "ModSecurity failure", MSCONNECTOR_STATUS_ERROR, 500, 1, MSCONN_EVENT_INTERNAL_ERROR, "error"},
+    {MSCONNECTOR_ERROR_TIMEOUT, "timeout", "Operation timed out", MSCONNECTOR_STATUS_ERROR, 504, 1, MSCONN_EVENT_INTERNAL_ERROR, "error"},
+    {MSCONNECTOR_ERROR_IO, "io", "I/O error", MSCONNECTOR_STATUS_ERROR, 500, 1, MSCONN_EVENT_INTERNAL_ERROR, "error"},
+    {MSCONNECTOR_ERROR_INTERNAL, "internal", "Internal connector error", MSCONNECTOR_STATUS_ERROR, 500, 1, MSCONN_EVENT_INTERNAL_ERROR, "error"}
+};
+
+static void assert_error_contract(void) {
+    size_t index;
+
+    for (index = 0U; index < sizeof(error_expectations) / sizeof(error_expectations[0]); ++index) {
+        const error_expectation *expected = &error_expectations[index];
+        msconnector_error error;
+        msconnector_event event;
+
+        assert(strcmp(msconnector_error_code_name(expected->code), expected->name) == 0);
+        assert(strcmp(msconnector_error_default_message(expected->code), expected->default_message) == 0);
+        assert(msconnector_error_status(expected->code) == expected->status);
+        assert(msconnector_error_http_status(expected->code) == expected->http_status);
+        assert(msconnector_error_is_fatal(expected->code) == expected->fatal);
+        msconnector_error_set(&error, expected->code, 0, "error-contract");
+        if (expected->code == MSCONNECTOR_ERROR_NONE) {
+            assert(!msconnector_error_to_event(&error, &event, "common", "tx-error-contract"));
+            continue;
+        }
+        assert(msconnector_error_to_event(&error, &event, "common", "tx-error-contract"));
+        assert(strcmp(event.meta.message_id, expected->event_message_id) == 0);
+        assert(strcmp(event.meta.level, expected->event_level) == 0);
+        assert(strcmp(event.meta.message, expected->default_message) == 0);
+        assert(event.decision.status == expected->status);
+        assert(strcmp(event.decision.reason, expected->default_message) == 0);
+        assert(event.http.http_status == expected->http_status);
+    }
+
+    {
+        const msconnector_error_code unknown_codes[] = {
+            (msconnector_error_code)-1,
+            (msconnector_error_code)(MSCONNECTOR_ERROR_INTERNAL + 1),
+            (msconnector_error_code)INT_MAX
+        };
+
+        for (index = 0U; index < sizeof(unknown_codes) / sizeof(unknown_codes[0]); ++index) {
+            msconnector_error error;
+            msconnector_event event;
+
+            assert(strcmp(msconnector_error_code_name(unknown_codes[index]), "internal") == 0);
+            assert(strcmp(msconnector_error_default_message(unknown_codes[index]), "Internal connector error") == 0);
+            assert(msconnector_error_status(unknown_codes[index]) == MSCONNECTOR_STATUS_ERROR);
+            assert(msconnector_error_http_status(unknown_codes[index]) == 500);
+            assert(!msconnector_error_is_fatal(unknown_codes[index]));
+            msconnector_error_set(&error, unknown_codes[index], 0, "error-contract");
+            assert(msconnector_error_to_event(&error, &event, "common", "tx-error-contract"));
+            assert(strcmp(event.meta.message_id, MSCONN_EVENT_INTERNAL_ERROR) == 0);
+            assert(strcmp(event.meta.level, "error") == 0);
+            assert(strcmp(event.meta.message, "Internal connector error") == 0);
+            assert(event.decision.status == MSCONNECTOR_STATUS_ERROR);
+            assert(event.http.http_status == 500);
+        }
+    }
+}
+
 int main(void) {
     msconnector_blocking_policy blocking_policy;
     msconnector_capabilities capabilities;
@@ -323,6 +409,7 @@ int main(void) {
     assert(msconnector_status_from_result("blocked") == MSCONNECTOR_STATUS_BLOCKED);
     assert(msconnector_status_from_result("not_executable") == MSCONNECTOR_STATUS_UNSUPPORTED);
     assert(msconnector_status_from_result("skipped") == MSCONNECTOR_STATUS_UNSUPPORTED);
+    assert_error_contract();
 
     assert(MSCONNECTOR_DEFAULT_BLOCK_STATUS == 403);
     assert(MSCONNECTOR_DEFAULT_ERROR_STATUS == 500);
@@ -1006,8 +1093,11 @@ int main(void) {
         assert(!msconnector_error_to_event(&error, &event, "common", "tx-error"));
         assert(!msconnector_error_to_event(0, &event, "common", "tx-error"));
         msconnector_error_set(&error, MSCONNECTOR_ERROR_INTERNAL, "internal", "smoke");
+        assert(!msconnector_error_to_event(&error, 0, "common", "tx-error"));
         assert(msconnector_error_to_event(&error, &event, "common", "tx-error"));
         assert(strcmp(event.meta.message_id, MSCONN_EVENT_INTERNAL_ERROR) == 0);
+        assert(strcmp(event.meta.message, "internal") == 0);
+        assert(strcmp(event.decision.reason, "internal") == 0);
         msconnector_error_set(&error, MSCONNECTOR_ERROR_INVALID_CONFIG, "bad config", "smoke");
         assert(msconnector_error_to_event(&error, &event, "common", "tx-error"));
         assert(strcmp(event.meta.message_id, MSCONN_EVENT_CONFIG_ERROR) == 0);
@@ -1237,6 +1327,8 @@ int main(void) {
         assert(msconnector_event_write_json(&event, json, sizeof(json)));
         assert(strstr(json, "\"integration_mode\":\"native-smoke\"") != 0);
         assert(strstr(json, "\"body_limit_outcome\"") == 0);
+        assert(strstr(json, "\"requested_protocol\":") == 0);
+        assert(strstr(json, "\"connection_reused\":") == 0);
         event.meta.run_id = "protocol-smoke";
         event.meta.transport_case_id = "case-h3-negotiated";
         event.protocol.requested_protocol = "h3";
@@ -1263,8 +1355,10 @@ int main(void) {
         assert(msconnector_event_write_json(&event, json, sizeof(json)));
         assert(strstr(json, "\"run_id\":\"protocol-smoke\"") != 0);
         assert(strstr(json, "\"transport_case_id\":\"case-h3-negotiated\"") != 0);
+        assert(strstr(json, "\"requested_protocol\":\"h3\"") != 0);
         assert(strstr(json, "\"negotiated_protocol\":\"h3\"") != 0);
         assert(strstr(json, "\"transport\":\"quic_udp\"") != 0);
+        assert(strstr(json, "\"connection_reused\":false") != 0);
         assert(strstr(json, "\"quic_connection_id_present\":true") != 0);
         assert(strstr(json, "\"fallback_used\":false") != 0);
         assert(strstr(json, "\"stream_reset\":true") != 0);

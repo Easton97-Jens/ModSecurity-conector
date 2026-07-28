@@ -284,3 +284,29 @@ int ngx_http_modsecurity_map_response(ngx_http_request_t *r,
 {
     return ngx_http_modsecurity_map_response_from_ctx(NULL, r, contract, out, error, error_len);
 }
+
+void
+ngx_http_modsecurity_validate_response_mapper(
+    const ngx_http_modsecurity_ctx_t *ctx,
+    ngx_http_request_t *r,
+    ngx_http_modsecurity_response_mapper_diagnostic_t diagnostic)
+{
+    msconnector_response_mapper_contract contract;
+    msconnector_response mapped_response;
+    char mapper_error[128];
+
+    msconnector_response_mapper_contract_init(&contract);
+    if (ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,
+            &mapped_response, mapper_error, sizeof(mapper_error))) {
+        return;
+    }
+
+    if (diagnostic == NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_BODY) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity common response-body mapper validation skipped: %s", mapper_error);
+        return;
+    }
+
+    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        "modsecurity common response mapper validation skipped: %s", mapper_error);
+}

@@ -1043,15 +1043,7 @@ ngx_http_modsecurity_create_main_conf(ngx_conf_t *cf)
         return NGX_CONF_ERROR;
     }
 
-    /*
-     * set by ngx_pcalloc():
-     *
-     *     conf->modsec = NULL;
-     *     conf->pool = NULL;
-     *     conf->rules_inline = 0;
-     *     conf->rules_file = 0;
-     *     conf->rules_remote = 0;
-     */
+    /* ngx_pcalloc() zero-initializes the remaining main configuration fields. */
 
     cln = ngx_pool_cleanup_add(cf->pool, 0);
     if (cln == NULL) {
@@ -1118,15 +1110,8 @@ ngx_http_modsecurity_create_conf(ngx_conf_t *cf)
         return NGX_CONF_ERROR;
     }
 
-    /*
-     * set by ngx_pcalloc():
-     *
-     *     conf->enable = 0;
-     *     conf->sanity_checks_enabled = 0;
-     *     conf->rules_set = NULL;
-     *     conf->pool = NULL;
-     *     conf->transaction_id = NULL;
-     */
+    /* ngx_pcalloc() zero-initializes fields before their explicit NGINX
+     * sentinels are set below. */
 
     msconnector_config_init(&conf->common_config);
     conf->enable = NGX_CONF_UNSET;

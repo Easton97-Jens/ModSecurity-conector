@@ -22,15 +22,20 @@ die() {
 }
 
 require_file() {
-    [ -f "$1" ] || die "missing $2: $1"
+    required_path=$1
+    required_description=$2
+    [ -f "$required_path" ] || die "missing $required_description: $required_path"
 }
 
 require_dir() {
-    [ -d "$1" ] || die "missing $2: $1"
+    required_path=$1
+    required_description=$2
+    [ -d "$required_path" ] || die "missing $required_description: $required_path"
 }
 
 canonical_path() {
-    python3 - "$1" <<'PY'
+    input_path=$1
+    python3 - "$input_path" <<'PY'
 import os
 import sys
 
@@ -48,6 +53,7 @@ case "$BUILD_DIR" in
     "$CONNECTOR_ROOT"|"$CONNECTOR_ROOT"/*)
         die "HAPROXY_HTX_BUILD_DIR must be outside the connector repository: $BUILD_DIR"
         ;;
+    *) ;;
 esac
 WORKTREE="$BUILD_DIR/worktree"
 
