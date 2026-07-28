@@ -23,7 +23,8 @@ blocked() {
 }
 
 sha256_file() {
-    sha256sum "$1" | awk '{print $1}'
+    input_path=$1
+    sha256sum "$input_path" | awk '{print $1}'
 }
 
 [ -f "$CORE_MANIFEST" ] || blocked "patched core manifest is missing; run build-lighttpd-patched-core first"
