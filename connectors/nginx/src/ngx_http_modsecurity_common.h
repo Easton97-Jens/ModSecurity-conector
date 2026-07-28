@@ -276,6 +276,44 @@ ngx_http_modsecurity_write_event_jsonl(
     return 1;
 }
 
+/* Phase 3/4 evidence writes are enforcement-relevant: unlike request-event
+ * logging, serialization, write, and short-write failures must propagate. */
+static ngx_inline ngx_int_t
+ngx_http_modsecurity_write_phase_event_jsonl(
+    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    const msconnector_event *event, const char *phase)
+{
+    char line[4096];
+    int json_truncated = 0;
+    size_t line_length;
+    ssize_t written;
+
+    if (!msconnector_event_write_jsonl_line(event, line, sizeof(line),
+        &json_truncated)) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity %s common event serialization failed%s", phase,
+            json_truncated ? " (truncated)" : "");
+        return NGX_ERROR;
+    }
+
+    line_length = ngx_strlen(line);
+    written = ngx_write_fd(mcf->phase4_log_file->fd, (u_char *)line,
+        line_length);
+    if (written < 0) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, ngx_errno,
+            "modsecurity %s log write failed", phase);
+        return NGX_ERROR;
+    }
+    if ((size_t)written != line_length) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity %s log short write: %z of %uz bytes", phase,
+            written, line_length);
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
 #if !(NGX_PCRE) || (NGX_PCRE2)
 #define ngx_http_modsecurity_pcre_malloc_init(x) NULL
 #define ngx_http_modsecurity_pcre_malloc_done(x) (void)x

@@ -772,7 +772,7 @@ static int handle_authorization_request(
     int status = 500;
     int success = 0;
     const char *transaction_id = NULL;
-    const char *decision_name = "error";
+    const char *decision_name;
 
     memset(&parsed, 0, sizeof(parsed));
     memset(&source, 0, sizeof(source));

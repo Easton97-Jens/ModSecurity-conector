@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Common-Header-Validierung und NGINX-Strict-JSONL-Tail-Deduplizierung](CR-20260728-sonar-common-nginx-strict-jsonl-duplication.de.md)
+  — lokale Common-C17-, Security-, Flow- und NGINX-Source-Contract-Checks
+  bestanden; Memory-Safety bestand außerhalb der LeakSanitizer-inkompatiblen
+  Sandbox, während die NGINX-C17-Kompilierung wegen fehlender NGINX-Header/
+  Source blocked_external_dependency ist. Es werden kein Commit, Push, PR,
+  gehostete Analyse oder Merge behauptet.
 - [Parent-NGINX-Response-Mapper-Validation-Tail-Deduplizierungskandidat (36 Parent-Duplikatzeilen)](CR-20260728-sonar-nginx-response-mapper-duplication.de.md)
   — lokale Source-Contract- und eingeschränkte Whitespace-Validierung
   bestanden; der exakte C17-Control ist wegen fehlender NGINX-Header/Source

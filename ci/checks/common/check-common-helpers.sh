@@ -1585,6 +1585,24 @@ int main(void) {
             request.header_count = 2;
         }
         assert(msconnector_request_content_length(&request, &cl_status) == 123U && cl_status == 1);
+        {
+            const msconnector_header invalid_space_name[] = {{"bad name", 8U, "x", 1U}};
+            const msconnector_header invalid_colon_name[] = {{"bad:name", 8U, "x", 1U}};
+            const msconnector_header invalid_value[] = {{"X-Test", 6U, NULL, 1U}};
+            const msconnector_header empty_value[] = {{"X-Empty", 7U, NULL, 0U}};
+
+            request.headers = invalid_space_name;
+            request.header_count = 1;
+            assert(!msconnector_request_validate(&request));
+            request.headers = invalid_colon_name;
+            assert(!msconnector_request_validate(&request));
+            request.headers = invalid_value;
+            assert(!msconnector_request_validate(&request));
+            request.headers = empty_value;
+            assert(msconnector_request_validate(&request));
+            request.headers = headers;
+            request.header_count = 2;
+        }
         request.headers = 0; request.header_count = 1;
         assert(!msconnector_request_validate(&request));
         msconnector_response_init(&response);

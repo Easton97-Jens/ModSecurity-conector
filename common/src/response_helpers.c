@@ -2,19 +2,15 @@
 #include "msconnector/headers.h"
 #include "msconnector/http_status.h"
 #include "msconnector/resource_limits.h"
+#include "header_validation_internal.h"
 #include <string.h>
 
-static int valid_header_name(const msconnector_header *header) {
-    if (header == 0 || header->name == 0 || header->name_size == 0U) { return 0; }
-    for (size_t index = 0; index < header->name_size; ++index) { unsigned char ch = (unsigned char)header->name[index]; if (ch <= 32U || ch == 127U || ch == ':') { return 0; } }
-    return header->value != 0 || header->value_size == 0U;
-}
 void msconnector_response_init(msconnector_response *response) { if (response != 0) { memset(response, 0, sizeof(*response)); } }
 int msconnector_response_validate(const msconnector_response *response) {
     if (response == 0) { return 0; }
     if (response->status != 0 && !msconnector_http_status_is_valid(response->status)) { return 0; }
     if (response->header_count > 0U && response->headers == 0) { return 0; }
-    for (size_t i = 0; i < response->header_count; ++i) { if (!valid_header_name(&response->headers[i])) { return 0; } }
+    for (size_t i = 0; i < response->header_count; ++i) { if (!msconnector_header_is_valid(&response->headers[i])) { return 0; } }
     if (response->body.size > 0U && response->body.data == 0) { return 0; }
     return 1;
 }
