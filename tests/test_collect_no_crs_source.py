@@ -72,7 +72,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 "1100001",
                 {"allow_without_marker": (200, None)},
             )
-            self.assertEqual("NOT_EXECUTED", cases[0]["status"])
+            self.assertEqual(cases[0]["status"], "NOT_EXECUTED")
             self.assertTrue(collector.only_nonexecuted_cases(cases))
 
     def test_native_rule_engine_summary_keeps_explicit_case_evidence(self) -> None:
@@ -99,18 +99,18 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             record["case_id"]: record
             for record in collector.native_host_summary_cases([summary])
         }
-        self.assertEqual(200, records["allow_without_marker"]["actual_status"])
-        self.assertEqual([1100001], records["deny_header_marker_403"]["observed_rule_ids"])
+        self.assertEqual(records["allow_without_marker"]["actual_status"], 200)
+        self.assertEqual(records["deny_header_marker_403"]["observed_rule_ids"], [1100001])
         self.assertEqual(
-            [1100002], records["deny_with_alternative_status"]["observed_rule_ids"]
+            records["deny_with_alternative_status"]["observed_rule_ids"], [1100002]
         )
-        self.assertEqual([1100101], records["deny_request_body_marker_403"]["observed_rule_ids"])
-        self.assertEqual([1100201], records["deny_response_header_marker_403"]["observed_rule_ids"])
-        self.assertEqual([1100202], records["phase3_redirect_before_commit"]["observed_rule_ids"])
-        self.assertEqual([1100301], records["phase4_rule_observed"]["observed_rule_ids"])
+        self.assertEqual(records["deny_request_body_marker_403"]["observed_rule_ids"], [1100101])
+        self.assertEqual(records["deny_response_header_marker_403"]["observed_rule_ids"], [1100201])
+        self.assertEqual(records["phase3_redirect_before_commit"]["observed_rule_ids"], [1100202])
+        self.assertEqual(records["phase4_rule_observed"]["observed_rule_ids"], [1100301])
         self.assertEqual(
-            [1100301],
             records["phase4_deny_after_commit_log_only_safe"]["observed_rule_ids"],
+            [1100301],
         )
         for case_id in (
             "phase4_end_of_stream_evaluation",
@@ -118,7 +118,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "phase4_no_full_response_buffering",
         ):
             with self.subTest(case_id=case_id):
-                self.assertEqual([1100301], records[case_id]["observed_rule_ids"])
+                self.assertEqual(records[case_id]["observed_rule_ids"], [1100301])
 
     def test_native_summary_without_engine_bridge_stays_nonpromoting(self) -> None:
         summary = {
@@ -128,7 +128,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "p1_deny_status": 403,
         }
         self.assertFalse(collector.native_rule_engine_observed([summary]))
-        self.assertEqual([], collector.native_host_summary_cases([summary]))
+        self.assertEqual(collector.native_host_summary_cases([summary]), [])
         self.assertTrue(collector.nonpromoted_host_success([summary]))
 
     def test_raw_source_event_payload_field_invalidates_absence_claim(self) -> None:
@@ -152,7 +152,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertFalse(evidence["body_payload_absent_from_events"])
             self.assertFalse(evidence["event_metadata_verified"])
             self.assertTrue(evidence["forbidden_event_keys"])
-            self.assertEqual([], evidence["records"])
+            self.assertEqual(evidence["records"], [])
 
     def test_unknown_raw_event_field_invalidates_absence_claim(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-collector-") as temporary:
@@ -175,7 +175,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertFalse(evidence["body_payload_absent_from_events"])
             self.assertFalse(evidence["event_metadata_verified"])
             self.assertIn("unapproved-field:data", evidence["forbidden_event_keys"][0])
-            self.assertEqual([], evidence["records"])
+            self.assertEqual(evidence["records"], [])
 
     def test_metadata_only_haproxy_decision_schema_is_accepted(self) -> None:
         record = {
@@ -212,7 +212,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         evidence = collector.event_evidence([], "1100001", [record])
         self.assertTrue(evidence["body_payload_absent_from_events"])
         self.assertTrue(evidence["event_metadata_verified"])
-        self.assertEqual([], evidence["forbidden_event_keys"])
+        self.assertEqual(evidence["forbidden_event_keys"], [])
 
     def test_native_htx_observer_metadata_is_payload_free(self) -> None:
         record = {
@@ -234,17 +234,17 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         }
         evidence = collector.event_evidence([], "910004", [record])
         self.assertTrue(evidence["body_payload_absent_from_events"])
-        self.assertEqual([], evidence["forbidden_event_keys"])
+        self.assertEqual(evidence["forbidden_event_keys"], [])
         canonical_event = collector.sanitized_event(record)
         self.assertEqual(canonical_event["connector"], "haproxy")
         self.assertEqual(canonical_event["integration_mode"], "native_htx_filter")
         self.assertEqual(canonical_event["status"], "not_attempted")
         self.assertEqual(
-            [],
             framework_baseline.canonical_event_errors(
                 canonical_event,
                 connector="haproxy",
             ),
+            [],
         )
 
     def test_phase4_aliases_are_projected_without_status_conflation(self) -> None:
@@ -267,17 +267,17 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 "observed_transport_result": "connection_aborted",
             }
         )
-        self.assertEqual(4, event["phase"])
-        self.assertEqual(403, event["http_status"])
-        self.assertEqual(200, event["original_http_status"])
-        self.assertEqual(200, event["visible_http_status"])
-        self.assertEqual("deny", event["requested_action"])
-        self.assertEqual("abort_connection", event["actual_action"])
+        self.assertEqual(event["phase"], 4)
+        self.assertEqual(event["http_status"], 403)
+        self.assertEqual(event["original_http_status"], 200)
+        self.assertEqual(event["visible_http_status"], 200)
+        self.assertEqual(event["requested_action"], "deny")
+        self.assertEqual(event["actual_action"], "abort_connection")
         self.assertTrue(event["late_intervention"])
         self.assertTrue(event["headers_sent"])
         self.assertTrue(event["body_started"])
         self.assertTrue(event["connection_aborted"])
-        self.assertEqual("connection_aborted", event["transport_result"])
+        self.assertEqual(event["transport_result"], "connection_aborted")
 
     def test_transport_lifecycle_metadata_is_allowlisted_and_bounded(self) -> None:
         event = collector.sanitized_event(
@@ -304,11 +304,11 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 "cancelled": False,
             }
         )
-        self.assertEqual("transport-case-1", event["transport_case_id"])
-        self.assertEqual("h2", event["negotiated_protocol"])
-        self.assertEqual("tls_tcp", event["transport"])
-        self.assertEqual("strict_intervention", event["reset_by"])
-        self.assertEqual("short_write", event["write_result"])
+        self.assertEqual(event["transport_case_id"], "transport-case-1")
+        self.assertEqual(event["negotiated_protocol"], "h2")
+        self.assertEqual(event["transport"], "tls_tcp")
+        self.assertEqual(event["reset_by"], "strict_intervention")
+        self.assertEqual(event["write_result"], "short_write")
         self.assertTrue(event["eos_seen"])
 
     def test_synchronized_first_byte_metadata_is_allowlisted_without_payload(self) -> None:
@@ -331,14 +331,14 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             }
         )
         self.assertTrue(event["client_first_byte_received"])
-        self.assertEqual(17, event["first_chunk_size"])
+        self.assertEqual(event["first_chunk_size"], 17)
         self.assertTrue(event["upstream_paused"])
         self.assertFalse(event["upstream_eos_sent_at_first_byte"])
         self.assertTrue(event["first_byte_before_response_end"])
         self.assertFalse(event["upstream_response_finished_at_first_byte"])
         self.assertTrue(event["no_full_response_buffering"])
-        self.assertEqual(17, event["body_bytes_seen"])
-        self.assertEqual(17, event["body_bytes_inspected"])
+        self.assertEqual(event["body_bytes_seen"], 17)
+        self.assertEqual(event["body_bytes_inspected"], 17)
 
     def test_real_host_barrier_only_enriches_observed_phase4_event(self) -> None:
         evidence = {
@@ -370,7 +370,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertNotIn("first_byte_before_response_end", records[0])
         self.assertTrue(records[1]["first_byte_before_response_end"])
         self.assertTrue(records[1]["no_full_response_buffering"])
-        self.assertEqual(42, records[1]["body_bytes_seen"])
+        self.assertEqual(records[1]["body_bytes_seen"], 42)
 
     def test_response_status_is_not_dual_mapped_to_original_and_visible(self) -> None:
         event = collector.sanitized_event({"response_status": 200})
@@ -433,19 +433,19 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 },
                 allowed_source_root=root,
             )
-            self.assertEqual(2, len(cases))
+            self.assertEqual(len(cases), 2)
             by_id = {case["case_id"]: case for case in cases}
             case = by_id["phase4_deny_after_commit_log_only"]
-            self.assertEqual("PASS", case["status"])
+            self.assertEqual(case["status"], "PASS")
             self.assertTrue(case["event_metadata_verified"])
-            self.assertEqual("deny", case["requested_action"])
-            self.assertEqual("log_only", case["actual_action"])
-            self.assertEqual("safe", case["late_intervention_mode"])
-            self.assertEqual(403, case["http_status"])
-            self.assertEqual(200, case["visible_http_status"])
+            self.assertEqual(case["requested_action"], "deny")
+            self.assertEqual(case["actual_action"], "log_only")
+            self.assertEqual(case["late_intervention_mode"], "safe")
+            self.assertEqual(case["http_status"], 403)
+            self.assertEqual(case["visible_http_status"], 200)
             safe_alias = by_id["phase4_deny_after_commit_log_only_safe"]
-            self.assertEqual("PASS", safe_alias["status"])
-            self.assertEqual(["tx-phase4"], safe_alias["transaction_ids"])
+            self.assertEqual(safe_alias["status"], "PASS")
+            self.assertEqual(safe_alias["transaction_ids"], ["tx-phase4"])
             self.assertIn("reused native nginx event", safe_alias["reason"])
 
     def test_native_runner_safe_alias_requires_safe_event_semantics(self) -> None:
@@ -466,10 +466,10 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "transport_result": "log_only",
         }
         self.assertEqual(
-            "phase4_deny_after_commit_log_only_safe",
             collector.native_runner_core_case_alias(
                 "apache", "phase4_deny_after_commit_log_only", [safe_event]
             ),
+            "phase4_deny_after_commit_log_only_safe",
         )
         unsafe_event = dict(safe_event, late_intervention_mode="minimal")
         self.assertIsNone(
@@ -506,16 +506,16 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "transport_result": "log_only",
         }
         self.assertEqual(
-            "deny_response_header_marker_403",
             collector.native_runner_core_case_alias(
                 "apache", "phase3_deny_before_commit", [apache_phase3_event]
             ),
+            "deny_response_header_marker_403",
         )
         self.assertEqual(
-            "phase4_deny_after_commit_log_only_safe",
             collector.native_runner_core_case_alias(
                 "nginx", "phase4_deny_after_commit_log_only", [nginx_phase4_event]
             ),
+            "phase4_deny_after_commit_log_only_safe",
         )
         self.assertIsNone(
             collector.native_runner_core_case_alias(
@@ -599,19 +599,19 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 allowed_source_root=root,
                 runner_case_index=runner_case_index,
             )
-            self.assertEqual(2, len(cases))
+            self.assertEqual(len(cases), 2)
             by_id = {case["case_id"]: case for case in cases}
             case = by_id["phase3_deny_before_commit"]
-            self.assertEqual("phase3_deny_before_commit", case["case_id"])
-            self.assertEqual("PASS", case["status"])
+            self.assertEqual(case["case_id"], "phase3_deny_before_commit")
+            self.assertEqual(case["status"], "PASS")
             self.assertTrue(case["event_metadata_verified"])
-            self.assertEqual("deny", case["requested_action"])
-            self.assertEqual("deny", case["actual_action"])
+            self.assertEqual(case["requested_action"], "deny")
+            self.assertEqual(case["actual_action"], "deny")
             self.assertFalse(case["headers_sent"])
-            self.assertEqual(403, case["visible_http_status"])
+            self.assertEqual(case["visible_http_status"], 403)
             core_alias = by_id["deny_response_header_marker_403"]
-            self.assertEqual("PASS", core_alias["status"])
-            self.assertEqual(["tx-phase3"], core_alias["transaction_ids"])
+            self.assertEqual(core_alias["status"], "PASS")
+            self.assertEqual(core_alias["transaction_ids"], ["tx-phase3"])
             self.assertIn("reused native apache event", core_alias["reason"])
 
     def test_case_event_evidence_is_bound_to_its_declared_transaction(self) -> None:
@@ -683,10 +683,10 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 {"phase3_deny_before_commit": (403, "1100201", 3)},
                 allowed_source_root=root,
             )
-            self.assertEqual("PASS", cases[0]["status"])
-            self.assertEqual(["tx-real"], cases[0]["transaction_ids"])
+            self.assertEqual(cases[0]["status"], "PASS")
+            self.assertEqual(cases[0]["transaction_ids"], ["tx-real"])
             self.assertFalse(cases[0]["headers_sent"])
-            self.assertEqual(1, len(derived))
+            self.assertEqual(len(derived), 1)
 
     def test_case_cannot_borrow_another_transaction_event(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-transaction-mismatch-") as temporary:
@@ -736,9 +736,9 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 {"phase3_deny_before_commit": (403, "1100201", 3)},
                 allowed_source_root=root,
             )
-            self.assertEqual("FAIL", cases[0]["status"])
+            self.assertEqual(cases[0]["status"], "FAIL")
             self.assertFalse(cases[0]["event_metadata_verified"])
-            self.assertEqual([], cases[0]["transaction_ids"])
+            self.assertEqual(cases[0]["transaction_ids"], [])
 
     def test_honest_not_executed_case_stays_not_executed(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-not-executed-") as temporary:
@@ -763,7 +763,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 {"phase3_deny_before_commit": (403, "1100201", 3)},
                 allowed_source_root=root,
             )
-            self.assertEqual("NOT_EXECUTED", cases[0]["status"])
+            self.assertEqual(cases[0]["status"], "NOT_EXECUTED")
             self.assertFalse(cases[0]["event_metadata_verified"])
 
     def test_catalog_runner_case_mapping_does_not_guess_from_fixture_name(self) -> None:
@@ -795,7 +795,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 allowed_source_root=root,
                 runner_case_index=runner_case_index,
             )
-            self.assertEqual([], cases)
+            self.assertEqual(cases, [])
 
     def test_catalog_runner_case_mapping_rejects_duplicate_paths(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-catalog-") as temporary:
@@ -847,8 +847,8 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 allowed_source_root=root,
             )
 
-            self.assertEqual([], events)
-            self.assertEqual("FAIL", cases[0]["status"])
+            self.assertEqual(events, [])
+            self.assertEqual(cases[0]["status"], "FAIL")
             self.assertFalse(cases[0]["event_metadata_verified"])
 
     def test_structured_request_event_suppresses_weaker_audit_fallback(self) -> None:
@@ -900,9 +900,9 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             cases, derived = collector.case_observations(
                 [results_path], "apache", "1100001", allowed_source_root=root
             )
-            self.assertEqual("PASS", cases[0]["status"])
-            self.assertEqual(1, len(derived))
-            self.assertEqual("native-httpd-module", derived[0]["integration_mode"])
+            self.assertEqual(cases[0]["status"], "PASS")
+            self.assertEqual(len(derived), 1)
+            self.assertEqual(derived[0]["integration_mode"], "native-httpd-module")
 
     def test_traefik_runtime_output_rejects_symlink_before_cleanup(self) -> None:
         with tempfile.TemporaryDirectory(prefix="traefik-output-") as temporary:
@@ -915,7 +915,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             output.symlink_to(victim, target_is_directory=True)
             with self.assertRaises(traefik_smoke.MissingDependency):
                 traefik_smoke.assert_no_symlink_components(output)
-            self.assertEqual("keep\n", marker.read_text(encoding="utf-8"))
+            self.assertEqual(marker.read_text(encoding="utf-8"), "keep\n")
 
     def test_decision_log_is_audited_before_metadata_sanitization(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-collector-") as temporary:
@@ -952,7 +952,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             cases, derived = collector.case_observations(
                 [results_path], "apache", "1100001"
             )
-            self.assertEqual("PASS", cases[0]["status"])
+            self.assertEqual(cases[0]["status"], "PASS")
             evidence = collector.event_evidence([], "1100001", derived)
             self.assertFalse(evidence["body_payload_absent_from_events"])
             self.assertFalse(evidence["event_metadata_verified"])
@@ -1026,11 +1026,11 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 allowed_source_root=raw_run,
                 consumed_event_paths=consumed,
             )
-            self.assertEqual("PASS", cases[0]["status"])
-            self.assertEqual(1, len(derived))
+            self.assertEqual(cases[0]["status"], "PASS")
+            self.assertEqual(len(derived), 1)
             scrub_log = raw_run / "source-event-scrub.log"
             removed = collector.scrub_source_event_paths(consumed, raw_run, scrub_log)
-            self.assertEqual([decision_path], removed)
+            self.assertEqual(removed, [decision_path])
             self.assertFalse(decision_path.exists())
             self.assertIn(str(decision_path), scrub_log.read_text(encoding="utf-8"))
 
@@ -1073,8 +1073,8 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                 allowed_source_root=raw_run,
                 consumed_event_paths=consumed,
             )
-            self.assertEqual([], derived)
-            self.assertEqual([audit_path], consumed)
+            self.assertEqual(derived, [])
+            self.assertEqual(consumed, [audit_path])
             collector.scrub_source_event_paths(consumed, raw_run)
             self.assertFalse(audit_path.exists())
 
@@ -1136,7 +1136,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             capture_output=True,
             check=False,
         )
-        self.assertEqual(1, completed.returncode)
+        self.assertEqual(completed.returncode, 1)
         self.assertIn(
             "NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR requires NO_CRS_ARTIFACT_PROFILE=full_lifecycle",
             completed.stderr,
