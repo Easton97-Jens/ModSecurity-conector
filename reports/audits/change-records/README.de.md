@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Traefik-Start-Smoke-Diagnostikliteral-Bereinigung für SonarQube Cloud S1192](CR-20260728-sonar-traefik-start-smoke-literal.de.md)
 - [Parent-Apache-Phase-4-Control-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-apache-phase4-literals.de.md)
 - [Parent-Apache-H2-Transport-Result-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-apache-h2-transport-s1192.de.md)
 - [Parent-Envoy-Lifecycle-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-s1192-envoy-lifecycle.de.md)

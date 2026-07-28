@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Traefik start-smoke diagnostic-literal cleanup for SonarQube Cloud S1192](CR-20260728-sonar-traefik-start-smoke-literal.md)
 - [Parent Apache Phase-4 control-literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-phase4-literals.md)
 - [Parent Apache H2 transport-result literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-h2-transport-s1192.md)
 - [Parent Envoy lifecycle literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-s1192-envoy-lifecycle.md)
