@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Apache-H2-Transport-Result-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-apache-h2-transport-s1192.de.md)
 - [Parent-Envoy-Lifecycle-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-s1192-envoy-lifecycle.de.md)
 - [Parent-Common-Event-Provenance-Short-Circuit-Refaktorierung für SonarQube Cloud c:S1066](CR-20260728-sonar-common-event-s1066.de.md)
 - [Parent-HTTP-Authorization-CLI-Schleifensteuerung für SonarQube Cloud c:S5955, c:S886 und c:S3776](CR-20260728-sonar-http-authorization-cli-scope.de.md)
