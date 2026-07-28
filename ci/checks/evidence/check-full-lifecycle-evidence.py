@@ -17,6 +17,7 @@ from typing import Any
 
 
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
+EVENTS_FILENAME = "events.jsonl"
 TRANSPORT_LIFECYCLE_ARTIFACTS = {
     "client_log": "logs/client.log",
     "upstream_log": "logs/upstream.log",
@@ -247,7 +248,7 @@ def lifecycle_errors(
         return ["missing lifecycle-counters.json"]
     try:
         counters = load_json(path)
-        events = load_jsonl(run_dir / "events.jsonl")
+        events = load_jsonl(run_dir / EVENTS_FILENAME)
     except (OSError, ValueError) as exc:
         return [f"cannot read lifecycle inventory: {exc}"]
     errors: list[str] = []
@@ -405,7 +406,7 @@ def first_byte_errors(
         return []
     if result.get("artifact_profile") != "full_lifecycle":
         return ["first-byte promotion requires a full_lifecycle artifact profile"]
-    events = load_jsonl(run_dir / "events.jsonl")
+    events = load_jsonl(run_dir / EVENTS_FILENAME)
     records = load_jsonl(run_dir / "results.jsonl")
     identity = expected_event_identity(result, connector, run_id)
     expected = {"phase4_first_byte_before_response_end", "phase4_no_full_response_buffering"}
@@ -447,7 +448,7 @@ def no_buffer_errors(
     claimed = claimed or "no_full_response_buffering" in set(result.get("capabilities_verified") or [])
     if not claimed:
         return []
-    events = load_jsonl(run_dir / "events.jsonl")
+    events = load_jsonl(run_dir / EVENTS_FILENAME)
     records = load_jsonl(run_dir / "results.jsonl")
     identity = expected_event_identity(result, connector, run_id)
     records = [record for record in records if record.get("case_id") == "phase4_no_full_response_buffering" and record.get("status") == "PASS"]

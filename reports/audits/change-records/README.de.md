@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Envoy-Lifecycle-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-s1192-envoy-lifecycle.de.md)
 - [Parent-HAProxy-Append-String-Preflight für SonarQube Cloud c:S3519](CR-20260727-sonar-haproxy-append-string-s3519.de.md)
 - [Parent-Common-Refaktorierung doppelter Error-Mappings](CR-20260727-sonar-common-error-duplication.de.md)
 - [Parent-NGINX-Event-Metadaten- und JSONL-Writer-Deduplizierung: Second-Head-Quality-Gate und lokales S1192-Follow-up](CR-20260727-sonar-nginx-event-metadata-duplication.de.md)
