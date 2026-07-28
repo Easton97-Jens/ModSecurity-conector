@@ -16,7 +16,7 @@ if str(_CI_ROOT / "lib") not in sys.path:
 from typing import Any
 
 from focused_analysis_utils import action_parts, as_list, import_script, read_json, read_text, refresh_connector_queue_totals, sanitize_path, utc_now, write_json
-from focused_analysis_utils import find_framework_case_path, upsert_marked_section
+from focused_analysis_utils import upsert_marked_section, find_framework_case_path
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, resolve_output_dir, safe_existing_file, write_text_file
 
