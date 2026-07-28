@@ -22,6 +22,9 @@ of a post-correction remote analysis or merge.
 - [Parent Apache/NGINX commented-code cleanup for SonarQube Cloud C:S125](CR-20260727-sonar-c-commented-code-cleanup.md)
 - [Parent HAProxy accept-loop error-path cleanup for SonarQube Cloud C:S134](CR-20260727-sonar-haproxy-accept-loop-s134.md)
 - [Parent bilingual-documentation checker PR-template literal extraction and diagnostic-order preservation for SonarQube Cloud S1192 and S3776](CR-20260727-sonar-bilingual-doc-checker.md)
+- [Parent Lighttpd harness JSONL validation deduplication candidate](CR-20260727-sonar-lighttpd-harness-duplication.md)
+  — local source, lifecycle-contract, documentation, and whitespace validation
+  `passed`; `Draft` delivery remains pending.
 - [Parent PR #128 residual SonarQube Cloud and workflow remediation](CR-20260727-sonar-pr128-residual-remediation.md)
 - [Parent Apache output-filter status shadowing for SonarQube Cloud C:S1117](CR-20260727-sonar-apache-output-filter-status-shadowing.md)
 - [Parent compiler-guide metadata literals for SonarQube Cloud S1192](CR-20260727-sonar-compiler-guide-metadata-literals.md)
