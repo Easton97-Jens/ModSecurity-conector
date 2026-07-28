@@ -23,6 +23,7 @@ LINK_RE = re.compile(r"(?<!!)\[[^\]\n]+\]\(([^)\n]+)\)")
 REFERENCE_LINK_RE = re.compile(r"^\s*\[[^\]]+\]:\s+(\S+)")
 MARKDOWN_SUFFIX = ".md"
 GERMAN_MARKDOWN_SUFFIX = ".de.md"
+TOOLS_MRTS = "tools/MRTS"
 GERMAN_GENERATED_NOTE = "Diese deutsche Datei ist eine übersetzte Begleitdatei"
 SPECIAL_LANGUAGE_INDEXES: tuple[tuple[Path, Path], ...] = ()
 CHANGE_RECORDS_DIRECTORY = Path("reports/audits/change-records")
@@ -725,12 +726,12 @@ def git_status(repo: Path, *args: str) -> str:
 
 def check_tools_mrts_clean(repo: Path) -> list[str]:
     errors: list[str] = []
-    root_status = git_status(repo, "status", "--short", "--", "tools/MRTS", "modules/ModSecurity-test-Framework/tools/MRTS")
+    root_status = git_status(repo, "status", "--short", "--", TOOLS_MRTS, "modules/ModSecurity-test-Framework/tools/MRTS")
     if root_status:
         errors.append(f"tools/MRTS paths changed in parent repository:\n{root_status}")
     framework_root = repo / "modules/ModSecurity-test-Framework"
-    if (framework_root / ".git").exists() or (framework_root / "tools/MRTS").exists():
-        framework_status = git_status(framework_root, "status", "--short", "--", "tools/MRTS")
+    if (framework_root / ".git").exists() or (framework_root / TOOLS_MRTS).exists():
+        framework_status = git_status(framework_root, "status", "--short", "--", TOOLS_MRTS)
         if framework_status:
             errors.append(f"tools/MRTS paths changed in framework module:\n{framework_status}")
     return errors

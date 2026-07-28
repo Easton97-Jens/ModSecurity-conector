@@ -4,14 +4,17 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER_PATH = ROOT / "ci" / "checks" / "documentation" / "check-bilingual-docs.py"
+TOOLS_MRTS_LITERAL = "tools/MRTS"
+TOOLS_MRTS_GITKEEP = f"{TOOLS_MRTS_LITERAL}/.gitkeep"
 SPEC = importlib.util.spec_from_file_location("bilingual_docs_checker", CHECKER_PATH)
 assert SPEC and SPEC.loader
 CHECKER = importlib.util.module_from_spec(SPEC)
@@ -343,6 +346,157 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
             errors = CHECKER.check_common_design_note_contract(root)
 
         self.assertEqual(errors, [])
+
+    def initialize_git_repository(self, root: Path) -> None:
+        subprocess.run(
+            ["git", "init", "--quiet"],
+            cwd=root,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    def run_git(self, root: Path, *args: str) -> None:
+        subprocess.run(
+            ["git", *args],
+            cwd=root,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    def commit_baseline(self, root: Path, message: str, *paths: str) -> None:
+        self.run_git(root, "add", "--", *paths)
+        self.run_git(
+            root,
+            "-c",
+            "user.name=Bilingual documentation tests",
+            "-c",
+            "user.email=bilingual-docs@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            message,
+        )
+
+    def create_git_hierarchy(self, root: Path) -> Path:
+        framework_root = root / "modules" / "ModSecurity-test-Framework"
+        framework_root.mkdir(parents=True)
+        self.initialize_git_repository(framework_root)
+        self.write(framework_root, TOOLS_MRTS_GITKEEP, "framework baseline\n")
+        self.write(framework_root, "README.md", "framework baseline\n")
+        self.commit_baseline(
+            framework_root,
+            "framework baseline",
+            TOOLS_MRTS_GITKEEP,
+            "README.md",
+        )
+
+        self.initialize_git_repository(root)
+        self.write(root, TOOLS_MRTS_GITKEEP, "parent baseline\n")
+        self.write(root, "README.md", "parent baseline\n")
+        self.commit_baseline(
+            root,
+            "parent baseline",
+            TOOLS_MRTS_GITKEEP,
+            "README.md",
+            "modules/ModSecurity-test-Framework",
+        )
+        return framework_root
+
+    def expected_tools_mrts_status_calls(
+        self,
+        root: Path,
+        framework_root: Path,
+    ):
+        self.assertEqual(CHECKER.TOOLS_MRTS, TOOLS_MRTS_LITERAL)
+        return [
+            call(
+                root,
+                "status",
+                "--short",
+                "--",
+                TOOLS_MRTS_LITERAL,
+                f"modules/ModSecurity-test-Framework/{TOOLS_MRTS_LITERAL}",
+            ),
+            call(framework_root, "status", "--short", "--", TOOLS_MRTS_LITERAL),
+        ]
+
+    def test_tools_mrts_clean_allows_unrelated_dirty_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            framework_root = self.create_git_hierarchy(root)
+            self.write(root, "docs/unrelated.md", "parent dirt\n")
+            self.write(framework_root, "docs/unrelated.md", "framework dirt\n")
+
+            with patch.object(
+                CHECKER,
+                "git_status",
+                wraps=CHECKER.git_status,
+            ) as git_status:
+                errors = CHECKER.check_tools_mrts_clean(root)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            git_status.call_args_list,
+            self.expected_tools_mrts_status_calls(root, framework_root),
+        )
+
+    def test_tools_mrts_clean_reports_dirty_parent_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            framework_root = self.create_git_hierarchy(root)
+            self.write(root, TOOLS_MRTS_GITKEEP, "parent dirt\n")
+
+            with patch.object(
+                CHECKER,
+                "git_status",
+                wraps=CHECKER.git_status,
+            ) as git_status:
+                errors = CHECKER.check_tools_mrts_clean(root)
+
+        self.assertEqual(
+            errors,
+            [
+                f"{TOOLS_MRTS_LITERAL} paths changed in parent repository:\n"
+                f"M {TOOLS_MRTS_GITKEEP}"
+            ],
+        )
+        self.assertEqual(
+            git_status.call_args_list,
+            self.expected_tools_mrts_status_calls(root, framework_root),
+        )
+
+    def test_tools_mrts_clean_reports_dirty_framework_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            framework_root = self.create_git_hierarchy(root)
+            self.write(
+                framework_root,
+                TOOLS_MRTS_GITKEEP,
+                "framework dirt\n",
+            )
+
+            with patch.object(
+                CHECKER,
+                "git_status",
+                wraps=CHECKER.git_status,
+            ) as git_status:
+                errors = CHECKER.check_tools_mrts_clean(root)
+
+        self.assertEqual(
+            errors,
+            [
+                f"{TOOLS_MRTS_LITERAL} paths changed in framework module:\n"
+                f"M {TOOLS_MRTS_GITKEEP}"
+            ],
+        )
+        self.assertEqual(
+            git_status.call_args_list,
+            self.expected_tools_mrts_status_calls(root, framework_root),
+        )
 
 
 if __name__ == "__main__":

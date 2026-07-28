@@ -286,6 +286,33 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
             self.assertTrue(any("unbalanced" in error for error in errors))
             self.assertTrue(any("intentional_aborts" in error for error in errors))
 
+    def test_lifecycle_inventory_accepts_matching_events_artifact(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="full-lifecycle-lifecycle-") as temporary:
+            run = Path(temporary)
+            (run / "events.jsonl").write_text(
+                '{"transaction_id":"tx-one","actual_action":"abort_connection"}\n',
+                encoding="utf-8",
+            )
+            counters = {name: 0 for name in checker.LIFECYCLE_COUNTERS}
+            counters.update({
+                "connector": "apache",
+                "transactions_started": 1,
+                "transactions_finished": 1,
+                "transactions_destroyed": 1,
+                "intentional_aborts": 1,
+                "transport_counters_bound": True,
+            })
+            (run / "lifecycle-counters.json").write_text(
+                json.dumps(counters), encoding="utf-8"
+            )
+            inventory = run / "inventory"
+            inventory.mkdir()
+            (inventory / "connection-lifecycle.json").write_text(
+                '{"records":[]}', encoding="utf-8"
+            )
+
+            self.assertEqual(checker.lifecycle_errors(run, "apache"), [])
+
     def test_transport_inventory_rejects_unproven_host_survival(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-lifecycle-transport-") as temporary:
             run = Path(temporary)

@@ -111,6 +111,7 @@ NGINX_PHASE4_LOG_ONLY_CASES = {
     "nginx_phase4_minimal_log_only": "910001",
     "nginx_phase4_safe_log_only": "910002",
 }
+NGINX_FORCE_ALL_SUMMARY_FILE = "nginx-summary.json"
 CRS_SQLI_WITH_MRTS_DETECTION_ONLY_CASE = "crs_sqli_anomaly_block"
 CRS_SQLI_WITH_MRTS_RULE_IDS = {"942100", "942190", "942270", "942360", "949110"}
 CRS_SQLI_WITH_MRTS_DETECTION_ONLY_NOTE = (
@@ -560,39 +561,38 @@ def secaction_rule_loaded(smoke_rules_file: Path) -> bool:
     )
 
 
+def _no_mrts_control_identity(
+    *,
+    build_root: Path,
+    connector: str,
+    variant: str,
+) -> tuple[str, Path] | None:
+    if "/" not in variant or connector not in {"apache", "haproxy", "nginx"}:
+        return None
+    crs, _mrts = variant.split("/", 1)
+    control_root = build_root / "full-matrix" / crs / "no-mrts" / connector
+    return crs, control_root
+
+
 def no_mrts_control_evidence(
     row: dict[str, Any],
     *,
     build_root: Path,
 ) -> dict[str, str] | None:
     connector = str(row.get("connector") or "")
-    variant = str(row.get("variant") or "")
-    if "/" not in variant:
+    identity = _no_mrts_control_identity(
+        build_root=build_root,
+        connector=connector,
+        variant=str(row.get("variant") or ""),
+    )
+    if identity is None:
         return None
-    crs, _mrts = variant.split("/", 1)
-    patterns = {
-        "apache": build_root
-        / "full-matrix"
-        / crs
-        / "no-mrts"
-        / "apache"
-        / "logs"
-        / "apache-runtime"
-        / SECACTION_DETECTION_ONLY_CASE
-        / "result.json",
-        "haproxy": build_root
-        / "full-matrix"
-        / crs
-        / "no-mrts"
-        / "haproxy"
-        / "logs"
-        / "haproxy-runtime"
-        / SECACTION_DETECTION_ONLY_CASE
-        / "result.json",
-    }
-    result_path = patterns.get(connector)
+    crs, control_root = identity
+    result_path: Path | None = None
+    if connector in {"apache", "haproxy"}:
+        result_path = control_root / "logs" / f"{connector}-runtime" / SECACTION_DETECTION_ONLY_CASE / "result.json"
     if connector == "nginx":
-        summary_path = build_root / "full-matrix" / crs / "no-mrts" / "nginx" / "results" / "force-all" / "nginx-summary.json"
+        summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
         summary = read_json(summary_path)
         for item in walk_dicts(summary):
             if str(item.get("name") or item.get("case") or "") != SECACTION_DETECTION_ONLY_CASE:
@@ -628,37 +628,19 @@ def no_mrts_case_control_evidence(
     case_name: str,
 ) -> dict[str, str] | None:
     connector = str(row.get("connector") or "")
-    variant = str(row.get("variant") or "")
-    if "/" not in variant:
+    identity = _no_mrts_control_identity(
+        build_root=build_root,
+        connector=connector,
+        variant=str(row.get("variant") or ""),
+    )
+    if identity is None:
         return None
-    crs, _mrts = variant.split("/", 1)
+    crs, control_root = identity
     result_path: Path | None = None
-    if connector == "apache":
-        result_path = (
-            build_root
-            / "full-matrix"
-            / crs
-            / "no-mrts"
-            / "apache"
-            / "logs"
-            / "apache-runtime"
-            / case_name
-            / "result.json"
-        )
-    elif connector == "haproxy":
-        result_path = (
-            build_root
-            / "full-matrix"
-            / crs
-            / "no-mrts"
-            / "haproxy"
-            / "logs"
-            / "haproxy-runtime"
-            / case_name
-            / "result.json"
-        )
+    if connector in {"apache", "haproxy"}:
+        result_path = control_root / "logs" / f"{connector}-runtime" / case_name / "result.json"
     elif connector == "nginx":
-        summary_path = build_root / "full-matrix" / crs / "no-mrts" / "nginx" / "results" / "force-all" / "nginx-summary.json"
+        summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
         summary = read_json(summary_path)
         for item in walk_dicts(summary):
             if str(item.get("name") or item.get("case") or "") != case_name:
@@ -745,11 +727,15 @@ def nginx_no_mrts_phase4_log_control(
     *,
     build_root: Path,
 ) -> dict[str, str] | None:
-    variant = str(row.get("variant") or "")
-    if "/" not in variant:
+    identity = _no_mrts_control_identity(
+        build_root=build_root,
+        connector="nginx",
+        variant=str(row.get("variant") or ""),
+    )
+    if identity is None:
         return None
-    crs, _mrts = variant.split("/", 1)
-    summary_path = build_root / "full-matrix" / crs / "no-mrts" / "nginx" / "results" / "force-all" / "nginx-summary.json"
+    crs, control_root = identity
+    summary_path = control_root / "results" / "force-all" / NGINX_FORCE_ALL_SUMMARY_FILE
     summary = read_json(summary_path)
     cases = summary.get("nginx", {}).get("cases")
     if isinstance(cases, dict):
