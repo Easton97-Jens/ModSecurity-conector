@@ -63,10 +63,7 @@ def check_traefik_start_contract(content: str) -> list[str]:
     service_pid_ref, traefik_pid_ref = (f"${name}" for name in ("service_pid", "traefik_pid"))
     rc_reference = "$rc"
     rc_capture = "rc=$?"
-    rc_default = "rc=${rc:-1}"
     exit_with_rc = f'exit "{rc_reference}"'
-    kill_zero = "kill -0"
-    wait_command = "wait"
     diagnostic_template = f'{range_use} "{{stderr}}" >&2'
     cleanup_template = "\n".join(
         (
