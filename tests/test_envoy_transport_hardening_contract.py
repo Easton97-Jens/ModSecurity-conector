@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import http.server
 import importlib.util
 import json
@@ -8,6 +9,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,6 +82,42 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         helper = load_helper()
         with self.assertRaises(ValueError):
             helper.client_cancel("127.0.0.1", 18080, "/client-cancel", ["X-Test: snowman-☃"])
+
+    def test_phase4_marker_default_and_plain_text_headers_remain_stable(self) -> None:
+        helper = load_helper()
+        with mock.patch.object(sys, "argv", [
+            "envoy_smoke_helper.py",
+            "phase4-first-byte",
+            "--host", "127.0.0.1",
+            "--port", "18080",
+            "--barrier-dir", "/tmp/phase4-barrier",
+        ]):
+            arguments = helper.parse_args()
+
+        self.assertEqual(helper.PHASE4_MARKER_PATH, "/phase4-marker")
+        self.assertEqual(arguments.path, "/phase4-marker")
+        self.assertEqual(helper.TEXT_PLAIN_CONTENT_TYPE, "text/plain")
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), helper.UpstreamHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=2)
+        try:
+            connection.request("GET", arguments.path)
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.getheader("content-type"), "text/plain")
+            self.assertEqual(response.read(), b"no-crs-response-body-marker\n")
+        finally:
+            connection.close()
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        source = HELPER_PATH.read_text(encoding="utf-8")
+        self.assertEqual(
+            source.count('self.send_header("content-type", TEXT_PLAIN_CONTENT_TYPE)'), 3,
+        )
 
     def test_phase4_barrier_confirms_first_byte_before_upstream_eos(self) -> None:
         helper = load_helper()
