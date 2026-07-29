@@ -7,6 +7,8 @@ EXT_PROC_ENVOY_CONFIG ?= $(BUILD_ROOT)/envoy-ext-proc/config/envoy-ext-proc.stre
 EXT_PROC_RUNTIME_ROOT ?= $(BUILD_ROOT)/envoy-ext-proc/runtime-smoke
 EXT_PROC_RUNTIME_EVENT_LOG_PATH ?= $(EXT_PROC_RUNTIME_ROOT)/events.jsonl
 EXT_PROC_RUNTIME_CONFIG ?= $(EXT_PROC_RUNTIME_ROOT)/envoy-ext-proc-runtime.conf
+EXT_PROC_TLS_CERTIFICATE ?= $(EXT_PROC_RUNTIME_ROOT)/envoy-loopback.crt
+EXT_PROC_TLS_PRIVATE_KEY ?= $(EXT_PROC_RUNTIME_ROOT)/envoy-loopback.key
 EXT_PROC_RULES_FILE ?= $(if $(MSCONNECTOR_RULES_FILE),$(MSCONNECTOR_RULES_FILE),$(if $(NO_CRS_RULES_FILE),$(NO_CRS_RULES_FILE),$(abspath $(CURDIR)/../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf)))
 EXT_PROC_LISTEN_PORT ?= 18080
 EXT_PROC_UPSTREAM_PORT ?= 18081
@@ -15,7 +17,8 @@ EXT_PROC_ADMIN_PORT ?= 19001
 CONFIG_FILE ?= $(CURDIR)/config/envoy-ext-authz.conf
 RULES_FILE ?= $(abspath $(CURDIR)/../../common/rules/modsecurity_targeted_smoke.conf)
 EVENT_LOG_PATH ?= $(BUILD_ROOT)/envoy-connector/events.jsonl
-RUNTIME_EVENT_LOG_PATH ?= $(BUILD_ROOT)/envoy-connector/runtime-smoke/events.jsonl
+ENVOY_RUNTIME_ROOT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(if $(TMPDIR),$(TMPDIR),/var/tmp))/ModSecurity-conector-envoy-runtime-smoke
+RUNTIME_EVENT_LOG_PATH ?= $(ENVOY_RUNTIME_ROOT)/events.jsonl
 LISTEN_ADDRESS ?= 127.0.0.1
 LISTEN_PORT ?= 18082
 
@@ -73,6 +76,7 @@ prepare-envoy-ext-proc-config:
 	OUTPUT_CONFIG="$(EXT_PROC_ENVOY_CONFIG)" \
 	LISTEN_PORT="$(EXT_PROC_LISTEN_PORT)" UPSTREAM_PORT="$(EXT_PROC_UPSTREAM_PORT)" \
 	EXT_PROC_PORT="$(EXT_PROC_LISTEN_SERVICE_PORT)" ADMIN_PORT="$(EXT_PROC_ADMIN_PORT)" \
+	TLS_CERTIFICATE="$(EXT_PROC_TLS_CERTIFICATE)" TLS_PRIVATE_KEY="$(EXT_PROC_TLS_PRIVATE_KEY)" \
 	sh config/prepare_envoy_ext_proc_config.sh
 
 prepare-envoy-ext-proc-runtime-config:
@@ -122,7 +126,8 @@ serve-envoy-connector: build-envoy-connector
 
 runtime-smoke-envoy: build-envoy-connector
 	SERVICE_BIN="$(SERVICE_BIN)" BUILD_ROOT="$(BUILD_ROOT)" CONFIG_FILE="$(CONFIG_FILE)" \
-	RULES_FILE="$(RULES_FILE)" EVENT_LOG_PATH="$(RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
+	RULES_FILE="$(RULES_FILE)" RUNTIME_ROOT="$(ENVOY_RUNTIME_ROOT)" \
+	EVENT_LOG_PATH="$(RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
 	PYTHON="$(PYTHON)" sh harness/run_envoy_connector_runtime.sh
 
 no-crs-baseline-envoy: export MSCONNECTOR_NO_CRS_BASELINE := 1

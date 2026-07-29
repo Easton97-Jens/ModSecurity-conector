@@ -32,6 +32,14 @@ Review- oder Delivery-Ergebnisse behaupten.
   Restart-Controls sind lokal erfasst; Exact-Head-Delivery, gehostete Checks
   und Resulting-Master-Evidence stehen noch aus.
 
+- [Parent-Envoy-Runtime-Artefaktbegrenzung und Loopback-TLS](CR-20260729-sonar-envoy-runtime-artifact-tls-containment.de.md)
+  — fokussierte temporäre TLS-, Artefaktbegrenzungs-, Konfigurations-
+  Materialisierungs-, Go- und Common-Adoption-Controls bestanden, soweit ihre
+  Voraussetzungen verfügbar sind; die native Envoy-/ext_proc-Runtime ist
+  lokal durch das fehlende Envoy-Binary und die Framework-Regel-Fixture
+  blockiert. Vor der Integration muss der Hosted-Status am exakten aktuellen
+  PR-Head gelesen werden.
+
 - [Parent-CI-Focused-Report-Helper-Deduplizierung und Request-Body-Pfadbegrenzung](CR-20260729-sonar-ci-focused-report-safety.de.md)
   — lokale Traversal-/Symlink-Regression und legitime In-Root-Controls
   bestanden; der kombinierte Security-Diff-Review fand keine reportbare Regression.

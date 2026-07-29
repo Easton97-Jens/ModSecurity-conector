@@ -11,6 +11,7 @@ RULES_FILE=${RULES_FILE:-$REPO_ROOT/common/rules/modsecurity_targeted_smoke.conf
 EVENT_LOG_PATH=${EVENT_LOG_PATH:-$BUILD_ROOT/envoy-connector/start-smoke/events.jsonl}
 PYTHON_BIN=${PYTHON:-python3}
 HELPER="$SCRIPT_DIR/envoy_smoke_helper.py"
+TLS_RENDERER="$CONNECTOR_DIR/config/lib/tls_yaml_render.sh"
 YAML_TEMPLATE="$CONNECTOR_DIR/config/envoy-ext-authz-smoke.yaml.in"
 START_ROOT=${START_ROOT:-$BUILD_ROOT/envoy-connector/start-smoke}
 ENVOY_CONFIG="$START_ROOT/envoy.yaml"
@@ -19,6 +20,8 @@ ENVOY_STDERR="$START_ROOT/envoy.stderr.log"
 SERVICE_STDOUT="$START_ROOT/service.stdout.log"
 SERVICE_STDERR="$START_ROOT/service.stderr.log"
 SUMMARY="$START_ROOT/start-summary.txt"
+TLS_CERTIFICATE="$START_ROOT/envoy-loopback.crt"
+TLS_PRIVATE_KEY="$START_ROOT/envoy-loopback.key"
 envoy_pid=
 service_pid=
 
@@ -41,15 +44,17 @@ cleanup() {
             set -e
         fi
     done
+    rm -f "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
 }
-trap cleanup EXIT HUP INT TERM
 
 [ -n "${ENVOY_BIN:-}" ] || missing_dependency "ENVOY_BIN is required"
 [ -x "$ENVOY_BIN" ] || missing_dependency "ENVOY_BIN is not executable: $ENVOY_BIN"
 [ -x "$SERVICE_BIN" ] || missing_dependency "connector service is not executable: $SERVICE_BIN"
 [ -f "$HELPER" ] || missing_dependency "smoke helper is missing: $HELPER"
+[ -f "$TLS_RENDERER" ] || missing_dependency "TLS YAML renderer is missing: $TLS_RENDERER"
 [ -f "$YAML_TEMPLATE" ] || missing_dependency "Envoy config template is missing: $YAML_TEMPLATE"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || missing_dependency "Python interpreter is missing: $PYTHON_BIN"
+. "$TLS_RENDERER"
 
 case "$START_ROOT" in
     /*) ;;
@@ -62,8 +67,12 @@ case "$START_ROOT" in
         ;;
     *) ;;
 esac
-mkdir -p "$START_ROOT"
-rm -f "$SUMMARY"
+if ! "$PYTHON_BIN" "$HELPER" prepare-runtime-root --runtime-root "$START_ROOT"; then
+    echo "envoy_start_smoke: FAIL - START_ROOT is unsafe for private runtime artifacts" >&2
+    exit 1
+fi
+trap cleanup EXIT HUP INT TERM
+rm -f "$SUMMARY" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
 
 set -- $("$PYTHON_BIN" "$HELPER" free-ports --count 4)
 listen_port=${ENVOY_SMOKE_PORT:-$1}
@@ -72,11 +81,36 @@ authz_port=${ENVOY_AUTHZ_PORT:-$3}
 admin_port=${ENVOY_ADMIN_PORT:-$4}
 base_id=$(((listen_port + admin_port) % 100000))
 
+command -v openssl >/dev/null 2>&1 || missing_dependency "openssl is required for the private loopback TLS certificate"
+if ! create_private_loopback_tls "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"; then
+    echo "envoy_start_smoke: FAIL - could not create the private loopback TLS certificate" >&2
+    exit 1
+fi
+
+set +e
+TLS_CERTIFICATE_ESCAPED=$(render_yaml_path_for_sed_replacement "$TLS_CERTIFICATE")
+TLS_CERTIFICATE_RENDER_STATUS=$?
+set -e
+if [ "$TLS_CERTIFICATE_RENDER_STATUS" -ne 0 ]; then
+    echo "envoy_start_smoke: FAIL - TLS certificate path contains an unsupported control character" >&2
+    exit 1
+fi
+set +e
+TLS_PRIVATE_KEY_ESCAPED=$(render_yaml_path_for_sed_replacement "$TLS_PRIVATE_KEY")
+TLS_PRIVATE_KEY_RENDER_STATUS=$?
+set -e
+if [ "$TLS_PRIVATE_KEY_RENDER_STATUS" -ne 0 ]; then
+    echo "envoy_start_smoke: FAIL - TLS private key path contains an unsupported control character" >&2
+    exit 1
+fi
+
 sed \
     -e "s|@LISTEN_PORT@|$listen_port|g" \
     -e "s|@UPSTREAM_PORT@|$upstream_port|g" \
     -e "s|@AUTHZ_PORT@|$authz_port|g" \
     -e "s|@ADMIN_PORT@|$admin_port|g" \
+    -e "s|@TLS_CERTIFICATE@|$TLS_CERTIFICATE_ESCAPED|g" \
+    -e "s|@TLS_PRIVATE_KEY@|$TLS_PRIVATE_KEY_ESCAPED|g" \
     "$YAML_TEMPLATE" > "$ENVOY_CONFIG"
 
 SERVICE_BIN="$SERVICE_BIN" BUILD_ROOT="$BUILD_ROOT" CONFIG_FILE="$CONFIG_FILE" \
@@ -122,6 +156,7 @@ fi
     printf 'envoy_pid=%s\n' "$envoy_pid"
     printf 'envoy_listen=127.0.0.1:%s\n' "$listen_port"
     printf 'authz_listen=127.0.0.1:%s\n' "$authz_port"
+    printf 'downstream_transport=tls_loopback\n'
     printf 'requests_sent=no\n'
 } > "$SUMMARY"
 
