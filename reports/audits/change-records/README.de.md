@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Common-Runtime-Smoke-Result-Objekt-Refaktorierung](CR-20260729-sonar-common-runtime-result.de.md)
+  — lokale Runtime-Writer-, CRS-/Pfad-Security- und Loopback-Request-Body-
+  Controls bestanden; der 52-Zeilen-Common-CPD-Block und zwei Basis-
+  `python:S107`-Zeilen sind zur gehosteten Verifikation ausgewählt. Es werden
+  zum Zeitpunkt der Record-Erstellung kein Commit, Push, PR, gehostete Analyse
+  oder Merge behauptet.
 - [Parent-Common-Header-Validierung und NGINX-Strict-JSONL-Tail-Deduplizierung](CR-20260728-sonar-common-nginx-strict-jsonl-duplication.de.md)
   — lokale Common-C17-, Security-, Flow- und NGINX-Source-Contract-Checks
   bestanden; Memory-Safety bestand außerhalb der LeakSanitizer-inkompatiblen

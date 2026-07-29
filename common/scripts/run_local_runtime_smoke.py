@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import http.client
 import http.server
 import json
@@ -89,6 +89,129 @@ class RuntimeOutputPaths:
     log_root: Path
     log_dir: Path
     config_root: Path
+
+
+@dataclass(frozen=True)
+class SmokeResult:
+    """One immutable runtime-smoke result passed to the evidence writer."""
+
+    status: str
+    exit_code: int
+    runtime_verified: bool
+    allowed: int | None
+    blocked: int | None
+    skipped_reason: str = ""
+    missing: tuple[str, ...] = ()
+    modsecurity_backend_verified: bool = False
+    modsecurity_rule_loaded: bool = False
+    intervention_status: int | None = None
+    decision_log_path: str = ""
+    audit_log_path: str = ""
+    lighttpd_binary_verified: bool = False
+    lighttpd_http_verified: bool = False
+    sidecar_proxy_verified: bool = False
+    lighttpd_log_path: str = ""
+    upstream_log_path: str = ""
+    request_transcript_path: str = ""
+    request_body_smoke_verified: bool = False
+    request_body_access_enabled: bool = False
+    request_body_rule_loaded: bool = False
+    crs_minimal_smoke_verified: bool = False
+    crs_secondary_smoke_verified: bool = False
+    crs_rule_id: str = ""
+    crs_rule_message: str = ""
+
+
+@dataclass(frozen=True)
+class BackendEvidence:
+    """Decision-backend facts shared by every result from one smoke run."""
+
+    modsecurity_backend_verified: bool = False
+    modsecurity_rule_loaded: bool = False
+    intervention_status: int | None = None
+    request_body_smoke_verified: bool = False
+    request_body_access_enabled: bool = False
+    request_body_rule_loaded: bool = False
+    crs_minimal_smoke_verified: bool = False
+    crs_secondary_smoke_verified: bool = False
+    crs_rule_id: str = ""
+    crs_rule_message: str = ""
+
+
+@dataclass(frozen=True)
+class SmokeWriterValues:
+    """Derived, non-sensitive writer arguments for one smoke result."""
+
+    effective_rule_file: str
+    effective_crs_runtime_dir: str
+    effective_crs_source_dir: str
+    crs_version: str
+    modsecurity_ruleset: str
+    modsecurity_smoke_case: str
+    crs_smoke_case: str
+    modsecurity_rule_id: str
+    request_body_rule_file: str
+    request_body_rule_id: str
+    request_method: str
+    blocked_body_marker: str
+
+
+def collect_backend_evidence(decision_backend: object) -> BackendEvidence:
+    """Collect one immutable snapshot before the evidence writer runs."""
+
+    (
+        request_body_smoke_verified,
+        request_body_access_enabled,
+        request_body_rule_loaded,
+    ) = request_body_evidence(decision_backend)
+    return BackendEvidence(
+        modsecurity_backend_verified=bool(
+            getattr(decision_backend, "modsecurity_backend_verified", False)
+        ),
+        modsecurity_rule_loaded=bool(getattr(decision_backend, "modsecurity_rule_loaded", False)),
+        intervention_status=getattr(decision_backend, "intervention_status", None),
+        request_body_smoke_verified=request_body_smoke_verified,
+        request_body_access_enabled=request_body_access_enabled,
+        request_body_rule_loaded=request_body_rule_loaded,
+        crs_rule_id=str(getattr(decision_backend, "crs_rule_id", "")),
+        crs_rule_message=str(getattr(decision_backend, "crs_rule_message", "")),
+    )
+
+
+def smoke_result(
+    status: str,
+    exit_code: int,
+    runtime_verified: bool,
+    allowed: int | None,
+    blocked: int | None,
+    evidence: BackendEvidence = BackendEvidence(),
+    *,
+    skipped_reason: str = "",
+    missing: tuple[str, ...] = (),
+    context: dict[str, object] | None = None,
+) -> SmokeResult:
+    """Combine shared backend facts and run-specific paths into one result."""
+
+    return SmokeResult(
+        status,
+        exit_code,
+        runtime_verified,
+        allowed,
+        blocked,
+        skipped_reason=skipped_reason,
+        missing=missing,
+        modsecurity_backend_verified=evidence.modsecurity_backend_verified,
+        modsecurity_rule_loaded=evidence.modsecurity_rule_loaded,
+        intervention_status=evidence.intervention_status,
+        request_body_smoke_verified=evidence.request_body_smoke_verified,
+        request_body_access_enabled=evidence.request_body_access_enabled,
+        request_body_rule_loaded=evidence.request_body_rule_loaded,
+        crs_minimal_smoke_verified=evidence.crs_minimal_smoke_verified,
+        crs_secondary_smoke_verified=evidence.crs_secondary_smoke_verified,
+        crs_rule_id=evidence.crs_rule_id,
+        crs_rule_message=evidence.crs_rule_message,
+        **(context or {}),
+    )
 
 
 def require_verified_runtime_output_path(value: str, label: str, root: Path) -> Path:
@@ -1424,55 +1547,63 @@ def build_proxy_command(connector: str, binary: Path, work_dir: Path, listen_por
     raise ValueError(f"unsupported connector for local runtime smoke: {connector}")
 
 
-def writer_args(
-    args: argparse.Namespace,
-    status: str,
-    exit_code: int,
-    runtime_verified: bool,
-    allowed: int | None,
-    blocked: int | None,
-    skipped_reason: str,
-    missing: list[str],
-    modsecurity_backend_verified: bool = False,
-    modsecurity_rule_loaded: bool = False,
-    intervention_status: int | None = None,
-    decision_log_path: str = "",
-    audit_log_path: str = "",
-    lighttpd_binary_verified: bool = False,
-    lighttpd_http_verified: bool = False,
-    sidecar_proxy_verified: bool = False,
-    lighttpd_log_path: str = "",
-    upstream_log_path: str = "",
-    request_transcript_path: str = "",
-    request_body_smoke_verified: bool = False,
-    request_body_access_enabled: bool = False,
-    request_body_rule_loaded: bool = False,
-    crs_minimal_smoke_verified: bool = False,
-    crs_secondary_smoke_verified: bool = False,
-    crs_rule_id: str = "",
-    crs_rule_message: str = "",
-) -> list[str]:
+def smoke_writer_values(args: argparse.Namespace, result: SmokeResult) -> SmokeWriterValues:
+    """Derive writer values without mixing them into command construction."""
+
     effective_rule_file = namespace_value(args, "effective_modsecurity_rule_file", args.modsecurity_rule_file)
     effective_crs_runtime_dir = namespace_value(args, "effective_crs_runtime_dir", args.crs_runtime_dir)
     effective_crs_source_dir = namespace_value(args, "effective_crs_source_dir", args.crs_source_dir)
     crs_version = namespace_value(args, "effective_crs_version", "")
-    modsecurity_rule_id = ""
-    if args.decision_backend == "libmodsecurity":
-        if args.modsecurity_ruleset == "crs":
-            modsecurity_rule_id = crs_rule_id
-        elif args.modsecurity_smoke_case == "request_body":
-            modsecurity_rule_id = "1000002"
-        else:
-            modsecurity_rule_id = "1000001"
-    request_body_rule_file = ""
-    request_body_rule_id = ""
-    request_method = ""
-    blocked_body_marker = ""
-    if args.decision_backend == "libmodsecurity" and args.modsecurity_smoke_case == "request_body":
-        request_body_rule_file = effective_rule_file
-        request_body_rule_id = "1000002"
-        request_method = "POST"
-        blocked_body_marker = REQUEST_BODY_BLOCK_MARKER
+    modsecurity_enabled = args.decision_backend == "libmodsecurity"
+    request_body_enabled = modsecurity_enabled and args.modsecurity_smoke_case == "request_body"
+    if not modsecurity_enabled:
+        return SmokeWriterValues(
+            effective_rule_file,
+            effective_crs_runtime_dir,
+            effective_crs_source_dir,
+            crs_version,
+            "",
+            "",
+            args.crs_smoke_case if args.modsecurity_ruleset == "crs" else "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        )
+
+    if args.modsecurity_ruleset == "crs":
+        modsecurity_rule_id = result.crs_rule_id
+    elif request_body_enabled:
+        modsecurity_rule_id = "1000002"
+    else:
+        modsecurity_rule_id = "1000001"
+    return SmokeWriterValues(
+        effective_rule_file,
+        effective_crs_runtime_dir,
+        effective_crs_source_dir,
+        crs_version,
+        args.modsecurity_ruleset,
+        args.modsecurity_smoke_case,
+        args.crs_smoke_case if args.modsecurity_ruleset == "crs" else "",
+        modsecurity_rule_id,
+        effective_rule_file if request_body_enabled else "",
+        "1000002" if request_body_enabled else "",
+        "POST" if request_body_enabled else "",
+        REQUEST_BODY_BLOCK_MARKER if request_body_enabled else "",
+    )
+
+
+def writer_flag(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def writer_status(value: int | None) -> str:
+    return str(value) if value is not None else "not-run"
+
+
+def writer_args(args: argparse.Namespace, result: SmokeResult) -> list[str]:
+    values = smoke_writer_values(args, result)
     command = [
         sys.executable,
         str(Path(args.connector_root) / "common/scripts/write_smoke_result.py"),
@@ -1481,65 +1612,65 @@ def writer_args(
         "--integration-mode",
         args.integration_mode,
         "--status",
-        status,
+        result.status,
         "--exit-code",
-        str(exit_code),
+        str(result.exit_code),
         "--runtime-verified",
-        "true" if runtime_verified else "false",
+        writer_flag(result.runtime_verified),
         "--response-body-verified",
         "false",
         "--allowed-request-status",
-        str(allowed) if allowed is not None else "not-run",
+        writer_status(result.allowed),
         "--blocked-request-status",
-        str(blocked) if blocked is not None else "not-run",
+        writer_status(result.blocked),
         "--decision-backend",
         args.decision_backend,
         "--modsecurity-ruleset",
-        args.modsecurity_ruleset if args.decision_backend == "libmodsecurity" else "",
+        values.modsecurity_ruleset,
         "--modsecurity-smoke-case",
-        args.modsecurity_smoke_case if args.decision_backend == "libmodsecurity" else "",
+        values.modsecurity_smoke_case,
         "--crs-smoke-case",
-        args.crs_smoke_case if args.modsecurity_ruleset == "crs" else "",
+        values.crs_smoke_case,
         "--modsecurity-backend-verified",
-        "true" if modsecurity_backend_verified else "false",
+        writer_flag(result.modsecurity_backend_verified),
         "--modsecurity-rule-file",
-        effective_rule_file,
+        values.effective_rule_file,
         "--modsecurity-rule-id",
-        modsecurity_rule_id,
+        values.modsecurity_rule_id,
         "--modsecurity-rule-loaded",
-        "true" if modsecurity_rule_loaded else "false",
+        writer_flag(result.modsecurity_rule_loaded),
         "--request-body-smoke-verified",
-        "true" if request_body_smoke_verified else "false",
+        writer_flag(result.request_body_smoke_verified),
         "--request-body-access-enabled",
-        "true" if request_body_access_enabled else "false",
+        writer_flag(result.request_body_access_enabled),
         "--request-body-rule-file",
-        request_body_rule_file,
+        values.request_body_rule_file,
         "--request-body-rule-id",
-        request_body_rule_id,
+        values.request_body_rule_id,
         "--request-body-rule-loaded",
-        "true" if request_body_rule_loaded else "false",
+        writer_flag(result.request_body_rule_loaded),
         "--request-method",
-        request_method,
+        values.request_method,
         "--blocked-body-marker",
-        blocked_body_marker,
+        values.blocked_body_marker,
         "--intervention-status",
-        str(intervention_status) if intervention_status is not None else "not-run",
+        writer_status(result.intervention_status),
         "--audit-log-path",
-        audit_log_path,
+        result.audit_log_path,
         "--decision-log-path",
-        decision_log_path,
+        result.decision_log_path,
         "--lighttpd-binary-verified",
-        "true" if lighttpd_binary_verified else "false",
+        writer_flag(result.lighttpd_binary_verified),
         "--lighttpd-http-verified",
-        "true" if lighttpd_http_verified else "false",
+        writer_flag(result.lighttpd_http_verified),
         "--sidecar-proxy-verified",
-        "true" if sidecar_proxy_verified else "false",
+        writer_flag(result.sidecar_proxy_verified),
         "--lighttpd-log-path",
-        lighttpd_log_path,
+        result.lighttpd_log_path,
         "--upstream-log-path",
-        upstream_log_path,
+        result.upstream_log_path,
         "--request-transcript-path",
-        request_transcript_path,
+        result.request_transcript_path,
         "--modsecurity-include-dir",
         args.modsecurity_include_dir,
         "--modsecurity-lib-dir",
@@ -1571,7 +1702,7 @@ def writer_args(
         "--harness-path",
         args.harness_path,
         "--skipped-reason",
-        skipped_reason,
+        result.skipped_reason,
         "--resolved-runtime-binary",
         args.resolved_runtime_binary,
         "--runtime-binary-env-var",
@@ -1585,86 +1716,29 @@ def writer_args(
         "--crs-git-ref",
         args.crs_git_ref,
         "--crs-source-dir",
-        effective_crs_source_dir,
+        values.effective_crs_source_dir,
         "--crs-runtime-dir",
-        effective_crs_runtime_dir,
+        values.effective_crs_runtime_dir,
         "--crs-version",
-        crs_version,
+        values.crs_version,
         "--crs-minimal-smoke-verified",
-        "true" if crs_minimal_smoke_verified else "false",
+        writer_flag(result.crs_minimal_smoke_verified),
         "--crs-secondary-smoke-verified",
-        "true" if crs_secondary_smoke_verified else "false",
+        writer_flag(result.crs_secondary_smoke_verified),
         "--crs-rule-id",
-        crs_rule_id,
+        result.crs_rule_id,
         "--crs-rule-message",
-        crs_rule_message,
+        result.crs_rule_message,
     ]
-    for dependency in missing:
+    for dependency in result.missing:
         command.extend(["--missing-dependency", dependency])
     for root in args.runtime_lookup_root:
         command.extend(["--runtime-lookup-root", root])
     return command
 
 
-def write_result(
-    args: argparse.Namespace,
-    status: str,
-    exit_code: int,
-    runtime_verified: bool,
-    allowed: int | None,
-    blocked: int | None,
-    skipped_reason: str,
-    missing: list[str],
-    modsecurity_backend_verified: bool = False,
-    modsecurity_rule_loaded: bool = False,
-    intervention_status: int | None = None,
-    decision_log_path: str = "",
-    audit_log_path: str = "",
-    lighttpd_binary_verified: bool = False,
-    lighttpd_http_verified: bool = False,
-    sidecar_proxy_verified: bool = False,
-    lighttpd_log_path: str = "",
-    upstream_log_path: str = "",
-    request_transcript_path: str = "",
-    request_body_smoke_verified: bool = False,
-    request_body_access_enabled: bool = False,
-    request_body_rule_loaded: bool = False,
-    crs_minimal_smoke_verified: bool = False,
-    crs_secondary_smoke_verified: bool = False,
-    crs_rule_id: str = "",
-    crs_rule_message: str = "",
-) -> None:
-    subprocess.run(
-        writer_args(
-            args,
-            status,
-            exit_code,
-            runtime_verified,
-            allowed,
-            blocked,
-            skipped_reason,
-            missing,
-            modsecurity_backend_verified,
-            modsecurity_rule_loaded,
-            intervention_status,
-            decision_log_path,
-            audit_log_path,
-            lighttpd_binary_verified,
-            lighttpd_http_verified,
-            sidecar_proxy_verified,
-            lighttpd_log_path,
-            upstream_log_path,
-            request_transcript_path,
-            request_body_smoke_verified,
-            request_body_access_enabled,
-            request_body_rule_loaded,
-            crs_minimal_smoke_verified,
-            crs_secondary_smoke_verified,
-            crs_rule_id,
-            crs_rule_message,
-        ),
-        check=True,
-    )
+def write_result(args: argparse.Namespace, result: SmokeResult) -> None:
+    subprocess.run(writer_args(args, result), check=True)
 
 
 def run_lighttpd_sidecar_smoke(
@@ -1795,39 +1869,46 @@ def run_lighttpd_sidecar_smoke(
                 data=blocked_body,
             )
 
-        modsecurity_backend_verified = bool(
-            getattr(decision_backend, "modsecurity_backend_verified", False)
-        )
-        modsecurity_rule_loaded = bool(getattr(decision_backend, "modsecurity_rule_loaded", False))
-        intervention_status = getattr(decision_backend, "intervention_status", None)
+        evidence = collect_backend_evidence(decision_backend)
         backend_error = getattr(decision_backend, "last_error", None)
         sidecar_proxy_verified = lighttpd_http_verified and allowed_status == 200 and blocked_status == 403
-        (
-            request_body_smoke_verified,
-            request_body_access_enabled,
-            request_body_rule_loaded,
-        ) = request_body_evidence(decision_backend)
-        crs_rule_id = str(getattr(decision_backend, "crs_rule_id", ""))
-        crs_rule_message = str(getattr(decision_backend, "crs_rule_message", ""))
         if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
             crs_rule_id, crs_rule_message = crs_detection_from_audit_log(
                 Path(namespace_value(args, "effective_audit_log_path", "")),
-                crs_rule_id,
-                crs_rule_message,
+                evidence.crs_rule_id,
+                evidence.crs_rule_message,
+            )
+            evidence = replace(
+                evidence,
+                crs_rule_id=crs_rule_id,
+                crs_rule_message=crs_rule_message,
             )
         crs_case_verified = (
             args.modsecurity_ruleset == "crs"
             and sidecar_proxy_verified
-            and modsecurity_backend_verified
-            and bool(crs_rule_id)
+            and evidence.modsecurity_backend_verified
+            and bool(evidence.crs_rule_id)
         )
-        crs_minimal_smoke_verified = crs_case_verified and args.crs_smoke_case == "minimal"
-        crs_secondary_smoke_verified = crs_case_verified and args.crs_smoke_case == "secondary"
+        evidence = replace(
+            evidence,
+            crs_minimal_smoke_verified=crs_case_verified and args.crs_smoke_case == "minimal",
+            crs_secondary_smoke_verified=crs_case_verified and args.crs_smoke_case == "secondary",
+        )
+        result_context = {
+            "decision_log_path": str(decision_log_path) if decision_log_path is not None else "",
+            "audit_log_path": namespace_value(args, "effective_audit_log_path", ""),
+            "lighttpd_binary_verified": lighttpd_binary_verified,
+            "lighttpd_http_verified": lighttpd_http_verified,
+            "sidecar_proxy_verified": sidecar_proxy_verified,
+            "lighttpd_log_path": str(lighttpd_log_path),
+            "upstream_log_path": str(upstream_log_path),
+            "request_transcript_path": str(request_transcript_path),
+        }
         success = sidecar_proxy_verified
         if args.decision_backend == "libmodsecurity" and args.modsecurity_ruleset == "crs":
             success = success and crs_case_verified
         elif args.decision_backend == "libmodsecurity":
-            success = success and modsecurity_backend_verified
+            success = success and evidence.modsecurity_backend_verified
 
         with upstream_log_path.open("a", encoding="utf-8") as handle:
             handle.write(f"direct_upstream_status={direct_status}\n")
@@ -1839,37 +1920,13 @@ def run_lighttpd_sidecar_smoke(
         if success:
             write_result(
                 args,
-                "PASS",
-                0,
-                True,
-                allowed_status,
-                blocked_status,
-                "",
-                [],
-                modsecurity_backend_verified,
-                modsecurity_rule_loaded,
-                intervention_status,
-                str(decision_log_path) if decision_log_path is not None else "",
-                namespace_value(args, "effective_audit_log_path", ""),
-                lighttpd_binary_verified,
-                lighttpd_http_verified,
-                sidecar_proxy_verified,
-                str(lighttpd_log_path),
-                str(upstream_log_path),
-                str(request_transcript_path),
-                request_body_smoke_verified,
-                request_body_access_enabled,
-                request_body_rule_loaded,
-                crs_minimal_smoke_verified,
-                crs_secondary_smoke_verified,
-                crs_rule_id,
-                crs_rule_message,
+                smoke_result("PASS", 0, True, allowed_status, blocked_status, evidence, context=result_context),
             )
             return 0
 
         reason = "lighttpd sidecar_proxy smoke did not produce expected direct 200 and sidecar 200/403 statuses"
         missing: list[str] = []
-        if args.decision_backend == "libmodsecurity" and not modsecurity_backend_verified:
+        if args.decision_backend == "libmodsecurity" and not evidence.modsecurity_backend_verified:
             if args.modsecurity_ruleset == "crs":
                 reason = "lighttpd libmodsecurity CRS smoke did not verify a CRS-backed 403 intervention"
             else:
@@ -1893,60 +1950,33 @@ def run_lighttpd_sidecar_smoke(
             missing = []
         write_result(
             args,
-            status,
-            exit_code,
-            runtime_verified,
-            allowed_status,
-            blocked_status,
-            reason,
-            missing,
-            modsecurity_backend_verified,
-            modsecurity_rule_loaded,
-            intervention_status,
-            str(decision_log_path) if decision_log_path is not None else "",
-            namespace_value(args, "effective_audit_log_path", ""),
-            lighttpd_binary_verified,
-            lighttpd_http_verified,
-            sidecar_proxy_verified,
-            str(lighttpd_log_path),
-            str(upstream_log_path),
-            str(request_transcript_path),
-            request_body_smoke_verified,
-            request_body_access_enabled,
-            request_body_rule_loaded,
-            crs_minimal_smoke_verified,
-            crs_secondary_smoke_verified,
-            crs_rule_id,
-            crs_rule_message,
+            smoke_result(
+                status, exit_code, runtime_verified, allowed_status, blocked_status, evidence,
+                skipped_reason=reason,
+                missing=tuple(missing),
+                context=result_context,
+            ),
         )
         return exit_code
     except Exception as exc:  # noqa: BLE001 - runtime startup failures become blocked evidence.
-        modsecurity_backend_verified = bool(
-            getattr(decision_backend, "modsecurity_backend_verified", False)
-        )
-        modsecurity_rule_loaded = bool(getattr(decision_backend, "modsecurity_rule_loaded", False))
-        intervention_status = getattr(decision_backend, "intervention_status", None)
+        evidence = collect_backend_evidence(decision_backend)
+        result_context = {
+            "decision_log_path": str(decision_log_path) if decision_log_path is not None else "",
+            "lighttpd_binary_verified": lighttpd_binary_verified,
+            "lighttpd_http_verified": lighttpd_http_verified,
+            "sidecar_proxy_verified": sidecar_proxy_verified,
+            "lighttpd_log_path": str(lighttpd_log_path),
+            "upstream_log_path": str(upstream_log_path),
+            "request_transcript_path": str(request_transcript_path),
+        }
         write_result(
             args,
-            "BLOCKED",
-            77,
-            False,
-            allowed_status,
-            blocked_status,
-            f"lighttpd sidecar_proxy smoke could not be completed: {exc}",
-            [args.runtime_binary_name],
-            modsecurity_backend_verified,
-            modsecurity_rule_loaded,
-            intervention_status,
-            str(decision_log_path) if decision_log_path is not None else "",
-            "",
-            lighttpd_binary_verified,
-            lighttpd_http_verified,
-            sidecar_proxy_verified,
-            str(lighttpd_log_path),
-            str(upstream_log_path),
-            str(request_transcript_path),
-            *request_body_evidence(decision_backend),
+            smoke_result(
+                "BLOCKED", 77, False, allowed_status, blocked_status, evidence,
+                skipped_reason=f"lighttpd sidecar_proxy smoke could not be completed: {exc}",
+                missing=(args.runtime_binary_name,),
+                context=result_context,
+            ),
         )
         return 77
     finally:
@@ -1975,13 +2005,15 @@ def run_smoke(args: argparse.Namespace) -> int:
     except SmokeBlocked as exc:
         write_result(
             args,
-            "BLOCKED",
-            77,
-            False,
-            None,
-            None,
-            exc.reason,
-            exc.missing_dependencies,
+            SmokeResult(
+                "BLOCKED",
+                77,
+                False,
+                None,
+                None,
+                skipped_reason=exc.reason,
+                missing=tuple(exc.missing_dependencies),
+            ),
         )
         return 77
     config_root = runtime_output_paths.config_root
@@ -2051,34 +2083,32 @@ def run_smoke(args: argparse.Namespace) -> int:
     except SmokeBlocked as exc:
         write_result(
             args,
-            "BLOCKED",
-            77,
-            False,
-            None,
-            None,
-            exc.reason,
-            exc.missing_dependencies,
-            False,
-            False,
-            None,
-            str(decision_log_path) if decision_log_path is not None else "",
+            SmokeResult(
+                "BLOCKED",
+                77,
+                False,
+                None,
+                None,
+                skipped_reason=exc.reason,
+                missing=tuple(exc.missing_dependencies),
+                decision_log_path=str(decision_log_path) if decision_log_path is not None else "",
+            ),
         )
         return 77
     except Exception as exc:  # noqa: BLE001 - dependency/build gaps become blocked evidence.
         missing_dependency = "crs" if args.modsecurity_ruleset == "crs" and "CRS" in str(exc) else "libmodsecurity"
         write_result(
             args,
-            "BLOCKED",
-            77,
-            False,
-            None,
-            None,
-            f"{args.connector} libmodsecurity decision backend could not be prepared: {exc}",
-            [missing_dependency],
-            False,
-            False,
-            None,
-            str(decision_log_path) if decision_log_path is not None else "",
+            SmokeResult(
+                "BLOCKED",
+                77,
+                False,
+                None,
+                None,
+                skipped_reason=f"{args.connector} libmodsecurity decision backend could not be prepared: {exc}",
+                missing=(missing_dependency,),
+                decision_log_path=str(decision_log_path) if decision_log_path is not None else "",
+            ),
         )
         return 77
 
@@ -2149,74 +2179,54 @@ def run_smoke(args: argparse.Namespace) -> int:
                 data=blocked_body,
             )
 
-        modsecurity_backend_verified = bool(
-            getattr(decision_backend, "modsecurity_backend_verified", False)
-        )
-        modsecurity_rule_loaded = bool(getattr(decision_backend, "modsecurity_rule_loaded", False))
-        intervention_status = getattr(decision_backend, "intervention_status", None)
+        evidence = collect_backend_evidence(decision_backend)
         backend_error = getattr(decision_backend, "last_error", None)
-        (
-            request_body_smoke_verified,
-            request_body_access_enabled,
-            request_body_rule_loaded,
-        ) = request_body_evidence(decision_backend)
-        crs_rule_id = str(getattr(decision_backend, "crs_rule_id", ""))
-        crs_rule_message = str(getattr(decision_backend, "crs_rule_message", ""))
         if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
             crs_rule_id, crs_rule_message = crs_detection_from_audit_log(
                 Path(namespace_value(args, "effective_audit_log_path", "")),
-                crs_rule_id,
-                crs_rule_message,
+                evidence.crs_rule_id,
+                evidence.crs_rule_message,
+            )
+            evidence = replace(
+                evidence,
+                crs_rule_id=crs_rule_id,
+                crs_rule_message=crs_rule_message,
             )
         crs_case_verified = (
             args.modsecurity_ruleset == "crs"
             and allowed_status == 200
             and blocked_status == 403
-            and modsecurity_backend_verified
-            and bool(crs_rule_id)
+            and evidence.modsecurity_backend_verified
+            and bool(evidence.crs_rule_id)
         )
-        crs_minimal_smoke_verified = crs_case_verified and args.crs_smoke_case == "minimal"
-        crs_secondary_smoke_verified = crs_case_verified and args.crs_smoke_case == "secondary"
+        evidence = replace(
+            evidence,
+            crs_minimal_smoke_verified=crs_case_verified and args.crs_smoke_case == "minimal",
+            crs_secondary_smoke_verified=crs_case_verified and args.crs_smoke_case == "secondary",
+        )
+        result_context = {
+            "decision_log_path": str(decision_log_path) if decision_log_path is not None else "",
+            "audit_log_path": namespace_value(args, "effective_audit_log_path", ""),
+            "request_transcript_path": (
+                str(request_transcript_path) if request_body_smoke_enabled(args) else ""
+            ),
+        }
         success = allowed_status == 200 and blocked_status == 403
         if args.decision_backend == "libmodsecurity" and args.modsecurity_ruleset == "crs":
             success = success and crs_case_verified
         elif args.decision_backend == "libmodsecurity":
-            success = success and modsecurity_backend_verified
+            success = success and evidence.modsecurity_backend_verified
 
         if success:
             write_result(
                 args,
-                "PASS",
-                0,
-                True,
-                allowed_status,
-                blocked_status,
-                "",
-                [],
-                modsecurity_backend_verified,
-                modsecurity_rule_loaded,
-                intervention_status,
-                str(decision_log_path) if decision_log_path is not None else "",
-                namespace_value(args, "effective_audit_log_path", ""),
-                False,
-                False,
-                False,
-                "",
-                "",
-                str(request_transcript_path) if request_body_smoke_enabled(args) else "",
-                request_body_smoke_verified,
-                request_body_access_enabled,
-                request_body_rule_loaded,
-                crs_minimal_smoke_verified,
-                crs_secondary_smoke_verified,
-                crs_rule_id,
-                crs_rule_message,
+                smoke_result("PASS", 0, True, allowed_status, blocked_status, evidence, context=result_context),
             )
             return 0
 
         reason = f"{args.connector} local runtime smoke did not produce expected 200/403 statuses"
         missing: list[str] = []
-        if args.decision_backend == "libmodsecurity" and not modsecurity_backend_verified:
+        if args.decision_backend == "libmodsecurity" and not evidence.modsecurity_backend_verified:
             if args.modsecurity_ruleset == "crs":
                 reason = f"{args.connector} libmodsecurity CRS smoke did not verify a CRS-backed 403 intervention"
             else:
@@ -2246,60 +2256,30 @@ def run_smoke(args: argparse.Namespace) -> int:
             missing = []
         write_result(
             args,
-            status,
-            exit_code,
-            runtime_verified,
-            allowed_status,
-            blocked_status,
-            reason,
-            missing,
-            modsecurity_backend_verified,
-            modsecurity_rule_loaded,
-            intervention_status,
-            str(decision_log_path) if decision_log_path is not None else "",
-            namespace_value(args, "effective_audit_log_path", ""),
-            False,
-            False,
-            False,
-            "",
-            "",
-            str(request_transcript_path) if request_body_smoke_enabled(args) else "",
-            request_body_smoke_verified,
-            request_body_access_enabled,
-            request_body_rule_loaded,
-            crs_minimal_smoke_verified,
-            crs_secondary_smoke_verified,
-            crs_rule_id,
-            crs_rule_message,
+            smoke_result(
+                status, exit_code, runtime_verified, allowed_status, blocked_status, evidence,
+                skipped_reason=reason,
+                missing=tuple(missing),
+                context=result_context,
+            ),
         )
         return exit_code
     except Exception as exc:  # noqa: BLE001 - all runtime startup failures become blocked evidence.
-        modsecurity_backend_verified = bool(
-            getattr(decision_backend, "modsecurity_backend_verified", False)
-        )
-        modsecurity_rule_loaded = bool(getattr(decision_backend, "modsecurity_rule_loaded", False))
-        intervention_status = getattr(decision_backend, "intervention_status", None)
+        evidence = collect_backend_evidence(decision_backend)
+        result_context = {
+            "decision_log_path": str(decision_log_path) if decision_log_path is not None else "",
+            "request_transcript_path": (
+                str(request_transcript_path) if request_body_smoke_enabled(args) else ""
+            ),
+        }
         write_result(
             args,
-            "BLOCKED",
-            77,
-            False,
-            allowed_status,
-            blocked_status,
-            f"{args.connector} local runtime smoke could not be completed: {exc}",
-            [args.runtime_binary_name],
-            modsecurity_backend_verified,
-            modsecurity_rule_loaded,
-            intervention_status,
-            str(decision_log_path) if decision_log_path is not None else "",
-            "",
-            False,
-            False,
-            False,
-            "",
-            "",
-            str(request_transcript_path) if request_body_smoke_enabled(args) else "",
-            *request_body_evidence(decision_backend),
+            smoke_result(
+                "BLOCKED", 77, False, allowed_status, blocked_status, evidence,
+                skipped_reason=f"{args.connector} local runtime smoke could not be completed: {exc}",
+                missing=(args.runtime_binary_name,),
+                context=result_context,
+            ),
         )
         return 77
     finally:
