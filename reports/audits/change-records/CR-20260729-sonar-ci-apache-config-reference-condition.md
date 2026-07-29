@@ -122,7 +122,8 @@ by this record.
 - The full connector runtime matrix, generated-output writes, and networked
   host checks are out of scope for this non-writing CI inventory selector.
 - Hosted GitHub Actions, SonarQube Cloud PR analysis, review, approval, merge,
-  and master verification do not exist yet and are not inferred locally.
+  and master verification are not yet observed for the final Change Record
+  follow-up head and are not inferred locally.
 
 ## Final diff and review status
 
@@ -135,4 +136,13 @@ submodule, with no error for this record pair. Exact-head hosted and SonarQube
 Cloud evidence is added only after it is observed. The final security review
 found no plausible reportable diff-induced candidate. No commit, push, pull
 request, hosted check, review, approval, merge, or `master` change is claimed
-by this initial record.
+by the initial source record.
+
+Delivery update: [Draft PR #191](https://github.com/Easton97-Jens/ModSecurity-conector/pull/191)
+was opened against `master` at `2026-07-29T23:51:01Z` from branch
+`agent/parent-ci-apache-config-reference-condition-20260729`. At creation,
+the local branch, remote branch, and PR head each resolved to
+`6ccdcbd096dd9a865cfdf8e23ce712606b919a51`. This update records only the
+observed Draft-PR fact; no hosted check, SonarQube Cloud result, review,
+approval, merge, or `master` change is claimed. A fresh exact-head verification
+is required after this delivery follow-up is pushed.
