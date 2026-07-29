@@ -6,6 +6,31 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Common smoke-writer output-path containment for SonarQube Cloud security findings](CR-20260729-sonar-common-smoke-writer-path-security.md)
+  — focused pre-/post-fix boundary checks, symlink and traversal negative
+  controls, the legitimate private-runtime-root control, and related runtime
+  smoke security tests passed locally. Open-PR delivery remains pending;
+  exact-head hosted verification is required before master integration.
+
+- [Parent Apache smoke-harness literal ownership and diagnostic streams](CR-20260729-sonar-apache-smoke-harness-maintenance.md)
+  — six fixed Shell literals now have readonly owners, four diagnostics use
+  stderr, and focused syntax, ShellCheck, Apache-contract, and bilingual
+  checks passed. Before integration, hosted status must be read at the PR's
+  exact current head.
+
+- [Parent Apache RulesSet configuration-pool cleanup](CR-20260729-apache-ruleset-pool-cleanup.md)
+  — selected upstream #94A cleanup, focused GCC/Clang APR harnesses, fresh
+  APXS-header materialization, private HTTP/1.1 and graceful-restart controls
+  are recorded locally; exact-head delivery, hosted checks, and resulting-master
+  evidence remain pending.
+
+- [Parent Envoy runtime-artifact containment and loopback TLS](CR-20260729-sonar-envoy-runtime-artifact-tls-containment.md)
+  — focused temporary TLS, artifact-containment, config-materialization, Go,
+  and Common-adoption controls passed where their prerequisites are available;
+  the native Envoy/ext_proc runtime is blocked locally by the absent Envoy
+  binary and Framework rule fixture. Before integration, hosted status must be
+  read at the PR's exact current head.
+
 - [Parent HAProxy HTX runtime-artifact containment](CR-20260729-sonar-haproxy-htx-runtime-artifact-containment.md)
 
 - [Parent CI focused-report helper deduplication and request-body path containment](CR-20260729-sonar-ci-focused-report-safety.md)
@@ -14,6 +39,8 @@ must not claim unobserved CI, runtime, review, or delivery results.
   hosted GitHub Actions and SonarQube Cloud evidence remain pending.
 
 - [Parent CI runtime-readiness remediation-label deduplication for SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.md)
+
+- [Parent Common targeted-evaluator C++17 remediation](CR-20260729-sonar-common-targeted-evaluator-cpp17.md)
 
 - [Parent HAProxy HTX payload-iterator deduplication](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.md)
 

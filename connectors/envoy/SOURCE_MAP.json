@@ -78,7 +78,7 @@
     },
     {
       "path": "connectors/envoy/config/envoy-ext-authz-smoke.yaml.in",
-      "kind": "repository-local temporary Envoy host-path smoke configuration template",
+      "kind": "repository-local private-loopback TLS Envoy ext_authz smoke configuration template",
       "upstream_origin": "none"
     },
     {
@@ -224,6 +224,11 @@
     {
       "path": "connectors/envoy/config/prepare_envoy_ext_proc_config.sh",
       "kind": "repository-local ext_proc YAML materializer outside the checkout",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/config/lib/tls_yaml_render.sh",
+      "kind": "repository-local private-loopback TLS and YAML/sed-safe path rendering helper",
       "upstream_origin": "none"
     },
     {

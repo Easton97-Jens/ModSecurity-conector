@@ -73,11 +73,17 @@ APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST:-
 APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST:-0}"
 readonly PHASE4_FIRST_BYTE_PREFIX='first-byte-prefix'
 readonly PHASE4_TRANSACTION_REBIND_REFUSAL='request transaction cannot be safely rebound to the target URI'
+readonly PHASE4_RESPONSE_BODY_MARKER='no-crs-response-body-marker'
+readonly APACHE_LOCATION_END='</Location>'
+readonly HTTP2_PROTOCOL_LABEL='HTTP/2'
+readonly CURL_H2_ALPN_ACCEPT_PATTERN='ALPN: server accepted h2|ALPN, server accepted to use h2'
 OPENSSL_BIN="${OPENSSL:-openssl}"
 readonly CURL_HTTP2_FEATURE_PATTERN='Features:.*HTTP2'
+readonly CURL_HTTP_STATUS_FORMAT='%{http_code}'
 readonly CURL_HTTP_STATUS_VERSION_FORMAT='%{http_code}\t%{http_version}\n'
 readonly AWK_FIRST_TAB_RECORD_STATUS='NR == 1 { print $1; exit }'
 readonly AWK_FIRST_TAB_RECORD_VERSION='NR == 1 { print $2; exit }'
+readonly OBSERVED_TRANSPORT_HTTP_STATUS='http_status'
 
 load_connector_adapter_metadata() {
     eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell apache --prefix CONNECTOR_ADAPTER)"
@@ -227,7 +233,7 @@ write_case_result() {
     case_status=$2
     actual_status=${3:-}
     output=$4
-    observed_transport=${5:-http_status}
+    observed_transport=${5:-$OBSERVED_TRANSPORT_HTTP_STATUS}
     reason=${6:-}
     output_dir=$(dirname "$output")
     if [ -n "$actual_status" ]; then
@@ -319,7 +325,7 @@ run_all_cases() {
         if [ -f "$case_log_dir/observed-status.txt" ]; then
             actual_status=$(cat "$case_log_dir/observed-status.txt")
         fi
-        observed_transport=http_status
+        observed_transport=$OBSERVED_TRANSPORT_HTTP_STATUS
         if [ -f "$case_log_dir/observed-transport-result.txt" ]; then
             observed_transport=$(cat "$case_log_dir/observed-transport-result.txt")
         fi
@@ -635,7 +641,7 @@ send_synchronized_first_byte_request() {
     fi
     request_url_path=$(quote_request_path "$REQUEST_PATH")
     : > "$RESPONSE_BODY"
-    "$CURL_BIN" -sS --http1.1 --no-buffer -D "$RESPONSE_HEADERS" -X GET -o "$RESPONSE_BODY" -w "%{http_code}" \
+    "$CURL_BIN" -sS --http1.1 --no-buffer -D "$RESPONSE_HEADERS" -X GET -o "$RESPONSE_BODY" -w "$CURL_HTTP_STATUS_FORMAT" \
         "http://127.0.0.1:$PORT$request_url_path" >"$LOG_DIR/first-byte-status.txt" \
         2>"$LOG_DIR/first-byte-client.err" &
     FIRST_BYTE_CLIENT_PID=$!
@@ -728,7 +734,7 @@ send_synchronized_first_byte_request() {
                 fail "bypass reproduction expected status 200, observed $http_status"
             grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 fail "bypass reproduction body omitted the pre-EOS prefix"
-            grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+            grep -F "$PHASE4_RESPONSE_BODY_MARKER" "$RESPONSE_BODY" >/dev/null 2>&1 || \
                 fail "bypass reproduction body omitted the Phase-4 marker"
             [ -s "$APACHE_PHASE4_LOG_FILE" ] || \
                 fail "bypass reproduction Phase-4 intervention log is missing"
@@ -750,7 +756,7 @@ send_synchronized_first_byte_request() {
                 fail "pre-commit deny expected status 403, observed $http_status"
             assert_single_h1_status 403
             if grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
-                grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+                grep -F "$PHASE4_RESPONSE_BODY_MARKER" "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "pre-commit deny leaked original response bytes"
             fi
             [ -s "$APACHE_PHASE4_LOG_FILE" ] || \
@@ -777,7 +783,7 @@ send_synchronized_first_byte_request() {
                 fail "custom-MIME pre-commit deny expected status 403, observed $http_status"
             assert_single_h1_status 403
             if grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
-                grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+                grep -F "$PHASE4_RESPONSE_BODY_MARKER" "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "custom-MIME pre-commit deny leaked original response bytes"
             fi
             [ -s "$APACHE_PHASE4_LOG_FILE" ] || \
@@ -800,7 +806,7 @@ send_synchronized_first_byte_request() {
                 fail "engine ProcessPartial failure expected status 500, observed $http_status"
             assert_single_h1_status 500
             if grep -F "$PHASE4_FIRST_BYTE_PREFIX" "$RESPONSE_BODY" >/dev/null 2>&1 || \
-                grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+                grep -F "$PHASE4_RESPONSE_BODY_MARKER" "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "engine ProcessPartial failure released an uninspected original response byte"
             fi
             grep -F 'failed to append response body to libmodsecurity' "$LOG_DIR/error.log" >/dev/null 2>&1 || \
@@ -814,7 +820,7 @@ send_synchronized_first_byte_request() {
             [ "$http_status" = "200" ] || \
                 fail "in-scope allow expected status 200, observed $http_status"
             assert_text_response_headers 200 44
-            expected_body='first-byte-prefixno-crs-response-body-marker'
+            expected_body="first-byte-prefix$PHASE4_RESPONSE_BODY_MARKER"
             actual_body=$(cat "$RESPONSE_BODY")
             [ "$actual_body" = "$expected_body" ] || \
                 fail "in-scope allow body was lost, reordered, or emitted more than once"
@@ -829,7 +835,7 @@ send_synchronized_first_byte_request() {
             [ "$http_status" = "200" ] || \
                 fail "Phase-4 log-only expected status 200, observed $http_status"
             assert_text_response_headers 200 44
-            expected_body='first-byte-prefixno-crs-response-body-marker'
+            expected_body="first-byte-prefix$PHASE4_RESPONSE_BODY_MARKER"
             actual_body=$(cat "$RESPONSE_BODY")
             [ "$actual_body" = "$expected_body" ] || \
                 fail "Phase-4 log-only body was lost, reordered, or emitted more than once"
@@ -865,7 +871,7 @@ PY
         *) fail "unsupported MSCONNECTOR_PHASE4_SYNC_EXPECTATION=$MSCONNECTOR_PHASE4_SYNC_EXPECTATION" ;;
     esac
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
-    printf '%s\n' "http_status" > "$LOG_DIR/observed-transport-result.txt"
+    printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
     return 0
 }
 
@@ -986,7 +992,7 @@ start_server() {
 }
 
 send_case_request() {
-    set -- "$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" -X "$REQUEST_METHOD" -o "$RESPONSE_BODY" -w "%{http_code}"
+    set -- "$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" -X "$REQUEST_METHOD" -o "$RESPONSE_BODY" -w "$CURL_HTTP_STATUS_FORMAT"
     if [ -n "${REQUEST_HEADERS_FILE:-}" ] && [ -s "$REQUEST_HEADERS_FILE" ]; then
         while IFS= read -r header_line || [ -n "$header_line" ]; do
             [ -n "$header_line" ] || continue
@@ -1046,7 +1052,7 @@ assert_phase4_rogue_no_leak() {
     body_file=$1
     for forbidden in \
         phase4-rogue-prefix- \
-        no-crs-response-body-marker \
+        "$PHASE4_RESPONSE_BODY_MARKER" \
         phase4-rogue-suffix-after-eos \
         phase4-rogue-late-after-deny
     do
@@ -1085,7 +1091,7 @@ assert_phase4_rogue_allow_body() {
     body_file=$1
     expected_file="$LOG_DIR/phase4-rogue-allow.expected"
 
-    printf '%s' 'phase4-rogue-prefix-no-crs-response-body-marker' > "$expected_file"
+    printf '%s%s' 'phase4-rogue-prefix-' "$PHASE4_RESPONSE_BODY_MARKER" > "$expected_file"
     cmp -s "$expected_file" "$body_file" || \
         fail "Phase-4 rogue allow response lost, duplicated, or retained an invalid suffix"
     for forbidden in phase4-rogue-suffix-after-eos phase4-rogue-late-after-deny
@@ -1221,7 +1227,7 @@ assert_phase4_redirect_direct_control() {
     : > "$direct_body"
     set +e
     direct_status=$("$CURL_BIN" -sS --http1.1 -D "$direct_headers" \
-        -o "$direct_body" -w '%{http_code}' \
+        -o "$direct_body" -w "$CURL_HTTP_STATUS_FORMAT" \
         "http://127.0.0.1:$PORT/__phase4_internal_redirect_target.txt")
     direct_curl_rc=$?
     set -e
@@ -1232,7 +1238,7 @@ assert_phase4_redirect_direct_control() {
     status_count=$(grep -Ec '^HTTP/1\.[01] 403 ' "$direct_headers" || true)
     [ "$status_count" -eq 1 ] || \
         fail "Phase-4 internal redirect direct control did not return exactly one H1 403"
-    if grep -F 'no-crs-response-body-marker' "$direct_body" >/dev/null 2>&1; then
+    if grep -F "$PHASE4_RESPONSE_BODY_MARKER" "$direct_body" >/dev/null 2>&1; then
         fail "Phase-4 internal redirect direct control leaked the marker body"
     fi
     redirect_direct_rule_events_before=$(phase4_redirect_direct_rule_event_count \
@@ -1255,7 +1261,7 @@ send_phase4_internal_redirect_request() {
     redirect_expected="$LOG_DIR/phase4-internal-redirect.expected"
     redirect_request_uri=/__phase4_internal_redirect
 
-    printf '%s' 'no-crs-response-body-marker' > "$redirect_expected"
+    printf '%s' "$PHASE4_RESPONSE_BODY_MARKER" > "$redirect_expected"
     if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" = "1" ]; then
         redirect_request_uri=/__phase4_internal_redirect_target_handler_test
     fi
@@ -1268,7 +1274,7 @@ send_phase4_internal_redirect_request() {
             : > "$RESPONSE_BODY"
             set +e
             http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
-                -o "$RESPONSE_BODY" -w '%{http_code}' \
+                -o "$RESPONSE_BODY" -w "$CURL_HTTP_STATUS_FORMAT" \
                 "http://127.0.0.1:$PORT$redirect_request_uri")
             curl_rc=$?
             set -e
@@ -1321,9 +1327,9 @@ send_phase4_internal_redirect_request() {
                         fail "Phase-4 internal redirect TLS client did not negotiate HTTP/2"
                     ;;
             esac
-            grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+            grep -F "$HTTP2_PROTOCOL_LABEL" "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                 fail "Phase-4 internal redirect H2 trace lacks HTTP/2 evidence"
-            grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+            grep -E "$CURL_H2_ALPN_ACCEPT_PATTERN" \
                 "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                 fail "Phase-4 internal redirect H2 trace lacks ALPN h2 acceptance evidence"
             ;;
@@ -1371,7 +1377,7 @@ send_phase4_internal_redirect_request() {
                 2*) fail "Phase-4 target configuration redirect was released as successful status $http_status" ;;
                 *) ;;
             esac
-            if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+            if grep -F "$PHASE4_RESPONSE_BODY_MARKER" "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 target configuration redirect abort leaked the marker body"
             fi
             grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
@@ -1400,7 +1406,7 @@ send_phase4_internal_redirect_request() {
                 2*) fail "Phase-4 URI policy redirect was released as successful status $http_status" ;;
                 *) ;;
             esac
-            if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+            if grep -F "$PHASE4_RESPONSE_BODY_MARKER" "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 URI policy redirect abort leaked the marker body"
             fi
             grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
@@ -1417,7 +1423,7 @@ send_phase4_internal_redirect_request() {
                 2*) fail "Phase-4 target-handler redirect was released as successful status $http_status" ;;
                 *) ;;
             esac
-            if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+            if grep -F "$PHASE4_RESPONSE_BODY_MARKER" "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 target-handler redirect abort leaked the marker body"
             fi
             grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
@@ -1430,7 +1436,7 @@ send_phase4_internal_redirect_request() {
                 2*) fail "Phase-4 internal redirect was released as successful status $http_status" ;;
                 *) ;;
             esac
-            if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1; then
+            if grep -F "$PHASE4_RESPONSE_BODY_MARKER" "$RESPONSE_BODY" >/dev/null 2>&1; then
                 fail "Phase-4 internal redirect abort leaked the marker body"
             fi
             grep -F "$PHASE4_TRANSACTION_REBIND_REFUSAL" \
@@ -1440,7 +1446,7 @@ send_phase4_internal_redirect_request() {
         *) fail "unsupported APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT=$APACHE_PHASE4_INTERNAL_REDIRECT_EXPECT" ;;
     esac
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
-    printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+    printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
 }
 
 send_phase4_downstream_error_request() {
@@ -1453,7 +1459,7 @@ send_phase4_downstream_error_request() {
             : > "$RESPONSE_BODY"
             set +e
             http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
-                -o "$RESPONSE_BODY" -w '%{http_code}' \
+                -o "$RESPONSE_BODY" -w "$CURL_HTTP_STATUS_FORMAT" \
                 "http://127.0.0.1:$PORT/__phase4_downstream_error")
             curl_rc=$?
             set -e
@@ -1483,9 +1489,9 @@ send_phase4_downstream_error_request() {
                 "$PHASE4_ROGUE_TRANSFERS")
             [ "$http_version" = "2" ] || \
                 fail "Phase-4 downstream error TLS client did not negotiate HTTP/2"
-            grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+            grep -F "$HTTP2_PROTOCOL_LABEL" "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                 fail "Phase-4 downstream error H2 trace lacks HTTP/2 evidence"
-            grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+            grep -E "$CURL_H2_ALPN_ACCEPT_PATTERN" \
                 "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                 fail "Phase-4 downstream error H2 trace lacks ALPN h2 acceptance evidence"
             ;;
@@ -1516,7 +1522,7 @@ send_phase4_downstream_error_request() {
         fail "Phase-4 downstream ErrorDocument was mistaken for a normal redirect"
     fi
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
-    printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+    printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
 }
 
 
@@ -1529,7 +1535,7 @@ send_phase4_upstream_error_request() {
             : > "$RESPONSE_BODY"
             set +e
             http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
-                -o "$RESPONSE_BODY" -w '%{http_code}' \
+                -o "$RESPONSE_BODY" -w "$CURL_HTTP_STATUS_FORMAT" \
                 "http://127.0.0.1:$PORT/__phase4_upstream_error")
             curl_rc=$?
             set -e
@@ -1559,9 +1565,9 @@ send_phase4_upstream_error_request() {
                 "$PHASE4_ROGUE_TRANSFERS")
             [ "$http_version" = "2" ] || \
                 fail "Phase-4 upstream error TLS client did not negotiate HTTP/2"
-            grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+            grep -F "$HTTP2_PROTOCOL_LABEL" "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                 fail "Phase-4 upstream error H2 trace lacks HTTP/2 evidence"
-            grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+            grep -E "$CURL_H2_ALPN_ACCEPT_PATTERN" \
                 "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                 fail "Phase-4 upstream error H2 trace lacks ALPN h2 acceptance evidence"
             ;;
@@ -1589,7 +1595,7 @@ send_phase4_upstream_error_request() {
         fail "Phase-4 upstream ErrorDocument was mistaken for a normal redirect"
     fi
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
-    printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+    printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
 }
 
 
@@ -1597,7 +1603,7 @@ send_phase4_nested_error_document_redirect_request() {
     : > "$RESPONSE_BODY"
     set +e
     http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
-        -o "$RESPONSE_BODY" -w '%{http_code}' \
+        -o "$RESPONSE_BODY" -w "$CURL_HTTP_STATUS_FORMAT" \
         "http://127.0.0.1:$PORT/__phase4_rogue")
     curl_rc=$?
     set -e
@@ -1610,7 +1616,7 @@ send_phase4_nested_error_document_redirect_request() {
         2*) fail "nested ErrorDocument redirect was released as successful status $http_status" ;;
         *) ;;
     esac
-    if grep -F 'no-crs-response-body-marker' "$RESPONSE_BODY" >/dev/null 2>&1 || \
+    if grep -F "$PHASE4_RESPONSE_BODY_MARKER" "$RESPONSE_BODY" >/dev/null 2>&1 || \
         grep -F 'phase4-rogue-prefix-' "$RESPONSE_BODY" >/dev/null 2>&1; then
         fail "nested ErrorDocument redirect leaked a protected response body"
     fi
@@ -1623,7 +1629,7 @@ send_phase4_nested_error_document_redirect_request() {
     assert_phase4_rogue_evidence
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
     if [ "$curl_rc" -eq 0 ]; then
-        printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+        printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
     else
         printf '%s\n' 'client_abort' > "$LOG_DIR/observed-transport-result.txt"
     fi
@@ -1638,7 +1644,7 @@ send_phase4_preoutput_error_document_request() {
             : > "$RESPONSE_BODY"
             set +e
             http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
-                -o "$RESPONSE_BODY" -w '%{http_code}' \
+                -o "$RESPONSE_BODY" -w "$CURL_HTTP_STATUS_FORMAT" \
                 "http://127.0.0.1:$PORT/__phase4_preoutput_error")
             curl_rc=$?
             set -e
@@ -1666,9 +1672,9 @@ send_phase4_preoutput_error_document_request() {
                 [ "$http_version" = "2" ] || \
                     fail "pre-output ErrorDocument abort fell back from HTTP/2"
             fi
-            grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+            grep -F "$HTTP2_PROTOCOL_LABEL" "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                 fail "pre-output ErrorDocument H2 trace lacks HTTP/2 evidence"
-            grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+            grep -E "$CURL_H2_ALPN_ACCEPT_PATTERN" \
                 "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                 fail "pre-output ErrorDocument H2 trace lacks ALPN h2 acceptance evidence"
             ;;
@@ -1690,7 +1696,7 @@ send_phase4_preoutput_error_document_request() {
         fail "pre-output ErrorDocument redirect lacks the transaction-rebind refusal"
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
     if [ "$curl_rc" -eq 0 ]; then
-        printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+        printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
     else
         printf '%s\n' 'client_abort' > "$LOG_DIR/observed-transport-result.txt"
     fi
@@ -1701,7 +1707,7 @@ send_phase4_fragmented_buckets_request() {
     : > "$RESPONSE_BODY"
     set +e
     http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
-        -o "$RESPONSE_BODY" -w '%{http_code}' \
+        -o "$RESPONSE_BODY" -w "$CURL_HTTP_STATUS_FORMAT" \
         "http://127.0.0.1:$PORT/__phase4_fragmented_buckets")
     curl_rc=$?
     set -e
@@ -1721,7 +1727,7 @@ send_phase4_fragmented_buckets_request() {
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "Phase-4 fragmented-bucket handler did not execute"
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
-    printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+    printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
 }
 
 
@@ -1729,7 +1735,7 @@ send_phase4_fragmented_bucket_boundary_request() {
     : > "$RESPONSE_BODY"
     set +e
     http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
-        -o "$RESPONSE_BODY" -w '%{http_code}' \
+        -o "$RESPONSE_BODY" -w "$CURL_HTTP_STATUS_FORMAT" \
         "http://127.0.0.1:$PORT/__phase4_fragmented_buckets_boundary")
     curl_rc=$?
     set -e
@@ -1753,7 +1759,7 @@ send_phase4_fragmented_bucket_boundary_request() {
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "Phase-4 fragmented-bucket boundary handler did not complete"
     printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
-    printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+    printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
 }
 
 
@@ -1776,7 +1782,7 @@ send_phase4_rogue_request() {
             : > "$RESPONSE_BODY"
             set +e
             http_status=$("$CURL_BIN" -sS --http1.1 -D "$RESPONSE_HEADERS" \
-                -o "$RESPONSE_BODY" -w '%{http_code}' \
+                -o "$RESPONSE_BODY" -w "$CURL_HTTP_STATUS_FORMAT" \
                 "http://127.0.0.1:$PORT$rogue_path")
             curl_rc=$?
             set -e
@@ -1805,7 +1811,7 @@ send_phase4_rogue_request() {
             esac
             assert_phase4_rogue_evidence
             printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
-            printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+            printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
             ;;
         h2)
             "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
@@ -1837,16 +1843,16 @@ send_phase4_rogue_request() {
                     fail "Phase-3 header-freeze H2 expected status 200, observed ${rogue_status:-missing}"
                 [ "$rogue_version" = "2" ] || \
                     fail "Phase-3 header-freeze TLS client did not negotiate HTTP/2"
-                grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+                grep -F "$HTTP2_PROTOCOL_LABEL" "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                     fail "Phase-3 header-freeze H2 trace lacks HTTP/2 evidence"
-                grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+                grep -E "$CURL_H2_ALPN_ACCEPT_PATTERN" \
                     "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                     fail "Phase-3 header-freeze H2 trace lacks ALPN h2 acceptance evidence"
                 assert_phase4_rogue_allow_body "$RESPONSE_BODY"
                 assert_phase3_header_freeze_headers "$RESPONSE_HEADERS"
                 assert_phase4_rogue_evidence
                 printf '%s\n' "$rogue_status" > "$LOG_DIR/observed-status.txt"
-                printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+                printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
                 return 0
             fi
             [ "$APACHE_PHASE4_ROGUE_EXPECT" = "deny" ] || \
@@ -1886,9 +1892,9 @@ send_phase4_rogue_request() {
                 fail "Phase-4 rogue TLS client did not negotiate HTTP/2 for both streams"
             [ -n "$rogue_connection" ] && [ "$rogue_connection" = "$allow_connection" ] || \
                 fail "Phase-4 rogue H2 allow request did not reuse the connection after denial"
-            grep -F 'HTTP/2' "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
+            grep -F "$HTTP2_PROTOCOL_LABEL" "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                 fail "Phase-4 rogue H2 trace lacks HTTP/2 evidence"
-            grep -E 'ALPN: server accepted h2|ALPN, server accepted to use h2' \
+            grep -E "$CURL_H2_ALPN_ACCEPT_PATTERN" \
                 "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                 fail "Phase-4 rogue H2 trace lacks ALPN h2 acceptance evidence"
             assert_phase4_rogue_no_leak "$PHASE4_ROGUE_RESPONSE_BODY"
@@ -1900,7 +1906,7 @@ send_phase4_rogue_request() {
             fi
             assert_phase4_rogue_evidence
             printf '%s\n' "$rogue_status" > "$LOG_DIR/observed-status.txt"
-            printf '%s\n' 'http_status' > "$LOG_DIR/observed-transport-result.txt"
+            printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
             ;;
         *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
     esac
@@ -2141,8 +2147,8 @@ write_phase4_terminal_test_support() {
         {
             printf '%s\n' 'SecAuditEngine On'
             printf 'SecAuditLog "%s"\n' "$AUDIT_LOG_FILE"
-            printf '%s\n' \
-                "SecRule RESPONSE_BODY \"@contains no-crs-response-body-marker\" \"id:2190410,phase:4,deny,status:403,log,t:none,msg:'Apache Phase-4 target configuration redirect deny regression'\""
+            phase4_redirect_rule="SecRule RESPONSE_BODY \"@contains $PHASE4_RESPONSE_BODY_MARKER\" \"id:2190410,phase:4,deny,status:403,log,t:none,msg:'Apache Phase-4 target configuration redirect deny regression'\""
+            printf '%s\n' "$phase4_redirect_rule"
         } > "$APACHE_PHASE4_REDIRECT_TARGET_RULES_FILE"
     fi
 
@@ -2161,42 +2167,42 @@ write_phase4_terminal_test_support() {
         not_executable "APXS did not produce the Phase-4 rogue test module"
     printf '%s\n' 'phase4-rogue-allow-body' > \
         "$DOCROOT/__phase4_rogue_allow.txt"
-    printf '%s' 'no-crs-response-body-marker' > \
+    printf '%s' "$PHASE4_RESPONSE_BODY_MARKER" > \
         "$DOCROOT/__phase4_internal_redirect_target.txt"
     {
         printf 'LoadModule phase4_terminal_rogue_module "%s"\n' "$PHASE4_ROGUE_MODULE"
         printf '%s\n' '<Location "/__phase4_rogue">'
         printf '%s\n' '    SetHandler phase4-terminal-rogue'
-        printf '%s\n' '</Location>'
+        printf '%s\n' "$APACHE_LOCATION_END"
         printf '%s\n' '<Location "/__phase4_rogue_header">'
         printf '%s\n' '    SetHandler phase4-terminal-rogue'
-        printf '%s\n' '</Location>'
+        printf '%s\n' "$APACHE_LOCATION_END"
         if [ "$APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST" = "1" ] || \
             [ "$APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST" = "1" ]; then
             printf '%s\n' '<Location "/__phase4_fragmented_buckets">'
             printf '%s\n' '    SetHandler phase4-fragmented-bucket'
-            printf '%s\n' '</Location>'
+            printf '%s\n' "$APACHE_LOCATION_END"
             printf '%s\n' '<Location "/__phase4_fragmented_buckets_boundary">'
             printf '%s\n' '    SetHandler phase4-fragmented-bucket-boundary'
-            printf '%s\n' '</Location>'
+            printf '%s\n' "$APACHE_LOCATION_END"
         fi
         printf '%s\n' '<Location "/__phase4_internal_redirect">'
         printf '%s\n' '    SetHandler phase4-internal-redirect'
-        printf '%s\n' '</Location>'
+        printf '%s\n' "$APACHE_LOCATION_END"
         if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_HANDLER_TEST" = "1" ]; then
             printf '%s\n' '<Location "/__phase4_internal_redirect_target_handler_test">'
             printf '%s\n' '    SetHandler phase4-internal-redirect-target-handler-test'
-            printf '%s\n' '</Location>'
+            printf '%s\n' "$APACHE_LOCATION_END"
             printf '%s\n' '<Location "/__phase4_internal_redirect_target_handler_target">'
             printf '%s\n' '    SetHandler phase4-internal-redirect-target-handler-marker'
-            printf '%s\n' '</Location>'
+            printf '%s\n' "$APACHE_LOCATION_END"
         fi
         printf '%s\n' '<Location "/__phase4_nested_error_document_redirect">'
         printf '%s\n' '    SetHandler phase4-nested-error-document-redirect'
-        printf '%s\n' '</Location>'
+        printf '%s\n' "$APACHE_LOCATION_END"
         printf '%s\n' '<Location "/__phase4_preoutput_error">'
         printf '%s\n' '    SetHandler phase4-preoutput-error-document'
-        printf '%s\n' '</Location>'
+        printf '%s\n' "$APACHE_LOCATION_END"
         if [ "$APACHE_PHASE4_INTERNAL_REDIRECT_TARGET_CONFIG_TEST" = "1" ]; then
             printf '%s\n' '<Location "/__phase4_internal_redirect_target.txt">'
             printf '%s\n' '    modsecurity on'
@@ -2204,14 +2210,14 @@ write_phase4_terminal_test_support() {
                 "$APACHE_PHASE4_REDIRECT_TARGET_RULES_FILE"
             printf '    modsecurity_phase4_log "%s"\n' \
                 "$APACHE_PHASE4_LOG_FILE"
-            printf '%s\n' '</Location>'
+            printf '%s\n' "$APACHE_LOCATION_END"
         fi
         printf '%s\n' '<Location "/__phase4_downstream_error">'
         printf '%s\n' '    SetHandler phase4-downstream-error'
-        printf '%s\n' '</Location>'
+        printf '%s\n' "$APACHE_LOCATION_END"
         printf '%s\n' '<Location "/__phase4_upstream_error">'
         printf '%s\n' '    SetHandler phase4-upstream-error'
-        printf '%s\n' '</Location>'
+        printf '%s\n' "$APACHE_LOCATION_END"
     } >> "$APACHE_PHASE4_EXTRA_CONFIG"
 
     case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
@@ -2351,6 +2357,7 @@ MODULES_FILE="$RUNTIME_ROOT/conf/modules.load"
 CONFIG_FILE="$RUNTIME_ROOT/conf/httpd.conf"
 RULES_FILE="$RUNTIME_ROOT/conf/modsecurity-smoke.conf"
 MIME_TYPES_FILE="$RUNTIME_ROOT/conf/mime.types"
+MIME_TYPES_ROOT_FILE="$RUNTIME_ROOT/mime.types"
 DOCROOT="$RUNTIME_ROOT/htdocs"
 APACHE_BACKEND_PROXY_FILE="$RUNTIME_ROOT/conf/backend-proxy.conf"
 RESPONSE_BODY="$LOG_DIR/response-body.txt"
@@ -2375,8 +2382,10 @@ APACHE_PHASE4_REDIRECT_TARGET_RULES_FILE="$RUNTIME_ROOT/conf/phase4-redirect-tar
 
 if [ -f "$HTTPD_PREFIX/conf/mime.types" ]; then
     cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_FILE"
+    cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_ROOT_FILE"
 else
     : > "$MIME_TYPES_FILE"
+    : > "$MIME_TYPES_ROOT_FILE"
 fi
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --case "$TEST_CASE" \
@@ -2444,13 +2453,13 @@ fi
 
 if [ "$APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST" = "1" ]; then
     send_phase4_nested_error_document_redirect_request
-    echo "apache_smoke: pass phase4-nested-error-document-redirect"
+    echo "apache_smoke: pass phase4-nested-error-document-redirect" >&2
     exit 0
 fi
 
 if [ "$APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST" = "1" ]; then
     send_phase4_preoutput_error_document_request
-    echo "apache_smoke: pass phase4-preoutput-error-document"
+    echo "apache_smoke: pass phase4-preoutput-error-document" >&2
     exit 0
 fi
 
@@ -2480,13 +2489,13 @@ fi
 
 if [ "$APACHE_PHASE4_DOWNSTREAM_ERROR_TEST" = "1" ]; then
     send_phase4_downstream_error_request
-    echo "apache_smoke: pass phase4-downstream-error"
+    echo "apache_smoke: pass phase4-downstream-error" >&2
     exit 0
 fi
 
 if [ "$APACHE_PHASE4_UPSTREAM_ERROR_TEST" = "1" ]; then
     send_phase4_upstream_error_request
-    echo "apache_smoke: pass phase4-upstream-error"
+    echo "apache_smoke: pass phase4-upstream-error" >&2
     exit 0
 fi
 
@@ -2500,7 +2509,7 @@ set +e
 http_status=$(send_case_request)
 curl_rc=$?
 set -e
-observed_transport_result=http_status
+observed_transport_result=$OBSERVED_TRANSPORT_HTTP_STATUS
 if [ "$curl_rc" -ne 0 ]; then
     observed_transport_result=connection_aborted
 fi

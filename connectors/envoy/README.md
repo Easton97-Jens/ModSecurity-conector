@@ -105,10 +105,12 @@ make -C connectors/envoy runtime-smoke-envoy \
 ```
 
 This target validates a generated temporary Envoy config, starts the upstream,
-connector service, and Envoy, then requires an allowed HTTP 200 and a
-rule-backed `X-Modsec-Smoke: block` HTTP 403. Missing binaries are BLOCKED;
-config, process, mapping, and status errors fail the smoke. All processes are
-stopped on success or failure.
+connector service, and Envoy, then requires an allowed HTTPS 200 and a
+rule-backed `X-Modsec-Smoke: block` HTTPS 403 through an ephemeral private
+loopback TLS listener. The local `ext_authz` sidecar remains an internal
+loopback HTTP service. Missing binaries are BLOCKED; config, process, mapping,
+and status errors fail the smoke. All processes are stopped on success or
+failure.
 
 For an operator-controlled foreground service:
 
