@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260729-sonar-envoy-runtime-artifact-tls-containment |
 | Date (UTC) | 2026-07-29 |
-| Base revision | `5bf35f7f50f2ff9ed8b17f538d8043b3909b945b` |
+| Base revision | `964630d34d0b87e9066d03131e445eeb3677956d` |
 | Tracking | Fifteen current SonarQube Cloud candidates in `connectors/envoy/harness/envoy_smoke_helper.py`: `pythonsecurity:S8703` ×3, `pythonsecurity:S8707` ×6, `python:S5332` ×1, and five cognitive-complexity rows. |
 | Boundary | Parent Envoy harness, configuration materializer/template, connector test, required reader-facing documentation, and paired Change Record indexes. No Framework, MRTS, Gitlink, workflow, Sonar configuration, suppression, or `master` change. |
 
@@ -32,6 +32,12 @@ does not provide transport confidentiality or integrity.
   ordinary phase, probe, and client-cancel evidence remains payload-free.
 - Existing legitimate loopback probes, phase-4 barrier behavior, and optional
   client-cancel behavior continue to work in focused temporary TLS tests.
+- The generated Envoy 1.38 configuration uses the current typed upstream
+  HTTP/2 and Admin/FileAccessLog APIs rather than deprecated fields, without
+  broadening the listener or persisting an admin access log.
+- Startup-readiness requests use a transaction identity distinct from the one
+  bound to the P1 legitimate control, so retries cannot create ambiguous
+  completion evidence for that control.
 - Config materialization, tests, English/German documentation, and the hosted
   analysis for the PR's exact current head must preserve zero New-Code issues
   and duplicate lines before integration.
@@ -52,23 +58,39 @@ TLS topology. The optional full-lifecycle evidence handoff remains supported
 only through a separately verified private output root outside the checkout;
 it never accepts an arbitrary output path.
 
+Native Envoy 1.38 validation identified deprecated
+`Cluster.http2_protocol_options`, `Admin.access_log_path`, and the old
+FileAccessLog formatting path in the rendered configuration. The template now
+uses the documented `HttpProtocolOptions` typed extension for the ext_proc
+gRPC upstream and a `FileAccessLog` with an empty current-format field writing
+to `/dev/null`. This preserves explicit upstream HTTP/2 and the prior
+no-persisted-admin-log behavior.
+
+The first exact-head rerun also showed that a retrying readiness probe could
+reuse the P1 allow transaction ID. The evidence binder correctly rejected two
+otherwise valid completions with that same ID. The runner now uses a separate
+readiness ID and evidence receipt, then performs exactly one dedicated P1
+allow probe for the causal binding.
+
 ## Changed files
 
 - `connectors/envoy/harness/envoy_smoke_helper.py` — root-confined artifact
   helpers, verified loopback TLS client paths, and smaller command/evidence
   functions.
 - `connectors/envoy/harness/run_envoy_ext_proc_runtime.sh` — private
-  certificate generation, TLS listener wiring, and root arguments for every
-  artifact-bearing helper call.
+  certificate generation, TLS listener wiring, root arguments for every
+  artifact-bearing helper call, and separate readiness/P1-control identities.
 - `connectors/envoy/config/envoy-ext-proc-streaming.yaml.in` and
   `connectors/envoy/config/prepare_envoy_ext_proc_config.sh` — required
-  certificate/key placeholders and downstream TLS transport socket.
+  certificate/key placeholders, downstream TLS transport socket, and current
+  Envoy 1.38 upstream/Admin logging fields.
 - `connectors/envoy/Makefile` and `connectors/envoy/build/test_ext_proc.sh` —
   temporary certificate/key configuration plumbing and generated-config
   assertions.
 - `tests/test_envoy_transport_hardening_contract.py` — real temporary TLS
   legitimate controls plus plaintext, remote-host, credential, outside-root,
-  and symlink-descendant negative controls.
+  and symlink-descendant negative controls; it also pins the non-deprecated
+  Envoy template shape and the distinct readiness/P1 transaction identities.
 - `scripts/generate_compiler_guides.py`, generated English/German Envoy
   compiler guides, `examples/envoy/README.md`, and
   `examples/envoy/README.de.md` — valid private TLS materialization examples.
@@ -78,12 +100,10 @@ it never accepts an arbitrary output path.
 
 | Executed control | Observed result |
 | --- | --- |
-| `python3 -m unittest tests.test_envoy_transport_hardening_contract` | passed; ten focused tests exercised real temporary TLS probe, client-cancel, and phase-4 paths plus negative path and endpoint controls. |
-| `python3 -m py_compile connectors/envoy/harness/envoy_smoke_helper.py tests/test_envoy_transport_hardening_contract.py` | passed. |
-| `sh -n connectors/envoy/harness/run_envoy_ext_proc_runtime.sh connectors/envoy/config/prepare_envoy_ext_proc_config.sh` | passed. |
-| `shellcheck -S error` on the changed Envoy shell scripts | passed; pre-existing advisory diagnostics were not converted into an Error-level failure. |
-| `make -C connectors/envoy … prepare-envoy-ext-proc-config` with a temporary `BUILD_ROOT` | passed; output contains the TLS transport socket and the expected certificate/key paths. |
-| `make -C connectors/envoy … test-envoy-ext-proc` with temporary Go caches | Go package tests passed; the later Common/libmodsecurity step is blocked by the absent Framework rule file. |
+| Isolated `python -m unittest -v` for Envoy transport, compiler-guide, and bilingual-documentation contracts | passed; 54 tests, including twelve focused tests for real temporary TLS probe, client-cancel, phase-4 paths, negative endpoint/path controls, the current Envoy 1.38 template fields, and unambiguous readiness/P1 identities. |
+| `sh -n` on the ext_proc runner, template materializer, and ext_proc test script | passed. |
+| Isolated `make -C connectors/envoy build-envoy-ext-proc` with Go 1.26.5 and the verified host libmodsecurity headers/library | passed; module verification and the Go processor package tests passed. |
+| Isolated `make -C connectors/envoy runtime-smoke-envoy-ext-proc` with Envoy 1.38.2, the Parent-Gitlink-pinned no-CRS rule file, and loopback TLS | passed; Envoy accepted the generated configuration without deprecation diagnostics and the full bounded smoke summary is `PASS` / non-promoted. |
 | `make check-envoy-common-adoption` | passed. |
 | `git diff --check` | passed. |
 
@@ -100,37 +120,45 @@ CI control.
 ## Runtime evidence
 
 Focused Python controls started real local TLS servers with a temporary SAN
-certificate and observed the intended client paths. Config materialization
-produced the Envoy downstream TLS transport socket. These controls are not a
-full Envoy plus ext_proc plus libmodsecurity runtime; no production topology or
-full-lifecycle promotion is claimed.
+certificate and observed the intended client paths. In addition, the exact
+candidate was built with Go 1.26.5 against the verified host libmodsecurity
+installation and exercised by the official Envoy 1.38.2 binary over loopback
+TLS. The read-only no-CRS fixture came from the Parent-pinned Framework
+revision. Envoy accepted the materialized configuration with no warning,
+deprecation, error, or fatal diagnostic. The bounded runtime observed the
+legitimate P1 `200`, streamed `200`, P1/P2/P3 denials `403`, P3 redirect
+`302`, all phase-4 safe/barrier controls `200`, request and response streaming,
+and `processes_stopped=yes`. The dedicated P1 transaction has exactly one
+normal completion. The run remains `common_libmodsecurity_nonpromoted` with
+`capability_promotion=not_permitted`; it does not claim production readiness.
 
 ## Known limitations
 
-- No `envoy` binary is installed in this environment, so an Envoy config
-  validation or full ext_proc runtime smoke cannot run locally.
-- The Framework submodule rule file required by the existing ext_proc test is
-  absent; it is not replaced with a local fixture.
-- A full Codex Security scan is unavailable in this runtime because its
-  required delegated-worker mode is disabled. Focused source-to-sink and
-  negative/legitimate controls are the strongest available evidence.
+- The smoke is an isolated loopback HTTP/1.1 downstream proof. It does not
+  cover production network topology, HTTP/2 or HTTP/3 downstream traffic, or
+  the complete connector matrix.
+- The optional cancellation diagnostic was intentionally not executed and is
+  neither promoted nor used to infer a client/upstream reset cause.
+- The Framework input is read only at the Parent-pinned revision; this change
+  neither modifies Framework/MRTS nor substitutes a locally invented rule
+  fixture.
 
 ## Remaining risks
 
-- Before integration, the PR's exact current head must independently confirm
-  that the fifteen selected SonarQube Cloud candidates are removed without
-  new issues or duplication; the hosted PR status, not this historical record,
-  is the evidence for that gate.
+- Before integration, the PR's new exact head must independently confirm that
+  the selected SonarQube Cloud candidates remain removed without new issues or
+  duplication; the hosted PR status, not this local record, is the evidence
+  for that gate.
 - Future Envoy configuration consumers must continue to pass certificate and
   private-key paths; the materializer now rejects their omission.
 
 ## Checks not run and rationale
 
-No full Envoy/ext_proc/libmodsecurity runtime, Envoy binary validation, or
-complete connector matrix was run because the required Envoy binary and
-Framework rule fixture are unavailable locally. Hosted Actions, SonarQube
-Cloud analysis, review/thread state, and the merge operation are delivery
-evidence read from the PR at its exact current head immediately before
+No production deployment, complete connector matrix, downstream HTTP/2/HTTP/3
+exercise, or enabled cancellation diagnostic was run. Each is outside this
+bounded loopback proof and must not be inferred from it. Hosted Actions,
+SonarQube Cloud analysis, review/thread state, and the merge operation remain
+delivery evidence read from the PR at its exact current head immediately before
 integration. This record makes no assertion for a future head and records no
 `master` merge.
 
@@ -153,8 +181,10 @@ cycle successfully; no failure was waived or marked accepted.
 ## Final diff and review status
 
 The candidate is restricted to the Parent Envoy connector, its direct tests,
-and the required bilingual traceability/documentation. This record captures
-the final versioned source/documentation scope, local controls, and runtime
+and the required bilingual traceability/documentation. It contains no
+Framework/MRTS/Gitlink, workflow, Sonar-configuration, suppression, or
+`master` modification. This record captures the versioned source/documentation
+scope, the non-deprecated Envoy configuration, local controls, and runtime
 limitations. Delivery evidence is deliberately obtained from the PR's exact
 current head immediately before any integration; it is not self-asserted for
 later documentation or lifecycle commits. No `master` merge is recorded by
