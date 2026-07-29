@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260729-sonar-common-smoke-writer-path-security |
 | Date (UTC) | 2026-07-29 |
-| Base revision | Original change base `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`; synchronized candidate base `154ee724eba4653fa6378fc3c8729ae433e65697` |
+| Base revision | Original change base `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`; synchronized candidate base `964630d34d0b87e9066d03131e445eeb3677956d` |
 | Tracking | SonarQube Cloud `python:S5443` at `common/scripts/write_smoke_result.py:67` and `pythonsecurity:S8707` at lines 83, 90, 97, 347, and 348. The separate `python:S3776` complexity item remains outside this security-only batch. PR #176's prior head reported no new Security findings or duplication but four test-only `python:S5778` Code Smells; the synchronized test-structure follow-up requires a new exact-head analysis. |
 | Boundary | Parent `common` runtime-smoke evidence writer, its focused Python security regression test, and paired Change Record/index documents. Framework, MRTS, Gitlinks, workflows, SonarQube policy, and `master` are not modified. |
 
