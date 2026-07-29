@@ -45,11 +45,111 @@ static int expect_non_disruptive(
     return 0;
 }
 
+typedef int (*body_append_function)(
+    haproxy_modsecurity_transaction *transaction,
+    const unsigned char *body,
+    unsigned int body_len,
+    haproxy_modsecurity_decision *decision);
+
+typedef int (*body_finish_function)(
+    haproxy_modsecurity_transaction *transaction,
+    haproxy_modsecurity_decision *decision);
+
+struct body_wrapper_lifecycle {
+    int phase;
+    const char *missing_transaction_message;
+    const char *missing_body_message;
+    const char *append_after_eos_message;
+    const char *finish_twice_message;
+    const unsigned char *body;
+    unsigned int body_len;
+    body_append_function append;
+    body_finish_function finish;
+};
+
+static int check_null_body_transaction(
+        const struct body_wrapper_lifecycle *phase,
+        haproxy_modsecurity_decision *observed,
+        haproxy_modsecurity_decision *decision) {
+    int rc = phase->append(0, phase->body, phase->body_len, observed);
+
+    return expect_failure(rc, observed, phase->phase,
+        phase->missing_transaction_message, "null body transaction", decision);
+}
+
+static int run_body_lifecycle(
+        const struct body_wrapper_lifecycle *phase,
+        haproxy_modsecurity_transaction *transaction,
+        haproxy_modsecurity_decision *observed,
+        haproxy_modsecurity_decision *decision) {
+    int rc = phase->append(transaction, 0, 1U, observed);
+
+    if (expect_failure(rc, observed, phase->phase, phase->missing_body_message,
+            "null nonzero body chunk", decision) != 0) {
+        return 1;
+    }
+    rc = phase->append(transaction, phase->body, phase->body_len, observed);
+    if (expect_non_disruptive(rc, observed, phase->phase, "body append",
+            decision) != 0) {
+        return 1;
+    }
+    rc = phase->finish(transaction, observed);
+    if (expect_non_disruptive(rc, observed, phase->phase, "body finish",
+            decision) != 0) {
+        return 1;
+    }
+    rc = phase->append(transaction, phase->body, phase->body_len, observed);
+    if (expect_failure(rc, observed, phase->phase, phase->append_after_eos_message,
+            "body append after eos", decision) != 0) {
+        return 1;
+    }
+    rc = phase->finish(transaction, observed);
+    return expect_failure(rc, observed, phase->phase, phase->finish_twice_message,
+        "body finish twice", decision);
+}
+
+static int check_response_body_requires_headers(
+        haproxy_modsecurity_transaction *transaction,
+        const struct body_wrapper_lifecycle *response_phase,
+        haproxy_modsecurity_decision *observed,
+        haproxy_modsecurity_decision *decision) {
+    int rc = response_phase->append(transaction, response_phase->body,
+        response_phase->body_len, observed);
+
+    return expect_failure(rc, observed, response_phase->phase,
+        "response headers must be processed before response body chunks",
+        "response append before headers", decision);
+}
+
 static int run_body_wrapper_lifecycle_self_test(
         const char *rules_file,
         haproxy_modsecurity_decision *decision) {
     static const unsigned char request_body[] = "token=allow";
     static const unsigned char response_body[] = "response=allow";
+    const struct body_wrapper_lifecycle request_phase = {
+        .phase = 2,
+        .missing_transaction_message = "missing transaction or request body",
+        .missing_body_message =
+            "request body pointer is required when length is nonzero",
+        .append_after_eos_message = "request body append after end-of-stream",
+        .finish_twice_message = "request body may only be finalized once",
+        .body = request_body,
+        .body_len = (unsigned int)(sizeof(request_body) - 1U),
+        .append = haproxy_modsecurity_transaction_append_request_body_chunk,
+        .finish = haproxy_modsecurity_transaction_finish_request_body
+    };
+    const struct body_wrapper_lifecycle response_phase = {
+        .phase = 4,
+        .missing_transaction_message = "missing transaction or response body",
+        .missing_body_message =
+            "response body pointer is required when length is nonzero",
+        .append_after_eos_message = "response body append after end-of-stream",
+        .finish_twice_message = "response body may only be finalized once",
+        .body = response_body,
+        .body_len = (unsigned int)(sizeof(response_body) - 1U),
+        .append = haproxy_modsecurity_transaction_append_response_body_chunk,
+        .finish = haproxy_modsecurity_transaction_finish_response_body
+    };
     haproxy_modsecurity_engine_config config;
     haproxy_modsecurity_engine *engine = 0;
     haproxy_modsecurity_transaction *transaction = 0;
@@ -89,61 +189,28 @@ static int run_body_wrapper_lifecycle_self_test(
         return lifecycle_failure(decision, "engine creation");
     }
 
-    rc = haproxy_modsecurity_transaction_append_request_body_chunk(0,
-        request_body, (unsigned int)(sizeof(request_body) - 1U), &observed);
-    if (expect_failure(rc, &observed, 2, "missing transaction or request body",
-            "null request transaction", decision) != 0) {
+    if (check_null_body_transaction(&request_phase, &observed, decision) != 0) {
         goto cleanup;
     }
-    rc = haproxy_modsecurity_transaction_append_response_body_chunk(0,
-        response_body, (unsigned int)(sizeof(response_body) - 1U), &observed);
-    if (expect_failure(rc, &observed, 4, "missing transaction or response body",
-            "null response transaction", decision) != 0) {
+    if (check_null_body_transaction(&response_phase, &observed, decision) != 0) {
         goto cleanup;
     }
 
     rc = haproxy_modsecurity_transaction_begin_request(engine, &request, &observed,
         &transaction);
-    if (expect_non_disruptive(rc, &observed, 1, "request begin", decision) != 0 ||
-            transaction == 0) {
-        if (transaction == 0) {
-            lifecycle_failure(decision, "request begin transaction");
-        }
+    if (expect_non_disruptive(rc, &observed, 1, "request begin", decision) != 0) {
         goto cleanup;
     }
-    rc = haproxy_modsecurity_transaction_append_request_body_chunk(transaction, 0, 1U,
-        &observed);
-    if (expect_failure(rc, &observed, 2,
-            "request body pointer is required when length is nonzero",
-            "request null nonzero chunk", decision) != 0) {
+    if (transaction == 0) {
+        lifecycle_failure(decision, "request begin transaction");
         goto cleanup;
     }
-    rc = haproxy_modsecurity_transaction_append_request_body_chunk(transaction,
-        request_body, (unsigned int)(sizeof(request_body) - 1U), &observed);
-    if (expect_non_disruptive(rc, &observed, 2, "request body append", decision) != 0) {
-        goto cleanup;
-    }
-    rc = haproxy_modsecurity_transaction_finish_request_body(transaction, &observed);
-    if (expect_non_disruptive(rc, &observed, 2, "request body finish", decision) != 0) {
-        goto cleanup;
-    }
-    rc = haproxy_modsecurity_transaction_append_request_body_chunk(transaction,
-        request_body, (unsigned int)(sizeof(request_body) - 1U), &observed);
-    if (expect_failure(rc, &observed, 2, "request body append after end-of-stream",
-            "request append after eos", decision) != 0) {
-        goto cleanup;
-    }
-    rc = haproxy_modsecurity_transaction_finish_request_body(transaction, &observed);
-    if (expect_failure(rc, &observed, 2, "request body may only be finalized once",
-            "request finish twice", decision) != 0) {
+    if (run_body_lifecycle(&request_phase, transaction, &observed, decision) != 0) {
         goto cleanup;
     }
 
-    rc = haproxy_modsecurity_transaction_append_response_body_chunk(transaction,
-        response_body, (unsigned int)(sizeof(response_body) - 1U), &observed);
-    if (expect_failure(rc, &observed, 4,
-            "response headers must be processed before response body chunks",
-            "response append before headers", decision) != 0) {
+    if (check_response_body_requires_headers(transaction, &response_phase, &observed,
+            decision) != 0) {
         goto cleanup;
     }
     rc = haproxy_modsecurity_transaction_process_response_headers(transaction, &response,
@@ -151,31 +218,7 @@ static int run_body_wrapper_lifecycle_self_test(
     if (expect_non_disruptive(rc, &observed, 3, "response headers", decision) != 0) {
         goto cleanup;
     }
-    rc = haproxy_modsecurity_transaction_append_response_body_chunk(transaction, 0, 1U,
-        &observed);
-    if (expect_failure(rc, &observed, 4,
-            "response body pointer is required when length is nonzero",
-            "response null nonzero chunk", decision) != 0) {
-        goto cleanup;
-    }
-    rc = haproxy_modsecurity_transaction_append_response_body_chunk(transaction,
-        response_body, (unsigned int)(sizeof(response_body) - 1U), &observed);
-    if (expect_non_disruptive(rc, &observed, 4, "response body append", decision) != 0) {
-        goto cleanup;
-    }
-    rc = haproxy_modsecurity_transaction_finish_response_body(transaction, &observed);
-    if (expect_non_disruptive(rc, &observed, 4, "response body finish", decision) != 0) {
-        goto cleanup;
-    }
-    rc = haproxy_modsecurity_transaction_append_response_body_chunk(transaction,
-        response_body, (unsigned int)(sizeof(response_body) - 1U), &observed);
-    if (expect_failure(rc, &observed, 4, "response body append after end-of-stream",
-            "response append after eos", decision) != 0) {
-        goto cleanup;
-    }
-    rc = haproxy_modsecurity_transaction_finish_response_body(transaction, &observed);
-    if (expect_failure(rc, &observed, 4, "response body may only be finalized once",
-            "response finish twice", decision) != 0) {
+    if (run_body_lifecycle(&response_phase, transaction, &observed, decision) != 0) {
         goto cleanup;
     }
     result = 0;
