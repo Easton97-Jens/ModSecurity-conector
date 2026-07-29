@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent HAProxy SPOE header-parser deduplication and SonarQube Cloud reliability remediation](CR-20260729-sonar-haproxy-spop-header-parser-duplication.md)
+  — local C17 parser-harness, HAProxy adoption, standards-wiring, and C17 lint
+  checks passed; a focused security diff review found no reportable regression.
+  Hosted CI and exact-head SonarQube Cloud evidence remain pending.
+
 - [Parent deterministic GitHub Actions `uses:` prefix parser for SonarQube Cloud S8786](CR-20260729-sonar-scripts-uses-prefix-parser.md)
   — focused updater tests, a non-writing parser comparison, syntax validation,
   and the complete current-diff security review passed locally; Draft-PR

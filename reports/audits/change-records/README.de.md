@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-HAProxy-SPOE-Header-Parser-Deduplizierung und SonarQube-Cloud-Reliability-Behebung](CR-20260729-sonar-haproxy-spop-header-parser-duplication.de.md)
+  — lokale C17-Parser-Harness-, HAProxy-Adoption-, Standards-Wiring- und
+  C17-Lint-Checks bestanden; ein fokussierter Security-Diff-Review fand keine
+  reportbare Regression. Gehostete CI- und Exact-Head-SonarQube-Cloud-Evidence
+  stehen noch aus.
+
 - [Deterministischer Parent-GitHub-Actions-`uses:`-Prefix-Parser für SonarQube Cloud S8786](CR-20260729-sonar-scripts-uses-prefix-parser.de.md)
   — fokussierte Updater-Tests, ein nicht schreibender Parser-Vergleich,
   Syntax-Validierung und der vollständige Current-Diff-Security-Review bestanden
