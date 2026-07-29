@@ -10,8 +10,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+
+_CI_LIB = Path(__file__).resolve().parents[2] / "ci" / "lib"
+if str(_CI_LIB) not in sys.path:
+    sys.path.insert(0, str(_CI_LIB))
+
+from runtime_path_utils import ensure_safe_runtime_directory, is_safe_runtime_root, verified_runtime_paths
 
 
 DEFAULT_NOTE = (
@@ -34,6 +44,14 @@ COMMON_COMPONENTS = (
     "msconnector/origin.h",
     "msconnector/transaction.h",
 )
+OUTPUT_PATH_ARGUMENTS = (
+    ("evidence_root", "evidence_root"),
+    ("results_dir", "results_dir"),
+    ("tmp_root", "tmp_root"),
+    ("log_root", "log_root"),
+    ("log_dir", "log_dir"),
+)
+CONNECTOR_NAME_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]*")
 
 
 def optional_int(value: str | None) -> int | None:
@@ -60,41 +78,73 @@ def runtime_status_for(status: str, runtime_verified: bool) -> str:
     return "error"
 
 
-def assert_safe_output_path(path: Path, label: str, connector_root: Path) -> None:
+def require_safe_connector_name(value: str) -> str:
+    if CONNECTOR_NAME_PATTERN.fullmatch(value) is None:
+        raise SystemExit(f"BLOCKED: connector is not a safe output filename component: {value}")
+    return value
+
+
+def require_verified_output_directory(path: Path, label: str, runtime_root: Path) -> Path:
     text = str(path)
     if not path.is_absolute():
         raise SystemExit(f"BLOCKED: {label} must be absolute: {text}")
-    if text in {"/", "/tmp", "/src"}:
-        raise SystemExit(f"BLOCKED: {label} is not a safe artifact root: {text}")
     try:
         resolved = path.resolve(strict=False)
-    except RuntimeError as exc:
+    except (OSError, RuntimeError) as exc:
         raise SystemExit(f"BLOCKED: {label} cannot be resolved: {text}: {exc}") from exc
-    connector_resolved = connector_root.resolve(strict=False)
     try:
-        resolved.relative_to(connector_resolved)
-    except ValueError:
-        return
-    raise SystemExit(f"BLOCKED: {label} must not be inside connector checkout: {text}")
+        resolved.relative_to(runtime_root)
+    except ValueError as exc:
+        raise SystemExit(
+            f"BLOCKED: {label} is outside the verified runtime root: {resolved}"
+        ) from exc
+    try:
+        return ensure_safe_runtime_directory(path)
+    except ValueError as exc:
+        raise SystemExit(f"BLOCKED: {label} is not a safe runtime directory: {text}: {exc}") from exc
+
+
+def verified_output_directories(args: argparse.Namespace) -> dict[str, Path]:
+    try:
+        verified_paths = verified_runtime_paths(os.environ)
+    except ValueError as exc:
+        raise SystemExit(f"BLOCKED: invalid verified runtime paths: {exc}") from exc
+    runtime_root = Path(verified_paths["VERIFIED_RUN_ROOT"])
+    if not is_safe_runtime_root(runtime_root):
+        raise SystemExit(f"BLOCKED: VERIFIED_RUN_ROOT is unsafe: {runtime_root}")
+    return {
+        name: require_verified_output_directory(Path(getattr(args, name)), label, runtime_root)
+        for name, label in OUTPUT_PATH_ARGUMENTS
+    }
+
+
+def open_private_output_file(path: Path):
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise SystemExit("BLOCKED: safe output files require O_NOFOLLOW support")
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | no_follow, 0o600)
+    except OSError as exc:
+        raise SystemExit(f"BLOCKED: cannot open safe output file: {path}: {exc}") from exc
+    os.fchmod(descriptor, 0o600)
+    return os.fdopen(descriptor, "w", encoding="utf-8")
 
 
 def write_json(path: Path, data: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
+    with open_private_output_file(path) as handle:
         json.dump(data, handle, indent=2, sort_keys=True)
         handle.write("\n")
 
 
 def write_jsonl(path: Path, record: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
+    with open_private_output_file(path) as handle:
         handle.write(json.dumps(record, sort_keys=True))
         handle.write("\n")
 
 
 def write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    with open_private_output_file(path) as handle:
+        handle.write(text)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -170,21 +220,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    connector = args.connector
+    connector = require_safe_connector_name(args.connector)
     status = normalize_status(args.status)
-    connector_root = Path(args.connector_root)
-    evidence_root = Path(args.evidence_root)
-    results_dir = Path(args.results_dir)
-    log_dir = Path(args.log_dir)
-
-    for path, label in (
-        (evidence_root, "evidence_root"),
-        (results_dir, "results_dir"),
-        (Path(args.tmp_root), "tmp_root"),
-        (Path(args.log_root), "log_root"),
-        (log_dir, "log_dir"),
-    ):
-        assert_safe_output_path(path, label, connector_root)
+    output_directories = verified_output_directories(args)
+    evidence_root = output_directories["evidence_root"]
+    results_dir = output_directories["results_dir"]
+    log_dir = output_directories["log_dir"]
 
     runtime_verified = bool_text(args.runtime_verified)
     response_body_verified = bool_text(args.response_body_verified)
@@ -344,8 +385,6 @@ def main() -> int:
         f"{args.note}\n"
     )
 
-    evidence_root.mkdir(parents=True, exist_ok=True)
-    log_dir.mkdir(parents=True, exist_ok=True)
     write_json(evidence_root / "result.json", result)
     if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
         write_json(evidence_root / "crs-secondary-result.json", result)
