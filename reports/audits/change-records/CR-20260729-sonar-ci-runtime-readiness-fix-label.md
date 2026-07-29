@@ -101,8 +101,13 @@ duplication. No local check can substitute for that exact-head result.
 - Hosted SonarQube Cloud, GitHub Actions, review, and merge evidence are not
   inferred locally and require the eventual exact PR head.
 
-## Final diff and review status
+## Initial delivery status
 
-This record deliberately makes no claim about a commit, push, pull request,
-hosted check, review, SonarQube Cloud analysis, or merge. Those facts must be
-observed at the eventual exact PR head.
+The initial source-and-traceability commit
+`491367f4708d9f2f67cfa8ec418032e1767a0f67` was pushed on
+`agent/parent-ci-runtime-readiness-remediation-20260729`, and Draft PR
+[#171](https://github.com/Easton97-Jens/ModSecurity-conector/pull/171) was
+opened against `master`. At PR creation, local, remote, and PR head matched
+that commit. This delivery-metadata follow-up changes documentation only, so a
+fresh exact-head GitHub Actions and SonarQube Cloud cycle is still required.
+No merge is authorized or claimed.

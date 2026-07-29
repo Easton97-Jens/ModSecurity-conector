@@ -106,8 +106,14 @@ Ergebnis ersetzen.
 - Hosted-SonarQube-Cloud-, GitHub-Actions-, Review- und Merge-Evidence werden
   nicht lokal hergeleitet und benötigen den späteren exakten PR-Head.
 
-## Finaler Diff- und Review-Status
+## Initialer Delivery-Status
 
-Dieses Record beansprucht absichtlich keinen Commit, Push, Pull Request,
-Hosted-Check, Review, SonarQube-Cloud-Analyse oder Merge. Diese Fakten müssen
-am späteren exakten PR-Head beobachtet werden.
+Der initiale Source-und-Traceability-Commit
+`491367f4708d9f2f67cfa8ec418032e1767a0f67` wurde auf
+`agent/parent-ci-runtime-readiness-remediation-20260729` gepusht, und Draft
+PR [#171](https://github.com/Easton97-Jens/ModSecurity-conector/pull/171)
+wurde gegen `master` eröffnet. Bei der PR-Erstellung stimmten lokaler,
+Remote- und PR-Head auf diesen Commit überein. Dieses Delivery-Metadaten-
+Follow-up ändert nur Dokumentation; daher ist weiterhin ein frischer
+Exact-Head-Zyklus für GitHub Actions und SonarQube Cloud nötig. Es ist kein
+Merge autorisiert oder beansprucht.
