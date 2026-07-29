@@ -9,9 +9,8 @@ must not claim unobserved CI, runtime, review, or delivery results.
 - [Parent Common smoke-writer output-path containment for SonarQube Cloud security findings](CR-20260729-sonar-common-smoke-writer-path-security.md)
   — focused pre-/post-fix boundary checks, symlink and traversal negative
   controls, the legitimate private-runtime-root control, and related runtime
-  smoke security tests passed locally. Open-PR delivery and refreshed
-  exact-head hosted evidence remain pending after the normal master
-  synchronization.
+  smoke security tests passed locally. Open-PR delivery remains pending;
+  exact-head hosted verification is required before master integration.
 
 - [Parent Apache smoke-harness literal ownership and diagnostic streams](CR-20260729-sonar-apache-smoke-harness-maintenance.md)
   — six fixed Shell literals now have readonly owners, four diagnostics use

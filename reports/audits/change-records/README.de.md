@@ -10,9 +10,9 @@ Review- oder Delivery-Ergebnisse behaupten.
 - [Parent-Common-Smoke-Writer-Output-Path-Containment für SonarQube-Cloud-Security-Befunde](CR-20260729-sonar-common-smoke-writer-path-security.de.md)
   — fokussierte Pre-/Post-Fix-Grenzprüfungen, Symlink- und Traversal-Negativ-
   Controls, der legitime Private-Runtime-Root-Control und zugehörige
-  Runtime-Smoke-Security-Tests bestanden lokal. Open-PR-Delivery und
-  aufgefrischte Exact-Head-Hosted-Evidence stehen nach der normalen Master-
-  Synchronisierung noch aus.
+  Runtime-Smoke-Security-Tests bestanden lokal. Open-PR-Delivery steht aus;
+  eine Exact-Head-Hosted-Verifikation ist vor der Master-Integration
+  erforderlich.
 
 - [Parent-Apache-Smoke-Harness Literal-Ownership und Diagnose-Streams](CR-20260729-sonar-apache-smoke-harness-maintenance.de.md)
   — sechs feste Shell-Literale haben jetzt readonly-Owner, vier Diagnosen

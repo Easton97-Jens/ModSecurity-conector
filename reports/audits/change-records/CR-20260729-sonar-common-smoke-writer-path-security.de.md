@@ -84,4 +84,4 @@ Der Writer bleibt bewusst von der verifizierten Runtime-Umgebung des Callers abh
 
 ## Finaler Diff- und Review-Status
 
-Der scoped Diff enthält nur Writer-Containment, seinen Security-Regressionstest und bilinguale Traceability. Lokale Security-Closure-, Bypass-, Legitimate-Control-, Syntax-, Runtime-Path-Regression- und Whitespace-Checks bestanden. PR #176 ist offen und kein Draft; kein Merge erfolgte. Eine frische Exact-Head-Hosted-Verifikation steht nach der normalen `master`-Synchronisierung und dem Teststruktur-Follow-up aus.
+Der scoped Diff enthält nur Writer-Containment, seinen Security-Regressionstest und bilinguale Traceability. Lokale Security-Closure-, Bypass-, Legitimate-Control-, Syntax-, Runtime-Path-Regression- und Whitespace-Checks bestanden. PR #176 ist offen und kein Draft; kein Merge erfolgte. Eine Exact-Head-Hosted-Verifikation bleibt ein erforderliches Gate vor der Master-Integration.

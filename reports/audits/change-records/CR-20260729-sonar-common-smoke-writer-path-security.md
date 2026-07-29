@@ -84,4 +84,4 @@ The writer intentionally depends on the caller's verified-runtime environment. I
 
 ## Final diff and review status
 
-The scoped diff contains only writer containment, its security regression test, and bilingual traceability. Local security closure, bypass, legitimate-control, syntax, runtime-path regression, and whitespace checks passed. PR #176 is open and non-draft; no merge occurred. Fresh exact-head hosted verification is pending after the normal `master` synchronization and test-structure follow-up.
+The scoped diff contains only writer containment, its security regression test, and bilingual traceability. Local security closure, bypass, legitimate-control, syntax, runtime-path regression, and whitespace checks passed. PR #176 is open and non-draft; no merge occurred. Exact-head hosted verification remains a required gate before master integration.
