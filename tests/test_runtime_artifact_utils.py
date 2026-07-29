@@ -68,8 +68,9 @@ class RuntimeArtifactUtilsTest(unittest.TestCase):
 
             escaped_parent = root / "escaped"
             escaped_parent.symlink_to(root.parent, target_is_directory=True)
+            escaped_result = escaped_parent / "result.txt"
             with self.assertRaisesRegex(ValueError, "below the runtime root"):
-                runtime_artifact_path(root, escaped_parent / "result.txt", "result")
+                runtime_artifact_path(root, escaped_result, "result")
 
     def test_shared_text_operations_keep_regular_private_artifacts(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-artifact-text-") as temporary:
