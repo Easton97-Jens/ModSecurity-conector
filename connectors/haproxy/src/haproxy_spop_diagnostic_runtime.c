@@ -837,6 +837,67 @@ static int read_typed_bytes_ref(
     return 0;
 }
 
+static int parse_notify_headers_bin(
+        notify_request *request,
+        const unsigned char *data,
+        size_t len,
+        size_t *pos,
+        int is_response) {
+    const unsigned char *value = 0;
+    size_t value_len = 0;
+    unsigned int typed_type = 0;
+
+    if (read_typed_bytes_ref(data, len, pos, &value, &value_len, &typed_type) != 0) {
+        return -1;
+    }
+    if ((typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) &&
+            parse_headers_bin(request, value, value_len) != 0) {
+        return -1;
+    }
+    if (is_response) {
+        request->is_response = 1;
+    }
+    return 0;
+}
+
+static int parse_notify_headers_text(
+        notify_request *request,
+        const unsigned char *data,
+        size_t len,
+        size_t *pos,
+        int is_response) {
+    const unsigned char *value = 0;
+    size_t value_len = 0;
+    unsigned int typed_type = 0;
+
+    if (read_typed_bytes_ref(data, len, pos, &value, &value_len, &typed_type) != 0) {
+        return -1;
+    }
+    if (typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) {
+        notify_request text_request;
+
+        memset(&text_request, 0, sizeof(text_request));
+        if (parse_headers_text(&text_request, value, value_len) != 0) {
+            free_notify_request(&text_request);
+            return -1;
+        }
+        if (text_request.header_count >= request->header_count &&
+                text_request.header_count > 0) {
+            clear_request_headers(request);
+            request->headers = text_request.headers;
+            request->header_count = text_request.header_count;
+            request->has_headers_text = 1;
+            text_request.headers = 0;
+            text_request.header_count = 0;
+        }
+        free_notify_request(&text_request);
+    }
+    if (is_response) {
+        request->is_response = 1;
+    }
+    return 0;
+}
+
 static int read_typed_string_to_buffer(
         const unsigned char *data,
         size_t len,
@@ -1080,83 +1141,27 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
                 continue;
             }
             if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "headers_bin")) {
-                const unsigned char *value = 0;
-                size_t value_len = 0;
-                unsigned int typed_type = 0;
-                if (read_typed_bytes_ref(data, len, &pos, &value, &value_len, &typed_type) != 0) {
-                    return -1;
-                }
-                if ((typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) &&
-                        parse_headers_bin(request, value, value_len) != 0) {
+                if (parse_notify_headers_bin(request, data, len, &pos, 0) != 0) {
                     return -1;
                 }
                 continue;
             }
             if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_headers_bin")) {
-                const unsigned char *value = 0;
-                size_t value_len = 0;
-                unsigned int typed_type = 0;
-                if (read_typed_bytes_ref(data, len, &pos, &value, &value_len, &typed_type) != 0) {
+                if (parse_notify_headers_bin(request, data, len, &pos, 1) != 0) {
                     return -1;
                 }
-                if ((typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) &&
-                        parse_headers_bin(request, value, value_len) != 0) {
-                    return -1;
-                }
-                request->is_response = 1;
                 continue;
             }
             if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "headers")) {
-                const unsigned char *value = 0;
-                size_t value_len = 0;
-                unsigned int typed_type = 0;
-                if (read_typed_bytes_ref(data, len, &pos, &value, &value_len, &typed_type) != 0) {
+                if (parse_notify_headers_text(request, data, len, &pos, 0) != 0) {
                     return -1;
-                }
-                if (typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) {
-                    notify_request text_request;
-                    memset(&text_request, 0, sizeof(text_request));
-                    if (parse_headers_text(&text_request, value, value_len) != 0) {
-                        free_notify_request(&text_request);
-                        return -1;
-                    }
-                    if (text_request.header_count >= request->header_count && text_request.header_count > 0) {
-                        clear_request_headers(request);
-                        request->headers = text_request.headers;
-                        request->header_count = text_request.header_count;
-                        request->has_headers_text = 1;
-                        text_request.headers = 0;
-                        text_request.header_count = 0;
-                    }
-                    free_notify_request(&text_request);
                 }
                 continue;
             }
             if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_headers")) {
-                const unsigned char *value = 0;
-                size_t value_len = 0;
-                unsigned int typed_type = 0;
-                if (read_typed_bytes_ref(data, len, &pos, &value, &value_len, &typed_type) != 0) {
+                if (parse_notify_headers_text(request, data, len, &pos, 1) != 0) {
                     return -1;
                 }
-                if (typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) {
-                    notify_request text_request;
-                    memset(&text_request, 0, sizeof(text_request));
-                    if (parse_headers_text(&text_request, value, value_len) != 0) {
-                        free_notify_request(&text_request);
-                        return -1;
-                    }
-                    if (text_request.header_count >= request->header_count && text_request.header_count > 0) {
-                        clear_request_headers(request);
-                        request->headers = text_request.headers;
-                        request->header_count = text_request.header_count;
-                        request->has_headers_text = 1;
-                        text_request.headers = 0;
-                        text_request.header_count = 0;
-                    }
-                    free_notify_request(&text_request);
-                }
-                request->is_response = 1;
                 continue;
             }
             if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_last_modified") ||
@@ -2161,7 +2166,6 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                 request.header_count, (unsigned long)request.body_len);
             if (state != 0 && state->engine != 0) {
                 const char *decision_text = "pass";
-                const char *reason = "";
                 int modsec_processed = 0;
                 int enforce = mode_enforces(&state->config);
 
@@ -2188,7 +2192,6 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                     if (state->config.response_body_limit > 0U &&
                             response.body_len > state->config.response_body_limit) {
                         response.body_len = state->config.response_body_limit;
-                        reason = "response body truncated to response-body-limit";
                     }
                     transaction = transaction_cache_take(state, request.request_id);
                     if (transaction == 0) {
@@ -2205,9 +2208,10 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                                 transaction, &response, &decision);
                         }
                         if (modsec_rc != 0) {
-                            modsec_processed = 0;
-                            reason = decision.log_message[0] != '\0' ?
+                            const char *reason = decision.log_message[0] != '\0' ?
                                 decision.log_message : "ModSecurity response processing failed";
+
+                            modsec_processed = 0;
                             if (fail_mode_closed(&state->config)) {
                                 runtime_init_decision(&decision,
                                     request.is_response_body ? 4 : 3,
@@ -2244,7 +2248,6 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                         (unsigned int)request.body_len : 0U;
                     if (body_len > state->config.request_body_limit) {
                         body_len = state->config.request_body_limit;
-                        reason = "request body truncated to request-body-limit";
                     }
                     memset(&modsec_request, 0, sizeof(modsec_request));
                     modsec_request.request_id = request.request_id;
@@ -2266,8 +2269,9 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                     modsec_rc = haproxy_modsecurity_transaction_begin(
                         state->engine, &modsec_request, &decision, &transaction);
                     if (modsec_rc != 0) {
-                        reason = decision.log_message[0] != '\0' ?
+                        const char *reason = decision.log_message[0] != '\0' ?
                             decision.log_message : "ModSecurity request processing failed";
+
                         if (transaction != 0) {
                             haproxy_modsecurity_transaction_abort(transaction);
                             transaction = 0;
@@ -2301,7 +2305,6 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                                     "transaction cache store failed");
                                 decision_text = "fail-open";
                             }
-                            reason = "transaction cache store failed";
                         }
                     }
                     decision_log_write(state, &request, &decision,

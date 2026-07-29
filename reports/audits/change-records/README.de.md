@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-HAProxy-SPOE-Header-Parser-Deduplizierung und SonarQube-Cloud-Reliability-Behebung](CR-20260729-sonar-haproxy-spop-header-parser-duplication.de.md)
+  — lokale C17-Parser-Harness-, HAProxy-Adoption-, Standards-Wiring- und
+  C17-Lint-Checks bestanden; ein fokussierter Security-Diff-Review fand keine
+  reportbare Regression. Gehostete CI- und Exact-Head-SonarQube-Cloud-Evidence
+  stehen noch aus.
+
 - [Parent-Common-Header-Validierung und NGINX-Strict-JSONL-Tail-Deduplizierung](CR-20260728-sonar-common-nginx-strict-jsonl-duplication.de.md)
   — lokale Common-C17-, Security-, Flow- und NGINX-Source-Contract-Checks
   bestanden; Memory-Safety bestand außerhalb der LeakSanitizer-inkompatiblen

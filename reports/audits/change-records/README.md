@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent HAProxy SPOE header-parser deduplication and SonarQube Cloud reliability remediation](CR-20260729-sonar-haproxy-spop-header-parser-duplication.md)
+  — local C17 parser-harness, HAProxy adoption, standards-wiring, and C17 lint
+  checks passed; a focused security diff review found no reportable regression.
+  Hosted CI and exact-head SonarQube Cloud evidence remain pending.
+
 - [Parent Common header validation and NGINX strict JSONL-tail deduplication](CR-20260728-sonar-common-nginx-strict-jsonl-duplication.md)
   — local Common C17, security, flow, and NGINX source-contract checks passed;
   memory safety passed outside the LeakSanitizer-incompatible sandbox, while
