@@ -20,6 +20,41 @@ SPEC.loader.exec_module(HELPER)
 
 
 class HAProxyHTXTransactionIdTest(unittest.TestCase):
+    def test_runtime_artifacts_stay_in_private_root_and_clients_stay_loopback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            canonical = root / "canonical.conf"
+            canonical.write_text(
+                "\n".join(HELPER.CANONICAL_RULE_SNIPPETS) + "\n",
+                encoding="utf-8",
+            )
+            outside = root.parent / f"{root.name}-outside.conf"
+            with self.assertRaisesRegex(ValueError, "below the runtime root"):
+                HELPER.write_rules(str(root), str(outside), str(canonical))
+            self.assertFalse(outside.exists())
+
+            redirected = root / "redirected.conf"
+            redirected.symlink_to(outside)
+            with self.assertRaisesRegex(ValueError, "below the runtime root|symbolic link"):
+                HELPER.write_rules(str(root), str(redirected), str(canonical))
+            self.assertFalse(outside.exists())
+
+            self.assertEqual(
+                HELPER.checked_loopback_http_url("http://127.0.0.1:18080/no-crs/allow"),
+                ("127.0.0.1", 18080, "/no-crs/allow"),
+            )
+            with self.assertRaisesRegex(ValueError, "127.0.0.1"):
+                HELPER.checked_loopback_http_url("http://example.invalid/")
+            with self.assertRaisesRegex(ValueError, "credential-free"):
+                HELPER.checked_loopback_http_url("http://user@127.0.0.1:18080/")
+
+        runtime = (
+            Path(__file__).resolve().parents[1]
+            / "connectors/haproxy/harness/run_haproxy_htx_runtime.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("helper prepare-runtime-root", runtime)
+        self.assertIn('"$@" --runtime-root "$RUNTIME_ROOT"', runtime)
+
     def test_native_128_byte_buffer_limit_applies_to_allow_and_evidence_writers(self) -> None:
         accepted = "a" * HELPER.HTX_TRANSACTION_ID_MAX_LENGTH
         rejected = "b" * (HELPER.HTX_TRANSACTION_ID_MAX_LENGTH + 1)
@@ -48,7 +83,9 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(
-                HELPER.write_allow_event(events_path, probe_path, upstream_path, accepted),
+                HELPER.write_allow_event(
+                    str(root), events_path, probe_path, upstream_path, accepted,
+                ),
                 0,
             )
             self.assertEqual(
@@ -56,7 +93,9 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
                 accepted,
             )
             with self.assertRaisesRegex(ValueError, "invalid HTX transaction id"):
-                HELPER.write_allow_event(events_path, probe_path, upstream_path, rejected)
+                HELPER.write_allow_event(
+                    str(root), events_path, probe_path, upstream_path, rejected,
+                )
 
             decision_log.write_text(
                 "modsecurity-htx: request intervention observed; "
@@ -65,7 +104,7 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
             )
             self.assertEqual(
                 HELPER.write_host_evidence(
-                    host_evidence_path, "phase1_403", 1, 1100001, probe_path, 0,
+                    str(root), host_evidence_path, "phase1_403", 1, 1100001, probe_path, 0,
                     "enforced_reply", decision_log_path,
                 ),
                 0,
@@ -81,7 +120,7 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "invalid HTX transaction id"):
                 HELPER.write_host_evidence(
-                    host_evidence_path, "phase1_403", 1, 1100001, probe_path, 0,
+                    str(root), host_evidence_path, "phase1_403", 1, 1100001, probe_path, 0,
                     "enforced_reply", decision_log_path,
                 )
 

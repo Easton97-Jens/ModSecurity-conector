@@ -98,14 +98,17 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             root = Path(temporary)
             rules = root / "rules.conf"
             config = root / "haproxy.cfg"
-            self.assertEqual(HELPER.write_rules(str(rules)), 0)
-            self.assertEqual(HELPER.write_config(str(config), 18080, 18081, str(rules)), 0)
+            self.assertEqual(HELPER.write_rules(str(root), str(rules)), 0)
+            self.assertEqual(
+                HELPER.write_config(str(root), str(config), 18080, 18081, str(rules)),
+                0,
+            )
             content = config.read_text(encoding="utf-8")
             self.assertIn("filter modsecurity-htx rules-file", content)
             for forbidden in ("filter spoe", "send-spoe", "http-buffer-request", "wait-for-body", "res.body"):
                 self.assertNotIn(forbidden, content)
             generated_rules = rules.read_text(encoding="utf-8")
-            self.assertEqual(generated_rules, HELPER.canonical_rules_content())
+            self.assertEqual(generated_rules, HELPER.canonical_rules_content(root))
             for rule_id in (1100001, 1100002, 1100101, 1100201, 1100301):
                 self.assertIn(f"id:{rule_id}", generated_rules)
             self.assertNotIn("91000", generated_rules)
@@ -122,6 +125,7 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             )
             self.assertEqual(
                 HELPER.write_event(
+                    str(root),
                     str(events),
                     "phase1_403",
                     str(decision_log),
@@ -153,6 +157,7 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             )
             self.assertEqual(
                 HELPER.write_host_evidence(
+                    str(root),
                     str(host_evidence),
                     "phase1_403",
                     1,
@@ -190,7 +195,7 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             )
             self.assertEqual(
                 HELPER.write_allow_event(
-                    str(events), str(probe), str(upstream), "haproxy-htx-allow",
+                    str(root), str(events), str(probe), str(upstream), "haproxy-htx-allow",
                 ),
                 0,
             )
@@ -231,7 +236,7 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             upstream_path = str(upstream)
             with self.assertRaisesRegex(ValueError, "preserve HTTP 200"):
                 HELPER.write_allow_event(
-                    events_path, probe_path, upstream_path, "haproxy-htx-allow",
+                    str(root), events_path, probe_path, upstream_path, "haproxy-htx-allow",
                 )
 
             probe.write_text(
@@ -244,11 +249,11 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "not observed exactly once upstream"):
                 HELPER.write_allow_event(
-                    events_path, probe_path, upstream_path, "haproxy-htx-allow",
+                    str(root), events_path, probe_path, upstream_path, "haproxy-htx-allow",
                 )
             with self.assertRaisesRegex(ValueError, "invalid HTX transaction id"):
                 HELPER.write_allow_event(
-                    events_path, probe_path, upstream_path, "haproxy:htx-allow",
+                    str(root), events_path, probe_path, upstream_path, "haproxy:htx-allow",
                 )
 
     def test_first_byte_evidence_binds_client_byte_to_paused_upstream(self) -> None:
@@ -279,7 +284,9 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(
-                HELPER.write_first_byte_evidence(str(evidence), str(paused), str(client)),
+                HELPER.write_first_byte_evidence(
+                    str(root), str(evidence), str(paused), str(client),
+                ),
                 0,
             )
             record = json.loads(evidence.read_text(encoding="utf-8"))
@@ -343,6 +350,7 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             )
             self.assertEqual(
                 HELPER.phase4_safe_event(
+                    str(root),
                     str(events),
                     str(decision_log),
                     str(probe),

@@ -17,9 +17,16 @@ import socket
 import sys
 import threading
 import time
+from typing import Callable
 import urllib.error
 import urllib.request
 import urllib.parse
+
+_HELPER_DIR = Path(__file__).resolve().parent
+if str(_HELPER_DIR) not in sys.path:
+    sys.path.insert(0, str(_HELPER_DIR))
+
+from runtime_artifacts import append_text, artifact_path, read_text, verified_runtime_root, write_text_atomic
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -52,34 +59,44 @@ LATE_DECISION_PATTERN = re.compile(
 )
 
 
-def checked_path(raw_path: str) -> Path:
-    path = Path(raw_path)
-    if not path.is_absolute():
-        raise ValueError(f"path must be absolute: {path}")
-    return path
+def checked_path(root: Path, raw_path: str, label: str, *, must_exist: bool) -> Path:
+    """Return one CLI path confined to the invocation's private runtime root."""
+
+    return artifact_path(root, raw_path, label, must_exist=must_exist)
 
 
-def append_jsonl(path: Path, record: dict[str, object]) -> None:
-    path.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as output:
-        output.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n")
-    path.chmod(0o600)
+def prepare_runtime_root(runtime_root: str) -> int:
+    """Create and verify the one private root before a shell runner writes."""
+
+    verified_runtime_root(runtime_root)
+    return 0
 
 
-def write_json(path: Path, record: dict[str, object]) -> None:
-    path.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
-    path.write_text(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n", encoding="utf-8")
-    path.chmod(0o600)
+def append_jsonl(root: Path, path: Path, record: dict[str, object]) -> None:
+    append_text(
+        root,
+        path,
+        json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n",
+        "JSONL evidence output",
+    )
 
 
-def load_json_object(path: str, label: str) -> dict[str, object]:
-    target = checked_path(path)
+def write_json(root: Path, path: Path, record: dict[str, object]) -> None:
+    write_text_atomic(
+        root,
+        path,
+        json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n",
+        "JSON evidence output",
+    )
+
+
+def load_json_object(root: Path, path: str, label: str) -> dict[str, object]:
     try:
-        value = json.loads(target.read_text(encoding="utf-8"))
+        value = json.loads(read_text(root, path, label))
     except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid {label}: {target}") from exc
+        raise ValueError(f"invalid {label}") from exc
     if not isinstance(value, dict):
-        raise ValueError(f"{label} is not an object: {target}")
+        raise ValueError(f"{label} is not an object")
     return value
 
 
@@ -100,6 +117,27 @@ def safe_htx_transaction_id(value: object) -> str:
     if re.fullmatch(r"[A-Za-z0-9._-]+", text) is None:
         raise ValueError("invalid HTX transaction id")
     return text
+
+
+def checked_loopback_port(value: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 65535:
+        raise ValueError("port out of range")
+    return value
+
+
+def checked_loopback_http_url(value: str) -> tuple[str, int, str]:
+    """Accept only a credential-free local HTTP smoke endpoint."""
+
+    parsed = urllib.parse.urlsplit(value)
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname != "127.0.0.1"
+        or parsed.username
+        or parsed.password
+        or parsed.fragment
+    ):
+        raise ValueError("probe URL must be a credential-free http://127.0.0.1 endpoint")
+    return parsed.hostname, checked_loopback_port(parsed.port or 80), parsed.path or "/"
 
 
 def upstream_profile(raw_path: str) -> tuple[str, str | None, bytes]:
@@ -143,7 +181,7 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
             if request_id:
                 record["request_id"] = request_id
             with request_log_lock:
-                append_jsonl(request_log, record)
+                append_jsonl(getattr(self.server, "runtime_root"), request_log, record)
         self.send_response(200)
         self.send_header("content-type", "text/plain")
         if response_header is not None:
@@ -165,14 +203,25 @@ def free_port() -> int:
 
 
 def wait_port(port: int) -> int:
-    with socket.create_connection(("127.0.0.1", port), timeout=0.5):
-        pass
-    return 0
+    with socket.create_connection(("127.0.0.1", checked_loopback_port(port)), timeout=0.5):
+        return 0
 
 
-def serve_upstream(port: int, request_log: str | None = None) -> int:
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), UpstreamHandler)
-    server.request_log = checked_path(request_log) if request_log else None
+def wait_for_release(release: Path, timeout: float) -> None:
+    """Wait for the runner-created release file without buffering a response."""
+
+    deadline = time.monotonic() + timeout
+    while not release.is_file():
+        if time.monotonic() >= deadline:
+            raise ValueError("timed out waiting for the synchronized upstream release")
+        time.sleep(0.01)
+
+
+def serve_upstream(runtime_root: str, port: int, request_log: str | None = None) -> int:
+    root = verified_runtime_root(runtime_root)
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", checked_loopback_port(port)), UpstreamHandler)
+    server.runtime_root = root
+    server.request_log = checked_path(root, request_log, "upstream request log", must_exist=False) if request_log else None
     server.request_log_lock = threading.Lock()
     try:
         server.serve_forever()
@@ -182,9 +231,10 @@ def serve_upstream(port: int, request_log: str | None = None) -> int:
 
 
 def probe(
-    url: str, header: list[str], method: str, data: str | None,
+    runtime_root: str, url: str, header: list[str], method: str, data: str | None,
     evidence_path: str | None = None,
 ) -> int:
+    root = verified_runtime_root(runtime_root)
     headers: dict[str, str] = {}
     for item in header:
         name, separator, value = item.partition(":")
@@ -192,7 +242,13 @@ def probe(
             raise ValueError(f"invalid header: {item!r}")
         headers[name.strip()] = value.strip()
     request_body = None if data is None else data.encode("utf-8")
-    request = urllib.request.Request(url, data=request_body, headers=headers, method=method)
+    host, port, request_path = checked_loopback_http_url(url)
+    request = urllib.request.Request(
+        f"http://{host}:{port}{request_path}" + (f"?{urllib.parse.urlsplit(url).query}" if urllib.parse.urlsplit(url).query else ""),
+        data=request_body,
+        headers=headers,
+        method=method,
+    )
     try:
         with urllib.request.urlopen(request, timeout=2) as response:
             response_body = response.read()
@@ -203,7 +259,7 @@ def probe(
         status = int(exc.code)
         content_type = str(exc.headers.get("content-type") or "")[:256]
     if evidence_path:
-        write_json(checked_path(evidence_path), {
+        write_json(root, checked_path(root, evidence_path, "probe evidence", must_exist=False), {
             "status": status,
             "response_bytes": len(response_body),
             "content_type": content_type,
@@ -213,6 +269,7 @@ def probe(
 
 
 def streaming_probe(
+    runtime_root: str,
     url: str,
     release_path: str,
     first_byte_path: str,
@@ -227,28 +284,24 @@ def streaming_probe(
     Phase-4 marker and upstream EOS.
     """
 
+    root = verified_runtime_root(runtime_root)
     if timeout <= 0:
         raise ValueError("timeout must be positive")
+    host, port, request_path = checked_loopback_http_url(url)
     parsed = urllib.parse.urlsplit(url)
-    if parsed.scheme != "http" or not parsed.hostname or parsed.username or parsed.password:
-        raise ValueError("streaming probe requires an absolute credential-free HTTP URL")
-    if parsed.fragment:
-        raise ValueError("streaming probe URL must not contain a fragment")
-    port = parsed.port or 80
-    request_path = parsed.path or "/"
     if parsed.query:
         request_path += f"?{parsed.query}"
-    release = checked_path(release_path)
-    first_byte_output = checked_path(first_byte_path)
-    evidence_output = checked_path(evidence_path)
-    connection = http.client.HTTPConnection(parsed.hostname, port, timeout=timeout)
+    release = checked_path(root, release_path, "upstream release file", must_exist=False)
+    first_byte_output = checked_path(root, first_byte_path, "first-byte evidence", must_exist=False)
+    evidence_output = checked_path(root, evidence_path, "streaming probe evidence", must_exist=False)
+    connection = http.client.HTTPConnection(host, port, timeout=timeout)
     response: http.client.HTTPResponse | None = None
     try:
         connection.request(
             "GET",
             request_path,
             headers={
-                "Host": parsed.hostname,
+                "Host": host,
                 "Connection": "close",
                 "X-Request-Id": "haproxy-htx-phase4",
             },
@@ -257,7 +310,7 @@ def streaming_probe(
         first = response.read(1)
         if not first:
             raise ValueError("HAProxy response ended before its first response-body byte")
-        write_json(first_byte_output, {
+        write_json(root, first_byte_output, {
             "status": int(response.status),
             "client_first_byte_received": True,
             "first_chunk_size": len(first),
@@ -265,11 +318,7 @@ def streaming_probe(
             "body_payload_persisted": False,
         })
 
-        deadline = time.monotonic() + timeout
-        while not release.is_file():
-            if time.monotonic() >= deadline:
-                raise ValueError("timed out waiting for the synchronized upstream release")
-            time.sleep(0.01)
+        wait_for_release(release, timeout)
 
         response_bytes = len(first)
         while True:
@@ -277,7 +326,7 @@ def streaming_probe(
             if not chunk:
                 break
             response_bytes += len(chunk)
-        write_json(evidence_output, {
+        write_json(root, evidence_output, {
             "status": int(response.status),
             "response_bytes": response_bytes,
             "content_type": str(response.getheader("content-type") or "")[:256],
@@ -290,10 +339,11 @@ def streaming_probe(
     return 0
 
 
-def wait_for_file(path: str, timeout: float) -> int:
+def wait_for_file(runtime_root: str, path: str, timeout: float) -> int:
+    root = verified_runtime_root(runtime_root)
     if timeout <= 0:
         raise ValueError("timeout must be positive")
-    target = checked_path(path)
+    target = checked_path(root, path, "control file", must_exist=False)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if target.is_file() and target.stat().st_size > 0:
@@ -302,8 +352,9 @@ def wait_for_file(path: str, timeout: float) -> int:
     raise ValueError(f"timed out waiting for payload-free control file: {target}")
 
 
-def synchronized_upstream_port(path: str) -> int:
-    value = load_json_object(path, "synchronized upstream ready record")
+def synchronized_upstream_port(runtime_root: str, path: str) -> int:
+    root = verified_runtime_root(runtime_root)
+    value = load_json_object(root, path, "synchronized upstream ready record")
     if value.get("schema_version") != 1 or value.get("evidence_type") != "synchronized_upstream_ready":
         raise ValueError("invalid synchronized upstream ready record")
     if value.get("body_payload_persisted") is not False:
@@ -315,8 +366,9 @@ def synchronized_upstream_port(path: str) -> int:
     return port
 
 
-def validate_synchronized_upstream_complete(path: str) -> int:
-    value = load_json_object(path, "synchronized upstream completion record")
+def validate_synchronized_upstream_complete(runtime_root: str, path: str) -> int:
+    root = verified_runtime_root(runtime_root)
+    value = load_json_object(root, path, "synchronized upstream completion record")
     if value.get("schema_version") != 1 or value.get("evidence_type") != "synchronized_upstream_server":
         raise ValueError("invalid synchronized upstream completion record")
     if value.get("body_payload_persisted") is not False:
@@ -330,12 +382,12 @@ def validate_synchronized_upstream_complete(path: str) -> int:
 
 
 def first_byte_evidence(
-    paused_path: str, client_first_byte_path: str,
+    root: Path, paused_path: str, client_first_byte_path: str,
 ) -> dict[str, object]:
     """Bind a real HTTP client first byte to the still-paused upstream state."""
 
-    paused = load_json_object(paused_path, "synchronized upstream pause record")
-    client = load_json_object(client_first_byte_path, "client first-byte record")
+    paused = load_json_object(root, paused_path, "synchronized upstream pause record")
+    client = load_json_object(root, client_first_byte_path, "client first-byte record")
     if paused.get("schema_version") != 1 or paused.get("evidence_type") != "synchronized_upstream_paused":
         raise ValueError("invalid synchronized upstream pause record")
     if paused.get("upstream_paused") is not True or paused.get("upstream_eos_sent") is not False:
@@ -381,17 +433,21 @@ def first_byte_evidence(
 
 
 def write_first_byte_evidence(
-    path: str, paused_path: str, client_first_byte_path: str,
+    runtime_root: str, path: str, paused_path: str, client_first_byte_path: str,
 ) -> int:
-    write_json(checked_path(path), first_byte_evidence(paused_path, client_first_byte_path))
+    root = verified_runtime_root(runtime_root)
+    output = checked_path(root, path, "first-byte evidence", must_exist=False)
+    write_json(root, output, first_byte_evidence(root, paused_path, client_first_byte_path))
     return 0
 
 
-def canonical_rules_content(canonical_rules: str | None = None) -> str:
-    source = checked_path(canonical_rules) if canonical_rules else CANONICAL_RULES_PATH
-    if not source.is_file():
-        raise ValueError(f"canonical No-CRS rules are missing: {source}")
-    content = source.read_text(encoding="utf-8")
+def canonical_rules_content(root: Path, canonical_rules: str | None = None) -> str:
+    if canonical_rules:
+        content = read_text(root, canonical_rules, "canonical No-CRS rules")
+    else:
+        if not CANONICAL_RULES_PATH.is_file():
+            raise ValueError(f"canonical No-CRS rules are missing: {CANONICAL_RULES_PATH}")
+        content = CANONICAL_RULES_PATH.read_text(encoding="utf-8")
     missing = [snippet for snippet in CANONICAL_RULE_SNIPPETS if snippet not in content]
     if missing:
         raise ValueError(f"canonical No-CRS rules are incomplete: {', '.join(missing)}")
@@ -400,11 +456,14 @@ def canonical_rules_content(canonical_rules: str | None = None) -> str:
     return content
 
 
-def write_rules(path: str, canonical_rules: str | None = None) -> int:
-    target = checked_path(path)
-    target.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
-    target.write_text(canonical_rules_content(canonical_rules), encoding="utf-8")
-    target.chmod(0o600)
+def write_rules(runtime_root: str, path: str, canonical_rules: str | None = None) -> int:
+    root = verified_runtime_root(runtime_root)
+    write_text_atomic(
+        root,
+        path,
+        canonical_rules_content(root, canonical_rules),
+        "HAProxy rules output",
+    )
     return 0
 
 
@@ -414,11 +473,16 @@ def config_value(value: str, name: str) -> str:
     return value
 
 
-def write_config(path: str, listen_port: int, upstream_port: int, rules_file: str) -> int:
-    target = checked_path(path)
-    rules = config_value(str(checked_path(rules_file)), "rules file")
-    if not 1 <= listen_port <= 65535 or not 1 <= upstream_port <= 65535:
-        raise ValueError("port out of range")
+def write_config(
+    runtime_root: str, path: str, listen_port: int, upstream_port: int, rules_file: str,
+) -> int:
+    root = verified_runtime_root(runtime_root)
+    rules = config_value(
+        str(checked_path(root, rules_file, "rules file", must_exist=True)),
+        "rules file",
+    )
+    listen_port = checked_loopback_port(listen_port)
+    upstream_port = checked_loopback_port(upstream_port)
     content = f"""global
     log stdout format raw local0
 
@@ -436,70 +500,72 @@ frontend htx_in
 backend htx_upstream
     server upstream 127.0.0.1:{upstream_port}
 """
-    target.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
-    target.chmod(0o600)
+    write_text_atomic(root, path, content, "HAProxy configuration output")
     return 0
 
 
-def read_probe(path: str) -> dict[str, object]:
-    target = checked_path(path)
+def read_probe(runtime_root: str, path: str) -> dict[str, object]:
+    root = verified_runtime_root(runtime_root)
     try:
-        value = json.loads(target.read_text(encoding="utf-8"))
+        value = json.loads(read_text(root, path, "probe evidence"))
     except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid probe evidence: {target}") from exc
+        raise ValueError("invalid probe evidence") from exc
     if not isinstance(value, dict):
-        raise ValueError(f"probe evidence is not an object: {target}")
+        raise ValueError("probe evidence is not an object")
     status = value.get("status")
     response_bytes = value.get("response_bytes")
     content_type = value.get("content_type")
     if isinstance(status, bool) or not isinstance(status, int) or not 100 <= status <= 599:
-        raise ValueError(f"invalid probe status: {target}")
+        raise ValueError("invalid probe status")
     if isinstance(response_bytes, bool) or not isinstance(response_bytes, int) or response_bytes < 0:
-        raise ValueError(f"invalid probe response size: {target}")
+        raise ValueError("invalid probe response size")
     if not isinstance(content_type, str) or len(content_type) > 256:
-        raise ValueError(f"invalid probe content type: {target}")
+        raise ValueError("invalid probe content type")
     return value
 
 
-def probe_status(path: str) -> int:
+def probe_status(runtime_root: str, path: str) -> int:
     """Return the validated status from a payload-free completed probe."""
 
-    return int(read_probe(path)["status"])
+    return int(read_probe(runtime_root, path)["status"])
 
 
-def upstream_count(path: str, profile: str) -> int:
-    target = checked_path(path)
+def upstream_count(runtime_root: str, path: str, profile: str) -> int:
+    root = verified_runtime_root(runtime_root)
+    target = checked_path(root, path, "upstream request log", must_exist=False)
     if not target.exists():
         return 0
     count = 0
-    for line in target.read_text(encoding="utf-8").splitlines():
+    for line in read_text(root, target, "upstream request log").splitlines():
         if not line:
             continue
         try:
             record = json.loads(line)
         except json.JSONDecodeError as exc:
-            raise ValueError(f"invalid upstream evidence: {target}") from exc
+            raise ValueError("invalid upstream evidence") from exc
         if isinstance(record, dict) and record.get("profile") == profile:
             count += 1
     return count
 
 
-def upstream_transaction_observed(path: str, profile: str, transaction_id: str) -> bool:
+def upstream_transaction_observed(
+    runtime_root: str, path: str, profile: str, transaction_id: str,
+) -> bool:
     """Return whether exactly one upstream request preserved the HTX ID."""
 
     expected_transaction_id = safe_htx_transaction_id(transaction_id)
-    target = checked_path(path)
+    root = verified_runtime_root(runtime_root)
+    target = checked_path(root, path, "upstream request log", must_exist=False)
     if not target.is_file():
         return False
     matches = 0
-    for line in target.read_text(encoding="utf-8").splitlines():
+    for line in read_text(root, target, "upstream request log").splitlines():
         if not line:
             continue
         try:
             record = json.loads(line)
         except json.JSONDecodeError as exc:
-            raise ValueError(f"invalid upstream evidence: {target}") from exc
+            raise ValueError("invalid upstream evidence") from exc
         if not isinstance(record, dict):
             continue
         if (
@@ -510,12 +576,10 @@ def upstream_transaction_observed(path: str, profile: str, transaction_id: str) 
     return matches == 1
 
 
-def decision_from_log(path: str, phase: int, rule_id: int) -> dict[str, object]:
-    target = checked_path(path)
-    if not target.is_file():
-        raise ValueError(f"HAProxy host log is missing: {target}")
+def decision_from_log(runtime_root: str, path: str, phase: int, rule_id: int) -> dict[str, object]:
+    root = verified_runtime_root(runtime_root)
     matches: list[dict[str, object]] = []
-    for line in target.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in read_text(root, path, "HAProxy host log", errors="replace").splitlines():
         match = DECISION_PATTERN.search(line)
         if not match:
             continue
@@ -529,16 +593,14 @@ def decision_from_log(path: str, phase: int, rule_id: int) -> dict[str, object]:
         if result["phase"] == phase and result["rule_id"] == rule_id:
             matches.append(result)
     if not matches:
-        raise ValueError(f"HAProxy host log lacks phase {phase} rule {rule_id}: {target}")
+        raise ValueError(f"HAProxy host log lacks phase {phase} rule {rule_id}")
     return matches[-1]
 
 
-def late_decision_from_log(path: str, phase: int, rule_id: int) -> dict[str, object]:
-    target = checked_path(path)
-    if not target.is_file():
-        raise ValueError(f"HAProxy host log is missing: {target}")
+def late_decision_from_log(runtime_root: str, path: str, phase: int, rule_id: int) -> dict[str, object]:
+    root = verified_runtime_root(runtime_root)
     matches: list[dict[str, object]] = []
-    for line in target.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in read_text(root, path, "HAProxy host log", errors="replace").splitlines():
         match = LATE_DECISION_PATTERN.search(line)
         if not match:
             continue
@@ -554,17 +616,18 @@ def late_decision_from_log(path: str, phase: int, rule_id: int) -> dict[str, obj
         if result["phase"] == phase and result["rule_id"] == rule_id:
             matches.append(result)
     if not matches:
-        raise ValueError(f"HAProxy host log lacks late phase {phase} rule {rule_id}: {target}")
+        raise ValueError(f"HAProxy host log lacks late phase {phase} rule {rule_id}")
     return matches[-1]
 
 
 def write_event(
-    path: str, case: str, decision_log: str, phase: int, rule_id: int,
+    runtime_root: str, path: str, case: str, decision_log: str, phase: int, rule_id: int,
     observed_status: int, host_action: str, original_http_status: int | None = None,
 ) -> int:
+    root = verified_runtime_root(runtime_root)
     if host_action != "enforced_reply":
         raise ValueError("canonical event output is reserved for an enforced host reply")
-    decision = decision_from_log(decision_log, phase, rule_id)
+    decision = decision_from_log(runtime_root, decision_log, phase, rule_id)
     if decision["action"] != "deny" or decision["status"] != observed_status:
         raise ValueError("host decision does not match the client-visible enforced reply")
     if original_http_status is not None and not 100 <= original_http_status <= 599:
@@ -597,12 +660,12 @@ def write_event(
     }
     if original_http_status is not None:
         record["original_http_status"] = original_http_status
-    append_jsonl(checked_path(path), record)
+    append_jsonl(root, checked_path(root, path, "event output", must_exist=False), record)
     return 0
 
 
 def write_allow_event(
-    path: str, probe_path: str, upstream_log: str, transaction_id: str,
+    runtime_root: str, path: str, probe_path: str, upstream_log: str, transaction_id: str,
 ) -> int:
     """Publish a real, payload-free P1 allow outcome after the full run.
 
@@ -612,11 +675,12 @@ def write_allow_event(
     request rather than accidentally borrowing the P4 safe response.
     """
 
+    root = verified_runtime_root(runtime_root)
     transaction = safe_htx_transaction_id(transaction_id)
-    probe = read_probe(probe_path)
+    probe = read_probe(runtime_root, probe_path)
     if probe["status"] != 200 or int(probe["response_bytes"]) < 1:
         raise ValueError("HAProxy allow client outcome must preserve HTTP 200 with a body")
-    if not upstream_transaction_observed(upstream_log, "ordinary", transaction):
+    if not upstream_transaction_observed(runtime_root, upstream_log, "ordinary", transaction):
         raise ValueError("HAProxy allow transaction was not observed exactly once upstream")
     record: dict[str, object] = {
         # This is a projection of the completed client request and the
@@ -637,11 +701,12 @@ def write_allow_event(
         "connection_aborted": False,
         "transport_result": "http_status",
     }
-    append_jsonl(checked_path(path), record)
+    append_jsonl(root, checked_path(root, path, "allow-event output", must_exist=False), record)
     return 0
 
 
 def phase4_safe_event(
+    runtime_root: str,
     path: str,
     decision_log: str,
     probe_path: str,
@@ -657,7 +722,8 @@ def phase4_safe_event(
     inferred from a policy default or fixture payload.
     """
 
-    decision = late_decision_from_log(decision_log, 4, 1100301)
+    root = verified_runtime_root(runtime_root)
+    decision = late_decision_from_log(runtime_root, decision_log, 4, 1100301)
     if (
         decision["requested_action"] != "deny"
         or decision["resolved_policy_action"] != "log_only"
@@ -665,10 +731,10 @@ def phase4_safe_event(
         or decision["status"] != 403
     ):
         raise ValueError("HAProxy late decision is not the required safe log-only outcome")
-    probe = read_probe(probe_path)
+    probe = read_probe(runtime_root, probe_path)
     if probe["status"] != 200 or int(probe["response_bytes"]) < 1:
         raise ValueError("HAProxy safe P4 client outcome must preserve HTTP 200 with a body")
-    evidence = load_json_object(first_byte_evidence_path, "first-byte evidence")
+    evidence = load_json_object(root, first_byte_evidence_path, "first-byte evidence")
     required_true = (
         "promotion_eligible",
         "client_first_byte_received",
@@ -740,17 +806,18 @@ def phase4_safe_event(
         "end_of_stream_evaluation": True,
         "cleanup_reason": "normal",
     }
-    append_jsonl(checked_path(path), record)
+    append_jsonl(root, checked_path(root, path, "phase4 event output", must_exist=False), record)
     return 0
 
 
 def write_host_evidence(
-    path: str, case: str, phase: int, rule_id: int, probe_path: str,
+    runtime_root: str, path: str, case: str, phase: int, rule_id: int, probe_path: str,
     upstream_requests: int, host_action: str, decision_log: str | None = None,
 ) -> int:
+    root = verified_runtime_root(runtime_root)
     if upstream_requests < 0:
         raise ValueError("upstream request count must not be negative")
-    probe = read_probe(probe_path)
+    probe = read_probe(runtime_root, probe_path)
     if host_action in {"enforced_reply", "safe_log_only"} and int(probe["response_bytes"]) == 0:
         raise ValueError(f"{host_action} host outcome has no client response bytes")
     record: dict[str, object] = {
@@ -765,13 +832,13 @@ def write_host_evidence(
         "host_action": host_action,
     }
     if decision_log:
-        decision = decision_from_log(decision_log, phase, rule_id)
+        decision = decision_from_log(runtime_root, decision_log, phase, rule_id)
         record.update({
             "transaction_id": decision["transaction_id"],
             "decision_status": decision["status"],
             "requested_action": decision["action"],
         })
-    append_jsonl(checked_path(path), record)
+    append_jsonl(root, checked_path(root, path, "host-evidence output", must_exist=False), record)
     return 0
 
 
@@ -779,6 +846,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("free-port")
+    prepare = subparsers.add_parser("prepare-runtime-root")
     wait = subparsers.add_parser("wait-port")
     wait.add_argument("--port", required=True, type=int)
     serve = subparsers.add_parser("serve-upstream")
@@ -851,66 +919,90 @@ def parse_args() -> argparse.Namespace:
     safe_event.add_argument("--first-byte-evidence", required=True)
     safe_event.add_argument("--run-id", required=True)
     safe_event.add_argument("--transport-case-id", required=True)
+    for runtime_command in (
+        serve,
+        prepare,
+        request,
+        streaming,
+        wait,
+        ready,
+        upstream_complete,
+        first_byte,
+        probe_status_parser,
+        rules,
+        config,
+        count,
+        event,
+        allow_event,
+        evidence,
+        safe_event,
+    ):
+        runtime_command.add_argument("--runtime-root", required=True)
     return parser.parse_args()
+
+
+def print_result(value: int) -> int:
+    print(value)
+    return 0
+
+
+def command_handlers(args: argparse.Namespace) -> dict[str, Callable[[], int]]:
+    """Map each parser-selected command to its validated implementation."""
+
+    return {
+        "free-port": lambda: print_result(free_port()),
+        "prepare-runtime-root": lambda: prepare_runtime_root(args.runtime_root),
+        "wait-port": lambda: wait_port(args.port),
+        "serve-upstream": lambda: serve_upstream(args.runtime_root, args.port, args.request_log),
+        "probe": lambda: probe(
+            args.runtime_root, args.url, args.header, args.method, args.data,
+            args.evidence_path,
+        ),
+        "streaming-probe": lambda: streaming_probe(
+            args.runtime_root, args.url, args.release_path, args.first_byte_path,
+            args.evidence_path, args.timeout,
+        ),
+        "wait-file": lambda: wait_for_file(args.runtime_root, args.path, args.timeout),
+        "synchronized-upstream-port": lambda: print_result(
+            synchronized_upstream_port(args.runtime_root, args.path),
+        ),
+        "validate-synchronized-upstream": lambda: validate_synchronized_upstream_complete(
+            args.runtime_root, args.path,
+        ),
+        "write-first-byte-evidence": lambda: write_first_byte_evidence(
+            args.runtime_root, args.path, args.paused_path, args.client_first_byte_path,
+        ),
+        "probe-status": lambda: print_result(probe_status(args.runtime_root, args.path)),
+        "write-rules": lambda: write_rules(args.runtime_root, args.path, args.canonical_rules),
+        "write-config": lambda: write_config(
+            args.runtime_root, args.path, args.listen_port, args.upstream_port,
+            args.rules_file,
+        ),
+        "upstream-count": lambda: print_result(
+            upstream_count(args.runtime_root, args.path, args.profile),
+        ),
+        "write-event": lambda: write_event(
+            args.runtime_root, args.path, args.case, args.decision_log, args.phase,
+            args.rule_id, args.observed_status, args.host_action, args.original_http_status,
+        ),
+        "write-allow-event": lambda: write_allow_event(
+            args.runtime_root, args.path, args.probe_path, args.upstream_log,
+            args.transaction_id,
+        ),
+        "write-host-evidence": lambda: write_host_evidence(
+            args.runtime_root, args.path, args.case, args.phase, args.rule_id,
+            args.probe_path, args.upstream_requests, args.host_action, args.decision_log,
+        ),
+        "write-phase4-safe-event": lambda: phase4_safe_event(
+            args.runtime_root, args.path, args.decision_log, args.probe_path,
+            args.first_byte_evidence, args.run_id, args.transport_case_id,
+        ),
+    }
 
 
 def main() -> int:
     args = parse_args()
-    if args.command == "free-port":
-        print(free_port())
-        return 0
-    if args.command == "wait-port":
-        return wait_port(args.port)
-    if args.command == "serve-upstream":
-        return serve_upstream(args.port, args.request_log)
-    if args.command == "probe":
-        return probe(args.url, args.header, args.method, args.data, args.evidence_path)
-    if args.command == "streaming-probe":
-        return streaming_probe(
-            args.url, args.release_path, args.first_byte_path,
-            args.evidence_path, args.timeout,
-        )
-    if args.command == "wait-file":
-        return wait_for_file(args.path, args.timeout)
-    if args.command == "synchronized-upstream-port":
-        print(synchronized_upstream_port(args.path))
-        return 0
-    if args.command == "validate-synchronized-upstream":
-        return validate_synchronized_upstream_complete(args.path)
-    if args.command == "write-first-byte-evidence":
-        return write_first_byte_evidence(
-            args.path, args.paused_path, args.client_first_byte_path,
-        )
-    if args.command == "probe-status":
-        print(probe_status(args.path))
-        return 0
-    if args.command == "write-rules":
-        return write_rules(args.path, args.canonical_rules)
-    if args.command == "write-config":
-        return write_config(args.path, args.listen_port, args.upstream_port, args.rules_file)
-    if args.command == "upstream-count":
-        print(upstream_count(args.path, args.profile))
-        return 0
-    if args.command == "write-event":
-        return write_event(
-            args.path, args.case, args.decision_log, args.phase, args.rule_id,
-            args.observed_status, args.host_action, args.original_http_status,
-        )
-    if args.command == "write-allow-event":
-        return write_allow_event(
-            args.path, args.probe_path, args.upstream_log, args.transaction_id,
-        )
-    if args.command == "write-host-evidence":
-        return write_host_evidence(
-            args.path, args.case, args.phase, args.rule_id, args.probe_path,
-            args.upstream_requests, args.host_action, args.decision_log,
-        )
-    if args.command == "write-phase4-safe-event":
-        return phase4_safe_event(
-            args.path, args.decision_log, args.probe_path,
-            args.first_byte_evidence, args.run_id, args.transport_case_id,
-        )
-    return 2
+    return command_handlers(args)[args.command]()
 
 
 if __name__ == "__main__":
