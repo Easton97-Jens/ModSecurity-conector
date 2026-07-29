@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260729-sonar-common-event-provenance-complexity |
 | Date (UTC) | 2026-07-29 |
-| Base revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
+| Base revision | Original change base `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`; synchronized candidate base `603a7558e75a177222e22d8d0b87402dfad3f706` |
 | Tracking | SonarQube Cloud rule `c:S3776` at `common/src/event.c:382`: reduce Cognitive Complexity from 32 to the allowed 25. Open PR [#174](https://github.com/Easton97-Jens/ModSecurity-conector/pull/174) originated at initial head `8baef24192ccaaa39e38e89238b8d2e8e90baec9`; the later remote head was `b92084c523498978b55de9068240752314bbedc3` before its required normal master synchronization. Historical initial-head Actions/Sonar observations do not verify a synchronized candidate. Its exact head, reviews, Actions, and SonarQube Cloud evidence must be refreshed before integration. No merge is claimed. |
 | Boundary | Parent `common` event-JSON provenance serialization, focused Common-helper smoke assertions, and this English/German Change Record pair with its indexes. Framework, MRTS, Gitlinks, workflows, scanner policy, generated artifacts, and `master` are not modified. |
 
