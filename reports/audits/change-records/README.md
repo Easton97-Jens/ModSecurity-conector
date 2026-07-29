@@ -6,6 +6,12 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Common event-provenance serialization decomposition for SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.md)
+  — GCC and Clang C17 Common-helper controls, the optional C23 advisory
+  control, Common security/SDK/flow contracts, and the explicit provenance
+  negative controls passed locally. Draft-PR delivery and exact-head hosted
+  SonarQube Cloud evidence remain pending.
+
 - [Parent CI runtime-readiness remediation-label deduplication for SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.md)
 
 - [Parent HAProxy HTX payload-iterator deduplication](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.md)
