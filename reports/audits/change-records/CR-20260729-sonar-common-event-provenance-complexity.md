@@ -9,7 +9,7 @@
 | Change ID | CR-20260729-sonar-common-event-provenance-complexity |
 | Date (UTC) | 2026-07-29 |
 | Base revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
-| Tracking | SonarQube Cloud rule `c:S3776` at `common/src/event.c:382`: reduce Cognitive Complexity from 32 to the allowed 25. Draft PR [#174](https://github.com/Easton97-Jens/ModSecurity-conector/pull/174) was created from initial head `8baef24192ccaaa39e38e89238b8d2e8e90baec9`; its observed Actions checks passed or were expected conditional skips, and SonarQube Cloud reported Quality Gate `OK` with 0 new issues and 0.0% new-code duplication. This documentation follow-up requires fresh exact-head verification. No merge is claimed. |
+| Tracking | SonarQube Cloud rule `c:S3776` at `common/src/event.c:382`: reduce Cognitive Complexity from 32 to the allowed 25. Open PR [#174](https://github.com/Easton97-Jens/ModSecurity-conector/pull/174) originated at initial head `8baef24192ccaaa39e38e89238b8d2e8e90baec9`; the later remote head was `b92084c523498978b55de9068240752314bbedc3` before its required normal master synchronization. Historical initial-head Actions/Sonar observations do not verify a synchronized candidate. Its exact head, reviews, Actions, and SonarQube Cloud evidence must be refreshed before integration. No merge is claimed. |
 | Boundary | Parent `common` event-JSON provenance serialization, focused Common-helper smoke assertions, and this English/German Change Record pair with its indexes. Framework, MRTS, Gitlinks, workflows, scanner policy, generated artifacts, and `master` are not modified. |
 
 ## Motivation and problem statement
@@ -78,11 +78,11 @@ No connector, host, Framework, or MRTS runtime was started. The Common-helper sm
 - A real connector runtime and full connector matrix were not run: the change is limited to Common event serialization and repository-native Common helper, security, SDK, and flow controls exercise that boundary.
 - Framework and MRTS checks were not run because they are outside the selected Parent `common` boundary and neither repository was modified.
 - A full repository security scan was not run: the focused security review and Common security-contract control cover the changed serialization path; this record does not claim repository-wide coverage.
-- Initial hosted evidence was observed only for `8baef24192ccaaa39e38e89238b8d2e8e90baec9`. This documentation follow-up creates a newer PR head, so GitHub Actions, SonarQube Cloud PR analysis, review state, and exact-head evidence must be refreshed before the PR is presented as verified.
+- Historical hosted evidence was observed only for `8baef24192ccaaa39e38e89238b8d2e8e90baec9`. The later remote head and every normal master-synchronized candidate require fresh GitHub Actions, SonarQube Cloud PR analysis, review-state, and exact-head evidence before the PR is presented as verified.
 
 ## Known limitations
 
-The local helper smoke validates representative metadata, redaction, and truncation behavior but is not a connector-host integration test. Draft PR #174 has no merge, approval, or final follow-up-head hosted evidence yet.
+The local helper smoke validates representative metadata, redaction, and truncation behavior but is not a connector-host integration test. Open PR #174 has no merge, approval, or final synchronized-head hosted evidence yet.
 
 ## Remaining risks
 
@@ -90,4 +90,4 @@ Future additions must keep name arrays, value arrays, and negative controls alig
 
 ## Final diff and review status
 
-The scoped candidate changes only Common event provenance decomposition, its focused smoke assertions, and paired Change Record/index documents. Commit `8baef24192ccaaa39e38e89238b8d2e8e90baec9` was pushed to the task branch and Draft PR #174 was opened; its initial head passed the observed hosted checks. This truthful documentation follow-up is a new unverified PR head. No Framework, MRTS, Gitlink, workflow, SonarQube rule, default-branch, or merge action occurred. Final documentation checks and exact-head hosted verification remain pending.
+The scoped candidate changes only Common event provenance decomposition, its focused smoke assertions, and paired Change Record/index documents. Initial commit `8baef24192ccaaa39e38e89238b8d2e8e90baec9` opened PR #174, and the later remote head `b92084c523498978b55de9068240752314bbedc3` contains this documentation follow-up. A normal synchronization creates a new unverified candidate. No Framework, MRTS, Gitlink, workflow, SonarQube rule, default-branch, or merge action is claimed. Final documentation checks and exact-head hosted verification remain pending.

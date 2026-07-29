@@ -9,7 +9,7 @@
 | Change-ID | CR-20260729-sonar-common-event-provenance-complexity |
 | Datum (UTC) | 2026-07-29 |
 | Basis-Revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
-| Tracking | SonarQube-Cloud-Regel `c:S3776` in `common/src/event.c:382`: Cognitive Complexity von 32 auf die erlaubten 25 reduzieren. Draft PR [#174](https://github.com/Easton97-Jens/ModSecurity-conector/pull/174) wurde vom initialen Head `8baef24192ccaaa39e38e89238b8d2e8e90baec9` erstellt; seine beobachteten Actions-Checks bestanden oder waren erwartete bedingte Skips, und SonarQube Cloud meldete Quality Gate `OK` mit 0 neuen Issues und 0,0 % New-Code-Duplikation. Dieser Dokumentations-Follow-up benötigt frische Exact-Head-Verifikation. Ein Merge wird nicht behauptet. |
+| Tracking | SonarQube-Cloud-Regel `c:S3776` in `common/src/event.c:382`: Cognitive Complexity von 32 auf die erlaubten 25 reduzieren. Die offene PR [#174](https://github.com/Easton97-Jens/ModSecurity-conector/pull/174) begann am initialen Head `8baef24192ccaaa39e38e89238b8d2e8e90baec9`; der spätere Remote-Head war `b92084c523498978b55de9068240752314bbedc3` vor seiner erforderlichen normalen Master-Synchronisierung. Historische Actions-/Sonar-Beobachtungen des initialen Heads verifizieren keinen synchronisierten Kandidaten. Sein exakter Head, Reviews, Actions und SonarQube-Cloud-Evidence müssen vor der Integration frisch verifiziert werden. Ein Merge wird nicht behauptet. |
 | Grenze | Parent-`common`-Event-JSON-Provenance-Serialisierung, fokussierte Common-Helper-Smoke-Assertions und dieses englisch/deutsche Change-Record-Paar mit seinen Indizes. Framework, MRTS, Gitlinks, Workflows, Scanner-Policy, generierte Artefakte und `master` werden nicht verändert. |
 
 ## Motivation und Problemstellung
@@ -78,11 +78,11 @@ Es wurde keine Connector-, Host-, Framework- oder MRTS-Runtime gestartet. Der Co
 - Eine reale Connector-Runtime und die vollständige Connector-Matrix wurden nicht ausgeführt: Die Änderung beschränkt sich auf Common-Event-Serialisierung, und repository-native Common-Helper-, Security-, SDK- und Flow-Controls prüfen diese Grenze.
 - Framework- und MRTS-Prüfungen wurden nicht ausgeführt, weil sie außerhalb der gewählten Parent-`common`-Grenze liegen und keines der Repositories verändert wurde.
 - Ein vollständiger Repository-Security-Scan wurde nicht ausgeführt: Der fokussierte Security-Review und der Common-Security-Contract decken den geänderten Serialisierungspfad ab; dieser Record behauptet keine repository-weite Coverage.
-- Initiale Hosted-Evidence wurde nur für `8baef24192ccaaa39e38e89238b8d2e8e90baec9` beobachtet. Dieser Dokumentations-Follow-up erzeugt einen neueren PR-Head, daher müssen GitHub-Actions, SonarQube-Cloud-PR-Analyse, Review-Status und Exact-Head-Evidence aktualisiert werden, bevor der PR als verifiziert dargestellt wird.
+- Historische Hosted-Evidence wurde nur für `8baef24192ccaaa39e38e89238b8d2e8e90baec9` beobachtet. Der spätere Remote-Head und jeder normal Master-synchronisierte Kandidat benötigen frische GitHub-Actions-, SonarQube-Cloud-PR-Analyse-, Review-Status- und Exact-Head-Evidence, bevor der PR als verifiziert dargestellt wird.
 
 ## Bekannte Einschränkungen
 
-Der lokale Helper-Smoke validiert repräsentative Metadaten-, Redaktions- und Truncation-Verhalten, ist aber kein Connector-Host-Integrationstest. Draft PR #174 besitzt noch keinen Merge, keine Freigabe und keine finale Follow-up-Head-Hosted-Evidence.
+Der lokale Helper-Smoke validiert repräsentative Metadaten-, Redaktions- und Truncation-Verhalten, ist aber kein Connector-Host-Integrationstest. Die offene PR #174 besitzt noch keinen Merge, keine Freigabe und keine finale synchronisierte-Head-Hosted-Evidence.
 
 ## Verbleibende Risiken
 
@@ -90,4 +90,4 @@ Künftige Ergänzungen müssen Name-Arrays, Value-Arrays und Negativ-Controls sy
 
 ## Finaler Diff- und Review-Status
 
-Der scoped Kandidat verändert nur die Common-Event-Provenance-Zerlegung, seine fokussierten Smoke-Assertions und die gekoppelten Change-Record-/Index-Dokumente. Commit `8baef24192ccaaa39e38e89238b8d2e8e90baec9` wurde auf den Task-Branch gepusht und Draft PR #174 wurde geöffnet; sein initialer Head bestand die beobachteten Hosted-Checks. Dieser wahrheitsgemäße Dokumentations-Follow-up ist ein neuer unverifizierter PR-Head. Es gab keine Framework-, MRTS-, Gitlink-, Workflow-, SonarQube-Regel-, Default-Branch- oder Merge-Aktion. Finale Dokumentationsprüfungen und Exact-Head-Hosted-Verifikation stehen noch aus.
+Der scoped Kandidat verändert nur die Common-Event-Provenance-Zerlegung, seine fokussierten Smoke-Assertions und die gekoppelten Change-Record-/Index-Dokumente. Der initiale Commit `8baef24192ccaaa39e38e89238b8d2e8e90baec9` öffnete PR #174, und der spätere Remote-Head `b92084c523498978b55de9068240752314bbedc3` enthält diesen Dokumentations-Follow-up. Eine normale Synchronisierung erzeugt einen neuen unverifizierten Kandidaten. Es wird keine Framework-, MRTS-, Gitlink-, Workflow-, SonarQube-Regel-, Default-Branch- oder Merge-Aktion behauptet. Finale Dokumentationsprüfungen und Exact-Head-Hosted-Verifikation stehen noch aus.
