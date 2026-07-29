@@ -6,6 +6,8 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI verified-runtime-mismatch control-evidence deduplication](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.md)
+
 - [Parent CI runtime-readiness remediation-label deduplication for SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.md)
 
 - [Parent HAProxy HTX payload-iterator deduplication](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.md)
