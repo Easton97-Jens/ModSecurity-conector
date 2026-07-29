@@ -49,6 +49,31 @@ def configure_loopback_tls(server: http.server.ThreadingHTTPServer, root: Path) 
 
 
 class EnvoyTransportHardeningContractTest(unittest.TestCase):
+    def test_envoy_v138_template_avoids_deprecated_protocol_and_admin_fields(self) -> None:
+        template = (
+            ROOT / "connectors" / "envoy" / "config" / "envoy-ext-proc-streaming.yaml.in"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("typed_extension_protocol_options:", template)
+        self.assertIn("envoy.extensions.upstreams.http.v3.HttpProtocolOptions:", template)
+        self.assertIn(
+            "type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions",
+            template,
+        )
+        self.assertIn("explicit_http_config:", template)
+        self.assertNotIn("\n    http2_protocol_options: {}", template)
+        self.assertIn("\n          http2_protocol_options: {}", template)
+        self.assertNotIn("access_log_path:", template)
+        self.assertIn("envoy.access_loggers.file", template)
+        self.assertIn(
+            "type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog",
+            template,
+        )
+        self.assertIn("path: /dev/null", template)
+        self.assertIn("log_format:", template)
+        self.assertIn("text_format_source:", template)
+        self.assertIn('inline_string: ""', template)
+
     def test_first_body_byte_is_read_once_without_header_remainder(self) -> None:
         helper = load_helper()
 
