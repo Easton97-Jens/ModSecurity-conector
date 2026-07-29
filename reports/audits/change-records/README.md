@@ -31,6 +31,8 @@ must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent CI runtime-readiness remediation-label deduplication for SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.md)
 
+- [Parent Common targeted-evaluator C++17 remediation](CR-20260729-sonar-common-targeted-evaluator-cpp17.md)
+
 - [Parent HAProxy HTX payload-iterator deduplication](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.md)
 
 - [Parent CI best-effort evidence-reader deduplication for SonarQube Cloud](CR-20260729-sonar-ci-best-effort-evidence-readers.md)
