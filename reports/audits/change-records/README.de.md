@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Common-Event-Provenance-Serialisierungszerlegung für SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.de.md)
+  — Erhaltung der Protocol-Provenance und Negativ-Controls sind dokumentiert;
+  vor der Integration muss der synchronisierte exakte Head GCC- und Clang-
+  C17-Common-Helper-Controls, anwendbare Common-Contracts sowie frische
+  Hosted-Review-/Actions-/SonarQube-Cloud-Verifikation bestehen.
+
 - [Parent-Common-Smoke-Writer-Output-Path-Containment für SonarQube-Cloud-Security-Befunde](CR-20260729-sonar-common-smoke-writer-path-security.de.md)
   — fokussierte Pre-/Post-Fix-Grenzprüfungen, Symlink- und Traversal-Negativ-
   Controls, der legitime Private-Runtime-Root-Control und zugehörige
