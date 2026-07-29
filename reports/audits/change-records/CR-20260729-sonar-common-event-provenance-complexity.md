@@ -87,7 +87,7 @@ No connector, host, Framework, or MRTS runtime was started. The Common-helper sm
 
 ## Known limitations
 
-The local helper smoke validates representative metadata, redaction, and truncation behavior but is not a connector-host integration test. Open PR #174 has no merge, approval, or final synchronized-head hosted evidence yet.
+The local helper smoke validates representative metadata, redaction, and truncation behavior but is not a connector-host integration test. It does not replace the exact-head review, check, and SonarQube Cloud revalidation required immediately before each delivery action. This Change Record does not claim a merge.
 
 ## Remaining risks
 

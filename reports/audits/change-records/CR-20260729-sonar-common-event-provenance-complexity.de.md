@@ -87,7 +87,7 @@ Es wurde keine Connector-, Host-, Framework- oder MRTS-Runtime gestartet. Der Co
 
 ## Bekannte Einschränkungen
 
-Der lokale Helper-Smoke validiert repräsentative Metadaten-, Redaktions- und Truncation-Verhalten, ist aber kein Connector-Host-Integrationstest. Die offene PR #174 besitzt noch keinen Merge, keine Freigabe und keine finale synchronisierte-Head-Hosted-Evidence.
+Der lokale Helper-Smoke validiert repräsentative Metadaten-, Redaktions- und Truncation-Verhalten, ist aber kein Connector-Host-Integrationstest. Er ersetzt nicht die unmittelbar vor jeder Delivery-Aktion erforderliche Exact-Head-Review-, Check- und SonarQube-Cloud-Revalidierung. Dieses Change Record behauptet keinen Merge.
 
 ## Verbleibende Risiken
 
