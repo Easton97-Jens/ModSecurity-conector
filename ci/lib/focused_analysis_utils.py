@@ -20,6 +20,43 @@ def as_list(value: Any) -> list[str]:
     return [str(item) for item in value if str(item).strip()]
 
 
+def find_framework_case_path(framework_root: Path, case_id: Any) -> Path | None:
+    """Return a known framework case only when it passes the safe-file gate."""
+
+    case_name = str(case_id or "").strip()
+    if not case_name or "/" in case_name or "\\" in case_name:
+        return None
+    for root in (framework_root / "tests/cases", framework_root / "tests/upstream"):
+        if not root.is_dir():
+            continue
+        for candidate in root.rglob(f"{case_name}.yaml"):
+            path = safe_existing_file(candidate)
+            if path is not None:
+                return path
+    return None
+
+
+def upsert_marked_section(
+    text: str,
+    *,
+    start: str,
+    end: str,
+    section: str,
+    insert_before: str | None = None,
+) -> str:
+    """Replace a bounded report section or insert it before a known anchor."""
+
+    marked = f"{start}\n{section}\n{end}"
+    if start in text and end in text:
+        prefix = text.split(start, 1)[0].rstrip()
+        suffix = text.split(end, 1)[1].lstrip()
+        return f"{prefix}\n\n{marked}\n\n{suffix}".rstrip() + "\n"
+    if insert_before and insert_before in text:
+        prefix, suffix = text.split(insert_before, 1)
+        return f"{prefix.rstrip()}\n\n{marked}\n\n{insert_before}{suffix}".rstrip() + "\n"
+    return text.rstrip() + "\n\n" + marked + "\n"
+
+
 def refresh_connector_queue_totals(data: dict[str, Any]) -> None:
     entries = [entry for entry in data.get("entries", []) if isinstance(entry, dict)]
     non_pass = [entry for entry in entries if entry.get("runtime_status") != "PASS"]

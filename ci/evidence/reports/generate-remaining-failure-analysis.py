@@ -23,7 +23,7 @@ from generated_report_utils import (
     report_path_from_root,
     report_relpath,
 )
-from focused_analysis_utils import read_json, read_text, utc_now
+from focused_analysis_utils import read_json, read_text, upsert_marked_section, utc_now
 from report_path_safety import add_report_roots, add_safe_roots, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
@@ -1130,16 +1130,13 @@ def update_full_run_evidence(report_dir: Path, connector_root: Path) -> None:
         section = "\n".join(lines)
         start = "<!-- remaining-failure-analysis:start -->"
         end = "<!-- remaining-failure-analysis:end -->"
-        marked = f"{start}\n{section}\n{end}"
-        if start in text and end in text:
-            prefix = text.split(start, 1)[0].rstrip()
-            suffix = text.split(end, 1)[1].lstrip()
-            text = f"{prefix}\n\n{marked}\n\n{suffix}".rstrip() + "\n"
-        elif "## Reports And Logs" in text:
-            prefix, suffix = text.split("## Reports And Logs", 1)
-            text = f"{prefix.rstrip()}\n\n{marked}\n\n## Reports And Logs{suffix}".rstrip() + "\n"
-        else:
-            text = text.rstrip() + "\n\n" + marked + "\n"
+        text = upsert_marked_section(
+            text,
+            start=start,
+            end=end,
+            section=section,
+            insert_before="## Reports And Logs",
+        )
         write_text_file(md_path, generated_markdown_text(text, metadata))
 
 
