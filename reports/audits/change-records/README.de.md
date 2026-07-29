@@ -11,6 +11,9 @@ Review- oder Delivery-Ergebnisse behaupten.
   — unbekannte Connectoren verwenden nun den kontrollierten Blocked-Dependency-
   Pfad; der fokussierte Dispatch-Regressionstest und die POSIX-Shell-Syntax
   bestanden lokal.
+
+- [Parent-HAProxy-SPOP-Body-Parser-Deduplizierung](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.de.md)
+
 - [Parent-Common-Event-Provenance-Serialisierungszerlegung für SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.de.md)
   — Erhaltung der Protocol-Provenance und Negativ-Controls sind dokumentiert;
   vor der Integration muss der synchronisierte exakte Head GCC- und Clang-

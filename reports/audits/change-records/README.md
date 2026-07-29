@@ -9,6 +9,9 @@ must not claim unobserved CI, runtime, review, or delivery results.
 - [Parent Common blocked-runtime-smoke default dispatch for SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.md)
   — unknown connectors now take the controlled blocked-dependency path; the
   focused dispatch regression test and POSIX shell syntax passed locally.
+
+- [Parent HAProxy SPOP body-parser deduplication](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.md)
+
 - [Parent Common event-provenance serialization decomposition for SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.md)
   — protocol-provenance preservation and negative controls are documented;
   before integration, the synchronized exact head must pass GCC and Clang C17
