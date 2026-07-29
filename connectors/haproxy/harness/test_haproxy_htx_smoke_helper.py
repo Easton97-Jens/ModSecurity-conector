@@ -120,8 +120,9 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
 
     def test_event_contains_only_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            events = Path(temporary) / "events.jsonl"
-            decision_log = Path(temporary) / "haproxy.stderr.log"
+            root = Path(temporary)
+            events = root / "events.jsonl"
+            decision_log = root / "haproxy.stderr.log"
             decision_log.write_text(
                 "modsecurity-htx: request intervention observed; "
                 "transaction_id=haproxy-htx-phase1 phase=1 status=403 "

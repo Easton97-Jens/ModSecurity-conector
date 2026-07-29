@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260729-sonar-haproxy-htx-runtime-artifact-containment |
 | Date (UTC) | 2026-07-29 |
-| Base revision | `9f23ae2c5fe908cef38f203be03f93fda75a8dd7` |
+| Base revision | Original change base `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`; synchronized candidate base `200712b4dcede1caccc753a572e1e754a5de3e8b` |
 | Tracking | Current HAProxy HTX harness path, localhost-client, and complexity SonarQube Cloud candidates. |
 | Boundary | Parent `connectors/haproxy/` harness, focused Parent tests, and paired indexes only. No Framework, MRTS, Gitlink, workflow, Sonar configuration, suppression, or `master` change. |
 
@@ -43,21 +43,26 @@ A command map and a separate release wait preserve behavior while removing the t
 - `connectors/haproxy/harness/runtime_artifacts.py` — descriptor-confined private-root artifact helpers.
 - `connectors/haproxy/harness/haproxy_htx_smoke_helper.py` — root-bound paths, TLS-only loopback client endpoints with certificate verification, and lower-complexity command dispatch.
 - `connectors/haproxy/harness/run_haproxy_htx_runtime.sh` — validates the runtime root before writes, creates a private per-run TLS certificate/bundle, and supplies it to every artifact command.
-- `connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py` and `tests/test_haproxy_htx_transaction_id.py` — updated call contract and negative outside-root, symlink, and non-loopback tests.
+- `connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py` and `tests/test_haproxy_htx_transaction_id.py` — updated call contract and negative outside-root, symlink, and non-loopback tests; the metadata-event test now binds its temporary private root before using it.
 - This English/German Change Record pair and indexes.
 
 ## Commands executed
 
 | Executed control | Observed result |
 | --- | --- |
-| `python3 -m unittest tests.test_haproxy_htx_transaction_id` | passed: transaction-ID behavior plus outside-root, symlink, loopback, and runner-root negative controls. |
-| `python3 -m py_compile` for both changed helper modules | passed. |
+| `/root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_haproxy_htx_transaction_id` | passed: 3 transaction-ID, outside-root, symlink, loopback-TLS, and runner-root controls. |
+| `/root/git/ModSecurity-conector/.venv/bin/python -m py_compile` for the changed helpers and focused tests | passed. |
+| Focused direct temporary-root metadata-event control using `haproxy_htx_smoke_helper.py` | passed: metadata-only event and host evidence are written below the bound private root. |
+| Static AST binding control for `test_event_contains_only_metadata` | passed: its loaded `root` is bound locally before use. |
 | Focused temporary TLS server and helper-client regression | passed: a verified `https://127.0.0.1` certificate chain succeeds; `http` is rejected before a client connection. |
 | `sh -n` and `shellcheck` on the runtime shell runner | passed. |
 | `make check-haproxy-htx-overlay` | passed: existing HTX lifecycle and host-action source contract remains satisfied. |
 | `make check-haproxy-common-adoption` | passed. |
-| HAProxy GCC C17 lint and C23 advisory checks | passed with temporary output below `/var/tmp/codex`. |
+| HAProxy GCC C17 lint and C23 advisory checks | not rerun after the one-line Python test repair; no C source changed. |
 | `git diff --check` | passed. |
+| `/root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_bilingual_docs` | passed: 21 bilingual-documentation checker tests. |
+| `make check-bilingual-docs` | blocked_environment: the Change Record identity mismatch is repaired; remaining failures are only links into the deliberately uninitialized Framework submodule. |
+| `make check-doc-links` | blocked_environment: every reported missing target is inside the deliberately uninitialized Framework submodule. |
 
 ## Security impact
 
@@ -77,7 +82,7 @@ They are not a live HAProxy/libmodsecurity runtime result and make no promotion 
 
 ## Known limitations
 
-- The worktree has no initialized Framework submodule, so the focused HTX helper test cannot load its Framework synchronized-upstream fixture locally. Its syntax compiles; the independent Parent transaction-ID/security test is the strongest runnable focused control.
+- The worktree has no initialized Framework submodule, so the complete focused HTX helper test cannot load its Framework synchronized-upstream fixture locally. Its syntax compiles; the independent Parent transaction-ID/security test and direct metadata-event control are the strongest runnable focused controls.
 - The HAProxy-to-Python upstream remains a separate private local backend. This record claims only the repaired client-to-HAProxy TLS boundary; a different deployment topology needs its own upstream-transport review.
 - Hosted checks and a fresh exact-head SonarQube Cloud analysis are pending.
 
@@ -89,12 +94,14 @@ The root is private to the invoking user. A future cross-user artifact producer 
 
 No live HAProxy/libmodsecurity HTX runtime or complete Framework-backed helper test was run because the version-pinned HAProxy build and Framework fixture are absent from this temporary worktree.
 
+The HAProxy GCC C17 lint and C23 advisory checks were not rerun after the one-line Python test repair because no C source changed.
+
 The source and focused Parent controls above are the strongest available local evidence.
 
 ## Final diff and review status
 
 The candidate is confined to the Parent HAProxy harness and bilingual traceability.
 
-Local validation is complete for the implemented path, TLS loopback-client, and complexity repairs.
+The original candidate was committed and published as PR #182. This local follow-up synchronizes it with `200712b4dcede1caccc753a572e1e754a5de3e8b`, repairs the metadata-event test binding, and reruns the focused local controls stated above.
 
-It is not committed, pushed, published, hosted-verified, or merged at record authoring.
+The refreshed candidate has not yet been pushed, hosted-verified, reviewed, or merged. A new exact-head GitHub Actions and SonarQube Cloud cycle remains required before integration.

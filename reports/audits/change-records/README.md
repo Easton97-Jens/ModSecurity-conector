@@ -32,6 +32,9 @@ must not claim unobserved CI, runtime, review, or delivery results.
   read at the PR's exact current head.
 
 - [Parent HAProxy HTX runtime-artifact containment](CR-20260729-sonar-haproxy-htx-runtime-artifact-containment.md)
+  — synchronized to the current master base, restores the metadata-event test's
+  private-root binding, and records focused local path/TLS controls. Exact-head
+  hosted verification remains required before master integration.
 
 - [Parent CI focused-report helper deduplication and request-body path containment](CR-20260729-sonar-ci-focused-report-safety.md)
   — local traversal/symlink regression and legitimate in-root controls passed;

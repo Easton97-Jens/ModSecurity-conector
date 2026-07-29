@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260729-sonar-haproxy-htx-runtime-artifact-containment |
 | Datum (UTC) | 2026-07-29 |
-| Basis-Revision | `9f23ae2c5fe908cef38f203be03f93fda75a8dd7` |
+| Basis-Revision | Original change base `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`; synchronized candidate base `200712b4dcede1caccc753a572e1e754a5de3e8b` |
 | Tracking | Aktuelle HAProxy-HTX-Harness-Kandidaten aus SonarQube Cloud für Pfade, Localhost-Clients und Komplexität. |
 | Grenze | Parent-`connectors/haproxy/`-Harness, fokussierte Parent-Tests und gepaarte Indizes. Keine Framework-, MRTS-, Gitlink-, Workflow-, Sonar-Konfigurations-, Suppression- oder `master`-Änderung. |
 
@@ -43,21 +43,26 @@ Command-Map und ausgelagertes Release-Warten erhalten das Verhalten und entferne
 - `connectors/haproxy/harness/runtime_artifacts.py` — deskriptorbegrenzte Hilfen für private Root-Artefakte.
 - `connectors/haproxy/harness/haproxy_htx_smoke_helper.py` — root-gebundene Pfade, reine TLS-Loopback-Client-Endpunkte mit Zertifikatsprüfung und weniger komplexes Command-Dispatch.
 - `connectors/haproxy/harness/run_haproxy_htx_runtime.sh` — prüft den Runtime-Root vor Schreibzugriffen, erstellt ein privates TLS-Zertifikat/-Bundle je Lauf und übergibt ihn an jeden Artefaktbefehl.
-- `connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py` und `tests/test_haproxy_htx_transaction_id.py` — aktualisierter Aufrufvertrag sowie negative Tests für außerhalb des Roots, Symlinks und Nicht-Loopback.
+- `connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py` und `tests/test_haproxy_htx_transaction_id.py` — aktualisierter Aufrufvertrag sowie negative Tests für außerhalb des Roots, Symlinks und Nicht-Loopback; der Metadaten-Event-Test bindet seinen temporären privaten Root jetzt vor dessen Verwendung.
 - Dieses englisch/deutsche Change-Record-Paar und seine Indizes.
 
 ## Ausgeführte Befehle
 
 | Ausgeführte Kontrolle | Beobachtetes Ergebnis |
 | --- | --- |
-| `python3 -m unittest tests.test_haproxy_htx_transaction_id` | bestanden: Transaction-ID-Verhalten sowie negative Outside-Root-, Symlink-, Loopback- und Runner-Root-Kontrollen. |
-| `python3 -m py_compile` für beide geänderten Helper-Module | bestanden. |
+| `/root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_haproxy_htx_transaction_id` | bestanden: 3 Transaction-ID-, Outside-Root-, Symlink-, Loopback-TLS- und Runner-Root-Kontrollen. |
+| `/root/git/ModSecurity-conector/.venv/bin/python -m py_compile` für die geänderten Helper und fokussierten Tests | bestanden. |
+| Fokussierter direkter Metadaten-Event-Control mit temporärem Root über `haproxy_htx_smoke_helper.py` | bestanden: Metadaten-Event und Host-Evidence werden unter dem gebundenen privaten Root geschrieben. |
+| Statischer AST-Bindungs-Control für `test_event_contains_only_metadata` | bestanden: sein geladener `root` ist vor der Verwendung lokal gebunden. |
 | Fokussierte temporäre TLS-Server-/Helper-Client-Regression | bestanden: eine verifizierte `https://127.0.0.1`-Zertifikatskette funktioniert; `http` wird vor einer Client-Verbindung abgewiesen. |
 | `sh -n` und `shellcheck` für den Runtime-Shell-Runner | bestanden. |
 | `make check-haproxy-htx-overlay` | bestanden: bestehender HTX-Lifecycle- und Host-Action-Source-Contract bleibt erfüllt. |
 | `make check-haproxy-common-adoption` | bestanden. |
-| HAProxy-GCC-C17-Lint und C23-Advice-Checks | bestanden mit temporärem Output unter `/var/tmp/codex`. |
+| HAProxy-GCC-C17-Lint und C23-Advice-Checks | nach der einzeiligen Python-Testreparatur nicht erneut ausgeführt; kein C-Quellcode wurde geändert. |
 | `git diff --check` | bestanden. |
+| `/root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_bilingual_docs` | bestanden: 21 Tests des Bilingual-Dokumentationscheckers. |
+| `make check-bilingual-docs` | blocked_environment: der Change-Record-Identitätsunterschied ist repariert; verbleibende Fehler sind ausschließlich Links in das bewusst nicht initialisierte Framework-Submodul. |
+| `make check-doc-links` | blocked_environment: jedes gemeldete fehlende Ziel liegt im bewusst nicht initialisierten Framework-Submodul. |
 
 ## Security-Auswirkung
 
@@ -77,7 +82,7 @@ Dies ist kein Live-HAProxy-/libmodsecurity-Runtime-Ergebnis und behauptet keine 
 
 ## Bekannte Einschränkungen
 
-- Der Worktree hat kein initialisiertes Framework-Submodul; deshalb kann der fokussierte HTX-Helper-Test seine Framework-Synchronized-Upstream-Fixture lokal nicht laden. Seine Syntax kompiliert; der unabhängige Parent-Transaction-ID-/Security-Test ist die stärkste ausführbare Kontrolle.
+- Der Worktree hat kein initialisiertes Framework-Submodul; deshalb kann der vollständige fokussierte HTX-Helper-Test seine Framework-Synchronized-Upstream-Fixture lokal nicht laden. Seine Syntax kompiliert; der unabhängige Parent-Transaction-ID-/Security-Test und der direkte Metadaten-Event-Control sind die stärksten ausführbaren Kontrollen.
 - Der HAProxy-zu-Python-Upstream bleibt ein separater privater lokaler Backend-Kanal. Dieser Record beansprucht nur die reparierte Client-zu-HAProxy-TLS-Grenze; eine andere Deployment-Topologie benötigt ein eigenes Upstream-Transport-Review.
 - Hosted-Checks und eine frische Exact-Head-SonarQube-Cloud-Analyse stehen aus.
 
@@ -89,12 +94,14 @@ Der Root ist für den aufrufenden Nutzer privat. Ein künftiger Artefaktproduzen
 
 Keine Live-HAProxy-/libmodsecurity-HTX-Runtime und kein vollständiger Framework-gestützter Helper-Test liefen, weil der version-pinned HAProxy-Build und die Framework-Fixture in diesem temporären Worktree fehlen.
 
+Die HAProxy-GCC-C17-Lint- und C23-Advice-Checks wurden nach der einzeiligen Python-Testreparatur nicht erneut ausgeführt, weil kein C-Quellcode geändert wurde.
+
 Die genannten Source- und fokussierten Parent-Kontrollen sind die stärkste verfügbare lokale Evidence.
 
 ## Finaler Diff- und Review-Status
 
 Der Kandidat ist auf Parent-HAProxy-Harness und bilinguale Traceability begrenzt.
 
-Die lokale Validierung ist für die implementierten Pfad-, TLS-Loopback-Client- und Komplexitätsreparaturen abgeschlossen.
+Der ursprüngliche Kandidat wurde committed und als PR #182 veröffentlicht. Dieses lokale Follow-up synchronisiert ihn mit `200712b4dcede1caccc753a572e1e754a5de3e8b`, repariert die Metadaten-Event-Testbindung und führt die oben genannten fokussierten lokalen Kontrollen erneut aus.
 
-Zum Zeitpunkt der Record-Erstellung ist er nicht committed, gepusht, veröffentlicht, hosted-verifiziert oder gemergt.
+Der aktualisierte Kandidat ist noch nicht gepusht, hosted-verifiziert, reviewed oder gemergt. Vor der Integration bleiben ein neuer Exact-Head-GitHub-Actions- und SonarQube-Cloud-Zyklus erforderlich.
