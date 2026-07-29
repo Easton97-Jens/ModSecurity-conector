@@ -56,6 +56,19 @@ fail() {
     exit 1
 }
 
+verify_runtime_output_paths() {
+    "$PYTHON_BIN" - "$SCRIPT_DIR" "$SMOKE_DIR" "$FIRST_BYTE_EVIDENCE" <<'PY'
+from pathlib import Path
+import sys
+
+sys.path.insert(0, sys.argv[1])
+from safe_runtime_output import safe_output_path, verified_runtime_output_root
+
+root = verified_runtime_output_root(Path(sys.argv[2]))
+safe_output_path(root, Path(sys.argv[3]), "first-byte evidence output")
+PY
+}
+
 manifest_value() {
     key=$1
     sed -n "s/^$key=//p" "$HOST_MANIFEST" | sed -n '1p'
@@ -151,6 +164,7 @@ esac
 [ -f "$RESULT_WRITER" ] || blocked "Lighttpd result writer is missing"
 command -v curl >/dev/null 2>&1 || blocked "curl is required"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || blocked "python3 is required"
+verify_runtime_output_paths || blocked "Lighttpd runtime output paths are unsafe"
 
 MODSECURITY_LIB_DIR=$(manifest_value modsecurity_lib_dir)
 [ -n "$MODSECURITY_LIB_DIR" ] || blocked "patched host manifest has no libmodsecurity directory"
@@ -172,6 +186,7 @@ done
 "$PYTHON_BIN" "$ENTITY_FIXTURE_UPSTREAM" \
     --ready-file "$FIXTURE_DIR/upstream-ready.json" \
     --result-file "$FIXTURE_DIR/result.json" \
+    --runtime-output-root "$SMOKE_DIR" \
     --timeout 30 >"$FIXTURE_DIR/upstream.stdout" \
     2>"$FIXTURE_DIR/upstream.stderr" &
 FIXTURE_PID=$!
@@ -327,7 +342,8 @@ snapshot_events "$barrier_cursor" "$P4_BARRIER_EVENTS"
 [ -s "$P4_BARRIER_EVENTS" ] || fail "synchronized barrier produced no P4 host event"
 
 "$PYTHON_BIN" "$FIRST_BYTE_METADATA" \
-    --events "$P4_BARRIER_EVENTS" --output "$FIRST_BYTE_DIR/host-metadata.json" || \
+    --events "$P4_BARRIER_EVENTS" --output "$FIRST_BYTE_DIR/host-metadata.json" \
+    --runtime-output-root "$SMOKE_DIR" || \
     fail "could not derive bounded Lighttpd P4 metadata"
 "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
     --paused-file "$FIRST_BYTE_DIR/upstream-paused.json" \
@@ -361,7 +377,8 @@ BARRIER_RELEASE_FILE=
     --content-length-events "$P4_CONTENT_LENGTH_EVENTS" \
     --chunked-events "$P4_CHUNKED_EVENTS" \
     --entity-fixture-result "$FIXTURE_DIR/result.json" \
-    --phase4-summary-output "$P4_SUMMARY_JSON"
+    --phase4-summary-output "$P4_SUMMARY_JSON" \
+    --runtime-output-root "$SMOKE_DIR"
 if grep -Fq '"status": "FAIL"' "$RESULTS_PATH"; then
     fail "a host-confirmed case result did not match"
 fi
