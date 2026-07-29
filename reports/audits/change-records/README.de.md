@@ -7,6 +7,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Deterministischer Parent-GitHub-Actions-`uses:`-Prefix-Parser für SonarQube Cloud S8786](CR-20260729-sonar-scripts-uses-prefix-parser.de.md)
+  — fokussierte Updater-Tests, ein nicht schreibender Parser-Vergleich,
+  Syntax-Validierung und der vollständige Current-Diff-Security-Review bestanden
+  lokal; Draft-PR-Delivery und Exact-Head-Hosted-/SonarQube-Cloud-Evidence
+  stehen aus.
 - [Parent-Common-Header-Validierung und NGINX-Strict-JSONL-Tail-Deduplizierung](CR-20260728-sonar-common-nginx-strict-jsonl-duplication.de.md)
   — lokale Common-C17-, Security-, Flow- und NGINX-Source-Contract-Checks
   bestanden; Memory-Safety bestand außerhalb der LeakSanitizer-inkompatiblen

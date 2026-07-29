@@ -1,0 +1,132 @@
+# Change Record: Parent deterministic GitHub Actions `uses:` prefix parser for SonarQube Cloud S8786
+
+**Language:** English | [Deutsch](CR-20260729-sonar-scripts-uses-prefix-parser.de.md)
+
+## Identity
+
+| Field | Value |
+| --- | --- |
+| Change ID | `CR-20260729-sonar-scripts-uses-prefix-parser` |
+| Date (UTC) | `2026-07-29` |
+| Base revision | `dbbc9c6aa2bca22fcd0385fa76b878873ccab2cc` |
+| Boundary | Parent `scripts/update-github-actions-versions.py`, this English/German Change Record pair, and the paired indexes only. No `ci/` source, `.github/` workflow, test source, Framework, MRTS, Gitlink, scanner configuration, Quality Gate, exclusion, suppression, or default-branch change is included. |
+| SonarQube Cloud linkage | Current `python:S8786` issue `AZ8hz9F2Ua5zTy8Lzy9S`; separate content-taint signal `AZ70CAr3IpeCryPNS2zi` remains unsuppressed and is not claimed as this patch's remediation. |
+
+## Motivation and problem statement
+
+The Parent GitHub Actions updater used an anchored Python regular expression to
+recognize workflow `uses:` prefixes. SonarQube Cloud reports it as
+`python:S8786` because of possible super-linear backtracking. This narrow
+remediation replaces only that prefix split with a deterministic character
+scan while preserving supported line-oriented behavior and update/write
+controls.
+
+## Acceptance criteria
+
+- Prefix recognition is deterministic and linear for long
+  repository-controlled workflow lines.
+- Existing supported `uses:` parsing remains equivalent for normal, quoted,
+  whitespace, blank-value, malformed, and dynamic-reference edge cases.
+- Existing local, Docker, dynamic, SHA-pinned, workflow-path/symlink, and
+  write-enabled controls remain unchanged and pass the direct updater suite.
+- The exact Draft-PR head must receive fresh SonarQube Cloud evidence of zero
+  new issues and `0.0%` New-Code duplication without a rule, profile,
+  exclusion, suppression, false-positive disposition, or Quality-Gate change.
+- This record claims delivery facts only after observing them at the final head.
+
+## Implementation decision and rationale
+
+`_uses_value_rest()` now scans a physical workflow line left to right: leading
+whitespace, one optional list marker, literal `uses:`, and following whitespace
+are consumed before the exact prefix and non-empty remainder are returned. It
+replaces the anchored prefix regular expression without adding a YAML parser,
+changing `_parse_uses_value()`, or widening accepted prefixes.
+
+`parse_uses_line()` retains the prior dynamic-reference fallback prefix. The
+patch does not alter action eligibility, semantic-version lookup, workflow path
+confinement, submodule handling, report paths, network requests, or write
+application. No versioned test source is changed because the current user
+restricted product remediation to `ci/` and `scripts/`; the existing direct
+suite and a task-owned non-writing comparison harness provide regression
+evidence.
+
+## Changed files
+
+- `scripts/update-github-actions-versions.py`
+- `reports/audits/change-records/CR-20260729-sonar-scripts-uses-prefix-parser.md`
+- `reports/audits/change-records/CR-20260729-sonar-scripts-uses-prefix-parser.de.md`
+- `reports/audits/change-records/README.md`
+- `reports/audits/change-records/README.de.md`
+
+## Commands executed
+
+| Command or control | Result |
+| --- | --- |
+| Focused existing updater suite: `python -B -m unittest discover -s tests -p test_update_github_actions_versions.py -v` | passed: 25 tests, including quoted/unquoted preservation, malformed values, dynamic/local/Docker/SHA skips, workflow-symlink rejection, and write controls. |
+| Task-owned non-writing parser comparison against `origin/master` | passed: normal, long-whitespace, blank-value, and dynamic-reference cases produced identical parser results. |
+| `python -P -m py_compile scripts/update-github-actions-versions.py` | passed. |
+| `git diff --check origin/master -- scripts/update-github-actions-versions.py` | passed. |
+| Complete current-diff Codex Security contract | passed: full-file review found zero reportable candidates; sealed snapshot digest `codex-security-snapshot/v1:sha256:3cd05aa14c03ed2ab1ab7cdf1c15cf2d80327b370762c050f2e53fd98477203a`. |
+| Bilingual Change Record and link validation | passed: targeted heading/table/identity/language-switch/index checks. Root checks are blocked_external_dependency: the direct bilingual checker exited `1`, `make check-bilingual-docs` exited `2`, and `make check-doc-links` exited `2` only because 20 existing Framework-gitlink targets are absent in this task worktree; none reported this pair or its indexes. |
+
+## Security impact
+
+Workflow text is repository-controlled input that can ultimately reach a
+maintainer-triggered workflow file write. The complete current-diff review read
+the updater, direct tests, and repository security guidance. It found no new
+source-to-sink path, weakened control, or new filesystem, network, or process
+sink: malformed values still fail closed, ineligible references are still
+skipped, and only confined non-symlink workflow files can be written when
+write mode is explicitly enabled.
+
+The separate content-taint signal is not a path-injection proof: fixed
+discovery globs and resolved-root/non-symlink/regular-file checks bind the
+writer, and the updater is a default-branch schedule/manual path. It remains
+unsuppressed. This record does not claim a security vulnerability was fixed.
+
+## Runtime evidence
+
+No connector or host runtime evidence was collected or claimed. The change is
+limited to a maintenance-script parser. The direct unit suite and non-writing
+comparison harness exercise the parser and its controlled temporary workflow
+write boundary without a networked GitHub Actions update.
+
+## Known limitations
+
+The updater remains an intentionally supported line-oriented `uses:` parser,
+not a full YAML parser. Existing flow-style or block-scalar limits predate this
+diff and are not a newly unsafe rewrite path. The broad Parent SonarQube Cloud
+backlog is outside this isolated first batch. Full documentation/link checks
+remain blocked by pre-existing absent Framework-gitlink targets in this
+task-owned worktree; this patch does not restore, populate, or alter them.
+
+## Remaining risks
+
+The local comparison corpus is strong regression evidence but not a proof for
+every YAML form. Hosted analysis and checks must evaluate the final exact PR
+head before S8786 is considered resolved or delivery is considered verified.
+The task makes no permission, token, workflow, scanner, or suppression change
+to force that result.
+
+## Checks not run and rationale
+
+- Ruff and Pyright are not installed in the selected local environment; they
+  were not installed merely to pass this narrow remediation.
+- No live updater run against repository workflows was performed because it
+  performs network-backed resolution and can write workflow files; deterministic
+  tests and the non-writing harness are the safe local boundary.
+- No Framework, MRTS, Gitlink, `.github/`, or unrelated Parent source check was
+  run or changed because the user limited this task to `ci/` and `scripts/`.
+- Exact-head GitHub Actions, SonarQube Cloud, review, and PR evidence require
+  the pushed Draft PR head and are not inferred locally.
+
+## Final diff and review status
+
+At initial authoring, the task-owned branch has one uncommitted source patch
+plus this required traceability pair/index update. The source diff is limited
+to the deterministic parser replacement. A complete current-diff security
+scan is valid with no reportable finding. No commit, push, PR, hosted check,
+SonarQube Cloud result, approval, or merge is claimed. Before delivery, this
+record is reconciled with the exact staged diff; after a PR exists, actual
+branch/commit/PR/check facts are added in a follow-up commit rather than
+invented here.

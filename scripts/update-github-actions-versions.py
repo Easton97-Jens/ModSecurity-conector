@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Iterable
 
 
-USES_PREFIX_RE = re.compile(r"^\s*(?:-\s*)?uses:\s*(?P<rest>.+)$")
 SEMVER_RE = re.compile(r"^v(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?$")
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40,64}$")
 
@@ -161,28 +160,49 @@ def _parse_uses_value(rest: str) -> tuple[str, str, str] | None:
     return quote, rest[value_start:value_end], rest[value_end + 1 :]
 
 
+def _uses_value_rest(body: str) -> tuple[str, str] | None:
+    """Return the exact prefix and value portion of a YAML ``uses:`` line."""
+
+    index = 0
+    while index < len(body) and body[index].isspace():
+        index += 1
+    if index < len(body) and body[index] == "-":
+        index += 1
+        while index < len(body) and body[index].isspace():
+            index += 1
+    if not body.startswith("uses:", index):
+        return None
+    index += len("uses:")
+    while index < len(body) and body[index].isspace():
+        index += 1
+    if index == len(body):
+        return None
+    return body[:index], body[index:]
+
+
 def parse_uses_line(path: Path, line_number: int, line: str) -> UsesLine | None:
     newline = ""
     body = line
     if body.endswith("\n"):
         newline = "\n"
         body = body[:-1]
-    loose = USES_PREFIX_RE.match(body)
-    if not loose:
+    prefix_and_rest = _uses_value_rest(body)
+    if prefix_and_rest is None:
         return None
-    parsed_value = _parse_uses_value(loose.group("rest"))
+    prefix, rest = prefix_and_rest
+    parsed_value = _parse_uses_value(rest)
     if parsed_value is not None:
         quote, value, suffix = parsed_value
         return UsesLine(
             path=path,
             line_number=line_number,
-            prefix=body[: loose.start("rest")],
+            prefix=prefix,
             quote=quote,
             value=value,
             suffix=suffix,
             newline=newline,
         )
-    rest = loose.group("rest").split("#", 1)[0].strip()
+    rest = rest.split("#", 1)[0].strip()
     if len(rest) >= 2 and rest[0] == rest[-1] and rest[0] in QUOTE_CHARACTERS:
         rest = rest[1:-1]
     if not is_dynamic_uses(rest):

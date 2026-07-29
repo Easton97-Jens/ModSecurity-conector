@@ -6,6 +6,10 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent deterministic GitHub Actions `uses:` prefix parser for SonarQube Cloud S8786](CR-20260729-sonar-scripts-uses-prefix-parser.md)
+  — focused updater tests, a non-writing parser comparison, syntax validation,
+  and the complete current-diff security review passed locally; Draft-PR
+  delivery and exact-head hosted/SonarQube Cloud evidence remain pending.
 - [Parent Common header validation and NGINX strict JSONL-tail deduplication](CR-20260728-sonar-common-nginx-strict-jsonl-duplication.md)
   — local Common C17, security, flow, and NGINX source-contract checks passed;
   memory safety passed outside the LeakSanitizer-incompatible sandbox, while
