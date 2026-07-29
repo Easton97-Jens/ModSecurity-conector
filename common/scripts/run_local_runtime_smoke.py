@@ -37,6 +37,8 @@ REQUEST_BODY_BLOCK_MARKER = "modsec-request-body-block"
 REQUEST_BODY_ALLOW_BODY = b"payload=modsec-request-body-allow"
 REQUEST_BODY_BLOCK_BODY = b"payload=modsec-request-body-block"
 REQUEST_BODY_CONTENT_TYPE = "application/x-www-form-urlencoded"
+DEFAULT_TEXT_CONTENT_TYPE = "text/plain"
+DEFAULT_BLOCKED_PATH = "/blocked"
 MAX_REQUEST_BODY_BYTES = 64 * 1024
 MAX_CHUNK_LINE_BYTES = 128
 MAX_TRAILER_BYTES = 8 * 1024
@@ -567,7 +569,7 @@ class UpstreamHandler(QuietHandler):
             return
         body = b"msconnector upstream ok\n"
         self.send_response(200)
-        self.send_header("content-type", "text/plain")
+        self.send_header("content-type", DEFAULT_TEXT_CONTENT_TYPE)
         self.send_header("content-length", str(len(body)))
         self.end_headers()
         if self.command != "HEAD":
@@ -918,7 +920,7 @@ def make_decision_handler(
                     },
                 )
             self.send_response(status)
-            self.send_header("content-type", "text/plain")
+            self.send_header("content-type", DEFAULT_TEXT_CONTENT_TYPE)
             self.send_header("content-length", str(len(body)))
             self.end_headers()
             if self.command != "HEAD":
@@ -1000,7 +1002,7 @@ def make_sidecar_proxy_handler(
                 },
             )
             self.send_response(status)
-            self.send_header("content-type", "text/plain")
+            self.send_header("content-type", DEFAULT_TEXT_CONTENT_TYPE)
             self.send_header("content-length", str(len(body)))
             self.end_headers()
             if self.command != "HEAD":
@@ -1778,13 +1780,17 @@ def run_lighttpd_sidecar_smoke(
                     method="POST",
                     data=REQUEST_BODY_ALLOW_BODY,
                 )
-                blocked_path = "/blocked"
+                blocked_path = DEFAULT_BLOCKED_PATH
                 blocked_headers = request_body_headers()
                 blocked_method = "POST"
                 blocked_body: bytes | None = REQUEST_BODY_BLOCK_BODY
             else:
                 allowed_status = http_status(sidecar_url)
-                blocked_path = crs_blocked_path(args) if args.modsecurity_ruleset == "crs" else "/blocked"
+                blocked_path = (
+                    crs_blocked_path(args)
+                    if args.modsecurity_ruleset == "crs"
+                    else DEFAULT_BLOCKED_PATH
+                )
                 blocked_headers = {} if args.modsecurity_ruleset == "crs" else {"X-Modsec-Smoke": "block"}
                 blocked_method = "GET"
                 blocked_body = None
@@ -2121,7 +2127,7 @@ def run_smoke(args: argparse.Namespace) -> int:
                     data=REQUEST_BODY_ALLOW_BODY,
                 )
                 blocked_headers = request_body_headers()
-                blocked_path = "/blocked"
+                blocked_path = DEFAULT_BLOCKED_PATH
                 blocked_method = "POST"
                 blocked_body: bytes | None = REQUEST_BODY_BLOCK_BODY
             elif args.decision_backend == "libmodsecurity" and args.modsecurity_ruleset == "crs":
@@ -2133,13 +2139,13 @@ def run_smoke(args: argparse.Namespace) -> int:
             elif args.decision_backend == "libmodsecurity":
                 allowed_status = http_status(f"http://127.0.0.1:{listen_port}/allowed")
                 blocked_headers = {"X-Modsec-Smoke": "block"}
-                blocked_path = "/blocked"
+                blocked_path = DEFAULT_BLOCKED_PATH
                 blocked_method = "GET"
                 blocked_body = None
             else:
                 allowed_status = http_status(f"http://127.0.0.1:{listen_port}/allowed")
                 blocked_headers = {"X-Msconnector-Block": "1"}
-                blocked_path = "/blocked"
+                blocked_path = DEFAULT_BLOCKED_PATH
                 blocked_method = "GET"
                 blocked_body = None
             blocked_status = http_status(
