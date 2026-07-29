@@ -141,13 +141,20 @@ are fixed option names, not placeholders. The focused follow-up extracts the
 literals, precomputes exception-test arguments, documents the two variables in
 both generated guides, and makes the placeholder test distinguish fixed
 OpenSSL option names. The 52 focused Envoy transport, compiler-guide, and
-bilingual tests pass locally. A new commit and exact-head hosted cycle remain
-required; no failure is waived or marked accepted.
+bilingual tests pass locally. Follow-up commit
+`1b6cc0372f6d5b9ba175fc9e22b61e3ba84bd0c5` completed its exact-head hosted
+cycle successfully; no failure was waived or marked accepted.
 
 ## Final diff and review status
 
 The candidate is restricted to the Parent Envoy connector, its direct tests,
-and the required bilingual traceability/documentation. Final local review,
-focused bilingual documentation validation, and whitespace validation passed.
-A separate Draft PR and exact-head hosted verification are required before any
-delivery or merge claim.
+and the required bilingual traceability/documentation. Draft PR #184 is open
+against `master`. At its then-current head
+`1b6cc0372f6d5b9ba175fc9e22b61e3ba84bd0c5`, local, remote, and PR heads
+matched; all visible applicable Actions passed, the SonarQube Cloud Quality
+Gate was `OK`, and its public issue query reported 0 New Issues and 0.0%
+New-Code duplication. The PR has no reviews or inline review comments and
+remains Draft. This record-only delivery update requires one final fresh
+exact-head cycle; its resulting SHA is retained by the PR and local execution
+plan rather than creating a self-referential record loop. No `master` merge is
+authorized or performed.
