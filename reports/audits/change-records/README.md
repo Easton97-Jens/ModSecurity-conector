@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI block-status generator preprocessor-end literal for SonarQube Cloud S1192](CR-20260729-sonar-ci-generator-endif.md)
 - [Parent HAProxy SPOE header-parser deduplication and SonarQube Cloud reliability remediation](CR-20260729-sonar-haproxy-spop-header-parser-duplication.md)
   — local C17 parser-harness, HAProxy adoption, standards-wiring, and C17 lint
   checks passed; a focused security diff review found no reportable regression.
