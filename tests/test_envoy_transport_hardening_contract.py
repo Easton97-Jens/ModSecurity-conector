@@ -5,6 +5,7 @@ import http.server
 import importlib.util
 import json
 import os
+import shutil
 import ssl
 import subprocess
 import sys
@@ -584,6 +585,42 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertNotIn("access_log_path:", template)
         self.assertIn("failure_mode_allow: false\n              allowed_headers:", template)
         self.assertNotIn("authorization_request:", template)
+
+    def test_start_smoke_rejects_unsafe_root_without_tls_cleanup(self) -> None:
+        true_binary = shutil.which("true")
+        self.assertIsNotNone(true_binary)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "target"
+            target.mkdir()
+            certificate = target / "envoy-loopback.crt"
+            private_key = target / "envoy-loopback.key"
+            certificate.write_text("certificate marker", encoding="utf-8")
+            private_key.write_text("private key marker", encoding="utf-8")
+            unsafe_root = root / "unsafe-root"
+            unsafe_root.symlink_to(target, target_is_directory=True)
+            environment = dict(os.environ)
+            environment.update({
+                "START_ROOT": str(unsafe_root),
+                "ENVOY_BIN": true_binary,
+                "SERVICE_BIN": true_binary,
+                "PYTHON": sys.executable,
+            })
+
+            completed = subprocess.run(
+                ["sh", str(EXT_AUTHZ_START_PATH)],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(completed.returncode, 1, completed.stderr)
+            self.assertIn("START_ROOT is unsafe for private runtime artifacts", completed.stderr)
+            self.assertEqual(certificate.read_text(encoding="utf-8"), "certificate marker")
+            self.assertEqual(private_key.read_text(encoding="utf-8"), "private key marker")
 
     def test_runtime_probe_keeps_cancellation_unattributed_and_nonpromoting(self) -> None:
         source = RUNTIME_PATH.read_text(encoding="utf-8")
