@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Best-Effort-Evidence-Reader-Deduplizierung für SonarQube Cloud](CR-20260729-sonar-ci-best-effort-evidence-readers.de.md)
 - [Parent-CI-Block-Status-Generator-Preprocessor-End-Literal für SonarQube Cloud S1192](CR-20260729-sonar-ci-generator-endif.de.md)
 - [Parent-HAProxy-SPOE-Header-Parser-Deduplizierung und SonarQube-Cloud-Reliability-Behebung](CR-20260729-sonar-haproxy-spop-header-parser-duplication.de.md)
   — lokale C17-Parser-Harness-, HAProxy-Adoption-, Standards-Wiring- und
