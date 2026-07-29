@@ -9,6 +9,12 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-HAProxy-HTX-Runtime-Artefaktbegrenzung](CR-20260729-sonar-haproxy-htx-runtime-artifact-containment.de.md)
 
+- [Parent-CI-Focused-Report-Helper-Deduplizierung und Request-Body-Pfadbegrenzung](CR-20260729-sonar-ci-focused-report-safety.de.md)
+  — lokale Traversal-/Symlink-Regression und legitime In-Root-Controls
+  bestanden; der kombinierte Security-Diff-Review fand keine reportbare Regression.
+  Exact-Head-Hosted-GitHub-Actions- und SonarQube-Cloud-Evidence stehen noch
+  aus.
+
 - [Parent-CI-Runtime-Readiness-Deduplizierung des Remediation-Labels für SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.de.md)
 
 - [Parent-HAProxy-HTX-Payload-Iterator-Deduplizierung](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.de.md)
