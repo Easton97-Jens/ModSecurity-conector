@@ -171,6 +171,7 @@ int msconnector_config_validate(const msconnector_config *config, char *error,
  * production log calls to this fixed-signature no-op through --wrap. */
 void __wrap_ap_log_perror_(void)
 {
+    /* The harness asserts lifecycle ownership, not Apache log output. */
 }
 
 
