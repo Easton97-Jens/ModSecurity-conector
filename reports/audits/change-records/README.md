@@ -6,6 +6,12 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Common event-provenance serialization decomposition for SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.md)
+  — protocol-provenance preservation and negative controls are documented;
+  before integration, the synchronized exact head must pass GCC and Clang C17
+  Common-helper controls, applicable Common contracts, and fresh hosted
+  review/Actions/SonarQube Cloud verification.
+
 - [Parent Common smoke-writer output-path containment for SonarQube Cloud security findings](CR-20260729-sonar-common-smoke-writer-path-security.md)
   — focused pre-/post-fix boundary checks, symlink and traversal negative
   controls, the legitimate private-runtime-root control, and related runtime
