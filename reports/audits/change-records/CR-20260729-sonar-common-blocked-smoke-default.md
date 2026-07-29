@@ -8,7 +8,8 @@
 | --- | --- |
 | Change ID | CR-20260729-sonar-common-blocked-smoke-default |
 | Date (UTC) | 2026-07-29 |
-| Base revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
+| Original base revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
+| Synchronized validation base | `a81456110a6bb6f7cf2f8202f5223fb3f7b3a194`; every delivery action must re-read the exact current master and PR head. |
 | Tracking | SonarQube Cloud `shelldre:S131` at `common/scripts/run_blocked_runtime_smoke.sh:119`. No hosted PR or exact-head status is claimed. |
 | Boundary | Parent `common` blocked runtime-smoke dispatcher, its focused dispatch regression test, and paired Change Record/index documents. Framework, MRTS, Gitlinks, workflows, SonarQube policy, and `master` are not modified. |
 
@@ -62,8 +63,8 @@ The focused test executes the real script with a temporary, minimal helper and c
 ## Checks not run and rationale
 
 - Full connector runtime matrices were not run because the changed fallback deliberately blocks before any supported runtime path; no known connector branch changed.
-- `make check-bilingual-docs` is blocked_environment: its only failures are pre-existing links into the deliberately uninitialized Framework submodule. The focused bilingual suite is run before delivery; Framework, MRTS, the submodule, and its Gitlink remain out of scope.
-- Hosted GitHub Actions, SonarQube Cloud PR analysis, and review evidence are pending because no Draft PR exists yet.
+- Full-repository bilingual and documentation-link checks are evaluated in a registered isolated worktree with the pinned Framework checkout; they do not authorize a Framework, MRTS, or Gitlink change.
+- Exact-head hosted GitHub Actions, SonarQube Cloud PR analysis, review, thread, and ruleset evidence remain mandatory before a master integration.
 
 ## Known limitations
 
@@ -71,8 +72,8 @@ The pre-existing `CDPATH=` assignments produce ShellCheck SC1007 warnings even t
 
 ## Remaining risks
 
-The full runtime matrix and exact-head hosted analysis remain required to treat the Sonar finding as resolved. The default arm preserves the existing controlled skip semantics rather than attempting unsupported connector execution.
+The full runtime matrix remains separately useful for supported connector routes, but it is not evidence for this fallback because the changed path blocks before any supported runtime harness. Exact-head hosted analysis and applicable project checks remain mandatory before the Sonar finding can be treated as resolved. The default arm preserves the existing controlled skip semantics rather than attempting unsupported connector execution.
 
 ## Final diff and review status
 
-The scoped diff contains one default dispatch change, one focused regression test, and paired traceability. No commit, push, PR, or merge has occurred; Draft-PR delivery and exact-head hosted verification remain pending.
+The scoped diff contains one default-dispatch change, one focused regression test, and paired traceability. This record does not assert a remote update or master merge. Before every delivery action, the exact synchronized candidate, current PR head, reviews, threads, required checks, and SonarQube Cloud result must be read again.

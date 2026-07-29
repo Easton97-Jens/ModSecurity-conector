@@ -8,7 +8,8 @@
 | --- | --- |
 | Change-ID | CR-20260729-sonar-common-blocked-smoke-default |
 | Datum (UTC) | 2026-07-29 |
-| Basis-Revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
+| Ursprüngliche Basis-Revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
+| Synchronisierte Validierungsbasis | `a81456110a6bb6f7cf2f8202f5223fb3f7b3a194`; vor jeder Delivery-Aktion sind der exakte aktuelle Master und PR-Head erneut zu lesen. |
 | Tracking | SonarQube Cloud `shelldre:S131` in `common/scripts/run_blocked_runtime_smoke.sh:119`. Kein gehosteter PR- oder Exact-Head-Status wird behauptet. |
 | Grenze | Parent-`common`-Blocked-Runtime-Smoke-Dispatcher, sein fokussierter Dispatch-Regressionstest und gekoppelte Change-Record-/Index-Dokumente. Framework, MRTS, Gitlinks, Workflows, SonarQube-Policy und `master` werden nicht verändert. |
 
@@ -62,8 +63,8 @@ Der fokussierte Test führt das echte Skript mit einem temporären minimalen Hel
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - Vollständige Connector-Runtime-Matrizen wurden nicht ausgeführt, weil der veränderte Fallback bewusst vor jedem unterstützten Runtime-Pfad blockiert; kein bekannter Connector-Branch wurde verändert.
-- `make check-bilingual-docs` ist `blocked_environment`: Seine einzigen Fehler sind vorbestehende Links in das bewusst nicht initialisierte Framework-Submodul. Die fokussierte bilinguale Suite wird vor Delivery ausgeführt; Framework, MRTS, Submodul und Gitlink bleiben außerhalb des Scopes.
-- Gehostete GitHub-Actions-, SonarQube-Cloud-PR-Analyse- und Review-Evidence stehen aus, weil noch kein Draft PR erstellt wurde.
+- Repositoryweite Bilingual- und Dokumentationslink-Prüfungen werden in einem registrierten isolierten Worktree mit dem gepinnten Framework-Checkout ausgewertet; sie autorisieren keine Framework-, MRTS- oder Gitlink-Änderung.
+- Exact-Head-Hosted-GitHub-Actions-, SonarQube-Cloud-PR-Analyse-, Review-, Thread- und Ruleset-Evidence bleiben vor einer Master-Integration zwingend.
 
 ## Bekannte Einschränkungen
 
@@ -71,8 +72,8 @@ Die vorhandenen `CDPATH=`-Zuweisungen erzeugen ShellCheck-SC1007-Hinweise, obwoh
 
 ## Verbleibende Risiken
 
-Die vollständige Runtime-Matrix und Exact-Head-Hosted-Analyse bleiben nötig, bevor der Sonar-Befund als behoben gilt. Der Default-Arm erhält die bestehende kontrollierte Skip-Semantik, statt eine nicht unterstützte Connector-Ausführung zu versuchen.
+Die vollständige Runtime-Matrix bleibt für unterstützte Connector-Routen separat nützlich, ist aber für diesen Fallback kein Beleg, weil der geänderte Pfad vor jedem unterstützten Runtime-Harness blockiert. Exact-Head-Hosted-Analyse und anwendbare Projektprüfungen bleiben zwingend, bevor der Sonar-Befund als behoben gilt. Der Default-Arm erhält die bestehende kontrollierte Skip-Semantik, statt eine nicht unterstützte Connector-Ausführung zu versuchen.
 
 ## Finaler Diff- und Review-Status
 
-Der scoped Diff enthält eine Default-Dispatch-Änderung, einen fokussierten Regressionstest und gekoppelte Traceability. Es gab keinen Commit, Push, PR oder Merge; Draft-PR-Delivery und Exact-Head-Hosted-Verifikation stehen noch aus.
+Der scoped Diff enthält eine Default-Dispatch-Änderung, einen fokussierten Regressionstest und gekoppelte Traceability. Dieser Record behauptet keinen Remote-Update oder Master-Merge. Vor jeder Delivery-Aktion sind exakter synchronisierter Kandidat, aktueller PR-Head, Reviews, Threads, Required Checks und SonarQube-Cloud-Ergebnis erneut zu lesen.
