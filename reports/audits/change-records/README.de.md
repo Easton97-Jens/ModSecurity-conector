@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Generated-Report-Literal-Deduplizierung](CR-20260729-sonar-ci-generated-report-literals.de.md)
+  — fünf statische Local-Path-/Provenance-Literale haben nun einzelne private
+  Owner; fokussierte Portable-Path- und Generator-Registry-Controls sowie die
+  vollständige Generated-Report-Evidence-Suite bestanden lokal. Exact-Head-
+  Hosted-Verifikation bleibt vor der Integration erforderlich.
+
 - [Parent-Common-Blocked-Runtime-Smoke-Default-Dispatch für SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.de.md)
   — der getrackte Konfigurations-`case` und unbekannte Connectoren verwenden
   kontrollierte Blocked-Dependency-Pfade; fokussierte Dispatch-/Default-
