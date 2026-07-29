@@ -6,6 +6,8 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent HAProxy HTX payload-iterator deduplication](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.md)
+
 - [Parent CI best-effort evidence-reader deduplication for SonarQube Cloud](CR-20260729-sonar-ci-best-effort-evidence-readers.md)
 - [Parent CI block-status generator preprocessor-end literal for SonarQube Cloud S1192](CR-20260729-sonar-ci-generator-endif.md)
 - [Parent HAProxy SPOE header-parser deduplication and SonarQube Cloud reliability remediation](CR-20260729-sonar-haproxy-spop-header-parser-duplication.md)

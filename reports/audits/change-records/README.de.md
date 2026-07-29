@@ -7,6 +7,8 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-HAProxy-HTX-Payload-Iterator-Deduplizierung](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.de.md)
+
 - [Parent-CI-Best-Effort-Evidence-Reader-Deduplizierung für SonarQube Cloud](CR-20260729-sonar-ci-best-effort-evidence-readers.de.md)
 - [Parent-CI-Block-Status-Generator-Preprocessor-End-Literal für SonarQube Cloud S1192](CR-20260729-sonar-ci-generator-endif.de.md)
 - [Parent-HAProxy-SPOE-Header-Parser-Deduplizierung und SonarQube-Cloud-Reliability-Behebung](CR-20260729-sonar-haproxy-spop-header-parser-duplication.de.md)

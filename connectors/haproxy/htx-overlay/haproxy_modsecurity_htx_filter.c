@@ -81,6 +81,12 @@ struct haproxy_modsecurity_htx_filter_context {
     int disabled;
 };
 
+typedef int (*haproxy_modsecurity_htx_append_body_chunk)(
+    haproxy_modsecurity_transaction *transaction,
+    const unsigned char *body,
+    unsigned int body_len,
+    haproxy_modsecurity_decision *decision);
+
 static char *haproxy_modsecurity_htx_dup_ist(const struct ist value, size_t limit)
 {
     char *copy;
@@ -412,8 +418,9 @@ static int haproxy_modsecurity_htx_begin_request(
     return 0;
 }
 
-static int haproxy_modsecurity_htx_append_request_payload(
-    struct filter *filter, struct http_msg *msg, unsigned int offset, unsigned int len)
+static int haproxy_modsecurity_htx_append_payload(
+    struct filter *filter, struct http_msg *msg, unsigned int offset, unsigned int len,
+    haproxy_modsecurity_htx_append_body_chunk append_body_chunk)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
     struct htx *htx;
@@ -421,7 +428,7 @@ static int haproxy_modsecurity_htx_append_request_payload(
     struct htx_ret found;
     unsigned int remaining = len;
 
-    if (!ctx || !ctx->transaction || !msg || !msg->chn) {
+    if (!ctx || !ctx->transaction || !msg || !msg->chn || !append_body_chunk) {
         return -1;
     }
     htx = htxbuf(&msg->chn->buf);
@@ -448,7 +455,7 @@ static int haproxy_modsecurity_htx_append_request_payload(
             }
             /* `value.ptr` is borrowed from HAProxy's current HTX buffer. */
             if (value.len > UINT_MAX ||
-                haproxy_modsecurity_transaction_append_request_body_chunk(
+                append_body_chunk(
                     ctx->transaction, (const unsigned char *)value.ptr,
                     (unsigned int)value.len, &decision) != 0) {
                 return -1;
@@ -463,6 +470,14 @@ static int haproxy_modsecurity_htx_append_request_payload(
         offset = 0U;
     }
     return remaining == 0U ? 0 : -1;
+}
+
+static int haproxy_modsecurity_htx_append_request_payload(
+    struct filter *filter, struct http_msg *msg, unsigned int offset, unsigned int len)
+{
+    return haproxy_modsecurity_htx_append_payload(
+        filter, msg, offset, len,
+        haproxy_modsecurity_transaction_append_request_body_chunk);
 }
 
 static int haproxy_modsecurity_htx_process_response_headers(
@@ -519,54 +534,9 @@ static int haproxy_modsecurity_htx_process_response_headers(
 static int haproxy_modsecurity_htx_append_response_payload(
     struct filter *filter, struct http_msg *msg, unsigned int offset, unsigned int len)
 {
-    struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
-    struct htx *htx;
-    struct htx_blk *blk;
-    struct htx_ret found;
-    unsigned int remaining = len;
-
-    if (!ctx || !ctx->transaction || !msg || !msg->chn) {
-        return -1;
-    }
-    htx = htxbuf(&msg->chn->buf);
-    found = htx_find_offset(htx, offset);
-    blk = found.blk;
-    offset = found.ret;
-    for (; blk && remaining; blk = htx_get_next_blk(htx, blk)) {
-        enum htx_blk_type type = htx_get_blk_type(blk);
-        uint32_t block_size = htx_get_blksz(blk);
-
-        if (type == HTX_BLK_UNUSED) {
-            continue;
-        }
-        if (type == HTX_BLK_DATA) {
-            struct ist value = htx_get_blk_value(htx, blk);
-            haproxy_modsecurity_decision decision;
-
-            if (offset > value.len) {
-                return -1;
-            }
-            value = istadv(value, offset);
-            if (value.len > remaining) {
-                value = isttrim(value, remaining);
-            }
-            /* `value.ptr` is borrowed from HAProxy's current HTX buffer. */
-            if (value.len > UINT_MAX ||
-                haproxy_modsecurity_transaction_append_response_body_chunk(
-                    ctx->transaction, (const unsigned char *)value.ptr,
-                    (unsigned int)value.len, &decision) != 0) {
-                return -1;
-            }
-            remaining -= (unsigned int)value.len;
-        } else {
-            if (offset != 0U || block_size > remaining) {
-                return -1;
-            }
-            remaining -= block_size;
-        }
-        offset = 0U;
-    }
-    return remaining == 0U ? 0 : -1;
+    return haproxy_modsecurity_htx_append_payload(
+        filter, msg, offset, len,
+        haproxy_modsecurity_transaction_append_response_body_chunk);
 }
 
 static int haproxy_modsecurity_htx_filter_init(struct proxy *px, struct flt_conf *fconf)
