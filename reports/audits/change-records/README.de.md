@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Apache-Config-Reference-Condition-Remediation](CR-20260729-sonar-ci-apache-config-reference-condition.de.md)
+  — die Source-/Minimal-/Safe-Apache-Example-File-Partition verwendet nun
+  explizite Branches; fokussierter Partitionstest und nicht schreibende
+  Reference-Controls bestanden lokal. Exact-Head-Hosted-Verifikation bleibt
+  vor der Integration erforderlich.
+
 - [Parent-CI-Deduplizierung der Verified-Runtime-Mismatch-Control-Evidence](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.de.md)
 
 - [Parent-Common-Blocked-Runtime-Smoke-Default-Dispatch für SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.de.md)
