@@ -9,7 +9,7 @@
 | Change ID | CR-20260729-sonar-haproxy-spop-header-parser-duplication |
 | Date (UTC) | 2026-07-29 |
 | Base revision | `dbbc9c6aa2bca22fcd0385fa76b878873ccab2cc` |
-| Tracking | Four current SonarQube Cloud `c:S1854` findings in `handle_connection(...)` and two current duplication blocks (82 lines) in `parse_notify_payload(...)`. |
+| Tracking | Four current SonarQube Cloud `c:S1854` findings in `handle_connection(...)`, two current duplication blocks (82 lines) in `parse_notify_payload(...)`, and four `c:S134` nesting findings reported on this Draft PR's first delivery head. |
 | Boundary | Parent HAProxy diagnostic-runtime source, one Parent reliability-contract test, and this English/German Change Record pair with its paired indexes. Framework, MRTS, Gitlinks, workflows, Sonar configuration, Quality Gates, suppressions, and `master` are unchanged. |
 | Delivery status | A Draft Parent PR is the intended delivery. This record claims only observed local checks and does not claim hosted CI, a hosted Quality Gate, an external issue closure, or a merge. |
 
@@ -26,7 +26,10 @@ cache failure.
 The current master duplication service reports two source duplication blocks in
 this file, totalling 82 lines. They are exactly the repeated header branches;
 the follow-up intentionally reduces that shared production code instead of
-changing Sonar configuration or introducing exclusions.
+changing Sonar configuration or introducing exclusions. The first Draft-PR
+analysis confirmed the duplicate-line reduction but reported four new
+`c:S134` nesting findings around the retained header dispatch. This follow-up
+removes that nesting without changing parser semantics.
 
 ## Acceptance criteria
 
@@ -54,6 +57,12 @@ already parsed header list. Both helpers set `is_response` after the typed value
 has been consumed, which deliberately preserves the previous response-key
 behavior for a syntactically valid but non-byte typed value.
 
+`parse_notify_header_argument(...)` is the flat dispatcher for exactly the four
+header keys. It returns the selected helper's result, returns `1` for an
+unrelated key so that the existing payload parser handles it, and propagates
+`-1` for malformed header data. This replaces the four nested call-site
+branches that produced the new `c:S134` findings.
+
 The former `reason` strings that were only assigned for body truncation or a
 transaction-cache failure had no observer. The refactor removes only those
 unread assignments. Error-specific reasons remain scoped to the two
@@ -62,8 +71,8 @@ ModSecurity-failure branches where `runtime_init_decision(...)` consumes them.
 ## Changed files
 
 - `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c` — two bounded
-  header parser helpers, four call-site replacements, and removal of four
-  unread assignments.
+  header parser helpers, a flat four-key dispatcher, four call-site
+  replacements, and removal of four unread assignments.
 - `tests/test_sonar_reliability_contract.py` — persistent C17 source harness
   for binary/text header handling and response-role preservation.
 - `reports/audits/change-records/CR-20260729-sonar-haproxy-spop-header-parser-duplication.md`
@@ -75,13 +84,14 @@ ModSecurity-failure branches where `runtime_init_decision(...)` consumes them.
 
 | Executed control | Observed result |
 | --- | --- |
-| Focused `unittest` method `test_haproxy_append_string_runtime_boundaries` | passed; the C17 harness compiles and executes the actual HAProxy diagnostic runtime, including the new binary/text helper checks. |
+| Focused `unittest` method `test_haproxy_append_string_runtime_boundaries` | passed; the C17 harness compiles and executes the actual HAProxy diagnostic runtime, including all four binary/text dispatcher keys and the non-byte response-key control. |
 | `ci/checks/connectors/haproxy/check-haproxy-common-adoption.py` | passed. |
 | `ci/checks/connectors/haproxy/check-haproxy-c-standard-wiring.py` | passed. |
 | `make check-haproxy-c17-lint` | passed; the mandatory C17 compile completed. |
 | `git diff --check` | passed. |
 | `make check-bilingual-docs` | blocked_external_dependency after validating this Change Record pair: the isolated worktree has no initialized Parent-pinned Framework checkout, so 20 pre-existing cross-repository documentation links are absent. |
 | Focused Codex Security diff scan | passed with zero reportable findings; the full parser source and supporting test were reviewed, and the C17 harness supplied direct regression evidence. |
+| Follow-up Codex Security diff scan for the flat dispatcher | passed with zero reportable findings; the scan is sealed at `/var/tmp/codex/ModSecurity-conector/security-scans/ModSecurity-conector/dbbc9c6-local-patch-20260729T045029Z/report.md`. |
 
 ## Security impact
 
@@ -96,13 +106,16 @@ network listener, scanner, or Quality Gate control is relaxed.
 ## Runtime evidence
 
 The focused C17 harness compiles and executes the actual HAProxy diagnostic
-runtime translation unit. It exercises the new binary and text header helpers
-for request and response roles, asserts the consumed parser position and header
-flags, and retains the old response-key behavior for a non-byte argument. This
-is direct source execution evidence, not an end-to-end HAProxy deployment.
+runtime translation unit. It routes all four binary/text request/response keys
+through the production dispatcher, asserts the consumed parser position and
+header flags, and retains the old response-key behavior for a non-byte
+argument. This is direct source execution evidence, not an end-to-end HAProxy
+deployment.
 
-The canonical focused scan report is retained outside the Git worktree at
-`/var/tmp/codex/ModSecurity-conector/security-scans/ModSecurity-conector/dbbc9c6-local-patch-20260729T042755Z/report.md`.
+The canonical focused scan reports are retained outside the Git worktree at
+`/var/tmp/codex/ModSecurity-conector/security-scans/ModSecurity-conector/dbbc9c6-local-patch-20260729T042755Z/report.md`
+and the dispatcher follow-up report at
+`/var/tmp/codex/ModSecurity-conector/security-scans/ModSecurity-conector/dbbc9c6-local-patch-20260729T045029Z/report.md`.
 
 ## Known limitations
 

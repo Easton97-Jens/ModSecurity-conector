@@ -9,7 +9,7 @@
 | Change-ID | CR-20260729-sonar-haproxy-spop-header-parser-duplication |
 | Datum (UTC) | 2026-07-29 |
 | Basis-Revision | `dbbc9c6aa2bca22fcd0385fa76b878873ccab2cc` |
-| Tracking | Vier aktuelle SonarQube-Cloud-`c:S1854`-Befunde in `handle_connection(...)` und zwei aktuelle Duplikatblöcke (82 Zeilen) in `parse_notify_payload(...)`. |
+| Tracking | Vier aktuelle SonarQube-Cloud-`c:S1854`-Befunde in `handle_connection(...)`, zwei aktuelle Duplikatblöcke (82 Zeilen) in `parse_notify_payload(...)` und vier `c:S134`-Verschachtelungsbefunde auf dem ersten Delivery-Head dieses Draft-PRs. |
 | Grenze | Parent-HAProxy-Diagnose-Runtime, ein Parent-Reliability-Contract-Test und dieses englisch/deutsche Change-Record-Paar mit seinen gepaarten Indizes. Framework, MRTS, Gitlinks, Workflows, Sonar-Konfiguration, Quality Gates, Suppressions und `master` bleiben unverändert. |
 | Delivery-Status | Ein Draft-Parent-PR ist die vorgesehene Auslieferung. Dieser Record beansprucht nur beobachtete lokale Checks, keine gehostete CI, kein gehostetes Quality Gate, keinen externen Issue-Abschluss und keinen Merge. |
 
@@ -26,7 +26,11 @@ Transaction-Cache-Fehler.
 Der aktuelle Master-Duplikatdienst meldet zwei Quell-Duplikatblöcke in dieser
 Datei mit zusammen 82 Zeilen. Es sind genau die wiederholten Header-Zweige;
 das Follow-up reduziert bewusst diesen gemeinsamen Produktcode, statt die
-Sonar-Konfiguration zu ändern oder Ausschlüsse einzuführen.
+Sonar-Konfiguration zu ändern oder Ausschlüsse einzuführen. Die erste
+Draft-PR-Analyse bestätigte die Duplikatreduzierung, meldete aber vier neue
+`c:S134`-Verschachtelungsbefunde um die verbliebene Header-Dispatch-Logik.
+Dieses Follow-up entfernt diese Verschachtelung ohne Änderung der
+Parser-Semantik.
 
 ## Akzeptanzkriterien
 
@@ -56,6 +60,12 @@ Beide Helper setzen `is_response`, nachdem der Typed-Wert konsumiert wurde. Das
 erhält bewusst das frühere Verhalten für Response-Keys mit syntaktisch gültigem
 Nicht-Byte-Typed-Wert.
 
+`parse_notify_header_argument(...)` ist der flache Dispatcher für genau die
+vier Header-Keys. Er gibt das Ergebnis des gewählten Helpers zurück, liefert
+für einen fremden Key `1`, damit der bestehende Payload-Parser ihn behandelt,
+und propagiert `-1` bei fehlerhaften Header-Daten. Damit ersetzt er die vier
+verschachtelten Call-Site-Zweige, die die neuen `c:S134`-Befunde erzeugten.
+
 Die früheren `reason`-Strings für Body-Trunkierung oder Transaction-Cache-
 Fehler wurden nur gesetzt, aber nie gelesen. Die Refaktorierung entfernt nur
 diese ungelesenen Zuweisungen. Fehlerspezifische Gründe bleiben in den beiden
@@ -64,8 +74,8 @@ ModSecurity-Fehlerzweigen lokal, wo `runtime_init_decision(...)` sie nutzt.
 ## Geänderte Dateien
 
 - `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c` — zwei begrenzte
-  Header-Parser-Helper, vier Call-Site-Ersetzungen und Entfernung von vier
-  ungelesenen Zuweisungen.
+  Header-Parser-Helper, einen flachen Vier-Key-Dispatcher, vier
+  Call-Site-Ersetzungen und Entfernung von vier ungelesenen Zuweisungen.
 - `tests/test_sonar_reliability_contract.py` — dauerhafte C17-Source-Harness
   für binäre/textuelle Header-Behandlung und Erhalt der Response-Rolle.
 - `reports/audits/change-records/CR-20260729-sonar-haproxy-spop-header-parser-duplication.md`
@@ -77,13 +87,14 @@ ModSecurity-Fehlerzweigen lokal, wo `runtime_init_decision(...)` sie nutzt.
 
 | Ausgeführte Kontrolle | Beobachtetes Ergebnis |
 | --- | --- |
-| Fokussierte `unittest`-Methode `test_haproxy_append_string_runtime_boundaries` | bestanden; die C17-Harness kompiliert und führt die tatsächliche HAProxy-Diagnose-Runtime einschließlich der neuen Binär-/Text-Helper-Checks aus. |
+| Fokussierte `unittest`-Methode `test_haproxy_append_string_runtime_boundaries` | bestanden; die C17-Harness kompiliert und führt die tatsächliche HAProxy-Diagnose-Runtime einschließlich aller vier Binär-/Text-Dispatcher-Keys und des Nicht-Byte-Response-Key-Controls aus. |
 | `ci/checks/connectors/haproxy/check-haproxy-common-adoption.py` | bestanden. |
 | `ci/checks/connectors/haproxy/check-haproxy-c-standard-wiring.py` | bestanden. |
 | `make check-haproxy-c17-lint` | bestanden; die verpflichtende C17-Kompilierung wurde abgeschlossen. |
 | `git diff --check` | bestanden. |
 | `make check-bilingual-docs` | blocked_external_dependency nach Validierung dieses Change-Record-Paars: Der isolierte Worktree hat keinen initialisierten Parent-festgeschriebenen Framework-Checkout, daher fehlen 20 vorbestehende Cross-Repository-Dokumentationslinks. |
 | Fokussierter Codex-Security-Diff-Scan | bestanden mit null reportbaren Befunden; der vollständige Parser-Source und der unterstützende Test wurden geprüft, und die C17-Harness lieferte direkte Regressionsevidence. |
+| Follow-up-Codex-Security-Diff-Scan für den flachen Dispatcher | bestanden mit null reportbaren Befunden; der Scan ist unter `/var/tmp/codex/ModSecurity-conector/security-scans/ModSecurity-conector/dbbc9c6-local-patch-20260729T045029Z/report.md` versiegelt. |
 
 ## Security-Auswirkung
 
@@ -100,14 +111,17 @@ wird gelockert.
 ## Runtime-Evidence
 
 Die fokussierte C17-Harness kompiliert und führt die tatsächliche
-HAProxy-Diagnose-Runtime-Translation-Unit aus. Sie prüft die neuen Binär- und
-Text-Header-Helper für Request- und Response-Rollen, die konsumierte
-Parser-Position und Header-Flags und erhält das frühere Response-Key-Verhalten
-für ein Nicht-Byte-Argument. Dies ist direkte Source-Ausführungs-Evidence,
-keine End-to-End-HAProxy-Deployment-Evidence.
+HAProxy-Diagnose-Runtime-Translation-Unit aus. Sie führt alle vier
+Binär-/Text-Request-/Response-Keys durch den Produkt-Dispatcher, prüft die
+konsumierte Parser-Position und Header-Flags und erhält das frühere
+Response-Key-Verhalten für ein Nicht-Byte-Argument. Dies ist direkte
+Source-Ausführungs-Evidence, keine End-to-End-HAProxy-Deployment-Evidence.
 
-Der kanonische fokussierte Scan-Report liegt außerhalb des Git-Worktrees unter
-`/var/tmp/codex/ModSecurity-conector/security-scans/ModSecurity-conector/dbbc9c6-local-patch-20260729T042755Z/report.md`.
+Die kanonischen fokussierten Scan-Reports liegen außerhalb des Git-Worktrees
+unter
+`/var/tmp/codex/ModSecurity-conector/security-scans/ModSecurity-conector/dbbc9c6-local-patch-20260729T042755Z/report.md`
+und der Dispatcher-Follow-up-Report unter
+`/var/tmp/codex/ModSecurity-conector/security-scans/ModSecurity-conector/dbbc9c6-local-patch-20260729T045029Z/report.md`.
 
 ## Bekannte Einschränkungen
 

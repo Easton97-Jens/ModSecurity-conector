@@ -898,6 +898,30 @@ static int parse_notify_headers_text(
     return 0;
 }
 
+/* Returns zero when a known header argument was consumed, one when the
+ * argument belongs to another parser, and -1 for a malformed header value. */
+static int parse_notify_header_argument(
+        notify_request *request,
+        const unsigned char *arg_name,
+        size_t arg_name_len,
+        const unsigned char *data,
+        size_t len,
+        size_t *pos) {
+    if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "headers_bin")) {
+        return parse_notify_headers_bin(request, data, len, pos, 0);
+    }
+    if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_headers_bin")) {
+        return parse_notify_headers_bin(request, data, len, pos, 1);
+    }
+    if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "headers")) {
+        return parse_notify_headers_text(request, data, len, pos, 0);
+    }
+    if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_headers")) {
+        return parse_notify_headers_text(request, data, len, pos, 1);
+    }
+    return 1;
+}
+
 static int read_typed_string_to_buffer(
         const unsigned char *data,
         size_t len,
@@ -1059,8 +1083,17 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
         for (unsigned int i = 0; i < nb_args; ++i) {
             const unsigned char *arg_name;
             size_t arg_name_len;
+            int header_argument_result;
 
             if (read_string_ref(data, len, &pos, &arg_name, &arg_name_len) != 0) {
+                return -1;
+            }
+            header_argument_result = parse_notify_header_argument(
+                request, arg_name, arg_name_len, data, len, &pos);
+            if (header_argument_result == 0) {
+                continue;
+            }
+            if (header_argument_result < 0) {
                 return -1;
             }
             if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "request_id")) {
@@ -1136,30 +1169,6 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
             if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_status")) {
                 if (read_typed_uint32_loose(data, len, &pos, &request->response_status,
                         &request->has_response_status) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "headers_bin")) {
-                if (parse_notify_headers_bin(request, data, len, &pos, 0) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_headers_bin")) {
-                if (parse_notify_headers_bin(request, data, len, &pos, 1) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "headers")) {
-                if (parse_notify_headers_text(request, data, len, &pos, 0) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_headers")) {
-                if (parse_notify_headers_text(request, data, len, &pos, 1) != 0) {
                     return -1;
                 }
                 continue;
