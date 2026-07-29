@@ -101,18 +101,24 @@ Ergebnis.
   Source-Literale besitzt und der fokussierte Test das betroffene Verhalten
   ohne generierte Runtime-Evidence übt.
 - Hosted-GitHub-Actions, SonarQube Cloud, Review, Freigabe, Merge und
-  Master-Checks liefen noch nicht für einen PR-Head, weil noch kein PR erstellt
-  wurde.
+  Master-Checks sind für den exakten aktuellen PR-Head noch nicht
+  abgeschlossen.
 
 ## Delivery-Status
 
-Vor der Verifikation muss der exakte PR-Head mit Master abgeglichen werden und
-frische Hosted-Checks sowie SonarQube-Cloud-Resultate erhalten. Keine direkte
-Master-Änderung oder kein Merge ist autorisiert oder impliziert.
+Der initiale Source-und-Traceability-Commit
+`1bec752c45176f131a3eaf1d5f5ce854c28f9bae` wurde auf
+`agent/parent-ci-nginx-mrts-http500-literals-20260729` gepusht, und Draft PR
+[#187](https://github.com/Easton97-Jens/ModSecurity-conector/pull/187) wurde
+gegen `master` eröffnet. Bei der initialen PR-Erstellung stimmten lokaler,
+Remote- und PR-Head auf diesen Commit überein. Dieser Delivery-Metadaten-
+Follow-up ändert nur Dokumentation; deshalb muss der exakte finale PR-Head
+weiterhin frische Hosted-Checks und SonarQube-Cloud-Resultate erhalten. Keine
+direkte Master-Änderung oder kein Merge ist autorisiert oder impliziert.
 
 ## Finaler Diff- und Review-Status
 
 Der lokale Source-/Test-Diff bestand fokussierte Tests, ausgewählte
 Kompilierung, Whitespace-Validierung und unabhängige Source-/Test-Security-
-Diff-Reviews ohne plausiblen diff-eingeführten Kandidaten. Die finale
-Exact-PR-Head-Hosted-Verifikation steht aus.
+Diff-Reviews ohne plausiblen diff-eingeführten Kandidaten. Draft PR #187
+existiert, aber die finale Exact-PR-Head-Hosted-Verifikation steht aus.

@@ -98,17 +98,23 @@ state.
   ran because the refactor owns fixed source literals and the focused test
   exercises the affected behavior without generated runtime evidence.
 - Hosted GitHub Actions, SonarQube Cloud, review, approval, merge, and master
-  checks have not yet run for a PR head because no PR has been created.
+  checks have not yet completed for the exact current PR head.
 
 ## Delivery status
 
-Before verification, the exact PR head must be reconciled with master and
-receive fresh hosted checks and SonarQube Cloud results. No direct master
-change or merge is authorized or implied.
+The initial source-and-traceability commit
+`1bec752c45176f131a3eaf1d5f5ce854c28f9bae` was pushed on
+`agent/parent-ci-nginx-mrts-http500-literals-20260729`, and Draft PR
+[#187](https://github.com/Easton97-Jens/ModSecurity-conector/pull/187) was
+opened against `master`. At initial PR creation, local, remote, and PR head
+matched that commit. This delivery-metadata follow-up changes documentation
+only, so the exact final PR head must still receive fresh hosted checks and
+SonarQube Cloud results. No direct master change or merge is authorized or
+implied.
 
 ## Final diff and review status
 
 The local source/test diff passed focused tests, selected compilation,
 whitespace validation, and independent source/test security-diff review with
-no plausible diff-induced candidate. The final exact PR-head hosted
-verification remains pending.
+no plausible diff-induced candidate. Draft PR #187 exists, but final exact
+PR-head hosted verification remains pending.
