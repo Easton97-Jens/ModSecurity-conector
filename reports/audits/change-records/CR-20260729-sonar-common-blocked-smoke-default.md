@@ -9,7 +9,7 @@
 | Change ID | CR-20260729-sonar-common-blocked-smoke-default |
 | Date (UTC) | 2026-07-29 |
 | Base revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
-| Synchronized validation base | a81456110a6bb6f7cf2f8202f5223fb3f7b3a194 |
+| Synchronized validation base | fda62539b6f0a710865707e3003b73ed4469f20e |
 | Tracking | SonarQube Cloud `shelldre:S131` at `common/scripts/run_blocked_runtime_smoke.sh:119`. No hosted PR or exact-head status is claimed. |
 | Boundary | Parent `common` blocked runtime-smoke dispatcher, its focused dispatch regression test, and paired Change Record/index documents. Framework, MRTS, Gitlinks, workflows, SonarQube policy, and `master` are not modified. |
 
