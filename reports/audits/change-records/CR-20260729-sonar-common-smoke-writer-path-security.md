@@ -8,8 +8,8 @@
 | --- | --- |
 | Change ID | CR-20260729-sonar-common-smoke-writer-path-security |
 | Date (UTC) | 2026-07-29 |
-| Base revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
-| Tracking | SonarQube Cloud `python:S5443` at `common/scripts/write_smoke_result.py:67` and `pythonsecurity:S8707` at lines 83, 90, 97, 347, and 348. The separate `python:S3776` complexity item remains outside this security-only batch. Draft PR #176 initially reported no new Security findings or duplication but four test-only `python:S5778` Code Smells; the current test-structure follow-up needs a new exact-head analysis. |
+| Base revision | Original change base `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`; synchronized candidate base `154ee724eba4653fa6378fc3c8729ae433e65697` |
+| Tracking | SonarQube Cloud `python:S5443` at `common/scripts/write_smoke_result.py:67` and `pythonsecurity:S8707` at lines 83, 90, 97, 347, and 348. The separate `python:S3776` complexity item remains outside this security-only batch. PR #176's prior head reported no new Security findings or duplication but four test-only `python:S5778` Code Smells; the synchronized test-structure follow-up requires a new exact-head analysis. |
 | Boundary | Parent `common` runtime-smoke evidence writer, its focused Python security regression test, and paired Change Record/index documents. Framework, MRTS, Gitlinks, workflows, SonarQube policy, and `master` are not modified. |
 
 ## Motivation and problem statement
@@ -84,4 +84,4 @@ The writer intentionally depends on the caller's verified-runtime environment. I
 
 ## Final diff and review status
 
-The scoped diff contains only writer containment, its security regression test, and bilingual traceability. Local security closure, bypass, legitimate-control, syntax, runtime-path regression, and whitespace checks passed. Draft PR #176 is open; no merge occurred. Fresh exact-head hosted verification is pending after the test-structure follow-up.
+The scoped diff contains only writer containment, its security regression test, and bilingual traceability. Local security closure, bypass, legitimate-control, syntax, runtime-path regression, and whitespace checks passed. PR #176 is open and non-draft; no merge occurred. Fresh exact-head hosted verification is pending after the normal `master` synchronization and test-structure follow-up.

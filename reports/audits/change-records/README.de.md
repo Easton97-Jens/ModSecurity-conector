@@ -10,8 +10,9 @@ Review- oder Delivery-Ergebnisse behaupten.
 - [Parent-Common-Smoke-Writer-Output-Path-Containment für SonarQube-Cloud-Security-Befunde](CR-20260729-sonar-common-smoke-writer-path-security.de.md)
   — fokussierte Pre-/Post-Fix-Grenzprüfungen, Symlink- und Traversal-Negativ-
   Controls, der legitime Private-Runtime-Root-Control und zugehörige
-  Runtime-Smoke-Security-Tests bestanden lokal. Draft-PR-Delivery und
-  Exact-Head-Hosted-Evidence stehen noch aus.
+  Runtime-Smoke-Security-Tests bestanden lokal. Open-PR-Delivery und
+  aufgefrischte Exact-Head-Hosted-Evidence stehen nach der normalen Master-
+  Synchronisierung noch aus.
 
 - [Parent-Apache-RulesSet-Konfigurationspool-Cleanup](CR-20260729-apache-ruleset-pool-cleanup.de.md)
   — ausgewählter Upstream-#94A-Cleanup, fokussierte GCC-/Clang-APR-Harnesses,

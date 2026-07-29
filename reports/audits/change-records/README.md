@@ -9,8 +9,9 @@ must not claim unobserved CI, runtime, review, or delivery results.
 - [Parent Common smoke-writer output-path containment for SonarQube Cloud security findings](CR-20260729-sonar-common-smoke-writer-path-security.md)
   — focused pre-/post-fix boundary checks, symlink and traversal negative
   controls, the legitimate private-runtime-root control, and related runtime
-  smoke security tests passed locally. Draft-PR delivery and exact-head hosted
-  evidence remain pending.
+  smoke security tests passed locally. Open-PR delivery and refreshed
+  exact-head hosted evidence remain pending after the normal master
+  synchronization.
 
 - [Parent Apache RulesSet configuration-pool cleanup](CR-20260729-apache-ruleset-pool-cleanup.md)
   — selected upstream #94A cleanup, focused GCC/Clang APR harnesses, fresh

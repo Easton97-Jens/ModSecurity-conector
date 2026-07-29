@@ -8,8 +8,8 @@
 | --- | --- |
 | Change-ID | CR-20260729-sonar-common-smoke-writer-path-security |
 | Datum (UTC) | 2026-07-29 |
-| Basis-Revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
-| Tracking | SonarQube Cloud `python:S5443` in `common/scripts/write_smoke_result.py:67` und `pythonsecurity:S8707` in den Zeilen 83, 90, 97, 347 und 348. Der getrennte `python:S3776`-Komplexitätsbefund liegt außerhalb dieses reinen Security-Batches. Draft PR #176 meldete initial keine neuen Security-Befunde oder Duplikate, aber vier test-only `python:S5778`-Code-Smells; der aktuelle Teststruktur-Follow-up benötigt eine neue Exact-Head-Analyse. |
+| Basis-Revision | Ursprüngliche Change-Basis `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`; Basis des synchronisierten Kandidaten `154ee724eba4653fa6378fc3c8729ae433e65697` |
+| Tracking | SonarQube Cloud `python:S5443` in `common/scripts/write_smoke_result.py:67` und `pythonsecurity:S8707` in den Zeilen 83, 90, 97, 347 und 348. Der getrennte `python:S3776`-Komplexitätsbefund liegt außerhalb dieses reinen Security-Batches. Der vorherige Head von PR #176 meldete keine neuen Security-Befunde oder Duplikate, aber vier test-only `python:S5778`-Code-Smells; der synchronisierte Teststruktur-Follow-up benötigt eine neue Exact-Head-Analyse. |
 | Grenze | Parent-`common`-Runtime-Smoke-Evidence-Writer, sein fokussierter Python-Security-Regressionstest und gekoppelte Change-Record-/Index-Dokumente. Framework, MRTS, Gitlinks, Workflows, SonarQube-Policy und `master` werden nicht verändert. |
 
 ## Motivation und Problemstellung
@@ -84,4 +84,4 @@ Der Writer bleibt bewusst von der verifizierten Runtime-Umgebung des Callers abh
 
 ## Finaler Diff- und Review-Status
 
-Der scoped Diff enthält nur Writer-Containment, seinen Security-Regressionstest und bilinguale Traceability. Lokale Security-Closure-, Bypass-, Legitimate-Control-, Syntax-, Runtime-Path-Regression- und Whitespace-Checks bestanden. Draft PR #176 ist offen; kein Merge erfolgte. Eine frische Exact-Head-Hosted-Verifikation steht nach dem Teststruktur-Follow-up aus.
+Der scoped Diff enthält nur Writer-Containment, seinen Security-Regressionstest und bilinguale Traceability. Lokale Security-Closure-, Bypass-, Legitimate-Control-, Syntax-, Runtime-Path-Regression- und Whitespace-Checks bestanden. PR #176 ist offen und kein Draft; kein Merge erfolgte. Eine frische Exact-Head-Hosted-Verifikation steht nach der normalen `master`-Synchronisierung und dem Teststruktur-Follow-up aus.
