@@ -9,7 +9,65 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-HAProxy-Binding-Body-Phase-Deduplizierung](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.de.md)
 
+- [Parent-CI-Deduplizierung der Verified-Runtime-Mismatch-Control-Evidence](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.de.md)
+
+- [Parent-Common-Blocked-Runtime-Smoke-Default-Dispatch für SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.de.md)
+  — der getrackte Konfigurations-`case` und unbekannte Connectoren verwenden
+  kontrollierte Blocked-Dependency-Pfade; fokussierte Dispatch-/Default-
+  Struktur-Controls und POSIX-Shell-Syntax bestanden lokal.
+
+- [Parent-HAProxy-SPOP-Body-Parser-Deduplizierung](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.de.md)
+
+- [Parent-Common-Event-Provenance-Serialisierungszerlegung für SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.de.md)
+  — Erhaltung der Protocol-Provenance und Negativ-Controls sind dokumentiert;
+  vor der Integration muss der synchronisierte exakte Head GCC- und Clang-
+  C17-Common-Helper-Controls, anwendbare Common-Contracts sowie frische
+  Hosted-Review-/Actions-/SonarQube-Cloud-Verifikation bestehen.
+
+- [Parent-Common-Smoke-Writer-Output-Path-Containment für SonarQube-Cloud-Security-Befunde](CR-20260729-sonar-common-smoke-writer-path-security.de.md)
+  — fokussierte Pre-/Post-Fix-Grenzprüfungen, Symlink- und Traversal-Negativ-
+  Controls, der legitime Private-Runtime-Root-Control und zugehörige
+  Runtime-Smoke-Security-Tests bestanden lokal. Open-PR-Delivery steht aus;
+  eine Exact-Head-Hosted-Verifikation ist vor der Master-Integration
+  erforderlich.
+
+- [Parent-Apache-Smoke-Harness Literal-Ownership und Diagnose-Streams](CR-20260729-sonar-apache-smoke-harness-maintenance.de.md)
+  — sechs feste Shell-Literale haben jetzt readonly-Owner, vier Diagnosen
+  verwenden stderr, und fokussierte Syntax-, ShellCheck-, Apache-Contract- und
+  Bilingual-Prüfungen bestanden. Vor der Integration muss der Hosted-Status am
+  exakten aktuellen PR-Head gelesen werden.
+
+- [Parent-Apache-RulesSet-Konfigurationspool-Cleanup](CR-20260729-apache-ruleset-pool-cleanup.de.md)
+  — ausgewählter Upstream-#94A-Cleanup, fokussierte GCC-/Clang-APR-Harnesses,
+  frische APXS-Header-Materialisierung sowie private HTTP/1.1- und Graceful-
+  Restart-Controls sind lokal erfasst; Exact-Head-Delivery, gehostete Checks
+  und Resulting-Master-Evidence stehen noch aus.
+
+- [Parent-Envoy-Runtime-Artefaktbegrenzung und Loopback-TLS](CR-20260729-sonar-envoy-runtime-artifact-tls-containment.de.md)
+  — fokussierte temporäre TLS-, Artefaktbegrenzungs-, Konfigurations-
+  Materialisierungs-, Go- und Common-Adoption-Controls bestanden, soweit ihre
+  Voraussetzungen verfügbar sind; die native Envoy-/ext_proc-Runtime ist
+  lokal durch das fehlende Envoy-Binary und die Framework-Regel-Fixture
+  blockiert. Vor der Integration muss der Hosted-Status am exakten aktuellen
+  PR-Head gelesen werden.
+
+- [Parent-HAProxy-HTX-Runtime-Artefaktbegrenzung](CR-20260729-sonar-haproxy-htx-runtime-artifact-containment.de.md)
+  — auf die aktuelle Master-Basis synchronisiert, stellt die Private-Root-
+  Bindung des Metadaten-Event-Tests wieder her und verschiebt das doppelte
+  HAProxy-/Envoy-Deskriptorprotokoll in ein getestetes Parent-Primitiv, ohne die
+  Connector-lokale Serialisierung zu ändern. Der vorherige Exact-Head scheiterte
+  nur am New-Code-Duplikat-Gate; vor der Master-Integration bleibt eine frische
+  Exact-Head-Hosted-Verifikation erforderlich.
+
+- [Parent-CI-Focused-Report-Helper-Deduplizierung und Request-Body-Pfadbegrenzung](CR-20260729-sonar-ci-focused-report-safety.de.md)
+  — lokale Traversal-/Symlink-Regression und legitime In-Root-Controls
+  bestanden; der kombinierte Security-Diff-Review fand keine reportbare Regression.
+  Exact-Head-Hosted-GitHub-Actions- und SonarQube-Cloud-Evidence stehen noch
+  aus.
+
 - [Parent-CI-Runtime-Readiness-Deduplizierung des Remediation-Labels für SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.de.md)
+
+- [Parent-Common-Targeted-Evaluator-C++17-Remediation](CR-20260729-sonar-common-targeted-evaluator-cpp17.de.md)
 
 - [Parent-HAProxy-HTX-Payload-Iterator-Deduplizierung](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.de.md)
 
