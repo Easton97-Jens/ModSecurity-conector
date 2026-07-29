@@ -159,10 +159,9 @@ but an independent `name_for_debug` leak remains outside this delivery scope.
 
 ## Delivery status
 
-At record update time, this is a local task-owned Parent commit and its task
-PR has not yet been published. The current user authorized one new Parent PR
-and protected `master`
-integration after exact-head validation. Parent PRs #123/#124 are source
-references only and are not merged wholesale. Hosted checks, SonarQube Cloud,
-review/thread state, mergeability, protected integration, and resulting-master
-verification must be recorded only after they are actually observed.
+At record update time, task-owned draft Parent PR #183 has been published
+against `master`. The current user authorized protected `master` integration
+after exact-head validation. Parent PRs #123/#124 are source references only
+and are not merged wholesale. Hosted checks, SonarQube Cloud, review/thread
+state, mergeability, protected integration, and resulting-master verification
+must be recorded only after they are actually observed.

@@ -94,4 +94,4 @@ Die Evidence belegt den betroffenen Apache-Konfigurationspool-Lifecycle, frische
 
 ## Delivery-Status
 
-Bei Aktualisierung dieses Records ist dies ein lokaler task-eigener Parent-Commit und sein Task-PR ist noch nicht veröffentlicht. Der aktuelle Nutzer autorisierte einen neuen Parent-PR und die geschützte `master`-Integration nach Exact-Head-Validierung. Parent PRs #123/#124 sind nur Source-Referenzen und werden nicht pauschal gemergt. Hosted Checks, SonarQube Cloud, Review-/Thread-Status, Mergeability, geschützte Integration und Resulting-Master-Verifikation dürfen erst nach tatsächlicher Beobachtung eingetragen werden.
+Bei Aktualisierung dieses Records ist der task-eigene Draft-Parent-PR #183 gegen `master` veröffentlicht. Der aktuelle Nutzer autorisierte die geschützte `master`-Integration nach Exact-Head-Validierung. Parent PRs #123/#124 sind nur Source-Referenzen und werden nicht pauschal gemergt. Hosted Checks, SonarQube Cloud, Review-/Thread-Status, Mergeability, geschützte Integration und Resulting-Master-Verifikation dürfen erst nach tatsächlicher Beobachtung eingetragen werden.
