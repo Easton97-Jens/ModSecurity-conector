@@ -18,13 +18,13 @@ The local HTX smoke helper accepted command-line paths after checking only that 
 
 Its output and evidence reads could therefore name a different filesystem location.
 
-Its client helpers also accepted arbitrary HTTP hosts and ports although the harness topology is exclusively loopback.
+Its client helpers also accepted clear-text HTTP although the harness topology is exclusively local and can authenticate a temporary TLS endpoint.
 
 ## Acceptance criteria
 
 - Every CLI artifact read and write is absolute, non-symlink, and strictly below one private runtime root before filesystem access.
 - Output writes use no-follow descriptors and append safely or replace atomically; a caller cannot redirect an artifact through a symlink.
-- Client connections and readiness probes accept only credential-free `http://127.0.0.1` endpoints with ports in `1..65535`.
+- Client connections accept only credential-free `https://127.0.0.1` endpoints with ports in `1..65535`, and verify a regular private-root certificate file.
 - Existing HTX configuration, evidence schemas, no-body-payload rule, and static lifecycle controls remain unchanged.
 - A future exact-head hosted analysis must show zero new issues and zero New-Code duplicate lines.
 
@@ -34,13 +34,15 @@ Its client helpers also accepted arbitrary HTTP hosts and ports although the har
 
 The helper now requires `--runtime-root` for each artifact-bearing command, and the shell runner validates that root before its first own write.
 
+For each run the runner creates a short-lived `127.0.0.1` certificate and private bundle only under that root; HAProxy binds the TLS frontend to the bundle, while the client trusts the separate regular certificate file through Python's default certificate-verifying context.
+
 A command map and a separate release wait preserve behavior while removing the two current complexity rows.
 
 ## Changed files
 
 - `connectors/haproxy/harness/runtime_artifacts.py` — descriptor-confined private-root artifact helpers.
-- `connectors/haproxy/harness/haproxy_htx_smoke_helper.py` — root-bound paths, loopback-only client endpoints, and lower-complexity command dispatch.
-- `connectors/haproxy/harness/run_haproxy_htx_runtime.sh` — validates the runtime root before writes and supplies it to every artifact command.
+- `connectors/haproxy/harness/haproxy_htx_smoke_helper.py` — root-bound paths, TLS-only loopback client endpoints with certificate verification, and lower-complexity command dispatch.
+- `connectors/haproxy/harness/run_haproxy_htx_runtime.sh` — validates the runtime root before writes, creates a private per-run TLS certificate/bundle, and supplies it to every artifact command.
 - `connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py` and `tests/test_haproxy_htx_transaction_id.py` — updated call contract and negative outside-root, symlink, and non-loopback tests.
 - This English/German Change Record pair and indexes.
 
@@ -50,6 +52,7 @@ A command map and a separate release wait preserve behavior while removing the t
 | --- | --- |
 | `python3 -m unittest tests.test_haproxy_htx_transaction_id` | passed: transaction-ID behavior plus outside-root, symlink, loopback, and runner-root negative controls. |
 | `python3 -m py_compile` for both changed helper modules | passed. |
+| Focused temporary TLS server and helper-client regression | passed: a verified `https://127.0.0.1` certificate chain succeeds; `http` is rejected before a client connection. |
 | `sh -n` and `shellcheck` on the runtime shell runner | passed. |
 | `make check-haproxy-htx-overlay` | passed: existing HTX lifecycle and host-action source contract remains satisfied. |
 | `make check-haproxy-common-adoption` | passed. |
@@ -62,7 +65,7 @@ The harness processes CLI paths and opens loopback sockets.
 
 A private-root invariant now precedes every dynamic artifact sink or source; final files are opened with `O_NOFOLLOW`, and writers require regular files.
 
-The HTTP topology is restricted to local `127.0.0.1`, preserving the deliberate real-host smoke transport without allowing a caller to select a remote destination.
+The smoke client now permits only local `https://127.0.0.1` and verifies the per-run certificate before it exchanges HTTP data with HAProxy. A caller cannot select either a remote destination or clear-text transport.
 
 No authorization, validation, isolation, evidence redaction, Quality Gate, or CI control is weakened.
 
@@ -75,7 +78,7 @@ They are not a live HAProxy/libmodsecurity runtime result and make no promotion 
 ## Known limitations
 
 - The worktree has no initialized Framework submodule, so the focused HTX helper test cannot load its Framework synchronized-upstream fixture locally. Its syntax compiles; the independent Parent transaction-ID/security test is the strongest runnable focused control.
-- The loopback upstream remains deliberately plain HTTP for the version-pinned local HAProxy smoke topology. The separate `python:S5332` candidate requires a genuinely configured TLS fixture and is neither suppressed nor claimed as fixed here.
+- The HAProxy-to-Python upstream remains a separate private local backend. This record claims only the repaired client-to-HAProxy TLS boundary; a different deployment topology needs its own upstream-transport review.
 - Hosted checks and a fresh exact-head SonarQube Cloud analysis are pending.
 
 ## Remaining risks
@@ -92,6 +95,6 @@ The source and focused Parent controls above are the strongest available local e
 
 The candidate is confined to the Parent HAProxy harness and bilingual traceability.
 
-Local validation is complete for the implemented path, loopback-client, and complexity repairs.
+Local validation is complete for the implemented path, TLS loopback-client, and complexity repairs.
 
 It is not committed, pushed, published, hosted-verified, or merged at record authoring.

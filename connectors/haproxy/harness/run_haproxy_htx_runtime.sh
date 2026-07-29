@@ -17,6 +17,9 @@ SYNCHRONIZED_UPSTREAM="$REPO_ROOT/modules/ModSecurity-test-Framework/tests/runne
 SUMMARY="$RUNTIME_ROOT/runtime-summary.txt"
 VERSION_FILE="$RUNTIME_ROOT/haproxy-version.txt"
 UPSTREAM_LOG="$RUNTIME_ROOT/upstream-requests.jsonl"
+TLS_KEY_PATH="$RUNTIME_ROOT/loopback-tls.key"
+TLS_CERTIFICATE_PATH="$RUNTIME_ROOT/loopback-tls.pem"
+TLS_CA_CERTIFICATE_PATH="$RUNTIME_ROOT/loopback-tls.crt"
 BUILD_PROVENANCE=${HAPROXY_HTX_BUILD_PROVENANCE:-$(dirname "$(dirname "$HAPROXY_BIN")")/overlay-build.env}
 FIRST_BYTE_EVIDENCE_PATH=${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-$RUNTIME_ROOT/first-byte-evidence.json}
 RUN_ID=${NO_CRS_RUN_ID:-haproxy-htx-local}
@@ -96,6 +99,24 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+generate_loopback_tls_certificate() {
+    command -v openssl >/dev/null 2>&1 || missing_dependency "OpenSSL is required for the local TLS smoke client"
+    previous_umask=$(umask)
+    umask 077
+    if ! openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+        -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' \
+        -keyout "$TLS_KEY_PATH" -out "$TLS_CA_CERTIFICATE_PATH" >/dev/null 2>&1; then
+        umask "$previous_umask"
+        missing_dependency "OpenSSL could not create the local loopback TLS certificate"
+    fi
+    if ! cat "$TLS_KEY_PATH" "$TLS_CA_CERTIFICATE_PATH" >"$TLS_CERTIFICATE_PATH"; then
+        umask "$previous_umask"
+        missing_dependency "could not assemble the private loopback TLS certificate bundle"
+    fi
+    rm -f "$TLS_KEY_PATH"
+    umask "$previous_umask"
+}
+
 [ -x "$HAPROXY_BIN" ] || missing_dependency "patched HAProxy binary is not executable: $HAPROXY_BIN"
 [ -f "$HELPER" ] || missing_dependency "HTX smoke helper is missing: $HELPER"
 [ -f "$SYNCHRONIZED_UPSTREAM" ] || missing_dependency "synchronized upstream helper is missing: $SYNCHRONIZED_UPSTREAM"
@@ -147,6 +168,7 @@ case "$RUN_ID" in
 esac
 helper prepare-runtime-root
 mkdir -p "$RUNTIME_ROOT/cases"
+generate_loopback_tls_certificate
 [ ! -e "$FIRST_BYTE_EVIDENCE_PATH" ] || {
     echo "haproxy_htx_runtime: FAIL - first-byte evidence output must be fresh: $FIRST_BYTE_EVIDENCE_PATH" >&2
     exit 1
@@ -187,7 +209,8 @@ run_case() {
     mkdir -p "$case_root"
     helper write-rules --path "$rules_file"
     helper write-config --path "$config_file" \
-        --listen-port "$listener_port" --upstream-port "$upstream_port" --rules-file "$rules_file"
+        --listen-port "$listener_port" --upstream-port "$upstream_port" --rules-file "$rules_file" \
+        --tls-certificate "$TLS_CERTIFICATE_PATH"
     if grep -Eq 'filter spoe|send-spoe|http-buffer-request|wait-for-body|res\.body' "$config_file"; then
         echo "haproxy_htx_runtime: FAIL - generated $case_name config contains a compatibility/buffering directive" >&2
         exit 1
@@ -232,30 +255,33 @@ run_case() {
     expected_log=
     case "$case_name" in
         allow)
-            status=$(helper probe --url "http://127.0.0.1:$listener_port/no-crs/allow" \
-                --header 'X-Request-Id: haproxy-htx-allow' --evidence-path "$probe_file")
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/allow" \
+                --header 'X-Request-Id: haproxy-htx-allow' --tls-certificate "$TLS_CA_CERTIFICATE_PATH" \
+                --evidence-path "$probe_file")
             ;;
         phase1_403)
-            status=$(helper probe --url "http://127.0.0.1:$listener_port/no-crs/deny" \
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/deny" \
                 --header 'X-Request-Id: haproxy-htx-phase1-403' --header 'X-Modsec-Smoke: block' \
-                --evidence-path "$probe_file")
+                --tls-certificate "$TLS_CA_CERTIFICATE_PATH" --evidence-path "$probe_file")
             expected_log="modsecurity-htx: request intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=1 status=403 rule_id=$rule_id action=deny"
             ;;
         phase1_429)
-            status=$(helper probe --url "http://127.0.0.1:$listener_port/no-crs/alternative-status" \
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/alternative-status" \
                 --header 'X-Request-Id: haproxy-htx-phase1-429' --header 'X-Modsec-Smoke: alternative-status' \
-                --evidence-path "$probe_file")
+                --tls-certificate "$TLS_CA_CERTIFICATE_PATH" --evidence-path "$probe_file")
             expected_log="modsecurity-htx: request intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=1 status=429 rule_id=$rule_id action=deny"
             ;;
         phase2_client_deny)
-            status=$(helper probe --url "http://127.0.0.1:$listener_port/no-crs/request-body" \
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/request-body" \
                 --method POST --data no-crs-request-body-marker --header 'Content-Type: text/plain' \
-                --header 'X-Request-Id: haproxy-htx-phase2' --evidence-path "$probe_file")
+                --header 'X-Request-Id: haproxy-htx-phase2' --tls-certificate "$TLS_CA_CERTIFICATE_PATH" \
+                --evidence-path "$probe_file")
             expected_log="modsecurity-htx: request-body intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=2 status=403 rule_id=$rule_id action=deny"
             ;;
         phase3_403)
-            status=$(helper probe --url "http://127.0.0.1:$listener_port/no-crs/response-header" \
-                --header 'X-Request-Id: haproxy-htx-phase3-403' --evidence-path "$probe_file")
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/response-header" \
+                --header 'X-Request-Id: haproxy-htx-phase3-403' --tls-certificate "$TLS_CA_CERTIFICATE_PATH" \
+                --evidence-path "$probe_file")
             expected_log="modsecurity-htx: response-header intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=3 status=403 rule_id=$rule_id action=deny"
             ;;
         *) echo "haproxy_htx_runtime: FAIL - unknown case: $case_name" >&2; exit 1 ;;
@@ -373,7 +399,8 @@ run_phase4_safe_barrier() {
 
     helper write-rules --path "$rules_file"
     helper write-config --path "$config_file" \
-        --listen-port "$listener_port" --upstream-port "$synchronized_upstream_port" --rules-file "$rules_file"
+        --listen-port "$listener_port" --upstream-port "$synchronized_upstream_port" --rules-file "$rules_file" \
+        --tls-certificate "$TLS_CERTIFICATE_PATH"
     if grep -Eq 'filter spoe|send-spoe|http-buffer-request|wait-for-body|res\.body' "$config_file"; then
         echo "haproxy_htx_runtime: FAIL - generated $case_name config contains a compatibility/buffering directive" >&2
         exit 1
@@ -416,9 +443,9 @@ run_phase4_safe_barrier() {
     fi
 
     helper streaming-probe \
-        --url "http://127.0.0.1:$listener_port/no-crs/response-body" \
+        --url "https://127.0.0.1:$listener_port/no-crs/response-body" \
         --release-path "$release_file" --first-byte-path "$client_first_byte_file" \
-        --evidence-path "$client_probe_file" --timeout 10 \
+        --evidence-path "$client_probe_file" --tls-certificate "$TLS_CA_CERTIFICATE_PATH" --timeout 10 \
         >"$case_root/streaming-client.stdout.log" \
         2>"$case_root/streaming-client.stderr.log" &
     streaming_client_pid=$!

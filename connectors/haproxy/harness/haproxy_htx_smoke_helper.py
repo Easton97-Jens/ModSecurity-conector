@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import re
 import socket
+import ssl
 import sys
 import threading
 import time
@@ -43,6 +44,8 @@ CANONICAL_RULE_SNIPPETS = (
 UPSTREAM_OK_BODY = b"haproxy-htx-upstream-ok\n"
 UPSTREAM_PHASE4_BODY = b"no-crs-response-body-marker\n"
 HTX_TRANSACTION_ID_MAX_LENGTH = 127
+UPSTREAM_REQUEST_LOG_LABEL = "upstream request log"
+FIRST_BYTE_EVIDENCE_LABEL = "first-byte evidence"
 DECISION_PATTERN = re.compile(
     r"transaction_id=(?P<transaction_id>[A-Za-z0-9._-]+) "
     r"phase=(?P<phase>[0-9]+) status=(?P<status>[0-9]+) "
@@ -125,19 +128,26 @@ def checked_loopback_port(value: int) -> int:
     return value
 
 
-def checked_loopback_http_url(value: str) -> tuple[str, int, str]:
-    """Accept only a credential-free local HTTP smoke endpoint."""
+def checked_loopback_https_url(value: str) -> tuple[str, int, str]:
+    """Accept only a credential-free local HTTPS smoke endpoint."""
 
     parsed = urllib.parse.urlsplit(value)
     if (
-        parsed.scheme != "http"
+        parsed.scheme != "https"
         or parsed.hostname != "127.0.0.1"
         or parsed.username
         or parsed.password
         or parsed.fragment
     ):
-        raise ValueError("probe URL must be a credential-free http://127.0.0.1 endpoint")
+        raise ValueError("probe URL must be a credential-free https://127.0.0.1 endpoint")
     return parsed.hostname, checked_loopback_port(parsed.port or 80), parsed.path or "/"
+
+
+def trusted_loopback_tls_context(root: Path, certificate_path: str) -> ssl.SSLContext:
+    """Trust the current private-root certificate for one TLS smoke client."""
+
+    certificate = checked_path(root, certificate_path, "loopback TLS certificate", must_exist=True)
+    return ssl.create_default_context(cafile=str(certificate))
 
 
 def upstream_profile(raw_path: str) -> tuple[str, str | None, bytes]:
@@ -221,7 +231,7 @@ def serve_upstream(runtime_root: str, port: int, request_log: str | None = None)
     root = verified_runtime_root(runtime_root)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", checked_loopback_port(port)), UpstreamHandler)
     server.runtime_root = root
-    server.request_log = checked_path(root, request_log, "upstream request log", must_exist=False) if request_log else None
+    server.request_log = checked_path(root, request_log, UPSTREAM_REQUEST_LOG_LABEL, must_exist=False) if request_log else None
     server.request_log_lock = threading.Lock()
     try:
         server.serve_forever()
@@ -232,7 +242,7 @@ def serve_upstream(runtime_root: str, port: int, request_log: str | None = None)
 
 def probe(
     runtime_root: str, url: str, header: list[str], method: str, data: str | None,
-    evidence_path: str | None = None,
+    certificate_path: str, evidence_path: str | None = None,
 ) -> int:
     root = verified_runtime_root(runtime_root)
     headers: dict[str, str] = {}
@@ -242,15 +252,16 @@ def probe(
             raise ValueError(f"invalid header: {item!r}")
         headers[name.strip()] = value.strip()
     request_body = None if data is None else data.encode("utf-8")
-    host, port, request_path = checked_loopback_http_url(url)
+    checked_loopback_https_url(url)
+    context = trusted_loopback_tls_context(root, certificate_path)
     request = urllib.request.Request(
-        f"http://{host}:{port}{request_path}" + (f"?{urllib.parse.urlsplit(url).query}" if urllib.parse.urlsplit(url).query else ""),
+        url,
         data=request_body,
         headers=headers,
         method=method,
     )
     try:
-        with urllib.request.urlopen(request, timeout=2) as response:
+        with urllib.request.urlopen(request, context=context, timeout=2) as response:
             response_body = response.read()
             status = int(response.status)
             content_type = str(response.headers.get("content-type") or "")[:256]
@@ -274,6 +285,7 @@ def streaming_probe(
     release_path: str,
     first_byte_path: str,
     evidence_path: str,
+    certificate_path: str,
     timeout: float,
 ) -> int:
     """Read one body byte through HAProxy before releasing a paused upstream.
@@ -287,14 +299,19 @@ def streaming_probe(
     root = verified_runtime_root(runtime_root)
     if timeout <= 0:
         raise ValueError("timeout must be positive")
-    host, port, request_path = checked_loopback_http_url(url)
+    host, port, request_path = checked_loopback_https_url(url)
     parsed = urllib.parse.urlsplit(url)
     if parsed.query:
         request_path += f"?{parsed.query}"
     release = checked_path(root, release_path, "upstream release file", must_exist=False)
-    first_byte_output = checked_path(root, first_byte_path, "first-byte evidence", must_exist=False)
+    first_byte_output = checked_path(root, first_byte_path, FIRST_BYTE_EVIDENCE_LABEL, must_exist=False)
     evidence_output = checked_path(root, evidence_path, "streaming probe evidence", must_exist=False)
-    connection = http.client.HTTPConnection(host, port, timeout=timeout)
+    connection = http.client.HTTPSConnection(
+        host,
+        port,
+        context=trusted_loopback_tls_context(root, certificate_path),
+        timeout=timeout,
+    )
     response: http.client.HTTPResponse | None = None
     try:
         connection.request(
@@ -436,7 +453,7 @@ def write_first_byte_evidence(
     runtime_root: str, path: str, paused_path: str, client_first_byte_path: str,
 ) -> int:
     root = verified_runtime_root(runtime_root)
-    output = checked_path(root, path, "first-byte evidence", must_exist=False)
+    output = checked_path(root, path, FIRST_BYTE_EVIDENCE_LABEL, must_exist=False)
     write_json(root, output, first_byte_evidence(root, paused_path, client_first_byte_path))
     return 0
 
@@ -474,12 +491,21 @@ def config_value(value: str, name: str) -> str:
 
 
 def write_config(
-    runtime_root: str, path: str, listen_port: int, upstream_port: int, rules_file: str,
+    runtime_root: str,
+    path: str,
+    listen_port: int,
+    upstream_port: int,
+    rules_file: str,
+    certificate_path: str,
 ) -> int:
     root = verified_runtime_root(runtime_root)
     rules = config_value(
         str(checked_path(root, rules_file, "rules file", must_exist=True)),
         "rules file",
+    )
+    certificate = config_value(
+        str(checked_path(root, certificate_path, "HAProxy TLS certificate", must_exist=True)),
+        "HAProxy TLS certificate",
     )
     listen_port = checked_loopback_port(listen_port)
     upstream_port = checked_loopback_port(upstream_port)
@@ -493,7 +519,7 @@ defaults
     timeout server 5s
 
 frontend htx_in
-    bind 127.0.0.1:{listen_port}
+    bind 127.0.0.1:{listen_port} ssl crt {certificate}
     filter modsecurity-htx rules-file {rules} phase4-mode safe
     default_backend htx_upstream
 
@@ -532,11 +558,11 @@ def probe_status(runtime_root: str, path: str) -> int:
 
 def upstream_count(runtime_root: str, path: str, profile: str) -> int:
     root = verified_runtime_root(runtime_root)
-    target = checked_path(root, path, "upstream request log", must_exist=False)
+    target = checked_path(root, path, UPSTREAM_REQUEST_LOG_LABEL, must_exist=False)
     if not target.exists():
         return 0
     count = 0
-    for line in read_text(root, target, "upstream request log").splitlines():
+    for line in read_text(root, target, UPSTREAM_REQUEST_LOG_LABEL).splitlines():
         if not line:
             continue
         try:
@@ -555,11 +581,11 @@ def upstream_transaction_observed(
 
     expected_transaction_id = safe_htx_transaction_id(transaction_id)
     root = verified_runtime_root(runtime_root)
-    target = checked_path(root, path, "upstream request log", must_exist=False)
+    target = checked_path(root, path, UPSTREAM_REQUEST_LOG_LABEL, must_exist=False)
     if not target.is_file():
         return False
     matches = 0
-    for line in read_text(root, target, "upstream request log").splitlines():
+    for line in read_text(root, target, UPSTREAM_REQUEST_LOG_LABEL).splitlines():
         if not line:
             continue
         try:
@@ -734,7 +760,7 @@ def phase4_safe_event(
     probe = read_probe(runtime_root, probe_path)
     if probe["status"] != 200 or int(probe["response_bytes"]) < 1:
         raise ValueError("HAProxy safe P4 client outcome must preserve HTTP 200 with a body")
-    evidence = load_json_object(root, first_byte_evidence_path, "first-byte evidence")
+    evidence = load_json_object(root, first_byte_evidence_path, FIRST_BYTE_EVIDENCE_LABEL)
     required_true = (
         "promotion_eligible",
         "client_first_byte_received",
@@ -754,7 +780,7 @@ def phase4_safe_event(
         or evidence.get("upstream_response_finished_at_first_byte") is not False
         or evidence.get("connector_owned_full_response_buffer") is not False
     ):
-        raise ValueError("first-byte evidence is not a complete real-host no-buffer proof")
+        raise ValueError(f"{FIRST_BYTE_EVIDENCE_LABEL} is not a complete real-host no-buffer proof")
     first_chunk_size = evidence.get("first_chunk_size")
     body_seen = evidence.get("body_bytes_seen")
     body_inspected = evidence.get("body_bytes_inspected")
@@ -762,7 +788,7 @@ def phase4_safe_event(
         isinstance(value, bool) or not isinstance(value, int) or value < 0
         for value in (first_chunk_size, body_seen, body_inspected)
     ) or int(first_chunk_size) < 1 or int(body_inspected) > int(body_seen):
-        raise ValueError("first-byte evidence has invalid body accounting")
+        raise ValueError(f"{FIRST_BYTE_EVIDENCE_LABEL} has invalid body accounting")
     safe_run_id = safe_token(run_id, "run id", maximum=128)
     safe_transport_case = safe_token(transport_case_id, "transport case id")
     transaction_id = safe_htx_transaction_id(decision["transaction_id"])
@@ -857,12 +883,14 @@ def parse_args() -> argparse.Namespace:
     request.add_argument("--header", action="append", default=[])
     request.add_argument("--method", default="GET")
     request.add_argument("--data")
+    request.add_argument("--tls-certificate", required=True)
     request.add_argument("--evidence-path")
     streaming = subparsers.add_parser("streaming-probe")
     streaming.add_argument("--url", required=True)
     streaming.add_argument("--release-path", required=True)
     streaming.add_argument("--first-byte-path", required=True)
     streaming.add_argument("--evidence-path", required=True)
+    streaming.add_argument("--tls-certificate", required=True)
     streaming.add_argument("--timeout", type=float, default=10.0)
     wait = subparsers.add_parser("wait-file")
     wait.add_argument("--path", required=True)
@@ -885,6 +913,7 @@ def parse_args() -> argparse.Namespace:
     config.add_argument("--listen-port", required=True, type=int)
     config.add_argument("--upstream-port", required=True, type=int)
     config.add_argument("--rules-file", required=True)
+    config.add_argument("--tls-certificate", required=True)
     count = subparsers.add_parser("upstream-count")
     count.add_argument("--path", required=True)
     count.add_argument("--profile", required=True, choices=("ordinary", "phase2", "phase3", "phase4"))
@@ -956,11 +985,11 @@ def command_handlers(args: argparse.Namespace) -> dict[str, Callable[[], int]]:
         "serve-upstream": lambda: serve_upstream(args.runtime_root, args.port, args.request_log),
         "probe": lambda: probe(
             args.runtime_root, args.url, args.header, args.method, args.data,
-            args.evidence_path,
+            args.tls_certificate, args.evidence_path,
         ),
         "streaming-probe": lambda: streaming_probe(
             args.runtime_root, args.url, args.release_path, args.first_byte_path,
-            args.evidence_path, args.timeout,
+            args.evidence_path, args.tls_certificate, args.timeout,
         ),
         "wait-file": lambda: wait_for_file(args.runtime_root, args.path, args.timeout),
         "synchronized-upstream-port": lambda: print_result(
@@ -976,7 +1005,7 @@ def command_handlers(args: argparse.Namespace) -> dict[str, Callable[[], int]]:
         "write-rules": lambda: write_rules(args.runtime_root, args.path, args.canonical_rules),
         "write-config": lambda: write_config(
             args.runtime_root, args.path, args.listen_port, args.upstream_port,
-            args.rules_file,
+            args.rules_file, args.tls_certificate,
         ),
         "upstream-count": lambda: print_result(
             upstream_count(args.runtime_root, args.path, args.profile),

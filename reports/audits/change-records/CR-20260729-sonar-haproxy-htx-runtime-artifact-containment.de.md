@@ -18,13 +18,13 @@ Der lokale HTX-Smoke-Helper akzeptierte Kommandozeilenpfade nach der bloßen Pr�
 
 Seine Output- und Evidence-Lesezugriffe konnten daher einen anderen Dateisystemort benennen.
 
-Seine Client-Helper akzeptierten zudem beliebige HTTP-Hosts und Ports, obwohl die Harness-Topologie ausschließlich Loopback verwendet.
+Seine Client-Helper akzeptierten zudem Klartext-HTTP, obwohl die Harness-Topologie ausschließlich lokal ist und einen temporären TLS-Endpunkt authentisieren kann.
 
 ## Akzeptanzkriterien
 
 - Jeder CLI-Artefakt-Lese- und Schreibzugriff ist absolut, symlink-frei und vor dem Dateisystemzugriff strikt unterhalb eines privaten Runtime-Roots.
 - Output-Schreibzugriffe verwenden No-Follow-Deskriptoren und hängen sicher an oder ersetzen atomar; ein Aufrufer kann ein Artefakt nicht über einen Symlink umleiten.
-- Client-Verbindungen und Bereitschaftsprobes akzeptieren nur credential-freie `http://127.0.0.1`-Endpunkte mit Ports in `1..65535`.
+- Client-Verbindungen akzeptieren nur credential-freie `https://127.0.0.1`-Endpunkte mit Ports in `1..65535` und prüfen eine reguläre Zertifikatsdatei unter dem privaten Runtime-Root.
 - Bestehende HTX-Konfiguration, Evidence-Schemas, die No-Body-Payload-Regel und statische Lifecycle-Kontrollen bleiben unverändert.
 - Eine spätere Exact-Head-Hosted-Analyse muss null neue Issues und null New-Code-Duplikatzeilen zeigen.
 
@@ -34,13 +34,15 @@ Seine Client-Helper akzeptierten zudem beliebige HTTP-Hosts und Ports, obwohl di
 
 Der Helper fordert jetzt für jeden Artefaktbefehl `--runtime-root`; der Shell-Runner prüft diesen Root vor seinem ersten eigenen Schreibzugriff.
 
+Der Runner erstellt für jeden Lauf ein kurzlebiges Zertifikat für `127.0.0.1` und ein Private-Key-Bundle ausschließlich unter diesem Root. HAProxy bindet sein TLS-Frontend an das Bundle, während der Client die separate reguläre Zertifikatsdatei über den standardmäßigen prüfenden Python-Kontext vertraut.
+
 Command-Map und ausgelagertes Release-Warten erhalten das Verhalten und entfernen die zwei aktuellen Komplexitätszeilen.
 
 ## Geänderte Dateien
 
 - `connectors/haproxy/harness/runtime_artifacts.py` — deskriptorbegrenzte Hilfen für private Root-Artefakte.
-- `connectors/haproxy/harness/haproxy_htx_smoke_helper.py` — root-gebundene Pfade, reine Loopback-Client-Endpunkte und weniger komplexes Command-Dispatch.
-- `connectors/haproxy/harness/run_haproxy_htx_runtime.sh` — prüft den Runtime-Root vor Schreibzugriffen und übergibt ihn an jeden Artefaktbefehl.
+- `connectors/haproxy/harness/haproxy_htx_smoke_helper.py` — root-gebundene Pfade, reine TLS-Loopback-Client-Endpunkte mit Zertifikatsprüfung und weniger komplexes Command-Dispatch.
+- `connectors/haproxy/harness/run_haproxy_htx_runtime.sh` — prüft den Runtime-Root vor Schreibzugriffen, erstellt ein privates TLS-Zertifikat/-Bundle je Lauf und übergibt ihn an jeden Artefaktbefehl.
 - `connectors/haproxy/harness/test_haproxy_htx_smoke_helper.py` und `tests/test_haproxy_htx_transaction_id.py` — aktualisierter Aufrufvertrag sowie negative Tests für außerhalb des Roots, Symlinks und Nicht-Loopback.
 - Dieses englisch/deutsche Change-Record-Paar und seine Indizes.
 
@@ -50,6 +52,7 @@ Command-Map und ausgelagertes Release-Warten erhalten das Verhalten und entferne
 | --- | --- |
 | `python3 -m unittest tests.test_haproxy_htx_transaction_id` | bestanden: Transaction-ID-Verhalten sowie negative Outside-Root-, Symlink-, Loopback- und Runner-Root-Kontrollen. |
 | `python3 -m py_compile` für beide geänderten Helper-Module | bestanden. |
+| Fokussierte temporäre TLS-Server-/Helper-Client-Regression | bestanden: eine verifizierte `https://127.0.0.1`-Zertifikatskette funktioniert; `http` wird vor einer Client-Verbindung abgewiesen. |
 | `sh -n` und `shellcheck` für den Runtime-Shell-Runner | bestanden. |
 | `make check-haproxy-htx-overlay` | bestanden: bestehender HTX-Lifecycle- und Host-Action-Source-Contract bleibt erfüllt. |
 | `make check-haproxy-common-adoption` | bestanden. |
@@ -62,7 +65,7 @@ Der Harness verarbeitet CLI-Pfade und öffnet Loopback-Sockets.
 
 Eine Private-Root-Invariante geht jetzt jedem dynamischen Artefakt-Sink oder -Source voraus; finale Dateien werden mit `O_NOFOLLOW` geöffnet und Writer fordern reguläre Dateien.
 
-Die HTTP-Topologie ist auf lokales `127.0.0.1` begrenzt. Das erhält den absichtlichen Real-Host-Smoke-Transport, ohne dass ein Aufrufer ein Remote-Ziel auswählen kann.
+Der Smoke-Client erlaubt jetzt nur lokales `https://127.0.0.1` und prüft das Zertifikat pro Lauf, bevor er HTTP-Daten mit HAProxy austauscht. Ein Aufrufer kann weder ein Remote-Ziel noch Klartexttransport auswählen.
 
 Keine Autorisierungs-, Validierungs-, Isolations-, Evidence-Redaktions-, Quality-Gate- oder CI-Kontrolle wird gelockert.
 
@@ -75,7 +78,7 @@ Dies ist kein Live-HAProxy-/libmodsecurity-Runtime-Ergebnis und behauptet keine 
 ## Bekannte Einschränkungen
 
 - Der Worktree hat kein initialisiertes Framework-Submodul; deshalb kann der fokussierte HTX-Helper-Test seine Framework-Synchronized-Upstream-Fixture lokal nicht laden. Seine Syntax kompiliert; der unabhängige Parent-Transaction-ID-/Security-Test ist die stärkste ausführbare Kontrolle.
-- Der Loopback-Upstream bleibt absichtlich Plain-HTTP für die version-pinned lokale HAProxy-Smoke-Topologie. Der getrennte `python:S5332`-Kandidat braucht eine wirklich konfigurierte TLS-Fixture und wird hier weder unterdrückt noch als behoben dargestellt.
+- Der HAProxy-zu-Python-Upstream bleibt ein separater privater lokaler Backend-Kanal. Dieser Record beansprucht nur die reparierte Client-zu-HAProxy-TLS-Grenze; eine andere Deployment-Topologie benötigt ein eigenes Upstream-Transport-Review.
 - Hosted-Checks und eine frische Exact-Head-SonarQube-Cloud-Analyse stehen aus.
 
 ## Verbleibende Risiken
@@ -92,6 +95,6 @@ Die genannten Source- und fokussierten Parent-Kontrollen sind die stärkste verf
 
 Der Kandidat ist auf Parent-HAProxy-Harness und bilinguale Traceability begrenzt.
 
-Die lokale Validierung ist für die implementierten Pfad-, Loopback-Client- und Komplexitätsreparaturen abgeschlossen.
+Die lokale Validierung ist für die implementierten Pfad-, TLS-Loopback-Client- und Komplexitätsreparaturen abgeschlossen.
 
 Zum Zeitpunkt der Record-Erstellung ist er nicht committed, gepusht, veröffentlicht, hosted-verifiziert oder gemergt.
