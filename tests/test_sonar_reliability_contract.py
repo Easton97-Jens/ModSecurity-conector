@@ -605,9 +605,9 @@ static void test_response_header_key_marks_response_for_nonbytes(void) {
     free_notify_request(&request);
 }
 
-static void test_notify_body_argument(
+static void test_notify_body_key_argument(
+        const char *argument_name,
         unsigned int type,
-        int response_body,
         int expected_body,
         int expected_response,
         int expected_response_body) {
@@ -626,8 +626,9 @@ static void test_notify_body_argument(
     } else {
         assert(append_typed_bool(&argument, 1) == 0);
     }
-    assert(parse_notify_body_argument(&request, argument.data, argument.len,
-        &pos, response_body) == 0);
+    assert(parse_notify_body_key_argument(&request,
+        (const unsigned char *)argument_name, strlen(argument_name),
+        argument.data, argument.len, &pos) == 0);
     assert(pos == argument.len);
     assert(request.has_body == expected_body);
     assert(request.is_response == expected_response);
@@ -640,11 +641,29 @@ static void test_notify_body_argument(
 }
 
 static void test_notify_body_arguments_preserve_type_and_response_role(void) {
-    test_notify_body_argument(SPOP_DATA_STR, 0, 1, 0, 0);
-    test_notify_body_argument(SPOP_DATA_BIN, 0, 1, 0, 0);
-    test_notify_body_argument(SPOP_DATA_STR, 1, 1, 1, 1);
-    test_notify_body_argument(SPOP_DATA_BIN, 1, 1, 1, 1);
-    test_notify_body_argument(SPOP_DATA_BOOL, 1, 0, 0, 0);
+    test_notify_body_key_argument("body", SPOP_DATA_STR, 1, 0, 0);
+    test_notify_body_key_argument("body", SPOP_DATA_BIN, 1, 0, 0);
+    test_notify_body_key_argument("response_body", SPOP_DATA_STR, 1, 1, 1);
+    test_notify_body_key_argument("response_body", SPOP_DATA_BIN, 1, 1, 1);
+    test_notify_body_key_argument("response_body", SPOP_DATA_BOOL, 0, 0, 0);
+}
+
+static void test_unknown_body_key_does_not_consume_or_mutate(void) {
+    spop_buffer argument;
+    notify_request request;
+    size_t pos = 0U;
+
+    memset(&argument, 0, sizeof(argument));
+    memset(&request, 0, sizeof(request));
+    assert(append_typed_string(&argument, "body") == 0);
+    assert(parse_notify_body_key_argument(&request,
+        (const unsigned char *)"unknown_body", sizeof("unknown_body") - 1U,
+        argument.data, argument.len, &pos) == 1);
+    assert(pos == 0U);
+    assert(request.has_body == 0);
+    assert(request.is_response == 0);
+    assert(request.is_response_body == 0);
+    free_notify_request(&request);
 }
 
 int main(void) {
@@ -655,6 +674,7 @@ int main(void) {
     test_notify_header_arguments_preserve_type_and_response_role();
     test_response_header_key_marks_response_for_nonbytes();
     test_notify_body_arguments_preserve_type_and_response_role();
+    test_unknown_body_key_does_not_consume_or_mutate();
     return 0;
 }
 '''.replace("__RUNTIME_SOURCE__", runtime_source.as_posix())
