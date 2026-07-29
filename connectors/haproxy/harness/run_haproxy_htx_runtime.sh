@@ -1,21 +1,25 @@
 #!/bin/sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-CONNECTOR_DIR=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
-REPO_ROOT=$(CDPATH= cd "$CONNECTOR_DIR/../.." && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+CONNECTOR_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
+REPO_ROOT=$(CDPATH='' cd -- "$CONNECTOR_DIR/../.." && pwd)
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 HAPROXY_BIN=${HAPROXY_BIN:-$BUILD_ROOT/haproxy-htx-runtime-smoke/overlay-build/worktree/haproxy}
 RUNTIME_ROOT=${RUNTIME_ROOT:-$BUILD_ROOT/haproxy-htx-runtime-smoke}
 EVENT_LOG_PATH=${EVENT_LOG_PATH:-$RUNTIME_ROOT/events.jsonl}
 HOST_EVIDENCE_LOG_PATH=${HAPROXY_HTX_HOST_EVIDENCE_LOG_PATH:-$RUNTIME_ROOT/host-runtime-evidence.jsonl}
-CANONICAL_RULES_FILE=${HAPROXY_HTX_CANONICAL_RULES_FILE:-$REPO_ROOT/modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf}
+readonly HAPROXY_HTX_CANONICAL_RULES_FILE="$REPO_ROOT/modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf"
+CANONICAL_RULES_FILE=$HAPROXY_HTX_CANONICAL_RULES_FILE
 PYTHON_BIN=${PYTHON:-python3}
 HELPER="$SCRIPT_DIR/haproxy_htx_smoke_helper.py"
 SYNCHRONIZED_UPSTREAM="$REPO_ROOT/modules/ModSecurity-test-Framework/tests/runners/synchronized_upstream.py"
 SUMMARY="$RUNTIME_ROOT/runtime-summary.txt"
 VERSION_FILE="$RUNTIME_ROOT/haproxy-version.txt"
 UPSTREAM_LOG="$RUNTIME_ROOT/upstream-requests.jsonl"
+TLS_KEY_PATH="$RUNTIME_ROOT/loopback-tls.key"
+TLS_CERTIFICATE_PATH="$RUNTIME_ROOT/loopback-tls.pem"
+TLS_CA_CERTIFICATE_PATH="$RUNTIME_ROOT/loopback-tls.crt"
 BUILD_PROVENANCE=${HAPROXY_HTX_BUILD_PROVENANCE:-$(dirname "$(dirname "$HAPROXY_BIN")")/overlay-build.env}
 FIRST_BYTE_EVIDENCE_PATH=${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-$RUNTIME_ROOT/first-byte-evidence.json}
 RUN_ID=${NO_CRS_RUN_ID:-haproxy-htx-local}
@@ -29,6 +33,19 @@ missing_dependency() {
     reason=$1
     echo "haproxy_htx_runtime: BLOCKED - $reason" >&2
     exit 77
+}
+
+helper() {
+    helper_command=$1
+    shift
+    case "$helper_command" in
+        free-port|wait-port)
+            "$PYTHON_BIN" "$HELPER" "$helper_command" "$@"
+            ;;
+        *)
+            "$PYTHON_BIN" "$HELPER" "$helper_command" "$@" --runtime-root "$RUNTIME_ROOT"
+            ;;
+    esac
 }
 
 cleanup_haproxy() {
@@ -82,6 +99,24 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+generate_loopback_tls_certificate() {
+    command -v openssl >/dev/null 2>&1 || missing_dependency "OpenSSL is required for the local TLS smoke client"
+    previous_umask=$(umask)
+    umask 077
+    if ! openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+        -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' \
+        -keyout "$TLS_KEY_PATH" -out "$TLS_CA_CERTIFICATE_PATH" >/dev/null 2>&1; then
+        umask "$previous_umask"
+        missing_dependency "OpenSSL could not create the local loopback TLS certificate"
+    fi
+    if ! cat "$TLS_KEY_PATH" "$TLS_CA_CERTIFICATE_PATH" >"$TLS_CERTIFICATE_PATH"; then
+        umask "$previous_umask"
+        missing_dependency "could not assemble the private loopback TLS certificate bundle"
+    fi
+    rm -f "$TLS_KEY_PATH"
+    umask "$previous_umask"
+}
+
 [ -x "$HAPROXY_BIN" ] || missing_dependency "patched HAProxy binary is not executable: $HAPROXY_BIN"
 [ -f "$HELPER" ] || missing_dependency "HTX smoke helper is missing: $HELPER"
 [ -f "$SYNCHRONIZED_UPSTREAM" ] || missing_dependency "synchronized upstream helper is missing: $SYNCHRONIZED_UPSTREAM"
@@ -119,6 +154,10 @@ case "$FIRST_BYTE_EVIDENCE_PATH" in
         ;;
     *) ;;
 esac
+case "$FIRST_BYTE_EVIDENCE_PATH" in
+    "$RUNTIME_ROOT"/*) ;;
+    *) echo "haproxy_htx_runtime: FAIL - FULL_LIFECYCLE_EVIDENCE_OUTPUT must be under RUNTIME_ROOT" >&2; exit 1 ;;
+esac
 case "$RUN_ID" in
     [A-Za-z0-9]*) ;;
     *) echo "haproxy_htx_runtime: FAIL - NO_CRS_RUN_ID is unsafe" >&2; exit 1 ;;
@@ -127,7 +166,9 @@ case "$RUN_ID" in
     *[!A-Za-z0-9._-]*) echo "haproxy_htx_runtime: FAIL - NO_CRS_RUN_ID is unsafe" >&2; exit 1 ;;
     *) ;;
 esac
+helper prepare-runtime-root
 mkdir -p "$RUNTIME_ROOT/cases"
+generate_loopback_tls_certificate
 [ ! -e "$FIRST_BYTE_EVIDENCE_PATH" ] || {
     echo "haproxy_htx_runtime: FAIL - first-byte evidence output must be fresh: $FIRST_BYTE_EVIDENCE_PATH" >&2
     exit 1
@@ -141,8 +182,8 @@ if ! grep -Fq 'HAProxy version 3.2.21' "$VERSION_FILE"; then
     exit 1
 fi
 
-upstream_port=$("$PYTHON_BIN" "$HELPER" free-port)
-"$PYTHON_BIN" "$HELPER" serve-upstream --port "$upstream_port" --request-log "$UPSTREAM_LOG" \
+upstream_port=$(helper free-port)
+helper serve-upstream --port "$upstream_port" --request-log "$UPSTREAM_LOG" \
     >"$RUNTIME_ROOT/upstream.stdout.log" 2>"$RUNTIME_ROOT/upstream.stderr.log" &
 upstream_pid=$!
 phase2_upstream_request_count=not_observed
@@ -157,18 +198,19 @@ run_case() {
     upstream_profile=$5
     expected_upstream_requests=$6
     host_action=$7
-    listener_port=$("$PYTHON_BIN" "$HELPER" free-port)
+    listener_port=$(helper free-port)
     case_root="$RUNTIME_ROOT/cases/$case_name"
     rules_file="$case_root/rules.conf"
     config_file="$case_root/haproxy.cfg"
     log_file="$case_root/haproxy.stderr.log"
     probe_file="$case_root/client-probe.json"
-    before_upstream=$("$PYTHON_BIN" "$HELPER" upstream-count --path "$UPSTREAM_LOG" --profile "$upstream_profile")
+    before_upstream=$(helper upstream-count --path "$UPSTREAM_LOG" --profile "$upstream_profile")
 
     mkdir -p "$case_root"
-    "$PYTHON_BIN" "$HELPER" write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FILE"
-    "$PYTHON_BIN" "$HELPER" write-config --path "$config_file" \
-        --listen-port "$listener_port" --upstream-port "$upstream_port" --rules-file "$rules_file"
+    helper write-rules --path "$rules_file"
+    helper write-config --path "$config_file" \
+        --listen-port "$listener_port" --upstream-port "$upstream_port" --rules-file "$rules_file" \
+        --tls-certificate "$TLS_CERTIFICATE_PATH"
     if grep -Eq 'filter spoe|send-spoe|http-buffer-request|wait-for-body|res\.body' "$config_file"; then
         echo "haproxy_htx_runtime: FAIL - generated $case_name config contains a compatibility/buffering directive" >&2
         exit 1
@@ -199,7 +241,7 @@ run_case() {
             sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$log_file" >&2 || true
             exit 1
         fi
-        if "$PYTHON_BIN" "$HELPER" wait-port --port "$listener_port" >/dev/null 2>&1; then
+        if helper wait-port --port "$listener_port" >/dev/null 2>&1; then
             ready=1
             break
         fi
@@ -213,30 +255,33 @@ run_case() {
     expected_log=
     case "$case_name" in
         allow)
-            status=$("$PYTHON_BIN" "$HELPER" probe --url "http://127.0.0.1:$listener_port/no-crs/allow" \
-                --header 'X-Request-Id: haproxy-htx-allow' --evidence-path "$probe_file")
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/allow" \
+                --header 'X-Request-Id: haproxy-htx-allow' --tls-certificate "$TLS_CA_CERTIFICATE_PATH" \
+                --evidence-path "$probe_file")
             ;;
         phase1_403)
-            status=$("$PYTHON_BIN" "$HELPER" probe --url "http://127.0.0.1:$listener_port/no-crs/deny" \
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/deny" \
                 --header 'X-Request-Id: haproxy-htx-phase1-403' --header 'X-Modsec-Smoke: block' \
-                --evidence-path "$probe_file")
+                --tls-certificate "$TLS_CA_CERTIFICATE_PATH" --evidence-path "$probe_file")
             expected_log="modsecurity-htx: request intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=1 status=403 rule_id=$rule_id action=deny"
             ;;
         phase1_429)
-            status=$("$PYTHON_BIN" "$HELPER" probe --url "http://127.0.0.1:$listener_port/no-crs/alternative-status" \
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/alternative-status" \
                 --header 'X-Request-Id: haproxy-htx-phase1-429' --header 'X-Modsec-Smoke: alternative-status' \
-                --evidence-path "$probe_file")
+                --tls-certificate "$TLS_CA_CERTIFICATE_PATH" --evidence-path "$probe_file")
             expected_log="modsecurity-htx: request intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=1 status=429 rule_id=$rule_id action=deny"
             ;;
         phase2_client_deny)
-            status=$("$PYTHON_BIN" "$HELPER" probe --url "http://127.0.0.1:$listener_port/no-crs/request-body" \
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/request-body" \
                 --method POST --data no-crs-request-body-marker --header 'Content-Type: text/plain' \
-                --header 'X-Request-Id: haproxy-htx-phase2' --evidence-path "$probe_file")
+                --header 'X-Request-Id: haproxy-htx-phase2' --tls-certificate "$TLS_CA_CERTIFICATE_PATH" \
+                --evidence-path "$probe_file")
             expected_log="modsecurity-htx: request-body intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=2 status=403 rule_id=$rule_id action=deny"
             ;;
         phase3_403)
-            status=$("$PYTHON_BIN" "$HELPER" probe --url "http://127.0.0.1:$listener_port/no-crs/response-header" \
-                --header 'X-Request-Id: haproxy-htx-phase3-403' --evidence-path "$probe_file")
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/response-header" \
+                --header 'X-Request-Id: haproxy-htx-phase3-403' --tls-certificate "$TLS_CA_CERTIFICATE_PATH" \
+                --evidence-path "$probe_file")
             expected_log="modsecurity-htx: response-header intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=3 status=403 rule_id=$rule_id action=deny"
             ;;
         *) echo "haproxy_htx_runtime: FAIL - unknown case: $case_name" >&2; exit 1 ;;
@@ -246,7 +291,7 @@ run_case() {
         exit 1
     fi
     cleanup_haproxy
-    after_upstream=$("$PYTHON_BIN" "$HELPER" upstream-count --path "$UPSTREAM_LOG" --profile "$upstream_profile")
+    after_upstream=$(helper upstream-count --path "$UPSTREAM_LOG" --profile "$upstream_profile")
     actual_upstream_requests=$((after_upstream - before_upstream))
     case "$expected_upstream_requests" in
         0-or-1)
@@ -286,23 +331,23 @@ run_case() {
         exit 1
     fi
     if [ -n "$expected_log" ]; then
-        "$PYTHON_BIN" "$HELPER" write-host-evidence --path "$HOST_EVIDENCE_LOG_PATH" \
+        helper write-host-evidence --path "$HOST_EVIDENCE_LOG_PATH" \
             --case "$case_name" --phase "$phase" --rule-id "$rule_id" --probe-path "$probe_file" \
             --upstream-requests "$actual_upstream_requests" --host-action "$host_action" \
             --decision-log "$log_file"
     else
-        "$PYTHON_BIN" "$HELPER" write-host-evidence --path "$HOST_EVIDENCE_LOG_PATH" \
+        helper write-host-evidence --path "$HOST_EVIDENCE_LOG_PATH" \
             --case "$case_name" --phase "$phase" --rule-id "$rule_id" --probe-path "$probe_file" \
             --upstream-requests "$actual_upstream_requests" --host-action "$host_action"
     fi
     case "$host_action" in
         enforced_reply)
             if [ "$phase" -eq 3 ]; then
-                "$PYTHON_BIN" "$HELPER" write-event --path "$EVENT_LOG_PATH" --case "$case_name" \
+                helper write-event --path "$EVENT_LOG_PATH" --case "$case_name" \
                     --decision-log "$log_file" --phase "$phase" --rule-id "$rule_id" \
                     --observed-status "$status" --host-action enforced_reply --original-http-status 200
             else
-                "$PYTHON_BIN" "$HELPER" write-event --path "$EVENT_LOG_PATH" --case "$case_name" \
+                helper write-event --path "$EVENT_LOG_PATH" --case "$case_name" \
                     --decision-log "$log_file" --phase "$phase" --rule-id "$rule_id" \
                     --observed-status "$status" --host-action enforced_reply
             fi
@@ -319,7 +364,7 @@ run_phase4_safe_barrier() {
     phase=4
     rule_id=1100301
     expected_status=200
-    listener_port=$("$PYTHON_BIN" "$HELPER" free-port)
+    listener_port=$(helper free-port)
     case_root="$RUNTIME_ROOT/cases/$case_name"
     rules_file="$case_root/rules.conf"
     config_file="$case_root/haproxy.cfg"
@@ -345,16 +390,17 @@ run_phase4_safe_barrier() {
         --timeout 10 >"$case_root/synchronized-upstream.stdout.log" \
         2>"$case_root/synchronized-upstream.stderr.log" &
     sync_upstream_pid=$!
-    if ! "$PYTHON_BIN" "$HELPER" wait-file --path "$ready_file" --timeout 10; then
+    if ! helper wait-file --path "$ready_file" --timeout 10; then
         echo "haproxy_htx_runtime: FAIL - $case_name synchronized upstream did not become ready" >&2
         sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/synchronized-upstream.stderr.log" >&2 || true
         exit 1
     fi
-    synchronized_upstream_port=$("$PYTHON_BIN" "$HELPER" synchronized-upstream-port --path "$ready_file")
+    synchronized_upstream_port=$(helper synchronized-upstream-port --path "$ready_file")
 
-    "$PYTHON_BIN" "$HELPER" write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FILE"
-    "$PYTHON_BIN" "$HELPER" write-config --path "$config_file" \
-        --listen-port "$listener_port" --upstream-port "$synchronized_upstream_port" --rules-file "$rules_file"
+    helper write-rules --path "$rules_file"
+    helper write-config --path "$config_file" \
+        --listen-port "$listener_port" --upstream-port "$synchronized_upstream_port" --rules-file "$rules_file" \
+        --tls-certificate "$TLS_CERTIFICATE_PATH"
     if grep -Eq 'filter spoe|send-spoe|http-buffer-request|wait-for-body|res\.body' "$config_file"; then
         echo "haproxy_htx_runtime: FAIL - generated $case_name config contains a compatibility/buffering directive" >&2
         exit 1
@@ -385,7 +431,7 @@ run_phase4_safe_barrier() {
             sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$log_file" >&2 || true
             exit 1
         fi
-        if "$PYTHON_BIN" "$HELPER" wait-port --port "$listener_port" >/dev/null 2>&1; then
+        if helper wait-port --port "$listener_port" >/dev/null 2>&1; then
             ready=1
             break
         fi
@@ -396,15 +442,15 @@ run_phase4_safe_barrier() {
         exit 1
     fi
 
-    "$PYTHON_BIN" "$HELPER" streaming-probe \
-        --url "http://127.0.0.1:$listener_port/no-crs/response-body" \
+    helper streaming-probe \
+        --url "https://127.0.0.1:$listener_port/no-crs/response-body" \
         --release-path "$release_file" --first-byte-path "$client_first_byte_file" \
-        --evidence-path "$client_probe_file" --timeout 10 \
+        --evidence-path "$client_probe_file" --tls-certificate "$TLS_CA_CERTIFICATE_PATH" --timeout 10 \
         >"$case_root/streaming-client.stdout.log" \
         2>"$case_root/streaming-client.stderr.log" &
     streaming_client_pid=$!
-    if ! "$PYTHON_BIN" "$HELPER" wait-file --path "$paused_file" --timeout 10 || \
-        ! "$PYTHON_BIN" "$HELPER" wait-file --path "$client_first_byte_file" --timeout 10; then
+    if ! helper wait-file --path "$paused_file" --timeout 10 || \
+        ! helper wait-file --path "$client_first_byte_file" --timeout 10; then
         echo "haproxy_htx_runtime: FAIL - $case_name did not observe a client first byte before upstream EOS" >&2
         sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/streaming-client.stderr.log" >&2 || true
         sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/synchronized-upstream.stderr.log" >&2 || true
@@ -416,7 +462,7 @@ run_phase4_safe_barrier() {
         sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/streaming-client.stderr.log" >&2 || true
         exit 1
     fi
-    "$PYTHON_BIN" "$HELPER" write-first-byte-evidence \
+    helper write-first-byte-evidence \
         --path "$FIRST_BYTE_EVIDENCE_PATH" --paused-path "$paused_file" \
         --client-first-byte-path "$client_first_byte_file"
 
@@ -433,9 +479,9 @@ run_phase4_safe_barrier() {
         exit 1
     fi
     sync_upstream_pid=
-    "$PYTHON_BIN" "$HELPER" validate-synchronized-upstream --path "$server_evidence_file"
+    helper validate-synchronized-upstream --path "$server_evidence_file"
 
-    status=$("$PYTHON_BIN" "$HELPER" probe-status --path "$client_probe_file")
+    status=$(helper probe-status --path "$client_probe_file")
     if [ "$status" != "$expected_status" ]; then
         echo "haproxy_htx_runtime: FAIL - $case_name returned $status, expected $expected_status" >&2
         exit 1
@@ -447,10 +493,10 @@ run_phase4_safe_barrier() {
         exit 1
     fi
     cleanup_haproxy
-    "$PYTHON_BIN" "$HELPER" write-host-evidence --path "$HOST_EVIDENCE_LOG_PATH" \
+    helper write-host-evidence --path "$HOST_EVIDENCE_LOG_PATH" \
         --case "$case_name" --phase "$phase" --rule-id "$rule_id" --probe-path "$client_probe_file" \
         --upstream-requests 1 --host-action safe_log_only --decision-log "$log_file"
-    "$PYTHON_BIN" "$HELPER" write-phase4-safe-event --path "$EVENT_LOG_PATH" \
+    helper write-phase4-safe-event --path "$EVENT_LOG_PATH" \
         --decision-log "$log_file" --probe-path "$client_probe_file" \
         --first-byte-evidence "$FIRST_BYTE_EVIDENCE_PATH" --run-id "$RUN_ID" \
         --transport-case-id phase4_first_byte_before_response_end
@@ -466,7 +512,7 @@ run_phase4_safe_barrier
 # Append the no-rule allow event after the Phase-4 evidence.  The canonical
 # selector uses the final matching HTTP 200 event for a no-rule case, so this
 # must remain last to bind P1 to its own real client/upstream transaction.
-"$PYTHON_BIN" "$HELPER" write-allow-event --path "$EVENT_LOG_PATH" \
+helper write-allow-event --path "$EVENT_LOG_PATH" \
     --probe-path "$RUNTIME_ROOT/cases/allow/client-probe.json" \
     --upstream-log "$UPSTREAM_LOG" --transaction-id haproxy-htx-allow
 

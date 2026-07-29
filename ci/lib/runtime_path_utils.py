@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import stat
 from pathlib import Path
 from typing import Any, Mapping
@@ -455,6 +456,190 @@ def ensure_safe_runtime_directory(path: Path | str) -> Path:
     finally:
         os.close(descriptor)
     return directory_path
+
+
+def verified_runtime_artifact_root(value: Path | str) -> Path:
+    """Return a private root that may contain one invocation's artifacts."""
+    root = Path(value)
+    if not root.is_absolute():
+        raise ValueError(f"runtime root must be absolute: {root}")
+    normalized = _absolute_path_without_resolution(root)
+    if not is_safe_runtime_root(normalized):
+        raise ValueError(f"runtime root is unsafe for writes: {normalized}")
+    return ensure_safe_runtime_directory(normalized)
+
+
+def runtime_artifact_path(
+    root: Path,
+    value: Path | str,
+    label: str,
+    *,
+    must_exist: bool = False,
+) -> Path:
+    """Validate one regular artifact path below a verified private root."""
+    candidate = Path(value)
+    if not candidate.is_absolute():
+        raise ValueError(f"{label} must be absolute: {candidate}")
+    verified_root = ensure_safe_runtime_directory(root)
+    normalized = _absolute_path_without_resolution(candidate)
+    if normalized == verified_root or not is_under(normalized, verified_root):
+        raise ValueError(f"{label} must be below the runtime root: {normalized}")
+    if normalized.is_symlink():
+        raise ValueError(f"{label} must not be a symbolic link: {normalized}")
+    parent = ensure_safe_runtime_directory(normalized.parent)
+    if not is_under(parent, verified_root):
+        raise ValueError(f"{label} parent escaped the runtime root: {parent}")
+    if must_exist and (not normalized.is_file() or normalized.is_symlink()):
+        raise ValueError(f"{label} must be an existing regular file: {normalized}")
+    return normalized
+
+
+def open_runtime_artifact_parent(target: Path) -> int:
+    """Open an artifact's already-validated parent without link traversal."""
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if no_follow is None or directory is None:
+        raise ValueError("safe runtime artifacts require O_NOFOLLOW and O_DIRECTORY")
+    return os.open(target.parent, os.O_RDONLY | directory | no_follow)
+
+
+def require_regular_runtime_artifact(descriptor: int, label: str) -> None:
+    """Reject a descriptor that does not reference a regular file."""
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        raise ValueError(f"{label} must be a regular file")
+
+
+def _existing_regular_runtime_artifact(
+    parent_descriptor: int,
+    target: Path,
+    label: str,
+) -> None:
+    try:
+        existing = os.stat(target.name, dir_fd=parent_descriptor, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    if not stat.S_ISREG(existing.st_mode):
+        raise ValueError(f"{label} must be a regular file")
+
+
+def read_runtime_artifact_text(
+    root: Path,
+    value: Path | str,
+    label: str,
+    *,
+    errors: str | None = None,
+) -> str:
+    """Read a regular artifact through no-follow descriptors only."""
+    target = runtime_artifact_path(root, value, label, must_exist=True)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError("safe runtime artifact reads require O_NOFOLLOW")
+    parent_descriptor = open_runtime_artifact_parent(target)
+    descriptor = -1
+    try:
+        descriptor = os.open(target.name, os.O_RDONLY | no_follow, dir_fd=parent_descriptor)
+        require_regular_runtime_artifact(descriptor, label)
+        with os.fdopen(descriptor, "r", encoding="utf-8", errors=errors) as stream:
+            descriptor = -1
+            return stream.read()
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        os.close(parent_descriptor)
+
+
+def append_runtime_artifact_text(
+    root: Path,
+    value: Path | str,
+    text: str,
+    label: str,
+) -> Path:
+    """Append text to a private regular artifact through no-follow descriptors."""
+    target = runtime_artifact_path(root, value, label)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError("safe runtime artifact writes require O_NOFOLLOW")
+    parent_descriptor = open_runtime_artifact_parent(target)
+    descriptor = -1
+    try:
+        _existing_regular_runtime_artifact(parent_descriptor, target, label)
+        descriptor = os.open(
+            target.name,
+            os.O_WRONLY | os.O_CREAT | os.O_APPEND | no_follow,
+            0o600,
+            dir_fd=parent_descriptor,
+        )
+        require_regular_runtime_artifact(descriptor, label)
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            descriptor = -1
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        os.close(parent_descriptor)
+    return target
+
+
+def write_runtime_artifact_text_atomic(
+    root: Path,
+    value: Path | str,
+    text: str,
+    label: str,
+) -> Path:
+    """Atomically replace a private regular artifact without following links."""
+    target = runtime_artifact_path(root, value, label)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError("safe runtime artifact writes require O_NOFOLLOW")
+    parent_descriptor = open_runtime_artifact_parent(target)
+    temporary_name: str | None = None
+    temporary_created = False
+    descriptor = -1
+    try:
+        _existing_regular_runtime_artifact(parent_descriptor, target, label)
+        for _ in range(100):
+            temporary_name = f".{target.name}.{secrets.token_hex(16)}.tmp"
+            try:
+                descriptor = os.open(
+                    temporary_name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
+                    0o600,
+                    dir_fd=parent_descriptor,
+                )
+            except FileExistsError:
+                temporary_name = None
+                continue
+            temporary_created = True
+            break
+        else:
+            raise ValueError(f"could not allocate a temporary {label}")
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            descriptor = -1
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        _existing_regular_runtime_artifact(parent_descriptor, target, label)
+        os.replace(
+            temporary_name,
+            target.name,
+            src_dir_fd=parent_descriptor,
+            dst_dir_fd=parent_descriptor,
+        )
+        temporary_name = None
+        temporary_created = False
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if temporary_created and temporary_name is not None:
+            try:
+                os.unlink(temporary_name, dir_fd=parent_descriptor)
+            except FileNotFoundError:
+                pass
+        os.close(parent_descriptor)
+    return target
 
 
 def ensure_safe_writable_runtime_paths(paths: Mapping[str, str]) -> None:
