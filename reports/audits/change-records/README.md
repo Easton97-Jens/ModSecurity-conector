@@ -6,6 +6,10 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent deterministic GitHub Actions `uses:` prefix parser for SonarQube Cloud S8786](CR-20260729-sonar-scripts-uses-prefix-parser.md)
+  — focused updater tests, a non-writing parser comparison, syntax validation,
+  and the complete current-diff security review passed locally; Draft-PR
+  delivery and exact-head hosted/SonarQube Cloud evidence remain pending.
 - [Parent Common runtime-smoke result-object refactor](CR-20260729-sonar-common-runtime-result.md)
   — local runtime-writer, CRS/path-security, and loopback request-body controls
   passed; the 52-line Common CPD block and two baseline `python:S107` rows are
