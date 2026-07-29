@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-07-29 |
 | Base revision | dbbc9c6aa2bca22fcd0385fa76b878873ccab2cc |
 | Boundary | Parent `common/` runtime-smoke source, its direct Parent regression tests, and this English/German Change Record pair and indexes. Framework/MRTS, Gitlinks, workflows, SonarQube Cloud configuration, exclusions, suppressions, Quality Gates, and `master` are unchanged. |
-| Delivery status | Local candidate at record authoring. No task commit, push, pull request, hosted analysis, review, merge, or `master` integration is claimed. |
+| Delivery status | Draft PR [#164](https://github.com/Easton97-Jens/ModSecurity-conector/pull/164) exists. Its first head `265e3e90debb0c33546cbd6aa4c32dc4a1bf4fb3` passed all applicable GitHub Actions but failed the SonarQube Cloud new-code gate; the follow-up candidate in this record awaits a new commit, push, and exact-head analysis. No merge or `master` integration is claimed. |
 
 ## Motivation and problem statement
 
@@ -41,9 +41,12 @@ status, and missing-dependency entry sent to `write_smoke_result.py`.
 ## Implementation decision and rationale
 
 `SmokeResult` is a frozen dataclass containing the previously positional
-evidence fields. `writer_args` and `write_result` each accept that one value;
-all call sites construct named fields, so status and evidence ownership are
-explicit and no positional field ordering remains between the two functions.
+evidence fields. `writer_args` and `write_result` each accept that one value.
+The first hosted analysis exposed a new `python:S3776` at `writer_args` and
+new duplicate result-construction blocks. The follow-up extracts immutable
+`BackendEvidence`, derives `SmokeWriterValues` separately, and builds each
+result through `smoke_result`. This keeps status and evidence ownership
+explicit without repeated positional field ordering or repeated result blocks.
 The writer still emits the same command-line protocol and invokes the same
 `write_smoke_result.py` entry point.
 
@@ -68,14 +71,17 @@ plausible high- or critical-impact issue.
 | Command or procedure | Result |
 | --- | --- |
 | `PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests/test_common_runtime_smoke_crs_source_security.py tests/test_local_runtime_smoke_request_body.py` | passed outside the sandbox: 37 tests, including the new writer-result argument regression and HTTP request-body controls. |
+| Same command after the Sonar-remediation follow-up | passed outside the sandbox: 39 tests, including direct `BackendEvidence`/path composition, simple-backend CRS-value preservation, and the prior writer-result and request-body controls. |
 | Same suite inside the sandbox | blocked by the sandbox's loopback-socket restriction (`PermissionError: [Errno 1] Operation not permitted`) after the non-socket CRS/path tests passed. The outside-sandbox run is the recorded full result. |
-| `git diff --check` before record authoring | passed. |
+| `git diff --check` | passed again after the follow-up. |
 
 ## Commands executed
 
-The test command and `git diff --check` listed above are the complete commands
-executed before record authoring. No hosted or connector-host command is
-represented as local evidence.
+The test command and `git diff --check` listed above are the complete local
+validation commands recorded so far. The first exact PR head also completed
+all applicable GitHub Actions successfully, but that result is superseded for
+the follow-up commit. No connector-host command is represented as local
+evidence.
 
 ## Runtime evidence
 
@@ -88,8 +94,11 @@ writer boundary, not connector-host evidence.
 
 - No host connector runtime or libModSecurity integration run was selected:
   this refactor does not change the host protocol/adapter behavior.
-- Hosted SonarQube Cloud and GitHub Actions results do not exist at record
-  authoring; they must be rechecked on the exact pushed Draft-PR head.
+- The first exact PR head had all applicable GitHub Actions pass, but SonarQube
+  Cloud reported one new `python:S3776`, 58 new duplicate lines (23.9%), and
+  1,094 total duplicate lines. Those failed acceptance criteria triggered the
+  follow-up extraction; GitHub Actions and SonarQube Cloud must be rerun on
+  its exact pushed head.
 - `make check-bilingual-docs` is blocked by 20 pre-existing links into the
   unpopulated Framework submodule. After the required-record headings were
   corrected, it reports no error for this record pair; the broad check cannot
@@ -97,11 +106,12 @@ writer boundary, not connector-host evidence.
 
 ## Known limitations
 
-Only the exact hosted PR analysis can establish a lower global duplicate-line
-measure, the closure of the two baseline `python:S107` rows, and the required
-new-code Quality Gate. The typed value keeps fields shallowly immutable; its
-tuple `missing` collection avoids mutable dependency entries, while the
-`argparse.Namespace` source remains the existing mutable input boundary.
+Only the exact hosted follow-up analysis can establish a lower global
+duplicate-line measure, the closure of the two baseline `python:S107` rows,
+the absence of the new `python:S3776` row, and the required new-code Quality
+Gate. The typed values keep fields shallowly immutable; their tuple `missing`
+collection avoids mutable dependency entries, while the `argparse.Namespace`
+source remains the existing mutable input boundary.
 
 ## Remaining risks
 
@@ -113,7 +123,8 @@ required measure for the global-count acceptance criteria.
 ## Final diff and review status
 
 The diff is restricted to the selected Common runtime-smoke writer contract,
-its direct regression test, and required bilingual traceability. No Framework
+its direct regression tests, and required bilingual traceability. No Framework
 or MRTS source/Gitlink, workflow, scanner control, suppression, or default
-branch is included. Local validation above passed; hosted delivery evidence is
-pending a normal task-branch commit, push, and Draft PR.
+branch is included. The first Draft PR remains open; its follow-up requires a
+normal additive task-branch commit, exact-head checks, and a passing hosted
+analysis before it can be handed off.

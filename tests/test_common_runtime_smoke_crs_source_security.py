@@ -519,6 +519,57 @@ class CommonRuntimeSmokeCrsSourceSecurityTest(unittest.TestCase):
         self.assertIn("--missing-dependency", command)
         self.assertEqual(command[command.index("--missing-dependency") + 1], "libmodsecurity")
 
+    def test_smoke_result_keeps_backend_evidence_and_paths_separate(self) -> None:
+        evidence = RUNNER.BackendEvidence(
+            modsecurity_backend_verified=True,
+            modsecurity_rule_loaded=True,
+            intervention_status=403,
+            request_body_smoke_verified=True,
+            crs_minimal_smoke_verified=True,
+            crs_rule_id="942100",
+            crs_rule_message="SQLi",
+        )
+
+        result = RUNNER.smoke_result(
+            "BLOCKED",
+            77,
+            False,
+            200,
+            403,
+            evidence,
+            skipped_reason="missing libmodsecurity",
+            missing=("libmodsecurity",),
+            context={
+                "decision_log_path": "/runtime/decision.log",
+                "audit_log_path": "/runtime/audit.log",
+            },
+        )
+
+        self.assertTrue(result.modsecurity_backend_verified)
+        self.assertTrue(result.modsecurity_rule_loaded)
+        self.assertEqual(result.intervention_status, 403)
+        self.assertTrue(result.request_body_smoke_verified)
+        self.assertTrue(result.crs_minimal_smoke_verified)
+        self.assertEqual(result.crs_rule_id, "942100")
+        self.assertEqual(result.decision_log_path, "/runtime/decision.log")
+        self.assertEqual(result.audit_log_path, "/runtime/audit.log")
+
+    def test_writer_values_preserve_crs_case_when_backend_is_simple(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-runtime-writer-") as temporary:
+            args = self.make_runtime_args(
+                Path(temporary),
+                decision_backend="simple",
+                modsecurity_ruleset="crs",
+                crs_smoke_case="secondary",
+            )
+            values = RUNNER.smoke_writer_values(
+                args, RUNNER.SmokeResult("BLOCKED", 77, False, None, None)
+            )
+
+        self.assertEqual(values.modsecurity_ruleset, "")
+        self.assertEqual(values.modsecurity_smoke_case, "")
+        self.assertEqual(values.crs_smoke_case, "secondary")
+
     def test_symlinked_runtime_output_path_is_rejected_before_runner_writes(self) -> None:
         with tempfile.TemporaryDirectory(prefix="common-runtime-output-") as temporary:
             temporary_root = Path(temporary)
