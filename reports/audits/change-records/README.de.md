@@ -36,9 +36,11 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-HAProxy-HTX-Runtime-Artefaktbegrenzung](CR-20260729-sonar-haproxy-htx-runtime-artifact-containment.de.md)
   — auf die aktuelle Master-Basis synchronisiert, stellt die Private-Root-
-  Bindung des Metadaten-Event-Tests wieder her und erfasst fokussierte lokale
-  Pfad-/TLS-Kontrollen. Vor der Master-Integration bleibt eine Exact-Head-
-  Hosted-Verifikation erforderlich.
+  Bindung des Metadaten-Event-Tests wieder her und verschiebt das doppelte
+  HAProxy-/Envoy-Deskriptorprotokoll in ein getestetes Parent-Primitiv, ohne die
+  Connector-lokale Serialisierung zu ändern. Der vorherige Exact-Head scheiterte
+  nur am New-Code-Duplikat-Gate; vor der Master-Integration bleibt eine frische
+  Exact-Head-Hosted-Verifikation erforderlich.
 
 - [Parent-CI-Focused-Report-Helper-Deduplizierung und Request-Body-Pfadbegrenzung](CR-20260729-sonar-ci-focused-report-safety.de.md)
   — lokale Traversal-/Symlink-Regression und legitime In-Root-Controls
