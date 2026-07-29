@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <string>
@@ -14,6 +15,20 @@ namespace {
 
 constexpr const char *kTargetedRuleId = "1000001";
 constexpr const char *kRequestBodyRuleId = "1000002";
+using ArgumentMap = std::map<std::string, std::string, std::less<>>;
+
+struct EvaluatorOptions {
+    std::string rule_file;
+    std::string decision_log;
+    std::string ruleset;
+    std::string smoke_case;
+    std::string header_value;
+    std::string uri;
+    std::string method;
+    std::string body;
+    std::string content_type;
+    std::string request_body_marker;
+};
 
 std::string json_escape(const std::string &value) {
     std::string out;
@@ -64,11 +79,11 @@ void json_int(std::ostream &out, const char *key, int value, bool comma = true) 
     }
 }
 
-std::map<std::string, std::string> parse_args(int argc, char **argv) {
-    std::map<std::string, std::string> args;
-    for (int i = 1; i < argc; ++i) {
-        std::string key = argv[i];
-        if (key.rfind("--", 0) != 0 || i + 1 >= argc) {
+ArgumentMap parse_args(int argc, char **argv) {
+    ArgumentMap args;
+    for (int argument_index = 1; argument_index < argc; argument_index += 2) {
+        const std::string key = argv[argument_index];
+        if (key.rfind("--", 0) != 0 || argument_index + 1 >= argc) {
             std::cerr << "usage: " << argv[0]
                       << " --rule-file <path> --decision-log <path>"
                       << " [--ruleset targeted|crs] [--smoke-case targeted|request_body]"
@@ -76,23 +91,72 @@ std::map<std::string, std::string> parse_args(int argc, char **argv) {
                       << " [--body <body>] [--content-type <content-type>]\n";
             std::exit(2);
         }
-        args[key.substr(2)] = argv[++i];
+        args[key.substr(2)] = argv[argument_index + 1];
     }
     return args;
 }
 
+std::string argument_or(const ArgumentMap &arguments, std::string_view key, std::string_view fallback) {
+    const auto iterator = arguments.lower_bound(std::string(key));
+    if (iterator == arguments.end() || std::string_view(iterator->first) != key) {
+        return std::string(fallback);
+    }
+    return iterator->second;
+}
+
+EvaluatorOptions parse_options(const ArgumentMap &arguments) {
+    return {
+        argument_or(arguments, "rule-file", ""),
+        argument_or(arguments, "decision-log", ""),
+        argument_or(arguments, "ruleset", "targeted"),
+        argument_or(arguments, "smoke-case", "targeted"),
+        argument_or(arguments, "header-value", ""),
+        argument_or(arguments, "uri", "/targeted"),
+        argument_or(arguments, "method", "GET"),
+        argument_or(arguments, "body", ""),
+        argument_or(arguments, "content-type", ""),
+        argument_or(arguments, "request-body-marker", "modsec-request-body-block"),
+    };
+}
+
+std::string invalid_option_message(const EvaluatorOptions &options) {
+    if (options.rule_file.empty()) {
+        return "missing --rule-file";
+    }
+    if (options.ruleset != "targeted" && options.ruleset != "crs") {
+        return "unsupported --ruleset: " + options.ruleset;
+    }
+    if (options.smoke_case != "targeted" && options.smoke_case != "request_body") {
+        return "unsupported --smoke-case: " + options.smoke_case;
+    }
+    return "";
+}
+
 std::string bracket_value(std::string_view intervention_log, std::string_view field_key) {
-    const std::string marker = "[" + std::string(field_key) + " \"";
+    const std::string marker = "[" + std::string(field_key) + R"marker( ")marker";
     const std::size_t start = intervention_log.find(marker);
     if (start == std::string::npos) {
         return "";
     }
     const std::size_t value_start = start + marker.size();
-    const std::size_t end = intervention_log.find("\"]", value_start);
+    const std::size_t end = intervention_log.find(R"marker("])marker", value_start);
     if (end == std::string::npos || end <= value_start) {
         return "";
     }
     return std::string(intervention_log.substr(value_start, end - value_start));
+}
+
+bool string_contains(std::string_view value, std::string_view searched_value) {
+    if (searched_value.size() > value.size()) {
+        return false;
+    }
+    const std::size_t last_start = value.size() - searched_value.size();
+    for (std::size_t start = 0; start <= last_start; ++start) {
+        if (value.substr(start, searched_value.size()) == searched_value) {
+            return true;
+        }
+    }
+    return false;
 }
 
 struct DecisionLogInput {
@@ -114,6 +178,131 @@ struct DecisionLogInput {
     std::string rule_id;
     std::string rule_message;
 };
+
+struct EvaluationResult {
+    bool disruptive = false;
+    int intervention_status = 200;
+    std::string intervention_log;
+    std::string observed_rule_id;
+    std::string observed_rule_message;
+    bool request_body_access_enabled = false;
+    bool request_body_marker_present = false;
+};
+
+struct RequestSetupContext {
+    modsecurity::Transaction *transaction;
+};
+
+struct RequestEvaluationContext {
+    modsecurity::Transaction *transaction;
+    modsecurity::ModSecurityIntervention *intervention;
+};
+
+void configure_request(const RequestSetupContext &setup_context, const EvaluatorOptions &options) {
+    modsecurity::msc_process_connection(setup_context.transaction, "127.0.0.1", 12345, "127.0.0.1", 8080);
+    modsecurity::msc_process_uri(setup_context.transaction, options.uri.c_str(), options.method.c_str(), "1.1");
+    const unsigned char host_name[] = "Host";
+    const unsigned char host_value[] = "example.test";
+    modsecurity::msc_add_n_request_header(
+        setup_context.transaction,
+        host_name,
+        sizeof(host_name) - 1U,
+        host_value,
+        sizeof(host_value) - 1U);
+    if (!options.header_value.empty()) {
+        const unsigned char header_name[] = "X-Modsec-Smoke";
+        modsecurity::msc_add_n_request_header(
+            setup_context.transaction,
+            header_name,
+            sizeof(header_name) - 1U,
+            reinterpret_cast<const unsigned char *>(options.header_value.c_str()),
+            options.header_value.size());
+    }
+    if (!options.body.empty()) {
+        if (!options.content_type.empty()) {
+            const unsigned char content_type_name[] = "Content-Type";
+            modsecurity::msc_add_n_request_header(
+                setup_context.transaction,
+                content_type_name,
+                sizeof(content_type_name) - 1U,
+                reinterpret_cast<const unsigned char *>(options.content_type.c_str()),
+                options.content_type.size());
+        }
+        const std::string content_length = std::to_string(options.body.size());
+        const unsigned char content_length_name[] = "Content-Length";
+        modsecurity::msc_add_n_request_header(
+            setup_context.transaction,
+            content_length_name,
+            sizeof(content_length_name) - 1U,
+            reinterpret_cast<const unsigned char *>(content_length.c_str()),
+            content_length.size());
+    }
+    modsecurity::msc_process_request_headers(setup_context.transaction);
+}
+
+EvaluationResult evaluate_request(
+    const RequestEvaluationContext &evaluation_context,
+    const EvaluatorOptions &options) {
+    modsecurity::intervention::clean(evaluation_context.intervention);
+    int intervention_rc = modsecurity::msc_intervention(
+        evaluation_context.transaction, evaluation_context.intervention);
+    bool disruptive = evaluation_context.intervention->disruptive != 0 || intervention_rc != 0;
+    if (!disruptive) {
+        if (!options.body.empty()) {
+            modsecurity::msc_append_request_body(
+                evaluation_context.transaction,
+                reinterpret_cast<const unsigned char *>(options.body.c_str()),
+                options.body.size());
+        }
+        modsecurity::msc_process_request_body(evaluation_context.transaction);
+        intervention_rc = modsecurity::msc_intervention(
+            evaluation_context.transaction, evaluation_context.intervention);
+        disruptive = evaluation_context.intervention->disruptive != 0 || intervention_rc != 0;
+    }
+    const std::string intervention_log = evaluation_context.intervention->log == nullptr
+                                             ? ""
+                                             : evaluation_context.intervention->log;
+    std::string observed_rule_id = bracket_value(intervention_log, "id");
+    if (observed_rule_id.empty() && options.ruleset != "crs") {
+        observed_rule_id = options.smoke_case == "request_body" ? kRequestBodyRuleId : kTargetedRuleId;
+    }
+    modsecurity::msc_process_logging(evaluation_context.transaction);
+    return {
+        disruptive,
+        disruptive ? evaluation_context.intervention->status : 200,
+        intervention_log,
+        observed_rule_id,
+        options.ruleset == "crs" ? bracket_value(intervention_log, "msg") : "",
+        options.smoke_case == "request_body" && !options.body.empty(),
+        !options.request_body_marker.empty() && string_contains(options.body, options.request_body_marker),
+    };
+}
+
+DecisionLogInput decision_log_input(
+    const EvaluatorOptions &options,
+    const std::string &whoami,
+    bool rule_loaded,
+    const EvaluationResult &result) {
+    return {
+        options.decision_log,
+        options.ruleset,
+        whoami,
+        options.rule_file,
+        options.header_value,
+        options.smoke_case,
+        options.method,
+        options.content_type,
+        options.request_body_marker,
+        result.request_body_access_enabled,
+        result.request_body_marker_present,
+        rule_loaded,
+        result.disruptive,
+        result.intervention_status,
+        result.intervention_log,
+        result.observed_rule_id,
+        result.observed_rule_message,
+    };
+}
 
 void append_decision_log(const DecisionLogInput &input) {
     if (input.path.empty()) {
@@ -159,31 +348,60 @@ int fail_json(const std::string &message) {
     return 1;
 }
 
+void write_success_json(
+    const EvaluatorOptions &options,
+    const std::string &whoami,
+    bool rule_loaded,
+    const EvaluationResult &result) {
+    std::cout << "{";
+    json_bool(std::cout, "ok", true);
+    json_string(std::cout, "decision_backend", "libmodsecurity");
+    json_string(std::cout, "modsecurity_ruleset", options.ruleset);
+    json_string(std::cout, "modsecurity_smoke_case", options.smoke_case);
+    json_string(std::cout, "libmodsecurity", whoami);
+    json_bool(std::cout, "modsecurity_rule_loaded", rule_loaded);
+    json_string(std::cout, "modsecurity_rule_file", options.rule_file);
+    json_string(std::cout, "modsecurity_rule_id", result.observed_rule_id);
+    json_bool(std::cout, "request_body_access_enabled", result.request_body_access_enabled);
+    json_string(
+        std::cout,
+        "request_body_rule_file",
+        options.smoke_case == "request_body" ? options.rule_file : "");
+    json_string(
+        std::cout,
+        "request_body_rule_id",
+        options.smoke_case == "request_body" ? kRequestBodyRuleId : "");
+    json_bool(
+        std::cout,
+        "request_body_rule_loaded",
+        options.smoke_case == "request_body" && rule_loaded);
+    json_string(std::cout, "request_method", options.method);
+    json_string(
+        std::cout,
+        "blocked_body_marker",
+        options.smoke_case == "request_body" ? options.request_body_marker : "");
+    json_bool(std::cout, "blocked_body_marker_present", result.request_body_marker_present);
+    json_string(
+        std::cout,
+        "crs_rule_id",
+        options.ruleset == "crs" ? result.observed_rule_id : "");
+    json_string(
+        std::cout,
+        "crs_rule_message",
+        options.ruleset == "crs" ? result.observed_rule_message : "");
+    json_bool(std::cout, "intervention_disruptive", result.disruptive);
+    json_int(std::cout, "intervention_status", result.intervention_status);
+    json_string(std::cout, "intervention_log", result.intervention_log, false);
+    std::cout << "}\n";
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
-    const auto args = parse_args(argc, argv);
-    const std::string rule_file = args.count("rule-file") ? args.at("rule-file") : "";
-    const std::string decision_log = args.count("decision-log") ? args.at("decision-log") : "";
-    const std::string ruleset = args.count("ruleset") ? args.at("ruleset") : "targeted";
-    const std::string smoke_case = args.count("smoke-case") ? args.at("smoke-case") : "targeted";
-    const std::string header_value = args.count("header-value") ? args.at("header-value") : "";
-    const std::string uri = args.count("uri") ? args.at("uri") : "/targeted";
-    const std::string method = args.count("method") ? args.at("method") : "GET";
-    const std::string body = args.count("body") ? args.at("body") : "";
-    const std::string content_type = args.count("content-type") ? args.at("content-type") : "";
-    const std::string request_body_marker = args.count("request-body-marker")
-                                                ? args.at("request-body-marker")
-                                                : "modsec-request-body-block";
-
-    if (rule_file.empty()) {
-        return fail_json("missing --rule-file");
-    }
-    if (ruleset != "targeted" && ruleset != "crs") {
-        return fail_json("unsupported --ruleset: " + ruleset);
-    }
-    if (smoke_case != "targeted" && smoke_case != "request_body") {
-        return fail_json("unsupported --smoke-case: " + smoke_case);
+    const EvaluatorOptions options = parse_options(parse_args(argc, argv));
+    const std::string option_error = invalid_option_message(options);
+    if (!option_error.empty()) {
+        return fail_json(option_error);
     }
 
     modsecurity::ModSecurity *modsec = modsecurity::msc_init();
@@ -201,7 +419,7 @@ int main(int argc, char **argv) {
     }
 
     const char *rule_error = nullptr;
-    const int rule_count = modsecurity::msc_rules_add_file(rules, rule_file.c_str(), &rule_error);
+    const int rule_count = modsecurity::msc_rules_add_file(rules, options.rule_file.c_str(), &rule_error);
     const bool rule_loaded = rule_count >= 0;
     if (!rule_loaded) {
         const std::string message = rule_error == nullptr ? "msc_rules_add_file failed" : rule_error;
@@ -218,115 +436,12 @@ int main(int argc, char **argv) {
         return fail_json("msc_new_transaction failed");
     }
 
-    modsecurity::msc_process_connection(tx, "127.0.0.1", 12345, "127.0.0.1", 8080);
-    modsecurity::msc_process_uri(tx, uri.c_str(), method.c_str(), "1.1");
-    const unsigned char host_name[] = "Host";
-    const unsigned char host_value[] = "example.test";
-    modsecurity::msc_add_n_request_header(
-        tx,
-        host_name,
-        sizeof(host_name) - 1U,
-        host_value,
-        sizeof(host_value) - 1U);
-    if (!header_value.empty()) {
-        const unsigned char header_name[] = "X-Modsec-Smoke";
-        modsecurity::msc_add_n_request_header(
-            tx,
-            header_name,
-            sizeof(header_name) - 1U,
-            reinterpret_cast<const unsigned char *>(header_value.c_str()),
-            header_value.size());
-    }
-    if (!body.empty()) {
-        if (!content_type.empty()) {
-            const unsigned char content_type_name[] = "Content-Type";
-            modsecurity::msc_add_n_request_header(
-                tx,
-                content_type_name,
-                sizeof(content_type_name) - 1U,
-                reinterpret_cast<const unsigned char *>(content_type.c_str()),
-                content_type.size());
-        }
-        const std::string content_length = std::to_string(body.size());
-        const unsigned char content_length_name[] = "Content-Length";
-        modsecurity::msc_add_n_request_header(
-            tx,
-            content_length_name,
-            sizeof(content_length_name) - 1U,
-            reinterpret_cast<const unsigned char *>(content_length.c_str()),
-            content_length.size());
-    }
-    modsecurity::msc_process_request_headers(tx);
+    configure_request({tx}, options);
 
     modsecurity::ModSecurityIntervention intervention;
-    modsecurity::intervention::clean(&intervention);
-    int intervention_rc = modsecurity::msc_intervention(tx, &intervention);
-    bool disruptive = intervention.disruptive != 0 || intervention_rc != 0;
-    if (!disruptive) {
-        if (!body.empty()) {
-            modsecurity::msc_append_request_body(
-                tx,
-                reinterpret_cast<const unsigned char *>(body.c_str()),
-                body.size());
-        }
-        modsecurity::msc_process_request_body(tx);
-        intervention_rc = modsecurity::msc_intervention(tx, &intervention);
-        disruptive = intervention.disruptive != 0 || intervention_rc != 0;
-    }
-    const int intervention_status = disruptive ? intervention.status : 200;
-    const std::string intervention_log = intervention.log == nullptr ? "" : intervention.log;
-    std::string observed_rule_id = bracket_value(intervention_log, "id");
-    if (observed_rule_id.empty() && ruleset != "crs") {
-        observed_rule_id = smoke_case == "request_body" ? kRequestBodyRuleId : kTargetedRuleId;
-    }
-    const std::string observed_rule_message = ruleset == "crs" ? bracket_value(intervention_log, "msg") : "";
-    const bool request_body_access_enabled = smoke_case == "request_body" && !body.empty();
-    const bool request_body_marker_present = !request_body_marker.empty()
-                                             && body.find(request_body_marker) != std::string::npos;
-
-    modsecurity::msc_process_logging(tx);
-    DecisionLogInput decision_log_input;
-    decision_log_input.path = decision_log;
-    decision_log_input.ruleset = ruleset;
-    decision_log_input.whoami = whoami;
-    decision_log_input.rule_file = rule_file;
-    decision_log_input.header_value = header_value;
-    decision_log_input.smoke_case = smoke_case;
-    decision_log_input.method = method;
-    decision_log_input.content_type = content_type;
-    decision_log_input.request_body_marker = request_body_marker;
-    decision_log_input.request_body_access_enabled = request_body_access_enabled;
-    decision_log_input.request_body_marker_present = request_body_marker_present;
-    decision_log_input.rule_loaded = rule_loaded;
-    decision_log_input.disruptive = disruptive;
-    decision_log_input.intervention_status = intervention_status;
-    decision_log_input.intervention_log = intervention_log;
-    decision_log_input.rule_id = observed_rule_id;
-    decision_log_input.rule_message = observed_rule_message;
-    append_decision_log(decision_log_input);
-
-    std::cout << "{";
-    json_bool(std::cout, "ok", true);
-    json_string(std::cout, "decision_backend", "libmodsecurity");
-    json_string(std::cout, "modsecurity_ruleset", ruleset);
-    json_string(std::cout, "modsecurity_smoke_case", smoke_case);
-    json_string(std::cout, "libmodsecurity", whoami);
-    json_bool(std::cout, "modsecurity_rule_loaded", rule_loaded);
-    json_string(std::cout, "modsecurity_rule_file", rule_file);
-    json_string(std::cout, "modsecurity_rule_id", observed_rule_id);
-    json_bool(std::cout, "request_body_access_enabled", request_body_access_enabled);
-    json_string(std::cout, "request_body_rule_file", smoke_case == "request_body" ? rule_file : "");
-    json_string(std::cout, "request_body_rule_id", smoke_case == "request_body" ? kRequestBodyRuleId : "");
-    json_bool(std::cout, "request_body_rule_loaded", smoke_case == "request_body" && rule_loaded);
-    json_string(std::cout, "request_method", method);
-    json_string(std::cout, "blocked_body_marker", smoke_case == "request_body" ? request_body_marker : "");
-    json_bool(std::cout, "blocked_body_marker_present", request_body_marker_present);
-    json_string(std::cout, "crs_rule_id", ruleset == "crs" ? observed_rule_id : "");
-    json_string(std::cout, "crs_rule_message", ruleset == "crs" ? observed_rule_message : "");
-    json_bool(std::cout, "intervention_disruptive", disruptive);
-    json_int(std::cout, "intervention_status", intervention_status);
-    json_string(std::cout, "intervention_log", intervention_log, false);
-    std::cout << "}\n";
+    const EvaluationResult result = evaluate_request({tx, &intervention}, options);
+    append_decision_log(decision_log_input(options, whoami, rule_loaded, result));
+    write_success_json(options, whoami, rule_loaded, result);
 
     modsecurity::msc_intervention_cleanup(&intervention);
     modsecurity::msc_transaction_cleanup(tx);

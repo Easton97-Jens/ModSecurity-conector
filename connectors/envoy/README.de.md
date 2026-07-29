@@ -106,10 +106,12 @@ make -C connectors/envoy runtime-smoke-envoy \
 ```
 
 Dieses Ziel validiert eine generierte temporäre Envoy-Konfiguration, startet den Upstream,
-Connector-Dienst und Envoy erfordern dann ein zulässiges HTTP 200 und ein
-Regelgestützter `X-Modsec-Smoke: block` HTTP 403. Fehlende Binärdateien sind GESPERRT;
-Konfigurations-, Prozess-, Zuordnungs- und Statusfehler scheitern. Alle Prozesse sind
-bei Erfolg oder Misserfolg gestoppt.
+den Connector-Dienst und Envoy und verlangt anschließend ein zulässiges HTTPS 200
+sowie ein regelgestütztes `X-Modsec-Smoke: block` HTTPS 403 über einen flüchtigen,
+privaten Loopback-TLS-Listener. Der lokale `ext_authz`-Sidecar bleibt ein interner
+Loopback-HTTP-Dienst. Fehlende Binärdateien sind GESPERRT; Konfigurations-, Prozess-,
+Zuordnungs- und Statusfehler lassen den Smoke fehlschlagen. Alle Prozesse werden bei
+Erfolg oder Misserfolg gestoppt.
 
 Für einen vom Bediener gesteuerten Vordergrunddienst:
 
