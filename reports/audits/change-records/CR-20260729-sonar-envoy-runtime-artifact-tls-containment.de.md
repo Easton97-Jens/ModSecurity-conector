@@ -32,6 +32,9 @@ Vertraulichkeit noch Integrität des Transports.
 - Der erzeugte Envoy-Listener nutzt das private Zertifikat und den Key des
   jeweiligen Runs; gewöhnliche Phase-, Probe- und Client-Cancel-Evidence bleibt
   payload-frei.
+- Jeder Envoy-Smoke-Runner validiert seinen privaten Runtime-Root, bevor er
+  eine Bereinigung aktiviert, die das Zertifikat oder den privaten Key des
+  jeweiligen Runs entfernen kann.
 - Bestehende legitime Loopback-Probes, das Phase-4-Barrier-Verhalten und das
   optionale Client-Cancel-Verhalten funktionieren weiterhin in fokussierten
   temporären TLS-Tests.
@@ -134,6 +137,16 @@ fand keinen Repository-Nachweis für eine Remote- oder PR-kontrollierte
 Pfadquelle über eine Privilegiengrenze; dennoch ist dies eine vollständige
 Reparatur der lokalen Sink-Invariante.
 
+Die Exact-Head-Sicherheitsvalidierung fand außerdem, dass die zwei
+Request-ausführenden Runner ihre EXIT-Bereinigung aktivierten, bevor
+`prepare-runtime-root` einen unsicheren Root abweisen konnte. Ein begrenztes
+Symlink-Root-Control reproduzierte auf diesem frühen Fehlerpfad die Löschung
+der zwei festen TLS-Markernamen. Ihre Cleanup-Traps werden nun erst nach der
+Akzeptanz des privaten No-Symlink-Roots aktiviert und entsprechen damit dem
+anforderungsfreien Start-Smoke. Eine parametrisierte Regression führt alle drei
+Runner mit der echten Ablehnung eines unsicheren Roots aus und beweist den Erhalt
+beider Marker.
+
 Follow-up-Dateien sind `connectors/envoy/Makefile`, das gemeinsame ext_authz-
 Template, alle drei Envoy-Smoke-Runner, der gemeinsame Renderer, der ext_proc-
 Materializer, `SOURCE_MAP.json`, die gepaarte Envoy-/Harness-
@@ -144,7 +157,7 @@ Leserdokumentation, dieser gepaarte Record und
 
 | Ausgeführte Kontrolle | Beobachtetes Ergebnis |
 | --- | --- |
-| Isoliertes `python -m unittest -v` für Envoy-Transport-, Compiler-Guide-, bilinguale Dokumentations- und sichere Result-Writer-Contracts | bestanden; 61 Tests, darunter echte temporäre TLS-Probe-, Client-Cancel- und Phase-4-Pfade, Legacy-ext_authz-TLS-Wiring, aktuelle Envoy-1.38-Template-Felder, eindeutige Readiness-/P1-Identitäten und die kontrollierte YAML-/`sed`-Pfadinjektionsregression. |
+| Isoliertes `python -m unittest -v` für Envoy-Transport-, Compiler-Guide-, bilinguale Dokumentations- und sichere Result-Writer-Contracts | bestanden; 63 Tests, darunter echte temporäre TLS-Probe-, Client-Cancel- und Phase-4-Pfade, Legacy-ext_authz-TLS-Wiring, aktuelle Envoy-1.38-Template-Felder, eindeutige Readiness-/P1-Identitäten, die kontrollierte YAML-/`sed`-Pfadinjektionsregression und die gemeinsame All-Runner-Cleanup-Regression für unsichere Roots. |
 | `sh -n` auf ext_proc-Runner, Template-Materializer und ext_proc-Testskript | bestanden. |
 | Isoliertes `make -C connectors/envoy build-envoy-ext-proc` mit Go 1.26.5 sowie den verifizierten Host-libmodsecurity-Headern/-Library | bestanden; Modulverifikation und die Go-Processor-Pakettests bestanden. |
 | Isoliertes `make -C connectors/envoy runtime-smoke-envoy-ext-proc` mit Envoy 1.38.2, der am Parent-Gitlink gepinnten No-CRS-Regeldatei und Loopback-TLS | bestanden; Envoy akzeptierte die erzeugte Konfiguration ohne Deprecation-Diagnostik und die vollständige begrenzte Smoke-Zusammenfassung ist `PASS` / nicht promotet. |

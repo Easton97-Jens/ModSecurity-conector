@@ -30,6 +30,8 @@ does not provide transport confidentiality or integrity.
   or later.
 - The generated Envoy listener uses the per-run private certificate and key;
   ordinary phase, probe, and client-cancel evidence remains payload-free.
+- Every Envoy smoke runner validates its private runtime root before arming
+  cleanup that can remove the per-run certificate or private key.
 - Existing legitimate loopback probes, phase-4 barrier behavior, and optional
   client-cancel behavior continue to work in focused temporary TLS tests.
 - The generated Envoy 1.38 configuration uses the current typed upstream
@@ -124,6 +126,14 @@ The review found no repository evidence of a remote or PR-controlled path
 source across a privilege boundary; this is nevertheless a complete local
 sink-invariant repair.
 
+Exact-head security validation also found that the two request-bearing runners
+armed their EXIT cleanup before `prepare-runtime-root` had rejected an unsafe
+root. A bounded symlink-root control reproduced deletion of the two fixed TLS
+marker names on that early-failure path. Their cleanup traps now arm only after
+the private no-symlink root has been accepted, matching the request-free start
+smoke. One parameterized regression executes all three runners with a real
+unsafe-root rejection and proves that both markers remain intact.
+
 Follow-up files are `connectors/envoy/Makefile`, the shared ext_authz template,
 all three Envoy smoke runners, the shared renderer, the ext_proc materializer,
 `SOURCE_MAP.json`, the paired Envoy/harness reader documentation, this paired
@@ -133,7 +143,7 @@ record, and `tests/test_envoy_transport_hardening_contract.py`.
 
 | Executed control | Observed result |
 | --- | --- |
-| Isolated `python -m unittest -v` for Envoy transport, compiler-guide, bilingual-documentation, and secure-result-writer contracts | passed; 61 tests, including the real temporary TLS probe, client-cancel, phase-4 paths, legacy ext_authz TLS wiring, the current Envoy 1.38 template fields, unambiguous readiness/P1 identities, and the controlled YAML/`sed` path-injection regression. |
+| Isolated `python -m unittest -v` for Envoy transport, compiler-guide, bilingual-documentation, and secure-result-writer contracts | passed; 63 tests, including the real temporary TLS probe, client-cancel, phase-4 paths, legacy ext_authz TLS wiring, the current Envoy 1.38 template fields, unambiguous readiness/P1 identities, controlled YAML/`sed` path-injection regression, and the all-runner unsafe-root cleanup regression. |
 | `sh -n` on the ext_proc runner, template materializer, and ext_proc test script | passed. |
 | Isolated `make -C connectors/envoy build-envoy-ext-proc` with Go 1.26.5 and the verified host libmodsecurity headers/library | passed; module verification and the Go processor package tests passed. |
 | Isolated `make -C connectors/envoy runtime-smoke-envoy-ext-proc` with Envoy 1.38.2, the Parent-Gitlink-pinned no-CRS rule file, and loopback TLS | passed; Envoy accepted the generated configuration without deprecation diagnostics and the full bounded smoke summary is `PASS` / non-promoted. |

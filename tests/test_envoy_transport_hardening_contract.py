@@ -586,41 +586,74 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn("failure_mode_allow: false\n              allowed_headers:", template)
         self.assertNotIn("authorization_request:", template)
 
-    def test_start_smoke_rejects_unsafe_root_without_tls_cleanup(self) -> None:
+    def test_envoy_smokes_reject_unsafe_root_without_tls_cleanup(self) -> None:
         true_binary = shutil.which("true")
         self.assertIsNotNone(true_binary)
 
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            target = root / "target"
-            target.mkdir()
-            certificate = target / "envoy-loopback.crt"
-            private_key = target / "envoy-loopback.key"
-            certificate.write_text("certificate marker", encoding="utf-8")
-            private_key.write_text("private key marker", encoding="utf-8")
-            unsafe_root = root / "unsafe-root"
-            unsafe_root.symlink_to(target, target_is_directory=True)
-            environment = dict(os.environ)
-            environment.update({
-                "START_ROOT": str(unsafe_root),
-                "ENVOY_BIN": true_binary,
-                "SERVICE_BIN": true_binary,
-                "PYTHON": sys.executable,
-            })
+        cases = (
+            (
+                EXT_AUTHZ_START_PATH,
+                "START_ROOT",
+                {
+                    "ENVOY_BIN": true_binary,
+                    "SERVICE_BIN": true_binary,
+                },
+                "START_ROOT is unsafe for private runtime artifacts",
+            ),
+            (
+                EXT_AUTHZ_RUNTIME_PATH,
+                "RUNTIME_ROOT",
+                {
+                    "ENVOY_BIN": true_binary,
+                    "SERVICE_BIN": true_binary,
+                },
+                "RUNTIME_ROOT is unsafe for private runtime artifacts",
+            ),
+            (
+                RUNTIME_PATH,
+                "RUNTIME_ROOT",
+                {
+                    "ENVOY_BIN": true_binary,
+                    "EXT_PROC_BIN": true_binary,
+                    "MSCONNECTOR_RULES_FILE": str(
+                        ROOT / "common" / "rules" / "modsecurity_targeted_smoke.conf"
+                    ),
+                },
+                "RUNTIME_ROOT is unsafe for private runtime artifacts",
+            ),
+        )
 
-            completed = subprocess.run(
-                ["sh", str(EXT_AUTHZ_START_PATH)],
-                cwd=ROOT,
-                env=environment,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
+        for script, root_variable, extra_environment, expected_error in cases:
+            with self.subTest(script=script.name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                target = root / "target"
+                target.mkdir()
+                certificate = target / "envoy-loopback.crt"
+                private_key = target / "envoy-loopback.key"
+                certificate.write_text("certificate marker", encoding="utf-8")
+                private_key.write_text("private key marker", encoding="utf-8")
+                unsafe_root = root / "unsafe-root"
+                unsafe_root.symlink_to(target, target_is_directory=True)
+                environment = dict(os.environ)
+                environment.update(extra_environment)
+                environment.update({
+                    root_variable: str(unsafe_root),
+                    "PYTHON": sys.executable,
+                })
 
-            self.assertEqual(completed.returncode, 1, completed.stderr)
-            self.assertIn("START_ROOT is unsafe for private runtime artifacts", completed.stderr)
-            self.assertEqual(certificate.read_text(encoding="utf-8"), "certificate marker")
-            self.assertEqual(private_key.read_text(encoding="utf-8"), "private key marker")
+                completed = subprocess.run(
+                    ["sh", str(script)],
+                    cwd=ROOT,
+                    env=environment,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+
+                self.assertEqual(completed.returncode, 1, completed.stderr)
+                self.assertIn(expected_error, completed.stderr)
+                self.assertEqual(certificate.read_text(encoding="utf-8"), "certificate marker")
+                self.assertEqual(private_key.read_text(encoding="utf-8"), "private key marker")
 
     def test_runtime_probe_keeps_cancellation_unattributed_and_nonpromoting(self) -> None:
         source = RUNTIME_PATH.read_text(encoding="utf-8")

@@ -78,7 +78,6 @@ cleanup() {
     done
     rm -f "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
 }
-trap cleanup EXIT HUP INT TERM
 
 [ -n "${ENVOY_BIN:-}" ] || missing_dependency "ENVOY_BIN is required"
 [ -x "$ENVOY_BIN" ] || missing_dependency "ENVOY_BIN is not executable: $ENVOY_BIN"
@@ -162,6 +161,7 @@ if ! "$PYTHON_BIN" "$HELPER" prepare-runtime-root --runtime-root "$RUNTIME_ROOT"
     echo "envoy_ext_proc_runtime: FAIL - RUNTIME_ROOT is unsafe for private runtime artifacts" >&2
     exit 1
 fi
+trap cleanup EXIT HUP INT TERM
 mkdir -p "$PHASE4_BARRIER_DIR"
 rm -f "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" "$SUMMARY" "$EXT_PROC_RUNTIME_CONFIG" \
     "$TRANSPORT_OBSERVATIONS" "$PHASE4_BARRIER_OBSERVATION" \
