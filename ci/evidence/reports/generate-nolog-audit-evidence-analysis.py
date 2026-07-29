@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
@@ -15,9 +14,9 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
-from focused_analysis_utils import action_parts, action_value, as_list, find_framework_case_path, read_json, read_text, refresh_connector_queue_totals, regenerate_phase_work_queue, render_connector_work_queue_markdown, sanitize_path, upsert_marked_section, utc_now, write_generated_report_pair, write_json
+from focused_analysis_utils import action_parts, action_value, as_list, find_framework_case_path, read_json, read_text, refresh_connector_queue_totals, regenerate_phase_work_queue, render_connector_work_queue_markdown, run_report_generator, sanitize_path, upsert_marked_section, utc_now, write_generated_report_pair, write_json
 from generated_report_utils import GENERATED_ROOT, report_path, report_path_from_root, report_relpath
-from report_path_safety import add_report_roots, add_safe_roots, resolve_output_dir, safe_existing_file, write_text_file
+from report_path_safety import safe_existing_file, write_text_file
 
 try:
     import yaml
@@ -511,31 +510,13 @@ def build_analysis(connector_root: Path, framework_root: Path) -> dict[str, Any]
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--connector-root", default=".")
-    parser.add_argument("--framework-root", default=None)
-    parser.add_argument("--output-dir", default=None)
-    args = parser.parse_args()
-
-    connector_root = Path(args.connector_root).resolve()
-    framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    report_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
-    add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
-    add_report_roots(connector_root / REPORT_DIR)
-    report_dir.mkdir(parents=True, exist_ok=True)
-    analysis = build_analysis(connector_root, framework_root)
-    md_path = write_generated_report_pair(
-        report_dir,
-        connector_root,
-        framework_root,
-        analysis,
+    return run_report_generator(
         report_name="nolog_audit_evidence",
         generated_by="ci/evidence/reports/generate-nolog-audit-evidence-analysis.py",
         make_target="generate-nolog-audit-evidence-analysis",
-        markdown=render_analysis_markdown(analysis),
+        build_analysis=build_analysis,
+        render_markdown=render_analysis_markdown,
     )
-    print(md_path)
-    return 0
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import sys
 from collections import Counter
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from generated_report_utils import (
+    GENERATED_ROOT,
     build_metadata,
     generated_json_text,
     generated_markdown_text,
@@ -18,6 +20,7 @@ from generated_report_utils import (
 )
 from report_path_safety import read_json_file as read_json
 from report_path_safety import read_text_file as read_text
+from report_path_safety import add_report_roots, add_safe_roots, resolve_output_dir
 from report_path_safety import safe_existing_file
 from report_path_safety import write_json_file as write_json
 from report_path_safety import write_text_file
@@ -27,6 +30,8 @@ CONNECTOR_WORK_QUEUE_REPORT = "connector_work_queue"
 FULL_RUNTIME_MATRIX_REPORT = "full_runtime_matrix"
 PHASE_COVERAGE_REPORT = "phase_coverage"
 PHASE_WORK_QUEUE_REPORT = "phase_work_queue"
+ReportAnalysisBuilder = Callable[[Path, Path], dict[str, Any]]
+ReportMarkdownRenderer = Callable[[dict[str, Any]], str]
 
 
 def as_list(value: Any) -> list[str]:
@@ -207,6 +212,48 @@ def write_generated_report_pair(
     write_text_file(json_path, generated_json_text(analysis, metadata))
     write_text_file(md_path, generated_markdown_text(markdown, metadata))
     return md_path
+
+
+def run_report_generator(
+    *,
+    report_name: str,
+    generated_by: str,
+    make_target: str,
+    build_analysis: ReportAnalysisBuilder,
+    render_markdown: ReportMarkdownRenderer,
+) -> int:
+    """Run one fixed report generator through the existing safe-root lifecycle."""
+
+    parser = argparse.ArgumentParser()
+    for option, default in (
+        ("--connector-root", "."),
+        ("--framework-root", None),
+        ("--output-dir", None),
+    ):
+        parser.add_argument(option, default=default)
+    args = parser.parse_args()
+
+    connector_root = Path(args.connector_root).resolve()
+    configured_framework_root = args.framework_root
+    framework_root = Path(configured_framework_root).resolve() if configured_framework_root else connector_root / "modules/ModSecurity-test-Framework"
+    report_dir = resolve_output_dir(connector_root, args.output_dir, GENERATED_ROOT)
+    generated_root = connector_root / GENERATED_ROOT
+    add_safe_roots(connector_root, framework_root, generated_root)
+    add_report_roots(generated_root)
+    report_dir.mkdir(parents=True, exist_ok=True)
+    analysis = build_analysis(connector_root, framework_root)
+    md_path = write_generated_report_pair(
+        report_dir,
+        connector_root,
+        framework_root,
+        analysis,
+        report_name=report_name,
+        generated_by=generated_by,
+        make_target=make_target,
+        markdown=render_markdown(analysis),
+    )
+    print(md_path)
+    return 0
 
 
 def sanitize_path(value: Any, connector_root: Path, framework_root: Path) -> str:

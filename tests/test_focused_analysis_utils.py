@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import inspect
 import importlib.util
+import io
 import json
 import sys
 import tempfile
@@ -76,9 +79,14 @@ NOLOG_UTILITIES = tuple(name for name in CASE_PATH_UTILITIES if name != "import_
 REPORT_LIFECYCLE_UTILITIES = (
     "render_connector_work_queue_markdown",
     "regenerate_phase_work_queue",
+    "run_report_generator",
     "write_generated_report_pair",
 )
 GENERATED_AT = "2026-07-29T00:00:00Z"
+NOLOG_REPORT_NAME = "nolog_audit_evidence"
+RESPONSE_HEADER_REPORT_NAME = "response_header_hook_analysis"
+TEST_GENERATED_BY = "tests/focused-analysis-utils"
+TEST_MAKE_TARGET = "test-focused-analysis-utils"
 
 
 class FocusedAnalysisUtilsTest(unittest.TestCase):
@@ -248,6 +256,95 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
             NOLOG.WORK_DIRECTION,
         )
 
+    def test_report_generator_entrypoints_preserve_fixed_specs(self) -> None:
+        self.assertNotIn("report_dir_name", inspect.signature(UTILS.run_report_generator).parameters)
+        specs = (
+            (NOLOG, NOLOG_REPORT_NAME, "ci/evidence/reports/generate-nolog-audit-evidence-analysis.py", "generate-nolog-audit-evidence-analysis", NOLOG.render_analysis_markdown),
+            (RESPONSE_HEADER, RESPONSE_HEADER_REPORT_NAME, "ci/evidence/reports/generate-response-header-hook-analysis.py", "generate-response-header-hook-analysis", RESPONSE_HEADER.render_markdown),
+        )
+        for generator, report_name, generated_by, make_target, renderer in specs:
+            with patch.object(generator, "run_report_generator", return_value=17) as runner:
+                self.assertEqual(generator.main(), 17)
+
+            kwargs = runner.call_args.kwargs
+            self.assertEqual(kwargs["report_name"], report_name)
+            self.assertEqual(kwargs["generated_by"], generated_by)
+            self.assertEqual(kwargs["make_target"], make_target)
+            self.assertIs(kwargs["build_analysis"], generator.build_analysis)
+            self.assertIs(kwargs["render_markdown"], renderer)
+
+    def test_run_report_generator_uses_safe_roots_and_rejects_outside_output(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="focused-analysis-utils-") as temporary:
+            connector_root = Path(temporary) / "connector"
+            framework_root = Path(temporary) / "framework"
+            connector_root.mkdir()
+            framework_root.mkdir()
+            report_dir = connector_root / generated_report_utils.GENERATED_ROOT
+            specifications = (
+                (NOLOG_REPORT_NAME, "tests/nolog", "test-nolog", "# Nolog\n"),
+                (RESPONSE_HEADER_REPORT_NAME, "tests/response-header", "test-response-header", "# Response Header\n"),
+            )
+            for report_name, generated_by, make_target, markdown in specifications:
+                analysis = {
+                    "generated_at": GENERATED_AT,
+                    "source_reports": {"source": "reports/testing/generated/source.json"},
+                    "summary": {"report": report_name},
+                }
+
+                def build(actual_connector_root: Path, actual_framework_root: Path) -> dict[str, object]:
+                    self.assertEqual(actual_connector_root, connector_root)
+                    self.assertEqual(actual_framework_root, framework_root)
+                    return analysis
+
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output), patch.object(
+                    sys,
+                    "argv",
+                    ["generator", "--connector-root", str(connector_root), "--framework-root", str(framework_root)],
+                ):
+                    self.assertEqual(
+                        UTILS.run_report_generator(
+                            report_name=report_name,
+                            generated_by=generated_by,
+                            make_target=make_target,
+                            build_analysis=build,
+                            render_markdown=lambda _analysis, text=markdown: text,
+                        ),
+                        0,
+                    )
+
+                markdown_path = generated_report_utils.report_path_from_root(report_dir, report_name, "md")
+                payload = json.loads(
+                    generated_report_utils.report_path_from_root(report_dir, report_name, "json").read_text(encoding="utf-8")
+                )
+                self.assertEqual(Path(output.getvalue().strip()), markdown_path)
+                self.assertEqual(payload["metadata"]["generated_by"], generated_by)
+                self.assertIn(markdown.strip(), markdown_path.read_text(encoding="utf-8"))
+
+            outside_output = Path(temporary) / "outside"
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "generator",
+                    "--connector-root",
+                    str(connector_root),
+                    "--framework-root",
+                    str(framework_root),
+                    "--output-dir",
+                    str(outside_output),
+                ],
+            ):
+                with self.assertRaisesRegex(ValueError, "inside reports/testing/generated"):
+                    UTILS.run_report_generator(
+                        report_name=NOLOG_REPORT_NAME,
+                        generated_by=TEST_GENERATED_BY,
+                        make_target=TEST_MAKE_TARGET,
+                        build_analysis=lambda _connector_root, _framework_root: self.fail("unsafe output reached build"),
+                        render_markdown=lambda _analysis: "# unreachable\n",
+                    )
+            self.assertFalse(outside_output.exists())
+
     def test_write_generated_report_pair_uses_safe_registered_paths_and_metadata(self) -> None:
         with tempfile.TemporaryDirectory(prefix="focused-analysis-utils-") as temporary:
             connector_root = Path(temporary) / "connector"
@@ -267,9 +364,9 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
                     connector_root,
                     framework_root,
                     analysis,
-                    report_name="nolog_audit_evidence",
-                    generated_by="tests/focused-analysis-utils",
-                    make_target="test-focused-analysis-utils",
+                    report_name=NOLOG_REPORT_NAME,
+                    generated_by=TEST_GENERATED_BY,
+                    make_target=TEST_MAKE_TARGET,
                     markdown="# Nolog\n",
                 )
             report_path_safety.add_safe_roots(connector_root, framework_root, report_dir)
@@ -280,18 +377,18 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
                 connector_root,
                 framework_root,
                 analysis,
-                report_name="nolog_audit_evidence",
-                generated_by="tests/focused-analysis-utils",
-                make_target="test-focused-analysis-utils",
+                report_name=NOLOG_REPORT_NAME,
+                generated_by=TEST_GENERATED_BY,
+                make_target=TEST_MAKE_TARGET,
                 markdown="# Nolog\n",
             )
-            json_path = generated_report_utils.report_path_from_root(report_dir, "nolog_audit_evidence", "json")
+            json_path = generated_report_utils.report_path_from_root(report_dir, NOLOG_REPORT_NAME, "json")
             payload = json.loads(json_path.read_text(encoding="utf-8"))
             markdown = markdown_path.read_text(encoding="utf-8")
 
-        self.assertEqual(markdown_path, generated_report_utils.report_path_from_root(report_dir, "nolog_audit_evidence", "md"))
+        self.assertEqual(markdown_path, generated_report_utils.report_path_from_root(report_dir, NOLOG_REPORT_NAME, "md"))
         self.assertEqual(payload["summary"], {"rows": 1})
-        self.assertEqual(payload["metadata"]["generated_by"], "tests/focused-analysis-utils")
+        self.assertEqual(payload["metadata"]["generated_by"], TEST_GENERATED_BY)
         self.assertIn("# Nolog", markdown)
 
     def test_utc_formatting_and_scalar_list_coercion_are_preserved(self) -> None:
