@@ -12,6 +12,8 @@ LISTEN_PORT=${LISTEN_PORT:-18080}
 UPSTREAM_PORT=${UPSTREAM_PORT:-18081}
 EXT_PROC_PORT=${EXT_PROC_PORT:-18083}
 ADMIN_PORT=${ADMIN_PORT:-19001}
+TLS_CERTIFICATE=${TLS_CERTIFICATE:-}
+TLS_PRIVATE_KEY=${TLS_PRIVATE_KEY:-}
 
 absolute_existing_file() {
     input=$1
@@ -40,6 +42,12 @@ VERSION_LOCK=$(absolute_existing_file "$VERSION_LOCK") || {
     exit 2
 }
 OUTPUT_CONFIG=$(absolute_path "$OUTPUT_CONFIG")
+if [ -z "$TLS_CERTIFICATE" ] || [ -z "$TLS_PRIVATE_KEY" ]; then
+    echo "envoy_ext_proc_config: TLS certificate and private key paths are required" >&2
+    exit 2
+fi
+TLS_CERTIFICATE=$(absolute_path "$TLS_CERTIFICATE")
+TLS_PRIVATE_KEY=$(absolute_path "$TLS_PRIVATE_KEY")
 
 case "$OUTPUT_CONFIG" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
@@ -73,6 +81,8 @@ sed \
     -e "s|@UPSTREAM_PORT@|$UPSTREAM_PORT|g" \
     -e "s|@EXT_PROC_PORT@|$EXT_PROC_PORT|g" \
     -e "s|@ADMIN_PORT@|$ADMIN_PORT|g" \
+    -e "s|@TLS_CERTIFICATE@|$TLS_CERTIFICATE|g" \
+    -e "s|@TLS_PRIVATE_KEY@|$TLS_PRIVATE_KEY|g" \
     "$TEMPLATE" > "$OUTPUT_CONFIG"
 chmod 600 "$OUTPUT_CONFIG"
 

@@ -6,6 +6,12 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Envoy runtime-artifact containment and loopback TLS](CR-20260729-sonar-envoy-runtime-artifact-tls-containment.md)
+  — focused temporary TLS, artifact-containment, config-materialization, Go,
+  and Common-adoption controls passed where their prerequisites are available;
+  the native Envoy/ext_proc runtime is blocked locally by the absent Envoy
+  binary and Framework rule fixture. Hosted verification remains pending.
+
 - [Parent CI focused-report helper deduplication and request-body path containment](CR-20260729-sonar-ci-focused-report-safety.md)
   — local traversal/symlink regression and legitimate in-root controls passed;
   the combined security review found no reportable regression. Exact-head

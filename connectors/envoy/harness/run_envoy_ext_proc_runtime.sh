@@ -48,6 +48,8 @@ PHASE4_BARRIER_TIMEOUT=${ENVOY_PHASE4_BARRIER_TIMEOUT_SECONDS:-10}
 PHASE4_BARRIER_TRANSACTION_ID=envoy-ext-proc-phase4-safe
 ALLOW_TRANSACTION_ID=envoy-ext-proc-allow-1
 ALLOW_PROBE_EVIDENCE="$RUNTIME_ROOT/allow-probe.json"
+TLS_CERTIFICATE="$RUNTIME_ROOT/envoy-loopback.crt"
+TLS_PRIVATE_KEY="$RUNTIME_ROOT/envoy-loopback.key"
 envoy_pid=
 service_pid=
 upstream_pid=
@@ -150,10 +152,14 @@ if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ]; then
         *) ;;
     esac
 fi
-mkdir -p "$RUNTIME_ROOT" "$PHASE4_BARRIER_DIR"
+if ! "$PYTHON_BIN" "$HELPER" prepare-runtime-root --runtime-root "$RUNTIME_ROOT"; then
+    echo "envoy_ext_proc_runtime: FAIL - RUNTIME_ROOT is unsafe for private runtime artifacts" >&2
+    exit 1
+fi
+mkdir -p "$PHASE4_BARRIER_DIR"
 rm -f "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" "$SUMMARY" "$EXT_PROC_RUNTIME_CONFIG" \
     "$TRANSPORT_OBSERVATIONS" "$PHASE4_BARRIER_OBSERVATION" \
-    "$ALLOW_PROBE_EVIDENCE" \
+    "$ALLOW_PROBE_EVIDENCE" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" \
     "$PHASE4_BARRIER_DIR/upstream-paused.json" "$PHASE4_BARRIER_DIR/release" \
     "$PHASE4_BARRIER_DIR/upstream-completed.json"
 
@@ -183,9 +189,20 @@ ext_proc_port=${ENVOY_EXT_PROC_PORT:-$3}
 admin_port=${ENVOY_ADMIN_PORT:-$4}
 base_id=$(((listen_port + admin_port) % 100000))
 
+command -v openssl >/dev/null 2>&1 || missing_dependency "openssl is required for the private loopback TLS certificate"
+umask 077
+if ! openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 \
+    -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 \
+    -keyout "$TLS_PRIVATE_KEY" -out "$TLS_CERTIFICATE" >/dev/null 2>&1; then
+    echo "envoy_ext_proc_runtime: FAIL - could not create the private loopback TLS certificate" >&2
+    exit 1
+fi
+chmod 600 "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
+
 OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$listen_port" \
     UPSTREAM_PORT="$upstream_port" EXT_PROC_PORT="$ext_proc_port" \
     ADMIN_PORT="$admin_port" TEMPLATE="$YAML_TEMPLATE" \
+    TLS_CERTIFICATE="$TLS_CERTIFICATE" TLS_PRIVATE_KEY="$TLS_PRIVATE_KEY" \
     sh "$PREPARE_ENVOY_CONFIG" >/dev/null
 OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG" RULES_FILE="$RULES_FILE" EVENT_PATH="$COMMON_EVENT_LOG_PATH" \
     sh "$PREPARE_RUNTIME_CONFIG" >/dev/null
@@ -194,6 +211,7 @@ if ! grep -Fq 'name: envoy.filters.http.ext_proc' "$ENVOY_CONFIG" || \
     grep -Fq 'name: envoy.filters.http.ext_authz' "$ENVOY_CONFIG" || \
     ! grep -Fq 'request_body_mode: STREAMED' "$ENVOY_CONFIG" || \
     ! grep -Fq 'response_body_mode: STREAMED' "$ENVOY_CONFIG" || \
+    ! grep -Fq 'name: envoy.transport_sockets.tls' "$ENVOY_CONFIG" || \
     ! grep -Fq 'request_trailer_mode: SEND' "$ENVOY_CONFIG" || \
     ! grep -Fq 'response_trailer_mode: SEND' "$ENVOY_CONFIG" || \
     ! grep -Fq 'request_attributes:' "$ENVOY_CONFIG"; then
@@ -236,6 +254,7 @@ if ! "$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG" \
 fi
 
 "$PYTHON_BIN" "$HELPER" serve-upstream --port "$upstream_port" \
+    --runtime-root "$RUNTIME_ROOT" \
     --client-cancel-delay "${ENVOY_CLIENT_CANCEL_DELAY_SECONDS:-5}" \
     --phase4-barrier-dir "$PHASE4_BARRIER_DIR" \
     --phase4-barrier-timeout "$PHASE4_BARRIER_TIMEOUT" \
@@ -269,7 +288,8 @@ while [ "$attempt" -lt 30 ]; do
     done
     set +e
     allowed_status=$("$PYTHON_BIN" "$HELPER" probe \
-        --url "http://127.0.0.1:$listen_port/allowed" \
+        --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+        --url "https://127.0.0.1:$listen_port/allowed" \
         --header "X-Request-Id: $ALLOW_TRANSACTION_ID" \
         --evidence-path "$ALLOW_PROBE_EVIDENCE" 2>/dev/null)
     probe_rc=$?
@@ -286,7 +306,8 @@ if [ "$allowed_status" != "200" ]; then
 fi
 
 if ! streamed_status=$("$PYTHON_BIN" "$HELPER" probe \
-    --url "http://127.0.0.1:$listen_port/streamed" --method POST \
+    --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+    --url "https://127.0.0.1:$listen_port/streamed" --method POST \
     --data "request-body-for-ext-proc" \
     --header "X-Request-Id: envoy-ext-proc-stream-1"); then
     echo "envoy_ext_proc_runtime: FAIL - streamed request could not be completed" >&2
@@ -298,7 +319,8 @@ if [ "$streamed_status" != "200" ]; then
 fi
 
 if ! phase1_deny_status=$("$PYTHON_BIN" "$HELPER" probe \
-    --url "http://127.0.0.1:$listen_port/phase1-deny" \
+    --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+    --url "https://127.0.0.1:$listen_port/phase1-deny" \
     --header "X-Request-Id: envoy-ext-proc-phase1-deny" \
     --header "X-Modsec-Smoke: block"); then
     echo "envoy_ext_proc_runtime: FAIL - phase-1 deny probe could not be completed" >&2
@@ -310,7 +332,8 @@ if [ "$phase1_deny_status" != "403" ]; then
 fi
 
 if ! phase2_deny_status=$("$PYTHON_BIN" "$HELPER" probe \
-    --url "http://127.0.0.1:$listen_port/phase2-deny" --method POST \
+    --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+    --url "https://127.0.0.1:$listen_port/phase2-deny" --method POST \
     --data "no-crs-request-body-marker" \
     --header "X-Request-Id: envoy-ext-proc-phase2-deny"); then
     echo "envoy_ext_proc_runtime: FAIL - phase-2 deny probe could not be completed" >&2
@@ -322,7 +345,8 @@ if [ "$phase2_deny_status" != "403" ]; then
 fi
 
 if ! phase3_deny_status=$("$PYTHON_BIN" "$HELPER" probe \
-    --url "http://127.0.0.1:$listen_port/phase3-block" \
+    --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+    --url "https://127.0.0.1:$listen_port/phase3-block" \
     --header "X-Request-Id: envoy-ext-proc-phase3-deny"); then
     echo "envoy_ext_proc_runtime: FAIL - phase-3 deny probe could not be completed" >&2
     exit 1
@@ -333,7 +357,8 @@ if [ "$phase3_deny_status" != "403" ]; then
 fi
 
 if ! phase3_redirect_status=$("$PYTHON_BIN" "$HELPER" probe \
-    --url "http://127.0.0.1:$listen_port/phase3-redirect" --no-redirect \
+    --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+    --url "https://127.0.0.1:$listen_port/phase3-redirect" --no-redirect \
     --header "X-Request-Id: envoy-ext-proc-phase3-redirect"); then
     echo "envoy_ext_proc_runtime: FAIL - phase-3 redirect probe could not be completed" >&2
     exit 1
@@ -344,6 +369,7 @@ if [ "$phase3_redirect_status" != "302" ]; then
 fi
 
 if ! phase4_barrier_observation=$("$PYTHON_BIN" "$HELPER" phase4-first-byte \
+    --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
     --host 127.0.0.1 --port "$listen_port" --path /phase4-marker \
     --header "X-Request-Id: $PHASE4_BARRIER_TRANSACTION_ID" \
     --barrier-dir "$PHASE4_BARRIER_DIR" --timeout "$PHASE4_BARRIER_TIMEOUT" \
@@ -360,7 +386,8 @@ if [ "$phase4_safe_status" != "200" ]; then
     exit 1
 fi
 if ! phase4_followup_status=$("$PYTHON_BIN" "$HELPER" probe \
-    --url "http://127.0.0.1:$listen_port/allowed" \
+    --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+    --url "https://127.0.0.1:$listen_port/allowed" \
     --header "X-Request-Id: envoy-ext-proc-phase4-followup"); then
     echo "envoy_ext_proc_runtime: FAIL - follow-up request after phase-4 barrier could not be completed" >&2
     exit 1
@@ -437,6 +464,7 @@ fi
 # barrier facts; neither response fixture is ever written into JSONL.
 if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ]; then
     if ! phase4_barrier_binding=$("$PYTHON_BIN" "$HELPER" write-phase4-first-byte-evidence \
+        --runtime-root "$RUNTIME_ROOT" \
         --event-log "$COMMON_EVENT_LOG_PATH" \
         --observation "$PHASE4_BARRIER_OBSERVATION" \
         --transaction-id "$PHASE4_BARRIER_TRANSACTION_ID" \
@@ -447,6 +475,7 @@ if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ]; then
     fi
 else
     if ! phase4_barrier_binding=$("$PYTHON_BIN" "$HELPER" write-phase4-first-byte-evidence \
+        --runtime-root "$RUNTIME_ROOT" \
         --event-log "$COMMON_EVENT_LOG_PATH" \
         --observation "$PHASE4_BARRIER_OBSERVATION" \
         --transaction-id "$PHASE4_BARRIER_TRANSACTION_ID" \
@@ -485,6 +514,7 @@ cancel_first_byte_received=false
 cancel_followup_result=not_executed
 if [ "$TRANSPORT_CANCEL_PROBE" = 1 ]; then
     if ! cancel_observation=$("$PYTHON_BIN" "$HELPER" client-cancel \
+        --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
         --host 127.0.0.1 --port "$listen_port" --path /client-cancel \
         --header "X-Request-Id: $TRANSPORT_CANCEL_ID"); then
         echo "envoy_ext_proc_runtime: FAIL - client-cancel probe could not receive the first response byte" >&2
@@ -551,7 +581,8 @@ PY
     cancel_transport_result=client_cancelled
     cancel_first_byte_received=true
     if ! cancel_followup_status=$("$PYTHON_BIN" "$HELPER" probe \
-        --url "http://127.0.0.1:$listen_port/allowed" \
+        --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+        --url "https://127.0.0.1:$listen_port/allowed" \
         --header "X-Request-Id: envoy-ext-proc-client-cancel-followup"); then
         echo "envoy_ext_proc_runtime: FAIL - follow-up request after client cancel could not be completed" >&2
         exit 1
@@ -574,6 +605,7 @@ for process_pair in "envoy:$envoy_pid" "ext_proc:$service_pid" "upstream:$upstre
     fi
 done
 if ! allow_event_binding=$("$PYTHON_BIN" "$HELPER" write-allow-event \
+    --runtime-root "$RUNTIME_ROOT" \
     --event-log "$COMMON_EVENT_LOG_PATH" \
     --probe-evidence "$ALLOW_PROBE_EVIDENCE" \
     --completion-log "$COMPLETION_LOG_PATH" \

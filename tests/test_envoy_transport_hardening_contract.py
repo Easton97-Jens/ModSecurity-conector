@@ -4,6 +4,8 @@ import http.client
 import http.server
 import importlib.util
 import json
+import ssl
+import subprocess
 import sys
 import tempfile
 import threading
@@ -25,6 +27,25 @@ def load_helper() -> object:
     sys.modules[specification.name] = module
     specification.loader.exec_module(module)
     return module
+
+
+def configure_loopback_tls(server: http.server.ThreadingHTTPServer, root: Path) -> Path:
+    certificate = root / "loopback.crt"
+    private_key = root / "loopback.key"
+    subprocess.run(
+        [
+            "openssl", "req", "-x509", "-newkey", "rsa:2048", "-sha256", "-nodes", "-days", "1",
+            "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1",
+            "-keyout", str(private_key), "-out", str(certificate),
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certfile=certificate, keyfile=private_key)
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    return certificate
 
 
 class EnvoyTransportHardeningContractTest(unittest.TestCase):
@@ -56,23 +77,26 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
     def test_client_cancel_waits_for_one_real_body_byte_then_closes(self) -> None:
         helper = load_helper()
 
-        class FastCancelHandler(helper.UpstreamHandler):
-            client_cancel_delay_seconds = 0.05
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
 
-        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FastCancelHandler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        try:
-            observation = helper.client_cancel(
-                "127.0.0.1",
-                server.server_port,
-                "/client-cancel",
-                ["X-Request-Id: cancel-test"],
-            )
-        finally:
-            server.shutdown()
-            server.server_close()
-            thread.join(timeout=2)
+            class FastCancelHandler(helper.UpstreamHandler):
+                client_cancel_delay_seconds = 0.05
+
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FastCancelHandler)
+            server.handle_error = lambda request, client_address: None
+            certificate = configure_loopback_tls(server, root)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                observation = helper.client_cancel(
+                    str(root), str(certificate), "127.0.0.1", server.server_port,
+                    "/client-cancel", ["X-Request-Id: cancel-test"],
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
 
         self.assertEqual(observation["http_status"], 200)
         self.assertTrue(observation["first_body_byte_received"])
@@ -80,8 +104,54 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
 
     def test_client_cancel_rejects_non_ascii_wire_headers(self) -> None:
         helper = load_helper()
-        with self.assertRaises(ValueError):
-            helper.client_cancel("127.0.0.1", 18080, "/client-cancel", ["X-Test: snowman-☃"])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            certificate = root / "loopback.crt"
+            certificate.write_text("placeholder", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                helper.client_cancel(
+                    str(root), str(certificate), "127.0.0.1", 18080,
+                    "/client-cancel", ["X-Test: snowman-☃"],
+                )
+
+    def test_probe_requires_verified_loopback_tls_and_root_confined_evidence(self) -> None:
+        helper = load_helper()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), helper.UpstreamHandler)
+            certificate = configure_loopback_tls(server, root)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            evidence = root / "probe.json"
+            try:
+                self.assertEqual(
+                    helper.probe(
+                        str(root), str(certificate), f"https://127.0.0.1:{server.server_port}/allowed",
+                        [], "GET", None, False, str(evidence),
+                    ),
+                    0,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+            self.assertEqual(json.loads(evidence.read_text(encoding="utf-8"))["http_status"], 200)
+            for unsafe_url in (
+                f"http://127.0.0.1:{server.server_port}/allowed",
+                f"https://example.invalid:{server.server_port}/allowed",
+                f"https://user@127.0.0.1:{server.server_port}/allowed",
+            ):
+                with self.assertRaises(ValueError):
+                    helper.checked_loopback_https_url(unsafe_url)
+
+            outside = root.parent / "envoy-probe-outside.json"
+            with self.assertRaises(ValueError):
+                helper.runtime_artifact(root, outside, "probe evidence output")
+            escaped_parent = root / "escaped"
+            escaped_parent.symlink_to(root.parent, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                helper.runtime_artifact(root, escaped_parent / "probe.json", "probe evidence output")
 
     def test_phase4_marker_default_and_plain_text_headers_remain_stable(self) -> None:
         helper = load_helper()
@@ -90,6 +160,8 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             "phase4-first-byte",
             "--host", "127.0.0.1",
             "--port", "18080",
+            "--runtime-root", "/var/tmp/envoy-phase4-runtime",
+            "--tls-certificate", "/var/tmp/envoy-phase4-runtime/loopback.crt",
             "--barrier-dir", "/tmp/phase4-barrier",
         ]):
             arguments = helper.parse_args()
@@ -123,17 +195,21 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         helper = load_helper()
         with tempfile.TemporaryDirectory() as temporary:
             barrier_dir = Path(temporary) / "phase4-barrier"
-            barrier_dir.mkdir()
+            root = Path(temporary)
 
             class BarrierHandler(helper.UpstreamHandler):
-                phase4_barrier_dir = barrier_dir
                 phase4_barrier_timeout_seconds = 2.0
 
+            BarrierHandler.phase4_barrier_dir = barrier_dir
+            BarrierHandler.runtime_root = root
             server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), BarrierHandler)
+            certificate = configure_loopback_tls(server, root)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             try:
                 observation = helper.phase4_first_byte(
+                    str(root),
+                    str(certificate),
                     "127.0.0.1",
                     server.server_port,
                     "/phase4-marker",
@@ -174,8 +250,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             observation_path = root / "observation.json"
             event_path = root / "events.jsonl"
             evidence_path = root / "first-byte-evidence.json"
-            helper.write_json_atomic(
-                observation_path,
+            helper.write_json_atomic(root, observation_path,
                 {
                     "schema_version": 1,
                     "evidence_type": "envoy_phase4_first_byte_observation",
@@ -190,7 +265,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                     "body_payload_persisted": False,
                     "transport_protocol": "http1",
                     "outcome": "PASS",
-                },
+                }, "phase-4 first-byte observation",
             )
             common_safe_event = {
                 "connector": "envoy",
@@ -219,6 +294,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             event_path.write_text(json.dumps(common_safe_event) + "\n", encoding="utf-8")
 
             result = helper.write_phase4_first_byte_evidence(
+                runtime_root=str(root),
                 event_log=str(event_path),
                 observation_path=str(observation_path),
                 transaction_id="envoy-ext-proc-phase4-safe",
@@ -255,6 +331,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             self.assertNotIn("no-crs-response-body-marker", json.dumps(barrier_event))
 
             repeated = helper.write_phase4_first_byte_evidence(
+                runtime_root=str(root),
                 event_log=str(event_path),
                 observation_path=str(observation_path),
                 transaction_id="envoy-ext-proc-phase4-safe",
@@ -297,13 +374,13 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 }) + "\n",
                 encoding="utf-8",
             )
-            helper.write_json_atomic(probe, {
+            helper.write_json_atomic(root, probe, {
                 "schema_version": 1,
                 "evidence_type": "envoy_http_client_probe",
                 "http_status": 200,
                 "response_bytes": 27,
                 "body_payload_persisted": False,
-            })
+            }, "allow probe evidence")
             completions.write_text(
                 json.dumps({
                     "event": "ext_proc_stream_complete",
@@ -319,6 +396,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             )
 
             result = helper.write_allow_event(
+                runtime_root=str(root),
                 event_log=str(events),
                 probe_evidence_path=str(probe),
                 completion_log=str(completions),
@@ -343,13 +421,13 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             probe = root / "allow-probe.json"
             completions = root / "completion-events.jsonl"
             events.write_text("{}\n", encoding="utf-8")
-            helper.write_json_atomic(probe, {
+            helper.write_json_atomic(root, probe, {
                 "schema_version": 1,
                 "evidence_type": "envoy_http_client_probe",
                 "http_status": 403,
                 "response_bytes": 27,
                 "body_payload_persisted": False,
-            })
+            }, "allow probe evidence")
             completions.write_text(
                 json.dumps({
                     "event": "ext_proc_stream_complete",
@@ -368,22 +446,24 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             completion_log = str(completions)
             with self.assertRaisesRegex(ValueError, "HTTP 200"):
                 helper.write_allow_event(
+                    runtime_root=str(root),
                     event_log=event_log,
                     probe_evidence_path=probe_evidence_path,
                     completion_log=completion_log,
                     transaction_id="envoy-ext-proc-allow-1",
                 )
 
-            helper.write_json_atomic(probe, {
+            helper.write_json_atomic(root, probe, {
                 "schema_version": 1,
                 "evidence_type": "envoy_http_client_probe",
                 "http_status": 200,
                 "response_bytes": 27,
                 "body_payload_persisted": False,
-            })
+            }, "allow probe evidence")
             completions.write_text("\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "exactly one ext_proc completion"):
                 helper.write_allow_event(
+                    runtime_root=str(root),
                     event_log=event_log,
                     probe_evidence_path=probe_evidence_path,
                     completion_log=completion_log,
@@ -410,6 +490,9 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn("phase4_end_of_stream_evaluation_status", source)
         self.assertIn("phase4_rule_observed_status", source)
         self.assertIn("write-allow-event", source)
+        self.assertIn("prepare-runtime-root", source)
+        self.assertIn("envoy.transport_sockets.tls", source)
+        self.assertIn('https://127.0.0.1:$listen_port', source)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,13 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Envoy-Runtime-Artefaktbegrenzung und Loopback-TLS](CR-20260729-sonar-envoy-runtime-artifact-tls-containment.de.md)
+  — fokussierte temporäre TLS-, Artefaktbegrenzungs-, Konfigurations-
+  Materialisierungs-, Go- und Common-Adoption-Controls bestanden, soweit ihre
+  Voraussetzungen verfügbar sind; die native Envoy-/ext_proc-Runtime ist
+  lokal durch das fehlende Envoy-Binary und die Framework-Regel-Fixture
+  blockiert. Hosted-Verifikation steht aus.
+
 - [Parent-CI-Focused-Report-Helper-Deduplizierung und Request-Body-Pfadbegrenzung](CR-20260729-sonar-ci-focused-report-safety.de.md)
   — lokale Traversal-/Symlink-Regression und legitime In-Root-Controls
   bestanden; der kombinierte Security-Diff-Review fand keine reportbare Regression.
