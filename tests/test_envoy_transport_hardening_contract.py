@@ -24,6 +24,7 @@ EXT_AUTHZ_TEMPLATE = ROOT / "connectors" / "envoy" / "config" / "envoy-ext-authz
 EXT_PROC_CONFIG_MATERIALIZER = (
     ROOT / "connectors" / "envoy" / "config" / "prepare_envoy_ext_proc_config.sh"
 )
+TLS_YAML_RENDERER = ROOT / "connectors" / "envoy" / "config" / "lib" / "tls_yaml_render.sh"
 
 
 def load_helper() -> object:
@@ -552,6 +553,11 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             self.assertEqual(rejected.returncode, 2, rejected.stderr)
             self.assertIn("TLS certificate path contains an unsupported control character", rejected.stderr)
             self.assertFalse(newline_output.exists())
+
+    def test_tls_renderer_explicitly_accepts_control_free_paths(self) -> None:
+        renderer = TLS_YAML_RENDERER.read_text(encoding="utf-8")
+
+        self.assertIn('        *) : ;;\n', renderer)
 
     def test_ext_authz_compat_runtime_uses_private_loopback_tls(self) -> None:
         source = EXT_AUTHZ_RUNTIME_PATH.read_text(encoding="utf-8")
