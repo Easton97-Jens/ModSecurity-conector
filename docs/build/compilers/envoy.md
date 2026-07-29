@@ -273,6 +273,8 @@ An official Envoy binary is only the host. If validation fails, check the genera
 | OUTPUT_CONFIG | Output path consumed by one configuration-materialization command. |
 | EVENT_PATH | Absolute local event-log path passed to the ext_proc runtime configuration writer. |
 | RUNTIME_ROOT | External ephemeral root used by the bounded Envoy runtime harness. |
+| TLS_CERTIFICATE | Private one-day loopback certificate path for the generated Envoy listener. |
+| TLS_PRIVATE_KEY | Private key path paired with TLS_CERTIFICATE; keep it outside the checkout. |
 | LISTEN_PORT | Loopback listener port passed to the Envoy configuration materializer. |
 | UPSTREAM_PORT | Loopback upstream port passed to the Envoy configuration materializer. |
 | ADMIN_PORT | Loopback admin port passed to the Envoy configuration materializer. |

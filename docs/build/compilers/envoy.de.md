@@ -273,6 +273,8 @@ Ein offizielles Envoy-Binary ist nur der Host. Schlägt die Validierung fehl, er
 | OUTPUT_CONFIG | Ausgabepfad eines Konfigurationsmaterialisierungsbefehls. |
 | EVENT_PATH | Absoluter lokaler Eventlog-Pfad für den ext_proc-Laufzeitkonfigurationsgenerator. |
 | RUNTIME_ROOT | Externer temporärer Root des begrenzten Envoy-Laufzeitharnesses. |
+| TLS_CERTIFICATE | Privater Pfad des eintägigen Loopback-Zertifikats für den erzeugten Envoy-Listener. |
+| TLS_PRIVATE_KEY | Private-Key-Pfad zu TLS_CERTIFICATE; außerhalb des Checkouts halten. |
 | LISTEN_PORT | An den Envoy-Konfigurationsgenerator übergebener Loopback-Listenerport. |
 | UPSTREAM_PORT | An den Envoy-Konfigurationsgenerator übergebener Loopback-Upstream-Port. |
 | ADMIN_PORT | An den Envoy-Konfigurationsgenerator übergebener Loopback-Adminport. |

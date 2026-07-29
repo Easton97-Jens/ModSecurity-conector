@@ -108,10 +108,13 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             root = Path(temporary)
             certificate = root / "loopback.crt"
             certificate.write_text("placeholder", encoding="utf-8")
+            runtime_root = str(root)
+            certificate_path = str(certificate)
+            non_ascii_header = ["X-Test: snowman-☃"]
             with self.assertRaises(ValueError):
                 helper.client_cancel(
-                    str(root), str(certificate), "127.0.0.1", 18080,
-                    "/client-cancel", ["X-Test: snowman-☃"],
+                    runtime_root, certificate_path, "127.0.0.1", 18080,
+                    "/client-cancel", non_ascii_header,
                 )
 
     def test_probe_requires_verified_loopback_tls_and_root_confined_evidence(self) -> None:
@@ -444,9 +447,10 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             event_log = str(events)
             probe_evidence_path = str(probe)
             completion_log = str(completions)
+            runtime_root = str(root)
             with self.assertRaisesRegex(ValueError, "HTTP 200"):
                 helper.write_allow_event(
-                    runtime_root=str(root),
+                    runtime_root=runtime_root,
                     event_log=event_log,
                     probe_evidence_path=probe_evidence_path,
                     completion_log=completion_log,
@@ -463,7 +467,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             completions.write_text("\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "exactly one ext_proc completion"):
                 helper.write_allow_event(
-                    runtime_root=str(root),
+                    runtime_root=runtime_root,
                     event_log=event_log,
                     probe_evidence_path=probe_evidence_path,
                     completion_log=completion_log,

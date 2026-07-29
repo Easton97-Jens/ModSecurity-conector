@@ -140,6 +140,22 @@ Binary und die Framework-Regel-Fixture lokal nicht verfügbar sind. Zum
 Zeitpunkt der Record-Erstellung existieren keine Hosted-CI, SonarQube-Cloud-
 Analyse, kein Commit, Push, Pull Request oder Merge.
 
+## Hosted-Feedback-Follow-up
+
+Der initiale exakte PR-Head `b4401deec9bce94a806dd56f1cc0215431881f93` erhielt
+ein `OK`-SonarQube-Cloud-Quality-Gate mit 0,0 % New-Code-Duplizierung, aber
+fünf task-eigene neue Code Smells: zwei duplizierte Literale und drei
+Exception-Testformen. Sein push-ausgelöster `scaffold-lint`-Lauf schlug zudem
+fehl, weil der erzeugte Envoy-Compiler-Guide die neu verwendeten Platzhalter
+`TLS_CERTIFICATE` und `TLS_PRIVATE_KEY` nicht aufführte; die OpenSSL-Tokens
+`CN` und `subjectAltName` sind feste Optionsnamen, keine Platzhalter. Der
+fokussierte Follow-up extrahiert die Literale, berechnet Exception-Test-
+Argumente vorab, dokumentiert die zwei Variablen in beiden erzeugten Guides
+und lässt den Placeholder-Test feste OpenSSL-Optionsnamen unterscheiden. Die
+52 fokussierten Envoy-Transport-, Compiler-Guide- und Bilingual-Tests bestehen
+lokal. Ein neuer Commit und ein Exact-Head-Hosted-Zyklus bleiben erforderlich;
+kein Fehler wird erlassen oder als akzeptiert markiert.
+
 ## Finaler Diff- und Review-Status
 
 Der Kandidat ist auf den Parent-Envoy-Connector, seine direkten Tests und die

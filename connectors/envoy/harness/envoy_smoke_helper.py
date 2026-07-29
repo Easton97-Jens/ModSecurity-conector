@@ -30,6 +30,8 @@ from runtime_path_utils import ensure_safe_runtime_directory, is_safe_runtime_ro
 PHASE4_MARKER_PATH = "/phase4-marker"
 TEXT_PLAIN_CONTENT_TYPE = "text/plain"
 LOOPBACK_HOST = "127.0.0.1"
+COMMON_EVENT_LOG_LABEL = "Common event log"
+NOFOLLOW_WRITE_ERROR = "safe runtime artifact writes require O_NOFOLLOW"
 
 
 def verified_runtime_root(value: str) -> Path:
@@ -109,7 +111,7 @@ def write_json_atomic(root: Path, value: str | Path, payload: dict[str, object],
     target = runtime_artifact(root, value, label)
     no_follow = getattr(os, "O_NOFOLLOW", None)
     if no_follow is None:
-        raise ValueError("safe runtime artifact writes require O_NOFOLLOW")
+        raise ValueError(NOFOLLOW_WRITE_ERROR)
     encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     parent_descriptor = _open_artifact_parent(target)
     temporary_name: str | None = None
@@ -161,7 +163,7 @@ def append_jsonl(root: Path, value: str | Path, payload: dict[str, object], labe
     target = runtime_artifact(root, value, label)
     no_follow = getattr(os, "O_NOFOLLOW", None)
     if no_follow is None:
-        raise ValueError("safe runtime artifact writes require O_NOFOLLOW")
+        raise ValueError(NOFOLLOW_WRITE_ERROR)
     parent_descriptor = _open_artifact_parent(target)
     try:
         descriptor = os.open(
@@ -192,7 +194,7 @@ def create_runtime_marker(root: Path, value: str | Path, label: str) -> Path:
     target = runtime_artifact(root, value, label)
     no_follow = getattr(os, "O_NOFOLLOW", None)
     if no_follow is None:
-        raise ValueError("safe runtime artifact writes require O_NOFOLLOW")
+        raise ValueError(NOFOLLOW_WRITE_ERROR)
     parent_descriptor = _open_artifact_parent(target)
     try:
         descriptor = os.open(
@@ -832,7 +834,7 @@ def _phase4_safe_event(records: list[dict[str, Any]], *, transaction_id: str) ->
 
 def _load_jsonl(root: Path, path: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
-    for number, line in enumerate(read_runtime_text(root, path, "Common event log").splitlines(), 1):
+    for number, line in enumerate(read_runtime_text(root, path, COMMON_EVENT_LOG_LABEL).splitlines(), 1):
         if not line.strip():
             continue
         try:
@@ -892,7 +894,7 @@ def write_allow_event(
     ):
         raise ValueError("allow ext_proc completion is not a normal streamed response")
 
-    event_path = runtime_artifact(root, event_log, "Common event log")
+    event_path = runtime_artifact(root, event_log, COMMON_EVENT_LOG_LABEL)
     existing = [
         record
         for record in _load_jsonl(root, event_path)
@@ -922,7 +924,7 @@ def write_allow_event(
             raise ValueError("existing Envoy allow event is not causally bound")
         appended = False
     else:
-        append_jsonl(root, event_path, record, "Common event log")
+        append_jsonl(root, event_path, record, COMMON_EVENT_LOG_LABEL)
         appended = True
     return {
         "schema_version": 1,
@@ -970,7 +972,7 @@ def _append_phase4_barrier_event(
         and record.get("transport_case_id") == barrier_event["transport_case_id"]
     ]
     if not existing_barriers:
-        append_jsonl(root, event_path, barrier_event, "Common event log")
+        append_jsonl(root, event_path, barrier_event, COMMON_EVENT_LOG_LABEL)
         return True
     if len(existing_barriers) != 1:
         raise ValueError("phase-4 first-byte barrier event was emitted more than once")
@@ -1002,7 +1004,7 @@ def write_phase4_first_byte_evidence(
     """Bind the controlled first-byte observation to the real Common P4 event."""
     root = verified_runtime_root(runtime_root)
     transaction = _bounded_token(transaction_id, field="transaction_id", maximum=256)
-    event_path = runtime_artifact(root, event_log, "Common event log")
+    event_path = runtime_artifact(root, event_log, COMMON_EVENT_LOG_LABEL)
     observation = _phase4_observation(
         root,
         runtime_artifact(root, observation_path, "phase-4 first-byte observation"),

@@ -129,6 +129,21 @@ complete connector matrix was run because the required Envoy binary and
 Framework rule fixture are unavailable locally. No hosted CI, SonarQube Cloud
 analysis, commit, push, pull request, or merge exists at record authoring.
 
+## Hosted-feedback follow-up
+
+The initial exact PR head `b4401deec9bce94a806dd56f1cc0215431881f93` received
+an `OK` SonarQube Cloud Quality Gate with 0.0% New-Code duplication but five
+task-owned new Code Smells: two duplicated literals and three exception-test
+forms. Its push-triggered `scaffold-lint` run also failed because the generated
+Envoy compiler guide did not list the newly used `TLS_CERTIFICATE` and
+`TLS_PRIVATE_KEY` placeholders; the OpenSSL `CN` and `subjectAltName` tokens
+are fixed option names, not placeholders. The focused follow-up extracts the
+literals, precomputes exception-test arguments, documents the two variables in
+both generated guides, and makes the placeholder test distinguish fixed
+OpenSSL option names. The 52 focused Envoy transport, compiler-guide, and
+bilingual tests pass locally. A new commit and exact-head hosted cycle remain
+required; no failure is waived or marked accepted.
+
 ## Final diff and review status
 
 The candidate is restricted to the Parent Envoy connector, its direct tests,
