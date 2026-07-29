@@ -119,20 +119,30 @@ repository in the task-owned security-scan evidence directory.
 - This Change Record does not claim that the broad current Parent `ci/`
   backlog is exhausted; it records only this non-overlapping CI-A cluster.
 
+## Delivery-status reconciliation
+
+PR #175 was created from this scoped change after its initial local-evidence
+snapshot. This record retains that local evidence only; current exact-head
+GitHub Actions, SonarQube Cloud, review, thread, and merge evidence is retained
+by the controlled-integration task and must be rechecked after every head
+update. It does not claim that a hosted result completed for an earlier head is
+still valid for a later one.
+
 ## Remaining risks
 
 `FND-PARENT-0065` remains `validated` until its lifecycle receives the
 required exact-head delivery evidence. Local tests and probes prove that the
-current working-tree patch closes the recorded reproduction, but no commit,
-push, PR, hosted check, hosted SonarQube Cloud analysis, or merge is claimed
-by this record. The pre-existing trusted-artifact-root TOCTOU assumption also
-remains outside this narrow patch.
+current working-tree patch closes the recorded reproduction, but this record
+does not by itself assert current exact-head commit, push, PR, hosted-check,
+hosted SonarQube Cloud, review, thread, or merge status. The pre-existing
+trusted-artifact-root TOCTOU assumption also remains outside this narrow patch.
 
 ## Checks not run and rationale
 
 - Hosted GitHub Actions, exact-head SonarQube Cloud issue/duplication results,
-  review, and merge status remain unobserved until a future task-owned PR head
-  exists.
+  review, thread, and merge status were not performed at the initial local
+  snapshot stage; the controlled-integration task rechecks them against the
+  current exact PR head.
 - No connector runtime, networked preparation, or full host matrix was run:
   the source change is a focused CI evidence/report repair, and the retained
   real-boundary probes are the narrowest relevant runtime evidence.
@@ -140,7 +150,7 @@ remains outside this narrow patch.
 ## Final diff and review status
 
 The working-tree diff is locally validated and has a completed combined
-security review with zero reportable diff findings. The eventual task-owned PR must be
-opened from the exact committed head, then rechecked for current master base,
-GitHub Actions, and SonarQube Cloud. No default-branch action is authorized or
-implied.
+security review with zero reportable diff findings. The task-owned PR now exists;
+its current exact committed head must be rechecked for current master base,
+GitHub Actions, SonarQube Cloud, reviews, threads, and mergeability. No
+default-branch action is authorized or implied.

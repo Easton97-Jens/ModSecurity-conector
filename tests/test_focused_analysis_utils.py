@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import sys
 import tempfile
@@ -245,6 +246,10 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
             symlink_body.symlink_to(outside_body)
             report_path_safety.add_safe_roots(safe_root)
             evidence = {"path": str(case_path)}
+            request = {"body": "fallback-body"}
+            legitimate_config = in_root_body.with_name("modsecurity-smoke.conf")
+            traversal_config = safe_root / "level1/runtime/../../../outside/conf/modsecurity-smoke.conf"
+            symlink_config = symlink_body.with_name("modsecurity-smoke.conf")
 
             legitimate = BODY_PROCESSOR.case_metadata(
                 {"case_id": "legitimate-case", "connector": "nginx", "evidence": str(evidence_path)},
@@ -262,10 +267,21 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
                 safe_root,
             )
 
+            self.assertEqual(
+                BODY_PROCESSOR.generated_body_length(legitimate_config, request), len(b"legitimate-in-root-body")
+            )
+            for unsafe_config in (traversal_config, symlink_config):
+                with self.subTest(unsafe_config=unsafe_config):
+                    self.assertEqual(BODY_PROCESSOR.generated_body_length(unsafe_config, request), len(b"fallback-body"))
+                    self.assertEqual(BODY_PROCESSOR.request_body_bytes(unsafe_config, request), b"fallback-body")
+
         self.assertEqual(legitimate["body_preview"], "legitimate-in-root-body")
         self.assertEqual(traversal["body_preview"], "fallback-body")
         self.assertEqual(symlink_escape["body_preview"], "fallback-body")
         self.assertNotEqual(traversal["body_preview"], "outside-root-sentinel")
+        outside_digest = hashlib.sha256(b"outside-root-sentinel").hexdigest()
+        self.assertNotEqual(traversal["body_sha256"], outside_digest)
+        self.assertNotEqual(symlink_escape["body_sha256"], outside_digest)
 
     def test_action_parts_preserves_empty_and_unterminated_quote_behavior(self) -> None:
         cases = {

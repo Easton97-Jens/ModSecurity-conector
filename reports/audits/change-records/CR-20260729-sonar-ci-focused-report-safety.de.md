@@ -125,20 +125,32 @@ Repositorys im task-eigenen Security-Scan-Evidence-Verzeichnis retained.
   Backlog erschöpft ist; es dokumentiert nur diesen nicht überlappenden
   CI-A-Cluster.
 
+## Abgleich des Delivery-Status
+
+PR #175 wurde nach seinem anfänglichen lokalen Evidence-Snapshot aus dieser
+abgegrenzten Änderung erzeugt. Dieses Record bewahrt nur jene lokale Evidence;
+aktuelle Exact-Head-GitHub-Actions-, SonarQube-Cloud-, Review-, Thread- und
+Merge-Evidence wird durch den kontrollierten Integrationstask aufbewahrt und
+muss nach jeder Head-Aktualisierung erneut geprüft werden. Es beansprucht nicht,
+dass ein für einen früheren Head abgeschlossenes Hosted-Ergebnis für einen
+späteren weiterhin gültig ist.
+
 ## Verbleibende Risiken
 
 `FND-PARENT-0065` bleibt `validated`, bis sein Lifecycle die notwendige
 Exact-Head-Delivery-Evidence erhält. Lokale Tests und Probes zeigen, dass der
 aktuelle Working-Tree-Patch die dokumentierte Reproduktion schließt, aber dieses
-Record beansprucht keinen Commit, Push, PR, gehosteten Check, gehostete
-SonarQube-Cloud-Analyse oder Merge. Die bestehende TOCTOU-Annahme für
-vertrauenswürdige Artefakt-Roots bleibt ebenfalls außerhalb dieses engen Patches.
+Record beansprucht selbst keinen aktuellen Exact-Head-Commit-, Push-, PR-,
+Hosted-Check-, Hosted-SonarQube-Cloud-, Review-, Thread- oder Merge-Status. Die
+bestehende TOCTOU-Annahme für vertrauenswürdige Artefakt-Roots bleibt ebenfalls
+außerhalb dieses engen Patches.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - Gehostete GitHub Actions, Exact-Head-SonarQube-Cloud-Issue-/Duplikatresultate,
-  Review und Merge-Status bleiben unbeobachtet, bis ein künftiger task-eigener
-  PR-Head existiert.
+  Review-, Thread- und Merge-Status wurden im anfänglichen lokalen Snapshot
+  nicht ausgeführt; der kontrollierte Integrationstask prüft sie gegen den
+  aktuellen exakten PR-Head erneut.
 - Keine Connector-Runtime, netzwerkgestützte Vorbereitung oder vollständige
   Host-Matrix wurde ausgeführt: Die Source-Änderung ist eine fokussierte
   CI-Evidence-/Report-Reparatur, und die retained Real-Boundary-Probes sind die
@@ -147,7 +159,7 @@ vertrauenswürdige Artefakt-Roots bleibt ebenfalls außerhalb dieses engen Patch
 ## Finaler Diff- und Review-Status
 
 Der Working-Tree-Diff ist lokal validiert und hat einen abgeschlossenen kombinierten
-Security-Review mit null reportbaren Diff-Findings. Der spätere task-eigene PR
-muss vom exakten committeten Head geöffnet und dann gegen aktuellen Master-Base,
-GitHub Actions und SonarQube Cloud erneut geprüft werden. Keine
-Default-Branch-Aktion ist autorisiert oder impliziert.
+Security-Review mit null reportbaren Diff-Findings. Der task-eigene PR existiert
+jetzt; sein aktueller exakter committeter Head muss gegen aktuellen Master-Base,
+GitHub Actions, SonarQube Cloud, Reviews, Threads und Mergeability erneut
+geprüft werden. Keine Default-Branch-Aktion ist autorisiert oder impliziert.
