@@ -32,8 +32,9 @@ does not provide transport confidentiality or integrity.
   ordinary phase, probe, and client-cancel evidence remains payload-free.
 - Existing legitimate loopback probes, phase-4 barrier behavior, and optional
   client-cancel behavior continue to work in focused temporary TLS tests.
-- Config materialization, tests, English/German documentation, and a future
-  exact-head hosted analysis must not add issues or duplicate lines.
+- Config materialization, tests, English/German documentation, and the hosted
+  analysis for the PR's exact current head must preserve zero New-Code issues
+  and duplicate lines before integration.
 
 ## Implementation decision and rationale
 
@@ -116,9 +117,10 @@ full-lifecycle promotion is claimed.
 
 ## Remaining risks
 
-- Hosted exact-head analysis must independently confirm that the fifteen
-  selected SonarQube Cloud candidates are removed without new issues or
-  duplication.
+- Before integration, the PR's exact current head must independently confirm
+  that the fifteen selected SonarQube Cloud candidates are removed without
+  new issues or duplication; the hosted PR status, not this historical record,
+  is the evidence for that gate.
 - Future Envoy configuration consumers must continue to pass certificate and
   private-key paths; the materializer now rejects their omission.
 
@@ -126,8 +128,11 @@ full-lifecycle promotion is claimed.
 
 No full Envoy/ext_proc/libmodsecurity runtime, Envoy binary validation, or
 complete connector matrix was run because the required Envoy binary and
-Framework rule fixture are unavailable locally. No hosted CI, SonarQube Cloud
-analysis, commit, push, pull request, or merge exists at record authoring.
+Framework rule fixture are unavailable locally. Hosted Actions, SonarQube
+Cloud analysis, review/thread state, and the merge operation are delivery
+evidence read from the PR at its exact current head immediately before
+integration. This record makes no assertion for a future head and records no
+`master` merge.
 
 ## Hosted-feedback follow-up
 
@@ -148,13 +153,9 @@ cycle successfully; no failure was waived or marked accepted.
 ## Final diff and review status
 
 The candidate is restricted to the Parent Envoy connector, its direct tests,
-and the required bilingual traceability/documentation. Draft PR #184 is open
-against `master`. At its then-current head
-`1b6cc0372f6d5b9ba175fc9e22b61e3ba84bd0c5`, local, remote, and PR heads
-matched; all visible applicable Actions passed, the SonarQube Cloud Quality
-Gate was `OK`, and its public issue query reported 0 New Issues and 0.0%
-New-Code duplication. The PR has no reviews or inline review comments and
-remains Draft. This record-only delivery update requires one final fresh
-exact-head cycle; its resulting SHA is retained by the PR and local execution
-plan rather than creating a self-referential record loop. No `master` merge is
-authorized or performed.
+and the required bilingual traceability/documentation. This record captures
+the final versioned source/documentation scope, local controls, and runtime
+limitations. Delivery evidence is deliberately obtained from the PR's exact
+current head immediately before any integration; it is not self-asserted for
+later documentation or lifecycle commits. No `master` merge is recorded by
+this Change Record.

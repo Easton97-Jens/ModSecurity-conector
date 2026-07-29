@@ -36,8 +36,8 @@ Vertraulichkeit noch Integrität des Transports.
   optionale Client-Cancel-Verhalten funktionieren weiterhin in fokussierten
   temporären TLS-Tests.
 - Konfigurationsmaterialisierung, Tests, englische/deutsche Dokumentation und
-  eine spätere Exact-Head-Hosted-Analyse dürfen keine Issues oder
-  Duplikatzeilen hinzufügen.
+  die Hosted-Analyse des exakten aktuellen PR-Heads müssen vor einer
+  Integration null New-Code-Issues und Duplikatzeilen bewahren.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -126,9 +126,10 @@ behauptet.
 
 ## Verbleibende Risiken
 
-- Die gehostete Exact-Head-Analyse muss unabhängig bestätigen, dass die
-  fünfzehn ausgewählten SonarQube-Cloud-Kandidaten ohne neue Issues oder
-  Duplikate entfernt sind.
+- Vor der Integration muss der exakte aktuelle PR-Head unabhängig bestätigen,
+  dass die fünfzehn ausgewählten SonarQube-Cloud-Kandidaten ohne neue Issues
+  oder Duplikate entfernt sind; der gehostete PR-Status und nicht dieser
+  historische Record ist die Evidence für dieses Gate.
 - Zukünftige Envoy-Konfigurationskonsumenten müssen weiterhin Zertifikat- und
   Private-Key-Pfade übergeben; der Materializer weist ihr Fehlen jetzt ab.
 
@@ -136,9 +137,11 @@ behauptet.
 
 Keine vollständige Envoy-/ext_proc-/libmodsecurity-Runtime, Envoy-Binary-
 Validierung oder komplette Connector-Matrix lief, weil das benötigte Envoy-
-Binary und die Framework-Regel-Fixture lokal nicht verfügbar sind. Zum
-Zeitpunkt der Record-Erstellung existieren keine Hosted-CI, SonarQube-Cloud-
-Analyse, kein Commit, Push, Pull Request oder Merge.
+Binary und die Framework-Regel-Fixture lokal nicht verfügbar sind. Hosted
+Actions, SonarQube-Cloud-Analyse, Review-/Thread-Status und der Merge-Vorgang
+sind Delivery-Evidence, die unmittelbar vor einer Integration am exakten
+aktuellen PR-Head gelesen wird. Dieser Record behauptet kein Ergebnis für
+einen künftigen Head und dokumentiert keinen `master`-Merge.
 
 ## Hosted-Feedback-Follow-up
 
@@ -160,14 +163,9 @@ erlassen oder als akzeptiert markiert.
 ## Finaler Diff- und Review-Status
 
 Der Kandidat ist auf den Parent-Envoy-Connector, seine direkten Tests und die
-erforderliche bilinguale Traceability/Dokumentation begrenzt. Draft PR #184
-ist gegen `master` offen. An seinem damaligen aktuellen Head
-`1b6cc0372f6d5b9ba175fc9e22b61e3ba84bd0c5` stimmten lokaler, Remote- und
-PR-Head überein; alle sichtbaren anwendbaren Actions bestanden, das
-SonarQube-Cloud-Quality-Gate war `OK`, und seine öffentliche Issue-Abfrage
-meldete 0 New Issues und 0,0 % New-Code-Duplizierung. Der PR hat keine Reviews
-oder Inline-Review-Kommentare und bleibt Draft. Dieses reine Delivery-Record-
-Update erfordert einen letzten frischen Exact-Head-Zyklus; dessen resultierender
-SHA wird im PR und lokalen Ausführungsplan statt in einer selbstreferenziellen
-Record-Schleife festgehalten. Kein `master`-Merge ist autorisiert oder
-ausgeführt.
+erforderliche bilinguale Traceability/Dokumentation begrenzt. Dieser Record
+erfasst den finalen versionierten Source-/Dokumentationsumfang, lokale
+Kontrollen und Runtime-Einschränkungen. Delivery-Evidence wird absichtlich
+unmittelbar vor jeder Integration vom exakten aktuellen PR-Head bezogen; sie
+wird nicht für spätere Dokumentations- oder Lifecycle-Commits selbst behauptet.
+Dieser Change Record dokumentiert keinen `master`-Merge.

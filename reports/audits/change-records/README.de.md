@@ -18,7 +18,8 @@ Review- oder Delivery-Ergebnisse behaupten.
   Materialisierungs-, Go- und Common-Adoption-Controls bestanden, soweit ihre
   Voraussetzungen verfügbar sind; die native Envoy-/ext_proc-Runtime ist
   lokal durch das fehlende Envoy-Binary und die Framework-Regel-Fixture
-  blockiert. Hosted-Verifikation steht aus.
+  blockiert. Vor der Integration muss der Hosted-Status am exakten aktuellen
+  PR-Head gelesen werden.
 
 - [Parent-CI-Focused-Report-Helper-Deduplizierung und Request-Body-Pfadbegrenzung](CR-20260729-sonar-ci-focused-report-safety.de.md)
   — lokale Traversal-/Symlink-Regression und legitime In-Root-Controls

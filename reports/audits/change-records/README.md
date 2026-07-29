@@ -16,7 +16,8 @@ must not claim unobserved CI, runtime, review, or delivery results.
   — focused temporary TLS, artifact-containment, config-materialization, Go,
   and Common-adoption controls passed where their prerequisites are available;
   the native Envoy/ext_proc runtime is blocked locally by the absent Envoy
-  binary and Framework rule fixture. Hosted verification remains pending.
+  binary and Framework rule fixture. Before integration, hosted status must be
+  read at the PR's exact current head.
 
 - [Parent CI focused-report helper deduplication and request-body path containment](CR-20260729-sonar-ci-focused-report-safety.md)
   — local traversal/symlink regression and legitimate in-root controls passed;
