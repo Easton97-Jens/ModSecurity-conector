@@ -15,9 +15,8 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
-from focused_analysis_utils import action_parts, as_list, import_script, read_json, read_text, refresh_connector_queue_totals, sanitize_path, utc_now, write_json
-from focused_analysis_utils import find_framework_case_path, upsert_marked_section
-from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
+from focused_analysis_utils import action_parts, as_list, find_framework_case_path, import_script, read_json, read_text, refresh_connector_queue_totals, regenerate_phase_work_queue, render_connector_work_queue_markdown, sanitize_path, upsert_marked_section, utc_now, write_generated_report_pair, write_json
+from generated_report_utils import GENERATED_ROOT, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, resolve_output_dir, safe_existing_file, write_text_file
 
 try:
@@ -339,30 +338,15 @@ def classify_connector_queue(
 
 
 def render_connector_queue_markdown(report_dir: Path, data: dict[str, Any], framework_root: Path) -> None:
-    connector_root = report_dir.parents[2]
-    module = import_script(framework_root / "ci/reporting/generate-connector-work-queue.py", "connector_work_queue_generator")
-    markdown = module.render_markdown(
-        data.get("entries", []),
-        Counter(data.get("source_counts", {})),
-        Counter(data.get("runtime_source_counts", {})),
-        str(data.get("generated_at") or utc_now()),
-    )
-    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else build_metadata(
-        generated_by="framework:ci/reporting/generate-connector-work-queue.py",
-        make_target="generate-work-queue",
-        connector_root=connector_root,
-        framework_root=framework_root,
-        inputs=[report_relpath("full_runtime_matrix", "json")],
-        generated_at=str(data.get("generated_at") or utc_now()),
-    )
-    write_text_file(report_path_from_root(report_dir, "connector_work_queue", "md"), generated_markdown_text(markdown, metadata))
+    render_connector_work_queue_markdown(report_dir, data, framework_root)
 
 
 def render_phase_work_queue(report_dir: Path, framework_root: Path, connector_root: Path) -> None:
-    module = import_script(framework_root / "ci/reporting/generate-phase-work-queue.py", "phase_work_queue_generator")
-    original_phase_work_direction = module.phase_work_direction
-
-    def patched_phase_work_direction(entry: dict[str, Any]) -> list[str]:
+    def patched_phase_work_direction(
+        entry: dict[str, Any],
+        original_phase_work_direction: Any,
+        _module: Any,
+    ) -> list[str]:
         evidence_classification = str(entry.get("evidence_classification") or "")
         if evidence_classification in CLASSIFICATION_TO_WORK_DIRECTION:
             return [CLASSIFICATION_TO_WORK_DIRECTION[evidence_classification]]
@@ -373,35 +357,12 @@ def render_phase_work_queue(report_dir: Path, framework_root: Path, connector_ro
             return ["classification_only"]
         return original_phase_work_direction(entry)
 
-    module.phase_work_direction = patched_phase_work_direction
-    connector_work_queue_path = report_path_from_root(report_dir, "connector_work_queue", "json")
-    phase_coverage_path = report_path_from_root(report_dir, "phase_coverage", "md")
-    full_runtime_matrix_path = report_path_from_root(report_dir, "full_runtime_matrix", "json")
-    connector_work_queue = module.read_json(connector_work_queue_path)
-    phase_coverage = module.parse_phase_coverage(phase_coverage_path)
-    full_runtime_matrix = module.read_json_optional(full_runtime_matrix_path)
-    payload = module.build_payload(
-        connector_work_queue,
-        phase_coverage,
-        full_runtime_matrix,
+    regenerate_phase_work_queue(
+        report_dir,
         framework_root,
         connector_root,
-        {
-            "connector_work_queue": str(connector_work_queue_path),
-            "phase_coverage": str(phase_coverage_path),
-            "full_runtime_matrix": str(full_runtime_matrix_path),
-        },
+        patched_phase_work_direction,
     )
-    metadata = build_metadata(
-        generated_by="framework:ci/reporting/generate-phase-work-queue.py",
-        make_target="generate-phase-work-queue",
-        connector_root=connector_root,
-        framework_root=framework_root,
-        inputs=[connector_work_queue_path, phase_coverage_path, full_runtime_matrix_path],
-        generated_at=str(payload.get("generated_at") or utc_now()),
-    )
-    write_text_file(report_path_from_root(report_dir, "phase_work_queue", "json"), generated_json_text(payload, metadata))
-    write_text_file(report_path_from_root(report_dir, "phase_work_queue", "md"), generated_markdown_text(module.render_markdown(payload), metadata))
 
 
 def update_full_run_evidence(report_dir: Path) -> None:
@@ -621,18 +582,16 @@ def main() -> int:
     add_report_roots(connector_root / REPORT_DIR)
     report_dir.mkdir(parents=True, exist_ok=True)
     analysis = build_analysis(connector_root, framework_root)
-    metadata = build_metadata(
+    md_path = write_generated_report_pair(
+        report_dir,
+        connector_root,
+        framework_root,
+        analysis,
+        report_name="response_header_hook_analysis",
         generated_by="ci/evidence/reports/generate-response-header-hook-analysis.py",
         make_target="generate-response-header-hook-analysis",
-        connector_root=connector_root,
-        framework_root=framework_root,
-        inputs=analysis["source_reports"].values(),
-        generated_at=analysis["generated_at"],
+        markdown=render_markdown(analysis),
     )
-    json_path = report_path_from_root(report_dir, "response_header_hook_analysis", "json")
-    md_path = report_path_from_root(report_dir, "response_header_hook_analysis", "md")
-    write_text_file(json_path, generated_json_text(analysis, metadata))
-    write_text_file(md_path, generated_markdown_text(render_markdown(analysis), metadata))
     print(md_path)
     return 0
 

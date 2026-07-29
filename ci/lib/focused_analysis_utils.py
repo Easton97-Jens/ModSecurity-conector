@@ -4,14 +4,29 @@ from __future__ import annotations
 import importlib.util
 import sys
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from generated_report_utils import utc_now
+from generated_report_utils import (
+    build_metadata,
+    generated_json_text,
+    generated_markdown_text,
+    report_path_from_root,
+    report_relpath,
+    utc_now,
+)
 from report_path_safety import read_json_file as read_json
 from report_path_safety import read_text_file as read_text
 from report_path_safety import safe_existing_file
 from report_path_safety import write_json_file as write_json
+from report_path_safety import write_text_file
+
+
+CONNECTOR_WORK_QUEUE_REPORT = "connector_work_queue"
+FULL_RUNTIME_MATRIX_REPORT = "full_runtime_matrix"
+PHASE_COVERAGE_REPORT = "phase_coverage"
+PHASE_WORK_QUEUE_REPORT = "phase_work_queue"
 
 
 def as_list(value: Any) -> list[str]:
@@ -75,6 +90,123 @@ def import_script(path: Path, module_name: str) -> Any:
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def render_connector_work_queue_markdown(
+    report_dir: Path,
+    data: dict[str, Any],
+    framework_root: Path,
+) -> None:
+    """Regenerate the fixed connector-work-queue Markdown report."""
+
+    connector_root = report_dir.parents[2]
+    module = import_script(
+        framework_root / "ci/reporting/generate-connector-work-queue.py",
+        "connector_work_queue_generator",
+    )
+    markdown = module.render_markdown(
+        data.get("entries", []),
+        Counter(data.get("source_counts", {})),
+        Counter(data.get("runtime_source_counts", {})),
+        str(data.get("generated_at") or utc_now()),
+    )
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else build_metadata(
+        generated_by="framework:ci/reporting/generate-connector-work-queue.py",
+        make_target="generate-work-queue",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[report_relpath(FULL_RUNTIME_MATRIX_REPORT, "json")],
+        generated_at=str(data.get("generated_at") or utc_now()),
+    )
+    write_text_file(
+        report_path_from_root(report_dir, CONNECTOR_WORK_QUEUE_REPORT, "md"),
+        generated_markdown_text(markdown, metadata),
+    )
+
+
+def regenerate_phase_work_queue(
+    report_dir: Path,
+    framework_root: Path,
+    connector_root: Path,
+    phase_work_direction: Callable[[dict[str, Any], Callable[[dict[str, Any]], list[str]], Any], list[str]],
+) -> None:
+    """Regenerate the fixed phase-work reports with a caller-owned direction override."""
+
+    module = import_script(
+        framework_root / "ci/reporting/generate-phase-work-queue.py",
+        "phase_work_queue_generator",
+    )
+    original_phase_work_direction = module.phase_work_direction
+
+    def patched_phase_work_direction(entry: dict[str, Any]) -> list[str]:
+        return phase_work_direction(entry, original_phase_work_direction, module)
+
+    module.phase_work_direction = patched_phase_work_direction
+    try:
+        connector_work_queue_path = report_path_from_root(report_dir, CONNECTOR_WORK_QUEUE_REPORT, "json")
+        phase_coverage_path = report_path_from_root(report_dir, PHASE_COVERAGE_REPORT, "md")
+        full_runtime_matrix_path = report_path_from_root(report_dir, FULL_RUNTIME_MATRIX_REPORT, "json")
+        connector_work_queue = module.read_json(connector_work_queue_path)
+        phase_coverage = module.parse_phase_coverage(phase_coverage_path)
+        full_runtime_matrix = module.read_json_optional(full_runtime_matrix_path)
+        payload = module.build_payload(
+            connector_work_queue,
+            phase_coverage,
+            full_runtime_matrix,
+            framework_root,
+            connector_root,
+            {
+                "connector_work_queue": str(connector_work_queue_path),
+                "phase_coverage": str(phase_coverage_path),
+                "full_runtime_matrix": str(full_runtime_matrix_path),
+            },
+        )
+        metadata = build_metadata(
+            generated_by="framework:ci/reporting/generate-phase-work-queue.py",
+            make_target="generate-phase-work-queue",
+            connector_root=connector_root,
+            framework_root=framework_root,
+            inputs=[connector_work_queue_path, phase_coverage_path, full_runtime_matrix_path],
+            generated_at=str(payload.get("generated_at") or utc_now()),
+        )
+        write_text_file(
+            report_path_from_root(report_dir, PHASE_WORK_QUEUE_REPORT, "json"),
+            generated_json_text(payload, metadata),
+        )
+        write_text_file(
+            report_path_from_root(report_dir, PHASE_WORK_QUEUE_REPORT, "md"),
+            generated_markdown_text(module.render_markdown(payload), metadata),
+        )
+    finally:
+        module.phase_work_direction = original_phase_work_direction
+
+
+def write_generated_report_pair(
+    report_dir: Path,
+    connector_root: Path,
+    framework_root: Path,
+    analysis: dict[str, Any],
+    *,
+    report_name: str,
+    generated_by: str,
+    make_target: str,
+    markdown: str,
+) -> Path:
+    """Write one caller-owned generated report pair through the safe writer."""
+
+    metadata = build_metadata(
+        generated_by=generated_by,
+        make_target=make_target,
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=analysis["source_reports"].values(),
+        generated_at=analysis["generated_at"],
+    )
+    json_path = report_path_from_root(report_dir, report_name, "json")
+    md_path = report_path_from_root(report_dir, report_name, "md")
+    write_text_file(json_path, generated_json_text(analysis, metadata))
+    write_text_file(md_path, generated_markdown_text(markdown, metadata))
+    return md_path
 
 
 def sanitize_path(value: Any, connector_root: Path, framework_root: Path) -> str:
