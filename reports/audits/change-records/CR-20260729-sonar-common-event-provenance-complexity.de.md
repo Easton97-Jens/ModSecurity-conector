@@ -56,7 +56,10 @@ Der Refactor übergibt diese gefilterten lokalen Werte an den Append-Helper und 
 | `make check-common-helpers CC=clang MSCONNECTOR_C_STD=c17 MSCONNECTOR_CFLAGS="-std=c17 -Wall -Wextra -Werror"` | bestanden; der Common-Helper-Smoke wurde mit Clang im C17-Modus kompiliert und ausgeführt. |
 | `make check-common-helpers-c23` | als Advisory für neuere C-Version bestanden; er ersetzt nicht die C17-Evidence. |
 | `make check-common-security-contract check-common-sdk-contract check-common-flow-integrity` | bestanden. |
-| `git diff --check` | vor Hinzufügen dieses Records bestanden; wird vor Delivery erneut für den finalen Kandidaten-Diff ausgeführt. |
+| `python3 -B -m unittest tests/test_bilingual_docs.py` | bestanden: alle 21 fokussierten Unit-Tests für bilinguale Dokumentation bestanden am synchronisierten Kandidaten. |
+| `make check-bilingual-docs` | `blocked_environment`: am synchronisierten Kandidaten versucht, aber der isolierte Task-Worktree enthält keine materialisierte Framework-Submodule. Die Diagnose nennt ausschließlich fehlende `modules/ModSecurity-test-Framework/...`-Ziele außerhalb der sechs geänderten PR-Pfade; die Prüfung wird nicht als bestanden ausgegeben. |
+| `make check-doc-links` | `blocked_environment`: am synchronisierten Kandidaten versucht und durch dieselben fehlenden Framework-Submodule-Ziele außerhalb der sechs geänderten PR-Pfade blockiert; die Prüfung wird nicht als bestanden ausgegeben. |
+| `git diff --check origin/master...HEAD` | am synchronisierten Kandidaten `2a42112abbe8533ad7565e77da8d4dd30d7d0120` bestanden; muss nach jeder späteren Kandidatenänderung vor Delivery erneut ausgeführt werden. |
 | `gh pr view 174` und SonarQube-Cloud-PR-APIs für den initialen Head `8baef24192ccaaa39e38e89238b8d2e8e90baec9` | erfolgreiche/erwartet übersprungene Actions-Checks, Quality Gate `OK`, 0 offene PR-Issues, 0 neue Violations und 0,0 % New-Code-Duplikation beobachtet. |
 
 ## Tests und tatsächliche Ergebnisse
@@ -79,6 +82,8 @@ Es wurde keine Connector-, Host-, Framework- oder MRTS-Runtime gestartet. Der Co
 - Framework- und MRTS-Prüfungen wurden nicht ausgeführt, weil sie außerhalb der gewählten Parent-`common`-Grenze liegen und keines der Repositories verändert wurde.
 - Ein vollständiger Repository-Security-Scan wurde nicht ausgeführt: Der fokussierte Security-Review und der Common-Security-Contract decken den geänderten Serialisierungspfad ab; dieser Record behauptet keine repository-weite Coverage.
 - Historische Hosted-Evidence wurde nur für `8baef24192ccaaa39e38e89238b8d2e8e90baec9` beobachtet. Der spätere Remote-Head und jeder normal Master-synchronisierte Kandidat benötigen frische GitHub-Actions-, SonarQube-Cloud-PR-Analyse-, Review-Status- und Exact-Head-Evidence, bevor der PR als verifiziert dargestellt wird.
+- Die repository-weiten Prüfungen `make check-bilingual-docs` und `make check-doc-links` wurden versucht statt stillschweigend ausgelassen, sind aber in diesem isolierten Parent-Worktree `blocked_environment`, weil sein Framework-Gitlink absichtlich nicht materialisiert ist. Ihre Diagnosen listen ausschließlich fehlende Framework-Ziele außerhalb der geänderten PR-Pfade. Sie bleiben in einer Umgebung mit verfügbarer Abhängigkeit erforderlich und gelten nicht als bestandene Evidence.
+- Die finalen Beobachtungen `git diff --check origin/master...HEAD` und `git status --short` sind nach jeder späteren Kandidatenänderung einzeln erforderlich. Für die vorliegende Dokumentationskorrektur sind sie noch nicht final; vor dem Entstehen des exakten Kandidaten-Heads wird daher weder ein final sauberer Worktree noch ein finaler Diff behauptet.
 
 ## Bekannte Einschränkungen
 
@@ -90,4 +95,4 @@ Künftige Ergänzungen müssen Name-Arrays, Value-Arrays und Negativ-Controls sy
 
 ## Finaler Diff- und Review-Status
 
-Der scoped Kandidat verändert nur die Common-Event-Provenance-Zerlegung, seine fokussierten Smoke-Assertions und die gekoppelten Change-Record-/Index-Dokumente. Der initiale Commit `8baef24192ccaaa39e38e89238b8d2e8e90baec9` öffnete PR #174, und der spätere Remote-Head `b92084c523498978b55de9068240752314bbedc3` enthält diesen Dokumentations-Follow-up. Eine normale Synchronisierung erzeugt einen neuen unverifizierten Kandidaten. Es wird keine Framework-, MRTS-, Gitlink-, Workflow-, SonarQube-Regel-, Default-Branch- oder Merge-Aktion behauptet. Finale Dokumentationsprüfungen und Exact-Head-Hosted-Verifikation stehen noch aus.
+Der scoped Kandidat verändert nur die Common-Event-Provenance-Zerlegung, seine fokussierten Smoke-Assertions und die gekoppelten Change-Record-/Index-Dokumente. Der initiale Commit `8baef24192ccaaa39e38e89238b8d2e8e90baec9` öffnete PR #174, und der spätere Remote-Head `b92084c523498978b55de9068240752314bbedc3` enthält diesen Dokumentations-Follow-up. Eine normale Synchronisierung erzeugt einen neuen unverifizierten Kandidaten. Es wird keine Framework-, MRTS-, Gitlink-, Workflow-, SonarQube-Regel-, Default-Branch- oder Merge-Aktion behauptet. Die fokussierte bilinguale Suite bestand; die zwei repository-weiten Dokumentationsprüfungen sind einzeln als `blocked_environment` erfasst, während finaler Exact-Head-Diff/-Status und Hosted-Verifikation noch ausstehen.

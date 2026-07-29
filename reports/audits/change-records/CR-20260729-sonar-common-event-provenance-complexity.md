@@ -56,7 +56,10 @@ The refactor passes those filtered local values to the append helper; it does no
 | `make check-common-helpers CC=clang MSCONNECTOR_C_STD=c17 MSCONNECTOR_CFLAGS="-std=c17 -Wall -Wextra -Werror"` | passed; the Common-helper smoke compiled and executed with Clang in C17 mode. |
 | `make check-common-helpers-c23` | passed as an advisory newer-C check; it does not replace C17 evidence. |
 | `make check-common-security-contract check-common-sdk-contract check-common-flow-integrity` | passed. |
-| `git diff --check` | passed before this record was added; it is rerun for the final candidate diff before delivery. |
+| `python3 -B -m unittest tests/test_bilingual_docs.py` | passed: all 21 focused bilingual-documentation unit tests passed at the synchronized candidate. |
+| `make check-bilingual-docs` | `blocked_environment`: it was attempted at the synchronized candidate, but the isolated task worktree has no materialized Framework submodule. The diagnostic names only missing `modules/ModSecurity-test-Framework/...` targets outside this PR's six changed paths; it is not reported as passed. |
+| `make check-doc-links` | `blocked_environment`: it was attempted at the synchronized candidate and is blocked by the same absent Framework-submodule targets, all outside this PR's six changed paths; it is not reported as passed. |
+| `git diff --check origin/master...HEAD` | passed at synchronized candidate `2a42112abbe8533ad7565e77da8d4dd30d7d0120`; it must be rerun after every later candidate amendment before delivery. |
 | `gh pr view 174` and SonarQube Cloud PR APIs for initial head `8baef24192ccaaa39e38e89238b8d2e8e90baec9` | observed successful/expected-skipped Actions checks, Quality Gate `OK`, 0 open PR issues, 0 new violations, and 0.0% new-code duplication. |
 
 ## Tests and actual results
@@ -79,6 +82,8 @@ No connector, host, Framework, or MRTS runtime was started. The Common-helper sm
 - Framework and MRTS checks were not run because they are outside the selected Parent `common` boundary and neither repository was modified.
 - A full repository security scan was not run: the focused security review and Common security-contract control cover the changed serialization path; this record does not claim repository-wide coverage.
 - Historical hosted evidence was observed only for `8baef24192ccaaa39e38e89238b8d2e8e90baec9`. The later remote head and every normal master-synchronized candidate require fresh GitHub Actions, SonarQube Cloud PR analysis, review-state, and exact-head evidence before the PR is presented as verified.
+- The repository-wide `make check-bilingual-docs` and `make check-doc-links` checks were attempted rather than silently omitted, but both are `blocked_environment` in this isolated Parent worktree because its Framework gitlink is intentionally unmaterialized. Their diagnostics list only missing Framework targets outside this PR's changed paths. They remain required in an environment where that dependency is available and are not treated as passing evidence.
+- The final `git diff --check origin/master...HEAD` and `git status --short` observations are individually required after every later candidate amendment. They are not yet final for the present documentation correction, so no final-clean-worktree or final-diff claim is made here before the exact candidate head exists.
 
 ## Known limitations
 
@@ -90,4 +95,4 @@ Future additions must keep name arrays, value arrays, and negative controls alig
 
 ## Final diff and review status
 
-The scoped candidate changes only Common event provenance decomposition, its focused smoke assertions, and paired Change Record/index documents. Initial commit `8baef24192ccaaa39e38e89238b8d2e8e90baec9` opened PR #174, and the later remote head `b92084c523498978b55de9068240752314bbedc3` contains this documentation follow-up. A normal synchronization creates a new unverified candidate. No Framework, MRTS, Gitlink, workflow, SonarQube rule, default-branch, or merge action is claimed. Final documentation checks and exact-head hosted verification remain pending.
+The scoped candidate changes only Common event provenance decomposition, its focused smoke assertions, and paired Change Record/index documents. Initial commit `8baef24192ccaaa39e38e89238b8d2e8e90baec9` opened PR #174, and the later remote head `b92084c523498978b55de9068240752314bbedc3` contains this documentation follow-up. A normal synchronization creates a new unverified candidate. No Framework, MRTS, Gitlink, workflow, SonarQube rule, default-branch, or merge action is claimed. The focused bilingual suite passed; the two repository-wide documentation checks are individually recorded as `blocked_environment`, and final exact-head diff/status plus hosted verification remain pending.
