@@ -12,6 +12,7 @@ CASE_ROOT = ROOT / "ci/runtime/lifecycle/cases/apache-phase4-response"
 FILTERS = ROOT / "connectors/apache/src/msc_filters.c"
 UTILS = ROOT / "connectors/apache/src/msc_utils.c"
 ROGUE_HANDLER = ROOT / "connectors/apache/harness/mod_phase4_terminal_rogue.c"
+PHASE4_RESPONSE_BODY_MARKER = "no-crs-response-body-marker"
 
 
 class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
@@ -40,8 +41,21 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertNotIn("grep -F $PHASE4_FIRST_BYTE_PREFIX", harness)
         self.assertEqual(harness.count('grep -F "$PHASE4_FIRST_BYTE_PREFIX"'), 4)
         self.assertEqual(
-            harness.count("expected_body='first-byte-prefixno-crs-response-body-marker'"),
+            harness.count(
+                "readonly PHASE4_RESPONSE_BODY_MARKER="
+                f"'{PHASE4_RESPONSE_BODY_MARKER}'"
+            ),
+            1,
+        )
+        self.assertEqual(harness.count(PHASE4_RESPONSE_BODY_MARKER), 1)
+        self.assertEqual(
+            harness.count('expected_body="first-byte-prefix$PHASE4_RESPONSE_BODY_MARKER"'),
             2,
+        )
+        self.assertNotIn(f"grep -F '{PHASE4_RESPONSE_BODY_MARKER}'", harness)
+        self.assertGreaterEqual(
+            harness.count('grep -F "$PHASE4_RESPONSE_BODY_MARKER"'),
+            8,
         )
         self.assertIn("pre-commit deny leaked original response bytes", harness)
         self.assertIn("custom-MIME pre-commit deny leaked original response bytes", harness)
