@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Apache smoke-harness literal ownership and diagnostic streams](CR-20260729-sonar-apache-smoke-harness-maintenance.md)
+  — six fixed Shell literals now have readonly owners, four diagnostics use
+  stderr, and focused syntax, ShellCheck, Apache-contract, and bilingual
+  checks passed. Hosted exact-head verification remains pending.
+
 - [Parent Apache RulesSet configuration-pool cleanup](CR-20260729-apache-ruleset-pool-cleanup.md)
   — selected upstream #94A cleanup, focused GCC/Clang APR harnesses, fresh
   APXS-header materialization, private HTTP/1.1 and graceful-restart controls

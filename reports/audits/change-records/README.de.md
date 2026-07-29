@@ -7,6 +7,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Apache-Smoke-Harness Literal-Ownership und Diagnose-Streams](CR-20260729-sonar-apache-smoke-harness-maintenance.de.md)
+  — sechs feste Shell-Literale haben jetzt readonly-Owner, vier Diagnosen
+  verwenden stderr, und fokussierte Syntax-, ShellCheck-, Apache-Contract- und
+  Bilingual-Prüfungen bestanden. Gehostete Exact-Head-Verifikation steht aus.
+
 - [Parent-Apache-RulesSet-Konfigurationspool-Cleanup](CR-20260729-apache-ruleset-pool-cleanup.de.md)
   — ausgewählter Upstream-#94A-Cleanup, fokussierte GCC-/Clang-APR-Harnesses,
   frische APXS-Header-Materialisierung sowie private HTTP/1.1- und Graceful-
