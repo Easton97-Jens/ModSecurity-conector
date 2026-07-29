@@ -136,7 +136,15 @@ unchanged and is not claimed safe by this record.
 Local source, regression, syntax, whitespace, and complete security-diff
 review evidence is present. The repository documentation and lint targets were
 attempted and are blocked only by the intentionally absent Framework
-submodule, as recorded above. This record is pre-delivery: no commit, push,
-pull request, hosted check, SonarQube Cloud PR result, approval, merge, or
-`master` change is claimed. A task-owned Draft PR may be created only after
-the Git preflight result is recorded.
+submodule, as recorded above. The initial source record was pre-delivery; the
+following update records the subsequently observed Draft-PR creation. No hosted
+check, SonarQube Cloud PR result, approval, merge, or `master` change is
+claimed.
+
+Delivery update: [Draft PR #178](https://github.com/Easton97-Jens/ModSecurity-conector/pull/178)
+was opened against `master` at `2026-07-29T09:39:18Z` from initial exact head
+`7831e83b6385bd843b9320c59a34167fa1dd410a`, which equals the local and remote
+task-branch commit at creation. This follow-up records the observed PR fact but
+does not claim a hosted check, review, SonarQube Cloud result, approval, merge,
+or `master` change. The next exact PR-head observation is required after this
+Change Record follow-up is pushed.

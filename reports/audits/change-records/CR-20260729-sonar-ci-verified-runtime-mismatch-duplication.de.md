@@ -144,8 +144,16 @@ beansprucht.
 Lokale Source-, Regression-, Syntax-, Whitespace- und vollständige Security-
 Diff-Review-Evidence liegen vor. Die Repository-Dokumentations- und Lint-
 Targets wurden versucht und sind nur durch das absichtlich fehlende Framework-
-Submodul blockiert, wie oben aufgezeichnet. Dieser Record ist vor Delivery: Es
-werden weder Commit, Push, Pull Request, Hosted-Check, SonarQube-Cloud-PR-
-Ergebnis, Freigabe, Merge noch `master`-Änderung beansprucht. Ein task-eigener
-Draft-PR darf erst nach Aufzeichnung des Git-Preflight-Ergebnisses erstellt
-werden.
+Submodul blockiert, wie oben aufgezeichnet. Der initiale Source-Record war vor
+Delivery; das folgende Update zeichnet die danach beobachtete Draft-PR-
+Erstellung auf. Es werden kein Hosted-Check, kein SonarQube-Cloud-PR-Ergebnis,
+keine Freigabe, kein Merge und keine `master`-Änderung beansprucht.
+
+Delivery-Update: [Draft PR #178](https://github.com/Easton97-Jens/ModSecurity-conector/pull/178)
+wurde am `2026-07-29T09:39:18Z` gegen `master` vom initialen exakten Head
+`7831e83b6385bd843b9320c59a34167fa1dd410a` geöffnet, der bei Erstellung dem
+lokalen und Remote-Task-Branch-Commit entspricht. Dieses Follow-up zeichnet
+den beobachteten PR-Fakt auf, beansprucht aber keinen Hosted-Check, kein
+Review, kein SonarQube-Cloud-Ergebnis, keine Freigabe, keinen Merge und keine
+`master`-Änderung. Die nächste Exact-PR-Head-Beobachtung ist erforderlich,
+nachdem dieses Change-Record-Follow-up gepusht wurde.
