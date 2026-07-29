@@ -11,19 +11,27 @@ Nur Pfad für Anforderungsheader 200/403.
 - `serve_envoy_connector.sh` materialisiert eine konkrete Connector-Konfiguration und führt sie aus
   der gebaute Service im Vordergrund.
 - `start_envoy_connector.sh` validiert Connector- und Envoy-Konfigurationen und startet beide
-  Envoy und der Dienst überprüfen beide Prozesse und stoppen sie ohne Aufforderung.
+  Envoy und den Dienst mit demselben flüchtigen privaten Loopback-TLS-Listener,
+  überprüft beide Prozesse und stoppt sie ohne Requests.
 - `run_envoy_connector_runtime.sh` validiert eine temporäre Envoy YAML-Konfiguration,
-  startet einen lokalen Upstream, den Connector-Dienst und Envoy und überprüft dann einen
-  erlaubt HTTP 200 und ein regelgestütztes HTTP 403 über `ext_authz`.
+  startet einen lokalen Upstream, den Connector-Dienst und Envoy und überprüft dann ein
+  zulässiges HTTPS 200 sowie ein regelgestütztes HTTPS 403 über `ext_authz` an einem
+  privaten Loopback-TLS-Listener. Der `ext_authz`-Sidecar bleibt interner Loopback-HTTP.
 - `run_envoy_smoke.sh` ist der Framework-bezogene Kompatibilitätseinstiegspunkt für
   derselbe reale Connector-Laufzeitpfad.
-- `envoy_smoke_helper.py` bietet nur den abhängigkeitsfreien Upstream und HTTP
-  Sonde; Es trifft keine Sicherheitsentscheidungen.
+- `envoy_smoke_helper.py` bietet nur den abhängigkeitsfreien Upstream und eine
+  zertifikatprüfende HTTPS-Sonde; sie trifft keine Sicherheitsentscheidungen.
 
 Für den Laufzeitrauch sind `ENVOY_BIN` und der separat gebaute Connector erforderlich
 Dienst. Fehlende Binärdateien geben Exit 77/BLOCKED zurück. Ungültige Konfiguration, früher Prozess
 Exit, Anforderungsfehler, falscher Status oder fehlende Ereignisnachweise geben FAIL zurück.
 Jeder gestartete Prozess wird bei Erfolg, Fehler oder Signal gestoppt.
+
+Der Laufzeitpfad erstellt ein eintägiges selbstsigniertes Zertifikat und einen
+privaten Schlüssel nur unter seiner verifizierten privaten Wurzel, verwendet
+beides ausschließlich für sein Loopback-Listener-/Client-Paar und entfernt
+beide bei der Bereinigung. Ihre Inhalte werden weder in der Zusammenfassung
+noch in Ereignisnachweisen gespeichert.
 
 Der Smoke zeichnet nur Metadaten-Entscheidungsereignisse auf und protokolliert keine Anfragen oder
 Reaktionsorgane. `ext_authz` gilt nur für die Anforderungsphase; Überprüfung des Antworttextes

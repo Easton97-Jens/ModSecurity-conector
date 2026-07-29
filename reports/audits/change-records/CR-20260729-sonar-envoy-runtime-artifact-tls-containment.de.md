@@ -104,14 +104,52 @@ führt danach genau eine dedizierte P1-Allow-Probe für die kausale Bindung aus.
   Materialisierungsbeispiele.
 - Dieses englisch/deutsche Change-Record-Paar und seine gepaarten Indizes.
 
+## Exact-Head-Follow-up-Härtung
+
+Die strenge Root-/TLS-Schnittstelle des gemeinsamen Helpers würde die ältere
+`ext_authz`-Kompatibilitätsruntime sonst bereits vor dem ersten Request
+fehlschlagen lassen. Die Korrektur schafft keinen HTTP-Bypass. Sie ergänzt
+die privaten Loopback-TLS-Listener-Felder im gemeinsamen
+`envoy-ext-authz-smoke.yaml.in`-Kompatibilitäts-Template. Sowohl sein
+anforderungsfreier Start-Smoke als auch `run_envoy_connector_runtime.sh`
+materialisieren das flüchtige Zertifikat/den Key sicher; letzterer übergibt
+das Zertifikat an jede HTTPS-Sonde. Beide entfernen die temporären Dateien bei
+der Bereinigung. Der lokale ext_authz-Dienst bleibt interner Loopback-HTTP.
+
+Das Follow-up verschiebt außerdem den veralteten verschachtelten ext_authz-
+Header-Matcher in das aktuelle Top-Level-Feld `ExtAuthz.allowed_headers` im
+gemeinsamen Kompatibilitäts-Template. Der echte Envoy-1.38.2-
+Kompatibilitätslauf besteht jetzt mit zulässigem `200`, geblocktem `403`,
+`downstream_transport=tls_loopback`, ohne Warning-/Deprecation-/Error-/Fatal-
+Diagnostik und ohne verbleibendes Zertifikat/Key.
+
+`prepare_envoy_ext_proc_config.sh` sourct jetzt den kleinen gemeinsamen
+Renderer `config/lib/tls_yaml_render.sh`. Er weist CR/LF und andere
+Steuerzeichen ab, escapet doppelt zitierte YAML-Daten und anschließend die
+feste `sed`-Ersetzungssprache. Die fokussierte Regression verwendet die
+vorherige task-lokale GNU-sed-Befehlsbildung als Eingang und beweist, dass nach
+der Korrektur kein Marker-Befehl läuft, während normale Pfade mit Leerzeichen,
+`&`, `|`, Anführungszeichen und Backslashes darstellbar bleiben. Der Review
+fand keinen Repository-Nachweis für eine Remote- oder PR-kontrollierte
+Pfadquelle über eine Privilegiengrenze; dennoch ist dies eine vollständige
+Reparatur der lokalen Sink-Invariante.
+
+Follow-up-Dateien sind `connectors/envoy/Makefile`, das gemeinsame ext_authz-
+Template, alle drei Envoy-Smoke-Runner, der gemeinsame Renderer, der ext_proc-
+Materializer, `SOURCE_MAP.json`, die gepaarte Envoy-/Harness-
+Leserdokumentation, dieser gepaarte Record und
+`tests/test_envoy_transport_hardening_contract.py`.
+
 ## Ausgeführte Befehle
 
 | Ausgeführte Kontrolle | Beobachtetes Ergebnis |
 | --- | --- |
-| Isoliertes `python -m unittest -v` für Envoy-Transport-, Compiler-Guide- und bilinguale Dokumentations-Contracts | bestanden; 54 Tests, darunter zwölf fokussierte Tests für echte temporäre TLS-Probe-, Client-Cancel- und Phase-4-Pfade, negative Endpunkt-/Pfad-Controls, die aktuellen Envoy-1.38-Template-Felder sowie eindeutige Readiness-/P1-Identitäten. |
+| Isoliertes `python -m unittest -v` für Envoy-Transport-, Compiler-Guide-, bilinguale Dokumentations- und sichere Result-Writer-Contracts | bestanden; 61 Tests, darunter echte temporäre TLS-Probe-, Client-Cancel- und Phase-4-Pfade, Legacy-ext_authz-TLS-Wiring, aktuelle Envoy-1.38-Template-Felder, eindeutige Readiness-/P1-Identitäten und die kontrollierte YAML-/`sed`-Pfadinjektionsregression. |
 | `sh -n` auf ext_proc-Runner, Template-Materializer und ext_proc-Testskript | bestanden. |
 | Isoliertes `make -C connectors/envoy build-envoy-ext-proc` mit Go 1.26.5 sowie den verifizierten Host-libmodsecurity-Headern/-Library | bestanden; Modulverifikation und die Go-Processor-Pakettests bestanden. |
 | Isoliertes `make -C connectors/envoy runtime-smoke-envoy-ext-proc` mit Envoy 1.38.2, der am Parent-Gitlink gepinnten No-CRS-Regeldatei und Loopback-TLS | bestanden; Envoy akzeptierte die erzeugte Konfiguration ohne Deprecation-Diagnostik und die vollständige begrenzte Smoke-Zusammenfassung ist `PASS` / nicht promotet. |
+| Isoliertes `make -C connectors/envoy runtime-smoke-envoy` mit Envoy 1.38.2 und der verifizierten Host-libmodsecurity-Installation | bestanden; das vereinheitlichte ext_authz-Template beobachtete Loopback-TLS zulässiges `200`, geblocktes `403`, `processes_stopped=yes`, keine Warning-/Deprecation-/Error-/Fatal-Diagnostik und temporäre Key-/Zertifikat-Bereinigung. |
+| Isoliertes `make -C connectors/envoy start-smoke-envoy` mit Envoy 1.38.2 und der verifizierten Host-libmodsecurity-Installation | bestanden; dasselbe TLS-Template validiert und läuft anforderungsfrei mit privater Key-/Zertifikat-Bereinigung und ohne Warning-/Deprecation-/Error-/Fatal-Diagnostik. |
 | `make check-envoy-common-adoption` | bestanden. |
 | `git diff --check` | bestanden. |
 

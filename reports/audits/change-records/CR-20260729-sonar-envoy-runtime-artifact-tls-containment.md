@@ -96,14 +96,49 @@ allow probe for the causal binding.
   `examples/envoy/README.de.md` — valid private TLS materialization examples.
 - This English/German Change Record pair and its paired indexes.
 
+## Exact-head follow-up hardening
+
+The shared helper's strict root/TLS interface would otherwise make the legacy
+`ext_authz` compatibility runtime fail before it sends a request. The repair
+does not create an HTTP bypass. It adds
+the private-loopback TLS listener fields to the shared
+`envoy-ext-authz-smoke.yaml.in` compatibility template. Both its request-free
+start smoke and `run_envoy_connector_runtime.sh` now materialize the ephemeral
+certificate/key safely; the latter passes the certificate to every HTTPS
+probe. Both remove the temporary files during cleanup. The local ext_authz
+service remains internal loopback HTTP.
+
+The follow-up also moves the deprecated nested ext_authz header matcher to the
+current top-level `ExtAuthz.allowed_headers` field in the shared compatibility
+template. The real Envoy 1.38.2 compatibility run now passes with allowed
+`200`, blocked `403`, `downstream_transport=tls_loopback`, no
+warning/deprecation/error/fatal diagnostic, and no remaining certificate/key.
+
+`prepare_envoy_ext_proc_config.sh` now sources the small shared
+`config/lib/tls_yaml_render.sh` renderer. It rejects CR/LF and other controls,
+escapes YAML double-quoted data and then the fixed `sed` replacement language.
+The focused regression uses the prior task-local GNU-sed command construction
+as input and proves that no marker command runs after the repair, while normal
+paths containing spaces, `&`, `|`, quotes, and backslashes remain representable.
+The review found no repository evidence of a remote or PR-controlled path
+source across a privilege boundary; this is nevertheless a complete local
+sink-invariant repair.
+
+Follow-up files are `connectors/envoy/Makefile`, the shared ext_authz template,
+all three Envoy smoke runners, the shared renderer, the ext_proc materializer,
+`SOURCE_MAP.json`, the paired Envoy/harness reader documentation, this paired
+record, and `tests/test_envoy_transport_hardening_contract.py`.
+
 ## Commands executed
 
 | Executed control | Observed result |
 | --- | --- |
-| Isolated `python -m unittest -v` for Envoy transport, compiler-guide, and bilingual-documentation contracts | passed; 54 tests, including twelve focused tests for real temporary TLS probe, client-cancel, phase-4 paths, negative endpoint/path controls, the current Envoy 1.38 template fields, and unambiguous readiness/P1 identities. |
+| Isolated `python -m unittest -v` for Envoy transport, compiler-guide, bilingual-documentation, and secure-result-writer contracts | passed; 61 tests, including the real temporary TLS probe, client-cancel, phase-4 paths, legacy ext_authz TLS wiring, the current Envoy 1.38 template fields, unambiguous readiness/P1 identities, and the controlled YAML/`sed` path-injection regression. |
 | `sh -n` on the ext_proc runner, template materializer, and ext_proc test script | passed. |
 | Isolated `make -C connectors/envoy build-envoy-ext-proc` with Go 1.26.5 and the verified host libmodsecurity headers/library | passed; module verification and the Go processor package tests passed. |
 | Isolated `make -C connectors/envoy runtime-smoke-envoy-ext-proc` with Envoy 1.38.2, the Parent-Gitlink-pinned no-CRS rule file, and loopback TLS | passed; Envoy accepted the generated configuration without deprecation diagnostics and the full bounded smoke summary is `PASS` / non-promoted. |
+| Isolated `make -C connectors/envoy runtime-smoke-envoy` with Envoy 1.38.2 and the verified host libmodsecurity installation | passed; the unified ext_authz template observed loopback-TLS allowed `200`, blocked `403`, `processes_stopped=yes`, no warning/deprecation/error/fatal diagnostic, and temporary key/certificate cleanup. |
+| Isolated `make -C connectors/envoy start-smoke-envoy` with Envoy 1.38.2 and the verified host libmodsecurity installation | passed; the same TLS template validates and runs request-free with private key/certificate cleanup and no warning/deprecation/error/fatal diagnostic. |
 | `make check-envoy-common-adoption` | passed. |
 | `git diff --check` | passed. |
 

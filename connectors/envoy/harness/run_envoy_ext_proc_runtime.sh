@@ -26,6 +26,7 @@ else
 fi
 PYTHON_BIN=${PYTHON:-python3}
 HELPER="$SCRIPT_DIR/envoy_smoke_helper.py"
+TLS_RENDERER="$CONNECTOR_DIR/config/lib/tls_yaml_render.sh"
 YAML_TEMPLATE="$CONNECTOR_DIR/config/envoy-ext-proc-streaming.yaml.in"
 PREPARE_ENVOY_CONFIG="$CONNECTOR_DIR/config/prepare_envoy_ext_proc_config.sh"
 PREPARE_RUNTIME_CONFIG="$CONNECTOR_DIR/config/prepare_envoy_ext_proc_runtime_config.sh"
@@ -75,6 +76,7 @@ cleanup() {
             set -e
         fi
     done
+    rm -f "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -87,7 +89,9 @@ trap cleanup EXIT HUP INT TERM
 [ -f "$PREPARE_RUNTIME_CONFIG" ] || missing_dependency "Common runtime config materializer is missing: $PREPARE_RUNTIME_CONFIG"
 [ -f "$VERSION_LOCK" ] || missing_dependency "Envoy ext_proc version lock is missing: $VERSION_LOCK"
 [ -f "$HELPER" ] || missing_dependency "smoke helper is missing: $HELPER"
+[ -f "$TLS_RENDERER" ] || missing_dependency "TLS YAML renderer is missing: $TLS_RENDERER"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || missing_dependency "Python interpreter is missing: $PYTHON_BIN"
+. "$TLS_RENDERER"
 [ -f "$RULES_FILE" ] || missing_dependency "canonical rules file is missing: $RULES_FILE"
 resolved_rules_file=$("$PYTHON_BIN" -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve(strict=True))' "$RULES_FILE") || {
     echo "envoy_ext_proc_runtime: FAIL - could not resolve canonical rules file: $RULES_FILE" >&2
@@ -192,14 +196,10 @@ admin_port=${ENVOY_ADMIN_PORT:-$4}
 base_id=$(((listen_port + admin_port) % 100000))
 
 command -v openssl >/dev/null 2>&1 || missing_dependency "openssl is required for the private loopback TLS certificate"
-umask 077
-if ! openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 \
-    -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 \
-    -keyout "$TLS_PRIVATE_KEY" -out "$TLS_CERTIFICATE" >/dev/null 2>&1; then
+if ! create_private_loopback_tls "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"; then
     echo "envoy_ext_proc_runtime: FAIL - could not create the private loopback TLS certificate" >&2
     exit 1
 fi
-chmod 600 "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
 
 OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$listen_port" \
     UPSTREAM_PORT="$upstream_port" EXT_PROC_PORT="$ext_proc_port" \

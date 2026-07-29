@@ -17,7 +17,8 @@ EXT_PROC_ADMIN_PORT ?= 19001
 CONFIG_FILE ?= $(CURDIR)/config/envoy-ext-authz.conf
 RULES_FILE ?= $(abspath $(CURDIR)/../../common/rules/modsecurity_targeted_smoke.conf)
 EVENT_LOG_PATH ?= $(BUILD_ROOT)/envoy-connector/events.jsonl
-RUNTIME_EVENT_LOG_PATH ?= $(BUILD_ROOT)/envoy-connector/runtime-smoke/events.jsonl
+ENVOY_RUNTIME_ROOT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(if $(TMPDIR),$(TMPDIR),/var/tmp))/ModSecurity-conector-envoy-runtime-smoke
+RUNTIME_EVENT_LOG_PATH ?= $(ENVOY_RUNTIME_ROOT)/events.jsonl
 LISTEN_ADDRESS ?= 127.0.0.1
 LISTEN_PORT ?= 18082
 
@@ -125,7 +126,8 @@ serve-envoy-connector: build-envoy-connector
 
 runtime-smoke-envoy: build-envoy-connector
 	SERVICE_BIN="$(SERVICE_BIN)" BUILD_ROOT="$(BUILD_ROOT)" CONFIG_FILE="$(CONFIG_FILE)" \
-	RULES_FILE="$(RULES_FILE)" EVENT_LOG_PATH="$(RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
+	RULES_FILE="$(RULES_FILE)" RUNTIME_ROOT="$(ENVOY_RUNTIME_ROOT)" \
+	EVENT_LOG_PATH="$(RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
 	PYTHON="$(PYTHON)" sh harness/run_envoy_connector_runtime.sh
 
 no-crs-baseline-envoy: export MSCONNECTOR_NO_CRS_BASELINE := 1

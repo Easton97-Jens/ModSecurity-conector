@@ -4,6 +4,7 @@ import http.client
 import http.server
 import importlib.util
 import json
+import os
 import ssl
 import subprocess
 import sys
@@ -17,6 +18,12 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 HELPER_PATH = ROOT / "connectors" / "envoy" / "harness" / "envoy_smoke_helper.py"
 RUNTIME_PATH = ROOT / "connectors" / "envoy" / "harness" / "run_envoy_ext_proc_runtime.sh"
+EXT_AUTHZ_RUNTIME_PATH = ROOT / "connectors" / "envoy" / "harness" / "run_envoy_connector_runtime.sh"
+EXT_AUTHZ_START_PATH = ROOT / "connectors" / "envoy" / "harness" / "start_envoy_connector.sh"
+EXT_AUTHZ_TEMPLATE = ROOT / "connectors" / "envoy" / "config" / "envoy-ext-authz-smoke.yaml.in"
+EXT_PROC_CONFIG_MATERIALIZER = (
+    ROOT / "connectors" / "envoy" / "config" / "prepare_envoy_ext_proc_config.sh"
+)
 
 
 def load_helper() -> object:
@@ -498,6 +505,79 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                     completion_log=completion_log,
                     transaction_id="envoy-ext-proc-allow-1",
                 )
+
+    def test_tls_path_materializer_keeps_paths_data_in_yaml_and_sed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "generated.yaml"
+            marker = root / "unexpected-command-marker"
+            injected_certificate = (
+                f"{root}/benign|; s|{root}/benign|touch {marker}|e; #"
+            )
+            private_key = root / 'key with spaces&pipe|quote"backslash\\.key'
+            environment = dict(os.environ)
+            environment.update({
+                "TLS_CERTIFICATE": injected_certificate,
+                "TLS_PRIVATE_KEY": str(private_key),
+                "OUTPUT_CONFIG": str(output),
+            })
+
+            completed = subprocess.run(
+                ["sh", str(EXT_PROC_CONFIG_MATERIALIZER)],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertFalse(marker.exists())
+            rendered = output.read_text(encoding="utf-8")
+            self.assertIn(f'filename: "{injected_certificate}"', rendered)
+            expected_private_key = str(private_key).replace("\\", "\\\\").replace('"', '\\"')
+            self.assertIn(f'filename: "{expected_private_key}"', rendered)
+
+            newline_output = root / "newline-generated.yaml"
+            environment["TLS_CERTIFICATE"] = f"{root}/certificate\nwith-newline.crt"
+            environment["OUTPUT_CONFIG"] = str(newline_output)
+            rejected = subprocess.run(
+                ["sh", str(EXT_PROC_CONFIG_MATERIALIZER)],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(rejected.returncode, 2, rejected.stderr)
+            self.assertIn("TLS certificate path contains an unsupported control character", rejected.stderr)
+            self.assertFalse(newline_output.exists())
+
+    def test_ext_authz_compat_runtime_uses_private_loopback_tls(self) -> None:
+        source = EXT_AUTHZ_RUNTIME_PATH.read_text(encoding="utf-8")
+        start_source = EXT_AUTHZ_START_PATH.read_text(encoding="utf-8")
+        template = EXT_AUTHZ_TEMPLATE.read_text(encoding="utf-8")
+
+        self.assertIn("prepare-runtime-root --runtime-root \"$RUNTIME_ROOT\"", source)
+        self.assertIn("serve-upstream --port \"$upstream_port\" \\", source)
+        self.assertIn("--runtime-root \"$RUNTIME_ROOT\"", source)
+        self.assertEqual(
+            source.count("--runtime-root \"$RUNTIME_ROOT\" --tls-certificate \"$TLS_CERTIFICATE\""),
+            2,
+        )
+        self.assertEqual(source.count("https://127.0.0.1:$listen_port"), 2)
+        self.assertNotIn("http://127.0.0.1:$listen_port", source)
+        self.assertIn('rm -f "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"', source)
+        self.assertIn("prepare-runtime-root --runtime-root \"$START_ROOT\"", start_source)
+        self.assertIn("create_private_loopback_tls", start_source)
+        self.assertIn('rm -f "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"', start_source)
+        self.assertIn("name: envoy.transport_sockets.tls", template)
+        self.assertIn('filename: "@TLS_CERTIFICATE@"', template)
+        self.assertIn('filename: "@TLS_PRIVATE_KEY@"', template)
+        self.assertIn("uri: http://127.0.0.1:@AUTHZ_PORT@", template)
+        self.assertNotIn("access_log_path:", template)
+        self.assertIn("failure_mode_allow: false\n              allowed_headers:", template)
+        self.assertNotIn("authorization_request:", template)
 
     def test_runtime_probe_keeps_cancellation_unattributed_and_nonpromoting(self) -> None:
         source = RUNTIME_PATH.read_text(encoding="utf-8")
