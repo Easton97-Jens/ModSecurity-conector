@@ -7,6 +7,31 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Common-Smoke-Writer-Output-Path-Containment für SonarQube-Cloud-Security-Befunde](CR-20260729-sonar-common-smoke-writer-path-security.de.md)
+  — fokussierte Pre-/Post-Fix-Grenzprüfungen, Symlink- und Traversal-Negativ-
+  Controls, der legitime Private-Runtime-Root-Control und zugehörige
+  Runtime-Smoke-Security-Tests bestanden lokal. Open-PR-Delivery steht aus;
+  eine Exact-Head-Hosted-Verifikation ist vor der Master-Integration
+  erforderlich.
+
+- [Parent-Apache-Smoke-Harness Literal-Ownership und Diagnose-Streams](CR-20260729-sonar-apache-smoke-harness-maintenance.de.md)
+  — sechs feste Shell-Literale haben jetzt readonly-Owner, vier Diagnosen
+  verwenden stderr, und fokussierte Syntax-, ShellCheck-, Apache-Contract- und
+  Bilingual-Prüfungen bestanden. Vor der Integration muss der Hosted-Status am
+  exakten aktuellen PR-Head gelesen werden.
+
+- [Parent-Apache-RulesSet-Konfigurationspool-Cleanup](CR-20260729-apache-ruleset-pool-cleanup.de.md)
+  — ausgewählter Upstream-#94A-Cleanup, fokussierte GCC-/Clang-APR-Harnesses,
+  frische APXS-Header-Materialisierung sowie private HTTP/1.1- und Graceful-
+  Restart-Controls sind lokal erfasst; Exact-Head-Delivery, gehostete Checks
+  und Resulting-Master-Evidence stehen noch aus.
+
+- [Parent-CI-Focused-Report-Helper-Deduplizierung und Request-Body-Pfadbegrenzung](CR-20260729-sonar-ci-focused-report-safety.de.md)
+  — lokale Traversal-/Symlink-Regression und legitime In-Root-Controls
+  bestanden; der kombinierte Security-Diff-Review fand keine reportbare Regression.
+  Exact-Head-Hosted-GitHub-Actions- und SonarQube-Cloud-Evidence stehen noch
+  aus.
+
 - [Parent-CI-Runtime-Readiness-Deduplizierung des Remediation-Labels für SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.de.md)
 
 - [Parent-Common-Targeted-Evaluator-C++17-Remediation](CR-20260729-sonar-common-targeted-evaluator-cpp17.de.md)

@@ -120,3 +120,28 @@ def action_parts(action_text: str) -> list[str]:
             current.append(char)
     _append_action_part(parts, current)
     return parts
+
+
+def action_value(actions: list[str], name: str) -> str:
+    """Return the first case-insensitive named ModSecurity action value."""
+
+    prefix = f"{name.lower()}:"
+    for action in actions:
+        text = action.strip()
+        if text.lower().startswith(prefix):
+            return text.split(":", 1)[1].strip()
+    return "-"
+
+
+def log_paths(evidence: dict[str, Any]) -> list[Path]:
+    """Return safe report-log paths in the original evidence field order."""
+
+    paths: list[Path] = []
+    for key, value in evidence.items():
+        if not value:
+            continue
+        if key.endswith("_log_path") or key == "decision_log":
+            path = safe_existing_file(value)
+            if path is not None:
+                paths.append(path)
+    return paths
