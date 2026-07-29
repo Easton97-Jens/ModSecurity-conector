@@ -39,6 +39,7 @@ ALLOWED_BLOCK_STATUSES = (
 
 GENERATED_WARNING_C = "/* GENERATED FILE: do not edit by hand. */"
 GENERATED_WARNING_CFG = "# GENERATED FILE: do not edit by hand."
+PREPROCESSOR_ENDIF = "#endif"
 
 
 def parse_statuses(raw_statuses: str) -> list[int]:
@@ -81,7 +82,7 @@ def generated_header(enabled_statuses: list[int]) -> str:
         "",
         "#ifdef __cplusplus",
         'extern "C" {',
-        "#endif",
+        PREPROCESSOR_ENDIF,
         "",
     ]
     for status in ALLOWED_BLOCK_STATUSES:
@@ -96,9 +97,9 @@ def generated_header(enabled_statuses: list[int]) -> str:
             "",
             "#ifdef __cplusplus",
             "}",
-            "#endif",
+            PREPROCESSOR_ENDIF,
             "",
-            "#endif",
+            PREPROCESSOR_ENDIF,
             "",
         ]
     )

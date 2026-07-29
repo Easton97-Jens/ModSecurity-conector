@@ -469,6 +469,107 @@ class CommonRuntimeSmokeCrsSourceSecurityTest(unittest.TestCase):
             self.assertEqual(paths.log_dir, (verified_root / "logs/envoy").resolve())
             self.assertEqual(args.results_dir, str((verified_root / "results").resolve()))
 
+    def test_result_object_preserves_writer_evidence_arguments(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-runtime-result-") as temporary:
+            verified_root = Path(temporary) / "verified"
+            args = self.make_runtime_args(
+                verified_root,
+                decision_backend="libmodsecurity",
+                modsecurity_ruleset="crs",
+                modsecurity_smoke_case="targeted",
+                modsecurity_rule_file="/runtime/rules.conf",
+            )
+            result = RUNNER.SmokeResult(
+                "BLOCKED",
+                77,
+                False,
+                200,
+                403,
+                skipped_reason="missing libmodsecurity",
+                missing=("libmodsecurity",),
+                modsecurity_backend_verified=True,
+                modsecurity_rule_loaded=True,
+                intervention_status=403,
+                decision_log_path="/runtime/decision.log",
+                audit_log_path="/runtime/audit.log",
+                request_body_smoke_verified=True,
+                request_body_access_enabled=True,
+                request_body_rule_loaded=True,
+                crs_minimal_smoke_verified=True,
+                crs_rule_id="942100",
+                crs_rule_message="SQLi",
+            )
+
+            command = RUNNER.writer_args(args, result)
+
+        values = dict(zip(command[2::2], command[3::2], strict=True))
+        self.assertEqual(values["--status"], "BLOCKED")
+        self.assertEqual(values["--exit-code"], "77")
+        self.assertEqual(values["--allowed-request-status"], "200")
+        self.assertEqual(values["--blocked-request-status"], "403")
+        self.assertEqual(values["--modsecurity-rule-file"], "/runtime/rules.conf")
+        self.assertEqual(values["--modsecurity-rule-id"], "942100")
+        self.assertEqual(values["--request-body-smoke-verified"], "true")
+        self.assertEqual(values["--intervention-status"], "403")
+        self.assertEqual(values["--audit-log-path"], "/runtime/audit.log")
+        self.assertEqual(values["--decision-log-path"], "/runtime/decision.log")
+        self.assertEqual(values["--crs-minimal-smoke-verified"], "true")
+        self.assertEqual(values["--crs-rule-message"], "SQLi")
+        self.assertEqual(values["--skipped-reason"], "missing libmodsecurity")
+        self.assertIn("--missing-dependency", command)
+        self.assertEqual(command[command.index("--missing-dependency") + 1], "libmodsecurity")
+
+    def test_smoke_result_keeps_backend_evidence_and_paths_separate(self) -> None:
+        evidence = RUNNER.BackendEvidence(
+            modsecurity_backend_verified=True,
+            modsecurity_rule_loaded=True,
+            intervention_status=403,
+            request_body_smoke_verified=True,
+            crs_minimal_smoke_verified=True,
+            crs_rule_id="942100",
+            crs_rule_message="SQLi",
+        )
+
+        result = RUNNER.smoke_result(
+            "BLOCKED",
+            77,
+            False,
+            200,
+            403,
+            evidence,
+            skipped_reason="missing libmodsecurity",
+            missing=("libmodsecurity",),
+            context={
+                "decision_log_path": "/runtime/decision.log",
+                "audit_log_path": "/runtime/audit.log",
+            },
+        )
+
+        self.assertTrue(result.modsecurity_backend_verified)
+        self.assertTrue(result.modsecurity_rule_loaded)
+        self.assertEqual(result.intervention_status, 403)
+        self.assertTrue(result.request_body_smoke_verified)
+        self.assertTrue(result.crs_minimal_smoke_verified)
+        self.assertEqual(result.crs_rule_id, "942100")
+        self.assertEqual(result.decision_log_path, "/runtime/decision.log")
+        self.assertEqual(result.audit_log_path, "/runtime/audit.log")
+
+    def test_writer_values_preserve_crs_case_when_backend_is_simple(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-runtime-writer-") as temporary:
+            args = self.make_runtime_args(
+                Path(temporary),
+                decision_backend="simple",
+                modsecurity_ruleset="crs",
+                crs_smoke_case="secondary",
+            )
+            values = RUNNER.smoke_writer_values(
+                args, RUNNER.SmokeResult("BLOCKED", 77, False, None, None)
+            )
+
+        self.assertEqual(values.modsecurity_ruleset, "")
+        self.assertEqual(values.modsecurity_smoke_case, "")
+        self.assertEqual(values.crs_smoke_case, "secondary")
+
     def test_symlinked_runtime_output_path_is_rejected_before_runner_writes(self) -> None:
         with tempfile.TemporaryDirectory(prefix="common-runtime-output-") as temporary:
             temporary_root = Path(temporary)

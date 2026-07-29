@@ -6,11 +6,84 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent HAProxy SPOP body-parser deduplication](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.md)
+- [Parent Common event-provenance serialization decomposition for SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.md)
+  — protocol-provenance preservation and negative controls are documented;
+  before integration, the synchronized exact head must pass GCC and Clang C17
+  Common-helper controls, applicable Common contracts, and fresh hosted
+  review/Actions/SonarQube Cloud verification.
+
+- [Parent Common smoke-writer output-path containment for SonarQube Cloud security findings](CR-20260729-sonar-common-smoke-writer-path-security.md)
+  — focused pre-/post-fix boundary checks, symlink and traversal negative
+  controls, the legitimate private-runtime-root control, and related runtime
+  smoke security tests passed locally. Open-PR delivery remains pending;
+  exact-head hosted verification is required before master integration.
+
+- [Parent Apache smoke-harness literal ownership and diagnostic streams](CR-20260729-sonar-apache-smoke-harness-maintenance.md)
+  — six fixed Shell literals now have readonly owners, four diagnostics use
+  stderr, and focused syntax, ShellCheck, Apache-contract, and bilingual
+  checks passed. Before integration, hosted status must be read at the PR's
+  exact current head.
+
+- [Parent Apache RulesSet configuration-pool cleanup](CR-20260729-apache-ruleset-pool-cleanup.md)
+  — selected upstream #94A cleanup, focused GCC/Clang APR harnesses, fresh
+  APXS-header materialization, private HTTP/1.1 and graceful-restart controls
+  are recorded locally; exact-head delivery, hosted checks, and resulting-master
+  evidence remain pending.
+
+- [Parent Envoy runtime-artifact containment and loopback TLS](CR-20260729-sonar-envoy-runtime-artifact-tls-containment.md)
+  — focused temporary TLS, artifact-containment, config-materialization, Go,
+  and Common-adoption controls passed where their prerequisites are available;
+  the native Envoy/ext_proc runtime is blocked locally by the absent Envoy
+  binary and Framework rule fixture. Before integration, hosted status must be
+  read at the PR's exact current head.
+
+- [Parent HAProxy HTX runtime-artifact containment](CR-20260729-sonar-haproxy-htx-runtime-artifact-containment.md)
+  — synchronized to the current master base, restores the metadata-event test's
+  private-root binding, and moves the duplicated HAProxy/Envoy descriptor
+  protocol into one tested Parent primitive without changing connector-local
+  serialization. The previous exact head failed only the New-Code duplication
+  gate; fresh exact-head hosted verification remains required before master
+  integration.
+
+- [Parent CI focused-report helper deduplication and request-body path containment](CR-20260729-sonar-ci-focused-report-safety.md)
+  — local traversal/symlink regression and legitimate in-root controls passed;
+  the combined security review found no reportable regression. Exact-head
+  hosted GitHub Actions and SonarQube Cloud evidence remain pending.
+
+- [Parent CI runtime-readiness remediation-label deduplication for SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.md)
+
+- [Parent Common targeted-evaluator C++17 remediation](CR-20260729-sonar-common-targeted-evaluator-cpp17.md)
+
+- [Parent HAProxy HTX payload-iterator deduplication](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.md)
+
+- [Parent CI best-effort evidence-reader deduplication for SonarQube Cloud](CR-20260729-sonar-ci-best-effort-evidence-readers.md)
+- [Parent CI block-status generator preprocessor-end literal for SonarQube Cloud S1192](CR-20260729-sonar-ci-generator-endif.md)
+- [Parent HAProxy SPOE header-parser deduplication and SonarQube Cloud reliability remediation](CR-20260729-sonar-haproxy-spop-header-parser-duplication.md)
+  — local C17 parser-harness, HAProxy adoption, standards-wiring, and C17 lint
+  checks passed; a focused security diff review found no reportable regression.
+  Hosted CI and exact-head SonarQube Cloud evidence remain pending.
+
+- [Parent deterministic GitHub Actions `uses:` prefix parser for SonarQube Cloud S8786](CR-20260729-sonar-scripts-uses-prefix-parser.md)
+  — focused updater tests, a non-writing parser comparison, syntax validation,
+  and the complete current-diff security review passed locally; Draft-PR
+  delivery and exact-head hosted/SonarQube Cloud evidence remain pending.
+- [Parent Common runtime-smoke result-object refactor](CR-20260729-sonar-common-runtime-result.md)
+  — local runtime-writer, CRS/path-security, and loopback request-body controls
+  passed; the 52-line Common CPD block and two baseline `python:S107` rows are
+  selected for hosted verification. No commit, push, PR, hosted analysis, or
+  merge is claimed at record authoring.
+- [Parent Common header validation and NGINX strict JSONL-tail deduplication](CR-20260728-sonar-common-nginx-strict-jsonl-duplication.md)
+  — local Common C17, security, flow, and NGINX source-contract checks passed;
+  memory safety passed outside the LeakSanitizer-incompatible sandbox, while
+  NGINX C17 compilation is blocked_external_dependency by missing NGINX
+  headers/source. No commit, push, PR, hosted analysis, or merge is claimed.
 - [Parent NGINX response-mapper validation-tail deduplication candidate (36 Parent duplicate lines)](CR-20260728-sonar-nginx-response-mapper-duplication.md)
   — local source-contract and scoped whitespace validation passed; the exact
   C17 control is blocked_external_dependency by absent NGINX headers/source
   (script exit 77, make exit 2), and no host runtime, commit, push, PR, or
   hosted closure is claimed.
+- [Parent CI marker-section and script-literal deduplication for SonarQube Cloud](CR-20260728-sonar-ci-marker-script-deduplication.md)
 - [Parent Traefik start-smoke diagnostic-literal cleanup for SonarQube Cloud S1192](CR-20260728-sonar-traefik-start-smoke-literal.md)
 - [Parent Apache Phase-4 control-literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-phase4-literals.md)
 - [Parent Apache H2 transport-result literal ownership for SonarQube Cloud S1192](CR-20260728-sonar-apache-h2-transport-s1192.md)

@@ -818,7 +818,7 @@ class CompilerGuideGenerationTest(unittest.TestCase):
                 self.assertTrue(target_exists(target), f"missing Make target: {target}")
 
     def test_manual_shell_placeholders_are_documented(self) -> None:
-        ignored = {"HOME", "PWD", "archive", "attempt", "module", "mpm"}
+        ignored = {"HOME", "PWD", "archive", "attempt", "module", "mpm", "CN", "subjectAltName"}
         for slug in SLUGS:
             for german in (False, True):
                 content = guide(slug, german=german)

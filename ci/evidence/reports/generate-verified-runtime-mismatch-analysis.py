@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import os
 import re
 import stat
@@ -18,6 +17,10 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
+from best_effort_evidence_readers import (
+    read_json_object as read_json,
+    read_jsonl_objects as read_jsonl,
+)
 from generated_report_utils import (
     DATA_SOURCE_POLICY,
     GENERATED_REPORTS,
@@ -202,32 +205,6 @@ def input_record(path: Path, label: str) -> dict[str, Any]:
             "kind": "directory",
         }
     return {"path": str(path), "label": label, "status": "unknown", "sha256": "unknown"}
-
-
-def read_json(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except Exception:
-        return rows
-    for line in lines:
-        if not line.strip():
-            continue
-        try:
-            data = json.loads(line)
-        except Exception:
-            continue
-        if isinstance(data, dict):
-            rows.append(data)
-    return rows
 
 
 def walk_dicts(value: Any) -> list[dict[str, Any]]:

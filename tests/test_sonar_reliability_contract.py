@@ -529,11 +529,152 @@ static void test_unterminated_input_does_not_mutate(void) {
     assert(append_string(0, "valid") == -1);
 }
 
+static void test_notify_header_argument(
+        const char *argument_name,
+        unsigned int type,
+        const spop_buffer *headers,
+        int expected_response,
+        int expected_binary,
+        int expected_text,
+        unsigned int expected_header_count) {
+    spop_buffer argument;
+    notify_request request;
+    size_t pos = 0U;
+
+    memset(&argument, 0, sizeof(argument));
+    memset(&request, 0, sizeof(request));
+    assert(append_byte(&argument, type) == 0);
+    assert(append_bytes(&argument, headers->data, sizeof(headers->data), headers->len) == 0);
+    assert(parse_notify_header_argument(&request,
+        (const unsigned char *)argument_name, strlen(argument_name),
+        argument.data, argument.len, &pos) == 0);
+    assert(pos == argument.len);
+    assert(request.header_count == expected_header_count);
+    assert(strcmp(request.headers[0].value, "one") == 0);
+    if (expected_header_count > 1U) {
+        assert(strcmp(request.headers[1].value, "two") == 0);
+    }
+    assert(request.is_response == expected_response);
+    assert(request.has_headers_bin == expected_binary);
+    assert(request.has_headers_text == expected_text);
+    free_notify_request(&request);
+}
+
+static void test_notify_header_arguments_preserve_type_and_response_role(void) {
+    spop_buffer header_pairs;
+    spop_buffer binary_headers;
+    spop_buffer text_headers;
+
+    memset(&header_pairs, 0, sizeof(header_pairs));
+    assert(append_string(&header_pairs, "X-One") == 0);
+    assert(append_string(&header_pairs, "one") == 0);
+    assert(append_string(&header_pairs, "X-Two") == 0);
+    assert(append_string(&header_pairs, "two") == 0);
+    memset(&binary_headers, 0, sizeof(binary_headers));
+    assert(append_varint(&binary_headers, header_pairs.len) == 0);
+    assert(append_bytes(
+        &binary_headers, header_pairs.data, sizeof(header_pairs.data), header_pairs.len) == 0);
+
+    memset(&text_headers, 0, sizeof(text_headers));
+    assert(append_string(&text_headers, "X-One: one\r\nX-Two: two\r\n") == 0);
+
+    test_notify_header_argument(
+        "headers_bin", SPOP_DATA_BIN, &binary_headers, 0, 1, 0, 2U);
+    test_notify_header_argument(
+        "response_headers_bin", SPOP_DATA_BIN, &binary_headers, 1, 1, 0, 2U);
+    test_notify_header_argument(
+        "headers", SPOP_DATA_STR, &text_headers, 0, 0, 1, 1U);
+    test_notify_header_argument(
+        "response_headers", SPOP_DATA_STR, &text_headers, 1, 0, 1, 1U);
+}
+
+static void test_response_header_key_marks_response_for_nonbytes(void) {
+    spop_buffer argument;
+    notify_request request;
+    size_t pos = 0U;
+
+    memset(&argument, 0, sizeof(argument));
+    memset(&request, 0, sizeof(request));
+    assert(append_typed_bool(&argument, 1) == 0);
+    assert(parse_notify_header_argument(&request,
+        (const unsigned char *)"response_headers", sizeof("response_headers") - 1U,
+        argument.data, argument.len, &pos) == 0);
+    assert(pos == argument.len);
+    assert(request.header_count == 0U);
+    assert(request.is_response == 1);
+    free_notify_request(&request);
+}
+
+static void test_notify_body_key_argument(
+        const char *argument_name,
+        unsigned int type,
+        int expected_body,
+        int expected_response,
+        int expected_response_body) {
+    spop_buffer argument;
+    notify_request request;
+    size_t pos = 0U;
+
+    memset(&argument, 0, sizeof(argument));
+    memset(&request, 0, sizeof(request));
+    if (type == SPOP_DATA_BIN) {
+        assert(append_byte(&argument, SPOP_DATA_BIN) == 0);
+        assert(append_varint(&argument, 4U) == 0);
+        assert(append_bytes(&argument, "body", 4U, 4U) == 0);
+    } else if (type == SPOP_DATA_STR) {
+        assert(append_typed_string(&argument, "body") == 0);
+    } else {
+        assert(append_typed_bool(&argument, 1) == 0);
+    }
+    assert(parse_notify_body_key_argument(&request,
+        (const unsigned char *)argument_name, strlen(argument_name),
+        argument.data, argument.len, &pos) == 0);
+    assert(pos == argument.len);
+    assert(request.has_body == expected_body);
+    assert(request.is_response == expected_response);
+    assert(request.is_response_body == expected_response_body);
+    if (expected_body) {
+        assert(request.body_len == 4U);
+        assert(memcmp(request.body, "body", 4U) == 0);
+    }
+    free_notify_request(&request);
+}
+
+static void test_notify_body_arguments_preserve_type_and_response_role(void) {
+    test_notify_body_key_argument("body", SPOP_DATA_STR, 1, 0, 0);
+    test_notify_body_key_argument("body", SPOP_DATA_BIN, 1, 0, 0);
+    test_notify_body_key_argument("response_body", SPOP_DATA_STR, 1, 1, 1);
+    test_notify_body_key_argument("response_body", SPOP_DATA_BIN, 1, 1, 1);
+    test_notify_body_key_argument("response_body", SPOP_DATA_BOOL, 0, 0, 0);
+}
+
+static void test_unknown_body_key_does_not_consume_or_mutate(void) {
+    spop_buffer argument;
+    notify_request request;
+    size_t pos = 0U;
+
+    memset(&argument, 0, sizeof(argument));
+    memset(&request, 0, sizeof(request));
+    assert(append_typed_string(&argument, "body") == 0);
+    assert(parse_notify_body_key_argument(&request,
+        (const unsigned char *)"unknown_body", sizeof("unknown_body") - 1U,
+        argument.data, argument.len, &pos) == 1);
+    assert(pos == 0U);
+    assert(request.has_body == 0);
+    assert(request.is_response == 0);
+    assert(request.is_response_body == 0);
+    free_notify_request(&request);
+}
+
 int main(void) {
     test_varint_length_contract();
     test_varint_boundaries();
     test_exact_fit_and_overflow_are_atomic();
     test_unterminated_input_does_not_mutate();
+    test_notify_header_arguments_preserve_type_and_response_role();
+    test_response_header_key_marks_response_for_nonbytes();
+    test_notify_body_arguments_preserve_type_and_response_role();
+    test_unknown_body_key_does_not_consume_or_mutate();
     return 0;
 }
 '''.replace("__RUNTIME_SOURCE__", runtime_source.as_posix())

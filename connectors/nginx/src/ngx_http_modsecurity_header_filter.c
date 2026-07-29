@@ -424,10 +424,6 @@ ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
     const char *wanted, const char *actual)
 {
     msconnector_event event;
-    char line[4096];
-    int json_truncated = 0;
-    size_t line_length;
-    ssize_t written;
     ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
 
     if (mcf == NULL || mcf->phase4_log_file == NULL ||
@@ -464,29 +460,8 @@ ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
     event.flags.body_truncated = 0;
     event.flags.connection_aborted = 0;
 
-    if (!msconnector_event_write_jsonl_line(&event, line, sizeof(line),
-        &json_truncated)) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-            "modsecurity phase3 common event serialization failed%s",
-            json_truncated ? " (truncated)" : "");
-        return NGX_ERROR;
-    }
-
-    line_length = ngx_strlen(line);
-    written = ngx_write_fd(mcf->phase4_log_file->fd, (u_char *)line,
-        line_length);
-    if (written < 0) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, ngx_errno,
-            "modsecurity phase3 log write failed");
-        return NGX_ERROR;
-    }
-    if ((size_t)written != line_length) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-            "modsecurity phase3 log short write: %z of %uz bytes", written,
-            line_length);
-        return NGX_ERROR;
-    }
-    return NGX_OK;
+    return ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event,
+        "phase3");
 }
 
 ngx_int_t

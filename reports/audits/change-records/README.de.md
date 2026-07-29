@@ -7,12 +7,92 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-HAProxy-SPOP-Body-Parser-Deduplizierung](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.de.md)
+- [Parent-Common-Event-Provenance-Serialisierungszerlegung für SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.de.md)
+  — Erhaltung der Protocol-Provenance und Negativ-Controls sind dokumentiert;
+  vor der Integration muss der synchronisierte exakte Head GCC- und Clang-
+  C17-Common-Helper-Controls, anwendbare Common-Contracts sowie frische
+  Hosted-Review-/Actions-/SonarQube-Cloud-Verifikation bestehen.
+
+- [Parent-Common-Smoke-Writer-Output-Path-Containment für SonarQube-Cloud-Security-Befunde](CR-20260729-sonar-common-smoke-writer-path-security.de.md)
+  — fokussierte Pre-/Post-Fix-Grenzprüfungen, Symlink- und Traversal-Negativ-
+  Controls, der legitime Private-Runtime-Root-Control und zugehörige
+  Runtime-Smoke-Security-Tests bestanden lokal. Open-PR-Delivery steht aus;
+  eine Exact-Head-Hosted-Verifikation ist vor der Master-Integration
+  erforderlich.
+
+- [Parent-Apache-Smoke-Harness Literal-Ownership und Diagnose-Streams](CR-20260729-sonar-apache-smoke-harness-maintenance.de.md)
+  — sechs feste Shell-Literale haben jetzt readonly-Owner, vier Diagnosen
+  verwenden stderr, und fokussierte Syntax-, ShellCheck-, Apache-Contract- und
+  Bilingual-Prüfungen bestanden. Vor der Integration muss der Hosted-Status am
+  exakten aktuellen PR-Head gelesen werden.
+
+- [Parent-Apache-RulesSet-Konfigurationspool-Cleanup](CR-20260729-apache-ruleset-pool-cleanup.de.md)
+  — ausgewählter Upstream-#94A-Cleanup, fokussierte GCC-/Clang-APR-Harnesses,
+  frische APXS-Header-Materialisierung sowie private HTTP/1.1- und Graceful-
+  Restart-Controls sind lokal erfasst; Exact-Head-Delivery, gehostete Checks
+  und Resulting-Master-Evidence stehen noch aus.
+
+- [Parent-Envoy-Runtime-Artefaktbegrenzung und Loopback-TLS](CR-20260729-sonar-envoy-runtime-artifact-tls-containment.de.md)
+  — fokussierte temporäre TLS-, Artefaktbegrenzungs-, Konfigurations-
+  Materialisierungs-, Go- und Common-Adoption-Controls bestanden, soweit ihre
+  Voraussetzungen verfügbar sind; die native Envoy-/ext_proc-Runtime ist
+  lokal durch das fehlende Envoy-Binary und die Framework-Regel-Fixture
+  blockiert. Vor der Integration muss der Hosted-Status am exakten aktuellen
+  PR-Head gelesen werden.
+
+- [Parent-HAProxy-HTX-Runtime-Artefaktbegrenzung](CR-20260729-sonar-haproxy-htx-runtime-artifact-containment.de.md)
+  — auf die aktuelle Master-Basis synchronisiert, stellt die Private-Root-
+  Bindung des Metadaten-Event-Tests wieder her und verschiebt das doppelte
+  HAProxy-/Envoy-Deskriptorprotokoll in ein getestetes Parent-Primitiv, ohne die
+  Connector-lokale Serialisierung zu ändern. Der vorherige Exact-Head scheiterte
+  nur am New-Code-Duplikat-Gate; vor der Master-Integration bleibt eine frische
+  Exact-Head-Hosted-Verifikation erforderlich.
+
+- [Parent-CI-Focused-Report-Helper-Deduplizierung und Request-Body-Pfadbegrenzung](CR-20260729-sonar-ci-focused-report-safety.de.md)
+  — lokale Traversal-/Symlink-Regression und legitime In-Root-Controls
+  bestanden; der kombinierte Security-Diff-Review fand keine reportbare Regression.
+  Exact-Head-Hosted-GitHub-Actions- und SonarQube-Cloud-Evidence stehen noch
+  aus.
+
+- [Parent-CI-Runtime-Readiness-Deduplizierung des Remediation-Labels für SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.de.md)
+
+- [Parent-Common-Targeted-Evaluator-C++17-Remediation](CR-20260729-sonar-common-targeted-evaluator-cpp17.de.md)
+
+- [Parent-HAProxy-HTX-Payload-Iterator-Deduplizierung](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.de.md)
+
+- [Parent-CI-Best-Effort-Evidence-Reader-Deduplizierung für SonarQube Cloud](CR-20260729-sonar-ci-best-effort-evidence-readers.de.md)
+- [Parent-CI-Block-Status-Generator-Preprocessor-End-Literal für SonarQube Cloud S1192](CR-20260729-sonar-ci-generator-endif.de.md)
+- [Parent-HAProxy-SPOE-Header-Parser-Deduplizierung und SonarQube-Cloud-Reliability-Behebung](CR-20260729-sonar-haproxy-spop-header-parser-duplication.de.md)
+  — lokale C17-Parser-Harness-, HAProxy-Adoption-, Standards-Wiring- und
+  C17-Lint-Checks bestanden; ein fokussierter Security-Diff-Review fand keine
+  reportbare Regression. Gehostete CI- und Exact-Head-SonarQube-Cloud-Evidence
+  stehen noch aus.
+
+- [Deterministischer Parent-GitHub-Actions-`uses:`-Prefix-Parser für SonarQube Cloud S8786](CR-20260729-sonar-scripts-uses-prefix-parser.de.md)
+  — fokussierte Updater-Tests, ein nicht schreibender Parser-Vergleich,
+  Syntax-Validierung und der vollständige Current-Diff-Security-Review bestanden
+  lokal; Draft-PR-Delivery und Exact-Head-Hosted-/SonarQube-Cloud-Evidence
+  stehen aus.
+- [Parent-Common-Runtime-Smoke-Result-Objekt-Refaktorierung](CR-20260729-sonar-common-runtime-result.de.md)
+  — lokale Runtime-Writer-, CRS-/Pfad-Security- und Loopback-Request-Body-
+  Controls bestanden; der 52-Zeilen-Common-CPD-Block und zwei Basis-
+  `python:S107`-Zeilen sind zur gehosteten Verifikation ausgewählt. Es werden
+  zum Zeitpunkt der Record-Erstellung kein Commit, Push, PR, gehostete Analyse
+  oder Merge behauptet.
+- [Parent-Common-Header-Validierung und NGINX-Strict-JSONL-Tail-Deduplizierung](CR-20260728-sonar-common-nginx-strict-jsonl-duplication.de.md)
+  — lokale Common-C17-, Security-, Flow- und NGINX-Source-Contract-Checks
+  bestanden; Memory-Safety bestand außerhalb der LeakSanitizer-inkompatiblen
+  Sandbox, während die NGINX-C17-Kompilierung wegen fehlender NGINX-Header/
+  Source blocked_external_dependency ist. Es werden kein Commit, Push, PR,
+  gehostete Analyse oder Merge behauptet.
 - [Parent-NGINX-Response-Mapper-Validation-Tail-Deduplizierungskandidat (36 Parent-Duplikatzeilen)](CR-20260728-sonar-nginx-response-mapper-duplication.de.md)
   — lokale Source-Contract- und eingeschränkte Whitespace-Validierung
   bestanden; der exakte C17-Control ist wegen fehlender NGINX-Header/Source
   blocked_external_dependency (Script-Exit 77, make-Exit 2), und es werden
   keine Host-Runtime, kein Commit, Push, PR oder gehosteter Abschluss
   behauptet.
+- [Parent-CI-Markersektion- und Script-Literal-Deduplizierung für SonarQube Cloud](CR-20260728-sonar-ci-marker-script-deduplication.de.md)
 - [Parent-Traefik-Start-Smoke-Diagnostikliteral-Bereinigung für SonarQube Cloud S1192](CR-20260728-sonar-traefik-start-smoke-literal.de.md)
 - [Parent-Apache-Phase-4-Control-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-apache-phase4-literals.de.md)
 - [Parent-Apache-H2-Transport-Result-Literal-Ownership für SonarQube Cloud S1192](CR-20260728-sonar-apache-h2-transport-s1192.de.md)

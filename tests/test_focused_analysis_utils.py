@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import sys
 import tempfile
@@ -57,12 +58,16 @@ FINAL_CONSISTENCY = REPORT_MODULES["final_consistency"]
 FILE_UTILITIES = ("utc_now", "read_json", "write_json", "read_text")
 LIST_UTILITIES = (*FILE_UTILITIES, "as_list")
 ACTION_UTILITIES = (*LIST_UTILITIES, "action_parts")
-BODY_PROCESSOR_UTILITIES = (*ACTION_UTILITIES, "import_script")
+REPORT_LOG_UTILITIES = (*ACTION_UTILITIES, "action_value", "log_paths")
+BODY_PROCESSOR_UTILITIES = (*REPORT_LOG_UTILITIES, "import_script")
 FOCUSED_GENERATOR_UTILITIES = (
-    *BODY_PROCESSOR_UTILITIES,
+    *ACTION_UTILITIES,
+    "import_script",
     "refresh_connector_queue_totals",
     "sanitize_path",
 )
+CASE_PATH_UTILITIES = (*FOCUSED_GENERATOR_UTILITIES, "find_framework_case_path")
+SECTION_UPSERT_UTILITIES = (*FILE_UTILITIES, "upsert_marked_section")
 
 
 class FocusedAnalysisUtilsTest(unittest.TestCase):
@@ -76,14 +81,14 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
 
     def test_consumers_use_shared_safe_primitives(self) -> None:
         consumer_bindings = {
-            NOLOG: FOCUSED_GENERATOR_UTILITIES,
-            RESPONSE_HEADER: FOCUSED_GENERATOR_UTILITIES,
+            NOLOG: (*CASE_PATH_UTILITIES, "action_value", "upsert_marked_section"),
+            RESPONSE_HEADER: (*CASE_PATH_UTILITIES, "upsert_marked_section"),
             BODY_PROCESSOR: BODY_PROCESSOR_UTILITIES,
-            RULE_CHAIN: ACTION_UTILITIES,
-            NO_MRTS_NOMATCH: LIST_UTILITIES,
-            INTERVENTION_BLOCKING: ACTION_UTILITIES,
-            PHASE4_HARD_ABORT: FILE_UTILITIES,
-            REMAINING_FAILURE: ("utc_now", "read_json", "read_text"),
+            RULE_CHAIN: (*REPORT_LOG_UTILITIES, "upsert_marked_section"),
+            NO_MRTS_NOMATCH: (*LIST_UTILITIES, "upsert_marked_section"),
+            INTERVENTION_BLOCKING: REPORT_LOG_UTILITIES,
+            PHASE4_HARD_ABORT: SECTION_UPSERT_UTILITIES,
+            REMAINING_FAILURE: ("utc_now", "read_json", "read_text", "upsert_marked_section"),
             FINAL_CONSISTENCY: ("utc_now", "read_json", "write_json"),
         }
         for consumer, names in consumer_bindings.items():
@@ -106,6 +111,63 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
         self.assertEqual(UTILS.as_list("  "), ["  "])
         self.assertEqual(UTILS.as_list(["kept", "", "  ", 3, None]), ["kept", "3", "None"])
 
+    def test_find_framework_case_path_rejects_unsafe_names_and_keeps_safe_cases(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="focused-analysis-utils-") as temporary:
+            framework_root = Path(temporary) / "framework"
+            case_path = framework_root / "tests" / "cases" / "safe-case.yaml"
+            upstream_path = framework_root / "tests" / "upstream" / "upstream-case.yaml"
+            case_path.parent.mkdir(parents=True)
+            upstream_path.parent.mkdir(parents=True)
+            case_path.write_text("name: safe-case\n", encoding="utf-8")
+            upstream_path.write_text("name: upstream-case\n", encoding="utf-8")
+            report_path_safety.add_safe_roots(framework_root)
+
+            self.assertEqual(UTILS.find_framework_case_path(framework_root, "safe-case"), case_path.resolve())
+            self.assertEqual(UTILS.find_framework_case_path(framework_root, "upstream-case"), upstream_path.resolve())
+            for unsafe_name in (None, "", "../safe-case", "nested/safe-case", r"nested\\safe-case"):
+                with self.subTest(case_id=unsafe_name):
+                    self.assertIsNone(UTILS.find_framework_case_path(framework_root, unsafe_name))
+
+    def test_upsert_marked_section_preserves_replace_anchor_and_append_layout(self) -> None:
+        start = "<!-- report:start -->"
+        end = "<!-- report:end -->"
+        section = "## Report\n- refreshed"
+
+        self.assertEqual(
+            UTILS.upsert_marked_section(
+                "before\n\n<!-- report:start -->\nold\n<!-- report:end -->\n\nafter\n",
+                start=start,
+                end=end,
+                section=section,
+                insert_before="## Reports And Logs",
+            ),
+            "before\n\n<!-- report:start -->\n## Report\n- refreshed\n<!-- report:end -->\n\nafter\n",
+        )
+        self.assertEqual(
+            UTILS.upsert_marked_section(
+                "before\n\n## Reports And Logs\nafter\n",
+                start=start,
+                end=end,
+                section=section,
+                insert_before="## Reports And Logs",
+            ),
+            "before\n\n<!-- report:start -->\n## Report\n- refreshed\n<!-- report:end -->\n\n## Reports And Logs\nafter\n",
+        )
+        self.assertEqual(
+            UTILS.upsert_marked_section(
+                "before\n\n<!-- next:start -->\nafter\n",
+                start=start,
+                end=end,
+                section=section,
+                insert_before="<!-- next:start -->",
+            ),
+            "before\n\n<!-- report:start -->\n## Report\n- refreshed\n<!-- report:end -->\n\n<!-- next:start -->\nafter\n",
+        )
+        self.assertEqual(
+            UTILS.upsert_marked_section("before\n", start=start, end=end, section=section),
+            "before\n\n<!-- report:start -->\n## Report\n- refreshed\n<!-- report:end -->\n",
+        )
+
     def test_quoted_commas_and_nolog_value_selection_are_preserved(self) -> None:
         actions = UTILS.action_parts('id:123,msg:"comma, preserved",phase:2,logdata:\'also, preserved\'')
 
@@ -114,6 +176,112 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
             ["id:123", 'msg:"comma, preserved"', "phase:2", "logdata:'also, preserved'"],
         )
         self.assertEqual(NOLOG.action_value(actions, "PHASE"), "2")
+
+    def test_shared_action_value_preserves_case_and_missing_value_behavior(self) -> None:
+        actions = [" id:123 ", "PHASE:2", "msg:kept"]
+
+        self.assertEqual(UTILS.action_value(actions, "phase"), "2")
+        self.assertEqual(UTILS.action_value(actions, "missing"), "-")
+
+    def test_shared_log_paths_keep_evidence_order_and_safe_root_gate(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="focused-analysis-utils-") as temporary:
+            temporary_root = Path(temporary)
+            safe_root = temporary_root / "safe"
+            safe_root.mkdir()
+            audit_log = safe_root / "audit.log"
+            decision_log = safe_root / "decision.log"
+            outside_log = temporary_root / "outside.log"
+            for path in (audit_log, decision_log, outside_log):
+                path.write_text("log\n", encoding="utf-8")
+            report_path_safety.add_safe_roots(safe_root)
+
+            paths = UTILS.log_paths(
+                {
+                    "audit_log_path": audit_log,
+                    "decision_log": decision_log,
+                    "ignored": audit_log,
+                    "outside_log_path": outside_log,
+                }
+            )
+
+        self.assertEqual(paths, [audit_log.resolve(), decision_log.resolve()])
+
+    def test_body_processor_literal_contracts_are_preserved(self) -> None:
+        evidence_path = Path("/tmp") / "one" / "two" / "evidence.json"
+
+        self.assertEqual(
+            BODY_PROCESSOR.generated_config_path(
+                {"case_id": "multipart-case", "connector": "nginx"}, evidence_path
+            ),
+            Path("/tmp") / "runtime" / "multipart-case" / BODY_PROCESSOR.GENERATED_SMOKE_CONFIG_RELATIVE_PATH,
+        )
+        self.assertEqual(
+            BODY_PROCESSOR.body_kind(
+                {"body": "payload"}, f"{BODY_PROCESSOR.MULTIPART_FORM_DATA_CONTENT_TYPE}; boundary=test"
+            ),
+            "multipart",
+        )
+
+    def test_body_processor_rejects_traversal_derived_request_body_path(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="focused-analysis-utils-") as temporary:
+            temporary_root = Path(temporary)
+            safe_root = temporary_root / "safe"
+            evidence_path = safe_root / "level1/level2/level3/evidence.json"
+            case_path = safe_root / "cases/probe.yaml"
+            in_root_body = safe_root / "level1/runtime/legitimate-case/conf/request-body.bin"
+            symlink_body = safe_root / "level1/runtime/symlink-case/conf/request-body.bin"
+            outside_body = temporary_root / "outside/conf/request-body.bin"
+            for path in (evidence_path, case_path, in_root_body, symlink_body, outside_body):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            evidence_path.write_text("{}\n", encoding="utf-8")
+            case_path.write_text(
+                "request:\n"
+                "  method: POST\n"
+                "  path: /probe\n"
+                "  body: fallback-body\n",
+                encoding="utf-8",
+            )
+            in_root_body.write_bytes(b"legitimate-in-root-body")
+            outside_body.write_bytes(b"outside-root-sentinel")
+            symlink_body.symlink_to(outside_body)
+            report_path_safety.add_safe_roots(safe_root)
+            evidence = {"path": str(case_path)}
+            request = {"body": "fallback-body"}
+            legitimate_config = in_root_body.with_name("modsecurity-smoke.conf")
+            traversal_config = safe_root / "level1/runtime/../../../outside/conf/modsecurity-smoke.conf"
+            symlink_config = symlink_body.with_name("modsecurity-smoke.conf")
+
+            legitimate = BODY_PROCESSOR.case_metadata(
+                {"case_id": "legitimate-case", "connector": "nginx", "evidence": str(evidence_path)},
+                evidence,
+                safe_root,
+            )
+            traversal = BODY_PROCESSOR.case_metadata(
+                {"case_id": "../../../outside", "connector": "nginx", "evidence": str(evidence_path)},
+                evidence,
+                safe_root,
+            )
+            symlink_escape = BODY_PROCESSOR.case_metadata(
+                {"case_id": "symlink-case", "connector": "nginx", "evidence": str(evidence_path)},
+                evidence,
+                safe_root,
+            )
+
+            self.assertEqual(
+                BODY_PROCESSOR.generated_body_length(legitimate_config, request), len(b"legitimate-in-root-body")
+            )
+            for unsafe_config in (traversal_config, symlink_config):
+                with self.subTest(unsafe_config=unsafe_config):
+                    self.assertEqual(BODY_PROCESSOR.generated_body_length(unsafe_config, request), len(b"fallback-body"))
+                    self.assertEqual(BODY_PROCESSOR.request_body_bytes(unsafe_config, request), b"fallback-body")
+
+        self.assertEqual(legitimate["body_preview"], "legitimate-in-root-body")
+        self.assertEqual(traversal["body_preview"], "fallback-body")
+        self.assertEqual(symlink_escape["body_preview"], "fallback-body")
+        self.assertNotEqual(traversal["body_preview"], "outside-root-sentinel")
+        outside_digest = hashlib.sha256(b"outside-root-sentinel").hexdigest()
+        self.assertNotEqual(traversal["body_sha256"], outside_digest)
+        self.assertNotEqual(symlink_escape["body_sha256"], outside_digest)
 
     def test_action_parts_preserves_empty_and_unterminated_quote_behavior(self) -> None:
         cases = {

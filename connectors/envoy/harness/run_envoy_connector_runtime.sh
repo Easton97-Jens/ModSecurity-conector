@@ -9,10 +9,11 @@ SERVICE_BIN=${SERVICE_BIN:-$BUILD_ROOT/envoy-connector/msconnector_envoy_ext_aut
 CONFIG_FILE=${CONFIG_FILE:-$CONNECTOR_DIR/config/envoy-ext-authz.conf}
 RULES_FILE=${RULES_FILE:-$REPO_ROOT/common/rules/modsecurity_targeted_smoke.conf}
 EXPECTED_RULE_ID=${MSCONNECTOR_EXPECTED_RULE_ID:-1000001}
-RUNTIME_ROOT=${RUNTIME_ROOT:-$BUILD_ROOT/envoy-connector/runtime-smoke}
+RUNTIME_ROOT=${RUNTIME_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-envoy-runtime-smoke}
 EVENT_LOG_PATH=${EVENT_LOG_PATH:-$RUNTIME_ROOT/events.jsonl}
 PYTHON_BIN=${PYTHON:-python3}
 HELPER="$SCRIPT_DIR/envoy_smoke_helper.py"
+TLS_RENDERER="$CONNECTOR_DIR/config/lib/tls_yaml_render.sh"
 YAML_TEMPLATE="$CONNECTOR_DIR/config/envoy-ext-authz-smoke.yaml.in"
 NO_CRS_SELECTION_CONSUMER="$REPO_ROOT/ci/runtime/lifecycle/consume-no-crs-selected-cases.sh"
 ENVOY_CONFIG="$RUNTIME_ROOT/envoy.yaml"
@@ -23,6 +24,8 @@ SERVICE_STDOUT="$RUNTIME_ROOT/service.stdout.log"
 SERVICE_STDERR="$RUNTIME_ROOT/service.stderr.log"
 UPSTREAM_STDOUT="$RUNTIME_ROOT/upstream.stdout.log"
 UPSTREAM_STDERR="$RUNTIME_ROOT/upstream.stderr.log"
+TLS_CERTIFICATE="$RUNTIME_ROOT/envoy-loopback.crt"
+TLS_PRIVATE_KEY="$RUNTIME_ROOT/envoy-loopback.key"
 envoy_pid=
 service_pid=
 upstream_pid=
@@ -46,8 +49,8 @@ cleanup() {
             set -e
         fi
     done
+    rm -f "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
 }
-trap cleanup EXIT HUP INT TERM
 
 [ -n "${ENVOY_BIN:-}" ] || missing_dependency "ENVOY_BIN is required"
 [ -x "$ENVOY_BIN" ] || missing_dependency "ENVOY_BIN is not executable: $ENVOY_BIN"
@@ -55,7 +58,9 @@ trap cleanup EXIT HUP INT TERM
 [ -f "$RULES_FILE" ] || missing_dependency "rules file is missing: $RULES_FILE"
 [ -f "$YAML_TEMPLATE" ] || missing_dependency "Envoy config template is missing: $YAML_TEMPLATE"
 [ -f "$HELPER" ] || missing_dependency "smoke helper is missing: $HELPER"
+[ -f "$TLS_RENDERER" ] || missing_dependency "TLS YAML renderer is missing: $TLS_RENDERER"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || missing_dependency "Python interpreter is missing: $PYTHON_BIN"
+. "$TLS_RENDERER"
 
 if [ "${MSCONNECTOR_NO_CRS_BASELINE:-0}" = "1" ]; then
     [ -x "$NO_CRS_SELECTION_CONSUMER" ] || missing_dependency "No-CRS selected-case consumer is missing: $NO_CRS_SELECTION_CONSUMER"
@@ -73,7 +78,11 @@ case "$RUNTIME_ROOT" in
         ;;
     *) ;;
 esac
-mkdir -p "$RUNTIME_ROOT"
+if ! "$PYTHON_BIN" "$HELPER" prepare-runtime-root --runtime-root "$RUNTIME_ROOT"; then
+    echo "envoy_runtime_smoke: FAIL - RUNTIME_ROOT is unsafe for private runtime artifacts" >&2
+    exit 1
+fi
+trap cleanup EXIT HUP INT TERM
 case "$EVENT_LOG_PATH" in
     "$RUNTIME_ROOT"/*) ;;
     *)
@@ -81,7 +90,7 @@ case "$EVENT_LOG_PATH" in
         exit 1
         ;;
 esac
-rm -f "$EVENT_LOG_PATH" "$SUMMARY"
+rm -f "$EVENT_LOG_PATH" "$SUMMARY" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
 
 set -- $("$PYTHON_BIN" "$HELPER" free-ports --count 4)
 listen_port=${ENVOY_SMOKE_PORT:-$1}
@@ -90,11 +99,36 @@ authz_port=${ENVOY_AUTHZ_PORT:-$3}
 admin_port=${ENVOY_ADMIN_PORT:-$4}
 base_id=$(((listen_port + admin_port) % 100000))
 
+command -v openssl >/dev/null 2>&1 || missing_dependency "openssl is required for the private loopback TLS certificate"
+if ! create_private_loopback_tls "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"; then
+    echo "envoy_runtime_smoke: FAIL - could not create the private loopback TLS certificate" >&2
+    exit 1
+fi
+
+set +e
+TLS_CERTIFICATE_ESCAPED=$(render_yaml_path_for_sed_replacement "$TLS_CERTIFICATE")
+TLS_CERTIFICATE_RENDER_STATUS=$?
+set -e
+if [ "$TLS_CERTIFICATE_RENDER_STATUS" -ne 0 ]; then
+    echo "envoy_runtime_smoke: FAIL - TLS certificate path contains an unsupported control character" >&2
+    exit 1
+fi
+set +e
+TLS_PRIVATE_KEY_ESCAPED=$(render_yaml_path_for_sed_replacement "$TLS_PRIVATE_KEY")
+TLS_PRIVATE_KEY_RENDER_STATUS=$?
+set -e
+if [ "$TLS_PRIVATE_KEY_RENDER_STATUS" -ne 0 ]; then
+    echo "envoy_runtime_smoke: FAIL - TLS private key path contains an unsupported control character" >&2
+    exit 1
+fi
+
 sed \
     -e "s|@LISTEN_PORT@|$listen_port|g" \
     -e "s|@UPSTREAM_PORT@|$upstream_port|g" \
     -e "s|@AUTHZ_PORT@|$authz_port|g" \
     -e "s|@ADMIN_PORT@|$admin_port|g" \
+    -e "s|@TLS_CERTIFICATE@|$TLS_CERTIFICATE_ESCAPED|g" \
+    -e "s|@TLS_PRIVATE_KEY@|$TLS_PRIVATE_KEY_ESCAPED|g" \
     "$YAML_TEMPLATE" > "$ENVOY_CONFIG"
 
 SERVICE_BIN="$SERVICE_BIN" BUILD_ROOT="$BUILD_ROOT" CONFIG_FILE="$CONFIG_FILE" \
@@ -110,6 +144,7 @@ if ! "$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG" \
 fi
 
 "$PYTHON_BIN" "$HELPER" serve-upstream --port "$upstream_port" \
+    --runtime-root "$RUNTIME_ROOT" \
     >"$UPSTREAM_STDOUT" 2>"$UPSTREAM_STDERR" &
 upstream_pid=$!
 
@@ -139,7 +174,8 @@ while [ "$attempt" -lt 30 ]; do
     done
     set +e
     allowed_status=$("$PYTHON_BIN" "$HELPER" probe \
-        --url "http://127.0.0.1:$listen_port/allowed" \
+        --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+        --url "https://127.0.0.1:$listen_port/allowed" \
         --header "X-Request-Id: envoy-allow-1" 2>/dev/null)
     probe_rc=$?
     set -e
@@ -155,7 +191,8 @@ if [ "$allowed_status" != "200" ]; then
 fi
 
 if ! blocked_status=$("$PYTHON_BIN" "$HELPER" probe \
-    --url "http://127.0.0.1:$listen_port/blocked" \
+    --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+    --url "https://127.0.0.1:$listen_port/blocked" \
     --header "X-Request-Id: envoy-block-1" \
     --header "X-Modsec-Smoke: block"); then
     echo "envoy_runtime_smoke: FAIL - blocked request could not be completed" >&2
@@ -191,6 +228,7 @@ done
     printf 'rule_id=%s\n' "$EXPECTED_RULE_ID"
     printf 'event_log=%s\n' "$EVENT_LOG_PATH"
     printf 'envoy_config=%s\n' "$ENVOY_CONFIG"
+    printf 'downstream_transport=tls_loopback\n'
     printf 'response_body_verified=false\n'
     printf 'production_ready=false\n'
 } > "$SUMMARY"

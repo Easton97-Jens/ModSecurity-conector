@@ -25,6 +25,9 @@ from runtime_path_utils import (
 )
 
 
+RUNTIME_COMPONENT_PREPARATION_FIX = "run make prepare-runtime-components"
+
+
 def default_state_home() -> Path:
     return Path(verified_runtime_paths(os.environ)["VERIFIED_STATE_ROOT"])
 
@@ -249,15 +252,15 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path) 
 
     required_items = [
         component("common.sh", "present" if common["status"] == "present" else "missing", Path(common["path"]), "ensure FRAMEWORK_ROOT points at modules/ModSecurity-test-Framework"),
-        component("NGINX binary", file_status(nginx_bin, executable_required=True), nginx_bin, "run make prepare-runtime-components"),
-        component("NGINX ModSecurity module", file_status(nginx_module_file), nginx_module_file, "run make prepare-runtime-components"),
-        component("NGINX libmodsecurity", file_status(modsecurity_lib), modsecurity_lib, "run make prepare-runtime-components"),
-        component("Apache/httpd", file_status(apache_httpd, executable_required=True), apache_httpd, "run make prepare-runtime-components"),
-        component("Apache/APXS", file_status(apxs, executable_required=True), apxs, "run make prepare-runtime-components"),
-        component("Apache ModSecurity module", file_status(apache_module), apache_module, "run make prepare-runtime-components"),
-        component("HAProxy binary", file_status(haproxy, executable_required=True), haproxy, "run make prepare-runtime-components"),
-        component("HAProxy SPOA runtime", file_status(spoa, executable_required=True), spoa, "run make prepare-runtime-components"),
-        component("HAProxy binding metadata", file_status(haproxy_binding), haproxy_binding, "run make prepare-runtime-components"),
+        component("NGINX binary", file_status(nginx_bin, executable_required=True), nginx_bin, RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("NGINX ModSecurity module", file_status(nginx_module_file), nginx_module_file, RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("NGINX libmodsecurity", file_status(modsecurity_lib), modsecurity_lib, RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("Apache/httpd", file_status(apache_httpd, executable_required=True), apache_httpd, RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("Apache/APXS", file_status(apxs, executable_required=True), apxs, RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("Apache ModSecurity module", file_status(apache_module), apache_module, RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("HAProxy binary", file_status(haproxy, executable_required=True), haproxy, RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("HAProxy SPOA runtime", file_status(spoa, executable_required=True), spoa, RUNTIME_COMPONENT_PREPARATION_FIX),
+        component("HAProxy binding metadata", file_status(haproxy_binding), haproxy_binding, RUNTIME_COMPONENT_PREPARATION_FIX),
     ]
     optional_items = [
         component("go-ftw", file_status(go_ftw, executable_required=True), go_ftw, "optional native MRTS: install or cache go-ftw", required=False),

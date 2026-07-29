@@ -1339,6 +1339,7 @@ int main(void) {
         event.protocol.alpn = "h3";
         event.protocol.stream_id = "0";
         event.protocol.connection_id = "sha256:0123456789abcdef";
+        event.protocol.quic_version = "1";
         event.protocol.quic_connection_id_present = 1;
         event.protocol.fallback_used = 0;
         event.protocol.stream_reset = 1;
@@ -1356,8 +1357,15 @@ int main(void) {
         assert(strstr(json, "\"run_id\":\"protocol-smoke\"") != 0);
         assert(strstr(json, "\"transport_case_id\":\"case-h3-negotiated\"") != 0);
         assert(strstr(json, "\"requested_protocol\":\"h3\"") != 0);
+        assert(strstr(json, "\"downstream_protocol\":\"h3\"") != 0);
+        assert(strstr(json, "\"upstream_protocol\":\"http1\"") != 0);
         assert(strstr(json, "\"negotiated_protocol\":\"h3\"") != 0);
         assert(strstr(json, "\"transport\":\"quic_udp\"") != 0);
+        assert(strstr(json, "\"alpn\":\"h3\"") != 0);
+        assert(strstr(json, "\"stream_id\":\"0\"") != 0);
+        assert(strstr(json, "\"connection_id\":\"sha256:0123456789abcdef\"") != 0);
+        assert(strstr(json, "\"quic_version\":\"1\"") != 0);
+        assert(strstr(json, "\"stream_reset_code\":\"H3_REQUEST_CANCELLED\"") != 0);
         assert(strstr(json, "\"connection_reused\":false") != 0);
         assert(strstr(json, "\"quic_connection_id_present\":true") != 0);
         assert(strstr(json, "\"fallback_used\":false") != 0);
@@ -1585,6 +1593,24 @@ int main(void) {
             request.header_count = 2;
         }
         assert(msconnector_request_content_length(&request, &cl_status) == 123U && cl_status == 1);
+        {
+            const msconnector_header invalid_space_name[] = {{"bad name", 8U, "x", 1U}};
+            const msconnector_header invalid_colon_name[] = {{"bad:name", 8U, "x", 1U}};
+            const msconnector_header invalid_value[] = {{"X-Test", 6U, NULL, 1U}};
+            const msconnector_header empty_value[] = {{"X-Empty", 7U, NULL, 0U}};
+
+            request.headers = invalid_space_name;
+            request.header_count = 1;
+            assert(!msconnector_request_validate(&request));
+            request.headers = invalid_colon_name;
+            assert(!msconnector_request_validate(&request));
+            request.headers = invalid_value;
+            assert(!msconnector_request_validate(&request));
+            request.headers = empty_value;
+            assert(msconnector_request_validate(&request));
+            request.headers = headers;
+            request.header_count = 2;
+        }
         request.headers = 0; request.header_count = 1;
         assert(!msconnector_request_validate(&request));
         msconnector_response_init(&response);

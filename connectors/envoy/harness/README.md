@@ -11,19 +11,27 @@ request-header 200/403 path only.
 - `serve_envoy_connector.sh` materializes a concrete connector config and runs
   the built service in the foreground.
 - `start_envoy_connector.sh` validates connector and Envoy configs, starts both
-  Envoy and the service, checks both processes, and stops them without requests.
+  Envoy and the service with the same ephemeral private loopback TLS listener,
+  checks both processes, and stops them without requests.
 - `run_envoy_connector_runtime.sh` validates a temporary Envoy YAML config,
   starts a local upstream, the connector service, and Envoy, then verifies an
-  allowed HTTP 200 and a rule-backed HTTP 403 through `ext_authz`.
+  allowed HTTPS 200 and a rule-backed HTTPS 403 through `ext_authz` over a
+  private loopback TLS listener. The `ext_authz` sidecar remains internal
+  loopback HTTP.
 - `run_envoy_smoke.sh` is the Framework-facing compatibility entrypoint for the
   same real connector runtime path.
-- `envoy_smoke_helper.py` provides only the dependency-free upstream and HTTP
-  probe; it does not make security decisions.
+- `envoy_smoke_helper.py` provides only the dependency-free upstream and
+  certificate-verifying HTTPS probe; it does not make security decisions.
 
 The runtime smoke requires `ENVOY_BIN` and the separately built connector
 service. Missing binaries return Exit 77/BLOCKED. Invalid config, early process
 exit, request failure, wrong status, or missing event evidence returns FAIL.
 Every started process is stopped on success, error, or signal.
+
+The runtime path creates a one-day self-signed certificate and private key
+only beneath its verified private root, uses them solely for its loopback
+listener/client pair, and removes both during cleanup. It never stores their
+contents in its summary or event evidence.
 
 The smoke records metadata-only decision events and does not log request or
 response bodies. `ext_authz` is request-phase only; response-body verification

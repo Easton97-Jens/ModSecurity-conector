@@ -17,6 +17,10 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
+from best_effort_evidence_readers import (
+    read_json_object as read_json,
+    read_jsonl_objects as read_jsonl,
+)
 from generated_report_utils import (
     DATA_SOURCE_POLICY,
     GENERATED_REPORTS,
@@ -315,14 +319,6 @@ def skipped_command_record(
     }
 
 
-def read_json(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
 def file_record(path: Path, root: Path) -> dict[str, Any]:
     shown = str(path.relative_to(root)) if path.is_relative_to(root) else str(path)
     if not path.is_file():
@@ -605,24 +601,6 @@ def timeout_from_env(env: dict[str, str], name: str, default: int, *, aliases: t
         if parsed is not None:
             return parsed
     return default
-
-
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except Exception:
-        return rows
-    for line in lines:
-        if not line.strip():
-            continue
-        try:
-            data = json.loads(line)
-        except Exception:
-            continue
-        if isinstance(data, dict):
-            rows.append(data)
-    return rows
 
 
 def parse_time(value: str | None) -> float | None:
