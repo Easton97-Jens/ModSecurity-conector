@@ -25,6 +25,7 @@ REPORT_DEFAULT = "actions-update-report.md"
 WORKFLOW_GLOBS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 QUOTE_CHARACTERS = frozenset({"'", '"'})
 SKIPPED_DYNAMIC = "Skipped dynamic"
+USES_MAPPING_KEY = "uses:"
 
 
 class RateLimitError(RuntimeError):
@@ -170,9 +171,9 @@ def _uses_value_rest(body: str) -> tuple[str, str] | None:
         index += 1
         while index < len(body) and body[index].isspace():
             index += 1
-    if not body.startswith("uses:", index):
+    if not body.startswith(USES_MAPPING_KEY, index):
         return None
-    index += len("uses:")
+    index += len(USES_MAPPING_KEY)
     while index < len(body) and body[index].isspace():
         index += 1
     if index == len(body):
@@ -210,7 +211,7 @@ def parse_uses_line(path: Path, line_number: int, line: str) -> UsesLine | None:
     return UsesLine(
         path=path,
         line_number=line_number,
-        prefix=body[: body.find("uses:") + len("uses:")],
+        prefix=body[: body.find(USES_MAPPING_KEY) + len(USES_MAPPING_KEY)],
         quote="",
         value=rest,
         suffix="",
