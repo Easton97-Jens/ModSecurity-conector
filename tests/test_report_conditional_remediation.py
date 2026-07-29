@@ -143,6 +143,135 @@ class ReportConditionalRemediationTest(unittest.TestCase):
         self.assertEqual(mismatch_summary["full_matrix_runtime_status"], "runtime_completed_with_mismatches")
         self.assertEqual(timeout_summary["full_matrix_runtime_status"], "runtime_timeout")
 
+    def test_full_matrix_control_evidence_keeps_fixed_case_and_fallback_contracts(self) -> None:
+        build_root = Path("/controlled-build-root")
+        control_case = RUNTIME_MISMATCH.ARGS_NAMES_CONTROL_CASE
+        summaries = {
+            ("apache", "no-crs/no-mrts"): {
+                "status": "PASS",
+                "expected_status": "403",
+                "actual_status": "403",
+                "live_executed": True,
+                "evidence_path": "apache-pass.json",
+            },
+            ("haproxy", "no-crs/no-mrts"): {
+                "status": "pass",
+                "expected_status": "403",
+                "actual_status": "403",
+                "live_executed": False,
+                "evidence_path": "haproxy-not-live.json",
+            },
+            ("haproxy", "with-crs/no-mrts"): {
+                "status": "pass",
+                "expected_status": "403",
+                "actual_status": "200",
+                "live_executed": True,
+                "evidence_path": "haproxy-wrong-actual.json",
+            },
+            ("nginx", "no-crs/no-mrts"): {
+                "status": "pass",
+                "expected_status": "403",
+                "observed_status": "403",
+                "live_executed": True,
+                "evidence_path": "nginx-observed-pass.json",
+            },
+        }
+
+        def summary_case(build: Path, connector: str, variant: str, case_name: str) -> dict[str, object]:
+            self.assertEqual(build, build_root)
+            self.assertEqual(case_name, control_case)
+            return summaries.get((connector, variant), {})
+
+        with mock.patch.object(RUNTIME_MISMATCH, "full_matrix_summary_case", side_effect=summary_case):
+            fixed_case = RUNTIME_MISMATCH.full_matrix_control_evidence(build_root)
+            parameterized = RUNTIME_MISMATCH.full_matrix_case_control_evidence(build_root, control_case)
+
+        self.assertEqual(fixed_case, parameterized)
+        self.assertEqual(
+            list(fixed_case),
+            [
+                f"apache:no-crs/no-mrts:{control_case}",
+                f"apache:with-crs/no-mrts:{control_case}",
+                f"haproxy:no-crs/no-mrts:{control_case}",
+                f"haproxy:with-crs/no-mrts:{control_case}",
+                f"nginx:no-crs/no-mrts:{control_case}",
+                f"nginx:with-crs/no-mrts:{control_case}",
+            ],
+        )
+        self.assertEqual(
+            fixed_case[f"apache:no-crs/no-mrts:{control_case}"],
+            {
+                "status": "pass",
+                "expected": "403",
+                "actual": "403",
+                "evidence_file": "apache-pass.json",
+            },
+        )
+        self.assertEqual(
+            fixed_case[f"apache:with-crs/no-mrts:{control_case}"],
+            {"status": "missing", "expected": "-", "actual": "-", "evidence_file": "-"},
+        )
+        self.assertEqual(
+            fixed_case[f"haproxy:no-crs/no-mrts:{control_case}"],
+            {
+                "status": "fail",
+                "expected": "403",
+                "actual": "403",
+                "evidence_file": "haproxy-not-live.json",
+            },
+        )
+        self.assertEqual(
+            fixed_case[f"haproxy:with-crs/no-mrts:{control_case}"],
+            {
+                "status": "fail",
+                "expected": "403",
+                "actual": "200",
+                "evidence_file": "haproxy-wrong-actual.json",
+            },
+        )
+        self.assertEqual(fixed_case[f"nginx:no-crs/no-mrts:{control_case}"]["status"], "pass")
+        self.assertEqual(fixed_case[f"nginx:with-crs/no-mrts:{control_case}"]["status"], "missing")
+
+    def test_collection_classifiers_reject_nonpassing_control_evidence(self) -> None:
+        def rows_for(cases: set[str]) -> list[dict[str, str]]:
+            return [
+                {"case": case, "connector": connector, "variant": variant, "category": "collections"}
+                for case in cases
+                for connector in RUNTIME_MISMATCH.SEMICOLON_COLLECTION_CONNECTORS
+                for variant in RUNTIME_MISMATCH.SEMICOLON_COLLECTION_VARIANTS
+            ]
+
+        nonpassing_control = {"control": {"status": "fail"}}
+        semicolon_rows = rows_for(RUNTIME_MISMATCH.SEMICOLON_COLLECTION_CASES)
+        with (
+            mock.patch.object(RUNTIME_MISMATCH, "semicolon_collection_result_evidence", return_value={}),
+            mock.patch.object(RUNTIME_MISMATCH, "full_matrix_control_evidence", return_value=nonpassing_control),
+        ):
+            self.assertEqual(
+                RUNTIME_MISMATCH.apply_semicolon_collection_semantics_classification(
+                    semicolon_rows,
+                    connector_root=Path("/connector-root"),
+                    build_root=Path("/build-root"),
+                ),
+                semicolon_rows,
+            )
+
+        collection_name_rows = rows_for(RUNTIME_MISMATCH.COLLECTION_NAME_CASE_CASES)
+        with (
+            mock.patch.object(RUNTIME_MISMATCH, "collection_name_case_result_evidence", return_value={}),
+            mock.patch.object(RUNTIME_MISMATCH, "full_matrix_case_control_evidence", return_value=nonpassing_control),
+        ):
+            self.assertEqual(
+                RUNTIME_MISMATCH.apply_collection_name_case_semantics_classification(
+                    collection_name_rows,
+                    connector_root=Path("/connector-root"),
+                    build_root=Path("/build-root"),
+                ),
+                collection_name_rows,
+            )
+
+        self.assertTrue(all("classification" not in row for row in semicolon_rows + collection_name_rows))
+
     def test_full_runtime_status_preserves_priority_and_laziness(self) -> None:
         class RowsMustNotBeRead(list):
             def __iter__(self):

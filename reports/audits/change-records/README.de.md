@@ -7,6 +7,8 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Deduplizierung der Verified-Runtime-Mismatch-Control-Evidence](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.de.md)
+
 - [Parent-Common-Blocked-Runtime-Smoke-Default-Dispatch für SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.de.md)
   — der getrackte Konfigurations-`case` und unbekannte Connectoren verwenden
   kontrollierte Blocked-Dependency-Pfade; fokussierte Dispatch-/Default-
