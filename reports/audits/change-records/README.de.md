@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Apache-RulesSet-Konfigurationspool-Cleanup](CR-20260729-apache-ruleset-pool-cleanup.de.md)
+  — ausgewählter Upstream-#94A-Cleanup, fokussierte GCC-/Clang-APR-Harnesses,
+  frische APXS-Header-Materialisierung sowie private HTTP/1.1- und Graceful-
+  Restart-Controls sind lokal erfasst; Exact-Head-Delivery, gehostete Checks
+  und Resulting-Master-Evidence stehen noch aus.
+
 - [Parent-CI-Focused-Report-Helper-Deduplizierung und Request-Body-Pfadbegrenzung](CR-20260729-sonar-ci-focused-report-safety.de.md)
   — lokale Traversal-/Symlink-Regression und legitime In-Root-Controls
   bestanden; der kombinierte Security-Diff-Review fand keine reportbare Regression.

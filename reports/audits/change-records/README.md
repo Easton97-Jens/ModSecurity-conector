@@ -6,6 +6,12 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Apache RulesSet configuration-pool cleanup](CR-20260729-apache-ruleset-pool-cleanup.md)
+  — selected upstream #94A cleanup, focused GCC/Clang APR harnesses, fresh
+  APXS-header materialization, private HTTP/1.1 and graceful-restart controls
+  are recorded locally; exact-head delivery, hosted checks, and resulting-master
+  evidence remain pending.
+
 - [Parent CI focused-report helper deduplication and request-body path containment](CR-20260729-sonar-ci-focused-report-safety.md)
   — local traversal/symlink regression and legitimate in-root controls passed;
   the combined security review found no reportable regression. Exact-head

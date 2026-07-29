@@ -1156,6 +1156,15 @@ check-apache-request-transaction-cleanup-lint:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_request_transaction_cleanup
 	"$(PYTHON)" ci/tools/run-check-status.py --check apache_request_transaction_cleanup --allow-blocked-reason apache_development_prerequisite --blocked-if-missing-apache-development -- sh ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh
 
+.PHONY: check-apache-ruleset-cleanup check-apache-ruleset-cleanup-lint
+check-apache-ruleset-cleanup:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_rules_set_cleanup
+	sh ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh
+
+check-apache-ruleset-cleanup-lint:
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_rules_set_cleanup
+	"$(PYTHON)" ci/tools/run-check-status.py --check apache_rules_set_cleanup --allow-blocked-reason apache_development_prerequisite --blocked-if-missing-apache-development -- sh ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh
+
 check-optional-prerequisite-status:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_optional_prerequisite_status
 
@@ -1289,6 +1298,7 @@ lint: check-framework
 	$(MAKE) check-apache-c17-lint
 	$(MAKE) check-apache-intervention-cleanup
 	$(MAKE) check-apache-request-transaction-cleanup-lint
+	$(MAKE) check-apache-ruleset-cleanup-lint
 	$(MAKE) check-optional-prerequisite-status
 	$(MAKE) check-nginx-common-adoption
 	$(MAKE) check-nginx-c-standard-wiring
