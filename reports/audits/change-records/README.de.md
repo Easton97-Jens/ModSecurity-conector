@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Apache-RulesSet-Konfigurationspool-Cleanup](CR-20260729-apache-ruleset-pool-cleanup.de.md)
+  — ausgewählter Upstream-#94A-Cleanup, fokussierte GCC-/Clang-APR-Harnesses,
+  frische APXS-Header-Materialisierung sowie private HTTP/1.1- und Graceful-
+  Restart-Controls sind lokal erfasst; Exact-Head-Delivery, gehostete Checks
+  und Resulting-Master-Evidence stehen noch aus.
+
 - [Parent-CI-Runtime-Readiness-Deduplizierung des Remediation-Labels für SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.de.md)
 
 - [Parent-HAProxy-HTX-Payload-Iterator-Deduplizierung](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.de.md)

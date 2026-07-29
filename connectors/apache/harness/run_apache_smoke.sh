@@ -2351,6 +2351,7 @@ MODULES_FILE="$RUNTIME_ROOT/conf/modules.load"
 CONFIG_FILE="$RUNTIME_ROOT/conf/httpd.conf"
 RULES_FILE="$RUNTIME_ROOT/conf/modsecurity-smoke.conf"
 MIME_TYPES_FILE="$RUNTIME_ROOT/conf/mime.types"
+MIME_TYPES_ROOT_FILE="$RUNTIME_ROOT/mime.types"
 DOCROOT="$RUNTIME_ROOT/htdocs"
 APACHE_BACKEND_PROXY_FILE="$RUNTIME_ROOT/conf/backend-proxy.conf"
 RESPONSE_BODY="$LOG_DIR/response-body.txt"
@@ -2375,8 +2376,10 @@ APACHE_PHASE4_REDIRECT_TARGET_RULES_FILE="$RUNTIME_ROOT/conf/phase4-redirect-tar
 
 if [ -f "$HTTPD_PREFIX/conf/mime.types" ]; then
     cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_FILE"
+    cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_ROOT_FILE"
 else
     : > "$MIME_TYPES_FILE"
+    : > "$MIME_TYPES_ROOT_FILE"
 fi
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --case "$TEST_CASE" \
