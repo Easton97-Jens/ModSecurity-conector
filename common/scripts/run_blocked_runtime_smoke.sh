@@ -181,7 +181,17 @@ case "$CONNECTOR_NAME" in
             $lookup_args
         exit $?
         ;;
-    *) ;;
+    *)
+        connector_skip_missing_dependency \
+            "$CONNECTOR_NAME" \
+            "$INTEGRATION_MODE" \
+            "$POST_LOOKUP_BLOCKED_REASON" \
+            "$POST_LOOKUP_MISSING_DEPENDENCY" \
+            "$ARCHITECTURE_DECISION" \
+            "$runtime_binary" \
+            "$BINARY_ENV_VAR" \
+            "$BINARY_NAME"
+        ;;
 esac
 
 connector_skip_missing_dependency \
