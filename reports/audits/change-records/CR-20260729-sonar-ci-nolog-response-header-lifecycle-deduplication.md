@@ -119,10 +119,12 @@ artifact is claimed.
 
 ## Delivery-status reconciliation
 
-At record creation, the change is locally validated only. No commit, push,
-pull request, hosted check, review, thread, mergeability result, or merge is
-claimed. A task-owned Draft PR, if created, must have exact local/remote/PR
-head equality and fresh hosted evidence before any integration decision.
+Draft PR [#188](https://github.com/Easton97-Jens/ModSecurity-conector/pull/188)
+was created from the initial task commit
+`ed06eb84a07b0d50988dc308087e85da589311e1`. This documentation-only follow-up
+advances that PR head, so its final exact local/remote/PR head equality and
+fresh hosted evidence must be re-read before any integration decision. No
+hosted check, review, thread, mergeability result, or merge is claimed here.
 
 ## Remaining risks
 
@@ -146,5 +148,6 @@ exact-head result.
 The local diff has focused tests, compilation, whitespace validation, completed
 source/test security reviews with no reportable candidate, and a bilingual
 documentation check that is blocked only by pre-existing absent Framework
-submodule targets. It remains pending task-owned Draft-PR delivery; no
-default-branch action is authorized or implied.
+submodule targets. Task-owned Draft PR #188 exists; its final exact committed
+head and hosted checks remain pending. No default-branch action is authorized
+or implied.

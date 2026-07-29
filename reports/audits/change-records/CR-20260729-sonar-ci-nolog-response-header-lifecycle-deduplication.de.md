@@ -75,7 +75,7 @@ Fokussierte Tests führen die Report-Lifecycle-Helper gegen temporäre Connector
 
 ## Abgleich des Delivery-Status
 
-Bei Record-Erstellung ist die Änderung nur lokal validiert. Es werden kein Commit, Push, Pull Request, Hosted Check, Review, Thread, Mergeability-Ergebnis oder Merge beansprucht. Ein task-eigener Draft-PR muss, wenn er erstellt wird, exakte Local-/Remote-/PR-Head-Gleichheit und frische Hosted-Evidence vor jeder Integrationsentscheidung besitzen.
+Draft-PR [#188](https://github.com/Easton97-Jens/ModSecurity-conector/pull/188) wurde vom anfänglichen Task-Commit `ed06eb84a07b0d50988dc308087e85da589311e1` erstellt. Dieses reine Dokumentations-Follow-up verschiebt den PR-Head, deshalb müssen seine finale exakte Local-/Remote-/PR-Head-Gleichheit und frische Hosted-Evidence vor jeder Integrationsentscheidung erneut gelesen werden. Hier werden kein Hosted Check, Review, Thread, Mergeability-Ergebnis oder Merge beansprucht.
 
 ## Verbleibende Risiken
 
@@ -88,4 +88,4 @@ Die Shared-Helper-Grenze hängt von den bestehenden vertrauenswürdigen Parent- 
 
 ## Finaler Diff- und Review-Status
 
-Der lokale Diff besitzt fokussierte Tests, Kompilierung, Whitespace-Validierung, abgeschlossene Source-/Test-Security-Reviews ohne reportbaren Kandidaten und einen Bilingual-Dokumentationscheck, der nur durch bereits fehlende Framework-Submodule-Targets blockiert ist. Er wartet noch auf die task-eigene Draft-PR-Delivery; keine Default-Branch-Aktion ist autorisiert oder impliziert.
+Der lokale Diff besitzt fokussierte Tests, Kompilierung, Whitespace-Validierung, abgeschlossene Source-/Test-Security-Reviews ohne reportbaren Kandidaten und einen Bilingual-Dokumentationscheck, der nur durch bereits fehlende Framework-Submodule-Targets blockiert ist. Der task-eigene Draft-PR #188 existiert; sein finaler exakter Commit-Head und seine Hosted Checks stehen noch aus. Keine Default-Branch-Aktion ist autorisiert oder impliziert.
