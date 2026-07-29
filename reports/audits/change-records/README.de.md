@@ -9,6 +9,7 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-CI-Deduplizierung der Verified-Runtime-Mismatch-Control-Evidence](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.de.md)
 
+- [Parent-HAProxy-SPOP-Body-Parser-Deduplizierung](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.de.md)
 - [Parent-Common-Event-Provenance-Serialisierungszerlegung für SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.de.md)
   — Erhaltung der Protocol-Provenance und Negativ-Controls sind dokumentiert;
   vor der Integration muss der synchronisierte exakte Head GCC- und Clang-
