@@ -147,7 +147,10 @@ def trusted_loopback_tls_context(root: Path, certificate_path: str) -> ssl.SSLCo
     """Trust the current private-root certificate for one TLS smoke client."""
 
     certificate = checked_path(root, certificate_path, "loopback TLS certificate", must_exist=True)
-    return ssl.create_default_context(cafile=str(certificate))
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_verify_locations(cafile=str(certificate))
+    return context
 
 
 def upstream_profile(raw_path: str) -> tuple[str, str | None, bytes]:

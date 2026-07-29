@@ -34,7 +34,7 @@ Its client helpers also accepted clear-text HTTP although the harness topology i
 
 The helper now requires `--runtime-root` for each artifact-bearing command, and the shell runner validates that root before its first own write.
 
-For each run the runner creates a short-lived `127.0.0.1` certificate and private bundle only under that root; HAProxy binds the TLS frontend to the bundle, while the client trusts the separate regular certificate file through Python's default certificate-verifying context.
+For each run the runner creates a short-lived `127.0.0.1` certificate and private bundle only under that root; HAProxy binds the TLS frontend to the bundle, while the client trusts the separate regular certificate file through an explicit Python TLS-client context requiring certificate verification and TLS 1.2 or later.
 
 A command map and a separate release wait preserve behavior while removing the two current complexity rows.
 

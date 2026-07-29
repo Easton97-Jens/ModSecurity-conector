@@ -34,7 +34,7 @@ Seine Client-Helper akzeptierten zudem Klartext-HTTP, obwohl die Harness-Topolog
 
 Der Helper fordert jetzt für jeden Artefaktbefehl `--runtime-root`; der Shell-Runner prüft diesen Root vor seinem ersten eigenen Schreibzugriff.
 
-Der Runner erstellt für jeden Lauf ein kurzlebiges Zertifikat für `127.0.0.1` und ein Private-Key-Bundle ausschließlich unter diesem Root. HAProxy bindet sein TLS-Frontend an das Bundle, während der Client die separate reguläre Zertifikatsdatei über den standardmäßigen prüfenden Python-Kontext vertraut.
+Der Runner erstellt für jeden Lauf ein kurzlebiges Zertifikat für `127.0.0.1` und ein Private-Key-Bundle ausschließlich unter diesem Root. HAProxy bindet sein TLS-Frontend an das Bundle, während der Client die separate reguläre Zertifikatsdatei über einen expliziten Python-TLS-Client-Kontext mit Zertifikatsprüfung und TLS 1.2 oder neuer vertraut.
 
 Command-Map und ausgelagertes Release-Warten erhalten das Verhalten und entfernen die zwei aktuellen Komplexitätszeilen.
 
