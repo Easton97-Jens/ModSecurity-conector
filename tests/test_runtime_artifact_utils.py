@@ -54,12 +54,14 @@ class RuntimeArtifactUtilsTest(unittest.TestCase):
                 runtime_artifact_path(root, target, "result"),
                 target,
             )
+            relative_result = Path("relative.txt")
+            outside_result = root.parent / "outside.txt"
             with self.assertRaisesRegex(ValueError, "must be absolute"):
-                runtime_artifact_path(root, Path("relative.txt"), "result")
+                runtime_artifact_path(root, relative_result, "result")
             with self.assertRaisesRegex(ValueError, "below the runtime root"):
                 runtime_artifact_path(root, root, "result")
             with self.assertRaisesRegex(ValueError, "below the runtime root"):
-                runtime_artifact_path(root, root.parent / "outside.txt", "result")
+                runtime_artifact_path(root, outside_result, "result")
 
             final_link = root / "final-link.txt"
             final_link.symlink_to(root.parent / "outside.txt")
