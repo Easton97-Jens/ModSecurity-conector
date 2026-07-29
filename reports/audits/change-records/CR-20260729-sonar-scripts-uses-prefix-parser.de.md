@@ -48,6 +48,7 @@ Der Parent-GitHub-Actions-Updater verwendete einen verankerten Python-regulären
 | `git diff --check origin/master -- scripts/update-github-actions-versions.py` | bestanden. |
 | Vollständiger Current-Diff-Codex-Security-Contract | bestanden: Full-File-Review ergab null reportable Candidates; versiegelter Snapshot-Digest `codex-security-snapshot/v1:sha256:3cd05aa14c03ed2ab1ab7cdf1c15cf2d80327b370762c050f2e53fd98477203a`. |
 | Bilinguale Change-Record- und Link-Validierung | bestanden: eingeschränkte Heading-/Table-/Identity-/Language-Switch-/Index-Checks. Root-Checks sind blocked_external_dependency: der direkte bilinguale Checker endete mit `1`, `make check-bilingual-docs` mit `2` und `make check-doc-links` mit `2`, ausschließlich weil 20 vorhandene Framework-Gitlink-Targets in diesem Task-Worktree fehlen; keines meldete dieses Paar oder seine Indizes. |
+| Draft-PR-Erstellung und erste Exact-Head-Beobachtung | bestanden: Draft-PR [#165](https://github.com/Easton97-Jens/ModSecurity-conector/pull/165) zielt auf `master`; lokaler, Remote- und PR-Head waren `f5f74f203efb834edb68ff1a13fb9c46a86f1352`. CodeQL-, OSV-, Apache- und Lighttpd-Checks waren in progress; der installierte `gh`-Client unterstützt `pr checks --json` nicht, daher wurde der Status über `gh pr view` `statusCheckRollup` beobachtet. |
 
 ## Security-Auswirkung
 
@@ -77,4 +78,6 @@ Der lokale Vergleichskorpus ist starke Regression-Evidence, aber kein Beweis fü
 
 ## Finaler Diff- und Review-Status
 
-Beim ersten Verfassen enthält der task-eigene Branch einen nicht committeten Source-Patch sowie dieses erforderliche Traceability-Paar und den Index-Update. Der Source-Diff ist auf den deterministischen Parser-Ersatz begrenzt. Ein vollständiger Current-Diff-Security-Scan ist mit keiner reportable Finding gültig. Es werden kein Commit, Push, PR, Hosted-Check, SonarQube-Cloud-Ergebnis, Approval oder Merge beansprucht. Vor Delivery wird dieser Datensatz mit dem exakten staged Diff abgeglichen; nachdem ein PR existiert, werden tatsächliche Branch-/Commit-/PR-/Check-Fakten in einem Follow-up-Commit ergänzt, statt sie hier zu erfinden.
+Der initiale Implementierungs- und Traceability-Commit ist `f5f74f203efb834edb68ff1a13fb9c46a86f1352` auf `agent/parent-scripts-uses-parser-20260729`. Er erzeugte Draft-PR #165 gegen `master`; bei der ersten Beobachtung stimmten local HEAD, der Remote-Branch und der PR-Head exakt überein. Der Source-Diff bleibt auf den deterministischen Parser-Ersatz begrenzt; das erforderliche Record-Paar und die Indizes sind nur Delivery-Traceability. Ein vollständiger Current-Diff-Security-Scan ist mit keiner reportable Finding gültig.
+
+Dieses Follow-up ändert ausschließlich die zwei Change-Record-Dateien, um den beobachteten initialen PR-Zustand aufzubewahren. Es erzeugt absichtlich einen neuen PR-Head; daher müssen alle Hosted-Checks, SonarQube-Cloud-Analyse, Review- und Merge-Evidence für diesen neuen SHA erneut eingeholt werden. Es werden kein aktueller Hosted-Pass, kein Approval, kein Ready-for-Review-Status und kein Merge beansprucht.

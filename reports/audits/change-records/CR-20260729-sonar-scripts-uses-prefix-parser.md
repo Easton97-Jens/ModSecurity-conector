@@ -68,6 +68,7 @@ evidence.
 | `git diff --check origin/master -- scripts/update-github-actions-versions.py` | passed. |
 | Complete current-diff Codex Security contract | passed: full-file review found zero reportable candidates; sealed snapshot digest `codex-security-snapshot/v1:sha256:3cd05aa14c03ed2ab1ab7cdf1c15cf2d80327b370762c050f2e53fd98477203a`. |
 | Bilingual Change Record and link validation | passed: targeted heading/table/identity/language-switch/index checks. Root checks are blocked_external_dependency: the direct bilingual checker exited `1`, `make check-bilingual-docs` exited `2`, and `make check-doc-links` exited `2` only because 20 existing Framework-gitlink targets are absent in this task worktree; none reported this pair or its indexes. |
+| Draft PR creation and initial exact-head observation | passed: Draft PR [#165](https://github.com/Easton97-Jens/ModSecurity-conector/pull/165) targets `master`; local, remote, and PR head were `f5f74f203efb834edb68ff1a13fb9c46a86f1352`. CodeQL, OSV, Apache, and Lighttpd checks were in progress; the installed `gh` client lacks `pr checks --json`, so the status was observed through `gh pr view` `statusCheckRollup`. |
 
 ## Security impact
 
@@ -122,11 +123,17 @@ to force that result.
 
 ## Final diff and review status
 
-At initial authoring, the task-owned branch has one uncommitted source patch
-plus this required traceability pair/index update. The source diff is limited
-to the deterministic parser replacement. A complete current-diff security
-scan is valid with no reportable finding. No commit, push, PR, hosted check,
-SonarQube Cloud result, approval, or merge is claimed. Before delivery, this
-record is reconciled with the exact staged diff; after a PR exists, actual
-branch/commit/PR/check facts are added in a follow-up commit rather than
-invented here.
+The initial implementation and traceability commit is
+`f5f74f203efb834edb68ff1a13fb9c46a86f1352` on
+`agent/parent-scripts-uses-parser-20260729`. It created Draft PR #165 against
+`master`; at the initial observation, local HEAD, the remote branch, and the
+PR head matched exactly. The source diff remains limited to the deterministic
+parser replacement; the required record pair and indexes are delivery
+traceability only. A complete current-diff security scan is valid with no
+reportable finding.
+
+This follow-up changes only the two Change Record files to retain the observed
+initial PR state. It intentionally creates a new PR head, so all hosted checks,
+SonarQube Cloud analysis, review, and merge evidence must be refreshed for that
+new SHA. No current hosted pass, approval, ready-for-review state, or merge is
+claimed.
