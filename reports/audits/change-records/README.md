@@ -11,6 +11,8 @@ must not claim unobserved CI, runtime, review, or delivery results.
   blocked-dependency paths; focused dispatch/default-structure controls and
   POSIX shell syntax passed locally.
 
+- [Parent CI capability-state map deduplication](CR-20260729-sonar-ci-capability-state-map-deduplication.md)
+
 - [Parent HAProxy SPOP body-parser deduplication](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.md)
 
 - [Parent Common event-provenance serialization decomposition for SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.md)
