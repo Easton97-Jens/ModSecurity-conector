@@ -9,6 +9,25 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-HAProxy-HTX-Payload-Iterator-Deduplizierung](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.de.md)
 
+- [Parent-CI-Best-Effort-Evidence-Reader-Deduplizierung für SonarQube Cloud](CR-20260729-sonar-ci-best-effort-evidence-readers.de.md)
+- [Parent-CI-Block-Status-Generator-Preprocessor-End-Literal für SonarQube Cloud S1192](CR-20260729-sonar-ci-generator-endif.de.md)
+- [Parent-HAProxy-SPOE-Header-Parser-Deduplizierung und SonarQube-Cloud-Reliability-Behebung](CR-20260729-sonar-haproxy-spop-header-parser-duplication.de.md)
+  — lokale C17-Parser-Harness-, HAProxy-Adoption-, Standards-Wiring- und
+  C17-Lint-Checks bestanden; ein fokussierter Security-Diff-Review fand keine
+  reportbare Regression. Gehostete CI- und Exact-Head-SonarQube-Cloud-Evidence
+  stehen noch aus.
+
+- [Deterministischer Parent-GitHub-Actions-`uses:`-Prefix-Parser für SonarQube Cloud S8786](CR-20260729-sonar-scripts-uses-prefix-parser.de.md)
+  — fokussierte Updater-Tests, ein nicht schreibender Parser-Vergleich,
+  Syntax-Validierung und der vollständige Current-Diff-Security-Review bestanden
+  lokal; Draft-PR-Delivery und Exact-Head-Hosted-/SonarQube-Cloud-Evidence
+  stehen aus.
+- [Parent-Common-Runtime-Smoke-Result-Objekt-Refaktorierung](CR-20260729-sonar-common-runtime-result.de.md)
+  — lokale Runtime-Writer-, CRS-/Pfad-Security- und Loopback-Request-Body-
+  Controls bestanden; der 52-Zeilen-Common-CPD-Block und zwei Basis-
+  `python:S107`-Zeilen sind zur gehosteten Verifikation ausgewählt. Es werden
+  zum Zeitpunkt der Record-Erstellung kein Commit, Push, PR, gehostete Analyse
+  oder Merge behauptet.
 - [Parent-Common-Header-Validierung und NGINX-Strict-JSONL-Tail-Deduplizierung](CR-20260728-sonar-common-nginx-strict-jsonl-duplication.de.md)
   — lokale Common-C17-, Security-, Flow- und NGINX-Source-Contract-Checks
   bestanden; Memory-Safety bestand außerhalb der LeakSanitizer-inkompatiblen
