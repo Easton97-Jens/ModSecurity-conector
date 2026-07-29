@@ -7,6 +7,20 @@ limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent CI block-status generator preprocessor-end literal for SonarQube Cloud S1192](CR-20260729-sonar-ci-generator-endif.md)
+- [Parent HAProxy SPOE header-parser deduplication and SonarQube Cloud reliability remediation](CR-20260729-sonar-haproxy-spop-header-parser-duplication.md)
+  — local C17 parser-harness, HAProxy adoption, standards-wiring, and C17 lint
+  checks passed; a focused security diff review found no reportable regression.
+  Hosted CI and exact-head SonarQube Cloud evidence remain pending.
+
+- [Parent deterministic GitHub Actions `uses:` prefix parser for SonarQube Cloud S8786](CR-20260729-sonar-scripts-uses-prefix-parser.md)
+  — focused updater tests, a non-writing parser comparison, syntax validation,
+  and the complete current-diff security review passed locally; Draft-PR
+  delivery and exact-head hosted/SonarQube Cloud evidence remain pending.
+- [Parent Common runtime-smoke result-object refactor](CR-20260729-sonar-common-runtime-result.md)
+  — local runtime-writer, CRS/path-security, and loopback request-body controls
+  passed; the 52-line Common CPD block and two baseline `python:S107` rows are
+  selected for hosted verification. No commit, push, PR, hosted analysis, or
+  merge is claimed at record authoring.
 - [Parent Common header validation and NGINX strict JSONL-tail deduplication](CR-20260728-sonar-common-nginx-strict-jsonl-duplication.md)
   — local Common C17, security, flow, and NGINX source-contract checks passed;
   memory safety passed outside the LeakSanitizer-incompatible sandbox, while
