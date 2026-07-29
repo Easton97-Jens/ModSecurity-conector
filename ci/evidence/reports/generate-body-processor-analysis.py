@@ -18,8 +18,10 @@ from typing import Any
 
 from focused_analysis_utils import (
     action_parts,
+    action_value,
     as_list,
     import_script,
+    log_paths,
     read_json,
     read_text,
     utc_now,
@@ -41,6 +43,8 @@ URLENCODED_FORM_CONTENT_TYPE = "application/x-www-form-urlencoded"
 URLENCODED_FORM_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
 XML_ACTIVATION_MISSING_CLASSIFICATION = "xml_processor_activation_missing"
 MULTIPART_ACTIVATION_MISSING_CLASSIFICATION = "multipart_processor_activation_missing"
+MULTIPART_FORM_DATA_CONTENT_TYPE = "multipart/form-data"
+GENERATED_SMOKE_CONFIG_RELATIVE_PATH = "conf/modsecurity-smoke.conf"
 ABSOLUTE_RUNTIME_PATH_RE = re.compile(r"(?<![\w.-])/(?:tmp|root|src)[^\s\"']*")
 DISTRIBUTION_TABLE_HEADER = "| field | distribution |"
 DISTRIBUTION_TABLE_SEPARATOR = "| --- | --- |"
@@ -68,22 +72,12 @@ def generated_config_path(entry: dict[str, Any], evidence_path: Path) -> Path | 
     case_id = str(entry.get("case_id") or evidence_path.parent.name)
     connector = str(entry.get("connector") or "")
     if connector == "nginx":
-        return evidence_path.parent.parent.parent / "runtime" / case_id / "conf/modsecurity-smoke.conf"
+        return evidence_path.parent.parent.parent / "runtime" / case_id / GENERATED_SMOKE_CONFIG_RELATIVE_PATH
     if connector == "apache":
-        return evidence_path.parent.parent.parent.parent / "apache-runtime" / case_id / "conf/modsecurity-smoke.conf"
+        return evidence_path.parent.parent.parent.parent / "apache-runtime" / case_id / GENERATED_SMOKE_CONFIG_RELATIVE_PATH
     if connector == "haproxy":
-        return evidence_path.parent.parent.parent.parent / "haproxy-runtime-cases" / case_id / "conf/modsecurity-smoke.conf"
+        return evidence_path.parent.parent.parent.parent / "haproxy-runtime-cases" / case_id / GENERATED_SMOKE_CONFIG_RELATIVE_PATH
     return None
-
-
-def action_value(actions: list[str], name: str) -> str:
-    prefix = f"{name.lower()}:"
-    for action in actions:
-        text = action.strip()
-        lower = text.lower()
-        if lower.startswith(prefix):
-            return text.split(":", 1)[1].strip()
-    return "-"
 
 
 def parse_rules(rules: str) -> list[dict[str, Any]]:
@@ -130,7 +124,7 @@ def body_kind(request: dict[str, Any], content_type: str) -> str:
     if not body:
         return "empty"
     lowered = content_type.lower()
-    if "multipart/form-data" in lowered:
+    if MULTIPART_FORM_DATA_CONTENT_TYPE in lowered:
         return "multipart"
     if "json" in lowered:
         return "json"
@@ -139,24 +133,6 @@ def body_kind(request: dict[str, Any], content_type: str) -> str:
     if "x-www-form-urlencoded" in lowered:
         return "form"
     return "raw"
-
-
-def log_paths(evidence: dict[str, Any]) -> list[Path]:
-    paths: list[Path] = []
-    for key, value in evidence.items():
-        if not value:
-            continue
-        if key.endswith("_log_path") or key in {
-            "audit_log_path",
-            "decision_log",
-            "decision_log_path",
-            "spoa_log_path",
-            "haproxy_log_path",
-        }:
-            path = safe_existing_file(value)
-            if path is not None:
-                paths.append(path)
-    return paths
 
 
 def rule_logged(logs: str, rule_id: str) -> bool:
@@ -188,8 +164,8 @@ def request_body_seen(logs: str) -> str:
 
 def generated_body_length(config_path: Path | None, request: dict[str, Any]) -> int:
     if config_path:
-        request_body = config_path.parent / "request-body.bin"
-        if request_body.is_file():
+        request_body = safe_existing_file(config_path.parent / "request-body.bin")
+        if request_body is not None:
             return len(read_text(request_body).encode())
     if isinstance(request.get("multipart"), dict):
         return -1
@@ -198,8 +174,8 @@ def generated_body_length(config_path: Path | None, request: dict[str, Any]) -> 
 
 def request_body_bytes(config_path: Path | None, request: dict[str, Any]) -> bytes:
     if config_path:
-        request_body = config_path.parent / "request-body.bin"
-        if request_body.is_file():
+        request_body = safe_existing_file(config_path.parent / "request-body.bin")
+        if request_body is not None:
             try:
                 return request_body.read_bytes()
             except OSError:
@@ -427,7 +403,7 @@ def is_multipart_activation_missing(record: dict[str, Any]) -> bool:
     return (
         record.get("classification") == MULTIPART_ACTIVATION_MISSING_CLASSIFICATION
         and record.get("body_kind") == "multipart"
-        and normalized_content_type(record.get("content_type")) == "multipart/form-data"
+        and normalized_content_type(record.get("content_type")) == MULTIPART_FORM_DATA_CONTENT_TYPE
         and record.get("multipart_boundary_status") == "valid"
     )
 
@@ -561,7 +537,7 @@ def summarize_xml_activation_missing(records: list[dict[str, Any]]) -> dict[str,
 def summarize_multipart_activation_missing(records: list[dict[str, Any]]) -> dict[str, Any]:
     body_sent = sum(1 for record in records if int(record.get("body_length") or 0) > 0)
     content_type_correct = sum(
-        1 for record in records if normalized_content_type(record.get("content_type")) == "multipart/form-data"
+        1 for record in records if normalized_content_type(record.get("content_type")) == MULTIPART_FORM_DATA_CONTENT_TYPE
     )
     boundary_valid = sum(1 for record in records if record.get("multipart_boundary_status") == "valid")
     return {

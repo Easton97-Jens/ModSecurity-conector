@@ -7,8 +7,53 @@ limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent HAProxy SPOP body-parser deduplication](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.md)
+- [Parent Common event-provenance serialization decomposition for SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.md)
+  — protocol-provenance preservation and negative controls are documented;
+  before integration, the synchronized exact head must pass GCC and Clang C17
+  Common-helper controls, applicable Common contracts, and fresh hosted
+  review/Actions/SonarQube Cloud verification.
+
+- [Parent Common smoke-writer output-path containment for SonarQube Cloud security findings](CR-20260729-sonar-common-smoke-writer-path-security.md)
+  — focused pre-/post-fix boundary checks, symlink and traversal negative
+  controls, the legitimate private-runtime-root control, and related runtime
+  smoke security tests passed locally. Open-PR delivery remains pending;
+  exact-head hosted verification is required before master integration.
+
+- [Parent Apache smoke-harness literal ownership and diagnostic streams](CR-20260729-sonar-apache-smoke-harness-maintenance.md)
+  — six fixed Shell literals now have readonly owners, four diagnostics use
+  stderr, and focused syntax, ShellCheck, Apache-contract, and bilingual
+  checks passed. Before integration, hosted status must be read at the PR's
+  exact current head.
+
+- [Parent Apache RulesSet configuration-pool cleanup](CR-20260729-apache-ruleset-pool-cleanup.md)
+  — selected upstream #94A cleanup, focused GCC/Clang APR harnesses, fresh
+  APXS-header materialization, private HTTP/1.1 and graceful-restart controls
+  are recorded locally; exact-head delivery, hosted checks, and resulting-master
+  evidence remain pending.
+
+- [Parent Envoy runtime-artifact containment and loopback TLS](CR-20260729-sonar-envoy-runtime-artifact-tls-containment.md)
+  — focused temporary TLS, artifact-containment, config-materialization, Go,
+  and Common-adoption controls passed where their prerequisites are available;
+  the native Envoy/ext_proc runtime is blocked locally by the absent Envoy
+  binary and Framework rule fixture. Before integration, hosted status must be
+  read at the PR's exact current head.
+
+- [Parent HAProxy HTX runtime-artifact containment](CR-20260729-sonar-haproxy-htx-runtime-artifact-containment.md)
+  — synchronized to the current master base, restores the metadata-event test's
+  private-root binding, and moves the duplicated HAProxy/Envoy descriptor
+  protocol into one tested Parent primitive without changing connector-local
+  serialization. The previous exact head failed only the New-Code duplication
+  gate; fresh exact-head hosted verification remains required before master
+  integration.
+
+- [Parent CI focused-report helper deduplication and request-body path containment](CR-20260729-sonar-ci-focused-report-safety.md)
+  — local traversal/symlink regression and legitimate in-root controls passed;
+  the combined security review found no reportable regression. Exact-head
+  hosted GitHub Actions and SonarQube Cloud evidence remain pending.
 
 - [Parent CI runtime-readiness remediation-label deduplication for SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.md)
+
+- [Parent Common targeted-evaluator C++17 remediation](CR-20260729-sonar-common-targeted-evaluator-cpp17.md)
 
 - [Parent HAProxy HTX payload-iterator deduplication](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.md)
 

@@ -171,7 +171,13 @@ checks.append(("apache_json_escape" not in apache_text, "Duplicate Apache JSON e
 checks.append(("apache_phase4_rule_id" not in apache_text, "Duplicate Apache rule-id helper is removed"))
 checks.append(("char *end = NULL" not in config_c and "strtoul" not in config_c, "Duplicate Apache size parser is removed"))
 checks.append(("else if (cnf_new->common_config.transaction_id != NULL)" in config_c and "cnf_new->transaction_id_expr = NULL" in config_c, "Child static transaction IDs override parent expressions"))
-checks.append(("MSCONNECTOR_COMMON_SOURCES" in (ROOT / "connectors/apache/build/apxs-wrapper.in").read_text(encoding="utf-8") and "common/src" in (ROOT / "connectors/apache/build/apxs-wrapper.in").read_text(encoding="utf-8"), "Apache APXS wrapper links Common SDK sources"))
+apxs_wrapper = read(ROOT / "connectors/apache/build/apxs-wrapper.in")
+checks.append((
+    "MSCONNECTOR_COMMON_SOURCES" in apxs_wrapper
+    and "common/src" in apxs_wrapper
+    and "header_validation_internal.h" in apxs_wrapper,
+    "Apache APXS wrapper materializes Common SDK sources and their private validation header",
+))
 for field in ["msc_state", "use_error_log;", "const char *transaction_id;", "int phase4_mode;", "const char *phase4_log_path;", "apr_size_t phase4_body_limit;"]:
     checks.append((field not in config_h, f"Duplicate config field removed: {field}"))
 

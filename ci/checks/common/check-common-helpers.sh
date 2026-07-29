@@ -1339,6 +1339,7 @@ int main(void) {
         event.protocol.alpn = "h3";
         event.protocol.stream_id = "0";
         event.protocol.connection_id = "sha256:0123456789abcdef";
+        event.protocol.quic_version = "1";
         event.protocol.quic_connection_id_present = 1;
         event.protocol.fallback_used = 0;
         event.protocol.stream_reset = 1;
@@ -1356,8 +1357,15 @@ int main(void) {
         assert(strstr(json, "\"run_id\":\"protocol-smoke\"") != 0);
         assert(strstr(json, "\"transport_case_id\":\"case-h3-negotiated\"") != 0);
         assert(strstr(json, "\"requested_protocol\":\"h3\"") != 0);
+        assert(strstr(json, "\"downstream_protocol\":\"h3\"") != 0);
+        assert(strstr(json, "\"upstream_protocol\":\"http1\"") != 0);
         assert(strstr(json, "\"negotiated_protocol\":\"h3\"") != 0);
         assert(strstr(json, "\"transport\":\"quic_udp\"") != 0);
+        assert(strstr(json, "\"alpn\":\"h3\"") != 0);
+        assert(strstr(json, "\"stream_id\":\"0\"") != 0);
+        assert(strstr(json, "\"connection_id\":\"sha256:0123456789abcdef\"") != 0);
+        assert(strstr(json, "\"quic_version\":\"1\"") != 0);
+        assert(strstr(json, "\"stream_reset_code\":\"H3_REQUEST_CANCELLED\"") != 0);
         assert(strstr(json, "\"connection_reused\":false") != 0);
         assert(strstr(json, "\"quic_connection_id_present\":true") != 0);
         assert(strstr(json, "\"fallback_used\":false") != 0);

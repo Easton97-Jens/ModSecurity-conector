@@ -159,12 +159,22 @@ From this directory, materialize a private generated configuration outside the
 checkout with the repository-owned preparation script:
 
 ~~~sh
-sh ../../connectors/envoy/config/prepare_envoy_ext_proc_config.sh
+export TLS_CERTIFICATE="$BUILD_ROOT/envoy-ext-proc/runtime-smoke/envoy-loopback.crt"
+export TLS_PRIVATE_KEY="$BUILD_ROOT/envoy-ext-proc/runtime-smoke/envoy-loopback.key"
+mkdir -p "$(dirname "$TLS_CERTIFICATE")"
+umask 077
+openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 \
+  -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 \
+  -keyout "$TLS_PRIVATE_KEY" -out "$TLS_CERTIFICATE"
+TLS_CERTIFICATE="$TLS_CERTIFICATE" TLS_PRIVATE_KEY="$TLS_PRIVATE_KEY" \
+  sh ../../connectors/envoy/config/prepare_envoy_ext_proc_config.sh
 ~~~
 
-The script prints the generated configuration path. Validate that generated
-file with the installed Envoy binary; the default is under the documented
-`$BUILD_ROOT` outside the checkout:
+The script prints the generated configuration path. The certificate and key
+are a private one-day loopback test credential, not production material. Keep
+them outside the checkout. Validate the generated file with the installed
+Envoy binary; the default is under the documented `$BUILD_ROOT` outside the
+checkout:
 
 ~~~sh
 envoy --mode validate -c "$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc.streaming.yaml"

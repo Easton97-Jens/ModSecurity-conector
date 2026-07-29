@@ -14,7 +14,7 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
-from focused_analysis_utils import action_parts, as_list, read_json, read_text, utc_now, write_json
+from focused_analysis_utils import action_parts, action_value, as_list, log_paths, read_json, read_text, utc_now, write_json
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, resolve_output_dir, safe_existing_file, write_text_file
 
@@ -73,16 +73,6 @@ def first_value(*values: Any) -> str:
         text = str(value or "")
         if text and text not in {"-", "None", "none", "null"}:
             return text
-    return "-"
-
-
-def action_value(actions: list[str], name: str) -> str:
-    prefix = f"{name.lower()}:"
-    for action in actions:
-        text = action.strip()
-        lower = text.lower()
-        if lower.startswith(prefix):
-            return text.split(":", 1)[1].strip()
     return "-"
 
 
@@ -210,24 +200,6 @@ def generated_config_path(entry: dict[str, Any], evidence_file: Path | None) -> 
     except IndexError:
         return None
     return None
-
-
-def log_paths(evidence: dict[str, Any]) -> list[Path]:
-    paths: list[Path] = []
-    for key, value in evidence.items():
-        if not value:
-            continue
-        if key.endswith("_log_path") or key in {
-            "audit_log_path",
-            "decision_log",
-            "decision_log_path",
-            "spoa_log_path",
-            "haproxy_log_path",
-        }:
-            path = safe_existing_file(value)
-            if path is not None:
-                paths.append(path)
-    return paths
 
 
 def rule_logged(logs: str, rule_id: str) -> bool:

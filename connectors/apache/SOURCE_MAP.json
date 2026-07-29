@@ -9,7 +9,13 @@
     "version": "v0.0.9-beta1-26-g0488c77",
     "license": "Apache-2.0"
   },
-  "patches": {},
+  "patches": {
+    "pr94a": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-apache/pull/94",
+      "commit": "5ea3fc9da876195706375cf35f321de2a1f35ce1",
+      "reason": "Bind each Apache directory-configuration RulesSet to its APR configuration-pool lifetime."
+    }
+  },
   "files": {
     "Makefile.am": {
       "base_path": "Makefile.am",
@@ -59,7 +65,10 @@
     "src/msc_config.c": {
       "base_path": "src/msc_config.c",
       "license": "Apache-2.0",
-      "reason": "Migrated Apache connector configuration source without semantic changes."
+      "patches": [
+        "pr94a"
+      ],
+      "reason": "Migrated Apache connector configuration source with the upstream #94A APR-pool RulesSet cleanup adaptation."
     },
     "src/msc_config.h": {
       "base_path": "src/msc_config.h",
