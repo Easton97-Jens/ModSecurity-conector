@@ -125,7 +125,11 @@ is hidden as a passing result.
 
 ## Final diff and review status
 
-This record deliberately makes no claim about a push, pull request, hosted
-check, review, SonarQube Cloud analysis, or merge. Those facts must be
-observed at the eventual exact PR head. The formal source-security report is
-retained outside the repository with the task-owned scan evidence.
+The source branch was pushed and [Draft PR #170](https://github.com/Easton97-Jens/ModSecurity-conector/pull/170)
+was opened against `master` from initial head
+`9963a8dba82d11ca29c5f79ff59eb243b806f610`. This traceability follow-up creates
+a later exact PR head, so it makes no claim that the initial head's checks or
+SonarQube Cloud result apply to that later head. No hosted check, review,
+SonarQube Cloud analysis, approval, or merge is claimed until observed at the
+eventual exact PR head. The formal source-security report is retained outside
+the repository with the task-owned scan evidence.

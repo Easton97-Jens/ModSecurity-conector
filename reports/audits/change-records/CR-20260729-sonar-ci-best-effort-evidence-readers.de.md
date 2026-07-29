@@ -135,7 +135,11 @@ bestandenes Ergebnis verborgen.
 
 ## Finaler Diff- und Review-Status
 
-Dieses Record beansprucht absichtlich keinen Push, Pull Request, Hosted-Check,
-Review, SonarQube-Cloud-Analyse oder Merge. Diese Fakten müssen am späteren
-exakten PR-Head beobachtet werden. Der formale Source-Security-Report bleibt
-außerhalb des Repositorys als task-eigene Scan-Evidence erhalten.
+Der Source-Branch wurde gepusht und [Draft-PR #170](https://github.com/Easton97-Jens/ModSecurity-conector/pull/170)
+gegen `master` vom initialen Head `9963a8dba82d11ca29c5f79ff59eb243b806f610`
+geöffnet. Dieses Traceability-Follow-up erzeugt einen späteren exakten PR-Head;
+es beansprucht daher nicht, dass Checks oder SonarQube-Cloud-Ergebnisse des
+initialen Heads für diesen späteren Head gelten. Kein Hosted-Check, Review,
+keine SonarQube-Cloud-Analyse, Freigabe oder Merge wird beansprucht, bevor sie
+am späteren exakten PR-Head beobachtet wurden. Der formale Source-Security-
+Report bleibt außerhalb des Repositorys als task-eigene Scan-Evidence erhalten.
