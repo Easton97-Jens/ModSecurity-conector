@@ -18,6 +18,11 @@ OPEN_BRACE = "$" + "{"
 
 
 class RepositoryOrganizationInventoryTest(unittest.TestCase):
+    def test_language_keeps_english_and_german_suffix_classification(self) -> None:
+        self.assertEqual(INVENTORY.language("README.de.md"), "de")
+        self.assertEqual(INVENTORY.language("README.md"), "en")
+        self.assertEqual(INVENTORY.language("README.txt"), "n/a")
+
     def test_variable_regex_preserves_supported_and_rejected_forms(self) -> None:
         cases = {
             "$FOO": ["$FOO"],

@@ -16,6 +16,7 @@ if str(_CI_ROOT / "lib") not in sys.path:
 from typing import Any
 
 from focused_analysis_utils import action_parts, as_list, import_script, read_json, read_text, refresh_connector_queue_totals, sanitize_path, utc_now, write_json
+from focused_analysis_utils import upsert_marked_section, find_framework_case_path
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, resolve_output_dir, safe_existing_file, write_text_file
 
@@ -127,20 +128,6 @@ def run_log_index(full_runtime_matrix: dict[str, Any]) -> dict[tuple[str, str, s
         )
         index[key] = str(run.get("log_path") or "")
     return index
-
-
-def find_framework_case_path(framework_root: Path, case_id: Any) -> Path | None:
-    case_name = str(case_id or "").strip()
-    if not case_name or "/" in case_name or "\\" in case_name:
-        return None
-    for root in (framework_root / "tests/cases", framework_root / "tests/upstream"):
-        if not root.is_dir():
-            continue
-        for candidate in root.rglob(f"{case_name}.yaml"):
-            path = safe_existing_file(candidate)
-            if path is not None:
-                return path
-    return None
 
 
 def load_case_for_entry(entry: dict[str, Any], framework_root: Path) -> Path | None:
@@ -507,16 +494,13 @@ def update_full_run_evidence(report_dir: Path) -> None:
     section = "\n".join(lines)
     start = "<!-- nolog-audit-evidence:start -->"
     end = "<!-- nolog-audit-evidence:end -->"
-    marked = f"{start}\n{section}\n{end}"
-    if start in text and end in text:
-        prefix = text.split(start, 1)[0].rstrip()
-        suffix = text.split(end, 1)[1].lstrip()
-        text = f"{prefix}\n\n{marked}\n\n{suffix}".rstrip() + "\n"
-    elif "## Reports And Logs" in text:
-        prefix, suffix = text.split("## Reports And Logs", 1)
-        text = f"{prefix.rstrip()}\n\n{marked}\n\n## Reports And Logs{suffix}".rstrip() + "\n"
-    else:
-        text = text.rstrip() + "\n\n" + marked + "\n"
+    text = upsert_marked_section(
+        text,
+        start=start,
+        end=end,
+        section=section,
+        insert_before="## Reports And Logs",
+    )
     write_text_file(md_path, text)
 
 
