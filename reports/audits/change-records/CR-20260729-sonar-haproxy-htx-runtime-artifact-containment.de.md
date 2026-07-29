@@ -56,7 +56,7 @@ Command-Map und ausgelagertes Release-Warten erhalten das Verhalten und entferne
 | HAProxy-GCC-C17-Lint und C23-Advice-Checks | bestanden mit temporärem Output unter `/var/tmp/codex`. |
 | `git diff --check` | bestanden. |
 
-## Sicherheitsauswirkung
+## Security-Auswirkung
 
 Der Harness verarbeitet CLI-Pfade und öffnet Loopback-Sockets.
 
