@@ -86,9 +86,11 @@ modified to compensate for that missing dependency.
 
 ## Remaining risks
 
-Hosted exact-head analysis must independently confirm that the ten selected
-Code Smells are removed without New-Code issues or duplication. A later full
-Apache runtime remains separate evidence from this source-maintenance batch.
+Before integration, the PR's exact current head must independently confirm
+that the ten selected Code Smells are removed without New-Code issues or
+duplication; the hosted PR status, not this historical record, is the evidence
+for that gate. A later full Apache runtime remains separate evidence from this
+source-maintenance batch.
 
 ## Checks not run and rationale
 
@@ -97,18 +99,18 @@ its helper exits because
 `modules/ModSecurity-test-Framework/tests/runners/runner_core.py` is absent.
 No full Apache runtime, HTTP/2, HTTP/3, or connector matrix was run because
 the required local Framework/host prerequisites are unavailable. No source
-fixture, suppression, or weakened check substitutes for them.
+fixture, suppression, or weakened check substitutes for them. Hosted Actions,
+SonarQube Cloud analysis, review/thread state, and the merge operation are
+delivery evidence read from the PR at its exact current head immediately
+before integration. This record makes no assertion for a future head and
+records no `master` merge.
 
 ## Final diff and review status
 
 The candidate is limited to the Parent Apache harness, one focused regression
-contract, and required bilingual traceability. At then-current Draft PR #185
-head `91a5d00182a716b8a207ee8a8177c0277fa30789`, local, remote, and PR heads
-matched; all visible applicable Actions passed, SonarQube Cloud Quality Gate
-was `OK`, and public APIs reported 0 New Issues, `new_violations=0`,
-`new_duplicated_lines=0`, and 0.0% New-Code duplication. The PR has no reviews
-or inline review comments and remains Draft. This record-only delivery update
-requires one final fresh exact-head cycle; its resulting SHA is retained by the
-PR and local execution plan rather than creating a self-referential record
-loop. No ready-for-review conversion or `master` merge is authorized or
-performed.
+contract, and required bilingual traceability. This record captures the final
+versioned source/documentation scope, local controls, and runtime limitations.
+Delivery evidence is deliberately obtained from the PR's exact current head
+immediately before any integration; it is not self-asserted for later
+documentation or lifecycle commits. No `master` merge is recorded by this
+Change Record.

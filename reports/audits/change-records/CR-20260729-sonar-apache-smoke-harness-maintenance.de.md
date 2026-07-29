@@ -89,10 +89,11 @@ werden nicht verändert, um diese fehlende Abhängigkeit zu kompensieren.
 
 ## Verbleibende Risiken
 
-Die gehostete Exact-Head-Analyse muss unabhängig bestätigen, dass die zehn
-ausgewählten Code Smells ohne New-Code-Issues oder Duplizierung entfernt sind.
-Eine spätere vollständige Apache-Runtime bleibt von diesem Source-Maintenance-
-Batch getrennte Evidence.
+Vor der Integration muss der exakte aktuelle PR-Head unabhängig bestätigen,
+dass die zehn ausgewählten Code Smells ohne New-Code-Issues oder Duplizierung
+entfernt sind; der gehostete PR-Status und nicht dieser historische Record ist
+die Evidence für dieses Gate. Eine spätere vollständige Apache-Runtime bleibt
+von diesem Source-Maintenance-Batch getrennte Evidence.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -102,18 +103,17 @@ blockiert: Sein Helper beendet sich, weil
 Keine vollständige Apache-Runtime, HTTP/2, HTTP/3 oder Connector-Matrix lief,
 weil die nötigen lokalen Framework-/Host-Prerequisites nicht verfügbar sind.
 Keine Source-Fixture, Suppression oder gelockerte Kontrolle ersetzt sie.
+Hosted Actions, SonarQube-Cloud-Analyse, Review-/Thread-Status und der
+Merge-Vorgang sind Delivery-Evidence, die unmittelbar vor einer Integration am
+exakten aktuellen PR-Head gelesen wird. Dieser Record behauptet kein Ergebnis
+für einen künftigen Head und dokumentiert keinen `master`-Merge.
 
 ## Finaler Diff- und Review-Status
 
 Der Kandidat ist auf den Parent-Apache-Harness, einen fokussierten
-Regression-Contract und erforderliche bilinguale Traceability begrenzt. Am
-damals aktuellen Draft-PR-#185-Head `91a5d00182a716b8a207ee8a8177c0277fa30789`
-stimmten lokaler, Remote- und PR-Head überein; alle sichtbaren anwendbaren
-Actions bestanden, das SonarQube-Cloud-Quality-Gate war `OK`, und öffentliche
-APIs meldeten 0 New Issues, `new_violations=0`, `new_duplicated_lines=0` sowie
-0,0 % New-Code-Duplizierung. Der PR hat keine Reviews oder
-Inline-Review-Kommentare und bleibt Draft. Dieses reine Delivery-Record-Update
-erfordert einen letzten frischen Exact-Head-Zyklus; dessen resultierender SHA
-wird im PR und lokalen Ausführungsplan statt in einer selbstreferenziellen
-Record-Schleife festgehalten. Keine Ready-for-Review-Umstellung und kein
-`master`-Merge sind autorisiert oder ausgeführt.
+Regression-Contract und erforderliche bilinguale Traceability begrenzt. Dieser
+Record erfasst den finalen versionierten Source-/Dokumentationsumfang, lokale
+Kontrollen und Runtime-Einschränkungen. Delivery-Evidence wird absichtlich
+unmittelbar vor jeder Integration vom exakten aktuellen PR-Head bezogen; sie
+wird nicht für spätere Dokumentations- oder Lifecycle-Commits selbst behauptet.
+Dieser Change Record dokumentiert keinen `master`-Merge.
