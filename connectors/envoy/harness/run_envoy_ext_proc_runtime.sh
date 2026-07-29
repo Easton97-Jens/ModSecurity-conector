@@ -46,7 +46,9 @@ PHASE4_BARRIER_DIR="$RUNTIME_ROOT/phase4-first-byte-barrier"
 PHASE4_BARRIER_OBSERVATION="$RUNTIME_ROOT/phase4-first-byte-observation.json"
 PHASE4_BARRIER_TIMEOUT=${ENVOY_PHASE4_BARRIER_TIMEOUT_SECONDS:-10}
 PHASE4_BARRIER_TRANSACTION_ID=envoy-ext-proc-phase4-safe
+READINESS_TRANSACTION_ID=envoy-ext-proc-readiness-1
 ALLOW_TRANSACTION_ID=envoy-ext-proc-allow-1
+READINESS_PROBE_EVIDENCE="$RUNTIME_ROOT/readiness-probe.json"
 ALLOW_PROBE_EVIDENCE="$RUNTIME_ROOT/allow-probe.json"
 TLS_CERTIFICATE="$RUNTIME_ROOT/envoy-loopback.crt"
 TLS_PRIVATE_KEY="$RUNTIME_ROOT/envoy-loopback.key"
@@ -272,7 +274,7 @@ service_pid=$!
     --log-level error >"$ENVOY_STDOUT" 2>"$ENVOY_STDERR" &
 envoy_pid=$!
 
-allowed_status=
+readiness_status=
 attempt=0
 while [ "$attempt" -lt 30 ]; do
     attempt=$((attempt + 1))
@@ -287,21 +289,34 @@ while [ "$attempt" -lt 30 ]; do
         fi
     done
     set +e
-    allowed_status=$("$PYTHON_BIN" "$HELPER" probe \
+    readiness_status=$("$PYTHON_BIN" "$HELPER" probe \
         --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
         --url "https://127.0.0.1:$listen_port/allowed" \
-        --header "X-Request-Id: $ALLOW_TRANSACTION_ID" \
-        --evidence-path "$ALLOW_PROBE_EVIDENCE" 2>/dev/null)
+        --header "X-Request-Id: $READINESS_TRANSACTION_ID" \
+        --evidence-path "$READINESS_PROBE_EVIDENCE" 2>/dev/null)
     probe_rc=$?
     set -e
-    if [ "$probe_rc" -eq 0 ] && [ "$allowed_status" = "200" ]; then
+    if [ "$probe_rc" -eq 0 ] && [ "$readiness_status" = "200" ]; then
         break
     fi
     sleep 1
 done
 
+if [ "$readiness_status" != "200" ]; then
+    echo "envoy_ext_proc_runtime: FAIL - readiness request returned ${readiness_status:-no status}, expected 200" >&2
+    exit 1
+fi
+
+if ! allowed_status=$("$PYTHON_BIN" "$HELPER" probe \
+    --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+    --url "https://127.0.0.1:$listen_port/allowed" \
+    --header "X-Request-Id: $ALLOW_TRANSACTION_ID" \
+    --evidence-path "$ALLOW_PROBE_EVIDENCE"); then
+    echo "envoy_ext_proc_runtime: FAIL - allowed probe could not be completed" >&2
+    exit 1
+fi
 if [ "$allowed_status" != "200" ]; then
-    echo "envoy_ext_proc_runtime: FAIL - allowed request returned ${allowed_status:-no status}, expected 200" >&2
+    echo "envoy_ext_proc_runtime: FAIL - allowed request returned $allowed_status, expected 200" >&2
     exit 1
 fi
 

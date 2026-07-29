@@ -523,6 +523,16 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn("envoy.transport_sockets.tls", source)
         self.assertIn('https://127.0.0.1:$listen_port', source)
 
+    def test_runtime_uses_an_unambiguous_allow_transaction(self) -> None:
+        source = RUNTIME_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("READINESS_TRANSACTION_ID=envoy-ext-proc-readiness-1", source)
+        self.assertIn("ALLOW_TRANSACTION_ID=envoy-ext-proc-allow-1", source)
+        self.assertIn('X-Request-Id: $READINESS_TRANSACTION_ID', source)
+        self.assertIn('X-Request-Id: $ALLOW_TRANSACTION_ID', source)
+        self.assertIn('READINESS_PROBE_EVIDENCE="$RUNTIME_ROOT/readiness-probe.json"', source)
+        self.assertIn('ALLOW_PROBE_EVIDENCE="$RUNTIME_ROOT/allow-probe.json"', source)
+
 
 if __name__ == "__main__":
     unittest.main()
