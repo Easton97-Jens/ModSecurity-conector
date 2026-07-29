@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260729-sonar-envoy-runtime-artifact-tls-containment |
 | Datum (UTC) | 2026-07-29 |
-| Basis-Revision | `964630d34d0b87e9066d03131e445eeb3677956d` |
+| Basis-Revision | `38bf7fbb5410c598366d0f773c8419a4b6196216` |
 | Tracking | Fünfzehn aktuelle SonarQube-Cloud-Kandidaten in `connectors/envoy/harness/envoy_smoke_helper.py`: `pythonsecurity:S8703` ×3, `pythonsecurity:S8707` ×6, `python:S5332` ×1 und fünf Cognitive-Complexity-Zeilen. |
 | Grenze | Parent-Envoy-Harness, Konfigurationsmaterializer/-template, Connector-Test, erforderliche leserorientierte Dokumentation und gepaarte Change-Record-Indizes. Keine Framework-, MRTS-, Gitlink-, Workflow-, Sonar-Konfigurations-, Suppression- oder `master`-Änderung. |
 
