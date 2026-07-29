@@ -47,6 +47,10 @@ class RequestBodyReader:
 
 
 class LocalRuntimeSmokeRequestBodyTest(unittest.TestCase):
+    def test_shared_http_literals_preserve_the_smoke_contract(self) -> None:
+        self.assertEqual(SMOKE.DEFAULT_TEXT_CONTENT_TYPE, "text/plain")
+        self.assertEqual(SMOKE.DEFAULT_BLOCKED_PATH, "/blocked")
+
     def start_server(self, handler: type[SMOKE.QuietHandler]) -> SMOKE.LocalSmokeHTTPServer:
         server = SMOKE.start_http_server(handler, 0)
         self.addCleanup(server.server_close)
