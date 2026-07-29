@@ -12,6 +12,11 @@ must not claim unobserved CI, runtime, review, or delivery results.
   are recorded locally; exact-head delivery, hosted checks, and resulting-master
   evidence remain pending.
 
+- [Parent CI focused-report helper deduplication and request-body path containment](CR-20260729-sonar-ci-focused-report-safety.md)
+  — local traversal/symlink regression and legitimate in-root controls passed;
+  the combined security review found no reportable regression. Exact-head
+  hosted GitHub Actions and SonarQube Cloud evidence remain pending.
+
 - [Parent CI runtime-readiness remediation-label deduplication for SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.md)
 
 - [Parent HAProxy HTX payload-iterator deduplication](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.md)
