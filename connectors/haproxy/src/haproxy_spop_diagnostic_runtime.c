@@ -1058,6 +1058,33 @@ static void parse_disconnect_payload(
     (void)message_present;
 }
 
+static int parse_notify_body_argument(
+        notify_request *request,
+        const unsigned char *data,
+        size_t len,
+        size_t *pos,
+        int response_body) {
+    const unsigned char *value = 0;
+    size_t value_len = 0;
+    unsigned int typed_type = 0;
+
+    if (read_typed_bytes_ref(data, len, pos, &value, &value_len, &typed_type) != 0) {
+        return -1;
+    }
+    if (typed_type != SPOP_DATA_STR && typed_type != SPOP_DATA_BIN) {
+        return 0;
+    }
+    if (copy_bytes(&request->body, &request->body_len, value, value_len) != 0) {
+        return -1;
+    }
+    request->has_body = 1;
+    if (response_body) {
+        request->is_response = 1;
+        request->is_response_body = 1;
+    }
+    return 0;
+}
+
 static int parse_notify_payload(const unsigned char *data, size_t len, notify_request *request) {
     size_t pos = 0;
 
@@ -1214,36 +1241,14 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
                 continue;
             }
             if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "body")) {
-                const unsigned char *value = 0;
-                size_t value_len = 0;
-                unsigned int typed_type = 0;
-                if (read_typed_bytes_ref(data, len, &pos, &value, &value_len, &typed_type) != 0) {
+                if (parse_notify_body_argument(request, data, len, &pos, 0) != 0) {
                     return -1;
-                }
-                if ((typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) &&
-                        copy_bytes(&request->body, &request->body_len, value, value_len) != 0) {
-                    return -1;
-                }
-                if (typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) {
-                    request->has_body = 1;
                 }
                 continue;
             }
             if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_body")) {
-                const unsigned char *value = 0;
-                size_t value_len = 0;
-                unsigned int typed_type = 0;
-                if (read_typed_bytes_ref(data, len, &pos, &value, &value_len, &typed_type) != 0) {
+                if (parse_notify_body_argument(request, data, len, &pos, 1) != 0) {
                     return -1;
-                }
-                if ((typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) &&
-                        copy_bytes(&request->body, &request->body_len, value, value_len) != 0) {
-                    return -1;
-                }
-                if (typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) {
-                    request->has_body = 1;
-                    request->is_response = 1;
-                    request->is_response_body = 1;
                 }
                 continue;
             }
