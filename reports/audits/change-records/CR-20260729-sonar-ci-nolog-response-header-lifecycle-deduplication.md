@@ -130,10 +130,13 @@ artifact is claimed.
 
 Draft PR [#188](https://github.com/Easton97-Jens/ModSecurity-conector/pull/188)
 was created from the initial task commit
-`ed06eb84a07b0d50988dc308087e85da589311e1`. This documentation-only follow-up
-advances that PR head, so its final exact local/remote/PR head equality and
-fresh hosted evidence must be re-read before any integration decision. No
-hosted check, review, thread, mergeability result, or merge is claimed here.
+`ed06eb84a07b0d50988dc308087e85da589311e1`. At exact later head
+`6bd1d57dec320265a1b98956adfa4c008a6d709e`, local, remote, and GitHub heads
+were equal, all `33` GitHub checks passed, and SonarQube Cloud reported
+`new_violations=0`, `new_duplicated_lines=0`, and
+`new_duplicated_lines_density=0.0`. This documentation-evidence follow-up
+advances the PR head, so those exact checks must be re-read afterward. No
+review, thread, mergeability result, or merge is claimed here.
 
 ## Remaining risks
 
@@ -149,14 +152,16 @@ exact-head result.
   lacks the initialized Framework checkout required by existing repository
   checks. No check was weakened; direct owner tests, compilation, whitespace,
   and focused security review were used instead.
-- Hosted GitHub Actions, SonarQube Cloud, review, thread, mergeability, and
-  merge checks cannot be claimed until a committed exact PR head exists.
+- This documentation-evidence commit advances the verified head, so hosted
+  GitHub Actions, SonarQube Cloud, review, thread, mergeability, and merge
+  status must be read again at its resulting exact PR head.
 
 ## Final diff and review status
 
 The local diff has focused tests, compilation, whitespace validation, completed
 source/test security reviews with no reportable candidate, and a bilingual
 documentation check that is blocked only by pre-existing absent Framework
-submodule targets. Task-owned Draft PR #188 exists; its final exact committed
-head and hosted checks remain pending. No default-branch action is authorized
-or implied.
+submodule targets. Draft PR #188 had all `33` checks and zero/zero/`0.0`
+SonarQube Cloud New-Code values at exact head `6bd1d57d…`; this evidence
+commit requires one final exact-head recheck. No default-branch action is
+authorized or implied.

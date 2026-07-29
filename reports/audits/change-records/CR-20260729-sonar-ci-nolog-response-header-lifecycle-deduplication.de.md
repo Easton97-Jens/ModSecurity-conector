@@ -76,7 +76,7 @@ Fokussierte Tests führen die Report-Lifecycle-Helper gegen temporäre Connector
 
 ## Abgleich des Delivery-Status
 
-Draft-PR [#188](https://github.com/Easton97-Jens/ModSecurity-conector/pull/188) wurde vom anfänglichen Task-Commit `ed06eb84a07b0d50988dc308087e85da589311e1` erstellt. Dieses reine Dokumentations-Follow-up verschiebt den PR-Head, deshalb müssen seine finale exakte Local-/Remote-/PR-Head-Gleichheit und frische Hosted-Evidence vor jeder Integrationsentscheidung erneut gelesen werden. Hier werden kein Hosted Check, Review, Thread, Mergeability-Ergebnis oder Merge beansprucht.
+Draft-PR [#188](https://github.com/Easton97-Jens/ModSecurity-conector/pull/188) wurde vom anfänglichen Task-Commit `ed06eb84a07b0d50988dc308087e85da589311e1` erstellt. Beim exakten späteren Head `6bd1d57dec320265a1b98956adfa4c008a6d709e` waren lokaler, Remote- und GitHub-Head gleich, alle `33` GitHub-Checks bestanden, und SonarQube Cloud meldete `new_violations=0`, `new_duplicated_lines=0` sowie `new_duplicated_lines_density=0.0`. Dieses Dokumentations-Evidence-Follow-up verschiebt den PR-Head, deshalb müssen diese exakten Checks danach erneut gelesen werden. Hier werden kein Review, Thread, Mergeability-Ergebnis oder Merge beansprucht.
 
 ## Verbleibende Risiken
 
@@ -85,8 +85,8 @@ Die Shared-Helper-Grenze hängt von den bestehenden vertrauenswürdigen Parent- 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - Eine komplette Framework-Runtime wurde nicht ausgeführt, weil dem isolierten Task-Worktree der initialisierte Framework-Checkout fehlt, der für bestehende Repository-Checks benötigt wird. Kein Check wurde geschwächt; direkte Owner-Tests, Kompilierung, Whitespace und fokussierter Security-Review wurden stattdessen genutzt.
-- Hosted-GitHub-Actions-, SonarQube-Cloud-, Review-, Thread-, Mergeability- und Merge-Checks können nicht beansprucht werden, bevor ein committeter exakter PR-Head existiert.
+- Dieser Dokumentations-Evidence-Commit verschiebt den verifizierten Head; Hosted-GitHub-Actions-, SonarQube-Cloud-, Review-, Thread-, Mergeability- und Merge-Status müssen am resultierenden exakten PR-Head erneut gelesen werden.
 
 ## Finaler Diff- und Review-Status
 
-Der lokale Diff besitzt fokussierte Tests, Kompilierung, Whitespace-Validierung, abgeschlossene Source-/Test-Security-Reviews ohne reportbaren Kandidaten und einen Bilingual-Dokumentationscheck, der nur durch bereits fehlende Framework-Submodule-Targets blockiert ist. Der task-eigene Draft-PR #188 existiert; sein finaler exakter Commit-Head und seine Hosted Checks stehen noch aus. Keine Default-Branch-Aktion ist autorisiert oder impliziert.
+Der lokale Diff besitzt fokussierte Tests, Kompilierung, Whitespace-Validierung, abgeschlossene Source-/Test-Security-Reviews ohne reportbaren Kandidaten und einen Bilingual-Dokumentationscheck, der nur durch bereits fehlende Framework-Submodule-Targets blockiert ist. Draft-PR #188 hatte alle `33` Checks und SonarQube-Cloud-New-Code-Werte null/null/`0.0` am exakten Head `6bd1d57d…`; dieser Evidence-Commit erfordert eine finale Exact-Head-Nachprüfung. Keine Default-Branch-Aktion ist autorisiert oder impliziert.
