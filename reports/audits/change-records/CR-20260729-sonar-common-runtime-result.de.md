@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-07-29 |
 | Basis-Revision | dbbc9c6aa2bca22fcd0385fa76b878873ccab2cc |
 | Grenze | Parent-`common/`-Runtime-Smoke-Quelltext, direkte Parent-Regressionstests und dieses englisch/deutsche Change-Record-Paar mit Indizes. Framework/MRTS, Gitlinks, Workflows, SonarQube-Cloud-Konfiguration, Exclusions, Suppressions, Quality Gates und `master` bleiben unverändert. |
-| Delivery-Status | Draft-PR [#164](https://github.com/Easton97-Jens/ModSecurity-conector/pull/164) existiert. Sein erster Head `265e3e90debb0c33546cbd6aa4c32dc4a1bf4fb3` bestand alle anwendbaren GitHub Actions, scheiterte jedoch am SonarQube-Cloud-New-Code-Gate; der Follow-up-Kandidat dieses Records wartet auf neuen Commit, Push und Exact-Head-Analyse. Kein Merge oder `master`-Integration wird behauptet. |
+| Delivery-Status | Draft-PR [#164](https://github.com/Easton97-Jens/ModSecurity-conector/pull/164) existiert. Sein erster Head `265e3e90debb0c33546cbd6aa4c32dc4a1bf4fb3` bestand alle anwendbaren GitHub Actions, scheiterte jedoch am SonarQube-Cloud-New-Code-Gate. Der Source-Follow-up-Head `9ea886a6fd4a8e8b27b1e0c3d7c5102c6d4e3278` bestand anschließend seine anwendbaren GitHub Actions und das SonarQube-Cloud-Quality-Gate mit 0 New Issues und 0,0 % New-Code-Duplizierung. Diese additive Dokumentationskorrektur benötigt vor dem Ready-Setzen des Drafts einen frischen Exact-Head-Gate; es wird kein Merge oder `master`-Integration behauptet. |
 
 ## Motivation und Problemstellung
 
@@ -45,16 +45,21 @@ Die Änderung berührt die Runtime-Evidence-Grenze, ändert jedoch weder Request
 | --- | --- |
 | `PYTHONDONTWRITEBYTECODE=1 /root/git/ModSecurity-conector/.venv/bin/python -m unittest -v tests/test_common_runtime_smoke_crs_source_security.py tests/test_local_runtime_smoke_request_body.py` | außerhalb der Sandbox bestanden: 37 Tests, einschließlich des neuen Writer-Result-Argument-Regressionstests und der HTTP-Request-Body-Controls. |
 | Derselbe Command nach dem Sonar-Remediation-Follow-up | außerhalb der Sandbox bestanden: 39 Tests, einschließlich direkter `BackendEvidence`-/Pfad-Komposition, Erhalt des CRS-Werts im Simple-Backend sowie der bisherigen Writer-Result- und Request-Body-Controls. |
+| Derselbe Command im sauberen Integrations-Clone vor dieser Dokumentationskorrektur | bestanden: 39 Tests, einschließlich Result-/Evidence-Komposition, Erhalt des CRS-Werts im Simple-Backend, Runtime-Pfad- und Request-Body-Controls. |
 | Dieselbe Suite innerhalb der Sandbox | durch die Loopback-Socket-Restriktion der Sandbox blockiert (`PermissionError: [Errno 1] Operation not permitted`), nachdem die nicht socketbasierten CRS-/Pfad-Tests bestanden. Der Outside-Sandbox-Lauf ist das aufgezeichnete vollständige Ergebnis. |
+| `python -m py_compile common/scripts/run_local_runtime_smoke.py tests/test_common_runtime_smoke_crs_source_security.py` im sauberen Integrations-Clone | mit task-eigenem Bytecode-Cache bestanden. |
 | `git diff --check` | nach dem Follow-up erneut bestanden. |
 
 ## Ausgeführte Befehle
 
-Der oben genannte Test-Command und `git diff --check` sind die bisher
-aufgezeichneten lokalen Validierungsbefehle. Der erste exakte PR-Head bestand
-zudem alle anwendbaren GitHub Actions, dieses Ergebnis ist für den
-Follow-up-Commit jedoch abgelöst. Es wird kein Connector-Host-Command als
-lokale Evidence dargestellt.
+Der oben genannte Test-Command, die Kompilierung und `git diff --check` sind
+die bisher aufgezeichneten lokalen Validierungsbefehle. Der erste exakte
+PR-Head bestand anwendbare GitHub Actions, scheiterte jedoch an den New-Code-
+Sonar-Kriterien; der Source-Follow-up-Head
+`9ea886a6fd4a8e8b27b1e0c3d7c5102c6d4e3278` bestand die anwendbaren GitHub
+Actions und die erfolgreiche Sonar-Analyse. Es wird kein Connector-Host-
+Command als lokale Evidence dargestellt. Diese Source-Head-Evidence belegt
+keinen späteren rein dokumentarischen PR-Head.
 
 ## Runtime-Evidence
 
@@ -66,33 +71,39 @@ Die fokussierten Tests verwenden nur lokale Loopback-HTTP-Handler. Sie prüfen R
 - Der erste exakte PR-Head bestand alle anwendbaren GitHub Actions, SonarQube
   Cloud meldete jedoch ein neues `python:S3776`, 58 neue Duplikatzeilen
   (23,9 %) und 1.094 Duplikatzeilen insgesamt. Diese nicht erfüllten
-  Akzeptanzkriterien lösten die Follow-up-Extraktion aus; GitHub Actions und
-  SonarQube Cloud müssen am genauen gepushten Head erneut laufen.
+  Akzeptanzkriterien lösten die Follow-up-Extraktion aus. Der Source-Follow-
+  up-Head `9ea886a6fd4a8e8b27b1e0c3d7c5102c6d4e3278` bestand anschließend
+  seine anwendbaren GitHub Actions und das SonarQube-Cloud-Quality-Gate mit
+  0 New Issues und 0,0 % New-Code-Duplizierung. Ein späterer rein
+  dokumentarischer Head benötigt weiterhin seinen normalen Exact-Head-Gate.
 - `make check-bilingual-docs` ist durch 20 vorbestehende Links in das nicht populierte Framework-Submodul blockiert. Nach der Korrektur der erforderlichen Record-Überschriften meldet er keinen Fehler für dieses Record-Paar; der breite Check kann erst nach Auschecken dieser externen Voraussetzung bestehen.
 
 ## Bekannte Einschränkungen
 
-Nur die genaue gehostete Follow-up-Analyse kann eine niedrigere globale
-Duplikatzeilenmetrik, den Abschluss der zwei Basis-`python:S107`-Zeilen, das
-Fehlen der neuen `python:S3776`-Zeile und das New-Code-Quality-Gate
-nachweisen. Die typisierten Werte halten Felder flach unveränderlich; ihre
-Tuple-`missing`-Collection verhindert mutable Dependency-Einträge, während
-die `argparse.Namespace`-Quelle die bestehende mutable Input-Grenze bleibt.
+Die genaue gehostete Source-Follow-up-Analyse bei
+`9ea886a6fd4a8e8b27b1e0c3d7c5102c6d4e3278` belegte eine niedrigere globale
+Duplikatzeilenmetrik, das Fehlen der neuen `python:S3776`-Zeile und das
+erforderliche New-Code-Quality-Gate. Die typisierten Werte halten Felder flach
+unveränderlich; ihre Tuple-`missing`-Collection verhindert mutable
+Dependency-Einträge, während die `argparse.Namespace`-Quelle die bestehende
+mutable Input-Grenze bleibt. Ein rein dokumentarischer Nachfolger benötigt
+vor dem Merge weiterhin seinen eigenen geschützten Exact-Head-Gate.
 
 ## Verbleibende Risiken
 
 Die bestehenden Runtime-Smoke-Caller-Pfade sind durch die fokussierten Result-
 Argument- und Boundary-Tests abgedeckt, Connector-Host-Verhalten liegt jedoch
-außerhalb der Evidence dieser Source-only-Refaktorierung. Die gehostete
-SonarQube-Cloud-Analyse bleibt die erforderliche Messung für die globalen
-Zählkriterien.
+außerhalb der Evidence dieser Source-only-Refaktorierung. Der Source-Follow-
+up besitzt gehostete SonarQube-Cloud-Evidence; jeder Nachfolger-Head muss den
+normalen geschützten PR-Gate wiederholen.
 
 ## Finaler Diff- und Review-Status
 
 Der Diff beschränkt sich auf den Common-Runtime-Smoke-Writer-Contract, seine
 direkten Regressionstests und erforderliche zweisprachige Traceability. Es
 sind weder Framework- oder MRTS-Quelltext/Gitlink noch Workflow,
-Scanner-Control, Suppression oder Default-Branch enthalten. Der erste
-Draft-PR bleibt offen; sein Follow-up benötigt einen normalen additiven
-Task-Branch-Commit, Exact-Head-Checks und eine bestandene gehostete Analyse,
-bevor er übergeben werden kann.
+Scanner-Control, Suppression oder Default-Branch enthalten. Der Source-
+Follow-up ist gepusht und besitzt die aufgezeichnete bestandene Exact-Head-
+Hosted-Analyse. Der Draft bleibt offen, und diese Dokumentationskorrektur
+benötigt vor Ready-Transition oder geschützter Übergabe frische Exact-Head-
+Checks.
