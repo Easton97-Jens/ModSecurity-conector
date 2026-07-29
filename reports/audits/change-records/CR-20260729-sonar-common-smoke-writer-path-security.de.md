@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260729-sonar-common-smoke-writer-path-security |
 | Datum (UTC) | 2026-07-29 |
-| Basis-Revision | Ursprüngliche Change-Basis `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`; Basis des synchronisierten Kandidaten `154ee724eba4653fa6378fc3c8729ae433e65697` |
+| Basis-Revision | Original change base `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`; synchronized candidate base `154ee724eba4653fa6378fc3c8729ae433e65697` |
 | Tracking | SonarQube Cloud `python:S5443` in `common/scripts/write_smoke_result.py:67` und `pythonsecurity:S8707` in den Zeilen 83, 90, 97, 347 und 348. Der getrennte `python:S3776`-Komplexitätsbefund liegt außerhalb dieses reinen Security-Batches. Der vorherige Head von PR #176 meldete keine neuen Security-Befunde oder Duplikate, aber vier test-only `python:S5778`-Code-Smells; der synchronisierte Teststruktur-Follow-up benötigt eine neue Exact-Head-Analyse. |
 | Grenze | Parent-`common`-Runtime-Smoke-Evidence-Writer, sein fokussierter Python-Security-Regressionstest und gekoppelte Change-Record-/Index-Dokumente. Framework, MRTS, Gitlinks, Workflows, SonarQube-Policy und `master` werden nicht verändert. |
 
