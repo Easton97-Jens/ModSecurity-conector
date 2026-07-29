@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Common header validation and NGINX strict JSONL-tail deduplication](CR-20260728-sonar-common-nginx-strict-jsonl-duplication.md)
+  — local Common C17, security, flow, and NGINX source-contract checks passed;
+  memory safety passed outside the LeakSanitizer-incompatible sandbox, while
+  NGINX C17 compilation is blocked_external_dependency by missing NGINX
+  headers/source. No commit, push, PR, hosted analysis, or merge is claimed.
 - [Parent NGINX response-mapper validation-tail deduplication candidate (36 Parent duplicate lines)](CR-20260728-sonar-nginx-response-mapper-duplication.md)
   — local source-contract and scoped whitespace validation passed; the exact
   C17 control is blocked_external_dependency by absent NGINX headers/source
