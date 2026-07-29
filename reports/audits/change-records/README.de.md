@@ -42,6 +42,8 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-CI-Runtime-Readiness-Deduplizierung des Remediation-Labels für SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-readiness-fix-label.de.md)
 
+- [Parent-Common-Targeted-Evaluator-C++17-Remediation](CR-20260729-sonar-common-targeted-evaluator-cpp17.de.md)
+
 - [Parent-HAProxy-HTX-Payload-Iterator-Deduplizierung](CR-20260729-sonar-haproxy-htx-payload-iterator-duplication.de.md)
 
 - [Parent-CI-Best-Effort-Evidence-Reader-Deduplizierung für SonarQube Cloud](CR-20260729-sonar-ci-best-effort-evidence-readers.de.md)
