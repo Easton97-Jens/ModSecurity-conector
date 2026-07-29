@@ -8,9 +8,9 @@
 | --- | --- |
 | Change-ID | CR-20260729-sonar-common-targeted-evaluator-cpp17 |
 | Datum (UTC) | 2026-07-29 |
-| Basis-Revision | `fd0b2f4bdd3ca42b496deae85fcd1d2aee6adc1c` |
-| Tracking | 24 aktuelle SonarQube-Cloud-Code-Smells in `common/scripts/modsecurity_targeted_eval.cc`, einschließlich C++20-only-API-Empfehlungen, überschatteter Namen, Raw-String-Delimiter und kognitiver Komplexität. |
-| Grenze | Parent-Common-Evaluator-Source und gepaarte Change Records. Keine Framework-, MRTS-, Gitlink-, Workflow-, Sonar-Konfigurations-, Suppression- oder `master`-Änderung. |
+| Basis-Revision | `9f23ae2c5fe908cef38f203be03f93fda75a8dd7` |
+| Tracking | 24 ursprünglich gemeldete SonarQube-Cloud-Code-Smells in `common/scripts/modsecurity_targeted_eval.cc`, einschließlich C++20-only-API-Empfehlungen, überschatteter Namen, Raw-String-Delimiter und kognitiver Komplexität. |
+| Grenze | Parent-Common-Evaluator-Source und gepaarte Change Records. Keine Framework-, MRTS-, Gitlink-, Workflow-, Sonar-Konfigurations- oder Suppression-Änderung. |
 
 ## Motivation und Problemstellung
 
@@ -36,13 +36,14 @@ ModSecurity-Objekte, Response-Auswahl oder Bereinigungsreihenfolge zu ändern.
 
 ## Implementierungsentscheidung und Begründung
 
-`ArgumentMap` verwendet einen transparenten Comparator und eine auf
-`lower_bound` basierende Lookup-Hilfsfunktion. Dadurch werden C++20-only
-`contains` und wiederholte Map-Membership-Tests vermieden. Die requestbezogene
-Logik ist in enge Hilfsfunktionen aufgeteilt, deren Parameter die vorhandenen
-Ownership- und Bereinigungsbeziehungen sichtbar machen. Die String-Suche nutzt
-`std::search`, das unter C++17 verfügbar ist. `main` behält die bisherige
-Ressourcen-Lebensdauer und Bereinigungsreihenfolge bei.
+`ArgumentMap` verwendet `std::less<>` und eine auf `lower_bound` basierende
+Lookup-Hilfsfunktion. Dadurch werden C++20-only `contains` und wiederholte
+Map-Membership-Tests vermieden. Die requestbezogene Logik ist in enge
+Hilfsfunktionen aufgeteilt, deren Parameter die vorhandenen Ownership- und
+Bereinigungsbeziehungen sichtbar machen. Die String-Suche nutzt die lokale
+C++17-Hilfsfunktion `string_contains` und erhält die bisherige abgesicherte
+Teilstring-Bedingung. `main` behält die bisherige Ressourcen-Lebensdauer und
+Bereinigungsreihenfolge bei.
 
 ## Geänderte Dateien
 
@@ -55,14 +56,15 @@ Ressourcen-Lebensdauer und Bereinigungsreihenfolge bei.
 
 | Ausgeführte Kontrolle | Beobachtetes Ergebnis |
 | --- | --- |
-| `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest -v tests.test_c_cpp_diagnostics` | bestanden; 7 Tests bestanden. |
-| `g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only` mit einem task-eigenen externen Libmodsecurity-Interface-Stub | bestanden. |
-| `clang++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only` mit demselben Stub | bestanden. |
-| C++17-Stub-backed-Link- und Evaluator-Kontrollen | bestanden; sowohl der CRS-Ergebnisvertrag als auch der Fehlervertrag für fehlendes `--rule-file` wurden ausgeführt. |
-| `make check-targeted-evaluator-cpp17` | durch die Umgebung blockiert: `MODSECURITY_INCLUDE_DIR` sowie reale Libmodsecurity-Entwicklungsheader/-Library fehlen (Target beendet sich mit 77). |
+| `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_c_cpp_diagnostics` | bestanden; 7 Tests bestanden mit Python 3.14.4 (Repository-Pin ist 3.14.6). |
+| `make check-targeted-evaluator-cpp17` mit GCC 15 und task-eigenen externen Libmodsecurity-Include-/Build-Pfaden | bestanden gegen reale Libmodsecurity 3.0.14. |
+| `make check-targeted-evaluator-cpp17` mit Clang 21 und derselben realen Libmodsecurity-Schnittstelle | bestanden. |
+| Reale Evaluator-Runtime-Kontrollen | bestanden: Phase-1-Targeted-Header-Block (403), legitimes Header-Allow (200) und Phase-2-Request-Body-Block (403). |
+| Parser-Negativkontrollen | bestanden: fehlende Rule, nicht unterstütztes Ruleset und hängendes `--rule-file` lieferten jeweils den erwarteten strukturierten Fehler. |
 | `git diff --check` | bestanden. |
-| Lokale Follow-up-Controls | bestanden: 28 C/C++-Diagnose- und Bilingual-Documentation-Tests, C++17-`g++`-/`clang++`-Checks mit `-Werror` sowie Stub-backed-CRS-, Missing-Rule-File-, Request-Body-Marker-Present- und Request-Body-Marker-Absent-Controls. |
-| Fokussierter Codex-Security-Diff-Scan | bestanden mit null reportbaren Befunden; versiegelter Report: `/var/tmp/codex/ModSecurity-conector/runs/20260729-complete-common-connectors-sonar-remediation/security-scans/fc6027681cfae342dcef8e1606a38523c450044c_20260729T084000Z/report.md`. |
+| Fokussierte Bilingual-Documentation-Suite | bestanden; 21 Tests bestanden. |
+| Breiter Repository-Dokumentationschecker | durch fehlende Framework-Submodule-Linkziele im isolierten Parent-Worktree blockiert; er wird nicht als bestanden ausgegeben. |
+| Fokussierter Codex-Security-Diff-Scan | bestanden mit null reportbaren Befunden für den synchronisierten Kandidaten; versiegelte Scan-ID: `67fe74f1f0cf8d21c820e330fae31433ab68ebf4_20260729T155321Z`. |
 
 ## Security-Auswirkung
 
@@ -70,32 +72,34 @@ Dieser Evaluator bildet vom Operator gewählte Command-Line-Werte auf eine
 ModSecurity-Transaction und Ergebnis-Evidence ab. Die Änderung erweitert weder
 akzeptierte Optionen noch lockert sie Validierung, Rule-File-Verarbeitung,
 HTTP-Request-/Body-Mapping oder Intervention-/Resource-Cleanup. Die fokussierte
-Diff-Prüfung fand keine neu erreichbare Security-Regression. Die reale externe
-Libmodsecurity-Runtime bleibt eine explizit fehlende Abhängigkeit und wird nicht
-durch eine Sicherheitsbehauptung ersetzt.
+Exact-Head-Prüfung fand keine neu erreichbare Security-Regression. Reale
+Libmodsecurity-Kontrollen bestätigen das erwartete Header-/Body-Blocking und
+legitime Allow-Verhalten; sie ersetzen nicht die erforderlichen
+Exact-Head-Hosted-Delivery-Gates.
 
 ## Runtime-Evidence
 
-Der task-eigene Stub ermöglicht lokale C++17-Syntax-, Link-, erfolgreiches
-CRS-Result- und Invalid-Option-Kontrollen. Er ist keine Libmodsecurity-Runtime
-und keine Enforcement-Assertion. Ein repository-nativer Link-/Runtime-Check
-ist wegen fehlender externer Entwicklungsartefakte blockiert.
+Die task-eigene externe Testumgebung linkt und führt den Evaluator gegen reale
+Libmodsecurity 3.0.14 aus. GCC 15 und Clang 21 bestehen beide den nativen
+C++17-Target; direkte Phase-1-Header-, Phase-2-Body-, legitime-Allow- und
+Parser-Negativkontrollen liefern lokale Enforcement-Evidenz.
 
 ## Bekannte Einschränkungen
 
-- Die lokale Umgebung hat keine realen Libmodsecurity-Header oder -Library;
-  daher wurde der Evaluator nicht gegen diese Abhängigkeit gelinkt oder
-  ausgeführt.
-- Hosted-CI und eine frische Exact-Head-SonarQube-Cloud-Analyse stehen aus.
+- Die direkte Diagnostics-Suite nutzte Python 3.14.4, während
+  `.python-version` 3.14.6 vorgibt.
+- Der breite Repository-Dokumentationschecker ist durch fehlende
+  Framework-Submodule-Linkziele im isolierten Parent-Worktree blockiert.
+- Hosted-CI und eine frische Exact-Head-SonarQube-Cloud-Analyse für den finalen
+  Delivery-Kandidaten stehen aus.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Der native Link-/Runtime-Control `make check-targeted-evaluator-cpp17` wurde
-nicht erfolgreich ausgeführt, weil diese Umgebung weder die externen
-Libmodsecurity-Entwicklungsheader noch die Library oder den erforderlichen
-Include-Pfad bereitstellt. Der task-eigene C++17-Stub validiert nur Syntax und
-ausgewählte Evaluator-Contracts; er ersetzt kein reales Libmodsecurity-Runtime-
-Ergebnis.
+Der breite Repository-Dokumentationschecker kann in diesem isolierten
+Parent-Worktree nicht vollständig laufen, weil seine Framework-Submodule-
+Linkziele fehlen. Der finale Delivery-Kandidat hat noch keine Hosted-CI- oder
+SonarQube-Cloud-Analyse erhalten; diese Exact-Head-Gates bleiben vor der
+Integration erforderlich.
 
 ## Verbleibende Risiken
 
@@ -107,6 +111,7 @@ beeinflusst, benötigt eine eigene Input-Boundary-Prüfung.
 ## Finaler Diff- und Review-Status
 
 Der Kandidat ist auf Parent-Common-Evaluator-Source und bilinguale Traceability
-begrenzt. Lokale C++17-, Contract-, Whitespace- und fokussierte Security-
-Evidence sind vollständig; ein separater Draft-PR und Exact-Head-Hosted-
-Verifikation sind vor jeder Delivery- oder Merge-Behauptung weiterhin nötig.
+begrenzt. Lokale C++17-, Runtime-, Contract-, Whitespace- und fokussierte
+Security-Evidence sind unter den festgehaltenen Einschränkungen vollständig;
+Exact-Head-Hosted-Verifikation bleibt vor jeder Delivery- oder Merge-
+Behauptung erforderlich.
