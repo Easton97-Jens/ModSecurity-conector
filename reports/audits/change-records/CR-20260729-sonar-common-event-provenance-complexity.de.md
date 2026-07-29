@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260729-sonar-common-event-provenance-complexity |
 | Datum (UTC) | 2026-07-29 |
-| Basis-Revision | Original change base `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`; synchronized candidate base `603a7558e75a177222e22d8d0b87402dfad3f706` |
+| Basis-Revision | Original change base `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`; synchronized candidate base `200712b4dcede1caccc753a572e1e754a5de3e8b` |
 | Tracking | SonarQube-Cloud-Regel `c:S3776` in `common/src/event.c:382`: Cognitive Complexity von 32 auf die erlaubten 25 reduzieren. Die offene PR [#174](https://github.com/Easton97-Jens/ModSecurity-conector/pull/174) begann am initialen Head `8baef24192ccaaa39e38e89238b8d2e8e90baec9`; der spätere Remote-Head war `b92084c523498978b55de9068240752314bbedc3` vor seiner erforderlichen normalen Master-Synchronisierung. Historische Actions-/Sonar-Beobachtungen des initialen Heads verifizieren keinen synchronisierten Kandidaten. Sein exakter Head, Reviews, Actions und SonarQube-Cloud-Evidence müssen vor der Integration frisch verifiziert werden. Ein Merge wird nicht behauptet. |
 | Grenze | Parent-`common`-Event-JSON-Provenance-Serialisierung, fokussierte Common-Helper-Smoke-Assertions und dieses englisch/deutsche Change-Record-Paar mit seinen Indizes. Framework, MRTS, Gitlinks, Workflows, Scanner-Policy, generierte Artefakte und `master` werden nicht verändert. |
 
