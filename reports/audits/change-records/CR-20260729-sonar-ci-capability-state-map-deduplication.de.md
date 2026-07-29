@@ -8,8 +8,8 @@
 | --- | --- |
 | Change-ID | `CR-20260729-sonar-ci-capability-state-map-deduplication` |
 | Datum (UTC) | `2026-07-29` |
-| Basis-Revision | `fda62539b6f0a710865707e3003b73ed4469f20e` |
-| Bewertete Source-Revision | Aktueller lokaler Task-Working-Tree-Diff von der Basis-Revision; beim Schreiben dieses Records werden kein Commit, Push, Pull Request, Hosted Check oder Merge beansprucht. |
+| Basis-Revision | `a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345` |
+| Bewertete Source-Revision | Aktueller lokaler Task-Working-Tree-Diff von der Basis-Revision; der gerebasete Implementierungs-Commit ist `b25dcb4d487a648e019d323cdaef957aff342ce9`. Beim Schreiben dieses Records werden kein Push, Pull Request, Hosted Check oder Merge beansprucht. |
 | Grenze | Ausschließlich Parent-`ci/evidence/collectors/connector_capabilities.py`, sein direkter Parent-Test, dieses englisch/deutsche Change-Record-Paar und gepaarte Change-Record-Indizes. Keine `.github/`-, `scripts/`-, Framework-, MRTS-, Gitlink-, Manifest-, Scanner-Konfigurations-, Quality-Gate-, Exclusion-, Suppression- oder Default-Branch-Änderung ist enthalten. |
 | SonarQube-Cloud-Verknüpfung | Zielt auf den aktuellen doppelten Envoy-/Traefik-Host-Model-State-Block in `_validate_relationships()`. Die Änderung zentralisiert ausschließlich die gemeinsamen elf `unsupported_by_host_model`-State-Anforderungen und behält jede connector-spezifische Override bei. |
 
@@ -23,7 +23,7 @@ spätere Upstream-Response nicht beobachten kann, muss exakt
 State tragen. Die Duplikation muss reduziert werden, ohne erwartete States
 konfigurierbar zu machen oder den Ablehnungspfad zu schwächen.
 
-## Technische Entscheidungen und Begründung
+## Implementierungsentscheidung und Begründung
 
 `connector_capabilities.py` besitzt jetzt die gemeinsame Elf-Capability-
 Response- und Phase-4-Map einmal. `MappingProxyType` macht diese gemeinsame
@@ -66,7 +66,7 @@ Traefik-ForwardAuth-Referenzprüfung.
 - `reports/audits/change-records/README.md`
 - `reports/audits/change-records/README.de.md`
 
-## Tests und tatsächliche Ergebnisse
+## Ausgeführte Befehle
 
 | Befehl oder Control | Ergebnis |
 | --- | --- |
@@ -134,12 +134,13 @@ oder Framework-/MRTS-Dependency-Pfad eingeführt.
   direkteren Beweis für den deterministischen Host-Model-State-Map-Contract
   liefern würde.
 
-## Finaler Review-Status
+## Finaler Diff- und Review-Status
 
 Fokussierte Tests, der All-Connector-Manifest-Check, ausgewählte Kompilierung,
 Whitespace-Validierung und der finale fokussierte Security-Review haben
 bestanden. Ein vollständiger Modultest sowie vollständige Lint- und
-Dokumentationschecks sind wie oben beschrieben extern blockiert.
-Delivery-Commit, Draft PR, Hosted Checks, SonarQube-Cloud-Result, Review-Status
-und Merge werden beim Schreiben dieses Records nicht beansprucht. Keine
-Default-Branch-Aktion ist autorisiert oder impliziert.
+Dokumentationschecks sind wie oben beschrieben extern blockiert. Ein lokaler
+gerebaseter Implementierungs-Commit existiert; Push, Draft PR, Hosted Checks,
+SonarQube-Cloud-Result, Review-Status und Merge werden beim Schreiben dieses
+Records nicht beansprucht. Keine Default-Branch-Aktion ist autorisiert oder
+impliziert.

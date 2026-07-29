@@ -8,8 +8,8 @@
 | --- | --- |
 | Change ID | `CR-20260729-sonar-ci-capability-state-map-deduplication` |
 | Date (UTC) | `2026-07-29` |
-| Base revision | `fda62539b6f0a710865707e3003b73ed4469f20e` |
-| Source revision assessed | Current local task-working-tree diff from the base revision; no commit, push, pull request, hosted check, or merge is claimed at record authoring. |
+| Base revision | `a1c8394e528bfcd7b54bc3e0aac4cdf3430d1345` |
+| Source revision assessed | Current local task-working-tree diff from the base revision; the rebased implementation commit is `b25dcb4d487a648e019d323cdaef957aff342ce9`. No push, pull request, hosted check, or merge is claimed at record authoring. |
 | Boundary | Only Parent `ci/evidence/collectors/connector_capabilities.py`, its direct Parent test, this English/German Change Record pair, and paired Change-Record indexes. No `.github/`, `scripts/`, Framework, MRTS, Gitlink, manifest, scanner configuration, Quality Gate, exclusion, suppression, or default-branch change is included. |
 | SonarQube Cloud linkage | Targets the current duplicated Envoy/Traefik host-model-state block in `_validate_relationships()`. The change centralizes only the common eleven `unsupported_by_host_model` state requirements and retains every connector-specific override. |
 
@@ -22,7 +22,7 @@ the later upstream response must remain exactly `unsupported_by_host_model`,
 not merely some arbitrary non-verified state. The duplicate must be reduced
 without making expected states configurable or weakening the rejection path.
 
-## Technical decisions and rationale
+## Implementation decision and rationale
 
 `connector_capabilities.py` now owns the shared eleven-capability response and
 Phase-4 map once. `MappingProxyType` makes that shared map, each connector map,
@@ -63,7 +63,7 @@ Traefik ForwardAuth reference check.
 - `reports/audits/change-records/README.md`
 - `reports/audits/change-records/README.de.md`
 
-## Tests and actual results
+## Commands executed
 
 | Command or control | Result |
 | --- | --- |
@@ -124,11 +124,12 @@ process, credential, or Framework/MRTS dependency path is introduced.
 - No runtime smoke or full matrix was run because it would not provide a more
   direct proof of the deterministic host-model state-map contract.
 
-## Final review status
+## Final diff and review status
 
 Focused tests, the all-connector manifest check, selected compilation,
 whitespace validation, and final focused security review have passed. A full
 module test plus full lint and documentation checks are externally blocked as
-described above. Delivery commit, Draft PR, hosted checks, SonarQube Cloud
-result, review state, and merge are not claimed at record authoring. No
-default-branch action is authorized or implied.
+described above. A local rebased implementation commit exists; a push, Draft
+PR, hosted checks, SonarQube Cloud result, review state, and merge are not
+claimed at record authoring. No default-branch action is authorized or
+implied.
