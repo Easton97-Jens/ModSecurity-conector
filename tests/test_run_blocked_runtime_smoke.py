@@ -63,6 +63,22 @@ connector_smoke_modsecurity_rule_file() { printf '%s\\n' unused; }
                 "custom|local|unsupported connector|custom dependency|/bin/true\n",
             )
 
+    def test_selected_connector_configuration_case_has_fail_closed_default(self) -> None:
+        source = SCRIPT.read_text(encoding="utf-8")
+        marker = '        case "$CONNECTOR_NAME" in\n'
+        _, found, remaining = source.partition(marker)
+        self.assertTrue(found, "selected-connector configuration case is missing")
+        selected_case, _, _ = remaining.partition("        esac\n")
+        self.assertIn(
+            "            *)\n"
+            "                connector_skip_missing_dependency \\\n"
+            '                    "$CONNECTOR_NAME" \\\n'
+            '                    "$INTEGRATION_MODE" \\\n'
+            '                    "$POST_LOOKUP_BLOCKED_REASON" \\\n'
+            '                    "$POST_LOOKUP_MISSING_DEPENDENCY"',
+            selected_case,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

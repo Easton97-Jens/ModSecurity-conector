@@ -135,6 +135,17 @@ case "$CONNECTOR_NAME" in
                 upstream_port="${LIGHTTPD_UPSTREAM_PORT:-0}"
                 authz_port="${LIGHTTPD_AUTHZ_PORT:-0}"
                 ;;
+            *)
+                connector_skip_missing_dependency \
+                    "$CONNECTOR_NAME" \
+                    "$INTEGRATION_MODE" \
+                    "$POST_LOOKUP_BLOCKED_REASON" \
+                    "$POST_LOOKUP_MISSING_DEPENDENCY" \
+                    "$ARCHITECTURE_DECISION" \
+                    "$runtime_binary" \
+                    "$BINARY_ENV_VAR" \
+                    "$BINARY_NAME"
+                ;;
         esac
         ensure_runtime_dirs "$evidence_root"
         connector_smoke_require_runtime_path "$config_root" CONFIG_ROOT

@@ -15,21 +15,40 @@
 
 ## Motivation und Problemstellung
 
-Der äußere Connector-Dispatch hatte einen leeren Catch-all-Arm. Sein finaler Fallback lag später; das erhielt das Verhalten, machte den Umgang mit nicht unterstützten Connectoren an der `case`-Grenze aber nicht explizit.
+Der `case` der ausgewählten Connector-Konfiguration an der getrackten
+Sonar-Stelle hatte keinen `*)`-Arm. Auch der äußere Connector-Dispatch hatte
+einen leeren Catch-all-Arm; sein finaler Fallback lag später. Das erhielt das
+Verhalten, machte den Umgang mit nicht unterstützten Connectoren an dieser
+Grenze aber nicht explizit.
 
 ## Akzeptanzkriterien
 
+- Der getrackte `case` der ausgewählten Connector-Konfiguration enthält einen
+  fail-closed-`*)`-Arm, der ein kontrolliertes Blocked-Dependency-Ergebnis erreicht.
 - Jeder Wert des äußeren Connector-`case`, einschließlich unbekannter Werte, erreicht ein kontrolliertes Blocked-Dependency-Ergebnis.
 - Der bekannte Envoy-, Traefik- und Lighttpd-Pfad bleibt unverändert.
-- Das Skript bleibt POSIX-Shell-syntaktisch gültig und der fokussierte Unknown-Connector-Control bleibt deterministisch.
+- Das Skript bleibt POSIX-Shell-syntaktisch gültig; fokussierte Controls decken
+  sowohl den Unknown-Connector-Dispatch als auch die innere `case`-Default-Struktur ab.
 
 ## Implementierungsentscheidung und Begründung
 
-Der Catch-all-Arm ruft nun denselben `connector_skip_missing_dependency`-Fallback auf, der bereits nach dem Dispatch verwendet wurde. Das macht das Endverhalten explizit, ohne den bekannten Connector-Branch zu verändern oder Runtime-Inputs zu erweitern.
+Der getrackte innere `case` hat nun einen `*)`-Arm, der den bestehenden
+`connector_skip_missing_dependency`-Fallback mit den bereits aufgelösten
+Runtime-Metadaten aufruft. Auch der äußere Catch-all ruft diesen Fallback
+explizit auf. Beide Pfade sind fail-closed und erhalten den bekannten
+Connector-Branch sowie die Runtime-Input-Grenze.
 
 ## Security-Auswirkung
 
-Der relevante kontrollierte Input ist der Connector-Name. Die Invariante lautet: Ein nicht unterstützter Wert wählt niemals einen Runtime-Harness, erzeugt Output-Paths oder führt einen unbekannten Befehl aus. Der neue Default-Arm kehrt über den bestehenden Blocked-Dependency-Control zurück, bevor solche Operationen stattfinden. Der fokussierte Test beweist diesen Pfad mit einem Stub-Helper; bekannte Branches bleiben Source-unverändert.
+Der relevante kontrollierte Input ist der Connector-Name. Die Invariante
+lautet: Ein nicht unterstützter oder unvollständig konfigurierter Wert wählt
+niemals einen Runtime-Harness, erzeugt Output-Paths oder führt einen
+unbekannten Befehl aus. Beide Default-Arme kehren über den bestehenden
+Blocked-Dependency-Control zurück, bevor solche Operationen stattfinden. Der
+fokussierte Dispatch-Test verwendet einen Stub-Helper nur für Outer-Path-
+Argumentrouting; ein separater struktureller fokussierter Control prüft, dass
+der tatsächliche innere Konfigurations-`case` den fail-closed-Default hat.
+Bekannte Branches bleiben Source-unverändert.
 
 ## Geänderte Dateien
 
@@ -44,7 +63,7 @@ Der relevante kontrollierte Input ist der Connector-Name. Die Invariante lautet:
 
 | Befehl oder Control | Tatsächliches Ergebnis |
 | --- | --- |
-| `/root/git/ModSecurity-conector/.venv/bin/python -m unittest tests.test_run_blocked_runtime_smoke` | bestanden, 1 Test. |
+| `/root/git/ModSecurity-conector/.venv/bin/python -m unittest tests.test_run_blocked_runtime_smoke` | bestanden, 2 Tests. |
 | `dash -n common/scripts/run_blocked_runtime_smoke.sh` | bestanden. |
 | `shellcheck --shell=sh --severity=warning --exclude=SC1007 common/scripts/run_blocked_runtime_smoke.sh` | bestanden; SC1007 ist ein unveränderter POSIX-`CDPATH=`-Parsing-Hinweis in den Zeilen 14–17. |
 | `git diff --check` | bestanden. |
@@ -53,12 +72,18 @@ Der relevante kontrollierte Input ist der Connector-Name. Die Invariante lautet:
 
 | Control | Ergebnis |
 | --- | --- |
-| Unknown-Connector-Dispatch | bestanden: Der Helper erhielt den konfigurierten Blocked-Reason und die Dependency, und das Skript endete ohne Starten eines Harness erfolgreich. |
+| Unknown-Connector-Dispatch | bestanden: Der synthetische Helper erhielt den konfigurierten Blocked-Reason und die Dependency; dies ist ein Outer-Path-Argumentrouting-Control. |
+| Default der ausgewählten Connector-Konfiguration | bestanden: Ein fokussierter struktureller Control bestätigt, dass der getrackte innere `case` den fail-closed-Helper-Aufruf enthält. |
 | POSIX-Shell-Syntax | bestanden. |
 
 ## Runtime-Evidence
 
-Der fokussierte Test führt das echte Skript mit einem temporären minimalen Helper- und Connector-Tree aus. Er erreicht den Unknown-Connector-Default-Arm ohne Framework-/MRTS-Runtime-Dependencies.
+Der fokussierte Dispatch-Test führt das echte Skript mit einem temporären
+minimalen Helper- und Connector-Tree aus. Er erreicht den äußeren
+Unknown-Connector-Default-Arm ohne Framework-/MRTS-Runtime-Dependencies. Der
+strukturelle Control ist bewusst an den tatsächlichen S131-Konfigurations-
+`case` gebunden; er behauptet keine vollständige Runtime-Ausführung dieses
+ansonsten vom äußeren Guard geschützten Branches.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -72,8 +97,17 @@ Die vorhandenen `CDPATH=`-Zuweisungen erzeugen ShellCheck-SC1007-Hinweise, obwoh
 
 ## Verbleibende Risiken
 
-Die vollständige Runtime-Matrix bleibt für unterstützte Connector-Routen separat nützlich, ist aber für diesen Fallback kein Beleg, weil der geänderte Pfad vor jedem unterstützten Runtime-Harness blockiert. Exact-Head-Hosted-Analyse und anwendbare Projektprüfungen bleiben zwingend, bevor der Sonar-Befund als behoben gilt. Der Default-Arm erhält die bestehende kontrollierte Skip-Semantik, statt eine nicht unterstützte Connector-Ausführung zu versuchen.
+Die vollständige Runtime-Matrix bleibt für unterstützte Connector-Routen
+separat nützlich, ist aber für diese Fallbacks kein Beleg, weil die geänderten
+Pfade vor jedem unterstützten Runtime-Harness blockieren. Exact-Head-Hosted-
+Analyse und anwendbare Projektprüfungen bleiben zwingend, bevor der getrackte
+S131-Befund als behoben gilt. Die Defaults erhalten die kontrollierte
+Skip-Semantik, statt eine nicht unterstützte Connector-Ausführung zu versuchen.
 
 ## Finaler Diff- und Review-Status
 
-Der scoped Diff enthält eine Default-Dispatch-Änderung, einen fokussierten Regressionstest und gekoppelte Traceability. Dieser Record behauptet kein Remote-Update oder Master-Merge. Vor jeder Delivery-Aktion sind exakter synchronisierter Kandidat, aktueller PR-Head, Reviews, Threads, Required Checks und SonarQube-Cloud-Ergebnis erneut zu lesen.
+Der scoped Diff enthält zwei fail-closed Default-Dispatch-Änderungen, zwei
+fokussierte Regression-Controls und gekoppelte Traceability. Dieser Record
+behauptet kein Remote-Update oder Master-Merge. Vor jeder Delivery-Aktion sind
+exakter synchronisierter Kandidat, aktueller PR-Head, Reviews, Threads,
+Required Checks und SonarQube-Cloud-Ergebnis erneut zu lesen.

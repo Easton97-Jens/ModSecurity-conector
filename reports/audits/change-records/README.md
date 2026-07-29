@@ -7,8 +7,9 @@ limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent Common blocked-runtime-smoke default dispatch for SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.md)
-  — unknown connectors now take the controlled blocked-dependency path; the
-  focused dispatch regression test and POSIX shell syntax passed locally.
+  — the tracked configuration case and unknown connectors now take controlled
+  blocked-dependency paths; focused dispatch/default-structure controls and
+  POSIX shell syntax passed locally.
 
 - [Parent HAProxy SPOP body-parser deduplication](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.md)
 

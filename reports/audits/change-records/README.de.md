@@ -8,9 +8,9 @@ englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-Common-Blocked-Runtime-Smoke-Default-Dispatch für SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.de.md)
-  — unbekannte Connectoren verwenden nun den kontrollierten Blocked-Dependency-
-  Pfad; der fokussierte Dispatch-Regressionstest und die POSIX-Shell-Syntax
-  bestanden lokal.
+  — der getrackte Konfigurations-`case` und unbekannte Connectoren verwenden
+  kontrollierte Blocked-Dependency-Pfade; fokussierte Dispatch-/Default-
+  Struktur-Controls und POSIX-Shell-Syntax bestanden lokal.
 
 - [Parent-HAProxy-SPOP-Body-Parser-Deduplizierung](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.de.md)
 
