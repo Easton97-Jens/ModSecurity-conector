@@ -6,17 +6,251 @@ from __future__ import annotations
 import argparse
 import http.server
 import json
+import os
 from pathlib import Path
+import secrets
 import socket
+import ssl
+import stat
 import sys
 import time
 from typing import Any
 import urllib.error
+import urllib.parse
 import urllib.request
+
+
+_CI_LIB = Path(__file__).resolve().parents[3] / "ci" / "lib"
+if str(_CI_LIB) not in sys.path:
+    sys.path.insert(0, str(_CI_LIB))
+
+from runtime_path_utils import ensure_safe_runtime_directory, is_safe_runtime_root, is_under
 
 
 PHASE4_MARKER_PATH = "/phase4-marker"
 TEXT_PLAIN_CONTENT_TYPE = "text/plain"
+LOOPBACK_HOST = "127.0.0.1"
+COMMON_EVENT_LOG_LABEL = "Common event log"
+NOFOLLOW_WRITE_ERROR = "safe runtime artifact writes require O_NOFOLLOW"
+
+
+def verified_runtime_root(value: str) -> Path:
+    """Return a private root that may contain this invocation's artifacts."""
+
+    root = Path(value)
+    if not root.is_absolute():
+        raise ValueError(f"runtime root must be absolute: {root}")
+    normalized = Path(os.path.abspath(root))
+    if not is_safe_runtime_root(normalized):
+        raise ValueError(f"runtime root is unsafe for writes: {normalized}")
+    return ensure_safe_runtime_directory(normalized)
+
+
+def runtime_artifact(root: Path, value: str | Path, label: str) -> Path:
+    """Validate one artifact path below the current private runtime root."""
+
+    candidate = Path(value)
+    if not candidate.is_absolute():
+        raise ValueError(f"{label} must be absolute: {candidate}")
+    normalized = Path(os.path.abspath(candidate))
+    if normalized == root or not is_under(normalized, root):
+        raise ValueError(f"{label} must be below the runtime root: {normalized}")
+    if normalized.is_symlink():
+        raise ValueError(f"{label} must not be a symbolic link: {normalized}")
+    parent = ensure_safe_runtime_directory(normalized.parent)
+    if not is_under(parent, root):
+        raise ValueError(f"{label} parent escaped the runtime root: {parent}")
+    return normalized
+
+
+def runtime_directory(root: Path, value: str | Path, label: str) -> Path:
+    """Create or return one safe artifact directory below ``root``."""
+
+    directory = runtime_artifact(root, value, label)
+    return ensure_safe_runtime_directory(directory)
+
+
+def _open_artifact_parent(target: Path) -> int:
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if no_follow is None or directory is None:
+        raise ValueError("safe runtime artifacts require O_NOFOLLOW and O_DIRECTORY")
+    return os.open(target.parent, os.O_RDONLY | directory | no_follow)
+
+
+def _require_regular_file(descriptor: int, label: str) -> None:
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        raise ValueError(f"{label} must be a regular file")
+
+
+def read_runtime_text(root: Path, value: str | Path, label: str) -> str:
+    """Read one regular artifact without following its final path component."""
+
+    target = runtime_artifact(root, value, label)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError("safe runtime artifact reads require O_NOFOLLOW")
+    parent_descriptor = _open_artifact_parent(target)
+    try:
+        descriptor = os.open(target.name, os.O_RDONLY | no_follow, dir_fd=parent_descriptor)
+        try:
+            _require_regular_file(descriptor, label)
+            with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+                descriptor = -1
+                return stream.read()
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+    finally:
+        os.close(parent_descriptor)
+
+
+def write_json_atomic(root: Path, value: str | Path, payload: dict[str, object], label: str) -> Path:
+    """Replace one private JSON artifact atomically without following links."""
+
+    target = runtime_artifact(root, value, label)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError(NOFOLLOW_WRITE_ERROR)
+    encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    parent_descriptor = _open_artifact_parent(target)
+    temporary_name: str | None = None
+    try:
+        try:
+            existing = os.stat(target.name, dir_fd=parent_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            existing = None
+        if existing is not None and not stat.S_ISREG(existing.st_mode):
+            raise ValueError(f"{label} must be a regular file")
+        for _ in range(100):
+            temporary_name = f".{target.name}.{secrets.token_hex(16)}.tmp"
+            try:
+                descriptor = os.open(
+                    temporary_name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
+                    0o600,
+                    dir_fd=parent_descriptor,
+                )
+            except FileExistsError:
+                continue
+            break
+        else:
+            raise ValueError(f"could not allocate a temporary {label}")
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(
+            temporary_name,
+            target.name,
+            src_dir_fd=parent_descriptor,
+            dst_dir_fd=parent_descriptor,
+        )
+        temporary_name = None
+    finally:
+        if temporary_name is not None:
+            try:
+                os.unlink(temporary_name, dir_fd=parent_descriptor)
+            except FileNotFoundError:
+                pass
+        os.close(parent_descriptor)
+    return target
+
+
+def append_jsonl(root: Path, value: str | Path, payload: dict[str, object], label: str) -> Path:
+    """Append one JSONL record through a no-follow descriptor."""
+
+    target = runtime_artifact(root, value, label)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError(NOFOLLOW_WRITE_ERROR)
+    parent_descriptor = _open_artifact_parent(target)
+    try:
+        descriptor = os.open(
+            target.name,
+            os.O_WRONLY | os.O_APPEND | os.O_CREAT | no_follow,
+            0o600,
+            dir_fd=parent_descriptor,
+        )
+        try:
+            _require_regular_file(descriptor, label)
+            os.fchmod(descriptor, 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                descriptor = -1
+                stream.write(json.dumps(payload, sort_keys=True) + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+    finally:
+        os.close(parent_descriptor)
+    return target
+
+
+def create_runtime_marker(root: Path, value: str | Path, label: str) -> Path:
+    """Create one empty private control marker without replacing an existing file."""
+
+    target = runtime_artifact(root, value, label)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError(NOFOLLOW_WRITE_ERROR)
+    parent_descriptor = _open_artifact_parent(target)
+    try:
+        descriptor = os.open(
+            target.name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
+            0o600,
+            dir_fd=parent_descriptor,
+        )
+        try:
+            _require_regular_file(descriptor, label)
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    finally:
+        os.close(parent_descriptor)
+    return target
+
+
+def trusted_loopback_tls_context(root: Path, certificate_path: str) -> ssl.SSLContext:
+    """Trust a regular certificate under ``root`` for one loopback client."""
+
+    certificate = runtime_artifact(root, certificate_path, "loopback TLS certificate")
+    if not certificate.is_file() or certificate.is_symlink():
+        raise ValueError("loopback TLS certificate must be a regular file")
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_verify_locations(cafile=str(certificate))
+    return context
+
+
+def checked_loopback_https_url(value: str) -> str:
+    """Accept only a credential-free HTTPS endpoint on the fixed smoke host."""
+
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("probe URL has an invalid port") from exc
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != LOOPBACK_HOST
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.fragment
+        or port is None
+        or port < 1
+        or port > 65535
+    ):
+        raise ValueError("probe URL must be credential-free https://127.0.0.1 with a valid port")
+    return value
+
+
+def checked_loopback_host(value: str) -> str:
+    if value != LOOPBACK_HOST:
+        raise ValueError("host must be 127.0.0.1")
+    return value
 
 
 class UpstreamHandler(http.server.BaseHTTPRequestHandler):
@@ -24,6 +258,7 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
     client_cancel_delay_seconds = 5.0
     phase4_barrier_dir: Path | None = None
     phase4_barrier_timeout_seconds = 10.0
+    runtime_root: Path | None = None
 
     def log_message(self, fmt: str, *args: object) -> None:
         del fmt, args
@@ -83,7 +318,8 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
         only; they never contain either fixture payload.
         """
         assert self.phase4_barrier_dir is not None
-        paths = phase4_barrier_paths(self.phase4_barrier_dir)
+        assert self.runtime_root is not None
+        paths = phase4_barrier_paths(self.runtime_root, self.phase4_barrier_dir)
         first_chunk = b"envoy-first-byte-prefix\n"
         later_chunk = b"no-crs-response-body-marker\n"
         self.send_response(200)
@@ -93,25 +329,25 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         try:
             self._write_chunk(first_chunk)
-            write_json_atomic(paths["paused"], {
+            write_json_atomic(self.runtime_root, paths["paused"], {
                 "schema_version": 1,
                 "evidence_type": "envoy_phase4_upstream_paused",
                 "first_chunk_size": len(first_chunk),
                 "upstream_paused": True,
                 "upstream_eos_sent": False,
                 "body_payload_persisted": False,
-            })
-            wait_for_release(paths["release"], self.phase4_barrier_timeout_seconds)
+            }, "upstream phase-4 pause record")
+            wait_for_release(self.runtime_root, paths["release"], self.phase4_barrier_timeout_seconds)
             self._write_chunk(later_chunk)
             self.wfile.write(b"0\r\n\r\n")
             self.wfile.flush()
-            write_json_atomic(paths["completed"], {
+            write_json_atomic(self.runtime_root, paths["completed"], {
                 "schema_version": 1,
                 "evidence_type": "envoy_phase4_upstream_completed",
                 "first_chunk_size": len(first_chunk),
                 "upstream_eos_sent": True,
                 "body_payload_persisted": False,
-            })
+            }, "upstream phase-4 completion record")
         except (BrokenPipeError, ConnectionResetError):
             # A failed client is not a successful barrier observation.  Leave
             # the completed record absent so the probe rejects the run.
@@ -147,10 +383,8 @@ def free_ports(count: int) -> list[int]:
             sock.close()
 
 
-def phase4_barrier_paths(barrier_dir: str | Path) -> dict[str, Path]:
-    directory = Path(barrier_dir)
-    if not directory.is_absolute():
-        raise ValueError("phase-4 barrier directory must be absolute")
+def phase4_barrier_paths(root: Path, barrier_dir: str | Path) -> dict[str, Path]:
+    directory = runtime_directory(root, barrier_dir, "phase-4 barrier directory")
     return {
         "paused": directory / "upstream-paused.json",
         "release": directory / "release",
@@ -158,26 +392,19 @@ def phase4_barrier_paths(barrier_dir: str | Path) -> dict[str, Path]:
     }
 
 
-def write_json_atomic(path: Path, payload: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    temporary.replace(path)
-
-
-def wait_for_release(path: Path, timeout: float) -> None:
+def wait_for_release(root: Path, path: Path, timeout: float) -> None:
     deadline = time.monotonic() + timeout
     while not path.exists():
         if time.monotonic() >= deadline:
             raise TimeoutError("timed out waiting for phase-4 barrier release")
         time.sleep(0.01)
-    if path.is_symlink() or not path.is_file():
-        raise ValueError("phase-4 barrier release must be a regular file")
+    read_runtime_text(root, path, "phase-4 barrier release")
 
 
 def serve_upstream(
     port: int,
     client_cancel_delay: float,
+    runtime_root: str,
     phase4_barrier_dir: str | None = None,
     phase4_barrier_timeout: float = 10.0,
 ) -> int:
@@ -185,9 +412,14 @@ def serve_upstream(
         raise ValueError("client cancel delay must be greater than zero and at most 30 seconds")
     if phase4_barrier_timeout <= 0 or phase4_barrier_timeout > 60:
         raise ValueError("phase-4 barrier timeout must be greater than zero and at most 60 seconds")
-    barrier_directory = Path(phase4_barrier_dir) if phase4_barrier_dir else None
+    root = verified_runtime_root(runtime_root)
+    barrier_directory = (
+        runtime_directory(root, phase4_barrier_dir, "phase-4 barrier directory")
+        if phase4_barrier_dir
+        else None
+    )
     if barrier_directory is not None:
-        paths = phase4_barrier_paths(barrier_directory)
+        paths = phase4_barrier_paths(root, barrier_directory)
         if any(path.exists() for path in paths.values()):
             raise ValueError("phase-4 barrier paths must be fresh")
 
@@ -195,6 +427,7 @@ def serve_upstream(
         client_cancel_delay_seconds = client_cancel_delay
         phase4_barrier_dir = barrier_directory
         phase4_barrier_timeout_seconds = phase4_barrier_timeout
+        runtime_root = root
 
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), DelayedUpstreamHandler)
     try:
@@ -229,6 +462,8 @@ def parse_headers(header: list[str]) -> dict[str, str]:
 
 
 def probe(
+    runtime_root: str,
+    tls_certificate: str,
     url: str,
     header: list[str],
     method: str,
@@ -236,11 +471,17 @@ def probe(
     no_redirect: bool,
     evidence_path: str | None = None,
 ) -> int:
+    root = verified_runtime_root(runtime_root)
     headers = parse_headers(header)
     body = None if data is None else data.encode("utf-8")
-    request = urllib.request.Request(url, data=body, headers=headers, method=method)
+    request = urllib.request.Request(checked_loopback_https_url(url), data=body, headers=headers, method=method)
+    handlers: list[object] = [
+        urllib.request.HTTPSHandler(context=trusted_loopback_tls_context(root, tls_certificate)),
+    ]
+    if no_redirect:
+        handlers.append(NoRedirect())
     try:
-        opener = urllib.request.build_opener(NoRedirect) if no_redirect else urllib.request.build_opener()
+        opener = urllib.request.build_opener(*handlers)
         with opener.open(request, timeout=2) as response:
             response_body = response.read()
             status = int(response.status)
@@ -248,21 +489,25 @@ def probe(
         response_body = exc.read()
         status = int(exc.code)
     if evidence_path:
-        output = Path(evidence_path)
-        if not output.is_absolute() or output.is_symlink():
-            raise ValueError("probe evidence output must be an absolute regular path")
-        write_json_atomic(output, {
+        write_json_atomic(root, evidence_path, {
             "schema_version": 1,
             "evidence_type": "envoy_http_client_probe",
             "http_status": status,
             "response_bytes": len(response_body),
             "body_payload_persisted": False,
-        })
+        }, "probe evidence output")
     print(status)
     return 0
 
 
-def client_cancel(host: str, port: int, path: str, header: list[str]) -> dict[str, int | bool]:
+def client_cancel(
+    runtime_root: str,
+    tls_certificate: str,
+    host: str,
+    port: int,
+    path: str,
+    header: list[str],
+) -> dict[str, int | bool]:
     """Close a real HTTP/1.1 downstream connection after its first body byte.
 
     The result is intentionally client-local metadata.  Envoy's ext_proc API
@@ -270,8 +515,8 @@ def client_cancel(host: str, port: int, path: str, header: list[str]) -> dict[st
     reset, so callers must pair this observation with the explicit unattributed
     completion record rather than fabricating a reset cause.
     """
-    if not host or "\r" in host or "\n" in host:
-        raise ValueError("invalid host")
+    root = verified_runtime_root(runtime_root)
+    host = checked_loopback_host(host)
     if port < 1 or port > 65535:
         raise ValueError("port must be in range 1..65535")
     if not path.startswith("/") or "\r" in path or "\n" in path:
@@ -283,30 +528,35 @@ def client_cancel(host: str, port: int, path: str, header: list[str]) -> dict[st
         request = ("\r\n".join(request_lines) + "\r\n\r\n").encode("ascii")
     except UnicodeEncodeError as exc:
         raise ValueError("client-cancel headers must be ASCII") from exc
+    context = trusted_loopback_tls_context(root, tls_certificate)
     with socket.create_connection((host, port), timeout=2) as connection:
-        connection.settimeout(2)
-        connection.sendall(request)
-        received = bytearray()
-        header_end = -1
-        while True:
-            chunk = connection.recv(4096)
-            if not chunk:
-                raise RuntimeError("server closed before sending a response body byte")
-            received.extend(chunk)
-            if len(received) > 64 << 10:
-                raise RuntimeError("response headers exceed the client-cancel observation limit")
-            header_end = received.find(b"\r\n\r\n")
-            if header_end >= 0 and len(received) > header_end + 4:
-                break
-        status_line = bytes(received[:header_end]).split(b"\r\n", 1)[0]
-        try:
-            _version, status_text, _reason = status_line.split(b" ", 2)
-            status = int(status_text)
-        except (TypeError, ValueError) as exc:
-            raise RuntimeError("server returned an invalid HTTP status line") from exc
-        # Leaving the context closes the TCP connection while the delayed
-        # upstream response is still open.  No response payload is persisted.
-        return {"client_closed": True, "first_body_byte_received": True, "http_status": status}
+        with context.wrap_socket(connection, server_hostname=host) as tls_connection:
+            tls_connection.settimeout(2)
+            tls_connection.sendall(request)
+            status = _read_client_cancel_status(tls_connection)
+    # Leaving the context closes the TLS connection while the delayed upstream
+    # response is still open.  No response payload is persisted.
+    return {"client_closed": True, "first_body_byte_received": True, "http_status": status}
+
+
+def _read_client_cancel_status(connection: socket.socket) -> int:
+    received = bytearray()
+    while True:
+        chunk = connection.recv(4096)
+        if not chunk:
+            raise RuntimeError("server closed before sending a response body byte")
+        received.extend(chunk)
+        if len(received) > 64 << 10:
+            raise RuntimeError("response headers exceed the client-cancel observation limit")
+        header_end = received.find(b"\r\n\r\n")
+        if header_end >= 0 and len(received) > header_end + 4:
+            break
+    status_line = bytes(received[:header_end]).split(b"\r\n", 1)[0]
+    try:
+        _version, status_text, _reason = status_line.split(b" ", 2)
+        return int(status_text)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("server returned an invalid HTTP status line") from exc
 
 
 def _bounded_token(value: object, *, field: str, maximum: int = 128) -> str:
@@ -333,11 +583,9 @@ def _http_status(value: object, *, field: str) -> int:
     return status
 
 
-def _load_json_object(path: Path, *, label: str) -> dict[str, Any]:
-    if path.is_symlink() or not path.is_file():
-        raise ValueError(f"{label} must be a regular JSON file")
+def _load_json_object(root: Path, path: Path, *, label: str) -> dict[str, Any]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(read_runtime_text(root, path, label))
     except json.JSONDecodeError as exc:
         raise ValueError(f"{label} is not valid JSON") from exc
     if not isinstance(payload, dict):
@@ -345,13 +593,13 @@ def _load_json_object(path: Path, *, label: str) -> dict[str, Any]:
     return {str(key): value for key, value in payload.items()}
 
 
-def _wait_for_json_object(path: Path, *, timeout: float, label: str) -> dict[str, Any]:
+def _wait_for_json_object(root: Path, path: Path, *, timeout: float, label: str) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     while not path.exists():
         if time.monotonic() >= deadline:
             raise TimeoutError(f"timed out waiting for {label}")
         time.sleep(0.01)
-    return _load_json_object(path, label=label)
+    return _load_json_object(root, path, label=label)
 
 
 def _read_until(
@@ -457,7 +705,35 @@ def _drain_response(connection: socket.socket, *, timeout: float) -> None:
             return
 
 
+def _validate_phase4_pause_record(paused: dict[str, Any]) -> None:
+    required = {
+        "schema_version": 1,
+        "evidence_type": "envoy_phase4_upstream_paused",
+        "upstream_paused": True,
+        "upstream_eos_sent": False,
+        "body_payload_persisted": False,
+    }
+    if any(paused.get(field) != expected for field, expected in required.items()):
+        raise RuntimeError("upstream phase-4 pause record is invalid")
+    if _nonnegative_int(paused.get("first_chunk_size"), field="paused first_chunk_size") < 1:
+        raise RuntimeError("upstream phase-4 pause record has no first chunk")
+
+
+def _validate_phase4_completion_record(completed: dict[str, Any]) -> None:
+    required = {
+        "schema_version": 1,
+        "evidence_type": "envoy_phase4_upstream_completed",
+        "upstream_eos_sent": True,
+        "body_payload_persisted": False,
+    }
+    if any(completed.get(field) != expected for field, expected in required.items()):
+        raise RuntimeError("upstream phase-4 completion record is invalid")
+    _nonnegative_int(completed.get("first_chunk_size"), field="completed first_chunk_size")
+
+
 def phase4_first_byte(
+    runtime_root: str,
+    tls_certificate: str,
     host: str,
     port: int,
     path: str,
@@ -466,15 +742,15 @@ def phase4_first_byte(
     timeout: float,
 ) -> dict[str, int | bool | str]:
     """Observe one downstream byte while the controlled upstream has no EOS."""
-    if not host or "\r" in host or "\n" in host:
-        raise ValueError("invalid host")
+    root = verified_runtime_root(runtime_root)
+    host = checked_loopback_host(host)
     if port < 1 or port > 65535:
         raise ValueError("port must be in range 1..65535")
     if not path.startswith("/") or "\r" in path or "\n" in path:
         raise ValueError("path must be an absolute HTTP path")
     if timeout <= 0 or timeout > 60:
         raise ValueError("timeout must be greater than zero and at most 60 seconds")
-    paths = phase4_barrier_paths(barrier_dir)
+    paths = phase4_barrier_paths(root, barrier_dir)
     if any(path_value.exists() for path_value in paths.values()):
         raise ValueError("phase-4 barrier paths must be fresh before probing")
     headers = parse_headers(header)
@@ -485,41 +761,25 @@ def phase4_first_byte(
     except UnicodeEncodeError as exc:
         raise ValueError("phase-4 barrier headers must be ASCII") from exc
 
+    context = trusted_loopback_tls_context(root, tls_certificate)
     with socket.create_connection((host, port), timeout=timeout) as connection:
-        connection.sendall(request)
-        status, first_chunk_size = _read_chunked_first_body(connection, timeout=timeout)
-        paused = _wait_for_json_object(
-            paths["paused"], timeout=timeout, label="upstream phase-4 pause record"
-        )
-        if (
-            paused.get("schema_version") != 1
-            or paused.get("evidence_type") != "envoy_phase4_upstream_paused"
-            or paused.get("upstream_paused") is not True
-            or paused.get("upstream_eos_sent") is not False
-            or paused.get("body_payload_persisted") is not False
-        ):
-            raise RuntimeError("upstream phase-4 pause record is invalid")
-        _nonnegative_int(paused.get("first_chunk_size"), field="paused first_chunk_size")
-        if paused["first_chunk_size"] < 1:
-            raise RuntimeError("upstream phase-4 pause record has no first chunk")
-        paths["release"].parent.mkdir(parents=True, exist_ok=True)
-        try:
-            paths["release"].touch(exist_ok=False)
-        except FileExistsError as exc:
-            raise RuntimeError("phase-4 barrier release was already present") from exc
-        _drain_response(connection, timeout=timeout)
+        with context.wrap_socket(connection, server_hostname=host) as tls_connection:
+            tls_connection.sendall(request)
+            status, first_chunk_size = _read_chunked_first_body(tls_connection, timeout=timeout)
+            paused = _wait_for_json_object(
+                root, paths["paused"], timeout=timeout, label="upstream phase-4 pause record"
+            )
+            _validate_phase4_pause_record(paused)
+            try:
+                create_runtime_marker(root, paths["release"], "phase-4 barrier release")
+            except FileExistsError as exc:
+                raise RuntimeError("phase-4 barrier release was already present") from exc
+            _drain_response(tls_connection, timeout=timeout)
 
     completed = _wait_for_json_object(
-        paths["completed"], timeout=timeout, label="upstream phase-4 completion record"
+        root, paths["completed"], timeout=timeout, label="upstream phase-4 completion record"
     )
-    if (
-        completed.get("schema_version") != 1
-        or completed.get("evidence_type") != "envoy_phase4_upstream_completed"
-        or completed.get("upstream_eos_sent") is not True
-        or completed.get("body_payload_persisted") is not False
-    ):
-        raise RuntimeError("upstream phase-4 completion record is invalid")
-    _nonnegative_int(completed.get("first_chunk_size"), field="completed first_chunk_size")
+    _validate_phase4_completion_record(completed)
     return {
         "schema_version": 1,
         "evidence_type": "envoy_phase4_first_byte_observation",
@@ -537,38 +797,34 @@ def phase4_first_byte(
     }
 
 
-def _phase4_safe_event(
-    records: list[dict[str, Any]], *, transaction_id: str
-) -> dict[str, Any]:
-    candidates: list[dict[str, Any]] = []
-    for record in records:
-        if record.get("event") == "phase4_first_byte_barrier":
-            continue
-        rule_id = record.get("rule_id")
-        if isinstance(rule_id, bool) or str(rule_id) != "1100301":
-            continue
-        if record.get("connector") != "envoy" or record.get("integration_mode") != "ext_proc":
-            continue
-        phase = record.get("phase")
-        if record.get("transaction_id") != transaction_id or phase not in {
-            4,
-            "4",
-            "phase4",
-            "response_body",
-        }:
-            continue
-        if (
-            record.get("requested_action") == "deny"
-            and record.get("actual_action") == "log_only"
-            and record.get("late_intervention") is True
-            and record.get("late_intervention_mode") == "safe"
-            and record.get("headers_sent") is True
-            and record.get("body_started") is True
-            and record.get("response_committed") is True
-            and record.get("connection_aborted") is False
-            and record.get("transport_result") == "log_only"
-        ):
-            candidates.append(record)
+def _is_phase4_safe_event(record: dict[str, Any], transaction_id: str) -> bool:
+    rule_id = record.get("rule_id")
+    phase = record.get("phase")
+    identity_matches = (
+        record.get("event") != "phase4_first_byte_barrier"
+        and not isinstance(rule_id, bool)
+        and str(rule_id) == "1100301"
+        and record.get("connector") == "envoy"
+        and record.get("integration_mode") == "ext_proc"
+        and record.get("transaction_id") == transaction_id
+        and phase in {4, "4", "phase4", "response_body"}
+    )
+    state_matches = (
+        record.get("requested_action") == "deny"
+        and record.get("actual_action") == "log_only"
+        and record.get("late_intervention") is True
+        and record.get("late_intervention_mode") == "safe"
+        and record.get("headers_sent") is True
+        and record.get("body_started") is True
+        and record.get("response_committed") is True
+        and record.get("connection_aborted") is False
+        and record.get("transport_result") == "log_only"
+    )
+    return identity_matches and state_matches
+
+
+def _phase4_safe_event(records: list[dict[str, Any]], *, transaction_id: str) -> dict[str, Any]:
+    candidates = [record for record in records if _is_phase4_safe_event(record, transaction_id)]
     if len(candidates) != 1:
         raise ValueError(
             "expected exactly one Common P4 safe log-only event for the barrier transaction"
@@ -576,11 +832,9 @@ def _phase4_safe_event(
     return candidates[0]
 
 
-def _load_jsonl(path: Path) -> list[dict[str, Any]]:
-    if path.is_symlink() or not path.is_file():
-        raise ValueError("Common event log must be a regular JSONL file")
+def _load_jsonl(root: Path, path: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for number, line in enumerate(read_runtime_text(root, path, COMMON_EVENT_LOG_LABEL).splitlines(), 1):
         if not line.strip():
             continue
         try:
@@ -595,6 +849,7 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def write_allow_event(
     *,
+    runtime_root: str,
     event_log: str,
     probe_evidence_path: str,
     completion_log: str,
@@ -608,8 +863,9 @@ def write_allow_event(
     later P4-safe HTTP 200 event.
     """
 
+    root = verified_runtime_root(runtime_root)
     transaction = _bounded_token(transaction_id, field="transaction_id", maximum=256)
-    probe = _load_json_object(Path(probe_evidence_path), label="allow probe evidence")
+    probe = _load_json_object(root, runtime_artifact(root, probe_evidence_path, "allow probe evidence"), label="allow probe evidence")
     if (
         probe.get("schema_version") != 1
         or probe.get("evidence_type") != "envoy_http_client_probe"
@@ -621,7 +877,7 @@ def write_allow_event(
 
     completion_records = [
         record
-        for record in _load_jsonl(Path(completion_log))
+        for record in _load_jsonl(root, runtime_artifact(root, completion_log, "completion log"))
         if record.get("transaction_id") == transaction
     ]
     if len(completion_records) != 1:
@@ -638,10 +894,10 @@ def write_allow_event(
     ):
         raise ValueError("allow ext_proc completion is not a normal streamed response")
 
-    event_path = Path(event_log)
+    event_path = runtime_artifact(root, event_log, COMMON_EVENT_LOG_LABEL)
     existing = [
         record
-        for record in _load_jsonl(event_path)
+        for record in _load_jsonl(root, event_path)
         if record.get("event") == "native_ext_proc_host_forward"
         and record.get("transaction_id") == transaction
     ]
@@ -668,8 +924,7 @@ def write_allow_event(
             raise ValueError("existing Envoy allow event is not causally bound")
         appended = False
     else:
-        with event_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, sort_keys=True) + "\n")
+        append_jsonl(root, event_path, record, COMMON_EVENT_LOG_LABEL)
         appended = True
     return {
         "schema_version": 1,
@@ -679,8 +934,8 @@ def write_allow_event(
     }
 
 
-def _phase4_observation(path: Path) -> dict[str, Any]:
-    observation = _load_json_object(path, label="phase-4 first-byte observation")
+def _phase4_observation(root: Path, path: Path) -> dict[str, Any]:
+    observation = _load_json_object(root, path, label="phase-4 first-byte observation")
     expected = {
         "schema_version": 1,
         "evidence_type": "envoy_phase4_first_byte_observation",
@@ -703,8 +958,43 @@ def _phase4_observation(path: Path) -> dict[str, Any]:
     return observation
 
 
+def _append_phase4_barrier_event(
+    root: Path,
+    event_path: Path,
+    barrier_event: dict[str, object],
+    transaction: str,
+) -> bool:
+    existing_barriers = [
+        record
+        for record in _load_jsonl(root, event_path)
+        if record.get("event") == barrier_event["event"]
+        and record.get("transaction_id") == transaction
+        and record.get("transport_case_id") == barrier_event["transport_case_id"]
+    ]
+    if not existing_barriers:
+        append_jsonl(root, event_path, barrier_event, COMMON_EVENT_LOG_LABEL)
+        return True
+    if len(existing_barriers) != 1:
+        raise ValueError("phase-4 first-byte barrier event was emitted more than once")
+    existing = existing_barriers[0]
+    for field in (
+        "rule_id",
+        "phase",
+        "requested_action",
+        "actual_action",
+        "late_intervention_mode",
+        "first_byte_before_response_end",
+        "upstream_eos_sent_at_first_byte",
+        "no_full_response_buffering",
+    ):
+        if existing.get(field) != barrier_event[field]:
+            raise ValueError("existing phase-4 first-byte barrier event is not causally bound")
+    return False
+
+
 def write_phase4_first_byte_evidence(
     *,
+    runtime_root: str,
     event_log: str,
     observation_path: str,
     transaction_id: str,
@@ -712,10 +1002,14 @@ def write_phase4_first_byte_evidence(
     run_id: str | None = None,
 ) -> dict[str, object]:
     """Bind the controlled first-byte observation to the real Common P4 event."""
+    root = verified_runtime_root(runtime_root)
     transaction = _bounded_token(transaction_id, field="transaction_id", maximum=256)
-    event_path = Path(event_log)
-    observation = _phase4_observation(Path(observation_path))
-    source = _phase4_safe_event(_load_jsonl(event_path), transaction_id=transaction)
+    event_path = runtime_artifact(root, event_log, COMMON_EVENT_LOG_LABEL)
+    observation = _phase4_observation(
+        root,
+        runtime_artifact(root, observation_path, "phase-4 first-byte observation"),
+    )
+    source = _phase4_safe_event(_load_jsonl(root, event_path), transaction_id=transaction)
     body_seen = _nonnegative_int(source.get("body_bytes_seen"), field="body_bytes_seen")
     body_inspected = _nonnegative_int(
         source.get("body_bytes_inspected"), field="body_bytes_inspected"
@@ -798,38 +1092,9 @@ def write_phase4_first_byte_evidence(
     if normalized_run_id is not None:
         barrier_event["run_id"] = normalized_run_id
     if evidence_output:
-        destination = Path(evidence_output)
-        if not destination.is_absolute() or destination.is_symlink():
-            raise ValueError("first-byte evidence output must be an absolute regular path")
-        write_json_atomic(destination, evidence)
-    existing_barriers = [
-        record
-        for record in _load_jsonl(event_path)
-        if record.get("event") == barrier_event["event"]
-        and record.get("transaction_id") == transaction
-        and record.get("transport_case_id") == barrier_event["transport_case_id"]
-    ]
-    if existing_barriers:
-        if len(existing_barriers) != 1:
-            raise ValueError("phase-4 first-byte barrier event was emitted more than once")
-        existing = existing_barriers[0]
-        for field in (
-            "rule_id",
-            "phase",
-            "requested_action",
-            "actual_action",
-            "late_intervention_mode",
-            "first_byte_before_response_end",
-            "upstream_eos_sent_at_first_byte",
-            "no_full_response_buffering",
-        ):
-            if existing.get(field) != barrier_event[field]:
-                raise ValueError("existing phase-4 first-byte barrier event is not causally bound")
-        appended = False
-    else:
-        with event_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(barrier_event, sort_keys=True) + "\n")
-        appended = True
+        evidence_parent = verified_runtime_root(str(Path(evidence_output).parent))
+        write_json_atomic(evidence_parent, evidence_output, evidence, "first-byte evidence output")
+    appended = _append_phase4_barrier_event(root, event_path, barrier_event, transaction)
     return {
         "schema_version": 1,
         "evidence_written": bool(evidence_output),
@@ -843,14 +1108,19 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("free-port")
+    prepare = subparsers.add_parser("prepare-runtime-root")
+    prepare.add_argument("--runtime-root", required=True)
     ports = subparsers.add_parser("free-ports")
     ports.add_argument("--count", required=True, type=int)
     serve = subparsers.add_parser("serve-upstream")
     serve.add_argument("--port", required=True, type=int)
+    serve.add_argument("--runtime-root", required=True)
     serve.add_argument("--client-cancel-delay", default=5.0, type=float)
     serve.add_argument("--phase4-barrier-dir")
     serve.add_argument("--phase4-barrier-timeout", default=10.0, type=float)
     request = subparsers.add_parser("probe")
+    request.add_argument("--runtime-root", required=True)
+    request.add_argument("--tls-certificate", required=True)
     request.add_argument("--url", required=True)
     request.add_argument("--header", action="append", default=[])
     request.add_argument("--method", default="GET")
@@ -858,11 +1128,15 @@ def parse_args() -> argparse.Namespace:
     request.add_argument("--no-redirect", action="store_true")
     request.add_argument("--evidence-path")
     cancel = subparsers.add_parser("client-cancel")
+    cancel.add_argument("--runtime-root", required=True)
+    cancel.add_argument("--tls-certificate", required=True)
     cancel.add_argument("--host", required=True)
     cancel.add_argument("--port", required=True, type=int)
     cancel.add_argument("--path", default="/client-cancel")
     cancel.add_argument("--header", action="append", default=[])
     phase4 = subparsers.add_parser("phase4-first-byte")
+    phase4.add_argument("--runtime-root", required=True)
+    phase4.add_argument("--tls-certificate", required=True)
     phase4.add_argument("--host", required=True)
     phase4.add_argument("--port", required=True, type=int)
     phase4.add_argument("--path", default=PHASE4_MARKER_PATH)
@@ -871,12 +1145,14 @@ def parse_args() -> argparse.Namespace:
     phase4.add_argument("--timeout", default=10.0, type=float)
     phase4.add_argument("--output")
     finalize = subparsers.add_parser("write-phase4-first-byte-evidence")
+    finalize.add_argument("--runtime-root", required=True)
     finalize.add_argument("--event-log", required=True)
     finalize.add_argument("--observation", required=True)
     finalize.add_argument("--transaction-id", required=True)
     finalize.add_argument("--evidence-output")
     finalize.add_argument("--run-id")
     allow_event = subparsers.add_parser("write-allow-event")
+    allow_event.add_argument("--runtime-root", required=True)
     allow_event.add_argument("--event-log", required=True)
     allow_event.add_argument("--probe-evidence", required=True)
     allow_event.add_argument("--completion-log", required=True)
@@ -884,67 +1160,111 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _free_ports_command(args: argparse.Namespace) -> int:
+    if args.count < 1 or args.count > 16:
+        raise ValueError("free port count must be between 1 and 16")
+    print(" ".join(str(port) for port in free_ports(args.count)))
+    return 0
+
+
+def _prepare_runtime_root_command(args: argparse.Namespace) -> int:
+    verified_runtime_root(args.runtime_root)
+    return 0
+
+
+def _serve_upstream_command(args: argparse.Namespace) -> int:
+    return serve_upstream(
+        args.port,
+        args.client_cancel_delay,
+        args.runtime_root,
+        args.phase4_barrier_dir,
+        args.phase4_barrier_timeout,
+    )
+
+
+def _probe_command(args: argparse.Namespace) -> int:
+    return probe(
+        args.runtime_root,
+        args.tls_certificate,
+        args.url,
+        args.header,
+        args.method,
+        args.data,
+        args.no_redirect,
+        args.evidence_path,
+    )
+
+
+def _client_cancel_command(args: argparse.Namespace) -> int:
+    result = client_cancel(
+        args.runtime_root, args.tls_certificate, args.host, args.port, args.path, args.header,
+    )
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+def _phase4_first_byte_command(args: argparse.Namespace) -> int:
+    observation = phase4_first_byte(
+        args.runtime_root,
+        args.tls_certificate,
+        args.host,
+        args.port,
+        args.path,
+        args.header,
+        args.barrier_dir,
+        args.timeout,
+    )
+    if args.output:
+        write_json_atomic(
+            verified_runtime_root(args.runtime_root),
+            args.output,
+            observation,
+            "phase-4 observation output",
+        )
+    print(json.dumps(observation, sort_keys=True))
+    return 0
+
+
+def _phase4_evidence_command(args: argparse.Namespace) -> int:
+    result = write_phase4_first_byte_evidence(
+        runtime_root=args.runtime_root,
+        event_log=args.event_log,
+        observation_path=args.observation,
+        transaction_id=args.transaction_id,
+        evidence_output=args.evidence_output,
+        run_id=args.run_id,
+    )
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+def _allow_event_command(args: argparse.Namespace) -> int:
+    result = write_allow_event(
+        runtime_root=args.runtime_root,
+        event_log=args.event_log,
+        probe_evidence_path=args.probe_evidence,
+        completion_log=args.completion_log,
+        transaction_id=args.transaction_id,
+    )
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
 def main() -> int:
     args = parse_args()
-    if args.command == "free-port":
-        print(free_port())
-        return 0
-    if args.command == "free-ports":
-        if args.count < 1 or args.count > 16:
-            raise ValueError("free port count must be between 1 and 16")
-        print(" ".join(str(port) for port in free_ports(args.count)))
-        return 0
-    if args.command == "serve-upstream":
-        return serve_upstream(
-            args.port,
-            args.client_cancel_delay,
-            args.phase4_barrier_dir,
-            args.phase4_barrier_timeout,
-        )
-    if args.command == "probe":
-        return probe(
-            args.url, args.header, args.method, args.data, args.no_redirect,
-            args.evidence_path,
-        )
-    if args.command == "client-cancel":
-        print(json.dumps(client_cancel(args.host, args.port, args.path, args.header), sort_keys=True))
-        return 0
-    if args.command == "phase4-first-byte":
-        observation = phase4_first_byte(
-            args.host,
-            args.port,
-            args.path,
-            args.header,
-            args.barrier_dir,
-            args.timeout,
-        )
-        if args.output:
-            output = Path(args.output)
-            if not output.is_absolute() or output.is_symlink():
-                raise ValueError("phase-4 observation output must be an absolute regular path")
-            write_json_atomic(output, observation)
-        print(json.dumps(observation, sort_keys=True))
-        return 0
-    if args.command == "write-phase4-first-byte-evidence":
-        result = write_phase4_first_byte_evidence(
-            event_log=args.event_log,
-            observation_path=args.observation,
-            transaction_id=args.transaction_id,
-            evidence_output=args.evidence_output,
-            run_id=args.run_id,
-        )
-        print(json.dumps(result, sort_keys=True))
-        return 0
-    if args.command == "write-allow-event":
-        result = write_allow_event(
-            event_log=args.event_log,
-            probe_evidence_path=args.probe_evidence,
-            completion_log=args.completion_log,
-            transaction_id=args.transaction_id,
-        )
-        print(json.dumps(result, sort_keys=True))
-        return 0
-    return 2
+    handlers = {
+        "free-port": lambda: print(free_port()),
+        "prepare-runtime-root": lambda: _prepare_runtime_root_command(args),
+        "free-ports": lambda: _free_ports_command(args),
+        "serve-upstream": lambda: _serve_upstream_command(args),
+        "probe": lambda: _probe_command(args),
+        "client-cancel": lambda: _client_cancel_command(args),
+        "phase4-first-byte": lambda: _phase4_first_byte_command(args),
+        "write-phase4-first-byte-evidence": lambda: _phase4_evidence_command(args),
+        "write-allow-event": lambda: _allow_event_command(args),
+    }
+    result = handlers[args.command]()
+    return int(result or 0)
 
 
 if __name__ == "__main__":

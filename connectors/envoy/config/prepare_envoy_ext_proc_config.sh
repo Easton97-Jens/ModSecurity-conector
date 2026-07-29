@@ -4,6 +4,7 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 CONNECTOR_DIR=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(CDPATH= cd "$CONNECTOR_DIR/../.." && pwd)
+. "$SCRIPT_DIR/lib/tls_yaml_render.sh"
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 TEMPLATE=${TEMPLATE:-$SCRIPT_DIR/envoy-ext-proc-streaming.yaml.in}
 VERSION_LOCK=${VERSION_LOCK:-$SCRIPT_DIR/envoy-ext-proc-versions.env}
@@ -12,6 +13,8 @@ LISTEN_PORT=${LISTEN_PORT:-18080}
 UPSTREAM_PORT=${UPSTREAM_PORT:-18081}
 EXT_PROC_PORT=${EXT_PROC_PORT:-18083}
 ADMIN_PORT=${ADMIN_PORT:-19001}
+TLS_CERTIFICATE=${TLS_CERTIFICATE:-}
+TLS_PRIVATE_KEY=${TLS_PRIVATE_KEY:-}
 
 absolute_existing_file() {
     input=$1
@@ -40,6 +43,28 @@ VERSION_LOCK=$(absolute_existing_file "$VERSION_LOCK") || {
     exit 2
 }
 OUTPUT_CONFIG=$(absolute_path "$OUTPUT_CONFIG")
+if [ -z "$TLS_CERTIFICATE" ] || [ -z "$TLS_PRIVATE_KEY" ]; then
+    echo "envoy_ext_proc_config: TLS certificate and private key paths are required" >&2
+    exit 2
+fi
+TLS_CERTIFICATE=$(absolute_path "$TLS_CERTIFICATE")
+TLS_PRIVATE_KEY=$(absolute_path "$TLS_PRIVATE_KEY")
+set +e
+TLS_CERTIFICATE_ESCAPED=$(render_yaml_path_for_sed_replacement "$TLS_CERTIFICATE")
+TLS_CERTIFICATE_RENDER_STATUS=$?
+set -e
+if [ "$TLS_CERTIFICATE_RENDER_STATUS" -ne 0 ]; then
+    echo "envoy_ext_proc_config: TLS certificate path contains an unsupported control character" >&2
+    exit 2
+fi
+set +e
+TLS_PRIVATE_KEY_ESCAPED=$(render_yaml_path_for_sed_replacement "$TLS_PRIVATE_KEY")
+TLS_PRIVATE_KEY_RENDER_STATUS=$?
+set -e
+if [ "$TLS_PRIVATE_KEY_RENDER_STATUS" -ne 0 ]; then
+    echo "envoy_ext_proc_config: TLS private key path contains an unsupported control character" >&2
+    exit 2
+fi
 
 case "$OUTPUT_CONFIG" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
@@ -73,6 +98,8 @@ sed \
     -e "s|@UPSTREAM_PORT@|$UPSTREAM_PORT|g" \
     -e "s|@EXT_PROC_PORT@|$EXT_PROC_PORT|g" \
     -e "s|@ADMIN_PORT@|$ADMIN_PORT|g" \
+    -e "s|@TLS_CERTIFICATE@|$TLS_CERTIFICATE_ESCAPED|g" \
+    -e "s|@TLS_PRIVATE_KEY@|$TLS_PRIVATE_KEY_ESCAPED|g" \
     "$TEMPLATE" > "$OUTPUT_CONFIG"
 chmod 600 "$OUTPUT_CONFIG"
 

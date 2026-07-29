@@ -40,8 +40,12 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 generated_config="$temporary_root/envoy-ext-proc.streaming.yaml"
+tls_certificate="$temporary_root/envoy-loopback.crt"
+tls_private_key="$temporary_root/envoy-loopback.key"
 OUTPUT_CONFIG="$generated_config" LISTEN_PORT=18080 UPSTREAM_PORT=18081 \
-    EXT_PROC_PORT=18083 ADMIN_PORT=19001 sh "$CONFIG_MATERIALIZER" >/dev/null
+    EXT_PROC_PORT=18083 ADMIN_PORT=19001 \
+    TLS_CERTIFICATE="$tls_certificate" TLS_PRIVATE_KEY="$tls_private_key" \
+    sh "$CONFIG_MATERIALIZER" >/dev/null
 [ -f "$generated_config" ] || {
     echo "envoy_ext_proc_test: config materializer did not create output" >&2
     exit 1
@@ -59,6 +63,12 @@ done
 if ! grep -Fq 'request_trailer_mode: SEND' "$generated_config" || \
     ! grep -Fq 'response_trailer_mode: SEND' "$generated_config"; then
     echo "envoy_ext_proc_test: generated config does not send trailer EOS" >&2
+    exit 1
+fi
+if ! grep -Fq 'name: envoy.transport_sockets.tls' "$generated_config" || \
+    ! grep -Fq "filename: \"$tls_certificate\"" "$generated_config" || \
+    ! grep -Fq "filename: \"$tls_private_key\"" "$generated_config"; then
+    echo "envoy_ext_proc_test: generated config does not enable the private loopback TLS listener" >&2
     exit 1
 fi
 
