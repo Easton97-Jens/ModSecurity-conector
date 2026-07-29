@@ -8,8 +8,8 @@
 | --- | --- |
 | Change-ID | CR-20260729-sonar-common-blocked-smoke-default |
 | Datum (UTC) | 2026-07-29 |
-| Ursprüngliche Basis-Revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
-| Synchronisierte Validierungsbasis | `a81456110a6bb6f7cf2f8202f5223fb3f7b3a194`; vor jeder Delivery-Aktion sind der exakte aktuelle Master und PR-Head erneut zu lesen. |
+| Basis-Revision | 9f23ae2c5fe908cef38f203be03f93fda75a8dd7 |
+| Synchronisierte Validierungsbasis | a81456110a6bb6f7cf2f8202f5223fb3f7b3a194 |
 | Tracking | SonarQube Cloud `shelldre:S131` in `common/scripts/run_blocked_runtime_smoke.sh:119`. Kein gehosteter PR- oder Exact-Head-Status wird behauptet. |
 | Grenze | Parent-`common`-Blocked-Runtime-Smoke-Dispatcher, sein fokussierter Dispatch-Regressionstest und gekoppelte Change-Record-/Index-Dokumente. Framework, MRTS, Gitlinks, Workflows, SonarQube-Policy und `master` werden nicht verändert. |
 
@@ -76,4 +76,4 @@ Die vollständige Runtime-Matrix bleibt für unterstützte Connector-Routen sepa
 
 ## Finaler Diff- und Review-Status
 
-Der scoped Diff enthält eine Default-Dispatch-Änderung, einen fokussierten Regressionstest und gekoppelte Traceability. Dieser Record behauptet keinen Remote-Update oder Master-Merge. Vor jeder Delivery-Aktion sind exakter synchronisierter Kandidat, aktueller PR-Head, Reviews, Threads, Required Checks und SonarQube-Cloud-Ergebnis erneut zu lesen.
+Der scoped Diff enthält eine Default-Dispatch-Änderung, einen fokussierten Regressionstest und gekoppelte Traceability. Dieser Record behauptet kein Remote-Update oder Master-Merge. Vor jeder Delivery-Aktion sind exakter synchronisierter Kandidat, aktueller PR-Head, Reviews, Threads, Required Checks und SonarQube-Cloud-Ergebnis erneut zu lesen.
