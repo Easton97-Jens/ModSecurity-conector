@@ -8,12 +8,12 @@
 | --- | --- |
 | Change ID | `CR-20260729-apache-ruleset-pool-cleanup` |
 | Date (UTC) | `2026-07-29` |
-| Assessment baseline | `9f23ae2c5fe908cef38f203be03f93fda75a8dd7` |
+| Base revision | `9f23ae2c5fe908cef38f203be03f93fda75a8dd7` |
 | Boundary | Parent Apache connector source, its focused checks and harnesses, source provenance, and this English/German Change Record/index pair. Framework and MRTS are read-only build context only; neither repository, Gitlink, dependency, CI policy, nor runtime matrix is changed. |
 | Finding linkage | `FND-PARENT-0064` (RulesSet lifecycle), `FND-PARENT-0008` (C17 sentinel), `FND-PARENT-0068` (new runner output confinement), `FND-PARENT-0069` (separate inherited aggregate C17 diagnostic), `FND-PARENT-0070` (APXS header materialization), and `FND-PARENT-0071` (isolated MIME artifact layout). |
 | Upstream reference | Selective adaptation of `owasp-modsecurity/ModSecurity-apache` PR #94 commit `5ea3fc9da876195706375cf35f321de2a1f35ce1`; no other upstream PR #91–#94 change is included. |
 
-## Decision and scope
+## Motivation and problem statement
 
 Apache creates one `RulesSet` for every per-directory configuration object.
 Before this change, a successful `msc_create_rules_set()` result was not
@@ -74,7 +74,7 @@ Apache directive dispatch.
   no workflow, runtime matrix, scanner, quality gate, or branch-protection
   control is weakened.
 
-## Implementation
+## Implementation decision and rationale
 
 `msc_config.c` defines `msc_rules_set_cleanup()` and registers it with
 `apr_pool_cleanup_register()` only after `msc_create_rules_set()` succeeds.
@@ -109,7 +109,7 @@ input.
 - `reports/audits/change-records/README.md`, `README.de.md`, and this paired
   Change Record
 
-## Validation evidence
+## Commands executed
 
 | Command or control | Result |
 | --- | --- |
@@ -148,7 +148,7 @@ staging is a fixed literal copy, and the second MIME artifact is deterministic
 under the pre-existing validated runtime root. Functional smoke execution is
 recorded separately in the validation evidence above.
 
-## Protocol and runtime limits
+## Runtime evidence
 
 The evidence establishes the affected Apache configuration-pool lifecycle,
 fresh DSO materialization, and one normal HTTP/1.1 control. HTTP/2, HTTP/3,
@@ -157,7 +157,32 @@ they do not substitute for the specific APR ownership proof. A diagnostic
 Valgrind run observed no invalid free or use-after-free in its exercised path,
 but an independent `name_for_debug` leak remains outside this delivery scope.
 
-## Delivery status
+## Known limitations
+
+The aggregate Apache C17 target still has a baseline-identical diagnostic in
+unchanged `connectors/apache/src/mod_security3.c`, tracked separately as
+`FND-PARENT-0069`. The focused APR harness proves the changed translation unit
+under both compilers but does not replace a complete production connector
+matrix or a leak-free certification.
+
+## Remaining risks
+
+The normal Apache build and isolated runtime defects are repaired in this
+candidate but remain under their own findings until the exact PR head and the
+resulting `master` have passed their required verification. The related,
+pre-existing `name_for_debug` leak is intentionally outside this delivery
+scope.
+
+## Checks not run and rationale
+
+HTTP/2, HTTP/3, the full connector matrix, and a Valgrind leak-free run were
+not run because they do not establish the APR configuration-pool ownership
+invariant and would require broader host/runtime evidence. The full
+documentation-link checker is blocked in this isolated worktree by the
+intentionally uninitialized Framework Gitlink; the focused bilingual suite
+passes, while hosted `scaffold-lint` validates the complete record schema.
+
+## Final diff and review status
 
 At record update time, task-owned draft Parent PR #183 has been published
 against `master`. The current user authorized protected `master` integration

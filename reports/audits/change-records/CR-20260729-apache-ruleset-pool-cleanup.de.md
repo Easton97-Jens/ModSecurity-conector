@@ -8,12 +8,12 @@
 | --- | --- |
 | Change-ID | `CR-20260729-apache-ruleset-pool-cleanup` |
 | Datum (UTC) | `2026-07-29` |
-| Bewertungs-Baseline | `9f23ae2c5fe908cef38f203be03f93fda75a8dd7` |
+| Basis-Revision | `9f23ae2c5fe908cef38f203be03f93fda75a8dd7` |
 | Grenze | Parent-Apache-Connector-Source, fokussierte Checks und Harnesses, Source-Provenance und dieses englisch/deutsche Change-Record-/Index-Paar. Framework und MRTS bleiben schreibgeschützter Build-Kontext; Repository, Gitlink, Abhängigkeit, CI-Policy und Runtime-Matrix werden nicht geändert. |
 | Finding-Verknüpfung | `FND-PARENT-0064` (RulesSet-Lifecycle), `FND-PARENT-0008` (C17-Sentinel), `FND-PARENT-0068` (Runner-Output-Confinement), `FND-PARENT-0069` (geerbter aggregierter C17-Diagnosebefund), `FND-PARENT-0070` (APXS-Header-Materialisierung) und `FND-PARENT-0071` (isoliertes MIME-Artefakt-Layout). |
 | Upstream-Referenz | Selektive Übernahme von `owasp-modsecurity/ModSecurity-apache` PR #94 Commit `5ea3fc9da876195706375cf35f321de2a1f35ce1`; keine andere Änderung aus Upstream PR #91–#94 ist enthalten. |
 
-## Entscheidung und Umfang
+## Motivation und Problemstellung
 
 Apache erstellt pro Per-Directory-Konfigurationsobjekt ein `RulesSet`. Vor dieser Änderung war ein erfolgreiches `msc_create_rules_set()`-Ergebnis nicht beim besitzenden APR-Konfigurationspool registriert. Die ausgewählte Upstream-Änderung #94A fügt den zugehörigen APR-Cleanup-Callback unmittelbar nach einer nicht-null Allokation ein. APR besitzt damit genau einen Cleanup für dieses Objekt; Request-, Merge- und globale Modul-Teardowns erhalten keinen konkurrierenden manuellen Cleanup-Pfad.
 
@@ -41,7 +41,7 @@ Der Directive-Table-Terminator wird zum verhaltensgleichen Sentinel `{ .name = N
 - Ein normaler isolierter Apache-HTTP/1.1-Control lädt genau dieses DSO, liefert für `phase2_args_block` das erwartete `403` und übersteht einen `SIGUSR1`-Graceful-Restart mit Readiness vor und nach dem Signal.
 - Der fokussierte Runner behält seine Private-Output- und Unsafe-Parent-Schutzmaßnahmen; Workflow, Runtime-Matrix, Scanner, Quality Gate oder Branch-Protection-Control werden nicht geschwächt.
 
-## Implementierung
+## Implementierungsentscheidung und Begründung
 
 `msc_config.c` definiert `msc_rules_set_cleanup()` und registriert ihn mit `apr_pool_cleanup_register()` nur nach erfolgreichem `msc_create_rules_set()`. Der APR-Harness verwendet reale APR-Pools und deterministische RulesSet-Stubs für normale Konstruktion, Null-Konstruktion, Pool-Clear, erfolgreichen Merge und jeden Merge-Fehlerpfad. Der Source-Contract schützt Callback-Platzierung und verbietet einen künftigen konkurrierenden manuellen Cleanup.
 
@@ -63,7 +63,7 @@ Die APXS-Wrapper-Korrektur ist eine Literal-Header-Staging-Änderung mit einer f
 - `Makefile`
 - `reports/audits/change-records/README.md`, `README.de.md` und dieses gepaarte Change Record
 
-## Validierungsevidenz
+## Ausgeführte Befehle
 
 | Befehl oder Kontrolle | Ergebnis |
 | --- | --- |
@@ -88,10 +88,36 @@ Dies ist eine native C-Konfigurations-Lifecycle- und Availability-Remediation. R
 
 Der frühere Candidate-Security-Review liegt unter dem registrierten Task-Root. Ein fokussierter Follow-up-Review der drei späteren Deltas fand keinen neuen reportbaren Kandidaten: Das benannte Sentinel ist datenunabhängig, Header-Staging ist eine feste Literal-Kopie und das zweite MIME-Artefakt ist deterministisch unter dem bestehenden validierten Runtime-Root. Die funktionale Smoke-Ausführung ist getrennt in der Validierungsevidenz erfasst.
 
-## Protokoll- und Runtime-Grenzen
+## Runtime-Evidence
 
 Die Evidence belegt den betroffenen Apache-Konfigurationspool-Lifecycle, frische DSO-Materialisierung und einen normalen HTTP/1.1-Control. HTTP/2, HTTP/3, die vollständige Connector-Matrix und eine Valgrind-leak-free-Zertifizierung wurden nicht ausgeführt; sie ersetzen den spezifischen APR-Ownership-Nachweis nicht. Ein diagnostischer Valgrind-Lauf zeigte im ausgeübten Pfad kein Invalid-Free und kein Use-after-free, aber ein unabhängiger `name_for_debug`-Leak bleibt außerhalb dieser Delivery-Scope.
 
-## Delivery-Status
+## Bekannte Einschränkungen
+
+Das aggregierte Apache-C17-Target hat weiterhin eine baseline-identische
+Diagnose in unverändertem `connectors/apache/src/mod_security3.c`, separat als
+`FND-PARENT-0069` erfasst. Der fokussierte APR-Harness beweist die geänderte
+Translation Unit unter beiden Compilern, ersetzt aber weder eine vollständige
+produktive Connector-Matrix noch eine leak-free-Zertifizierung.
+
+## Verbleibende Risiken
+
+Die normalen Apache-Build- und isolierten Runtime-Defekte sind in diesem
+Kandidaten repariert, bleiben aber unter ihren eigenen Findings, bis der exakte
+PR-Head und der resultierende `master` die nötige Verifikation bestanden haben.
+Der zusammenhängende bereits vorhandene `name_for_debug`-Leak bleibt bewusst
+außerhalb dieser Delivery-Scope.
+
+## Nicht ausgeführte Prüfungen mit Begründung
+
+HTTP/2, HTTP/3, die vollständige Connector-Matrix und ein Valgrind-leak-free-
+Lauf wurden nicht ausgeführt, weil sie die APR-Konfigurationspool-Ownership-
+Invariante nicht belegen und breitere Host-/Runtime-Evidence benötigen. Der
+vollständige Documentation-Link-Checker ist in diesem isolierten Worktree durch
+den absichtlich nicht initialisierten Framework-Gitlink blockiert; die
+fokussierte Bilingual-Suite besteht, während gehostetes `scaffold-lint` das
+vollständige Record-Schema prüft.
+
+## Finaler Diff- und Review-Status
 
 Bei Aktualisierung dieses Records ist der task-eigene Draft-Parent-PR #183 gegen `master` veröffentlicht. Der aktuelle Nutzer autorisierte die geschützte `master`-Integration nach Exact-Head-Validierung. Parent PRs #123/#124 sind nur Source-Referenzen und werden nicht pauschal gemergt. Hosted Checks, SonarQube Cloud, Review-/Thread-Status, Mergeability, geschützte Integration und Resulting-Master-Verifikation dürfen erst nach tatsächlicher Beobachtung eingetragen werden.
