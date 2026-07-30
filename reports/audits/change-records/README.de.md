@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Nolog- und Response-Header-Report-Lifecycle-Deduplizierung](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.de.md)
 - [Parent-CI-NGINX-HTTP-500-Literal-Deduplizierung](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.de.md)
 - [Parent-CI-Deduplizierung des Case-Metadata-Parsings](CR-20260729-sonar-ci-case-metadata-duplication.de.md)
 - [Parent-Lighttpd-Runtime-Output-Containment](CR-20260729-sonar-lighttpd-runtime-output-containment.de.md)

@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI Nolog and response-header report-lifecycle deduplication](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.md)
 - [Parent CI NGINX HTTP-500 literal deduplication](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.md)
 - [Parent CI case-metadata parsing deduplication](CR-20260729-sonar-ci-case-metadata-duplication.md)
 - [Parent Lighttpd runtime-output containment](CR-20260729-sonar-lighttpd-runtime-output-containment.md)
