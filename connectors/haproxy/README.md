@@ -107,8 +107,11 @@ starts HAProxy against this production agent and executes framework YAML cases.
 `build-modsecurity-binding` first verifies the local libmodsecurity C API
 signatures through a compiled probe, then builds a small self-test binary.
 `self-test-modsecurity-binding` proves in-process phase-1 header blocking and
-request-body processing. `make smoke-haproxy` is required for live HAProxy
-runtime evidence.
+request-body rule processing, plus request/response body-wrapper lifecycle
+guards for a nonzero-length null pointer, append after EOS, and duplicate
+finalization. Those wrapper controls are self-test-only: they do not prove
+live HAProxy enforcement or a positive `RESPONSE_BODY` intervention.
+`make smoke-haproxy` is required for live HAProxy runtime evidence.
 
 ## Tests
 

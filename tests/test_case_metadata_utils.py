@@ -1,0 +1,156 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CI_LIB = ROOT / "ci" / "lib"
+if str(CI_LIB) not in sys.path:
+    sys.path.insert(0, str(CI_LIB))
+
+import case_metadata_utils as UTILS
+import report_path_safety
+
+
+def load_generator(relative_path: str, module_name: str):
+    spec = importlib.util.spec_from_file_location(module_name, ROOT / relative_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+PHASE4 = load_generator(
+    "ci/evidence/reports/generate-phase4-hard-abort-capability.py",
+    "case_metadata_utils_phase4",
+)
+REMAINING = load_generator(
+    "ci/evidence/reports/generate-remaining-failure-analysis.py",
+    "case_metadata_utils_remaining",
+)
+
+
+class StubYaml:
+    def __init__(self, value: object | None = None, *, error: Exception | None = None) -> None:
+        self.value = value
+        self.error = error
+        self.calls: list[str] = []
+
+    def safe_load(self, raw: str) -> object:
+        self.calls.append(raw)
+        if self.error is not None:
+            raise self.error
+        return self.value
+
+
+class CaseMetadataUtilsTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._safe_roots = set(report_path_safety.SAFE_ROOTS)
+        report_path_safety.SAFE_ROOTS.clear()
+
+    def tearDown(self) -> None:
+        report_path_safety.SAFE_ROOTS.clear()
+        report_path_safety.SAFE_ROOTS.update(self._safe_roots)
+
+    def test_pure_helper_parses_mapping_and_splits_query(self) -> None:
+        raw = "request: fixture\n"
+        parser = StubYaml(
+            {
+                "request": {"method": "POST", "path": "/probe?mode=strict"},
+                "expect": {"rule_id": 920001},
+                "metadata": {"mrts_rule_id": 920002, "phase": 2},
+            }
+        )
+
+        parsed, request, expect, metadata, path, query = UTILS.parse_case_document(raw, parser)
+
+        self.assertEqual(parsed["request"]["path"], "/probe?mode=strict")
+        self.assertEqual(request, {"method": "POST", "path": "/probe?mode=strict"})
+        self.assertEqual(expect, {"rule_id": 920001})
+        self.assertEqual(metadata, {"mrts_rule_id": 920002, "phase": 2})
+        self.assertEqual((path, query), ("/probe", "mode=strict"))
+        self.assertEqual(parser.calls, [raw])
+
+    def test_pure_helper_keeps_empty_parser_contract_and_safe_fallbacks(self) -> None:
+        empty_parser = StubYaml({})
+        defaults = ({}, {}, {}, {}, "-", "-")
+
+        self.assertEqual(UTILS.parse_case_document("", empty_parser), defaults)
+        self.assertEqual(empty_parser.calls, [])
+        self.assertEqual(UTILS.parse_case_document("", empty_parser, parse_empty=True), defaults)
+        self.assertEqual(empty_parser.calls, [""])
+        self.assertEqual(UTILS.parse_case_document("fixture", None), defaults)
+        self.assertEqual(
+            UTILS.parse_case_document("fixture", StubYaml(error=ValueError("invalid YAML"))),
+            defaults,
+        )
+        self.assertEqual(UTILS.parse_case_document("fixture", StubYaml(["not", "a", "mapping"])), defaults)
+
+    def test_pure_helper_normalizes_query_only_request_path(self) -> None:
+        parser = StubYaml({"request": {"path": "?key=value"}})
+
+        _, request, _, _, path, query = UTILS.parse_case_document("fixture", parser)
+
+        self.assertEqual(request, {"path": "?key=value"})
+        self.assertEqual((path, query), ("/", "key=value"))
+
+    def test_generators_keep_shared_parser_and_safe_path_priority_contracts(self) -> None:
+        parsed_case = {
+            "rules": 'SecRule ARGS "@rx .+" "id:920001,phase:2,deny"',
+            "request": {"method": "GET", "path": "?strict=1"},
+            "expect": {"rule_id": 920002, "intervention": "deny"},
+            "metadata": {"mrts_rule_id": 920003, "phase": 3, "variables": ["ARGS", "ARGS_NAMES"]},
+            "runtime_verified": True,
+        }
+        parser = StubYaml(parsed_case)
+        self.assertIs(PHASE4.parse_case_document, UTILS.parse_case_document)
+        self.assertIs(REMAINING.parse_case_document, UTILS.parse_case_document)
+
+        with tempfile.TemporaryDirectory(prefix="case-metadata-utils-") as temporary:
+            temporary_root = Path(temporary)
+            safe_root = temporary_root / "safe"
+            safe_case = safe_root / "cases" / "safe.yaml"
+            safe_evidence = safe_root / "evidence.json"
+            outside_case = temporary_root / "outside.yaml"
+            escaped_case = safe_root / "cases" / "escaped.yaml"
+            for path in (safe_case, safe_evidence, outside_case):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            safe_case.write_text("fixture\n", encoding="utf-8")
+            outside_case.write_text("outside\n", encoding="utf-8")
+            safe_evidence.write_text(json.dumps({"path": str(safe_case), "runtime_verified": False}), encoding="utf-8")
+            escaped_case.symlink_to(outside_case)
+            report_path_safety.add_safe_roots(safe_root)
+
+            with mock.patch.object(PHASE4, "yaml", parser), mock.patch.object(REMAINING, "yaml", parser):
+                phase4 = PHASE4.case_metadata(
+                    {"case_id": "safe", "expected_status": 403, "phase": 9},
+                    {"path": str(safe_case), "rule_id": "evidence-rule", "phase": "evidence-phase"},
+                )
+                remaining = REMAINING.yaml_case_metadata(
+                    {"case_id": "safe", "evidence": str(safe_evidence), "phase": 9},
+                )
+                outside = PHASE4.case_metadata({"case_id": "outside"}, {"path": str(outside_case)})
+                escaped = PHASE4.case_metadata({"case_id": "escaped"}, {"path": str(escaped_case)})
+                rejected_evidence = REMAINING.yaml_case_metadata(
+                    {"case_id": "outside", "evidence": str(outside_case)},
+                )
+
+        self.assertEqual(phase4["rule_id"], "evidence-rule")
+        self.assertEqual(phase4["phase"], "evidence-phase")
+        self.assertEqual(phase4["variable"], "ARGS")
+        self.assertEqual((phase4["path"], phase4["query"]), ("/", "strict=1"))
+        self.assertEqual(remaining["rule_id"], "920001")
+        self.assertEqual(remaining["phase"], "3")
+        self.assertEqual(remaining["runtime_verified"], "true")
+        self.assertEqual(remaining["variable"], "ARGS")
+        self.assertEqual((remaining["path"], remaining["query"]), ("/", "strict=1"))
+        for metadata in (outside, escaped, rejected_evidence):
+            with self.subTest(case_id=metadata["case_id"]):
+                self.assertEqual(metadata["path"], "-")
