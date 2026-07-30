@@ -280,6 +280,9 @@ class PatchedHostContractTest(unittest.TestCase):
         )
         self.assertIn("LIGHTTPD_PATCHED_RESPONSE_BODY_MODE=streaming", runner)
         self.assertIn("lighttpd_http1_entity_fixture_upstream.py", runner)
+        self.assertIn('--runtime-output-root "$SMOKE_DIR"', runner)
+        self.assertIn("verify_runtime_output_paths", runner)
+        self.assertIn("safe_output_path(root, Path(sys.argv[3])", runner)
         self.assertIn("--merge-evidence", runner)
         self.assertIn("FULL_LIFECYCLE_EVIDENCE_OUTPUT", runner)
         self.assertIn("phase4_end_of_stream_evaluation_status", runner)
@@ -426,6 +429,7 @@ class PatchedHostContractTest(unittest.TestCase):
                     "--chunked-events", str(chunked),
                     "--entity-fixture-result", str(fixture),
                     "--phase4-summary-output", str(summary),
+                    "--runtime-output-root", str(root),
                 ],
                 cwd=REPO_ROOT,
                 check=False,
