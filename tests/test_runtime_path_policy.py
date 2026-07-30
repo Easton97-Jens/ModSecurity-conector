@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from types import ModuleType
 import unittest
 
 
@@ -22,6 +23,15 @@ from runtime_path_utils import (
     fixed_runtime_temp_parent,
     verified_runtime_paths,
 )
+
+
+def load_checker() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("runtime_path_policy_checker", CHECKER)
+    assert spec is not None and spec.loader is not None
+    checker = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = checker
+    spec.loader.exec_module(checker)
+    return checker
 
 
 class RuntimePathPolicyTest(unittest.TestCase):
@@ -97,22 +107,12 @@ class RuntimePathPolicyTest(unittest.TestCase):
 
     def test_python_path_policy_selftest_accepts_only_writable_run_paths(self) -> None:
         """The reusable Python policy distinguishes runtime writes from source reads."""
-        spec = importlib.util.spec_from_file_location("runtime_path_policy_checker", CHECKER)
-        assert spec is not None and spec.loader is not None
-        checker = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = checker
-        spec.loader.exec_module(checker)
-
+        checker = load_checker()
         checker.check_python_policy()
 
     def test_shell_policy_allows_framework_to_reject_source_roots_as_runtime_paths(self) -> None:
         """A source root is non-system/read-only, not a required write-safe path."""
-        spec = importlib.util.spec_from_file_location("runtime_path_policy_checker", CHECKER)
-        assert spec is not None and spec.loader is not None
-        checker = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = checker
-        spec.loader.exec_module(checker)
-
+        checker = load_checker()
         source_paths = (
             "/src",
             "/src/ModSecurity-conector-build",
@@ -158,6 +158,44 @@ class RuntimePathPolicyTest(unittest.TestCase):
                 f"assert_safe_runtime_path {checker.sh_quote(source_path)} test_path",
                 calls,
             )
+
+    def test_checker_fixed_deny_fixtures_preserve_values_and_grouping(self) -> None:
+        checker = load_checker()
+        named_paths = (
+            "/var/lib/foo",
+            "/var/log/foo",
+            "/etc/foo",
+            "/usr/local/foo",
+        )
+        self.assertEqual(
+            named_paths,
+            (
+                checker.VAR_LIB_SELFTEST_PATH,
+                checker.VAR_LOG_SELFTEST_PATH,
+                checker.ETC_SELFTEST_PATH,
+                checker.USR_LOCAL_SELFTEST_PATH,
+            ),
+        )
+        self.assertEqual(
+            checker.PYTHON_BLOCKED_RUNTIME_PATHS,
+            (
+                "/var",
+                named_paths[0],
+                named_paths[1],
+                "/var/cache/foo",
+                named_paths[2],
+                named_paths[3],
+                "/root/.local/state/foo",
+            ),
+        )
+        self.assertEqual(
+            checker.SHELL_SYSTEM_PATH_SELFTEST_PATHS,
+            checker.PYTHON_BLOCKED_RUNTIME_PATHS[:-1],
+        )
+        self.assertEqual(
+            checker.HAPROXY_BLOCKED_SOURCE_ROOTS,
+            (named_paths[0], named_paths[1], named_paths[3], named_paths[2]),
+        )
 
     def test_default_policy_selftest_ignores_caller_cache_overrides(self) -> None:
         """A custom verified root must not poison the checker’s default probe."""

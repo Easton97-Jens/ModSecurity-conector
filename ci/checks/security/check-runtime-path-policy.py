@@ -38,6 +38,26 @@ RUNTIME_PATH_OVERRIDES = (
     "MRTS_BUILD_ROOT",
     "MRTS_NATIVE_ROOT",
 )
+VAR_LIB_SELFTEST_PATH = "/var/lib/foo"
+VAR_LOG_SELFTEST_PATH = "/var/log/foo"
+ETC_SELFTEST_PATH = "/etc/foo"
+USR_LOCAL_SELFTEST_PATH = "/usr/local/foo"
+PYTHON_BLOCKED_RUNTIME_PATHS = (
+    "/var",
+    VAR_LIB_SELFTEST_PATH,
+    VAR_LOG_SELFTEST_PATH,
+    "/var/cache/foo",
+    ETC_SELFTEST_PATH,
+    USR_LOCAL_SELFTEST_PATH,
+    "/root/.local/state/foo",
+)
+SHELL_SYSTEM_PATH_SELFTEST_PATHS = PYTHON_BLOCKED_RUNTIME_PATHS[:-1]
+HAPROXY_BLOCKED_SOURCE_ROOTS = (
+    VAR_LIB_SELFTEST_PATH,
+    VAR_LOG_SELFTEST_PATH,
+    USR_LOCAL_SELFTEST_PATH,
+    ETC_SELFTEST_PATH,
+)
 
 
 def fail(message: str) -> None:
@@ -82,15 +102,7 @@ def check_python_policy() -> None:
         CONNECTOR_ROOT,
         CONNECTOR_ROOT / "build",
     )
-    blocked = (
-        Path("/var"),
-        Path("/var/lib/foo"),
-        Path("/var/log/foo"),
-        Path("/var/cache/foo"),
-        Path("/etc/foo"),
-        Path("/usr/local/foo"),
-        Path("/root/.local/state/foo"),
-    )
+    blocked = tuple(Path(path) for path in PYTHON_BLOCKED_RUNTIME_PATHS)
     for path in writable_allowed:
         if is_system_write_path(path, env):
             fail(f"python marked allowed runtime path as system write path: {path}")
@@ -130,14 +142,7 @@ def shell_status(script: str) -> int:
 
 def check_shell_policy() -> None:
     common = "set -eu; . \"$FRAMEWORK_ROOT/ci/lib/common.sh\"; "
-    expected_system = (
-        "/var",
-        "/var/lib/foo",
-        "/var/log/foo",
-        "/var/cache/foo",
-        "/etc/foo",
-        "/usr/local/foo",
-    )
+    expected_system = SHELL_SYSTEM_PATH_SELFTEST_PATHS
     expected_not_system = (
         str(VERIFIED_ROOT),
         str(VERIFIED_ROOT / "cache-v2"),
@@ -173,7 +178,7 @@ def check_shell_policy() -> None:
     if rc != 0:
         fail(f"HAProxy smoke policy rejected verified component-cache SOURCE_ROOT: {VERIFIED_ROOT / 'cache-v2' / 'shared' / 'sources'}")
 
-    for blocked_path in ("/var/lib/foo", "/var/log/foo", "/usr/local/foo", "/etc/foo"):
+    for blocked_path in HAPROXY_BLOCKED_SOURCE_ROOTS:
         rc = shell_status(haproxy_policy_selftest(blocked_path))
         if rc == 0:
             fail(f"HAProxy smoke policy accepted blocked SOURCE_ROOT: {blocked_path}")

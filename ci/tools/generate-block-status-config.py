@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+import secrets
 import sys
 from pathlib import Path
 
@@ -147,26 +149,131 @@ def generated_haproxy_cfg(enabled_statuses: list[int]) -> str:
     return "\n".join(lines)
 
 
+GENERATED_FILES = (
+    ("msconnector_block_statuses.generated.h", generated_header),
+    ("msconnector_block_statuses.generated.c", generated_c),
+)
+
+
+def resolve_output_dir(out_dir: Path) -> tuple[Path, Path]:
+    """Resolve a caller-selected output directory beneath the current directory."""
+    if out_dir.is_absolute():
+        raise ValueError("--out-dir must be a relative path beneath the current working directory")
+    if ".." in out_dir.parts:
+        raise ValueError("--out-dir must stay beneath the current working directory")
+
+    try:
+        output_root = Path.cwd().resolve(strict=True)
+        resolved_out_dir = (output_root / out_dir).resolve(strict=False)
+        resolved_out_dir.relative_to(output_root)
+    except (OSError, ValueError) as exc:
+        raise ValueError("--out-dir must stay beneath the current working directory") from exc
+    return output_root, resolved_out_dir
+
+
+def directory_open_flags() -> int:
+    """Return the platform flags required to anchor writes below an opened directory."""
+    required_flags = ("O_DIRECTORY", "O_NOFOLLOW")
+    missing_flags = [name for name in required_flags if not hasattr(os, name)]
+    if os.open not in os.supports_dir_fd or os.mkdir not in os.supports_dir_fd or missing_flags:
+        raise ValueError("secure --out-dir handling is unavailable on this platform")
+    return os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+
+
+def open_output_dir(output_root: Path, resolved_out_dir: Path) -> int:
+    """Create and open the output directory without following path-component symlinks."""
+    flags = directory_open_flags()
+    current_fd = -1
+    try:
+        relative_out_dir = resolved_out_dir.relative_to(output_root)
+        current_fd = os.open(output_root, flags)
+        for component in relative_out_dir.parts:
+            try:
+                os.mkdir(component, mode=0o777, dir_fd=current_fd)
+            except FileExistsError:
+                pass
+            next_fd = os.open(component, flags, dir_fd=current_fd)
+            os.close(current_fd)
+            current_fd = next_fd
+        output_fd = current_fd
+        current_fd = -1
+        return output_fd
+    except (OSError, ValueError) as exc:
+        raise ValueError("--out-dir cannot be securely accessed beneath the current working directory") from exc
+    finally:
+        if current_fd != -1:
+            os.close(current_fd)
+
+
+def write_generated_file(output_fd: int, filename: str, content: str) -> None:
+    """Atomically replace one generated file without following a final-component symlink."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    temporary_name = ""
+    temporary_fd = -1
+    try:
+        for _ in range(16):
+            temporary_name = f".{filename}.{secrets.token_hex(16)}.tmp"
+            try:
+                temporary_fd = os.open(temporary_name, flags, 0o666, dir_fd=output_fd)
+                break
+            except FileExistsError:
+                continue
+        else:
+            raise ValueError(f"could not create a unique temporary output for {filename}")
+
+        encoded_content = content.encode("utf-8")
+        while encoded_content:
+            written = os.write(temporary_fd, encoded_content)
+            if written == 0:
+                raise OSError("writing generated output returned zero bytes")
+            encoded_content = encoded_content[written:]
+        os.close(temporary_fd)
+        temporary_fd = -1
+        os.replace(temporary_name, filename, src_dir_fd=output_fd, dst_dir_fd=output_fd)
+    except (NotImplementedError, OSError) as exc:
+        raise ValueError(f"failed to write generated output safely: {filename}") from exc
+    finally:
+        if temporary_fd != -1:
+            os.close(temporary_fd)
+        if temporary_name:
+            try:
+                os.unlink(temporary_name, dir_fd=output_fd)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
+
+
 def generate(connector: str, statuses: list[int], out_dir: Path) -> None:
     if connector not in SUPPORTED_CONNECTORS:
         supported = ", ".join(SUPPORTED_CONNECTORS)
         raise ValueError(f"unsupported connector: {connector!r}; expected one of: {supported}")
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "msconnector_block_statuses.generated.h").write_text(generated_header(statuses), encoding="utf-8")
-    (out_dir / "msconnector_block_statuses.generated.c").write_text(generated_c(statuses), encoding="utf-8")
-    if connector == "haproxy":
-        (out_dir / "haproxy-block-status-rules.generated.cfg").write_text(
-            generated_haproxy_cfg(statuses),
-            encoding="utf-8",
-        )
+    output_root, resolved_out_dir = resolve_output_dir(out_dir)
+    output_fd = open_output_dir(output_root, resolved_out_dir)
+    try:
+        for filename, render in GENERATED_FILES:
+            write_generated_file(output_fd, filename, render(statuses))
+        if connector == "haproxy":
+            write_generated_file(
+                output_fd,
+                "haproxy-block-status-rules.generated.cfg",
+                generated_haproxy_cfg(statuses),
+            )
+    finally:
+        os.close(output_fd)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--connector", required=True, help="connector name")
     parser.add_argument("--statuses", required=True, help="comma-separated HTTP statuses")
-    parser.add_argument("--out-dir", required=True, type=Path, help="output directory")
+    parser.add_argument(
+        "--out-dir",
+        required=True,
+        type=Path,
+        help="relative output directory beneath the current working directory",
+    )
     return parser.parse_args(argv)
 
 
