@@ -20,6 +20,8 @@ Review- oder Delivery-Ergebnisse behaupten.
   kontrollierte Blocked-Dependency-Pfade; fokussierte Dispatch-/Default-
   Struktur-Controls und POSIX-Shell-Syntax bestanden lokal.
 
+- [Parent-CI-Capability-State-Map-Deduplizierung](CR-20260729-sonar-ci-capability-state-map-deduplication.de.md)
+
 - [Parent-HAProxy-SPOP-Body-Parser-Deduplizierung](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.de.md)
 
 - [Parent-Common-Event-Provenance-Serialisierungszerlegung für SonarQube Cloud c:S3776](CR-20260729-sonar-common-event-provenance-complexity.de.md)
