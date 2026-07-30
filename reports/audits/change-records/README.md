@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI runtime-cache four-column Markdown separator for SonarQube Cloud S1192](CR-20260730-sonar-ci-runtime-cache-separator.md)
+  — one private separator preserves the component-cache and cache-index table
+  output; the direct presentation regression passed locally, while hosted
+  exact-head evidence remains pending.
+
 - [Parent CI bounded bilingual design-route matcher for SonarQube Cloud S8786](CR-20260729-sonar-ci-bilingual-route-regex.md)
   — preserves padded and unpadded route keys while rejecting malformed
   no-closing-delimiter route rows with long whitespace without

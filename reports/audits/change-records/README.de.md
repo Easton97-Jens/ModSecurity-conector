@@ -7,6 +7,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Runtime-Cache-Vier-Spalten-Markdown-Separator für SonarQube Cloud S1192](CR-20260730-sonar-ci-runtime-cache-separator.de.md)
+  — ein privater Separator bewahrt die Component-Cache- und Cache-Index-
+  Tabellenausgabe; die direkte Presentation-Regression bestand lokal, während
+  Hosted-Exact-Head-Evidence noch aussteht.
+
 - [Begrenzter Parent-CI-Matcher für bilinguale Design-Routen für SonarQube Cloud S8786](CR-20260729-sonar-ci-bilingual-route-regex.de.md)
   — bewahrt gepaddete und ungepaddete Route-Keys und weist fehlerhafte
   Route-Zeilen mit langer Whitespace-Folge und fehlendem schließendem
