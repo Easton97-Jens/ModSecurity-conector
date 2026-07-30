@@ -361,13 +361,13 @@ static int parse_request_line(
     request->method = line;
     request->uri = first_space + 1;
     request->http_version = second_space + 1;
-    for (char *cursor = request->method; *cursor != '\0'; ++cursor) {
+    for (const char *cursor = request->method; *cursor != '\0'; ++cursor) {
         if (!http_token_character((unsigned char)*cursor)) {
             (void)snprintf(error, error_len, "%s", "invalid HTTP method");
             return 0;
         }
     }
-    for (char *cursor = request->uri; *cursor != '\0'; ++cursor) {
+    for (const char *cursor = request->uri; *cursor != '\0'; ++cursor) {
         unsigned char current = (unsigned char)*cursor;
         if (current <= 0x20U || current == 0x7fU) {
             (void)snprintf(error, error_len, "%s", "invalid HTTP request target");
@@ -428,12 +428,13 @@ static int valid_header_value(const char *value) {
 
 static int parse_header_lines(
     parsed_http_request *request,
-    char *first_line_end,
-    char *header_end,
+    const char *first_line_end,
+    const char *header_end,
     size_t max_header_count,
     char *error,
     size_t error_len) {
-    char *cursor = first_line_end + 2;
+    char *cursor = request->header_buffer +
+        (first_line_end - request->header_buffer) + 2;
     request->headers = calloc(max_header_count, sizeof(*request->headers));
     if (request->headers == NULL) {
         (void)snprintf(error, error_len, "%s", "header allocation failed");
@@ -442,7 +443,7 @@ static int parse_header_lines(
     while (cursor < header_end) {
         char *line_end = strstr(cursor, "\r\n");
         char *colon;
-        char *value;
+        const char *value;
         char *value_end;
         if (line_end == NULL || line_end > header_end) {
             (void)snprintf(error, error_len, "%s", "invalid HTTP header line");
@@ -560,7 +561,7 @@ static int read_request_body(
 
 static int read_http_request(
     const authorization_connection *connection,
-    msconnector_runtime *runtime,
+    const msconnector_runtime *runtime,
     parsed_http_request *request,
     char *error,
     size_t error_len) {
@@ -824,15 +825,14 @@ static int handle_authorization_request(
         }
         success = 1;
     }
-    if (transaction != NULL) {
-        if (!msconnector_runtime_transaction_finish(transaction, &common_error)) {
-            status = msconnector_runtime_error_http_status(
-                runtime,
-                common_error.code == MSCONNECTOR_ERROR_NONE
-                    ? MSCONNECTOR_ERROR_INTERNAL : common_error.code);
-            decision_name = "runtime_error";
-            success = 0;
-        }
+    if (transaction != NULL &&
+        !msconnector_runtime_transaction_finish(transaction, &common_error)) {
+        status = msconnector_runtime_error_http_status(
+            runtime,
+            common_error.code == MSCONNECTOR_ERROR_NONE
+                ? MSCONNECTOR_ERROR_INTERNAL : common_error.code);
+        decision_name = "runtime_error";
+        success = 0;
     }
     if (!send_response(
             connection->socket_fd, status, transaction_id, decision_name, timeout_ms)) {

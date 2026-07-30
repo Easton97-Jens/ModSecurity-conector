@@ -140,7 +140,7 @@ COMMON_DESIGN_SELECTED_ROUTES = {
     "lighttpd": "patched-native-lighttpd",
 }
 COMMON_DESIGN_ROUTE_ROW_RE = re.compile(
-    r"^\|\s*([^|]+?)\s*\|\s*`([^`]+)`\s*\|",
+    r"^\|([^|]+)\|\s*`([^`]+)`\s*\|",
     re.MULTILINE,
 )
 COMMON_DESIGN_HISTORICAL_TOKENS = (

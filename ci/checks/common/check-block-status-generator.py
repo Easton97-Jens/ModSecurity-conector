@@ -31,7 +31,12 @@ RUNS = (
 )
 
 
-def run_generator(connector: str, statuses: str, out_dir: Path) -> subprocess.CompletedProcess[str]:
+def run_generator(
+    connector: str,
+    statuses: str,
+    out_dir: Path,
+    working_dir: Path,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
             sys.executable,
@@ -44,7 +49,7 @@ def run_generator(connector: str, statuses: str, out_dir: Path) -> subprocess.Co
             str(out_dir),
         ],
         check=False,
-        cwd=REPO_ROOT,
+        cwd=working_dir,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -72,7 +77,7 @@ def read(path: Path) -> str:
 def check_successful_runs(tmp: Path) -> None:
     for connector, statuses in RUNS:
         out_dir = tmp / connector
-        require_success(run_generator(connector, statuses, out_dir))
+        require_success(run_generator(connector, statuses, Path(connector), tmp))
         header = out_dir / HEADER
         source = out_dir / SOURCE
         haproxy_cfg = out_dir / HAPROXY_CFG
@@ -99,7 +104,7 @@ def check_successful_runs(tmp: Path) -> None:
 
 def check_full_status_list(tmp: Path) -> None:
     out_dir = tmp / "full-haproxy"
-    require_success(run_generator("haproxy", FULL_STATUS_LIST, out_dir))
+    require_success(run_generator("haproxy", FULL_STATUS_LIST, out_dir.relative_to(tmp), tmp))
     header_text = read(out_dir / HEADER)
     source_text = read(out_dir / SOURCE)
     haproxy_text = read(out_dir / HAPROXY_CFG)
@@ -124,19 +129,60 @@ def check_full_status_list(tmp: Path) -> None:
 
 
 def check_failures(tmp: Path) -> None:
-    require_failure(run_generator("nginx", "403,403", tmp / "duplicate"), "duplicate status")
-    require_failure(run_generator("nginx", "99", tmp / "invalid-low"), "outside the valid HTTP range")
-    require_failure(run_generator("nginx", "200", tmp / "unsupported"), "global block-status contract")
-    require_failure(run_generator("not-a-connector", "403", tmp / "unknown"), "unsupported connector")
-    require_failure(run_generator("nginx", "", tmp / "empty"), "must not be empty")
-    require_failure(run_generator("nginx", "abc", tmp / "non-integer"), "must be an integer")
+    require_failure(run_generator("nginx", "403,403", Path("duplicate"), tmp), "duplicate status")
+    require_failure(run_generator("nginx", "99", Path("invalid-low"), tmp), "outside the valid HTTP range")
+    require_failure(run_generator("nginx", "200", Path("unsupported"), tmp), "global block-status contract")
+    require_failure(run_generator("not-a-connector", "403", Path("unknown"), tmp), "unsupported connector")
+    require_failure(run_generator("nginx", "", Path("empty"), tmp), "must not be empty")
+    require_failure(run_generator("nginx", "abc", Path("non-integer"), tmp), "must be an integer")
+
+
+def check_output_containment(tmp: Path) -> None:
+    nested = Path("nested") / "nginx"
+    require_success(run_generator("nginx", DEFAULT_WEB_SERVER_STATUSES, nested, tmp))
+    require((tmp / nested / HEADER).is_file(), "nested in-root output was not generated")
+
+    traversal_target = tmp.parent / "block-status-generator-traversal-escape"
+    require_failure(
+        run_generator("nginx", DEFAULT_WEB_SERVER_STATUSES, Path("..") / traversal_target.name, tmp),
+        "must stay beneath the current working directory",
+    )
+    require(not traversal_target.exists(), "traversal path escaped the working directory")
+
+    absolute_target = tmp.parent / "block-status-generator-absolute-escape"
+    require_failure(
+        run_generator("nginx", DEFAULT_WEB_SERVER_STATUSES, absolute_target, tmp),
+        "must be a relative path beneath the current working directory",
+    )
+    require(not absolute_target.exists(), "absolute path escaped the working directory")
+
+    symlink_target = tmp.parent / "block-status-generator-symlink-escape"
+    symlink = tmp / "outside-link"
+    symlink.symlink_to(symlink_target, target_is_directory=True)
+    require_failure(
+        run_generator("nginx", DEFAULT_WEB_SERVER_STATUSES, Path(symlink.name) / "generated", tmp),
+        "must stay beneath the current working directory",
+    )
+    require(not (symlink_target / "generated").exists(), "symlink path escaped the working directory")
+
+    output_dir = tmp / "final-file-symlink"
+    output_dir.mkdir()
+    final_file_target = tmp.parent / "block-status-generator-final-file-escape"
+    final_file_link = output_dir / HEADER
+    final_file_link.symlink_to(final_file_target)
+    require_success(
+        run_generator("nginx", DEFAULT_WEB_SERVER_STATUSES, Path(output_dir.name), tmp)
+    )
+    require(not final_file_target.exists(), "final generated file escaped the working directory")
+    require(final_file_link.is_file(), "final generated header was not created")
+    require(not final_file_link.is_symlink(), "final generated header remained a symlink")
 
 
 def check_deterministic(tmp: Path) -> None:
     first = tmp / "deterministic-a"
     second = tmp / "deterministic-b"
-    require_success(run_generator("nginx", "501,403", first))
-    require_success(run_generator("nginx", DEFAULT_WEB_SERVER_STATUSES, second))
+    require_success(run_generator("nginx", "501,403", first.relative_to(tmp), tmp))
+    require_success(run_generator("nginx", DEFAULT_WEB_SERVER_STATUSES, second.relative_to(tmp), tmp))
     for filename in (HEADER, SOURCE):
         require(filecmp.cmp(first / filename, second / filename, shallow=False), f"non-deterministic {filename}")
 
@@ -147,6 +193,7 @@ def main() -> int:
         check_successful_runs(tmp)
         check_full_status_list(tmp)
         check_failures(tmp)
+        check_output_containment(tmp)
         check_deterministic(tmp)
     print("block_status_generator: pass")
     return 0

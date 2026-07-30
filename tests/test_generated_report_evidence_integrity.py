@@ -259,6 +259,67 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
         )
         return connector_root, build_root, run_id, stage_root, staged
 
+    def test_generated_markdown_home_paths_remain_portable(self) -> None:
+        local_home_root = "<local-home-root>"
+        expected_evidence_path = f"{local_home_root}/work"
+        expected_by_raw_path = {
+            "/root": local_home_root,
+            "/root/work": expected_evidence_path,
+            "/home/alice": local_home_root,
+            "/home/alice/work": expected_evidence_path,
+            "/Users/alice": local_home_root,
+            "/Users/alice/work": expected_evidence_path,
+            "/home": "/home",
+            "relative/path": "relative/path",
+        }
+
+        for raw_path, expected_path in expected_by_raw_path.items():
+            with self.subTest(raw_path=raw_path):
+                self.assertEqual(
+                    CHECKER.portable_markdown_text(f"Path: `{raw_path}`"),
+                    f"Path: `{expected_path}`",
+                )
+
+    def test_registry_generator_provenance_groups_remain_stable(self) -> None:
+        expected_keys_by_generator = {
+            "ci/evidence/reports/refresh-connector-reports.py": {
+                "report_refresh_manifest",
+                "report_freshness",
+                "merge_readiness_dashboard",
+            },
+            "ci/evidence/reports/generate-remaining-failure-analysis.py": {
+                "full_run_evidence",
+                "remaining_failure_analysis",
+                "next_fix_plan",
+            },
+            "framework:ci/reporting/generate-case-matrix.py": {
+                "case_matrix",
+                "connector_gap_summary",
+                "coverage_summary",
+                "phase_coverage",
+                "xfail_summary",
+                "apache_runtime_results",
+                "nginx_runtime_results",
+                "haproxy_runtime_results",
+                "runtime_matrix",
+            },
+            "framework:ci/reporting/generate-mrts-native-report.py": {
+                "mrts_native_full",
+                "mrts_native_apache",
+                "mrts_native_nginx",
+                "mrts_native_summary",
+            },
+        }
+
+        for generator, expected_keys in expected_keys_by_generator.items():
+            with self.subTest(generator=generator):
+                actual_keys = {
+                    report_key
+                    for report_key, report in CHECKER.GENERATED_REPORTS.items()
+                    if report.generator == generator
+                }
+                self.assertSetEqual(actual_keys, expected_keys)
+
     def test_stage_verified_full_matrix_evidence_copies_exact_allowlist(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -37,6 +37,8 @@ JOB_ID = "nginx:with-crs:with-mrts"
 PRIMARY_BLOCKER = "nginx_with_crs_with_mrts_http500_cluster"
 ERROR_REWRITE_CYCLE = 'rewrite or internal redirection cycle while internally redirecting to "/index.html"'
 ERROR_PERMISSION_DENIED = "htdocs/index.html permission denied"
+DOCROOT_INDEX_PATH = "htdocs/index.html"
+PERMISSION_DENIED_TEXT = "Permission denied"
 
 
 def utc_now() -> str:
@@ -134,11 +136,11 @@ def patterns_for_error_line(line: str) -> list[str]:
     patterns: list[str] = []
     if ERROR_REWRITE_CYCLE in line:
         patterns.append("rewrite_internal_redirect_cycle_to_index")
-    if "htdocs/index.html" in line and "Permission denied" in line:
+    if DOCROOT_INDEX_PATH in line and PERMISSION_DENIED_TEXT in line:
         patterns.append("docroot_index_permission_denied")
-    elif "/htdocs/" in line and "Permission denied" in line:
+    elif "/htdocs/" in line and PERMISSION_DENIED_TEXT in line:
         patterns.append("docroot_directory_permission_denied")
-    if "[crit]" in line and "Permission denied" in line:
+    if "[crit]" in line and PERMISSION_DENIED_TEXT in line:
         patterns.append("nginx_crit_permission_denied")
     if "ModSecurity: Warning." in line:
         if "/coreruleset/" in line or "OWASP_CRS" in line:
@@ -147,7 +149,7 @@ def patterns_for_error_line(line: str) -> list[str]:
             patterns.append("modsecurity_mrts_warning")
         else:
             patterns.append("modsecurity_case_warning")
-    if "failed" in line.lower() and "Permission denied" not in line:
+    if "failed" in line.lower() and PERMISSION_DENIED_TEXT not in line:
         patterns.append("generic_failed")
     return patterns
 
@@ -172,7 +174,7 @@ def representative_error_excerpt(row: dict[str, Any], prefix: str, max_lines: in
     for line in final_error_lines(str(row.get("nginx_error_log_path") or ""), prefix):
         if (
             ERROR_REWRITE_CYCLE in line
-            or ("htdocs/index.html" in line and "Permission denied" in line)
+            or (DOCROOT_INDEX_PATH in line and PERMISSION_DENIED_TEXT in line)
             or ("ModSecurity: Warning." in line and len(interesting) < 2)
         ):
             interesting.append(line[:600])
@@ -385,7 +387,7 @@ def permissions_probe(row: dict[str, Any]) -> dict[str, Any]:
     evidence_path = Path(str(row.get("evidence_path") or ""))
     case_name = str(row.get("name") or "")
     harness_root = harness_root_from_evidence(evidence_path)
-    index_path = harness_root / "runtime" / case_name / "htdocs/index.html"
+    index_path = harness_root / "runtime" / case_name / DOCROOT_INDEX_PATH
     paths: list[dict[str, Any]] = []
     current = Path("/")
     for part in index_path.parts[1:]:
@@ -468,7 +470,7 @@ def build_payload(connector_root: Path, build_root: Path, verified_run_id: str) 
             "confidence": "high",
             "evidence": [
                 f"{rewrite_count} HTTP-500 rows have {ERROR_REWRITE_CYCLE!r}.",
-                f"{permission_case_count} HTTP-500 rows have htdocs/index.html Permission denied in final-run error logs.",
+                f"{permission_case_count} HTTP-500 rows have {DOCROOT_INDEX_PATH} {PERMISSION_DENIED_TEXT} in final-run error logs.",
                 "Historical namei evidence shows /root is 0700 while NGINX worker user is nobody; generated files below it are otherwise readable.",
                 "No segfault/core/module-load error pattern was observed in the final-run cluster.",
             ],

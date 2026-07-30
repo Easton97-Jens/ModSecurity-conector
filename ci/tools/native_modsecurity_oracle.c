@@ -30,6 +30,21 @@ struct byte_buffer {
     size_t size;
 };
 
+struct request_inputs {
+    const char *headers_path;
+    const char *body_path;
+    const char *method;
+    const char *uri;
+};
+
+struct result_context {
+    const char *path;
+    const struct observed_intervention *observed;
+    int expected_status;
+    int actual_status;
+    const char *whoami;
+};
+
 static void server_log_cb(void *data, const void *message)
 {
     FILE *log_file = (FILE *)data;
@@ -158,14 +173,12 @@ static void json_string(FILE *out, const char *value)
     fputc('"', out);
 }
 
-static void write_result(const char *path, const char *status,
-    const char *reason, const struct observed_intervention *observed,
-    int expected_status, int actual_status, const char *matched_phase,
-    const char *whoami)
+static void write_result(const struct result_context *result,
+    const char *status, const char *reason)
 {
-    FILE *out = fopen(path, "w");
+    FILE *out = fopen(result->path, "w");
     if (out == NULL) {
-        fprintf(stderr, "native-oracle: failed to write result: %s\n", path);
+        fprintf(stderr, "native-oracle: failed to write result: %s\n", result->path);
         return;
     }
     fputs("{\n", out);
@@ -174,17 +187,17 @@ static void write_result(const char *path, const char *status,
     fputs(",\n  \"reason\": ", out);
     json_string(out, reason);
     fputs(",\n  \"libmodsecurity\": ", out);
-    json_string(out, whoami);
-    fprintf(out, ",\n  \"expected_status\": %d", expected_status);
-    fprintf(out, ",\n  \"actual_status\": %d", actual_status);
+    json_string(out, result->whoami);
+    fprintf(out, ",\n  \"expected_status\": %d", result->expected_status);
+    fprintf(out, ",\n  \"actual_status\": %d", result->actual_status);
     fputs(",\n  \"native_match\": ", out);
-    fputs(observed->found ? "true" : "false", out);
+    fputs(result->observed->found ? "true" : "false", out);
     fputs(",\n  \"matched_phase\": ", out);
-    json_string(out, matched_phase);
+    json_string(out, result->observed->phase);
     fputs(",\n  \"intervention_log\": ", out);
-    json_string(out, observed->log);
+    json_string(out, result->observed->log);
     fputs(",\n  \"intervention_url\": ", out);
-    json_string(out, observed->url);
+    json_string(out, result->observed->url);
     fputs("\n}\n", out);
     fclose(out);
 }
@@ -237,17 +250,77 @@ static int add_headers(Transaction *transaction, const char *headers_path)
     return 0;
 }
 
+static const char *process_request(Transaction *transaction,
+    const struct request_inputs *request,
+    struct observed_intervention *observed, struct byte_buffer *body)
+{
+    if (msc_process_connection(transaction, "127.0.0.1", 12345,
+            "127.0.0.1", 80) == 0) {
+        return "msc_process_connection failed";
+    }
+    check_intervention(transaction, "connection", observed);
+
+    if (msc_process_uri(transaction, request->uri, request->method, "1.1") == 0) {
+        return "msc_process_uri failed";
+    }
+    check_intervention(transaction, "uri", observed);
+
+    if (add_headers(transaction, request->headers_path) != 0) {
+        return "adding request headers failed";
+    }
+    if (msc_process_request_headers(transaction) == 0) {
+        return "msc_process_request_headers failed";
+    }
+    check_intervention(transaction, "request_headers", observed);
+
+    if (read_file_bytes(request->body_path, body) != 0) {
+        return "reading request body failed";
+    }
+    if (body->size > 0 &&
+        msc_append_request_body(transaction, body->data, body->size) == 0) {
+        return "msc_append_request_body failed";
+    }
+    free(body->data);
+    body->data = NULL;
+    body->size = 0;
+
+    if (msc_process_request_body(transaction) == 0) {
+        return "msc_process_request_body failed";
+    }
+    check_intervention(transaction, "request_body", observed);
+    msc_process_logging(transaction);
+    return NULL;
+}
+
+static void cleanup_oracle(struct byte_buffer *body, Transaction *transaction,
+    RulesSet *rules, ModSecurity *modsec, FILE *server_log)
+{
+    if (body->data != NULL) {
+        free(body->data);
+        body->data = NULL;
+        body->size = 0;
+    }
+    if (transaction != NULL) {
+        msc_transaction_cleanup(transaction);
+    }
+    if (rules != NULL) {
+        msc_rules_cleanup(rules);
+    }
+    if (modsec != NULL) {
+        msc_cleanup(modsec);
+    }
+    if (server_log != NULL) {
+        fclose(server_log);
+    }
+}
+
 int main(int argc, char **argv)
 {
     const char *rules_path = NULL;
-    const char *headers_path = NULL;
-    const char *body_path = NULL;
-    const char *method = NULL;
-    const char *uri = NULL;
-    const char *result_path = NULL;
     const char *server_log_path = NULL;
     const char *error = NULL;
     const char *whoami = NULL;
+    const char *request_error = NULL;
     int expected_status = 403;
     int actual_status = 200;
     int rc = 0;
@@ -257,6 +330,8 @@ int main(int argc, char **argv)
     Transaction *transaction = NULL;
     struct byte_buffer body;
     struct observed_intervention observed;
+    struct request_inputs request;
+    struct result_context result;
 
     memset(&body, 0, sizeof(body));
     memset(&observed, 0, sizeof(observed));
@@ -270,12 +345,16 @@ int main(int argc, char **argv)
         return 2;
     }
     rules_path = argv[1];
-    headers_path = argv[2];
-    body_path = argv[3];
-    method = argv[4];
-    uri = argv[5];
+    request.headers_path = argv[2];
+    request.body_path = argv[3];
+    request.method = argv[4];
+    request.uri = argv[5];
     expected_status = atoi(argv[6]);
-    result_path = argv[7];
+    result.path = argv[7];
+    result.observed = &observed;
+    result.expected_status = expected_status;
+    result.actual_status = actual_status;
+    result.whoami = whoami;
     server_log_path = argv[8];
 
     server_log = fopen(server_log_path, "w");
@@ -287,21 +366,19 @@ int main(int argc, char **argv)
 
     modsec = msc_init();
     if (modsec == NULL) {
-        write_result(result_path, "setup_error", "msc_init returned NULL",
-            &observed, expected_status, actual_status, observed.phase, "");
-        fclose(server_log);
+        write_result(&result, "setup_error", "msc_init returned NULL");
+        cleanup_oracle(&body, transaction, rules, modsec, server_log);
         return 2;
     }
     msc_set_connector_info(modsec, "ModSecurity-conector native semantics oracle");
     msc_set_log_cb(modsec, server_log_cb);
     whoami = msc_who_am_i(modsec);
+    result.whoami = whoami;
 
     rules = msc_create_rules_set();
     if (rules == NULL) {
-        write_result(result_path, "setup_error", "msc_create_rules_set failed",
-            &observed, expected_status, actual_status, observed.phase, whoami);
-        msc_cleanup(modsec);
-        fclose(server_log);
+        write_result(&result, "setup_error", "msc_create_rules_set failed");
+        cleanup_oracle(&body, transaction, rules, modsec, server_log);
         return 2;
     }
     rc = msc_rules_add_file(rules, rules_path, &error);
@@ -309,102 +386,35 @@ int main(int argc, char **argv)
         char reason[4096];
         snprintf(reason, sizeof(reason), "rules parse failed: %s",
             error ? error : "unknown");
-        write_result(result_path, "not_executable", reason, &observed,
-            expected_status, actual_status, observed.phase, whoami);
+        write_result(&result, "not_executable", reason);
         if (error != NULL) {
             fprintf(server_log, "%s\n", error);
             msc_rules_error_cleanup(error);
         }
-        msc_rules_cleanup(rules);
-        msc_cleanup(modsec);
-        fclose(server_log);
+        cleanup_oracle(&body, transaction, rules, modsec, server_log);
         return 2;
     }
 
     transaction = msc_new_transaction(modsec, rules, server_log);
     if (transaction == NULL) {
-        write_result(result_path, "setup_error", "msc_new_transaction failed",
-            &observed, expected_status, actual_status, observed.phase, whoami);
-        msc_rules_cleanup(rules);
-        msc_cleanup(modsec);
-        fclose(server_log);
+        write_result(&result, "setup_error", "msc_new_transaction failed");
+        cleanup_oracle(&body, transaction, rules, modsec, server_log);
         return 2;
     }
 
-    if (msc_process_connection(transaction, "127.0.0.1", 12345,
-            "127.0.0.1", 80) == 0) {
-        write_result(result_path, "setup_error",
-            "msc_process_connection failed", &observed, expected_status,
-            actual_status, observed.phase, whoami);
-        goto cleanup_error;
+    request_error = process_request(transaction, &request, &observed, &body);
+    if (request_error != NULL) {
+        write_result(&result, "setup_error", request_error);
+        cleanup_oracle(&body, transaction, rules, modsec, server_log);
+        return 2;
     }
-    check_intervention(transaction, "connection", &observed);
-
-    if (msc_process_uri(transaction, uri, method, "1.1") == 0) {
-        write_result(result_path, "setup_error", "msc_process_uri failed",
-            &observed, expected_status, actual_status, observed.phase, whoami);
-        goto cleanup_error;
-    }
-    check_intervention(transaction, "uri", &observed);
-
-    if (add_headers(transaction, headers_path) != 0) {
-        write_result(result_path, "setup_error", "adding request headers failed",
-            &observed, expected_status, actual_status, observed.phase, whoami);
-        goto cleanup_error;
-    }
-    if (msc_process_request_headers(transaction) == 0) {
-        write_result(result_path, "setup_error",
-            "msc_process_request_headers failed", &observed, expected_status,
-            actual_status, observed.phase, whoami);
-        goto cleanup_error;
-    }
-    check_intervention(transaction, "request_headers", &observed);
-
-    if (read_file_bytes(body_path, &body) != 0) {
-        write_result(result_path, "setup_error", "reading request body failed",
-            &observed, expected_status, actual_status, observed.phase, whoami);
-        goto cleanup_error;
-    }
-    if (body.size > 0 &&
-        msc_append_request_body(transaction, body.data, body.size) == 0) {
-        write_result(result_path, "setup_error",
-            "msc_append_request_body failed", &observed, expected_status,
-            actual_status, observed.phase, whoami);
-        free(body.data);
-        goto cleanup_error;
-    }
-    free(body.data);
-    body.data = NULL;
-    body.size = 0;
-
-    if (msc_process_request_body(transaction) == 0) {
-        write_result(result_path, "setup_error",
-            "msc_process_request_body failed", &observed, expected_status,
-            actual_status, observed.phase, whoami);
-        goto cleanup_error;
-    }
-    check_intervention(transaction, "request_body", &observed);
-    msc_process_logging(transaction);
 
     actual_status = observed.found ? observed.status : 200;
-    write_result(result_path,
+    result.actual_status = actual_status;
+    write_result(&result,
         (actual_status == expected_status) ? "pass" : "fail",
-        observed.found ? "native intervention observed" : "no native intervention",
-        &observed, expected_status, actual_status, observed.phase, whoami);
+        observed.found ? "native intervention observed" : "no native intervention");
 
-    msc_transaction_cleanup(transaction);
-    msc_rules_cleanup(rules);
-    msc_cleanup(modsec);
-    fclose(server_log);
+    cleanup_oracle(&body, transaction, rules, modsec, server_log);
     return (actual_status == expected_status) ? 0 : 1;
-
-cleanup_error:
-    if (body.data != NULL) {
-        free(body.data);
-    }
-    msc_transaction_cleanup(transaction);
-    msc_rules_cleanup(rules);
-    msc_cleanup(modsec);
-    fclose(server_log);
-    return 2;
 }
