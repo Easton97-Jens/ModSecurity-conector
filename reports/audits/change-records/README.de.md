@@ -11,6 +11,11 @@ Review- oder Delivery-Ergebnisse behaupten.
   — lokale Containment-, Generator-Kompatibilitäts-, C17-, Native-Oracle- und
   fokussierte Security-Diff-Controls bestanden; frische Exact-Head-Hosted- und
   SonarQube-Cloud-Verifikation bleiben vor jeder Master-Integration notwendig.
+
+- [Parent-CI-Komplexitätsbehebung für Repository-Pfadreferenzen](CR-20260729-sonar-ci-repository-path-reference-complexity.de.md)
+  — ein privater dokumentweiser Diagnostic-Seam bewahrt Link-/Path-Validierung;
+  sechs direkte Tests bestanden, während der isolierte Whole-Tree-Checker nur
+  durch fehlende Parent-gebundene Framework-Link-Targets blockiert bleibt.
 - [Parent-CI-Runtime-Cache-Vier-Spalten-Markdown-Separator für SonarQube Cloud S1192](CR-20260730-sonar-ci-runtime-cache-separator.de.md)
   — ein privater Separator bewahrt die Component-Cache- und Cache-Index-
   Tabellenausgabe; die direkte Presentation-Regression bestand lokal, während

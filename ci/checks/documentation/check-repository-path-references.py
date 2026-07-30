@@ -74,23 +74,28 @@ def is_ignored(path: Path) -> bool:
     return relative.startswith(IGNORED_PREFIXES)
 
 
+def document_diagnostics(path: Path) -> list[str]:
+    errors: list[str] = []
+    text = path.read_text(encoding="utf-8")
+    relative = path.relative_to(ROOT).as_posix()
+    if FORBIDDEN_ABSOLUTE.search(text):
+        errors.append(f"{relative}: contains a local developer path")
+    if OLD_COMPILE_RE.search(text):
+        errors.append(f"{relative}: references a pre-reorganization COMPILE_* guide")
+    for raw_target in LINK_RE.findall(text):
+        if raw_target in {"file.md", "file.de.md"}:
+            continue
+        target = local_target(path, raw_target)
+        if target is not None and not target.exists():
+            errors.append(f"{relative}: missing link target {raw_target!r}")
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
     for path in current_document_files():
-        if is_ignored(path):
-            continue
-        text = path.read_text(encoding="utf-8")
-        relative = path.relative_to(ROOT).as_posix()
-        if FORBIDDEN_ABSOLUTE.search(text):
-            errors.append(f"{relative}: contains a local developer path")
-        if OLD_COMPILE_RE.search(text):
-            errors.append(f"{relative}: references a pre-reorganization COMPILE_* guide")
-        for raw_target in LINK_RE.findall(text):
-            if raw_target in {"file.md", "file.de.md"}:
-                continue
-            target = local_target(path, raw_target)
-            if target is not None and not target.exists():
-                errors.append(f"{relative}: missing link target {raw_target!r}")
+        if not is_ignored(path):
+            errors.extend(document_diagnostics(path))
     if errors:
         print("repository path references: FAIL", file=sys.stderr)
         print("\n".join(sorted(set(errors))), file=sys.stderr)
