@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
+  — preserves C17 bridge and ext_proc lifecycle behavior; local source,
+  native-build, and loopback-TLS controls passed, while exact-head hosted
+  verification remains required.
+
 - [Parent Common event JSON optional-field decomposition](CR-20260730-sonar-common-event-json-complexity.md)
 
 - [Parent Common HTTP authorization-service const correctness](CR-20260730-sonar-common-http-auth-maintenance.md)

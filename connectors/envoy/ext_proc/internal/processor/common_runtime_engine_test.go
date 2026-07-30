@@ -16,86 +16,11 @@ import (
 func TestCommonRuntimeEngineEvaluatesIncrementalLifecycle(t *testing.T) {
 	engine, _ := newCommonRuntimeEngineForTest(t)
 	contextValue := context.Background()
-
-	testCases := []struct {
-		name string
-		run  func(t *testing.T, transaction Transaction)
-	}{
-		{
-			name: "phase1_request_headers",
-			run: func(t *testing.T, transaction Transaction) {
-				decision, err := transaction.ProcessHeaders(contextValue, DirectionRequest, []Header{{Name: "x-ms-p1", Value: []byte("block")}}, true)
-				if err != nil || decision.Action != ActionDeny || decision.Status != 403 {
-					t.Fatalf("phase-1 decision=%#v err=%v", decision, err)
-				}
-				recorder, ok := transaction.(HostActionRecorder)
-				if !ok {
-					t.Fatal("Common transaction does not expose host-action recording")
-				}
-				if err := recorder.RecordHostAction(contextValue, HostAction{
-					Action: AppliedActionDeny, VisibleStatus: 403, TransportResult: "http_status",
-				}); err != nil {
-					t.Fatalf("RecordHostAction() error = %v", err)
-				}
-			},
-		},
-		{
-			name: "phase2_request_body_eos",
-			run: func(t *testing.T, transaction Transaction) {
-				if decision, err := transaction.ProcessHeaders(contextValue, DirectionRequest, []Header{{Name: "host", Value: []byte("example.test")}}, false); err != nil || decision.Action != ActionAllow {
-					t.Fatalf("request headers decision=%#v err=%v", decision, err)
-				}
-				decision, err := transaction.ProcessBody(contextValue, DirectionRequest, []byte("envoy-phase2-marker"), true)
-				if err != nil || decision.Action != ActionDeny || decision.Status != 403 {
-					t.Fatalf("phase-2 decision=%#v err=%v", decision, err)
-				}
-			},
-		},
-		{
-			name: "phase3_response_headers_before_commit",
-			run: func(t *testing.T, transaction Transaction) {
-				if decision, err := transaction.ProcessHeaders(contextValue, DirectionRequest, nil, true); err != nil || decision.Action != ActionAllow {
-					t.Fatalf("request headers decision=%#v err=%v", decision, err)
-				}
-				decision, err := transaction.ProcessHeaders(contextValue, DirectionResponse, []Header{
-					{Name: ":status", Value: []byte("200")},
-					{Name: "x-ms-p3", Value: []byte("block")},
-				}, false)
-				if err != nil || decision.Action != ActionDeny || decision.Status != 403 {
-					t.Fatalf("phase-3 decision=%#v err=%v", decision, err)
-				}
-			},
-		},
-		{
-			name: "phase4_response_body_eos",
-			run: func(t *testing.T, transaction Transaction) {
-				if decision, err := transaction.ProcessHeaders(contextValue, DirectionRequest, nil, true); err != nil || decision.Action != ActionAllow {
-					t.Fatalf("request headers decision=%#v err=%v", decision, err)
-				}
-				if decision, err := transaction.ProcessHeaders(contextValue, DirectionResponse, []Header{
-					{Name: ":status", Value: []byte("200")},
-					{Name: "content-type", Value: []byte("text/plain")},
-				}, false); err != nil || decision.Action != ActionAllow {
-					t.Fatalf("response headers decision=%#v err=%v", decision, err)
-				}
-				committer, ok := transaction.(ResponseCommitter)
-				if !ok {
-					t.Fatal("Common transaction does not expose response commit bookkeeping")
-				}
-				if err := committer.MarkResponseCommitted(contextValue); err != nil {
-					t.Fatalf("MarkResponseCommitted() error = %v", err)
-				}
-				decision, err := transaction.ProcessBody(contextValue, DirectionResponse, []byte("envoy-phase4-marker"), true)
-				if err != nil || decision.Action != ActionDeny || decision.Status != 403 {
-					t.Fatalf("phase-4 decision=%#v err=%v", decision, err)
-				}
-				if err := committer.(HostActionRecorder).RecordHostAction(contextValue, HostAction{
-					Action: AppliedActionLogOnly, VisibleStatus: 200, TransportResult: "log_only",
-				}); err != nil {
-					t.Fatalf("RecordHostAction() error = %v", err)
-				}
-			},
-		},
+	testCases := []commonRuntimeLifecycleTestCase{
+		{name: "phase1_request_headers", run: testCommonRuntimePhase1},
+		{name: "phase2_request_body_eos", run: testCommonRuntimePhase2},
+		{name: "phase3_response_headers_before_commit", run: testCommonRuntimePhase3},
+		{name: "phase4_response_body_eos", run: testCommonRuntimePhase4},
 	}
 
 	for _, testCase := range testCases {
@@ -105,8 +30,71 @@ func TestCommonRuntimeEngineEvaluatesIncrementalLifecycle(t *testing.T) {
 				t.Fatalf("Open() error = %v", err)
 			}
 			defer transaction.Close(contextValue, Summary{CloseReason: ClosePeerEOF})
-			testCase.run(t, transaction)
+			testCase.run(t, contextValue, transaction)
 		})
+	}
+}
+
+type commonRuntimeLifecycleTestCase struct {
+	name string
+	run  func(*testing.T, context.Context, Transaction)
+}
+
+func testCommonRuntimePhase1(t *testing.T, contextValue context.Context, transaction Transaction) {
+	decision, err := transaction.ProcessHeaders(contextValue, DirectionRequest, []Header{{Name: "x-ms-p1", Value: []byte("block")}}, true)
+	if err != nil || decision.Action != ActionDeny || decision.Status != 403 {
+		t.Fatalf("phase-1 decision=%#v err=%v", decision, err)
+	}
+	recorder, ok := transaction.(HostActionRecorder)
+	if !ok {
+		t.Fatal("Common transaction does not expose host-action recording")
+	}
+	if err := recorder.RecordHostAction(contextValue, HostAction{Action: AppliedActionDeny, VisibleStatus: 403, TransportResult: "http_status"}); err != nil {
+		t.Fatalf("RecordHostAction() error = %v", err)
+	}
+}
+
+func testCommonRuntimePhase2(t *testing.T, contextValue context.Context, transaction Transaction) {
+	decision, err := transaction.ProcessHeaders(contextValue, DirectionRequest, []Header{{Name: "host", Value: []byte("example.test")}}, false)
+	assertCommonDecision(t, "request headers", decision, err, ActionAllow, 0)
+	decision, err = transaction.ProcessBody(contextValue, DirectionRequest, []byte("envoy-phase2-marker"), true)
+	assertCommonDecision(t, "phase-2", decision, err, ActionDeny, 403)
+}
+
+func testCommonRuntimePhase3(t *testing.T, contextValue context.Context, transaction Transaction) {
+	decision, err := transaction.ProcessHeaders(contextValue, DirectionRequest, nil, true)
+	assertCommonDecision(t, "request headers", decision, err, ActionAllow, 0)
+	decision, err = transaction.ProcessHeaders(contextValue, DirectionResponse, []Header{{Name: ":status", Value: []byte("200")}, {Name: "x-ms-p3", Value: []byte("block")}}, false)
+	assertCommonDecision(t, "phase-3", decision, err, ActionDeny, 403)
+}
+
+func testCommonRuntimePhase4(t *testing.T, contextValue context.Context, transaction Transaction) {
+	decision, err := transaction.ProcessHeaders(contextValue, DirectionRequest, nil, true)
+	assertCommonDecision(t, "request headers", decision, err, ActionAllow, 0)
+	decision, err = transaction.ProcessHeaders(contextValue, DirectionResponse, []Header{{Name: ":status", Value: []byte("200")}, {Name: "content-type", Value: []byte("text/plain")}}, false)
+	assertCommonDecision(t, "response headers", decision, err, ActionAllow, 0)
+	committer, ok := transaction.(ResponseCommitMarker)
+	if !ok {
+		t.Fatal("Common transaction does not expose response commit bookkeeping")
+	}
+	if err := committer.MarkResponseCommitted(contextValue); err != nil {
+		t.Fatalf("MarkResponseCommitted() error = %v", err)
+	}
+	decision, err = transaction.ProcessBody(contextValue, DirectionResponse, []byte("envoy-phase4-marker"), true)
+	assertCommonDecision(t, "phase-4", decision, err, ActionDeny, 403)
+	recorder, ok := transaction.(HostActionRecorder)
+	if !ok {
+		t.Fatal("Common transaction does not expose host-action recording")
+	}
+	if err := recorder.RecordHostAction(contextValue, HostAction{Action: AppliedActionLogOnly, VisibleStatus: 200, TransportResult: "log_only"}); err != nil {
+		t.Fatalf("RecordHostAction() error = %v", err)
+	}
+}
+
+func assertCommonDecision(t *testing.T, phase string, decision Decision, err error, action Action, status int) {
+	t.Helper()
+	if err != nil || decision.Action != action || decision.Status != status {
+		t.Fatalf("%s decision=%#v err=%v", phase, decision, err)
 	}
 }
 

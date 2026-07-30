@@ -7,6 +7,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Envoy-Maintainability-Bereinigung](CR-20260730-sonar-envoy-maintainability-remediation.de.md)
+  — bewahrt C17-Bridge- und ext_proc-Lifecycle-Verhalten; lokale Source-,
+  Native-Build- und Loopback-TLS-Controls bestanden, während die
+  SHA-gebundene Hosted-Verifikation noch erforderlich bleibt.
+
 - [Parent-Common Event-JSON Optional-Field-Zerlegung](CR-20260730-sonar-common-event-json-complexity.de.md)
 
 - [Parent-Common HTTP-Autorisierungsservice-Const-Korrektheit](CR-20260730-sonar-common-http-auth-maintenance.de.md)
