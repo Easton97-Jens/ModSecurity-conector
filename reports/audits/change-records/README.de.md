@@ -9,6 +9,8 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-CI-Runtime-Path-Policy Fixed-Fixture Literal-Ownership für SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-path-policy-literals.de.md)
 
+- [Parent-Lighttpd-Runtime-Output-Containment](CR-20260729-sonar-lighttpd-runtime-output-containment.de.md)
+
 - [Parent-HAProxy-Binding-Body-Phase-Deduplizierung](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.de.md)
 
 - [Parent-CI-Deduplizierung der Verified-Runtime-Mismatch-Control-Evidence](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.de.md)

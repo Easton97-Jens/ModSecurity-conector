@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from patched_event_validation import load_events, nonnegative, phase_is_four
+from safe_runtime_output import verified_runtime_output_root, write_text_atomic
 
 
 CASE_RULES = {
@@ -120,7 +121,7 @@ def event_fields(event: dict[str, Any]) -> dict[str, Any]:
     return {field: event.get(field) for field in P4_SEMANTIC_FIELDS}
 
 
-def write_eos_projection(path: Path, event: dict[str, Any]) -> dict[str, Any]:
+def write_eos_projection(root: Path, path: Path, event: dict[str, Any]) -> dict[str, Any]:
     """Publish the one safe host action with its causal EOS facts.
 
     The raw Common event is emitted by ``finish_response_body``.  On the
@@ -136,8 +137,12 @@ def write_eos_projection(path: Path, event: dict[str, Any]) -> dict[str, Any]:
         projection.pop(field, None)
     projection["eos_seen"] = True
     projection["end_of_stream_evaluation"] = True
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(projection, sort_keys=True) + "\n", encoding="utf-8")
+    write_text_atomic(
+        root,
+        path,
+        json.dumps(projection, sort_keys=True) + "\n",
+        "phase-4 EOS projection output",
+    )
     return projection
 
 
@@ -234,6 +239,7 @@ def validate_entity_boundary(
 
 
 def write_summary(
+    root: Path,
     path: Path,
     safe_event: dict[str, Any],
     content_length_bytes: int,
@@ -262,8 +268,12 @@ def write_summary(
         "http1_chunked_entity_bytes": chunked_bytes,
         "body_payload_persisted": False,
     }
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_text_atomic(
+        root,
+        path,
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        "phase-4 summary output",
+    )
 
 
 def main() -> int:
@@ -284,7 +294,9 @@ def main() -> int:
     parser.add_argument("--chunked-events", required=True, type=Path)
     parser.add_argument("--entity-fixture-result", required=True, type=Path)
     parser.add_argument("--phase4-summary-output", required=True, type=Path)
+    parser.add_argument("--runtime-output-root", required=True, type=Path)
     args = parser.parse_args()
+    output_root = verified_runtime_output_root(args.runtime_output_root)
 
     events = load_events(args.events, non_object_error=NON_OBJECT_ERROR)
     selected = requested_cases(args.selected_case_ids)
@@ -304,7 +316,7 @@ def main() -> int:
         "synchronized first-byte barrier",
     )
     safe_event = one_safe_phase4_event(
-        [write_eos_projection(args.phase4_projected_events_output, raw_safe_event)],
+        [write_eos_projection(output_root, args.phase4_projected_events_output, raw_safe_event)],
         "synchronized first-byte barrier EOS projection",
     )
     if args.phase4_safe_status != 200:
@@ -367,11 +379,14 @@ def main() -> int:
                 )
             )
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    with args.output.open("w", encoding="utf-8") as stream:
-        for row in rows:
-            stream.write(json.dumps(row, sort_keys=True) + "\n")
+    write_text_atomic(
+        output_root,
+        args.output,
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
+        "lifecycle result output",
+    )
     write_summary(
+        output_root,
         args.phase4_summary_output,
         safe_event,
         content_length_bytes,
