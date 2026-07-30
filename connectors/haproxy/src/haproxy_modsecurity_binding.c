@@ -425,6 +425,45 @@ static int load_rules_dir(
     return 0;
 }
 
+static int load_crs_rules(
+        RulesSet *rules,
+        const char *crs_root,
+        haproxy_modsecurity_decision *decision,
+        int *loaded) {
+    char *crs_setup;
+    char *crs_setup_example;
+    char *crs_rules;
+    const char *setup_file = 0;
+    int rc = 0;
+
+    if (!dir_exists(crs_root)) {
+        return 0;
+    }
+    crs_setup = join_path(crs_root, "crs-setup.conf");
+    crs_setup_example = join_path(crs_root, "crs-setup.conf.example");
+    crs_rules = join_path(crs_root, "rules");
+    if (crs_setup != 0 && file_exists(crs_setup)) {
+        setup_file = crs_setup;
+    } else if (crs_setup_example != 0 && file_exists(crs_setup_example)) {
+        setup_file = crs_setup_example;
+    }
+    if (setup_file != 0 && load_rules_file(rules, setup_file, decision) != 0) {
+        rc = -1;
+    } else if (setup_file != 0) {
+        *loaded = 1;
+    }
+    if (rc == 0 && crs_rules != 0 && load_rules_dir(rules, crs_rules, decision) != 0) {
+        rc = -1;
+    }
+    if (rc == 0 && crs_rules != 0 && dir_exists(crs_rules)) {
+        *loaded = 1;
+    }
+    free(crs_setup);
+    free(crs_setup_example);
+    free(crs_rules);
+    return rc;
+}
+
 static int load_configured_rules(
         RulesSet *rules,
         const haproxy_modsecurity_engine_config *config,
@@ -438,39 +477,8 @@ static int load_configured_rules(
         }
         loaded = 1;
     }
-    if (config != 0 && dir_exists(config->crs_root)) {
-        char *crs_setup = join_path(config->crs_root, "crs-setup.conf");
-        char *crs_setup_example = join_path(config->crs_root, "crs-setup.conf.example");
-        char *crs_rules = join_path(config->crs_root, "rules");
-        if (crs_setup != 0 && file_exists(crs_setup)) {
-            if (load_rules_file(rules, crs_setup, decision) != 0) {
-                free(crs_setup);
-                free(crs_setup_example);
-                free(crs_rules);
-                return -1;
-            }
-            loaded = 1;
-        } else if (crs_setup_example != 0 && file_exists(crs_setup_example)) {
-            if (load_rules_file(rules, crs_setup_example, decision) != 0) {
-                free(crs_setup);
-                free(crs_setup_example);
-                free(crs_rules);
-                return -1;
-            }
-            loaded = 1;
-        }
-        if (crs_rules != 0 && load_rules_dir(rules, crs_rules, decision) != 0) {
-            free(crs_setup);
-            free(crs_setup_example);
-            free(crs_rules);
-            return -1;
-        }
-        if (crs_rules != 0 && dir_exists(crs_rules)) {
-            loaded = 1;
-        }
-        free(crs_setup);
-        free(crs_setup_example);
-        free(crs_rules);
+    if (config != 0 && load_crs_rules(rules, config->crs_root, decision, &loaded) != 0) {
+        return -1;
     }
     if (config != 0 && dir_exists(config->rules_dir)) {
         if (load_rules_dir(rules, config->rules_dir, decision) != 0) {

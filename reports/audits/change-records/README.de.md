@@ -9,6 +9,13 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-CI-Bereinigung eines ungenutzten Parameters der GitHub-URL-Validierung für SonarQube Cloud S1172](CR-20260730-sonar-ci-github-url-unused-label.de.md)
 
+- [Parent-HAProxy-Runtime-Maintainability-Behebung](CR-20260730-sonar-haproxy-runtime-maintenance.de.md)
+  — tabellengesteuertes SPOP-Parsing, explizite HTX-EOS-Helper,
+  deterministisches Overlay-Artefakt-Hashing und CRS-Load-Cleanup bestanden
+  fokussierte lokale Controls. Der Draft-PR behält historische Baseline-Arbeit;
+  Exact-Head-Hosted-/SonarQube-Cloud-Verifikation bleibt vor einer
+  Merge-Betrachtung erforderlich.
+
 - [Parent-Common Event-JSON Optional-Field-Zerlegung](CR-20260730-sonar-common-event-json-complexity.de.md)
 
 - [Parent-Common HTTP-Autorisierungsservice-Const-Korrektheit](CR-20260730-sonar-common-http-auth-maintenance.de.md)

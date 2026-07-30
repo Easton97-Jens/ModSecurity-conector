@@ -5,7 +5,6 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <signal.h>
-#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -178,20 +177,28 @@ static int install_signal_handlers(void) {
     return 0;
 }
 
-static void log_line(FILE *log, const char *fmt, ...) {
-    va_list args;
+static int begin_log_line(FILE *log) {
     time_t now = time(0);
 
     if (log == 0) {
-        return;
+        return 0;
     }
     fprintf(log, "%ld ", (long)now);
-    va_start(args, fmt);
-    vfprintf(log, fmt, args);
-    va_end(args);
+    return 1;
+}
+
+static void end_log_line(FILE *log) {
     fputc('\n', log);
     fflush(log);
 }
+
+#define log_line(log, ...) \
+    do { \
+        if (begin_log_line(log)) { \
+            (void)fprintf((log), __VA_ARGS__); \
+            end_log_line(log); \
+        } \
+    } while (0)
 
 static int bounded_cstring_length(const char *value, size_t max_len, size_t *out_len) {
     if (value == 0 || out_len == 0 || max_len == 0) {
@@ -305,41 +312,60 @@ static int dirname_to_buffer(const char *path, char *out, size_t out_len) {
     return 0;
 }
 
-static int write_text_file(const char *path, const char *fmt, ...) {
+static int write_text_contents(const char *path, const char *contents) {
     char dir[4096];
     FILE *file;
-    va_list args;
-    int write_rc;
     int close_rc;
 
-    if (dirname_to_buffer(path, dir, sizeof(dir)) != 0 || mkdir_p(dir) != 0) {
+    if (contents == 0 || dirname_to_buffer(path, dir, sizeof(dir)) != 0 ||
+            mkdir_p(dir) != 0) {
         return -1;
     }
     file = open_private_file(path, 0);
     if (file == 0) {
         return -1;
     }
-    va_start(args, fmt);
-    write_rc = vfprintf(file, fmt, args);
-    va_end(args);
+    if (fputs(contents, file) == EOF) {
+        fclose(file);
+        return -1;
+    }
     close_rc = fclose(file);
-    if (write_rc < 0 || close_rc != 0) {
+    if (close_rc != 0) {
         return -1;
     }
     return 0;
 }
 
+static int write_unsigned_text_file(const char *path, unsigned int value) {
+    char contents[32];
+
+    if (snprintf(contents, sizeof(contents), "%u\n", value) < 0) {
+        return -1;
+    }
+    return write_text_contents(path, contents);
+}
+
+static int write_process_id_file(const char *path, pid_t process_id) {
+    char contents[32];
+
+    if (snprintf(contents, sizeof(contents), "%ld\n", (long)process_id) < 0) {
+        return -1;
+    }
+    return write_text_contents(path, contents);
+}
+
 static int read_full(int fd, void *buf, size_t len) {
     unsigned char *p = (unsigned char *)buf;
     while (len > 0) {
-        ssize_t rc = read(fd, p, len);
+        ssize_t rc;
+
+        do {
+            rc = read(fd, p, len);
+        } while (rc < 0 && errno == EINTR);
         if (rc == 0) {
             return -1;
         }
         if (rc < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
             return -1;
         }
         p += rc;
@@ -351,11 +377,12 @@ static int read_full(int fd, void *buf, size_t len) {
 static int write_full(int fd, const void *buf, size_t len) {
     const unsigned char *p = (const unsigned char *)buf;
     while (len > 0) {
-        ssize_t rc = write(fd, p, len);
+        ssize_t rc;
+
+        do {
+            rc = write(fd, p, len);
+        } while (rc < 0 && errno == EINTR);
         if (rc < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
             return -1;
         }
         p += rc;
@@ -531,6 +558,14 @@ static int key_equals_literal(const unsigned char *key, size_t key_len, const un
 
 #define KEY_EQUALS_LITERAL(key, key_len, expected) \
     key_equals_literal((key), (key_len), (const unsigned char *)(expected), sizeof(expected) - 1U)
+
+static int key_equals_cstring(
+        const unsigned char *key,
+        size_t key_len,
+        const char *expected) {
+    return key_equals_literal(key, key_len, (const unsigned char *)expected,
+        safe_cstring_length(expected, RUNTIME_TEXT_LIMIT));
+}
 
 static int contains_bytes(const unsigned char *value, size_t value_len, const char *needle) {
     size_t needle_len;
@@ -1103,6 +1138,174 @@ static int parse_notify_body_key_argument(
     return 1;
 }
 
+typedef struct notify_string_argument {
+    const char *key;
+    char *value;
+    size_t value_len;
+    int *present;
+} notify_string_argument;
+
+typedef struct notify_uint_argument {
+    const char *key;
+    unsigned int *value;
+    int *present;
+} notify_uint_argument;
+
+typedef struct notify_response_header_argument {
+    const char *key;
+    const char *header_name;
+} notify_response_header_argument;
+
+static int parse_notify_string_argument(
+        notify_request *request,
+        const unsigned char *arg_name,
+        size_t arg_name_len,
+        const unsigned char *data,
+        size_t len,
+        size_t *pos) {
+    notify_string_argument arguments[] = {
+        {"request_id", request->request_id, sizeof(request->request_id), &request->has_request_id},
+        {"client_ip", request->client_ip, sizeof(request->client_ip), &request->has_client_ip},
+        {"server_ip", request->server_ip, sizeof(request->server_ip), &request->has_server_ip},
+        {"method", request->method, sizeof(request->method), &request->has_method},
+        {"path", request->path, sizeof(request->path), &request->has_path},
+        {"uri", request->uri, sizeof(request->uri), &request->has_uri},
+        {"host", request->host, sizeof(request->host), &request->has_host},
+        {"test_header", request->test_header, sizeof(request->test_header), &request->has_test_header},
+    };
+
+    for (size_t index = 0U; index < sizeof(arguments) / sizeof(arguments[0]); ++index) {
+        if (key_equals_cstring(arg_name, arg_name_len, arguments[index].key)) {
+            return read_typed_string_to_buffer(data, len, pos, arguments[index].value,
+                arguments[index].value_len, arguments[index].present);
+        }
+    }
+    return 1;
+}
+
+static int parse_notify_uint_argument(
+        notify_request *request,
+        const unsigned char *arg_name,
+        size_t arg_name_len,
+        const unsigned char *data,
+        size_t len,
+        size_t *pos) {
+    notify_uint_argument arguments[] = {
+        {"client_port", &request->client_port, &request->has_client_port},
+        {"server_port", &request->server_port, &request->has_server_port},
+        {"response_status", &request->response_status, &request->has_response_status},
+    };
+
+    for (size_t index = 0U; index < sizeof(arguments) / sizeof(arguments[0]); ++index) {
+        if (key_equals_cstring(arg_name, arg_name_len, arguments[index].key)) {
+            return read_typed_uint32_loose(data, len, pos, arguments[index].value,
+                arguments[index].present);
+        }
+    }
+    return 1;
+}
+
+static int parse_notify_response_header_argument(
+        notify_request *request,
+        const unsigned char *arg_name,
+        size_t arg_name_len,
+        const unsigned char *data,
+        size_t len,
+        size_t *pos) {
+    static const notify_response_header_argument arguments[] = {
+        {"response_header_last_modified", "Last-Modified"},
+        {"response_header_content_type", "Content-Type"},
+        {"response_header_location", "Location"},
+        {"response_header_set_cookie", "Set-Cookie"},
+        {"response_header_server", "Server"},
+    };
+
+    for (size_t index = 0U; index < sizeof(arguments) / sizeof(arguments[0]); ++index) {
+        char header_value[2048];
+        int present = 0;
+        size_t header_name_len = 0U;
+        size_t header_value_len = 0U;
+
+        if (!key_equals_cstring(arg_name, arg_name_len, arguments[index].key)) {
+            continue;
+        }
+        if (read_typed_string_to_buffer(data, len, pos, header_value,
+                sizeof(header_value), &present) != 0) {
+            return -1;
+        }
+        if (present && header_value[0] != '\0' &&
+                (bounded_cstring_length(arguments[index].header_name,
+                        RUNTIME_TEXT_LIMIT, &header_name_len) != 0 ||
+                 bounded_cstring_length(header_value, sizeof(header_value),
+                        &header_value_len) != 0 ||
+                 add_request_header(request,
+                        (const unsigned char *)arguments[index].header_name,
+                        header_name_len,
+                        (const unsigned char *)header_value,
+                        header_value_len) != 0)) {
+            return -1;
+        }
+        request->is_response = 1;
+        return 0;
+    }
+    return 1;
+}
+
+static int parse_notify_body_length_argument(
+        notify_request *request,
+        const unsigned char *arg_name,
+        size_t arg_name_len,
+        const unsigned char *data,
+        size_t len,
+        size_t *pos) {
+    unsigned int ignored_body_len = 0U;
+
+    if (!KEY_EQUALS_LITERAL(arg_name, arg_name_len, "body_len") &&
+            !KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_body_len")) {
+        return 1;
+    }
+    return read_typed_uint32_loose(data, len, pos, &ignored_body_len,
+        &request->has_body_len_arg);
+}
+
+static int parse_notify_argument(
+        notify_request *request,
+        const unsigned char *arg_name,
+        size_t arg_name_len,
+        const unsigned char *data,
+        size_t len,
+        size_t *pos) {
+    int result;
+
+    result = parse_notify_header_argument(request, arg_name, arg_name_len, data, len, pos);
+    if (result != 1) {
+        return result;
+    }
+    result = parse_notify_body_key_argument(request, arg_name, arg_name_len, data, len, pos);
+    if (result != 1) {
+        return result;
+    }
+    result = parse_notify_string_argument(request, arg_name, arg_name_len, data, len, pos);
+    if (result != 1) {
+        return result;
+    }
+    result = parse_notify_uint_argument(request, arg_name, arg_name_len, data, len, pos);
+    if (result != 1) {
+        return result;
+    }
+    result = parse_notify_response_header_argument(
+        request, arg_name, arg_name_len, data, len, pos);
+    if (result != 1) {
+        return result;
+    }
+    result = parse_notify_body_length_argument(
+        request, arg_name, arg_name_len, data, len, pos);
+    if (result != 1) {
+        return result;
+    }
+    return skip_typed_data(data, len, pos);
+}
+
 static int parse_notify_payload(const unsigned char *data, size_t len, notify_request *request) {
     size_t pos = 0;
 
@@ -1128,155 +1331,11 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
         for (unsigned int i = 0; i < nb_args; ++i) {
             const unsigned char *arg_name;
             size_t arg_name_len;
-            int header_argument_result;
-            int body_argument_result;
 
             if (read_string_ref(data, len, &pos, &arg_name, &arg_name_len) != 0) {
                 return -1;
             }
-            header_argument_result = parse_notify_header_argument(
-                request, arg_name, arg_name_len, data, len, &pos);
-            if (header_argument_result == 0) {
-                continue;
-            }
-            if (header_argument_result < 0) {
-                return -1;
-            }
-            body_argument_result = parse_notify_body_key_argument(
-                request, arg_name, arg_name_len, data, len, &pos);
-            if (body_argument_result == 0) {
-                continue;
-            }
-            if (body_argument_result < 0) {
-                return -1;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "request_id")) {
-                if (read_typed_string_to_buffer(data, len, &pos, request->request_id,
-                        sizeof(request->request_id), &request->has_request_id) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "client_ip")) {
-                if (read_typed_string_to_buffer(data, len, &pos, request->client_ip,
-                        sizeof(request->client_ip), &request->has_client_ip) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "client_port")) {
-                if (read_typed_uint32_loose(data, len, &pos, &request->client_port,
-                        &request->has_client_port) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "server_ip")) {
-                if (read_typed_string_to_buffer(data, len, &pos, request->server_ip,
-                        sizeof(request->server_ip), &request->has_server_ip) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "server_port")) {
-                if (read_typed_uint32_loose(data, len, &pos, &request->server_port,
-                        &request->has_server_port) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "method")) {
-                if (read_typed_string_to_buffer(data, len, &pos, request->method,
-                        sizeof(request->method), &request->has_method) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "path")) {
-                if (read_typed_string_to_buffer(data, len, &pos, request->path,
-                        sizeof(request->path), &request->has_path) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "uri")) {
-                if (read_typed_string_to_buffer(data, len, &pos, request->uri,
-                        sizeof(request->uri), &request->has_uri) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "host")) {
-                if (read_typed_string_to_buffer(data, len, &pos, request->host,
-                        sizeof(request->host), &request->has_host) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "test_header")) {
-                if (read_typed_string_to_buffer(data, len, &pos, request->test_header,
-                        sizeof(request->test_header), &request->has_test_header) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_status")) {
-                if (read_typed_uint32_loose(data, len, &pos, &request->response_status,
-                        &request->has_response_status) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_last_modified") ||
-                    KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_content_type") ||
-                    KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_location") ||
-                    KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_set_cookie") ||
-                    KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_server")) {
-                char header_value[2048];
-                const char *header_name = "";
-                int present = 0;
-                if (read_typed_string_to_buffer(data, len, &pos, header_value,
-                        sizeof(header_value), &present) != 0) {
-                    return -1;
-                }
-                if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_last_modified")) {
-                    header_name = "Last-Modified";
-                } else if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_content_type")) {
-                    header_name = "Content-Type";
-                } else if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_location")) {
-                    header_name = "Location";
-                } else if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_set_cookie")) {
-                    header_name = "Set-Cookie";
-                } else if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_server")) {
-                    header_name = "Server";
-                }
-                if (present && header_value[0] != '\0') {
-                    size_t header_name_len = 0;
-                    size_t header_value_len = 0;
-
-                    if (bounded_cstring_length(header_name, RUNTIME_TEXT_LIMIT, &header_name_len) != 0 ||
-                            bounded_cstring_length(header_value, sizeof(header_value), &header_value_len) != 0 ||
-                            add_request_header(request,
-                                (const unsigned char *)header_name,
-                                header_name_len,
-                                (const unsigned char *)header_value,
-                                header_value_len) != 0) {
-                        return -1;
-                    }
-                }
-                request->is_response = 1;
-                continue;
-            }
-            if (KEY_EQUALS_LITERAL(arg_name, arg_name_len, "body_len") ||
-                    KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_body_len")) {
-                unsigned int ignored_body_len = 0;
-                if (read_typed_uint32_loose(data, len, &pos, &ignored_body_len,
-                        &request->has_body_len_arg) != 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (skip_typed_data(data, len, &pos) != 0) {
+            if (parse_notify_argument(request, arg_name, arg_name_len, data, len, &pos) != 0) {
                 return -1;
             }
         }
@@ -2620,7 +2679,11 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
         fclose(log);
         return 77;
     }
-    write_text_file(port_path, "%u\n", port);
+    if (write_unsigned_text_file(port_path, port) != 0) {
+        close(listen_fd);
+        fclose(log);
+        return 77;
+    }
     child = fork();
     if (child < 0) {
         close(listen_fd);
@@ -2628,8 +2691,10 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
         return 77;
     }
     if (child == 0) {
-        write_text_file(pid_path, "%ld\n", (long)getpid());
-        write_text_file(ready_path, "ready\n");
+        if (write_process_id_file(pid_path, getpid()) != 0 ||
+                write_text_contents(ready_path, "ready\n") != 0) {
+            exit(77);
+        }
         exit(accept_loop(listen_fd, 0, log, 2, 0, 0));
     }
     close(listen_fd);
@@ -2677,9 +2742,9 @@ static int run_server(
         fclose(log);
         return 77;
     }
-    if ((pid_file != 0 && write_text_file(pid_file, "%ld\n", (long)getpid()) != 0) ||
-        (port_file != 0 && write_text_file(port_file, "%u\n", bound_port) != 0) ||
-        (ready_file != 0 && write_text_file(ready_file, "ready\n") != 0)) {
+    if ((pid_file != 0 && write_process_id_file(pid_file, getpid()) != 0) ||
+        (port_file != 0 && write_unsigned_text_file(port_file, bound_port) != 0) ||
+        (ready_file != 0 && write_text_contents(ready_file, "ready\n") != 0)) {
         close(listen_fd);
         fclose(log);
         return 77;
@@ -2773,9 +2838,12 @@ static int run_agent_server(const agent_config *config) {
         close_owned_stream(&log, log_owned);
         return 77;
     }
-    if ((config->pid_file[0] != '\0' && write_text_file(config->pid_file, "%ld\n", (long)getpid()) != 0) ||
-        (config->port_file[0] != '\0' && write_text_file(config->port_file, "%u\n", bound_port) != 0) ||
-        (config->ready_file[0] != '\0' && write_text_file(config->ready_file, "ready\n") != 0)) {
+    if ((config->pid_file[0] != '\0' &&
+            write_process_id_file(config->pid_file, getpid()) != 0) ||
+        (config->port_file[0] != '\0' &&
+            write_unsigned_text_file(config->port_file, bound_port) != 0) ||
+        (config->ready_file[0] != '\0' &&
+            write_text_contents(config->ready_file, "ready\n") != 0)) {
         close(listen_fd);
         transaction_cache_destroy(&state);
         haproxy_modsecurity_engine_destroy(state.engine);
