@@ -108,8 +108,12 @@ startet HAProxy gegen diesen Produktionsagenten und führt Framework-YAML-Fälle
 `build-modsecurity-binding` überprüft zunächst die lokale libmodsecurity C-API
 Signaturen durch eine kompilierte Sonde und erstellt dann eine kleine Selbsttest-Binärdatei.
 `self-test-modsecurity-binding` beweist die In-Process-Phase-1-Header-Blockierung und
-Verarbeitung des Anfragetextes. `make smoke-haproxy` ist für Live-HAProxy erforderlich
-Laufzeitbeweise.
+Request-Body-Rule-Verarbeitung sowie Request-/Response-Body-Wrapper-Lifecycle-
+Guards für einen Nichtnull-Längen-Nullpointer, Append nach EOS und doppelte
+Finalisierung. Diese Wrapper-Kontrollen sind nur Selbsttest-Evidenz: Sie
+beweisen weder Live-HAProxy-Enforcement noch eine positive
+`RESPONSE_BODY`-Intervention. `make smoke-haproxy` ist für Live-HAProxy-
+Laufzeitbeweise erforderlich.
 
 ## Tests
 
