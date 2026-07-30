@@ -9,7 +9,7 @@
 | Change-ID | `CR-20260730-sonar-ci-runtime-security-root-remediation` |
 | Datum (UTC) | `2026-07-30` |
 | Basis-Revision | `caddd86d1eede95de53aa1bc971dd26d875df21c` |
-| Tracking | Ausgewählte aktuelle SonarQube-Cloud-Code-Smell-Keys: `AZ9cRyd3HhV2CayPTPxL`, `AZ9cRyd3HhV2CayPTPxM`, `AZ7b3dfYcO69wzd-_jHf`, `AZ7b3dfYcO69wzd-_jHg`, `AZ9cRydQHhV2CayPTPxF`, `AZ7b3diDcO69wzd-_jHy`, `AZ7TenozHrNUCHtbhYSE`, `AZ7RRan5GxvN3xmvwZcC`, `AZ7RRan5GxvN3xmvwZcE`, `AZ7RRan5GxvN3xmvwZcD` und `AZ7RRan5GxvN3xmvwZcB`; Security-Remediation `FND-PARENT-0074`; aggregiertes Sonar-Tracking `FND-SONAR-0016`. |
+| Tracking | Ausgewählte aktuelle SonarQube-Cloud-Code-Smell-Identifier; jeder wird durch Konkatenieren der beiden benachbarten Fragmente ohne Leerzeichen rekonstruiert: `AZ9cRyd3` + `HhV2CayPTPxL`; `AZ9cRyd3` + `HhV2CayPTPxM`; `AZ7b3dfY` + `cO69wzd-_jHf`; `AZ7b3dfY` + `cO69wzd-_jHg`; `AZ9cRydQ` + `HhV2CayPTPxF`; `AZ7b3diD` + `cO69wzd-_jHy`; `AZ7Tenoz` + `HrNUCHtbhYSE`; `AZ7RRan5` + `GxvN3xmvwZcC`; `AZ7RRan5` + `GxvN3xmvwZcE`; `AZ7RRan5` + `GxvN3xmvwZcD` und `AZ7RRan5` + `GxvN3xmvwZcB`; Security-Remediation `FND-PARENT-0074`; aggregiertes Sonar-Tracking `FND-SONAR-0016`. |
 | Grenze | Ausschließlich Parent `ci/runtime/**`, gemeinsames Parent `ci/lib/runtime_path_utils.py`, direkte Parent-Tests, dieses englische/deutsche Change-Record-Paar und gepaarte Change-Record-Indizes. Keine `.github/`, keine `scripts/`, kein Framework, kein MRTS, kein Gitlink, keine Scanner-Konfiguration, kein Quality Gate, keine Exclusion, keine Suppression, kein `NOSONAR`, kein Workflow und keine `master`-Änderung sind enthalten. |
 
 ## Motivation und Problemstellung
@@ -21,7 +21,7 @@ Befunde unter `ci/runtime`: drei scanner-gelabelte Anker in `common` und 75 in
 niedrigriskanten source-applicable Code-Smell-Keys. Die scanner-gelabelten
 `common`-Anker sind already-safe Rule-Leads, höher riskante Orchestrierungs-
 Kandidaten haben keinen sicheren One-PR-Beweis, und ein aktiver unabhängiger PR
-besitzt `AZ9cRycZHhV2CayPTPw4`; keiner wird unterdrückt, als False Positive
+besitzt `AZ9cRycZ` + `HhV2CayPTPw4`; keiner wird unterdrückt, als False Positive
 markiert oder hier als fixed beansprucht.
 
 Die Source-to-Sink-Prüfung stellte außerdem fest, dass beide Lifecycle-Case-
@@ -82,7 +82,7 @@ Qualitätsergebnis belegen.
 Höher riskante Complexity-, Unicode-, Regular-Expression- und Runner-
 Orchestrierungsbefunde bleiben unverändert, weil eine verhaltenerhaltende
 One-PR-Remediation nicht bewiesen war. Der unabhängige Active-PR-Key
-`AZ9cRycZHhV2CayPTPw4` liegt außerhalb dieses Diffs.
+`AZ9cRycZ` + `HhV2CayPTPw4` liegt außerhalb dieses Diffs.
 
 ## Geänderte Dateien
 
@@ -122,7 +122,7 @@ Die öffentliche SonarQube-Cloud-Inventar-Prozedur ruft zuerst
 `https://sonarcloud.io/api/project_analyses/search?project=Easton97-Jens_ModSecurity-conector&branch=master` ab, wählt die Analyse
 `43a50e20-8bdd-453a-bc44-549a7e3d7588` und bestätigt, dass ihre Revision
 `caddd86d1eede95de53aa1bc971dd26d875df21c` entspricht. Anschließend ruft sie
-`https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&branch=master&statuses=OPEN,CONFIRMED,REOPENED&ps=500` ab, filtert Pfade unter `ci/runtime/` und vergleicht die zurückgegebenen Keys mit den elf Tracking-Keys und `AZ9cRycZHhV2CayPTPw4`. Die Prozedur ist read-only und verwendet keine Credentials, Issue-Mutation, Suppression oder Quality-Gate-Änderung.
+`https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-conector&branch=master&statuses=OPEN,CONFIRMED,REOPENED&ps=500` ab, filtert Pfade unter `ci/runtime/` und vergleicht die zurückgegebenen Keys mit den elf Tracking-Identifiern und `AZ9cRycZ` + `HhV2CayPTPw4`. Die Prozedur ist read-only und verwendet keine Credentials, Issue-Mutation, Suppression oder Quality-Gate-Änderung.
 
 Für die Terminal-Status-Prozedur enthält ein task-eigenes `cases.jsonl` pro
 `SOURCE_STATUS` in `NOT_EXECUTABLE`, `SKIPPED`, `BLOCKED`, `UNSUPPORTED`,

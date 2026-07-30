@@ -13,7 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "collect_no_crs_source", ROOT / "ci/runtime/lifecycle/collect-no-crs-source.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 collector = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(collector)
 
@@ -21,14 +22,16 @@ FRAMEWORK_SPEC = importlib.util.spec_from_file_location(
     "framework_no_crs_baseline",
     ROOT / "modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py",
 )
-assert FRAMEWORK_SPEC is not None and FRAMEWORK_SPEC.loader is not None
+assert FRAMEWORK_SPEC is not None
+assert FRAMEWORK_SPEC.loader is not None
 framework_baseline = importlib.util.module_from_spec(FRAMEWORK_SPEC)
 FRAMEWORK_SPEC.loader.exec_module(framework_baseline)
 
 TRAEFIK_SPEC = importlib.util.spec_from_file_location(
     "traefik_runtime_smoke", ROOT / "connectors/traefik/scripts/runtime_smoke.py"
 )
-assert TRAEFIK_SPEC is not None and TRAEFIK_SPEC.loader is not None
+assert TRAEFIK_SPEC is not None
+assert TRAEFIK_SPEC.loader is not None
 traefik_smoke = importlib.util.module_from_spec(TRAEFIK_SPEC)
 TRAEFIK_SPEC.loader.exec_module(traefik_smoke)
 

@@ -30,7 +30,8 @@ from runtime_path_utils import (
 
 def load_helper(name: str, path: Path) -> object:
     specification = importlib.util.spec_from_file_location(name, path)
-    assert specification is not None and specification.loader is not None
+    assert specification is not None
+    assert specification.loader is not None
     module = importlib.util.module_from_spec(specification)
     sys.modules[name] = module
     specification.loader.exec_module(module)
