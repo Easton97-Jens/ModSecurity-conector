@@ -11,11 +11,20 @@ must not claim unobserved CI, runtime, review, or delivery results.
   focused portable-path and generator-registry controls plus the full
   generated-report evidence suite passed locally. Exact-head hosted verification
   remains required before integration.
+- [Parent CI Nolog and response-header report-lifecycle deduplication](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.md)
+- [Parent CI NGINX HTTP-500 literal deduplication](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.md)
+- [Parent CI case-metadata parsing deduplication](CR-20260729-sonar-ci-case-metadata-duplication.md)
+- [Parent Lighttpd runtime-output containment](CR-20260729-sonar-lighttpd-runtime-output-containment.md)
+- [Parent HAProxy binding body-phase deduplication](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.md)
+
+- [Parent CI verified-runtime-mismatch control-evidence deduplication](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.md)
 
 - [Parent Common blocked-runtime-smoke default dispatch for SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.md)
   — the tracked configuration case and unknown connectors now take controlled
   blocked-dependency paths; focused dispatch/default-structure controls and
   POSIX shell syntax passed locally.
+
+- [Parent CI capability-state map deduplication](CR-20260729-sonar-ci-capability-state-map-deduplication.md)
 
 - [Parent HAProxy SPOP body-parser deduplication](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.md)
 
