@@ -12,6 +12,8 @@ Review- oder Delivery-Ergebnisse behaupten.
   fokussierte Security-Diff-Controls bestanden; frische Exact-Head-Hosted- und
   SonarQube-Cloud-Verifikation bleiben vor jeder Master-Integration notwendig.
 
+- [Parent-CI-Runtime-Path-Policy Fixed-Fixture Literal-Ownership für SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-path-policy-literals.de.md)
+
 - [Parent-CI-Komplexitätsbehebung für Repository-Pfadreferenzen](CR-20260729-sonar-ci-repository-path-reference-complexity.de.md)
   — ein privater dokumentweiser Diagnostic-Seam bewahrt Link-/Path-Validierung;
   sechs direkte Tests bestanden, während der isolierte Whole-Tree-Checker nur
@@ -41,6 +43,7 @@ Review- oder Delivery-Ergebnisse behaupten.
 - [Parent-CI-NGINX-HTTP-500-Literal-Deduplizierung](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.de.md)
 - [Parent-CI-Deduplizierung des Case-Metadata-Parsings](CR-20260729-sonar-ci-case-metadata-duplication.de.md)
 - [Parent-Lighttpd-Runtime-Output-Containment](CR-20260729-sonar-lighttpd-runtime-output-containment.de.md)
+
 - [Parent-HAProxy-Binding-Body-Phase-Deduplizierung](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.de.md)
 
 - [Parent-CI-Deduplizierung der Verified-Runtime-Mismatch-Control-Evidence](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.de.md)
