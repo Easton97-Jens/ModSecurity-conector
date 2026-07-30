@@ -45,6 +45,30 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "EXPAT_GIT_REF",
                     )
 
+    def test_github_repo_url_config_preserves_canonical_and_rejection_policy(self) -> None:
+        github = "https://github.com"
+        repo = "owner/repo"
+        canonical = f"{github}/{repo}"
+
+        self.assertEqual(
+            canonical,
+            components.require_https_github_repo_url(f" {canonical}.git "),
+        )
+        components.validate_https_url_config({"CRS_REPO_URL": canonical})
+
+        for invalid_url in (
+            f"http://github.com/{repo}",
+            f"https://example.invalid/{repo}",
+            f"{github}:443/{repo}",
+            f"{canonical}?ref=main",
+            f"{canonical}#release",
+            f"{github}/owner",
+            f"{canonical}/extra",
+        ):
+            with self.subTest(url=invalid_url):
+                with self.assertRaises(RuntimeError):
+                    components.validate_https_url_config({"CRS_REPO_URL": invalid_url})
+
     def test_runtime_component_report_describes_strict_expat_and_cache_fsck_accurately(self) -> None:
         report = components.markdown_report(
             {
