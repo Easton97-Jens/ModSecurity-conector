@@ -12,6 +12,31 @@ Review- oder Delivery-Ergebnisse behaupten.
   sechs direkte Tests bestanden, während der isolierte Whole-Tree-Checker nur
   durch fehlende Parent-gebundene Framework-Link-Targets blockiert bleibt.
 
+- [Parent-CI-Runtime-Cache-Vier-Spalten-Markdown-Separator für SonarQube Cloud S1192](CR-20260730-sonar-ci-runtime-cache-separator.de.md)
+  — ein privater Separator bewahrt die Component-Cache- und Cache-Index-
+  Tabellenausgabe; die direkte Presentation-Regression bestand lokal, während
+  Hosted-Exact-Head-Evidence noch aussteht.
+
+- [Begrenzter Parent-CI-Matcher für bilinguale Design-Routen für SonarQube Cloud S8786](CR-20260729-sonar-ci-bilingual-route-regex.de.md)
+  — bewahrt gepaddete und ungepaddete Route-Keys und weist fehlerhafte
+  Route-Zeilen mit langer Whitespace-Folge und fehlendem schließendem
+  Delimiter ohne Backtracking-lastiges Matching zurück.
+
+- [Parent-CI-Apache-Config-Reference-Condition-Remediation](CR-20260729-sonar-ci-apache-config-reference-condition.de.md)
+  — die Source-/Minimal-/Safe-Apache-Example-File-Partition verwendet nun
+  explizite Branches; fokussierter Partitionstest und nicht schreibende
+  Reference-Controls bestanden lokal. Exact-Head-Hosted-Verifikation bleibt
+  vor der Integration erforderlich.
+
+- [Parent-CI-Generated-Report-Literal-Deduplizierung](CR-20260729-sonar-ci-generated-report-literals.de.md)
+  — fünf statische Local-Path-/Provenance-Literale haben nun einzelne private
+  Owner; fokussierte Portable-Path- und Generator-Registry-Controls sowie die
+  vollständige Generated-Report-Evidence-Suite bestanden lokal. Exact-Head-
+  Hosted-Verifikation bleibt vor der Integration erforderlich.
+- [Parent-CI-Nolog- und Response-Header-Report-Lifecycle-Deduplizierung](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.de.md)
+- [Parent-CI-NGINX-HTTP-500-Literal-Deduplizierung](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.de.md)
+- [Parent-CI-Deduplizierung des Case-Metadata-Parsings](CR-20260729-sonar-ci-case-metadata-duplication.de.md)
+- [Parent-Lighttpd-Runtime-Output-Containment](CR-20260729-sonar-lighttpd-runtime-output-containment.de.md)
 - [Parent-HAProxy-Binding-Body-Phase-Deduplizierung](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.de.md)
 
 - [Parent-CI-Deduplizierung der Verified-Runtime-Mismatch-Control-Evidence](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.de.md)
@@ -20,6 +45,8 @@ Review- oder Delivery-Ergebnisse behaupten.
   — der getrackte Konfigurations-`case` und unbekannte Connectoren verwenden
   kontrollierte Blocked-Dependency-Pfade; fokussierte Dispatch-/Default-
   Struktur-Controls und POSIX-Shell-Syntax bestanden lokal.
+
+- [Parent-CI-Capability-State-Map-Deduplizierung](CR-20260729-sonar-ci-capability-state-map-deduplication.de.md)
 
 - [Parent-HAProxy-SPOP-Body-Parser-Deduplizierung](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.de.md)
 
