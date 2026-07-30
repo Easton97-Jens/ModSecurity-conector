@@ -75,6 +75,11 @@ bounded socket service startup, timeout behavior, and valid HTTP request
 handling.  It is focused service evidence, not a full connector or
 libmodsecurity matrix.
 
+## Known limitations
+
+The C smoke is intentionally scoped to the HTTP authorization service. It does
+not establish connector-host, CRS, MRTS, HTTP/2, or HTTP/3 runtime behaviour.
+
 ## Checks not run and rationale
 
 - No full connector/CRS/MRTS matrix was run: this patch changes only Common

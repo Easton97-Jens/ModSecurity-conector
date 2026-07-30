@@ -80,6 +80,11 @@ begrenzten Socket-Service-Start, Timeout-Verhalten und gültige HTTP-Request-
 Verarbeitung. Dies ist fokussierte Service-Evidence, keine vollständige
 Connector- oder libmodsecurity-Matrix.
 
+## Bekannte Einschränkungen
+
+Der C-Smoke ist absichtlich auf den HTTP-Autorisierungsservice begrenzt. Er
+belegt kein Connector-Host-, CRS-, MRTS-, HTTP/2- oder HTTP/3-Runtime-Verhalten.
+
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - Keine vollständige Connector-/CRS-/MRTS-Matrix lief: Der Patch ändert nur
