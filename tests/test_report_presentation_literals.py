@@ -32,6 +32,10 @@ FULL_RUNTIME_MATRIX = load_report_module(
     "ci/evidence/reports/generate-full-runtime-matrix.py",
     "full_runtime_matrix_presentation_test",
 )
+RUNTIME_REPORTS = load_report_module(
+    "ci/evidence/reports/update-runtime-reports.py",
+    "runtime_reports_presentation_test",
+)
 
 
 class DefaultValues(dict[str, object]):
@@ -177,4 +181,95 @@ class ReportPresentationLiteralsTest(unittest.TestCase):
                 "2026-07-27T00:01:00Z",
             ),
             60,
+        )
+
+    def test_runtime_cache_four_column_tables_remain_byte_exact(self) -> None:
+        cache_root = "/cache/components"
+        build_root = "/build/runtime"
+        component_build_id = "component-build-1"
+        component_path = f"{cache_root}/modsecurity"
+        component_markdown = RUNTIME_REPORTS.runtime_component_cache_markdown(
+            {
+                "cache_root": cache_root,
+                "build_root": build_root,
+                "generated_at": "2026-07-30T00:00:00Z",
+                "modsecurity": {
+                    "status": "built",
+                    "build_id": component_build_id,
+                    "prefix": component_path,
+                },
+            }
+        )
+        index_markdown = RUNTIME_REPORTS.runtime_cache_index_markdown(
+            {
+                "cache_status": "cache_input_present",
+                "component_cache_root": cache_root,
+                "build_root": build_root,
+                "summary": {
+                    "components_present": 1,
+                    "components_total": 7,
+                    "important_files_present": 1,
+                    "important_files_total": 1,
+                },
+                "local_artifact_policy": "provenance only",
+                "manifests": [
+                    {
+                        "name": "component-cache manifest",
+                        "status": "present",
+                        "sha256": "manifest-sha",
+                        "path": f"{cache_root}/manifest.json",
+                    }
+                ],
+                "components": [
+                    {
+                        "name": "modsecurity",
+                        "status": "built",
+                        "build_id": component_build_id,
+                        "path": component_path,
+                    }
+                ],
+                "important_files": [
+                    {
+                        "name": "libmodsecurity",
+                        "status": "present",
+                        "sha256": "library-sha",
+                        "path": f"{cache_root}/libmodsecurity.so",
+                    }
+                ],
+            }
+        )
+
+        separator = RUNTIME_REPORTS.FOUR_COLUMN_TABLE_SEPARATOR
+        self.assertEqual(separator, "|---|---|---|---|")
+        self.assertIn(
+            "| Component | Status | Build ID / Ref | Path |\n"
+            f"{separator}\n"
+            f"| modsecurity | built | `{component_build_id}` | `{component_path}` |",
+            component_markdown,
+        )
+        self.assertEqual(
+            [line for line in component_markdown.splitlines() if line == separator],
+            [separator],
+        )
+        self.assertIn(
+            "| Item | Status | SHA256 | Path |\n"
+            f"{separator}\n"
+            f"| component-cache manifest | present | `manifest-sha` | `{cache_root}/manifest.json` |",
+            index_markdown,
+        )
+        self.assertIn(
+            "| Component | Status | Build ID | Source / Path |\n"
+            f"{separator}\n"
+            f"| modsecurity | built | `{component_build_id}` | `{component_path}` |",
+            index_markdown,
+        )
+        self.assertIn(
+            "| Item | Status | SHA256 | Path |\n"
+            f"{separator}\n"
+            f"| libmodsecurity | present | `library-sha` | `{cache_root}/libmodsecurity.so` |",
+            index_markdown,
+        )
+        self.assertEqual(
+            [line for line in index_markdown.splitlines() if line == separator],
+            [separator, separator, separator],
         )

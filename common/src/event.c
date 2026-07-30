@@ -320,6 +320,26 @@ static void append_event_provenance(
     }
 }
 
+static void format_optional_json_field(
+    char *destination,
+    size_t destination_size,
+    const char *field_name,
+    const char *field_value,
+    int *truncated) {
+    int written;
+
+    destination[0] = '\0';
+    if (field_value[0] == '\0') {
+        return;
+    }
+    written = snprintf(destination, destination_size,
+        ",\"%s\":\"%s\"", field_name, field_value);
+    if (written < 0 || (size_t)written >= destination_size) {
+        destination[0] = '\0';
+        *truncated = 1;
+    }
+}
+
 static int is_nonreversible_quic_connection_id(const char *value) {
     size_t length;
     if (value == NULL || strncmp(value, "sha256:", 7U) != 0) {
@@ -711,30 +731,14 @@ int msconnector_event_write_json_ex(
     parts.text[EVENT_JSON_LATE_INTERVENTION_MODE] = late_intervention_mode;
     parts.body_bytes_seen = event->body.bytes_seen;
     parts.body_bytes_inspected = event->body.bytes_inspected;
-    body_limit_outcome_json[0] = '\0';
-    if (body_limit_outcome[0] != '\0') {
-        int outcome_written = snprintf(body_limit_outcome_json,
-            sizeof(body_limit_outcome_json),
-            ",\"body_limit_outcome\":\"%s\"", body_limit_outcome);
-        if (outcome_written < 0 || (size_t)outcome_written >=
-            sizeof(body_limit_outcome_json)) {
-            body_limit_outcome_json[0] = '\0';
-            was_truncated = 1;
-        }
-    }
+    format_optional_json_field(body_limit_outcome_json,
+        sizeof(body_limit_outcome_json), "body_limit_outcome", body_limit_outcome,
+        &was_truncated);
     parts.body_limit_outcome_json = body_limit_outcome_json;
     parts.provenance_json = provenance_json;
-    late_intervention_mode_json[0] = '\0';
-    if (late_intervention_mode[0] != '\0') {
-        int mode_written = snprintf(late_intervention_mode_json,
-            sizeof(late_intervention_mode_json),
-            ",\"late_intervention_mode\":\"%s\"", late_intervention_mode);
-        if (mode_written < 0 || (size_t)mode_written >=
-            sizeof(late_intervention_mode_json)) {
-            late_intervention_mode_json[0] = '\0';
-            was_truncated = 1;
-        }
-    }
+    format_optional_json_field(late_intervention_mode_json,
+        sizeof(late_intervention_mode_json), "late_intervention_mode",
+        late_intervention_mode, &was_truncated);
     parts.late_intervention_mode_json = late_intervention_mode_json;
     parts.flags[EVENT_JSON_LATE_INTERVENTION] = json_bool(event->flags.late_intervention);
     parts.flags[EVENT_JSON_RESPONSE_STARTED] = json_bool(event->flags.response_started);
