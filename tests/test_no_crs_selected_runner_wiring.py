@@ -48,6 +48,98 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         self.assertIn("unrun_selected_runner_cases=deny_with_alternative_status.yaml", result.stdout)
         self.assertNotIn("PASS", result.stdout)
 
+    def test_stage_rejects_missing_selected_cases_and_preserves_dispatch_controls(self) -> None:
+        stage_runner = ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh"
+        missing_cases_message = "FAIL: capability-selected No-CRS runner cases are missing"
+        with tempfile.TemporaryDirectory(prefix="msconnector-no-crs-stage-") as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            framework_root = temporary_root / "framework"
+            framework_common = framework_root / "ci" / "lib" / "common.sh"
+            framework_common.parent.mkdir(parents=True)
+            framework_common.write_text("# hermetic framework presence marker\n", encoding="utf-8")
+            connector_root = temporary_root / "connector"
+            target_runner = (
+                connector_root
+                / "ci"
+                / "runtime"
+                / "lifecycle"
+                / "run-remaining-connector-target.sh"
+            )
+            target_runner.parent.mkdir(parents=True)
+            target_runner.write_text(
+                "#!/bin/sh\n"
+                "printf 'target=%s connector=%s selected=%s\\n' \"$2\" \"$1\" \"${NO_CRS_SELECTED_CASES:-}\"\n",
+                encoding="utf-8",
+            )
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "CONNECTOR_ROOT": str(connector_root),
+                    "FRAMEWORK_ROOT": str(framework_root),
+                    "VERIFIED_RUN_ROOT": str(temporary_root / "verified"),
+                    "BUILD_ROOT": str(temporary_root / "build"),
+                    "NO_CRS_ARTIFACT_PROFILE": "generic",
+                }
+            )
+            environment.pop("NO_CRS_SELECTED_CASES", None)
+
+            for connector in ("haproxy", "apache", "nginx", "envoy", "traefik", "lighttpd"):
+                with self.subTest(connector=connector):
+                    result = subprocess.run(
+                        ["sh", str(stage_runner), connector, "no_crs_baseline"],
+                        cwd=ROOT,
+                        env=environment,
+                        check=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertEqual(result.stdout, "")
+                    self.assertEqual(result.stderr, f"{missing_cases_message}\n")
+
+            generic_environment = environment.copy()
+            generic_environment["NO_CRS_SELECTED_CASES"] = "allow_without_marker.yaml"
+            generic_result = subprocess.run(
+                ["sh", str(stage_runner), "envoy", "no_crs_baseline"],
+                cwd=ROOT,
+                env=generic_environment,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            self.assertEqual(generic_result.returncode, 0, generic_result.stderr)
+            self.assertEqual(generic_result.stderr, "")
+            self.assertEqual(
+                generic_result.stdout,
+                "target=no-crs-baseline-envoy connector=envoy selected=allow_without_marker.yaml\n",
+            )
+
+            full_lifecycle_environment = environment.copy()
+            full_lifecycle_environment.update(
+                {
+                    "NO_CRS_ARTIFACT_PROFILE": "full_lifecycle",
+                    "FULL_LIFECYCLE_HOST_PROFILE": "ext_proc",
+                    "FULL_LIFECYCLE_EXECUTED_TARGET": "full-lifecycle-envoy-ext-proc",
+                }
+            )
+            full_lifecycle_result = subprocess.run(
+                ["sh", str(stage_runner), "envoy", "no_crs_baseline"],
+                cwd=ROOT,
+                env=full_lifecycle_environment,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            self.assertEqual(full_lifecycle_result.returncode, 0, full_lifecycle_result.stderr)
+            self.assertEqual(full_lifecycle_result.stderr, "")
+            self.assertEqual(
+                full_lifecycle_result.stdout,
+                "target=runtime-smoke-envoy-ext-proc connector=envoy selected=\n",
+            )
+
     def test_remaining_connectors_keep_compatibility_and_native_targets_distinct(self) -> None:
         stage = (ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh").read_text(encoding="utf-8")
         for connector, native_target, compatibility_target in (

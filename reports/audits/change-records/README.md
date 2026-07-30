@@ -6,6 +6,8 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI No-CRS missing-case diagnostic literal deduplication for SonarQube Cloud S1192](CR-20260730-sonar-ci-no-crs-diagnostic-literal.md)
+
 - [Parent Lighttpd runtime-output containment](CR-20260729-sonar-lighttpd-runtime-output-containment.md)
 - [Parent HAProxy binding body-phase deduplication](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.md)
 
