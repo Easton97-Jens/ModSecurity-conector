@@ -6,6 +6,8 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Common event JSON optional-field decomposition](CR-20260730-sonar-common-event-json-complexity.md)
+
 - [Parent Common HTTP authorization-service const correctness](CR-20260730-sonar-common-http-auth-maintenance.md)
 
 - [Parent CI tools output containment and native oracle decomposition for SonarQube Cloud](CR-20260730-sonar-ci-tools-output-oracle.md)
