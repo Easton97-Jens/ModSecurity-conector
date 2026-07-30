@@ -149,12 +149,11 @@ func TestReadFromUsesUnderlyingReaderFromAndKeepsChunksBounded(t *testing.T) {
 func TestOptionalResponseWriterInterfacesArePreserved(t *testing.T) {
 	transaction := &recordingTransaction{}
 	state := &streamState{
-		context: context.Background(),
-		config:  mustTestConfig(t),
-		engine:  transaction,
+		config: mustTestConfig(t),
+		engine: transaction,
 	}
 	underlying := newAdvancedResponseWriter(t)
-	writer := newResponseWriter(underlying, state)
+	writer := newResponseWriter(context.Background(), underlying, state)
 
 	if _, ok := interface{}(writer).(http.Flusher); !ok {
 		t.Fatal("wrapped ResponseWriter does not implement http.Flusher")

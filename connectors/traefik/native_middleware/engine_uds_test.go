@@ -48,6 +48,32 @@ func newUDSTestSocketPath(t *testing.T) string {
 	return filepath.Join(directory, "engine.sock")
 }
 
+func serveUDSTestConnection(server *udsTestServer, connection net.Conn) {
+	defer connection.Close()
+	for {
+		opcode, payload, err := readUDSFrame(connection)
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				server.err = err
+			}
+			return
+		}
+		copyPayload := append([]byte(nil), payload...)
+		server.calls = append(server.calls, udsTestCall{opcode: opcode, payload: copyPayload})
+		result := udsTestResult{action: udsActionAllow}
+		if configured, ok := server.results[opcode]; ok {
+			result = configured
+		}
+		if err := writeUDSTestResult(connection, opcode, result); err != nil {
+			server.err = err
+			return
+		}
+		if opcode == udsOpcodeDestroy {
+			return
+		}
+	}
+}
+
 func startUDSTestServer(t *testing.T, results map[byte]udsTestResult) (string, *udsTestServer) {
 	t.Helper()
 	socketPath := newUDSTestSocketPath(t)
@@ -64,29 +90,7 @@ func startUDSTestServer(t *testing.T, results map[byte]udsTestResult) (string, *
 			server.err = err
 			return
 		}
-		defer connection.Close()
-		for {
-			opcode, payload, err := readUDSFrame(connection)
-			if err != nil {
-				if !errors.Is(err, io.EOF) {
-					server.err = err
-				}
-				return
-			}
-			copyPayload := append([]byte(nil), payload...)
-			server.calls = append(server.calls, udsTestCall{opcode: opcode, payload: copyPayload})
-			result := udsTestResult{action: udsActionAllow}
-			if configured, ok := server.results[opcode]; ok {
-				result = configured
-			}
-			if err := writeUDSTestResult(connection, opcode, result); err != nil {
-				server.err = err
-				return
-			}
-			if opcode == udsOpcodeDestroy {
-				return
-			}
-		}
+		serveUDSTestConnection(server, connection)
 	}()
 	return socketPath, server
 }
@@ -359,14 +363,44 @@ func TestUDSEngineUsesOneSessionForFullLifecycle(t *testing.T) {
 	}
 }
 
+type udsDenyCase struct {
+	name       string
+	results    map[byte]udsTestResult
+	request    *http.Request
+	readBody   bool
+	denyOpcode byte
+}
+
+func runUDSDenyCase(t *testing.T, test udsDenyCase) {
+	t.Helper()
+	socketPath, server := startUDSTestServer(t, test.results)
+	called := false
+	middleware := newUDSTestMiddleware(t, socketPath, http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		called = true
+		if test.readBody {
+			_, _ = io.ReadAll(request.Body)
+		}
+	}))
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, test.request)
+	if got, want := response.Code, http.StatusForbidden; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	if test.name == "phase1" && called {
+		t.Fatal("P1 deny unexpectedly invoked downstream handler")
+	}
+	calls := server.wait(t)
+	if countUDSCalls(calls, test.denyOpcode) != 1 {
+		t.Fatalf("missing deny opcode %d: %#v", test.denyOpcode, calls)
+	}
+	outcome := findUDSCall(calls, udsOpcodeOutcome)
+	if outcome == nil || len(outcome.payload) != 4 || outcome.payload[1] != udsOutcomeApplied {
+		t.Fatalf("missing applied host outcome: %#v", calls)
+	}
+}
+
 func TestUDSEngineAcknowledgesP1AndP2HostDenies(t *testing.T) {
-	tests := []struct {
-		name       string
-		results    map[byte]udsTestResult
-		request    *http.Request
-		readBody   bool
-		denyOpcode byte
-	}{
+	tests := []udsDenyCase{
 		{
 			name:       "phase1",
 			results:    map[byte]udsTestResult{udsOpcodeBegin: {action: udsActionDeny, status: http.StatusForbidden}},
@@ -383,30 +417,7 @@ func TestUDSEngineAcknowledgesP1AndP2HostDenies(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			socketPath, server := startUDSTestServer(t, test.results)
-			called := false
-			middleware := newUDSTestMiddleware(t, socketPath, http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
-				called = true
-				if test.readBody {
-					_, _ = io.ReadAll(request.Body)
-				}
-			}))
-			response := httptest.NewRecorder()
-			middleware.ServeHTTP(response, test.request)
-			if got, want := response.Code, http.StatusForbidden; got != want {
-				t.Fatalf("status = %d, want %d", got, want)
-			}
-			if test.name == "phase1" && called {
-				t.Fatal("P1 deny unexpectedly invoked downstream handler")
-			}
-			calls := server.wait(t)
-			if countUDSCalls(calls, test.denyOpcode) != 1 {
-				t.Fatalf("missing deny opcode %d: %#v", test.denyOpcode, calls)
-			}
-			outcome := findUDSCall(calls, udsOpcodeOutcome)
-			if outcome == nil || len(outcome.payload) != 4 || outcome.payload[1] != udsOutcomeApplied {
-				t.Fatalf("missing applied host outcome: %#v", calls)
-			}
+			runUDSDenyCase(t, test)
 		})
 	}
 }
@@ -430,14 +441,51 @@ func TestUDSEngineDoesNotAcknowledgeAnUnconfirmedHostWrite(t *testing.T) {
 	}
 }
 
+type udsResponseCase struct {
+	name        string
+	results     map[byte]udsTestResult
+	wantStatus  int
+	wantBody    string
+	lateLogOnly bool
+}
+
+func runUDSResponseCase(t *testing.T, test udsResponseCase) {
+	t.Helper()
+	socketPath, server := startUDSTestServer(t, test.results)
+	middleware := newUDSTestMiddleware(t, socketPath, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "text/plain")
+		_, _ = writer.Write([]byte("first"))
+		_, _ = writer.Write([]byte("second"))
+	}))
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/response", nil))
+	if got := response.Code; got != test.wantStatus {
+		t.Fatalf("status = %d, want %d", got, test.wantStatus)
+	}
+	if got := response.Body.String(); got != test.wantBody {
+		t.Fatalf("body = %q, want %q", got, test.wantBody)
+	}
+	assertUDSOutcome(t, server.wait(t), test.lateLogOnly)
+}
+
+func assertUDSOutcome(t *testing.T, calls []udsTestCall, lateLogOnly bool) {
+	t.Helper()
+	outcome := findUDSCall(calls, udsOpcodeOutcome)
+	if outcome == nil || len(outcome.payload) != 4 {
+		t.Fatalf("missing outcome: %#v", calls)
+	}
+	if lateLogOnly {
+		if outcome.payload[0] != udsActionLogOnly || outcome.payload[1] != 0 ||
+			binary.BigEndian.Uint16(outcome.payload[2:]) != http.StatusOK {
+			t.Fatalf("P4 outcome is not log-only: %#v", outcome.payload)
+		}
+	} else if outcome.payload[1] != udsOutcomeApplied {
+		t.Fatalf("P3 outcome is not applied: %#v", outcome.payload)
+	}
+}
+
 func TestUDSEngineAppliesP3BeforeCommitAndDowngradesP4AfterCommit(t *testing.T) {
-	tests := []struct {
-		name        string
-		results     map[byte]udsTestResult
-		wantStatus  int
-		wantBody    string
-		lateLogOnly bool
-	}{
+	tests := []udsResponseCase{
 		{
 			name:       "phase3-precommit",
 			results:    map[byte]udsTestResult{udsOpcodeResponseHead: {action: udsActionDeny, status: http.StatusForbidden}},
@@ -454,33 +502,7 @@ func TestUDSEngineAppliesP3BeforeCommitAndDowngradesP4AfterCommit(t *testing.T) 
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			socketPath, server := startUDSTestServer(t, test.results)
-			middleware := newUDSTestMiddleware(t, socketPath, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-				writer.Header().Set("Content-Type", "text/plain")
-				_, _ = writer.Write([]byte("first"))
-				_, _ = writer.Write([]byte("second"))
-			}))
-			response := httptest.NewRecorder()
-			middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/response", nil))
-			if got := response.Code; got != test.wantStatus {
-				t.Fatalf("status = %d, want %d", got, test.wantStatus)
-			}
-			if got := response.Body.String(); got != test.wantBody {
-				t.Fatalf("body = %q, want %q", got, test.wantBody)
-			}
-			calls := server.wait(t)
-			outcome := findUDSCall(calls, udsOpcodeOutcome)
-			if outcome == nil || len(outcome.payload) != 4 {
-				t.Fatalf("missing outcome: %#v", calls)
-			}
-			if test.lateLogOnly {
-				if outcome.payload[0] != udsActionLogOnly || outcome.payload[1] != 0 ||
-					binary.BigEndian.Uint16(outcome.payload[2:]) != http.StatusOK {
-					t.Fatalf("P4 outcome is not log-only: %#v", outcome.payload)
-				}
-			} else if outcome.payload[1] != udsOutcomeApplied {
-				t.Fatalf("P3 outcome is not applied: %#v", outcome.payload)
-			}
+			runUDSResponseCase(t, test)
 		})
 	}
 }

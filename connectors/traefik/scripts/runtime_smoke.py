@@ -149,8 +149,51 @@ def require_local_executable(path: Path, label: str, root: Path) -> Path:
     return executable
 
 
-def resolve_runtime_binaries(args: argparse.Namespace, repo_root: Path) -> tuple[Path, Path]:
-    """Resolve both binary paths only after their trusted roots are established."""
+def require_private_result_root(path: Path, build_root: Path) -> Path:
+    """Require an output leaf below the validated build root.
+
+    The runner removes this directory before writing fresh runtime evidence, so
+    accepting an arbitrary caller-supplied location would turn a smoke option
+    into a recursive-delete capability. A missing leaf is safe to create only
+    below the already validated, owner-controlled build root; an existing
+    leaf must retain the same ownership and replacement protections.
+    """
+
+    if not path.is_absolute():
+        raise MissingDependency(f"runtime smoke output root must be absolute: {path}")
+    result_root = Path(os.path.abspath(path))
+    try:
+        result_root.relative_to(build_root)
+    except ValueError as exc:
+        raise MissingDependency(
+            f"runtime smoke output root must remain below {build_root}: {result_root}"
+        ) from exc
+    if result_root == build_root:
+        raise MissingDependency("runtime smoke output root must not be the build root")
+    assert_no_symlink_components(result_root)
+
+    existing_ancestor = result_root
+    while not existing_ancestor.exists():
+        existing_ancestor = existing_ancestor.parent
+    ancestor_stat = existing_ancestor.lstat()
+    if not stat.S_ISDIR(ancestor_stat.st_mode):
+        raise MissingDependency(
+            f"runtime smoke output ancestor must be a directory: {existing_ancestor}"
+        )
+    if ancestor_stat.st_uid != os.geteuid():
+        raise MissingDependency(
+            f"runtime smoke output ancestor must be owned by the current user: {existing_ancestor}"
+        )
+    if stat.S_IMODE(ancestor_stat.st_mode) & (stat.S_IWGRP | stat.S_IWOTH):
+        raise MissingDependency(
+            f"runtime smoke output ancestor must not be group or world writable: {existing_ancestor}"
+        )
+    assert_path_ancestors_are_safe(existing_ancestor, "runtime smoke output", stop_at=build_root)
+    return result_root
+
+
+def resolve_runtime_paths(args: argparse.Namespace, repo_root: Path) -> tuple[Path, Path, Path]:
+    """Resolve the build root and both local binaries before process startup."""
 
     build_root = require_runtime_root_from_environment(RUNTIME_ROOT_ENVIRONMENTS[0], repo_root)
     component_cache = require_runtime_root_from_environment(
@@ -162,7 +205,7 @@ def resolve_runtime_binaries(args: argparse.Namespace, repo_root: Path) -> tuple
     traefik_binary = require_local_executable(
         args.traefik_binary, "Traefik binary", component_cache
     )
-    return connector_binary, traefik_binary
+    return build_root, connector_binary, traefik_binary
 
 
 def consume_no_crs_selected_cases(repo_root: Path) -> None:
@@ -190,18 +233,6 @@ def consume_no_crs_selected_cases(repo_root: Path) -> None:
     if completed.returncode != 0:
         detail = completed.stderr.strip() or "selected-case consumer failed"
         raise RuntimeError(detail)
-
-
-def assert_output_root(path: Path, repo_root: Path) -> None:
-    if not path.is_absolute():
-        raise MissingDependency(f"runtime smoke output root must be absolute: {path}")
-    if path in {Path("/"), Path("/tmp"), Path("/var/tmp")}:
-        raise MissingDependency(f"runtime smoke output root is too broad: {path}")
-    try:
-        path.resolve(strict=False).relative_to(repo_root.resolve())
-    except ValueError:
-        return
-    raise MissingDependency(f"runtime smoke output must be outside the checkout: {path}")
 
 
 def assert_no_symlink_components(path: Path) -> None:
@@ -380,12 +411,10 @@ def parse_args() -> argparse.Namespace:
 def run(args: argparse.Namespace) -> int:
     repo_root = Path(__file__).resolve().parents[3]
     consume_no_crs_selected_cases(repo_root)
-    result_root = Path(os.path.abspath(args.result_root))
-    assert_no_symlink_components(result_root)
-    assert_output_root(result_root, repo_root)
+    build_root, connector_binary, traefik_binary = resolve_runtime_paths(args, repo_root)
+    result_root = require_private_result_root(args.result_root, build_root)
     result_path = result_root / "result.json"
     expected_rule_id = os.environ.get("MSCONNECTOR_EXPECTED_RULE_ID", "1000001")
-    connector_binary, traefik_binary = resolve_runtime_binaries(args, repo_root)
     template = args.config_template.resolve()
     rules_file = Path(
         os.environ.get(

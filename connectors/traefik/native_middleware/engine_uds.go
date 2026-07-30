@@ -447,9 +447,9 @@ func clampPort(port int) int {
 }
 
 var (
-	_ Engine                    = (*unixSocketEngine)(nil)
-	_ Transaction               = (*unixSocketTransaction)(nil)
-	_ responseHeaderTransaction = (*unixSocketTransaction)(nil)
-	_ responseCommitTransaction = (*unixSocketTransaction)(nil)
-	_ outcomeTransaction        = (*unixSocketTransaction)(nil)
+	_ Engine                  = (*unixSocketEngine)(nil)
+	_ Transaction             = (*unixSocketTransaction)(nil)
+	_ responseHeaderProcessor = (*unixSocketTransaction)(nil)
+	_ responseCommitter       = (*unixSocketTransaction)(nil)
+	_ outcomeAcknowledger     = (*unixSocketTransaction)(nil)
 )

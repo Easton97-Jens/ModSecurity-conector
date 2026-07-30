@@ -7,6 +7,8 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Traefik-Runtime- und Lifecycle-Remediation](CR-20260730-sonar-traefik-runtime-lifecycle.de.md)
+
 - [Parent-Common Event-JSON Optional-Field-Zerlegung](CR-20260730-sonar-common-event-json-complexity.de.md)
 
 - [Parent-Common HTTP-Autorisierungsservice-Const-Korrektheit](CR-20260730-sonar-common-http-auth-maintenance.de.md)

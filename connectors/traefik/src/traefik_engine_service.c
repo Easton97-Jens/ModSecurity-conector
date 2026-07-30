@@ -1181,41 +1181,42 @@ static int traefik_engine_dispatch(traefik_engine_session *session,
     return handled;
 }
 
+static int traefik_engine_process_frame(traefik_engine_session *session,
+    int socket_fd, traefik_engine_frame *frame)
+{
+    msconnector_decision decision;
+    uint8_t result_code = TRAEFIK_ENGINE_PROTOCOL_RESULT_PROTOCOL;
+    int handled;
+
+    if (session == NULL || frame == NULL ||
+        traefik_engine_receive_frame(socket_fd, frame) != 1) {
+        return 0;
+    }
+    handled = traefik_engine_dispatch(session, frame, &decision, &result_code);
+    if (handled == 0) {
+        result_code = frame->opcode == TRAEFIK_ENGINE_PROTOCOL_BEGIN ||
+            !traefik_engine_is_command_opcode(frame->opcode)
+            ? TRAEFIK_ENGINE_PROTOCOL_RESULT_PROTOCOL
+            : TRAEFIK_ENGINE_PROTOCOL_RESULT_STATE;
+        msconnector_decision_init(&decision);
+    }
+    if (!traefik_engine_send_result(socket_fd, frame->opcode, result_code,
+            session, &decision)) {
+        return 0;
+    }
+    return frame->opcode != TRAEFIK_ENGINE_PROTOCOL_DESTROY || handled != 1;
+}
+
 static void traefik_engine_process_connection(traefik_engine_service *service,
     int socket_fd)
 {
     traefik_engine_session session;
     traefik_engine_frame frame;
-    int keep_running = 1;
 
     memset(&session, 0, sizeof(session));
     memset(&frame, 0, sizeof(frame));
     session.service = service;
-    while (keep_running) {
-        msconnector_decision decision;
-        uint8_t result_code = TRAEFIK_ENGINE_PROTOCOL_RESULT_PROTOCOL;
-        int received = traefik_engine_receive_frame(socket_fd, &frame);
-        int handled;
-
-        if (received != 1) {
-            break;
-        }
-        handled = traefik_engine_dispatch(&session, &frame, &decision,
-            &result_code);
-        if (handled == 0) {
-            result_code = frame.opcode == TRAEFIK_ENGINE_PROTOCOL_BEGIN ||
-                !traefik_engine_is_command_opcode(frame.opcode)
-                ? TRAEFIK_ENGINE_PROTOCOL_RESULT_PROTOCOL
-                : TRAEFIK_ENGINE_PROTOCOL_RESULT_STATE;
-            msconnector_decision_init(&decision);
-        }
-        if (!traefik_engine_send_result(socket_fd, frame.opcode, result_code,
-                &session, &decision)) {
-            break;
-        }
-        if (frame.opcode == TRAEFIK_ENGINE_PROTOCOL_DESTROY && handled == 1) {
-            keep_running = 0;
-        }
+    while (traefik_engine_process_frame(&session, socket_fd, &frame)) {
         traefik_engine_frame_reset(&frame);
     }
     traefik_engine_frame_reset(&frame);
@@ -1311,6 +1312,42 @@ static char *traefik_engine_trim(char *text)
 }
 
 /* Require explicit streamable body modes; events are host-confirmed via OUTCOME. */
+static int traefik_engine_config_line_sets_body_mode(char *line,
+    int *request_body_mode_seen, int *response_body_mode_seen)
+{
+    char *key;
+    char *separator;
+    const char *value;
+
+    if (line == NULL || request_body_mode_seen == NULL ||
+        response_body_mode_seen == NULL) {
+        return 0;
+    }
+    key = traefik_engine_trim(line);
+    if (*key == '\0' || *key == '#') {
+        return 1;
+    }
+    separator = strchr(key, '=');
+    if (separator == NULL) {
+        return 1;
+    }
+    *separator = '\0';
+    value = traefik_engine_trim(separator + 1);
+    key = traefik_engine_trim(key);
+    if (strcmp(key, "request_body_mode") == 0) {
+        if (strcmp(value, "none") != 0 && strcmp(value, "streaming") != 0) {
+            return 0;
+        }
+        *request_body_mode_seen = 1;
+    } else if (strcmp(key, "response_body_mode") == 0) {
+        if (strcmp(value, "none") != 0 && strcmp(value, "streaming") != 0) {
+            return 0;
+        }
+        *response_body_mode_seen = 1;
+    }
+    return 1;
+}
+
 static int traefik_engine_config_supports_service(const char *config_path)
 {
     FILE *stream;
@@ -1326,38 +1363,15 @@ static int traefik_engine_config_supports_service(const char *config_path)
         return 0;
     }
     while (fgets(line, sizeof(line), stream) != NULL) {
-        char *key;
-        const char *value;
-        char *separator;
         size_t length = strlen(line);
         if (length == sizeof(line) - 1U && line[length - 1U] != '\n') {
             (void)fclose(stream);
             return 0;
         }
-        key = traefik_engine_trim(line);
-        if (*key == '\0' || *key == '#') {
-            continue;
-        }
-        separator = strchr(key, '=');
-        if (separator == NULL) {
-            continue;
-        }
-        *separator = '\0';
-        value = traefik_engine_trim(separator + 1);
-        key = traefik_engine_trim(key);
-        if (strcmp(key, "request_body_mode") == 0) {
-            if (strcmp(value, "none") != 0 && strcmp(value, "streaming") != 0) {
-                (void)fclose(stream);
-                return 0;
-            }
-            request_body_mode_seen = 1;
-        }
-        if (strcmp(key, "response_body_mode") == 0) {
-            if (strcmp(value, "none") != 0 && strcmp(value, "streaming") != 0) {
-                (void)fclose(stream);
-                return 0;
-            }
-            response_body_mode_seen = 1;
+        if (!traefik_engine_config_line_sets_body_mode(line,
+                &request_body_mode_seen, &response_body_mode_seen)) {
+            (void)fclose(stream);
+            return 0;
         }
     }
     if (ferror(stream)) {
@@ -1695,6 +1709,52 @@ static void traefik_engine_wait_for_workers(traefik_engine_service *service)
     (void)pthread_mutex_unlock(&service->worker_lock);
 }
 
+static int traefik_engine_serve_connections(int listener,
+    traefik_engine_service *service, size_t max_connections,
+    size_t *accepted_connections, const char **failure_stage)
+{
+    if (listener < 0 || service == NULL || accepted_connections == NULL ||
+        failure_stage == NULL) {
+        return 0;
+    }
+    while (!traefik_engine_stop_requested &&
+        (max_connections == 0U || *accepted_connections < max_connections)) {
+        struct pollfd descriptor;
+        int client;
+        int polled;
+
+        descriptor.fd = listener;
+        descriptor.events = POLLIN;
+        descriptor.revents = 0;
+        polled = poll(&descriptor, 1U, TRAEFIK_ENGINE_ACCEPT_POLL_MILLISECONDS);
+        if (polled < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            *failure_stage = "listener_poll";
+            return 0;
+        }
+        if (polled == 0) {
+            continue;
+        }
+        client = accept(listener, NULL, NULL);
+        if (client < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+                continue;
+            }
+            *failure_stage = "listener_accept";
+            return 0;
+        }
+        if (!traefik_engine_start_worker(service, client)) {
+            (void)close(client);
+            *failure_stage = "worker_start";
+            return 0;
+        }
+        ++*accepted_connections;
+    }
+    return 1;
+}
+
 static int traefik_engine_serve(const char *config_path, const char *socket_path,
     size_t max_connections)
 {
@@ -1749,40 +1809,9 @@ static int traefik_engine_serve(const char *config_path, const char *socket_path
     (void)printf("traefik_engine_service=ready\n");
     (void)printf("socket=%s\n", socket_path);
     (void)fflush(stdout);
-    while (!traefik_engine_stop_requested &&
-        (max_connections == 0U || accepted_connections < max_connections)) {
-        struct pollfd descriptor;
-        int polled;
-        int client;
-
-        descriptor.fd = listener;
-        descriptor.events = POLLIN;
-        descriptor.revents = 0;
-        polled = poll(&descriptor, 1U, TRAEFIK_ENGINE_ACCEPT_POLL_MILLISECONDS);
-        if (polled < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            failure_stage = "listener_poll";
-            goto cleanup;
-        }
-        if (polled == 0) {
-            continue;
-        }
-        client = accept(listener, NULL, NULL);
-        if (client < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
-                continue;
-            }
-            failure_stage = "listener_accept";
-            goto cleanup;
-        }
-        if (!traefik_engine_start_worker(&service, client)) {
-            (void)close(client);
-            failure_stage = "worker_start";
-            goto cleanup;
-        }
-        ++accepted_connections;
+    if (!traefik_engine_serve_connections(listener, &service, max_connections,
+            &accepted_connections, &failure_stage)) {
+        goto cleanup;
     }
     status = 0;
 
@@ -2082,12 +2111,10 @@ static int traefik_engine_consume_option_value(int argc, char **argv,
 static int traefik_engine_parse_cli(int argc, char **argv,
     traefik_engine_cli_options *options)
 {
-    int index;
-
     if (argv == NULL || options == NULL) {
         return 0;
     }
-    for (index = 1; index < argc; ++index) {
+    for (int index = 1; index < argc; ++index) {
         if (strcmp(argv[index], "--self-test") == 0) {
             options->self_test = 1;
         } else if (strcmp(argv[index], "--serve") == 0) {
@@ -2110,8 +2137,10 @@ static int traefik_engine_parse_cli(int argc, char **argv,
                 return 0;
             }
         } else if (strcmp(argv[index], "--max-connections") == 0) {
-            if (index + 1 >= argc || !traefik_engine_parse_positive_size(
-                    argv[++index], &options->max_connections)) {
+            const char *value;
+            if (!traefik_engine_consume_option_value(argc, argv, &index,
+                    &value) || !traefik_engine_parse_positive_size(value,
+                    &options->max_connections)) {
                 return 0;
             }
         } else {
