@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Runtime-SonarQube-Cloud-Remediation und Verified-Root-Hardening](CR-20260730-sonar-ci-runtime-security-root-remediation.de.md)
+  — elf niedrigriskante source-applicable Code-Smell-Repairs und Verified-Root-
+  Hardening bestanden fokussierte lokale Controls und die versiegelte Security-
+  Diff-Prüfung; Exact-Head-Hosted-GitHub- und SonarQube-Cloud-Evidence bleibt
+  erforderlich.
+
 - [Parent-Common Event-JSON Optional-Field-Zerlegung](CR-20260730-sonar-common-event-json-complexity.de.md)
 
 - [Parent-Common HTTP-Autorisierungsservice-Const-Korrektheit](CR-20260730-sonar-common-http-auth-maintenance.de.md)

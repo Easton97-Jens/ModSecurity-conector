@@ -56,6 +56,11 @@ SELF_GENERATED_VERIFIED_MANIFESTS = {
     "verified-run-manifest.generated.json",
     "verified-run-manifest.generated.md",
 }
+FULL_MATRIX_JOB_PREFIX = "full-matrix-job:"
+UTC_OFFSET = "+00:00"
+FIELD_VALUE_TABLE_HEADER = "| Field | Value |"
+FIELD_VALUE_TABLE_DIVIDER = "|---|---|"
+FOUR_COLUMN_TABLE_DIVIDER = "|---|---|---|---|"
 
 
 def git_output(args: list[str], cwd: Path) -> str:
@@ -115,7 +120,7 @@ def count_jsonl_rows(path: Path) -> int:
 
 
 def full_matrix_job_tokens(logical_target: str) -> tuple[str, str, str] | None:
-    prefix = "full-matrix-job:"
+    prefix = FULL_MATRIX_JOB_PREFIX
     if not logical_target.startswith(prefix):
         return None
     parts = logical_target.removeprefix(prefix).split(":")
@@ -204,7 +209,7 @@ def run_command(
             log_handle.write(
                 f"\nverified-report-run: timeout after {timeout_seconds} seconds; terminating process group\n"
             )
-            if logical_target.startswith("full-matrix-job:") and finalize_grace_seconds > 0:
+            if logical_target.startswith(FULL_MATRIX_JOB_PREFIX) and finalize_grace_seconds > 0:
                 log_handle.write(
                     f"verified-report-run: waiting {finalize_grace_seconds} seconds for full-matrix job finalization\n"
                 )
@@ -607,7 +612,7 @@ def parse_time(value: str | None) -> float | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+        return datetime.fromisoformat(value.replace("Z", UTC_OFFSET)).timestamp()
     except ValueError:
         return None
 
@@ -838,7 +843,7 @@ def apply_command_semantics(
     elif target == "mrts-native-full-run":
         record.update(native_runtime_state(record, env))
         record["overall_status"] = record["runtime_status"]
-    elif target.startswith("full-matrix-job:"):
+    elif target.startswith(FULL_MATRIX_JOB_PREFIX):
         record.update(full_matrix_job_state(record, env))
         record["overall_status"] = record.get("overall_job_status") or record["runtime_status"]
     elif target in {"refresh-all-reports", "generate-system-environment-proof"}:
@@ -1148,8 +1153,8 @@ def system_proof_summary(connector_root: Path) -> dict[str, Any]:
 
 def duration_seconds(start: str, end: str) -> float | str:
     try:
-        start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
-        end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
+        start_dt = datetime.fromisoformat(start.replace("Z", UTC_OFFSET))
+        end_dt = datetime.fromisoformat(end.replace("Z", UTC_OFFSET))
     except ValueError:
         return "unknown"
     return round((end_dt - start_dt).total_seconds(), 3)
@@ -1176,8 +1181,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "",
         "## Summary",
         "",
-        "| Field | Value |",
-        "|---|---|",
+        FIELD_VALUE_TABLE_HEADER,
+        FIELD_VALUE_TABLE_DIVIDER,
         f"| Verified run id | `{cell(payload.get('verified_run_id', 'unknown'))}` |",
         f"| Data source policy | `{cell(payload.get('data_source_policy', DATA_SOURCE_POLICY))}` |",
         f"| Profile | `{cell(payload.get('profile', 'full'))}` |",
@@ -1188,8 +1193,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "",
         "## Runtime Environment",
         "",
-        "| Field | Value |",
-        "|---|---|",
+        FIELD_VALUE_TABLE_HEADER,
+        FIELD_VALUE_TABLE_DIVIDER,
         f"| Connector SHA | `{cell(payload.get('connector_sha', 'unknown'))}` |",
         f"| Framework SHA | `{cell(payload.get('framework_sha', 'unknown'))}` |",
         f"| MRTS SHA | `{cell(payload.get('mrts_sha', 'unknown'))}` |",
@@ -1204,7 +1209,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "## Runtime Paths",
         "",
         "| Variable | Value | Status | Notes |",
-        "|---|---|---|---|",
+        FOUR_COLUMN_TABLE_DIVIDER,
     ]
     for item in payload.get("runtime_path_rows", []):
         lines.append(
@@ -1248,8 +1253,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "",
             "## NGINX Runtime Module Readiness",
             "",
-            "| Field | Value |",
-            "|---|---|",
+            FIELD_VALUE_TABLE_HEADER,
+            FIELD_VALUE_TABLE_DIVIDER,
             f"| NGINX_BIN | `{cell(nginx_readiness.get('NGINX_BIN', ''))}` |",
             f"| NGINX_MODULE_DIR | `{cell(nginx_readiness.get('NGINX_MODULE_DIR', ''))}` |",
             f"| ModSecurity module path | `{cell(nginx_readiness.get('ModSecurity module path', ''))}` |",
@@ -1259,7 +1264,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "## Runtime Network / Cache Readiness",
             "",
             "| Source | Status | Path | Notes |",
-            "|---|---|---|---|",
+            FOUR_COLUMN_TABLE_DIVIDER,
         ]
     )
     network_cache = producer_check.get("network_cache", []) if isinstance(producer_check, dict) else []
@@ -1274,7 +1279,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
         rows = [
             command for command in payload.get("commands", [])
             if str(command.get("logical_target", "")) in targets
-            or (title == "## Producer Commands" and str(command.get("logical_target", "")).startswith("full-matrix-job:"))
+            or (title == "## Producer Commands" and str(command.get("logical_target", "")).startswith(FULL_MATRIX_JOB_PREFIX))
         ]
         for command in rows:
             command_text = " ".join(command.get("command", []))
@@ -1291,7 +1296,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
     command_table("## Checks", check_targets)
 
     completeness = payload.get("full_matrix_job_completeness", {})
-    lines.extend(["", "## Full-Matrix Job Completeness", "", "| Field | Value |", "|---|---|"])
+    lines.extend(["", "## Full-Matrix Job Completeness", "", FIELD_VALUE_TABLE_HEADER, FIELD_VALUE_TABLE_DIVIDER])
     lines.append(f"| Completeness | `{cell(completeness.get('complete_jobs', 0))}/{cell(completeness.get('total_jobs', 0))}` |")
     lines.append(f"| Overall status | `{cell(completeness.get('status', 'unknown'))}` |")
     lines.append(f"| Missing jobs | `{cell(', '.join(completeness.get('missing_jobs', [])) or '-')}` |")
@@ -1303,14 +1308,14 @@ def render_markdown(payload: dict[str, Any]) -> str:
         lines.append("| `-` | - | unknown |")
 
     mismatch = payload.get("runtime_mismatch_summary", {})
-    lines.extend(["", "## Runtime Mismatch Summary", "", "| Field | Value |", "|---|---|"])
+    lines.extend(["", "## Runtime Mismatch Summary", "", FIELD_VALUE_TABLE_HEADER, FIELD_VALUE_TABLE_DIVIDER])
     lines.append(f"| Total mismatches | `{cell(mismatch.get('total_mismatches', 'unknown'))}` |")
     lines.append(f"| Critical mismatches | `{cell(mismatch.get('critical_mismatches', 'unknown'))}` |")
     lines.append(f"| Top connector | `{cell(mismatch.get('top_connector', 'unknown'))}` |")
     lines.append(f"| Primary blocker | `{cell(mismatch.get('primary_blocker', 'unknown'))}` |")
     lines.append(f"| Merge readiness | `{cell(mismatch.get('merge_readiness', 'unknown'))}` |")
 
-    lines.extend(["", "## Blocked / Stale Inputs", "", "| Item | Status | Reason | Affected Reports |", "|---|---|---|---|"])
+    lines.extend(["", "## Blocked / Stale Inputs", "", "| Item | Status | Reason | Affected Reports |", FOUR_COLUMN_TABLE_DIVIDER])
     rows = []
     for key in ("missing_inputs", "skipped_reports", "blocked_reports", "failed_reports", "stale_inputs"):
         for item in payload.get(key, []):
@@ -1337,7 +1342,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "## Git Evidence",
             "",
             "| Repository | SHA | Branch | Dirty Status |",
-            "|---|---|---|---|",
+            FOUR_COLUMN_TABLE_DIVIDER,
             f"| connector | `{cell(payload.get('connector_sha', 'unknown'))}` | `{cell(payload.get('branches', {}).get('connector', 'unknown'))}` | `{cell(payload.get('dirty_status', {}).get('connector', 'unknown'))}` |",
             f"| framework | `{cell(payload.get('framework_sha', 'unknown'))}` | `{cell(payload.get('branches', {}).get('framework', 'unknown'))}` | `{cell(payload.get('dirty_status', {}).get('framework', 'unknown'))}` |",
             f"| MRTS | `{cell(payload.get('mrts_sha', 'unknown'))}` | `{cell(payload.get('branches', {}).get('mrts', 'unknown'))}` | `{cell(payload.get('dirty_status', {}).get('mrts', 'unknown'))}` |",
@@ -1585,7 +1590,7 @@ def main() -> int:
                     f"CRS={args.crs}",
                     f"MRTS={args.mrts}",
                 ],
-                "logical_target": f"full-matrix-job:{args.connector}:{args.crs}:{args.mrts}",
+                "logical_target": f"{FULL_MATRIX_JOB_PREFIX}{args.connector}:{args.crs}:{args.mrts}",
                 "required": True,
                 "optional": False,
                 "affected_reports": ["full_matrix_job_completeness", "verified_runtime_mismatch_analysis"],

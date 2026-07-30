@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI runtime SonarQube Cloud remediation and verified-root hardening](CR-20260730-sonar-ci-runtime-security-root-remediation.md)
+  — eleven low-risk source-applicable Code Smell repairs and verified-root
+  hardening passed focused local controls and the sealed security diff review;
+  exact-head hosted GitHub and SonarQube Cloud evidence remains required.
+
 - [Parent Common event JSON optional-field decomposition](CR-20260730-sonar-common-event-json-complexity.md)
 
 - [Parent Common HTTP authorization-service const correctness](CR-20260730-sonar-common-http-auth-maintenance.md)
