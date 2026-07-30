@@ -46,7 +46,7 @@ The two generators independently parsed already-read YAML case text, accepted on
 | Selected-file `py_compile` with task-owned bytecode cache | passed. |
 | `git diff --check` | passed. |
 | Independent final source and test security-diff reviews | passed: no plausible diff-induced security candidate. |
-| `make check-bilingual-docs` | `blocked_external_dependency`: all new Change-Record section checks passed; existing repository links require absent Framework-submodule targets, and no changed document link was reported. |
+| `make check-bilingual-docs` | `blocked_external_dependency`: the only reported failures are existing links to absent Framework-submodule targets; no changed Change-Record link was reported. |
 
 ## Security impact
 
@@ -67,7 +67,7 @@ The helper preserves the existing trusted-artifact-root and bounded-input assump
 ## Checks not run and rationale
 
 - No connector runtime, report-generator main, or networked preparation ran because this is a pure metadata refactor and those commands would require generated evidence and unavailable Framework content.
-- Hosted GitHub Actions, SonarQube Cloud, review, approval, merge, and master checks have not yet run for a PR head because no PR has been created.
+- Hosted GitHub Actions, SonarQube Cloud, review, approval, merge, and master checks have not yet been finally verified for the synchronized delivery head. The open PR must receive fresh results for its final exact head before any merge.
 
 ## Delivery status
 

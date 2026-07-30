@@ -46,7 +46,7 @@ Die zwei Generatoren parsten unabhängig bereits gelesenen YAML-Case-Text, akzep
 | Selected-File-`py_compile` mit task-eigenem Bytecode-Cache | bestanden. |
 | `git diff --check` | bestanden. |
 | Unabhängige finale Source- und Test-Security-Diff-Reviews | bestanden: kein plausibler diff-eingeführter Sicherheitskandidat. |
-| `make check-bilingual-docs` | `blocked_external_dependency`: alle neuen Change-Record-Section-Checks bestanden; bestehende Repository-Links benötigen fehlende Framework-Submodul-Targets, und kein geänderter Dokument-Link wurde gemeldet. |
+| `make check-bilingual-docs` | `blocked_external_dependency`: die einzigen gemeldeten Fehler sind bestehende Links auf fehlende Framework-Submodul-Targets; kein geänderter Change-Record-Link wurde gemeldet. |
 
 ## Security-Auswirkung
 
@@ -67,7 +67,7 @@ Der Helper bewahrt die bestehende Trusted-Artifact-Root- und Bounded-Input-Annah
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - Keine Connector-Runtime, kein Report-Generator-Main und keine netzwerkgestützte Vorbereitung liefen, weil dies ein reiner Metadata-Refaktor ist und jene Befehle generierte Evidence sowie nicht verfügbaren Framework-Inhalt benötigen.
-- Hosted-GitHub-Actions, SonarQube Cloud, Review, Freigabe, Merge und Master-Checks liefen noch nicht für einen PR-Head, weil noch kein PR erstellt wurde.
+- Hosted-GitHub-Actions, SonarQube Cloud, Review, Freigabe, Merge und Master-Checks sind noch nicht abschließend für den synchronisierten Delivery-Head verifiziert. Der offene PR muss vor einem Merge frische Ergebnisse für seinen finalen exakten Head erhalten.
 
 ## Delivery-Status
 
