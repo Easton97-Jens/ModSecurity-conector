@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260729-sonar-haproxy-binding-body-phase-deduplication |
 | Datum (UTC) | 2026-07-29 |
-| Basis-Revision | `e3ab3e7819c5ff3c7df6df427077d5c0dfe1545f` (ursprünglicher ausgewählter PR-Head: `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`). |
+| Basis-Revision | `e3ab3e7819c5ff3c7df6df427077d5c0dfe1545f` (original selected PR head: `9f23ae2c5fe908cef38f203be03f93fda75a8dd7`). |
 | Tracking | Zwei aktuelle SonarQube-Cloud-CPD-Paare im HAProxy-Binding: Phase-2- und Phase-4-Chunk-Append-/Finalisierungspfade (68 gemeldete Duplikatzeilen). |
 | Grenze | Parent-HAProxy-Binding-Source, sein lokaler Binding-Selbsttest/Fixture/Make-Ziel, Reader-Dokumentation und gepaarte Change-Record-Indizes. Keine Framework-, MRTS-, Gitlink-, Workflow-, Sonar-Konfigurations-, Suppression- oder `master`-Änderung. |
 
