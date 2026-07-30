@@ -6,6 +6,8 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent HAProxy binding body-phase deduplication](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.md)
+
 - [Parent CI verified-runtime-mismatch control-evidence deduplication](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.md)
 
 - [Parent Common blocked-runtime-smoke default dispatch for SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.md)

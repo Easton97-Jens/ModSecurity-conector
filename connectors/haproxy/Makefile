@@ -18,6 +18,7 @@ COMMON_SDK_SRCS := $(COMMON_SRC)/config.c $(COMMON_SRC)/config_parser.c $(COMMON
 SPOA_STARTER_BIN := $(HAPROXY_BUILD_DIR)/haproxy-spoa-agent-starter
 SPOA_RUNTIME_BIN := $(HAPROXY_SPOA_RUNTIME_DIR)/haproxy-modsecurity-spoa
 MODSECURITY_BINDING_BIN := $(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy-modsecurity-binding-self-test
+MODSECURITY_BINDING_LIFECYCLE_RULES := $(abspath harness/fixtures/modsecurity-binding-lifecycle.conf)
 MODSECURITY_INCLUDE_CANDIDATES ?= $(MODSECURITY_INCLUDE_DIR) $(MODSECURITY_SHARED_PREFIX)/include $(BUILD_ROOT)/nginx-build/output/modsecurity/include $(BUILD_ROOT)/apache-build/output/modsecurity/include /src/ModSecurity_V3/headers
 MODSECURITY_LIB_CANDIDATES ?= $(MODSECURITY_LIB_DIR) $(MODSECURITY_SHARED_PREFIX)/lib $(BUILD_ROOT)/nginx-build/output/modsecurity/lib $(BUILD_ROOT)/apache-build/output/modsecurity/lib $(BUILD_ROOT)/nginx-build/ModSecurity_V3/src/.libs $(BUILD_ROOT)/apache-build/ModSecurity_V3/src/.libs
 
@@ -93,7 +94,7 @@ self-test-modsecurity-binding: $(MODSECURITY_BINDING_BIN)
 	. "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"; \
 	log="$(BUILD_ROOT)/logs/haproxy/modsecurity-binding-self-test.log"; \
 	set +e; \
-	LD_LIBRARY_PATH="$$MODSECURITY_LIB_DIR:$${LD_LIBRARY_PATH:-}" "$(MODSECURITY_BINDING_BIN)" --self-test >"$$log" 2>&1; \
+	LD_LIBRARY_PATH="$$MODSECURITY_LIB_DIR:$${LD_LIBRARY_PATH:-}" "$(MODSECURITY_BINDING_BIN)" --self-test "$(MODSECURITY_BINDING_LIFECYCLE_RULES)" >"$$log" 2>&1; \
 	rc=$$?; \
 	set -e; \
 	cat "$$log"; \
@@ -152,7 +153,7 @@ $(SPOA_RUNTIME_BIN): FORCE src/haproxy_spop_diagnostic_runtime.c src/haproxy_mod
 		exit 1; \
 	}
 
-$(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_modsecurity_binding.h src/haproxy_modsecurity_mapper.c src/haproxy_modsecurity_mapper.h src/haproxy_modsecurity_binding_self_test.c $(COMMON_SDK_SRCS)
+$(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_modsecurity_binding.h src/haproxy_modsecurity_mapper.c src/haproxy_modsecurity_mapper.h src/haproxy_modsecurity_binding_self_test.c $(MODSECURITY_BINDING_LIFECYCLE_RULES) $(COMMON_SDK_SRCS)
 	@set -eu; \
 	mkdir -p "$(HAPROXY_MODSECURITY_BINDING_DIR)"; \
 	include_dir=; \
