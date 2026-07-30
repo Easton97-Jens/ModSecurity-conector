@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI runtime-cache four-column Markdown separator for SonarQube Cloud S1192](CR-20260730-sonar-ci-runtime-cache-separator.md)
+  — one private separator preserves the component-cache and cache-index table
+  output; the direct presentation regression passed locally, while hosted
+  exact-head evidence remains pending.
+
 - [Parent CI verified-runtime-mismatch control-evidence deduplication](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.md)
 
 - [Parent Common blocked-runtime-smoke default dispatch for SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.md)

@@ -38,6 +38,7 @@ BUILD_CACHE_MARKER_START = "<!-- runtime-build-cache:start -->"
 BUILD_CACHE_MARKER_END = "<!-- runtime-build-cache:end -->"
 NATIVE_EVIDENCE_MARKER_START = "<!-- mrts-native-infrastructure-evidence:start -->"
 NATIVE_EVIDENCE_MARKER_END = "<!-- mrts-native-infrastructure-evidence:end -->"
+FOUR_COLUMN_TABLE_SEPARATOR = "|---|---|---|---|"
 NATIVE_REPORT_FILES = [
     report_relpath("mrts_native_apache", "json"),
     report_relpath("mrts_native_apache", "md"),
@@ -180,7 +181,7 @@ def runtime_component_cache_markdown(payload: dict[str, Any]) -> str:
         "- Local cache binaries and source trees are not committed; this report records provenance.",
         "",
         "| Component | Status | Build ID / Ref | Path |",
-        "|---|---|---|---|",
+        FOUR_COLUMN_TABLE_SEPARATOR,
     ]
     for row in component_status_rows(payload):
         lines.append(
@@ -204,14 +205,14 @@ def runtime_cache_index_markdown(payload: dict[str, Any]) -> str:
         "## Manifests",
         "",
         "| Item | Status | SHA256 | Path |",
-        "|---|---|---|---|",
+        FOUR_COLUMN_TABLE_SEPARATOR,
     ]
     for item in payload.get("manifests", []):
         lines.append(f"| {item.get('name', '-')} | {item.get('status', '-')} | `{item.get('sha256', '-')}` | `{item.get('path', '-')}` |")
-    lines.extend(["", "## Components", "", "| Component | Status | Build ID | Source / Path |", "|---|---|---|---|"])
+    lines.extend(["", "## Components", "", "| Component | Status | Build ID | Source / Path |", FOUR_COLUMN_TABLE_SEPARATOR])
     for item in payload.get("components", []):
         lines.append(f"| {item.get('name', '-')} | {item.get('status', '-')} | `{item.get('build_id', '-')}` | `{item.get('path', '-')}` |")
-    lines.extend(["", "## Important Files", "", "| Item | Status | SHA256 | Path |", "|---|---|---|---|"])
+    lines.extend(["", "## Important Files", "", "| Item | Status | SHA256 | Path |", FOUR_COLUMN_TABLE_SEPARATOR])
     for item in payload.get("important_files", []):
         lines.append(f"| {item.get('name', '-')} | {item.get('status', '-')} | `{item.get('sha256', '-')}` | `{item.get('path', '-')}` |")
     return "\n".join(lines)

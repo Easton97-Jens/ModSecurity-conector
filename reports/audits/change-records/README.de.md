@@ -7,6 +7,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Runtime-Cache-Vier-Spalten-Markdown-Separator für SonarQube Cloud S1192](CR-20260730-sonar-ci-runtime-cache-separator.de.md)
+  — ein privater Separator bewahrt die Component-Cache- und Cache-Index-
+  Tabellenausgabe; die direkte Presentation-Regression bestand lokal, während
+  Hosted-Exact-Head-Evidence noch aussteht.
+
 - [Parent-CI-Deduplizierung der Verified-Runtime-Mismatch-Control-Evidence](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.de.md)
 
 - [Parent-Common-Blocked-Runtime-Smoke-Default-Dispatch für SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.de.md)
