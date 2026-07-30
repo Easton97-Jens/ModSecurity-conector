@@ -59,6 +59,79 @@ enum msc_phase4_terminal_output_state
     MSC_PHASE4_TERMINAL_OUTPUT_SEALED
 };
 
+typedef struct
+{
+    apr_size_t body_bytes_seen;
+    apr_size_t body_bytes_inspected;
+    int body_truncated;
+    int body_processed;
+    int body_intervention_sent;
+} msc_request_state;
+
+typedef struct
+{
+    int headers_snapshot_taken;
+    apr_table_t *headers_snapshot;
+    apr_table_t *err_headers_snapshot;
+    int status_snapshot;
+    const char *status_line_snapshot;
+    const char *content_type_snapshot;
+    const char *content_encoding_snapshot;
+    apr_array_header_t *content_languages_snapshot;
+    apr_off_t clength_snapshot;
+    int chunked_snapshot;
+    int no_cache_snapshot;
+} msc_response_headers_snapshot;
+
+typedef struct
+{
+    int note_no_etag_snapshot_set;
+    const char *note_no_etag_snapshot;
+    int env_force_no_vary_snapshot_set;
+    const char *env_force_no_vary_snapshot;
+    int env_downgrade_1_0_snapshot_set;
+    const char *env_downgrade_1_0_snapshot;
+    int env_force_response_1_0_snapshot_set;
+    const char *env_force_response_1_0_snapshot;
+    int env_nokeepalive_snapshot_set;
+    const char *env_nokeepalive_snapshot;
+    int proto_num_snapshot;
+    int header_only_snapshot;
+    int assbackwards_snapshot;
+    int proxyreq_snapshot;
+    int expecting_100_snapshot;
+    apr_time_t request_time_snapshot;
+} msc_response_request_snapshot;
+
+typedef struct
+{
+    apr_size_t body_bytes_seen;
+    apr_size_t body_bytes_inspected;
+    apr_size_t brigade_bucket_count;
+    int body_truncated;
+    int headers_seen;
+    int body_seen;
+    apr_bucket_brigade *brigade;
+    int gate_failed;
+    enum msc_phase4_terminal_output_state terminal_output;
+    int terminal_error_redirect_seen;
+    int eos_released;
+    int committed;
+    int headers_processed;
+    int body_processed;
+    int phase4_intervention;
+    int phase4_strict_abort;
+} msc_response_state;
+
+typedef struct
+{
+    int last_status;
+    const char *last_log;
+    const char *transaction_id;
+    enum msconnector_phase native_event_phase;
+    int native_event_phase_active;
+} msc_intervention_state;
+
 
 typedef struct
 {
@@ -68,84 +141,73 @@ typedef struct
      * retain this immutable owner separately. */
     request_rec *owner_request;
     Transaction *t;
-    apr_size_t request_body_bytes_seen;
-    apr_size_t request_body_bytes_inspected;
-    apr_size_t response_body_bytes_seen;
-    apr_size_t response_body_bytes_inspected;
-    /* The Phase-4 payload cap does not by itself bound Apache bucket-object
-     * overhead. Count every normalized bucket retained pending EOS. */
-    apr_size_t response_brigade_bucket_count;
-    int request_body_truncated;
-    int request_body_processed;
-    int request_body_intervention_sent;
-    int response_headers_seen;
-    int response_body_seen;
-    int response_body_truncated;
-    /* Apache normally commits this state when the first response brigade
-     * reaches HTTP_HEADER. The Phase-4 gate delays that pass until EOS, so
-     * retain the P3-inspected snapshot and restore it before release. */
-    int response_headers_snapshot_taken;
-    apr_table_t *response_headers_snapshot;
-    apr_table_t *response_err_headers_snapshot;
-    int response_status_snapshot;
-    const char *response_status_line_snapshot;
-    const char *response_content_type_snapshot;
-    const char *response_content_encoding_snapshot;
-    apr_array_header_t *response_content_languages_snapshot;
-    apr_off_t response_clength_snapshot;
-    int response_chunked_snapshot;
-    int response_no_cache_snapshot;
-    /* HTTP_HEADER derives further visible response behavior from these
-     * request controls when it finally runs. Retain the P3-era values rather
-     * than a whole notes/environment table so unrelated late request state is
-     * not discarded by the Phase-4 response gate. */
-    int response_note_no_etag_snapshot_set;
-    const char *response_note_no_etag_snapshot;
-    int response_env_force_no_vary_snapshot_set;
-    const char *response_env_force_no_vary_snapshot;
-    int response_env_downgrade_1_0_snapshot_set;
-    const char *response_env_downgrade_1_0_snapshot;
-    int response_env_force_response_1_0_snapshot_set;
-    const char *response_env_force_response_1_0_snapshot;
-    int response_env_nokeepalive_snapshot_set;
-    const char *response_env_nokeepalive_snapshot;
-    int response_proto_num_snapshot;
-    int response_header_only_snapshot;
-    int response_assbackwards_snapshot;
-    int response_proxyreq_snapshot;
-    int response_expecting_100_snapshot;
-    apr_time_t response_request_time_snapshot;
-    /* LibModSecurity's effective MIME policy is opaque to the C connector.
-     * Every Apache response is set aside until EOS so a disruptive
-     * response-body decision is made before Apache can commit it. */
-    apr_bucket_brigade *response_brigade;
-    /* A terminal Phase-4 error, deny, or late abort must keep this filter
-     * authoritative for the remainder of the request. A producer that ignores
-     * the returned error must not bypass the gate with another brigade. */
-    int response_phase4_gate_failed;
-    enum msc_phase4_terminal_output_state response_phase4_terminal_output;
-    /* At most one Apache-core local ErrorDocument redirect may use the
-     * bounded terminal-emission exception. Nested redirects would otherwise
-     * turn this exception into a path around the Phase-4 request boundary. */
-    int response_phase4_terminal_error_redirect_seen;
-    /* This filter has passed its retained EOS to the next output filter. Any
-     * later producer brigade is invalid and must not create a second response
-     * sequence. */
-    int response_phase4_eos_released;
-    int response_committed;
-    int response_headers_processed;
-    int response_body_processed;
-    int phase4_intervention;
-    int phase4_strict_abort;
-    int last_intervention_status;
-    const char *last_intervention_log;
-    const char *event_transaction_id;
-    /* A libmodsecurity log callback is synchronous with the host processing
-     * call.  Keep only the active lifecycle phase so a non-disruptive rule
-     * match can be recorded as native metadata without retaining its text. */
-    enum msconnector_phase native_event_phase;
-    int native_event_phase_active;
+    msc_request_state request;
+    /* Apache normally commits visible state in HTTP_HEADER. The Phase-4 gate
+     * retains the P3 state until its own EOS decision has completed. */
+    msc_response_headers_snapshot response_headers;
+    msc_response_request_snapshot response_request;
+    /* LibModSecurity's effective MIME policy is opaque to the C connector,
+     * so this state owns the all-response pre-commit Phase-4 gate. */
+    msc_response_state response;
+    /* A log callback is synchronous with host processing; retain only the
+     * decision needed to emit bounded native metadata. */
+    msc_intervention_state intervention;
 } msc_t;
+
+/* Keep the established field vocabulary at call sites while grouping the
+ * connector's internal state by lifecycle responsibility. */
+#define request_body_bytes_seen request.body_bytes_seen
+#define request_body_bytes_inspected request.body_bytes_inspected
+#define request_body_truncated request.body_truncated
+#define request_body_processed request.body_processed
+#define request_body_intervention_sent request.body_intervention_sent
+#define response_headers_snapshot_taken response_headers.headers_snapshot_taken
+#define response_headers_snapshot response_headers.headers_snapshot
+#define response_err_headers_snapshot response_headers.err_headers_snapshot
+#define response_status_snapshot response_headers.status_snapshot
+#define response_status_line_snapshot response_headers.status_line_snapshot
+#define response_content_type_snapshot response_headers.content_type_snapshot
+#define response_content_encoding_snapshot response_headers.content_encoding_snapshot
+#define response_content_languages_snapshot response_headers.content_languages_snapshot
+#define response_clength_snapshot response_headers.clength_snapshot
+#define response_chunked_snapshot response_headers.chunked_snapshot
+#define response_no_cache_snapshot response_headers.no_cache_snapshot
+#define response_note_no_etag_snapshot_set response_request.note_no_etag_snapshot_set
+#define response_note_no_etag_snapshot response_request.note_no_etag_snapshot
+#define response_env_force_no_vary_snapshot_set response_request.env_force_no_vary_snapshot_set
+#define response_env_force_no_vary_snapshot response_request.env_force_no_vary_snapshot
+#define response_env_downgrade_1_0_snapshot_set response_request.env_downgrade_1_0_snapshot_set
+#define response_env_downgrade_1_0_snapshot response_request.env_downgrade_1_0_snapshot
+#define response_env_force_response_1_0_snapshot_set response_request.env_force_response_1_0_snapshot_set
+#define response_env_force_response_1_0_snapshot response_request.env_force_response_1_0_snapshot
+#define response_env_nokeepalive_snapshot_set response_request.env_nokeepalive_snapshot_set
+#define response_env_nokeepalive_snapshot response_request.env_nokeepalive_snapshot
+#define response_proto_num_snapshot response_request.proto_num_snapshot
+#define response_header_only_snapshot response_request.header_only_snapshot
+#define response_assbackwards_snapshot response_request.assbackwards_snapshot
+#define response_proxyreq_snapshot response_request.proxyreq_snapshot
+#define response_expecting_100_snapshot response_request.expecting_100_snapshot
+#define response_request_time_snapshot response_request.request_time_snapshot
+#define response_body_bytes_seen response.body_bytes_seen
+#define response_body_bytes_inspected response.body_bytes_inspected
+#define response_brigade_bucket_count response.brigade_bucket_count
+#define response_body_truncated response.body_truncated
+#define response_headers_seen response.headers_seen
+#define response_body_seen response.body_seen
+#define response_brigade response.brigade
+#define response_phase4_gate_failed response.gate_failed
+#define response_phase4_terminal_output response.terminal_output
+#define response_phase4_terminal_error_redirect_seen response.terminal_error_redirect_seen
+#define response_phase4_eos_released response.eos_released
+#define response_headers_processed response.headers_processed
+#define response_body_processed response.body_processed
+#define phase4_intervention response.phase4_intervention
+#define phase4_strict_abort response.phase4_strict_abort
+#define last_intervention_status intervention.last_status
+#define last_intervention_log intervention.last_log
+#define event_transaction_id intervention.transaction_id
+#define native_event_phase intervention.native_event_phase
+#define native_event_phase_active intervention.native_event_phase_active
 
 
 typedef struct
@@ -163,6 +225,17 @@ typedef struct
     ModSecurity *modsec;
 } msc_global;
 
+typedef struct
+{
+    const char *event_name;
+    enum msconnector_phase phase;
+    const char *wanted;
+    const char *actual;
+    const char *reason;
+    int original_status;
+    int response_already_committed;
+} apache_intervention_event_input;
+
 extern module AP_MODULE_DECLARE_DATA security3_module;
 extern msc_global *msc_apache;
 extern const command_rec module_directives[];
@@ -171,9 +244,7 @@ extern const command_rec module_directives[];
 int process_intervention (Transaction *t, request_rec *r);
 int msc_finalize_request_body(msc_t *msr, request_rec *r);
 void apache_emit_intervention_event(msc_t *msr, request_rec *r,
-    const char *event_name, enum msconnector_phase phase,
-    const char *wanted, const char *actual, const char *reason,
-    int original_status, int response_committed);
+    const apache_intervention_event_input *input);
 void apache_log_rule_match_event(msc_t *msr, request_rec *r,
     enum msconnector_phase phase, const char *rule_id);
 

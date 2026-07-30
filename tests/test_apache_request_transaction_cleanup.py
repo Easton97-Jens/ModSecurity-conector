@@ -111,7 +111,9 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
             "if (request_body_rc != APR_SUCCESS)", drain
         )
         failure_return = self.output_filter.index("return request_body_rc;", failure_check)
-        response_headers = self.output_filter.index("/* response headers */")
+        response_headers = self.output_filter.index(
+            "rc = apache_output_filter_process_headers(msr, r, f, bb_in);"
+        )
 
         self.assertNotIn(
             "apr_status_t rc = apache_finish_unread_request_body(f);",

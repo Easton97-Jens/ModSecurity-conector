@@ -805,12 +805,18 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
+            apache_intervention_event_input event_input;
             const char *action = msr->last_intervention_status >= 300 &&
                 msr->last_intervention_status < 400 ? "redirect" : "deny";
 
-            apache_emit_intervention_event(msr, r, "phase1_intervention",
-                MSCONNECTOR_PHASE_REQUEST_HEADERS, action, action,
-                "request_uri_before_request_headers", r->status, 0);
+            event_input.event_name = "phase1_intervention";
+            event_input.phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+            event_input.wanted = action;
+            event_input.actual = action;
+            event_input.reason = "request_uri_before_request_headers";
+            event_input.original_status = r->status;
+            event_input.response_already_committed = 0;
+            apache_emit_intervention_event(msr, r, &event_input);
             return it;
         }
     }
@@ -838,15 +844,21 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
+            apache_intervention_event_input event_input;
             const char *action = msr->last_intervention_status >= 300 &&
                 msr->last_intervention_status < 400 ? "redirect" : "deny";
 
             /* The native request-header hook has not handed control to a
              * handler yet.  Write this bounded event in the same real host
              * path that returns the HTTP intervention to Apache. */
-            apache_emit_intervention_event(msr, r, "phase1_intervention",
-                MSCONNECTOR_PHASE_REQUEST_HEADERS, action, action,
-                "request_headers_before_handler", r->status, 0);
+            event_input.event_name = "phase1_intervention";
+            event_input.phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+            event_input.wanted = action;
+            event_input.actual = action;
+            event_input.reason = "request_headers_before_handler";
+            event_input.original_status = r->status;
+            event_input.response_already_committed = 0;
+            apache_emit_intervention_event(msr, r, &event_input);
             return it;
         }
     }

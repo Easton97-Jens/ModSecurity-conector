@@ -7,6 +7,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Apache-Maintainability-Remediation](CR-20260730-sonar-apache-maintainability.de.md)
+  — remediiert das aktuelle 13er-Apache-SonarQube-Cloud-Maintainability-
+  Inventar mit fokussierter C17- und Native-Harness-Evidence; Exact-Head-
+  Hosted-Verifikation bleibt vor jeder Integration erforderlich.
+
 - [Parent-Common Event-JSON Optional-Field-Zerlegung](CR-20260730-sonar-common-event-json-complexity.de.md)
 
 - [Parent-Common HTTP-Autorisierungsservice-Const-Korrektheit](CR-20260730-sonar-common-http-auth-maintenance.de.md)
