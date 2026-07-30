@@ -124,8 +124,8 @@ was added.
 
 ## Final diff and review status
 
-At this record revision, the task has one local task-owned commit but no remote
-branch, pull request, hosted analysis, review, or merge. The final local
-source/security review is limited to the six listed Parent files and preserves
-the Parent/Framework/MRTS boundary. The exact hosted head must still be checked
-after delivery. No merge is authorized or claimed.
+The task-owned branch is pushed and [Draft PR #195](https://github.com/Easton97-Jens/ModSecurity-conector/pull/195)
+exists against `master`. Hosted analysis, reviews, and exact-head verification
+remain pending; the final local source/security review remains limited to the
+six listed Parent files and preserves the Parent/Framework/MRTS boundary. No
+merge is authorized or claimed.

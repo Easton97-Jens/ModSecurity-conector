@@ -131,9 +131,8 @@ hinzukam.
 
 ## Finaler Diff- und Review-Status
 
-Bei dieser Record-Revision hat die Aufgabe einen lokalen task-owned Commit,
-aber keinen Remote-Branch, keinen Pull Request, keine gehostete Analyse, kein
-Review und keinen Merge. Der finale lokale Source-/Security-Review ist auf die
-sechs genannten Parent-Dateien begrenzt und bewahrt die
-Parent-/Framework-/MRTS-Grenze. Nach der Delivery muss noch der exakte
-gehostete Head geprüft werden. Es ist kein Merge autorisiert oder beansprucht.
+Der task-owned Branch ist gepusht und [Draft PR #195](https://github.com/Easton97-Jens/ModSecurity-conector/pull/195)
+gegen `master` existiert. Gehostete Analyse, Reviews und Exact-Head-
+Verifizierung stehen noch aus; der finale lokale Source-/Security-Review bleibt
+auf die sechs genannten Parent-Dateien begrenzt und bewahrt die
+Parent-/Framework-/MRTS-Grenze. Es ist kein Merge autorisiert oder beansprucht.
