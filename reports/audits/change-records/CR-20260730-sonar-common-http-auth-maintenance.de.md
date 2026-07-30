@@ -104,7 +104,7 @@ Verifikationsrunde.
 
 Der Kandidat ist auf den ausgewählten Common-Service, erforderliche bilinguale
 Traceability und keine Nested-Repository- oder Scanner-Konfigurationsdatei
-beschränkt. Finaler Scoped Diff, Dokumentationsvalidierung, Task-Commit,
-Draft-PR und Exact-Head-GitHub-/SonarQube-Cloud-Evidence sind bei
-Record-Erstellung noch ausstehend; kein Merge oder `master`-Change wird
-behauptet.
+beschränkt. Draft-PR [#196](https://github.com/Easton97-Jens/ModSecurity-conector/pull/196)
+wurde vom Task-Branch erstellt. Dieser reine Record-Follow-up erfordert eine
+frische Current-Head-GitHub-Actions-, SonarQube-Cloud- und Review-
+Verifikationsrunde; kein Merge oder `master`-Change wird behauptet.

@@ -96,7 +96,8 @@ documentation commit requires a fresh exact-head hosted verification round.
 ## Final diff and review status
 
 The candidate is limited to the selected Common service, required bilingual
-traceability, and no nested-repository or scanner-configuration file.  The
-final scoped diff, documentation validation, task commit, Draft PR, and
-exact-head GitHub/SonarQube Cloud evidence remain pending at record creation;
+traceability, and no nested-repository or scanner-configuration file. Draft
+PR [#196](https://github.com/Easton97-Jens/ModSecurity-conector/pull/196) was
+created from the task branch. This record-only follow-up requires a fresh
+current-head GitHub Actions, SonarQube Cloud, and review verification round;
 no merge or `master` change is claimed.
