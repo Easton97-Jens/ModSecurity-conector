@@ -47,20 +47,26 @@ Ein typisierter Descriptor pro Aufruf übergibt Transaction-Felder, Meldungen, P
 | Ausgeführte Kontrolle | Beobachtetes Ergebnis |
 | --- | --- |
 | Frühere Kontrollen des ausgewählten PR-Heads | nur historisch; sie sind keine Evidenz für den synchronisierten Kandidaten. |
-| Frische Exact-Candidate-GCC-/Clang-C17-Binding-Builds und Selbsttest | ausstehend; müssen `-std=c17 -Wall -Wextra -Werror` gegen den registrierten temporären libmodsecurity-Prefix verwenden. |
-| Frische Exact-Candidate-HTX-/Common-Adoption-Contracts und Diff-Hygiene | ausstehend. |
+| GCC-C17-Binding-Build und Selbsttest | bestanden auf Implementierungskandidat `4d17b3f5e0fea7ea9cbc555381c59336a0bf529f` mit `-std=c17 -Wall -Wextra -Werror` und dem registrierten temporären libmodsecurity-Prefix; die P2-/P4-Lifecycle-Ausgabe ist `self-test-only`. |
+| Clang-C17-Binding-Build und Selbsttest | bestanden mit denselben Flags, Prefix und Lifecycle-Ausgabe. |
+| Parent-`check-haproxy-c17` | bestanden; der fokussierte HAProxy-C17-Compile wurde abgeschlossen. |
+| Statischer HTX-Overlay-Contract | alle Prüfungen bestanden, einschließlich Borrowed-Chunk-Forwarding und genau eines geschützten P2-/P4-EOS-Callsites. |
+| HAProxy-Common-Adoption-Contract | alle Prüfungen bestanden. |
+| Unit-Suite für bilinguale Dokumentation | bestanden: 21 Tests. |
+| Diff-Hygiene des Kandidaten | bestanden: `git diff --check origin/master...4d17b3f`. |
+| `test-htx-overlay`-Helper-Harness | `blocked_environment`: seine statische erste Stufe bestand, danach fehlte die absichtlich nicht materialisierte Framework-Datei `modules/ModSecurity-test-Framework/tests/runners/synchronized_upstream.py`. Es wurde kein Framework-Inhalt materialisiert oder verändert, um einen Pass zu erhalten. |
 
 ## Security-Auswirkung
 
-Dieser Code verarbeitet HTTP-abgeleitete Body-Chunks an einer Host-Protokoll-Grenze. Die Refaktorierung erhält die Source-to-Sink-Invariante: Eine Länge ungleich null benötigt weiter einen nicht-null Borrowed Pointer; jede Phase erreicht nur ihre passende libmodsecurity-Funktion; Post-EOS-Input bleibt abgewiesen; und nur der Phasen-Finisher erfasst die Intervention dieser Phase. Der native Request-Body-Rule-Selbsttest und die ergänzte Public-Wrapper-Lifecycle-Regression müssen auf dem exakten synchronisierten Kandidaten erneut laufen. Keine Validierungs-, Isolations-, Logging-, Late-Intervention- oder Quality-Gate-Kontrolle wird gelockert.
+Dieser Code verarbeitet HTTP-abgeleitete Body-Chunks an einer Host-Protokoll-Grenze. Die Refaktorierung erhält die Source-to-Sink-Invariante: Eine Länge ungleich null benötigt weiter einen nicht-null Borrowed Pointer; jede Phase erreicht nur ihre passende libmodsecurity-Funktion; Post-EOS-Input bleibt abgewiesen; und nur der Phasen-Finisher erfasst die Intervention dieser Phase. Der native Request-Body-Rule-Selbsttest und die ergänzte Public-Wrapper-Lifecycle-Regression liefen mit beiden Compilern auf Implementierungskandidat `4d17b3f...`. Keine Validierungs-, Isolations-, Logging-, Late-Intervention- oder Quality-Gate-Kontrolle wird gelockert.
 
 ## Runtime-Evidence
 
-Der erweiterte Selbsttest soll den temporären vorhandenen libmodsecurity-Prefix nutzen und den Phase-1-/Request-Body-Rule-Pfad sowie P2-/P4-Wrapper-Lifecycle-Guards bestätigen. Er führt keine Live-HAProxy-Runtime, keine CRS-Regeln und keine positive Response-Body-Enforcement-Rule aus. Der statische HTX-Contract prüft die Source-Invarianten von Phase-4-Dispatch und Finalisierung direkt, ist jedoch keine Host-Runtime-Behauptung.
+Der erweiterte Selbsttest nutzte den temporären vorhandenen libmodsecurity-Prefix und bestätigte den Phase-1-/Request-Body-Rule-Pfad sowie P2-/P4-Wrapper-Lifecycle-Guards. Er führt keine Live-HAProxy-Runtime, keine CRS-Regeln und keine positive Response-Body-Enforcement-Rule aus. Der statische HTX-Contract prüft die Source-Invarianten von Phase-4-Dispatch und Finalisierung direkt, ist jedoch keine Host-Runtime-Behauptung.
 
 ## Bekannte Einschränkungen
 
-- Eine Live-HAProxy-3.2.21-plus-libmodsecurity-Runtime und CRS-Fixture waren in diesem Task-Worktree nicht verfügbar.
+- Eine Live-HAProxy-3.2.21-plus-libmodsecurity-Runtime und CRS-Fixture wurden in diesem engen Task nicht ausgeführt. Der Helper-Harness kann in diesem temporären Parent-Worktree nicht fortfahren, weil sein gepinnter Framework-Runner absichtlich nicht materialisiert ist.
 - Ein frischer Exact-Candidate-Codex-Security-Diff-Scan, Hosted-Checks und eine SonarQube-Cloud-Analyse stehen aus.
 
 ## Verbleibende Risiken
@@ -69,8 +75,8 @@ Der erweiterte Selbsttest soll den temporären vorhandenen libmodsecurity-Prefix
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Keine Live-HAProxy-Runtime, kein Response-Body-Enforcement-Test, kein CRS-Selbsttest und keine vollständige Connector-Matrix sind für diese enge Binding-Lifecycle-Regression geplant. Frische Exact-Candidate-Binding-Builds/-Selbsttests, statische Contracts, ein vollständiger Security-Diff-Scan und Hosted-Checks bleiben vor der Delivery erforderlich.
+Keine Live-HAProxy-Runtime, kein Response-Body-Enforcement-Test, kein CRS-Selbsttest und keine vollständige Connector-Matrix sind für diese enge Binding-Lifecycle-Regression geplant. Der versuchte vollständige Helper-Harness ist `blocked_environment`, nicht bestanden; seine statische erste Stufe ist separat als bestanden festgehalten. Ein vollständiger Security-Diff-Scan und Hosted-Checks bleiben vor der Delivery erforderlich.
 
 ## Finaler Diff- und Review-Status
 
-Der synchronisierte Kandidat ist auf das Parent-HAProxy-Binding, seinen eng gekoppelten Selbsttest/Fixture/Make-Ziel und bilinguale Traceability begrenzt. Er entfernt zwei bestätigte 17-Zeilen-CPD-Paare, die als 68 Duplikatzeilen gemeldet waren. Frische lokale Compile-, Selbsttest-, statische-Contract-, Whitespace-, Security-Diff-Scan- und Exact-Head-Hosted-Verifikation bleiben vor jeder Delivery- oder Merge-Behauptung erforderlich.
+Der synchronisierte Kandidat ist auf das Parent-HAProxy-Binding, seinen eng gekoppelten Selbsttest/Fixture/Make-Ziel und bilinguale Traceability begrenzt. Er entfernt zwei bestätigte 17-Zeilen-CPD-Paare, die als 68 Duplikatzeilen gemeldet waren. Frische lokale Compile-, Selbsttest-, statische-Contract- und Whitespace-Evidenz ist oben festgehalten. Ein vollständiger Security-Diff-Scan und Exact-Head-Hosted-Verifikation bleiben vor jeder Delivery- oder Merge-Behauptung erforderlich.

@@ -60,8 +60,14 @@ duplicated pairs without changing phase ownership or the external API.
 | Executed control | Observed result |
 | --- | --- |
 | Earlier selected-PR-head controls | historical only; they are not evidence for the synchronized candidate. |
-| Fresh exact-candidate GCC/Clang C17 binding builds and self-test | pending; must use `-std=c17 -Wall -Wextra -Werror` against the registered temporary libmodsecurity prefix. |
-| Fresh exact-candidate HTX/common-adoption contracts and diff hygiene | pending. |
+| GCC C17 binding build and self-test | passed at implementation candidate `4d17b3f5e0fea7ea9cbc555381c59336a0bf529f` with `-std=c17 -Wall -Wextra -Werror` and the registered temporary libmodsecurity prefix; P2/P4 lifecycle output is `self-test-only`. |
+| Clang C17 binding build and self-test | passed with the same flags, prefix, and lifecycle output. |
+| Parent `check-haproxy-c17` | passed; the focused HAProxy C17 compile completed. |
+| Static HTX overlay contract | passed all checks, including borrowed-chunk forwarding and exactly one guarded P2/P4 EOS callsite. |
+| HAProxy Common-adoption contract | passed all checks. |
+| Bilingual documentation unit suite | passed: 21 tests. |
+| Candidate diff hygiene | passed: `git diff --check origin/master...4d17b3f`. |
+| `test-htx-overlay` helper harness | `blocked_environment`: its static first stage passed, then the intentionally unmaterialized Framework file `modules/ModSecurity-test-Framework/tests/runners/synchronized_upstream.py` was absent. No Framework content was materialized or changed to obtain a pass. |
 
 ## Security impact
 
@@ -70,23 +76,25 @@ refactor preserves the source-to-sink invariant: a nonzero length still
 requires a non-null borrowed pointer; each phase reaches only its matching
 libmodsecurity function; post-EOS input remains rejected; and only the phase
 finisher captures that phase's intervention. The native request-body rule
-self-test and the added public-wrapper lifecycle regression must be rerun on
-the exact synchronized candidate. No validation, isolation, logging,
+self-test and the added public-wrapper lifecycle regression were rerun with
+both compilers on implementation candidate `4d17b3f...`. No validation, isolation, logging,
 late-intervention, or Quality Gate control is relaxed.
 
 ## Runtime evidence
 
-The enhanced self-test is designed to use the temporary existing
-libmodsecurity prefix and confirm the phase-1/request-body rule path plus P2
-and P4 wrapper lifecycle guards. It does not execute a live HAProxy runtime,
-CRS rules, or a positive response-body enforcement rule. The static HTX
+The enhanced self-test used the temporary existing libmodsecurity prefix and
+confirmed the phase-1/request-body rule path plus P2 and P4 wrapper lifecycle
+guards. It does not execute a live HAProxy runtime, CRS rules, or a positive
+response-body enforcement rule. The static HTX
 contract verifies phase-4 dispatch and finalization source invariants, but it
 is not a host-runtime claim.
 
 ## Known limitations
 
 - A live HAProxy 3.2.21 plus libmodsecurity runtime and CRS fixture were not
-  available in this task worktree.
+  run in this narrow task. The helper harness cannot proceed in this temporary
+  Parent worktree because its pinned Framework runner is intentionally not
+  materialized.
 - A fresh exact-candidate Codex Security diff scan, hosted checks, and
   SonarQube Cloud analysis remain pending.
 
@@ -100,14 +108,15 @@ is not a host-runtime claim.
 
 No live HAProxy runtime, response-body enforcement test, CRS self-test, or
 full connector matrix is planned for this narrow binding-lifecycle regression.
-The fresh exact-candidate binding builds/self-test, static contracts, complete
-Security Diff Scan, and hosted checks remain required before delivery.
+The attempted full helper harness is classified `blocked_environment`, not
+passed; its static first stage is separately recorded as passed. A complete
+Security Diff Scan and hosted checks remain required before delivery.
 
 ## Final diff and review status
 
 The synchronized candidate is confined to the Parent HAProxy binding, its
 narrowly coupled self-test/fixture/Make target, and bilingual traceability.
 It removes two confirmed 17-line CPD pairs reported as 68 duplicate lines.
-Fresh local compile, self-test, static-contract, whitespace, Security Diff
-Scan, and exact-head hosted verification remain required before any delivery
-or merge claim.
+Fresh local compile, self-test, static-contract, and whitespace evidence is
+recorded above. A complete Security Diff Scan and exact-head hosted
+verification remain required before any delivery or merge claim.
