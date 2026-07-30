@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260729-sonar-lighttpd-runtime-output-containment |
 | Datum (UTC) | 2026-07-29 |
-| Basis-Revision | `9f23ae2c5fe908cef38f203be03f93fda75a8dd7` |
+| Basis-Revision | `5a345e3ff90cf5405caea5ff7ae4536b52f826c9` |
 | Tracking | Sechs aktuelle SonarQube-Cloud-Befunde `pythonsecurity:S8707`: Fixture-Ready/Result, First-Byte-Metadaten und Lifecycle-Projection/Summary/Results-Outputs. |
 | Grenze | Parent-Lighttpd-Harness-Source und Tests sowie gepaarte Change-Record-Indizes. Keine Framework-, MRTS-, Gitlink-, Workflow-, Sonar-Konfigurations-, Suppression- oder `master`-Änderung. |
 
@@ -57,7 +57,7 @@ Die fokussierten Tests führen die echten Writer-CLIs und dieselben File-System-
 ## Bekannte Einschränkungen
 
 - Eine vollständige gepatchte Lighttpd-/libmodsecurity-Host-Runtime und Connector-Matrix liefen nicht, weil der version-festgeschriebene Host-Build und die Fixtures in diesem temporären Task-Worktree fehlen.
-- Die vollständige Codex-Security-Diff-Scan-Fähigkeit ist nicht verfügbar, weil ihr verpflichtender Delegated-Worker-Preflight unvollständig ist; ein vollständiger Scan-Report wird nicht behauptet.
+- Vor der Delivery benötigt der synchronisierte exakte Kandidat einen vollständigen Codex-Security-Diff-Scan; dieses Change Record ersetzt dessen versiegelte Evidence nicht.
 - Hosted-Checks und frische Exact-Head-SonarQube-Cloud-Analyse stehen aus.
 
 ## Verbleibende Risiken
@@ -66,8 +66,8 @@ Die fokussierten Tests führen die echten Writer-CLIs und dieselben File-System-
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Keine Live-gepatchte-Lighttpd-Runtime, keine vollständige Connector-Matrix und kein vollständiger Codex-Security-Diff-Scan liefen. Der erforderliche Host-Build/die Fixtures fehlen in diesem temporären Worktree und die verpflichtende Delegated-Worker-Fähigkeit des Scanners ist nicht verfügbar. Die CLI-Level-malicious/legitimate-Kontrollen sind für diese File-System-Sinks die stärkste verfügbare direkte Evidence.
+Keine Live-gepatchte-Lighttpd-Runtime und keine vollständige Connector-Matrix liefen, weil der erforderliche Host-Build und die Fixtures in diesem temporären Worktree fehlen. Die CLI-Level-malicious/legitimate-Kontrollen sind für diese File-System-Sinks die stärkste verfügbare direkte Evidence; der separate vollständige Security-Diff-Scan des synchronisierten Kandidaten bleibt vor der Delivery erforderlich.
 
 ## Finaler Diff- und Review-Status
 
-Der Kandidat ist auf Parent-Lighttpd-Harness-Security und bilinguale Traceability begrenzt. Er deckt alle sechs ausgewählten S8707-Locations mit einer gemeinsamen Verified-Root-Grenze ab. Lokaler Review und fokussierte Validierung sind abgeschlossen; ein separater Draft-PR und Exact-Head-Hosted-Verifikation bleiben vor jeder Delivery- oder Merge-Behauptung erforderlich.
+Der Kandidat ist auf Parent-Lighttpd-Harness-Security und bilinguale Traceability begrenzt. Er deckt alle sechs ausgewählten S8707-Locations mit einer gemeinsamen Verified-Root-Grenze ab. Der synchronisierte exakte Head benötigt frische lokale, vollständige Security-Diff- und Hosted-Verifikation vor jeder Delivery- oder Merge-Behauptung.

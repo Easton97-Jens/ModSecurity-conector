@@ -83,6 +83,58 @@ enum msconnector_event_json_flag_index {
     EVENT_JSON_FLAG_COUNT
 };
 
+enum msconnector_event_protocol_text_index {
+    EVENT_PROTOCOL_REQUESTED_PROTOCOL = 0,
+    EVENT_PROTOCOL_DOWNSTREAM_PROTOCOL,
+    EVENT_PROTOCOL_UPSTREAM_PROTOCOL,
+    EVENT_PROTOCOL_NEGOTIATED_PROTOCOL,
+    EVENT_PROTOCOL_TRANSPORT,
+    EVENT_PROTOCOL_ALPN,
+    EVENT_PROTOCOL_STREAM_ID,
+    EVENT_PROTOCOL_CONNECTION_ID,
+    EVENT_PROTOCOL_QUIC_VERSION,
+    EVENT_PROTOCOL_STREAM_RESET_CODE,
+    EVENT_PROTOCOL_RESET_BY,
+    EVENT_PROTOCOL_RESET_CODE,
+    EVENT_PROTOCOL_TIMEOUT_STAGE,
+    EVENT_PROTOCOL_WRITE_RESULT,
+    EVENT_PROTOCOL_CLEANUP_REASON,
+    EVENT_PROTOCOL_TEXT_COUNT
+};
+
+enum msconnector_event_protocol_flag_index {
+    EVENT_PROTOCOL_CONNECTION_REUSED = 0,
+    EVENT_PROTOCOL_QUIC_CONNECTION_ID_PRESENT,
+    EVENT_PROTOCOL_FALLBACK_USED,
+    EVENT_PROTOCOL_STREAM_RESET,
+    EVENT_PROTOCOL_FLAG_COUNT
+};
+
+static const char *const event_protocol_text_names[EVENT_PROTOCOL_TEXT_COUNT] = {
+    "requested_protocol",
+    "downstream_protocol",
+    "upstream_protocol",
+    "negotiated_protocol",
+    "transport",
+    "alpn",
+    "stream_id",
+    "connection_id",
+    "quic_version",
+    "stream_reset_code",
+    "reset_by",
+    "reset_code",
+    "timeout_stage",
+    "write_result",
+    "cleanup_reason"
+};
+
+static const char *const event_protocol_flag_names[EVENT_PROTOCOL_FLAG_COUNT] = {
+    "connection_reused",
+    "quic_connection_id_present",
+    "fallback_used",
+    "stream_reset"
+};
+
 typedef struct msconnector_event_json_parts {
     const char *text[EVENT_JSON_TEXT_COUNT];
     int statuses[EVENT_JSON_STATUS_COUNT];
@@ -198,6 +250,74 @@ static int append_protocol_bool(
     }
     *offset += (size_t)written;
     return 1;
+}
+
+static int protocol_metadata_present(
+    const char *const values[EVENT_PROTOCOL_TEXT_COUNT],
+    const int flags[EVENT_PROTOCOL_FLAG_COUNT]) {
+    size_t index;
+
+    for (index = 0U; index < EVENT_PROTOCOL_TEXT_COUNT; ++index) {
+        if (values[index][0] != '\0') {
+            return 1;
+        }
+    }
+    for (index = 0U; index < EVENT_PROTOCOL_FLAG_COUNT; ++index) {
+        if (flags[index] != 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int append_protocol_metadata(
+    char *dst,
+    size_t dst_size,
+    size_t *offset,
+    const char *const values[EVENT_PROTOCOL_TEXT_COUNT],
+    const int flags[EVENT_PROTOCOL_FLAG_COUNT]) {
+    size_t index;
+
+    for (index = 0U; index < EVENT_PROTOCOL_TEXT_COUNT; ++index) {
+        if (!append_protocol_string(dst, dst_size, offset,
+                event_protocol_text_names[index], values[index])) {
+            return 0;
+        }
+    }
+    for (index = 0U; index < EVENT_PROTOCOL_FLAG_COUNT; ++index) {
+        if (!append_protocol_bool(dst, dst_size, offset,
+                event_protocol_flag_names[index], flags[index])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static void append_event_provenance(
+    char *dst,
+    size_t dst_size,
+    const char *run_id,
+    const char *transport_case_id,
+    const char *const values[EVENT_PROTOCOL_TEXT_COUNT],
+    const int flags[EVENT_PROTOCOL_FLAG_COUNT],
+    int *was_truncated) {
+    size_t offset = 0U;
+
+    dst[0] = '\0';
+    if (!append_protocol_string(dst, dst_size, &offset, "run_id", run_id)) {
+        *was_truncated = 1;
+    }
+    if (!append_protocol_string(dst, dst_size, &offset,
+            "transport_case_id", transport_case_id)) {
+        *was_truncated = 1;
+    }
+    if (!protocol_metadata_present(values, flags)) {
+        return;
+    }
+    if (!append_protocol_metadata(dst, dst_size, &offset, values, flags)) {
+        *was_truncated = 1;
+        dst[0] = '\0';
+    }
 }
 
 static int is_nonreversible_quic_connection_id(const char *value) {
@@ -428,8 +548,6 @@ int msconnector_event_write_json_ex(
     char provenance_json[EVENT_TEXT_SIZE * 12U];
     msconnector_event_json_parts parts;
     int was_truncated;
-    int protocol_present;
-    size_t provenance_offset;
     int written;
 
     if (truncated != 0) {
@@ -522,69 +640,34 @@ int msconnector_event_write_json_ex(
         was_truncated = 1;
     }
 
-    provenance_json[0] = '\0';
-    provenance_offset = 0U;
-    if (!append_protocol_string(provenance_json, sizeof(provenance_json),
-            &provenance_offset, "run_id", run_id)) {
-        was_truncated = 1;
-    }
-    if (!append_protocol_string(provenance_json, sizeof(provenance_json),
-            &provenance_offset, "transport_case_id", transport_case_id)) {
-        was_truncated = 1;
-    }
-    protocol_present = requested_protocol[0] != '\0' ||
-        downstream_protocol[0] != '\0' || upstream_protocol[0] != '\0' ||
-        negotiated_protocol[0] != '\0' || transport[0] != '\0' ||
-        alpn[0] != '\0' || stream_id[0] != '\0' || connection_id[0] != '\0' ||
-        quic_version[0] != '\0' || stream_reset_code[0] != '\0' ||
-        reset_by[0] != '\0' || reset_code[0] != '\0' ||
-        timeout_stage[0] != '\0' || write_result[0] != '\0' ||
-        cleanup_reason[0] != '\0' ||
-        event->protocol.connection_reused != 0 ||
-        event->protocol.quic_connection_id_present != 0 ||
-        event->protocol.fallback_used != 0 || event->protocol.stream_reset != 0;
-    if (protocol_present &&
-        (!append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "requested_protocol", requested_protocol) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "downstream_protocol", downstream_protocol) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "upstream_protocol", upstream_protocol) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "negotiated_protocol", negotiated_protocol) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "transport", transport) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "alpn", alpn) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "stream_id", stream_id) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "connection_id", connection_id) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "quic_version", quic_version) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "stream_reset_code", stream_reset_code) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "reset_by", reset_by) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "reset_code", reset_code) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "timeout_stage", timeout_stage) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "write_result", write_result) ||
-            !append_protocol_string(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "cleanup_reason", cleanup_reason) ||
-            !append_protocol_bool(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "connection_reused", event->protocol.connection_reused) ||
-            !append_protocol_bool(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "quic_connection_id_present",
-                event->protocol.quic_connection_id_present) ||
-            !append_protocol_bool(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "fallback_used", event->protocol.fallback_used) ||
-            !append_protocol_bool(provenance_json, sizeof(provenance_json),
-                &provenance_offset, "stream_reset", event->protocol.stream_reset))) {
-        was_truncated = 1;
-        provenance_json[0] = '\0';
+    {
+        const char *const protocol_values[EVENT_PROTOCOL_TEXT_COUNT] = {
+            requested_protocol,
+            downstream_protocol,
+            upstream_protocol,
+            negotiated_protocol,
+            transport,
+            alpn,
+            stream_id,
+            connection_id,
+            quic_version,
+            stream_reset_code,
+            reset_by,
+            reset_code,
+            timeout_stage,
+            write_result,
+            cleanup_reason
+        };
+        const int protocol_flags[EVENT_PROTOCOL_FLAG_COUNT] = {
+            event->protocol.connection_reused,
+            event->protocol.quic_connection_id_present,
+            event->protocol.fallback_used,
+            event->protocol.stream_reset
+        };
+
+        append_event_provenance(provenance_json, sizeof(provenance_json),
+            run_id, transport_case_id, protocol_values, protocol_flags,
+            &was_truncated);
     }
 
     parts.text[EVENT_JSON_TIMESTAMP] = timestamp;

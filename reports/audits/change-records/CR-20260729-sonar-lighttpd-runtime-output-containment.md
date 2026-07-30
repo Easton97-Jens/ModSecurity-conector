@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | CR-20260729-sonar-lighttpd-runtime-output-containment |
 | Date (UTC) | 2026-07-29 |
-| Base revision | `9f23ae2c5fe908cef38f203be03f93fda75a8dd7` |
+| Base revision | `5a345e3ff90cf5405caea5ff7ae4536b52f826c9` |
 | Tracking | Six current SonarQube Cloud `pythonsecurity:S8707` findings: fixture ready/result, first-byte metadata, and lifecycle projection/summary/results outputs. |
 | Boundary | Parent Lighttpd harness source and tests, plus paired Change Record indexes. No Framework, MRTS, Gitlink, workflow, Sonar configuration, suppression, or `master` change. |
 
@@ -57,7 +57,7 @@ The focused tests execute the real writer CLIs and the same filesystem helpers u
 ## Known limitations
 
 - A complete patched-Lighttpd/libmodsecurity host runtime and connector matrix were not run because their version-pinned host build and fixtures are absent from this temporary task worktree.
-- The complete Codex Security diff-scan capability is unavailable because its mandatory delegated-worker preflight is incomplete; no full scan report is claimed.
+- Before delivery, the synchronized exact candidate requires a complete Codex Security diff scan; this Change Record does not substitute for its sealed evidence.
 - Hosted checks and fresh exact-head SonarQube Cloud analysis remain pending.
 
 ## Remaining risks
@@ -66,8 +66,8 @@ The focused tests execute the real writer CLIs and the same filesystem helpers u
 
 ## Checks not run and rationale
 
-No live patched-Lighttpd runtime, full connector matrix, or complete Codex Security diff scan ran. The required host build/fixtures are absent from this temporary worktree and the scanner's mandatory delegated-worker capability is unavailable. The CLI-level malicious and legitimate controls are the strongest available direct proof for these filesystem sinks.
+No live patched-Lighttpd runtime or full connector matrix ran because the required host build and fixtures are absent from this temporary worktree. The CLI-level malicious and legitimate controls are the strongest available direct proof for these filesystem sinks; the synchronized candidate's separate complete security-diff scan remains required before delivery.
 
 ## Final diff and review status
 
-The candidate is confined to Parent Lighttpd harness security and bilingual traceability. It covers all six selected S8707 locations with one shared verified-root boundary. Local review and focused validation are complete; a separate Draft PR and exact-head hosted verification remain required before any delivery or merge claim.
+The candidate is confined to Parent Lighttpd harness security and bilingual traceability. It covers all six selected S8707 locations with one shared verified-root boundary. The synchronized exact head requires fresh local, complete security-diff, and hosted verification before any delivery or merge claim.

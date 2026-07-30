@@ -107,7 +107,7 @@ const command_rec module_directives[] =
         "Bound Apache connector response-body buffering for Phase 4"
     ),
 
-    {NULL}
+    { .name = NULL }
 };
 
 
@@ -384,6 +384,16 @@ static const char *msc_config_phase4_body_limit(cmd_parms *cmd, void *_cnf,
 }
 
 
+static apr_status_t msc_rules_set_cleanup(void *data)
+{
+    if (data != NULL)
+    {
+        msc_rules_cleanup(data);
+    }
+
+    return APR_SUCCESS;
+}
+
 
 void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
 {
@@ -410,6 +420,8 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
             "ModSecurity: Failed to create rules set for directory config");
         return NULL;
     }
+    apr_pool_cleanup_register(mp, cnf->rules_set, msc_rules_set_cleanup,
+        apr_pool_cleanup_null);
 
     if (path != NULL)
     {

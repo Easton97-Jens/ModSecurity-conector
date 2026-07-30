@@ -156,7 +156,11 @@ cat > "$RULES_FILE" <<EOF
 SecRuleEngine On
 SecRule REQUEST_URI "@streq /blocked" "id:100001,phase:1,deny,status:403,log"
 EOF
-OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$ENVOY_PORT" UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" EXT_PROC_PORT="$EXT_PROC_PORT" ADMIN_PORT="$ENVOY_ADMIN_PORT" sh "$CONNECTOR_ROOT/connectors/envoy/config/prepare_envoy_ext_proc_config.sh"
+export TLS_CERTIFICATE="$RUNTIME_ROOT/envoy-loopback.crt"
+export TLS_PRIVATE_KEY="$RUNTIME_ROOT/envoy-loopback.key"
+mkdir -p "$RUNTIME_ROOT"
+umask 077; openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 -keyout "$TLS_PRIVATE_KEY" -out "$TLS_CERTIFICATE"
+OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$ENVOY_PORT" UPSTREAM_PORT="$ENVOY_UPSTREAM_PORT" EXT_PROC_PORT="$EXT_PROC_PORT" ADMIN_PORT="$ENVOY_ADMIN_PORT" TLS_CERTIFICATE="$TLS_CERTIFICATE" TLS_PRIVATE_KEY="$TLS_PRIVATE_KEY" sh "$CONNECTOR_ROOT/connectors/envoy/config/prepare_envoy_ext_proc_config.sh"
 OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG" RULES_FILE="$RULES_FILE" EVENT_PATH="$RUNTIME_ROOT/events.jsonl" sh "$CONNECTOR_ROOT/connectors/envoy/config/prepare_envoy_ext_proc_runtime_config.sh"
 ```
 
@@ -269,6 +273,8 @@ An official Envoy binary is only the host. If validation fails, check the genera
 | OUTPUT_CONFIG | Output path consumed by one configuration-materialization command. |
 | EVENT_PATH | Absolute local event-log path passed to the ext_proc runtime configuration writer. |
 | RUNTIME_ROOT | External ephemeral root used by the bounded Envoy runtime harness. |
+| TLS_CERTIFICATE | Private one-day loopback certificate path for the generated Envoy listener. |
+| TLS_PRIVATE_KEY | Private key path paired with TLS_CERTIFICATE; keep it outside the checkout. |
 | LISTEN_PORT | Loopback listener port passed to the Envoy configuration materializer. |
 | UPSTREAM_PORT | Loopback upstream port passed to the Envoy configuration materializer. |
 | ADMIN_PORT | Loopback admin port passed to the Envoy configuration materializer. |
