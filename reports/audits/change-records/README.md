@@ -8,6 +8,8 @@ must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent Common event JSON optional-field decomposition](CR-20260730-sonar-common-event-json-complexity.md)
 
+- [Parent Lighttpd runtime-input containment](CR-20260730-sonar-lighttpd-runtime-input-containment.md)
+
 - [Parent Common HTTP authorization-service const correctness](CR-20260730-sonar-common-http-auth-maintenance.md)
 
 - [Parent CI tools output containment and native oracle decomposition for SonarQube Cloud](CR-20260730-sonar-ci-tools-output-oracle.md)

@@ -9,6 +9,8 @@ Review- oder Delivery-Ergebnisse behaupten.
 
 - [Parent-Common Event-JSON Optional-Field-Zerlegung](CR-20260730-sonar-common-event-json-complexity.de.md)
 
+- [Parent-Lighttpd-Runtime-Input-Containment](CR-20260730-sonar-lighttpd-runtime-input-containment.de.md)
+
 - [Parent-Common HTTP-Autorisierungsservice-Const-Korrektheit](CR-20260730-sonar-common-http-auth-maintenance.de.md)
 
 - [Parent-CI-Tools-Output-Containment und Native-Oracle-Zerlegung für SonarQube Cloud](CR-20260730-sonar-ci-tools-output-oracle.de.md)

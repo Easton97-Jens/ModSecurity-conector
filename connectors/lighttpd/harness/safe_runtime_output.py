@@ -11,7 +11,13 @@ _CI_LIB = Path(__file__).resolve().parents[3] / "ci" / "lib"
 if str(_CI_LIB) not in sys.path:
     sys.path.insert(0, str(_CI_LIB))
 
-from runtime_path_utils import ensure_safe_runtime_directory, is_safe_runtime_root, is_under
+from runtime_path_utils import (
+    ensure_safe_runtime_directory,
+    is_safe_runtime_root,
+    is_under,
+    read_runtime_artifact_text,
+    runtime_artifact_path,
+)
 
 
 def verified_runtime_output_root(value: Path) -> Path:
@@ -39,6 +45,18 @@ def safe_output_path(root: Path, value: Path, label: str) -> Path:
     if not is_under(parent, root):
         raise ValueError(f"{label} parent escaped the runtime output root: {parent}")
     return output
+
+
+def safe_input_path(root: Path, value: Path, label: str) -> Path:
+    """Validate an existing regular runtime artifact before it is consumed."""
+
+    return runtime_artifact_path(root, value, label, must_exist=True)
+
+
+def read_runtime_input_text(root: Path, value: Path, label: str) -> str:
+    """Read one validated runtime artifact without following symbolic links."""
+
+    return read_runtime_artifact_text(root, value, label)
 
 
 def write_text_atomic(root: Path, output: Path, content: str, label: str) -> Path:
