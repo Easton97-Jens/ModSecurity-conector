@@ -64,6 +64,7 @@ filesystem, configuration, or tool output.
 | Final `git diff --check` | passed for the full six-file task diff. |
 | Focused security preflight | passed with disposition `already_safe`: centralizing source-authored immutable self-test data introduces no new input, filesystem, subprocess, network, credential, or privilege path. |
 | Final focused security-diff review | passed with no plausible diff-induced security finding. It independently confirmed that values, grouping, shell quoting, subprocess construction, and fail-closed behavior are unchanged. |
+| Initial exact-head SonarQube Cloud PR query for #195 | failed the task criterion: one new `python:S3415` at the added test assertion, while duplication remained `0.0%`. The issue correctly identified reversed `assertEqual` actual/expected arguments; the test now passes the source-authored actual tuple first and local controls were rerun. |
 
 ## Security impact
 
@@ -124,8 +125,11 @@ was added.
 
 ## Final diff and review status
 
-The task-owned branch is pushed and [Draft PR #195](https://github.com/Easton97-Jens/ModSecurity-conector/pull/195)
-exists against `master`. Hosted analysis, reviews, and exact-head verification
-remain pending; the final local source/security review remains limited to the
-six listed Parent files and preserves the Parent/Framework/MRTS boundary. No
-merge is authorized or claimed.
+The task-owned branch was pushed and [Draft PR #195](https://github.com/Easton97-Jens/ModSecurity-conector/pull/195)
+exists against `master`. When `master` advanced, a normal merge of the current
+`master` into the task branch preserved the published PR history; only the two
+Change Record indexes conflicted and both records were retained. The one new
+SonarQube Cloud `python:S3415` issue then found at the initial PR head is
+locally corrected. The updated exact head must still be pushed and hosted
+analysis, reviews, and exact-head verification remain pending. No merge into
+`master` is authorized or claimed.

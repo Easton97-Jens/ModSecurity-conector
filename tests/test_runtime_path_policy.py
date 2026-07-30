@@ -168,13 +168,13 @@ class RuntimePathPolicyTest(unittest.TestCase):
             "/usr/local/foo",
         )
         self.assertEqual(
+            named_paths,
             (
                 checker.VAR_LIB_SELFTEST_PATH,
                 checker.VAR_LOG_SELFTEST_PATH,
                 checker.ETC_SELFTEST_PATH,
                 checker.USR_LOCAL_SELFTEST_PATH,
             ),
-            named_paths,
         )
         self.assertEqual(
             checker.PYTHON_BLOCKED_RUNTIME_PATHS,

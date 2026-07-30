@@ -66,6 +66,7 @@ Dateisystem, Konfiguration oder Tool-Output abgeleitet.
 | Finales `git diff --check` | für den vollständigen Task-Diff mit sechs Dateien bestanden. |
 | Fokussierte Sicherheitsvorprüfung | bestanden mit Disposition `already_safe`: Die Zentralisierung source-authored unveränderlicher Self-Test-Daten führt keinen neuen Input-, Dateisystem-, Subprocess-, Netzwerk-, Credential- oder Privilege-Pfad ein. |
 | Finaler fokussierter Security-Diff-Review | bestanden ohne plausiblen diff-induzierten Security-Finding. Er bestätigte unabhängig, dass Werte, Gruppierung, Shell-Quoting, Subprocess-Konstruktion und Fail-Closed-Verhalten unverändert bleiben. |
+| Initiale Exact-Head-SonarQube-Cloud-PR-Abfrage für #195 | erfüllte das Task-Kriterium nicht: ein neues `python:S3415` an der ergänzten Testassertion, während die Duplizierung `0.0%` blieb. Das Issue erkannte korrekt vertauschte `assertEqual`-Ist-/Soll-Argumente; der Test übergibt jetzt das source-authored Ist-Tupel zuerst und die lokalen Controls wurden erneut ausgeführt. |
 
 ## Security-Auswirkung
 
@@ -131,8 +132,11 @@ hinzukam.
 
 ## Finaler Diff- und Review-Status
 
-Der task-owned Branch ist gepusht und [Draft PR #195](https://github.com/Easton97-Jens/ModSecurity-conector/pull/195)
-gegen `master` existiert. Gehostete Analyse, Reviews und Exact-Head-
-Verifizierung stehen noch aus; der finale lokale Source-/Security-Review bleibt
-auf die sechs genannten Parent-Dateien begrenzt und bewahrt die
-Parent-/Framework-/MRTS-Grenze. Es ist kein Merge autorisiert oder beansprucht.
+Der task-owned Branch wurde gepusht und [Draft PR #195](https://github.com/Easton97-Jens/ModSecurity-conector/pull/195)
+gegen `master` existiert. Als `master` fortschritt, bewahrte ein normaler Merge
+des aktuellen `master` in den Task-Branch die veröffentlichte PR-Historie; nur
+die zwei Change-Record-Indizes hatten Konflikte und beide Records wurden
+behalten. Das eine neue SonarQube-Cloud-`python:S3415`-Issue am initialen
+PR-Head ist lokal korrigiert. Der aktualisierte exakte Head muss noch gepusht
+werden; gehostete Analyse, Reviews und Exact-Head-Verifizierung stehen weiter
+aus. Es ist kein Merge nach `master` autorisiert oder beansprucht.
