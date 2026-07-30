@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI repository-path-reference complexity remediation](CR-20260729-sonar-ci-repository-path-reference-complexity.md)
+  — a private per-document diagnostic seam preserves link/path validation;
+  six direct tests passed, while the isolated whole-tree checker remains
+  blocked only by absent Parent-pinned Framework link targets.
+
 - [Parent CI runtime-cache four-column Markdown separator for SonarQube Cloud S1192](CR-20260730-sonar-ci-runtime-cache-separator.md)
   — one private separator preserves the component-cache and cache-index table
   output; the direct presentation regression passed locally, while hosted
