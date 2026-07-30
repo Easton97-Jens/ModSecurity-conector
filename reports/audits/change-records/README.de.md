@@ -7,6 +7,7 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Lighttpd-Runtime-Output-Containment](CR-20260729-sonar-lighttpd-runtime-output-containment.de.md)
 - [Parent-HAProxy-Binding-Body-Phase-Deduplizierung](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.de.md)
 
 - [Parent-CI-Deduplizierung der Verified-Runtime-Mismatch-Control-Evidence](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.de.md)

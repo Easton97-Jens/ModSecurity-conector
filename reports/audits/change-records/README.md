@@ -6,6 +6,7 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Lighttpd runtime-output containment](CR-20260729-sonar-lighttpd-runtime-output-containment.md)
 - [Parent HAProxy binding body-phase deduplication](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.md)
 
 - [Parent CI verified-runtime-mismatch control-evidence deduplication](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.md)
