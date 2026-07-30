@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import MappingProxyType
 
 # CI helpers are shared from ci/lib even when this file is executed directly.
 _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
@@ -166,6 +167,60 @@ NO_CRS_STAGE_STATES = {
 }
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 FRAMEWORK_NO_CRS_TOOL = ROOT / "modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py"
+
+_PRE_UPSTREAM_RESPONSE_REQUIRED_STATES = MappingProxyType(
+    dict.fromkeys(
+        (
+            "response_headers",
+            "response_body_buffered",
+            "response_body_streaming",
+            "phase3",
+            "phase4",
+            "phase4_rule_evaluation",
+            "phase4_pre_commit_deny",
+            "late_intervention",
+            "late_intervention_log_only",
+            "late_intervention_abort",
+            "late_intervention_status_metadata",
+        ),
+        "unsupported_by_host_model",
+    )
+)
+_HOST_MODEL_REQUIRED_STATES = MappingProxyType(
+    {
+        "envoy": MappingProxyType(
+            {
+                "request_body_buffered": "configured_not_exercised",
+                "phase2": "configured_not_exercised",
+                **_PRE_UPSTREAM_RESPONSE_REQUIRED_STATES,
+            }
+        ),
+        "traefik": MappingProxyType(
+            {
+                "request_body_buffered": "not_implemented",
+                "request_body_streaming": "unsupported_by_host_model",
+                "phase2": "not_implemented",
+                **_PRE_UPSTREAM_RESPONSE_REQUIRED_STATES,
+            }
+        ),
+        "lighttpd": MappingProxyType(
+            {
+                "request_body_buffered": "not_implemented",
+                "request_body_streaming": "not_implemented",
+                "response_body_buffered": "not_implemented",
+                "response_body_streaming": "not_implemented",
+                "phase2": "not_implemented",
+                "phase4": "not_implemented",
+                "phase4_rule_evaluation": "not_implemented",
+                "phase4_pre_commit_deny": "not_implemented",
+                "late_intervention": "not_implemented",
+                "late_intervention_log_only": "not_implemented",
+                "late_intervention_abort": "not_implemented",
+                "late_intervention_status_metadata": "not_implemented",
+            }
+        ),
+    }
+)
 
 
 class DuplicateKeyError(ValueError):
@@ -449,54 +504,7 @@ def _validate_relationships(
                 f"{connector}: {capability}=verified requires late_intervention=verified"
             )
 
-    required_states: dict[str, dict[str, str]] = {
-        "envoy": {
-            "request_body_buffered": "configured_not_exercised",
-            "phase2": "configured_not_exercised",
-            "response_headers": "unsupported_by_host_model",
-            "response_body_buffered": "unsupported_by_host_model",
-            "response_body_streaming": "unsupported_by_host_model",
-            "phase3": "unsupported_by_host_model",
-            "phase4": "unsupported_by_host_model",
-            "phase4_rule_evaluation": "unsupported_by_host_model",
-            "phase4_pre_commit_deny": "unsupported_by_host_model",
-            "late_intervention": "unsupported_by_host_model",
-            "late_intervention_log_only": "unsupported_by_host_model",
-            "late_intervention_abort": "unsupported_by_host_model",
-            "late_intervention_status_metadata": "unsupported_by_host_model",
-        },
-        "traefik": {
-            "request_body_buffered": "not_implemented",
-            "request_body_streaming": "unsupported_by_host_model",
-            "phase2": "not_implemented",
-            "response_headers": "unsupported_by_host_model",
-            "response_body_buffered": "unsupported_by_host_model",
-            "response_body_streaming": "unsupported_by_host_model",
-            "phase3": "unsupported_by_host_model",
-            "phase4": "unsupported_by_host_model",
-            "phase4_rule_evaluation": "unsupported_by_host_model",
-            "phase4_pre_commit_deny": "unsupported_by_host_model",
-            "late_intervention": "unsupported_by_host_model",
-            "late_intervention_log_only": "unsupported_by_host_model",
-            "late_intervention_abort": "unsupported_by_host_model",
-            "late_intervention_status_metadata": "unsupported_by_host_model",
-        },
-        "lighttpd": {
-            "request_body_buffered": "not_implemented",
-            "request_body_streaming": "not_implemented",
-            "response_body_buffered": "not_implemented",
-            "response_body_streaming": "not_implemented",
-            "phase2": "not_implemented",
-            "phase4": "not_implemented",
-            "phase4_rule_evaluation": "not_implemented",
-            "phase4_pre_commit_deny": "not_implemented",
-            "late_intervention": "not_implemented",
-            "late_intervention_log_only": "not_implemented",
-            "late_intervention_abort": "not_implemented",
-            "late_intervention_status_metadata": "not_implemented",
-        },
-    }
-    for capability, expected in required_states.get(connector, {}).items():
+    for capability, expected in _HOST_MODEL_REQUIRED_STATES.get(connector, {}).items():
         actual = _state(data, capability)
         if actual != expected:
             errors.append(

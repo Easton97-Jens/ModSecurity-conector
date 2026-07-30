@@ -437,13 +437,11 @@ def extract_apache(root: Path) -> list[dict[str, Any]]:
             syntax = "modsecurity_phase4_body_limit <positive-bytes>"
         elif name == "modsecurity_transaction_id_expr":
             syntax = "modsecurity_transaction_id_expr <apache-string-expression>"
-        example = (
-            "connectors/apache/src/msc_config.c"
-            if name == "modsecurity_phase4_content_types_file"
-            else "examples/apache/minimal/httpd.conf"
-            if name in {"modsecurity", "modsecurity_rules_file", "modsecurity_use_error_log"}
-            else "examples/apache/safe/httpd.conf"
-        )
+        example = "examples/apache/safe/httpd.conf"
+        if name == "modsecurity_phase4_content_types_file":
+            example = "connectors/apache/src/msc_config.c"
+        elif name in {"modsecurity", "modsecurity_rules_file", "modsecurity_use_error_log"}:
+            example = "examples/apache/minimal/httpd.conf"
         result.append(_directive_option(
             "apache", name, source, f"module_directives[] / {handler}", syntax,
             "Apache RSRC_CONF | ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules)",

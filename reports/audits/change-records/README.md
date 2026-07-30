@@ -8,6 +8,34 @@ must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent CI runtime-path-policy fixed-fixture literal ownership for SonarQube Cloud S1192](CR-20260729-sonar-ci-runtime-path-policy-literals.md)
 
+- [Parent CI repository-path-reference complexity remediation](CR-20260729-sonar-ci-repository-path-reference-complexity.md)
+  — a private per-document diagnostic seam preserves link/path validation;
+  six direct tests passed, while the isolated whole-tree checker remains
+  blocked only by absent Parent-pinned Framework link targets.
+
+- [Parent CI runtime-cache four-column Markdown separator for SonarQube Cloud S1192](CR-20260730-sonar-ci-runtime-cache-separator.md)
+  — one private separator preserves the component-cache and cache-index table
+  output; the direct presentation regression passed locally, while hosted
+  exact-head evidence remains pending.
+
+- [Parent CI bounded bilingual design-route matcher for SonarQube Cloud S8786](CR-20260729-sonar-ci-bilingual-route-regex.md)
+  — preserves padded and unpadded route keys while rejecting malformed
+  no-closing-delimiter route rows with long whitespace without
+  backtracking-heavy matching.
+
+- [Parent CI Apache config-reference condition remediation](CR-20260729-sonar-ci-apache-config-reference-condition.md)
+  — the source/minimal/safe Apache example-file partition now uses explicit
+  branches; focused partition and non-writing reference controls passed
+  locally. Exact-head hosted verification remains required before integration.
+
+- [Parent CI generated-report literal deduplication](CR-20260729-sonar-ci-generated-report-literals.md)
+  — five static local-path/provenance literals now have single private owners;
+  focused portable-path and generator-registry controls plus the full
+  generated-report evidence suite passed locally. Exact-head hosted verification
+  remains required before integration.
+- [Parent CI Nolog and response-header report-lifecycle deduplication](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.md)
+- [Parent CI NGINX HTTP-500 literal deduplication](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.md)
+- [Parent CI case-metadata parsing deduplication](CR-20260729-sonar-ci-case-metadata-duplication.md)
 - [Parent Lighttpd runtime-output containment](CR-20260729-sonar-lighttpd-runtime-output-containment.md)
 
 - [Parent HAProxy binding body-phase deduplication](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.md)
@@ -18,6 +46,8 @@ must not claim unobserved CI, runtime, review, or delivery results.
   — the tracked configuration case and unknown connectors now take controlled
   blocked-dependency paths; focused dispatch/default-structure controls and
   POSIX shell syntax passed locally.
+
+- [Parent CI capability-state map deduplication](CR-20260729-sonar-ci-capability-state-map-deduplication.md)
 
 - [Parent HAProxy SPOP body-parser deduplication](CR-20260729-sonar-haproxy-spop-body-parser-deduplication.md)
 
