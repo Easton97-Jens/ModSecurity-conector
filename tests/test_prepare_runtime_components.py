@@ -51,8 +51,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         canonical = f"{github}/{repo}"
 
         self.assertEqual(
-            canonical,
             components.require_https_github_repo_url(f" {canonical}.git "),
+            canonical,
         )
         components.validate_https_url_config({"CRS_REPO_URL": canonical})
 
