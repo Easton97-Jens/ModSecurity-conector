@@ -6,6 +6,8 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent Common HTTP authorization-service const correctness](CR-20260730-sonar-common-http-auth-maintenance.md)
+
 - [Parent CI tools output containment and native oracle decomposition for SonarQube Cloud](CR-20260730-sonar-ci-tools-output-oracle.md)
   — local containment, generator-compatibility, C17, native-oracle, and
   focused security-diff controls passed; fresh exact-head hosted and

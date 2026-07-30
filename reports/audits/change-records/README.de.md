@@ -7,6 +7,8 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-Common HTTP-Autorisierungsservice-Const-Korrektheit](CR-20260730-sonar-common-http-auth-maintenance.de.md)
+
 - [Parent-CI-Tools-Output-Containment und Native-Oracle-Zerlegung für SonarQube Cloud](CR-20260730-sonar-ci-tools-output-oracle.de.md)
   — lokale Containment-, Generator-Kompatibilitäts-, C17-, Native-Oracle- und
   fokussierte Security-Diff-Controls bestanden; frische Exact-Head-Hosted- und
