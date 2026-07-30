@@ -11,6 +11,11 @@ must not claim unobserved CI, runtime, review, or delivery results.
   focused security-diff controls passed; fresh exact-head hosted and
   SonarQube Cloud verification remains required before any master integration.
 
+- [Parent CI bounded bilingual design-route matcher for SonarQube Cloud S8786](CR-20260729-sonar-ci-bilingual-route-regex.md)
+  — preserves padded and unpadded route keys while rejecting malformed
+  no-closing-delimiter route rows with long whitespace without
+  backtracking-heavy matching.
+
 - [Parent CI Apache config-reference condition remediation](CR-20260729-sonar-ci-apache-config-reference-condition.md)
   — the source/minimal/safe Apache example-file partition now uses explicit
   branches; focused partition and non-writing reference controls passed

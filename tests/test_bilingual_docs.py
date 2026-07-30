@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import call, patch
@@ -269,6 +270,28 @@ class BilingualDocumentationCheckerTests(unittest.TestCase):
 
     def test_common_design_note_current_contract_passes_for_both_languages(self) -> None:
         self.assertEqual(CHECKER.check_common_design_note_contract(ROOT), [])
+
+    def test_common_design_route_matcher_keeps_routes_and_rejects_malformed_spacing_quickly(self) -> None:
+        route_rows = [
+            (connector.strip(), route)
+            for connector, route in CHECKER.COMMON_DESIGN_ROUTE_ROW_RE.findall(
+                "\n".join(
+                    (
+                        "| Apache | `native-httpd-module` |",
+                        "|NGINX|`native-nginx-http-module`|",
+                    )
+                )
+            )
+        ]
+        malformed_row = "|" + " " * 1024 + "missing-delimiter"
+        started = time.perf_counter()
+
+        self.assertEqual(
+            route_rows,
+            [("Apache", "native-httpd-module"), ("NGINX", "native-nginx-http-module")],
+        )
+        self.assertEqual(CHECKER.COMMON_DESIGN_ROUTE_ROW_RE.findall(malformed_row), [])
+        self.assertLess(time.perf_counter() - started, 0.25)
 
     def test_common_design_note_rejects_scaffolded_status_and_current_sidecar_route(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

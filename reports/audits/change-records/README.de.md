@@ -12,6 +12,11 @@ Review- oder Delivery-Ergebnisse behaupten.
   fokussierte Security-Diff-Controls bestanden; frische Exact-Head-Hosted- und
   SonarQube-Cloud-Verifikation bleiben vor jeder Master-Integration notwendig.
 
+- [Begrenzter Parent-CI-Matcher für bilinguale Design-Routen für SonarQube Cloud S8786](CR-20260729-sonar-ci-bilingual-route-regex.de.md)
+  — bewahrt gepaddete und ungepaddete Route-Keys und weist fehlerhafte
+  Route-Zeilen mit langer Whitespace-Folge und fehlendem schließendem
+  Delimiter ohne Backtracking-lastiges Matching zurück.
+
 - [Parent-CI-Apache-Config-Reference-Condition-Remediation](CR-20260729-sonar-ci-apache-config-reference-condition.de.md)
   — die Source-/Minimal-/Safe-Apache-Example-File-Partition verwendet nun
   explizite Branches; fokussierter Partitionstest und nicht schreibende
