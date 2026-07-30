@@ -71,6 +71,7 @@ an Path-Containment oder Link-Policy.
 | `make check-doc-links` mit deaktiviertem Bytecode | `blocked_external_dependency`: Der direkte Parent-Checker gibt dieselben 16 vorhandenen fehlenden Framework-README-/Rule-Targets aus und endet vor dem Framework-Checker. |
 | Fokussierter Security-Preflight | bestanden / `already_safe`: Die Extraktion fügt keinen Source-Type, kein Privileg, keinen Sink und keinen Control-Bypass hinzu; fokussierter Post-Diff-Review bleibt erforderlich. |
 | Fokussierter finaler Security-Diff-Review | bestanden / `already_safe`: Vollständiger Review des geänderten Checker-/Test-Flows bestätigt, dass `local_target()`, Dokumentroots, Ignored-Path-Grenze, rohe Diagnosen, bestehende Read-/Resolve-/Exists-Calls, Streams und Exit-Verhalten unverändert sind; es existiert kein neuer Filesystem-, Process-, Network-, Privilege-, Cache- oder Logging-Pfad. |
+| Draft-PR-Erstellung | bestanden: [#194](https://github.com/Easton97-Jens/ModSecurity-conector/pull/194) ist offen/Draft gegen `master`; sein initialer lokaler, Remote- und PR-Head stimmen bei `fd4e9902bb00df20ca97e7b38bcf1231afdcdb06` überein. Hosted-Exact-Head-Checks, Review- und SonarQube-Cloud-Evidence stehen aus. |
 
 ## Security-Auswirkung
 
@@ -127,6 +128,9 @@ Der Working Candidate enthält den privaten Helper, sechs direkte Regression-
 Tests und dieses bilinguale Traceability-Update. Der finale lokale Source-/
 Test- und Security-Diff-Review bestand, während Whole-Tree-
 Dokumentationschecks wahrheitsgemäß durch fehlende Framework-Gitlink-Targets
-blockiert bleiben. Dieser Record beansprucht keinen Remote-Push, Pull Request,
-kein Hosted-Ergebnis und keinen Merge. Exact-Head-Hosted-Verifikation ist
-erforderlich, nachdem der Task-Commit über einen Draft PR geliefert wurde.
+blockiert bleiben. Draft PR
+[#194](https://github.com/Easton97-Jens/ModSecurity-conector/pull/194) ist
+offen und bleibt Draft; es wird kein Hosted-Pass, Approval, Ready-for-Review-
+Status oder Merge beansprucht. Ein reiner Record-Delivery-Follow-up erzeugt
+absichtlich einen neuen PR-Head, nach dem Exact-Head-Hosted-Verifikation nötig
+ist.

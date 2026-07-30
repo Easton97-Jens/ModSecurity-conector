@@ -68,6 +68,7 @@ not a change to path containment or link policy.
 | `make check-doc-links` with bytecode disabled | `blocked_external_dependency`: the direct Parent checker emits the same 16 pre-existing absent Framework README/rule targets and exits before the Framework checker. |
 | Focused security preflight | passed / `already_safe`: the extraction adds no source type, privilege, sink, or control bypass; focused post-diff review remains required. |
 | Focused final security-diff review | passed / `already_safe`: full changed checker/test flow review confirmed that `local_target()`, document roots, ignored-path boundary, raw diagnostics, existing read/resolve/exists calls, streams, and exit behavior are unchanged; no new filesystem, process, network, privilege, cache, or logging path exists. |
+| Draft PR creation | passed: [#194](https://github.com/Easton97-Jens/ModSecurity-conector/pull/194) is open/Draft against `master`; its initial local, remote, and PR head match at `fd4e9902bb00df20ca97e7b38bcf1231afdcdb06`. Hosted exact-head checks, review, and SonarQube Cloud evidence remain pending. |
 
 ## Security impact
 
@@ -118,6 +119,8 @@ duplication to the exact delivered head.
 The working candidate contains the private helper, six direct regression
 tests, and this bilingual traceability update. Final local source/test and
 security-diff review passed, while whole-tree documentation checks remain
-truthfully blocked by absent Framework-Gitlink targets. This record claims no
-remote push, pull request, hosted result, or merge. Exact-head hosted
-verification is required after the task commit is delivered through a Draft PR.
+truthfully blocked by absent Framework-Gitlink targets. Draft PR
+[#194](https://github.com/Easton97-Jens/ModSecurity-conector/pull/194) is
+open and remains Draft; no hosted pass, approval, ready-for-review state, or
+merge is claimed. A record-only delivery follow-up intentionally creates a new
+PR head, after which exact-head hosted verification is required.
