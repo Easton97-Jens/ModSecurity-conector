@@ -282,6 +282,78 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
         self.assertFalse(payload["runtime_promotion"])
         self.assertNotIn("runtime_evidence", payload)
 
+    def test_envoy_and_traefik_host_model_state_invariants_are_fail_closed(self) -> None:
+        shared_capabilities = (
+            "response_headers,response_body_buffered,response_body_streaming,phase3,"
+            "phase4,phase4_rule_evaluation,phase4_pre_commit_deny,"
+            "late_intervention,late_intervention_log_only,late_intervention_abort,"
+            "late_intervention_status_metadata"
+        ).split(",")
+        cases = (
+            ("envoy", "configured_not_exercised", ("request_body_buffered", "phase2")),
+            ("envoy", "unsupported_by_host_model", shared_capabilities),
+            ("traefik", "not_implemented", ("request_body_buffered", "phase2")),
+            (
+                "traefik",
+                "unsupported_by_host_model",
+                ("request_body_streaming", *shared_capabilities),
+            ),
+        )
+        replacements = {
+            "configured_not_exercised": "not_implemented",
+            "not_implemented": "configured_not_exercised",
+            "unsupported_by_host_model": "not_implemented",
+        }
+
+        for connector, expected, capabilities in cases:
+            with self.subTest(connector=connector, expected=expected):
+                self.assertEqual(
+                    connector_capabilities.validate_manifest(
+                        connector, self.manifests[connector]
+                    ),
+                    [],
+                )
+            for capability in capabilities:
+                with self.subTest(connector=connector, capability=capability):
+                    manifest = copy.deepcopy(self.manifests[connector])
+                    actual = replacements[expected]
+                    manifest["capabilities"][capability]["state"] = actual
+                    errors = connector_capabilities.validate_manifest(connector, manifest)
+                    self.assertIn(
+                        (
+                            f"{connector}: host-model invariant requires "
+                            f"{capability}={expected}, got {actual}"
+                        ),
+                        errors,
+                    )
+
+    def test_host_model_state_requirements_are_deeply_immutable(self) -> None:
+        requirements = connector_capabilities._HOST_MODEL_REQUIRED_STATES
+        envoy_requirements = requirements["envoy"]
+        with self.assertRaises(TypeError):
+            requirements["envoy"] = {}  # type: ignore[index]
+        with self.assertRaises(TypeError):
+            envoy_requirements["phase2"] = "not_implemented"  # type: ignore[index]
+
+    def test_traefik_requires_versioned_official_forwardauth_reference(self) -> None:
+        expected_url = (
+            "https://doc.traefik.io/traefik/v3.7/reference/"
+            "routing-configuration/http/middlewares/forwardauth/"
+        )
+        manifest = copy.deepcopy(self.manifests["traefik"])
+        reference_replaced = False
+        for reference in manifest["external_references"]:
+            if reference.get("url") == expected_url:
+                reference["url"] = "https://doc.traefik.io/traefik/v3.7/reference/"
+                reference_replaced = True
+
+        self.assertTrue(reference_replaced)
+
+        self.assertEqual(
+            connector_capabilities.validate_manifest("traefik", manifest),
+            ["traefik: missing versioned official ForwardAuth reference"],
+        )
+
     def test_runtime_merge_is_report_only_and_promotes_checked_capabilities(self) -> None:
         run_id = "ci-123"
         source_snapshot = copy.deepcopy(self.manifests)
