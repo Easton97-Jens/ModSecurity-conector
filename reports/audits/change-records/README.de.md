@@ -12,6 +12,17 @@ Review- oder Delivery-Ergebnisse behaupten.
   fokussierte Security-Diff-Controls bestanden; frische Exact-Head-Hosted- und
   SonarQube-Cloud-Verifikation bleiben vor jeder Master-Integration notwendig.
 
+- [Parent-CI-Apache-Config-Reference-Condition-Remediation](CR-20260729-sonar-ci-apache-config-reference-condition.de.md)
+  — die Source-/Minimal-/Safe-Apache-Example-File-Partition verwendet nun
+  explizite Branches; fokussierter Partitionstest und nicht schreibende
+  Reference-Controls bestanden lokal. Exact-Head-Hosted-Verifikation bleibt
+  vor der Integration erforderlich.
+
+- [Parent-CI-Generated-Report-Literal-Deduplizierung](CR-20260729-sonar-ci-generated-report-literals.de.md)
+  — fünf statische Local-Path-/Provenance-Literale haben nun einzelne private
+  Owner; fokussierte Portable-Path- und Generator-Registry-Controls sowie die
+  vollständige Generated-Report-Evidence-Suite bestanden lokal. Exact-Head-
+  Hosted-Verifikation bleibt vor der Integration erforderlich.
 - [Parent-CI-Nolog- und Response-Header-Report-Lifecycle-Deduplizierung](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.de.md)
 - [Parent-CI-NGINX-HTTP-500-Literal-Deduplizierung](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.de.md)
 - [Parent-CI-Deduplizierung des Case-Metadata-Parsings](CR-20260729-sonar-ci-case-metadata-duplication.de.md)

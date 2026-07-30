@@ -11,6 +11,16 @@ must not claim unobserved CI, runtime, review, or delivery results.
   focused security-diff controls passed; fresh exact-head hosted and
   SonarQube Cloud verification remains required before any master integration.
 
+- [Parent CI Apache config-reference condition remediation](CR-20260729-sonar-ci-apache-config-reference-condition.md)
+  — the source/minimal/safe Apache example-file partition now uses explicit
+  branches; focused partition and non-writing reference controls passed
+  locally. Exact-head hosted verification remains required before integration.
+
+- [Parent CI generated-report literal deduplication](CR-20260729-sonar-ci-generated-report-literals.md)
+  — five static local-path/provenance literals now have single private owners;
+  focused portable-path and generator-registry controls plus the full
+  generated-report evidence suite passed locally. Exact-head hosted verification
+  remains required before integration.
 - [Parent CI Nolog and response-header report-lifecycle deduplication](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.md)
 - [Parent CI NGINX HTTP-500 literal deduplication](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.md)
 - [Parent CI case-metadata parsing deduplication](CR-20260729-sonar-ci-case-metadata-duplication.md)
