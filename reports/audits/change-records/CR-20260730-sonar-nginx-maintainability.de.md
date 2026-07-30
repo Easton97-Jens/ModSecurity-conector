@@ -10,7 +10,7 @@
 | Datum (UTC) | `2026-07-30` |
 | Basis-Revision | `caddd86d1eede95de53aa1bc971dd26d875df21c` |
 | Bewertete Source-Revision | Lokaler Task-Patch gegen die genannte Basis-Revision. |
-| Grenze | Parent-`connectors/nginx/`-Source, ein direkter NGINX-Source-Contract-Check, dieses EN/DE-Paar und gepaarte Indizes. Keine `.github`-, Framework-, MRTS-, Gitlink-, Scanner-Konfigurations-, Quality-Gate-, Exclusion-, Suppression-, `NOSONAR`-, Default-Branch- oder Merge-Aktion. |
+| Grenze | Parent-`connectors/nginx/`-Source, ein direkter NGINX-Source-Contract-Check, dieses EN/DE-Paar und gepaarte Indizes. Keine `.github`-, Framework-, MRTS-, Gitlink-, Scanner-Konfigurations-, Quality-Gate-, Exclusion-, Suppression-, `NOSONAR`-, direkte Default-Branch- oder nicht zugehörige Merge-Aktion. Der aktuelle Nutzer autorisierte ausschließlich die kontrollierte GitHub-Integration von PR #206 nach frischer Exact-Head-Verifikation. |
 | SonarQube-Cloud-Verknüpfung | 16 offene aktuelle C-Code-Smells: `c:S3776` an Access-, Phase-4- und Intervention-Pfaden; `c:S134` in der Header-Traversierung; `c:S3358` in der Phase-4-Event-Auswahl sowie `c:S1134`/`c:S1135` für Deferred-Work-Marker. |
 
 ## Motivation und Problemstellung
@@ -107,36 +107,55 @@ erforderlichen Abschnitten meldet er keinen weiteren geänderten Record-Fehler.
 
 ## Verbleibende Risiken
 
-Der finale Security-Diff-Review, Exact-Head-Hosted-Checks, SonarQube-Cloud-
-Issue-Readback und das New-Code-Duplikat-Ergebnis stehen noch aus. Dieser
-Record beansprucht keine Review-Freigabe, keinen Merge und keinen
-Resulting-Master-Status.
+Lokale NGINX-Runtime und native C17-Übersetzung bleiben wie oben beschrieben
+nicht verfügbar. Der zuvor verifizierte PR-Head basiert auf
+`caddd86d1eede95de53aa1bc971dd26d875df21c`, während aktueller `master`
+`4e5d45072bf32ff822f4b1039517026416259493` ist; strikte Regeln verlangen
+daher ein Task-Branch-Update sowie einen neuen Exact-Head-Review-, GitHub-
+Check-, SonarQube-Cloud- und Review-Thread-Zyklus vor der Integration. Dieser
+Record beansprucht keinen Merge oder Resulting-Master-Status.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - Keine NGINX-Runtime und keine native C17-Translation-Unit-Compilation liefen,
   weil erforderliche NGINX-/libmodsecurity-Header im task-lokalen Environment
   fehlen und Provisionierung sie nicht bereitstellte.
-- Hosted GitHub Actions, SonarQube Cloud, Review, Freigabe, Merge und
-  Master-Checks können erst laufen, wenn der exakte Draft-PR-Head existiert.
+- Resulting-Master-Workflows und eine mögliche Resulting-Master-SonarQube-
+  Cloud-Analyse können erst laufen, wenn PR #206 an seinem finalen Exact-Head
+  tatsächlich gemergt ist.
 
 ## Delivery-Status
 
 Draft-PR [#206](https://github.com/Easton97-Jens/ModSecurity-conector/pull/206)
-existiert gegen `master`. Sein initialer Source-Head war
-`33d05fd3d2acf3db792b350cefe22c937cdc2377`; lokaler, Remote- und GitHub-Head
-stimmten überein, alle beobachteten erforderlichen Checks waren terminal ohne
-Fehler, das Quality Gate war `OK`, und SonarQube Cloud meldete null
-OPEN/CONFIRMED-PR-Issues, null neue Issues und `0.0%` New-Code-Duplizierung.
-Dieses Delivery-Status-Update erzeugt einen neuen exakten PR-Head, der frische
-Hosted- und Sonar-Verifikation erhalten muss, bevor der PR als verifiziert
-gelten kann. Kein Merge und keine Master-Aktion sind autorisiert oder impliziert.
+existiert gegen `master`. Sein finaler Pre-Integration-Head
+`9746d81cd73c54300d709357db453a93f4f358df` hatte übereinstimmende lokale,
+Remote- und GitHub-Heads; 33 Hosted-Checks bestanden ohne Fehler, es gab kein
+Review und keinen Review-Thread, das Quality Gate war `OK`, und SonarQube Cloud
+meldete null OPEN/CONFIRMED-PR-Issues, null neue Violations und `0.0%` / null
+New-Code-Duplikation. Diese Fakten gelten nur für diesen exakten Head und
+seine damalige Basis. Da `master` danach weitergelaufen ist, autorisieren sie
+keinen Merge, bevor der Task-Branch aktualisiert und der gesamte
+Verifikationszyklus wiederholt wurde.
+
+## Master-Integrationsautorisierung
+
+Am `2026-07-30` autorisierte der aktuelle Nutzer ausdrücklich: „bringe das pr
+206 in den master“. Das autorisierte Repository ist
+`Easton97-Jens/ModSecurity-conector`; das Inventar besteht aus diesem einen
+task-eigenen Parent-PR #206; es gibt keine autorisierte abhängige Framework-,
+MRTS-, Gitlink- oder andere PR-Aktion; die Merge-Reihenfolge enthält daher nur
+ein Element. Das aktive Ruleset erlaubt `merge`, `squash` und `rebase`; der
+aktuelle Repository-Standard ist `squash`, der nur mit GitHub-Exact-Head-
+Schutz und nach bestandenen aktuellen Vorbedingungen verwendet wird. Kein
+direkter `master`-Push, Administrator-Bypass, Auto-Merge oder unbeobachtetes
+Merge-Ergebnis ist autorisiert oder wird beansprucht.
 
 ## Finaler Diff- und Review-Status
 
 Der lokale Source-Diff bestand Whitespace-, NGINX-Common-Adoption-, C-Standard-
 Wiring- und C17-Lint-Controls. Ein fokussierter Security-Review fand keinen
 plausiblen diff-eingeführten Kandidaten. Native C17-Compilation bleibt wie oben
-beschrieben blockiert. Der initiale PR-Head bestand Hosted-Checks und exakten
-Sonar-Readback; dieses dokumentations-only Update verlangt dieselben Controls
-für seinen neuen exakten Head. Kein Master-Claim wird erhoben.
+beschrieben blockiert. Der finale Pre-Integration-PR-Head bestand Hosted-Checks
+und exakten Sonar-Readback. Das notwendige Branch-Base- und Change-Record-
+Update muss nun dieselben Controls auf seinem neuen exakten Head erhalten; vor
+dem beobachteten Post-Merge-Ergebnis wird kein Master-Claim erhoben.
