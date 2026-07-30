@@ -12,6 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 HARNESS = REPO_ROOT / "connectors" / "lighttpd" / "harness"
 FIRST_BYTE_WRITER = HARNESS / "write_patched_first_byte_metadata.py"
 LIFECYCLE_WRITER = HARNESS / "write_patched_lifecycle_results.py"
+ENTITY_FIXTURE = HARNESS / "lighttpd_http1_entity_fixture_upstream.py"
 
 
 def safe_p4_event(
@@ -181,11 +182,24 @@ def write_lifecycle_inputs(
 
 
 class PatchedEventValidationTest(unittest.TestCase):
-    def run_writer(self, writer: Path, arguments: list[str]) -> subprocess.CompletedProcess[str]:
+    def run_writer(
+        self,
+        writer: Path,
+        arguments: list[str],
+        *,
+        runtime_output_root: Path | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
+        output = Path(arguments[arguments.index("--output") + 1])
+        root = runtime_output_root or output.parent
+        completed_arguments = [
+            *arguments,
+            "--runtime-output-root",
+            str(root),
+        ]
         return subprocess.run(
-            ["python3", str(writer), *arguments],
+            ["python3", str(writer), *completed_arguments],
             cwd=REPO_ROOT,
             env=environment,
             check=False,
@@ -275,6 +289,66 @@ class PatchedEventValidationTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn(expected_error, result.stderr)
                     self.assertFalse(output.exists())
+
+    def test_first_byte_writer_rejects_escaped_and_symlink_output_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            events = root / "events.jsonl"
+            write_jsonl(events, [safe_p4_event()])
+            trusted_root = root / "trusted"
+            escaped = root / "escaped" / "metadata.json"
+            result = self.run_writer(
+                FIRST_BYTE_WRITER,
+                ["--events", str(events), "--output", str(escaped)],
+                runtime_output_root=trusted_root,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must be below the runtime output root", result.stderr)
+            self.assertFalse(escaped.exists())
+
+            symlink = trusted_root / "escaped-link"
+            symlink.symlink_to(root / "escaped")
+            linked_output = symlink / "metadata.json"
+            result = self.run_writer(
+                FIRST_BYTE_WRITER,
+                ["--events", str(events), "--output", str(linked_output)],
+                runtime_output_root=trusted_root,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must be below the runtime output root", result.stderr)
+            self.assertFalse((root / "escaped" / "metadata.json").exists())
+
+    def test_entity_fixture_rejects_escaped_control_artifacts_before_listening(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            trusted_root = root / "trusted"
+            cases = (
+                (root / "escaped-ready.json", trusted_root / "result.json"),
+                (trusted_root / "ready.json", root / "escaped-result.json"),
+            )
+            for ready_file, result_file in cases:
+                with self.subTest(ready_file=ready_file, result_file=result_file):
+                    result = subprocess.run(
+                        [
+                            "python3",
+                            str(ENTITY_FIXTURE),
+                            "--ready-file",
+                            str(ready_file),
+                            "--result-file",
+                            str(result_file),
+                            "--runtime-output-root",
+                            str(trusted_root),
+                        ],
+                        cwd=REPO_ROOT,
+                        check=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("must be below the runtime output root", result.stderr)
+                    self.assertFalse(ready_file.exists())
+                    self.assertFalse(result_file.exists())
 
     def test_load_events_preserves_parser_failures_and_caller_diagnostics(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

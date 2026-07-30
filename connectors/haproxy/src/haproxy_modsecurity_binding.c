@@ -106,6 +106,31 @@ struct haproxy_modsecurity_transaction {
     char request_id[128];
 };
 
+typedef int (*haproxy_modsecurity_body_append)(
+    Transaction *transaction,
+    const unsigned char *body,
+    size_t body_len);
+
+typedef int (*haproxy_modsecurity_body_finish)(Transaction *transaction);
+
+typedef struct haproxy_modsecurity_body_phase {
+    int phase;
+    int *headers_processed;
+    int *body_processed;
+    int *body_started;
+    size_t *body_bytes_seen;
+    size_t *body_bytes_inspected;
+    const char *missing_message;
+    const char *headers_required_message;
+    const char *append_after_eos_message;
+    const char *pointer_required_message;
+    const char *append_failed_message;
+    const char *finish_once_message;
+    const char *finish_failed_message;
+    haproxy_modsecurity_body_append append_body;
+    haproxy_modsecurity_body_finish finish_body;
+} haproxy_modsecurity_body_phase;
+
 static int haproxy_common_sdk_probe_semantics(void) {
     enum msconnector_bool_option bool_value;
     enum msconnector_phase4_mode phase4_value;
@@ -235,6 +260,65 @@ static void capture_intervention(
         decision->rule_id = (int)ids[0];
     }
     msc_intervention_cleanup(&intervention);
+}
+
+static int append_body_chunk(
+        haproxy_modsecurity_transaction *transaction,
+        const unsigned char *body,
+        unsigned int body_len,
+        haproxy_modsecurity_decision *decision,
+        const haproxy_modsecurity_body_phase *phase) {
+    init_decision(decision, phase->phase);
+    if (transaction == 0 || transaction->transaction == 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message), phase->missing_message);
+        return 1;
+    }
+    if (!*phase->headers_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message), phase->headers_required_message);
+        return 1;
+    }
+    if (*phase->body_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message), phase->append_after_eos_message);
+        return 1;
+    }
+    if (body_len > 0U && body == 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message), phase->pointer_required_message);
+        return 1;
+    }
+    *phase->body_bytes_seen += body_len;
+    if (body_len > 0U && phase->append_body(transaction->transaction, body, (size_t)body_len) < 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message), phase->append_failed_message);
+        return 1;
+    }
+    *phase->body_started = 1;
+    *phase->body_bytes_inspected += body_len;
+    return 0;
+}
+
+static int finish_body(
+        haproxy_modsecurity_transaction *transaction,
+        haproxy_modsecurity_decision *decision,
+        const haproxy_modsecurity_body_phase *phase) {
+    init_decision(decision, phase->phase);
+    if (transaction == 0 || transaction->transaction == 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message), phase->missing_message);
+        return 1;
+    }
+    if (!*phase->headers_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message), phase->headers_required_message);
+        return 1;
+    }
+    if (*phase->body_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message), phase->finish_once_message);
+        return 1;
+    }
+    if (phase->finish_body(transaction->transaction) < 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message), phase->finish_failed_message);
+        return 1;
+    }
+    *phase->body_processed = 1;
+    capture_intervention(transaction->transaction, phase->phase, decision);
+    return 0;
 }
 
 static int load_rules_file(
@@ -742,67 +826,45 @@ int haproxy_modsecurity_transaction_append_request_body_chunk(
         const unsigned char *body,
         unsigned int body_len,
         haproxy_modsecurity_decision *decision) {
-    init_decision(decision, 2);
-    if (transaction == 0 || transaction->transaction == 0) {
+    if (transaction == 0) {
+        init_decision(decision, 2);
         copy_message(decision->log_message, sizeof(decision->log_message),
             "missing transaction or request body");
         return 1;
     }
-    if (!transaction->request_headers_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "request headers must be processed before request body chunks");
-        return 1;
-    }
-    if (transaction->request_body_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "request body append after end-of-stream");
-        return 1;
-    }
-    if (body_len > 0U && body == 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "request body pointer is required when length is nonzero");
-        return 1;
-    }
-    transaction->request_body_bytes_seen += body_len;
-    if (body_len > 0U &&
-            msc_append_request_body(transaction->transaction, body,
-                (size_t)body_len) < 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_append_request_body failed");
-        return 1;
-    }
-    transaction->request_body_started = 1;
-    transaction->request_body_bytes_inspected += body_len;
-    return 0;
+    const haproxy_modsecurity_body_phase phase = {
+        2, &transaction->request_headers_processed, &transaction->request_body_processed,
+        &transaction->request_body_started, &transaction->request_body_bytes_seen,
+        &transaction->request_body_bytes_inspected, "missing transaction or request body",
+        "request headers must be processed before request body chunks",
+        "request body append after end-of-stream",
+        "request body pointer is required when length is nonzero", "msc_append_request_body failed",
+        "request body may only be finalized once", "msc_process_request_body failed",
+        msc_append_request_body, msc_process_request_body
+    };
+    return append_body_chunk(transaction, body, body_len, decision, &phase);
 }
 
 int haproxy_modsecurity_transaction_finish_request_body(
         haproxy_modsecurity_transaction *transaction,
         haproxy_modsecurity_decision *decision) {
-    init_decision(decision, 2);
-    if (transaction == 0 || transaction->transaction == 0) {
+    if (transaction == 0) {
+        init_decision(decision, 2);
         copy_message(decision->log_message, sizeof(decision->log_message),
             "missing transaction or request body");
         return 1;
     }
-    if (!transaction->request_headers_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "request headers must be processed before request body finalization");
-        return 1;
-    }
-    if (transaction->request_body_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "request body may only be finalized once");
-        return 1;
-    }
-    if (msc_process_request_body(transaction->transaction) < 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_request_body failed");
-        return 1;
-    }
-    transaction->request_body_processed = 1;
-    capture_intervention(transaction->transaction, 2, decision);
-    return 0;
+    const haproxy_modsecurity_body_phase phase = {
+        2, &transaction->request_headers_processed, &transaction->request_body_processed,
+        &transaction->request_body_started, &transaction->request_body_bytes_seen,
+        &transaction->request_body_bytes_inspected, "missing transaction or request body",
+        "request headers must be processed before request body finalization",
+        "request body append after end-of-stream",
+        "request body pointer is required when length is nonzero", "msc_append_request_body failed",
+        "request body may only be finalized once", "msc_process_request_body failed",
+        msc_append_request_body, msc_process_request_body
+    };
+    return finish_body(transaction, decision, &phase);
 }
 
 int haproxy_modsecurity_transaction_begin(
@@ -898,67 +960,45 @@ int haproxy_modsecurity_transaction_append_response_body_chunk(
         const unsigned char *body,
         unsigned int body_len,
         haproxy_modsecurity_decision *decision) {
-    init_decision(decision, 4);
-    if (transaction == 0 || transaction->transaction == 0) {
+    if (transaction == 0) {
+        init_decision(decision, 4);
         copy_message(decision->log_message, sizeof(decision->log_message),
             "missing transaction or response body");
         return 1;
     }
-    if (!transaction->response_headers_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "response headers must be processed before response body chunks");
-        return 1;
-    }
-    if (transaction->response_body_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "response body append after end-of-stream");
-        return 1;
-    }
-    if (body_len > 0U && body == 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "response body pointer is required when length is nonzero");
-        return 1;
-    }
-    transaction->response_body_bytes_seen += body_len;
-    if (body_len > 0U &&
-            msc_append_response_body(transaction->transaction, body,
-                (size_t)body_len) < 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_append_response_body failed");
-        return 1;
-    }
-    transaction->response_body_started = 1;
-    transaction->response_body_bytes_inspected += body_len;
-    return 0;
+    const haproxy_modsecurity_body_phase phase = {
+        4, &transaction->response_headers_processed, &transaction->response_body_processed,
+        &transaction->response_body_started, &transaction->response_body_bytes_seen,
+        &transaction->response_body_bytes_inspected, "missing transaction or response body",
+        "response headers must be processed before response body chunks",
+        "response body append after end-of-stream",
+        "response body pointer is required when length is nonzero", "msc_append_response_body failed",
+        "response body may only be finalized once", "msc_process_response_body failed",
+        msc_append_response_body, msc_process_response_body
+    };
+    return append_body_chunk(transaction, body, body_len, decision, &phase);
 }
 
 int haproxy_modsecurity_transaction_finish_response_body(
         haproxy_modsecurity_transaction *transaction,
         haproxy_modsecurity_decision *decision) {
-    init_decision(decision, 4);
-    if (transaction == 0 || transaction->transaction == 0) {
+    if (transaction == 0) {
+        init_decision(decision, 4);
         copy_message(decision->log_message, sizeof(decision->log_message),
             "missing transaction or response body");
         return 1;
     }
-    if (!transaction->response_headers_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "response headers must be processed before response body finalization");
-        return 1;
-    }
-    if (transaction->response_body_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "response body may only be finalized once");
-        return 1;
-    }
-    if (msc_process_response_body(transaction->transaction) < 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_response_body failed");
-        return 1;
-    }
-    transaction->response_body_processed = 1;
-    capture_intervention(transaction->transaction, 4, decision);
-    return 0;
+    const haproxy_modsecurity_body_phase phase = {
+        4, &transaction->response_headers_processed, &transaction->response_body_processed,
+        &transaction->response_body_started, &transaction->response_body_bytes_seen,
+        &transaction->response_body_bytes_inspected, "missing transaction or response body",
+        "response headers must be processed before response body finalization",
+        "response body append after end-of-stream",
+        "response body pointer is required when length is nonzero", "msc_append_response_body failed",
+        "response body may only be finalized once", "msc_process_response_body failed",
+        msc_append_response_body, msc_process_response_body
+    };
+    return finish_body(transaction, decision, &phase);
 }
 
 int haproxy_modsecurity_transaction_process_response_body(

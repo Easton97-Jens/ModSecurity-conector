@@ -7,6 +7,14 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Nolog- und Response-Header-Report-Lifecycle-Deduplizierung](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.de.md)
+- [Parent-CI-NGINX-HTTP-500-Literal-Deduplizierung](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.de.md)
+- [Parent-CI-Deduplizierung des Case-Metadata-Parsings](CR-20260729-sonar-ci-case-metadata-duplication.de.md)
+- [Parent-Lighttpd-Runtime-Output-Containment](CR-20260729-sonar-lighttpd-runtime-output-containment.de.md)
+- [Parent-HAProxy-Binding-Body-Phase-Deduplizierung](CR-20260729-sonar-haproxy-binding-body-phase-deduplication.de.md)
+
+- [Parent-CI-Deduplizierung der Verified-Runtime-Mismatch-Control-Evidence](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.de.md)
+
 - [Parent-Common-Blocked-Runtime-Smoke-Default-Dispatch für SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.de.md)
   — der getrackte Konfigurations-`case` und unbekannte Connectoren verwenden
   kontrollierte Blocked-Dependency-Pfade; fokussierte Dispatch-/Default-
