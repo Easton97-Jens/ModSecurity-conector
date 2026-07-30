@@ -7,6 +7,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Tools-Output-Containment und Native-Oracle-Zerlegung für SonarQube Cloud](CR-20260730-sonar-ci-tools-output-oracle.de.md)
+  — lokale Containment-, Generator-Kompatibilitäts-, C17-, Native-Oracle- und
+  fokussierte Security-Diff-Controls bestanden; frische Exact-Head-Hosted- und
+  SonarQube-Cloud-Verifikation bleiben vor jeder Master-Integration notwendig.
+
 - [Parent-CI-Nolog- und Response-Header-Report-Lifecycle-Deduplizierung](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.de.md)
 - [Parent-CI-NGINX-HTTP-500-Literal-Deduplizierung](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.de.md)
 - [Parent-CI-Deduplizierung des Case-Metadata-Parsings](CR-20260729-sonar-ci-case-metadata-duplication.de.md)

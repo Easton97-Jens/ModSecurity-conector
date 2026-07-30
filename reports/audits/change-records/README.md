@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI tools output containment and native oracle decomposition for SonarQube Cloud](CR-20260730-sonar-ci-tools-output-oracle.md)
+  — local containment, generator-compatibility, C17, native-oracle, and
+  focused security-diff controls passed; fresh exact-head hosted and
+  SonarQube Cloud verification remains required before any master integration.
+
 - [Parent CI Nolog and response-header report-lifecycle deduplication](CR-20260729-sonar-ci-nolog-response-header-lifecycle-deduplication.md)
 - [Parent CI NGINX HTTP-500 literal deduplication](CR-20260729-sonar-ci-nginx-http500-literal-deduplication.md)
 - [Parent CI case-metadata parsing deduplication](CR-20260729-sonar-ci-case-metadata-duplication.md)

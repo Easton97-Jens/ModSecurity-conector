@@ -279,8 +279,24 @@ int main(void)
         self.assertIn("if (value == NULL)", source)
         self.assertIn('fputs("\\\"\\\"", out);', source)
         self.assertIn("cursor = (const unsigned char *)value;", source)
-        self.assertIn("json_string(out, whoami);", source)
-        self.assertNotIn('json_string(out, whoami ? whoami : "");', source)
+        self.assertIn("json_string(out, result->whoami);", source)
+        self.assertNotIn('json_string(out, result->whoami ? result->whoami : "");', source)
+
+    def test_oracle_result_context_keeps_phase_processing_out_of_main(self) -> None:
+        source = (ROOT / "ci" / "tools" / "native_modsecurity_oracle.c").read_text(
+            encoding="utf-8"
+        )
+        main = source[source.index("int main(int argc, char **argv)") :]
+
+        self.assertIn("struct result_context {", source)
+        self.assertIn("static void write_result(const struct result_context *result,", source)
+        self.assertNotIn("static void write_result(const char *path", source)
+        self.assertIn("static const char *process_request(Transaction *transaction,", source)
+        self.assertIn("request_error = process_request(transaction, &request, &observed, &body);", main)
+        self.assertNotIn("msc_process_connection(transaction", main)
+        self.assertNotIn("msc_process_uri(transaction", main)
+        self.assertNotIn("msc_process_request_headers(transaction", main)
+        self.assertNotIn("msc_process_request_body(transaction", main)
 
     def test_haproxy_startup_diagnostics_guard_the_standard_error_stream(self) -> None:
         source = (
