@@ -77,4 +77,8 @@ Draft PR.
 
 ## Final diff and review status
 
-Scoped candidate only; delivery and hosted review remain pending.
+Draft PR [#203](https://github.com/Easton97-Jens/ModSecurity-conector/pull/203)
+was opened from `agent/traefik-sonar-remediation-20260730` at commit
+`e5fa1aa8f69fe9d088b661eba80b296bc845870a`. Hosted review, exact-head checks
+and SonarQube Cloud reanalysis remain pending; no merge or `master` change is
+claimed.

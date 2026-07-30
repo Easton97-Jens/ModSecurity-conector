@@ -81,4 +81,8 @@ Draft-PR aus.
 
 ## Finaler Diff- und Review-Status
 
-Nur eng begrenzter Kandidat; Delivery und Hosted-Review stehen aus.
+Draft-PR [#203](https://github.com/Easton97-Jens/ModSecurity-conector/pull/203)
+wurde aus `agent/traefik-sonar-remediation-20260730` bei Commit
+`e5fa1aa8f69fe9d088b661eba80b296bc845870a` eröffnet. Hosted-Review,
+Exact-Head-Checks und SonarQube-Cloud-Reanalyse stehen aus; kein Merge und
+keine `master`-Änderung werden behauptet.
