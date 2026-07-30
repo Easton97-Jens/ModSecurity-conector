@@ -18,6 +18,11 @@ from verified_run_id import validate_verified_run_id
 GENERATED_ROOT = Path("reports/testing/generated")
 GENERATED_NOTICE = "Generated file - do not edit manually."
 DATA_SOURCE_POLICY = "verified-inputs-only"
+_LOCAL_HOME_ROOT = "<local-home-root>"
+_REFRESH_CONNECTOR_REPORTS_GENERATOR = "ci/evidence/reports/refresh-connector-reports.py"
+_REMAINING_FAILURE_ANALYSIS_GENERATOR = "ci/evidence/reports/generate-remaining-failure-analysis.py"
+_FRAMEWORK_CASE_MATRIX_GENERATOR = "framework:ci/reporting/generate-case-matrix.py"
+_FRAMEWORK_MRTS_NATIVE_REPORT_GENERATOR = "framework:ci/reporting/generate-mrts-native-report.py"
 UNKNOWN_VALUES = {
     "unknown",
     "missing",
@@ -67,13 +72,13 @@ def portable_path_reference(value: str | Path) -> str:
     if raw == "/tmp" or raw.startswith("/tmp/"):
         return "<temporary-work-root>" + raw[len("/tmp") :]
     if raw == "/root" or raw.startswith("/root/"):
-        return "<local-home-root>" + raw[len("/root") :]
+        return _LOCAL_HOME_ROOT + raw[len("/root") :]
     if raw.startswith("/home/"):
         parts = raw.split("/", 3)
-        return "<local-home-root>" + ("/" + parts[3] if len(parts) == 4 else "")
+        return _LOCAL_HOME_ROOT + ("/" + parts[3] if len(parts) == 4 else "")
     if raw.startswith("/Users/"):
         parts = raw.split("/", 3)
-        return "<local-home-root>" + ("/" + parts[3] if len(parts) == 4 else "")
+        return _LOCAL_HOME_ROOT + ("/" + parts[3] if len(parts) == 4 else "")
     return raw
 
 
@@ -152,7 +157,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("json", "md"),
         "Canonical catalog of report generators, outputs, inputs, and refresh status.",
         "canonical",
-        "ci/evidence/reports/refresh-connector-reports.py",
+        _REFRESH_CONNECTOR_REPORTS_GENERATOR,
         "refresh-connector-reports",
         owner="manifest",
         severity="critical",
@@ -166,7 +171,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("json", "md"),
         "Freshness and stale-status report for generated reports.",
         "canonical",
-        "ci/evidence/reports/refresh-connector-reports.py",
+        _REFRESH_CONNECTOR_REPORTS_GENERATOR,
         "refresh-connector-reports",
         owner="manifest",
         severity="important",
@@ -194,7 +199,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("json", "md"),
         "Top-level merge-readiness dashboard.",
         "canonical",
-        "ci/evidence/reports/refresh-connector-reports.py",
+        _REFRESH_CONNECTOR_REPORTS_GENERATOR,
         "refresh-connector-reports",
         owner="manifest",
         severity="critical",
@@ -334,7 +339,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("json", "md"),
         "Evidence rollup shared by focused analysis and consistency checks.",
         "canonical",
-        "ci/evidence/reports/generate-remaining-failure-analysis.py",
+        _REMAINING_FAILURE_ANALYSIS_GENERATOR,
         "refresh-connector-reports",
         severity="critical",
         data_origin="runtime",
@@ -364,7 +369,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("json", "md"),
         "Remaining failure clustering and classification.",
         "canonical",
-        "ci/evidence/reports/generate-remaining-failure-analysis.py",
+        _REMAINING_FAILURE_ANALYSIS_GENERATOR,
         "generate-remaining-failure-analysis",
         severity="important",
         data_origin="runtime",
@@ -379,7 +384,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("json", "md"),
         "Current recommended next fix cluster.",
         "canonical",
-        "ci/evidence/reports/generate-remaining-failure-analysis.py",
+        _REMAINING_FAILURE_ANALYSIS_GENERATOR,
         "generate-remaining-failure-analysis",
         severity="important",
         data_origin="runtime",
@@ -426,7 +431,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("md",),
         "Framework/connector case matrix.",
         "focused",
-        "framework:ci/reporting/generate-case-matrix.py",
+        _FRAMEWORK_CASE_MATRIX_GENERATOR,
         "generate-test-matrix",
         owner="framework",
         data_origin="framework",
@@ -440,7 +445,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("md",),
         "Connector gap summary.",
         "focused",
-        "framework:ci/reporting/generate-case-matrix.py",
+        _FRAMEWORK_CASE_MATRIX_GENERATOR,
         "generate-test-matrix",
         owner="framework",
         data_origin="framework",
@@ -454,7 +459,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("md",),
         "Coverage summary by scope, status, runtime, phase, and variable.",
         "focused",
-        "framework:ci/reporting/generate-case-matrix.py",
+        _FRAMEWORK_CASE_MATRIX_GENERATOR,
         "generate-test-matrix",
         owner="framework",
         data_origin="framework",
@@ -468,7 +473,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("md",),
         "Phase coverage summary.",
         "focused",
-        "framework:ci/reporting/generate-case-matrix.py",
+        _FRAMEWORK_CASE_MATRIX_GENERATOR,
         "generate-test-matrix",
         owner="framework",
         data_origin="framework",
@@ -482,7 +487,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("md",),
         "Expected-failure and import-status summary.",
         "focused",
-        "framework:ci/reporting/generate-case-matrix.py",
+        _FRAMEWORK_CASE_MATRIX_GENERATOR,
         "generate-test-matrix",
         owner="framework",
         data_origin="framework",
@@ -587,7 +592,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("md",),
         "Apache runtime result details.",
         "runtime",
-        "framework:ci/reporting/generate-case-matrix.py",
+        _FRAMEWORK_CASE_MATRIX_GENERATOR,
         "generate-test-matrix",
         owner="runtime",
         data_origin="runtime",
@@ -601,7 +606,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("md",),
         "NGINX runtime result details.",
         "runtime",
-        "framework:ci/reporting/generate-case-matrix.py",
+        _FRAMEWORK_CASE_MATRIX_GENERATOR,
         "generate-test-matrix",
         owner="runtime",
         data_origin="runtime",
@@ -615,7 +620,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("md",),
         "HAProxy runtime result details.",
         "runtime",
-        "framework:ci/reporting/generate-case-matrix.py",
+        _FRAMEWORK_CASE_MATRIX_GENERATOR,
         "generate-test-matrix",
         owner="runtime",
         data_origin="runtime",
@@ -629,7 +634,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("md",),
         "Default runtime matrix summary.",
         "runtime",
-        "framework:ci/reporting/generate-case-matrix.py",
+        _FRAMEWORK_CASE_MATRIX_GENERATOR,
         "generate-test-matrix",
         owner="runtime",
         data_origin="runtime",
@@ -643,7 +648,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("json", "md"),
         "Combined native MRTS infrastructure evidence.",
         "optional",
-        "framework:ci/reporting/generate-mrts-native-report.py",
+        _FRAMEWORK_MRTS_NATIVE_REPORT_GENERATOR,
         "mrts-native-full-run",
         owner="mrts",
         severity="optional",
@@ -660,7 +665,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("json", "md"),
         "Apache native MRTS infrastructure evidence.",
         "optional",
-        "framework:ci/reporting/generate-mrts-native-report.py",
+        _FRAMEWORK_MRTS_NATIVE_REPORT_GENERATOR,
         "mrts-native-full-run",
         owner="mrts",
         severity="optional",
@@ -677,7 +682,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("json", "md"),
         "NGINX native MRTS infrastructure evidence.",
         "optional",
-        "framework:ci/reporting/generate-mrts-native-report.py",
+        _FRAMEWORK_MRTS_NATIVE_REPORT_GENERATOR,
         "mrts-native-full-run",
         owner="mrts",
         severity="optional",
@@ -694,7 +699,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         ("json", "md"),
         "Native MRTS summary.",
         "optional",
-        "framework:ci/reporting/generate-mrts-native-report.py",
+        _FRAMEWORK_MRTS_NATIVE_REPORT_GENERATOR,
         "mrts-native-full-run",
         owner="mrts",
         severity="optional",
