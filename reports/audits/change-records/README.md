@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI bounded bilingual design-route matcher for SonarQube Cloud S8786](CR-20260729-sonar-ci-bilingual-route-regex.md)
+  — preserves padded and unpadded route keys while rejecting malformed
+  no-closing-delimiter route rows with long whitespace without
+  backtracking-heavy matching.
+
 - [Parent CI verified-runtime-mismatch control-evidence deduplication](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.md)
 
 - [Parent Common blocked-runtime-smoke default dispatch for SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.md)

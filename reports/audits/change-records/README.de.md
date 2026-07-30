@@ -7,6 +7,11 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Begrenzter Parent-CI-Matcher für bilinguale Design-Routen für SonarQube Cloud S8786](CR-20260729-sonar-ci-bilingual-route-regex.de.md)
+  — bewahrt gepaddete und ungepaddete Route-Keys und weist fehlerhafte
+  Route-Zeilen mit langer Whitespace-Folge und fehlendem schließendem
+  Delimiter ohne Backtracking-lastiges Matching zurück.
+
 - [Parent-CI-Deduplizierung der Verified-Runtime-Mismatch-Control-Evidence](CR-20260729-sonar-ci-verified-runtime-mismatch-duplication.de.md)
 
 - [Parent-Common-Blocked-Runtime-Smoke-Default-Dispatch für SonarQube Cloud S131](CR-20260729-sonar-common-blocked-smoke-default.de.md)
