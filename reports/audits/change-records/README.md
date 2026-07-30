@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI Apache config-reference condition remediation](CR-20260729-sonar-ci-apache-config-reference-condition.md)
+  — the source/minimal/safe Apache example-file partition now uses explicit
+  branches; focused partition and non-writing reference controls passed
+  locally. Exact-head hosted verification remains required before integration.
+
 - [Parent CI generated-report literal deduplication](CR-20260729-sonar-ci-generated-report-literals.md)
   — five static local-path/provenance literals now have single private owners;
   focused portable-path and generator-registry controls plus the full

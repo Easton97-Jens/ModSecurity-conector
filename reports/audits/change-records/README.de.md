@@ -7,6 +7,12 @@ bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sin
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
 
+- [Parent-CI-Apache-Config-Reference-Condition-Remediation](CR-20260729-sonar-ci-apache-config-reference-condition.de.md)
+  — die Source-/Minimal-/Safe-Apache-Example-File-Partition verwendet nun
+  explizite Branches; fokussierter Partitionstest und nicht schreibende
+  Reference-Controls bestanden lokal. Exact-Head-Hosted-Verifikation bleibt
+  vor der Integration erforderlich.
+
 - [Parent-CI-Generated-Report-Literal-Deduplizierung](CR-20260729-sonar-ci-generated-report-literals.de.md)
   — fünf statische Local-Path-/Provenance-Literale haben nun einzelne private
   Owner; fokussierte Portable-Path- und Generator-Registry-Controls sowie die
