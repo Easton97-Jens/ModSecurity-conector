@@ -8,7 +8,7 @@
 | --- | --- |
 | Change-ID | CR-20260730-sonar-ci-tools-output-oracle |
 | Datum (UTC) | 2026-07-30 |
-| Initiale Quell-Revision | 77947c2ebe9523a24054b90bc1339657bed07ddb |
+| Basis-Revision | 77947c2ebe9523a24054b90bc1339657bed07ddb |
 | Tracking | Aktuelle Master-SonarQube-Cloud-Issues `AZ8d8_sBE36x1qGA4xhY` (`pythonsecurity:S8707`) in `ci/tools/generate-block-status-config.py`, `AZ7b3dgOcO69wzd-_jHt` (`c:S107`) und `AZ7b3dgOcO69wzd-_jHu` (`c:S3776`) in `ci/tools/native_modsecurity_oracle.c`. |
 | Grenze | Parent-`ci/tools`, ein Parent-Smoke-Checker, ein Parent-Source-Contract-Test und dieses englisch/deutsche Change-Record-Paar. Framework/MRTS-Quelle, Gitlinks, Workflows, Scanner-Konfiguration, Suppressions, Exclusions, Quality Gates und `master` bleiben unverändert. |
 
