@@ -17,6 +17,8 @@ import sys
 import time
 from typing import Final
 
+from safe_runtime_output import safe_output_path, verified_runtime_output_root, write_text_atomic
+
 
 CONTENT_LENGTH_PATH: Final = "/p4/fixture/content-length"
 CHUNKED_PATH: Final = "/p4/fixture/chunked"
@@ -40,11 +42,8 @@ class FixtureError(RuntimeError):
     """A bounded fixture exchange could not be completed."""
 
 
-def write_json(path: Path, value: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    temporary.replace(path)
+def write_json(root: Path, path: Path, value: dict[str, object], label: str) -> None:
+    write_text_atomic(root, path, json.dumps(value, indent=2, sort_keys=True) + "\n", label)
 
 
 def receive_request_path(connection: socket.socket, timeout: float) -> str:
@@ -111,6 +110,7 @@ def send_parts(
 
 def serve(
     *,
+    output_root: Path,
     ready_file: Path,
     result_file: Path,
     host: str,
@@ -120,6 +120,8 @@ def serve(
 ) -> None:
     if timeout <= 0 or inter_part_delay <= 0:
         raise FixtureError("timeouts and inter-part delay must be positive")
+    ready_file = safe_output_path(output_root, ready_file, "ready file")
+    result_file = safe_output_path(output_root, result_file, "result file")
     if ready_file.exists() or result_file.exists():
         raise FixtureError("fixture control files must be fresh")
     fixtures = {
@@ -134,6 +136,7 @@ def serve(
         listener.settimeout(timeout)
         address_host, address_port = listener.getsockname()[:2]
         write_json(
+            output_root,
             ready_file,
             {
                 "schema_version": 1,
@@ -142,6 +145,7 @@ def serve(
                 "upstream_port": int(address_port),
                 "body_payload_persisted": False,
             },
+            "ready file",
         )
         while len(served) < len(fixtures):
             try:
@@ -164,6 +168,7 @@ def serve(
                 if label not in {"content_length", "chunked"}:
                     raise FixtureError("fixture label invariant failed")
     write_json(
+        output_root,
         result_file,
         {
             "schema_version": 1,
@@ -175,6 +180,7 @@ def serve(
             "entity_parts_per_response": len(CONTENT_LENGTH_PARTS),
             "body_payload_persisted": False,
         },
+        "result file",
     )
 
 
@@ -182,6 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ready-file", required=True, type=Path)
     parser.add_argument("--result-file", required=True, type=Path)
+    parser.add_argument("--runtime-output-root", required=True, type=Path)
     parser.add_argument("--listen-host", default="127.0.0.1")
     parser.add_argument("--listen-port", type=int, default=0)
     parser.add_argument("--timeout", type=float, default=30.0)
@@ -189,6 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         serve(
+            output_root=verified_runtime_output_root(args.runtime_output_root),
             ready_file=args.ready_file,
             result_file=args.result_file,
             host=args.listen_host,

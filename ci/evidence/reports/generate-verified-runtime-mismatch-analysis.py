@@ -1138,31 +1138,7 @@ def full_matrix_summary_case(build_root: Path, connector: str, variant: str, cas
 
 
 def full_matrix_control_evidence(build_root: Path) -> dict[str, dict[str, str]]:
-    evidence: dict[str, dict[str, str]] = {}
-    for connector in sorted(SEMICOLON_COLLECTION_CONNECTORS):
-        for variant in ("no-crs/no-mrts", "with-crs/no-mrts"):
-            case = full_matrix_summary_case(build_root, connector, variant, ARGS_NAMES_CONTROL_CASE)
-            key = f"{connector}:{variant}:{ARGS_NAMES_CONTROL_CASE}"
-            if (
-                str(case.get("status") or "").lower() == "pass"
-                and str(case.get("expected_status") or "") == "403"
-                and str(case.get("actual_status", case.get("observed_status")) or "") == "403"
-                and case.get("live_executed") is True
-            ):
-                evidence[key] = {
-                    "status": "pass",
-                    "expected": "403",
-                    "actual": "403",
-                    "evidence_file": str(case.get("evidence_path") or "-"),
-                }
-            else:
-                evidence[key] = {
-                    "status": str(case.get("status") or "missing"),
-                    "expected": str(case.get("expected_status") or "-"),
-                    "actual": str(case.get("actual_status", case.get("observed_status")) or "-"),
-                    "evidence_file": str(case.get("evidence_path") or "-"),
-                }
-    return evidence
+    return full_matrix_case_control_evidence(build_root, ARGS_NAMES_CONTROL_CASE)
 
 
 def full_matrix_case_control_evidence(build_root: Path, control_case_name: str) -> dict[str, dict[str, str]]:
@@ -1184,8 +1160,11 @@ def full_matrix_case_control_evidence(build_root: Path, control_case_name: str) 
                     "evidence_file": str(case.get("evidence_path") or "-"),
                 }
             else:
+                status = str(case.get("status") or "missing")
+                if status.lower() == "pass":
+                    status = "fail"
                 evidence[key] = {
-                    "status": str(case.get("status") or "missing"),
+                    "status": status,
                     "expected": str(case.get("expected_status") or "-"),
                     "actual": str(case.get("actual_status", case.get("observed_status")) or "-"),
                     "evidence_file": str(case.get("evidence_path") or "-"),

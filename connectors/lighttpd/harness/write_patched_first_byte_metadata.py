@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from patched_event_validation import load_events, nonnegative, phase_is_four
+from safe_runtime_output import verified_runtime_output_root, write_text_atomic
 
 NON_OBJECT_ERROR = "{path}:{line_number}: event must be an object"
 
@@ -51,6 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--events", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--runtime-output-root", required=True, type=Path)
     args = parser.parse_args(argv)
 
     event = safe_host_action(
@@ -67,8 +69,12 @@ def main(argv: list[str] | None = None) -> int:
         "no_full_response_buffering": True,
         "connector_owned_full_response_buffer": False,
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_text_atomic(
+        verified_runtime_output_root(args.runtime_output_root),
+        args.output,
+        json.dumps(output, indent=2, sort_keys=True) + "\n",
+        "first-byte metadata output",
+    )
     return 0
 
 

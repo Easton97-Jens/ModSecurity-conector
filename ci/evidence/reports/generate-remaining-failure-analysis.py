@@ -14,6 +14,7 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
+from case_metadata_utils import parse_case_document
 from generated_report_utils import (
     GENERATED_ROOT,
     build_metadata,
@@ -345,25 +346,13 @@ def yaml_case_metadata(entry: dict[str, Any]) -> dict[str, Any]:
         return metadata
 
     raw = read_text(case_path)
-    parsed: dict[str, Any] = {}
-    if yaml is not None:
-        try:
-            loaded = yaml.safe_load(raw)
-            parsed = loaded if isinstance(loaded, dict) else {}
-        except Exception:
-            parsed = {}
+    parsed, request, expect, source_metadata, request_path, query = parse_case_document(
+        raw, yaml, parse_empty=True
+    )
     rules = str(parsed.get("rules") or raw)
     rule = first_rule_metadata(rules)
-    request = parsed.get("request") if isinstance(parsed.get("request"), dict) else {}
-    expect = parsed.get("expect") if isinstance(parsed.get("expect"), dict) else {}
-    source_metadata = parsed.get("metadata") if isinstance(parsed.get("metadata"), dict) else {}
     variables = source_metadata.get("variables")
     metadata_variable = ", ".join(str(item) for item in variables) if isinstance(variables, list) else str(variables or "-")
-    request_path = str(request.get("path") or "-")
-    query = "-"
-    if "?" in request_path:
-        request_path, query = request_path.split("?", 1)
-        request_path = request_path or "/"
     metadata.update(
         {
             "rule_id": rule["rule_id"],
