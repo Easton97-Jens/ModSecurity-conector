@@ -1105,6 +1105,80 @@ def german_markdown_companion(path: Path) -> Path | None:
     return path.with_name(path.name.removesuffix(".md") + GERMAN_MARKDOWN_SUFFIX)
 
 
+def retain_existing_output(
+    path: Path,
+    status: str,
+    reason: str,
+    connector_root: Path,
+    *,
+    preserve_existing: bool,
+) -> bool:
+    if not preserve_existing or not path.is_file() or is_placeholder_output(path):
+        return False
+    if path.suffix == ".md":
+        mark_retained_markdown(path, status, reason)
+        german = german_markdown_companion(path)
+        if german and german.is_file():
+            mark_retained_markdown(german, status, reason)
+    print(f"refresh-connector-reports: retained historical output {path.relative_to(connector_root)}")
+    return True
+
+
+def placeholder_metadata(
+    spec: ReportSpec,
+    key: str,
+    connector_root: Path,
+    framework_root: Path,
+    generated_at: str,
+    status: str,
+    reason: str,
+) -> dict[str, Any]:
+    report = GENERATED_REPORTS[key]
+    return build_metadata(
+        generated_by=report.generator,
+        make_target=report.make_target,
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=spec.inputs,
+        generated_at=generated_at,
+        report_key=key,
+        extra={"run_status": status, "blocked_reason": reason},
+    )
+
+
+def placeholder_payload(
+    spec: ReportSpec, key: str, status: str, reason: str, metadata: dict[str, Any]
+) -> dict[str, Any]:
+    return {
+        "status": status,
+        "reason": reason,
+        "report_key": key,
+        "report_name": key,
+        "generator": spec.generator,
+        "make_target": spec.make_target,
+        "command": list(spec.command),
+        "data_source_policy": DATA_SOURCE_POLICY,
+        "verified_run_id": metadata["verified_run_id"],
+        "rows": [],
+        "empty_reason": "producer command was not run or verified input is unavailable",
+    }
+
+
+def write_placeholder_output(
+    path: Path,
+    key: str,
+    status: str,
+    reason: str,
+    spec: ReportSpec,
+    payload: dict[str, Any],
+    metadata: dict[str, Any],
+) -> None:
+    if path.suffix == ".json":
+        write_text_file(path, generated_json_text(payload, metadata))
+    elif path.suffix == ".md":
+        write_text_file(path, generated_markdown_text(placeholder_markdown(key, status, reason, spec), metadata))
+
+
 def write_placeholder_outputs(
     spec: ReportSpec,
     status: str,
@@ -1120,42 +1194,17 @@ def write_placeholder_outputs(
         key = FILENAME_TO_KEY.get(path.name)
         if not key:
             continue
-        if preserve_existing and path.is_file() and not is_placeholder_output(path):
-            if path.suffix == ".md":
-                mark_retained_markdown(path, status, reason)
-                german = german_markdown_companion(path)
-                if german and german.is_file():
-                    mark_retained_markdown(german, status, reason)
-            print(f"refresh-connector-reports: retained historical output {path.relative_to(connector_root)}")
+        if retain_existing_output(
+            path,
+            status,
+            reason,
+            connector_root,
+            preserve_existing=preserve_existing,
+        ):
             continue
-        report = GENERATED_REPORTS[key]
-        metadata = build_metadata(
-            generated_by=report.generator,
-            make_target=report.make_target,
-            connector_root=connector_root,
-            framework_root=framework_root,
-            inputs=spec.inputs,
-            generated_at=generated_at,
-            report_key=key,
-            extra={"run_status": status, "blocked_reason": reason},
-        )
-        payload = {
-            "status": status,
-            "reason": reason,
-            "report_key": key,
-            "report_name": key,
-            "generator": spec.generator,
-            "make_target": spec.make_target,
-            "command": list(spec.command),
-            "data_source_policy": DATA_SOURCE_POLICY,
-            "verified_run_id": metadata["verified_run_id"],
-            "rows": [],
-            "empty_reason": "producer command was not run or verified input is unavailable",
-        }
-        if path.suffix == ".json":
-            write_text_file(path, generated_json_text(payload, metadata))
-        elif path.suffix == ".md":
-            write_text_file(path, generated_markdown_text(placeholder_markdown(key, status, reason, spec), metadata))
+        metadata = placeholder_metadata(spec, key, connector_root, framework_root, generated_at, status, reason)
+        payload = placeholder_payload(spec, key, status, reason, metadata)
+        write_placeholder_output(path, key, status, reason, spec, payload, metadata)
 
 
 def run_spec(
@@ -1555,10 +1604,8 @@ def md(value: Any) -> str:
     return str(value if value is not None else "-").replace("|", "\\|")
 
 
-def submodule_report(connector_root: Path, framework_root: Path) -> list[dict[str, str]]:
-    sibling = Path("/root/git/ModSecurity-test-Framework")
-    mrts_root = framework_root / "tools/MRTS"
-    rows = [
+def submodule_rows(connector_root: Path, framework_root: Path, mrts_root: Path, sibling: Path) -> list[dict[str, str]]:
+    return [
         {
             "name": "parent",
             "path": ".",
@@ -1592,18 +1639,33 @@ def submodule_report(connector_root: Path, framework_root: Path) -> list[dict[st
             "status": "present" if sibling.exists() else "not_found",
         },
     ]
-    expected = git_output(["submodule", "status", "--recursive"], connector_root)
+
+
+def apply_expected_submodule_shas(rows: list[dict[str, str]], expected: str) -> None:
     for row in rows:
         row["expected"] = "-"
     for line in expected.splitlines():
-        clean = line.strip()
-        parts = clean.split()
-        if len(parts) >= 2 and parts[1] == FRAMEWORK_SUBMODULE_PATH:
+        parts = line.strip().split()
+        if len(parts) < 2:
+            continue
+        if parts[1] == FRAMEWORK_SUBMODULE_PATH:
             rows[1]["expected"] = parts[0].lstrip("+-")
         if len(parts) >= 2 and parts[1] == f"{FRAMEWORK_SUBMODULE_PATH}/tools/MRTS":
             rows[2]["expected"] = parts[0].lstrip("+-")
+
+
+def mark_sibling_difference(rows: list[dict[str, str]], sibling: Path) -> None:
     if sibling.exists() and rows[1]["sha"] != rows[3]["sha"]:
         rows[3]["status"] = "differs"
+
+
+def submodule_report(connector_root: Path, framework_root: Path) -> list[dict[str, str]]:
+    sibling = Path("/root/git/ModSecurity-test-Framework")
+    mrts_root = framework_root / "tools/MRTS"
+    rows = submodule_rows(connector_root, framework_root, mrts_root, sibling)
+    expected = git_output(["submodule", "status", "--recursive"], connector_root)
+    apply_expected_submodule_shas(rows, expected)
+    mark_sibling_difference(rows, sibling)
     return rows
 
 
@@ -1984,39 +2046,85 @@ def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any],
     }
 
 
-def render_merge_dashboard_md(payload: dict[str, Any]) -> str:
-    totals = payload.get("full_matrix_totals", {})
+def dashboard_runtime_mismatch_status(payload: dict[str, Any]) -> str:
     if not payload.get("full_matrix_complete"):
-        runtime_mismatch_status = "UNKNOWN"
-    elif payload.get("critical_runtime_mismatch_count"):
-        runtime_mismatch_status = "FAIL"
-    else:
-        runtime_mismatch_status = "PASS"
-    checks = [
-        (
-            "Full Runtime Matrix",
-            "PASS" if payload.get("full_matrix_complete") else "UNKNOWN",
-            f"complete={payload.get('full_matrix_complete', False)} jobs={payload.get('full_matrix_completed_jobs', 0)}/{payload.get('full_matrix_expected_jobs', 0)} missing={payload.get('full_matrix_missing_jobs', [])} runtime_timeout={payload.get('full_matrix_timeout', False)} refresh_timeout={payload.get('full_matrix_refresh_timeout', False)} PASS={totals.get('pass', '-')} FAIL={totals.get('fail', '-')} BLOCKED={totals.get('blocked', '-')}",
-        ),
-        (
-            "Runtime Mismatch Analysis",
-            runtime_mismatch_status,
-            f"mismatches={payload.get('runtime_mismatch_count', 0)} critical={payload.get('critical_runtime_mismatch_count', 0)} categories={payload.get('runtime_mismatch_categories', {})}",
-        ),
+        return "UNKNOWN"
+    return "FAIL" if payload.get("critical_runtime_mismatch_count") else "PASS"
+
+
+def full_matrix_dashboard_check(payload: dict[str, Any], totals: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        "Full Runtime Matrix",
+        "PASS" if payload.get("full_matrix_complete") else "UNKNOWN",
+        f"complete={payload.get('full_matrix_complete', False)} jobs={payload.get('full_matrix_completed_jobs', 0)}/{payload.get('full_matrix_expected_jobs', 0)} missing={payload.get('full_matrix_missing_jobs', [])} runtime_timeout={payload.get('full_matrix_timeout', False)} refresh_timeout={payload.get('full_matrix_refresh_timeout', False)} PASS={totals.get('pass', '-')} FAIL={totals.get('fail', '-')} BLOCKED={totals.get('blocked', '-')}",
+    )
+
+
+def runtime_mismatch_dashboard_check(payload: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        "Runtime Mismatch Analysis",
+        dashboard_runtime_mismatch_status(payload),
+        f"mismatches={payload.get('runtime_mismatch_count', 0)} critical={payload.get('critical_runtime_mismatch_count', 0)} categories={payload.get('runtime_mismatch_categories', {})}",
+    )
+
+
+def dashboard_report_availability_checks(payload: dict[str, Any]) -> list[tuple[str, str, str]]:
+    optional_evidence = payload.get("optional_failed_reports") or payload.get("optional_skipped_reports") or payload.get("optional_blocked_reports")
+    return [
         ("Final Consistency Audit", "PASS" if payload.get("final_consistency_status") else "UNKNOWN", payload.get("final_consistency_status", "unknown")),
         ("Missing Inputs / Skipped Reports", "WARN" if payload.get("skipped_reports") else "PASS", ", ".join(payload.get("skipped_reports", [])) or "none"),
-        ("Optional Producer Evidence", "WARN" if payload.get("optional_failed_reports") or payload.get("optional_skipped_reports") or payload.get("optional_blocked_reports") else "PASS", ", ".join(payload.get("optional_failed_reports", []) + payload.get("optional_skipped_reports", []) + payload.get("optional_blocked_reports", [])) or "available/not required"),
+        ("Optional Producer Evidence", "WARN" if optional_evidence else "PASS", ", ".join(payload.get("optional_failed_reports", []) + payload.get("optional_skipped_reports", []) + payload.get("optional_blocked_reports", [])) or "available/not required"),
         ("Stale Reports", "WARN" if payload.get("stale_reports") else "PASS", ", ".join(payload.get("stale_reports", [])) or "none"),
         ("Report Refresh", "WARN" if payload.get("full_matrix_refresh_timeout") else "PASS", "refresh timeout after runtime completed" if payload.get("full_matrix_refresh_timeout") else "completed/no timeout recorded"),
+    ]
+
+
+def dashboard_control_checks(payload: dict[str, Any]) -> list[tuple[str, str, str]]:
+    run_mismatches = payload.get("critical_run_mismatches") or payload.get("metadata_run_mismatches")
+    return [
         ("Critical Input Freshness", "WARN" if payload.get("critical_stale_reports") else "PASS", ", ".join(payload.get("critical_stale_reports", [])) or "fresh"),
-        (
-            "Verified Run Consistency",
-            "WARN" if payload.get("critical_run_mismatches") or payload.get("metadata_run_mismatches") else "PASS",
-            ", ".join(payload.get("critical_run_mismatches", []) + payload.get("metadata_run_mismatches", [])) or "consistent",
-        ),
+        ("Verified Run Consistency", "WARN" if run_mismatches else "PASS", ", ".join(payload.get("critical_run_mismatches", []) + payload.get("metadata_run_mismatches", [])) or "consistent"),
         ("Failed Generators", "FAIL" if payload.get("failed_reports") else "PASS", ", ".join(payload.get("failed_reports", [])) or "none"),
         ("Submodule Status", "WARN" if payload.get("dirty_submodules") else "PASS", ", ".join(item.get("name", "-") for item in payload.get("dirty_submodules", [])) or "clean/no mismatch"),
     ]
+
+
+def merge_dashboard_checks(payload: dict[str, Any], totals: dict[str, Any]) -> list[tuple[str, str, str]]:
+    return [
+        full_matrix_dashboard_check(payload, totals),
+        runtime_mismatch_dashboard_check(payload),
+        *dashboard_report_availability_checks(payload),
+        *dashboard_control_checks(payload),
+    ]
+
+
+def dashboard_evidence_lines(payload: dict[str, Any], totals: dict[str, Any]) -> list[str]:
+    return [
+        f"- Verified run id: `{payload.get('verified_run_id', 'unknown')}`",
+        f"- Connector SHA: `{payload.get('connector_sha', 'unknown')}`",
+        f"- Framework SHA: `{payload.get('framework_sha', 'unknown')}`",
+        f"- Primary blocker: `{payload.get('primary_blocker', 'unknown')}`",
+        f"- Recommended next fix cluster: `{payload.get('recommended_next_fix_cluster', 'unknown')}`",
+        f"- Evidence scope: `{payload.get('evidence_scope', 'unknown')}`",
+        f"- Full-Matrix complete: `{payload.get('full_matrix_complete', False)}`",
+        f"- Full-Matrix completeness: `{payload.get('full_matrix_completed_jobs', 0)}` / `{payload.get('full_matrix_expected_jobs', 0)}`",
+        f"- Missing Full-Matrix jobs: `{', '.join(str(item) for item in payload.get('full_matrix_missing_jobs', [])) or '-'}`",
+        f"- Full-Matrix refresh timeout: `{payload.get('full_matrix_refresh_timeout', False)}`",
+        f"- Runtime mismatches / critical: `{payload.get('runtime_mismatch_count', 0)}` / `{payload.get('critical_runtime_mismatch_count', 0)}`",
+        f"- Full-Matrix PASS/FAIL/BLOCKED/NOT_EXECUTABLE: `{totals.get('pass', '-')}` / `{totals.get('fail', '-')}` / `{totals.get('blocked', '-')}` / `{totals.get('not_executable', '-')}`",
+    ]
+
+
+def dashboard_submodule_rows(submodules: list[dict[str, Any]]) -> list[str]:
+    return [
+        f"| {item.get('name', '-')} | `{item.get('path', '-')}` | `{item.get('sha', '-')}` | `{item.get('branch', '-')}` | {item.get('dirty', '-')} | {item.get('status', '-')} |"
+        for item in submodules
+    ]
+
+
+def render_merge_dashboard_md(payload: dict[str, Any]) -> str:
+    totals = payload.get("full_matrix_totals", {})
+    checks = merge_dashboard_checks(payload, totals)
     lines = [
         "# Merge Readiness Dashboard",
         "",
@@ -2040,29 +2148,11 @@ def render_merge_dashboard_md(payload: dict[str, Any]) -> str:
             "",
             "## Evidence",
             "",
-            f"- Verified run id: `{payload.get('verified_run_id', 'unknown')}`",
-            f"- Connector SHA: `{payload.get('connector_sha', 'unknown')}`",
-            f"- Framework SHA: `{payload.get('framework_sha', 'unknown')}`",
-            f"- Primary blocker: `{payload.get('primary_blocker', 'unknown')}`",
-            f"- Recommended next fix cluster: `{payload.get('recommended_next_fix_cluster', 'unknown')}`",
-            f"- Evidence scope: `{payload.get('evidence_scope', 'unknown')}`",
-            f"- Full-Matrix complete: `{payload.get('full_matrix_complete', False)}`",
-            f"- Full-Matrix completeness: `{payload.get('full_matrix_completed_jobs', 0)}` / `{payload.get('full_matrix_expected_jobs', 0)}`",
-            f"- Missing Full-Matrix jobs: `{', '.join(str(item) for item in payload.get('full_matrix_missing_jobs', [])) or '-'}`",
-            f"- Full-Matrix refresh timeout: `{payload.get('full_matrix_refresh_timeout', False)}`",
-            f"- Runtime mismatches / critical: `{payload.get('runtime_mismatch_count', 0)}` / `{payload.get('critical_runtime_mismatch_count', 0)}`",
-            f"- Full-Matrix PASS/FAIL/BLOCKED/NOT_EXECUTABLE: `{totals.get('pass', '-')}` / `{totals.get('fail', '-')}` / `{totals.get('blocked', '-')}` / `{totals.get('not_executable', '-')}`",
-            "",
-            "## Submodules",
-            "",
-            "| Name | Path | SHA | Branch | Dirty | Status |",
-            "|---|---|---|---|---|---|",
         ]
     )
-    for item in payload.get("submodules", []):
-        lines.append(
-            f"| {item.get('name', '-')} | `{item.get('path', '-')}` | `{item.get('sha', '-')}` | `{item.get('branch', '-')}` | {item.get('dirty', '-')} | {item.get('status', '-')} |"
-        )
+    lines.extend(dashboard_evidence_lines(payload, totals))
+    lines.extend(["", "## Submodules", "", "| Name | Path | SHA | Branch | Dirty | Status |", "|---|---|---|---|---|---|"])
+    lines.extend(dashboard_submodule_rows(payload.get("submodules", [])))
     return "\n".join(lines) + "\n"
 
 

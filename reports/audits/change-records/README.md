@@ -51,6 +51,12 @@ must not claim unobserved CI, runtime, review, or delivery results.
   focused local controls passed, while exact-head GitHub Actions and
   SonarQube Cloud verification remain required before any merge decision.
 
+- [Parent CI evidence SonarQube Cloud complexity follow-up](CR-20260801-sonar-ci-evidence-complexity-followup.md)
+  — decomposes the fifteen current `python:S3776` report-generator receipts
+  and the one CLI lifecycle duplicate block without changing report evidence
+  controls; exact-head GitHub Actions and SonarQube Cloud verification remain
+  required before any merge decision.
+
 - [Parent Traefik complete SonarQube Cloud remediation](CR-20260801-sonar-traefik-complete-remediation.md)
   — validates local executable and artefact boundaries, preserves native UDS
   lifecycle cleanup, and decomposes the current Traefik runner without scanner

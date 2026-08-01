@@ -55,6 +55,12 @@ Review- oder Delivery-Ergebnisse behaupten.
   und SonarQube-Cloud-Verifikation vor jeder Merge-Entscheidung erforderlich
   bleiben.
 
+- [Parent-CI-Evidence-SonarQube-Cloud-Complexity-Follow-up](CR-20260801-sonar-ci-evidence-complexity-followup.de.md)
+  — zerlegt die fünfzehn aktuellen `python:S3776`-Reportgenerator-Receipts
+  und den einen CLI-Lifecycle-Duplikatblock ohne Änderung von Report-Evidence-
+  Controls; Exact-Head-GitHub-Actions- und SonarQube-Cloud-Verifikation bleiben
+  vor jeder Merge-Entscheidung erforderlich.
+
 - [Vollständige Parent-Traefik-SonarQube-Cloud-Remediation](CR-20260801-sonar-traefik-complete-remediation.de.md)
   — validiert lokale Executable- und Artefaktgrenzen, bewahrt Native-UDS-
   Lifecycle-Cleanup und zerlegt den aktuellen Traefik-Runner ohne

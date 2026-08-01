@@ -32,6 +32,7 @@ PHASE_COVERAGE_REPORT = "phase_coverage"
 PHASE_WORK_QUEUE_REPORT = "phase_work_queue"
 ReportAnalysisBuilder = Callable[[Path, Path], dict[str, Any]]
 ReportMarkdownRenderer = Callable[[dict[str, Any]], str]
+ReportPostWrite = Callable[[Path, dict[str, Any]], None]
 
 
 def as_list(value: Any) -> list[str]:
@@ -221,6 +222,7 @@ def run_report_generator(
     make_target: str,
     build_analysis: ReportAnalysisBuilder,
     render_markdown: ReportMarkdownRenderer,
+    post_write: ReportPostWrite | None = None,
 ) -> int:
     """Run one fixed report generator through the existing safe-root lifecycle."""
 
@@ -252,6 +254,8 @@ def run_report_generator(
         make_target=make_target,
         markdown=render_markdown(analysis),
     )
+    if post_write is not None:
+        post_write(report_dir, analysis)
     print(md_path)
     return 0
 
