@@ -1,5 +1,11 @@
 # Change Records
 
+- [Finale Parent-Common-SonarQube-Cloud-Remediation](CR-20260801-sonar-common-final-remediation.de.md)
+  — schließt die zwei verbleibenden aktuellen `common/`-Receipts mit
+  validierten Compiler-/Linker-Inputs und einer Config-Line-Parser-Extraktion;
+  SHA-gebundene Hosted-Verifikation bleibt vor jeder Merge-Entscheidung
+  erforderlich.
+
 - [SonarQube-Cloud-Behebung der Parent-CI-Bibliothek](CR-20260801-sonar-ci-lib-remediation.de.md)
 
 **Sprache:** [English](README.md) | Deutsch

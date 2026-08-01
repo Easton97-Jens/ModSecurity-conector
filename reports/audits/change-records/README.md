@@ -1,5 +1,10 @@
 # Change Records
 
+- [Parent Common final SonarQube Cloud remediation](CR-20260801-sonar-common-final-remediation.md)
+  — closes the two remaining current `common/` receipts with validated
+  compiler/linker inputs and a configuration-line parser extraction; exact-head
+  hosted verification remains required before any merge decision.
+
 - [Parent CI library SonarQube Cloud remediation](CR-20260801-sonar-ci-lib-remediation.md)
 
 **Language:** English | [Deutsch](README.de.md)
