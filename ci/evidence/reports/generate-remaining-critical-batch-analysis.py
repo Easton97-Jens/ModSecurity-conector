@@ -59,6 +59,14 @@ YAML_FIX_CASES = {
 TRANSFORMATION_DEFER_CASE = "unicode_double_encoded_uri_runtime_difference"
 PHASE_HANDLING_FIX_CASE = "phase1_vs_phase2_request_body_gap"
 SECACTION_DETECTION_ONLY_CASE = "v3_secaction_block"
+DEFAULT_TARGETED_VARIANTS = ("no-crs-no-mrts",)
+SECACTION_TARGETED_VARIANTS = (
+    "no-crs-no-mrts",
+    "no-crs-with-mrts",
+    "with-crs-with-mrts",
+)
+TARGETED_VARIANTS_BY_CASE = {SECACTION_DETECTION_ONLY_CASE: SECACTION_TARGETED_VARIANTS}
+MANIFEST_REPORT_DIRECTORY = "reports/testing/generated/manifest"
 CURRENT_ANALYSIS_CASES = {
     "phase1_vs_phase2_request_body_gap",
     "v3_secaction_block",
@@ -414,14 +422,8 @@ def targeted_repros() -> list[dict[str, Any]]:
         targeted_repro(case, connector, variant)
         for case in sorted(CURRENT_ANALYSIS_CASES)
         for connector in ("apache", "nginx", "haproxy")
-        for variant in targeted_variants(case)
+        for variant in TARGETED_VARIANTS_BY_CASE.get(case, DEFAULT_TARGETED_VARIANTS)
     ]
-
-
-def targeted_variants(case: str) -> tuple[str, ...]:
-    if case == SECACTION_DETECTION_ONLY_CASE:
-        return ("no-crs-no-mrts", "no-crs-with-mrts", "with-crs-with-mrts")
-    return ("no-crs-no-mrts",)
 
 
 def targeted_repro(case: str, connector: str, variant: str) -> dict[str, Any]:
@@ -852,7 +854,7 @@ def critical_decisions(context: dict[str, Any], matrix_status: dict[str, Any]) -
 
 
 def build_payload(connector_root: Path) -> tuple[dict[str, Any], list[Path]]:
-    manifest_dir = connector_root / "reports/testing/generated/manifest"
+    manifest_dir = connector_root / MANIFEST_REPORT_DIRECTORY
     canonical_dir = connector_root / "reports/testing/generated/canonical"
     mismatch_path = manifest_dir / "verified-runtime-mismatch-analysis.generated.json"
     readiness_path = manifest_dir / "merge-readiness-dashboard.generated.json"
@@ -1033,12 +1035,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", default=".")
     parser.add_argument("--framework-root", default=None)
-    parser.add_argument("--output-dir", default="reports/testing/generated/manifest")
+    parser.add_argument("--output-dir", default=MANIFEST_REPORT_DIRECTORY)
     args = parser.parse_args()
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else None
-    output_dir = resolve_output_dir(connector_root, args.output_dir, "reports/testing/generated/manifest")
+    output_dir = resolve_output_dir(connector_root, args.output_dir, MANIFEST_REPORT_DIRECTORY)
     add_safe_roots(connector_root, connector_root / "reports/testing/generated")
 
     payload, inputs = build_payload(connector_root)

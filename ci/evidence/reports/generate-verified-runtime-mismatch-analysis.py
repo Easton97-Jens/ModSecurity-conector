@@ -1600,15 +1600,9 @@ def documented_native_case_run(
     return expected_status, native_actual, input_hash
 
 
-def validated_native_comparison_evidence(
-    native_case_run: dict[str, Any],
-    candidates: dict[tuple[str, str], dict[str, Any]],
-    *,
-    expected_status: str,
-    native_actual: str,
-    evidence_builder: Callable[[dict[str, Any]], dict[str, Any] | None],
-    require_stable_matrix: bool = False,
-) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]] | None:
+def validated_native_comparison_rows(
+    native_case_run: dict[str, Any], candidates: dict[tuple[str, str], dict[str, Any]]
+) -> dict[tuple[str, str], dict[str, Any]] | None:
     expected_matrix = {
         (connector, variant)
         for connector in SEMICOLON_COLLECTION_CONNECTORS
@@ -1624,18 +1618,41 @@ def validated_native_comparison_evidence(
     }
     if len(comparison_by_key) != len(comparisons) or set(comparison_by_key) != expected_matrix:
         return None
+    return comparison_by_key
+
+
+def native_comparison_matches(
+    item: dict[str, Any], native_actual: str, require_stable_matrix: bool
+) -> bool:
+    if require_stable_matrix and item.get("full_matrix_refresh_needed") is not False:
+        return False
+    return (
+        item.get("same") is True
+        and status_string(item.get("native_actual")) == native_actual
+        and status_string(item.get("connector_actual")) == native_actual
+        and str(item.get("meaning") or "") == "same_as_native"
+    )
+
+
+def validated_native_comparison_evidence(
+    native_case_run: dict[str, Any],
+    candidates: dict[tuple[str, str], dict[str, Any]],
+    *,
+    native_actual: str,
+    evidence_builder: Callable[[dict[str, Any]], dict[str, Any] | None],
+    require_stable_matrix: bool = False,
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]] | None:
+    comparison_by_key = validated_native_comparison_rows(native_case_run, candidates)
+    if comparison_by_key is None:
+        return None
     row_evidence: dict[str, dict[str, Any]] = {}
     comparison_evidence: dict[str, dict[str, Any]] = {}
     for key, item in comparison_by_key.items():
-        comparison_matches = (
-            item.get("same") is True
-            and status_string(item.get("native_actual")) == native_actual
-            and status_string(item.get("connector_actual")) == native_actual
-            and str(item.get("meaning") or "") == "same_as_native"
+        evidence = (
+            evidence_builder(candidates[key])
+            if native_comparison_matches(item, native_actual, require_stable_matrix)
+            else None
         )
-        if require_stable_matrix and item.get("full_matrix_refresh_needed") is not False:
-            return None
-        evidence = evidence_builder(candidates[key]) if comparison_matches else None
         if evidence is None:
             return None
         evidence_key = f"{key[0]}:{key[1]}"
@@ -1772,7 +1789,6 @@ def valid_native_transformation_semantics_evidence(
     comparison = validated_native_comparison_evidence(
         native_case_run,
         candidates,
-        expected_status=expected_status,
         native_actual=native_actual,
         evidence_builder=lambda row: native_semantics_result_evidence(
             row,
@@ -1938,7 +1954,6 @@ def valid_xml_parser_semantics_evidence(
     comparison = validated_native_comparison_evidence(
         native_case_run,
         candidates,
-        expected_status=expected_status,
         native_actual=native_actual,
         evidence_builder=lambda row: xml_parser_semantics_result_evidence(
             row,

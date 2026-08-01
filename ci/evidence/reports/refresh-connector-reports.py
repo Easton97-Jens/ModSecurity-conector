@@ -1879,14 +1879,9 @@ def merge_readiness_reason(
     if full_matrix_incomplete:
         missing = ", ".join(str(item) for item in matrix["missing_jobs"]) or "unknown"
         return f"Full-Matrix evidence is incomplete; {matrix['completed_jobs']}/{matrix['expected_jobs']} jobs complete; missing jobs: {missing}."
-    if groups["failed"]:
-        return "Failed generator records block merge readiness."
-    if matrix["complete"] and critical_mismatch_count > 0 and matrix["refresh_timeout"]:
-        return "Full-Matrix runtime completed with critical mismatches; downstream report refresh timed out."
-    if matrix["complete"] and critical_mismatch_count > 0 and (groups["stale"] or critical["stale"]):
-        return "Full-Matrix runtime completed with critical mismatches; downstream reports remain blocked, stale, or unknown."
-    if matrix["complete"] and critical_mismatch_count > 0:
-        return "Full-Matrix completed and critical runtime mismatches are present."
+    critical_reason = critical_mismatch_reason(groups, critical, matrix, critical_mismatch_count)
+    if critical_reason:
+        return critical_reason
     if readiness == "UNKNOWN":
         return "Critical producer evidence was not generated in this verified run."
     if groups["optional_failed"] or groups["optional_skipped"] or groups["optional_blocked"]:
@@ -1896,6 +1891,23 @@ def merge_readiness_reason(
     if readiness == "PASS":
         return "Core canonical reports are generated and no warning conditions were found."
     return "Merge readiness could not be determined from available reports."
+
+
+def critical_mismatch_reason(
+    groups: dict[str, list[dict[str, Any]]],
+    critical: dict[str, list[dict[str, Any]] | list[str]],
+    matrix: dict[str, Any],
+    critical_mismatch_count: int,
+) -> str | None:
+    if groups["failed"]:
+        return "Failed generator records block merge readiness."
+    if not matrix["complete"] or critical_mismatch_count == 0:
+        return None
+    if matrix["refresh_timeout"]:
+        return "Full-Matrix runtime completed with critical mismatches; downstream report refresh timed out."
+    if groups["stale"] or critical["stale"]:
+        return "Full-Matrix runtime completed with critical mismatches; downstream reports remain blocked, stale, or unknown."
+    return "Full-Matrix completed and critical runtime mismatches are present."
 
 
 def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any], submodules: list[dict[str, str]], connector_root: Path) -> dict[str, Any]:
@@ -2359,7 +2371,6 @@ def refresh_governance_reports(
     connector_root: Path,
     framework_root: Path,
     build_root: Path,
-    native_root: Path,
     report_dir: Path,
     verified_run_id: str,
     environment: dict[str, str],
@@ -2454,7 +2465,7 @@ def main() -> int:
     reports = [run_spec(spec, connector_root, framework_root, build_root, environment) for spec in catalog]
     refresh_governance_reports(
         reports, connector_root=connector_root, framework_root=framework_root, build_root=build_root,
-        native_root=native_root, report_dir=report_dir, verified_run_id=verified_run_id, environment=environment,
+        report_dir=report_dir, verified_run_id=verified_run_id, environment=environment,
     )
     return refresh_exit_code(reports, args.strict_inputs)
 
