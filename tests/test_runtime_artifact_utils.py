@@ -23,6 +23,7 @@ from runtime_path_utils import (
     prepare_verified_runtime_artifact_root,
     read_runtime_artifact_text,
     runtime_artifact_path,
+    runtime_or_source_artifact_path,
     verified_runtime_artifact_root,
     write_runtime_artifact_text_atomic,
 )
@@ -125,6 +126,25 @@ class RuntimeArtifactUtilsTest(unittest.TestCase):
             escaped_result = escaped_parent / "result.txt"
             with self.assertRaisesRegex(ValueError, "below the runtime root"):
                 runtime_artifact_path(root, escaped_result, "result")
+
+    def test_runtime_or_source_artifact_path_accepts_only_project_sources_or_private_files(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-or-source-artifact-") as temporary:
+            root = self.private_root(temporary)
+            runtime_result = root / "records" / "result.json"
+            source_file = ROOT / "Makefile"
+            outside_file = Path(temporary) / "outside.txt"
+            outside_file.write_text("outside\n", encoding="utf-8")
+
+            self.assertEqual(
+                runtime_or_source_artifact_path(root, runtime_result, "result"),
+                runtime_result,
+            )
+            self.assertEqual(
+                runtime_or_source_artifact_path(root, source_file, "source", must_exist=True),
+                source_file,
+            )
+            with self.assertRaisesRegex(ValueError, "below the runtime root"):
+                runtime_or_source_artifact_path(root, outside_file, "outside", must_exist=True)
 
     def test_shared_text_operations_keep_regular_private_artifacts(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-artifact-text-") as temporary:

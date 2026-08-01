@@ -19,6 +19,17 @@ import tempfile
 from typing import Any, Iterable
 
 
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import (
+    prepare_verified_runtime_artifact_root,
+    runtime_artifact_path,
+    runtime_or_source_artifact_path,
+)
+
+
 FORBIDDEN_EVENT_KEYS = {
     "authorization",
     "body",
@@ -407,6 +418,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--libmodsecurity-library", required=True)
     parser.add_argument("--stage-exit-code", required=True, type=int)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--runtime-root", type=Path)
     parser.add_argument("--transport-lifecycle", type=Path)
     return parser.parse_args()
 
@@ -415,9 +427,16 @@ def main() -> int:
     args = parse_args()
     if args.stage_exit_code != 0:
         raise ValueError("engine lifecycle sidecars require a successful host stage")
-    source_path = Path(args.source_result)
-    events_path = Path(args.source_events)
-    rules_path = Path(args.rules_file)
+    runtime_root = prepare_verified_runtime_artifact_root(args.runtime_root)
+    source_path = runtime_artifact_path(
+        runtime_root, args.source_result, "source result", must_exist=True
+    )
+    events_path = runtime_artifact_path(
+        runtime_root, args.source_events, "source events", must_exist=True
+    )
+    rules_path = runtime_or_source_artifact_path(
+        runtime_root, args.rules_file, "rules", must_exist=True
+    )
     library_path = Path(args.libmodsecurity_library)
     for label, path in (("source result", source_path), ("source events", events_path), ("rules", rules_path)):
         if not path.is_file() or path.is_symlink():
@@ -430,15 +449,21 @@ def main() -> int:
     version = str(args.libmodsecurity_version).strip()
     if not version or version == "not_provisioned":
         raise ValueError("libmodsecurity version must be concrete")
-    output_dir = Path(args.output_dir)
+    output_dir = runtime_artifact_path(runtime_root, args.output_dir, "output directory")
     ensure_safe_directory(output_dir)
     source = load_json(source_path)
     events = load_events(events_path)
-    transport_lifecycle_records = (
-        load_transport_lifecycle(args.transport_lifecycle, args.connector)
-        if args.transport_lifecycle is not None
-        else []
-    )
+    transport_lifecycle_records = []
+    if args.transport_lifecycle is not None:
+        transport_lifecycle = runtime_artifact_path(
+            runtime_root,
+            args.transport_lifecycle,
+            "transport lifecycle",
+            must_exist=True,
+        )
+        transport_lifecycle_records = load_transport_lifecycle(
+            transport_lifecycle, args.connector
+        )
     library_sha256 = sha256_file(library_path)
     ruleset_sha256 = sha256_file(rules_path)
     counts, lifecycle = build_artifacts(

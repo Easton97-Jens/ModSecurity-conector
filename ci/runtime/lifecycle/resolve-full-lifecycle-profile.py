@@ -16,7 +16,19 @@ import os
 import tempfile
 from copy import deepcopy
 from pathlib import Path
+import sys
 from typing import Any, Mapping, Sequence
+
+
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import (
+    prepare_verified_runtime_artifact_root,
+    runtime_artifact_path,
+    runtime_or_source_artifact_path,
+)
 
 
 PROFILE_BY_CONNECTOR = {
@@ -261,8 +273,8 @@ def effective_manifest(payload: Mapping[str, Any], profile: str) -> dict[str, An
     return output
 
 
-def write_json_atomically(path: Path, payload: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def write_json_atomically(root: Path, path: Path, payload: Mapping[str, Any]) -> None:
+    path = runtime_artifact_path(root, path, "effective capability manifest")
     descriptor, temporary = tempfile.mkstemp(
         prefix=f".{path.name}.tmp-", dir=path.parent, text=True
     )
@@ -283,6 +295,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--runtime-root", required=True, type=Path)
     parser.add_argument("--profile", required=True)
     return parser.parse_args(argv)
 
@@ -290,8 +303,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        output = effective_manifest(load_manifest(args.input), args.profile)
-        write_json_atomically(args.output, output)
+        runtime_root = prepare_verified_runtime_artifact_root(args.runtime_root)
+        input_path = runtime_or_source_artifact_path(
+            runtime_root, args.input, "capability manifest", must_exist=True
+        )
+        output_path = runtime_artifact_path(
+            runtime_root, args.output, "effective capability manifest"
+        )
+        output = effective_manifest(load_manifest(input_path), args.profile)
+        write_json_atomically(runtime_root, output_path, output)
     except ValueError as exc:
         print(f"FAIL: {exc}", file=os.sys.stderr)
         return 2

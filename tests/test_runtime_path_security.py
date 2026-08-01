@@ -677,6 +677,21 @@ class RuntimePathSecurityTest(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(roadmap_outputs[0].stat().st_mode) & 0o077, 0)
             self.assertEqual(stat.S_IMODE(inventory_outputs[0].stat().st_mode) & 0o077, 0)
 
+    def test_native_report_output_normalizes_parent_traversal_before_authorization(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="native-report-output-") as temporary:
+            parent = Path(temporary)
+            runtime_root = ensure_safe_runtime_directory(parent / "runtime")
+            escaped_report = (
+                ROOT / "reports/testing/generated/manifest/../../outside-report"
+            )
+            with self.assertRaisesRegex(ValueError, "below the runtime root"):
+                NATIVE_CASE_RUNNER.report_output_dir(
+                    ROOT,
+                    runtime_root,
+                    str(escaped_report),
+                )
+            self.assertFalse((ROOT / "reports/testing/outside-report").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,7 @@ GO_FTW_BIN="${GO_FTW_BIN:-go-ftw}"
 ALBEDO_BIN="${ALBEDO_BIN:-albedo}"
 PYTHON="${PYTHON:-python3}"
 PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
+MRTS_JOB_STATUS_BLOCKED=BLOCKED
 
 export CONNECTOR_ROOT FRAMEWORK_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT MRTS_ROOT MRTS_BUILD_ROOT MRTS_NATIVE_ROOT GO_FTW_BIN ALBEDO_BIN PYTHONDONTWRITEBYTECODE
 
@@ -539,8 +540,8 @@ run_native_target() {
         rc=77
         reason="MRTS generation or mrts.load preparation failed"
         printf '%s\n' "$rc" > "$exit_code_file"
-        write_job_json "$job_json" "$target" "BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
-        echo "mrts-native: target=$target BLOCKED: $reason"
+        write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
+        echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
         return "$rc"
     fi
 
@@ -550,16 +551,16 @@ run_native_target() {
                 rc=77
                 reason="Apache native staging failed"
                 printf '%s\n' "$rc" > "$exit_code_file"
-                write_job_json "$job_json" "$target" "BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
-                echo "mrts-native: target=$target BLOCKED: $reason"
+                write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
+                echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
                 return "$rc"
             fi
             patch_ftw_dest_ports "$MRTS_BUILD_ROOT/upstream-config-tests/ftw" "$MRTS_NATIVE_APACHE_PORT" >> "$run_log" 2>&1 || {
                 rc=77
                 reason="Apache native FTW port patch failed"
                 printf '%s\n' "$rc" > "$exit_code_file"
-                write_job_json "$job_json" "$target" "BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
-                echo "mrts-native: target=$target BLOCKED: $reason"
+                write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
+                echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
                 return "$rc"
             }
             ;;
@@ -568,16 +569,16 @@ run_native_target() {
                 rc=77
                 reason="NGINX PR24 native staging failed"
                 printf '%s\n' "$rc" > "$exit_code_file"
-                write_job_json "$job_json" "$target" "BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
-                echo "mrts-native: target=$target BLOCKED: $reason"
+                write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
+                echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
                 return "$rc"
             fi
             patch_ftw_dest_ports "$MRTS_BUILD_ROOT/upstream-config-tests/ftw" "$MRTS_NATIVE_NGINX_PORT" >> "$run_log" 2>&1 || {
                 rc=77
                 reason="NGINX native FTW port patch failed"
                 printf '%s\n' "$rc" > "$exit_code_file"
-                write_job_json "$job_json" "$target" "BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
-                echo "mrts-native: target=$target BLOCKED: $reason"
+                write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
+                echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
                 return "$rc"
             }
             ;;
@@ -597,8 +598,8 @@ run_native_target() {
         reason="missing native dependencies: $deps"
         ended=$(date +%s)
         printf '%s\n' "$rc" > "$exit_code_file"
-        write_job_json "$job_json" "$target" "BLOCKED" "$reason" "$rc" "$((ended - started))" "$run_log" "$summary_path"
-        echo "mrts-native: target=$target BLOCKED: $reason"
+        write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" "$((ended - started))" "$run_log" "$summary_path"
+        echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
         return "$rc"
     fi
 
@@ -648,8 +649,8 @@ run_native_target() {
         reason="native infrastructure start failed"
         ended=$(date +%s)
         printf '%s\n' "$rc" > "$exit_code_file"
-        write_job_json "$job_json" "$target" "BLOCKED" "$reason" "$rc" "$((ended - started))" "$run_log" "$summary_path"
-        echo "mrts-native: target=$target BLOCKED: $reason"
+        write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" "$((ended - started))" "$run_log" "$summary_path"
+        echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
         return "$rc"
     fi
 

@@ -491,6 +491,33 @@ def runtime_artifact_path(
     return normalized
 
 
+def runtime_or_source_artifact_path(
+    root: Path,
+    value: Path | str,
+    label: str,
+    *,
+    must_exist: bool = False,
+) -> Path:
+    """Validate a read-only source file or a run-local runtime artifact.
+
+    Runtime helpers sometimes hash a checked-in capability/rule file together
+    with run-local evidence.  A CLI value may therefore identify only these
+    two explicit trust domains: an existing regular file below a canonical
+    read-only project root, or an artifact below the caller's private runtime
+    root.  It cannot widen reads to an arbitrary host path.
+    """
+
+    candidate = Path(value)
+    if (
+        candidate.is_absolute()
+        and candidate.is_file()
+        and not candidate.is_symlink()
+        and is_read_only_source_path(candidate)
+    ):
+        return candidate
+    return runtime_artifact_path(root, candidate, label, must_exist=must_exist)
+
+
 def open_runtime_artifact_parent(target: Path) -> int:
     """Open an artifact's already-validated parent without link traversal."""
     no_follow = getattr(os, "O_NOFOLLOW", None)

@@ -15,14 +15,22 @@ import argparse
 import hashlib
 from pathlib import Path
 import re
+import sys
+
+
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import prepare_verified_runtime_artifact_root, runtime_artifact_path
 
 
 BODY_SENTINELS = (
     "no-crs-request-body-marker",
     "no-crs-response-body-marker",
 )
-SENSITIVE_HEADER = re.compile(
-    r"(?i)^(\s*(?:authorization|proxy-authorization|cookie|set-cookie)\s*:\s*).*$"
+SENSITIVE_HEADER_NAMES = frozenset(
+    ("authorization", "proxy-authorization", "cookie", "set-cookie")
 )
 INLINE_SENSITIVE_HEADER = re.compile(
     r"(?i)(authorization|proxy-authorization|cookie|set-cookie)\s*:\s*[^\s,;]+"
@@ -30,14 +38,31 @@ INLINE_SENSITIVE_HEADER = re.compile(
 MAX_LINE_CHARS = 2048
 
 
+def sensitive_header_prefix(line: str) -> str | None:
+    """Return the safe header prefix when *line* carries a secret value.
+
+    Header redaction is deliberately parsed rather than matched with a
+    catch-all regular-expression tail.  That gives the same preservation of
+    leading whitespace, field spelling, colon, and post-colon whitespace while
+    bounding the work for an adversarially long diagnostic line.
+    """
+
+    leading = len(line) - len(line.lstrip())
+    name, separator, remainder = line[leading:].partition(":")
+    if not separator or name.strip().casefold() not in SENSITIVE_HEADER_NAMES:
+        return None
+    value_offset = len(remainder) - len(remainder.lstrip())
+    return line[: leading + len(name) + 1 + value_offset]
+
+
 def sanitize_line(line: str) -> tuple[str, bool]:
     """Return a bounded, payload-free diagnostic line and whether it changed."""
     lowered = line.casefold()
     if any(marker in lowered for marker in BODY_SENTINELS):
         return "[body payload line omitted]", True
-    match = SENSITIVE_HEADER.match(line)
-    if match:
-        return f"{match.group(1)}[redacted]", True
+    header_prefix = sensitive_header_prefix(line)
+    if header_prefix is not None:
+        return f"{header_prefix}[redacted]", True
     cleaned = INLINE_SENSITIVE_HEADER.sub(r"\1: [redacted]", line)
     changed = cleaned != line
     if len(cleaned) > MAX_LINE_CHARS:
@@ -50,10 +75,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--runtime-root", required=True, type=Path)
     parser.add_argument("--label", default="host")
     args = parser.parse_args(argv)
 
-    raw = args.input.read_bytes() if args.input.is_file() else b""
+    runtime_root = prepare_verified_runtime_artifact_root(args.runtime_root)
+    input_path = runtime_artifact_path(runtime_root, args.input, "input log")
+    output_path = runtime_artifact_path(runtime_root, args.output, "output log")
+    raw = input_path.read_bytes() if input_path.is_file() else b""
     text = raw.decode("utf-8", errors="replace")
     lines: list[str] = []
     redactions = 0
@@ -63,14 +92,15 @@ def main(argv: list[str] | None = None) -> int:
             redactions += 1
         lines.append(safe)
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
     header = (
         f"canonical_log_label={args.label}\n"
         f"source_sha256={hashlib.sha256(raw).hexdigest()}\n"
         f"source_bytes={len(raw)}\n"
         f"redacted_lines={redactions}\n"
     )
-    args.output.write_text(header + "\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    output_path.write_text(
+        header + "\n".join(lines) + ("\n" if lines else ""), encoding="utf-8"
+    )
     return 0
 
 

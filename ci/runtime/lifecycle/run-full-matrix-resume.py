@@ -14,8 +14,49 @@ _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.
 if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 
-from runtime_path_utils import ensure_safe_writable_runtime_paths, verified_runtime_paths
+from runtime_path_utils import (
+    canonical_project_roots,
+    ensure_safe_writable_runtime_paths,
+    verified_runtime_paths,
+)
 from verified_run_id import VerifiedRunIdError, validate_verified_run_id
+
+
+CONNECTORS = frozenset(("apache", "nginx", "haproxy"))
+CRS_VARIANTS = frozenset(("no-crs", "with-crs"))
+MRTS_VARIANTS = frozenset(("no-mrts", "with-mrts"))
+
+
+def canonical_roots(connector_root: str, framework_root: str | None) -> tuple[Path, Path]:
+    """Bind child-process paths to this checkout, never CLI-selected code."""
+
+    canonical_connector, canonical_framework = canonical_project_roots()
+    requested_connector = Path(connector_root).resolve(strict=True)
+    requested_framework = (
+        Path(framework_root).resolve(strict=True)
+        if framework_root
+        else canonical_framework
+    )
+    if requested_connector != canonical_connector:
+        raise ValueError(f"connector root must be this checkout: {requested_connector}")
+    if requested_framework != canonical_framework:
+        raise ValueError(f"framework root must be the pinned checkout: {requested_framework}")
+    return canonical_connector, canonical_framework
+
+
+def missing_job_identity(job: object) -> tuple[str, str, str, str]:
+    """Return only allow-listed matrix tokens for a subprocess invocation."""
+
+    if not isinstance(job, dict):
+        raise ValueError("matrix completeness entry must be an object")
+    connector = str(job.get("connector") or "")
+    crs = str(job.get("crs") or "")
+    mrts = str(job.get("mrts") or "")
+    if connector not in CONNECTORS or crs not in CRS_VARIANTS or mrts not in MRTS_VARIANTS:
+        raise ValueError(
+            "matrix completeness entry contains an unsupported connector/CRS/MRTS variant"
+        )
+    return connector, crs, mrts, f"{connector}:{crs}:{mrts}"
 
 
 def read_json(path: Path) -> dict:
@@ -53,7 +94,7 @@ def load_missing(connector_root: Path) -> list[dict]:
     return [job for job in jobs if job.get("status") not in {"completed", "completed_with_mismatches"}]
 
 
-def main() -> int:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", default=".")
     parser.add_argument("--framework-root", default=None)
@@ -61,10 +102,13 @@ def main() -> int:
     parser.add_argument("--job-timeout-seconds", type=int, default=int(os.environ.get("VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS", "3600")))
     parser.add_argument("--total-timeout-seconds", type=int, default=int(os.environ.get("VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS", "14400")))
     parser.add_argument("--force", action="store_true")
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    connector_root = Path(args.connector_root).resolve()
-    framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
+
+def runtime_context(args: argparse.Namespace) -> tuple[Path, Path, Path, str]:
+    """Resolve canonical sources and the verified runtime identity once."""
+
+    connector_root, framework_root = canonical_roots(args.connector_root, args.framework_root)
     build_root_override = Path(os.path.abspath(args.build_root)) if args.build_root else None
     paths = verified_runtime_paths(
         os.environ,
@@ -74,10 +118,51 @@ def main() -> int:
     build_root = Path(paths["BUILD_ROOT"])
     current = build_root / "verified-runs/current-run-id"
     verified_run_id = os.environ.get("VERIFIED_RUN_ID") or (current.read_text(encoding="utf-8").strip() if current.is_file() else "")
+    return connector_root, framework_root, build_root, validate_verified_run_id(verified_run_id)
+
+
+def remaining_job_identifiers(missing: list[dict]) -> str:
+    """Render untrusted report rows only as non-executable status text."""
+
+    return ", ".join(str(job.get("job_id")) for job in missing)
+
+
+def run_missing_job(
+    job: object,
+    args: argparse.Namespace,
+    connector_root: Path,
+    framework_root: Path,
+    build_root: Path,
+    remaining_seconds: float,
+) -> int:
+    """Invoke one allow-listed missing job with a bounded remaining timeout."""
+
+    connector, crs, mrts, job_id = missing_job_identity(job)
+    timeout = min(args.job_timeout_seconds, max(1, int(remaining_seconds)))
+    cmd = [
+        sys.executable,
+        str(connector_root / "ci/runtime/lifecycle/run-full-matrix-job.py"),
+        "--connector", connector,
+        "--crs", crs,
+        "--mrts", mrts,
+        "--connector-root", str(connector_root),
+        "--framework-root", str(framework_root),
+        "--build-root", str(build_root),
+        "--timeout-seconds", str(timeout),
+    ]
+    if args.force:
+        cmd.append("--force")
+    print(f"full-matrix-resume: run {job_id} timeout={timeout}s", flush=True)
+    return subprocess.run(cmd, cwd=str(connector_root), env=dict(os.environ)).returncode
+
+
+def main() -> int:
+    args = parse_args()
     try:
-        verified_run_id = validate_verified_run_id(verified_run_id)
-    except VerifiedRunIdError as exc:
-        parser.error(str(exc))
+        connector_root, framework_root, build_root, verified_run_id = runtime_context(args)
+    except (OSError, VerifiedRunIdError) as exc:
+        print(f"full-matrix-resume: {exc}", file=sys.stderr)
+        return 2
 
     rc = run_completeness(connector_root, framework_root, build_root, verified_run_id)
     if rc != 0:
@@ -94,35 +179,20 @@ def main() -> int:
         if elapsed >= args.total_timeout_seconds:
             print(f"full-matrix-resume: total timeout reached after {elapsed:.1f}s")
             return 77
-        timeout = min(args.job_timeout_seconds, max(1, int(args.total_timeout_seconds - elapsed)))
-        cmd = [
-            sys.executable,
-            str(connector_root / "ci/runtime/lifecycle/run-full-matrix-job.py"),
-            "--connector",
-            str(job["connector"]),
-            "--crs",
-            str(job["crs"]),
-            "--mrts",
-            str(job["mrts"]),
-            "--connector-root",
-            str(connector_root),
-            "--framework-root",
-            str(framework_root),
-            "--build-root",
-            str(build_root),
-            "--timeout-seconds",
-            str(timeout),
-        ]
-        if args.force:
-            cmd.append("--force")
-        print(f"full-matrix-resume: run {job['job_id']} timeout={timeout}s", flush=True)
-        job_rc = subprocess.run(cmd, cwd=str(connector_root), env=dict(os.environ)).returncode
+        try:
+            job_rc = run_missing_job(
+                job, args, connector_root, framework_root, build_root,
+                args.total_timeout_seconds - elapsed,
+            )
+        except ValueError as exc:
+            print(f"full-matrix-resume: invalid completeness entry: {exc}")
+            return 2
         if job_rc != 0:
             worst_rc = job_rc if worst_rc == 0 else worst_rc
     run_completeness(connector_root, framework_root, build_root, verified_run_id)
     remaining = load_missing(connector_root)
     if remaining:
-        print("full-matrix-resume: incomplete jobs remain: " + ", ".join(str(job.get("job_id")) for job in remaining))
+        print("full-matrix-resume: incomplete jobs remain: " + remaining_job_identifiers(remaining))
         return worst_rc or 77
     return worst_rc
 

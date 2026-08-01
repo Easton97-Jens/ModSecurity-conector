@@ -14,7 +14,20 @@ import hashlib
 import json
 import re
 from pathlib import Path
+import sys
 from typing import Any, Iterable
+
+
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import (
+    ensure_safe_runtime_directory,
+    prepare_verified_runtime_artifact_root,
+    runtime_artifact_path,
+    runtime_or_source_artifact_path,
+)
 
 
 CONNECTOR_INTEGRATION_MODES = {
@@ -459,25 +472,29 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def parse_config_file(value: str) -> tuple[str, Path]:
+def parse_config_file(value: str, runtime_root: Path) -> tuple[str, Path]:
     if "=" not in value:
         raise ValueError("config file must be LABEL=PATH")
     label, raw_path = value.split("=", 1)
     if not label or not all(character.isascii() and (character.isalnum() or character in "._/-") for character in label):
         raise ValueError(f"unsafe effective config label: {label!r}")
-    path = Path(raw_path)
-    if not path.is_absolute() or not path.is_file() or path.is_symlink():
-        raise ValueError(f"effective config source must be an absolute regular file: {path}")
+    path = runtime_or_source_artifact_path(
+        runtime_root, raw_path, "effective config source", must_exist=True
+    )
     return label, path
 
 
-def write_effective_config(output_dir: Path, connector: str, run_id: str, values: Iterable[str]) -> None:
-    if not output_dir.is_absolute() or output_dir.is_symlink():
-        raise ValueError("effective config directory must be an absolute non-symlink path")
-    output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+def write_effective_config(
+    output_dir: Path,
+    connector: str,
+    run_id: str,
+    values: Iterable[str],
+    runtime_root: Path,
+) -> None:
+    output_dir = ensure_safe_runtime_directory(output_dir)
     files = []
     for value in values:
-        label, path = parse_config_file(value)
+        label, path = parse_config_file(value, runtime_root)
         files.append({"path": label, "sha256": sha256_file(path)})
     files.sort(key=lambda item: str(item["path"]))
     write_json(output_dir / "manifest.json", {
@@ -497,7 +514,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--effective-config-dir", type=Path)
     parser.add_argument("--config-file", action="append", default=[])
+    parser.add_argument("--runtime-root", type=Path)
     args = parser.parse_args(argv)
+    runtime_root = prepare_verified_runtime_artifact_root(args.runtime_root)
     run_id = bounded_token(args.run_id, maximum=256)
     if run_id is None:
         raise ValueError("run id must be a bounded metadata token")
@@ -506,19 +525,30 @@ def main(argv: list[str] | None = None) -> int:
     if args.events is None and args.effective_config_dir is None:
         raise ValueError("transport output or effective config output is required")
     if args.events is not None and args.output_dir is not None:
-        if not args.output_dir.is_absolute():
-            raise ValueError("output directory must be absolute")
-        if args.output_dir.exists() and args.output_dir.is_symlink():
-            raise ValueError("output directory must not be a symlink")
-        args.output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-        events = load_events(args.events)
+        events_path = runtime_artifact_path(
+            runtime_root, args.events, "events", must_exist=True
+        )
+        output_dir = runtime_artifact_path(
+            runtime_root, args.output_dir, "output directory"
+        )
+        output_dir = ensure_safe_runtime_directory(output_dir)
+        events = load_events(events_path)
         observations, lifecycle, barriers, counters = build_artifacts(args.connector, run_id, events)
-        write_json(args.output_dir / "transport-observations.json", observations)
-        write_json(args.output_dir / "connection-lifecycle.json", lifecycle)
-        write_jsonl(args.output_dir / "barrier-events.jsonl", barriers)
-        write_logs(args.output_dir, args.connector, counters)
+        write_json(output_dir / "transport-observations.json", observations)
+        write_json(output_dir / "connection-lifecycle.json", lifecycle)
+        write_jsonl(output_dir / "barrier-events.jsonl", barriers)
+        write_logs(output_dir, args.connector, counters)
     if args.effective_config_dir is not None:
-        write_effective_config(args.effective_config_dir, args.connector, run_id, args.config_file)
+        effective_config_dir = runtime_artifact_path(
+            runtime_root, args.effective_config_dir, "effective config directory"
+        )
+        write_effective_config(
+            effective_config_dir,
+            args.connector,
+            run_id,
+            args.config_file,
+            runtime_root,
+        )
     return 0
 
 

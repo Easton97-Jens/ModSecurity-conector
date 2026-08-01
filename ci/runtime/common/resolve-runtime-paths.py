@@ -29,25 +29,6 @@ from runtime_path_utils import is_safe_runtime_root
 
 CONNECTORS = frozenset(("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"))
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-FORBIDDEN_BASE_ROOTS = frozenset(
-    (
-        "/",
-        "/tmp",
-        "/var",
-        "/var/tmp",
-        "/usr",
-        "/usr/local",
-        "/opt",
-        "/etc",
-        "/bin",
-        "/sbin",
-        "/lib",
-        "/lib64",
-        "/run",
-    )
-)
-
-
 class RuntimePathError(ValueError):
     """The requested connector/runtime path layout is unsafe or ambiguous."""
 
@@ -108,8 +89,6 @@ def normalize_base(
     if not base_cwd.is_absolute():
         raise RuntimePathError("resolver working directory must be absolute")
     resolved = (supplied if supplied.is_absolute() else base_cwd / supplied).resolve(strict=False)
-    if str(resolved) in FORBIDDEN_BASE_ROOTS:
-        raise RuntimePathError(f"{label} is too broad: {resolved}")
     return resolved
 
 

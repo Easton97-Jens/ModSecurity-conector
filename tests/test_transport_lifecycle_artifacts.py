@@ -172,6 +172,7 @@ class TransportLifecycleArtifactsTest(unittest.TestCase):
                 "apache",
                 "run-one",
                 [f"runtime.conf={source}"],
+                root,
             )
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["run_id"], "run-one")

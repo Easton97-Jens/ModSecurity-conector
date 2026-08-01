@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -79,6 +80,7 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
             check=False,
             capture_output=True,
             text=True,
+            env={**os.environ, "VERIFIED_RUN_ROOT": str(root)},
         )
 
     def test_writes_payload_free_current_host_inventory(self) -> None:

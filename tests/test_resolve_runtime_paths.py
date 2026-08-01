@@ -154,7 +154,11 @@ class ResolveRuntimePathsTest(unittest.TestCase):
                 "log_root": root / "logs",
                 "cache_root": root / "cache",
             }
-            for escaped_base in resolver.FORBIDDEN_BASE_ROOTS | {
+            for escaped_base in {
+                Path("/"),
+                Path("/tmp"),
+                Path("/var"),
+                Path("/var/tmp"),
                 Path("/etc/evidence-escape"),
                 Path("/root/evidence-escape"),
             }:

@@ -28,10 +28,13 @@ from generated_report_utils import (
     report_path,
 )
 from runtime_path_utils import (
+    canonical_project_roots,
     DEFAULT_RUN_BASENAME,
     ensure_safe_runtime_directory,
     fixed_runtime_temp_parent,
     prepare_verified_runtime_artifact_root,
+    runtime_artifact_path,
+    verified_runtime_paths,
 )
 
 try:
@@ -94,34 +97,48 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
 
 def load_runtime_env(verified_run_root: Path) -> dict[str, str]:
     env = dict(os.environ)
+    try:
+        paths = verified_runtime_paths(env)
+        build_root = Path(paths["BUILD_ROOT"])
+        component_cache = Path(paths["VERIFIED_COMPONENT_CACHE"])
+    except ValueError:
+        return env
     snapshot_value = env.get("RUNTIME_COMPONENT_ENV_SNAPSHOT", "").strip()
     if snapshot_value:
         # The with-runtime wrapper already validates and materializes this
         # file for its exact invocation.  Do not reopen shared/runtime-env.sh
         # here: another target may republish that compatibility export while
         # this native comparison is compiling or running a case.
-        runtime_env = Path(snapshot_value)
         report_root_value = env.get("RUNTIME_REPORT_OUTPUT_ROOT", "").strip()
         if not report_root_value:
             return env
-        report_root = Path(report_root_value)
         try:
-            if not runtime_env.is_absolute() or not report_root.is_absolute():
+            report_root = runtime_artifact_path(
+                build_root, report_root_value, "runtime report output root"
+            )
+            if not report_root.is_dir() or report_root.is_symlink():
                 return env
-            if not runtime_env.is_file() or runtime_env.is_symlink():
-                return env
-            runtime_env.resolve().relative_to(report_root.resolve())
-        except (OSError, ValueError):
+            runtime_env = runtime_artifact_path(
+                report_root,
+                snapshot_value,
+                "runtime environment snapshot",
+                must_exist=True,
+            )
+        except ValueError:
             return env
     else:
         # Retain the documented shared export only for direct/report-only
         # callers that are outside a with-runtime invocation.
-        runtime_env = Path(
-            env.get("CONNECTOR_COMPONENT_CACHE")
-            or env.get("VERIFIED_COMPONENT_CACHE")
-            or Path(env.get("CACHE_ROOT", verified_run_root / "cache-v2")) / "shared"
-        ) / "runtime-env.sh"
-    if not runtime_env.is_file():
+        try:
+            runtime_env = runtime_artifact_path(
+                component_cache,
+                component_cache / "runtime-env.sh",
+                "shared runtime environment",
+                must_exist=True,
+            )
+        except ValueError:
+            return env
+    if not runtime_env.is_file() or runtime_env.is_symlink():
         return env
     command = f". {sh_quote(str(runtime_env))}; env"
     proc = subprocess.run(
@@ -276,14 +293,34 @@ def compile_oracle(connector_root: Path, run_root: Path, env: dict[str, str]) ->
 
 
 def extract_log_evidence(text: str) -> dict[str, Any]:
-    rule_ids = sorted(set(re.findall(r'\[id "([0-9]+)"\]', text) + re.findall(r"\bid:([0-9]+)", text)))
-    matched = re.findall(r"Matched Data:\s*(.*?)\s+found within", text)
+    rule_ids = sorted(
+        set(
+            re.findall(r'\[id "(\d+)"\]', text, flags=re.ASCII)
+            + re.findall(r"\bid:(\d+)", text, flags=re.ASCII)
+        )
+    )
+    matched = matched_data_values(text)
     messages = re.findall(r'\[msg "([^"]+)"\]', text)
     return {
         "rule_ids": rule_ids,
         "matched_data": matched[:5],
         "messages": messages[:5],
     }
+
+
+def matched_data_values(text: str) -> list[str]:
+    """Extract same-line audit values without an unbounded regex wildcard."""
+
+    prefix = "Matched Data:"
+    suffix = " found within"
+    values: list[str] = []
+    for line in text.splitlines():
+        if not line.startswith(prefix):
+            continue
+        candidate, separator, _ = line[len(prefix) :].partition(suffix)
+        if separator:
+            values.append(candidate.strip())
+    return values
 
 
 def run_native_case(
@@ -510,26 +547,40 @@ def compare_native_to_connectors(native_result: dict[str, Any], official: dict[s
     any_same_as_native = any(row["same"] for row in rows)
     all_connectors_same = len(all_actuals) == 1 and all_three
     all_refresh_needed = bool(rows) and all(bool(row.get("full_matrix_refresh_needed")) for row in official.get("rows", []))
-    status = str(native_result.get("status") or "")
-    if status in {"blocked", "setup_error", "not_executable"} or native_actual == "-":
-        hint = "native_comparison_missing"
-        decision = "DEFER"
-    elif all_refresh_needed and native_actual == expected:
-        hint = "full_matrix_refresh_needed"
-        decision = "REFRESH"
-    elif all_same_as_native and native_actual != expected:
-        hint = "likely_framework_expected_behavior_gap_or_libmodsecurity_semantics"
-        decision = "DOCUMENT"
-    elif native_actual == expected and not any_same_as_native and all_connectors_same:
-        hint = "common_harness_or_input_issue_possible"
-        decision = "DEFER"
-    elif native_actual == expected and not all_same_as_native:
-        hint = "connector_bug_or_harness_gap_possible"
-        decision = "DEFER"
-    else:
-        hint = "unknown"
-        decision = "DEFER"
+    hint, decision = comparison_decision(
+        str(native_result.get("status") or ""),
+        native_actual,
+        expected,
+        all_refresh_needed,
+        all_same_as_native,
+        any_same_as_native,
+        all_connectors_same,
+    )
     return {"rows": rows, "classification_hint": hint, "decision": decision}
+
+
+def comparison_decision(
+    status: str,
+    native_actual: str,
+    expected: str,
+    all_refresh_needed: bool,
+    all_same_as_native: bool,
+    any_same_as_native: bool,
+    all_connectors_same: bool,
+) -> tuple[str, str]:
+    """Classify connector divergence without changing observed result values."""
+
+    if status in {"blocked", "setup_error", "not_executable"} or native_actual == "-":
+        return "native_comparison_missing", "DEFER"
+    if all_refresh_needed and native_actual == expected:
+        return "full_matrix_refresh_needed", "REFRESH"
+    if all_same_as_native and native_actual != expected:
+        return "likely_framework_expected_behavior_gap_or_libmodsecurity_semantics", "DOCUMENT"
+    if native_actual == expected and not any_same_as_native and all_connectors_same:
+        return "common_harness_or_input_issue_possible", "DEFER"
+    if native_actual == expected and not all_same_as_native:
+        return "connector_bug_or_harness_gap_possible", "DEFER"
+    return "unknown", "DEFER"
 
 
 def latest_case_runs(verified_run_root: Path, cases: tuple[str, ...]) -> list[dict[str, Any]]:
@@ -818,6 +869,47 @@ def write_summary_report(
     return {"json": str(json_path), "md": str(md_path), "payload": payload}
 
 
+def canonical_roots(connector_root: str, framework_root: str | None) -> tuple[Path, Path]:
+    """Bind CLI source roots to the checked-out Parent/Framework pair."""
+
+    canonical_connector, canonical_framework = canonical_project_roots()
+    requested_connector = Path(connector_root).resolve(strict=True)
+    requested_framework = (
+        Path(framework_root).resolve(strict=True)
+        if framework_root
+        else canonical_framework
+    )
+    if requested_connector != canonical_connector:
+        raise ValueError(f"connector root must be this checkout: {requested_connector}")
+    if requested_framework != canonical_framework:
+        raise ValueError(f"framework root must be the pinned checkout: {requested_framework}")
+    return canonical_connector, canonical_framework
+
+
+def report_output_dir(
+    connector_root: Path, verified_run_root: Path, value: str
+) -> Path:
+    """Constrain report writes to the established generated path or runtime root."""
+
+    candidate = Path(value)
+    if not candidate.is_absolute():
+        candidate = connector_root / candidate
+    candidate = Path(os.path.abspath(candidate))
+    generated_root = Path(
+        os.path.abspath(connector_root / "reports/testing/generated/manifest")
+    )
+    try:
+        candidate.relative_to(generated_root)
+    except ValueError:
+        return ensure_safe_runtime_directory(
+            runtime_artifact_path(verified_run_root, candidate, "report output directory")
+        )
+    if candidate.exists() and candidate.is_symlink():
+        raise ValueError(f"report output directory must not be a symlink: {candidate}")
+    candidate.mkdir(parents=True, exist_ok=True)
+    return candidate
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run connector-free native libmodsecurity comparison for framework cases.")
     parser.add_argument("--case", action="append", dest="cases")
@@ -830,37 +922,59 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def accumulated_case_return_code(current: int, status: str) -> int:
+    """Preserve a blocked result over an unavailable case result."""
+
+    if status in {"blocked", "setup_error"}:
+        return 77 if current == 0 else current
+    if status == "not_executable" and current == 0:
+        return 2
+    return current
+
+
+def run_requested_cases(
+    cases: tuple[str, ...],
+    connector_root: Path,
+    framework_root: Path,
+    verified_run_root: Path,
+) -> tuple[list[dict[str, Any]], int]:
+    """Run requested native cases and retain the most actionable nonzero result."""
+
+    reports: list[dict[str, Any]] = []
+    result = 0
+    env = load_runtime_env(verified_run_root)
+    for case in cases:
+        report = run_native_case(case, connector_root, framework_root, verified_run_root, env)
+        reports.append(report)
+        print(f"native-case-run: {report.get('run_dir')}")
+        print(f"case={case} status={report.get('status')} native_actual={report.get('native_actual')} decision={report.get('decision')}")
+        result = accumulated_case_return_code(result, str(report.get("status") or ""))
+    return reports, result
+
+
 def main() -> int:
     args = parse_args()
-    connector_root = Path(args.connector_root).resolve()
-    framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     try:
+        connector_root, framework_root = canonical_roots(
+            args.connector_root, args.framework_root
+        )
         verified_run_root = prepare_verified_runtime_artifact_root(
             args.verified_run_root,
             fallback=DEFAULT_VERIFIED_RUN_ROOT,
         )
+        output_dir = report_output_dir(
+            connector_root, verified_run_root, args.output_dir
+        )
     except ValueError as exc:
         print(f"native-case-comparison: {exc}", file=sys.stderr)
         return 77
-    output_dir = Path(args.output_dir)
-    if not output_dir.is_absolute():
-        output_dir = connector_root / output_dir
     cases = tuple(args.cases or DEFAULT_CASES)
     run_reports: list[dict[str, Any]] | None = None
     rc = 0
     if not args.report_only:
-        env = load_runtime_env(verified_run_root)
-        run_reports = []
-        for case in cases:
-            report = run_native_case(case, connector_root, framework_root, verified_run_root, env)
-            run_reports.append(report)
-            print(f"native-case-run: {report.get('run_dir')}")
-            print(f"case={case} status={report.get('status')} native_actual={report.get('native_actual')} decision={report.get('decision')}")
-            status = str(report.get("status") or "")
-            if status in {"blocked", "setup_error"}:
-                rc = 77 if rc == 0 else rc
-            elif status == "not_executable" and rc == 0:
-                rc = 2
+        run_reports, rc = run_requested_cases(
+            cases, connector_root, framework_root, verified_run_root
+        )
     summary = write_summary_report(connector_root, framework_root, verified_run_root, cases, run_reports, output_dir)
     print(summary["md"])
     print(summary["json"])
