@@ -50,6 +50,14 @@ retaining a hard-coded insecure URL sink. Shared fixed roots and repeated
 Markdown patterns have one private owner. The new regression test covers the
 regular in-tree report control plus symlink and outside-root write rejection.
 
+### Draft PR analysis follow-up
+
+The first Draft-PR analysis identified seven remaining New-Code source issues.
+This follow-up gives the FTW repository name one owner, separates two
+remaining high-complexity checks into purpose-specific helpers, replaces the
+three flagged backtracking patterns with bounded line-oriented parsing or a
+small key parser, and separates the test module's composite import assertion.
+
 ## Changed files
 
 - `ci/checks/analysis/clang_analysis_baseline.py`
@@ -80,6 +88,7 @@ regular in-tree report control plus symlink and outside-root write rejection.
 | `python ci/checks/connectors/all/check-remaining-connectors-common-adoption.py` | passed for all connectors. |
 | `python ci/checks/connectors/haproxy/check-haproxy-htx-overlay.py` | passed: all 26 static contracts. |
 | `python ci/checks/security/check-runtime-path-policy.py` | passed; its expected negative self-checks rejected unsafe roots. |
+| Follow-up focused suite for configuration-reference, lifecycle, generated-report, path-update, and bilingual controls | passed: 121 tests. |
 | `git diff --check` | passed before the Change Record was added; rerun after all documentation updates and before delivery. |
 
 ## Security impact

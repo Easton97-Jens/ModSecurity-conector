@@ -51,6 +51,15 @@ Roots und wiederholte Markdown-Muster haben einen privaten Owner. Der neue
 Regressionstest deckt den regulären In-Tree-Report-Control sowie die
 Abweisung von Symlink- und Outside-Root-Schreibzielen ab.
 
+### Follow-up der Draft-PR-Analyse
+
+Die erste Draft-PR-Analyse meldete sieben verbleibende New-Code-Source-Issues.
+Dieses Follow-up gibt dem FTW-Repository-Namen einen Owner, zerlegt zwei noch
+zu komplexe Checks in zweckgebundene Helfer, ersetzt die drei beanstandeten
+Backtracking-Patterns durch begrenztes zeilenorientiertes Parsing oder einen
+kleinen Key-Parser und trennt die zusammengesetzte Import-Assertion des
+Testmoduls.
+
 ## Geänderte Dateien
 
 - `ci/checks/analysis/clang_analysis_baseline.py`
@@ -81,6 +90,7 @@ Abweisung von Symlink- und Outside-Root-Schreibzielen ab.
 | `python ci/checks/connectors/all/check-remaining-connectors-common-adoption.py` | bestanden für alle Connectoren. |
 | `python ci/checks/connectors/haproxy/check-haproxy-htx-overlay.py` | bestanden: alle 26 statischen Verträge. |
 | `python ci/checks/security/check-runtime-path-policy.py` | bestanden; die erwarteten negativen Self-Checks wiesen unsichere Roots ab. |
+| Follow-up-Fokussuite für Konfigurationsreferenz-, Lifecycle-, Generated-Report-, Path-Update- und bilinguale Controls | bestanden: 121 Tests. |
 | `git diff --check` | vor dem Hinzufügen des Change Records bestanden; wird nach allen Dokumentationsänderungen und vor der Auslieferung erneut ausgeführt. |
 
 ## Security-Auswirkung

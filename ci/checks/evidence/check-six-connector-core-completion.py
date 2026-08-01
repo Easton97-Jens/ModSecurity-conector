@@ -318,19 +318,25 @@ def phase4_evidence_errors(
     return errors, safe_candidates, phase2_candidates
 
 
-def lifecycle_eos_errors(
-    connector: str, integration_mode: str, events: list[dict[str, Any]], lifecycle: dict[str, Any],
-    safe_candidates: list[dict[str, Any]], phase2_candidates: list[dict[str, Any]],
-) -> list[str]:
+def transaction_ids(events: list[dict[str, Any]]) -> set[str]:
+    return {str(event.get("transaction_id")) for event in events if str(event.get("transaction_id") or "")}
+
+
+def safe_eos_errors(connector: str, events: list[dict[str, Any]], safe_transactions: set[str]) -> list[str]:
     errors: list[str] = []
-    safe_transactions = {str(event.get("transaction_id")) for event in safe_candidates if str(event.get("transaction_id") or "")}
     if not safe_transactions:
         errors.append(f"{connector}: P4 Safe has no transaction to audit for EOS")
     for transaction_id in safe_transactions:
         eos_events = [event for event in events if normalized_int(event.get("phase")) == 4 and str(event.get("transaction_id") or "") == transaction_id and event.get("eos_seen") is True]
         if len(eos_events) != 1:
             errors.append(f"{connector}: P4 Safe transaction {transaction_id} does not have exactly one EOS event")
-    phase2_transactions = {str(event.get("transaction_id")) for event in phase2_candidates if str(event.get("transaction_id") or "")}
+    return errors
+
+
+def phase2_eos_errors(
+    connector: str, integration_mode: str, events: list[dict[str, Any]], lifecycle: dict[str, Any], phase2_transactions: set[str],
+) -> list[str]:
+    errors: list[str] = []
     all_phase2_transactions = {
         str(event.get("transaction_id")) for event in events
         if event.get("connector") == connector and event.get("integration_mode") == integration_mode
@@ -343,6 +349,11 @@ def lifecycle_eos_errors(
     request_finishes = normalized_int(lifecycle.get("request_body_finishes"))
     if request_finishes is None or request_finishes != len(all_phase2_transactions):
         errors.append(f"{connector}: request-body EOS count is not exactly once per observed Phase-2 transaction")
+    return errors
+
+
+def lifecycle_balance_errors(connector: str, lifecycle: dict[str, Any], safe_transactions: set[str]) -> list[str]:
+    errors: list[str] = []
     response_finishes = normalized_int(lifecycle.get("response_body_finishes"))
     if response_finishes is None or response_finishes < len(safe_transactions):
         errors.append(f"{connector}: lifecycle inventory lacks the P4 Safe response-body finish")
@@ -351,6 +362,18 @@ def lifecycle_eos_errors(
         errors.append(f"{connector}: transaction lifecycle cleanup is not balanced")
     if normalized_int(lifecycle.get("unexpected_engine_errors")) != 0:
         errors.append(f"{connector}: lifecycle inventory records unexpected engine errors")
+    return errors
+
+
+def lifecycle_eos_errors(
+    connector: str, integration_mode: str, events: list[dict[str, Any]], lifecycle: dict[str, Any],
+    safe_candidates: list[dict[str, Any]], phase2_candidates: list[dict[str, Any]],
+) -> list[str]:
+    safe_transactions = transaction_ids(safe_candidates)
+    phase2_transactions = transaction_ids(phase2_candidates)
+    errors = safe_eos_errors(connector, events, safe_transactions)
+    errors.extend(phase2_eos_errors(connector, integration_mode, events, lifecycle, phase2_transactions))
+    errors.extend(lifecycle_balance_errors(connector, lifecycle, safe_transactions))
     return errors
 
 

@@ -42,6 +42,8 @@ GITHUB_HOST = "github.com"
 HTTPS_SCHEME = "https"
 INSECURE_REPOSITORY_SCHEMES = ("http", "git", "ssh")
 GENERATED_FILE_PATTERN = "*.generated.*"
+FTW_REPOSITORY = "coreruleset/go-ftw"
+FTW_REPOSITORY_GIT = f"{FTW_REPOSITORY}.git"
 
 
 def github_repository_url(scheme: str, repository: str) -> str:
@@ -59,18 +61,18 @@ INSECURE_REPO_URL_PATTERNS = (
 )
 
 negative_tests = (
-    github_repository_url("http", "coreruleset/go-ftw"),
-    github_ssh_repository_reference("coreruleset/go-ftw.git"),
-    github_repository_url("ssh", "coreruleset/go-ftw.git"),
-    github_repository_url("git", "coreruleset/go-ftw.git"),
-    urlunsplit((HTTPS_SCHEME, "gitlab.com", "/coreruleset/go-ftw", "", "")),
+    github_repository_url("http", FTW_REPOSITORY),
+    github_ssh_repository_reference(FTW_REPOSITORY_GIT),
+    github_repository_url("ssh", FTW_REPOSITORY_GIT),
+    github_repository_url("git", FTW_REPOSITORY_GIT),
+    urlunsplit((HTTPS_SCHEME, "gitlab.com", f"/{FTW_REPOSITORY}", "", "")),
     github_repository_url(HTTPS_SCHEME, "coreruleset"),
     github_repository_url(HTTPS_SCHEME, "coreruleset/go-ftw/extra"),
 )
 
 allowed_examples = (
-    github_repository_url(HTTPS_SCHEME, "coreruleset/go-ftw"),
-    github_repository_url(HTTPS_SCHEME, "coreruleset/go-ftw.git"),
+    github_repository_url(HTTPS_SCHEME, FTW_REPOSITORY),
+    github_repository_url(HTTPS_SCHEME, FTW_REPOSITORY_GIT),
 )
 
 FULL_MATRIX_CONNECTORS = ("apache", "nginx", "haproxy")

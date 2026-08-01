@@ -13,7 +13,8 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "ci/checks/documentation/ensure-test-matrix-language-switches.py"
 SPEC = importlib.util.spec_from_file_location("ensure_test_matrix_language_switches", SCRIPT)
-assert SPEC and SPEC.loader
+assert SPEC is not None
+assert SPEC.loader is not None
 CHECKER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CHECKER)
 

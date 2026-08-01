@@ -206,6 +206,46 @@ def check_runtime_promotion(errors: list[str], aggregate: dict[str, object]) -> 
         fail(errors, "runtime-promoted capability aggregate lacks one or more connector results")
 
 
+def catalog_capability_errors(
+    connector: str,
+    manifest_capabilities: dict[str, object],
+    generated_capabilities: dict[str, object],
+    section: str,
+) -> list[str]:
+    errors: list[str] = []
+    for capability in CORE_CAPABILITIES:
+        entry = manifest_capabilities.get(capability)
+        expected = entry.get("state") if isinstance(entry, dict) else None
+        observed_entry = generated_capabilities.get(capability)
+        observed = observed_entry.get("state") if isinstance(observed_entry, dict) else None
+        if not isinstance(expected, str) or not expected:
+            errors.append(f"connectors/{connector}/capabilities.json: missing {capability} state")
+            continue
+        if observed != expected:
+            errors.append(f"{connector}: generated capability catalog disagrees on {capability}: {observed!r} != {expected!r}")
+        row_pattern = rf"\|\s*`{re.escape(capability)}`\s*\|\s*`{re.escape(expected)}`\s*\|"
+        if not re.search(row_pattern, section):
+            errors.append(f"{CAPABILITY_CATALOG_MARKDOWN}: {connector} detail row disagrees with {capability}={expected}")
+    return errors
+
+
+def catalog_connector_errors(
+    connector: str,
+    manifest: dict[str, object],
+    generated_connectors: dict[str, object],
+    catalog_markdown: str,
+) -> list[str]:
+    manifest_capabilities = manifest.get("capabilities")
+    generated = generated_connectors.get(connector)
+    generated_capabilities = generated.get("capabilities") if isinstance(generated, dict) else None
+    if not isinstance(manifest_capabilities, dict) or not isinstance(generated_capabilities, dict):
+        return [f"{connector}: capability manifest/catalog mapping is invalid"]
+    section = connector_section(catalog_markdown, connector)
+    if not section:
+        return [f"{CAPABILITY_CATALOG_MARKDOWN}: missing {connector} detail section"]
+    return catalog_capability_errors(connector, manifest_capabilities, generated_capabilities, section)
+
+
 def check_capability_catalog(errors: list[str], manifests: dict[str, dict[str, object]], aggregate: dict[str, object]) -> None:
     generated_connectors = aggregate.get("connectors")
     if not isinstance(generated_connectors, dict) or set(generated_connectors) != set(CONNECTORS):
@@ -213,29 +253,7 @@ def check_capability_catalog(errors: list[str], manifests: dict[str, dict[str, o
         return
     catalog_markdown = read(ROOT / CAPABILITY_CATALOG_MARKDOWN, errors)
     for connector, manifest in manifests.items():
-        manifest_capabilities = manifest.get("capabilities")
-        generated = generated_connectors.get(connector)
-        generated_capabilities = generated.get("capabilities") if isinstance(generated, dict) else None
-        if not isinstance(manifest_capabilities, dict) or not isinstance(generated_capabilities, dict):
-            fail(errors, f"{connector}: capability manifest/catalog mapping is invalid")
-            continue
-        section = connector_section(catalog_markdown, connector)
-        if not section:
-            fail(errors, f"{CAPABILITY_CATALOG_MARKDOWN}: missing {connector} detail section")
-            continue
-        for capability in CORE_CAPABILITIES:
-            entry = manifest_capabilities.get(capability)
-            expected = entry.get("state") if isinstance(entry, dict) else None
-            observed_entry = generated_capabilities.get(capability)
-            observed = observed_entry.get("state") if isinstance(observed_entry, dict) else None
-            if not isinstance(expected, str) or not expected:
-                fail(errors, f"connectors/{connector}/capabilities.json: missing {capability} state")
-                continue
-            if observed != expected:
-                fail(errors, f"{connector}: generated capability catalog disagrees on {capability}: {observed!r} != {expected!r}")
-            row_pattern = rf"\|\s*`{re.escape(capability)}`\s*\|\s*`{re.escape(expected)}`\s*\|"
-            if not re.search(row_pattern, section):
-                fail(errors, f"{CAPABILITY_CATALOG_MARKDOWN}: {connector} detail row disagrees with {capability}={expected}")
+        errors.extend(catalog_connector_errors(connector, manifest, generated_connectors, catalog_markdown))
 
 
 def main() -> int:

@@ -447,9 +447,10 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
     macros = directive_macros(root)
     table = text[text.index("static ngx_command_t ngx_http_modsecurity_commands"):text.index("ngx_null_command", text.index("static ngx_command_t ngx_http_modsecurity_commands"))]
     expected = re.findall(
-        r"ngx_string\((MSCONNECTOR_DIRECTIVE_\w+)\)\s*,\s*((?>[^,]+))\s*,\s*(\w+)",
+        r"ngx_string\((MSCONNECTOR_DIRECTIVE_\w+)\),[ \t]*\n"
+        r"[ \t]*([^,\n]+),[ \t]*\n[ \t]*(\w+),",
         table,
-        flags=re.S | re.ASCII,
+        flags=re.ASCII,
     )
     if len(expected) != 10:
         raise ValueError(f"NGINX ngx_command_t extractor found {len(expected)}, expected 10")
@@ -654,7 +655,11 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
 def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
     source = "connectors/lighttpd/module/mod_msconnector.c"
     text = _read(root, source)
-    keys = re.findall(r'CONST_STR_LEN\("(msconnector\.(?>[^\"]+))"\)\s*,\s*\n?\s*(T_CONFIG_[A-Z]+)\s*,\s*\n?\s*(T_CONFIG_SCOPE_[A-Z]+)', text)
+    keys = re.findall(
+        r'CONST_STR_LEN\("(msconnector\.[^"\n]+)"\),[ \t]*\n'
+        r'[ \t]*(T_CONFIG_[A-Z]+),[ \t]*\n[ \t]*(T_CONFIG_SCOPE_[A-Z]+)',
+        text,
+    )
     if keys != [("msconnector.enabled", "T_CONFIG_BOOL", "T_CONFIG_SCOPE_SERVER"), ("msconnector.config-file", "T_CONFIG_STRING", "T_CONFIG_SCOPE_SERVER")]:
         raise ValueError(f"lighttpd plugin key extractor found unexpected keys: {keys!r}")
     values: list[dict[str, Any]] = []
@@ -969,7 +974,7 @@ def extract_yaml_fields(path: Path) -> list[tuple[str, str]]:
     """
     result: list[tuple[str, str]] = []
     stack: list[StackEntry] = []
-    key_re = re.compile(r'(?:"((?>[^\"]+))"|([A-Za-z_@][A-Za-z0-9_@-]*))\s*:\s*([^\n]*)$')
+    bare_key_re = re.compile(r"[A-Za-z_@][A-Za-z0-9_@-]*\Z")
     for raw in path.read_text(encoding="utf-8").splitlines():
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
@@ -988,13 +993,19 @@ def extract_yaml_fields(path: Path) -> list[tuple[str, str]]:
         else:
             while stack and stack[-1].indent >= indent:
                 stack.pop()
-        match = key_re.match(body)
-        if not match:
+        separator = body.find(":")
+        if separator < 0:
             if list_item and body:
                 result.append((stack[-1].path, body))
             continue
-        key = match.group(1) or match.group(2)
-        value = match.group(3).strip()
+        raw_key = body[:separator].strip()
+        if raw_key.startswith('"') and raw_key.endswith('"'):
+            key = raw_key[1:-1]
+        elif bare_key_re.fullmatch(raw_key):
+            key = raw_key
+        else:
+            continue
+        value = body[separator + 1:].strip()
         parent = stack[-1].path if stack else ""
         field = f"{parent}.{key}" if parent else key
         result.append((field, value))
