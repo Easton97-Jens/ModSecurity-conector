@@ -299,13 +299,18 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             with mock.patch.dict(
                 os.environ,
                 {
+                    "VERIFIED_RUN_ROOT": str(root),
+                    "VERIFIED_BUILD_ROOT": str(root / "build"),
+                    "BUILD_ROOT": str(root / "build"),
+                    "CACHE_ROOT": str(cache_root.parent),
+                    "VERIFIED_COMPONENT_CACHE": str(cache_root),
                     "CONNECTOR_COMPONENT_CACHE": str(cache_root),
                     "RUNTIME_REPORT_OUTPUT_ROOT": str(output_root),
                     "RUNTIME_COMPONENT_ENV_SNAPSHOT": str(snapshot),
                 },
                 clear=False,
             ):
-                loaded = native_comparison.load_runtime_env(root)
+                loaded = native_comparison.load_runtime_env()
             self.assertEqual(loaded["MODSECURITY_INCLUDE_DIR"], "/correct/native-case/value")
 
     def test_native_comparison_does_not_fallback_to_shared_env_for_an_invalid_snapshot(self) -> None:
@@ -323,13 +328,18 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             with mock.patch.dict(
                 os.environ,
                 {
+                    "VERIFIED_RUN_ROOT": str(root),
+                    "VERIFIED_BUILD_ROOT": str(root / "build"),
+                    "BUILD_ROOT": str(root / "build"),
+                    "CACHE_ROOT": str(cache_root.parent),
+                    "VERIFIED_COMPONENT_CACHE": str(cache_root),
                     "CONNECTOR_COMPONENT_CACHE": str(cache_root),
                     "RUNTIME_REPORT_OUTPUT_ROOT": str(output_root),
                     "RUNTIME_COMPONENT_ENV_SNAPSHOT": str(outside_snapshot),
                 },
                 clear=False,
             ):
-                loaded = native_comparison.load_runtime_env(root)
+                loaded = native_comparison.load_runtime_env()
             self.assertNotEqual(loaded.get("MODSECURITY_INCLUDE_DIR"), "/wrong/shared/value")
 
     def test_central_runners_use_the_exact_local_snapshot_not_shared_runtime_env(self) -> None:

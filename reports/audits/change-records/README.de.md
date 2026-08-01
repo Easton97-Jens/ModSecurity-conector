@@ -20,6 +20,12 @@ Review- oder Delivery-Ergebnisse behaupten.
   durch festes Loopback-Protokoll, verifizierte lokale Ausführungs-/Output-
   Grenzen, C++17-RAII-Cleanup und zerlegten Kontrollfluss; SHA-gebundene
   Hosted-Verifikation bleibt vor einer Integration erforderlich.
+- [Vollständige Parent-CI-Runtime-SonarQube-Cloud-Remediation](CR-20260801-sonar-ci-runtime-complete-remediation.de.md)
+  — begrenzt Lifecycle-Artefakt-Autorität auf private Verified-Roots oder
+  kanonische eingecheckte Sources, zerlegt aktuelle Runtime-
+  Komplexitäts-/Literal-Muster und dokumentiert die bekannte nur-Loopback-
+  S5332-Triage; Exact-Head-Hosted- und SonarQube-Cloud-Verifikation bleiben
+  vor jeder Merge-Entscheidung erforderlich.
 
 - [Parent-CI-Evidence-SonarQube-Cloud-Bereinigung](CR-20260801-sonar-ci-evidence-remediation.de.md)
   — Source-Level-Behebungen decken das aktuelle `ci/evidence`-Security-,

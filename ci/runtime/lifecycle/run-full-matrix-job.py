@@ -16,7 +16,12 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 
 from generated_report_utils import utc_now
-from runtime_path_utils import ensure_safe_writable_runtime_paths, verified_runtime_paths
+from runtime_path_utils import (
+    canonical_project_roots,
+    ensure_safe_writable_runtime_paths,
+    runtime_artifact_path,
+    verified_runtime_paths,
+)
 from verified_run_id import VerifiedRunIdError, validate_verified_run_id
 
 
@@ -25,11 +30,31 @@ CRS_VARIANTS = {"no-crs", "with-crs"}
 MRTS_VARIANTS = {"no-mrts", "with-mrts"}
 
 
+def canonical_roots(connector_root: str, framework_root: str | None) -> tuple[Path, Path]:
+    """Require child tooling to run from this checked-out Parent/Framework pair."""
+
+    canonical_connector, canonical_framework = canonical_project_roots()
+    requested_connector = Path(connector_root).resolve(strict=True)
+    requested_framework = (
+        Path(framework_root).resolve(strict=True)
+        if framework_root
+        else canonical_framework
+    )
+    if requested_connector != canonical_connector:
+        raise ValueError(f"connector root must be this checkout: {requested_connector}")
+    if requested_framework != canonical_framework:
+        raise ValueError(f"framework root must be the pinned checkout: {requested_framework}")
+    return canonical_connector, canonical_framework
+
+
 def safe_token(value: str) -> str:
     return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in value)
 
 
-def read_json(path: Path) -> dict:
+def read_json(root: Path, value: Path | str, label: str) -> dict:
+    path = runtime_artifact_path(root, value, label)
+    if not path.is_file():
+        return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
@@ -55,12 +80,12 @@ def count_jsonl_rows(path: Path) -> int:
 
 def job_artifacts(root: Path, connector: str) -> dict:
     job_path = root / "job.json"
-    data = read_json(job_path)
+    data = read_json(root, job_path, "job record")
     summary_path = Path(str(data.get("summary_path") or ""))
     if not summary_path.is_absolute():
         summary_path = root / "results" / "force-all" / f"{connector}-summary.json"
     results_jsonl = root / "results" / "force-all" / f"{connector}-results.jsonl"
-    summary = read_json(summary_path)
+    summary = read_json(root, summary_path, "job summary")
     connector_summary = summary.get(connector) if isinstance(summary.get(connector), dict) else {}
     cases = connector_summary.get("cases") if isinstance(connector_summary.get("cases"), dict) else {}
     result_rows = count_jsonl_rows(results_jsonl)
@@ -80,12 +105,6 @@ def job_artifacts(root: Path, connector: str) -> dict:
         "result_rows": result_rows,
         "summary_cases": len(cases),
     }
-
-
-def job_complete(path: Path) -> bool:
-    data = read_json(path)
-    status = str(data.get("status") or "")
-    return bool(data.get("ended_at")) and "return_code" in data and status in {"completed", "completed_with_mismatches"}
 
 
 def run_completeness(
@@ -131,7 +150,7 @@ def write_timeout_record(root: Path, connector: str, crs: str, mrts: str, starte
     (root / "job-timeout.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def main() -> int:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector", required=True, choices=sorted(CONNECTORS))
     parser.add_argument("--crs", required=True, choices=sorted(CRS_VARIANTS))
@@ -142,10 +161,13 @@ def main() -> int:
     parser.add_argument("--timeout-seconds", type=int, default=int(os.environ.get("VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS", "3600")))
     parser.add_argument("--finalize-grace-seconds", type=int, default=int(os.environ.get("VERIFIED_RUN_JOB_FINALIZE_GRACE_SECONDS", "60")))
     parser.add_argument("--force", action="store_true")
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    connector_root = Path(args.connector_root).resolve()
-    framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
+
+def runtime_context(args: argparse.Namespace) -> tuple[Path, Path, Path, Path, str, str]:
+    """Resolve canonical sources and private runtime roots for one matrix job."""
+
+    connector_root, framework_root = canonical_roots(args.connector_root, args.framework_root)
     build_root_override = Path(os.path.abspath(args.build_root)) if args.build_root else None
     paths = verified_runtime_paths(
         os.environ,
@@ -158,23 +180,38 @@ def main() -> int:
     if not verified_run_id:
         current = build_root / "verified-runs/current-run-id"
         verified_run_id = current.read_text(encoding="utf-8").strip() if current.is_file() else utc_now().replace(":", "-")
-    try:
-        verified_run_id = validate_verified_run_id(verified_run_id)
-    except VerifiedRunIdError as exc:
-        parser.error(str(exc))
+    verified_run_id = validate_verified_run_id(verified_run_id)
     verified_commands_file = os.environ.get("VERIFIED_RUN_COMMANDS_FILE", "")
+    return connector_root, framework_root, build_root, matrix_root, verified_run_id, verified_commands_file
 
-    root = job_root(matrix_root, args.connector, args.crs, args.mrts)
-    if not args.force and job_artifacts(root, args.connector)["complete"]:
-        print(f"full-matrix-job: skip complete job {args.connector}:{args.crs}:{args.mrts}")
-        return run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
+
+def temporary_job_locations(
+    matrix_root: Path, verified_run_id: str, connector: str, crs: str, mrts: str
+) -> tuple[Path, Path]:
+    """Create private per-job manifest and report directories below the matrix root."""
 
     stamp = utc_now().replace(":", "-")
-    jid = safe_token(f"{args.connector}-{args.crs}-{args.mrts}")
-    temp_manifest = matrix_root / "_job-manifests" / verified_run_id / f"{jid}-{stamp}.jsonl"
-    temp_report_dir = matrix_root / "_job-reports" / verified_run_id / jid
-    temp_manifest.parent.mkdir(parents=True, exist_ok=True)
-    temp_report_dir.mkdir(parents=True, exist_ok=True)
+    job_name = safe_token(f"{connector}-{crs}-{mrts}")
+    manifest = matrix_root / "_job-manifests" / verified_run_id / f"{job_name}-{stamp}.jsonl"
+    report_dir = matrix_root / "_job-reports" / verified_run_id / job_name
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    report_dir.mkdir(parents=True, exist_ok=True)
+    return manifest, report_dir
+
+
+def job_environment(
+    connector_root: Path,
+    framework_root: Path,
+    build_root: Path,
+    matrix_root: Path,
+    connector: str,
+    crs: str,
+    mrts: str,
+    manifest: Path,
+    report_dir: Path,
+    verified_run_id: str,
+) -> dict[str, str]:
+    """Build the bounded child environment without accepting extra CLI paths."""
 
     env = dict(os.environ)
     env.update(
@@ -183,14 +220,131 @@ def main() -> int:
             "FRAMEWORK_ROOT": str(framework_root),
             "BUILD_ROOT": str(build_root),
             "MATRIX_ROOT": str(matrix_root),
-            "FULL_MATRIX_VARIANTS": f"{args.crs}/{args.mrts}",
-            "FULL_MATRIX_CONNECTORS": args.connector,
-            "FULL_MATRIX_MANIFEST": str(temp_manifest),
-            "FULL_MATRIX_REPORT_DIR": str(temp_report_dir),
+            "FULL_MATRIX_VARIANTS": f"{crs}/{mrts}",
+            "FULL_MATRIX_CONNECTORS": connector,
+            "FULL_MATRIX_MANIFEST": str(manifest),
+            "FULL_MATRIX_REPORT_DIR": str(report_dir),
             "FULL_MATRIX_TRUNCATE_MANIFEST": "1",
             "FULL_MATRIX_SKIP_REPORTS": "1",
             "VERIFIED_RUN_ID": verified_run_id,
         }
+    )
+    return env
+
+
+def completed_artifact_return_code(root: Path, connector: str, fallback: int) -> int | None:
+    """Return the host-recorded result only after the job artifact is complete."""
+
+    artifacts = job_artifacts(root, connector)
+    if not artifacts["complete"]:
+        return None
+    return int(artifacts["job"].get("return_code", fallback))
+
+
+def record_completeness(
+    connector_root: Path,
+    framework_root: Path,
+    build_root: Path,
+    verified_run_id: str,
+    verified_commands_file: str,
+) -> int:
+    """Run the sole completeness publisher after a bounded job outcome."""
+
+    return run_completeness(
+        connector_root, framework_root, build_root, verified_run_id, verified_commands_file
+    )
+
+
+def terminate_timed_out_process(process: subprocess.Popen[object]) -> None:
+    """Terminate a timed-out process group and wait for its final child state."""
+
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        process.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+        process.wait()
+
+
+def timeout_result(
+    process: subprocess.Popen[object],
+    root: Path,
+    args: argparse.Namespace,
+    started_at: str,
+    started: float,
+    connector_root: Path,
+    framework_root: Path,
+    build_root: Path,
+    verified_run_id: str,
+    verified_commands_file: str,
+) -> int:
+    """Prefer complete host artifacts, otherwise safely end and record the timeout."""
+
+    print(
+        f"full-matrix-job: timeout after {args.timeout_seconds}s for {args.connector}:{args.crs}:{args.mrts}",
+        flush=True,
+    )
+    artifact_rc = wait_for_finalize_grace(process, root, args)
+    if artifact_rc is not None:
+        record_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
+        return artifact_rc
+    artifact_rc = completed_artifact_return_code(root, args.connector, 2)
+    if artifact_rc is not None:
+        record_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
+        return artifact_rc
+    terminate_timed_out_process(process)
+    artifact_rc = completed_artifact_return_code(root, args.connector, 2)
+    if artifact_rc is not None:
+        record_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
+        return artifact_rc
+    write_timeout_record(root, args.connector, args.crs, args.mrts, started_at, time.monotonic() - started)
+    record_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
+    return 77
+
+
+def wait_for_finalize_grace(
+    process: subprocess.Popen[object], root: Path, args: argparse.Namespace
+) -> int | None:
+    """Allow a bounded final artifact write after the wrapper timeout fires."""
+
+    if args.finalize_grace_seconds <= 0:
+        return None
+    print(
+        f"full-matrix-job: waiting {args.finalize_grace_seconds}s finalize grace for job artifacts",
+        flush=True,
+    )
+    try:
+        return_code = process.wait(timeout=args.finalize_grace_seconds)
+    except subprocess.TimeoutExpired:
+        return None
+    return completed_artifact_return_code(root, args.connector, return_code)
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        connector_root, framework_root, build_root, matrix_root, verified_run_id, verified_commands_file = runtime_context(args)
+    except (OSError, VerifiedRunIdError) as exc:
+        print(f"full-matrix-job: {exc}", file=sys.stderr)
+        return 2
+
+    root = job_root(matrix_root, args.connector, args.crs, args.mrts)
+    if not args.force and job_artifacts(root, args.connector)["complete"]:
+        print(f"full-matrix-job: skip complete job {args.connector}:{args.crs}:{args.mrts}")
+        return run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
+
+    temp_manifest, temp_report_dir = temporary_job_locations(
+        matrix_root, verified_run_id, args.connector, args.crs, args.mrts
+    )
+    env = job_environment(
+        connector_root, framework_root, build_root, matrix_root,
+        args.connector, args.crs, args.mrts, temp_manifest, temp_report_dir, verified_run_id,
     )
     cmd = ["sh", str(connector_root / "ci/runtime/lifecycle/run-full-matrix-parallel.sh")]
     started_at = utc_now()
@@ -199,59 +353,10 @@ def main() -> int:
     try:
         rc = process.wait(timeout=args.timeout_seconds)
     except subprocess.TimeoutExpired:
-        print(
-            f"full-matrix-job: timeout after {args.timeout_seconds}s for {args.connector}:{args.crs}:{args.mrts}",
-            flush=True,
+        return timeout_result(
+            process, root, args, started_at, started, connector_root, framework_root,
+            build_root, verified_run_id, verified_commands_file,
         )
-        if args.finalize_grace_seconds > 0:
-            print(
-                f"full-matrix-job: waiting {args.finalize_grace_seconds}s finalize grace for job artifacts",
-                flush=True,
-            )
-            try:
-                rc = process.wait(timeout=args.finalize_grace_seconds)
-            except subprocess.TimeoutExpired:
-                rc = None
-            if rc is not None:
-                artifacts = job_artifacts(root, args.connector)
-                if artifacts["complete"]:
-                    print(
-                        "full-matrix-job: completed during finalize grace; using job artifacts as source of truth",
-                        flush=True,
-                    )
-                    run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
-                    return int(artifacts["job"].get("return_code", rc))
-        artifacts = job_artifacts(root, args.connector)
-        if artifacts["complete"]:
-            print(
-                "full-matrix-job: timeout after completed job artifacts were written; using job artifacts as source of truth",
-                flush=True,
-            )
-            run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
-            return int(artifacts["job"].get("return_code", 2))
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            rc = process.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            rc = process.wait()
-        artifacts = job_artifacts(root, args.connector)
-        if artifacts["complete"]:
-            print(
-                "full-matrix-job: timeout wrapper ended after complete artifacts; using job artifacts as source of truth",
-                flush=True,
-            )
-            run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
-            return int(artifacts["job"].get("return_code", 2))
-        write_timeout_record(root, args.connector, args.crs, args.mrts, started_at, time.monotonic() - started)
-        run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
-        return 77
 
     completeness_rc = run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
     if completeness_rc != 0:

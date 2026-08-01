@@ -36,9 +36,11 @@ from generated_report_utils import (
 )
 from runtime_path_utils import (
     WORKER_BLOCKED_REASON,
+    canonical_project_roots,
     ensure_safe_runtime_directory,
     ensure_safe_writable_runtime_paths,
     is_under_root_home,
+    runtime_artifact_path,
     runtime_path_rows,
     verified_runtime_paths,
 )
@@ -106,9 +108,26 @@ def command_status(return_code: int, *, optional: bool = False, classification: 
     return "FAIL"
 
 
-def write_commands_file(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def write_commands_file(root: Path, path: Path, payload: dict[str, Any]) -> None:
+    path = runtime_artifact_path(root, path, "verified commands file")
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def canonical_roots(connector_root: str, framework_root: str | None) -> tuple[Path, Path]:
+    """Do not allow CLI arguments to redirect runtime commands to other trees."""
+
+    canonical_connector, canonical_framework = canonical_project_roots()
+    requested_connector = Path(connector_root).resolve(strict=True)
+    requested_framework = (
+        Path(framework_root).resolve(strict=True)
+        if framework_root
+        else canonical_framework
+    )
+    if requested_connector != canonical_connector:
+        raise ValueError(f"connector root must be this checkout: {requested_connector}")
+    if requested_framework != canonical_framework:
+        raise ValueError(f"framework root must be the pinned checkout: {requested_framework}")
+    return canonical_connector, canonical_framework
 
 
 def count_jsonl_rows(path: Path) -> int:
@@ -1488,8 +1507,12 @@ def main() -> int:
     parser.add_argument("--manifest-only", action="store_true", help="rewrite verified-run manifest from existing verified command records without running commands")
     args = parser.parse_args()
 
-    connector_root = Path(args.connector_root).resolve()
-    framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
+    try:
+        connector_root, framework_root = canonical_roots(
+            args.connector_root, args.framework_root
+        )
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
     initial_paths = verified_runtime_paths(os.environ)
     build_root = Path(os.path.abspath(args.build_root or initial_paths["BUILD_ROOT"]))
     initial_run_id = os.environ.get("VERIFIED_RUN_ID", "") or "pending"
@@ -1683,6 +1706,7 @@ def main() -> int:
         )
         return 0
     write_commands_file(
+        run_root,
         commands_file,
         {
             "verified_run_id": verified_run_id,
@@ -1785,6 +1809,7 @@ def main() -> int:
         command_records.append(record)
         last_updated = utc_now()
         write_commands_file(
+            run_root,
             commands_file,
             {
                 "verified_run_id": verified_run_id,
@@ -1813,6 +1838,7 @@ def main() -> int:
 
     finished_at = utc_now()
     write_commands_file(
+        run_root,
         commands_file,
         {
             "verified_run_id": verified_run_id,
