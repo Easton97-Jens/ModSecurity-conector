@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent CI provisioning SonarQube Cloud remediation](CR-20260801-ci-provisioning-sonar-remediation.md)
+  — decomposes the current provisioner inventory without suppressions, keeps
+  cache/provenance controls intact, and adds per-override negative path
+  coverage; exact-head hosted verification remains required before any merge.
+
 - [Parent Traefik complete SonarQube Cloud remediation](CR-20260801-sonar-traefik-complete-remediation.md)
   — validates local executable and artefact boundaries, preserves native UDS
   lifecycle cleanup, and decomposes the current Traefik runner without scanner
