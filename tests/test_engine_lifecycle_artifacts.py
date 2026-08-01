@@ -22,6 +22,7 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
         *,
         output: Path | None = None,
         library_symlink: bool = False,
+        library_target_escapes: bool = False,
         transport_lifecycle_records: list[dict[str, object]] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         source = root / "source-result.json"
@@ -32,12 +33,14 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
         )
         rules = root / "rules.conf"
         rules.write_text("SecRuleEngine On\n", encoding="utf-8")
-        library = root / "libmodsecurity.so"
+        library_root = root / "managed-library"
+        library_root.mkdir()
+        library = library_root / "libmodsecurity.so"
         library_payload = b"current-engine-library"
         if library_symlink:
-            target = root / "libmodsecurity.so.3"
+            target = (root / "outside-libmodsecurity.so.3") if library_target_escapes else (library_root / "libmodsecurity.so.3")
             target.write_bytes(library_payload)
-            library.symlink_to(target.name)
+            library.symlink_to(target)
         else:
             library.write_bytes(library_payload)
         result_dir = output or root / "engine-artifacts"
@@ -56,6 +59,8 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
             "git:abc;build:def",
             "--libmodsecurity-library",
             str(library),
+            "--libmodsecurity-library-root",
+            str(library_root),
             "--stage-exit-code",
             "0",
         ]
@@ -257,6 +262,19 @@ class EngineLifecycleArtifactsTest(unittest.TestCase):
                 hashlib.sha256(b"current-engine-library").hexdigest(),
                 (root / "engine-artifacts/engine-library-sha256.txt").read_text(encoding="utf-8").strip(),
             )
+
+    def test_rejects_soname_target_outside_managed_library_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="engine-lifecycle-artifacts-") as temporary:
+            root = Path(temporary)
+            completed = self.run_writer(
+                root,
+                [{"transaction_id": "tx-one", "phase": 1, "status": "blocked"}],
+                library_symlink=True,
+                library_target_escapes=True,
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("managed library root", completed.stderr)
+            self.assertFalse((root / "engine-artifacts/engine-library-sha256.txt").exists())
 
 
 if __name__ == "__main__":

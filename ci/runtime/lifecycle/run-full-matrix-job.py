@@ -19,8 +19,10 @@ from generated_report_utils import utc_now
 from runtime_path_utils import (
     canonical_project_roots,
     ensure_safe_writable_runtime_paths,
+    read_runtime_artifact_text,
     runtime_artifact_path,
     verified_runtime_paths,
+    write_runtime_artifact_text_atomic,
 )
 from verified_run_id import VerifiedRunIdError, validate_verified_run_id
 
@@ -56,8 +58,8 @@ def read_json(root: Path, value: Path | str, label: str) -> dict:
     if not path.is_file():
         return {}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+        data = json.loads(read_runtime_artifact_text(root, path, label))
+    except (ValueError, json.JSONDecodeError, OSError):
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -66,10 +68,15 @@ def job_root(matrix_root: Path, connector: str, crs: str, mrts: str) -> Path:
     return matrix_root / crs / mrts / connector
 
 
-def count_jsonl_rows(path: Path) -> int:
+def count_jsonl_rows(root: Path, path: Path) -> int:
     try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
+        lines = read_runtime_artifact_text(
+            root,
+            path,
+            "matrix results",
+            errors="replace",
+        ).splitlines()
+    except (ValueError, OSError):
         return 0
     count = 0
     for line in lines:
@@ -88,7 +95,7 @@ def job_artifacts(root: Path, connector: str) -> dict:
     summary = read_json(root, summary_path, "job summary")
     connector_summary = summary.get(connector) if isinstance(summary.get(connector), dict) else {}
     cases = connector_summary.get("cases") if isinstance(connector_summary.get("cases"), dict) else {}
-    result_rows = count_jsonl_rows(results_jsonl)
+    result_rows = count_jsonl_rows(root, results_jsonl)
     status = str(data.get("status") or "")
     complete = (
         bool(data.get("ended_at"))
@@ -147,7 +154,12 @@ def write_timeout_record(root: Path, connector: str, crs: str, mrts: str, starte
         "log_path": str(root / "run.log"),
         "results_dir": str(root / "results"),
     }
-    (root / "job-timeout.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_runtime_artifact_text_atomic(
+        root,
+        root / "job-timeout.json",
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        "matrix timeout record",
+    )
 
 
 def parse_args() -> argparse.Namespace:

@@ -33,6 +33,7 @@ CONNECTORS = {"apache", "nginx", "haproxy"}
 DEFAULT_VERIFIED_RUN_ROOT = fixed_runtime_temp_parent() / DEFAULT_RUN_BASENAME
 RESULT_FILENAME = "result.json"
 LOG_EXTENSIONS = {".err", ".json", ".jsonl", ".log", ".txt"}
+RESULT_REFERENCE_KEYS = {"decision_log", "evidence_path"}
 LOG_NAME_FRAGMENTS = (
     "access",
     "audit",
@@ -129,20 +130,29 @@ def find_case_path(framework_root: Path, case: str) -> Path | None:
     return matches[0] if matches else None
 
 
+def matching_mapping_value(value: dict[Any, Any], names: set[str]) -> tuple[bool, Any]:
+    """Return the first direct matching key while preserving a ``None`` value."""
+
+    for key, item in value.items():
+        if str(key) in names:
+            return True, item
+    return False, None
+
+
+def first_key_in_items(items: Any, names: set[str]) -> Any:
+    for item in items:
+        found = find_first_key(item, names)
+        if found is not None:
+            return found
+    return None
+
+
 def find_first_key(value: Any, names: set[str]) -> Any:
     if isinstance(value, dict):
-        for key, item in value.items():
-            if str(key) in names:
-                return item
-        for item in value.values():
-            found = find_first_key(item, names)
-            if found is not None:
-                return found
-    elif isinstance(value, list):
-        for item in value:
-            found = find_first_key(item, names)
-            if found is not None:
-                return found
+        matched, direct_value = matching_mapping_value(value, names)
+        return direct_value if matched else first_key_in_items(value.values(), names)
+    if isinstance(value, list):
+        return first_key_in_items(value, names)
     return None
 
 
@@ -293,26 +303,42 @@ def find_result_json(paths: dict[str, Path], case: str, started_at_ts: float) ->
     return max(chosen, key=lambda path: path.stat().st_mtime)
 
 
-def relevant_log_files(paths: dict[str, Path], case: str, result: dict[str, Any]) -> list[Path]:
+def result_referenced_log_files(result: dict[str, Any]) -> set[Path]:
     found: set[Path] = set()
     for key, value in result.items():
-        if key.endswith("_path") or key in {"decision_log", "decision_log_path", "evidence_path"}:
+        if key.endswith("_path") or key in RESULT_REFERENCE_KEYS:
             path = Path(str(value))
             if path.is_file():
                 found.add(path)
+    return found
+
+
+def case_log_roots(root: Path, case: str) -> list[Path]:
+    roots = [path for path in root.rglob(case) if path.is_dir()]
+    if root.name == "haproxy-runtime":
+        roots.append(root)
+    return roots
+
+
+def is_relevant_log_file(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    lower = path.name.lower()
+    return path.suffix.lower() in LOG_EXTENSIONS or any(fragment in lower for fragment in LOG_NAME_FRAGMENTS)
+
+
+def case_log_files(root: Path, case: str) -> set[Path]:
+    found: set[Path] = set()
+    for case_root in case_log_roots(root, case):
+        found.update(path for path in case_root.rglob("*") if is_relevant_log_file(path))
+    return found
+
+
+def relevant_log_files(paths: dict[str, Path], case: str, result: dict[str, Any]) -> list[Path]:
+    found = result_referenced_log_files(result)
     for root in {paths.get("logs"), paths.get("runtime"), paths.get("work")}:
-        if not root or not root.exists():
-            continue
-        case_roots = [path for path in root.rglob(case) if path.is_dir()]
-        if root.name == "haproxy-runtime":
-            case_roots.append(root)
-        for case_root in case_roots:
-            for path in case_root.rglob("*"):
-                if not path.is_file():
-                    continue
-                lower = path.name.lower()
-                if path.suffix.lower() in LOG_EXTENSIONS or any(fragment in lower for fragment in LOG_NAME_FRAGMENTS):
-                    found.add(path)
+        if root and root.exists():
+            found.update(case_log_files(root, case))
     return sorted(found)
 
 
@@ -358,91 +384,145 @@ def collect_log_excerpt(artifacts: list[dict[str, Any]], max_lines: int = 160) -
     return lines
 
 
-def result_rule_evidence(result: dict[str, Any], artifacts: list[dict[str, Any]]) -> dict[str, Any]:
-    evidence = {
+def base_rule_evidence(result: dict[str, Any]) -> dict[str, Any]:
+    return {
         "rule_id": result.get("rule_id") or result.get("matched_rule_id") or "-",
         "matched_data": result.get("matched_data") or result.get("matched_value_snippet") or "-",
         "matched_variable": result.get("matched_variable") or "-",
         "reason": result.get("reason") or "-",
         "decision": {},
     }
+
+
+def last_decision_json(path: Path) -> dict[str, Any]:
+    last_json: dict[str, Any] = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            candidate = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(candidate, dict):
+            last_json = candidate
+    return last_json
+
+
+def first_decision_artifact(artifacts: list[dict[str, Any]]) -> dict[str, Any]:
     for artifact in artifacts:
         path = Path(str(artifact["path"]))
-        if "decision" not in path.name or not path.is_file():
-            continue
-        last_json: dict[str, Any] = {}
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-            try:
-                candidate = json.loads(line)
-            except Exception:
-                continue
-            if isinstance(candidate, dict):
-                last_json = candidate
-        if last_json:
-            evidence["decision"] = last_json
-            if "rule_id" in last_json:
-                evidence["rule_id"] = last_json.get("rule_id")
-            evidence["matched_data"] = (
-                last_json.get("matched_data")
-                or last_json.get("matched_value_snippet")
-                or last_json.get("matched_var_value")
-                or evidence["matched_data"]
-            )
-            break
+        if "decision" in path.name and path.is_file():
+            decision = last_decision_json(path)
+            if decision:
+                return decision
+    return {}
+
+
+def apply_decision_evidence(evidence: dict[str, Any], decision: dict[str, Any]) -> None:
+    evidence["decision"] = decision
+    if "rule_id" in decision:
+        evidence["rule_id"] = decision.get("rule_id")
+    evidence["matched_data"] = (
+        decision.get("matched_data")
+        or decision.get("matched_value_snippet")
+        or decision.get("matched_var_value")
+        or evidence["matched_data"]
+    )
+
+
+def result_rule_evidence(result: dict[str, Any], artifacts: list[dict[str, Any]]) -> dict[str, Any]:
+    evidence = base_rule_evidence(result)
+    decision = first_decision_artifact(artifacts)
+    if decision:
+        apply_decision_evidence(evidence, decision)
     return evidence
 
 
-def load_mismatch_rows(connector_root: Path, case: str, connector: str, crs: str, mrts: str) -> dict[str, Any]:
-    path = connector_root / "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json"
-    data = read_json(path)
-    rows = [row for row in data.get("mismatches", []) if isinstance(row, dict) and str(row.get("case")) == case]
-    exact = []
-    for row in rows:
-        variant = str(row.get("variant") or "")
-        if row.get("connector") == connector and variant in {f"{crs}/{mrts}", crs, f"{crs}-{mrts}"}:
-            exact.append(row)
+def case_mismatch_rows(data: dict[str, Any], case: str) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in data.get("mismatches", [])
+        if isinstance(row, dict) and str(row.get("case")) == case
+    ]
+
+
+def exact_mismatch_rows(
+    rows: list[dict[str, Any]], connector: str, crs: str, mrts: str
+) -> list[dict[str, Any]]:
+    variants = {f"{crs}/{mrts}", crs, f"{crs}-{mrts}"}
+    return [
+        row
+        for row in rows
+        if row.get("connector") == connector and str(row.get("variant") or "") in variants
+    ]
+
+
+def mismatch_variant_parts(variant: str) -> tuple[str, str]:
+    if "/" in variant:
+        crs, mrts = variant.split("/", 1)
+        return crs, mrts
+    if "-" not in variant:
+        return variant, ""
+    parts = variant.split("-")
+    if len(parts) >= 4:
+        return "-".join(parts[:2]), "-".join(parts[2:])
+    return variant, ""
+
+
+def affected_mismatch_jobs(
+    rows: list[dict[str, Any]], connector: str, crs: str, mrts: str
+) -> set[tuple[str, str, str]]:
     affected_jobs: set[tuple[str, str, str]] = {(connector, crs, mrts)}
     for row in rows:
         row_connector = str(row.get("connector") or "")
         variant = str(row.get("variant") or "")
         if not row_connector:
             continue
-        if "/" in variant:
-            row_crs, row_mrts = variant.split("/", 1)
-        elif "-" in variant:
-            parts = variant.split("-")
-            row_crs = "-".join(parts[:2]) if len(parts) >= 4 else variant
-            row_mrts = "-".join(parts[2:]) if len(parts) >= 4 else ""
-        else:
-            row_crs, row_mrts = variant, ""
+        row_crs, row_mrts = mismatch_variant_parts(variant)
         if row_crs and row_mrts:
             affected_jobs.add((row_connector, row_crs, row_mrts))
+    return affected_jobs
 
-    evidence_files = []
-    for row in exact or rows:
+
+def mismatch_evidence_files(rows: list[dict[str, Any]]) -> list[str]:
+    evidence_files: list[str] = []
+    for row in rows:
         for key in ("evidence_file", "evidence_path"):
             value = row.get(key)
             if value:
                 evidence_files.append(str(value))
         evidence = row.get("evidence")
         if isinstance(evidence, dict):
-            for value in evidence.values():
-                if isinstance(value, str) and value.endswith((".json", ".log", ".jsonl")):
-                    evidence_files.append(value)
+            evidence_files.extend(
+                value
+                for value in evidence.values()
+                if isinstance(value, str) and value.endswith((".json", ".log", ".jsonl"))
+            )
+    return sorted(set(evidence_files))
+
+
+def mismatch_job_rows(affected_jobs: set[tuple[str, str, str]]) -> list[dict[str, str]]:
+    return [
+        {
+            "connector": item[0],
+            "crs": item[1],
+            "mrts": item[2],
+            "command": f"make verified-full-matrix-job CONNECTOR={item[0]} CRS={item[1]} MRTS={item[2]}",
+        }
+        for item in sorted(affected_jobs)
+    ]
+
+
+def load_mismatch_rows(connector_root: Path, case: str, connector: str, crs: str, mrts: str) -> dict[str, Any]:
+    path = connector_root / "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json"
+    data = read_json(path)
+    rows = case_mismatch_rows(data, case)
+    exact = exact_mismatch_rows(rows, connector, crs, mrts)
+    affected_jobs = affected_mismatch_jobs(rows, connector, crs, mrts)
     return {
         "report": str(path),
         "case_rows": rows,
         "exact_rows": exact,
-        "affected_jobs": [
-            {
-                "connector": item[0],
-                "crs": item[1],
-                "mrts": item[2],
-                "command": f"make verified-full-matrix-job CONNECTOR={item[0]} CRS={item[1]} MRTS={item[2]}",
-            }
-            for item in sorted(affected_jobs)
-        ],
-        "evidence_files": sorted(set(evidence_files)),
+        "affected_jobs": mismatch_job_rows(affected_jobs),
+        "evidence_files": mismatch_evidence_files(exact or rows),
     }
 
 

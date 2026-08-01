@@ -2043,6 +2043,25 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
         self.assertNotIn("verified-run-manifest.generated.json", recorded_names)
         self.assertNotIn("verified-run-manifest.generated.md", recorded_names)
 
+    def test_verified_command_file_is_private_and_rejects_a_final_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime_root = (Path(temporary) / "runtime").resolve()
+            runtime_root.mkdir()
+            commands_path = runtime_root / "verified-commands.json"
+            payload = {"verified_run_id": "verified-run-20260801", "commands": []}
+
+            RUNNER.write_commands_file(runtime_root, commands_path, payload)
+
+            self.assertEqual(payload, json.loads(commands_path.read_text(encoding="utf-8")))
+            self.assertEqual(stat.S_IRUSR | stat.S_IWUSR, stat.S_IMODE(commands_path.stat().st_mode))
+            victim = Path(temporary) / "victim.json"
+            victim.write_text("do not replace\n", encoding="utf-8")
+            commands_path.unlink()
+            commands_path.symlink_to(victim)
+            with self.assertRaisesRegex(ValueError, "below the runtime root|symbolic link|regular file"):
+                RUNNER.write_commands_file(runtime_root, commands_path, payload)
+            self.assertEqual("do not replace\n", victim.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
