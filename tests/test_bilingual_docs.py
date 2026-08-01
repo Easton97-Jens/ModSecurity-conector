@@ -17,7 +17,8 @@ CHECKER_PATH = ROOT / "ci" / "checks" / "documentation" / "check-bilingual-docs.
 TOOLS_MRTS_LITERAL = "tools/MRTS"
 TOOLS_MRTS_GITKEEP = f"{TOOLS_MRTS_LITERAL}/.gitkeep"
 SPEC = importlib.util.spec_from_file_location("bilingual_docs_checker", CHECKER_PATH)
-assert SPEC and SPEC.loader
+assert SPEC
+assert SPEC.loader
 CHECKER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CHECKER)
 

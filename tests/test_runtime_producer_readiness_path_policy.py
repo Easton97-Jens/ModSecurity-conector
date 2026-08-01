@@ -11,7 +11,8 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER_PATH = ROOT / "ci" / "checks" / "evidence" / "check-runtime-producer-readiness.py"
 SPEC = importlib.util.spec_from_file_location("runtime_producer_readiness", CHECKER_PATH)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 readiness = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = readiness
 SPEC.loader.exec_module(readiness)

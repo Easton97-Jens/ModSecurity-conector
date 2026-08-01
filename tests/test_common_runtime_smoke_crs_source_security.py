@@ -18,7 +18,8 @@ SPEC = importlib.util.spec_from_file_location(
     "common_runtime_smoke_crs_source_security",
     ROOT / "common/scripts/run_local_runtime_smoke.py",
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = RUNNER
 SPEC.loader.exec_module(RUNNER)

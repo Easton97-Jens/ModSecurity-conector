@@ -19,7 +19,8 @@ HELPER_PATH = (
     / "connectors/haproxy/harness/haproxy_htx_smoke_helper.py"
 )
 SPEC = importlib.util.spec_from_file_location("haproxy_htx_smoke_helper", HELPER_PATH)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 HELPER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(HELPER)
 

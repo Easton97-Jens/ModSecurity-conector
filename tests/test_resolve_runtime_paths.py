@@ -12,7 +12,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 RESOLVER_PATH = ROOT / "ci" / "runtime" / "common" / "resolve-runtime-paths.py"
 SPEC = importlib.util.spec_from_file_location("resolve_runtime_paths", RESOLVER_PATH)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 resolver = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = resolver
 SPEC.loader.exec_module(resolver)
