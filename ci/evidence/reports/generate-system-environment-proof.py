@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 import time
+from urllib.parse import urlsplit
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -94,12 +95,8 @@ FRAMEWORK_ENVIRONMENT_VARS = (
     "PYTHON",
 )
 
-INSECURE_REPO_URL_PATTERNS = (
-    "http://github.com",
-    "git@github.com:",
-    "ssh://git@github.com",
-    "git://github.com",
-)
+GITHUB_REPOSITORY_HOST = "github.com"
+DISALLOWED_REPOSITORY_SCHEMES = frozenset({"http", "ssh", "git"})
 
 PATH_FALLBACK_SOURCE = "PATH fallback"
 SHELL_PATH = "/bin/sh"
@@ -171,6 +168,26 @@ def read_os_release() -> dict[str, str]:
     return data
 
 
+def framework_environment_result(
+    framework_root: Path,
+    common_sh: Path,
+    *,
+    status: str,
+    return_code: int,
+    output_excerpt: str,
+    environment: dict[str, str],
+) -> dict[str, Any]:
+    return {
+        "framework_root": str(framework_root),
+        "common_sh_path": str(common_sh),
+        "common_sh_status": status,
+        "load_return_code": return_code,
+        "load_output_excerpt": output_excerpt[:4000],
+        "env": environment,
+        "variables": {name: environment.get(name) or None for name in FRAMEWORK_ENVIRONMENT_VARS},
+    }
+
+
 def load_framework_environment(connector_root: Path, framework_root: Path) -> dict[str, Any]:
     common_sh = framework_root / "ci/lib/common.sh"
     base_env = os.environ.copy()
@@ -179,15 +196,14 @@ def load_framework_environment(connector_root: Path, framework_root: Path) -> di
     for key, value in verified_runtime_paths(base_env).items():
         base_env.setdefault(key, value)
     if not common_sh.is_file():
-        return {
-            "framework_root": str(framework_root),
-            "common_sh_path": str(common_sh),
-            "common_sh_status": "missing",
-            "load_return_code": 127,
-            "load_output_excerpt": "common.sh not found",
-            "env": base_env,
-            "variables": {name: base_env.get(name) or None for name in FRAMEWORK_ENVIRONMENT_VARS},
-        }
+        return framework_environment_result(
+            framework_root,
+            common_sh,
+            status="missing",
+            return_code=127,
+            output_excerpt="common.sh not found",
+            environment=base_env,
+        )
     try:
         proc = subprocess.run(
             ["bash", "-lc", 'set -a; . "$FRAMEWORK_ROOT/ci/lib/common.sh"; env -0'],
@@ -199,52 +215,48 @@ def load_framework_environment(connector_root: Path, framework_root: Path) -> di
             timeout=60,
         )
     except FileNotFoundError as exc:
-        return {
-            "framework_root": str(framework_root),
-            "common_sh_path": str(common_sh),
-            "common_sh_status": "failed",
-            "load_return_code": 127,
-            "load_output_excerpt": str(exc),
-            "env": base_env,
-            "variables": {name: base_env.get(name) or None for name in FRAMEWORK_ENVIRONMENT_VARS},
-        }
+        return framework_environment_result(
+            framework_root,
+            common_sh,
+            status="failed",
+            return_code=127,
+            output_excerpt=str(exc),
+            environment=base_env,
+        )
     except subprocess.TimeoutExpired as exc:
         output = (exc.stdout or b"") + b"\nTIMEOUT"
-        return {
-            "framework_root": str(framework_root),
-            "common_sh_path": str(common_sh),
-            "common_sh_status": "failed",
-            "load_return_code": 124,
-            "load_output_excerpt": output.decode("utf-8", errors="replace").strip()[:4000],
-            "env": base_env,
-            "variables": {name: base_env.get(name) or None for name in FRAMEWORK_ENVIRONMENT_VARS},
-        }
+        return framework_environment_result(
+            framework_root,
+            common_sh,
+            status="failed",
+            return_code=124,
+            output_excerpt=output.decode("utf-8", errors="replace").strip(),
+            environment=base_env,
+        )
     stderr = proc.stderr.decode("utf-8", errors="replace").strip()
     if proc.returncode != 0:
-        return {
-            "framework_root": str(framework_root),
-            "common_sh_path": str(common_sh),
-            "common_sh_status": "failed",
-            "load_return_code": proc.returncode,
-            "load_output_excerpt": stderr[:4000] or f"common.sh load failed with return code {proc.returncode}",
-            "env": base_env,
-            "variables": {name: base_env.get(name) or None for name in FRAMEWORK_ENVIRONMENT_VARS},
-        }
+        return framework_environment_result(
+            framework_root,
+            common_sh,
+            status="failed",
+            return_code=proc.returncode,
+            output_excerpt=stderr or f"common.sh load failed with return code {proc.returncode}",
+            environment=base_env,
+        )
     loaded_env: dict[str, str] = {}
     for chunk in proc.stdout.split(b"\0"):
         if not chunk or b"=" not in chunk:
             continue
         key, value = chunk.split(b"=", 1)
         loaded_env[key.decode("utf-8", errors="replace")] = value.decode("utf-8", errors="replace")
-    return {
-        "framework_root": str(framework_root),
-        "common_sh_path": str(common_sh),
-        "common_sh_status": "loaded",
-        "load_return_code": proc.returncode,
-        "load_output_excerpt": stderr[:4000],
-        "env": loaded_env,
-        "variables": {name: loaded_env.get(name) or None for name in FRAMEWORK_ENVIRONMENT_VARS},
-    }
+    return framework_environment_result(
+        framework_root,
+        common_sh,
+        status="loaded",
+        return_code=proc.returncode,
+        output_excerpt=stderr,
+        environment=loaded_env,
+    )
 
 
 def split_command_value(value: str) -> list[str]:
@@ -468,74 +480,140 @@ def resolve_candidate_list(
     )
 
 
-def resolve_tool(spec: ToolSpec, cwd: Path, framework_env: dict[str, Any], initial_env: dict[str, str]) -> dict[str, Any]:
-    effective_env = dict(framework_env.get("env") or initial_env)
-    candidates: list[tuple[str, str]] = []
-    for var_name in spec.env_vars:
-        candidate = env_var_candidate(var_name, initial_env, framework_env)
-        if candidate is not None:
-            candidates.append(candidate)
+def tool_spec_candidates(
+    spec: ToolSpec,
+    initial_env: dict[str, str],
+    framework_env: dict[str, Any],
+) -> list[tuple[str, str]]:
+    candidates = [
+        candidate
+        for var_name in spec.env_vars
+        if (candidate := env_var_candidate(var_name, initial_env, framework_env)) is not None
+    ]
     if spec.sys_executable_fallback:
         candidates.append((sys.executable, "current sys.executable"))
     candidates.extend((name, PATH_FALLBACK_SOURCE) for name in spec.path_fallbacks)
+    return candidates
 
-    attempted_command = spec.path_fallbacks[0] if spec.path_fallbacks else spec.tool
-    source = PATH_FALLBACK_SOURCE
-    resolved_command: str | None = None
-    prefix_args: list[str] = []
-    resolution_error = "command not found"
-    resolution_rc = 127
+
+def first_tool_resolution(
+    candidates: list[tuple[str, str]],
+    cwd: Path,
+    environment: dict[str, str],
+) -> dict[str, Any]:
+    resolution = {
+        "attempted_command": "",
+        "source": PATH_FALLBACK_SOURCE,
+        "resolved_command": None,
+        "prefix_args": [],
+        "error": "command not found",
+        "return_code": 127,
+    }
     for value, candidate_source in candidates:
         parts = split_command_value(value)
-        attempted_command = parts[0]
-        source = candidate_source
-        resolved, error, rc = command_exists(parts[0], cwd, effective_env)
-        prefix_args = parts[1:]
-        if rc == 0:
-            resolved_command = resolved
-            resolution_error = ""
-            resolution_rc = 0
-            break
-        if candidate_source != PATH_FALLBACK_SOURCE:
-            resolved_command = resolved
-            resolution_error = error
-            resolution_rc = rc
-            break
-        resolved_command = None
-        resolution_error = error
-        resolution_rc = rc
-
-    if resolution_rc != 0:
-        return {
-            "tool": spec.tool,
-            "status": "missing",
-            "resolved_command": resolved_command if source != PATH_FALLBACK_SOURCE else None,
-            "attempted_command": attempted_command,
-            "source": source,
-            "candidates": unique_candidates([item for item, _source in candidates]),
-            "version_output": resolution_error,
-            "version": resolution_error,
-            "return_code": resolution_rc,
-            "notes": "",
-            "output_sha256": hashlib.sha256(resolution_error.encode("utf-8")).hexdigest(),
+        resolved, error, return_code = command_exists(parts[0], cwd, environment)
+        resolution = {
+            "attempted_command": parts[0],
+            "source": candidate_source,
+            "resolved_command": resolved,
+            "prefix_args": parts[1:],
+            "error": error,
+            "return_code": return_code,
         }
+        if return_code == 0 or candidate_source != PATH_FALLBACK_SOURCE:
+            return resolution
+    return resolution
 
-    command = [resolved_command or attempted_command, *prefix_args, *spec.version_args]
-    result = run(command, cwd, timeout=60)
-    version_output = result["output_excerpt"] or f"return code {result['return_code']}"
-    return {
-        "tool": spec.tool,
-        "status": "present" if result["return_code"] == 0 else "error",
-        "resolved_command": resolved_command,
-        "attempted_command": attempted_command,
-        "source": source,
-        "candidates": unique_candidates([item for item, _source in candidates]),
-        "version_output": version_output,
-        "version": version_output.splitlines()[0] if version_output else f"return code {result['return_code']}",
-        "return_code": result["return_code"],
-        "notes": "",
-        "output_sha256": result["output_sha256"],
-    }
+
+def missing_tool_record(spec: ToolSpec, candidates: list[tuple[str, str]], resolution: dict[str, Any]) -> dict[str, Any]:
+    error = str(resolution["error"])
+    source = str(resolution["source"])
+    return make_tool_record(
+        tool=spec.tool,
+        status="missing",
+        resolved_command=resolution["resolved_command"] if source != PATH_FALLBACK_SOURCE else None,
+        attempted_command=str(resolution["attempted_command"]),
+        source=source,
+        candidates=unique_candidates([item for item, _source in candidates]),
+        version_output=error,
+        return_code=int(resolution["return_code"]),
+    )
+
+
+def configured_tool_record(
+    *,
+    tool: str,
+    variable: str,
+    candidate: tuple[str, str],
+    version_args: tuple[str, ...],
+    cwd: Path,
+    environment: dict[str, str],
+) -> dict[str, Any]:
+    value, source = candidate
+    resolved, error, return_code = command_exists(value, cwd, environment)
+    if return_code == 0 and resolved is not None:
+        return run_resolved_tool(
+            tool=tool,
+            resolved_command=resolved,
+            attempted_command=value,
+            source=source,
+            version_args=version_args,
+            candidates=[],
+            cwd=cwd,
+            notes=f"{variable} is set and executable",
+        )
+    return make_tool_record(
+        tool=tool,
+        status="missing",
+        resolved_command=resolved,
+        attempted_command=value,
+        source=source,
+        candidates=[],
+        version_output=error,
+        return_code=return_code,
+        notes=f"{variable} is set but does not resolve to an executable",
+    )
+
+
+def configured_tool_from_environment(
+    *,
+    tool: str,
+    variables: tuple[str, ...],
+    version_args: tuple[str, ...],
+    cwd: Path,
+    framework_env: dict[str, Any],
+    initial_env: dict[str, str],
+) -> dict[str, Any] | None:
+    environment = dict(common_env(framework_env) or initial_env)
+    for variable in variables:
+        candidate = env_var_value(variable, initial_env, framework_env)
+        if candidate is not None:
+            return configured_tool_record(
+                tool=tool,
+                variable=variable,
+                candidate=candidate,
+                version_args=version_args,
+                cwd=cwd,
+                environment=environment,
+            )
+    return None
+
+
+def resolve_tool(spec: ToolSpec, cwd: Path, framework_env: dict[str, Any], initial_env: dict[str, str]) -> dict[str, Any]:
+    effective_env = dict(framework_env.get("env") or initial_env)
+    candidates = tool_spec_candidates(spec, initial_env, framework_env)
+    resolution = first_tool_resolution(candidates, cwd, effective_env)
+    if resolution["return_code"] != 0:
+        return missing_tool_record(spec, candidates, resolution)
+    return run_resolved_tool(
+        tool=spec.tool,
+        resolved_command=str(resolution["resolved_command"] or resolution["attempted_command"]),
+        attempted_command=str(resolution["attempted_command"]),
+        source=str(resolution["source"]),
+        version_args=tuple(resolution["prefix_args"]) + spec.version_args,
+        candidates=unique_candidates([item for item, _source in candidates]),
+        cwd=cwd,
+    )
 
 
 def resolve_python_tool(cwd: Path, framework_env: dict[str, Any], initial_env: dict[str, str]) -> dict[str, Any]:
@@ -771,38 +849,20 @@ def resolve_apache_tool(
     apxs_record: dict[str, Any],
 ) -> dict[str, Any]:
     effective_env = dict(common_env(framework_env) or initial_env)
-    for var_name in ("APACHECTL_BIN", "APACHE_BIN", "HTTPD_BIN"):
-        candidate = env_var_value(var_name, initial_env, framework_env)
-        if candidate is None:
-            continue
-        value, source = candidate
-        resolved, error, rc = command_exists(value, cwd, effective_env)
-        if rc == 0 and resolved is not None:
-            return run_resolved_tool(
-                tool=APACHE_HTTPD_TOOL,
-                resolved_command=resolved,
-                attempted_command=value,
-                source=source,
-                version_args=("-v",),
-                candidates=[],
-                cwd=cwd,
-                notes=f"{var_name} is set and executable",
-            )
-        return make_tool_record(
-            tool=APACHE_HTTPD_TOOL,
-            status="missing",
-            resolved_command=resolved,
-            attempted_command=value,
-            source=source,
-            candidates=[],
-            version_output=error,
-            return_code=rc,
-            notes=f"{var_name} is set but does not resolve to an executable",
-        )
+    configured = configured_tool_from_environment(
+        tool=APACHE_HTTPD_TOOL,
+        variables=("APACHECTL_BIN", "APACHE_BIN", "HTTPD_BIN"),
+        version_args=("-v",),
+        cwd=cwd,
+        framework_env=framework_env,
+        initial_env=initial_env,
+    )
+    if configured is not None:
+        return configured
 
     apxs_path = apxs_record.get("resolved_command")
     if apxs_record.get("status") == "present" and apxs_path:
-        helper = run_common_helper("ci_resolve_apache_from_apxs", [apxs_path], cwd, framework_env)
+        helper = run_common_helper("ci_resolve_apache_from_apxs", [str(apxs_path)], cwd, framework_env)
         helper_output = helper.get("output_excerpt", "").splitlines()[0] if helper.get("output_excerpt") else ""
         if helper.get("return_code") == 0 and helper_output:
             resolved, error, rc = command_exists(helper_output, cwd, effective_env)
@@ -997,47 +1057,73 @@ def layout_evidence(connector_root: Path) -> dict[str, Any]:
     }
 
 
-def https_repo_url_policy(connector_root: Path, framework_root: Path) -> dict[str, Any]:
+def https_repository_scan_paths(connector_root: Path, framework_root: Path) -> list[Path]:
     text_suffixes = {"", ".md", ".py", ".sh", ".json", ".yml", ".yaml", ".mk"}
-    scan_paths: list[Path] = [
+    scan_paths = [
         connector_root / "Makefile",
         connector_root / "README.md",
     ]
     scan_paths.extend(sorted(connector_root.glob("COMPILE_*.md")))
-    for base in (
+    roots = (
         connector_root / "ci",
         framework_root / "ci",
         connector_root / "docs",
         connector_root / "reports/testing",
-    ):
-        if base.is_dir():
-            scan_paths.extend(path for path in sorted(base.rglob("*")) if path.is_file())
-    skip_names = {"check-generated-report-layout.py", "generate-system-environment-proof.py"}
+    )
+    for root in roots:
+        if root.is_dir():
+            scan_paths.extend(path for path in sorted(root.rglob("*")) if path.is_file())
+    return [path for path in scan_paths if path.suffix in text_suffixes]
+
+
+def repository_url_scan_allowed(path: Path, connector_root: Path) -> bool:
+    if "__pycache__" in path.parts:
+        return False
+    if path.name in {"check-generated-report-layout.py", "generate-system-environment-proof.py"}:
+        return False
+    try:
+        generated_root = (connector_root / GENERATED_ROOT).resolve(strict=False)
+        return generated_root not in path.resolve(strict=False).parents
+    except OSError:
+        return False
+
+
+def insecure_repository_url_pattern(candidate: str) -> str | None:
+    parsed = urlsplit(candidate)
+    scheme = parsed.scheme.lower()
+    host = (parsed.hostname or "").lower()
+    if candidate.startswith(f"git@{GITHUB_REPOSITORY_HOST}:"):
+        return f"git@{GITHUB_REPOSITORY_HOST}:"
+    if host == GITHUB_REPOSITORY_HOST and scheme in DISALLOWED_REPOSITORY_SCHEMES:
+        return scheme
+    return None
+
+
+def repository_url_findings(path: Path, connector_root: Path) -> list[dict[str, Any]]:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except (OSError, UnicodeDecodeError):
+        return []
+    try:
+        display_path = str(path.relative_to(connector_root))
+    except ValueError:
+        display_path = str(path)
     findings = []
-    for path in scan_paths:
-        if "__pycache__" in path.parts or path.suffix not in text_suffixes:
-            continue
-        try:
-            if (connector_root / GENERATED_ROOT).resolve(strict=False) in path.resolve(strict=False).parents:
-                continue
-        except OSError:
-            continue
-        if path.name in skip_names:
-            continue
-        try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except UnicodeDecodeError:
-            continue
-        for line_number, line in enumerate(text.splitlines(), start=1):
-            for pattern in INSECURE_REPO_URL_PATTERNS:
-                if pattern in line:
-                    findings.append(
-                        {
-                            "path": str(path.relative_to(connector_root)) if path.is_relative_to(connector_root) else str(path),
-                            "line": line_number,
-                            "pattern": pattern,
-                        }
-                    )
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        for token in line.split():
+            pattern = insecure_repository_url_pattern(token.strip("`'\"()[]{}<>,.;"))
+            if pattern is not None:
+                findings.append({"path": display_path, "line": line_number, "pattern": pattern})
+    return findings
+
+
+def https_repo_url_policy(connector_root: Path, framework_root: Path) -> dict[str, Any]:
+    findings = [
+        finding
+        for path in https_repository_scan_paths(connector_root, framework_root)
+        if repository_url_scan_allowed(path, connector_root)
+        for finding in repository_url_findings(path, connector_root)
+    ]
     status = "PASS" if not findings else "FAIL"
     notes = (
         "no active http, ssh, git protocol repo URLs found"
@@ -1086,6 +1172,44 @@ def tool_by_name(tools: list[dict[str, Any]], name: str) -> dict[str, Any]:
     return next((tool for tool in tools if tool.get("tool") == name), {})
 
 
+def first_framework_value(variables: dict[str, Any], names: tuple[str, ...], fallback: str) -> str:
+    for name in names:
+        value = variables.get(name)
+        if value:
+            return str(value)
+    return fallback
+
+
+def runtime_component_row(
+    component: str,
+    status: str,
+    expected_path: str,
+    source_url: str,
+    version_ref: str,
+    how_to_prepare: str,
+) -> dict[str, str]:
+    return {
+        "component": component,
+        "status": status,
+        "expected_path": expected_path,
+        "source_url": source_url,
+        "version_ref": version_ref,
+        "how_to_prepare": how_to_prepare,
+    }
+
+
+def present_or_missing(tool: dict[str, Any]) -> str:
+    return "present" if tool.get("status") == "present" else "missing"
+
+
+def optional_tool_status(tool: dict[str, Any]) -> str:
+    return "present" if tool.get("status") == "present" else "missing_optional"
+
+
+def apache_runtime_status(apxs: dict[str, Any], apache: dict[str, Any]) -> str:
+    return "present" if "present" in {apxs.get("status"), apache.get("status")} else "missing"
+
+
 def runtime_component_readiness(tools: list[dict[str, Any]], framework_env: dict[str, Any]) -> list[dict[str, str]]:
     variables = framework_env.get("variables", {})
     haproxy = tool_by_name(tools, "haproxy")
@@ -1094,56 +1218,55 @@ def runtime_component_readiness(tools: list[dict[str, Any]], framework_env: dict
     apache = tool_by_name(tools, APACHE_HTTPD_TOOL)
     go_ftw = tool_by_name(tools, "go-ftw")
     albedo = tool_by_name(tools, "albedo")
-    apache_status = "present" if apxs.get("status") == "present" or apache.get("status") == "present" else "missing"
     return [
-        {
-            "component": "HAProxy",
-            "status": str(haproxy.get("status", "missing")),
-            "expected_path": str(variables.get("HAPROXY_BIN") or "$HAPROXY_BIN"),
-            "source_url": str(variables.get("HAPROXY_SOURCE_URL") or "$HAPROXY_SOURCE_URL"),
-            "version_ref": str(variables.get("HAPROXY_VERSION") or "$HAPROXY_VERSION"),
-            "how_to_prepare": "make prepare-runtime-components or make runtime-matrix-haproxy",
-        },
-        {
-            "component": "NGINX",
-            "status": "present" if nginx.get("status") == "present" else "missing",
-            "expected_path": str(variables.get("NGINX_BIN") or variables.get("CI_NGINX_BIN_CANDIDATES") or "$NGINX_BIN or CI_NGINX_BIN_CANDIDATES"),
-            "source_url": str(variables.get("NGINX_SOURCE_REPO_URL") or variables.get("NGINX_GITHUB_REPO") or "$NGINX_SOURCE_REPO_URL"),
-            "version_ref": str(variables.get("NGINX_RELEASE_TAG") or variables.get("NGINX_SOURCE_GIT_REF") or "$NGINX_RELEASE_TAG"),
-            "how_to_prepare": "install nginx or prepare runtime components",
-        },
-        {
-            "component": "Apache/APXS",
-            "status": apache_status,
-            "expected_path": str(variables.get("APXS_BIN") or variables.get("CI_APXS_BIN_CANDIDATES") or "$APXS_BIN or CI_APXS_BIN_CANDIDATES"),
-            "source_url": str(variables.get("HTTPD_SOURCE_URL") or "$HTTPD_SOURCE_URL"),
-            "version_ref": str(variables.get("HTTPD_VERSION") or "$HTTPD_VERSION"),
-            "how_to_prepare": "install apache2-dev/httpd-devel or prepare Apache runtime",
-        },
-        {
-            "component": "go-ftw",
-            "status": "present" if go_ftw.get("status") == "present" else "missing_optional",
-            "expected_path": str(variables.get("GO_FTW_BIN") or "$GO_FTW_BIN"),
-            "source_url": str(variables.get("GO_FTW_SOURCE_URL") or "$GO_FTW_SOURCE_URL"),
-            "version_ref": str(variables.get("GO_FTW_PROMPT_EXPECTED_LATEST") or variables.get("GO_FTW_GIT_REF") or "$GO_FTW_PROMPT_EXPECTED_LATEST"),
-            "how_to_prepare": "install go-ftw only if MRTS/FTW checks are required",
-        },
-        {
-            "component": "albedo",
-            "status": "present" if albedo.get("status") == "present" else "missing_optional",
-            "expected_path": str(variables.get("ALBEDO_BIN") or "$ALBEDO_BIN"),
-            "source_url": str(variables.get("ALBEDO_SOURCE_URL") or "$ALBEDO_SOURCE_URL"),
-            "version_ref": str(variables.get("ALBEDO_PROMPT_EXPECTED_LATEST") or variables.get("ALBEDO_GIT_REF") or "$ALBEDO_PROMPT_EXPECTED_LATEST"),
-            "how_to_prepare": "install albedo only if native MRTS checks require it",
-        },
-        {
-            "component": "expat",
-            "status": "informational",
-            "expected_path": "n/a",
-            "source_url": str(variables.get("EXPAT_SOURCE_URL") or "$EXPAT_SOURCE_URL"),
-            "version_ref": str(variables.get("EXPAT_GIT_REF") or "$EXPAT_GIT_REF"),
-            "how_to_prepare": "used only if the related runtime build path requires it",
-        },
+        runtime_component_row(
+            "HAProxy",
+            str(haproxy.get("status", "missing")),
+            first_framework_value(variables, ("HAPROXY_BIN",), "$HAPROXY_BIN"),
+            first_framework_value(variables, ("HAPROXY_SOURCE_URL",), "$HAPROXY_SOURCE_URL"),
+            first_framework_value(variables, ("HAPROXY_VERSION",), "$HAPROXY_VERSION"),
+            "make prepare-runtime-components or make runtime-matrix-haproxy",
+        ),
+        runtime_component_row(
+            "NGINX",
+            present_or_missing(nginx),
+            first_framework_value(variables, ("NGINX_BIN", "CI_NGINX_BIN_CANDIDATES"), "$NGINX_BIN or CI_NGINX_BIN_CANDIDATES"),
+            first_framework_value(variables, ("NGINX_SOURCE_REPO_URL", "NGINX_GITHUB_REPO"), "$NGINX_SOURCE_REPO_URL"),
+            first_framework_value(variables, ("NGINX_RELEASE_TAG", "NGINX_SOURCE_GIT_REF"), "$NGINX_RELEASE_TAG"),
+            "install nginx or prepare runtime components",
+        ),
+        runtime_component_row(
+            "Apache/APXS",
+            apache_runtime_status(apxs, apache),
+            first_framework_value(variables, ("APXS_BIN", "CI_APXS_BIN_CANDIDATES"), "$APXS_BIN or CI_APXS_BIN_CANDIDATES"),
+            first_framework_value(variables, ("HTTPD_SOURCE_URL",), "$HTTPD_SOURCE_URL"),
+            first_framework_value(variables, ("HTTPD_VERSION",), "$HTTPD_VERSION"),
+            "install apache2-dev/httpd-devel or prepare Apache runtime",
+        ),
+        runtime_component_row(
+            "go-ftw",
+            optional_tool_status(go_ftw),
+            first_framework_value(variables, ("GO_FTW_BIN",), "$GO_FTW_BIN"),
+            first_framework_value(variables, ("GO_FTW_SOURCE_URL",), "$GO_FTW_SOURCE_URL"),
+            first_framework_value(variables, ("GO_FTW_PROMPT_EXPECTED_LATEST", "GO_FTW_GIT_REF"), "$GO_FTW_PROMPT_EXPECTED_LATEST"),
+            "install go-ftw only if MRTS/FTW checks are required",
+        ),
+        runtime_component_row(
+            "albedo",
+            optional_tool_status(albedo),
+            first_framework_value(variables, ("ALBEDO_BIN",), "$ALBEDO_BIN"),
+            first_framework_value(variables, ("ALBEDO_SOURCE_URL",), "$ALBEDO_SOURCE_URL"),
+            first_framework_value(variables, ("ALBEDO_PROMPT_EXPECTED_LATEST", "ALBEDO_GIT_REF"), "$ALBEDO_PROMPT_EXPECTED_LATEST"),
+            "install albedo only if native MRTS checks require it",
+        ),
+        runtime_component_row(
+            "expat",
+            "informational",
+            "n/a",
+            first_framework_value(variables, ("EXPAT_SOURCE_URL",), "$EXPAT_SOURCE_URL"),
+            first_framework_value(variables, ("EXPAT_GIT_REF",), "$EXPAT_GIT_REF"),
+            "used only if the related runtime build path requires it",
+        ),
     ]
 
 
@@ -1299,12 +1422,9 @@ def verified_producer_readiness(
     ]
 
 
-def render_markdown(payload: dict[str, Any]) -> str:
+def proof_header_markdown(payload: dict[str, Any]) -> list[str]:
     os_info = payload["os"]
-    python_info = payload["python"]
-    layout = payload["layout"]
-    framework_env = payload["framework_environment"]
-    lines = [
+    return [
         "# System Environment Proof",
         "",
         "## Proof Status",
@@ -1327,6 +1447,11 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"| Hostname | {os_info.get('hostname', '-')} |",
         f"| User | {os_info.get('user', '-')} |",
         f"| Working Directory | `{os_info.get('working_directory', '-')}` |",
+    ]
+
+
+def framework_environment_markdown(framework_env: dict[str, Any]) -> list[str]:
+    lines = [
         "",
         "## Framework Environment Resolution",
         "",
@@ -1341,16 +1466,18 @@ def render_markdown(payload: dict[str, Any]) -> str:
         lines.append(f"| {name} | {md_code(framework_env.get('variables', {}).get(name))} |")
     if framework_env.get("load_output_excerpt"):
         lines.append(f"| common.sh output | {md_code(framework_env.get('load_output_excerpt'))} |")
-    lines.extend(
-        [
-            "",
-            "## Tool Versions",
-            "",
-            "| Tool | Status | Resolved Command | Source | Candidates | Version / Output | Notes |",
-            "|---|---|---|---|---|---|---|",
-        ]
-    )
-    for tool in payload["tools"]:
+    return lines
+
+
+def tool_versions_markdown(tools: list[dict[str, Any]]) -> list[str]:
+    lines = [
+        "",
+        "## Tool Versions",
+        "",
+        "| Tool | Status | Resolved Command | Source | Candidates | Version / Output | Notes |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for tool in tools:
         displayed_command = tool.get("resolved_command")
         candidates = " ".join(str(item) for item in tool.get("candidates", []))
         version_line = str(tool.get("version_output") or tool.get("version") or "-").splitlines()[0]
@@ -1359,158 +1486,182 @@ def render_markdown(payload: dict[str, Any]) -> str:
             f"{md_code(tool.get('source', '-'))} | {md_optional_code(candidates or None)} | "
             f"{md_code(version_line)} | {md_optional_code(tool.get('notes') or None)} |"
         )
-    lines.extend(
-        [
-            "",
-            "## Runtime Component Readiness",
-            "",
-            "| Component | Status | Expected Path | Source URL | Version / Ref | How to Prepare |",
-            "|---|---|---|---|---|---|",
-        ]
-    )
-    for item in payload["runtime_component_readiness"]:
+    return lines
+
+
+def runtime_component_markdown(items: list[dict[str, str]]) -> list[str]:
+    lines = [
+        "",
+        "## Runtime Component Readiness",
+        "",
+        "| Component | Status | Expected Path | Source URL | Version / Ref | How to Prepare |",
+        "|---|---|---|---|---|---|",
+    ]
+    for item in items:
         lines.append(
             f"| {item['component']} | {item['status']} | {md_code(item['expected_path'])} | "
             f"{md_code(item['source_url'])} | {md_code(item['version_ref'])} | {md_code(item['how_to_prepare'])} |"
         )
-    nginx_module = payload.get("runtime_producer_readiness_check", {}).get("nginx_runtime_module_readiness", {})
-    lines.extend(
-        [
-            "",
-            "## NGINX Runtime Module Readiness",
-            "",
-            MARKDOWN_FIELD_VALUE_HEADER,
-            MARKDOWN_FIELD_VALUE_SEPARATOR,
-            f"| NGINX_BIN | {md_code(nginx_module.get('NGINX_BIN', ''))} |",
-            f"| NGINX_MODULE_DIR | {md_code(nginx_module.get('NGINX_MODULE_DIR', ''))} |",
-            f"| ModSecurity module path | {md_code(nginx_module.get('ModSecurity module path', ''))} |",
-            f"| Module exists | {md_code(str(nginx_module.get('Module exists', False)).lower())} |",
-            f"| How to prepare | {md_code(nginx_module.get('How to prepare', 'make prepare-runtime-components'))} |",
-        ]
-    )
-    lines.extend(
-        [
-            "",
-            "## Verified Producer Readiness",
-            "",
-            "| Producer | Required | Status | Missing Tools | Missing Paths | How to Fix |",
-            "|---|---|---|---|---|---|",
-        ]
-    )
-    for item in payload.get("verified_producer_readiness", []):
+    return lines
+
+
+def nginx_module_markdown(runtime_check: dict[str, Any]) -> list[str]:
+    nginx_module = runtime_check.get("nginx_runtime_module_readiness", {})
+    return [
+        "",
+        "## NGINX Runtime Module Readiness",
+        "",
+        MARKDOWN_FIELD_VALUE_HEADER,
+        MARKDOWN_FIELD_VALUE_SEPARATOR,
+        f"| NGINX_BIN | {md_code(nginx_module.get('NGINX_BIN', ''))} |",
+        f"| NGINX_MODULE_DIR | {md_code(nginx_module.get('NGINX_MODULE_DIR', ''))} |",
+        f"| ModSecurity module path | {md_code(nginx_module.get('ModSecurity module path', ''))} |",
+        f"| Module exists | {md_code(str(nginx_module.get('Module exists', False)).lower())} |",
+        f"| How to prepare | {md_code(nginx_module.get('How to prepare', 'make prepare-runtime-components'))} |",
+    ]
+
+
+def verified_producer_markdown(items: list[dict[str, Any]]) -> list[str]:
+    lines = [
+        "",
+        "## Verified Producer Readiness",
+        "",
+        "| Producer | Required | Status | Missing Tools | Missing Paths | How to Fix |",
+        "|---|---|---|---|---|---|",
+    ]
+    for item in items:
         missing_tools = ", ".join(item.get("missing_tools", [])) or "-"
         missing_paths = "<br>".join(md_code(path) for path in item.get("missing_paths", [])) or "-"
         lines.append(
             f"| {item.get('producer', '-')} | {item.get('required', '-')} | {item.get('status', 'unknown')} | "
             f"{md_cell(missing_tools)} | {missing_paths} | {md_code(item.get('how_to_fix', '-'))} |"
         )
-    lines.extend(
-        [
-            "",
-            "## Runtime Network / Cache Readiness",
-            "",
-            "| Source | Status | Path | Notes |",
-            "|---|---|---|---|",
-        ]
-    )
-    for item in payload.get("runtime_producer_readiness_check", {}).get("network_cache", []):
+    return lines
+
+
+def network_cache_markdown(runtime_check: dict[str, Any]) -> list[str]:
+    items = runtime_check.get("network_cache", [])
+    lines = [
+        "",
+        "## Runtime Network / Cache Readiness",
+        "",
+        "| Source | Status | Path | Notes |",
+        "|---|---|---|---|",
+    ]
+    for item in items:
         lines.append(
             f"| {md_cell(item.get('source', '-'))} | {md_cell(item.get('status', 'unknown'))} | "
             f"{md_code(item.get('path', '-'))} | {md_cell(item.get('notes', '-'))} |"
         )
-    if not payload.get("runtime_producer_readiness_check", {}).get("network_cache"):
+    if not items:
         lines.append("| - | unknown | `` | _No rows available. Reason: runtime readiness checker unavailable._ |")
-    policy = payload["https_repo_url_policy"]
-    lines.extend(
-        [
-            "",
-            "## HTTPS Repository URL Policy",
-            "",
-            "| Check | Status | Notes |",
-            "|---|---|---|",
-            f"| HTTPS-only repo URLs | {policy.get('status', '-')} | {md_cell(policy.get('active_scan_notes', '-'))} |",
-            f"| GitHub repo URL policy | {policy.get('status', '-')} | {md_cell(policy.get('github_policy', '-'))} |",
-        ]
-    )
-    lines.extend(
-        [
-            "",
-            "## Python Environment",
-            "",
-            MARKDOWN_FIELD_VALUE_HEADER,
-            MARKDOWN_FIELD_VALUE_SEPARATOR,
-            f"| sys.version | `{python_info.get('sys_version', '-')}` |",
-            f"| sys.executable | `{python_info.get('sys_executable', '-')}` |",
-            f"| sys.platform | `{python_info.get('sys_platform', '-')}` |",
-            f"| platform.platform() | `{python_info.get('platform', '-')}` |",
-            f"| PYTHONPATH | `{python_info.get('pythonpath', '-')}` |",
-            f"| PYTHONDONTWRITEBYTECODE | `{python_info.get('pythondontwritebytecode', '-')}` |",
-            f"| .venv exists | `{python_info.get('venv_exists', '-')}` |",
-            f"| pip --version | `{python_info.get('pip_version', '-')}` |",
-            f"| pip freeze packages in excerpt | `{python_info.get('pip_freeze', {}).get('package_count_from_excerpt', '-')}` |",
-            f"| pip freeze output hash | `{python_info.get('pip_freeze', {}).get('output_sha256', '-')}` |",
-            "",
-            "## Executed Checks",
-            "",
-            "| Command | Status | Return Code | Duration | Notes |",
-            "|---|---|---:|---:|---|",
-        ]
-    )
-    for check in payload["checks"]:
+    return lines
+
+
+def https_policy_markdown(policy: dict[str, Any]) -> list[str]:
+    return [
+        "",
+        "## HTTPS Repository URL Policy",
+        "",
+        "| Check | Status | Notes |",
+        "|---|---|---|",
+        f"| HTTPS-only repo URLs | {policy.get('status', '-')} | {md_cell(policy.get('active_scan_notes', '-'))} |",
+        f"| GitHub repo URL policy | {policy.get('status', '-')} | {md_cell(policy.get('github_policy', '-'))} |",
+    ]
+
+
+def python_environment_markdown(python_info: dict[str, Any]) -> list[str]:
+    return [
+        "",
+        "## Python Environment",
+        "",
+        MARKDOWN_FIELD_VALUE_HEADER,
+        MARKDOWN_FIELD_VALUE_SEPARATOR,
+        f"| sys.version | `{python_info.get('sys_version', '-')}` |",
+        f"| sys.executable | `{python_info.get('sys_executable', '-')}` |",
+        f"| sys.platform | `{python_info.get('sys_platform', '-')}` |",
+        f"| platform.platform() | `{python_info.get('platform', '-')}` |",
+        f"| PYTHONPATH | `{python_info.get('pythonpath', '-')}` |",
+        f"| PYTHONDONTWRITEBYTECODE | `{python_info.get('pythondontwritebytecode', '-')}` |",
+        f"| .venv exists | `{python_info.get('venv_exists', '-')}` |",
+        f"| pip --version | `{python_info.get('pip_version', '-')}` |",
+        f"| pip freeze packages in excerpt | `{python_info.get('pip_freeze', {}).get('package_count_from_excerpt', '-')}` |",
+        f"| pip freeze output hash | `{python_info.get('pip_freeze', {}).get('output_sha256', '-')}` |",
+    ]
+
+
+def executed_checks_markdown(checks: list[dict[str, Any]]) -> list[str]:
+    lines = [
+        "",
+        "## Executed Checks",
+        "",
+        "| Command | Status | Return Code | Duration | Notes |",
+        "|---|---|---:|---:|---|",
+    ]
+    for check in checks:
         note = check["output_excerpt"].splitlines()[-1] if check["output_excerpt"] else "-"
         lines.append(f"| `{check['command']}` | {check['status']} | {check['return_code']} | {check['duration_seconds']} | {note.replace('|', '/')} |")
-    lines.extend(
-        [
-            "",
-            "## Report Layout Evidence",
-            "",
-            "| Metric | Value |",
-            MARKDOWN_FIELD_VALUE_SEPARATOR,
-            f"| Generated report files | {layout['generated_report_files']} |",
-            f"| Flat files in generated root | {layout['flat_files_in_generated_root']} |",
-            f"| Categories | {layout['category_count']} ({', '.join(layout['categories'])}) |",
-            f"| Missing registry outputs | {len(layout['missing_registry_outputs'])} |",
-            f"| Orphan generated reports | {len(layout['orphan_generated_reports'])} |",
-            f"| Skipped reports | {len(layout['skipped_reports'])} |",
-            f"| Failed reports | {len(layout['failed_reports'])} |",
-            "",
-            "## Known Skipped Inputs",
-            "",
-            "| Report | Status | Missing Inputs | Reason |",
-            "|---|---|---|---|",
-        ]
-    )
-    skipped = layout.get("skipped_reports", [])
-    if skipped:
-        for report in skipped:
-            lines.append(
-                f"| `{report.get('report_name', '-')}` | {report.get('status', '-')} | "
-                f"{', '.join(f'`{item}`' for item in report.get('missing_inputs', [])) or '-'} | "
-                "local optional inputs are missing or unavailable |"
-            )
-    else:
+    return lines
+
+
+def report_layout_markdown(layout: dict[str, Any]) -> list[str]:
+    return [
+        "",
+        "## Report Layout Evidence",
+        "",
+        "| Metric | Value |",
+        MARKDOWN_FIELD_VALUE_SEPARATOR,
+        f"| Generated report files | {layout['generated_report_files']} |",
+        f"| Flat files in generated root | {layout['flat_files_in_generated_root']} |",
+        f"| Categories | {layout['category_count']} ({', '.join(layout['categories'])}) |",
+        f"| Missing registry outputs | {len(layout['missing_registry_outputs'])} |",
+        f"| Orphan generated reports | {len(layout['orphan_generated_reports'])} |",
+        f"| Skipped reports | {len(layout['skipped_reports'])} |",
+        f"| Failed reports | {len(layout['failed_reports'])} |",
+    ]
+
+
+def skipped_inputs_markdown(skipped: list[dict[str, Any]]) -> list[str]:
+    lines = [
+        "",
+        "## Known Skipped Inputs",
+        "",
+        "| Report | Status | Missing Inputs | Reason |",
+        "|---|---|---|---|",
+    ]
+    if not skipped:
         lines.append("| `-` | none | - | no skipped reports |")
-    lines.extend(
-        [
-            "",
-            "## Git Evidence",
-            "",
-            "| Command | Status | Return Code | Output Hash |",
-            "|---|---|---:|---|",
-        ]
-    )
-    for name, record in payload["git"].items():
+        return lines
+    for report in skipped:
+        missing_inputs = ", ".join(f"`{item}`" for item in report.get("missing_inputs", [])) or "-"
+        lines.append(
+            f"| `{report.get('report_name', '-')}` | {report.get('status', '-')} | {missing_inputs} | "
+            "local optional inputs are missing or unavailable |"
+        )
+    return lines
+
+
+def git_evidence_markdown(git_records: dict[str, dict[str, Any]]) -> list[str]:
+    lines = [
+        "",
+        "## Git Evidence",
+        "",
+        "| Command | Status | Return Code | Output Hash |",
+        "|---|---|---:|---|",
+    ]
+    for name, record in git_records.items():
         lines.append(f"| `{name}` | {record['status']} | {record['return_code']} | `{record['output_sha256']}` |")
-    lines.extend(
-        [
-            "",
-            "## Proof Summary",
-            "",
-            "The generated report layout was validated on the system above.",
-        ]
-    )
-    for check in payload["checks"]:
-        lines.append(f"- `{check['command']}`: {check['status']}")
+    return lines
+
+
+def proof_summary_markdown(checks: list[dict[str, Any]], layout: dict[str, Any], skipped: list[dict[str, Any]]) -> list[str]:
+    lines = [
+        "",
+        "## Proof Summary",
+        "",
+        "The generated report layout was validated on the system above.",
+    ]
+    lines.extend(f"- `{check['command']}`: {check['status']}" for check in checks)
     lines.extend(
         [
             f"- Flat generated root files: {layout['flat_files_in_generated_root']}",
@@ -1519,7 +1670,30 @@ def render_markdown(payload: dict[str, Any]) -> str:
     )
     if skipped:
         lines.append("- Known skipped report: runtime/cache reports due to missing optional local inputs")
-    return "\n".join(lines) + "\n"
+    return lines
+
+
+def render_markdown(payload: dict[str, Any]) -> str:
+    layout = payload["layout"]
+    runtime_check = payload.get("runtime_producer_readiness_check", {})
+    skipped = layout.get("skipped_reports", [])
+    sections = (
+        proof_header_markdown(payload),
+        framework_environment_markdown(payload["framework_environment"]),
+        tool_versions_markdown(payload["tools"]),
+        runtime_component_markdown(payload["runtime_component_readiness"]),
+        nginx_module_markdown(runtime_check),
+        verified_producer_markdown(payload.get("verified_producer_readiness", [])),
+        network_cache_markdown(runtime_check),
+        https_policy_markdown(payload["https_repo_url_policy"]),
+        python_environment_markdown(payload["python"]),
+        executed_checks_markdown(payload["checks"]),
+        report_layout_markdown(layout),
+        skipped_inputs_markdown(skipped),
+        git_evidence_markdown(payload["git"]),
+        proof_summary_markdown(payload["checks"], layout, skipped),
+    )
+    return "\n".join(line for section in sections for line in section) + "\n"
 
 
 def main() -> int:
@@ -1591,7 +1765,7 @@ def main() -> int:
     strict_output_lines = [
         line
         for line in str(strict_gate_check.get("output_excerpt", "")).splitlines()
-        if line.startswith("check-generated-report-layout") or line.startswith("- ")
+        if line.startswith(("check-generated-report-layout", "- "))
     ]
     strict_reason = (
         "strict generated-report evidence gate passed"

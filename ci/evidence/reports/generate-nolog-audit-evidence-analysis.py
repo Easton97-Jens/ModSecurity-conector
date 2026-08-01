@@ -40,26 +40,30 @@ def first_secrule_parts(rules: str) -> tuple[str, str, str]:
     return "-", "-", ""
 
 
+def parsed_case_sections(raw: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str]:
+    if yaml is None or not raw:
+        return {}, {}, {}, raw
+    try:
+        parsed = yaml.safe_load(raw)
+    except Exception:
+        return {}, {}, {}, raw
+    document = parsed if isinstance(parsed, dict) else {}
+    request = document.get("request") if isinstance(document.get("request"), dict) else {}
+    expect = document.get("expect") if isinstance(document.get("expect"), dict) else {}
+    return document, request, expect, str(document.get("rules") or raw)
+
+
+def request_path_and_query(request: dict[str, Any]) -> tuple[str, str]:
+    path, separator, query = str(request.get("path") or "-").partition("?")
+    return path or "/", query if separator and query else "-"
+
+
 def parse_case_metadata(case_path: Path | None) -> dict[str, Any]:
     raw = read_text(case_path)
-    parsed: dict[str, Any] = {}
-    if yaml is not None and raw:
-        try:
-            loaded = yaml.safe_load(raw)
-            parsed = loaded if isinstance(loaded, dict) else {}
-        except Exception:
-            parsed = {}
-    rules = str(parsed.get("rules") or raw)
-    request = parsed.get("request") if isinstance(parsed.get("request"), dict) else {}
-    expect = parsed.get("expect") if isinstance(parsed.get("expect"), dict) else {}
+    parsed, request, expect, rules = parsed_case_sections(raw)
     variable, operator, action_text = first_secrule_parts(rules)
     actions = action_parts(action_text)
-    request_path = str(request.get("path") or "-")
-    query = "-"
-    path = request_path
-    if "?" in request_path:
-        path, query = request_path.split("?", 1)
-        path = path or "/"
+    path, query = request_path_and_query(request)
     return {
         "case_id": str(parsed.get("name") or CASE_ID),
         "category": str(parsed.get("category") or "-"),
@@ -126,6 +130,50 @@ def load_case_for_entry(entry: dict[str, Any], framework_root: Path) -> Path | N
     return find_framework_case_path(framework_root, entry.get("case_id") or CASE_ID)
 
 
+def nolog_log_evidence(evidence: dict[str, Any], target_rule_id: str) -> dict[str, Any]:
+    audit_path = evidence_log_path(evidence, ("audit_log_path", "audit_log"))
+    error_path = evidence_log_path(
+        evidence,
+        ("apache_error_log_path", "nginx_error_log_path", "error_log_path", "spoa_log_path", "haproxy_log_path"),
+    )
+    decision_path = evidence_log_path(evidence, ("decision_log_path", "decision_log"))
+    audit_text, error_text, decision_text = read_text(audit_path), read_text(error_path), read_text(decision_path)
+    audit_ids, error_ids, decision_ids = extract_rule_ids(audit_text), extract_rule_ids(error_text), extract_rule_ids(decision_text)
+    target_present = any(target_rule_id in ids for ids in (audit_ids, error_ids, decision_ids))
+    unrelated_audit_ids = [rule_id for rule_id in audit_ids if rule_id != target_rule_id]
+    if not audit_text.strip():
+        actual_evidence = "audit log absent or empty"
+    elif target_present:
+        actual_evidence = f"target rule {target_rule_id} appears in runtime logs"
+    else:
+        actual_evidence = "audit log contains unrelated rule(s): " + ", ".join(unrelated_audit_ids or audit_ids or ["unknown"])
+    return {
+        "audit_path": audit_path,
+        "error_path": error_path,
+        "decision_path": decision_path,
+        "audit_text": audit_text,
+        "error_text": error_text,
+        "decision_text": decision_text,
+        "audit_ids": audit_ids,
+        "error_ids": error_ids,
+        "decision_ids": decision_ids,
+        "target_present": target_present,
+        "unrelated_audit_ids": unrelated_audit_ids,
+        "actual_evidence": actual_evidence,
+    }
+
+
+def nolog_reclassification(case_meta: dict[str, Any], target_present: bool, entry: dict[str, Any], target_rule_id: str) -> tuple[str, list[str], str]:
+    no_audit_rule = case_meta.get("has_nolog") and not case_meta.get("has_auditlog") and not target_present
+    if not no_audit_rule:
+        return "requires_review", as_list(entry.get("work_direction")), "target rule appears in runtime logs or action metadata is ambiguous"
+    return (
+        EVIDENCE_CLASSIFICATION,
+        WORK_DIRECTION,
+        f"Rule {target_rule_id} has nolog/pass and is absent from audit, error, and decision logs; non-empty with-crs audit entries are unrelated CRS noise.",
+    )
+
+
 def observed_row(
     entry: dict[str, Any],
     case_meta: dict[str, Any],
@@ -135,38 +183,12 @@ def observed_row(
 ) -> dict[str, Any]:
     result_path = evidence_path(entry)
     evidence = read_json(result_path or Path())
-    audit_path = evidence_log_path(evidence, ("audit_log_path", "audit_log"))
-    error_path = evidence_log_path(
-        evidence,
-        (
-            "apache_error_log_path",
-            "nginx_error_log_path",
-            "error_log_path",
-            "spoa_log_path",
-            "haproxy_log_path",
-        ),
-    )
-    decision_path = evidence_log_path(evidence, ("decision_log_path", "decision_log"))
-    audit_text = read_text(audit_path)
-    error_text = read_text(error_path)
-    decision_text = read_text(decision_path)
-    audit_ids = extract_rule_ids(audit_text)
-    error_ids = extract_rule_ids(error_text)
-    decision_ids = extract_rule_ids(decision_text)
     target_rule_id = str(case_meta.get("rule_id") or TARGET_RULE_ID)
-    target_present = any(
-        target_rule_id in ids
-        for ids in (audit_ids, error_ids, decision_ids)
-    )
-    unrelated_audit_ids = [rule_id for rule_id in audit_ids if rule_id != target_rule_id]
-    with_crs_noise = bool(unrelated_audit_ids and str(entry.get("test_variant")) == "with-crs")
+    log_evidence = nolog_log_evidence(evidence, target_rule_id)
+    target_present = log_evidence["target_present"]
+    with_crs_noise = bool(log_evidence["unrelated_audit_ids"] and str(entry.get("test_variant")) == "with-crs")
     expected_evidence = f"rule {target_rule_id} must not create an audit entry because the action list contains nolog"
-    if not audit_text.strip():
-        actual_evidence = "audit log absent or empty"
-    elif target_present:
-        actual_evidence = f"target rule {target_rule_id} appears in runtime logs"
-    else:
-        actual_evidence = "audit log contains unrelated rule(s): " + ", ".join(unrelated_audit_ids or audit_ids or ["unknown"])
+    classification_after, work_direction_after, reason_after = nolog_reclassification(case_meta, target_present, entry, target_rule_id)
     key = (
         str(entry.get("connector") or ""),
         str(entry.get("test_variant") or ""),
@@ -193,31 +215,22 @@ def observed_row(
         "original_classification": entry.get("classification"),
         "original_work_direction": as_list(entry.get("work_direction")),
         "expected_evidence": expected_evidence,
-        "actual_evidence": actual_evidence,
-        "audit_log_path": sanitize_path(audit_path, connector_root, framework_root),
-        "error_log_path": sanitize_path(error_path, connector_root, framework_root),
-        "decision_log_path": sanitize_path(decision_path, connector_root, framework_root),
+        "actual_evidence": log_evidence["actual_evidence"],
+        "audit_log_path": sanitize_path(log_evidence["audit_path"], connector_root, framework_root),
+        "error_log_path": sanitize_path(log_evidence["error_path"], connector_root, framework_root),
+        "decision_log_path": sanitize_path(log_evidence["decision_path"], connector_root, framework_root),
         "run_log_path": sanitize_path(run_logs.get(key), connector_root, framework_root),
-        "audit_log_size": len(audit_text),
-        "audit_rule_ids": audit_ids,
-        "error_log_rule_ids": error_ids,
-        "decision_log_rule_ids": decision_ids,
+        "audit_log_size": len(log_evidence["audit_text"]),
+        "audit_rule_ids": log_evidence["audit_ids"],
+        "error_log_rule_ids": log_evidence["error_ids"],
+        "decision_log_rule_ids": log_evidence["decision_ids"],
         "target_rule_in_runtime_logs": target_present,
         "with_crs_unrelated_audit_noise": with_crs_noise,
         "backend_reached": bool(evidence.get("live_executed") or evidence.get("modsecurity_processed")),
         "modsecurity_processed": bool(evidence.get("modsecurity_processed", evidence.get("live_executed"))),
-        "classification_after_analysis": EVIDENCE_CLASSIFICATION
-        if case_meta.get("has_nolog") and not case_meta.get("has_auditlog") and not target_present
-        else "requires_review",
-        "work_direction_after_analysis": WORK_DIRECTION
-        if case_meta.get("has_nolog") and not case_meta.get("has_auditlog") and not target_present
-        else as_list(entry.get("work_direction")),
-        "reason_after_analysis": (
-            f"Rule {target_rule_id} has nolog/pass and is absent from audit, error, and decision logs; "
-            "non-empty with-crs audit entries are unrelated CRS noise."
-        )
-        if case_meta.get("has_nolog") and not case_meta.get("has_auditlog") and not target_present
-        else "target rule appears in runtime logs or action metadata is ambiguous",
+        "classification_after_analysis": classification_after,
+        "work_direction_after_analysis": work_direction_after,
+        "reason_after_analysis": reason_after,
     }
 
 

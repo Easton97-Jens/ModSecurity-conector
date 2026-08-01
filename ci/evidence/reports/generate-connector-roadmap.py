@@ -622,28 +622,34 @@ def connector_status(name: str, directory: bool) -> str:
     return "unknown"
 
 
+def connector_runtime_evidence(name: str) -> str:
+    if name in PRODUCTION:
+        return "yes"
+    return "targeted proof required" if name in PARTIAL else "no"
+
+
+def connector_modsecurity_integration(name: str) -> str:
+    if name in PRODUCTION:
+        return "yes"
+    return "starter_only" if name in PARTIAL else "no"
+
+
+def connector_build_target(root: Path, name: str) -> bool:
+    return any(
+        (
+            exists(root, f"connectors/{name}/Makefile"),
+            exists(root, f"connectors/{name}/Makefile.am"),
+            name == "nginx" and exists(root, "connectors/nginx/config"),
+        )
+    )
+
+
 def connector_row(root: Path, name: str) -> dict[str, Any]:
     directory = exists(root, f"connectors/{name}")
     status = connector_status(name, directory)
-    build_target = (
-        exists(root, f"connectors/{name}/Makefile")
-        or exists(root, f"connectors/{name}/Makefile.am")
-        or (name == "nginx" and exists(root, "connectors/nginx/config"))
-    )
+    build_target = connector_build_target(root, name)
     makefile_text = (root / "Makefile").read_text(encoding="utf-8")
     verified_case = name in PRODUCTION and f"verified-{name}-case" in makefile_text
-    if name in PRODUCTION:
-        runtime_evidence = "yes"
-    elif name in PARTIAL:
-        runtime_evidence = "targeted proof required"
-    else:
-        runtime_evidence = "no"
-    if name in PRODUCTION:
-        modsecurity_integration = "yes"
-    elif name in PARTIAL:
-        modsecurity_integration = "starter_only"
-    else:
-        modsecurity_integration = "no"
     full_matrix = "yes" if name in PRODUCTION else "no"
     details = STATUS_DETAILS[name]
     return {
@@ -652,13 +658,13 @@ def connector_row(root: Path, name: str) -> dict[str, Any]:
         "historical_status": status,
         "why": details["why"],
         "next_step": details["next_step"],
-        "runtime_evidence": runtime_evidence,
+        "runtime_evidence": connector_runtime_evidence(name),
         "full_matrix": full_matrix,
         "readme": "yes" if exists(root, f"connectors/{name}/README.md") else "no",
         "build_scripts": "yes" if has_files(root, f"connectors/{name}/build", ("*.sh", "*")) or build_target else "no",
         "runtime_harness": "yes" if has_files(root, f"connectors/{name}/harness", ("*.sh", "*.conf")) else "no",
         "example_config": "yes" if has_files(root, f"connectors/{name}/harness", ("*.conf", "*.example")) or has_files(root, f"connectors/{name}/poc", ("**/*.example", "**/*.cfg")) else "no",
-        "modsecurity_integration": modsecurity_integration,
+        "modsecurity_integration": connector_modsecurity_integration(name),
         "tests": "framework_owned" if name in PRODUCTION or name in PARTIAL else "no",
         "build_target": "yes" if build_target else "no",
         "make_targets": "yes" if name in {"apache", "nginx", "haproxy", "envoy", "lighttpd", "traefik"} else "no",

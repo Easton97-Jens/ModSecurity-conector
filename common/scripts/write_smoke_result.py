@@ -218,192 +218,249 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
-    connector = require_safe_connector_name(args.connector)
-    status = normalize_status(args.status)
-    output_directories = verified_output_directories(args)
-    evidence_root = output_directories["evidence_root"]
-    results_dir = output_directories["results_dir"]
-    log_dir = output_directories["log_dir"]
+def optional_text(value: str) -> str | None:
+    return value or None
 
-    runtime_verified = bool_text(args.runtime_verified)
-    response_body_verified = bool_text(args.response_body_verified)
-    starter_checks_available = bool_text(args.starter_checks_available)
-    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    runtime_status = runtime_status_for(status, runtime_verified)
-    claims_not_allowed = args.claim_not_allowed or list(DEFAULT_CLAIMS_NOT_ALLOWED)
-    if not runtime_verified and "runtime_verified=true" not in claims_not_allowed:
-        claims_not_allowed.insert(0, "runtime_verified=true")
-    modsecurity_backend_verified = bool_text(args.modsecurity_backend_verified)
-    modsecurity_rule_loaded = bool_text(args.modsecurity_rule_loaded)
-    request_body_smoke_verified = bool_text(args.request_body_smoke_verified)
-    request_body_access_enabled = bool_text(args.request_body_access_enabled)
-    request_body_rule_loaded = bool_text(args.request_body_rule_loaded)
-    crs_minimal_smoke_verified = bool_text(args.crs_minimal_smoke_verified)
-    crs_secondary_smoke_verified = bool_text(args.crs_secondary_smoke_verified)
-    lighttpd_binary_verified = bool_text(args.lighttpd_binary_verified)
-    lighttpd_http_verified = bool_text(args.lighttpd_http_verified)
-    sidecar_proxy_verified = bool_text(args.sidecar_proxy_verified)
-    if not modsecurity_backend_verified and "modsecurity_backend_verified=true" not in claims_not_allowed:
-        claims_not_allowed.append("modsecurity_backend_verified=true")
-    if not request_body_smoke_verified and "request_body_smoke_verified=true" not in claims_not_allowed:
-        claims_not_allowed.append("request_body_smoke_verified=true")
-    if not crs_minimal_smoke_verified and "crs_minimal_smoke_verified=true" not in claims_not_allowed:
-        claims_not_allowed.append("crs_minimal_smoke_verified=true")
-    if not crs_secondary_smoke_verified and "crs_secondary_smoke_verified=true" not in claims_not_allowed:
-        claims_not_allowed.append("crs_secondary_smoke_verified=true")
-    missing_dependencies = args.missing_dependency
-    allowed_request_status = optional_int(args.allowed_request_status)
-    blocked_request_status = optional_int(args.blocked_request_status)
-    intervention_status = optional_int(args.intervention_status)
-    resolved_runtime_binary = args.resolved_runtime_binary or None
-    runtime_lookup_roots = []
-    for root in args.runtime_lookup_root:
-        if root and root not in runtime_lookup_roots:
-            runtime_lookup_roots.append(root)
-    runtime_inventory = {
-        "binary_env_var": args.runtime_binary_env_var or None,
-        "binary_name": args.runtime_binary_name or None,
-        "lookup_roots": runtime_lookup_roots,
-        "resolved_runtime_binary": resolved_runtime_binary,
-        "state": "resolved" if resolved_runtime_binary else "missing",
+
+def writer_flags(args: argparse.Namespace) -> dict[str, bool]:
+    return {
+        "crs_minimal_smoke_verified": bool_text(args.crs_minimal_smoke_verified),
+        "crs_secondary_smoke_verified": bool_text(args.crs_secondary_smoke_verified),
+        "lighttpd_binary_verified": bool_text(args.lighttpd_binary_verified),
+        "lighttpd_http_verified": bool_text(args.lighttpd_http_verified),
+        "modsecurity_backend_verified": bool_text(args.modsecurity_backend_verified),
+        "modsecurity_rule_loaded": bool_text(args.modsecurity_rule_loaded),
+        "request_body_access_enabled": bool_text(args.request_body_access_enabled),
+        "request_body_rule_loaded": bool_text(args.request_body_rule_loaded),
+        "request_body_smoke_verified": bool_text(args.request_body_smoke_verified),
+        "response_body_verified": bool_text(args.response_body_verified),
+        "runtime_verified": bool_text(args.runtime_verified),
+        "sidecar_proxy_verified": bool_text(args.sidecar_proxy_verified),
+        "starter_checks_available": bool_text(args.starter_checks_available),
     }
 
-    result = {
-        "allowed_request_status": allowed_request_status,
-        "architecture_decision": args.architecture_decision or None,
-        "blocked_body_marker": args.blocked_body_marker or None,
-        "blocked_request_status": blocked_request_status,
-        "claims_not_allowed": claims_not_allowed,
+
+def disallowed_claims(args: argparse.Namespace, flags: dict[str, bool]) -> list[str]:
+    claims = list(args.claim_not_allowed or DEFAULT_CLAIMS_NOT_ALLOWED)
+    for flag, claim in (
+        ("runtime_verified", "runtime_verified=true"),
+        ("modsecurity_backend_verified", "modsecurity_backend_verified=true"),
+        ("request_body_smoke_verified", "request_body_smoke_verified=true"),
+        ("crs_minimal_smoke_verified", "crs_minimal_smoke_verified=true"),
+        ("crs_secondary_smoke_verified", "crs_secondary_smoke_verified=true"),
+    ):
+        if not flags[flag] and claim not in claims:
+            claims.append(claim)
+    return claims
+
+
+def runtime_inventory(args: argparse.Namespace) -> dict[str, object]:
+    roots: list[str] = []
+    for root in args.runtime_lookup_root:
+        if root and root not in roots:
+            roots.append(root)
+    binary = optional_text(args.resolved_runtime_binary)
+    return {
+        "binary_env_var": optional_text(args.runtime_binary_env_var),
+        "binary_name": optional_text(args.runtime_binary_name),
+        "lookup_roots": roots,
+        "resolved_runtime_binary": binary,
+        "state": "resolved" if binary else "missing",
+    }
+
+
+def smoke_result_payload(
+    args: argparse.Namespace,
+    connector: str,
+    evidence_root: Path,
+    status: str,
+    timestamp: str,
+    flags: dict[str, bool],
+) -> dict[str, object]:
+    return {
+        "allowed_request_status": optional_int(args.allowed_request_status),
+        "architecture_decision": optional_text(args.architecture_decision),
+        "audit_log_path": optional_text(args.audit_log_path),
+        "blocked_body_marker": optional_text(args.blocked_body_marker),
+        "blocked_request_status": optional_int(args.blocked_request_status),
+        "claims_not_allowed": disallowed_claims(args, flags),
         "common_msconnector_components": list(COMMON_COMPONENTS),
         "connector": connector,
         "crs_complete": False,
-        "crs_git_ref": args.crs_git_ref or None,
-        "crs_minimal_smoke_verified": crs_minimal_smoke_verified,
-        "crs_repo_url": args.crs_repo_url or None,
-        "crs_rule_id": args.crs_rule_id or None,
-        "crs_rule_message": args.crs_rule_message or None,
-        "crs_runtime_dir": args.crs_runtime_dir or None,
-        "crs_secondary_smoke_verified": crs_secondary_smoke_verified,
-        "crs_smoke_case": args.crs_smoke_case or None,
-        "crs_source_dir": args.crs_source_dir or None,
-        "crs_version": args.crs_version or None,
+        "crs_git_ref": optional_text(args.crs_git_ref),
+        "crs_minimal_smoke_verified": flags["crs_minimal_smoke_verified"],
+        "crs_repo_url": optional_text(args.crs_repo_url),
+        "crs_rule_id": optional_text(args.crs_rule_id),
+        "crs_rule_message": optional_text(args.crs_rule_message),
+        "crs_runtime_dir": optional_text(args.crs_runtime_dir),
+        "crs_secondary_smoke_verified": flags["crs_secondary_smoke_verified"],
+        "crs_smoke_case": optional_text(args.crs_smoke_case),
+        "crs_source_dir": optional_text(args.crs_source_dir),
+        "crs_version": optional_text(args.crs_version),
         "decision_backend": args.decision_backend,
-        "decision_log_path": args.decision_log_path or None,
+        "decision_log_path": optional_text(args.decision_log_path),
         "evidence_root": str(evidence_root),
         "exit_code": args.exit_code,
         "full_matrix_ready": False,
         "integration_mode": args.integration_mode,
-        "intervention_status": intervention_status,
-        "lighttpd_binary_verified": lighttpd_binary_verified,
-        "lighttpd_http_verified": lighttpd_http_verified,
-        "lighttpd_log_path": args.lighttpd_log_path or None,
-        "missing_dependencies": missing_dependencies,
-        "modsecurity_backend_verified": modsecurity_backend_verified,
+        "intervention_status": optional_int(args.intervention_status),
+        "lighttpd_binary_verified": flags["lighttpd_binary_verified"],
+        "lighttpd_http_verified": flags["lighttpd_http_verified"],
+        "lighttpd_log_path": optional_text(args.lighttpd_log_path),
+        "missing_dependencies": args.missing_dependency,
+        "modsecurity_backend_verified": flags["modsecurity_backend_verified"],
         "modsecurity_dependency_inventory": {
-            "include_dir": args.modsecurity_include_dir or None,
-            "lib_dir": args.modsecurity_lib_dir or None,
-            "lib_file": args.modsecurity_lib_file or None,
-            "manifest": args.modsecurity_manifest or None,
-            "pkg_config_path": args.modsecurity_pkg_config_path or None,
-            "prefix": args.modsecurity_prefix or None,
+            "include_dir": optional_text(args.modsecurity_include_dir),
+            "lib_dir": optional_text(args.modsecurity_lib_dir),
+            "lib_file": optional_text(args.modsecurity_lib_file),
+            "manifest": optional_text(args.modsecurity_manifest),
+            "pkg_config_path": optional_text(args.modsecurity_pkg_config_path),
+            "prefix": optional_text(args.modsecurity_prefix),
         },
-        "modsecurity_rule_file": args.modsecurity_rule_file or None,
-        "modsecurity_rule_id": args.modsecurity_rule_id or None,
-        "modsecurity_rule_loaded": modsecurity_rule_loaded,
-        "modsecurity_ruleset": args.modsecurity_ruleset or None,
-        "modsecurity_smoke_case": args.modsecurity_smoke_case or None,
-        "audit_log_path": args.audit_log_path or None,
+        "modsecurity_rule_file": optional_text(args.modsecurity_rule_file),
+        "modsecurity_rule_id": optional_text(args.modsecurity_rule_id),
+        "modsecurity_rule_loaded": flags["modsecurity_rule_loaded"],
+        "modsecurity_ruleset": optional_text(args.modsecurity_ruleset),
+        "modsecurity_smoke_case": optional_text(args.modsecurity_smoke_case),
         "production_ready": False,
-        "response_body_verified": response_body_verified,
-        "resolved_runtime_binary": resolved_runtime_binary,
-        "request_body_access_enabled": request_body_access_enabled,
-        "request_body_rule_file": args.request_body_rule_file or None,
-        "request_body_rule_id": args.request_body_rule_id or None,
-        "request_body_rule_loaded": request_body_rule_loaded,
-        "request_body_smoke_verified": request_body_smoke_verified,
-        "request_method": args.request_method or None,
-        "request_transcript_path": args.request_transcript_path or None,
-        "runtime_inventory": runtime_inventory,
-        "runtime_status": runtime_status,
-        "runtime_verified": runtime_verified,
-        "sidecar_proxy_verified": sidecar_proxy_verified,
+        "request_body_access_enabled": flags["request_body_access_enabled"],
+        "request_body_rule_file": optional_text(args.request_body_rule_file),
+        "request_body_rule_id": optional_text(args.request_body_rule_id),
+        "request_body_rule_loaded": flags["request_body_rule_loaded"],
+        "request_body_smoke_verified": flags["request_body_smoke_verified"],
+        "request_method": optional_text(args.request_method),
+        "request_transcript_path": optional_text(args.request_transcript_path),
+        "resolved_runtime_binary": optional_text(args.resolved_runtime_binary),
+        "response_body_verified": flags["response_body_verified"],
+        "runtime_inventory": runtime_inventory(args),
+        "runtime_status": runtime_status_for(status, flags["runtime_verified"]),
+        "runtime_verified": flags["runtime_verified"],
+        "sidecar_proxy_verified": flags["sidecar_proxy_verified"],
         "skipped_reason": args.skipped_reason,
         "status": status,
         "timestamp": timestamp,
-        "upstream_log_path": args.upstream_log_path or None,
+        "upstream_log_path": optional_text(args.upstream_log_path),
     }
 
-    record = {
+
+def smoke_record(result: dict[str, object], args: argparse.Namespace, timestamp: str) -> dict[str, object]:
+    return {
         **result,
         "check": "runtime-smoke-entrypoint",
-        "command": f"make smoke-{connector}",
+        "command": f"make smoke-{result['connector']}",
         "generated_at": timestamp,
         "harness_path": args.harness_path,
         "installs_global_artifacts": False,
         "note": args.note,
-        "starter_checks_available": starter_checks_available,
+        "starter_checks_available": bool_text(args.starter_checks_available),
         "test_type": "runtime-smoke",
     }
 
+
+def smoke_summary(
+    args: argparse.Namespace,
+    result: dict[str, object],
+    record: dict[str, object],
+    results_dir: Path,
+    timestamp: str,
+) -> dict[str, object]:
+    status = str(result["status"])
     counts = {"PASS": 0, "FAIL": 0, "BLOCKED": 0, "NOT_RUN": 0}
     counts[status] = counts.get(status, 0) + 1
-    summary = {
+    return {
         "build_root": args.build_root,
-        "connector": connector,
+        "connector": result["connector"],
         "connector_root": args.connector_root,
         "counts": counts,
-        "evidence_root": str(evidence_root),
+        "evidence_root": result["evidence_root"],
         "generated_at": timestamp,
         "harness_path": args.harness_path,
         "installs_global_artifacts": False,
         "integration_mode": args.integration_mode,
-        "lighttpd_binary_verified": lighttpd_binary_verified,
-        "lighttpd_http_verified": lighttpd_http_verified,
+        "lighttpd_binary_verified": result["lighttpd_binary_verified"],
+        "lighttpd_http_verified": result["lighttpd_http_verified"],
         "log_dir": args.log_dir,
         "log_root": args.log_root,
         "note": args.note,
         "reason": args.skipped_reason,
-        "response_body_verified": response_body_verified,
+        "response_body_verified": result["response_body_verified"],
         "results": [record],
         "results_dir": str(results_dir),
-        "runtime_status": runtime_status,
-        "runtime_verified": runtime_verified,
-        "sidecar_proxy_verified": sidecar_proxy_verified,
+        "runtime_status": result["runtime_status"],
+        "runtime_verified": result["runtime_verified"],
+        "sidecar_proxy_verified": result["sidecar_proxy_verified"],
         "source_root": args.source_root,
-        "starter_checks_available": starter_checks_available,
+        "starter_checks_available": bool_text(args.starter_checks_available),
         "status": status,
         "tmp_root": args.tmp_root,
     }
 
-    runtime_text = "Runtime verified" if runtime_verified else "Runtime not verified"
+
+def specialized_result_name(args: argparse.Namespace) -> str | None:
+    if args.modsecurity_ruleset == "crs":
+        return "crs-secondary-result.json" if args.crs_smoke_case == "secondary" else "crs-result.json"
+    if args.modsecurity_ruleset == "targeted" and args.modsecurity_smoke_case == "request_body":
+        return "request-body-result.json"
+    if args.modsecurity_ruleset == "targeted" and args.decision_backend == "libmodsecurity":
+        return "targeted-result.json"
+    return "runtime-result.json" if args.decision_backend == "simple" else None
+
+
+def write_result_documents(
+    args: argparse.Namespace,
+    result: dict[str, object],
+    record: dict[str, object],
+    summary: dict[str, object],
+    evidence_root: Path,
+    results_dir: Path,
+    log_dir: Path,
+) -> None:
+    runtime_text = "Runtime verified" if result["runtime_verified"] else "Runtime not verified"
     status_text = (
-        f"{status} {connector}-runtime-smoke {args.skipped_reason}\n"
+        f"{result['status']} {result['connector']}-runtime-smoke {args.skipped_reason}\n"
         f"{runtime_text}\n"
         f"Evidence root: {evidence_root}\n"
         f"{args.note}\n"
     )
-
     write_json(evidence_root / "result.json", result)
-    if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
-        write_json(evidence_root / "crs-secondary-result.json", result)
-    elif args.modsecurity_ruleset == "crs":
-        write_json(evidence_root / "crs-result.json", result)
-    elif args.modsecurity_ruleset == "targeted" and args.modsecurity_smoke_case == "request_body":
-        write_json(evidence_root / "request-body-result.json", result)
-    elif args.modsecurity_ruleset == "targeted" and args.decision_backend == "libmodsecurity":
-        write_json(evidence_root / "targeted-result.json", result)
-    elif args.decision_backend == "simple":
-        write_json(evidence_root / "runtime-result.json", result)
+    specialized_name = specialized_result_name(args)
+    if specialized_name is not None:
+        write_json(evidence_root / specialized_name, result)
     write_jsonl(evidence_root / "results.jsonl", record)
     write_json(evidence_root / "summary.json", summary)
     write_text(evidence_root / "summary.txt", status_text)
     write_text(log_dir / "status.log", status_text)
-
+    connector = str(result["connector"])
     write_jsonl(results_dir / f"{connector}-results.jsonl", record)
     write_json(results_dir / f"{connector}-summary.json", summary)
     write_text(results_dir / f"{connector}-summary.txt", status_text)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    connector = require_safe_connector_name(args.connector)
+    output_directories = verified_output_directories(args)
+    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    flags = writer_flags(args)
+    result = smoke_result_payload(
+        args,
+        connector,
+        output_directories["evidence_root"],
+        normalize_status(args.status),
+        timestamp,
+        flags,
+    )
+    record = smoke_record(result, args, timestamp)
+    summary = smoke_summary(args, result, record, output_directories["results_dir"], timestamp)
+    write_result_documents(
+        args,
+        result,
+        record,
+        summary,
+        output_directories["evidence_root"],
+        output_directories["results_dir"],
+        output_directories["log_dir"],
+    )
     return 0
 
 
