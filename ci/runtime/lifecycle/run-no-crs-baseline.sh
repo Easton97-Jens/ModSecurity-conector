@@ -859,6 +859,10 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] && [ "$stage_rc" -eq 0 ]; the
             echo "FAIL: full-lifecycle modsecurity build identity is unsafe" >&2
             exit 1
             ;;
+        *)
+            # The rejection pattern above leaves only a non-empty managed-cache
+            # identifier consisting of ASCII letters, digits, underscores, or dashes.
+            ;;
     esac
     modsecurity_prefix=$CACHE_ROOT/prefix/modsecurity/$modsecurity_build_id
     modsecurity_library_root=$modsecurity_prefix/lib

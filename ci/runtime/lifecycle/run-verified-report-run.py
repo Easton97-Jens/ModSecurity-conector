@@ -63,6 +63,7 @@ UTC_OFFSET = "+00:00"
 FIELD_VALUE_TABLE_HEADER = "| Field | Value |"
 FIELD_VALUE_TABLE_DIVIDER = "|---|---|"
 FOUR_COLUMN_TABLE_DIVIDER = "|---|---|---|---|"
+ARGPARSE_ERROR_TERMINATION_ASSERTION = "argparse.error must terminate execution"
 
 
 def git_output(args: list[str], cwd: Path) -> str:
@@ -1791,7 +1792,7 @@ def canonical_roots_from_arguments(
         return canonical_roots(args.connector_root, args.framework_root)
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
-    raise AssertionError("argparse.error must terminate execution")
+    raise AssertionError(ARGPARSE_ERROR_TERMINATION_ASSERTION)
 
 
 def initial_verified_run_id(parser: argparse.ArgumentParser) -> str:
@@ -1800,7 +1801,7 @@ def initial_verified_run_id(parser: argparse.ArgumentParser) -> str:
         return validate_verified_run_id(initial_run_id)
     except VerifiedRunIdError as exc:
         parser.error(str(exc))
-    raise AssertionError("argparse.error must terminate execution")
+    raise AssertionError(ARGPARSE_ERROR_TERMINATION_ASSERTION)
 
 
 def restore_current_verified_run_id(args: argparse.Namespace, current_run_file: Path) -> None:
@@ -1830,7 +1831,7 @@ def current_verified_run_id_or_error(
         return validate_verified_run_id(os.environ["VERIFIED_RUN_ID"])
     except VerifiedRunIdError as exc:
         parser.error(str(exc))
-    raise AssertionError("argparse.error must terminate execution")
+    raise AssertionError(ARGPARSE_ERROR_TERMINATION_ASSERTION)
 
 
 def verified_run_timeout_budgets(env: dict[str, str]) -> dict[str, int]:

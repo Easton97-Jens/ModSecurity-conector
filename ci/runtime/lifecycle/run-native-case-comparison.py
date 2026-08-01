@@ -59,6 +59,7 @@ NATIVE_CASE_RUN_FILENAME = "native-case-run.json"
 NATIVE_ORACLE_SOURCE = Path("ci/tools/native_modsecurity_oracle.c")
 NATIVE_RUNNER_PATH = "ci/runtime/lifecycle/run-native-case-comparison.py"
 NATIVE_ACTUAL_LABEL = "Native Actual"
+NATIVE_RESULT_LABEL = "native result"
 GENERATED_MANIFEST_COMPONENTS = ("reports", "testing", "generated", "manifest")
 SAFE_REPORT_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 
@@ -559,7 +560,7 @@ def normalize_unavailable_native_result(
     if status in {"blocked", "setup_error", "not_executable"}:
         native_result["actual_status"] = None
         native_result["native_match"] = False
-        write_json(run_dir, native_result_path, native_result, "native result")
+        write_json(run_dir, native_result_path, native_result, NATIVE_RESULT_LABEL)
     return native_result
 
 
@@ -576,7 +577,7 @@ def execute_native_oracle(
     server_log_path = context.logs_dir / "server-log.log"
     if binary is None:
         native_result = unavailable_native_result(compile_info, inputs.expected)
-        write_json(context.run_dir, native_result_path, native_result, "native result")
+        write_json(context.run_dir, native_result_path, native_result, NATIVE_RESULT_LABEL)
         return NativeOracleExecution(native_result, compile_info, 77, native_result_path)
 
     cmd = [
@@ -605,7 +606,7 @@ def execute_native_oracle(
     native_result = read_json(native_result_path)
     if not native_result:
         native_result = missing_native_result(inputs.expected)
-        write_json(context.run_dir, native_result_path, native_result, "native result")
+        write_json(context.run_dir, native_result_path, native_result, NATIVE_RESULT_LABEL)
     return NativeOracleExecution(
         normalize_unavailable_native_result(
             context.run_dir,

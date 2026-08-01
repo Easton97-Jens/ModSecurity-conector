@@ -12,7 +12,8 @@ SPEC = importlib.util.spec_from_file_location(
     "full_matrix_job",
     ROOT / "ci" / "runtime" / "lifecycle" / "run-full-matrix-job.py",
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 runner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runner)
 

@@ -16,7 +16,8 @@ from runtime_path_utils import ensure_safe_runtime_directory
 
 
 SPEC = importlib.util.spec_from_file_location("native_case_sonar_helpers", SCRIPT_PATH)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 native_case = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = native_case
 SPEC.loader.exec_module(native_case)
@@ -50,7 +51,7 @@ class NativeCaseSonarHelpersTest(unittest.TestCase):
             self.assertEqual(result["status"], "blocked")
             self.assertEqual(result["return_code"], 77)
             self.assertEqual(result["expected_status"], 403)
-            self.assertEqual(result["native_actual"], None)
+            self.assertIsNone(result["native_actual"])
             self.assertFalse(result["native_match"])
             self.assertEqual(result["compile"]["reason"], "MODSECURITY_INCLUDE_DIR missing")
             run_dir = Path(result["run_dir"])
@@ -74,7 +75,7 @@ class NativeCaseSonarHelpersTest(unittest.TestCase):
             )
 
             self.assertEqual(result["status"], "blocked")
-            self.assertEqual(result["native_actual"], None)
+            self.assertIsNone(result["native_actual"])
             self.assertEqual(result["reason"], "case YAML not found")
             report_path = Path(result["run_dir"]) / native_case.NATIVE_CASE_RUN_FILENAME
             self.assertEqual(json.loads(report_path.read_text(encoding="utf-8")), result)

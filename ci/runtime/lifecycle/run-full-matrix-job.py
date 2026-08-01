@@ -59,7 +59,7 @@ def read_json(root: Path, value: Path | str, label: str) -> dict:
         return {}
     try:
         data = json.loads(read_runtime_artifact_text(root, path, label))
-    except (ValueError, json.JSONDecodeError, OSError):
+    except (ValueError, OSError):
         return {}
     return data if isinstance(data, dict) else {}
 

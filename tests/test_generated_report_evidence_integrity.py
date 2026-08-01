@@ -2060,7 +2060,7 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
             commands_path.symlink_to(victim)
             with self.assertRaisesRegex(ValueError, "below the runtime root|symbolic link|regular file"):
                 RUNNER.write_commands_file(runtime_root, commands_path, payload)
-            self.assertEqual("do not replace\n", victim.read_text(encoding="utf-8"))
+            self.assertEqual(victim.read_text(encoding="utf-8"), "do not replace\n")
 
 
 if __name__ == "__main__":
