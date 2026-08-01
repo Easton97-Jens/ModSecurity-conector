@@ -6,6 +6,11 @@ Change Records retain the decision, scope, tests, security impact, and known
 limitations of non-trivial versioned changes. They are English/German pairs and
 must not claim unobserved CI, runtime, review, or delivery results.
 
+- [Parent HAProxy complete SonarQube Cloud remediation](CR-20260801-sonar-haproxy-complete-remediation.md)
+  — covers the current 33-item HAProxy inventory with C17, focused contracts,
+  and a sealed security-diff review; exact-head hosted/SonarQube Cloud
+  verification remains required before it can be considered mergeable.
+
 - [Parent Envoy TLS and maintainability remediation](CR-20260801-sonar-envoy-tls-maintainability.md)
   — removes the current five Envoy SonarQube Cloud source rows by preserving
   processor semantics and encrypting the fixture upstream hop; exact-head
