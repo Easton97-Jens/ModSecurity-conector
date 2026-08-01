@@ -394,6 +394,92 @@ static apr_status_t msc_rules_set_cleanup(void *data)
     return APR_SUCCESS;
 }
 
+static int msc_merge_rule_set(msc_conf_t *destination, void *source,
+    apr_pool_t *pool)
+{
+    const char *error = NULL;
+    int result = msc_rules_merge(destination->rules_set, source, &error);
+
+    if (result >= 0)
+    {
+        return 1;
+    }
+    ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, pool,
+        "ModSecurity: Rule merge failed: %s", error);
+    return 0;
+}
+
+static int msc_merge_directory_rules(msc_conf_t *destination,
+    msc_conf_t *parent, msc_conf_t *child, apr_pool_t *pool)
+{
+    if (parent == NULL || child == NULL)
+    {
+        return 1;
+    }
+    destination->name_for_debug = child->name_for_debug;
+    return msc_merge_rule_set(destination, child->rules_set, pool) &&
+        msc_merge_rule_set(destination, parent->rules_set, pool);
+}
+
+static int msc_merge_common_directory_config(msc_conf_t *destination,
+    msc_conf_t *parent, msc_conf_t *child, apr_pool_t *pool)
+{
+    char error[256];
+
+    if (msconnector_config_merge(&destination->common_config,
+        parent != NULL ? &parent->common_config : NULL,
+        child != NULL ? &child->common_config : NULL))
+    {
+        return 1;
+    }
+    (void)msconnector_config_validate(&destination->common_config,
+        error, sizeof(error));
+    ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, pool,
+        "ModSecurity: Common config merge failed: %s", error);
+    return 0;
+}
+
+static void msc_select_directory_overrides(msc_conf_t *destination,
+    const msc_conf_t *parent, const msc_conf_t *child)
+{
+    if (child != NULL && child->transaction_id_expr != NULL)
+    {
+        destination->transaction_id_expr = child->transaction_id_expr;
+    }
+    else if (destination->common_config.transaction_id != NULL)
+    {
+        destination->transaction_id_expr = NULL;
+    }
+    else if (parent != NULL && parent->transaction_id_expr != NULL)
+    {
+        destination->transaction_id_expr = parent->transaction_id_expr;
+    }
+
+    if (child != NULL && child->phase4_content_types != NULL)
+    {
+        destination->phase4_content_types = child->phase4_content_types;
+    }
+    else if (parent != NULL && parent->phase4_content_types != NULL)
+    {
+        destination->phase4_content_types = parent->phase4_content_types;
+    }
+}
+
+static void msc_merge_directory_rule_load_stats(msc_conf_t *destination,
+    const msc_conf_t *parent, const msc_conf_t *child)
+{
+    if (parent != NULL)
+    {
+        msconnector_rule_load_stats_add(&destination->rule_load_stats,
+            &parent->rule_load_stats);
+    }
+    if (child != NULL)
+    {
+        msconnector_rule_load_stats_add(&destination->rule_load_stats,
+            &child->rule_load_stats);
+    }
+}
+
 
 void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
 {
@@ -452,101 +538,16 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
         return NULL;
     }
 
-    if (cnf_p && cnf_c)
+    if (!msc_merge_directory_rules(cnf_new, cnf_p, cnf_c, mp))
     {
-        const char *error = NULL;
-        int ret;
-#if 0
-        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
-            "ModSecurity: Merge parent %pp [%s] child %pp [%s]" \
-            "into: %pp", cnf_p,
-            cnf_p->name_for_debug,
-            child, cnf_c->name_for_debug, cnf_new);
-#endif
-        cnf_new->name_for_debug = cnf_c->name_for_debug;
-
-        ret = msc_rules_merge(cnf_new->rules_set, cnf_c->rules_set, &error);
-        if (ret < 0)
-        {
-            ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
-                "ModSecurity: Rule merge failed: %s", error);
-            return NULL;
-        }
-
-        ret = msc_rules_merge(cnf_new->rules_set, cnf_p->rules_set, &error);
-        if (ret < 0)
-        {
-            ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
-                "ModSecurity: Rule merge failed: %s", error);
-            return NULL;
-        }
-#if 0
-        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
-                "ModSecurity: Merge OK");
-#endif
-    }
-    else if (cnf_c && !cnf_p)
-    {
-#if 0
-        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
-            "ModSecurity: Merge parent -NULL- [-NULL-] child %pp [%s]",
-            cnf_c, cnf_c->name_for_debug);
-#endif
-    }
-    else if (cnf_p && !cnf_c)
-    {
-#if 0
-        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
-            "ModSecurity: Merge parent %pp [%s] child -NULL- [-NULL-]",
-            cnf_p, cnf_p->name_for_debug);
-#endif
-    }
-
-    if (!msconnector_config_merge(&cnf_new->common_config,
-        cnf_p != NULL ? &cnf_p->common_config : NULL,
-        cnf_c != NULL ? &cnf_c->common_config : NULL))
-    {
-        char error[256];
-        (void)msconnector_config_validate(&cnf_new->common_config,
-            error, sizeof(error));
-        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
-            "ModSecurity: Common config merge failed: %s", error);
         return NULL;
     }
-
-    if (cnf_c != NULL && cnf_c->transaction_id_expr != NULL)
+    if (!msc_merge_common_directory_config(cnf_new, cnf_p, cnf_c, mp))
     {
-        cnf_new->transaction_id_expr = cnf_c->transaction_id_expr;
+        return NULL;
     }
-    else if (cnf_new->common_config.transaction_id != NULL)
-    {
-        cnf_new->transaction_id_expr = NULL;
-    }
-    else if (cnf_p != NULL && cnf_p->transaction_id_expr != NULL)
-    {
-        cnf_new->transaction_id_expr = cnf_p->transaction_id_expr;
-    }
-
-    if (cnf_c != NULL && cnf_c->phase4_content_types != NULL)
-    {
-        cnf_new->phase4_content_types = cnf_c->phase4_content_types;
-    }
-    else if (cnf_p != NULL && cnf_p->phase4_content_types != NULL)
-    {
-        cnf_new->phase4_content_types = cnf_p->phase4_content_types;
-    }
-
-    if (cnf_p != NULL)
-    {
-        msconnector_rule_load_stats_add(&cnf_new->rule_load_stats,
-            &cnf_p->rule_load_stats);
-    }
-
-    if (cnf_c != NULL)
-    {
-        msconnector_rule_load_stats_add(&cnf_new->rule_load_stats,
-            &cnf_c->rule_load_stats);
-    }
+    msc_select_directory_overrides(cnf_new, cnf_p, cnf_c);
+    msc_merge_directory_rule_load_stats(cnf_new, cnf_p, cnf_c);
 
     return cnf_new;
 }

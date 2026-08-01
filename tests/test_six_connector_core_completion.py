@@ -10,7 +10,8 @@ SPEC = importlib.util.spec_from_file_location(
     "six_connector_core_completion",
     ROOT / "ci" / "checks" / "evidence" / "check-six-connector-core-completion.py",
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 checker = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(checker)
 

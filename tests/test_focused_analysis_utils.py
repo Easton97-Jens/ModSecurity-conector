@@ -29,7 +29,8 @@ import report_path_safety
 def load_report_module(relative_path: str, module_name: str):
     path = ROOT / relative_path
     spec = importlib.util.spec_from_file_location(module_name, path)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
@@ -108,7 +109,7 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
             INTERVENTION_BLOCKING: REPORT_LOG_UTILITIES,
             PHASE4_HARD_ABORT: SECTION_UPSERT_UTILITIES,
             REMAINING_FAILURE: ("utc_now", "read_json", "read_text", "upsert_marked_section"),
-            FINAL_CONSISTENCY: ("utc_now", "read_json", "write_json"),
+            FINAL_CONSISTENCY: ("utc_now", "read_json", "write_json", "run_report_generator"),
         }
         for consumer, names in consumer_bindings.items():
             for name in names:
@@ -273,6 +274,123 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
             self.assertIs(kwargs["build_analysis"], generator.build_analysis)
             self.assertIs(kwargs["render_markdown"], renderer)
 
+    def test_final_consistency_entrypoint_uses_the_safe_lifecycle_and_post_write_hook(self) -> None:
+        with patch.object(FINAL_CONSISTENCY, "run_report_generator", return_value=17) as runner:
+            self.assertEqual(FINAL_CONSISTENCY.main(), 17)
+
+        kwargs = runner.call_args.kwargs
+        self.assertEqual(kwargs["report_name"], "final_consistency_audit")
+        self.assertEqual(
+            kwargs["generated_by"],
+            "ci/evidence/reports/generate-final-consistency-audit.py",
+        )
+        self.assertEqual(kwargs["make_target"], "generate-final-consistency-audit")
+        self.assertIs(kwargs["build_analysis"], FINAL_CONSISTENCY.build_audit)
+        self.assertIs(kwargs["render_markdown"], FINAL_CONSISTENCY.render_markdown)
+        self.assertIs(kwargs["post_write"], FINAL_CONSISTENCY.update_full_run_evidence)
+
+    def test_final_consistency_helpers_keep_the_p2_and_release_gate_contracts(self) -> None:
+        queue = {
+            "entries": [
+                {
+                    "runtime_status": "FAIL",
+                    "priority": "P2",
+                    "classification": "response-header-mrts-detection-only",
+                    "work_direction": ["response_header_mrts_detection_only"],
+                },
+                {"runtime_status": "PASS", "priority": "P0"},
+            ],
+            "totals": {"priority": {"P2": 1}},
+        }
+        queue_state = FINAL_CONSISTENCY.audit_queue_state(queue)
+        category_state = FINAL_CONSISTENCY.audit_category_state(
+            {
+                "category_rollup": [
+                    {
+                        "category": "response_header_mrts_detection_only",
+                        "count": 2,
+                        "connectors": ["apache"],
+                    }
+                ]
+            },
+            {"not_next": [{"cluster": "response_header_mrts_detection_only", "reason": "report-only"}]},
+            queue_state["failed_entries"],
+            {"summary": {"runtime_fixable_candidates": 0}},
+        )
+        reports = {
+            "full_matrix": {"totals": {"blocked": 0}},
+            "body": {"summary": {"after_metadata_fix": {"combined": 0}}},
+            "intervention": {"summary": {"intervention_blocking_true_candidates": 0}},
+            "response_headers": {"summary": {"response_header_hook_after": 0}},
+            "nolog": {"summary": {"audit_log_evidence_after": 0}},
+            "rule_chain": {"summary": {"runtime_fixable_candidates": 0}},
+            "phase4": {"summary": {"category_counts": {}}},
+        }
+        checks = FINAL_CONSISTENCY.audit_release_checks(reports, queue_state, category_state, "none")
+
+        self.assertTrue(queue_state["queue_totals_consistent"])
+        self.assertTrue(FINAL_CONSISTENCY.p2_detection_only(queue_state["p2_failures"]))
+        self.assertEqual(category_state["active_runtime_fixable_clusters"], [])
+        self.assertEqual(
+            FINAL_CONSISTENCY.known_not_next_clusters(category_state["not_next"]),
+            ["response_header_mrts_detection_only"],
+        )
+        self.assertTrue(all(checks.values()))
+
+    def test_final_consistency_build_audit_retains_each_release_gate_failure(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="focused-analysis-utils-") as temporary:
+            connector_root = Path(temporary) / "connector"
+            framework_root = Path(temporary) / "framework"
+            connector_root.mkdir()
+            framework_root.mkdir()
+            reports = {
+                "full_runtime_matrix": {"totals": {"blocked": 1}},
+                "connector_work_queue": {
+                    "entries": [
+                        {"runtime_status": "FAIL", "priority": "P0"},
+                        {"runtime_status": "FAIL", "priority": "P2", "classification": "other"},
+                    ],
+                    "totals": {"priority": {"P0": 1}},
+                },
+                "remaining_failure_analysis": {
+                    "category_rollup": [{"category": "unknown", "count": 1, "connectors": ["apache"]}],
+                    "summary": {},
+                },
+                "next_fix_plan": {"recommendation": {"recommended_next_fix_cluster": "none"}},
+                "mrts_native_summary": {"targets": {}},
+                "phase4_hard_abort_capability": {
+                    "summary": {"category_counts": {"phase4_hard_abort_supported": 1}},
+                    "connector_summary": {},
+                },
+                "body_processor_analysis": {"summary": {"after_metadata_fix": {"combined": 1}}},
+                "intervention_blocking_analysis": {"summary": {"intervention_blocking_true_candidates": 1}},
+                "response_header_hook_analysis": {"summary": {"response_header_hook_after": 1}},
+                "nolog_audit_evidence": {"summary": {"audit_log_evidence_after": 1}},
+                "rule_chain_semantics_analysis": {"summary": {"runtime_fixable_candidates": 1}},
+            }
+            for name, payload in reports.items():
+                path = generated_report_utils.report_path(connector_root, name, "json")
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with patch.object(FINAL_CONSISTENCY, "git_stdout", return_value="test-head"):
+                audit = FINAL_CONSISTENCY.build_audit(connector_root, framework_root)
+
+        checks = audit["release_checks"]
+        self.assertEqual(audit["release_readiness"], "needs_attention")
+        self.assertFalse(audit["recommended_next_fix_cluster"]["justified"])
+        self.assertFalse(checks["blocked_zero"])
+        self.assertFalse(checks["queue_totals_consistent"])
+        self.assertFalse(checks["p0_p1_failure_rows_zero"])
+        self.assertFalse(checks["p2_rows_are_response_header_mrts_detection_only"])
+        self.assertFalse(checks["active_runtime_fixable_clusters_zero"])
+        self.assertFalse(checks["intervention_blocking_true_candidates_zero"])
+        self.assertFalse(checks["audit_log_evidence_after_zero"])
+        self.assertFalse(checks["body_processor_active_after_zero"])
+        self.assertFalse(checks["response_header_backend_setup_zero"])
+        self.assertFalse(checks["rule_chain_runtime_fixable_zero"])
+        self.assertFalse(checks["phase4_supported_label_absent"])
+
     def test_run_report_generator_uses_safe_roots_and_rejects_outside_output(self) -> None:
         with tempfile.TemporaryDirectory(prefix="focused-analysis-utils-") as temporary:
             connector_root = Path(temporary) / "connector"
@@ -344,6 +462,52 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
                         render_markdown=lambda _analysis: "# unreachable\n",
                     )
             self.assertFalse(outside_output.exists())
+
+    def test_run_report_generator_runs_post_write_only_after_the_safe_report_pair_exists(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="focused-analysis-utils-") as temporary:
+            connector_root = Path(temporary) / "connector"
+            framework_root = Path(temporary) / "framework"
+            connector_root.mkdir()
+            framework_root.mkdir()
+            report_dir = connector_root / generated_report_utils.GENERATED_ROOT
+            analysis = {
+                "generated_at": GENERATED_AT,
+                "source_reports": {"source": "reports/testing/generated/source.json"},
+                "summary": {"rows": 1},
+            }
+            observed: list[tuple[Path, dict[str, object]]] = []
+
+            def post_write(actual_report_dir: Path, actual_analysis: dict[str, object]) -> None:
+                self.assertTrue(
+                    generated_report_utils.report_path_from_root(
+                        actual_report_dir, NOLOG_REPORT_NAME, "json"
+                    ).is_file()
+                )
+                self.assertTrue(
+                    generated_report_utils.report_path_from_root(
+                        actual_report_dir, NOLOG_REPORT_NAME, "md"
+                    ).is_file()
+                )
+                observed.append((actual_report_dir, actual_analysis))
+
+            with patch.object(
+                sys,
+                "argv",
+                ["generator", "--connector-root", str(connector_root), "--framework-root", str(framework_root)],
+            ):
+                self.assertEqual(
+                    UTILS.run_report_generator(
+                        report_name=NOLOG_REPORT_NAME,
+                        generated_by=TEST_GENERATED_BY,
+                        make_target=TEST_MAKE_TARGET,
+                        build_analysis=lambda _connector_root, _framework_root: analysis,
+                        render_markdown=lambda _analysis: "# Nolog\n",
+                        post_write=post_write,
+                    ),
+                    0,
+                )
+
+        self.assertEqual(observed, [(report_dir, analysis)])
 
     def test_write_generated_report_pair_uses_safe_registered_paths_and_metadata(self) -> None:
         with tempfile.TemporaryDirectory(prefix="focused-analysis-utils-") as temporary:

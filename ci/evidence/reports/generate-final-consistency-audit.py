@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import subprocess
@@ -16,9 +15,9 @@ if str(_CI_ROOT / "lib") not in sys.path:
 from typing import Any
 
 from focused_analysis_utils import as_list as listify
-from focused_analysis_utils import read_json, utc_now, write_json
-from generated_report_utils import GENERATED_ROOT, build_metadata, generated_at_from_json, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
-from report_path_safety import add_report_roots, add_safe_roots, read_text_file, resolve_output_dir, write_text_file
+from focused_analysis_utils import read_json, run_report_generator, utc_now, write_json
+from generated_report_utils import GENERATED_ROOT, generated_at_from_json, report_path, report_path_from_root, report_relpath
+from report_path_safety import read_text_file, write_text_file
 
 
 REPORT_DIR = GENERATED_ROOT
@@ -237,75 +236,101 @@ def input_freshness(report_dir: Path) -> list[dict[str, Any]]:
     return freshness
 
 
-def build_audit(connector_root: Path, framework_root: Path) -> dict[str, Any]:
-    report_dir = connector_root / REPORT_DIR
-    full_matrix = read_json(report_path(connector_root, "full_runtime_matrix", "json"))
-    queue = read_json(report_path(connector_root, "connector_work_queue", "json"))
-    remaining = read_json(report_path(connector_root, "remaining_failure_analysis", "json"))
-    next_plan = read_json(report_path(connector_root, "next_fix_plan", "json"))
-    native_summary = read_json(report_path(connector_root, "mrts_native_summary", "json"))
-    phase4 = read_json(report_path(connector_root, "phase4_hard_abort_capability", "json"))
-    body = read_json(report_path(connector_root, "body_processor_analysis", "json"))
-    intervention = read_json(report_path(connector_root, "intervention_blocking_analysis", "json"))
-    response_headers = read_json(report_path(connector_root, "response_header_hook_analysis", "json"))
-    nolog = read_json(report_path(connector_root, "nolog_audit_evidence", "json"))
-    rule_chain = read_json(report_path(connector_root, "rule_chain_semantics_analysis", "json"))
+def audit_reports(connector_root: Path) -> dict[str, dict[str, Any]]:
+    return {
+        "full_matrix": read_json(report_path(connector_root, "full_runtime_matrix", "json")),
+        "queue": read_json(report_path(connector_root, "connector_work_queue", "json")),
+        "remaining": read_json(report_path(connector_root, "remaining_failure_analysis", "json")),
+        "next_plan": read_json(report_path(connector_root, "next_fix_plan", "json")),
+        "native_summary": read_json(report_path(connector_root, "mrts_native_summary", "json")),
+        "phase4": read_json(report_path(connector_root, "phase4_hard_abort_capability", "json")),
+        "body": read_json(report_path(connector_root, "body_processor_analysis", "json")),
+        "intervention": read_json(report_path(connector_root, "intervention_blocking_analysis", "json")),
+        "response_headers": read_json(report_path(connector_root, "response_header_hook_analysis", "json")),
+        "nolog": read_json(report_path(connector_root, "nolog_audit_evidence", "json")),
+        "rule_chain": read_json(report_path(connector_root, "rule_chain_semantics_analysis", "json")),
+    }
 
+
+def audit_queue_state(queue: dict[str, Any]) -> dict[str, Any]:
     entries = [entry for entry in queue.get("entries", []) if isinstance(entry, dict)]
     failed_entries = [entry for entry in entries if entry.get("runtime_status") == "FAIL"]
     non_pass_entries = [entry for entry in entries if entry.get("runtime_status") != "PASS"]
-    category_rows = [compact_category(row) for row in remaining.get("category_rollup", []) if isinstance(row, dict)]
-    categories = {row["category"]: row for row in category_rows}
-    nonzero_categories = [row for row in category_rows if row["count"]]
-
     queue_totals_priority = queue.get("totals", {}).get("priority", {})
     recomputed_non_pass_priority = count_by(non_pass_entries, "priority")
-    queue_totals_consistent = dict(queue_totals_priority) == dict(recomputed_non_pass_priority)
-    recommendation = next_plan.get("recommendation", {})
-    recommended_cluster = str(recommendation.get("recommended_next_fix_cluster") or "-")
-    stale_audit = build_stale_cluster_audit(categories, failed_entries, rule_chain)
-    stale_runtime_fixable = [
-        item for item in stale_audit
-        if item["status"] not in {"clear", "known_connector_gap_not_active_processor_cluster"}
-    ]
-    p0_p1_failure_count = sum(1 for entry in failed_entries if entry.get("priority") in {"P0", "P1"})
-    p2_failures = [entry for entry in failed_entries if entry.get("priority") == "P2"]
-    p2_detection_only = all(
+    return {
+        "failed_entries": failed_entries,
+        "non_pass_entries": non_pass_entries,
+        "queue_totals_priority": queue_totals_priority,
+        "recomputed_non_pass_priority": recomputed_non_pass_priority,
+        "queue_totals_consistent": dict(queue_totals_priority) == dict(recomputed_non_pass_priority),
+        "p0_p1_failure_count": sum(1 for entry in failed_entries if entry.get("priority") in {"P0", "P1"}),
+        "p2_failures": [entry for entry in failed_entries if entry.get("priority") == "P2"],
+    }
+
+
+def p2_detection_only(p2_failures: list[dict[str, Any]]) -> bool:
+    return all(
         entry.get("classification") == "response-header-mrts-detection-only"
         and "response_header_mrts_detection_only" in listify(entry.get("work_direction"))
         for entry in p2_failures
     )
-    active_runtime_fixable_clusters: list[str] = []
-    for row in nonzero_categories:
-        if row["disposition"] == "review_required":
-            active_runtime_fixable_clusters.append(row["category"])
 
-    not_next = [
-        {
-            "cluster": str(item.get("cluster") or "-"),
-            "reason": str(item.get("reason") or "-"),
-            "count": recommendation_cluster_count(categories, str(item.get("cluster") or "")),
-        }
-        for item in recommendation.get("not_next", [])
-        if isinstance(item, dict)
-    ]
-    not_next_known = sorted({item["cluster"] for item in not_next if item["cluster"] in NOT_NEXT_CLUSTERS})
 
-    body_summary = body.get("summary", {})
-    intervention_summary = intervention.get("summary", {})
-    response_header_summary = response_headers.get("summary", {})
-    nolog_summary = nolog.get("summary", {})
-    rule_chain_summary = rule_chain.get("summary", {})
-    phase4_summary = phase4.get("summary", {})
-    phase4_connector_summary = phase4.get("connector_summary", {})
+def audit_category_state(
+    remaining: dict[str, Any], recommendation: dict[str, Any], failed_entries: list[dict[str, Any]], rule_chain: dict[str, Any]
+) -> dict[str, Any]:
+    category_rows = [compact_category(row) for row in remaining.get("category_rollup", []) if isinstance(row, dict)]
+    categories = {row["category"]: row for row in category_rows}
+    nonzero_categories = [row for row in category_rows if row["count"]]
+    stale_audit = build_stale_cluster_audit(categories, failed_entries, rule_chain)
+    return {
+        "categories": categories,
+        "nonzero_categories": nonzero_categories,
+        "stale_audit": stale_audit,
+        "stale_runtime_fixable": [
+            item
+            for item in stale_audit
+            if item["status"] not in {"clear", "known_connector_gap_not_active_processor_cluster"}
+        ],
+        "active_runtime_fixable_clusters": [
+            row["category"] for row in nonzero_categories if row["disposition"] == "review_required"
+        ],
+        "not_next": [
+            {
+                "cluster": str(item.get("cluster") or "-"),
+                "reason": str(item.get("reason") or "-"),
+                "count": recommendation_cluster_count(categories, str(item.get("cluster") or "")),
+            }
+            for item in recommendation.get("not_next", [])
+            if isinstance(item, dict)
+        ],
+    }
 
-    release_checks = {
+
+def known_not_next_clusters(not_next: list[dict[str, Any]]) -> list[str]:
+    return sorted({item["cluster"] for item in not_next if item["cluster"] in NOT_NEXT_CLUSTERS})
+
+
+def audit_release_checks(
+    reports: dict[str, dict[str, Any]],
+    queue_state: dict[str, Any],
+    category_state: dict[str, Any],
+    recommended_cluster: str,
+) -> dict[str, bool]:
+    body_summary = reports["body"].get("summary", {})
+    intervention_summary = reports["intervention"].get("summary", {})
+    response_header_summary = reports["response_headers"].get("summary", {})
+    nolog_summary = reports["nolog"].get("summary", {})
+    rule_chain_summary = reports["rule_chain"].get("summary", {})
+    phase4_summary = reports["phase4"].get("summary", {})
+    return {
         "recommended_next_fix_cluster_none": recommended_cluster == "none",
-        "blocked_zero": int(full_matrix.get("totals", {}).get("blocked") or 0) == 0,
-        "queue_totals_consistent": queue_totals_consistent,
-        "p0_p1_failure_rows_zero": p0_p1_failure_count == 0,
-        "p2_rows_are_response_header_mrts_detection_only": p2_detection_only,
-        "active_runtime_fixable_clusters_zero": not active_runtime_fixable_clusters,
+        "blocked_zero": int(reports["full_matrix"].get("totals", {}).get("blocked") or 0) == 0,
+        "queue_totals_consistent": queue_state["queue_totals_consistent"],
+        "p0_p1_failure_rows_zero": queue_state["p0_p1_failure_count"] == 0,
+        "p2_rows_are_response_header_mrts_detection_only": p2_detection_only(queue_state["p2_failures"]),
+        "active_runtime_fixable_clusters_zero": not category_state["active_runtime_fixable_clusters"],
         "intervention_blocking_true_candidates_zero": int(intervention_summary.get("intervention_blocking_true_candidates") or 0) == 0,
         "audit_log_evidence_after_zero": int(nolog_summary.get("audit_log_evidence_after") or 0) == 0,
         "body_processor_active_after_zero": int(body_summary.get("after_metadata_fix", {}).get("combined") or 0) == 0,
@@ -313,8 +338,40 @@ def build_audit(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         "rule_chain_runtime_fixable_zero": int(rule_chain_summary.get("runtime_fixable_candidates") or 0) == 0,
         "phase4_supported_label_absent": "phase4_hard_abort_supported" not in phase4_summary.get("category_counts", {}),
     }
-    release_ready = all(release_checks.values())
 
+
+def phase4_audit_status(phase4: dict[str, Any]) -> dict[str, Any]:
+    summary = phase4.get("summary", {})
+    connector_summary = phase4.get("connector_summary", {})
+    return {
+        "rows": summary.get("rows", 0),
+        "hard_abort_evidence_rows": summary.get("hard_abort_evidence_rows", 0),
+        "sensitive_log_leak_rows": summary.get("sensitive_log_leak_rows", 0),
+        "connector_summary": {
+            connector: {
+                "capability_status": data.get("capability_status", "-"),
+                "hard_abort_evidence_rows": data.get("hard_abort_evidence_rows", 0),
+            }
+            for connector, data in sorted(connector_summary.items())
+            if isinstance(data, dict)
+        },
+    }
+
+
+def build_audit(connector_root: Path, framework_root: Path) -> dict[str, Any]:
+    report_dir = connector_root / REPORT_DIR
+    reports = audit_reports(connector_root)
+    queue_state = audit_queue_state(reports["queue"])
+    recommendation = reports["next_plan"].get("recommendation", {})
+    recommended_cluster = str(recommendation.get("recommended_next_fix_cluster") or "-")
+    category_state = audit_category_state(
+        reports["remaining"], recommendation, queue_state["failed_entries"], reports["rule_chain"]
+    )
+    release_checks = audit_release_checks(reports, queue_state, category_state, recommended_cluster)
+    release_ready = all(release_checks.values())
+    categories = category_state["categories"]
+    nonzero_categories = category_state["nonzero_categories"]
+    not_next = category_state["not_next"]
     return {
         "report_kind": "final-consistency-audit",
         "generated_at": utc_now(),
@@ -331,32 +388,34 @@ def build_audit(connector_root: Path, framework_root: Path) -> dict[str, Any]:
             "framework_head": git_stdout(framework_root, ["rev-parse", "HEAD"]),
             "submodules": git_stdout(connector_root, ["submodule", "status", "--recursive"]).splitlines(),
         },
-        "full_matrix_summary": full_matrix.get("totals", {}),
-        "remaining_summary": remaining.get("summary", {}),
+        "full_matrix_summary": reports["full_matrix"].get("totals", {}),
+        "remaining_summary": reports["remaining"].get("summary", {}),
         "priority_distribution": {
-            "queue_totals_non_pass": queue_totals_priority,
-            "recomputed_non_pass": recomputed_non_pass_priority,
-            "recomputed_failures": count_by(failed_entries, "priority"),
-            "p0_p1_failure_rows": p0_p1_failure_count,
+            "queue_totals_non_pass": queue_state["queue_totals_priority"],
+            "recomputed_non_pass": queue_state["recomputed_non_pass_priority"],
+            "recomputed_failures": count_by(queue_state["failed_entries"], "priority"),
+            "p0_p1_failure_rows": queue_state["p0_p1_failure_count"],
         },
         "active_vs_report_only": {
-            "active_runtime_fixable_clusters": active_runtime_fixable_clusters,
+            "active_runtime_fixable_clusters": category_state["active_runtime_fixable_clusters"],
             "report_only_rows": sum(row["count"] for row in nonzero_categories if row["disposition"] == "report_only"),
             "semantic_pending_rows": sum(row["count"] for row in nonzero_categories if row["disposition"].startswith("semantic_pending")),
             "capability_evidence_pending_rows": sum(row["count"] for row in nonzero_categories if row["disposition"] == "capability_evidence_pending"),
             "connector_gap_rows": sum(row["count"] for row in nonzero_categories if row["disposition"] == "connector_gap"),
             "categories": nonzero_categories,
         },
-        "stale_cluster_audit": stale_audit,
+        "stale_cluster_audit": category_state["stale_audit"],
         "clusters_no_longer_next": {
-            "not_next_clusters_present": not_next_known,
+            "not_next_clusters_present": known_not_next_clusters(not_next),
             "not_next": not_next,
-            "p3_plan": next_plan.get("priority_plan", {}).get("P3", []),
+            "p3_plan": reports["next_plan"].get("priority_plan", {}).get("P3", []),
         },
         "recommended_next_fix_cluster": {
             "value": recommended_cluster,
             "reason": recommendation.get("reason", "-"),
-            "justified": recommended_cluster == "none" and not active_runtime_fixable_clusters and not stale_runtime_fixable,
+            "justified": recommended_cluster == "none"
+            and not category_state["active_runtime_fixable_clusters"]
+            and not category_state["stale_runtime_fixable"],
         },
         "remaining_known_gaps": {
             "phase4_missing_abort_evidence": category_count(categories, "phase4_missing_abort_evidence"),
@@ -384,21 +443,9 @@ def build_audit(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         ],
         "native_mrts_status": {
             "note": "Native MRTS evidence remains separate from connector Full-Matrix PASS/FAIL.",
-            "targets": native_status(native_summary),
+            "targets": native_status(reports["native_summary"]),
         },
-        "phase4_status": {
-            "rows": phase4_summary.get("rows", 0),
-            "hard_abort_evidence_rows": phase4_summary.get("hard_abort_evidence_rows", 0),
-            "sensitive_log_leak_rows": phase4_summary.get("sensitive_log_leak_rows", 0),
-            "connector_summary": {
-                connector: {
-                    "capability_status": data.get("capability_status", "-"),
-                    "hard_abort_evidence_rows": data.get("hard_abort_evidence_rows", 0),
-                }
-                for connector, data in sorted(phase4_connector_summary.items())
-                if isinstance(data, dict)
-            },
-        },
+        "phase4_status": phase4_audit_status(reports["phase4"]),
         "freshness": input_freshness(report_dir),
         "guardrails": {
             "expected_status_changed": False,
@@ -671,35 +718,14 @@ def update_full_run_evidence(report_dir: Path, audit: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--connector-root", default=".")
-    parser.add_argument("--framework-root", default=None)
-    parser.add_argument("--output-dir", default=None)
-    args = parser.parse_args()
-
-    connector_root = Path(args.connector_root).resolve()
-    framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
-    add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
-    add_report_roots(connector_root / REPORT_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    audit = build_audit(connector_root, framework_root)
-    metadata = build_metadata(
+    return run_report_generator(
+        report_name="final_consistency_audit",
         generated_by="ci/evidence/reports/generate-final-consistency-audit.py",
         make_target="generate-final-consistency-audit",
-        connector_root=connector_root,
-        framework_root=framework_root,
-        inputs=audit["source_reports"].values(),
-        generated_at=audit["generated_at"],
+        build_analysis=build_audit,
+        render_markdown=render_markdown,
+        post_write=update_full_run_evidence,
     )
-    json_path = report_path_from_root(output_dir, "final_consistency_audit", "json")
-    md_path = report_path_from_root(output_dir, "final_consistency_audit", "md")
-    write_text_file(json_path, generated_json_text(audit, metadata))
-    write_text_file(md_path, generated_markdown_text(render_markdown(audit), metadata))
-    update_full_run_evidence(output_dir, audit)
-    print(md_path)
-    return 0
 
 
 if __name__ == "__main__":

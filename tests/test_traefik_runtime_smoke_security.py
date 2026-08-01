@@ -15,7 +15,8 @@ SPEC = importlib.util.spec_from_file_location(
     "traefik_runtime_smoke_security",
     ROOT / "connectors/traefik/scripts/runtime_smoke.py",
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNNER)
 
@@ -107,11 +108,73 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
                 },
                 clear=False,
             ):
-                connector, traefik = RUNNER.resolve_runtime_binaries(
+                resolved_build_root, connector, traefik = RUNNER.resolve_runtime_paths(
                     self.runtime_args(connector_binary, traefik_binary), ROOT
                 )
-                self.assertEqual(connector, connector_binary)
-                self.assertEqual(traefik, traefik_binary)
+                self.assertEqual(resolved_build_root, build_root)
+                self.assertEqual(connector.path, connector_binary)
+                self.assertEqual(traefik.path, traefik_binary)
                 outside_arguments = self.runtime_args(outside_binary, traefik_binary)
                 with self.assertRaisesRegex(RUNNER.MissingDependency, "must remain below"):
-                    RUNNER.resolve_runtime_binaries(outside_arguments, ROOT)
+                    RUNNER.resolve_runtime_paths(outside_arguments, ROOT)
+
+    def test_trusted_executable_rejects_control_characters_before_process_start(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-runtime-root-") as temporary:
+            build_root = Path(temporary) / "build"
+            build_root.mkdir(mode=0o700)
+            binary = self.make_executable(build_root / "traefik-forwardauth")
+            executable = RUNNER.require_local_executable(
+                binary, "Traefik connector binary", build_root
+            )
+            self.assertEqual(
+                executable.arguments("--check-config"),
+                (str(binary), "--check-config"),
+            )
+            with self.assertRaisesRegex(RUNNER.MissingDependency, "control characters"):
+                executable.arguments("--config", "unsafe\nvalue")
+
+    def test_runtime_artifact_writers_keep_fixed_names_below_validated_directories(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-runtime-root-") as temporary:
+            runtime_root = Path(temporary) / "runtime"
+            config_dir = runtime_root / "config"
+            config_dir.mkdir(parents=True, mode=0o700)
+            template = runtime_root / "template.conf"
+            rules_file = runtime_root / "rules.conf"
+            event_path = runtime_root / "logs" / "events.jsonl"
+            template.write_text("rules_file=old\nevent_path=old\n", encoding="utf-8")
+            rules_file.write_text("SecRuleEngine On\n", encoding="utf-8")
+
+            service_config = RUNNER.write_concrete_service_config(
+                template, config_dir, rules_file, event_path
+            )
+            result_path = RUNNER.write_runtime_result(runtime_root, {"status": "PASS"})
+
+            self.assertEqual(service_config, config_dir / RUNNER.SERVICE_CONFIG_FILE_NAME)
+            self.assertEqual(result_path, runtime_root / RUNNER.RESULT_FILE_NAME)
+            self.assertIn(f"rules_file={rules_file}", service_config.read_text(encoding="utf-8"))
+            self.assertIn(f"event_path={event_path}", service_config.read_text(encoding="utf-8"))
+            result_path.unlink()
+            result_path.symlink_to(runtime_root / "outside-result.json")
+            with self.assertRaisesRegex(RUNNER.MissingDependency, "runtime artifact path is unsafe"):
+                RUNNER.write_runtime_result(runtime_root, {"status": "PASS"})
+
+    def test_result_root_must_be_a_private_build_root_descendant(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-runtime-root-") as temporary:
+            temporary_root = Path(temporary)
+            build_root = temporary_root / "build"
+            build_root.mkdir(mode=0o700)
+            output_root = build_root / "traefik-connector" / "runtime-smoke"
+            self.assertEqual(
+                RUNNER.require_private_result_root(output_root, build_root), output_root
+            )
+
+            with self.assertRaisesRegex(RUNNER.MissingDependency, "must remain below"):
+                RUNNER.require_private_result_root(temporary_root / "outside", build_root)
+            with self.assertRaisesRegex(RUNNER.MissingDependency, "must not be the build root"):
+                RUNNER.require_private_result_root(build_root, build_root)
+
+            replaceable = build_root / "replaceable"
+            replaceable.mkdir(mode=0o777)
+            replaceable.chmod(0o777)
+            with self.assertRaisesRegex(RUNNER.MissingDependency, "must not be group or world writable"):
+                RUNNER.require_private_result_root(replaceable / "result", build_root)

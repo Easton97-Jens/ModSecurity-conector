@@ -19,14 +19,16 @@ sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "runtime_env_snapshot_prepare_runtime_components", PREPARE_PATH
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 components = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = components
 SPEC.loader.exec_module(components)
 NATIVE_SPEC = importlib.util.spec_from_file_location(
     "runtime_env_snapshot_native_case_comparison", NATIVE_COMPARISON_PATH
 )
-assert NATIVE_SPEC is not None and NATIVE_SPEC.loader is not None
+assert NATIVE_SPEC is not None
+assert NATIVE_SPEC.loader is not None
 native_comparison = importlib.util.module_from_spec(NATIVE_SPEC)
 sys.modules[NATIVE_SPEC.name] = native_comparison
 NATIVE_SPEC.loader.exec_module(native_comparison)
@@ -34,7 +36,8 @@ MISMATCH_PATH = ROOT / "ci" / "evidence" / "reports" / "generate-verified-runtim
 MISMATCH_SPEC = importlib.util.spec_from_file_location(
     "runtime_env_snapshot_verified_runtime_mismatch", MISMATCH_PATH
 )
-assert MISMATCH_SPEC is not None and MISMATCH_SPEC.loader is not None
+assert MISMATCH_SPEC is not None
+assert MISMATCH_SPEC.loader is not None
 runtime_mismatch = importlib.util.module_from_spec(MISMATCH_SPEC)
 sys.modules[MISMATCH_SPEC.name] = runtime_mismatch
 MISMATCH_SPEC.loader.exec_module(runtime_mismatch)
@@ -299,13 +302,18 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             with mock.patch.dict(
                 os.environ,
                 {
+                    "VERIFIED_RUN_ROOT": str(root),
+                    "VERIFIED_BUILD_ROOT": str(root / "build"),
+                    "BUILD_ROOT": str(root / "build"),
+                    "CACHE_ROOT": str(cache_root.parent),
+                    "VERIFIED_COMPONENT_CACHE": str(cache_root),
                     "CONNECTOR_COMPONENT_CACHE": str(cache_root),
                     "RUNTIME_REPORT_OUTPUT_ROOT": str(output_root),
                     "RUNTIME_COMPONENT_ENV_SNAPSHOT": str(snapshot),
                 },
                 clear=False,
             ):
-                loaded = native_comparison.load_runtime_env(root)
+                loaded = native_comparison.load_runtime_env()
             self.assertEqual(loaded["MODSECURITY_INCLUDE_DIR"], "/correct/native-case/value")
 
     def test_native_comparison_does_not_fallback_to_shared_env_for_an_invalid_snapshot(self) -> None:
@@ -323,13 +331,18 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             with mock.patch.dict(
                 os.environ,
                 {
+                    "VERIFIED_RUN_ROOT": str(root),
+                    "VERIFIED_BUILD_ROOT": str(root / "build"),
+                    "BUILD_ROOT": str(root / "build"),
+                    "CACHE_ROOT": str(cache_root.parent),
+                    "VERIFIED_COMPONENT_CACHE": str(cache_root),
                     "CONNECTOR_COMPONENT_CACHE": str(cache_root),
                     "RUNTIME_REPORT_OUTPUT_ROOT": str(output_root),
                     "RUNTIME_COMPONENT_ENV_SNAPSHOT": str(outside_snapshot),
                 },
                 clear=False,
             ):
-                loaded = native_comparison.load_runtime_env(root)
+                loaded = native_comparison.load_runtime_env()
             self.assertNotEqual(loaded.get("MODSECURITY_INCLUDE_DIR"), "/wrong/shared/value")
 
     def test_central_runners_use_the_exact_local_snapshot_not_shared_runtime_env(self) -> None:

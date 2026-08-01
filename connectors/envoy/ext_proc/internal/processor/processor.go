@@ -122,10 +122,10 @@ const (
 	CloseProcessorError    CloseReason = "processor_error"
 )
 
-// Engine receives only incremental data. The production libmodsecurity build
-// installs CommonRuntimeEngine; PassthroughEngine remains for protobuf/unit
-// development without CGo linkage.
-type Engine interface {
+// TransactionOpener receives only incremental data. The production
+// libmodsecurity build installs CommonRuntimeEngine; PassthroughEngine remains
+// for protobuf/unit development without CGo linkage.
+type TransactionOpener interface {
 	Open(context.Context, StreamMetadata) (Transaction, error)
 }
 
@@ -209,19 +209,21 @@ func (passthroughTransaction) ProcessBody(context.Context, Direction, []byte, bo
 	return allowDecision(), nil
 }
 
-func (passthroughTransaction) Close(context.Context, Summary) {}
+func (passthroughTransaction) Close(context.Context, Summary) {
+	// The source-only passthrough engine owns no per-stream resources.
+}
 
 // Service implements Envoy's official ext_proc ExternalProcessor gRPC service.
 type Service struct {
 	extprocv3.UnimplementedExternalProcessorServer
 
 	config   Config
-	engine   Engine
+	engine   TransactionOpener
 	observer Observer
 	active   sync.WaitGroup
 }
 
-func NewService(config Config, engine Engine) (*Service, error) {
+func NewService(config Config, engine TransactionOpener) (*Service, error) {
 	return NewServiceWithObserver(config, engine, discardObserver{})
 }
 
@@ -229,7 +231,7 @@ func NewService(config Config, engine Engine) (*Service, error) {
 // observer. A nil observer is equivalent to a discard observer, which keeps
 // the existing unit-test and library API safe for callers that do not need
 // runtime evidence.
-func NewServiceWithObserver(config Config, engine Engine, observer Observer) (*Service, error) {
+func NewServiceWithObserver(config Config, engine TransactionOpener, observer Observer) (*Service, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -255,55 +257,84 @@ func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer
 			processErr = status.Errorf(codes.Internal, "ext_proc metadata evidence: %v", err)
 		}
 	}()
+	return service.processStream(stream, state, &closeReason)
+}
 
+func (service *Service) processStream(stream extprocv3.ExternalProcessor_ProcessServer, state *streamState, closeReason *CloseReason) error {
 	for {
-		request, err := stream.Recv()
+		request, receivedCloseReason, done, err := receiveProcessingRequest(stream)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				closeReason = ClosePeerEOF
-				return nil
-			}
-			if stream.Context().Err() != nil {
-				closeReason = CloseContextCanceled
-				return nil
-			}
-			closeReason = CloseProcessorError
-			return status.Errorf(codes.Unknown, "ext_proc receive failed: %v", err)
+			*closeReason = receivedCloseReason
+			return err
 		}
-
-		response, terminal, err := state.handle(stream.Context(), request)
+		if done {
+			*closeReason = receivedCloseReason
+			return nil
+		}
+		terminal, requestCloseReason, err := service.processRequest(stream, state, request)
 		if err != nil {
-			closeReason = CloseProcessorError
-			return status.Errorf(codes.InvalidArgument, "ext_proc request rejected: %v", err)
+			*closeReason = requestCloseReason
+			return err
 		}
-		if !request.GetObservabilityMode() {
-			if err := stream.Send(response); err != nil {
-				if stream.Context().Err() != nil {
-					closeReason = CloseContextCanceled
-					return nil
-				}
-				closeReason = CloseProcessorError
-				return status.Errorf(codes.Unavailable, "ext_proc response send failed: %v", err)
-			}
-			if err := state.markResponseCommittedAfterSuccessfulContinue(stream.Context(), request, response); err != nil {
-				closeReason = CloseProcessorError
-				return status.Errorf(codes.Internal, "ext_proc response commit bookkeeping failed: %v", err)
-			}
-			if err := state.recordHostActionAfterSuccessfulResponse(stream.Context()); err != nil {
-				closeReason = CloseProcessorError
-				return status.Errorf(codes.Internal, "ext_proc host action evidence failed: %v", err)
-			}
-		}
-		if terminal && !request.GetObservabilityMode() {
-			closeReason = state.completionReason()
+		if terminal {
+			*closeReason = requestCloseReason
 			return nil
 		}
 	}
 }
 
+func receiveProcessingRequest(stream extprocv3.ExternalProcessor_ProcessServer) (*extprocv3.ProcessingRequest, CloseReason, bool, error) {
+	request, err := stream.Recv()
+	if err == nil {
+		return request, ClosePeerEOF, false, nil
+	}
+	if errors.Is(err, io.EOF) {
+		return nil, ClosePeerEOF, true, nil
+	}
+	if stream.Context().Err() != nil {
+		return nil, CloseContextCanceled, true, nil
+	}
+	return nil, CloseProcessorError, false, status.Errorf(codes.Unknown, "ext_proc receive failed: %v", err)
+}
+
+func (service *Service) processRequest(stream extprocv3.ExternalProcessor_ProcessServer, state *streamState, request *extprocv3.ProcessingRequest) (bool, CloseReason, error) {
+	response, terminal, err := state.handle(stream.Context(), request)
+	if err != nil {
+		return false, CloseProcessorError, status.Errorf(codes.InvalidArgument, "ext_proc request rejected: %v", err)
+	}
+	if request.GetObservabilityMode() {
+		return false, ClosePeerEOF, nil
+	}
+	if closeReason, sent, err := sendProcessingResponse(stream, response); err != nil {
+		return false, closeReason, err
+	} else if !sent {
+		return true, closeReason, nil
+	}
+	if err := state.markResponseCommittedAfterSuccessfulContinue(stream.Context(), request, response); err != nil {
+		return false, CloseProcessorError, status.Errorf(codes.Internal, "ext_proc response commit bookkeeping failed: %v", err)
+	}
+	if err := state.recordHostActionAfterSuccessfulResponse(stream.Context()); err != nil {
+		return false, CloseProcessorError, status.Errorf(codes.Internal, "ext_proc host action evidence failed: %v", err)
+	}
+	if terminal {
+		return true, state.completionReason(), nil
+	}
+	return false, ClosePeerEOF, nil
+}
+
+func sendProcessingResponse(stream extprocv3.ExternalProcessor_ProcessServer, response *extprocv3.ProcessingResponse) (CloseReason, bool, error) {
+	if err := stream.Send(response); err != nil {
+		if stream.Context().Err() != nil {
+			return CloseContextCanceled, false, nil
+		}
+		return CloseProcessorError, false, status.Errorf(codes.Unavailable, "ext_proc response send failed: %v", err)
+	}
+	return ClosePeerEOF, true, nil
+}
+
 type streamState struct {
 	config   Config
-	engine   Engine
+	engine   TransactionOpener
 	observer Observer
 
 	transaction   Transaction
@@ -328,7 +359,7 @@ type streamState struct {
 	summary Summary
 }
 
-func newStreamState(config Config, engine Engine, observer Observer) *streamState {
+func newStreamState(config Config, engine TransactionOpener, observer Observer) *streamState {
 	return &streamState{config: config, engine: engine, observer: observer, summary: Summary{LateAction: LateActionNone}}
 }
 
@@ -358,37 +389,15 @@ func (state *streamState) handleHeaders(ctx context.Context, direction Direction
 	if message == nil {
 		return nil, false, fmt.Errorf("%s headers are missing", direction)
 	}
-	if direction == DirectionRequest {
-		if state.requestHeadersSeen {
-			return nil, false, fmt.Errorf("duplicate request headers")
-		}
-		state.requestHeadersSeen = true
-	} else {
-		if !state.requestHeadersSeen {
-			return nil, false, fmt.Errorf("response headers arrived before request headers")
-		}
-		if state.responseHeadersSeen {
-			return nil, false, fmt.Errorf("duplicate response headers")
-		}
-		// The arrival of upstream response headers is only an ordering boundary.
-		// A response becomes committed for this adapter only after Process sends
-		// the matching CONTINUE response successfully.
-		state.responseHeadersSeen = true
+	if err := state.recordHeaderArrival(direction); err != nil {
+		return nil, false, err
 	}
-
 	headers, transactionID, limitDecision, err := state.decodeHeaders(message.GetHeaders())
 	if err != nil {
 		return nil, false, err
 	}
-	if direction == DirectionRequest && transactionID != "" {
-		state.transactionID = transactionID
-	}
-	if direction == DirectionRequest {
-		metadata, err := requestMetadataFromEnvoy(headers, attributes)
-		if err != nil {
-			return nil, false, err
-		}
-		state.request = metadata
+	if err := state.recordRequestHeaders(direction, headers, transactionID, attributes); err != nil {
+		return nil, false, err
 	}
 	if err := state.ensureTransaction(ctx); err != nil {
 		return nil, false, err
@@ -401,41 +410,70 @@ func (state *streamState) handleHeaders(ctx context.Context, direction Direction
 			return nil, false, err
 		}
 	}
+	state.recordHeaderProgress(direction, headers, message.GetEndOfStream())
+	return state.responseForDecision(headerPhase(direction), decision, state.responseDone)
+}
+
+func (state *streamState) recordHeaderArrival(direction Direction) error {
+	if direction == DirectionRequest {
+		if state.requestHeadersSeen {
+			return fmt.Errorf("duplicate request headers")
+		}
+		state.requestHeadersSeen = true
+		return nil
+	}
+	if !state.requestHeadersSeen {
+		return fmt.Errorf("response headers arrived before request headers")
+	}
+	if state.responseHeadersSeen {
+		return fmt.Errorf("duplicate response headers")
+	}
+	// The arrival of upstream response headers is only an ordering boundary.
+	// A response becomes committed for this adapter only after Process sends
+	// the matching CONTINUE response successfully.
+	state.responseHeadersSeen = true
+	return nil
+}
+
+func (state *streamState) recordRequestHeaders(direction Direction, headers []Header, transactionID string, attributes map[string]*structpb.Struct) error {
+	if direction != DirectionRequest {
+		return nil
+	}
+	if transactionID != "" {
+		state.transactionID = transactionID
+	}
+	metadata, err := requestMetadataFromEnvoy(headers, attributes)
+	if err != nil {
+		return err
+	}
+	state.request = metadata
+	return nil
+}
+
+func (state *streamState) recordHeaderProgress(direction Direction, headers []Header, endOfStream bool) {
 	if direction == DirectionRequest {
 		state.summary.RequestHeaderCount += uint64(len(headers))
-		state.requestDone = message.GetEndOfStream()
-	} else {
-		state.responseStatus = responseStatusFromHeaders(headers)
-		state.summary.ResponseHeaderCount += uint64(len(headers))
-		state.responseDone = message.GetEndOfStream()
+		state.requestDone = endOfStream
+		return
 	}
-	return state.responseForDecision(headerPhase(direction), decision, state.responseDone)
+	state.responseStatus = responseStatusFromHeaders(headers)
+	state.summary.ResponseHeaderCount += uint64(len(headers))
+	state.responseDone = endOfStream
 }
 
 func (state *streamState) handleBody(ctx context.Context, direction Direction, message *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, bool, error) {
 	if message == nil {
 		return nil, false, fmt.Errorf("%s body is missing", direction)
 	}
-	if direction == DirectionRequest {
-		if !state.requestHeadersSeen || state.requestDone {
-			return nil, false, fmt.Errorf("request body violates stream order")
-		}
-	} else if !state.responseHeadersSeen || state.responseDone {
-		return nil, false, fmt.Errorf("response body violates stream order")
+	if err := state.validateBodyOrder(direction); err != nil {
+		return nil, false, err
 	}
 	if err := state.ensureTransaction(ctx); err != nil {
 		return nil, false, err
 	}
 
 	body := message.GetBody()
-	decision := allowDecision()
-	if len(body) > state.config.MaxBodyChunkBytes {
-		decision = Decision{Action: ActionDeny, Status: int(typev3.StatusCode_PayloadTooLarge)}
-	} else if direction == DirectionRequest && state.summary.RequestBodyBytes+int64(len(body)) > state.config.MaxRequestBodyBytes {
-		decision = Decision{Action: ActionDeny, Status: int(typev3.StatusCode_PayloadTooLarge)}
-	} else if direction == DirectionResponse && state.summary.ResponseBodyBytes+int64(len(body)) > state.config.MaxResponseBodyBytes {
-		decision = Decision{Action: ActionDeny, Status: int(typev3.StatusCode_PayloadTooLarge)}
-	}
+	decision := state.bodyLimitDecision(direction, len(body))
 	if decision.Action == ActionAllow {
 		processedDecision, err := state.processBody(ctx, direction, body, message.GetEndOfStream())
 		if err != nil {
@@ -444,16 +482,50 @@ func (state *streamState) handleBody(ctx context.Context, direction Direction, m
 		decision = processedDecision
 	}
 
+	state.recordBodyProgress(direction, len(body), message.GetEndOfStream())
+	return state.responseForDecision(bodyPhase(direction), decision, state.responseDone)
+}
+
+func (state *streamState) validateBodyOrder(direction Direction) error {
+	if direction == DirectionRequest {
+		if !state.requestHeadersSeen || state.requestDone {
+			return fmt.Errorf("request body violates stream order")
+		}
+		return nil
+	}
+	if !state.responseHeadersSeen || state.responseDone {
+		return fmt.Errorf("response body violates stream order")
+	}
+	return nil
+}
+
+func (state *streamState) bodyLimitDecision(direction Direction, bodyLength int) Decision {
+	if bodyLength > state.config.MaxBodyChunkBytes {
+		return payloadTooLargeDecision()
+	}
+	if direction == DirectionRequest && state.summary.RequestBodyBytes+int64(bodyLength) > state.config.MaxRequestBodyBytes {
+		return payloadTooLargeDecision()
+	}
+	if direction == DirectionResponse && state.summary.ResponseBodyBytes+int64(bodyLength) > state.config.MaxResponseBodyBytes {
+		return payloadTooLargeDecision()
+	}
+	return allowDecision()
+}
+
+func payloadTooLargeDecision() Decision {
+	return Decision{Action: ActionDeny, Status: int(typev3.StatusCode_PayloadTooLarge)}
+}
+
+func (state *streamState) recordBodyProgress(direction Direction, bodyLength int, endOfStream bool) {
 	if direction == DirectionRequest {
 		state.summary.RequestBodyChunks++
-		state.summary.RequestBodyBytes += int64(len(body))
-		state.requestDone = message.GetEndOfStream()
-	} else {
-		state.summary.ResponseBodyChunks++
-		state.summary.ResponseBodyBytes += int64(len(body))
-		state.responseDone = message.GetEndOfStream()
+		state.summary.RequestBodyBytes += int64(bodyLength)
+		state.requestDone = endOfStream
+		return
 	}
-	return state.responseForDecision(bodyPhase(direction), decision, state.responseDone)
+	state.summary.ResponseBodyChunks++
+	state.summary.ResponseBodyBytes += int64(bodyLength)
+	state.responseDone = endOfStream
 }
 
 func (state *streamState) handleTrailers(ctx context.Context, direction Direction, message *extprocv3.HttpTrailers) (*extprocv3.ProcessingResponse, bool, error) {
@@ -534,34 +606,55 @@ func (state *streamState) processBody(ctx context.Context, direction Direction, 
 
 func (state *streamState) decodeHeaders(headerMap *corev3.HeaderMap) ([]Header, string, Decision, error) {
 	if headerMap == nil {
-		return nil, "", Decision{Action: ActionDeny, Status: int(typev3.StatusCode_RequestHeaderFieldsTooLarge)}, nil
+		return nil, "", requestHeadersTooLargeDecision(), nil
 	}
 	values := headerMap.GetHeaders()
 	if len(values) > state.config.MaxHeaderCount {
-		return nil, "", Decision{Action: ActionDeny, Status: int(typev3.StatusCode_RequestHeaderFieldsTooLarge)}, nil
+		return nil, "", requestHeadersTooLargeDecision(), nil
 	}
+	return state.decodeHeaderValues(values)
+}
+
+func requestHeadersTooLargeDecision() Decision {
+	return Decision{Action: ActionDeny, Status: int(typev3.StatusCode_RequestHeaderFieldsTooLarge)}
+}
+
+func (state *streamState) decodeHeaderValues(values []*corev3.HeaderValue) ([]Header, string, Decision, error) {
 	headers := make([]Header, 0, len(values))
 	total := 0
 	transactionID := ""
 	for _, value := range values {
-		if value == nil {
-			return nil, "", Decision{}, fmt.Errorf("nil header")
+		header, updatedTotal, updatedTransactionID, decision, err := state.decodeHeader(value, total, transactionID)
+		if err != nil {
+			return nil, "", Decision{}, err
 		}
-		name := value.GetKey()
-		body := headerValueBytes(value)
-		if len(name) > state.config.MaxHeaderNameBytes || len(body) > state.config.MaxHeaderValueBytes {
-			return nil, "", Decision{Action: ActionDeny, Status: int(typev3.StatusCode_RequestHeaderFieldsTooLarge)}, nil
+		if decision.Action != ActionAllow {
+			return nil, "", decision, nil
 		}
-		total += len(name) + len(body)
-		if total > state.config.MaxTotalHeaderBytes {
-			return nil, "", Decision{Action: ActionDeny, Status: int(typev3.StatusCode_RequestHeaderFieldsTooLarge)}, nil
-		}
-		if transactionID == "" && strings.EqualFold(name, state.config.TransactionIDHeader) {
-			transactionID = boundedTransactionID(body)
-		}
-		headers = append(headers, Header{Name: name, Value: body})
+		total = updatedTotal
+		transactionID = updatedTransactionID
+		headers = append(headers, header)
 	}
 	return headers, transactionID, allowDecision(), nil
+}
+
+func (state *streamState) decodeHeader(value *corev3.HeaderValue, total int, transactionID string) (Header, int, string, Decision, error) {
+	if value == nil {
+		return Header{}, 0, "", Decision{}, fmt.Errorf("nil header")
+	}
+	name := value.GetKey()
+	body := headerValueBytes(value)
+	if len(name) > state.config.MaxHeaderNameBytes || len(body) > state.config.MaxHeaderValueBytes {
+		return Header{}, 0, "", requestHeadersTooLargeDecision(), nil
+	}
+	updatedTotal := total + len(name) + len(body)
+	if updatedTotal > state.config.MaxTotalHeaderBytes {
+		return Header{}, 0, "", requestHeadersTooLargeDecision(), nil
+	}
+	if transactionID == "" && strings.EqualFold(name, state.config.TransactionIDHeader) {
+		transactionID = boundedTransactionID(body)
+	}
+	return Header{Name: name, Value: body}, updatedTotal, transactionID, allowDecision(), nil
 }
 
 func headerValueBytes(value *corev3.HeaderValue) []byte {
@@ -626,32 +719,63 @@ func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.
 			}
 		}
 	}
-	if value, found, err := envoyAttributeText(attributes, "request.protocol"); err != nil {
-		return RequestMetadata{}, err
-	} else if found {
-		metadata.Protocol = value
+	textAssignments := []struct {
+		attribute string
+		assign    func(string)
+	}{
+		{"request.protocol", func(value string) { metadata.Protocol = value }},
+		{"source.address", func(value string) { metadata.ClientAddress = envoyEndpointAddress(value) }},
+		{"destination.address", func(value string) { metadata.ServerAddress = envoyEndpointAddress(value) }},
 	}
-	if value, found, err := envoyAttributeText(attributes, "source.address"); err != nil {
-		return RequestMetadata{}, err
-	} else if found {
-		metadata.ClientAddress = envoyEndpointAddress(value)
+	for _, assignment := range textAssignments {
+		if err := assignEnvoyTextAttribute(attributes, assignment.attribute, assignment.assign); err != nil {
+			return RequestMetadata{}, err
+		}
 	}
-	if value, found, err := envoyAttributePort(attributes, "source.port"); err != nil {
-		return RequestMetadata{}, err
-	} else if found {
-		metadata.ClientPort = value
+
+	portAssignments := []struct {
+		attribute string
+		assign    func(int)
+	}{
+		{"source.port", func(value int) { metadata.ClientPort = value }},
+		{"destination.port", func(value int) { metadata.ServerPort = value }},
 	}
-	if value, found, err := envoyAttributeText(attributes, "destination.address"); err != nil {
-		return RequestMetadata{}, err
-	} else if found {
-		metadata.ServerAddress = envoyEndpointAddress(value)
-	}
-	if value, found, err := envoyAttributePort(attributes, "destination.port"); err != nil {
-		return RequestMetadata{}, err
-	} else if found {
-		metadata.ServerPort = value
+	for _, assignment := range portAssignments {
+		if err := assignEnvoyPortAttribute(attributes, assignment.attribute, assignment.assign); err != nil {
+			return RequestMetadata{}, err
+		}
 	}
 	return metadata, nil
+}
+
+func assignEnvoyTextAttribute(
+	attributes map[string]*structpb.Struct,
+	attribute string,
+	assign func(string),
+) error {
+	value, found, err := envoyAttributeText(attributes, attribute)
+	if err != nil {
+		return err
+	}
+	if found {
+		assign(value)
+	}
+	return nil
+}
+
+func assignEnvoyPortAttribute(
+	attributes map[string]*structpb.Struct,
+	attribute string,
+	assign func(int),
+) error {
+	value, found, err := envoyAttributePort(attributes, attribute)
+	if err != nil {
+		return err
+	}
+	if found {
+		assign(value)
+	}
+	return nil
 }
 
 // Envoy's standard address attributes may be rendered as host:port. The port

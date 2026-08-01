@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "resolve_full_lifecycle_profile", ROOT / "ci/runtime/lifecycle/resolve-full-lifecycle-profile.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 profiles = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(profiles)
 
@@ -121,9 +122,12 @@ class FullLifecycleProfilesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid full-lifecycle profile"):
             profiles.effective_manifest(payload, "native-htx-filter")
         with tempfile.TemporaryDirectory() as temporary:
-            output = Path(temporary) / "nested" / "effective.json"
+            root = Path(temporary)
+            output = root / "nested" / "effective.json"
             profiles.write_json_atomically(
-                output, profiles.effective_manifest(payload, "ext_proc")
+                root,
+                output,
+                profiles.effective_manifest(payload, "ext_proc"),
             )
             loaded = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(loaded["full_lifecycle_profile"], "ext_proc")

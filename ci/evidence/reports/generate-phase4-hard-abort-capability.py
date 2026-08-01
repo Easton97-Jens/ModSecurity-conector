@@ -87,9 +87,8 @@ def first_rule_metadata(text: str) -> dict[str, str]:
     }
 
 
-def case_metadata(entry: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
-    path = safe_existing_file(evidence.get("path"))
-    metadata: dict[str, Any] = {
+def initial_phase4_metadata(entry: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
+    return {
         "case_id": entry.get("case_id", "-"),
         "method": "-",
         "path": "-",
@@ -104,30 +103,90 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any]) -> dict[str, 
         "content_type_scope": "-",
         "rule_excerpt": "-",
     }
+
+
+def phase4_metadata_variable(source_metadata: dict[str, Any]) -> str:
+    variables = source_metadata.get("variables")
+    if isinstance(variables, list):
+        return ", ".join(str(item) for item in variables)
+    return str(variables or "-")
+
+
+def phase4_metadata_expected_action(
+    entry: dict[str, Any], expect: dict[str, Any], existing_action: Any
+) -> str:
+    expected_action = str(expect.get("intervention") or existing_action or "-")
+    if expected_action not in ("", "-"):
+        return expected_action
+    return "deny" if entry.get("expected_status") in (401, 403, 302) else "pass"
+
+
+def phase4_metadata_phase(
+    entry: dict[str, Any], evidence: dict[str, Any], rule: dict[str, str], source_metadata: dict[str, Any]
+) -> str:
+    explicit_phase = evidence.get("phase")
+    if explicit_phase:
+        return str(explicit_phase)
+    if rule["phase"] != "-":
+        return rule["phase"]
+    return str(source_metadata.get("phase") or entry.get("phase") or "-")
+
+
+def phase4_metadata_updates(
+    entry: dict[str, Any],
+    evidence: dict[str, Any],
+    metadata: dict[str, Any],
+    parsed: dict[str, Any],
+    request: dict[str, Any],
+    expect: dict[str, Any],
+    source_metadata: dict[str, Any],
+    request_path: str,
+    query: str,
+    raw: str,
+    rule: dict[str, str],
+) -> dict[str, Any]:
+    metadata_variable = phase4_metadata_variable(source_metadata)
+    rule_variable = rule["variable"] if rule["variable"] != "-" else metadata_variable
+    expected_response = (expect.get("response") or {}).get("body") or expect.get("response_body") or ""
+    return {
+        "method": str(request.get("method") or "-"),
+        "path": request_path,
+        "query": query,
+        "rule_id": first_value(
+            evidence.get("rule_id"), rule["rule_id"], expect.get("rule_id"), source_metadata.get("mrts_rule_id")
+        ),
+        "phase": phase4_metadata_phase(entry, evidence, rule, source_metadata),
+        "variable": rule_variable,
+        "target": rule_variable,
+        "expected_action": phase4_metadata_expected_action(entry, expect, metadata["expected_action"]),
+        "expected_response_body": str(expected_response),
+        "phase4_mode": phase4_mode(parsed, raw),
+        "content_type_scope": content_type_scope(parsed, raw),
+        "rule_excerpt": rule["rule_excerpt"],
+    }
+
+
+def case_metadata(entry: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
+    path = safe_existing_file(evidence.get("path"))
+    metadata = initial_phase4_metadata(entry, evidence)
     raw = read_text(path) if path is not None and path.is_file() else ""
     parsed, request, expect, source_metadata, request_path, query = parse_case_document(raw, yaml)
     rules = str(parsed.get("rules") or raw)
     rule = first_rule_metadata(rules)
-    variables = source_metadata.get("variables")
-    metadata_variable = ", ".join(str(item) for item in variables) if isinstance(variables, list) else str(variables or "-")
-    expected_action = str(expect.get("intervention") or metadata["expected_action"] or "-")
-    if expected_action in ("", "-"):
-        expected_action = "deny" if entry.get("expected_status") in (401, 403, 302) else "pass"
     metadata.update(
-        {
-            "method": str(request.get("method") or "-"),
-            "path": request_path,
-            "query": query,
-            "rule_id": first_value(evidence.get("rule_id"), rule["rule_id"], expect.get("rule_id"), source_metadata.get("mrts_rule_id")),
-            "phase": str(evidence.get("phase") or (rule["phase"] if rule["phase"] != "-" else source_metadata.get("phase") or entry.get("phase") or "-")),
-            "variable": rule["variable"] if rule["variable"] != "-" else metadata_variable,
-            "target": rule["variable"] if rule["variable"] != "-" else metadata_variable,
-            "expected_action": expected_action,
-            "expected_response_body": str((expect.get("response") or {}).get("body") or expect.get("response_body") or ""),
-            "phase4_mode": phase4_mode(parsed, raw),
-            "content_type_scope": content_type_scope(parsed, raw),
-            "rule_excerpt": rule["rule_excerpt"],
-        }
+        phase4_metadata_updates(
+            entry,
+            evidence,
+            metadata,
+            parsed,
+            request,
+            expect,
+            source_metadata,
+            request_path,
+            query,
+            raw,
+            rule,
+        )
     )
     return metadata
 
@@ -229,6 +288,32 @@ def response_delivered(entry: dict[str, Any], evidence: dict[str, Any], hard_abo
     return "unknown"
 
 
+def phase4_classification(
+    *,
+    hard_abort: bool,
+    logs: bool,
+    entry_classification: str,
+    log_only: bool,
+    response_body_truncated: bool,
+    expected_action: str,
+    known_gap: bool,
+    runtime_status: str,
+) -> tuple[str, list[str]]:
+    if hard_abort and logs:
+        return "phase4_hard_abort_evidence", ["phase4_connection_aborted"]
+    if "native" in entry_classification:
+        return "phase4_native_semantics", []
+    if log_only:
+        return "phase4_log_only_no_abort", []
+    if response_body_truncated:
+        return "phase4_truncated_not_accepted", []
+    if expected_action == "deny" and known_gap:
+        return "phase4_connector_gap", []
+    if expected_action == "deny" or (not logs and runtime_status == "FAIL"):
+        return "phase4_missing_abort_evidence", []
+    return "phase4_no_hard_abort_required", []
+
+
 def classify_case(
     entry: dict[str, Any],
     meta: dict[str, Any],
@@ -249,8 +334,6 @@ def classify_case(
     )
     logs = log_evidence(phase4_events, decisions, evidence)
     expected_action = str(meta.get("expected_action") or "")
-    category = "phase4_no_hard_abort_required"
-    evidence_categories: list[str] = []
     log_only = action == "log_only" or mode in {"minimal", "safe"} or reason in {"mode_minimal", "mode_safe", "content_type_not_in_scope"}
     known_gap = (
         "connector-gap" in str(entry.get("classification") or "")
@@ -259,21 +342,16 @@ def classify_case(
         or connector == "haproxy"
     )
 
-    if hard_abort and logs:
-        category = "phase4_hard_abort_evidence"
-        evidence_categories.append("phase4_connection_aborted")
-    elif "native" in str(entry.get("classification") or ""):
-        category = "phase4_native_semantics"
-    elif log_only:
-        category = "phase4_log_only_no_abort"
-    elif evidence.get("response_body_truncated") is True:
-        category = "phase4_truncated_not_accepted"
-    elif expected_action == "deny" and known_gap:
-        category = "phase4_connector_gap"
-    elif expected_action == "deny":
-        category = "phase4_missing_abort_evidence"
-    elif not logs and entry.get("runtime_status") == "FAIL":
-        category = "phase4_missing_abort_evidence"
+    category, evidence_categories = phase4_classification(
+        hard_abort=hard_abort,
+        logs=logs,
+        entry_classification=str(entry.get("classification") or ""),
+        log_only=log_only,
+        response_body_truncated=evidence.get("response_body_truncated") is True,
+        expected_action=expected_action,
+        known_gap=known_gap,
+        runtime_status=str(entry.get("runtime_status") or ""),
+    )
 
     return category, evidence_categories, hard_abort, logs, action, response_delivered(entry, evidence, hard_abort, action)
 

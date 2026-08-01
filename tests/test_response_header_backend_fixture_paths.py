@@ -11,7 +11,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "ci" / "runtime" / "common" / "response-header-test-backend.py"
 SPEC = importlib.util.spec_from_file_location("response_header_test_backend_fixture_paths", BACKEND)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 BACKEND_MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = BACKEND_MODULE
 SPEC.loader.exec_module(BACKEND_MODULE)

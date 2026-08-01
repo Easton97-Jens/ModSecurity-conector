@@ -195,6 +195,26 @@ def multipart_boundary(content_type: str) -> str:
     return match.group(1).strip() if match else "-"
 
 
+def multipart_part_metadata(text: str, boundary: str) -> tuple[int, list[str], list[str]]:
+    fields: list[str] = []
+    filenames: list[str] = []
+    parts = 0
+    for raw_part in text.split("--" + boundary):
+        part = raw_part.strip("\n").removesuffix("--").strip("\n")
+        headers, _, _payload = part.partition("\n\n")
+        disposition = next((line for line in headers.splitlines() if line.lower().startswith("content-disposition:")), "")
+        if not part or not disposition:
+            continue
+        parts += 1
+        name_match = re.search(r'name="([^"]*)"', disposition)
+        filename_match = re.search(r'filename="([^"]*)"', disposition)
+        if name_match:
+            fields.append(name_match.group(1))
+        if filename_match:
+            filenames.append(filename_match.group(1))
+    return parts, fields, filenames
+
+
 def multipart_details(content_type: str, body: bytes) -> dict[str, Any]:
     boundary = multipart_boundary(content_type)
     details: dict[str, Any] = {
@@ -210,79 +230,47 @@ def multipart_details(content_type: str, body: bytes) -> dict[str, Any]:
     closing = ("--" + boundary + "--").encode()
     details["boundary_status"] = "valid" if marker in body and closing in body else "mismatch"
     text = body.decode("utf-8", errors="replace").replace("\r\n", "\n")
-    fields: list[str] = []
-    filenames: list[str] = []
-    parts = 0
-    for raw_part in text.split("--" + boundary):
-        part = raw_part.strip("\n")
-        if not part or part == "--":
-            continue
-        part = part.removesuffix("--").strip("\n")
-        headers, _, _payload = part.partition("\n\n")
-        disposition = ""
-        for line in headers.splitlines():
-            if line.lower().startswith("content-disposition:"):
-                disposition = line
-                break
-        if not disposition:
-            continue
-        parts += 1
-        name_match = re.search(r'name="([^"]*)"', disposition)
-        filename_match = re.search(r'filename="([^"]*)"', disposition)
-        if name_match:
-            fields.append(name_match.group(1))
-        if filename_match:
-            filenames.append(filename_match.group(1))
+    parts, fields, filenames = multipart_part_metadata(text, boundary)
     details["part_count"] = parts
     details["field_names"] = fields
     details["filenames"] = filenames
     return details
 
 
-def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_root: Path) -> dict[str, Any]:
-    case_path = safe_existing_file(evidence.get("path"))
+def loaded_case_data(case_path: Path | None) -> tuple[str, dict[str, Any]]:
     raw = read_text(case_path) if case_path is not None and case_path.is_file() else ""
-    loaded: dict[str, Any] = {}
-    if raw and yaml is not None:
-        try:
-            parsed = yaml.safe_load(raw)
-            loaded = parsed if isinstance(parsed, dict) else {}
-        except Exception:
-            loaded = {}
+    if not raw or yaml is None:
+        return raw, {}
+    try:
+        parsed = yaml.safe_load(raw)
+    except Exception:
+        return raw, {}
+    return raw, parsed if isinstance(parsed, dict) else {}
+
+
+def request_metadata(loaded: dict[str, Any]) -> tuple[dict[str, Any], str, str, str, dict[str, Any]]:
     request = loaded.get("request") if isinstance(loaded.get("request"), dict) else {}
     headers = request.get("headers") if isinstance(request.get("headers"), dict) else {}
     content_type = str(headers.get("Content-Type") or headers.get("content-type") or "-")
     request_path = str(request.get("path") or "-")
-    path = request_path
-    query = "-"
-    if "?" in request_path:
-        path, query = request_path.split("?", 1)
-        path = path or "/"
-    expect = loaded.get("expect") if isinstance(loaded.get("expect"), dict) else {}
-    rules = parse_rules(str(loaded.get("rules") or raw))
-    rule = select_rule(rules, expect.get("rule_id"))
-    evidence_path = safe_existing_file(entry.get("evidence"))
-    config_path = generated_config_path(entry, evidence_path) if evidence_path is not None else None
-    config = read_text(config_path)
-    logs = "\n".join(read_text(path_item) for path_item in log_paths(evidence))
+    path, separator, query = request_path.partition("?")
+    return request, content_type, path or "/", query if separator and query else "-", loaded.get("expect") if isinstance(loaded.get("expect"), dict) else {}
+
+
+def request_body_access_state(config: str) -> str:
     if "SecRequestBodyAccess On" in config:
-        request_body_access = "yes"
-    elif "SecRequestBodyAccess Off" in config:
-        request_body_access = "no"
-    else:
-        request_body_access = "unknown"
-    xml_processor = "yes" if "ctl:requestBodyProcessor=XML" in config else "unknown"
-    rule_id = str(rule["rule_id"])
-    matched = rule_logged(logs, rule_id)
+        return "yes"
+    if "SecRequestBodyAccess Off" in config:
+        return "no"
+    return "unknown"
+
+
+def body_payload_fields(config_path: Path | None, request: dict[str, Any], content_type: str) -> dict[str, Any]:
+    kind = body_kind(request, content_type)
     body = request_body_bytes(config_path, request)
-    multipart = multipart_details(content_type, body) if body_kind(request, content_type) == "multipart" else {}
+    multipart = multipart_details(content_type, body) if kind == "multipart" else {}
     return {
-        "case_path": display_case_path(case_path, framework_root),
-        "method": str(request.get("method") or "-"),
-        "path": path,
-        "query": query,
-        "content_type": content_type,
-        "body_kind": body_kind(request, content_type),
+        "body_kind": kind,
         "body_length": len(body) if body else generated_body_length(config_path, request),
         "body_sha256": hashlib.sha256(body).hexdigest() if body else "-",
         "body_preview": body_preview(body) if body else "-",
@@ -291,6 +279,12 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
         "multipart_part_count": multipart.get("part_count", 0),
         "multipart_field_names": multipart.get("field_names", []),
         "multipart_filenames": multipart.get("filenames", []),
+    }
+
+
+def body_rule_fields(rule: dict[str, Any], entry: dict[str, Any], config: str) -> dict[str, Any]:
+    rule_id = str(rule["rule_id"])
+    return {
         "rule_id": rule_id,
         "phase": str(rule["phase"] if rule["phase"] != "-" else entry.get("phase") or "-"),
         "target": str(rule["target"] or "-"),
@@ -298,15 +292,63 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
         "transformations": rule["transformations"],
         "actions": rule["actions"],
         "rule_in_loadfile": bool(rule_id != "-" and rule_id in config),
+    }
+
+
+def body_observation_fields(
+    entry: dict[str, Any],
+    loaded: dict[str, Any],
+    request_body_access: str,
+    config: str,
+    content_type: str,
+    request: dict[str, Any],
+    logs: str,
+    rule_id: str,
+) -> dict[str, Any]:
+    matched = rule_logged(logs, rule_id)
+    return {
         "request_body_access": request_body_access,
-        "xml_processor": xml_processor,
+        "xml_processor": "yes" if "ctl:requestBodyProcessor=XML" in config else "unknown",
         "multipart_parser": "yes" if request_body_access == "yes" and body_kind(request, content_type) == "multipart" else "unknown",
         "request_body_seen": request_body_seen(logs),
         "rule_matched": matched,
         "collection_evidence": "yes" if matched else "no",
-        "parse_error": bool(re.search(r"parse|parser|multipart|xml|json", logs, re.IGNORECASE)) and "Warning. Matched" not in logs,
+        "parse_error": bool(re.search(r"parse|parser|multipart|xml|json", logs, re.IGNORECASE))
+        and "Warning. Matched" not in logs,
         "backend_reached": entry.get("actual_status") == 200,
         "known_limitations": as_list(loaded.get("known_limitations")),
+    }
+
+
+def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_root: Path) -> dict[str, Any]:
+    case_path = safe_existing_file(evidence.get("path"))
+    raw, loaded = loaded_case_data(case_path)
+    request, content_type, path, query, expect = request_metadata(loaded)
+    rules = parse_rules(str(loaded.get("rules") or raw))
+    rule = select_rule(rules, expect.get("rule_id"))
+    evidence_path = safe_existing_file(entry.get("evidence"))
+    config_path = generated_config_path(entry, evidence_path) if evidence_path is not None else None
+    config = read_text(config_path)
+    logs = "\n".join(read_text(path_item) for path_item in log_paths(evidence))
+    request_body_access = request_body_access_state(config)
+    return {
+        "case_path": display_case_path(case_path, framework_root),
+        "method": str(request.get("method") or "-"),
+        "path": path,
+        "query": query,
+        "content_type": content_type,
+        **body_payload_fields(config_path, request, content_type),
+        **body_rule_fields(rule, entry, config),
+        **body_observation_fields(
+            entry,
+            loaded,
+            request_body_access,
+            config,
+            content_type,
+            request,
+            logs,
+            str(rule["rule_id"]),
+        ),
     }
 
 
@@ -985,14 +1027,18 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> int:
-    args = parse_args()
+def body_processor_roots(args: argparse.Namespace) -> tuple[Path, Path, Path]:
     connector_root = args.connector_root.resolve()
     framework_root = (args.framework_root or connector_root / "modules/ModSecurity-test-Framework").resolve()
     output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
     add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    return connector_root, framework_root, output_dir
+
+
+def main() -> int:
+    args = parse_args()
+    connector_root, framework_root, output_dir = body_processor_roots(args)
     report = build_report(connector_root, framework_root)
     metadata = build_metadata(
         generated_by="ci/evidence/reports/generate-body-processor-analysis.py",

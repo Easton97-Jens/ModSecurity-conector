@@ -39,38 +39,50 @@ from generated_report_utils import (
 
 ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
-CAPABILITY_NAMES = (
+REQUEST_METADATA_CAPABILITIES = (
     "connection_metadata",
     "transport_metadata",
     "request_headers",
     "request_body_buffered",
     "request_body_streaming",
     "request_body_incremental_ingest",
+)
+RESPONSE_METADATA_CAPABILITIES = (
     "response_headers",
     "response_body_buffered",
     "response_body_streaming",
     "response_body_incremental_ingest",
+)
+PHASE_CAPABILITIES = (
     "phase1",
     "phase2",
     "phase3",
     "phase4",
     "phase4_rule_evaluation",
     "phase4_end_of_stream_evaluation",
+)
+INTERVENTION_CAPABILITIES = (
     "phase4_pre_commit_deny",
     "late_intervention",
     "late_intervention_log_only",
     "late_intervention_abort",
     "late_intervention_status_metadata",
+)
+REQUEST_PROTOCOL_CAPABILITIES = (
     "content_type_scope",
     "header_limits",
     "request_body_limits",
     "response_body_limits",
     "no_full_response_buffering",
     "first_byte_before_response_end",
+)
+HTTP1_CAPABILITIES = (
     "http1_content_length",
     "http1_chunked",
     "keep_alive",
     "parallel_requests",
+)
+HTTP2_CAPABILITIES = (
     "http2",
     "http2_downstream",
     "http2_upstream",
@@ -78,28 +90,55 @@ CAPABILITY_NAMES = (
     "http2_cleartext_h2c",
     "http2_multiplexing",
     "http2_stream_reset",
+)
+HTTP3_CAPABILITIES = (
     "http3_downstream",
     "http3_upstream",
     "http3_quic",
     "http3_alt_svc",
     "http3_multiplexing",
     "http3_stream_reset",
+)
+TRANSACTION_ISOLATION_CAPABILITIES = (
     "protocol_transaction_isolation",
     "protocol_first_byte_before_response_end",
     "protocol_no_full_response_buffering",
+)
+TRANSPORT_CAPABILITIES = (
     "client_abort",
     "upstream_abort",
     "response_body_decompression",
+)
+ACTION_CAPABILITIES = (
     "deny",
     "redirect",
     "drop",
     "abort_connection",
     "log_only",
+)
+OBSERVABILITY_CAPABILITIES = (
     "transaction_id",
     "event_jsonl",
+)
+RULE_CONFIGURATION_CAPABILITIES = (
     "config_inline_rules",
     "config_rules_file",
     "config_remote_rules",
+)
+CAPABILITY_NAMES = (
+    *REQUEST_METADATA_CAPABILITIES,
+    *RESPONSE_METADATA_CAPABILITIES,
+    *PHASE_CAPABILITIES,
+    *INTERVENTION_CAPABILITIES,
+    *REQUEST_PROTOCOL_CAPABILITIES,
+    *HTTP1_CAPABILITIES,
+    *HTTP2_CAPABILITIES,
+    *HTTP3_CAPABILITIES,
+    *TRANSACTION_ISOLATION_CAPABILITIES,
+    *TRANSPORT_CAPABILITIES,
+    *ACTION_CAPABILITIES,
+    *OBSERVABILITY_CAPABILITIES,
+    *RULE_CONFIGURATION_CAPABILITIES,
 )
 CAPABILITY_STATES = {
     "verified",
@@ -119,6 +158,24 @@ EVIDENCE_STAGES = (
     "no_crs_baseline",
     "crs_smoke",
     "extended_matrix",
+)
+PHASE_DEPENDENCIES = {
+    "phase1": "request_headers",
+    "phase2": "request_body_buffered",
+    "phase3": "response_headers",
+    "phase4": "response_body_buffered",
+}
+VERIFIED_DEPENDENCIES = {
+    "phase4_rule_evaluation": "phase4",
+    "phase4_end_of_stream_evaluation": "phase4_rule_evaluation",
+    "first_byte_before_response_end": "no_full_response_buffering",
+    "phase4_pre_commit_deny": "phase4_rule_evaluation",
+    "late_intervention_log_only": "late_intervention",
+    "late_intervention_abort": "late_intervention",
+}
+TRAEFIK_FORWARDAUTH_REFERENCE = (
+    "https://doc.traefik.io/traefik/v3.7/reference/"
+    "routing-configuration/http/middlewares/forwardauth/"
 )
 STAGE_STATES = {
     "supported_and_verified",
@@ -273,24 +330,27 @@ def _validate_evidence_list(
         errors.append(f"{label}: evidence must be a non-empty list")
         return
     for index, item in enumerate(value):
-        item_label = f"{label}[{index}]"
-        if isinstance(item, str):
-            path = _relative_source_path(item, item_label, errors)
-            if path is not None and not (ROOT / path).is_file():
-                errors.append(f"{item_label}: evidence file does not exist: {item}")
-            continue
-        if not isinstance(item, dict):
-            errors.append(f"{item_label}: evidence entry must be a path or object")
-            continue
-        evidence_path = item.get("path")
-        if evidence_path is not None:
-            path = _relative_source_path(evidence_path, f"{item_label}.path", errors)
-            if path is not None and not (ROOT / path).is_file():
-                errors.append(
-                    f"{item_label}.path: evidence file does not exist: {evidence_path}"
-                )
-        elif not _nonempty(item.get("artifact")):
-            errors.append(f"{item_label}: evidence object requires path or artifact")
+        _validate_evidence_item(item, f"{label}[{index}]", errors)
+
+
+def _validate_evidence_path(value: object, label: str, errors: list[str]) -> None:
+    path = _relative_source_path(value, label, errors)
+    if path is not None and not (ROOT / path).is_file():
+        errors.append(f"{label}: evidence file does not exist: {value}")
+
+
+def _validate_evidence_item(item: object, label: str, errors: list[str]) -> None:
+    if isinstance(item, str):
+        _validate_evidence_path(item, label, errors)
+        return
+    if not isinstance(item, dict):
+        errors.append(f"{label}: evidence entry must be a path or object")
+        return
+    evidence_path = item.get("path")
+    if evidence_path is not None:
+        _validate_evidence_path(evidence_path, f"{label}.path", errors)
+    elif not _nonempty(item.get("artifact")):
+        errors.append(f"{label}: evidence object requires path or artifact")
 
 
 def _validate_capabilities(
@@ -465,69 +525,60 @@ def _state(data: dict[str, Any], capability: str) -> str | None:
 def _validate_relationships(
     connector: str, data: dict[str, Any], errors: list[str]
 ) -> None:
-    dependencies = {
-        "phase1": "request_headers",
-        "phase2": "request_body_buffered",
-        "phase3": "response_headers",
-        "phase4": "response_body_buffered",
-    }
-    for phase, capability in dependencies.items():
-        if _state(data, phase) == "verified" and _state(data, capability) != "verified":
+    _validate_verified_dependencies(connector, data, errors, PHASE_DEPENDENCIES)
+    _validate_verified_dependencies(connector, data, errors, VERIFIED_DEPENDENCIES)
+    _validate_host_model_requirements(connector, data, errors)
+    _validate_connector_specific_relationships(connector, data, errors)
+
+
+def _validate_verified_dependencies(
+    connector: str,
+    data: dict[str, Any],
+    errors: list[str],
+    dependencies: dict[str, str],
+) -> None:
+    for capability, prerequisite in dependencies.items():
+        if _state(data, capability) == "verified" and _state(data, prerequisite) != "verified":
             errors.append(
-                f"{connector}: {phase}=verified requires {capability}=verified"
+                f"{connector}: {capability}=verified requires {prerequisite}=verified"
             )
 
-    if (_state(data, "phase4_rule_evaluation") == "verified" and
-            _state(data, "phase4") != "verified"):
-        errors.append(
-            f"{connector}: phase4_rule_evaluation=verified requires phase4=verified"
-        )
-    if (_state(data, "phase4_end_of_stream_evaluation") == "verified" and
-            _state(data, "phase4_rule_evaluation") != "verified"):
-        errors.append(
-            f"{connector}: phase4_end_of_stream_evaluation=verified requires phase4_rule_evaluation=verified"
-        )
-    if (_state(data, "first_byte_before_response_end") == "verified" and
-            _state(data, "no_full_response_buffering") != "verified"):
-        errors.append(
-            f"{connector}: first_byte_before_response_end=verified requires no_full_response_buffering=verified"
-        )
-    if (_state(data, "phase4_pre_commit_deny") == "verified" and
-            _state(data, "phase4_rule_evaluation") != "verified"):
-        errors.append(
-            f"{connector}: phase4_pre_commit_deny=verified requires phase4_rule_evaluation=verified"
-        )
-    for capability in ("late_intervention_log_only", "late_intervention_abort"):
-        if (_state(data, capability) == "verified" and
-                _state(data, "late_intervention") != "verified"):
-            errors.append(
-                f"{connector}: {capability}=verified requires late_intervention=verified"
-            )
-
+def _validate_host_model_requirements(
+    connector: str, data: dict[str, Any], errors: list[str]
+) -> None:
     for capability, expected in _HOST_MODEL_REQUIRED_STATES.get(connector, {}).items():
         actual = _state(data, capability)
         if actual != expected:
             errors.append(
                 f"{connector}: host-model invariant requires {capability}={expected}, got {actual}"
             )
+def _validate_connector_specific_relationships(
+    connector: str, data: dict[str, Any], errors: list[str]
+) -> None:
     if connector == "lighttpd":
-        for capability in ("response_headers", "phase3"):
-            if _state(data, capability) == "verified":
-                errors.append(
-                    f"lighttpd: {capability} must not be verified without Phase-3 runtime evidence"
-                )
+        _validate_lighttpd_phase3_evidence(data, errors)
     if connector == "traefik":
-        urls = {
-            str(item.get("url"))
-            for item in data.get("external_references", [])
-            if isinstance(item, dict)
-        }
-        expected_url = (
-            "https://doc.traefik.io/traefik/v3.7/reference/"
-            "routing-configuration/http/middlewares/forwardauth/"
-        )
-        if expected_url not in urls:
-            errors.append("traefik: missing versioned official ForwardAuth reference")
+        _validate_traefik_forwardauth_reference(data, errors)
+
+
+def _validate_lighttpd_phase3_evidence(data: dict[str, Any], errors: list[str]) -> None:
+    for capability in ("response_headers", "phase3"):
+        if _state(data, capability) == "verified":
+            errors.append(
+                f"lighttpd: {capability} must not be verified without Phase-3 runtime evidence"
+            )
+
+
+def _validate_traefik_forwardauth_reference(
+    data: dict[str, Any], errors: list[str]
+) -> None:
+    urls = {
+        str(item.get("url"))
+        for item in data.get("external_references", [])
+        if isinstance(item, dict)
+    }
+    if TRAEFIK_FORWARDAUTH_REFERENCE not in urls:
+        errors.append("traefik: missing versioned official ForwardAuth reference")
 
 
 def validate_manifest(connector: str, data: dict[str, Any]) -> list[str]:
@@ -667,45 +718,62 @@ def _validated_result_shape_errors(
     manifest: dict[str, Any],
 ) -> list[str]:
     """Apply report-specific fail-closed checks after Framework validation."""
-    errors: list[str] = []
-    if result.get("connector") != connector:
-        errors.append(
-            f"{connector}: result.json connector is {result.get('connector')!r}, not {connector!r}"
-        )
-    if result.get("run_id") != run_id:
-        errors.append(
-            f"{connector}: result.json run_id is {result.get('run_id')!r}, not {run_id!r}"
-        )
-    if result.get("evidence_stage") != "no_crs_baseline":
-        errors.append(
-            f"{connector}: result.json evidence_stage must be 'no_crs_baseline', got "
-            f"{result.get('evidence_stage')!r}"
-        )
-    if result.get("ruleset") != "no-crs-baseline":
-        errors.append(
-            f"{connector}: result.json ruleset must be 'no-crs-baseline', got "
-            f"{result.get('ruleset')!r}"
-        )
-    if result.get("status") not in RESULT_STATUSES:
-        errors.append(f"{connector}: result.json has invalid status {result.get('status')!r}")
-    if not isinstance(result.get("source_failure"), bool):
-        errors.append(f"{connector}: result.json source_failure must be Boolean")
-    for field in ("cases_failed", "cases_blocked"):
-        value = result.get(field)
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            errors.append(f"{connector}: result.json {field} must be a non-negative integer")
-
-    declared = manifest.get("capabilities")
-    expected_states = {
-        name: entry.get("state")
-        for name, entry in declared.items()
-        if isinstance(entry, dict)
-    } if isinstance(declared, dict) else {}
+    errors = _result_identity_errors(connector, run_id, result)
+    errors.extend(_result_count_errors(connector, result))
+    expected_states = _manifest_capability_states(manifest)
     if result.get("capability_states") != expected_states:
         errors.append(
             f"{connector}: result.json capability_states do not match the current source manifest"
         )
+    errors.extend(_verified_capability_errors(connector, result, expected_states))
+    return errors
 
+
+def _result_identity_errors(
+    connector: str, run_id: str, result: dict[str, Any]
+) -> list[str]:
+    errors: list[str] = []
+    required_values = {
+        "connector": connector,
+        "run_id": run_id,
+        "evidence_stage": "no_crs_baseline",
+        "ruleset": "no-crs-baseline",
+    }
+    for field, expected in required_values.items():
+        if result.get(field) != expected:
+            errors.append(
+                f"{connector}: result.json {field} must be {expected!r}, got "
+                f"{result.get(field)!r}"
+            )
+    if result.get("status") not in RESULT_STATUSES:
+        errors.append(f"{connector}: result.json has invalid status {result.get('status')!r}")
+    if not isinstance(result.get("source_failure"), bool):
+        errors.append(f"{connector}: result.json source_failure must be Boolean")
+    return errors
+
+
+def _result_count_errors(connector: str, result: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    for field in ("cases_failed", "cases_blocked"):
+        value = result.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            errors.append(f"{connector}: result.json {field} must be a non-negative integer")
+    return errors
+
+
+def _manifest_capability_states(manifest: dict[str, Any]) -> dict[str, Any]:
+    declared = manifest.get("capabilities")
+    return {
+        name: entry.get("state")
+        for name, entry in declared.items()
+        if isinstance(entry, dict)
+    } if isinstance(declared, dict) else {}
+
+
+def _verified_capability_errors(
+    connector: str, result: dict[str, Any], expected_states: dict[str, Any]
+) -> list[str]:
+    errors: list[str] = []
     verified = result.get("capabilities_verified")
     if not isinstance(verified, list) or not all(isinstance(item, str) for item in verified):
         errors.append(f"{connector}: result.json capabilities_verified must be a string list")
@@ -725,6 +793,44 @@ def _validated_result_shape_errors(
                 f"manifest declares {source_state}"
             )
     return errors
+
+
+def _load_connector_runtime_result(
+    connector: str,
+    manifests: dict[str, dict[str, Any]],
+    evidence_root: Path,
+    run_id: str,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    connector_dir = evidence_root / connector
+    run_dir = connector_dir / run_id
+    result_path = run_dir / "result.json"
+    if connector_dir.is_symlink() or run_dir.is_symlink():
+        return None, [f"{connector}: canonical evidence directories must not be symlinks"]
+    if not run_dir.is_dir():
+        return None, [f"{connector}: canonical evidence run directory is missing: {connector}/{run_id}"]
+    if not result_path.is_file():
+        return None, [f"{connector}: canonical result.json is missing: {connector}/{run_id}/result.json"]
+    if result_path.is_symlink():
+        return None, [f"{connector}: canonical result.json must not be a symlink"]
+    try:
+        result = _read_json(result_path)
+    except (OSError, ValueError) as exc:
+        return None, [f"{connector}: cannot parse canonical result.json: {exc}"]
+    errors = _validated_result_shape_errors(connector, run_id, result, manifests[connector])
+    if errors:
+        return None, errors
+    errors = _validate_evidence_run(
+        connector,
+        run_dir,
+        ROOT / f"connectors/{connector}/capabilities.json",
+    )
+    if errors:
+        return None, errors
+    return {
+        "result": result,
+        "path": f"{connector}/{run_id}/result.json",
+        "sha256": _sha256_file(result_path),
+    }, []
 
 
 def load_validated_runtime_results(
@@ -750,53 +856,12 @@ def load_validated_runtime_results(
         return {}, [f"canonical evidence root must not be a symlink: {evidence_root}"]
 
     for connector in CONNECTORS:
-        connector_dir = evidence_root / connector
-        run_dir = evidence_root / connector / run_id
-        result_path = run_dir / "result.json"
-        if connector_dir.is_symlink() or run_dir.is_symlink():
-            errors.append(
-                f"{connector}: canonical evidence directories must not be symlinks"
-            )
-            continue
-        if not run_dir.is_dir():
-            errors.append(
-                f"{connector}: canonical evidence run directory is missing: "
-                f"{connector}/{run_id}"
-            )
-            continue
-        if not result_path.is_file():
-            errors.append(
-                f"{connector}: canonical result.json is missing: "
-                f"{connector}/{run_id}/result.json"
-            )
-            continue
-        if result_path.is_symlink():
-            errors.append(f"{connector}: canonical result.json must not be a symlink")
-            continue
-        try:
-            result = _read_json(result_path)
-        except (OSError, ValueError) as exc:
-            errors.append(f"{connector}: cannot parse canonical result.json: {exc}")
-            continue
-        shape_errors = _validated_result_shape_errors(
-            connector, run_id, result, manifests[connector]
+        result, result_errors = _load_connector_runtime_result(
+            connector, manifests, evidence_root, run_id
         )
-        if shape_errors:
-            errors.extend(shape_errors)
-            continue
-        validation_errors = _validate_evidence_run(
-            connector,
-            run_dir,
-            ROOT / f"connectors/{connector}/capabilities.json",
-        )
-        if validation_errors:
-            errors.extend(validation_errors)
-            continue
-        validated[connector] = {
-            "result": result,
-            "path": f"{connector}/{run_id}/result.json",
-            "sha256": _sha256_file(result_path),
-        }
+        errors.extend(result_errors)
+        if result is not None:
+            validated[connector] = result
     return validated, errors
 
 
@@ -932,78 +997,64 @@ def _markdown_cell(value: object) -> str:
     return str(value).replace("|", "\\|").replace("\n", " ")
 
 
-def render_markdown(
-    manifests: dict[str, dict[str, Any]],
-    *,
-    german: bool,
-    runtime_evidence: dict[str, Any] | None = None,
-) -> str:
+def _markdown_labels(german: bool, runtime_evidence: dict[str, Any] | None) -> dict[str, str]:
     if german:
-        title = "# Kanonische Connector-Capabilities"
-        if runtime_evidence is None:
-            intro = (
+        return {
+            "title": "# Kanonische Connector-Capabilities",
+            "intro": (
                 "Diese Datei wird deterministisch aus den sechs connector-lokalen Manifesten "
                 "erzeugt. Sie beschreibt Host-Grenzen und Implementierungszustände; sie "
                 "befördert keine Capability ohne kanonische Lauf-Evidence zu `verified`."
-            )
-        else:
-            intro = (
-                "Diese Datei verbindet unveränderte connector-lokale Source-Contracts mit "
+                if runtime_evidence is None
+                else "Diese Datei verbindet unveränderte connector-lokale Source-Contracts mit "
                 "vollständig validierter kanonischer No-CRS-Evidence. Nur die in den "
                 "Resultaten belegten Capabilities werden in dieser Report-Ansicht zu "
                 "`verified` befördert."
-            )
-        capability_heading = "## Capability-Matrix"
-        stage_heading = "## Evidence-Stufen"
-        detail_heading = "## Connector-Details"
-        capability_label = "Capability"
-        stage_label = "Stufe"
-        state_label = "Zustand"
-        reason_label = (
-            "Kanonischer Grund (aus dem Manifest)"
+            ),
+            "capability_heading": "## Capability-Matrix",
+            "stage_heading": "## Evidence-Stufen",
+            "detail_heading": "## Connector-Details",
+            "capability_label": "Capability",
+            "stage_label": "Stufe",
+            "state_label": "Zustand",
+            "reason_label": (
+                "Kanonischer Grund (aus dem Manifest)"
+                if runtime_evidence is None
+                else "Kanonischer Grund"
+            ),
+            "constraints_label": "Host-Modell-Grenzen",
+            "sources_label": "Source-Contract",
+        }
+    return {
+        "title": "# Canonical connector capabilities",
+        "intro": (
+            "This file is rendered deterministically from the six connector-local "
+            "manifests. It describes host boundaries and implementation states; it "
+            "does not promote any capability to `verified` without canonical run evidence."
             if runtime_evidence is None
-            else "Kanonischer Grund"
-        )
-        constraints_label = "Host-Modell-Grenzen"
-        sources_label = "Source-Contract"
-    else:
-        title = "# Canonical connector capabilities"
-        if runtime_evidence is None:
-            intro = (
-                "This file is rendered deterministically from the six connector-local "
-                "manifests. It describes host boundaries and implementation states; it "
-                "does not promote any capability to `verified` without canonical run evidence."
-            )
-        else:
-            intro = (
-                "This file merges unchanged connector-local source contracts with fully "
-                "validated canonical No-CRS evidence. Only capabilities evidenced by the "
-                "canonical results are promoted to `verified` in this report view."
-            )
-        capability_heading = "## Capability matrix"
-        stage_heading = "## Evidence stages"
-        detail_heading = "## Connector details"
-        capability_label = "Capability"
-        stage_label = "Stage"
-        state_label = "State"
-        reason_label = (
+            else "This file merges unchanged connector-local source contracts with fully "
+            "validated canonical No-CRS evidence. Only capabilities evidenced by the "
+            "canonical results are promoted to `verified` in this report view."
+        ),
+        "capability_heading": "## Capability matrix",
+        "stage_heading": "## Evidence stages",
+        "detail_heading": "## Connector details",
+        "capability_label": "Capability",
+        "stage_label": "Stage",
+        "state_label": "State",
+        "reason_label": (
             "Canonical reason (from manifest)"
             if runtime_evidence is None
             else "Canonical reason"
-        )
-        constraints_label = "Host-model constraints"
-        sources_label = "Source contract"
-
-    display_names = {
-        "apache": "Apache",
-        "nginx": "NGINX",
-        "haproxy": "HAProxy",
-        "envoy": "Envoy",
-        "traefik": "Traefik",
-        "lighttpd": "lighttpd",
+        ),
+        "constraints_label": "Host-model constraints",
+        "sources_label": "Source contract",
     }
+
+
+def _markdown_header(title: str, intro: str, german: bool) -> list[str]:
     if german:
-        lines = [
+        return [
             "> Generierte Datei – nicht manuell bearbeiten.",
             "",
             title,
@@ -1017,60 +1068,69 @@ def render_markdown(
             intro,
             "",
         ]
-    else:
-        lines = [
-            "> Generated file - do not edit manually.",
-            "",
-            title,
-            "",
-            "**Language:** English | "
-            "[Deutsch](connector-capabilities.generated.de.md)",
-            "",
-            intro,
-            "",
-        ]
-    if runtime_evidence is not None:
-        evidence_heading = (
-            "## Aktuelle kanonische No-CRS-Evidence"
-            if german
-            else "## Current canonical No-CRS evidence"
-        )
-        connector_label = "Connector"
-        result_label = "Ergebnis" if german else "Result"
-        status_label = "Status"
-        verified_label = "Verifizierte Capabilities" if german else "Verified capabilities"
-        evidence_connectors = runtime_evidence.get("connectors", {})
-        lines.extend([evidence_heading, ""])
+    return [
+        "> Generated file - do not edit manually.",
+        "",
+        title,
+        "",
+        "**Language:** English | [Deutsch](connector-capabilities.generated.de.md)",
+        "",
+        intro,
+        "",
+    ]
+
+
+def _append_runtime_evidence_table(
+    lines: list[str],
+    runtime_evidence: dict[str, Any],
+    display_names: dict[str, str],
+    german: bool,
+) -> None:
+    heading = "## Aktuelle kanonische No-CRS-Evidence" if german else "## Current canonical No-CRS evidence"
+    labels = (
+        ("Connector", "Ergebnis", "Status", "Verifizierte Capabilities")
+        if german
+        else ("Connector", "Result", "Status", "Verified capabilities")
+    )
+    evidence_connectors = runtime_evidence.get("connectors", {})
+    lines.extend([heading, "", "| " + " | ".join(labels) + " |", "|---|---|---|---|"])
+    for connector in CONNECTORS:
+        evidence = evidence_connectors.get(connector, {}) if isinstance(evidence_connectors, dict) else {}
+        verified = evidence.get("capabilities_verified", []) if isinstance(evidence, dict) else []
+        displayed = ", ".join(f"`{_markdown_cell(item)}`" for item in verified) or "-"
+        result = _markdown_cell(evidence.get("result", "-")) if isinstance(evidence, dict) else "-"
+        status = _markdown_cell(evidence.get("result_status", "-")) if isinstance(evidence, dict) else "-"
         lines.append(
-            "| " + " | ".join(
-                [connector_label, result_label, status_label, verified_label]
-            ) + " |"
+            "| "
+            + " | ".join([display_names[connector], f"`{result}`", f"`{status}`", displayed])
+            + " |"
         )
-        lines.append("|---|---|---|---|")
-        for connector in CONNECTORS:
-            evidence = (
-                evidence_connectors.get(connector, {})
-                if isinstance(evidence_connectors, dict)
-                else {}
-            )
-            verified = evidence.get("capabilities_verified", []) if isinstance(evidence, dict) else []
-            displayed = ", ".join(f"`{_markdown_cell(item)}`" for item in verified) or "-"
-            lines.append(
-                "| " + " | ".join(
-                    [
-                        display_names[connector],
-                        f"`{_markdown_cell(evidence.get('result', '-'))}`" if isinstance(evidence, dict) else "-",
-                        f"`{_markdown_cell(evidence.get('result_status', '-'))}`" if isinstance(evidence, dict) else "-",
-                        displayed,
-                    ]
-                ) + " |"
-            )
-        lines.extend(["", capability_heading, ""])
+
+
+def render_markdown(
+    manifests: dict[str, dict[str, Any]],
+    *,
+    german: bool,
+    runtime_evidence: dict[str, Any] | None = None,
+) -> str:
+    labels = _markdown_labels(german, runtime_evidence)
+    display_names = {
+        "apache": "Apache",
+        "nginx": "NGINX",
+        "haproxy": "HAProxy",
+        "envoy": "Envoy",
+        "traefik": "Traefik",
+        "lighttpd": "lighttpd",
+    }
+    lines = _markdown_header(labels["title"], labels["intro"], german)
+    if runtime_evidence is not None:
+        _append_runtime_evidence_table(lines, runtime_evidence, display_names, german)
+        lines.extend(["", labels["capability_heading"], ""])
     else:
-        lines.extend([capability_heading, ""])
+        lines.extend([labels["capability_heading"], ""])
     connector_headers = [display_names[name] for name in CONNECTORS]
     lines.append(
-        "| " + " | ".join([capability_label, *connector_headers]) + " |"
+        "| " + " | ".join([labels["capability_label"], *connector_headers]) + " |"
     )
     lines.append("|" + "---|" * (len(CONNECTORS) + 1))
     for capability in CAPABILITY_NAMES:
@@ -1084,8 +1144,8 @@ def render_markdown(
             + " |"
         )
 
-    lines.extend(["", stage_heading, ""])
-    lines.append("| " + " | ".join([stage_label, *connector_headers]) + " |")
+    lines.extend(["", labels["stage_heading"], ""])
+    lines.append("| " + " | ".join([labels["stage_label"], *connector_headers]) + " |")
     lines.append("|" + "---|" * (len(CONNECTORS) + 1))
     for stage in EVIDENCE_STAGES:
         values = [
@@ -1098,7 +1158,7 @@ def render_markdown(
             + " |"
         )
 
-    lines.extend(["", detail_heading, ""])
+    lines.extend(["", labels["detail_heading"], ""])
     for connector in CONNECTORS:
         manifest = manifests[connector]
         lines.extend(
@@ -1108,12 +1168,12 @@ def render_markdown(
                 f"- Host: `{_markdown_cell(manifest['host_name'])}`",
                 f"- Integration: `{_markdown_cell(manifest['integration_mode'])}`",
                 f"- Metadata: `{_markdown_cell(manifest['metadata_source'])}`",
-                f"- {sources_label}: "
+                f"- {labels['sources_label']}: "
                 + ", ".join(
                     f"`{_markdown_cell(path)}`" for path in manifest["source_contract"]
                 ),
                 "",
-                f"{constraints_label}:",
+                f"{labels['constraints_label']}:",
                 "",
             ]
         )
@@ -1124,7 +1184,7 @@ def render_markdown(
         lines.extend(
             [
                 "",
-                f"| {capability_label} | {state_label} | {reason_label} |",
+                f"| {labels['capability_label']} | {labels['state_label']} | {labels['reason_label']} |",
                 "|---|---|---|",
             ]
         )
@@ -1147,7 +1207,7 @@ def _atomic_write(path: Path, content: str) -> None:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(temporary, 0o644)
+        os.chmod(temporary, 0o600)
         os.replace(temporary, path)
     finally:
         if temporary.exists():
@@ -1252,6 +1312,42 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _generate_report(
+    args: argparse.Namespace, manifests: dict[str, dict[str, Any]]
+) -> int:
+    if (args.evidence_root is None) != (args.run_id is None):
+        print(
+            "connector_capabilities: --evidence-root and --run-id must be supplied together",
+            file=sys.stderr,
+        )
+        return 2
+    report_manifests = manifests
+    runtime_evidence: dict[str, Any] | None = None
+    if args.evidence_root is not None and args.run_id is not None:
+        results, evidence_errors = load_validated_runtime_results(
+            manifests,
+            args.evidence_root.expanduser(),
+            args.run_id,
+        )
+        if evidence_errors:
+            for error in evidence_errors:
+                print(f"connector_capabilities: {error}", file=sys.stderr)
+            return 1
+        try:
+            report_manifests, runtime_evidence = merge_runtime_results(
+                manifests,
+                results,
+                args.run_id,
+            )
+        except ValueError as exc:
+            print(f"connector_capabilities: {exc}", file=sys.stderr)
+            return 1
+    output_dir = args.output_dir.resolve(strict=False)
+    for output in generate(report_manifests, output_dir, runtime_evidence=runtime_evidence):
+        print(f"connector_capabilities: wrote {output}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     manifests, errors = load_manifests()
@@ -1266,42 +1362,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     if args.command == "generate":
-        if (args.evidence_root is None) != (args.run_id is None):
-            print(
-                "connector_capabilities: --evidence-root and --run-id must be supplied together",
-                file=sys.stderr,
-            )
-            return 2
-        report_manifests = manifests
-        runtime_evidence: dict[str, Any] | None = None
-        if args.evidence_root is not None and args.run_id is not None:
-            results, evidence_errors = load_validated_runtime_results(
-                manifests,
-                args.evidence_root.expanduser(),
-                args.run_id,
-            )
-            if evidence_errors:
-                for error in evidence_errors:
-                    print(f"connector_capabilities: {error}", file=sys.stderr)
-                return 1
-            try:
-                report_manifests, runtime_evidence = merge_runtime_results(
-                    manifests,
-                    results,
-                    args.run_id,
-                )
-            except ValueError as exc:
-                print(f"connector_capabilities: {exc}", file=sys.stderr)
-                return 1
-        output_dir = args.output_dir.resolve(strict=False)
-        outputs = generate(
-            report_manifests,
-            output_dir,
-            runtime_evidence=runtime_evidence,
-        )
-        for output in outputs:
-            print(f"connector_capabilities: wrote {output}")
-        return 0
+        return _generate_report(args, manifests)
     raise AssertionError(f"unhandled command: {args.command}")
 
 

@@ -12,7 +12,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 RESOLVER_PATH = ROOT / "ci" / "runtime" / "common" / "resolve-runtime-paths.py"
 SPEC = importlib.util.spec_from_file_location("resolve_runtime_paths", RESOLVER_PATH)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 resolver = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = resolver
 SPEC.loader.exec_module(resolver)
@@ -154,7 +155,11 @@ class ResolveRuntimePathsTest(unittest.TestCase):
                 "log_root": root / "logs",
                 "cache_root": root / "cache",
             }
-            for escaped_base in resolver.FORBIDDEN_BASE_ROOTS | {
+            for escaped_base in {
+                Path("/"),
+                Path("/tmp"),
+                Path("/var"),
+                Path("/var/tmp"),
                 Path("/etc/evidence-escape"),
                 Path("/root/evidence-escape"),
             }:

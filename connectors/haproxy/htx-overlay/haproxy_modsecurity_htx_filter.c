@@ -62,6 +62,8 @@ struct haproxy_modsecurity_htx_filter_config {
 
 struct haproxy_modsecurity_htx_owned_headers {
     haproxy_modsecurity_header *items;
+    char **names;
+    char **values;
     unsigned int count;
 };
 
@@ -111,11 +113,15 @@ static void haproxy_modsecurity_htx_owned_headers_free(
         return;
     }
     for (unsigned int i = 0; i < headers->count; ++i) {
-        free((char *)headers->items[i].name);
-        free((char *)headers->items[i].value);
+        free(headers->names[i]);
+        free(headers->values[i]);
     }
     free(headers->items);
+    free(headers->names);
+    free(headers->values);
     headers->items = NULL;
+    headers->names = NULL;
+    headers->values = NULL;
     headers->count = 0U;
 }
 
@@ -205,7 +211,10 @@ static int haproxy_modsecurity_htx_copy_headers(
         return 0;
     }
     headers->items = calloc(count, sizeof(*headers->items));
-    if (!headers->items) {
+    headers->names = calloc(count, sizeof(*headers->names));
+    headers->values = calloc(count, sizeof(*headers->values));
+    if (!headers->items || !headers->names || !headers->values) {
+        haproxy_modsecurity_htx_owned_headers_free(headers);
         return -1;
     }
     for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
@@ -221,14 +230,16 @@ static int haproxy_modsecurity_htx_copy_headers(
         }
         name = htx_get_blk_name(htx, blk);
         value = htx_get_blk_value(htx, blk);
-        headers->items[headers->count].name =
+        headers->names[headers->count] =
             haproxy_modsecurity_htx_dup_ist(name, HAPROXY_MODSECURITY_HTX_MAX_HEADER_BYTES);
-        headers->items[headers->count].value =
+        headers->values[headers->count] =
             haproxy_modsecurity_htx_dup_ist(value, HAPROXY_MODSECURITY_HTX_MAX_HEADER_BYTES);
-        if (!headers->items[headers->count].name || !headers->items[headers->count].value) {
+        if (!headers->names[headers->count] || !headers->values[headers->count]) {
             haproxy_modsecurity_htx_owned_headers_free(headers);
             return -1;
         }
+        headers->items[headers->count].name = headers->names[headers->count];
+        headers->items[headers->count].value = headers->values[headers->count];
         ++headers->count;
     }
     return 0;
@@ -668,53 +679,54 @@ static int haproxy_modsecurity_htx_filter_http_payload(
     return (int)len;
 }
 
-static int haproxy_modsecurity_htx_filter_http_end(
-    struct stream *s, struct filter *filter, struct http_msg *msg)
+static int haproxy_modsecurity_htx_finish_request(
+    struct stream *s, struct filter *filter, struct http_msg *msg,
+    struct haproxy_modsecurity_htx_filter_context *ctx)
 {
-    struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
     haproxy_modsecurity_decision decision;
 
-    if (!ctx || !msg || !msg->chn) {
-        return -1;
-    }
-    if (!(msg->chn->flags & CF_ISRESP)) {
-        unregister_data_filter(s, msg->chn, filter);
-        if (!ctx->request_finished) {
-            ctx->request_finished = 1;
-            if (!ctx->disabled && ctx->request_headers_seen && ctx->transaction) {
-                if (haproxy_modsecurity_transaction_finish_request_body(
-                        ctx->transaction, &decision) != 0) {
-                    haproxy_modsecurity_htx_abort_context(ctx);
-                } else {
-                    haproxy_modsecurity_htx_report_decision("request-body", ctx, &decision);
-                    if (decision.disruptive) {
-                        /* The payload hook returns borrowed HTX slices to
-                         * HAProxy before this later request http_end callback.
-                         * Its scheduler can therefore dispatch a one-block P2
-                         * request before or after this disruptive decision.
-                         * The host runner records the observed zero-or-one
-                         * backend dispatch count; neither outcome is
-                         * incremental-request-forwarding evidence and both
-                         * must remain non-promoted. When this filter has not
-                         * seen response headers, HAProxy's normal
-                         * reply-and-close API can give the real client a 4xx. */
-                        if (!ctx->response_headers_seen &&
-                            haproxy_modsecurity_htx_apply_precommit_deny(
-                                s, ctx, &decision)) {
-                            unregister_data_filter(s, msg->chn, filter);
-                            return 1;
-                        }
-                        haproxy_modsecurity_htx_finish_context(ctx);
-                        ctx->disabled = 1;
-                    } else if (ctx->response_started_before_request_eos) {
-                        haproxy_modsecurity_htx_finish_context(ctx);
-                        ctx->disabled = 1;
-                    }
-                }
-            }
-        }
+    unregister_data_filter(s, msg->chn, filter);
+    if (ctx->request_finished) {
         return 1;
     }
+    ctx->request_finished = 1;
+    if (ctx->disabled || !ctx->request_headers_seen || !ctx->transaction) {
+        return 1;
+    }
+    if (haproxy_modsecurity_transaction_finish_request_body(
+            ctx->transaction, &decision) != 0) {
+        haproxy_modsecurity_htx_abort_context(ctx);
+        return 1;
+    }
+    haproxy_modsecurity_htx_report_decision("request-body", ctx, &decision);
+    if (decision.disruptive) {
+        /* The payload hook returns borrowed HTX slices to HAProxy before this
+         * later request http_end callback. Its scheduler can dispatch a
+         * one-block P2 request before or after this disruptive decision. The
+         * host runner records the observed zero-or-one backend dispatch count;
+         * neither outcome is incremental-request-forwarding evidence and both
+         * remain non-promoted. Before response headers, HAProxy's normal
+         * reply-and-close API can return the real client a 4xx. */
+        if (!ctx->response_headers_seen &&
+                haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)) {
+            unregister_data_filter(s, msg->chn, filter);
+            return 1;
+        }
+        haproxy_modsecurity_htx_finish_context(ctx);
+        ctx->disabled = 1;
+    } else if (ctx->response_started_before_request_eos) {
+        haproxy_modsecurity_htx_finish_context(ctx);
+        ctx->disabled = 1;
+    }
+    return 1;
+}
+
+static int haproxy_modsecurity_htx_finish_response(
+    struct stream *s, struct filter *filter, struct http_msg *msg,
+    struct haproxy_modsecurity_htx_filter_context *ctx)
+{
+    haproxy_modsecurity_decision decision;
+
     if (ctx->disabled || !ctx->transaction || !ctx->response_headers_seen ||
         ctx->response_finished) {
         unregister_data_filter(s, msg->chn, filter);
@@ -735,6 +747,20 @@ static int haproxy_modsecurity_htx_filter_http_end(
     haproxy_modsecurity_htx_finish_context(ctx);
     unregister_data_filter(s, msg->chn, filter);
     return 1;
+}
+
+static int haproxy_modsecurity_htx_filter_http_end(
+    struct stream *s, struct filter *filter, struct http_msg *msg)
+{
+    struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
+
+    if (!ctx || !msg || !msg->chn) {
+        return -1;
+    }
+    if (!(msg->chn->flags & CF_ISRESP)) {
+        return haproxy_modsecurity_htx_finish_request(s, filter, msg, ctx);
+    }
+    return haproxy_modsecurity_htx_finish_response(s, filter, msg, ctx);
 }
 
 static void haproxy_modsecurity_htx_filter_http_reset(

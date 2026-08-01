@@ -2,36 +2,6 @@
 #include "msc_utils.h"
 
 
-int id(const char *fn, const char *format, ...)
-{
-    int rc = -1;
-    FILE *f = NULL;
-    va_list args;
-
-    if (fn == NULL || format == NULL)
-    {
-        return -1;
-    }
-
-    f = fopen(fn, "a");
-    if (f == NULL)
-    {
-        return -1;
-    }
-
-    va_start(args, format);
-    rc = vfprintf(f, format, args);
-    va_end(args);
-
-    if (fclose(f) != 0)
-    {
-        return -1;
-    }
-
-    return rc;
-}
-
-
 
 void msc_discard_response_brigade(msc_t *msr)
 {

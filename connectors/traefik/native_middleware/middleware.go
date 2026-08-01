@@ -85,6 +85,20 @@ func normalizedConfig(config *Config) (Config, error) {
 		return Config{}, errors.New("modsecurity native middleware: config is required")
 	}
 	value := *config
+	applyConfigDefaults(&value)
+	if err := validateConfigLimits(value); err != nil {
+		return Config{}, err
+	}
+	if err := validateEngineConfig(value); err != nil {
+		return Config{}, err
+	}
+	return value, nil
+}
+
+func applyConfigDefaults(value *Config) {
+	if value == nil {
+		return
+	}
 	if value.MaxHeaderCount == 0 {
 		value.MaxHeaderCount = defaultMaxHeaderCount
 	}
@@ -103,27 +117,35 @@ func normalizedConfig(config *Config) (Config, error) {
 	if value.EngineMode == "" {
 		value.EngineMode = "passthrough"
 	}
+
+}
+
+func validateConfigLimits(value Config) error {
 	if value.MaxHeaderCount <= 0 || value.MaxHeaderBytes <= 0 ||
 		value.MaxRequestChunkBytes <= 0 || value.MaxResponseChunkBytes <= 0 {
-		return Config{}, errors.New("modsecurity native middleware: all limits must be positive")
+		return errors.New("modsecurity native middleware: all limits must be positive")
 	}
 	if strings.TrimSpace(value.TransactionIDHeader) == "" {
-		return Config{}, errors.New("modsecurity native middleware: transactionIDHeader is required")
+		return errors.New("modsecurity native middleware: transactionIDHeader is required")
 	}
+	return nil
+}
+
+func validateEngineConfig(value Config) error {
 	if value.EngineMode != "passthrough" && value.EngineMode != "uds" {
-		return Config{}, fmt.Errorf("modsecurity native middleware: unsupported engineMode %q", value.EngineMode)
+		return fmt.Errorf("modsecurity native middleware: unsupported engineMode %q", value.EngineMode)
 	}
 	if value.EngineMode == "uds" && !safeUnixSocketPath(value.EngineSocketPath) {
-		return Config{}, errors.New("modsecurity native middleware: engineSocketPath must be an absolute private path without parent segments")
+		return errors.New("modsecurity native middleware: engineSocketPath must be an absolute private path without parent segments")
 	}
 	if value.EngineMode == "uds" &&
 		(value.MaxHeaderCount > udsMaxHeaders ||
 			value.MaxHeaderBytes > udsMaxPayload ||
 			value.MaxRequestChunkBytes > udsMaxChunk ||
 			value.MaxResponseChunkBytes > udsMaxChunk) {
-		return Config{}, errors.New("modsecurity native middleware: uds limits exceed the local engine wire contract")
+		return errors.New("modsecurity native middleware: uds limits exceed the local engine wire contract")
 	}
-	return value, nil
+	return nil
 }
 
 func safeUnixSocketPath(path string) bool {
@@ -146,7 +168,7 @@ const (
 	DirectionResponse Direction = "response"
 )
 
-// Header is a bounded borrowed view passed to an Engine callback. Implementers
+// Header is a bounded borrowed view passed to a TransactionOpener callback. Implementers
 // must consume it synchronously and must not retain header values.
 type Header struct {
 	Name  string
@@ -210,13 +232,16 @@ type Summary struct {
 	LateAction          string
 }
 
-// Engine is the explicit bridge seam to Common/libmodsecurity. `uds` selects
-// the persistent local service; PassthroughEngine remains the intentional
-// source-only default. An Engine receives bounded, incremental callbacks only
-// and must never retain borrowed body slices.
-type Engine interface {
+// TransactionOpener is the explicit bridge seam to Common/libmodsecurity.
+// `uds` selects the persistent local service; PassthroughEngine remains the
+// intentional source-only default. An opener receives bounded, incremental
+// callbacks only and must never retain borrowed body slices.
+type TransactionOpener interface {
 	Open(context.Context, Metadata) (Transaction, error)
 }
+
+// Engine remains a source-compatible name for existing plugin consumers.
+type Engine = TransactionOpener
 
 // Transaction consumes the request/response lifecycle for one HTTP request.
 // Body slices are borrowed and valid only for the duration of the callback.
@@ -226,23 +251,23 @@ type Transaction interface {
 	Close(context.Context, Summary)
 }
 
-// responseHeaderTransaction carries the real host response status/version to
+// responseHeaderProcessor carries the real host response status/version to
 // engines that need Common Phase 3 input. Older test engines continue through
 // Transaction.ProcessHeaders without an adapter-visible status.
-type responseHeaderTransaction interface {
+type responseHeaderProcessor interface {
 	ProcessResponseHeaders(context.Context, int, string, []Header) (Decision, error)
 }
 
-// responseCommitTransaction receives host commit metadata immediately after
+// responseCommitter receives host commit metadata immediately after
 // the underlying ResponseWriter has accepted headers or body bytes.
-type responseCommitTransaction interface {
+type responseCommitter interface {
 	SetResponseCommit(context.Context, bool, bool) error
 }
 
-// outcomeTransaction is deliberately a coordination seam only. It is called
+// outcomeAcknowledger is deliberately a coordination seam only. It is called
 // after a concrete host decision is written, or when a committed Phase-4
 // decision is downgraded to log-only. It is not an evidence claim by itself.
-type outcomeTransaction interface {
+type outcomeAcknowledger interface {
 	AcknowledgeApplied(context.Context, Decision) error
 	AcknowledgeLateLogOnly(context.Context, int) error
 }
@@ -265,7 +290,9 @@ func (passthroughTransaction) ProcessBody(_ context.Context, _ Direction, _ []by
 	return allowDecision(), nil
 }
 
-func (passthroughTransaction) Close(_ context.Context, _ Summary) {}
+func (passthroughTransaction) Close(_ context.Context, _ Summary) {
+	// Intentional no-op: this source-only engine owns no request resources.
+}
 
 // Middleware is an http.Handler suitable for Traefik's Go middleware API.
 // New creates either PassthroughEngine or the configured UDS bridge. Tests may
@@ -273,7 +300,7 @@ func (passthroughTransaction) Close(_ context.Context, _ Summary) {}
 type Middleware struct {
 	next   http.Handler
 	config Config
-	engine Engine
+	engine TransactionOpener
 	name   string
 }
 
@@ -288,16 +315,16 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	if err != nil {
 		return nil, err
 	}
-	var engine Engine = PassthroughEngine{}
+	var engine TransactionOpener = PassthroughEngine{}
 	if normalized.EngineMode == "uds" {
 		engine = newUnixSocketEngine(normalized.EngineSocketPath)
 	}
 	return newMiddleware(next, normalized, name, engine)
 }
 
-// NewWithEngine is an explicit test/future-bridge seam. A nil Engine is never
+// NewWithEngine is an explicit test/future-bridge seam. A nil TransactionOpener is never
 // silently replaced because doing so would hide a missing security integration.
-func NewWithEngine(next http.Handler, config *Config, name string, engine Engine) (*Middleware, error) {
+func NewWithEngine(next http.Handler, config *Config, name string, engine TransactionOpener) (*Middleware, error) {
 	normalized, err := normalizedConfig(config)
 	if err != nil {
 		return nil, err
@@ -305,7 +332,7 @@ func NewWithEngine(next http.Handler, config *Config, name string, engine Engine
 	return newMiddleware(next, normalized, name, engine)
 }
 
-func newMiddleware(next http.Handler, config Config, name string, engine Engine) (*Middleware, error) {
+func newMiddleware(next http.Handler, config Config, name string, engine TransactionOpener) (*Middleware, error) {
 	if next == nil {
 		return nil, errors.New("modsecurity native middleware: next handler is required")
 	}
@@ -346,12 +373,11 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 	}
 
 	state := &streamState{
-		context:  contextValue,
 		config:   middleware.config,
 		metadata: metadata,
 		engine:   transaction,
 	}
-	defer state.close()
+	defer state.close(contextValue)
 
 	requestHeaders, err := boundedHeaders(request.Header, middleware.config)
 	if err != nil {
@@ -359,23 +385,24 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 		return
 	}
 	requestEnd := request.Body == nil || request.ContentLength == 0
-	decision, err := state.processHeaders(DirectionRequest, requestHeaders, requestEnd)
+	decision, err := state.processHeaders(contextValue, DirectionRequest, requestHeaders, requestEnd)
 	if err != nil {
 		http.Error(writer, "modsecurity middleware request-header evaluation failed", http.StatusInternalServerError)
 		return
 	}
 	if decision.disruptive() {
-		state.writeDecision(writer, decision)
+		state.writeDecision(contextValue, writer, decision)
 		return
 	}
 	if requestEnd {
 		state.markRequestEOS()
 	}
 
-	response := newResponseWriter(writer, state)
+	contextForRequest := newContextProvider(contextValue)
+	response := newResponseWriter(contextForRequest, writer, state)
 	originalBody := request.Body
 	if originalBody != nil {
-		request.Body = &inspectingRequestBody{source: originalBody, state: state}
+		request.Body = &inspectingRequestBody{context: contextForRequest, source: originalBody, state: state}
 		defer func() { request.Body = originalBody }()
 	}
 
@@ -400,7 +427,6 @@ func endpointFromAddress(value string, fallbackPort int) (string, int) {
 
 type streamState struct {
 	mu       sync.Mutex
-	context  context.Context
 	config   Config
 	metadata Metadata
 	engine   Transaction
@@ -422,7 +448,20 @@ type streamState struct {
 	closed                 bool
 }
 
-func (state *streamState) processHeaders(direction Direction, headers []Header, end bool) (Decision, error) {
+// contextProvider keeps the request lifetime available to http.ResponseWriter
+// callbacks, whose fixed interface cannot accept a context parameter. It is
+// immutable and shared only by the per-request wrappers created in ServeHTTP.
+type contextProvider func() context.Context
+
+func newContextProvider(value context.Context) contextProvider {
+	return func() context.Context { return value }
+}
+
+func (provider contextProvider) current() context.Context {
+	return provider()
+}
+
+func (state *streamState) processHeaders(contextValue context.Context, direction Direction, headers []Header, end bool) (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	if direction == DirectionRequest {
@@ -430,23 +469,23 @@ func (state *streamState) processHeaders(direction Direction, headers []Header, 
 	} else {
 		state.responseHeaderCount += uint64(len(headers))
 	}
-	return state.engine.ProcessHeaders(state.context, direction, headers, end)
+	return state.engine.ProcessHeaders(contextValue, direction, headers, end)
 }
 
-func (state *streamState) processResponseHeaders(status int, headers []Header) (Decision, error) {
+func (state *streamState) processResponseHeaders(contextValue context.Context, status int, headers []Header) (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	state.responseHeaderCount += uint64(len(headers))
-	if processor, ok := state.engine.(responseHeaderTransaction); ok {
-		return processor.ProcessResponseHeaders(state.context, status, state.metadata.HTTPVersion, headers)
+	if processor, ok := state.engine.(responseHeaderProcessor); ok {
+		return processor.ProcessResponseHeaders(contextValue, status, state.metadata.HTTPVersion, headers)
 	}
-	return state.engine.ProcessHeaders(state.context, DirectionResponse, headers, false)
+	return state.engine.ProcessHeaders(contextValue, DirectionResponse, headers, false)
 }
 
 // processRequestBody returns an error only for a request-side rejection or an
 // engine failure. The pending result is also retained so a handler that tries
 // to write after Read returns can still be blocked before commitment.
-func (state *streamState) processRequestBody(chunk []byte, end bool) error {
+func (state *streamState) processRequestBody(contextValue context.Context, chunk []byte, end bool) error {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	if end && state.requestEOS {
@@ -454,7 +493,7 @@ func (state *streamState) processRequestBody(chunk []byte, end bool) error {
 	}
 	state.requestBodyChunks++
 	state.requestBodyBytes += int64(len(chunk))
-	decision, err := state.engine.ProcessBody(state.context, DirectionRequest, chunk, end)
+	decision, err := state.engine.ProcessBody(contextValue, DirectionRequest, chunk, end)
 	if end {
 		state.requestEOS = true
 	}
@@ -472,7 +511,7 @@ func (state *streamState) processRequestBody(chunk []byte, end bool) error {
 // processResponseBody invokes the engine before a bounded slice is forwarded.
 // A disruptive decision found after commitment is intentionally a log-only
 // outcome: no synthetic abort or changed visible HTTP status is claimed.
-func (state *streamState) processResponseBody(chunk []byte, end bool, beforeCommit bool) (Decision, error) {
+func (state *streamState) processResponseBody(contextValue context.Context, chunk []byte, end bool, beforeCommit bool) (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	if end && state.responseEOS {
@@ -480,7 +519,7 @@ func (state *streamState) processResponseBody(chunk []byte, end bool, beforeComm
 	}
 	state.responseBodyChunks++
 	state.responseBodyBytes += int64(len(chunk))
-	decision, err := state.engine.ProcessBody(state.context, DirectionResponse, chunk, end)
+	decision, err := state.engine.ProcessBody(contextValue, DirectionResponse, chunk, end)
 	if end {
 		state.responseEOS = true
 	}
@@ -489,8 +528,8 @@ func (state *streamState) processResponseBody(chunk []byte, end bool, beforeComm
 	}
 	if decision.disruptive() && !beforeCommit {
 		state.lateAction = "log_only"
-		if reporter, ok := state.engine.(outcomeTransaction); ok {
-			_ = reporter.AcknowledgeLateLogOnly(state.context, state.responseStatus)
+		if reporter, ok := state.engine.(outcomeAcknowledger); ok {
+			_ = reporter.AcknowledgeLateLogOnly(contextValue, state.responseStatus)
 		}
 		return allowDecision(), nil
 	}
@@ -503,7 +542,7 @@ func (state *streamState) pendingRequestResult() (Decision, error) {
 	return state.pendingRequestDecision, state.pendingRequestError
 }
 
-func (state *streamState) markResponseCommit(status int, headersSent bool, bodyStarted bool) {
+func (state *streamState) markResponseCommit(contextValue context.Context, status int, headersSent bool, bodyStarted bool) {
 	state.mu.Lock()
 	if headersSent || bodyStarted {
 		state.responseCommitted = true
@@ -512,19 +551,17 @@ func (state *streamState) markResponseCommit(status int, headersSent bool, bodyS
 		state.responseStatus = status
 	}
 	transaction := state.engine
-	contextValue := state.context
 	state.mu.Unlock()
-	if committer, ok := transaction.(responseCommitTransaction); ok {
+	if committer, ok := transaction.(responseCommitter); ok {
 		_ = committer.SetResponseCommit(contextValue, headersSent, bodyStarted)
 	}
 }
 
-func (state *streamState) acknowledgeApplied(decision Decision) {
+func (state *streamState) acknowledgeApplied(contextValue context.Context, decision Decision) {
 	state.mu.Lock()
 	transaction := state.engine
-	contextValue := state.context
 	state.mu.Unlock()
-	if reporter, ok := transaction.(outcomeTransaction); ok {
+	if reporter, ok := transaction.(outcomeAcknowledger); ok {
 		_ = reporter.AcknowledgeApplied(contextValue, decision)
 	}
 }
@@ -536,13 +573,13 @@ func (state *streamState) acknowledgeApplied(decision Decision) {
 // while its Common commit state is still pre-action; only then do we publish
 // the actual host commit. A failed or short body write still records only
 // commit metadata and deliberately emits no host outcome.
-func (state *streamState) writeDecision(target http.ResponseWriter, decision Decision) {
+func (state *streamState) writeDecision(contextValue context.Context, target http.ResponseWriter, decision Decision) {
 	count, writeErr := writeDecision(target, decision)
 	status, _ := normalizeDecision(decision)
 	if writeErr == nil {
-		state.acknowledgeApplied(decision)
+		state.acknowledgeApplied(contextValue, decision)
 	}
-	state.markResponseCommit(status, true, count > 0)
+	state.markResponseCommit(contextValue, status, true, count > 0)
 }
 
 func (state *streamState) markRequestEOS() {
@@ -551,14 +588,14 @@ func (state *streamState) markRequestEOS() {
 	state.mu.Unlock()
 }
 
-func (state *streamState) close() {
+func (state *streamState) close(contextValue context.Context) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	if state.closed {
 		return
 	}
 	state.closed = true
-	state.engine.Close(state.context, Summary{
+	state.engine.Close(contextValue, Summary{
 		TransactionID:       state.metadata.TransactionID,
 		RequestHeaderCount:  state.requestHeaderCount,
 		ResponseHeaderCount: state.responseHeaderCount,
@@ -574,8 +611,9 @@ func (state *streamState) close() {
 }
 
 type inspectingRequestBody struct {
-	source io.ReadCloser
-	state  *streamState
+	context contextProvider
+	source  io.ReadCloser
+	state   *streamState
 }
 
 func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
@@ -585,12 +623,12 @@ func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
 	count, readErr := body.source.Read(buffer)
 	if count > 0 {
 		end := errors.Is(readErr, io.EOF)
-		if err := body.state.processRequestBody(buffer[:count], end); err != nil {
+		if err := body.state.processRequestBody(body.context.current(), buffer[:count], end); err != nil {
 			return 0, err
 		}
 	}
 	if errors.Is(readErr, io.EOF) && count == 0 {
-		if err := body.state.processRequestBody(nil, true); err != nil {
+		if err := body.state.processRequestBody(body.context.current(), nil, true); err != nil {
 			return 0, err
 		}
 	}
@@ -602,8 +640,9 @@ func (body *inspectingRequestBody) Close() error {
 }
 
 type responseWriter struct {
-	target http.ResponseWriter
-	state  *streamState
+	context contextProvider
+	target  http.ResponseWriter
+	state   *streamState
 
 	responseHeadersEvaluated bool
 	committed                bool
@@ -619,8 +658,8 @@ type responseWriter struct {
 	responseIncomplete bool
 }
 
-func newResponseWriter(target http.ResponseWriter, state *streamState) *responseWriter {
-	return &responseWriter{target: target, state: state}
+func newResponseWriter(contextValue contextProvider, target http.ResponseWriter, state *streamState) *responseWriter {
+	return &responseWriter{context: contextValue, target: target, state: state}
 }
 
 func (writer *responseWriter) Header() http.Header {
@@ -649,65 +688,74 @@ func (writer *responseWriter) Write(payload []byte) (int, error) {
 		return len(payload), nil
 	}
 	if len(payload) == 0 {
-		writer.WriteHeader(http.StatusOK)
-		if writer.rejected {
-			return 0, ErrResponseRejected
-		}
-		return writer.target.Write(payload)
+		return writer.writeEmptyResponse()
 	}
+	written, rejected, err := writer.writeResponseChunks(payload)
+	if rejected {
+		return len(payload), nil
+	}
+	return written, err
+}
 
-	firstChunk := !writer.committed
-	if firstChunk && !writer.prepareResponseHeaders(http.StatusOK) {
-		if writer.rejected {
-			return len(payload), nil
-		}
+func (writer *responseWriter) writeEmptyResponse() (int, error) {
+	writer.WriteHeader(http.StatusOK)
+	if writer.rejected {
 		return 0, ErrResponseRejected
 	}
+	return writer.target.Write(nil)
+}
 
+func (writer *responseWriter) writeResponseChunks(payload []byte) (int, bool, error) {
+	if !writer.committed && !writer.prepareResponseHeaders(http.StatusOK) {
+		return 0, writer.rejected, ErrResponseRejected
+	}
 	written := 0
 	for len(payload) > 0 {
-		chunkLength := writer.state.config.MaxResponseChunkBytes
-		if chunkLength > len(payload) {
-			chunkLength = len(payload)
-		}
-		chunk := payload[:chunkLength]
-		decision, err := writer.state.processResponseBody(chunk, false, !writer.committed)
-		if err != nil {
-			if !writer.committed {
-				writer.writeFailure()
-			}
-			return written, err
-		}
-		if decision.disruptive() {
-			writer.writeDecision(decision)
-			return len(payload) + written, nil
-		}
-		if !writer.committed {
-			writer.commit(http.StatusOK)
-		}
-		count, writeErr := writer.target.Write(chunk)
+		chunkLength := min(len(payload), writer.state.config.MaxResponseChunkBytes)
+		count, rejected, err := writer.writeResponseChunk(payload[:chunkLength])
 		written += count
-		if count > 0 {
-			writer.state.markResponseCommit(0, true, true)
-			// Traefik's native forwarding path may otherwise retain a small
-			// response chunk until upstream EOS. Flush only bytes the host has
-			// actually accepted so a committed streaming response remains
-			// observable before a synchronized upstream releases its final chunk.
-			if flusher, ok := writer.target.(http.Flusher); ok {
-				flusher.Flush()
-			}
-		}
-		if writeErr != nil {
-			writer.responseIncomplete = true
-			return written, writeErr
-		}
-		if count != len(chunk) {
-			writer.responseIncomplete = true
-			return written, io.ErrShortWrite
+		if err != nil || rejected {
+			return written, rejected, err
 		}
 		payload = payload[chunkLength:]
 	}
-	return written, nil
+	return written, false, nil
+}
+
+func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error) {
+	decision, err := writer.state.processResponseBody(writer.context.current(), chunk, false, !writer.committed)
+	if err != nil {
+		if !writer.committed {
+			writer.writeFailure()
+		}
+		return 0, false, err
+	}
+	if decision.disruptive() {
+		writer.writeDecision(decision)
+		return 0, true, nil
+	}
+	if !writer.committed {
+		writer.commit(http.StatusOK)
+	}
+	count, writeErr := writer.target.Write(chunk)
+	if count > 0 {
+		writer.state.markResponseCommit(writer.context.current(), 0, true, true)
+		// Traefik's native forwarding path may otherwise retain a small response
+		// chunk until upstream EOS. Flush only bytes the host accepted so a
+		// committed streaming response remains observable before upstream EOF.
+		if flusher, ok := writer.target.(http.Flusher); ok {
+			flusher.Flush()
+		}
+	}
+	if writeErr != nil {
+		writer.responseIncomplete = true
+		return count, false, writeErr
+	}
+	if count != len(chunk) {
+		writer.responseIncomplete = true
+		return count, false, io.ErrShortWrite
+	}
+	return count, false, nil
 }
 
 func (writer *responseWriter) prepareResponseHeaders(status int) bool {
@@ -726,7 +774,7 @@ func (writer *responseWriter) prepareResponseHeaders(status int) bool {
 		writer.writeFailure()
 		return false
 	}
-	decision, err := writer.state.processResponseHeaders(status, headers)
+	decision, err := writer.state.processResponseHeaders(writer.context.current(), status, headers)
 	if err != nil {
 		writer.writeFailure()
 		return false
@@ -745,7 +793,7 @@ func (writer *responseWriter) commit(status int) {
 	}
 	writer.target.WriteHeader(status)
 	writer.committed = true
-	writer.state.markResponseCommit(status, true, false)
+	writer.state.markResponseCommit(writer.context.current(), status, true, false)
 }
 
 func (writer *responseWriter) writeFailure() {
@@ -758,7 +806,7 @@ func (writer *responseWriter) writeFailure() {
 	writer.committed = true
 	writer.rejected = true
 	count, _ := writer.target.Write([]byte("modsecurity middleware evaluation failed\n"))
-	writer.state.markResponseCommit(http.StatusInternalServerError, true, count > 0)
+	writer.state.markResponseCommit(writer.context.current(), http.StatusInternalServerError, true, count > 0)
 }
 
 func (writer *responseWriter) writeDecision(decision Decision) {
@@ -767,7 +815,7 @@ func (writer *responseWriter) writeDecision(decision Decision) {
 	}
 	writer.committed = true
 	writer.rejected = true
-	writer.state.writeDecision(writer.target, decision)
+	writer.state.writeDecision(writer.context.current(), writer.target, decision)
 }
 
 func (writer *responseWriter) clearHeaders() {
@@ -853,42 +901,57 @@ func (writer *responseWriter) Push(target string, options *http.PushOptions) err
 // the wrapped writer's ReaderFrom for the remaining stream when available.
 // That avoids full-response buffering and retains the underlying fast path for
 // all but the bounded first chunk.
+func (writer *responseWriter) consumeInitialReadFromChunk(source io.Reader) (int64, bool, error) {
+	if writer.committed {
+		return 0, false, nil
+	}
+	first := make([]byte, writer.state.config.MaxResponseChunkBytes)
+	count, readErr := source.Read(first)
+	total, writeErr := writer.writeInitialReadFromBytes(first[:count], count)
+	if writeErr != nil {
+		return total, true, writeErr
+	}
+	if errors.Is(readErr, io.EOF) {
+		return total, true, nil
+	}
+	if readErr != nil {
+		return total, true, readErr
+	}
+	if writer.rejected {
+		count, err := io.Copy(io.Discard, source)
+		return total + count, true, err
+	}
+	return total, false, nil
+}
+
+func (writer *responseWriter) writeInitialReadFromBytes(first []byte, count int) (int64, error) {
+	if count == 0 {
+		return 0, nil
+	}
+	written, err := writer.Write(first)
+	if err != nil {
+		return int64(written), err
+	}
+	if written != count {
+		return int64(written), io.ErrShortWrite
+	}
+	return int64(written), nil
+}
+
 func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
 	if writer.rejected {
 		return io.Copy(io.Discard, source)
 	}
-
-	var total int64
-	if !writer.committed {
-		first := make([]byte, writer.state.config.MaxResponseChunkBytes)
-		count, readErr := source.Read(first)
-		if count > 0 {
-			written, writeErr := writer.Write(first[:count])
-			total += int64(written)
-			if writeErr != nil {
-				return total, writeErr
-			}
-			if written != count {
-				return total, io.ErrShortWrite
-			}
-		}
-		if errors.Is(readErr, io.EOF) {
-			return total, nil
-		}
-		if readErr != nil {
-			return total, readErr
-		}
-		if writer.rejected {
-			count, err := io.Copy(io.Discard, source)
-			return total + count, err
-		}
+	total, complete, err := writer.consumeInitialReadFromChunk(source)
+	if complete {
+		return total, err
 	}
 
 	if readerFrom, ok := writer.target.(io.ReaderFrom); ok {
 		inspected := &responseInspectionReader{source: source, writer: writer}
 		count, err := readerFrom.ReadFrom(inspected)
 		if count > 0 {
-			writer.state.markResponseCommit(0, true, true)
+			writer.state.markResponseCommit(writer.context.current(), 0, true, true)
 		}
 		if err != nil {
 			// ReaderFrom may surface either an upstream read failure or a
@@ -916,13 +979,13 @@ func (reader *responseInspectionReader) Read(buffer []byte) (int, error) {
 	}
 	count, readErr := reader.source.Read(buffer)
 	if count > 0 {
-		_, err := reader.writer.state.processResponseBody(buffer[:count], false, false)
+		_, err := reader.writer.state.processResponseBody(reader.writer.context.current(), buffer[:count], false, false)
 		if err != nil {
 			return 0, err
 		}
 	}
 	if errors.Is(readErr, io.EOF) && count == 0 {
-		_, err := reader.writer.state.processResponseBody(nil, true, false)
+		_, err := reader.writer.state.processResponseBody(reader.writer.context.current(), nil, true, false)
 		if err != nil {
 			return 0, err
 		}
@@ -973,7 +1036,7 @@ func (writer *responseWriter) finish() {
 		if !writer.prepareResponseHeaders(http.StatusOK) {
 			return
 		}
-		decision, err := writer.state.processResponseBody(nil, true, true)
+		decision, err := writer.state.processResponseBody(writer.context.current(), nil, true, true)
 		if err != nil {
 			writer.writeFailure()
 			return
@@ -986,7 +1049,7 @@ func (writer *responseWriter) finish() {
 		return
 	}
 
-	_, err := writer.state.processResponseBody(nil, true, false)
+	_, err := writer.state.processResponseBody(writer.context.current(), nil, true, false)
 	if err != nil {
 		// Response headers may already be committed. There is no safe replacement
 		// status or claimed abort path here; Close records counters only.

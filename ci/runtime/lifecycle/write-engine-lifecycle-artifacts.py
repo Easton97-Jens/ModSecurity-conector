@@ -14,9 +14,22 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import sys
 import tempfile
 from typing import Any, Iterable
+
+
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import (
+    is_under,
+    prepare_verified_runtime_artifact_root,
+    runtime_artifact_path,
+    runtime_or_source_artifact_path,
+)
 
 
 FORBIDDEN_EVENT_KEYS = {
@@ -39,11 +52,49 @@ FORBIDDEN_EVENT_KEYS = {
 
 
 def sha256_file(path: Path) -> str:
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError("safe lifecycle hashing requires O_NOFOLLOW")
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
+    descriptor = os.open(path, os.O_RDONLY | no_follow)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError(f"hash input must be a regular file: {path}")
+        with os.fdopen(descriptor, "rb") as handle:
+            descriptor = -1
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
     return digest.hexdigest()
+
+
+def managed_library_path(library_value: Path | str, root_value: Path | str) -> Path:
+    """Resolve the managed SONAME without widening the provenance read scope.
+
+    The lifecycle runner provides the immutable libmodsecurity cache directory
+    it obtained from the target-bound runtime-component snapshot.  A SONAME
+    link is normal, but neither the input name nor its resolved target may
+    leave that directory.
+    """
+
+    library_root = Path(root_value)
+    if not library_root.is_absolute() or not library_root.is_dir() or library_root.is_symlink():
+        raise ValueError(f"managed library root must be an absolute real directory: {library_root}")
+    for candidate in library_root.parents:
+        if candidate.is_symlink():
+            raise ValueError(f"managed library root contains a symlink: {candidate}")
+    library = Path(library_value)
+    if not library.is_absolute() or not is_under(library, library_root):
+        raise ValueError(f"library must be below the managed library root: {library}")
+    try:
+        resolved = library.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(f"cannot resolve managed library: {library}: {exc}") from exc
+    if not resolved.is_file() or not is_under(resolved, library_root):
+        raise ValueError(f"library must resolve to a regular managed file: {library}")
+    return resolved
 
 
 def ensure_safe_directory(path: Path) -> None:
@@ -405,8 +456,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rules-file", required=True)
     parser.add_argument("--libmodsecurity-version", required=True)
     parser.add_argument("--libmodsecurity-library", required=True)
+    parser.add_argument("--libmodsecurity-library-root", required=True)
     parser.add_argument("--stage-exit-code", required=True, type=int)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--runtime-root", type=Path)
     parser.add_argument("--transport-lifecycle", type=Path)
     return parser.parse_args()
 
@@ -415,30 +468,41 @@ def main() -> int:
     args = parse_args()
     if args.stage_exit_code != 0:
         raise ValueError("engine lifecycle sidecars require a successful host stage")
-    source_path = Path(args.source_result)
-    events_path = Path(args.source_events)
-    rules_path = Path(args.rules_file)
-    library_path = Path(args.libmodsecurity_library)
+    runtime_root = prepare_verified_runtime_artifact_root(args.runtime_root)
+    source_path = runtime_artifact_path(
+        runtime_root, args.source_result, "source result", must_exist=True
+    )
+    events_path = runtime_artifact_path(
+        runtime_root, args.source_events, "source events", must_exist=True
+    )
+    rules_path = runtime_or_source_artifact_path(
+        runtime_root, args.rules_file, "rules", must_exist=True
+    )
+    library_path = managed_library_path(
+        args.libmodsecurity_library,
+        args.libmodsecurity_library_root,
+    )
     for label, path in (("source result", source_path), ("source events", events_path), ("rules", rules_path)):
         if not path.is_file() or path.is_symlink():
             raise ValueError(f"{label} must be a regular file: {path}")
-    # The managed libmodsecurity prefix intentionally exposes the conventional
-    # SONAME symlink (libmodsecurity.so). Hash its regular resolved target;
-    # this input never becomes a canonical artifact path.
-    if not library_path.is_file():
-        raise ValueError(f"library must be a regular file: {library_path}")
     version = str(args.libmodsecurity_version).strip()
     if not version or version == "not_provisioned":
         raise ValueError("libmodsecurity version must be concrete")
-    output_dir = Path(args.output_dir)
+    output_dir = runtime_artifact_path(runtime_root, args.output_dir, "output directory")
     ensure_safe_directory(output_dir)
     source = load_json(source_path)
     events = load_events(events_path)
-    transport_lifecycle_records = (
-        load_transport_lifecycle(args.transport_lifecycle, args.connector)
-        if args.transport_lifecycle is not None
-        else []
-    )
+    transport_lifecycle_records = []
+    if args.transport_lifecycle is not None:
+        transport_lifecycle = runtime_artifact_path(
+            runtime_root,
+            args.transport_lifecycle,
+            "transport lifecycle",
+            must_exist=True,
+        )
+        transport_lifecycle_records = load_transport_lifecycle(
+            transport_lifecycle, args.connector
+        )
     library_sha256 = sha256_file(library_path)
     ruleset_sha256 = sha256_file(rules_path)
     counts, lifecycle = build_artifacts(

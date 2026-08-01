@@ -9,7 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "generate_repository_organization_inventory.py"
 SPEC = importlib.util.spec_from_file_location("repository_organization_inventory_test", SCRIPT)
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 INVENTORY = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = INVENTORY
 SPEC.loader.exec_module(INVENTORY)

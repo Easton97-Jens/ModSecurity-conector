@@ -9,8 +9,8 @@ import (
 func fuzzUDSFrame(f *testing.F, opcode byte, payload []byte) []byte {
 	f.Helper()
 	var frame bytes.Buffer
-	if err := writeUDSFrame(&frame, opcode, payload); err != nil {
-		f.Fatalf("writeUDSFrame() error = %v", err)
+	if err := writeUDSTestFrame(&frame, opcode, payload); err != nil {
+		f.Fatalf("writeUDSTestFrame() error = %v", err)
 	}
 	return frame.Bytes()
 }
@@ -74,8 +74,8 @@ func FuzzUDSFrameAndResult(f *testing.F) {
 		}
 
 		var roundTrip bytes.Buffer
-		if err := writeUDSFrame(&roundTrip, opcode, payload); err != nil {
-			t.Fatalf("writeUDSFrame() after read = %v", err)
+		if err := writeUDSTestFrame(&roundTrip, opcode, payload); err != nil {
+			t.Fatalf("writeUDSTestFrame() after read = %v", err)
 		}
 		consumed := frame[:len(frame)-reader.Len()]
 		if !bytes.Equal(roundTrip.Bytes(), consumed) {

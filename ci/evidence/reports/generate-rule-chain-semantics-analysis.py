@@ -42,7 +42,16 @@ def display_case_path(value: Any, framework_root: Path) -> str:
         return "-"
     path = safe_existing_file(value)
     if path is None:
-        return sanitize_report_text(str(value).replace("\\", "/").rstrip("/").split("/")[-1] or "-")
+        return untrusted_case_path_name(value)
+    return safe_case_path_display(path, framework_root)
+
+
+def untrusted_case_path_name(value: Any) -> str:
+    normalized = str(value).replace("\\", "/").rstrip("/")
+    return sanitize_report_text(normalized.rsplit("/", maxsplit=1)[-1] or "-")
+
+
+def safe_case_path_display(path: Path, framework_root: Path) -> str:
     try:
         return "framework:" + str(path.resolve(strict=False).relative_to(framework_root.resolve(strict=False)))
     except ValueError:
@@ -179,13 +188,43 @@ def variant(entry: dict[str, Any]) -> str:
     return f"{entry.get('test_variant', '-')}/{entry.get('mrts_variant', '-')}"
 
 
-def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
-    evidence = read_json(entry.get("evidence"))
-    case = load_case(evidence.get("path"))
-    rules = parse_rules(str(case.get("rules") or ""))
-    family = chain_family(rules)
-    parent = family.get("parent") or {}
-    children = family.get("children") or []
+def chain_classification(
+    *,
+    detection_only: bool,
+    full_chain_observed: bool,
+    expected_status: Any,
+    actual_status: Any,
+    parent_observed: bool,
+    child_observed: bool,
+) -> tuple[str, str, str, str]:
+    if detection_only:
+        return (
+            "with_mrts_detection_only_chain_non_disruptive",
+            "report_only",
+            "low",
+            "with-MRTS DetectionOnly overlay suppresses the disruptive chain action; no Chain semantic change is indicated.",
+        )
+    if full_chain_observed and actual_status != expected_status:
+        return "full_chain_evidence_without_expected_status", "evidence_parser_or_harness_review", "medium", "Full-chain evidence is visible but the expected status was not observed."
+    if parent_observed and not child_observed:
+        return "parent_only_not_full_chain", "report_only", "low", "Parent-only evidence is not enough for a disruptive chain expectation."
+    return "missing_chain_evidence", "analysis_required", "medium", "The report cannot prove full-chain match evidence from available logs."
+
+
+def chain_intervention_created(detection_only: bool, actual_status: Any) -> str:
+    if detection_only:
+        return "no"
+    return "yes" if actual_status in {401, 403, 302} else "unknown"
+
+
+def chain_observation(
+    entry: dict[str, Any],
+    case: dict[str, Any],
+    family: dict[str, Any],
+    parent: dict[str, Any],
+    children: list[dict[str, Any]],
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
     literal = request_literal(case)
     logs = evidence_text(evidence)
     parent_expected = token_present(parent, literal)
@@ -194,36 +233,38 @@ def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
     child_observed = any(target_logged(logs, str(child.get("target") or "")) for child in children) or entry.get("actual_status") == 403
     detection_only = entry.get("classification") == DETECTION_ONLY_CLASSIFICATION
     full_chain_observed = bool(entry.get("actual_status") == 403 or (detection_only and parent_expected and child_expected and parent_observed))
-    if detection_only:
-        classification = "with_mrts_detection_only_chain_non_disruptive"
-        fixability = "report_only"
-        risk = "low"
-        root_cause = "with-MRTS DetectionOnly overlay suppresses the disruptive chain action; no Chain semantic change is indicated."
-    elif full_chain_observed and entry.get("actual_status") != entry.get("expected_status"):
-        classification = "full_chain_evidence_without_expected_status"
-        fixability = "evidence_parser_or_harness_review"
-        risk = "medium"
-        root_cause = "Full-chain evidence is visible but the expected status was not observed."
-    elif parent_observed and not child_observed:
-        classification = "parent_only_not_full_chain"
-        fixability = "report_only"
-        risk = "low"
-        root_cause = "Parent-only evidence is not enough for a disruptive chain expectation."
-    else:
-        classification = "missing_chain_evidence"
-        fixability = "analysis_required"
-        risk = "medium"
-        root_cause = "The report cannot prove full-chain match evidence from available logs."
-    if detection_only:
-        intervention_created = "no"
-    elif entry.get("actual_status") in {401, 403, 302}:
-        intervention_created = "yes"
-    else:
-        intervention_created = "unknown"
+    classification, fixability, risk, root_cause = chain_classification(
+        detection_only=detection_only,
+        full_chain_observed=full_chain_observed,
+        expected_status=entry.get("expected_status"),
+        actual_status=entry.get("actual_status"),
+        parent_observed=parent_observed,
+        child_observed=child_observed,
+    )
+    intervention_created = chain_intervention_created(detection_only, entry.get("actual_status"))
     return {
-        "connector": entry.get("connector", "-"),
-        "variant": variant(entry),
-        "case_id": entry.get("case_id", "-"),
+        "logs": logs,
+        "parent_observed": parent_observed,
+        "child_observed": child_observed,
+        "full_chain_observed": full_chain_observed,
+        "intervention_created": intervention_created,
+        "classification": classification,
+        "fixability": fixability,
+        "risk": risk,
+        "root_cause": root_cause,
+    }
+
+
+def chain_rule_fields(
+    entry: dict[str, Any],
+    case: dict[str, Any],
+    evidence: dict[str, Any],
+    family: dict[str, Any],
+    parent: dict[str, Any],
+    children: list[dict[str, Any]],
+    framework_root: Path,
+) -> dict[str, Any]:
+    return {
         "source": case.get("source", "-"),
         "source_kind": entry.get("source_kind", "-"),
         "corpus": entry.get("mrts_corpus", "-"),
@@ -236,22 +277,46 @@ def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
         "operators": [parent.get("operator", "-")] + [child.get("operator", "-") for child in children],
         "transformations": [item for rule in [parent] + children for item in rule.get("transformations", [])],
         "actions": parent.get("actions", []),
+    }
+
+
+def chain_outcome_fields(
+    entry: dict[str, Any], rules: list[dict[str, Any]], observation: dict[str, Any]
+) -> dict[str, Any]:
+    return {
         "expected_status": entry.get("expected_status", "-"),
         "actual_status": entry.get("actual_status", "-"),
         "rule_loaded": bool(rules),
-        "chain_parent_matched": "yes" if parent_observed else "unknown",
-        "chain_child_matched": "yes" if child_observed else "unknown",
-        "full_chain_matched": "yes" if full_chain_observed else "unknown",
-        "intervention_created": intervention_created,
+        "chain_parent_matched": "yes" if observation["parent_observed"] else "unknown",
+        "chain_child_matched": "yes" if observation["child_observed"] else "unknown",
+        "full_chain_matched": "yes" if observation["full_chain_observed"] else "unknown",
+        "intervention_created": observation["intervention_created"],
         "backend_reached": entry.get("actual_status") == 200,
-        "audit_error_debug_evidence": "yes" if logs else "no",
+        "audit_error_debug_evidence": "yes" if observation["logs"] else "no",
         "current_classification": entry.get("classification", "-"),
         "current_work_direction": as_list(entry.get("work_direction")) or ["-"],
         "current_priority": entry.get("priority", "-"),
-        "analysis_classification": classification,
-        "fixability": fixability,
-        "risk": risk,
-        "root_cause": root_cause,
+        "analysis_classification": observation["classification"],
+        "fixability": observation["fixability"],
+        "risk": observation["risk"],
+        "root_cause": observation["root_cause"],
+    }
+
+
+def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
+    evidence = read_json(entry.get("evidence"))
+    case = load_case(evidence.get("path"))
+    rules = parse_rules(str(case.get("rules") or ""))
+    family = chain_family(rules)
+    parent = family.get("parent") or {}
+    children = family.get("children") or []
+    observation = chain_observation(entry, case, family, parent, children, evidence)
+    return {
+        "connector": entry.get("connector", "-"),
+        "variant": variant(entry),
+        "case_id": entry.get("case_id", "-"),
+        **chain_rule_fields(entry, case, evidence, family, parent, children, framework_root),
+        **chain_outcome_fields(entry, rules, observation),
     }
 
 
@@ -599,7 +664,6 @@ def main() -> int:
     output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
     add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root, framework_root)
     metadata = build_metadata(
         generated_by="ci/evidence/reports/generate-rule-chain-semantics-analysis.py",

@@ -27,7 +27,8 @@ from runtime_path_utils import (
 
 def load_checker() -> ModuleType:
     spec = importlib.util.spec_from_file_location("runtime_path_policy_checker", CHECKER)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     checker = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = checker
     spec.loader.exec_module(checker)
@@ -109,6 +110,19 @@ class RuntimePathPolicyTest(unittest.TestCase):
         """The reusable Python policy distinguishes runtime writes from source reads."""
         checker = load_checker()
         checker.check_python_policy()
+
+    def test_policy_environment_uses_only_the_verified_run_root_for_temp_controls(self) -> None:
+        """Self-test child processes cannot inherit broad public temp directories."""
+        checker = load_checker()
+        environment = checker.policy_environment()
+        self.assertEqual(str(checker.VERIFIED_ROOT), environment["RUNNER_TEMP"])
+        self.assertEqual(str(checker.VERIFIED_ROOT), environment["TMPDIR"])
+        self.assertNotIn("/tmp", (environment["RUNNER_TEMP"], environment["TMPDIR"]))
+        self.assertNotIn("/tmp/runner-temp", (environment["RUNNER_TEMP"], environment["TMPDIR"]))
+        self.assertEqual(
+            checker.VERIFIED_ROOT / "runtime-policy-control",
+            checker.RUNTIME_POLICY_CONTROL_ROOT,
+        )
 
     def test_shell_policy_allows_framework_to_reject_source_roots_as_runtime_paths(self) -> None:
         """A source root is non-system/read-only, not a required write-safe path."""

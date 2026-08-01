@@ -40,6 +40,8 @@ PLUGIN_ID = "modsecurityNative"
 REQUEST_BODY = b"native-traefik-request-body"
 P2_BODY = b"no-crs-request-body-marker"
 P1_ALLOW_TRANSACTION_ID = "traefik-native-p1-allow"
+NATIVE_REQUEST_PATH = "/native"
+PLAIN_TEXT_CONTENT_TYPE = "text/plain"
 ENGINE_BUILD_SCRIPT = REPO_ROOT / "connectors/traefik/build/build-engine-service.sh"
 STANDALONE_ENGINE_RULES = REPO_ROOT / "connectors/traefik/config/traefik-native-engine-rules.conf"
 
@@ -139,10 +141,18 @@ def assert_private_engine_socket_parent_ancestors_are_safe(parent: Path, label: 
 
 
 def assert_runtime_root(path: Path) -> Path:
+    """Validate the selected native runtime output before creating it.
+
+    This path becomes the parent of staged plugin sources, generated configs,
+    logs and a locally compiled engine. It may therefore be created only below
+    an existing, owner-controlled ancestor that cannot be replaced by another
+    user. An existing selected root must keep those same protections.
+    """
+
     resolved = Path(os.path.abspath(path))
     if not resolved.is_absolute():
         raise MissingDependency("native runtime root must be absolute")
-    if resolved in {Path("/"), Path("/tmp"), Path("/var"), Path("/var/tmp")}:
+    if resolved in {Path("/"), Path("/var")}:
         raise MissingDependency(f"native runtime root is too broad: {resolved}")
     try:
         resolved.relative_to(REPO_ROOT)
@@ -151,6 +161,31 @@ def assert_runtime_root(path: Path) -> Path:
     else:
         raise MissingDependency(f"native runtime root must be outside checkout: {resolved}")
     assert_no_symlink_components(resolved)
+    existing_ancestor = resolved
+    while not existing_ancestor.exists():
+        existing_ancestor = existing_ancestor.parent
+    try:
+        ancestor_stat = existing_ancestor.lstat()
+    except OSError as exc:
+        raise MissingDependency(
+            f"native runtime root ancestor is unavailable: {existing_ancestor}"
+        ) from exc
+    if not stat.S_ISDIR(ancestor_stat.st_mode):
+        raise MissingDependency(
+            f"native runtime root ancestor must be a directory: {existing_ancestor}"
+        )
+    if ancestor_stat.st_uid != os.geteuid():
+        raise MissingDependency(
+            f"native runtime root ancestor must be owned by the current user: {existing_ancestor}"
+        )
+    if stat.S_IMODE(ancestor_stat.st_mode) & (stat.S_IWGRP | stat.S_IWOTH):
+        raise MissingDependency(
+            "native runtime root ancestor must not be group or world writable: "
+            f"{existing_ancestor}"
+        )
+    assert_private_engine_socket_parent_ancestors_are_safe(
+        existing_ancestor, "native runtime root"
+    )
     return resolved
 
 
@@ -371,8 +406,9 @@ def read_plugin_module(source: Path) -> str:
             raise MissingDependency(f"native plugin source must not contain symlinks: {candidate}")
     module_match = re.search(r"(?m)^module\s+([^\s]+)\s*$", go_mod.read_text(encoding="utf-8"))
     package_match = re.search(
-        r"(?m)^package\s+([A-Za-z_][A-Za-z0-9_]*)\s*$",
+        r"(?m)^package\s+([A-Za-z_]\w*)\s*$",
         middleware.read_text(encoding="utf-8"),
+        flags=re.ASCII,
     )
     if module_match is None or package_match is None:
         raise MissingDependency("native plugin must declare a Go module and package")
@@ -543,7 +579,7 @@ def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHa
                 state.p3_requests += int(p3_requested)
                 state.p4_requests += int(p4_requested)
             self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Type", PLAIN_TEXT_CONTENT_TYPE)
             if p3_requested:
                 self.send_header("X-Modsec-Upstream", "block")
             self.send_header("Content-Length", str(sum(len(chunk) for chunk in chunks)))
@@ -650,14 +686,14 @@ def request_through_traefik(
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
         try:
             headers = {
-                "Content-Type": "text/plain",
+                "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
                 "X-Request-Id": request_id,
             }
             if extra_headers:
                 headers.update(extra_headers)
             connection.request(
                 "POST",
-                "/native",
+                NATIVE_REQUEST_PATH,
                 body=body,
                 headers=headers,
             )
@@ -749,6 +785,82 @@ def read_response_after_first_byte(
     return status, body_bytes
 
 
+def synchronized_safe_followup_attempt(
+    port: int,
+    state: UpstreamState,
+    body: bytes,
+    safe_request_id: str,
+    followup_request_id: str,
+) -> dict[str, int | bool]:
+    """Run one first-byte proof attempt on one HTTP/1.1 connection."""
+
+    state.barrier_reached.clear()
+    state.barrier_release.clear()
+    with state.lock:
+        state.barrier_first_chunk_size = 0
+        state.barrier_response_bytes = 0
+        state.barrier_eos_sent = False
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request(
+            "POST",
+            NATIVE_REQUEST_PATH,
+            body=body,
+            headers={
+                "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
+                "X-Request-Id": safe_request_id,
+                "X-Native-P4-Rule": "block",
+                "X-Native-P4-Barrier": "true",
+            },
+        )
+        safe_response = connection.getresponse()
+        if not state.barrier_reached.wait(timeout=5):
+            raise RuntimeError("upstream did not reach the Phase-4 first-byte barrier")
+        first_byte = safe_response.read(1)
+        with state.lock:
+            upstream_paused = state.barrier_reached.is_set() and not state.barrier_eos_sent
+            first_chunk_size = state.barrier_first_chunk_size
+            response_bytes = state.barrier_response_bytes
+        if not first_byte or not upstream_paused or first_chunk_size < 1:
+            raise RuntimeError("client did not receive a first body byte while upstream was paused")
+        state.barrier_release.set()
+        safe_status, safe_bytes = read_response_after_first_byte(safe_response, len(first_byte))
+        first_socket = connection.sock
+        if safe_status != http.HTTPStatus.OK or safe_bytes != response_bytes or first_socket is None:
+            raise RuntimeError("native safe barrier response did not complete correctly")
+        if safe_response.will_close:
+            raise RuntimeError("native safe barrier response closed the HTTP/1.1 connection")
+        connection.request(
+            "POST",
+            NATIVE_REQUEST_PATH,
+            body=body,
+            headers={
+                "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
+                "X-Request-Id": followup_request_id,
+            },
+        )
+        followup_response = connection.getresponse()
+        followup_status, followup_bytes, followup_first_byte = read_complete_response(followup_response)
+        if followup_status != http.HTTPStatus.OK or not followup_first_byte:
+            raise RuntimeError("native first-byte follow-up did not complete")
+        if first_socket is not connection.sock:
+            raise RuntimeError("native first-byte follow-up opened a different TCP connection")
+        return {
+            "connection_reused": True,
+            "first_chunk_size": first_chunk_size,
+            "followup_first_byte_received": followup_first_byte,
+            "followup_response_bytes": followup_bytes,
+            "followup_status": followup_status,
+            "safe_first_byte_received": True,
+            "safe_response_bytes": safe_bytes,
+            "safe_status": safe_status,
+            "upstream_eos_sent_at_first_byte": False,
+            "upstream_paused": True,
+        }
+    finally:
+        connection.close()
+
+
 def synchronized_safe_followup(
     port: int,
     state: UpstreamState,
@@ -756,85 +868,18 @@ def synchronized_safe_followup(
     safe_request_id: str,
     followup_request_id: str,
 ) -> dict[str, int | bool]:
-    """Prove a real Traefik byte crossed the host before upstream EOS.
+    """Prove a real Traefik byte crossed the host before upstream EOS."""
 
-    The upstream handler emits one entity chunk and pauses.  The client must
-    receive a body byte while that handler is paused, then releases it and
-    verifies that a follow-up HTTP/1.1 request reuses the same connection.
-    """
     deadline = time.monotonic() + 15
     last_error: Exception | None = None
     while time.monotonic() < deadline:
-        state.barrier_reached.clear()
-        state.barrier_release.clear()
-        with state.lock:
-            state.barrier_first_chunk_size = 0
-            state.barrier_response_bytes = 0
-            state.barrier_eos_sent = False
-        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
         try:
-            connection.request(
-                "POST",
-                "/native",
-                body=body,
-                headers={
-                    "Content-Type": "text/plain",
-                    "X-Request-Id": safe_request_id,
-                    "X-Native-P4-Rule": "block",
-                    "X-Native-P4-Barrier": "true",
-                },
+            return synchronized_safe_followup_attempt(
+                port, state, body, safe_request_id, followup_request_id
             )
-            safe_response = connection.getresponse()
-            if not state.barrier_reached.wait(timeout=5):
-                raise RuntimeError("upstream did not reach the Phase-4 first-byte barrier")
-            first_byte = safe_response.read(1)
-            with state.lock:
-                upstream_paused = state.barrier_reached.is_set() and not state.barrier_eos_sent
-                first_chunk_size = state.barrier_first_chunk_size
-                response_bytes = state.barrier_response_bytes
-            if not first_byte or not upstream_paused or first_chunk_size < 1:
-                raise RuntimeError("client did not receive a first body byte while upstream was paused")
-            state.barrier_release.set()
-            safe_status, safe_bytes = read_response_after_first_byte(safe_response, len(first_byte))
-            first_socket = connection.sock
-            if safe_status != http.HTTPStatus.OK or safe_bytes != response_bytes or first_socket is None:
-                raise RuntimeError("native safe barrier response did not complete correctly")
-            if safe_response.will_close:
-                raise RuntimeError("native safe barrier response closed the HTTP/1.1 connection")
-
-            connection.request(
-                "POST",
-                "/native",
-                body=body,
-                headers={
-                    "Content-Type": "text/plain",
-                    "X-Request-Id": followup_request_id,
-                },
-            )
-            followup_response = connection.getresponse()
-            followup_status, followup_bytes, followup_first_byte = read_complete_response(followup_response)
-            second_socket = connection.sock
-            if followup_status != http.HTTPStatus.OK or not followup_first_byte:
-                raise RuntimeError("native first-byte follow-up did not complete")
-            if first_socket is not second_socket:
-                raise RuntimeError("native first-byte follow-up opened a different TCP connection")
-            return {
-                "connection_reused": True,
-                "first_chunk_size": first_chunk_size,
-                "followup_first_byte_received": followup_first_byte,
-                "followup_response_bytes": followup_bytes,
-                "followup_status": followup_status,
-                "safe_first_byte_received": True,
-                "safe_response_bytes": safe_bytes,
-                "safe_status": safe_status,
-                "upstream_eos_sent_at_first_byte": False,
-                "upstream_paused": True,
-            }
         except (OSError, http.client.HTTPException, RuntimeError) as exc:
             last_error = exc
             state.barrier_release.set()
-        finally:
-            connection.close()
         time.sleep(0.2)
     raise RuntimeError(f"native first-byte barrier probe did not complete: {last_error}")
 
@@ -858,10 +903,10 @@ def keepalive_safe_followup(
         try:
             connection.request(
                 "POST",
-                "/native",
+                NATIVE_REQUEST_PATH,
                 body=body,
                 headers={
-                    "Content-Type": "text/plain",
+                    "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
                     "X-Request-Id": safe_request_id,
                     "X-Native-P4-Rule": "block",
                 },
@@ -876,10 +921,10 @@ def keepalive_safe_followup(
 
             connection.request(
                 "POST",
-                "/native",
+                NATIVE_REQUEST_PATH,
                 body=body,
                 headers={
-                    "Content-Type": "text/plain",
+                    "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
                     "X-Request-Id": followup_request_id,
                 },
             )
@@ -1118,306 +1163,508 @@ def append_first_byte_host_event(
     append_jsonl(event_path, host_event)
 
 
-def run() -> int:
+@dataclass(frozen=True)
+class NativeRuntimeInputs:
+    """Validated immutable inputs for one native Traefik host run."""
+
+    runtime_root: Path
+    engine_socket_parent: EngineSocketParent
+    run_id: str | None
+    first_byte_output: Path | None
+    binary: Path
+    include_dir: Path
+    library_dir: Path
+    rules_file: Path
+    rule_ids: dict[str, str]
+    rules_profile: str
+    module_name: str
+
+
+@dataclass(frozen=True)
+class NativeRuntimeArtifacts:
+    """Paths staged below the validated runtime root."""
+
+    logs_dir: Path
+    result_path: Path
+    transport_observations_path: Path
+    static_config: Path
+    dynamic_config: Path
+    engine_config: Path
+    event_path: Path
+
+
+@dataclass(frozen=True)
+class NativeRuntimeSetup:
+    """Private socket, loopback fixture, and generated runtime configuration."""
+
+    engine_socket_dir: EngineSocketDirectory
+    engine_socket: Path
+    upstream: http.server.ThreadingHTTPServer
+    upstream_port: int
+    traefik_port: int
+    state: UpstreamState
+
+
+@dataclass
+class NativeProcesses:
+    """Owned child processes that must be stopped on every outcome."""
+
+    traefik: subprocess.Popen[bytes] | None = None
+    engine: subprocess.Popen[bytes] | None = None
+
+
+@dataclass(frozen=True)
+class NativeRequestResults:
+    """Responses observed through the live Traefik host."""
+
+    p1_allow_status: int
+    p1_allow_bytes: int
+    p1_deny_status: int
+    p1_alternative_status: int
+    p2_deny_status: int
+    p3_deny_status: int
+    p4_safe_status: int
+    p4_safe_bytes: int
+    keepalive_observation: dict[str, int | bool]
+
+
+@dataclass(frozen=True)
+class NativeLiveObservation:
+    """State confirmed while the native host is still running."""
+
+    plugin_loaded: bool
+    upstream_requests: int
+    request_body_bytes: int
+    response_chunks: int
+    p1_allow_upstream_requests: int
+
+
+def collect_native_runtime_inputs() -> NativeRuntimeInputs:
+    """Resolve all environment-derived inputs before making runtime changes."""
+
     runtime_root = assert_runtime_root(Path(os.environ.get("TRAEFIK_NATIVE_RUNTIME_ROOT", "")))
-    engine_socket_parent = resolve_engine_socket_parent()
-    run_id = optional_canonical_run_id()
     first_byte_output_text = os.environ.get("FULL_LIFECYCLE_EVIDENCE_OUTPUT", "").strip()
     first_byte_output = Path(first_byte_output_text) if first_byte_output_text else None
     if os.environ.get("NO_CRS_ARTIFACT_PROFILE") == "full_lifecycle" and first_byte_output is None:
         raise MissingDependency("FULL_LIFECYCLE_EVIDENCE_OUTPUT is required for the native first-byte proof")
+    engine_socket_parent = resolve_engine_socket_parent()
     binary = require_local_executable(Path(os.environ.get("TRAEFIK_BIN", "")), "Traefik binary")
-    include_dir, library_dir = require_modsecurity_environment()
     rules_file, rule_ids, rules_profile = select_engine_rules()
     require_engine_inputs(rules_file)
-    module_name = read_plugin_module(PLUGIN_SOURCE)
-    if runtime_root.exists() and any(runtime_root.iterdir()):
-        raise MissingDependency(f"native runtime root must be empty: {runtime_root}")
-    runtime_root.mkdir(parents=True, exist_ok=True)
-    plugin_destination = runtime_root / "plugins-local/src" / Path(module_name)
+    include_dir, library_dir = require_modsecurity_environment()
+    return NativeRuntimeInputs(
+        runtime_root=runtime_root,
+        engine_socket_parent=engine_socket_parent,
+        run_id=optional_canonical_run_id(),
+        first_byte_output=first_byte_output,
+        binary=binary,
+        include_dir=include_dir,
+        library_dir=library_dir,
+        rules_file=rules_file,
+        rule_ids=rule_ids,
+        rules_profile=rules_profile,
+        module_name=read_plugin_module(PLUGIN_SOURCE),
+    )
+
+
+def stage_native_runtime(inputs: NativeRuntimeInputs) -> NativeRuntimeArtifacts:
+    """Stage one isolated local-plugin workspace below the trusted root."""
+
+    if inputs.runtime_root.exists() and any(inputs.runtime_root.iterdir()):
+        raise MissingDependency(f"native runtime root must be empty: {inputs.runtime_root}")
+    inputs.runtime_root.mkdir(parents=True, exist_ok=True)
+    plugin_destination = inputs.runtime_root / "plugins-local/src" / Path(inputs.module_name)
     plugin_destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(PLUGIN_SOURCE, plugin_destination)
-
-    config_dir = runtime_root / "effective-config"
-    logs_dir = runtime_root / "logs"
+    config_dir = inputs.runtime_root / "effective-config"
+    logs_dir = inputs.runtime_root / "logs"
     config_dir.mkdir()
     logs_dir.mkdir()
-    result_path = runtime_root / "result.json"
-    transport_observations_path = runtime_root / "transport-observations.diagnostic.json"
-    static_config = config_dir / "traefik-native-static.yaml"
-    dynamic_config = config_dir / "traefik-native-dynamic.yaml"
-    engine_config = config_dir / "traefik-native-engine.conf"
-    event_path = logs_dir / "events.jsonl"
+    return NativeRuntimeArtifacts(
+        logs_dir=logs_dir,
+        result_path=inputs.runtime_root / "result.json",
+        transport_observations_path=inputs.runtime_root / "transport-observations.diagnostic.json",
+        static_config=config_dir / "traefik-native-static.yaml",
+        dynamic_config=config_dir / "traefik-native-dynamic.yaml",
+        engine_config=config_dir / "traefik-native-engine.conf",
+        event_path=logs_dir / "events.jsonl",
+    )
+
+
+def start_native_runtime_setup(
+    inputs: NativeRuntimeInputs, artifacts: NativeRuntimeArtifacts
+) -> NativeRuntimeSetup:
+    """Start the loopback fixture after creating one private engine socket path."""
+
     engine_socket_dir: EngineSocketDirectory | None = None
     upstream: http.server.ThreadingHTTPServer | None = None
     try:
-        engine_socket_dir = create_private_engine_socket_dir(engine_socket_parent)
+        engine_socket_dir = create_private_engine_socket_dir(inputs.engine_socket_parent)
         engine_socket = engine_socket_dir.path / ENGINE_SOCKET_FILENAME
         upstream_port = free_port()
         traefik_port = free_port()
-        write_static_config(static_config, dynamic_config, traefik_port, module_name)
-        write_dynamic_config(dynamic_config, upstream_port, engine_socket)
-        write_engine_config(engine_config, rules_file, event_path)
-
+        write_static_config(artifacts.static_config, artifacts.dynamic_config, traefik_port, inputs.module_name)
+        write_dynamic_config(artifacts.dynamic_config, upstream_port, engine_socket)
+        write_engine_config(artifacts.engine_config, inputs.rules_file, artifacts.event_path)
         state = UpstreamState()
         upstream = http.server.ThreadingHTTPServer(
             ("127.0.0.1", upstream_port), upstream_handler(state)
         )
-        upstream_thread = threading.Thread(target=upstream.serve_forever, daemon=True)
-        upstream_thread.start()
+        threading.Thread(target=upstream.serve_forever, daemon=True).start()
+        return NativeRuntimeSetup(
+            engine_socket_dir=engine_socket_dir,
+            engine_socket=engine_socket,
+            upstream=upstream,
+            upstream_port=upstream_port,
+            traefik_port=traefik_port,
+            state=state,
+        )
     except Exception as exc:
         if upstream is not None:
             upstream.shutdown()
             upstream.server_close()
-        child_removed = remove_private_engine_socket_dir(
-            engine_socket_dir, engine_socket_parent
-        )
-        if not child_removed:
+        if not remove_private_engine_socket_dir(engine_socket_dir, inputs.engine_socket_parent):
             raise RuntimeError(
                 "Traefik engine socket setup failed and safe cleanup was refused"
             ) from exc
         raise
 
-    engine_binary: Path | None = None
-    process: subprocess.Popen[bytes] | None = None
-    engine_process: subprocess.Popen[bytes] | None = None
-    traefik_stopped = False
-    engine_stopped = False
-    host_survived = False
+
+def run_native_requests(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    setup: NativeRuntimeSetup,
+    processes: NativeProcesses,
+) -> NativeRequestResults:
+    """Start both host processes and make the bounded lifecycle requests."""
+
+    engine_binary = build_engine_service(
+        inputs.runtime_root, artifacts.logs_dir, inputs.include_dir, inputs.library_dir
+    )
+    with (artifacts.logs_dir / "engine.stdout.log").open("wb") as engine_stdout, (
+        artifacts.logs_dir / "engine.stderr.log"
+    ).open("wb") as engine_stderr:
+        processes.engine = subprocess.Popen(
+            [
+                str(engine_binary),
+                "--serve",
+                "--config",
+                str(artifacts.engine_config),
+                "--socket",
+                str(setup.engine_socket),
+            ],
+            cwd=inputs.runtime_root,
+            stdout=engine_stdout,
+            stderr=engine_stderr,
+        )
+        wait_for_socket(setup.engine_socket, processes.engine, "persistent Traefik engine service")
+        with (artifacts.logs_dir / "traefik.stdout.log").open("wb") as stdout, (
+            artifacts.logs_dir / "traefik.stderr.log"
+        ).open("wb") as stderr:
+            processes.traefik = subprocess.Popen(
+                [str(inputs.binary), f"--configFile={artifacts.static_config}"],
+                cwd=inputs.runtime_root,
+                stdout=stdout,
+                stderr=stderr,
+            )
+            wait_for_port(setup.traefik_port, processes.traefik, "Traefik native local-plugin host")
+            p1_allow_status, p1_allow_bytes = request_through_traefik(
+                setup.traefik_port, REQUEST_BODY, P1_ALLOW_TRANSACTION_ID, http.HTTPStatus.OK
+            )
+            p1_deny_status, _ = request_through_traefik(
+                setup.traefik_port,
+                REQUEST_BODY,
+                "traefik-native-p1-deny",
+                http.HTTPStatus.FORBIDDEN,
+                {"X-Modsec-Smoke": "block"},
+            )
+            p1_alternative_status, _ = request_through_traefik(
+                setup.traefik_port,
+                REQUEST_BODY,
+                "traefik-native-p1-alternative",
+                http.HTTPStatus.TOO_MANY_REQUESTS,
+                {"X-Modsec-Smoke": "alternative-status"},
+            )
+            p2_deny_status, _ = request_through_traefik(
+                setup.traefik_port, P2_BODY, "traefik-native-p2-deny", http.HTTPStatus.FORBIDDEN
+            )
+            p3_deny_status, _ = request_through_traefik(
+                setup.traefik_port,
+                REQUEST_BODY,
+                "traefik-native-p3-deny",
+                http.HTTPStatus.FORBIDDEN,
+                {"X-Native-Response-Rule": "block"},
+            )
+            keepalive_observation = synchronized_safe_followup(
+                setup.traefik_port,
+                setup.state,
+                REQUEST_BODY,
+                "traefik-native-p4-safe",
+                "traefik-native-keepalive-followup",
+            )
+    if processes.traefik.poll() is not None:
+        raise RuntimeError(
+            f"Traefik exited after native requests with code {processes.traefik.returncode}"
+        )
+    if processes.engine.poll() is not None:
+        raise RuntimeError("persistent Traefik engine exited before lifecycle completion")
+    return NativeRequestResults(
+        p1_allow_status=p1_allow_status,
+        p1_allow_bytes=p1_allow_bytes,
+        p1_deny_status=p1_deny_status,
+        p1_alternative_status=p1_alternative_status,
+        p2_deny_status=p2_deny_status,
+        p3_deny_status=p3_deny_status,
+        p4_safe_status=int(keepalive_observation["safe_status"]),
+        p4_safe_bytes=int(keepalive_observation["safe_response_bytes"]),
+        keepalive_observation=keepalive_observation,
+    )
+
+
+def observe_live_native_host(
+    artifacts: NativeRuntimeArtifacts, setup: NativeRuntimeSetup, processes: NativeProcesses
+) -> NativeLiveObservation:
+    """Require the expected plugin, streaming fixture, and keep-alive state."""
+
+    host_log = (artifacts.logs_dir / "traefik.stdout.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    plugin_loaded = "Plugins loaded." in host_log and PLUGIN_ID in host_log
+    if not plugin_loaded:
+        raise RuntimeError("Traefik did not confirm local-plugin loading")
+    with setup.state.lock:
+        observation = NativeLiveObservation(
+            plugin_loaded=plugin_loaded,
+            upstream_requests=setup.state.request_count,
+            request_body_bytes=setup.state.request_body_bytes,
+            response_chunks=setup.state.response_chunks,
+            p1_allow_upstream_requests=setup.state.p1_allow_upstream_requests,
+        )
+        p3_requests = setup.state.p3_requests
+        p4_requests = setup.state.p4_requests
+    if (
+        observation.upstream_requests < 3
+        or observation.request_body_bytes < len(REQUEST_BODY)
+        or observation.response_chunks < 6
+    ):
+        raise RuntimeError("native plugin route did not reach the streaming upstream contract")
+    if p3_requests < 1 or p4_requests < 1:
+        raise RuntimeError("native host did not reach the P3/P4 upstream fixture branches")
+    if processes.traefik is None or processes.traefik.poll() is not None:
+        raise RuntimeError("Traefik did not survive the keep-alive follow-up")
+    return observation
+
+
+def stop_native_processes(processes: NativeProcesses) -> tuple[bool, bool]:
+    """Stop both owned process handles and clear them from subsequent cleanup."""
+
+    traefik_stopped = stop_process(processes.traefik)
+    engine_stopped = stop_process(processes.engine)
+    processes.traefik = None
+    processes.engine = None
+    return traefik_stopped, engine_stopped
+
+
+def finalize_native_host_observations(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    results: NativeRequestResults,
+    live_observation: NativeLiveObservation,
+) -> int:
+    """Bind all lifecycle outcomes to the completed local host transactions."""
+
+    outcomes = read_host_outcomes(artifacts.event_path)
+    require_host_outcome(
+        outcomes, "request_headers", "deny", http.HTTPStatus.FORBIDDEN, inputs.rule_ids["p1"]
+    )
+    p1_alternative_event = host_outcome(
+        outcomes,
+        "request_headers",
+        "deny",
+        http.HTTPStatus.TOO_MANY_REQUESTS,
+        inputs.rule_ids["p1_alternative"],
+    )
+    if p1_alternative_event.get("transaction_id") != "traefik-native-p1-alternative":
+        raise RuntimeError("Traefik P1 alternative outcome is not bound to its host transaction")
+    require_host_outcome(
+        outcomes, "request_body", "deny", http.HTTPStatus.FORBIDDEN, inputs.rule_ids["p2"]
+    )
+    require_host_outcome(
+        outcomes, "response_headers", "deny", http.HTTPStatus.FORBIDDEN, inputs.rule_ids["p3"]
+    )
+    phase4_event = host_outcome(
+        outcomes, "response_body", "log_only", http.HTTPStatus.OK, inputs.rule_ids["p4"]
+    )
+    if inputs.first_byte_output is not None:
+        write_first_byte_evidence(
+            inputs.first_byte_output, results.keepalive_observation, results.p4_safe_bytes
+        )
+    append_first_byte_host_event(
+        artifacts.event_path,
+        phase4_event,
+        results.keepalive_observation,
+        "traefik-native-p4-safe",
+        inputs.rule_ids["p4"],
+        results.p4_safe_bytes,
+        inputs.run_id,
+    )
+    append_allow_host_event(
+        artifacts.event_path,
+        results.p1_allow_status,
+        results.p1_allow_bytes,
+        P1_ALLOW_TRANSACTION_ID,
+        live_observation.p1_allow_upstream_requests,
+        inputs.run_id,
+    )
+    write_json(
+        artifacts.transport_observations_path,
+        {
+            "artifact_profile": "native-http1-barrier-observation",
+            "capability_promotion": "canonical-finalization-required",
+            "canonical_evidence": True,
+            "connection_reused": bool(results.keepalive_observation["connection_reused"]),
+            "connector": "traefik",
+            "diagnostic_case": "phase4_safe_first_byte_barrier",
+            "diagnostic_only": False,
+            "eos_received": True,
+            "first_byte_received": bool(results.keepalive_observation["safe_first_byte_received"]),
+            "followup_request_result": "completed",
+            "host_survived": True,
+            "integration_mode": "native-traefik-middleware",
+            "protocol": "http1",
+            "response_committed": True,
+            "schema_version": 1,
+            "strict": {
+                "client_visible_abort": False,
+                "reason": "The public middleware path has no verified post-commit HTTP/1 abort implementation and no HTTP/2 stream-reset API.",
+                "state": "NOT_EXECUTED",
+            },
+            "transport_result": "completed",
+        },
+    )
+    return len(outcomes)
+
+
+def write_native_success(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    results: NativeRequestResults,
+    live_observation: NativeLiveObservation,
+    outcome_count: int,
+    processes_stopped: bool,
+) -> None:
+    """Write the successful local-host result without promoting capability state."""
+
+    write_json(
+        artifacts.result_path,
+        {
+            "capability_promotion": "not_permitted",
+            "common_runtime_bridge": True,
+            "connector": "traefik",
+            "engine_mode": "uds",
+            "engine_service_started": True,
+            "host_outcome_events": outcome_count,
+            "integration_mode": "native-traefik-middleware",
+            "p1_deny_rule_id": inputs.rule_ids["p1"],
+            "p1_alternative_rule_id": inputs.rule_ids["p1_alternative"],
+            "plugin_loaded": live_observation.plugin_loaded,
+            "plugin_module": inputs.module_name,
+            "p1_allow_response_bytes": results.p1_allow_bytes,
+            "p1_allow_status": results.p1_allow_status,
+            "p1_deny_status": results.p1_deny_status,
+            "p1_alternative_status": results.p1_alternative_status,
+            "allowed_request_status": results.p1_allow_status,
+            "blocked_request_status": results.p1_deny_status,
+            "phase1_alternative_status_client_status": results.p1_alternative_status,
+            "p2_deny_status": results.p2_deny_status,
+            "p2_deny_rule_id": inputs.rule_ids["p2"],
+            "p3_precommit_deny_status": results.p3_deny_status,
+            "p3_precommit_deny_rule_id": inputs.rule_ids["p3"],
+            "p4_safe_log_only_response_bytes": results.p4_safe_bytes,
+            "p4_safe_log_only_status": results.p4_safe_status,
+            "p4_safe_log_only_rule_id": inputs.rule_ids["p4"],
+            "phase4_rule_observed_status": results.p4_safe_status,
+            "phase4_end_of_stream_evaluation_status": results.p4_safe_status,
+            "phase4_first_byte_before_response_end_status": results.p4_safe_status,
+            "phase4_no_full_response_buffering_status": results.p4_safe_status,
+            "p4_strict": "NOT_EXECUTED",
+            "keepalive_connection_reused": bool(results.keepalive_observation["connection_reused"]),
+            "keepalive_followup_status": int(results.keepalive_observation["followup_status"]),
+            "processes_stopped": processes_stopped,
+            "production_ready": False,
+            "request_body_bytes_observed": live_observation.request_body_bytes,
+            "response_chunks_observed": live_observation.response_chunks,
+            "rule_evaluation": "host_runtime_observed_not_promoted",
+            "rules_profile": inputs.rules_profile,
+            "status": "PASS",
+            "traefik_version": traefik_version(inputs.binary),
+            "transport_observations_diagnostic": artifacts.transport_observations_path.name,
+            "upstream_requests": live_observation.upstream_requests,
+        },
+    )
+
+
+def write_native_failure(result_path: Path, error_class: str, rule_evaluation: str, stopped: bool) -> None:
+    """Write a non-promoting failure result for the isolated native host run."""
+
+    payload: dict[str, Any] = {
+        "common_runtime_bridge": True,
+        "connector": "traefik",
+        "engine_mode": "uds",
+        "integration_mode": "native-traefik-middleware",
+        "processes_stopped": stopped,
+        "production_ready": False,
+        "rule_evaluation": rule_evaluation,
+        "status": "FAIL",
+    }
+    if error_class:
+        payload["error_class"] = error_class
+    write_json(result_path, payload)
+
+
+def run() -> int:
+    """Run the isolated native host lifecycle with safe cleanup on every path."""
+
+    inputs = collect_native_runtime_inputs()
+    artifacts = stage_native_runtime(inputs)
+    processes = NativeProcesses()
+    setup = start_native_runtime_setup(inputs, artifacts)
     outcome = 1
     try:
-        engine_binary = build_engine_service(runtime_root, logs_dir, include_dir, library_dir)
-        with (logs_dir / "engine.stdout.log").open("wb") as engine_stdout, (
-            logs_dir / "engine.stderr.log"
-        ).open("wb") as engine_stderr:
-            engine_process = subprocess.Popen(
-                [str(engine_binary), "--serve", "--config", str(engine_config), "--socket", str(engine_socket)],
-                cwd=runtime_root,
-                stdout=engine_stdout,
-                stderr=engine_stderr,
-            )
-            wait_for_socket(engine_socket, engine_process, "persistent Traefik engine service")
-            with (logs_dir / "traefik.stdout.log").open("wb") as stdout, (
-                logs_dir / "traefik.stderr.log"
-            ).open("wb") as stderr:
-                process = subprocess.Popen(
-                    [str(binary), f"--configFile={static_config}"],
-                    cwd=runtime_root,
-                    stdout=stdout,
-                    stderr=stderr,
-                )
-                wait_for_port(traefik_port, process, "Traefik native local-plugin host")
-                p1_allow_status, p1_allow_bytes = request_through_traefik(
-                    traefik_port, REQUEST_BODY, P1_ALLOW_TRANSACTION_ID, http.HTTPStatus.OK
-                )
-                p1_deny_status, _ = request_through_traefik(
-                    traefik_port,
-                    REQUEST_BODY,
-                    "traefik-native-p1-deny",
-                    http.HTTPStatus.FORBIDDEN,
-                    {"X-Modsec-Smoke": "block"},
-                )
-                p1_alternative_status, _ = request_through_traefik(
-                    traefik_port,
-                    REQUEST_BODY,
-                    "traefik-native-p1-alternative",
-                    http.HTTPStatus.TOO_MANY_REQUESTS,
-                    {"X-Modsec-Smoke": "alternative-status"},
-                )
-                p2_deny_status, _ = request_through_traefik(
-                    traefik_port, P2_BODY, "traefik-native-p2-deny", http.HTTPStatus.FORBIDDEN
-                )
-                p3_deny_status, _ = request_through_traefik(
-                    traefik_port,
-                    REQUEST_BODY,
-                    "traefik-native-p3-deny",
-                    http.HTTPStatus.FORBIDDEN,
-                    {"X-Native-Response-Rule": "block"},
-                )
-                keepalive_observation = synchronized_safe_followup(
-                    traefik_port,
-                    state,
-                    REQUEST_BODY,
-                    "traefik-native-p4-safe",
-                    "traefik-native-keepalive-followup",
-                )
-                p4_safe_status = int(keepalive_observation["safe_status"])
-                p4_safe_bytes = int(keepalive_observation["safe_response_bytes"])
-                if process.poll() is not None:
-                    raise RuntimeError(f"Traefik exited after native requests with code {process.returncode}")
-                if engine_process.poll() is not None:
-                    raise RuntimeError("persistent Traefik engine exited before lifecycle completion")
-
-        host_log = (logs_dir / "traefik.stdout.log").read_text(encoding="utf-8", errors="replace")
-        plugin_loaded = "Plugins loaded." in host_log and PLUGIN_ID in host_log
-        if not plugin_loaded:
-            raise RuntimeError("Traefik did not confirm local-plugin loading")
-        with state.lock:
-            upstream_requests = state.request_count
-            request_body_bytes = state.request_body_bytes
-            response_chunks = state.response_chunks
-            p1_allow_upstream_requests = state.p1_allow_upstream_requests
-            p3_requests = state.p3_requests
-            p4_requests = state.p4_requests
-        if upstream_requests < 3 or request_body_bytes < len(REQUEST_BODY) or response_chunks < 6:
-            raise RuntimeError("native plugin route did not reach the streaming upstream contract")
-        if p3_requests < 1 or p4_requests < 1:
-            raise RuntimeError("native host did not reach the P3/P4 upstream fixture branches")
-        host_survived = process is not None and process.poll() is None
-        if not host_survived:
-            raise RuntimeError("Traefik did not survive the keep-alive follow-up")
-        traefik_stopped = stop_process(process)
-        process = None
-        engine_stopped = stop_process(engine_process)
-        engine_process = None
-        outcomes = read_host_outcomes(event_path)
-        require_host_outcome(outcomes, "request_headers", "deny", http.HTTPStatus.FORBIDDEN, rule_ids["p1"])
-        p1_alternative_event = host_outcome(
-            outcomes,
-            "request_headers",
-            "deny",
-            http.HTTPStatus.TOO_MANY_REQUESTS,
-            rule_ids["p1_alternative"],
+        results = run_native_requests(inputs, artifacts, setup, processes)
+        live_observation = observe_live_native_host(artifacts, setup, processes)
+        traefik_stopped, engine_stopped = stop_native_processes(processes)
+        outcome_count = finalize_native_host_observations(
+            inputs, artifacts, results, live_observation
         )
-        if p1_alternative_event.get("transaction_id") != "traefik-native-p1-alternative":
-            raise RuntimeError("Traefik P1 alternative outcome is not bound to its host transaction")
-        require_host_outcome(outcomes, "request_body", "deny", http.HTTPStatus.FORBIDDEN, rule_ids["p2"])
-        require_host_outcome(outcomes, "response_headers", "deny", http.HTTPStatus.FORBIDDEN, rule_ids["p3"])
-        phase4_event = host_outcome(
-            outcomes, "response_body", "log_only", http.HTTPStatus.OK, rule_ids["p4"]
-        )
-        if first_byte_output is not None:
-            write_first_byte_evidence(first_byte_output, keepalive_observation, p4_safe_bytes)
-        append_first_byte_host_event(
-            event_path,
-            phase4_event,
-            keepalive_observation,
-            "traefik-native-p4-safe",
-            rule_ids["p4"],
-            p4_safe_bytes,
-            run_id,
-        )
-        append_allow_host_event(
-            event_path,
-            p1_allow_status,
-            p1_allow_bytes,
-            P1_ALLOW_TRANSACTION_ID,
-            p1_allow_upstream_requests,
-            run_id,
-        )
-        write_json(
-            transport_observations_path,
-            {
-                "artifact_profile": "native-http1-barrier-observation",
-                "capability_promotion": "canonical-finalization-required",
-                "canonical_evidence": True,
-                "connection_reused": bool(keepalive_observation["connection_reused"]),
-                "connector": "traefik",
-                "diagnostic_case": "phase4_safe_first_byte_barrier",
-                "diagnostic_only": False,
-                "eos_received": True,
-                "first_byte_received": bool(keepalive_observation["safe_first_byte_received"]),
-                "followup_request_result": "completed",
-                "host_survived": host_survived,
-                "integration_mode": "native-traefik-middleware",
-                "protocol": "http1",
-                "response_committed": True,
-                "schema_version": 1,
-                "strict": {
-                    "client_visible_abort": False,
-                    "reason": "The public middleware path has no verified post-commit HTTP/1 abort implementation and no HTTP/2 stream-reset API.",
-                    "state": "NOT_EXECUTED",
-                },
-                "transport_result": "completed",
-            },
-        )
-        write_json(
-            result_path,
-            {
-                "capability_promotion": "not_permitted",
-                "common_runtime_bridge": True,
-                "connector": "traefik",
-                "engine_mode": "uds",
-                "engine_service_started": True,
-                "host_outcome_events": len(outcomes),
-                "integration_mode": "native-traefik-middleware",
-                "p1_deny_rule_id": rule_ids["p1"],
-                "p1_alternative_rule_id": rule_ids["p1_alternative"],
-                "plugin_loaded": plugin_loaded,
-                "plugin_module": module_name,
-                "p1_allow_response_bytes": p1_allow_bytes,
-                "p1_allow_status": p1_allow_status,
-                "p1_deny_status": p1_deny_status,
-                "p1_alternative_status": p1_alternative_status,
-                "allowed_request_status": p1_allow_status,
-                "blocked_request_status": p1_deny_status,
-                "phase1_alternative_status_client_status": p1_alternative_status,
-                "p2_deny_status": p2_deny_status,
-                "p2_deny_rule_id": rule_ids["p2"],
-                "p3_precommit_deny_status": p3_deny_status,
-                "p3_precommit_deny_rule_id": rule_ids["p3"],
-                "p4_safe_log_only_response_bytes": p4_safe_bytes,
-                "p4_safe_log_only_status": p4_safe_status,
-                "p4_safe_log_only_rule_id": rule_ids["p4"],
-                "phase4_rule_observed_status": p4_safe_status,
-                "phase4_end_of_stream_evaluation_status": p4_safe_status,
-                "phase4_first_byte_before_response_end_status": p4_safe_status,
-                "phase4_no_full_response_buffering_status": p4_safe_status,
-                "p4_strict": "NOT_EXECUTED",
-                "keepalive_connection_reused": bool(keepalive_observation["connection_reused"]),
-                "keepalive_followup_status": int(keepalive_observation["followup_status"]),
-                "processes_stopped": traefik_stopped and engine_stopped,
-                "production_ready": False,
-                "request_body_bytes_observed": request_body_bytes,
-                "response_chunks_observed": response_chunks,
-                "rule_evaluation": "host_runtime_observed_not_promoted",
-                "rules_profile": rules_profile,
-                "status": "PASS",
-                "traefik_version": traefik_version(binary),
-                "transport_observations_diagnostic": transport_observations_path.name,
-                "upstream_requests": upstream_requests,
-            },
+        write_native_success(
+            inputs,
+            artifacts,
+            results,
+            live_observation,
+            outcome_count,
+            traefik_stopped and engine_stopped,
         )
         outcome = 0
     except Exception as exc:
-        traefik_stopped = stop_process(process)
-        engine_stopped = stop_process(engine_process)
-        write_json(
-            result_path,
-            {
-                "common_runtime_bridge": True,
-                "connector": "traefik",
-                "engine_mode": "uds",
-                "error_class": type(exc).__name__,
-                "integration_mode": "native-traefik-middleware",
-                "processes_stopped": traefik_stopped and engine_stopped,
-                "production_ready": False,
-                "rule_evaluation": "host_runtime_failed",
-                "status": "FAIL",
-            },
+        traefik_stopped, engine_stopped = stop_native_processes(processes)
+        write_native_failure(
+            artifacts.result_path,
+            type(exc).__name__,
+            "host_runtime_failed",
+            traefik_stopped and engine_stopped,
         )
         print(f"FAIL: Traefik native local-plugin host: {type(exc).__name__}", file=sys.stderr)
-        outcome = 1
     finally:
-        stop_process(process)
-        stop_process(engine_process)
-        upstream.shutdown()
-        upstream.server_close()
-        child_removed = remove_private_engine_socket_dir(
-            engine_socket_dir, engine_socket_parent
-        )
-        if not child_removed:
-            write_json(
-                result_path,
-                {
-                    "common_runtime_bridge": True,
-                    "connector": "traefik",
-                    "engine_mode": "uds",
-                    "integration_mode": "native-traefik-middleware",
-                    "production_ready": False,
-                    "rule_evaluation": "host_runtime_cleanup_incomplete",
-                    "status": "FAIL",
-                },
+        stop_native_processes(processes)
+        setup.upstream.shutdown()
+        setup.upstream.server_close()
+        if not remove_private_engine_socket_dir(setup.engine_socket_dir, inputs.engine_socket_parent):
+            write_native_failure(
+                artifacts.result_path,
+                "",
+                "host_runtime_cleanup_incomplete",
+                False,
             )
             print("FAIL: Traefik native local-plugin cleanup was refused", file=sys.stderr)
             outcome = 1

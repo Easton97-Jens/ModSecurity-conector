@@ -15,7 +15,12 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from patched_event_validation import load_events, nonnegative, phase_is_four
-from safe_runtime_output import verified_runtime_output_root, write_text_atomic
+from safe_runtime_output import (
+    read_runtime_input_text,
+    safe_input_path,
+    verified_runtime_output_root,
+    write_text_atomic,
+)
 
 
 CASE_RULES = {
@@ -204,8 +209,8 @@ def requested_cases(value: str) -> set[str]:
     return {item for item in value.split() if item}
 
 
-def load_fixture_result(path: Path) -> tuple[int, int]:
-    value = json.loads(path.read_text(encoding="utf-8"))
+def load_fixture_result(root: Path, path: Path) -> tuple[int, int]:
+    value = json.loads(read_runtime_input_text(root, path, "entity fixture result"))
     if not isinstance(value, dict):
         raise ValueError("entity fixture result must be an object")
     if value.get("evidence_type") != "lighttpd_http1_entity_fixture_result":
@@ -298,21 +303,42 @@ def main() -> int:
     args = parser.parse_args()
     output_root = verified_runtime_output_root(args.runtime_output_root)
 
-    events = load_events(args.events, non_object_error=NON_OBJECT_ERROR)
+    events_path = safe_input_path(output_root, args.events, "events input")
+    phase4_safe_events_path = safe_input_path(
+        output_root, args.phase4_safe_events, "phase-4 safe events input"
+    )
+    first_byte_evidence_path = safe_input_path(
+        output_root,
+        args.phase4_first_byte_evidence,
+        "phase-4 first-byte evidence input",
+    )
+    content_length_events_path = safe_input_path(
+        output_root, args.content_length_events, "Content-Length events input"
+    )
+    chunked_events_path = safe_input_path(
+        output_root, args.chunked_events, "chunked events input"
+    )
+    fixture_result_path = safe_input_path(
+        output_root, args.entity_fixture_result, "entity fixture result"
+    )
+
+    events = load_events(events_path, non_object_error=NON_OBJECT_ERROR)
     selected = requested_cases(args.selected_case_ids)
-    content_length_bytes, chunked_bytes = load_fixture_result(args.entity_fixture_result)
+    content_length_bytes, chunked_bytes = load_fixture_result(
+        output_root, fixture_result_path
+    )
     validate_entity_boundary(
-        args.content_length_events,
+        content_length_events_path,
         expected_bytes=content_length_bytes,
         label="Content-Length entity boundary",
     )
     validate_entity_boundary(
-        args.chunked_events,
+        chunked_events_path,
         expected_bytes=chunked_bytes,
         label="chunked entity boundary",
     )
     raw_safe_event = one_safe_phase4_event(
-        load_events(args.phase4_safe_events, non_object_error=NON_OBJECT_ERROR),
+        load_events(phase4_safe_events_path, non_object_error=NON_OBJECT_ERROR),
         "synchronized first-byte barrier",
     )
     safe_event = one_safe_phase4_event(
@@ -321,8 +347,6 @@ def main() -> int:
     )
     if args.phase4_safe_status != 200:
         raise ValueError("safe Phase-4 HTTP/1.1 client status must remain 200")
-    if not args.phase4_first_byte_evidence.is_file():
-        raise ValueError("synchronized first-byte evidence is missing")
 
     rows: list[dict[str, Any]] = []
     if "allow_without_marker" in selected:
@@ -365,7 +389,7 @@ def main() -> int:
                     case_id,
                     safe_event,
                     args.phase4_projected_events_output,
-                    first_byte_evidence=args.phase4_first_byte_evidence,
+                    first_byte_evidence=first_byte_evidence_path,
                 )
             )
     for case_id in P4_BARRIER_CASE_IDS:
@@ -375,7 +399,7 @@ def main() -> int:
                     case_id,
                     safe_event,
                     args.phase4_projected_events_output,
-                    first_byte_evidence=args.phase4_first_byte_evidence,
+                    first_byte_evidence=first_byte_evidence_path,
                 )
             )
 

@@ -36,6 +36,17 @@ static ngx_int_t ngx_http_modsecurity_phase4_handle_intervention(ngx_http_reques
 static ngx_int_t ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx);
 static ngx_int_t ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len, ngx_int_t in_scope);
 static const char *ngx_http_modsecurity_phase4_actual_action(msconnector_late_intervention_action action, const char *requested_action);
+static int ngx_http_modsecurity_phase4_original_status(ngx_http_request_t *r);
+static const char *ngx_http_modsecurity_phase4_message_id(const char *actual);
+static int ngx_http_modsecurity_phase4_visible_status(const char *actual,
+    int intervention_status, int original_status);
+static const char *ngx_http_modsecurity_phase4_transport_result(const char *actual);
+static int ngx_http_modsecurity_phase4_response_started(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx);
+static void ngx_http_modsecurity_phase4_copy_content_type(ngx_http_request_t *r,
+    char *content_type, size_t content_type_size);
+static void ngx_http_modsecurity_phase4_copy_intervention_identifier(
+    ngx_http_modsecurity_ctx_t *ctx, char *rule_id, size_t rule_id_size);
 
 /* XXX: check behaviour on few body filters installed */
 ngx_int_t
@@ -386,6 +397,109 @@ ngx_http_modsecurity_phase4_in_scope(ngx_http_request_t *r)
     return 0;
 }
 
+static int
+ngx_http_modsecurity_phase4_original_status(ngx_http_request_t *r)
+{
+    if (r->err_status != 0) {
+        return (int)r->err_status;
+    }
+
+    if (r->headers_out.status != 0) {
+        return (int)r->headers_out.status;
+    }
+
+    return (int)NGX_HTTP_OK;
+}
+
+static const char *
+ngx_http_modsecurity_phase4_message_id(const char *actual)
+{
+    if (strcmp(actual, "abort_connection") == 0) {
+        return MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200;
+    }
+
+    if (strcmp(actual, "log_only") == 0) {
+        return MSCONN_EVENT_PHASE4_LATE_INTERVENTION;
+    }
+
+    return MSCONN_EVENT_RESPONSE_BLOCKED;
+}
+
+static int
+ngx_http_modsecurity_phase4_visible_status(const char *actual,
+    int intervention_status, int original_status)
+{
+    if (strcmp(actual, "deny") == 0 || strcmp(actual, "redirect") == 0) {
+        return intervention_status;
+    }
+
+    return original_status;
+}
+
+static const char *
+ngx_http_modsecurity_phase4_transport_result(const char *actual)
+{
+    if (strcmp(actual, "abort_connection") == 0) {
+        return "connection_aborted";
+    }
+
+    if (strcmp(actual, "log_only") == 0) {
+        return "log_only";
+    }
+
+    return "http_status";
+}
+
+static int
+ngx_http_modsecurity_phase4_response_started(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx)
+{
+    if (r->header_sent) {
+        return 1;
+    }
+
+    return ctx != NULL && ctx->response_body_seen;
+}
+
+static void
+ngx_http_modsecurity_phase4_copy_content_type(ngx_http_request_t *r,
+    char *content_type, size_t content_type_size)
+{
+    size_t content_type_length;
+
+    content_type[0] = '\0';
+    if (r->headers_out.content_type.data == NULL ||
+        r->headers_out.content_type.len == 0U ||
+        r->headers_out.content_type.len >= content_type_size) {
+        return;
+    }
+
+    content_type_length = r->headers_out.content_type.len;
+    ngx_memcpy(content_type, r->headers_out.content_type.data,
+        content_type_length);
+    content_type[content_type_length] = '\0';
+}
+
+static void
+ngx_http_modsecurity_phase4_copy_intervention_identifier(
+    ngx_http_modsecurity_ctx_t *ctx,
+    char *rule_id, size_t rule_id_size)
+{
+    size_t length;
+
+    rule_id[0] = '\0';
+    if (ctx == NULL || ctx->last_intervention_rule_id[0] == '\0') {
+        return;
+    }
+
+    length = ngx_strlen(ctx->last_intervention_rule_id);
+    if (length >= rule_id_size) {
+        length = rule_id_size - 1U;
+    }
+    ngx_memcpy(rule_id, ctx->last_intervention_rule_id, length);
+    rule_id[length] = '\0';
+}
+
 static ngx_int_t
 ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, const char *wanted, const char *actual, const char *reason)
 {
@@ -393,7 +507,6 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
     char content_type[256];
     int original_status;
-    size_t content_type_length = 0U;
     ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
 
     if (mcf->phase4_log_file == NULL ||
@@ -401,34 +514,14 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
         return NGX_OK;
     }
 
-    original_status = r->err_status != 0 ? (int)r->err_status :
-        (r->headers_out.status != 0 ? (int)r->headers_out.status : (int)NGX_HTTP_OK);
-    content_type[0] = '\0';
-    if (r->headers_out.content_type.data != NULL &&
-        r->headers_out.content_type.len > 0U &&
-        r->headers_out.content_type.len < sizeof(content_type)) {
-        content_type_length = r->headers_out.content_type.len;
-        ngx_memcpy(content_type, r->headers_out.content_type.data,
-            content_type_length);
-        content_type[content_type_length] = '\0';
-    }
-    rule_id[0] = '\0';
-    if (ctx != NULL && ctx->last_intervention_rule_id[0] != '\0') {
-        size_t length = ngx_strlen(ctx->last_intervention_rule_id);
-
-        if (length >= sizeof(rule_id)) {
-            length = sizeof(rule_id) - 1U;
-        }
-        ngx_memcpy(rule_id, ctx->last_intervention_rule_id, length);
-        rule_id[length] = '\0';
-    }
+    original_status = ngx_http_modsecurity_phase4_original_status(r);
+    ngx_http_modsecurity_phase4_copy_content_type(r, content_type,
+        sizeof(content_type));
+    ngx_http_modsecurity_phase4_copy_intervention_identifier(ctx, rule_id,
+        sizeof(rule_id));
 
     msconnector_event_init(&event);
-    event.meta.message_id = strcmp(actual, "abort_connection") == 0
-        ? MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200
-        : (strcmp(actual, "log_only") == 0
-            ? MSCONN_EVENT_PHASE4_LATE_INTERVENTION
-            : MSCONN_EVENT_RESPONSE_BLOCKED);
+    event.meta.message_id = ngx_http_modsecurity_phase4_message_id(actual);
     event.meta.level = msconnector_event_default_level(event.meta.message_id);
     event.meta.message = msconnector_event_default_message(event.meta.message_id);
     event.meta.event = "phase4_intervention";
@@ -446,12 +539,10 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     event.http.http_status = ctx != NULL && ctx->last_intervention_status > 0
         ? (int)ctx->last_intervention_status : NGX_HTTP_FORBIDDEN;
     event.http.original_http_status = original_status;
-    event.http.visible_http_status = (strcmp(actual, "deny") == 0 ||
-        strcmp(actual, "redirect") == 0)
-        ? event.http.http_status : original_status;
-    event.http.transport_result = strcmp(actual, "abort_connection") == 0
-        ? "connection_aborted" : (strcmp(actual, "log_only") == 0
-            ? "log_only" : "http_status");
+    event.http.visible_http_status = ngx_http_modsecurity_phase4_visible_status(
+        actual, event.http.http_status, original_status);
+    event.http.transport_result =
+        ngx_http_modsecurity_phase4_transport_result(actual);
     event.flags.late_intervention = ctx != NULL && ctx->response_committed;
     if (event.flags.late_intervention) {
         event.flags.late_intervention_mode =
@@ -461,8 +552,8 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     event.body.bytes_seen = ctx != NULL ? ctx->response_body_bytes_seen : 0U;
     event.body.bytes_inspected = ctx != NULL
         ? ctx->response_body_bytes_inspected : 0U;
-    event.flags.response_started = r->header_sent ? 1 :
-        (ctx != NULL && ctx->response_body_seen);
+    event.flags.response_started =
+        ngx_http_modsecurity_phase4_response_started(r, ctx);
     event.flags.response_committed = ctx != NULL && ctx->response_committed;
     event.flags.headers_sent = r->header_sent ? 1 : 0;
     event.flags.body_started = ctx != NULL && ctx->response_body_seen;

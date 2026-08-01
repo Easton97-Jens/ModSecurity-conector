@@ -70,8 +70,7 @@ def connector_section(text: str, connector: str) -> str:
     return match.group(1) if match else ""
 
 
-def main() -> int:
-    errors: list[str] = []
+def capability_manifests(errors: list[str]) -> dict[str, dict[str, object]]:
     manifests: dict[str, dict[str, object]] = {}
     for connector in CONNECTORS:
         path = ROOT / f"connectors/{connector}/capabilities.json"
@@ -93,7 +92,10 @@ def main() -> int:
         ):
             if required not in todo:
                 fail(errors, f"connectors/{connector}/TODO.md: missing canonical marker {required!r}")
+    return manifests
 
+
+def readiness_documents(errors: list[str]) -> dict[str, str]:
     readiness: dict[str, str] = {}
     for relative, switch in READINESS_REPORTS:
         text = read(ROOT / relative, errors)
@@ -104,7 +106,10 @@ def main() -> int:
             fail(errors, f"{relative}: readiness table contains no canonical status cells")
         if "Claims deliberately not made" not in text and "Bewusst nicht erhobene Claims" not in text:
             fail(errors, f"{relative}: claim-boundary section missing")
+    return readiness
 
+
+def core_completion_documents(errors: list[str]) -> tuple[dict[str, str], str]:
     core_completion: dict[str, str] = {}
     core_run_ids: set[str] = set()
     for relative, switch in CORE_COMPLETION_REPORTS:
@@ -124,11 +129,17 @@ def main() -> int:
 
     if len(core_run_ids) != 1:
         fail(errors, f"core completion language pair has inconsistent run identifiers: {sorted(core_run_ids)}")
-    core_run_id = next(iter(core_run_ids), "")
+    return core_completion, next(iter(core_run_ids), "")
+
+
+def check_readiness_core_binding(errors: list[str], readiness: dict[str, str], core_run_id: str) -> None:
     for relative, text in readiness.items():
         if core_run_id and core_run_id not in text:
             fail(errors, f"{relative}: readiness is not bound to core run {core_run_id}")
 
+
+
+def check_connector_rows(errors: list[str], readiness: dict[str, str], core_completion: dict[str, str]) -> None:
     english = readiness.get("reports/current/readiness.md", "")
     core_english = core_completion.get("reports/current/core-completion.md", "")
     for connector in CONNECTORS:
@@ -145,6 +156,8 @@ def main() -> int:
         if not readiness_row or "PASS" not in readiness_row.group(0) or NOT_EXECUTED_STATUS not in readiness_row.group(0):
             fail(errors, f"reports/current/readiness.md: {connector} must keep selected core PASS separate from extended {NOT_EXECUTED_STATUS}")
 
+
+def check_connector_boundaries(errors: list[str]) -> None:
     envoy_todo = read(ROOT / "connectors/envoy/TODO.md", errors)
     if "Status: targeted `minimal_runtime_smoke`" not in envoy_todo:
         fail(errors, "Envoy TODO must identify the existing targeted minimal runtime path")
@@ -162,58 +175,99 @@ def main() -> int:
         if marker not in overview_en or marker not in overview_de:
             fail(errors, f"repository overview pair is missing {marker!r}")
 
+
+def capability_aggregate(errors: list[str]) -> dict[str, object] | None:
     aggregate_path = ROOT / CAPABILITY_CATALOG_JSON
     try:
-        aggregate = json.loads(aggregate_path.read_text(encoding="utf-8"))
+        return json.loads(aggregate_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         fail(errors, f"invalid generated capability aggregate: {exc}")
-    else:
-        runtime_promotion = aggregate.get("runtime_promotion")
-        if not isinstance(runtime_promotion, bool):
-            fail(errors, "generated capability aggregate runtime_promotion must be Boolean")
-        if runtime_promotion is True:
-            runtime_evidence = aggregate.get("runtime_evidence")
-            if not isinstance(runtime_evidence, dict):
-                fail(errors, "runtime-promoted capability aggregate is missing runtime_evidence")
-            else:
-                if not isinstance(runtime_evidence.get("run_id"), str) or not runtime_evidence["run_id"]:
-                    fail(errors, "runtime-promoted capability aggregate is missing its run_id")
-                if runtime_evidence.get("evidence_stage") != "no_crs_baseline":
-                    fail(errors, "runtime-promoted capability aggregate must use no_crs_baseline evidence")
-                evidence_connectors = runtime_evidence.get("connectors")
-                if not isinstance(evidence_connectors, dict) or set(evidence_connectors) != set(CONNECTORS):
-                    fail(errors, "runtime-promoted capability aggregate lacks one or more connector results")
-        elif runtime_promotion is not False:
+        return None
+
+
+def check_runtime_promotion(errors: list[str], aggregate: dict[str, object]) -> None:
+    runtime_promotion = aggregate.get("runtime_promotion")
+    if not isinstance(runtime_promotion, bool):
+        fail(errors, "generated capability aggregate runtime_promotion must be Boolean")
+    if runtime_promotion is not True:
+        if runtime_promotion is not False:
             fail(errors, "generated capability aggregate has an invalid runtime_promotion value")
-        generated_connectors = aggregate.get("connectors")
-        if not isinstance(generated_connectors, dict) or set(generated_connectors) != set(CONNECTORS):
-            fail(errors, "generated capability aggregate does not contain exactly six connectors")
-        catalog_markdown = read(ROOT / CAPABILITY_CATALOG_MARKDOWN, errors)
-        if isinstance(generated_connectors, dict):
-            for connector, manifest in manifests.items():
-                manifest_capabilities = manifest.get("capabilities")
-                generated = generated_connectors.get(connector)
-                generated_capabilities = generated.get("capabilities") if isinstance(generated, dict) else None
-                if not isinstance(manifest_capabilities, dict) or not isinstance(generated_capabilities, dict):
-                    fail(errors, f"{connector}: capability manifest/catalog mapping is invalid")
-                    continue
-                section = connector_section(catalog_markdown, connector)
-                if not section:
-                    fail(errors, f"{CAPABILITY_CATALOG_MARKDOWN}: missing {connector} detail section")
-                    continue
-                for capability in CORE_CAPABILITIES:
-                    entry = manifest_capabilities.get(capability)
-                    expected = entry.get("state") if isinstance(entry, dict) else None
-                    observed_entry = generated_capabilities.get(capability)
-                    observed = observed_entry.get("state") if isinstance(observed_entry, dict) else None
-                    if not isinstance(expected, str) or not expected:
-                        fail(errors, f"connectors/{connector}/capabilities.json: missing {capability} state")
-                        continue
-                    if observed != expected:
-                        fail(errors, f"{connector}: generated capability catalog disagrees on {capability}: {observed!r} != {expected!r}")
-                    row_pattern = rf"\|\s*`{re.escape(capability)}`\s*\|\s*`{re.escape(expected)}`\s*\|"
-                    if not re.search(row_pattern, section):
-                        fail(errors, f"{CAPABILITY_CATALOG_MARKDOWN}: {connector} detail row disagrees with {capability}={expected}")
+        return
+    runtime_evidence = aggregate.get("runtime_evidence")
+    if not isinstance(runtime_evidence, dict):
+        fail(errors, "runtime-promoted capability aggregate is missing runtime_evidence")
+        return
+    if not isinstance(runtime_evidence.get("run_id"), str) or not runtime_evidence["run_id"]:
+        fail(errors, "runtime-promoted capability aggregate is missing its run_id")
+    if runtime_evidence.get("evidence_stage") != "no_crs_baseline":
+        fail(errors, "runtime-promoted capability aggregate must use no_crs_baseline evidence")
+    evidence_connectors = runtime_evidence.get("connectors")
+    if not isinstance(evidence_connectors, dict) or set(evidence_connectors) != set(CONNECTORS):
+        fail(errors, "runtime-promoted capability aggregate lacks one or more connector results")
+
+
+def catalog_capability_errors(
+    connector: str,
+    manifest_capabilities: dict[str, object],
+    generated_capabilities: dict[str, object],
+    section: str,
+) -> list[str]:
+    errors: list[str] = []
+    for capability in CORE_CAPABILITIES:
+        entry = manifest_capabilities.get(capability)
+        expected = entry.get("state") if isinstance(entry, dict) else None
+        observed_entry = generated_capabilities.get(capability)
+        observed = observed_entry.get("state") if isinstance(observed_entry, dict) else None
+        if not isinstance(expected, str) or not expected:
+            errors.append(f"connectors/{connector}/capabilities.json: missing {capability} state")
+            continue
+        if observed != expected:
+            errors.append(f"{connector}: generated capability catalog disagrees on {capability}: {observed!r} != {expected!r}")
+        row_pattern = rf"\|\s*`{re.escape(capability)}`\s*\|\s*`{re.escape(expected)}`\s*\|"
+        if not re.search(row_pattern, section):
+            errors.append(f"{CAPABILITY_CATALOG_MARKDOWN}: {connector} detail row disagrees with {capability}={expected}")
+    return errors
+
+
+def catalog_connector_errors(
+    connector: str,
+    manifest: dict[str, object],
+    generated_connectors: dict[str, object],
+    catalog_markdown: str,
+) -> list[str]:
+    manifest_capabilities = manifest.get("capabilities")
+    generated = generated_connectors.get(connector)
+    generated_capabilities = generated.get("capabilities") if isinstance(generated, dict) else None
+    if not isinstance(manifest_capabilities, dict) or not isinstance(generated_capabilities, dict):
+        return [f"{connector}: capability manifest/catalog mapping is invalid"]
+    section = connector_section(catalog_markdown, connector)
+    if not section:
+        return [f"{CAPABILITY_CATALOG_MARKDOWN}: missing {connector} detail section"]
+    return catalog_capability_errors(connector, manifest_capabilities, generated_capabilities, section)
+
+
+def check_capability_catalog(errors: list[str], manifests: dict[str, dict[str, object]], aggregate: dict[str, object]) -> None:
+    generated_connectors = aggregate.get("connectors")
+    if not isinstance(generated_connectors, dict) or set(generated_connectors) != set(CONNECTORS):
+        fail(errors, "generated capability aggregate does not contain exactly six connectors")
+        return
+    catalog_markdown = read(ROOT / CAPABILITY_CATALOG_MARKDOWN, errors)
+    for connector, manifest in manifests.items():
+        errors.extend(catalog_connector_errors(connector, manifest, generated_connectors, catalog_markdown))
+
+
+def main() -> int:
+    errors: list[str] = []
+    manifests = capability_manifests(errors)
+    readiness = readiness_documents(errors)
+    core_completion, core_run_id = core_completion_documents(errors)
+    check_readiness_core_binding(errors, readiness, core_run_id)
+    check_connector_rows(errors, readiness, core_completion)
+    check_connector_boundaries(errors)
+    aggregate = capability_aggregate(errors)
+    if aggregate is not None:
+        check_runtime_promotion(errors, aggregate)
+        check_capability_catalog(errors, manifests, aggregate)
 
     if errors:
         for error in errors:

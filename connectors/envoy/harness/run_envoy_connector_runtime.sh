@@ -145,6 +145,8 @@ fi
 
 "$PYTHON_BIN" "$HELPER" serve-upstream --port "$upstream_port" \
     --runtime-root "$RUNTIME_ROOT" \
+    --tls-certificate "$TLS_CERTIFICATE" \
+    --tls-private-key "$TLS_PRIVATE_KEY" \
     >"$UPSTREAM_STDOUT" 2>"$UPSTREAM_STDERR" &
 upstream_pid=$!
 

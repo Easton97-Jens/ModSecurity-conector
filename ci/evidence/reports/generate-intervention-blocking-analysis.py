@@ -31,6 +31,7 @@ STRICT_LOAD_ERROR_RE = re.compile(
     re.IGNORECASE,
 )
 WITH_MRTS_DETECTION_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
+SMOKE_RULES_RELATIVE_PATH = "conf/modsecurity-smoke.conf"
 NO_MRTS_NOMATCH_SEMANTIC_CLASSIFICATIONS = {
     "transformation_request_literal_no_match",
     "collection_name_normalization_semantics",
@@ -108,52 +109,72 @@ def parse_rule_candidates(rules: str) -> list[dict[str, Any]]:
     return candidates
 
 
+def load_intervention_case(path: Path | None) -> tuple[str, dict[str, Any]]:
+    raw = read_text(path) if path is not None and path.is_file() else ""
+    if not raw or yaml is None:
+        return raw, {}
+    try:
+        loaded = yaml.safe_load(raw)
+    except Exception:
+        return raw, {}
+    return raw, loaded if isinstance(loaded, dict) else {}
+
+
+def fallback_intervention_rule(entry: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "rule_id": "-",
+        "phase": str(entry.get("phase") or "-"),
+        "target": "-",
+        "operator": "-",
+        "actions": [],
+        "transformations": [],
+        "rule_excerpt": "-",
+    }
+
+
+def selected_intervention_rule(
+    rule_candidates: list[dict[str, Any]], expected_rule_id: str, entry: dict[str, Any]
+) -> dict[str, Any]:
+    if expected_rule_id:
+        selected = next((item for item in rule_candidates if item["rule_id"] == expected_rule_id), None)
+        if selected is not None:
+            return selected
+    return next(
+        (item for item in reversed(rule_candidates) if item["rule_id"] != "-"),
+        fallback_intervention_rule(entry),
+    )
+
+
+def request_path_and_query(request: dict[str, Any]) -> tuple[str, str]:
+    request_path = str(request.get("path") or "-")
+    if "?" not in request_path:
+        return request_path, "-"
+    path, query = request_path.split("?", 1)
+    return path or "/", query
+
+
+def limitation_classification(known_limitations: list[str]) -> str:
+    for item in known_limitations:
+        match = re.search(r"Classification:\s*([^.\s]+)", item)
+        if match:
+            return match.group(1)
+    return "-"
+
+
 def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_root: Path) -> dict[str, Any]:
     case_path = safe_existing_file(evidence.get("path"))
-    raw = read_text(case_path) if case_path is not None and case_path.is_file() else ""
-    parsed: dict[str, Any] = {}
-    if raw and yaml is not None:
-        try:
-            loaded = yaml.safe_load(raw)
-            parsed = loaded if isinstance(loaded, dict) else {}
-        except Exception:
-            parsed = {}
+    raw, parsed = load_intervention_case(case_path)
     request = parsed.get("request") if isinstance(parsed.get("request"), dict) else {}
     expect = parsed.get("expect") if isinstance(parsed.get("expect"), dict) else {}
     rules = str(parsed.get("rules") or raw)
     rules = sanitize_report_text(rules)
     rule_candidates = parse_rule_candidates(rules)
     expected_rule_id = str(expect.get("rule_id") or "")
-    selected_rule = None
-    if expected_rule_id:
-        selected_rule = next((item for item in rule_candidates if item["rule_id"] == expected_rule_id), None)
-    if selected_rule is None:
-        selected_rule = next((item for item in reversed(rule_candidates) if item["rule_id"] != "-"), None)
-    if selected_rule is None:
-        selected_rule = {
-            "rule_id": "-",
-            "phase": str(entry.get("phase") or "-"),
-            "target": "-",
-            "operator": "-",
-            "actions": [],
-            "transformations": [],
-            "rule_excerpt": "-",
-        }
-    request_path = str(request.get("path") or "-")
-    query = "-"
-    path = request_path
-    if "?" in request_path:
-        path, query = request_path.split("?", 1)
-        path = path or "/"
+    selected_rule = selected_intervention_rule(rule_candidates, expected_rule_id, entry)
+    path, query = request_path_and_query(request)
     headers = request.get("headers") if isinstance(request.get("headers"), dict) else {}
     body = str(request.get("body") or "")
     known_limitations = as_list(parsed.get("known_limitations"))
-    source_classification = "-"
-    for item in known_limitations:
-        match = re.search(r"Classification:\s*([^.\s]+)", item)
-        if match:
-            source_classification = match.group(1)
-            break
     return {
         "case_path": display_case_path(case_path, framework_root),
         "method": str(request.get("method") or "-"),
@@ -173,7 +194,7 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
         "rules": rules,
         "rule_ids": [item["rule_id"] for item in rule_candidates if item["rule_id"] != "-"],
         "known_limitations": known_limitations,
-        "source_classification": source_classification,
+        "source_classification": limitation_classification(known_limitations),
     }
 
 
@@ -190,13 +211,13 @@ def generated_config_path(entry: dict[str, Any], evidence_file: Path | None) -> 
     try:
         if connector == "nginx":
             run_root = log_dir.parent.parent
-            return run_root / "runtime" / case_id / "conf/modsecurity-smoke.conf"
+            return run_root / "runtime" / case_id / SMOKE_RULES_RELATIVE_PATH
         if connector == "apache":
             connector_run_root = log_dir.parent.parent.parent
-            return connector_run_root / "apache-runtime" / case_id / "conf/modsecurity-smoke.conf"
+            return connector_run_root / "apache-runtime" / case_id / SMOKE_RULES_RELATIVE_PATH
         if connector == "haproxy":
             connector_run_root = log_dir.parent.parent.parent
-            return connector_run_root / "haproxy-runtime-cases" / case_id / "conf/modsecurity-smoke.conf"
+            return connector_run_root / "haproxy-runtime-cases" / case_id / SMOKE_RULES_RELATIVE_PATH
     except IndexError:
         return None
     return None
@@ -654,7 +675,6 @@ def main() -> int:
     output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
     add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root, framework_root)
     metadata = build_metadata(
         generated_by="ci/evidence/reports/generate-intervention-blocking-analysis.py",

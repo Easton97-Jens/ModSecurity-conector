@@ -17,7 +17,8 @@ sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 components = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(components)
 
@@ -91,6 +92,95 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             return subprocess.CompletedProcess(command, 0, "", "")
 
         return git_record, toolchain, configured_prefix, fake_run_env
+
+    def test_build_lock_preserves_file_and_directory_fallback_contracts(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            file_lock_path = root / "locks/file.lock"
+            with components.BuildLock(file_lock_path, timeout=1) as lock:
+                self.assertIsNotNone(lock.handle)
+                self.assertTrue(file_lock_path.is_file())
+                self.assertIn("pid=", file_lock_path.read_text(encoding="utf-8"))
+
+            directory_lock_path = root / "locks/directory.lock"
+            with mock.patch.dict(sys.modules, {"fcntl": None}):
+                with components.BuildLock(directory_lock_path, timeout=1) as lock:
+                    self.assertIsNone(lock.handle)
+                    self.assertTrue((lock.mkdir_lock / "owner").is_file())
+            self.assertFalse(directory_lock_path.with_suffix(".lock.dir").exists())
+
+    def test_optional_connector_staging_prepares_unkeyed_plan_directly(self) -> None:
+        prepared_plans: list[dict[str, str] | None] = []
+
+        result = components.prepare_connector_with_optional_staging(
+            "apache",
+            Path("/cache"),
+            None,
+            False,
+            lambda active_plan: prepared_plans.append(active_plan) or {"status": "prepared"},
+        )
+
+        self.assertEqual(result, {"status": "prepared"})
+        self.assertEqual(prepared_plans, [None])
+
+    def test_optional_connector_staging_prepares_keyed_plan_from_staging(self) -> None:
+        final_plan = {"root": "/cache/final"}
+        staged_plan = {"root": "/cache/staged"}
+        prepared_plans: list[dict[str, str] | None] = []
+
+        def prepare_transactionally(
+            connector: str,
+            cache_root: Path,
+            active_plan: dict[str, str],
+            prepare: Callable[[dict[str, str], bool], dict[str, str]],
+        ) -> dict[str, str]:
+            self.assertEqual(connector, "apache")
+            self.assertEqual(Path("/cache"), cache_root)
+            self.assertIs(final_plan, active_plan)
+            return prepare(staged_plan, True)
+
+        with mock.patch.object(
+            components,
+            "prepare_connector_transactionally",
+            side_effect=prepare_transactionally,
+        ):
+            result = components.prepare_connector_with_optional_staging(
+                "apache",
+                Path("/cache"),
+                final_plan,
+                False,
+                lambda active_plan: prepared_plans.append(active_plan) or {"status": "prepared"},
+            )
+
+        self.assertEqual(result, {"status": "prepared"})
+        self.assertEqual(prepared_plans, [staged_plan])
+
+    def test_incomplete_connector_entry_removal_remains_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            cache_root = components.ensure_managed_cache_root(Path(temporary) / "cache")
+            entry = cache_root / "builds/connectors/test/cache-key"
+            entry.mkdir(parents=True)
+            (entry / "partial-artifact").write_text("partial\n", encoding="utf-8")
+
+            with mock.patch.object(components, "migrate_legacy_cache_entry_for_removal", return_value=False):
+                self.assertFalse(
+                    components.remove_incomplete_connector_cache_entry(entry, cache_root, "test")
+                )
+            self.assertTrue(entry.exists())
+
+            owned_entry = cache_root / "builds/connectors/test/owned-cache-key"
+            components.mark_managed_cache_entry(
+                owned_entry,
+                cache_root,
+                component="connector:test",
+                cache_key="owned-cache-key",
+            )
+            owned_entry.mkdir(parents=True)
+            (owned_entry / "partial-artifact").write_text("partial\n", encoding="utf-8")
+            self.assertTrue(
+                components.remove_incomplete_connector_cache_entry(owned_entry, cache_root, "test")
+            )
+            self.assertFalse(owned_entry.exists())
 
     def test_canonical_identity_covers_schema_patchset_toolchain_architecture_and_flags(self) -> None:
         baseline = self.identity()
@@ -947,6 +1037,104 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertEqual(blocked["blocker_reason"], "expat_paths_must_be_under_connector_component_cache")
             self.assertFalse(external_prefix.exists())
 
+    def test_each_managed_expat_override_accepts_a_distinct_marked_cache_child(self) -> None:
+        overrides = (
+            ("EXPAT_PREFIX", "expat-prefix"),
+            ("EXPAT_BUILD_DIR", "expat-build"),
+            ("EXPAT_SOURCE_COPY", "expat-source"),
+        )
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            for index, (variable, component) in enumerate(overrides):
+                case_root = root / f"override-{index}"
+                cache_root = components.ensure_managed_cache_root(case_root / "cache")
+                git_record, toolchain, configured_prefix, fake_run_env = self._expat_fixture(case_root)
+                target = cache_root / "overrides" / variable.lower()
+
+                with mock.patch.object(
+                    components, "toolchain_identity", return_value=toolchain
+                ), mock.patch.object(
+                    components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
+                ), mock.patch.object(components, "run_env", side_effect=fake_run_env):
+                    record = components.prepare_expat(
+                        {variable: str(target)}, cache_root, case_root / "work", git_record
+                    )
+
+                self.assertEqual(record["status"], "built")
+                self.assertIsNotNone(configured_prefix[0])
+                self.assertNotEqual(configured_prefix[0], target)
+                self.assertIn(".tmp-", configured_prefix[0].name)
+                self.assertTrue(target.is_dir())
+                self.assertTrue(
+                    components.cache_entry_complete(
+                        target,
+                        cache_root,
+                        component=component,
+                        cache_key=record["cache_key"],
+                        cache_identity=record["cache_identity"],
+                    )
+                )
+                self.assertFalse(any(".tmp-" in path.name for path in target.parent.iterdir()))
+
+    def test_each_expat_override_rejects_external_escapes_before_build_or_publish(self) -> None:
+        variables = ("EXPAT_PREFIX", "EXPAT_BUILD_DIR", "EXPAT_SOURCE_COPY")
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            cache_root = components.ensure_managed_cache_root(root / "cache")
+            git_record, toolchain, _, _ = self._expat_fixture(root)
+
+            for variable in variables:
+                external_root = root / "external" / variable.lower()
+                direct_target = external_root / "direct"
+                traversal_target = external_root / "traversal"
+                symlink_target = external_root / "symlink"
+                for target in (direct_target, traversal_target, symlink_target):
+                    target.mkdir(parents=True)
+                    (target / "sentinel").write_text("preserve\n", encoding="utf-8")
+
+                symlink = cache_root / "links" / variable.lower()
+                symlink.parent.mkdir(parents=True, exist_ok=True)
+                symlink.symlink_to(symlink_target, target_is_directory=True)
+                escape_cases = (
+                    ("external", direct_target, direct_target),
+                    (
+                        "traversal",
+                        cache_root
+                        / "managed"
+                        / ".."
+                        / ".."
+                        / "external"
+                        / variable.lower()
+                        / "traversal",
+                        traversal_target,
+                    ),
+                    ("symlink", symlink / "child", symlink_target),
+                )
+
+                for case_name, unsafe_path, sentinel_root in escape_cases:
+                    with mock.patch.object(
+                        components, "toolchain_identity", return_value=toolchain
+                    ), mock.patch.object(components, "run_env") as run_env, mock.patch.object(
+                        components, "safe_remove_dir"
+                    ) as safe_remove_dir, mock.patch.object(
+                        components, "atomic_publish_dir"
+                    ) as atomic_publish_dir:
+                        blocked = components.prepare_expat(
+                            {variable: str(unsafe_path)}, cache_root, root / "work", git_record
+                        )
+
+                    self.assertEqual(blocked["status"], "blocked", f"{variable} {case_name}")
+                    self.assertEqual(
+                        blocked["blocker_reason"],
+                        "expat_paths_must_be_under_connector_component_cache",
+                    )
+                    self.assertFalse(run_env.called, f"{variable} {case_name}")
+                    self.assertFalse(safe_remove_dir.called, f"{variable} {case_name}")
+                    self.assertFalse(atomic_publish_dir.called, f"{variable} {case_name}")
+                    self.assertEqual((sentinel_root / "sentinel").read_text(encoding="utf-8"), "preserve\n")
+                    if case_name == "symlink":
+                        self.assertFalse((symlink_target / "child").exists())
+
     def test_apache_rebuilds_complete_cache_with_broken_apxs(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
@@ -1150,6 +1338,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     str(cache_root / "builds" / "connectors"),
                     build_env["NGINX_BUILD_OWNER_ROOT"],
                 )
+                self.assertEqual(build_env["NGINX_PROTOCOL_PROFILE"], "h1")
                 binary = active_nginx_prefix / "sbin/nginx"
                 binary.parent.mkdir(parents=True, exist_ok=True)
                 binary.write_text("#!/bin/sh\n", encoding="utf-8")
@@ -1440,6 +1629,14 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     actual_head=commit,
                 )
             )
+
+    def test_initialize_git_submodules_fails_closed_on_a_silent_failure(self) -> None:
+        silent_failure = subprocess.CompletedProcess([], 1, "", "")
+        with mock.patch.object(components, "run", return_value=silent_failure):
+            ready, details = components.initialize_git_submodules(Path("/tmp/checkout"))
+
+        self.assertFalse(ready)
+        self.assertEqual(details, "")
 
     def test_dirty_managed_git_checkout_is_replaced_and_atomically_republished(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:

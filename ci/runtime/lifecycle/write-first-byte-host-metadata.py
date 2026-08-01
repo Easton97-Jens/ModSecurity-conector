@@ -11,7 +11,15 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 from typing import Any
+
+
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import prepare_verified_runtime_artifact_root, runtime_artifact_path
 
 
 def phase4_record(path: Path) -> dict[str, Any]:
@@ -55,7 +63,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args(argv)
 
-    event = phase4_record(args.phase4_log)
+    runtime_root = prepare_verified_runtime_artifact_root()
+    phase4_log = runtime_artifact_path(
+        runtime_root, args.phase4_log, "Phase-4 log", must_exist=True
+    )
+    output = runtime_artifact_path(runtime_root, args.output, "output")
+    event = phase4_record(phase4_log)
     if event.get("response_committed") is not True:
         raise ValueError("host Phase-4 event does not confirm response_committed=true")
     seen = nonnegative(event, "body_bytes_seen")
@@ -72,8 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         "no_full_response_buffering": True,
         "connector_owned_full_response_buffer": False,
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0
 
 

@@ -4,6 +4,7 @@ import argparse
 import importlib.util
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -17,7 +18,8 @@ SPEC = importlib.util.spec_from_file_location(
     "common_runtime_smoke_crs_source_security",
     ROOT / "common/scripts/run_local_runtime_smoke.py",
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = RUNNER
 SPEC.loader.exec_module(RUNNER)
@@ -97,6 +99,138 @@ class CommonRuntimeSmokeCrsSourceSecurityTest(unittest.TestCase):
         rule.write_text('SecRule ARGS "@contains safe" "id:901001,pass,nolog"\n', encoding="utf-8")
         rule.chmod(stat.S_IRUSR | stat.S_IWUSR)
         return path
+
+    def make_evaluator_inputs(self, root: Path) -> argparse.Namespace:
+        include_dir = root / "include"
+        header_dir = include_dir / "modsecurity"
+        header_dir.mkdir(parents=True, mode=0o700)
+        for header in ("modsecurity.h", "rules_set.h", "transaction.h"):
+            header_path = header_dir / header
+            header_path.write_text("/* test header */\n", encoding="utf-8")
+            header_path.chmod(0o600)
+        lib_dir = root / "lib"
+        lib_dir.mkdir(mode=0o700)
+        lib_file = lib_dir / "libmodsecurity.so.3"
+        lib_file.write_text("test library\n", encoding="utf-8")
+        lib_file.chmod(0o600)
+        rule_file = root / "rules.conf"
+        rule_file.write_text("SecRuleEngine On\n", encoding="utf-8")
+        rule_file.chmod(0o600)
+        args = self.make_runtime_args(root)
+        args.modsecurity_include_dir = str(include_dir)
+        args.modsecurity_lib_dir = str(lib_dir)
+        args.modsecurity_lib_file = str(lib_file)
+        args.modsecurity_rule_file = str(rule_file)
+        args.effective_modsecurity_rule_file = str(rule_file)
+        return args
+
+    def test_evaluator_inputs_accept_private_regular_files(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-evaluator-input-") as temporary:
+            args = self.make_evaluator_inputs(Path(temporary))
+
+            inputs = RUNNER.prepare_modsecurity_evaluator_inputs(args)
+
+            self.assertEqual(inputs.include_dir, Path(args.modsecurity_include_dir))
+            self.assertEqual(inputs.lib_dir, Path(args.modsecurity_lib_dir))
+            self.assertEqual(inputs.lib_file, Path(args.modsecurity_lib_file))
+            self.assertEqual(inputs.rule_file, Path(args.modsecurity_rule_file))
+
+    def test_evaluator_inputs_reject_linker_separator_before_compiler_execution(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-evaluator-input-") as temporary:
+            root = Path(temporary)
+            args = self.make_evaluator_inputs(root)
+            unsafe_dir = root / "lib,unsafe"
+            Path(args.modsecurity_lib_dir).rename(unsafe_dir)
+            unsafe_file = unsafe_dir / "libmodsecurity.so.3"
+            args.modsecurity_lib_dir = str(unsafe_dir)
+            args.modsecurity_lib_file = str(unsafe_file)
+
+            with self.assertRaisesRegex(RUNNER.SmokeBlocked, "linker separator"):
+                RUNNER.prepare_modsecurity_evaluator_inputs(args)
+
+    def test_evaluator_inputs_reject_replaceable_library_file(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-evaluator-input-") as temporary:
+            args = self.make_evaluator_inputs(Path(temporary))
+            Path(args.modsecurity_lib_file).chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IWGRP)
+
+            with self.assertRaisesRegex(
+                RUNNER.SmokeBlocked, "must not be group or world writable"
+            ):
+                RUNNER.prepare_modsecurity_evaluator_inputs(args)
+
+    def test_evaluator_inputs_reject_library_outside_selected_directory(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-evaluator-input-") as temporary:
+            root = Path(temporary)
+            args = self.make_evaluator_inputs(root)
+            outside = root / "outside.so"
+            outside.write_text("test library\n", encoding="utf-8")
+            outside.chmod(0o600)
+            args.modsecurity_lib_file = str(outside)
+
+            with self.assertRaisesRegex(RUNNER.SmokeBlocked, "must be inside"):
+                RUNNER.prepare_modsecurity_evaluator_inputs(args)
+
+    def test_evaluator_build_uses_the_verified_library_file_without_shell(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-evaluator-input-") as temporary:
+            root = Path(temporary)
+            args = self.make_evaluator_inputs(root)
+            tmp_root = root / "tmp"
+            log_dir = root / "logs"
+            tmp_root.mkdir(mode=0o700)
+            log_dir.mkdir(mode=0o700)
+            runtime_paths = RUNNER.RuntimeOutputPaths(
+                root,
+                root / "evidence",
+                root / "results",
+                tmp_root,
+                root / "log-root",
+                log_dir,
+                root / "config",
+            )
+            observed: list[list[str]] = []
+
+            def compile_once(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+                observed.append(command)
+                Path(command[command.index("-o") + 1]).write_text("binary\n", encoding="utf-8")
+                return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+            with (
+                mock.patch.object(RUNNER, "system_cxx_compiler", return_value=Path("/fixed/c++")),
+                mock.patch.object(RUNNER.subprocess, "run", side_effect=compile_once) as run,
+            ):
+                output, _environment = RUNNER.build_modsecurity_evaluator(args, runtime_paths)
+
+            self.assertTrue(output.is_file())
+            run.assert_called_once()
+            self.assertEqual(observed[0][0], "/fixed/c++")
+            self.assertIn(args.modsecurity_lib_file, observed[0])
+            self.assertNotIn("-lmodsecurity", observed[0])
+            self.assertNotIn("-L", observed[0])
+            self.assertEqual(observed[0][observed[0].index("-o") + 1], str(output))
+
+    def test_evaluator_build_rejects_unsafe_linker_input_without_process_execution(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="common-evaluator-input-") as temporary:
+            root = Path(temporary)
+            args = self.make_evaluator_inputs(root)
+            unsafe_dir = root / "lib,unsafe"
+            Path(args.modsecurity_lib_dir).rename(unsafe_dir)
+            args.modsecurity_lib_dir = str(unsafe_dir)
+            args.modsecurity_lib_file = str(unsafe_dir / "libmodsecurity.so.3")
+            runtime_paths = RUNNER.RuntimeOutputPaths(
+                root,
+                root / "evidence",
+                root / "results",
+                root / "tmp",
+                root / "log-root",
+                root / "logs",
+                root / "config",
+            )
+
+            with mock.patch.object(RUNNER.subprocess, "run") as run:
+                with self.assertRaisesRegex(RUNNER.SmokeBlocked, "linker separator"):
+                    RUNNER.build_modsecurity_evaluator(args, runtime_paths)
+
+            run.assert_not_called()
 
     def test_shared_temporary_environment_is_not_an_implicit_crs_candidate(self) -> None:
         with tempfile.TemporaryDirectory(prefix="common-crs-source-") as temporary:
@@ -502,7 +636,7 @@ class CommonRuntimeSmokeCrsSourceSecurityTest(unittest.TestCase):
 
             command = RUNNER.writer_args(args, result)
 
-        values = dict(zip(command[2::2], command[3::2], strict=True))
+        values = dict(zip(command[::2], command[1::2], strict=True))
         self.assertEqual(values["--status"], "BLOCKED")
         self.assertEqual(values["--exit-code"], "77")
         self.assertEqual(values["--allowed-request-status"], "200")

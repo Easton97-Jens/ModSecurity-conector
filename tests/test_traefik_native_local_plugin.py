@@ -100,7 +100,8 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         self.assertNotIn("ENGINE_SOCKET_FALLBACK_ALLOCATION_ROOT", source)
         self.assertNotIn("TMPDIR", source)
         self.assertIn("ENGINE_SOCKET_PATH_MAX_BYTES", source)
-        self.assertIn("engine_socket_dir = create_private_engine_socket_dir(engine_socket_parent)", source)
+        self.assertIn("def start_native_runtime_setup(", source)
+        self.assertIn("create_private_engine_socket_dir(inputs.engine_socket_parent)", source)
         self.assertIn('"host_runtime_cleanup_incomplete"', source)
         self.assertIn("DirectoryIdentity", source)
 
@@ -155,6 +156,34 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(runner.MissingDependency, "private"):
                     runner.assert_private_engine_socket_parent(nonprivate, "test parent")
+
+    def test_native_runtime_root_requires_an_owner_controlled_ancestor(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="msconnector-traefik-test-") as temporary:
+            root = Path(temporary)
+            safe_parent = root / "safe"
+            safe_parent.mkdir(mode=0o700)
+            safe_parent.chmod(0o700)
+            selected = safe_parent / "nested" / "runtime"
+            self.assertEqual(runner.assert_runtime_root(selected), selected)
+
+            replaceable_parent = root / "replaceable"
+            replaceable_parent.mkdir(mode=0o777)
+            replaceable_parent.chmod(0o777)
+            with self.assertRaisesRegex(runner.MissingDependency, "must not be group or world writable"):
+                runner.assert_runtime_root(replaceable_parent / "runtime")
+
+            root_alias = root / "safe-alias"
+            root_alias.symlink_to(safe_parent, target_is_directory=True)
+            with self.assertRaisesRegex(runner.MissingDependency, "symlink"):
+                runner.assert_runtime_root(root_alias / "runtime")
+
+    def test_native_runtime_root_rejects_shared_temporary_directories_through_permissions(self) -> None:
+        for shared_root in (Path("/tmp"), Path("/var/tmp")):
+            with self.subTest(shared_root=shared_root):
+                with self.assertRaisesRegex(
+                    runner.MissingDependency, "must not be group or world writable"
+                ):
+                    runner.assert_runtime_root(shared_root)
 
     def test_engine_socket_parent_ancestor_requires_no_cross_user_replacement(self) -> None:
         owned_child = SimpleNamespace(

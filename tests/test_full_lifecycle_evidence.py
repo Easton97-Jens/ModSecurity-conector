@@ -13,14 +13,16 @@ ROOT = Path(__file__).resolve().parents[1]
 SANITIZER_SPEC = importlib.util.spec_from_file_location(
     "sanitize_full_lifecycle_log", ROOT / "ci/runtime/lifecycle/sanitize-full-lifecycle-log.py"
 )
-assert SANITIZER_SPEC is not None and SANITIZER_SPEC.loader is not None
+assert SANITIZER_SPEC is not None
+assert SANITIZER_SPEC.loader is not None
 sanitizer = importlib.util.module_from_spec(SANITIZER_SPEC)
 SANITIZER_SPEC.loader.exec_module(sanitizer)
 
 CHECKER_SPEC = importlib.util.spec_from_file_location(
     "check_full_lifecycle_evidence", ROOT / "ci/checks/evidence/check-full-lifecycle-evidence.py"
 )
-assert CHECKER_SPEC is not None and CHECKER_SPEC.loader is not None
+assert CHECKER_SPEC is not None
+assert CHECKER_SPEC.loader is not None
 checker = importlib.util.module_from_spec(CHECKER_SPEC)
 CHECKER_SPEC.loader.exec_module(checker)
 
@@ -173,6 +175,19 @@ class FullLifecycleEvidenceTest(unittest.TestCase):
             self.assertNotIn("no-crs-response-body-marker", text)
             self.assertIn("[body payload line omitted]", text)
             self.assertIn("normal diagnostic", text)
+
+    def test_log_sanitizer_requires_named_root_across_directories(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="full-lifecycle-log-input-") as input_temp:
+            with tempfile.TemporaryDirectory(prefix="full-lifecycle-log-output-") as output_temp:
+                source = Path(input_temp) / "raw.log"
+                destination = Path(output_temp) / "canonical.log"
+                source.write_text("normal diagnostic\n", encoding="utf-8")
+                with self.assertRaises(SystemExit) as raised:
+                    sanitizer.main([
+                        "--input", str(source), "--output", str(destination), "--label", "unit",
+                    ])
+                self.assertEqual(raised.exception.code, 2)
+                self.assertFalse(destination.exists())
 
     def test_first_byte_promotion_requires_causal_metadata(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-lifecycle-evidence-") as temporary:

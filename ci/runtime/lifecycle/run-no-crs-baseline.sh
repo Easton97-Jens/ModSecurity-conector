@@ -69,6 +69,7 @@ RUNTIME_PATH_RESOLVER=$CONNECTOR_ROOT/ci/runtime/common/resolve-runtime-paths.py
 PROFILE_RESOLVER=$CONNECTOR_ROOT/ci/runtime/lifecycle/resolve-full-lifecycle-profile.py
 LOG_SANITIZER=$CONNECTOR_ROOT/ci/runtime/lifecycle/sanitize-full-lifecycle-log.py
 ENGINE_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-engine-lifecycle-artifacts.py
+FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT='/./{p;q;}'
 TRANSPORT_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-transport-lifecycle-artifacts.py
 SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 
@@ -249,6 +250,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     "$PYTHON" "$PROFILE_RESOLVER" \
         --input "$CAPABILITIES_FILE" \
         --output "$EFFECTIVE_CAPABILITIES_FILE" \
+        --runtime-root "$CONNECTOR_BUILD_ROOT" \
         --profile "$FULL_LIFECYCLE_HOST_PROFILE" || {
         echo "FAIL: unable to materialize effective full-lifecycle capabilities" >&2
         exit 1
@@ -625,9 +627,13 @@ fi
 # receives only bounded, sentinel-free diagnostics plus a metadata-only host
 # summary, so body fixtures and credentials cannot be retained accidentally.
 "$PYTHON" "$LOG_SANITIZER" --input "$LOG_DIR/stdout.log" \
-    --output "$CANONICAL_STDOUT_LOG" --label "${connector}-stage-stdout"
+    --output "$CANONICAL_STDOUT_LOG" \
+    --runtime-root "$CANONICAL_VERIFIED_RUN_ROOT" \
+    --label "${connector}-stage-stdout"
 "$PYTHON" "$LOG_SANITIZER" --input "$LOG_DIR/stderr.log" \
-    --output "$CANONICAL_STDERR_LOG" --label "${connector}-stage-stderr"
+    --output "$CANONICAL_STDERR_LOG" \
+    --runtime-root "$CANONICAL_VERIFIED_RUN_ROOT" \
+    --label "${connector}-stage-stderr"
 {
     printf 'connector=%s\n' "$connector"
     printf 'evidence_stage=%s\n' "$evidence_stage"
@@ -654,6 +660,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     "$PYTHON" "$TRANSPORT_ARTIFACT_WRITER" \
         --connector "$connector" \
         --run-id "$NO_CRS_RUN_ID" \
+        --runtime-root "$CONNECTOR_RUN_ROOT" \
         --events "$NORMALIZED_EVENTS" \
         --output-dir "$TRANSPORT_ARTIFACT_DIR" || {
             echo "FAIL: unable to write payload-free transport lifecycle artifacts" >&2
@@ -760,6 +767,7 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
     set -- \
         --connector "$connector" \
         --run-id "$NO_CRS_RUN_ID" \
+        --runtime-root "$CONNECTOR_RUN_ROOT" \
         --effective-config-dir "$EFFECTIVE_CONFIG_ARTIFACT_DIR" \
         --config-file "capabilities.json=$CAPABILITIES_FILE" \
         --config-file "rules/no-crs-baseline.conf=$NO_CRS_RULES_FILE"
@@ -807,13 +815,13 @@ if [ -x "$host_binary" ]; then
         apache)
             apache_runtime_lib=$(dirname "$(dirname "$host_binary")")/lib
             host_version=$(LD_LIBRARY_PATH="$apache_runtime_lib:${MODSECURITY_LIB_DIR:-}:${LD_LIBRARY_PATH:-}" \
-                "$host_binary" -v 2>&1 | sed -n '/./{p;q;}')
+                "$host_binary" -v 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT")
             ;;
-        nginx) host_version=$($host_binary -v 2>&1 | sed -n '/./{p;q;}') ;;
-        haproxy) host_version=$($host_binary -v 2>&1 | sed -n '/./{p;q;}') ;;
-        envoy) host_version=$($host_binary --version 2>&1 | sed -n '/./{p;q;}') ;;
-        traefik) host_version=$($host_binary version 2>&1 | sed -n '/./{p;q;}') ;;
-        lighttpd) host_version=$($host_binary -v 2>&1 | sed -n '/./{p;q;}') ;;
+        nginx) host_version=$($host_binary -v 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
+        haproxy) host_version=$($host_binary -v 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
+        envoy) host_version=$($host_binary --version 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
+        traefik) host_version=$($host_binary version 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
+        lighttpd) host_version=$($host_binary -v 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
         *)
             echo "FAIL: unsupported connector host-version mapping: $connector" >&2
             exit 2
@@ -845,10 +853,25 @@ fi
 # host run.  They do not feed capability selection or promotion: canonical
 # PASS still requires the normal transaction-bound host event evidence.
 if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] && [ "$stage_rc" -eq 0 ]; then
-    libmodsecurity_library=${MODSECURITY_LIB_FILE:-}
-    if [ -z "$libmodsecurity_library" ] || [ ! -f "$libmodsecurity_library" ]; then
-        libmodsecurity_library=${MODSECURITY_LIB_DIR:-}/libmodsecurity.so
+    modsecurity_build_id=${MODSECURITY_BUILD_ID:-}
+    case "$modsecurity_build_id" in
+        ""|.|..|*[!A-Za-z0-9_-]*)
+            echo "FAIL: full-lifecycle modsecurity build identity is unsafe" >&2
+            exit 1
+            ;;
+        *)
+            # The rejection pattern above leaves only a non-empty managed-cache
+            # identifier consisting of ASCII letters, digits, underscores, or dashes.
+            ;;
+    esac
+    modsecurity_prefix=$CACHE_ROOT/prefix/modsecurity/$modsecurity_build_id
+    modsecurity_library_root=$modsecurity_prefix/lib
+    if [ "${MODSECURITY_PREFIX:-}" != "$modsecurity_prefix" ] || \
+       [ "${MODSECURITY_LIB_DIR:-}" != "$modsecurity_library_root" ]; then
+        echo "FAIL: full-lifecycle library path is not bound to the managed modsecurity cache entry" >&2
+        exit 1
     fi
+    libmodsecurity_library=$modsecurity_library_root/libmodsecurity.so
     if [ ! -f "$libmodsecurity_library" ]; then
         echo "FAIL: full-lifecycle engine library is unavailable for provenance: $libmodsecurity_library" >&2
         exit 1
@@ -860,7 +883,9 @@ if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] && [ "$stage_rc" -eq 0 ]; the
         --rules-file "$NO_CRS_RULES_FILE" \
         --libmodsecurity-version "$libmodsecurity_version" \
         --libmodsecurity-library "$libmodsecurity_library" \
+        --libmodsecurity-library-root "$modsecurity_library_root" \
         --stage-exit-code "$stage_rc" \
+        --runtime-root "$CONNECTOR_RUN_ROOT" \
         --transport-lifecycle "$CONNECTION_LIFECYCLE_ARTIFACT" \
         --output-dir "$ENGINE_ARTIFACT_DIR" || {
             echo "FAIL: unable to write full-lifecycle engine artifacts" >&2

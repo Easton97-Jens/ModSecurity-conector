@@ -54,8 +54,6 @@ Umgebungsvoraussetzung. Das Statusvokabular steht unter
 
 ## Parent-CI-Python-Versionsvertrag
 
-**Change Record:** [CR-20260721-python314-go1265-toolchain-baseline](../../reports/audits/change-records/CR-20260721-python314-go1265-toolchain-baseline.de.md)
-
 Dieser eingecheckte Parent-GitHub-Actions-Vertrag hält die implementierte
 Interpreterstrategie, Workflow-Grenzen und lokale statische
 Validierungsevidenz fest. Er stellt keine GitHub-Actions-Ausführung, keinen
@@ -201,8 +199,6 @@ Pull Request oder Merge stattgefunden hat. Solche Ergebnisse benötigen separat
 beobachtete CI- und Delivery-Evidence.
 
 ## Parent-CI-Go-Toolchain-Vertrag
-
-**Change Record:** [CR-20260722-central-go-toolchain-submodule-validation](../../reports/audits/change-records/CR-20260722-central-go-toolchain-submodule-validation.de.md)
 
 Die eingecheckte Root-<code>.go-version</code> ist der einzige
 maschinenlesbare Go-CI-Toolchain-Selector. Ihr erforderlicher Inhalt ist der

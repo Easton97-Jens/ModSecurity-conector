@@ -102,6 +102,9 @@ class StackEntry:
     kind: str
 
 
+YAML_BARE_KEY_RE = re.compile(r"[A-Za-z_@][A-Za-z0-9_@-]*\Z")
+
+
 def _read(root: Path, relative: str) -> str:
     return (root / relative).read_text(encoding="utf-8")
 
@@ -129,62 +132,50 @@ def _language_switch(name: str, german: bool) -> str:
     return f"**Language:** English | [Deutsch]({name}.de.md)"
 
 
-def _option(
-    connector: str,
-    name: str,
-    layer: str,
-    source_file: str,
-    source_symbol: str,
-    *,
-    syntax: str,
-    value_type: str,
-    allowed_values: str,
-    default: str,
-    default_source: str,
-    required: bool,
-    contexts: str,
-    inheritance: str,
-    merge_behavior: str,
-    validation: str,
-    phase_relevance: str,
-    security_relevance: str,
-    runtime_effect: str,
-    example_file: str,
-    description: str,
-    example_value: str = "",
-    implemented: bool = True,
-    compatibility_only: bool = False,
-    deprecated: bool = False,
-) -> dict[str, Any]:
-    """Create the stable JSON schema consumed by the documentation checker."""
+def _option_identity(identity: tuple[str, ...]) -> tuple[str, str, str, str, str]:
+    if len(identity) != 5:
+        raise ValueError("configuration option identity must have five fields")
+    return identity  # type: ignore[return-value]
+
+
+def _option(*identity: str, **details: Any) -> dict[str, Any]:
+    """Create the stable JSON schema from one compact identity and metadata."""
+    connector, name, layer, source_file, source_symbol = _option_identity(identity)
+    defaults = {
+        "example_value": "",
+        "implemented": True,
+        "compatibility_only": False,
+        "deprecated": False,
+    }
+    values = {**defaults, **details}
     return {
         "connector": connector,
         "name": name,
         "configuration_layer": layer,
         "source_file": source_file,
         "source_symbol": source_symbol,
-        "implemented": implemented,
+        "implemented": values["implemented"],
         "selected_integration_mode": integration_mode(connector),
         "documented_in": documented_path(connector, False),
         "german_documented_in": documented_path(connector, True),
-        "syntax": syntax,
-        "value_type": value_type,
-        "allowed_values": allowed_values,
-        "default": default,
-        "default_source": default_source,
-        "required": required,
-        "contexts": contexts,
-        "inheritance": inheritance,
-        "merge_behavior": merge_behavior,
-        "validation": validation,
-        "phase_relevance": phase_relevance,
-        "security_relevance": security_relevance,
-        "runtime_effect": runtime_effect,
-        "example_file": example_file,
-        "example_value": example_value,
-        "compatibility_only": compatibility_only,
-        "deprecated": deprecated,
-        "description": description,
+        "syntax": values["syntax"],
+        "value_type": values["value_type"],
+        "allowed_values": values["allowed_values"],
+        "default": values["default"],
+        "default_source": values["default_source"],
+        "required": values["required"],
+        "contexts": values["contexts"],
+        "inheritance": values["inheritance"],
+        "merge_behavior": values["merge_behavior"],
+        "validation": values["validation"],
+        "phase_relevance": values["phase_relevance"],
+        "security_relevance": values["security_relevance"],
+        "runtime_effect": values["runtime_effect"],
+        "example_file": values["example_file"],
+        "example_value": values["example_value"],
+        "compatibility_only": values["compatibility_only"],
+        "deprecated": values["deprecated"],
+        "description": values["description"],
     }
 
 
@@ -459,9 +450,10 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
     macros = directive_macros(root)
     table = text[text.index("static ngx_command_t ngx_http_modsecurity_commands"):text.index("ngx_null_command", text.index("static ngx_command_t ngx_http_modsecurity_commands"))]
     expected = re.findall(
-        r"ngx_string\((MSCONNECTOR_DIRECTIVE_[A-Z0-9_]+)\)\s*,\s*([^,]+)\s*,\s*([a-zA-Z0-9_]+)",
+        r"ngx_string\((MSCONNECTOR_DIRECTIVE_\w+)\),[ \t]*\n"
+        r"[ \t]*([^,\n]+),[ \t]*\n[ \t]*(\w+),",
         table,
-        flags=re.S,
+        flags=re.ASCII,
     )
     if len(expected) != 10:
         raise ValueError(f"NGINX ngx_command_t extractor found {len(expected)}, expected 10")
@@ -666,7 +658,11 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
 def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
     source = "connectors/lighttpd/module/mod_msconnector.c"
     text = _read(root, source)
-    keys = re.findall(r'CONST_STR_LEN\("(msconnector\.[^\"]+)"\)\s*,\s*\n?\s*(T_CONFIG_[A-Z]+)\s*,\s*\n?\s*(T_CONFIG_SCOPE_[A-Z]+)', text)
+    keys = re.findall(
+        r'CONST_STR_LEN\("(msconnector\.[^"\n]+)"\),[ \t]*\n'
+        r'[ \t]*(T_CONFIG_[A-Z]+),[ \t]*\n[ \t]*(T_CONFIG_SCOPE_[A-Z]+)',
+        text,
+    )
     if keys != [("msconnector.enabled", "T_CONFIG_BOOL", "T_CONFIG_SCOPE_SERVER"), ("msconnector.config-file", "T_CONFIG_STRING", "T_CONFIG_SCOPE_SERVER")]:
         raise ValueError(f"lighttpd plugin key extractor found unexpected keys: {keys!r}")
     values: list[dict[str, Any]] = []
@@ -746,16 +742,18 @@ COMMON_DETAILS: dict[str, dict[str, str]] = {
 }
 
 
-def extract_common_runtime(root: Path) -> list[dict[str, Any]]:
-    source = "common/runtime/msconnector_runtime.c"
-    text = _read(root, source)
-    # This is a parser-branch extractor, not a scan of a documentation list.
+def common_runtime_parser_keys(text: str) -> list[str]:
+    """Extract and validate the exact keys accepted by the runtime parser."""
     keys = re.findall(r'strcmp\(key, "([a-z0-9_]+)"\)', text)
     keys = list(dict.fromkeys(keys))
     missing = set(COMMON_DETAILS) - set(keys)
     unexpected = set(keys) - set(COMMON_DETAILS)
     if missing or unexpected:
         raise ValueError(f"Common Runtime parser/schema drift: missing={sorted(missing)}, unexpected={sorted(unexpected)}")
+    return keys
+
+
+def common_runtime_profile_keys(root: Path) -> set[str]:
     profile_keys: set[str] = set()
     for connector in ("envoy", "traefik", "lighttpd"):
         for config in (root / "examples" / connector).glob("**/*.conf"):
@@ -765,24 +763,33 @@ def extract_common_runtime(root: Path) -> list[dict[str, Any]]:
                 match = re.match(r"\s*([a-z0-9_]+)=", line)
                 if match:
                     profile_keys.add(match.group(1))
+    return profile_keys
+
+
+def common_runtime_option(name: str, source: str) -> dict[str, Any]:
+    value_type, allowed, default, default_source, effect = COMMON_DETAILS[name]
+    return _option(
+        "common", name, "common_runtime", source, f"assign_config_value(key={name})",
+        syntax=f"{name}=<value>", value_type=value_type, allowed_values=allowed,
+        default=default, default_source=default_source, required=False,
+        contexts="Common Runtime key=value file", inheritance="No file-level inheritance; host integrations may merge their own configuration before starting Common Runtime.",
+        merge_behavior="When a host uses msconnector_config, scalar child values override parent values; runtime files are parsed as one concrete configuration.",
+        validation="Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check.",
+        phase_relevance="See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.",
+        security_relevance=("Limits bound resource use. " + effect), runtime_effect=effect,
+        example_file="examples/lighttpd/safe/msconnector-runtime.conf", description=effect,
+    )
+
+
+def extract_common_runtime(root: Path) -> list[dict[str, Any]]:
+    source = "common/runtime/msconnector_runtime.c"
+    # This is a parser-branch extractor, not a scan of a documentation list.
+    keys = common_runtime_parser_keys(_read(root, source))
+    profile_keys = common_runtime_profile_keys(root)
     undocumented_profile_keys = profile_keys - set(COMMON_DETAILS)
     if undocumented_profile_keys:
         raise ValueError(f"Common Runtime profile uses undocumented parser keys: {sorted(undocumented_profile_keys)}")
-    options: list[dict[str, Any]] = []
-    for name in keys:
-        value_type, allowed, default, default_source, effect = COMMON_DETAILS[name]
-        options.append(_option(
-            "common", name, "common_runtime", source, f"assign_config_value(key={name})",
-            syntax=f"{name}=<value>", value_type=value_type, allowed_values=allowed,
-            default=default, default_source=default_source, required=False,
-            contexts="Common Runtime key=value file", inheritance="No file-level inheritance; host integrations may merge their own configuration before starting Common Runtime.",
-            merge_behavior="When a host uses msconnector_config, scalar child values override parent values; runtime files are parsed as one concrete configuration.",
-            validation="Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check.",
-            phase_relevance="See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.",
-            security_relevance=("Limits bound resource use. " + effect), runtime_effect=effect,
-            example_file="examples/lighttpd/safe/msconnector-runtime.conf", description=effect,
-        ))
-    return options
+    return [common_runtime_option(name, source) for name in keys]
 
 
 ENGINE_DETAILS: dict[str, tuple[str, str, str, str]] = {
@@ -961,6 +968,58 @@ def extract_host_example_fields(root: Path, existing: Iterable[dict[str, Any]]) 
     return result
 
 
+def _yaml_content(raw: str) -> tuple[int, str] | None:
+    if not raw.strip() or raw.lstrip().startswith("#"):
+        return None
+    return len(raw) - len(raw.lstrip(" ")), raw.strip()
+
+
+def _prepare_yaml_stack(stack: list[StackEntry], indent: int, list_item: bool) -> None:
+    if list_item:
+        while stack and (stack[-1].indent > indent or (stack[-1].indent == indent and stack[-1].kind == "item")):
+            stack.pop()
+        parent = stack[-1].path if stack else ""
+        stack.append(StackEntry(indent, f"{parent}[]" if parent else "[]", "item"))
+        return
+    while stack and stack[-1].indent >= indent:
+        stack.pop()
+
+
+def _yaml_mapping_entry(body: str) -> tuple[str, str] | None:
+    separator = body.find(":")
+    if separator < 0:
+        return None
+    raw_key = body[:separator].strip()
+    if raw_key.startswith('"') and raw_key.endswith('"'):
+        return raw_key[1:-1], body[separator + 1:].strip()
+    if YAML_BARE_KEY_RE.fullmatch(raw_key):
+        return raw_key, body[separator + 1:].strip()
+    return None
+
+
+def _yaml_body_after_list_marker(body: str, list_item: bool) -> str:
+    return body[2:].strip() if list_item else body
+
+
+def _append_yaml_scalar_item(
+    result: list[tuple[str, str]], stack: list[StackEntry], body: str, list_item: bool,
+) -> None:
+    if list_item:
+        result.append((stack[-1].path, body))
+
+
+def _append_inline_yaml_fields(result: list[tuple[str, str]], field: str, value: str) -> None:
+    # The checked-in compatibility templates use small inline mappings and
+    # lists (for example socket_address and entryPoints).  Keep their nested
+    # fields in the inventory instead of hiding them in one scalar.
+    if value.startswith("{") and value.endswith("}"):
+        for inline_key, inline_value in re.findall(r"([A-Za-z_@][A-Za-z0-9_@-]*)\s*:\s*([^,}]+)", value[1:-1]):
+            result.append((f"{field}.{inline_key}", inline_value.strip()))
+    elif value.startswith("[") and value.endswith("]") and value != "[]":
+        for inline_value in value[1:-1].split(","):
+            result.append((f"{field}[]", inline_value.strip()))
+
+
 def extract_yaml_fields(path: Path) -> list[tuple[str, str]]:
     """Extract YAML mapping paths using indentation and list structure.
 
@@ -970,44 +1029,25 @@ def extract_yaml_fields(path: Path) -> list[tuple[str, str]]:
     """
     result: list[tuple[str, str]] = []
     stack: list[StackEntry] = []
-    key_re = re.compile(r'(?:"([^\"]+)"|([A-Za-z_@][A-Za-z0-9_@-]*))\s*:\s*(.*)$')
     for raw in path.read_text(encoding="utf-8").splitlines():
-        if not raw.strip() or raw.lstrip().startswith("#"):
+        parsed_line = _yaml_content(raw)
+        if parsed_line is None:
             continue
-        indent = len(raw) - len(raw.lstrip(" "))
-        body = raw.strip()
+        indent, body = parsed_line
         list_item = body.startswith("- ")
-        if list_item:
-            while stack and (stack[-1].indent > indent or (stack[-1].indent == indent and stack[-1].kind == "item")):
-                stack.pop()
-            parent = stack[-1].path if stack else ""
-            item_path = f"{parent}[]" if parent else "[]"
-            stack.append(StackEntry(indent, item_path, "item"))
-            body = body[2:].strip()
-            if not body:
-                continue
-        else:
-            while stack and stack[-1].indent >= indent:
-                stack.pop()
-        match = key_re.match(body)
-        if not match:
-            if list_item and body:
-                result.append((stack[-1].path, body))
+        _prepare_yaml_stack(stack, indent, list_item)
+        body = _yaml_body_after_list_marker(body, list_item)
+        if not body:
             continue
-        key = match.group(1) or match.group(2)
-        value = match.group(3).strip()
+        mapping = _yaml_mapping_entry(body)
+        if mapping is None:
+            _append_yaml_scalar_item(result, stack, body, list_item)
+            continue
+        key, value = mapping
         parent = stack[-1].path if stack else ""
         field = f"{parent}.{key}" if parent else key
         result.append((field, value))
-        # The checked-in compatibility templates use small inline mappings and
-        # lists (for example socket_address and entryPoints).  Keep their
-        # nested fields in the inventory instead of hiding them in one scalar.
-        if value.startswith("{") and value.endswith("}"):
-            for inline_key, inline_value in re.findall(r"([A-Za-z_@][A-Za-z0-9_@-]*)\s*:\s*([^,}]+)", value[1:-1]):
-                result.append((f"{field}.{inline_key}", inline_value.strip()))
-        elif value.startswith("[") and value.endswith("]") and value != "[]":
-            for inline_value in value[1:-1].split(","):
-                result.append((f"{field}[]", inline_value.strip()))
+        _append_inline_yaml_fields(result, field, value)
         if not value or value in {"{}", "[]"}:
             stack.append(StackEntry(indent, field, "mapping"))
     return result
@@ -1071,6 +1111,80 @@ def _without_compatibility_prefix(path: str) -> str:
     return remaining
 
 
+@dataclass(frozen=True)
+class EnvoyListenerContext:
+    listener_phase: str
+    policy_filter: str
+    routing_phase: str
+    filter_pair: str
+    filter_lifecycle: str
+    selected_filters: str
+    first_filter: str
+    filter_name_lifecycle: str
+    selected_type: str
+    typed_config_lifecycle: str
+    typed_config_type_lifecycle: str
+
+
+def _envoy_listener_context(compatibility: bool) -> EnvoyListenerContext:
+    if compatibility:
+        return EnvoyListenerContext(
+            "Compatibility bootstrap only; this listener carries ext_authz request authorization before the router and does not establish selected native P2/P3/P4 visibility.",
+            "ext_authz compatibility",
+            "Compatibility route selection follows ext_authz P1 request authorization and forwards an allowed request; the compatibility filter has no selected P2/P3/P4 response lifecycle.",
+            "ext_authz then router",
+            "The selected order enables compatibility P1 request authorization before the router; it does not create P2/P3/P4 coverage.",
+            "envoy.filters.http.ext_authz and envoy.filters.http.router",
+            "ext_authz",
+            "ext_authz is compatibility request authorization; router forwards after it and no selected P2/P3/P4 path exists.",
+            "ExtAuthz",
+            "The ExtAuthz payload controls compatibility P1 request authorization; the Router payload forwards the allowed request.",
+            "ExtAuthz performs compatibility P1 request authorization; Router is terminal forwarding and does not expose selected P2/P3/P4 callbacks.",
+        )
+    return EnvoyListenerContext(
+        "Bootstrap only; this listener carries the selected ext_proc HTTP filter chain, whose processing_mode exposes P1 request headers, P2 request body chunks, P3 response headers, and P4 response body chunks.",
+        "ext_proc",
+        "Routes are consulted after P1 request-header filtering; they direct the upstream response that later reaches P3/P4.",
+        "ext_proc then router",
+        "The selected order enables P1/P2/P3/P4 ext_proc callbacks before traffic is handed to the router.",
+        "envoy.filters.http.ext_proc and envoy.filters.http.router",
+        "ext_proc",
+        "ext_proc exposes P1–P4; router terminates the filter chain and forwards to the upstream.",
+        "ExternalProcessor",
+        "The ExternalProcessor payload sets concrete P1–P4 visibility; the Router payload forwards the post-filter request.",
+        "ExternalProcessor chooses P1–P4 callbacks; Router supplies the terminal forwarding stage.",
+    )
+
+
+def _selected_direction(path: str, request: str, response: str) -> str:
+    return request if "request_" in path else response
+
+
+def _listener_address_visibility(example_value: str) -> str:
+    if example_value in {"127.0.0.1", "::1"}:
+        return "The selected value is loopback-only."
+    return "A wildcard or public value exposes the listener before ext_proc policy can run."
+
+
+def _route_mapping_metadata(path: str) -> tuple[str, str]:
+    if path.endswith("match"):
+        return "RouteMatch mapping", "Groups the prefix matcher for the selected route."
+    return "RouteAction mapping", "Groups the cluster action selected after the route match."
+
+
+def _envoy_virtual_host_domain_detail(item: bool, base_default_source: str) -> dict[str, str]:
+    """Describe the VirtualHost domain collection or one selected item."""
+    return _yaml_detail(
+        "repeated Envoy VirtualHost domain matcher" if not item else "Envoy VirtualHost domain-pattern string",
+        "a list of Envoy domain patterns" if not item else "exact host, suffix/wildcard domain pattern, or *; selected item is *",
+        _selected_template_default("virtual-host domain matcher", "the catch-all `*` pattern"),
+        "Selects which Host/:authority values enter this virtual host's route list.",
+        "The selected `*` catches all hosts; replace it with intended domains before exposure.",
+        "Host matching precedes upstream routing after request-header P1 processing.",
+        default_source=base_default_source,
+    )
+
+
 def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bool = False) -> dict[str, str] | None:
     """Describe the selected Envoy listener/HCM/ext_proc path exactly.
 
@@ -1082,20 +1196,12 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
     prefix = "static_resources.listeners[]"
     tail = path.removeprefix(prefix).lstrip(".")
     base_default_source = DEFAULT_SOURCE_ENVOY_TEMPLATE
-    listener_phase = (
-        "Compatibility bootstrap only; this listener carries ext_authz request authorization before the router and does not establish selected native P2/P3/P4 visibility."
-        if compatibility else
-        "Bootstrap only; this listener carries the selected ext_proc HTTP filter chain, "
-        "whose processing_mode exposes P1 request headers, P2 request body chunks, "
-        "P3 response headers, and P4 response body chunks."
-    )
-    policy_filter = "ext_authz compatibility" if compatibility else "ext_proc"
-    routing_phase = (
-        "Compatibility route selection follows ext_authz P1 request authorization and forwards an allowed request; the compatibility filter has no selected P2/P3/P4 response lifecycle."
-        if compatibility else
-        "Routes are consulted after P1 request-header filtering; they direct the upstream response that later reaches P3/P4."
-    )
-    if tail == "name":
+    context = _envoy_listener_context(compatibility)
+    listener_phase = context.listener_phase
+    policy_filter = context.policy_filter
+    routing_phase = context.routing_phase
+    match tail:
+      case "name":
         return _yaml_detail(
             "Envoy Listener.name string",
             "unique non-empty listener name in this bootstrap",
@@ -1105,7 +1211,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             listener_phase,
             default_source=base_default_source,
         )
-    if tail == "address":
+      case "address":
         return _yaml_detail(
             "Envoy core.Address mapping",
             "one supported Envoy address form; the example selects socket_address",
@@ -1115,7 +1221,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             listener_phase,
             default_source=base_default_source,
         )
-    if tail == "address.socket_address":
+      case "address.socket_address":
         return _yaml_detail(
             "Envoy core.SocketAddress mapping",
             "address plus port_value (or another Envoy-supported socket-address form)",
@@ -1125,11 +1231,8 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             listener_phase,
             default_source=base_default_source,
         )
-    if tail == "address.socket_address.address":
-        selected_visibility = (
-            "The selected value is loopback-only." if example_value in {"127.0.0.1", "::1"}
-            else "A wildcard or public value exposes the listener before ext_proc policy can run."
-        )
+      case "address.socket_address.address":
+        selected_visibility = _listener_address_visibility(example_value)
         return _yaml_detail(
             "Envoy SocketAddress host/IP string",
             "a valid listener host or IP literal; selected value is 127.0.0.1",
@@ -1139,7 +1242,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             listener_phase,
             default_source=base_default_source,
         )
-    if tail == "address.socket_address.port_value":
+      case "address.socket_address.port_value":
         return _yaml_detail(
             "Envoy SocketAddress uint32 TCP port",
             ALLOWED_VALUES_MATERIALIZED_PORT,
@@ -1149,7 +1252,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             listener_phase,
             default_source=DEFAULT_SOURCE_ENVOY_MATERIALIZER,
         )
-    if tail == "filter_chains":
+      case "filter_chains":
         return _yaml_detail(
             "repeated Envoy Listener.FilterChain mapping",
             "one or more filter-chain mappings; the example has one HTTP chain",
@@ -1159,7 +1262,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             listener_phase,
             default_source=base_default_source,
         )
-    if tail == "filter_chains[].filters":
+      case "filter_chains[].filters":
         return _yaml_detail(
             "repeated Envoy NetworkFilter mapping",
             "network filters with a name and typed_config; selected item is HTTP connection manager",
@@ -1169,7 +1272,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             listener_phase,
             default_source=base_default_source,
         )
-    if tail == "filter_chains[].filters[].name":
+      case "filter_chains[].filters[].name":
         return _yaml_detail(
             "Envoy NetworkFilter factory name",
             "registered network-filter name; selected value is envoy.filters.network.http_connection_manager",
@@ -1179,7 +1282,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             listener_phase,
             default_source=base_default_source,
         )
-    if tail == "filter_chains[].filters[].typed_config":
+      case "filter_chains[].filters[].typed_config":
         return _yaml_detail(
             "google.protobuf.Any mapping for HttpConnectionManager",
             "an Any payload whose @type is the Envoy v3 HttpConnectionManager URL",
@@ -1189,7 +1292,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             listener_phase,
             default_source=base_default_source,
         )
-    if tail == "filter_chains[].filters[].typed_config.@type":
+      case "filter_chains[].filters[].typed_config.@type":
         return _yaml_detail(
             "protobuf Any type URL string",
             "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
@@ -1203,7 +1306,8 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
     if not tail.startswith(hcm_prefix):
         return None
     hcm_tail = tail.removeprefix(hcm_prefix).lstrip(".")
-    if hcm_tail == "stat_prefix":
+    match hcm_tail:
+      case "stat_prefix":
         return _yaml_detail(
             "HttpConnectionManager statistics-prefix string",
             "non-empty metrics namespace token; selected value is msconnector_ext_proc_ingress",
@@ -1213,7 +1317,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Observability only; it does not change P1–P4 payload visibility.",
             default_source=base_default_source,
         )
-    if hcm_tail == "route_config":
+      case "route_config":
         return _yaml_detail(
             "Envoy RouteConfiguration mapping",
             "inline route configuration with a name and virtual_hosts",
@@ -1223,7 +1327,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             routing_phase,
             default_source=base_default_source,
         )
-    if hcm_tail == "route_config.name":
+      case "route_config.name":
         return _yaml_detail(
             "Envoy RouteConfiguration.name string",
             "non-empty local route-config name; selected value is msconnector_ext_proc_route",
@@ -1233,7 +1337,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Routing metadata only; request filtering still occurs in the preceding HTTP filter order.",
             default_source=base_default_source,
         )
-    if hcm_tail == "route_config.virtual_hosts":
+      case "route_config.virtual_hosts":
         return _yaml_detail(
             "repeated Envoy VirtualHost mapping",
             "one or more virtual-host mappings; the example has local_service",
@@ -1243,7 +1347,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             routing_phase,
             default_source=base_default_source,
         )
-    if hcm_tail == "route_config.virtual_hosts[].name":
+      case "route_config.virtual_hosts[].name":
         return _yaml_detail(
             "Envoy VirtualHost.name string",
             "non-empty virtual-host name; selected value is local_service",
@@ -1253,18 +1357,9 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Routing metadata only; it does not independently change ext_proc visibility.",
             default_source=base_default_source,
         )
-    if hcm_tail in {"route_config.virtual_hosts[].domains", "route_config.virtual_hosts[].domains[]"}:
-        item = hcm_tail.endswith("[]")
-        return _yaml_detail(
-            "repeated Envoy VirtualHost domain matcher" if not item else "Envoy VirtualHost domain-pattern string",
-            "a list of Envoy domain patterns" if not item else "exact host, suffix/wildcard domain pattern, or *; selected item is *",
-            _selected_template_default("virtual-host domain matcher", "the catch-all `*` pattern"),
-            "Selects which Host/:authority values enter this virtual host's route list.",
-            "The selected `*` catches all hosts; replace it with intended domains before exposure.",
-            "Host matching precedes upstream routing after request-header P1 processing.",
-            default_source=base_default_source,
-        )
-    if hcm_tail == "route_config.virtual_hosts[].routes":
+      case "route_config.virtual_hosts[].domains" | "route_config.virtual_hosts[].domains[]":
+        return _envoy_virtual_host_domain_detail(hcm_tail.endswith("[]"), base_default_source)
+      case "route_config.virtual_hosts[].routes":
         return _yaml_detail(
             "repeated Envoy Route mapping",
             "one or more match/action route mappings; the example has one prefix route",
@@ -1274,17 +1369,8 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "The matched route is selected after P1; its upstream yields the response seen at P3/P4.",
             default_source=base_default_source,
         )
-    if hcm_tail in {
-        "route_config.virtual_hosts[].routes[].match",
-        "route_config.virtual_hosts[].routes[].match.route",
-        "route_config.virtual_hosts[].routes[].route",
-    }:
-        kind = "RouteMatch mapping" if hcm_tail.endswith("match") else "RouteAction mapping"
-        purpose = (
-            "Groups the prefix matcher for the selected route."
-            if hcm_tail.endswith("match") else
-            "Groups the cluster action selected after the route match."
-        )
+      case "route_config.virtual_hosts[].routes[].match" | "route_config.virtual_hosts[].routes[].match.route" | "route_config.virtual_hosts[].routes[].route":
+        kind, purpose = _route_mapping_metadata(hcm_tail)
         return _yaml_detail(
             f"Envoy {kind}",
             "the child fields shown in this template",
@@ -1294,7 +1380,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             routing_phase,
             default_source=base_default_source,
         )
-    if hcm_tail == "route_config.virtual_hosts[].routes[].match.prefix":
+      case "route_config.virtual_hosts[].routes[].match.prefix":
         return _yaml_detail(
             "Envoy RouteMatch prefix string",
             "path-prefix matcher; selected value is /",
@@ -1304,10 +1390,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             routing_phase,
             default_source=base_default_source,
         )
-    if hcm_tail in {
-        "route_config.virtual_hosts[].routes[].match.route.cluster",
-        "route_config.virtual_hosts[].routes[].route.cluster",
-    }:
+      case "route_config.virtual_hosts[].routes[].match.route.cluster" | "route_config.virtual_hosts[].routes[].route.cluster":
         return _yaml_detail(
             "Envoy RouteAction cluster-name string",
             "name of a declared static_resources.clusters entry; selected value is upstream_service",
@@ -1317,80 +1400,52 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             routing_phase,
             default_source=base_default_source,
         )
-    if hcm_tail == "http_filters":
-        filter_pair = "ext_authz then router" if compatibility else "ext_proc then router"
-        filter_lifecycle = (
-            "The selected order enables compatibility P1 request authorization before the router; it does not create P2/P3/P4 coverage."
-            if compatibility else
-            "The selected order enables P1/P2/P3/P4 ext_proc callbacks before traffic is handed to the router."
-        )
+      case "http_filters":
         return _yaml_detail(
             "ordered repeated Envoy HTTP filter mapping",
-            f"HTTP filters with factory name and typed_config; selected order is {filter_pair}",
-            _selected_template_default("HTTP-filter chain", f"{filter_pair} ordered pair"),
-            f"Orders HTTP processing: {filter_pair.split(' then ')[0]} runs before the router forwards upstream.",
-            f"Moving router ahead of {filter_pair.split(' then ')[0]} bypasses the selected inspection/authorization path.",
-            filter_lifecycle,
+            f"HTTP filters with factory name and typed_config; selected order is {context.filter_pair}",
+            _selected_template_default("HTTP-filter chain", f"{context.filter_pair} ordered pair"),
+            f"Orders HTTP processing: {context.first_filter} runs before the router forwards upstream.",
+            f"Moving router ahead of {context.first_filter} bypasses the selected inspection/authorization path.",
+            context.filter_lifecycle,
             default_source=base_default_source,
         )
     http_prefix = "http_filters[]"
     if not hcm_tail.startswith(http_prefix):
         return None
     http_tail = hcm_tail.removeprefix(http_prefix).lstrip(".")
-    if http_tail == "name":
-        selected_filters = (
-            "envoy.filters.http.ext_authz and envoy.filters.http.router"
-            if compatibility else
-            "envoy.filters.http.ext_proc and envoy.filters.http.router"
-        )
-        first_filter = "ext_authz" if compatibility else "ext_proc"
-        lifecycle = (
-            "ext_authz is compatibility request authorization; router forwards after it and no selected P2/P3/P4 path exists."
-            if compatibility else
-            "ext_proc exposes P1–P4; router terminates the filter chain and forwards to the upstream."
-        )
+    match http_tail:
+      case "name":
         return _yaml_detail(
             "Envoy HTTP filter factory-name string",
-            f"registered HTTP filter name; selected values are {selected_filters}",
-            _selected_template_default("HTTP-filter factories", f"the {first_filter}/router ordered pair"),
-            f"Selects the {first_filter} policy filter and terminal router implementations in the HCM chain.",
-            f"Filter order is an enforcement boundary: {first_filter} must remain before router for the selected path.",
-            lifecycle,
+            f"registered HTTP filter name; selected values are {context.selected_filters}",
+            _selected_template_default("HTTP-filter factories", f"the {context.first_filter}/router ordered pair"),
+            f"Selects the {context.first_filter} policy filter and terminal router implementations in the HCM chain.",
+            f"Filter order is an enforcement boundary: {context.first_filter} must remain before router for the selected path.",
+            context.filter_name_lifecycle,
             default_source=base_default_source,
         )
-    if http_tail == "typed_config":
-        selected_type = "ExtAuthz" if compatibility else "ExternalProcessor"
-        lifecycle = (
-            "The ExtAuthz payload controls compatibility P1 request authorization; the Router payload forwards the allowed request."
-            if compatibility else
-            "The ExternalProcessor payload sets concrete P1–P4 visibility; the Router payload forwards the post-filter request."
-        )
+      case "typed_config":
         return _yaml_detail(
             "repeated google.protobuf.Any HTTP-filter configuration mapping",
-            f"Any payloads whose @type values select {selected_type} and Router",
-            _selected_template_default("HTTP typed configurations", f"the explicit {selected_type} and Router payloads"),
+            f"Any payloads whose @type values select {context.selected_type} and Router",
+            _selected_template_default("HTTP typed configurations", f"the explicit {context.selected_type} and Router payloads"),
             "Holds the per-filter configuration corresponding to each HTTP filter item.",
             "A mismatched Any payload/name pair can invalidate or bypass the intended inspection chain.",
-            lifecycle,
+            context.typed_config_lifecycle,
             default_source=base_default_source,
         )
-    if http_tail == "typed_config.@type":
-        selected_type = "ExtAuthz" if compatibility else "ExternalProcessor"
-        lifecycle = (
-            "ExtAuthz performs compatibility P1 request authorization; Router is terminal forwarding and does not expose selected P2/P3/P4 callbacks."
-            if compatibility else
-            "ExternalProcessor chooses P1–P4 callbacks; Router supplies the terminal forwarding stage."
-        )
+      case "typed_config.@type":
         return _yaml_detail(
             "protobuf Any type URL string",
-            f"{selected_type} and Router v3 type URLs in the same order as the HTTP filters",
-            _selected_template_default("HTTP Any type URLs", f"the explicit {selected_type} and Router v3 URLs"),
+            f"{context.selected_type} and Router v3 type URLs in the same order as the HTTP filters",
+            _selected_template_default("HTTP Any type URLs", f"the explicit {context.selected_type} and Router v3 URLs"),
             "Lets Envoy decode each HTTP filter's typed configuration.",
             "The type URL must match the neighboring filter factory; otherwise Envoy cannot apply the selected lifecycle policy.",
-            lifecycle,
+            context.typed_config_type_lifecycle,
             default_source=base_default_source,
         )
-    if http_tail == "typed_config.grpc_service":
+      case "typed_config.grpc_service":
         return _yaml_detail(
             "Envoy GrpcService mapping",
             "one gRPC service selector; selected form is envoy_grpc",
@@ -1400,7 +1455,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Transport for all selected ext_proc callbacks: P1, P2, P3, P4, and trailer/EOS notifications.",
             default_source=base_default_source,
         )
-    if http_tail == "typed_config.grpc_service.envoy_grpc":
+      case "typed_config.grpc_service.envoy_grpc":
         return _yaml_detail(
             "EnvoyGrpc cluster-reference mapping",
             "cluster_name child naming a declared HTTP/2 cluster",
@@ -1410,7 +1465,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Carries the full selected P1–P4 external-processing stream.",
             default_source=base_default_source,
         )
-    if http_tail == "typed_config.grpc_service.envoy_grpc.cluster_name":
+      case "typed_config.grpc_service.envoy_grpc.cluster_name":
         return _yaml_detail(
             "Envoy cluster-name string",
             "name of a declared HTTP/2-capable cluster; selected value is msconnector_ext_proc",
@@ -1420,7 +1475,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Transport target for P1 request headers, P2 request chunks, P3 response headers, P4 response chunks, and EOS trailers.",
             default_source=base_default_source,
         )
-    if http_tail == "typed_config.grpc_service.timeout":
+      case "typed_config.grpc_service.timeout":
         return _yaml_detail(
             "Envoy protobuf Duration",
             ALLOWED_VALUES_SELECTED_DURATION,
@@ -1430,7 +1485,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Applies to the ext_proc transport that serves selected P1–P4 callbacks.",
             default_source=base_default_source,
         )
-    if http_tail == "typed_config.processing_mode":
+      case "typed_config.processing_mode":
         return _yaml_detail(
             "Envoy ext_proc ProcessingMode mapping",
             "header, body, and trailer send-mode child enums",
@@ -1440,11 +1495,8 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Controls P1 request headers, P2 request body, P3 response headers, P4 response body, and trailer/EOS delivery.",
             default_source="Envoy ext_proc v3 ProcessingMode API pinned by connectors/envoy/ext_proc/go.mod",
         )
-    if http_tail in {
-        "typed_config.processing_mode.request_body_mode",
-        "typed_config.processing_mode.response_body_mode",
-    }:
-        direction = "request/P2" if "request_" in http_tail else "response/P4"
+      case "typed_config.processing_mode.request_body_mode" | "typed_config.processing_mode.response_body_mode":
+        direction = _selected_direction(http_tail, "request/P2", "response/P4")
         return _yaml_detail(
             "Envoy ext_proc BodySendMode enum",
             ALLOWED_VALUES_BODY_SEND_MODE,
@@ -1454,11 +1506,8 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             f"{direction}: selected STREAMED makes the body available incrementally to the ext_proc bridge.",
             default_source="Envoy ext_proc v3 ProcessingMode.BodySendMode API pinned by connectors/envoy/ext_proc/go.mod",
         )
-    if http_tail in {
-        "typed_config.processing_mode.request_header_mode",
-        "typed_config.processing_mode.response_header_mode",
-    }:
-        direction = "request/P1" if "request_" in http_tail else "response/P3"
+      case "typed_config.processing_mode.request_header_mode" | "typed_config.processing_mode.response_header_mode":
+        direction = _selected_direction(http_tail, "request/P1", "response/P3")
         return _yaml_detail(
             "Envoy ext_proc HeaderSendMode enum",
             ALLOWED_VALUES_HEADER_SEND_MODE,
@@ -1468,11 +1517,8 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             f"{direction}: selected SEND exposes the header callback to the bridge.",
             default_source="Envoy ext_proc v3 ProcessingMode.HeaderSendMode API pinned by connectors/envoy/ext_proc/go.mod",
         )
-    if http_tail in {
-        "typed_config.processing_mode.request_trailer_mode",
-        "typed_config.processing_mode.response_trailer_mode",
-    }:
-        direction = "request" if "request_" in http_tail else "response"
+      case "typed_config.processing_mode.request_trailer_mode" | "typed_config.processing_mode.response_trailer_mode":
+        direction = _selected_direction(http_tail, "request", "response")
         return _yaml_detail(
             "Envoy ext_proc HeaderSendMode enum for trailers",
             ALLOWED_VALUES_HEADER_SEND_MODE,
@@ -1482,7 +1528,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             f"{direction} EOS/trailer visibility after the corresponding body stream; it complements P2/P4 streaming.",
             default_source="Envoy ext_proc v3 ProcessingMode.HeaderSendMode API pinned by connectors/envoy/ext_proc/go.mod",
         )
-    if http_tail == "typed_config.request_attributes":
+      case "typed_config.request_attributes":
         return _yaml_detail(
             "repeated Envoy request-attribute name list",
             "supported Envoy request attribute names; selected list requests protocol, source/destination address, and source/destination port",
@@ -1492,7 +1538,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "P1 request metadata only; it seeds the transaction before P2 body callbacks and before later response callbacks.",
             default_source="Envoy ext_proc v3 ExternalProcessor API and connectors/envoy/ext_proc/internal/processor/processor.go:requestMetadataFromEnvoy",
         )
-    if http_tail == "typed_config.request_attributes[]":
+      case "typed_config.request_attributes[]":
         return _yaml_detail(
             "Envoy request-attribute path string",
             "request.protocol | source.address | source.port | destination.address | destination.port",
@@ -1502,7 +1548,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "P1 request metadata visibility; the selected bridge uses it to construct transaction metadata before P2/P3/P4 callbacks.",
             default_source="selected template and connectors/envoy/ext_proc/internal/processor/processor.go:requestMetadataFromEnvoy",
         )
-    if http_tail == "typed_config.send_body_without_waiting_for_header_response":
+      case "typed_config.send_body_without_waiting_for_header_response":
         return _yaml_detail(
             VALUE_TYPE_ENVOY_BOOLEAN,
             ALLOWED_VALUES_TRUE_FALSE,
@@ -1512,7 +1558,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Controls P1-to-P2/P3-to-P4 sequencing for STREAMED bodies; it does not itself enable body visibility.",
             default_source=DEFAULT_SOURCE_ENVOY_API,
         )
-    if http_tail == "typed_config.allow_mode_override":
+      case "typed_config.allow_mode_override":
         return _yaml_detail(
             VALUE_TYPE_ENVOY_BOOLEAN,
             ALLOWED_VALUES_TRUE_FALSE,
@@ -1522,7 +1568,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Guards the configured P1–P4 processing_mode contract; false keeps the static selected lifecycle surface.",
             default_source=DEFAULT_SOURCE_ENVOY_API,
         )
-    if http_tail == "typed_config.failure_mode_allow":
+      case "typed_config.failure_mode_allow":
         return _yaml_detail(
             VALUE_TYPE_ENVOY_BOOLEAN,
             ALLOWED_VALUES_TRUE_FALSE,
@@ -1532,7 +1578,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Failure behavior for the ext_proc stream serving all selected P1–P4 callbacks.",
             default_source=DEFAULT_SOURCE_ENVOY_API,
         )
-    if http_tail == "typed_config.message_timeout":
+      case "typed_config.message_timeout":
         return _yaml_detail(
             "Envoy protobuf Duration per ext_proc message",
             ALLOWED_VALUES_SELECTED_DURATION,
@@ -1542,7 +1588,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Applies to per-message P1/P2/P3/P4 ext_proc exchanges except observability/full-duplex/gRPC cases documented by Envoy.",
             default_source=DEFAULT_SOURCE_ENVOY_API,
         )
-    if http_tail == "typed_config.max_message_timeout":
+      case "typed_config.max_message_timeout":
         return _yaml_detail(
             "Envoy protobuf Duration maximum override timeout",
             "non-negative duration; selected value is 0.25s",
@@ -1552,7 +1598,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Applies to timeout control for selected P1–P4 ext_proc exchanges; it does not change their visibility modes.",
             default_source=DEFAULT_SOURCE_ENVOY_API,
         )
-    if http_tail == "typed_config.http_service":
+      case "typed_config.http_service":
         return _yaml_detail(
             "Envoy ext_authz HTTP service mapping (compatibility only)",
             "one HTTP service; mutually exclusive with grpc_service",
@@ -1562,7 +1608,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Compatibility request authorization only; do not infer selected native P3/P4 coverage.",
             default_source="Envoy ext_proc v3 API and compatibility template",
         )
-    if http_tail == "typed_config.http_service.server_uri":
+      case "typed_config.http_service.server_uri":
         return _yaml_detail(
             "Envoy HttpService.server_uri mapping (compatibility only)",
             "URI, cluster, and timeout child fields",
@@ -1572,7 +1618,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Compatibility request authorization only; no selected full response lifecycle.",
             default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
-    if http_tail == "typed_config.http_service.server_uri.uri":
+      case "typed_config.http_service.server_uri.uri":
         return _yaml_detail(
             "Envoy HTTP service URI string (compatibility only)",
             "absolute HTTP/HTTPS URI; selected value is http://127.0.0.1:9000",
@@ -1582,7 +1628,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Compatibility request authorization only; no native response-body P4 visibility.",
             default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
-    if http_tail == "typed_config.http_service.server_uri.cluster":
+      case "typed_config.http_service.server_uri.cluster":
         return _yaml_detail(
             "Envoy cluster-name string (compatibility only)",
             "name of a declared compatibility cluster; selected value is modsecurity_authz",
@@ -1592,7 +1638,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Compatibility request authorization only; no selected P3/P4 coverage.",
             default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
-    if http_tail == "typed_config.http_service.server_uri.timeout":
+      case "typed_config.http_service.server_uri.timeout":
         return _yaml_detail(
             "Envoy protobuf Duration (compatibility HTTP authorization timeout)",
             ALLOWED_VALUES_SELECTED_DURATION,
@@ -1602,7 +1648,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Compatibility request authorization only; no P3/P4 response inspection.",
             default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
-    if http_tail == "typed_config.http_service.authorization_request":
+      case "typed_config.http_service.authorization_request":
         return _yaml_detail(
             "Envoy ext_authz AuthorizationRequest mapping (compatibility only)",
             "allowed_headers child mapping shown in the compatibility template",
@@ -1612,10 +1658,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Compatibility P1 request-header authorization only; no selected body or response visibility.",
             default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
-    if http_tail in {
-        "typed_config.http_service.authorization_request.allowed_headers",
-        "typed_config.http_service.authorization_request.allowed_headers.patterns",
-    }:
+      case "typed_config.http_service.authorization_request.allowed_headers" | "typed_config.http_service.authorization_request.allowed_headers.patterns":
         return _yaml_detail(
             "Envoy HeaderMatcher list mapping (compatibility only)",
             "one or more header matcher patterns; selected policy has exact authorization and content-type",
@@ -1625,7 +1668,7 @@ def _envoy_listener_yaml_detail(path: str, example_value: str, compatibility: bo
             "Compatibility P1 request-header authorization only; no native P2/P3/P4 visibility.",
             default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
         )
-    if http_tail == "typed_config.http_service.authorization_request.allowed_headers.patterns[].exact":
+      case "typed_config.http_service.authorization_request.allowed_headers.patterns[].exact":
         return _yaml_detail(
             "Envoy HeaderMatcher exact header-name string (compatibility only)",
             "lower-case/HTTP header name exact matcher; selected values are authorization and content-type",
@@ -1895,6 +1938,101 @@ def _envoy_yaml_detail(path: str, example_value: str) -> dict[str, str] | None:
     return None
 
 
+def _traefik_router_entrypoint_detail(selected_path: str, host_source: str) -> dict[str, str]:
+    """Describe the selected router's static listener binding."""
+    item = selected_path.endswith("[]")
+    return _yaml_detail(
+        "Traefik router entry-point name list" if not item else "Traefik entry-point name string",
+        "defined static entry-point names" if not item else "name declared under static entryPoints; selected value is web",
+        _selected_template_default("router entry-point binding", "the web entry point"),
+        "Restricts the app router to the named static listener.",
+        "Binding a router to a public entry point exposes its middleware/service path to that listener's clients.",
+        "Selects which listener traffic can reach the attached native P1–P4 middleware or compatibility request path.",
+        default_source=host_source,
+    )
+
+
+def _traefik_router_middleware_detail(
+    selected_path: str,
+    compatibility: bool,
+    lifecycle: str,
+    host_source: str,
+) -> dict[str, str]:
+    """Describe the selected router's ordered security middleware binding."""
+    item = selected_path.endswith("[]")
+    mode = "compatibility forwardAuth" if compatibility else "native UDS"
+    return _yaml_detail(
+        "ordered Traefik middleware-name list" if not item else "Traefik middleware-name string",
+        "names declared under http.middlewares" if not item else f"selected {mode} middleware name",
+        _selected_template_default("router middleware list", f"the selected {mode} middleware"),
+        "Attaches middleware to the router in listed order before forwarding to the app service.",
+        "Removing/reordering this reference can bypass inspection or authorization; retain the reviewed middleware before the service.",
+        lifecycle,
+        default_source=host_source,
+    )
+
+
+def _traefik_middleware_yaml_detail(
+    selected_path: str,
+    native_lifecycle: str,
+    compatibility_lifecycle: str,
+    host_source: str,
+) -> dict[str, str] | None:
+    """Describe a concrete native-plugin or forwardAuth middleware path."""
+    tail = selected_path.rsplit(".", 1)[-1]
+    if tail == "plugin":
+        return _yaml_detail(
+            "Traefik plugin middleware mapping",
+            "named local-plugin child mapping; selected child is modsecurityNative",
+            _selected_template_default("plugin middleware mapping", "the modsecurityNative local plugin"),
+            "Selects the local-plugin configuration for the named native middleware.",
+            "The plugin reference chooses code that processes requests and responses; preserve the reviewed local plugin name.",
+            native_lifecycle,
+            default_source=host_source,
+        )
+    if tail == "modsecurityNative":
+        return _yaml_detail(
+            "Traefik local-plugin configuration mapping",
+            "the seven native middleware Config fields documented from CreateConfig/normalizedConfig",
+            "Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields.",
+            "Groups limits, transaction ID, and engine connection fields passed to the repository native middleware.",
+            "The UDS fields and bounds are enforcement-relevant; passthrough is not rule evaluation.",
+            native_lifecycle,
+            default_source="connectors/traefik/native_middleware/middleware.go:CreateConfig/normalizedConfig",
+        )
+    if tail == "forwardAuth":
+        return _yaml_detail(
+            "Traefik ForwardAuth middleware mapping (compatibility only)",
+            "address and trustForwardHeader child fields",
+            "No selected native default; compatibility template explicitly configures a local forwardAuth service.",
+            "Groups the request-only external authorization service settings.",
+            "Do not present forwardAuth as the native UDS rule-evaluating path; its service receives request authorization data.",
+            compatibility_lifecycle,
+            default_source="compatibility template and docs/connectors/traefik.md",
+        )
+    if tail == "address" and ".forwardAuth." in selected_path:
+        return _yaml_detail(
+            "Traefik ForwardAuth HTTP URL string (compatibility only)",
+            "absolute HTTP/HTTPS authorization-service URL; selected value is http://127.0.0.1:9000/authorize",
+            "No selected native default; compatibility template explicitly supplies the loopback authorization URL.",
+            "Targets the external forwardAuth decision service before the app service is contacted.",
+            "Use a trusted, private service and do not embed credentials in the URL; it is distinct from the native UDS engine.",
+            compatibility_lifecycle,
+            default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
+        )
+    if tail == "trustForwardHeader":
+        return _yaml_detail(
+            "Traefik ForwardAuth boolean (compatibility only)",
+            ALLOWED_VALUES_TRUE_FALSE,
+            "No selected native default; compatibility template explicitly sets false.",
+            "Controls whether forwarded request headers are trusted when calling the compatibility authorization service.",
+            "false avoids trusting client-supplied forwarded identity/route headers by default; deploy explicit proxy trust boundaries if changing it.",
+            compatibility_lifecycle,
+            default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
+        )
+    return None
+
+
 def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None:
     """Return exact metadata for static, native dynamic, and forwardAuth YAML.
 
@@ -1914,7 +2052,8 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
         "Compatibility forwardAuth runs before upstream handling for request authorization; it has no selected P3/P4 response-header/body visibility."
     )
     lifecycle = compatibility_lifecycle if compatibility else native_lifecycle
-    if selected_path == "experimental":
+    match selected_path:
+      case "experimental":
         return _yaml_detail(
             "Traefik static experimental configuration mapping",
             "localPlugins child mapping shown in the selected native static file",
@@ -1924,7 +2063,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Static bootstrap prerequisite for the native P1–P4 middleware path; it does not process traffic itself.",
             default_source=host_source,
         )
-    if selected_path == "experimental.localPlugins":
+      case "experimental.localPlugins":
         return _yaml_detail(
             "Traefik static local-plugin registry mapping",
             "named local plugin declarations; selected key is modsecurityNative",
@@ -1934,7 +2073,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Static bootstrap prerequisite for the native router middleware and its P1–P4 callback surface.",
             default_source=host_source,
         )
-    if selected_path == "experimental.localPlugins.modsecurityNative":
+      case "experimental.localPlugins.modsecurityNative":
         return _yaml_detail(
             "Traefik local-plugin declaration mapping",
             "moduleName and settings child fields",
@@ -1944,7 +2083,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Static prerequisite for attaching the native middleware; no transaction lifecycle event occurs at declaration time.",
             default_source=host_source,
         )
-    if selected_path == "experimental.localPlugins.modsecurityNative.moduleName":
+      case "experimental.localPlugins.modsecurityNative.moduleName":
         return _yaml_detail(
             "Traefik local-plugin Go module path string",
             "module path resolving to the repository native_middleware package",
@@ -1954,7 +2093,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Static prerequisite for the native middleware's P1–P4 callback implementation.",
             default_source=host_source,
         )
-    if selected_path == "experimental.localPlugins.modsecurityNative.settings":
+      case "experimental.localPlugins.modsecurityNative.settings":
         return _yaml_detail(
             "Traefik local-plugin settings mapping",
             "settings.envs child list; selected mapping contains an empty list",
@@ -1964,7 +2103,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Static bootstrap only; the selected native request lifecycle starts when a router invokes the plugin.",
             default_source=host_source,
         )
-    if selected_path == "experimental.localPlugins.modsecurityNative.settings.envs":
+      case "experimental.localPlugins.modsecurityNative.settings.envs":
         return _yaml_detail(
             "Traefik local-plugin environment-settings list",
             "list of Traefik local-plugin environment setting strings; selected list is empty",
@@ -1974,7 +2113,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Static bootstrap only; it does not change P1–P4 visibility by itself.",
             default_source=host_source,
         )
-    if selected_path == "entryPoints":
+      case "entryPoints":
         return _yaml_detail(
             "Traefik static entry-point mapping",
             "named entry-point mappings; selected key is web",
@@ -1984,7 +2123,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Static listener bootstrap; its named entry point selects which requests can reach the router/middleware lifecycle.",
             default_source=host_source,
         )
-    if selected_path == "entryPoints.web":
+      case "entryPoints.web":
         return _yaml_detail(
             "Traefik EntryPoint mapping",
             "address child field; selected entry point is web",
@@ -1994,7 +2133,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Static entry point for the router; the native middleware begins after request routing selects it.",
             default_source=host_source,
         )
-    if selected_path == "entryPoints.web.address":
+      case "entryPoints.web.address":
         return _yaml_detail(
             "Traefik listener address string",
             "Traefik entry-point address such as host:port or :port; selected value is :8080",
@@ -2004,7 +2143,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Listener bootstrap before router selection and the attached native P1–P4 middleware path.",
             default_source=host_source,
         )
-    if selected_path == "providers":
+      case "providers":
         return _yaml_detail(
             "Traefik static provider registry mapping",
             "file provider child mapping",
@@ -2014,7 +2153,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Static-to-dynamic handoff; it makes the router/middleware lifecycle available but does not process a transaction itself.",
             default_source=host_source,
         )
-    if selected_path == "providers.file":
+      case "providers.file":
         return _yaml_detail(
             "Traefik File Provider mapping",
             "filename and watch child fields",
@@ -2024,7 +2163,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Loads the router/middleware configuration that exposes the native lifecycle path or compatibility request path.",
             default_source=host_source,
         )
-    if selected_path == "providers.file.filename":
+      case "providers.file.filename":
         return _yaml_detail(
             "Traefik File Provider path string",
             "readable dynamic-configuration path; selected relative path is ./traefik-dynamic.yaml",
@@ -2034,7 +2173,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Supplies the routing configuration that attaches native P1–P4 middleware or compatibility P1 authorization.",
             default_source=host_source,
         )
-    if selected_path == "providers.file.watch":
+      case "providers.file.watch":
         selected = "true" if example_value == "true" else "false"
         return _yaml_detail(
             "Traefik File Provider boolean",
@@ -2045,7 +2184,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Dynamic lifecycle configuration reload control; it does not itself change per-request P1–P4 visibility.",
             default_source=host_source,
         )
-    if selected_path == "log":
+      case "log":
         return _yaml_detail(
             "Traefik log configuration mapping",
             "level child field",
@@ -2055,7 +2194,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Host observability only; no direct P1–P4 payload visibility change.",
             default_source=host_source,
         )
-    if selected_path == "log.level":
+      case "log.level":
         return _yaml_detail(
             "Traefik log-level token",
             "Traefik-supported level token; selected value is INFO",
@@ -2065,7 +2204,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Host observability only; it does not change native or compatibility lifecycle callbacks.",
             default_source=host_source,
         )
-    if selected_path == "accessLog":
+      case "accessLog":
         return _yaml_detail(
             "Traefik access-log configuration mapping",
             "empty mapping or documented access-log fields; selected value is {}",
@@ -2075,7 +2214,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Host observability only; it does not substitute for transaction P1–P4 processing or engine audit logging.",
             default_source=host_source,
         )
-    if selected_path == "http":
+      case "http":
         return _yaml_detail(
             "Traefik dynamic HTTP configuration mapping",
             "routers, middlewares, and services child mappings",
@@ -2085,7 +2224,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             lifecycle,
             default_source=host_source,
         )
-    if selected_path == "http.routers":
+      case "http.routers":
         return _yaml_detail(
             "Traefik dynamic router registry mapping",
             "named router mappings; selected key is app",
@@ -2095,7 +2234,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             lifecycle,
             default_source=host_source,
         )
-    if selected_path == "http.routers.app":
+      case "http.routers.app":
         return _yaml_detail(
             "Traefik dynamic Router mapping",
             "rule, entryPoints, middlewares, and service child fields",
@@ -2105,7 +2244,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             lifecycle,
             default_source=host_source,
         )
-    if selected_path == "http.routers.app.rule":
+      case "http.routers.app.rule":
         return _yaml_detail(
             "Traefik router-rule expression string",
             "Traefik rule DSL; selected value is PathPrefix(`/`)",
@@ -2115,30 +2254,11 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Selects requests that enter the attached native middleware P1/P2 path or compatibility P1 authorization path.",
             default_source=host_source,
         )
-    if selected_path in {"http.routers.app.entryPoints", "http.routers.app.entryPoints[]"}:
-        item = selected_path.endswith("[]")
-        return _yaml_detail(
-            "Traefik router entry-point name list" if not item else "Traefik entry-point name string",
-            "defined static entry-point names" if not item else "name declared under static entryPoints; selected value is web",
-            _selected_template_default("router entry-point binding", "the web entry point"),
-            "Restricts the app router to the named static listener.",
-            "Binding a router to a public entry point exposes its middleware/service path to that listener's clients.",
-            "Selects which listener traffic can reach the attached native P1–P4 middleware or compatibility request path.",
-            default_source=host_source,
-        )
-    if selected_path in {"http.routers.app.middlewares", "http.routers.app.middlewares[]"}:
-        item = selected_path.endswith("[]")
-        mode = "compatibility forwardAuth" if compatibility else "native UDS"
-        return _yaml_detail(
-            "ordered Traefik middleware-name list" if not item else "Traefik middleware-name string",
-            "names declared under http.middlewares" if not item else f"selected {mode} middleware name",
-            _selected_template_default("router middleware list", f"the selected {mode} middleware"),
-            "Attaches middleware to the router in listed order before forwarding to the app service.",
-            "Removing/reordering this reference can bypass inspection or authorization; retain the reviewed middleware before the service.",
-            lifecycle,
-            default_source=host_source,
-        )
-    if selected_path == "http.routers.app.service":
+      case "http.routers.app.entryPoints" | "http.routers.app.entryPoints[]":
+        return _traefik_router_entrypoint_detail(selected_path, host_source)
+      case "http.routers.app.middlewares" | "http.routers.app.middlewares[]":
+        return _traefik_router_middleware_detail(selected_path, compatibility, lifecycle, host_source)
+      case "http.routers.app.service":
         return _yaml_detail(
             "Traefik service-name string",
             "name declared under http.services; selected value is app",
@@ -2148,7 +2268,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Forwarding occurs after request-side middleware; the native path can observe the returned response at P3/P4.",
             default_source=host_source,
         )
-    if selected_path == "http.middlewares":
+      case "http.middlewares":
         middleware_key = "modsecurity-auth" if compatibility else "modsecurity-native-streaming"
         return _yaml_detail(
             "Traefik dynamic middleware registry mapping",
@@ -2159,7 +2279,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             lifecycle,
             default_source=host_source,
         )
-    if re.fullmatch(r"http\.middlewares\.[^.]+", selected_path):
+      case path if re.fullmatch(r"http\.middlewares\.[^.]+", path):
         mode = "forwardAuth compatibility" if compatibility else "native modsecurity"
         return _yaml_detail(
             "Traefik named middleware mapping",
@@ -2170,60 +2290,11 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             lifecycle,
             default_source=host_source,
         )
-    middleware_prefix = "http.middlewares."
-    if selected_path.startswith(middleware_prefix):
-        tail = selected_path.rsplit(".", 1)[-1]
-        if tail == "plugin":
-            return _yaml_detail(
-                "Traefik plugin middleware mapping",
-                "named local-plugin child mapping; selected child is modsecurityNative",
-                _selected_template_default("plugin middleware mapping", "the modsecurityNative local plugin"),
-                "Selects the local-plugin configuration for the named native middleware.",
-                "The plugin reference chooses code that processes requests and responses; preserve the reviewed local plugin name.",
-                native_lifecycle,
-                default_source=host_source,
-            )
-        if tail == "modsecurityNative":
-            return _yaml_detail(
-                "Traefik local-plugin configuration mapping",
-                "the seven native middleware Config fields documented from CreateConfig/normalizedConfig",
-                "Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields.",
-                "Groups limits, transaction ID, and engine connection fields passed to the repository native middleware.",
-                "The UDS fields and bounds are enforcement-relevant; passthrough is not rule evaluation.",
-                native_lifecycle,
-                default_source="connectors/traefik/native_middleware/middleware.go:CreateConfig/normalizedConfig",
-            )
-        if tail == "forwardAuth":
-            return _yaml_detail(
-                "Traefik ForwardAuth middleware mapping (compatibility only)",
-                "address and trustForwardHeader child fields",
-                "No selected native default; compatibility template explicitly configures a local forwardAuth service.",
-                "Groups the request-only external authorization service settings.",
-                "Do not present forwardAuth as the native UDS rule-evaluating path; its service receives request authorization data.",
-                compatibility_lifecycle,
-                default_source="compatibility template and docs/connectors/traefik.md",
-            )
-        if tail == "address" and ".forwardAuth." in selected_path:
-            return _yaml_detail(
-                "Traefik ForwardAuth HTTP URL string (compatibility only)",
-                "absolute HTTP/HTTPS authorization-service URL; selected value is http://127.0.0.1:9000/authorize",
-                "No selected native default; compatibility template explicitly supplies the loopback authorization URL.",
-                "Targets the external forwardAuth decision service before the app service is contacted.",
-                "Use a trusted, private service and do not embed credentials in the URL; it is distinct from the native UDS engine.",
-                compatibility_lifecycle,
-                default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
-            )
-        if tail == "trustForwardHeader":
-            return _yaml_detail(
-                "Traefik ForwardAuth boolean (compatibility only)",
-                ALLOWED_VALUES_TRUE_FALSE,
-                "No selected native default; compatibility template explicitly sets false.",
-                "Controls whether forwarded request headers are trusted when calling the compatibility authorization service.",
-                "false avoids trusting client-supplied forwarded identity/route headers by default; deploy explicit proxy trust boundaries if changing it.",
-                compatibility_lifecycle,
-                default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE,
-            )
-    if selected_path == "http.services":
+      case path if path.startswith("http.middlewares."):
+        return _traefik_middleware_yaml_detail(
+            selected_path, native_lifecycle, compatibility_lifecycle, host_source,
+        )
+      case "http.services":
         return _yaml_detail(
             "Traefik dynamic service registry mapping",
             "named service mappings; selected key is app",
@@ -2233,7 +2304,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "The native middleware can receive the app response at P3/P4 after this service returns it; compatibility forwardAuth cannot.",
             default_source=host_source,
         )
-    if selected_path == "http.services.app":
+      case "http.services.app":
         return _yaml_detail(
             "Traefik named service mapping",
             "loadBalancer child mapping",
@@ -2243,7 +2314,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Upstream service stage after request middleware; native response callbacks can observe returned headers/body at P3/P4.",
             default_source=host_source,
         )
-    if selected_path == "http.services.app.loadBalancer":
+      case "http.services.app.loadBalancer":
         return _yaml_detail(
             "Traefik LoadBalancer service mapping",
             "servers child list",
@@ -2253,7 +2324,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "After request middleware, the selected server response is available to native P3/P4 callbacks; not to compatibility forwardAuth.",
             default_source=host_source,
         )
-    if selected_path == "http.services.app.loadBalancer.servers":
+      case "http.services.app.loadBalancer.servers":
         return _yaml_detail(
             "repeated Traefik load-balancer server mapping",
             "one or more server URL mappings; selected example has one server",
@@ -2263,7 +2334,7 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "Native response lifecycle P3/P4 begins only after the selected server responds; compatibility forwardAuth remains request-only.",
             default_source=host_source,
         )
-    if selected_path == "http.services.app.loadBalancer.servers[].url":
+      case "http.services.app.loadBalancer.servers[].url":
         return _yaml_detail(
             "Traefik upstream server URL string",
             "absolute backend URL; selected value is http://127.0.0.1:8081",
@@ -2273,7 +2344,8 @@ def _traefik_yaml_detail(path: str, example_value: str) -> dict[str, str] | None
             "The returned upstream response is the native middleware's P3/P4 source; forwardAuth compatibility has no later response visibility.",
             default_source=host_source,
         )
-    return None
+      case _:
+        return None
 
 
 def _yaml_option(connector: str, path: str, source_file: str, example_file: str, validation: str, example_value: str = "") -> dict[str, Any]:
@@ -2354,9 +2426,8 @@ def _compatibility_yaml_options(
     return result
 
 
-def extract_envoy(root: Path) -> list[dict[str, Any]]:
+def envoy_yaml_options(root: Path, yaml_source: str) -> list[dict[str, Any]]:
     options: list[dict[str, Any]] = []
-    yaml_source = "examples/envoy/safe/envoy-ext-proc-streaming.yaml.in"
     yaml_paths = extract_yaml_paths(root / yaml_source)
     if "static_resources.listeners[].filter_chains[].filters[].typed_config.http_filters[].typed_config.processing_mode.request_body_mode" not in yaml_paths:
         raise ValueError("Envoy YAML extractor did not find ext_proc request body mode")
@@ -2366,10 +2437,15 @@ def extract_envoy(root: Path) -> list[dict[str, Any]]:
     minimal_yaml_source = "examples/envoy/minimal/envoy-ext-proc-streaming.yaml.in"
     if set(extract_yaml_paths(root / minimal_yaml_source)) != set(yaml_paths):
         raise ValueError("Envoy minimal ext_proc YAML fields drift from the documented selected template surface")
+    return options
+
+
+def envoy_processor_options(root: Path) -> list[dict[str, Any]]:
+    options: list[dict[str, Any]] = []
 
     config_source = "connectors/envoy/ext_proc/internal/processor/config.go"
     struct = _read(root, config_source)
-    fields = re.findall(r'^\s*([A-Za-z][A-Za-z0-9]+)\s+([^`\n]+)\s+`json:"([a-z0-9_]+)"`', struct, flags=re.M)
+    fields = re.findall(r'^\s*([A-Za-z][A-Za-z0-9]+)\s+((?>[^`\s]+(?:[ \t]+[^`\s]+)*))\s+`json:"([a-z0-9_]+)"`', struct, flags=re.M)
     if len(fields) != 14:
         raise ValueError(f"Envoy Config struct extractor found {len(fields)}, expected 14")
     service_values = json.loads(_read(root, "examples/envoy/safe/envoy-ext-proc-service.json"))
@@ -2412,6 +2488,11 @@ def extract_envoy(root: Path) -> list[dict[str, Any]]:
             validation="main validates JSON and, where selected, Common Runtime before serving.", phase_relevance="Runtime service setup; --runtime-config selects the actual engine path.",
             security_relevance="Use absolute controlled paths for runtime/event files and a private service listener.", runtime_effect="Controls ext_proc service startup/check behavior.",
             example_file="connectors/envoy/config/prepare_envoy_ext_proc_config.sh", description="ext_proc service CLI flag."))
+    return options
+
+
+def envoy_placeholder_options(root: Path, yaml_source: str) -> list[dict[str, Any]]:
+    options: list[dict[str, Any]] = []
     placeholders = sorted(set(re.findall(r"@([A-Z_]+)@", _read(root, yaml_source))))
     expected_placeholders = {"ENVOY_RELEASE", "LISTEN_PORT", "UPSTREAM_PORT", "EXT_PROC_PORT", "ADMIN_PORT"}
     if set(placeholders) != expected_placeholders:
@@ -2424,16 +2505,29 @@ def extract_envoy(root: Path) -> list[dict[str, Any]]:
             validation="The materializer rejects unresolved placeholders and invalid ports; output must be outside the checkout.", phase_relevance="Host bootstrap only.",
             security_relevance="Use private, non-conflicting ports; never place generated runtime output in the checkout.", runtime_effect="Supplies a release marker or local endpoint value to the generated Envoy configuration.",
             example_file=yaml_source, description="Template placeholder, not an Envoy configuration field."))
-    options.extend(_compatibility_yaml_options(
+    return options
+
+
+def envoy_compatibility_options(root: Path) -> list[dict[str, Any]]:
+    options = _compatibility_yaml_options(
         root, "envoy", ENVOY_EXT_AUTHZ_CONFIGURATION, "ext_authz",
         "Validate as an Envoy ext_authz compatibility configuration.", deprecated_fragment="authorization_request.allowed_headers",
-    ))
+    )
     options.append(_option(
         "envoy", "envoy.filters.http.ext_authz", "compatibility", ENVOY_EXT_AUTHZ_CONFIGURATION, "ext_authz compatibility filter",
         syntax="name: envoy.filters.http.ext_authz", value_type="Envoy compatibility filter", allowed_values="ext_authz v3 configuration", default="not part of selected ext_proc path", default_source=DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE, required=False,
         contexts="Compatibility Envoy HTTP filter chain", inheritance="not part of ext_proc configuration", merge_behavior="not part of selected full-lifecycle configuration", validation="Separate ext_authz configuration validation.",
         phase_relevance="Request authorization compatibility path; no selected P3/P4 coverage.", security_relevance="Do not represent it as the native ext_proc full-lifecycle configuration.", runtime_effect="Routes to separate authorization compatibility service.",
         example_file=ENVOY_EXT_AUTHZ_CONFIGURATION, description="Compatibility-only ext_authz filter.", compatibility_only=True, deprecated=True))
+    return options
+
+
+def extract_envoy(root: Path) -> list[dict[str, Any]]:
+    yaml_source = "examples/envoy/safe/envoy-ext-proc-streaming.yaml.in"
+    options = envoy_yaml_options(root, yaml_source)
+    options.extend(envoy_processor_options(root))
+    options.extend(envoy_placeholder_options(root, yaml_source))
+    options.extend(envoy_compatibility_options(root))
     return options
 
 
@@ -2508,10 +2602,12 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
     )
 
 
-def extract_traefik(root: Path) -> list[dict[str, Any]]:
+def traefik_profile_path(path: str) -> str:
+    return re.sub(r"\.modsecurity-native-[^.]+", ".<native-middleware>", path)
+
+
+def traefik_yaml_options(root: Path, static_source: str, dynamic_source: str) -> list[dict[str, Any]]:
     options: list[dict[str, Any]] = []
-    static_source = "examples/traefik/minimal/traefik-static.yaml"
-    dynamic_source = "examples/traefik/safe/traefik-dynamic.yaml"
     paths = [(static_source, path) for path in extract_yaml_paths(root / static_source)] + [(dynamic_source, path) for path in extract_yaml_paths(root / dynamic_source)]
     seen: set[str] = set()
     plugin_leaves = {"maxHeaderCount", "maxHeaderBytes", "maxRequestChunkBytes", "maxResponseChunkBytes", "transactionIDHeader", "engineMode", "engineSocketPath"}
@@ -2528,15 +2624,18 @@ def extract_traefik(root: Path) -> list[dict[str, Any]]:
             options.append(_yaml_option("traefik", path, source, source, "traefik check --configFile=<static-config>; load the selected File Provider configuration.", values_by_source[source].get(path, "")))
     if not any(option["name"].endswith("engineMode") for option in options):
         raise ValueError("Traefik YAML extractor did not find native plugin config")
-    normalize_profile_path = lambda path: re.sub(r"\.modsecurity-native-[^.]+", ".<native-middleware>", path)
-    minimal_dynamic_paths = {normalize_profile_path(path) for path in extract_yaml_paths(root / "examples/traefik/minimal/traefik-dynamic.yaml")}
-    safe_dynamic_paths = {normalize_profile_path(path) for path in extract_yaml_paths(root / dynamic_source)}
+    minimal_dynamic_paths = {traefik_profile_path(path) for path in extract_yaml_paths(root / "examples/traefik/minimal/traefik-dynamic.yaml")}
+    safe_dynamic_paths = {traefik_profile_path(path) for path in extract_yaml_paths(root / dynamic_source)}
     if minimal_dynamic_paths != safe_dynamic_paths:
         raise ValueError("Traefik minimal dynamic YAML fields drift from the documented selected middleware surface")
-    options.extend(_compatibility_yaml_options(
+    return options
+
+
+def traefik_compatibility_options(root: Path) -> list[dict[str, Any]]:
+    options = _compatibility_yaml_options(
         root, "traefik", "examples/traefik/compatibility-forwardauth/traefik-static.yaml", "forwardauth-static",
         TRAEFIK_FORWARDAUTH_VALIDATION,
-    ))
+    )
     options.extend(_compatibility_yaml_options(
         root, "traefik", TRAEFIK_FORWARDAUTH_CONFIGURATION, "forwardauth-dynamic",
         TRAEFIK_FORWARDAUTH_VALIDATION,
@@ -2550,14 +2649,16 @@ def extract_traefik(root: Path) -> list[dict[str, Any]]:
     return options
 
 
-def _assert_source_default_contracts(root: Path, options: Iterable[dict[str, Any]]) -> None:
-    """Reject generated defaults that no longer match source constants.
+def extract_traefik(root: Path) -> list[dict[str, Any]]:
+    static_source = "examples/traefik/minimal/traefik-static.yaml"
+    dynamic_source = "examples/traefik/safe/traefik-dynamic.yaml"
+    options = traefik_yaml_options(root, static_source, dynamic_source)
+    options.extend(traefik_compatibility_options(root))
+    return options
 
-    This makes a default change fail the source-to-documentation check even if
-    no parser name changed.  Values intentionally described as ``none`` or
-    host-defined are not guessed here.
-    """
-    by_key = {(item["connector"], item["name"]): item["default"] for item in options}
+
+def _assert_common_source_defaults(root: Path) -> None:
+    """Reject drift in the C constants that own shared documentation defaults."""
     options_header = _read(root, "common/include/msconnector/options.h")
     config_header = _read(root, "common/include/msconnector/block_statuses.h")
     limits_header = _read(root, "common/include/msconnector/limits.h")
@@ -2581,6 +2682,10 @@ def _assert_source_default_contracts(root: Path, options: Iterable[dict[str, Any
     ):
         if token not in limits_header:
             raise ValueError(f"resource-limit default source constant changed: expected {token!r}")
+
+
+def _assert_documented_defaults(by_key: dict[tuple[str, str], str]) -> None:
+    """Reject source-backed inventory defaults that no longer render exactly."""
     expected_defaults = {
         ("common", "enabled"): "off", ("common", "use_error_log"): "on", ("common", "phase4_mode"): "safe",
         ("common", "request_body_limit"): "1048576", ("common", "response_body_limit"): "1048576",
@@ -2599,6 +2704,10 @@ def _assert_source_default_contracts(root: Path, options: Iterable[dict[str, Any
         actual = by_key.get(key)
         if actual != expected:
             raise ValueError(f"documented default drift for {key[0]}:{key[1]}: {actual!r} != {expected!r}")
+
+
+def _assert_traefik_defaults(root: Path, by_key: dict[tuple[str, str], str]) -> None:
+    """Reject drift in native Traefik defaults and their rendered inventory rows."""
     traefik_source = _read(root, "connectors/traefik/native_middleware/middleware.go")
     for token in ("defaultMaxHeaderCount        = 128", "defaultMaxHeaderBytes        = 64 << 10", "defaultMaxRequestChunkBytes  = 32 << 10", "defaultMaxResponseChunkBytes = 32 << 10"):
         if token not in traefik_source:
@@ -2610,6 +2719,19 @@ def _assert_source_default_contracts(root: Path, options: Iterable[dict[str, Any
         matches = [value for (connector, name), value in by_key.items() if connector == "traefik" and name.endswith(suffix)]
         if not matches or any(value != expected for value in matches):
             raise ValueError(f"Traefik documented default drift for {suffix}: {matches!r}")
+
+
+def _assert_source_default_contracts(root: Path, options: Iterable[dict[str, Any]]) -> None:
+    """Reject generated defaults that no longer match source constants.
+
+    This makes a default change fail the source-to-documentation check even if
+    no parser name changed.  Values intentionally described as ``none`` or
+    host-defined are not guessed here.
+    """
+    by_key = {(item["connector"], item["name"]): item["default"] for item in options}
+    _assert_common_source_defaults(root)
+    _assert_documented_defaults(by_key)
+    _assert_traefik_defaults(root, by_key)
 
 
 def build_inventory(root: Path = ROOT) -> list[dict[str, Any]]:
@@ -2645,9 +2767,14 @@ def _table_row(option: dict[str, Any], german: bool) -> str:
     description = option["description"]
     return "| [`{name}`](#{anchor}) | {layer} | {type} | {required} | {default} | {contexts} | {description} |".format(
         name=option["name"], anchor=_slug(option["name"]), layer=layer_name(option["configuration_layer"], german),
-        type=_table_cell(option["value_type"]), required=("ja" if option["required"] else "nein") if german else ("yes" if option["required"] else "no"),
+        type=_table_cell(option["value_type"]), required=required_label(bool(option["required"]), german),
         default=_table_cell(option["default"]), contexts=_table_cell(option["contexts"]), description=_table_cell(description),
     )
+
+
+def required_label(required: bool, german: bool) -> str:
+    labels = ("ja", "nein") if german else ("yes", "no")
+    return labels[0] if required else labels[1]
 
 
 def _table_cell(value: str) -> str:
@@ -3461,12 +3588,8 @@ def layer_name(layer: str, german: bool) -> str:
     return names[layer][1 if german else 0]
 
 
-def _render_option(option: dict[str, Any], german: bool) -> list[str]:
-    source_option = option
-    if german:
-        option = _german_option(option)
-    fallback_fields = option.get("_german_fallback_fields", ())
-    labels = {
+def option_render_labels(german: bool) -> dict[str, str]:
+    return {
         "short": "Kurzbeschreibung" if german else "Short description",
         "syntax": "Syntax",
         "contexts": "Gültige Kontexte" if german else "Valid contexts",
@@ -3478,29 +3601,37 @@ def _render_option(option: dict[str, Any], german: bool) -> list[str]:
         "example": "Beispiel" if german else "Example",
         "safety": "Sicherheit und Betrieb" if german else "Safety and operations",
     }
-    intro = option["description"]
-    phase = option["phase_relevance"]
-    if german:
-        phase = "P1–P4-Relevanz: " + option["phase_relevance"]
-    if option.get("example_value"):
-        literal = _inline_literal(option["example_value"])
-        example_value_line = (f"Ausgewählter Beispielwert: {literal}." if german else f"Selected example value: {literal}.")
-    else:
-        example_value_line = ("Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden." if german else "Selected value: use the syntax above and the source-backed file below.")
+
+
+def rendered_phase(option: dict[str, Any], german: bool) -> str:
+    return "P1–P4-Relevanz: " + option["phase_relevance"] if german else option["phase_relevance"]
+
+
+def selected_example_line(option: dict[str, Any], german: bool) -> str:
+    if not option.get("example_value"):
+        return "Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden." if german else "Selected value: use the syntax above and the source-backed file below."
+    literal = _inline_literal(option["example_value"])
+    return f"Ausgewählter Beispielwert: {literal}." if german else f"Selected example value: {literal}."
+
+
+def source_example_line(option: dict[str, Any], german: bool) -> str:
     source_example_label = "Quellenbasiertes Beispiel" if german else "Source-backed example"
     source_path = option["example_file"]
-    if source_path.startswith("examples/"):
-        source_example = f"[{source_path}](../../{source_path})"
-    else:
-        source_example = f"`{source_path}`"
-    source_example_line = f"{source_example_label}: {source_example}."
-    lines = [
+    source_example = f"[{source_path}](../../{source_path})" if source_path.startswith("examples/") else f"`{source_path}`"
+    return f"{source_example_label}: {source_example}."
+
+
+def rendered_option_sections(option: dict[str, Any], labels: dict[str, str], german: bool) -> list[str]:
+    phase = rendered_phase(option, german)
+    example_value_line = selected_example_line(option, german)
+    source_line = source_example_line(option, german)
+    return [
         f'<a id="{_slug(option["name"])}"></a>',
         f"## `{option['name']}`",
         "",
         f"### {labels['short']}",
         "",
-        intro,
+        option["description"],
         "",
         f"### {labels['syntax']}",
         "",
@@ -3516,7 +3647,7 @@ def _render_option(option: dict[str, Any], german: bool) -> list[str]:
         "",
         "| Typ | Zulässige Werte | Erforderlich |" if german else "| Type | Allowed values | Required |",
         MARKDOWN_THREE_COLUMN_SEPARATOR,
-        f"| {_table_cell(option['value_type'])} | {_table_cell(option['allowed_values'])} | {('ja' if option['required'] else 'nein') if german else ('yes' if option['required'] else 'no')} |",
+        f"| {_table_cell(option['value_type'])} | {_table_cell(option['allowed_values'])} | {required_label(bool(option['required']), german)} |",
         "",
         f"### {labels['default']}",
         "",
@@ -3544,98 +3675,125 @@ def _render_option(option: dict[str, Any], german: bool) -> list[str]:
         "",
         example_value_line,
         "",
-        source_example_line,
+        source_line,
         "",
         f"### {labels['safety']}",
         "",
         option["security_relevance"],
         "",
     ]
-    if german and fallback_fields:
-        lines.extend([
-            "### Technische Quellmetadaten (unverändert)",
-            "",
-            "Die folgenden Quellwerte bewahren die technische, englische Originalmetadatenangabe für diesen YAML-Pfad; Namen, konkrete Werte, Defaults und Protokollbegriffe bleiben dadurch vollständig nachvollziehbar.",
-            "",
-            "```text",
-        ])
-        lines.extend(f"{field}: {source_option[field]}" for field in fallback_fields)
-        lines.extend(["```", ""])
+
+
+def german_fallback_metadata(option: dict[str, Any], fallback_fields: tuple[str, ...]) -> list[str]:
+    if not fallback_fields:
+        return []
+    return [
+        "### Technische Quellmetadaten (unverändert)",
+        "",
+        "Die folgenden Quellwerte bewahren die technische, englische Originalmetadatenangabe für diesen YAML-Pfad; Namen, konkrete Werte, Defaults und Protokollbegriffe bleiben dadurch vollständig nachvollziehbar.",
+        "",
+        "```text",
+        *(f"{field}: {option[field]}" for field in fallback_fields),
+        "```",
+        "",
+    ]
+
+
+def _render_option(option: dict[str, Any], german: bool) -> list[str]:
+    source_option = option
+    rendered_option = _german_option(option) if german else option
+    lines = rendered_option_sections(rendered_option, option_render_labels(german), german)
+    if german:
+        lines.extend(german_fallback_metadata(source_option, rendered_option.get("_german_fallback_fields", ())))
     return lines
 
 
-def render_connector_reference(options: list[dict[str, Any]], connector: str, german: bool) -> str:
-    local = _local_options(options, connector)
-    title = {
-        "apache": "Apache configuration reference",
-        "nginx": "NGINX configuration reference",
-        "haproxy": "HAProxy configuration reference",
-        "envoy": "Envoy configuration reference",
-        "traefik": "Traefik configuration reference",
-        "lighttpd": "lighttpd configuration reference",
-    }[connector]
-    if german:
-        title = {
-            "apache": "Apache-Konfigurationsreferenz", "nginx": "NGINX-Konfigurationsreferenz",
-            "haproxy": "HAProxy-Konfigurationsreferenz", "envoy": "Envoy-Konfigurationsreferenz",
-            "traefik": "Traefik-Konfigurationsreferenz", "lighttpd": "lighttpd-Konfigurationsreferenz",
-        }[connector]
-    mode = integration_mode(connector)
-    lines = [f"# {title}", "", _language_switch("configuration-reference", german), "", "## Scope and source of truth" if not german else "## Geltungsbereich und maßgebliche Quellen", ""]
-    if german:
-        lines.extend([
-            f"Ausgewählter Integrationsmodus: `{mode}`. Diese Datei wird aus registrierten Parsern, Konfigurationsstrukturen, geprüften Service-Verträgen und aktiven Beispielen erzeugt.",
-            "Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören nicht zum ausgewählten Kernpfad.",
-        ])
-    else:
-        lines.extend([
-            f"Selected integration mode: `{mode}`. This file is generated from registered parsers, configuration structures, checked service contracts, and active examples.",
-            "Compatibility entries are explicitly labelled and are not part of the selected core path.",
-        ])
-    lines.extend(["", "## Configuration inventory" if not german else "## Konfigurationsinventar", "", MARKDOWN_OPTION_HEADER, MARKDOWN_OPTION_SEPARATOR])
-    lines.extend(_table_row(option, german) for option in local)
-    lines.extend(["", "## Layer separation" if not german else "## Trennung der Ebenen", ""])
-    if german:
-        lines.extend([
-            "Host-/Connector-Schalter binden oder konfigurieren die Hostintegration. Sie sind nicht identisch mit `SecRuleEngine`.",
-            "",
-            "- [Common-Runtime-Konfiguration](../common/common-connector-configuration.de.md) beschreibt nur die `key=value`-Runtime-Datei und wird nicht als nicht registrierte Hostdirektive ausgegeben.",
-            "- [ModSecurity-Engine-Direktiven](../common/modsecurity-directives.de.md) beschreibt die `Sec*`-Direktiven der geladenen Regeldatei.",
-            "- [Regelbeispiele](../common/rule-examples.de.md) erklären DetectionOnly und das Abschalten der Engine.",
-        ])
-    else:
-        lines.extend([
-            "Host/connector switches bind or configure host integration. They are not the same setting as `SecRuleEngine`.",
-            "",
-            "- [Common Runtime configuration](../common/common-connector-configuration.md) covers only the `key=value` runtime file and is not presented as an unregistered host directive.",
-            "- [ModSecurity Engine directives](../common/modsecurity-directives.md) covers `Sec*` directives in the loaded rule file.",
-            "- [Rule examples](../common/rule-examples.md) explains DetectionOnly and engine Off.",
-        ])
-    runtime_keys = {
-        "apache": (),
-        "nginx": (),
-        "haproxy": (),
-        "envoy": ("enabled", "rules_file", "transaction_id_header", "request_body_mode", "response_body_mode", "request_body_limit", "response_body_limit", "body_limit_action", "phase4_mode", "default_block_status", "default_error_status", "use_error_log", "max_header_count", "max_header_name_size", "max_header_value_size", "max_total_header_bytes", "max_event_json_bytes"),
-        "traefik": ("enabled", "rules_file", "transaction_id_header", "request_body_mode", "response_body_mode", "request_body_limit", "response_body_limit", "body_limit_action", "phase4_mode", "default_block_status", "default_error_status", "use_error_log", "max_header_count", "max_header_name_size", "max_header_value_size", "max_total_header_bytes", "max_event_json_bytes"),
-        "lighttpd": tuple(COMMON_DETAILS),
-    }[connector]
-    lines.extend(["", "## Common Runtime relevance" if not german else "## Common-Runtime-Relevanz", ""])
-    if not runtime_keys:
-        lines.append("The selected native path does not parse a Common Runtime `key=value` file; shared model fields are exposed only through registered host directives." if not german else "Der ausgewählte native Pfad parst keine Common-Runtime-`key=value`-Datei; gemeinsame Modellfelder werden nur über registrierte Hostdirektiven angeboten.")
-    else:
-        common_reference = "../common/common-connector-configuration.de.md" if german else "../common/common-connector-configuration.md"
-        lines.extend(["| Key | Local use | Detailed reference |" if not german else "| Schlüssel | Lokale Verwendung | Detailreferenz |", MARKDOWN_THREE_COLUMN_SEPARATOR])
-        for key in runtime_keys:
-            local_use = "Selected runtime profile key" if not german else "Schlüssel des ausgewählten Runtime-Profils"
-            lines.append(f"| `{key}` | {local_use} | [{key}]({common_reference}#{_slug(key)}) |")
-    lines.extend(["", "## Engine directives used by profiles" if not german else "## Von Profilen verwendete Engine-Direktiven", ""])
-    engine_reference = "../common/modsecurity-directives.de.md" if german else "../common/modsecurity-directives.md"
-    lines.extend([
-        "The local rule profiles use `SecRuleEngine` for On, DetectionOnly, and Off. Where body inspection is selected, `SecRequestBodyAccess`, `SecResponseBodyAccess`, MIME scope, limits, and `SecRule` remain ModSecurity Engine directives." if not german else "Die lokalen Regelprofile verwenden `SecRuleEngine` für On, DetectionOnly und Off. Wo Body-Inspektion gewählt wird, bleiben `SecRequestBodyAccess`, `SecResponseBodyAccess`, MIME-Scope, Limits und `SecRule` ModSecurity-Engine-Direktiven.",
+def localized(german: bool, english: str, deutsch: str) -> str:
+    return deutsch if german else english
+
+
+def connector_reference_title(connector: str, german: bool) -> str:
+    titles = {
+        "apache": ("Apache configuration reference", "Apache-Konfigurationsreferenz"),
+        "nginx": ("NGINX configuration reference", "NGINX-Konfigurationsreferenz"),
+        "haproxy": ("HAProxy configuration reference", "HAProxy-Konfigurationsreferenz"),
+        "envoy": ("Envoy configuration reference", "Envoy-Konfigurationsreferenz"),
+        "traefik": ("Traefik configuration reference", "Traefik-Konfigurationsreferenz"),
+        "lighttpd": ("lighttpd configuration reference", "lighttpd-Konfigurationsreferenz"),
+    }
+    return titles[connector][1 if german else 0]
+
+
+def connector_reference_intro(mode: str, german: bool) -> list[str]:
+    return [
+        localized(german, "## Scope and source of truth", "## Geltungsbereich und maßgebliche Quellen"),
         "",
-        f"{'Siehe' if german else 'See'} [{ 'Engine reference' if not german else 'Engine-Referenz'}]({engine_reference}).",
-    ])
-    profile_files = {
+        localized(
+            german,
+            f"Selected integration mode: `{mode}`. This file is generated from registered parsers, configuration structures, checked service contracts, and active examples.",
+            f"Ausgewählter Integrationsmodus: `{mode}`. Diese Datei wird aus registrierten Parsern, Konfigurationsstrukturen, geprüften Service-Verträgen und aktiven Beispielen erzeugt.",
+        ),
+        localized(
+            german,
+            "Compatibility entries are explicitly labelled and are not part of the selected core path.",
+            "Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören nicht zum ausgewählten Kernpfad.",
+        ),
+    ]
+
+
+def layer_separation_section(german: bool) -> list[str]:
+    return [
+        "",
+        localized(german, "## Layer separation", "## Trennung der Ebenen"),
+        "",
+        *(
+            [
+                "Host-/Connector-Schalter binden oder konfigurieren die Hostintegration. Sie sind nicht identisch mit `SecRuleEngine`.",
+                "",
+                "- [Common-Runtime-Konfiguration](../common/common-connector-configuration.de.md) beschreibt nur die `key=value`-Runtime-Datei und wird nicht als nicht registrierte Hostdirektive ausgegeben.",
+                "- [ModSecurity-Engine-Direktiven](../common/modsecurity-directives.de.md) beschreibt die `Sec*`-Direktiven der geladenen Regeldatei.",
+                "- [Regelbeispiele](../common/rule-examples.de.md) erklären DetectionOnly und das Abschalten der Engine.",
+            ]
+            if german
+            else [
+                "Host/connector switches bind or configure host integration. They are not the same setting as `SecRuleEngine`.",
+                "",
+                "- [Common Runtime configuration](../common/common-connector-configuration.md) covers only the `key=value` runtime file and is not presented as an unregistered host directive.",
+                "- [ModSecurity Engine directives](../common/modsecurity-directives.md) covers `Sec*` directives in the loaded rule file.",
+                "- [Rule examples](../common/rule-examples.md) explains DetectionOnly and engine Off.",
+            ]
+        ),
+    ]
+
+
+def connector_runtime_keys(connector: str) -> tuple[str, ...]:
+    standard = (
+        "enabled", "rules_file", "transaction_id_header", "request_body_mode", "response_body_mode",
+        "request_body_limit", "response_body_limit", "body_limit_action", "phase4_mode",
+        "default_block_status", "default_error_status", "use_error_log", "max_header_count",
+        "max_header_name_size", "max_header_value_size", "max_total_header_bytes", "max_event_json_bytes",
+    )
+    return {
+        "apache": (), "nginx": (), "haproxy": (), "envoy": standard,
+        "traefik": standard, "lighttpd": tuple(COMMON_DETAILS),
+    }[connector]
+
+
+def common_runtime_section(connector: str, german: bool) -> list[str]:
+    keys = connector_runtime_keys(connector)
+    lines = ["", localized(german, "## Common Runtime relevance", "## Common-Runtime-Relevanz"), ""]
+    if not keys:
+        lines.append(localized(german, "The selected native path does not parse a Common Runtime `key=value` file; shared model fields are exposed only through registered host directives.", "Der ausgewählte native Pfad parst keine Common-Runtime-`key=value`-Datei; gemeinsame Modellfelder werden nur über registrierte Hostdirektiven angeboten."))
+        return lines
+    reference = localized(german, "../common/common-connector-configuration.md", "../common/common-connector-configuration.de.md")
+    lines.extend([localized(german, "| Key | Local use | Detailed reference |", "| Schlüssel | Lokale Verwendung | Detailreferenz |"), MARKDOWN_THREE_COLUMN_SEPARATOR])
+    local_use = localized(german, "Selected runtime profile key", "Schlüssel des ausgewählten Runtime-Profils")
+    lines.extend(f"| `{key}` | {local_use} | [{key}]({reference}#{_slug(key)}) |" for key in keys)
+    return lines
+
+
+def profile_rows(connector: str, german: bool) -> list[str]:
+    files = {
         "apache": ("minimal/httpd.conf", "safe/httpd.conf", "README", "detection-only/httpd.conf", "disabled/httpd.conf"),
         "nginx": ("minimal/nginx.conf", "safe/nginx.conf", "strict/nginx.conf", "detection-only/nginx.conf", "disabled/nginx.conf"),
         "haproxy": ("minimal/haproxy-htx.cfg", "safe/haproxy-htx.cfg", "README", "detection-only/haproxy-htx.cfg", "disabled/haproxy-htx.cfg"),
@@ -3644,35 +3802,37 @@ def render_connector_reference(options: list[dict[str, Any]], connector: str, ge
         "lighttpd": ("minimal/lighttpd.conf", "safe/lighttpd-http1-identity.conf", "README", "detection-only/msconnector-runtime.conf", "disabled/lighttpd.conf"),
     }[connector]
     labels = ("Minimal", "Safe full lifecycle", "Strict", "DetectionOnly", "Disabled")
-    if german:
-        labels = ("Minimal", "Sicherer vollständiger Lebenszyklus", "Strikt", "DetectionOnly", "Deaktiviert")
-    lines.extend(["", "## Profiles" if not german else "## Profile", "", "| Profile | File | Status |" if not german else "| Profil | Datei | Status |", MARKDOWN_THREE_COLUMN_SEPARATOR])
     statuses = (
         "Active starter configuration", "Selected bounded reference", "Parser-supported or explicitly optional boundary", "Engine evaluates/logs without disruptive action", "Connector or engine path disabled",
     )
     if german:
+        labels = ("Minimal", "Sicherer vollständiger Lebenszyklus", "Strikt", "DetectionOnly", "Deaktiviert")
         statuses = (
             "Aktive Startkonfiguration", "Ausgewählte begrenzte Referenz", "Parserunterstützte oder ausdrücklich optionale Grenze", "Engine wertet aus/protokolliert ohne disruptive Aktion", "Connector- oder Engine-Pfad deaktiviert",
         )
-    for label, file_name, status in zip(labels, profile_files, statuses):
-        if file_name == "README":
-            file_name = "README.de.md#strict-profilgrenze" if german else "README.md#strict-profile-boundary"
-        elif file_name.endswith("/README"):
-            file_name += ".de.md" if german else ".md"
-        lines.append(f"| {label} | [{file_name}]({file_name}) | {status} |")
-    lines.extend(["", "## Configuration combinations" if not german else "## Konfigurationskombinationen", "", "| Connector | Engine | Request body | Response body | Result |" if not german else "| Connector | Engine | Request-Body | Response-Body | Ergebnis |", "| --- | --- | --- | --- | --- |"])
-    combination_rows = [
-        ("off", "On", "any", "any", "No connector transaction; engine setting is not reached."),
-        ("on", "Off", "any", "any", "Connector reaches the engine, but engine rule processing is disabled."),
-        ("on", "DetectionOnly", "enabled", "enabled", "Rules can match/log without disruptive enforcement."),
-        ("on", "On", "Off", "On", "P2 body is unavailable to the engine; P4 remains host/capability dependent."),
-        ("on", "On", "On", "Off", "P4 body is unavailable to the engine."),
-        ("on", "On", "On", "On + safe", "Late post-commit P4 results are recorded without a promised later status change."),
-        ("on", "On", "On", "On + strict", "Only use a host-specific strict outcome where source/evidence supports it; no synthetic late 403."),
-        ("on", "On", "over limit + process_partial", "over limit + reject", "The body policy determines bounded engine input; exact host response handling remains connector-specific."),
+    return [f"| {label} | [{profile_file_link(filename, german)}]({profile_file_link(filename, german)}) | {status} |" for label, filename, status in zip(labels, files, statuses)]
+
+
+def profile_file_link(filename: str, german: bool) -> str:
+    if filename == "README":
+        return "README.de.md#strict-profilgrenze" if german else "README.md#strict-profile-boundary"
+    if filename.endswith("/README"):
+        return filename + (".de.md" if german else ".md")
+    return filename
+
+
+def profiles_section(connector: str, german: bool) -> list[str]:
+    return [
+        "", localized(german, "## Profiles", "## Profile"), "",
+        localized(german, "| Profile | File | Status |", "| Profil | Datei | Status |"),
+        MARKDOWN_THREE_COLUMN_SEPARATOR,
+        *profile_rows(connector, german),
     ]
+
+
+def combination_rows(german: bool) -> list[tuple[str, str, str, str, str]]:
     if german:
-        combination_rows = [
+        return [
             ("off", "On", "beliebig", "beliebig", "Keine Connector-Transaktion; die Engine-Einstellung wird nicht erreicht."),
             ("on", "Off", "beliebig", "beliebig", "Der Connector erreicht die Engine, aber deren Regelauswertung ist deaktiviert."),
             ("on", "DetectionOnly", "aktiviert", "aktiviert", "Regeln können ohne disruptive Durchsetzung treffen/protokollieren."),
@@ -3682,8 +3842,45 @@ def render_connector_reference(options: list[dict[str, Any]], connector: str, ge
             ("on", "On", "On", "On + strict", "Ein hostspezifisches strict-Ergebnis nur verwenden, wenn Quelle/Nachweis es stützen; keine künstliche spätere 403."),
             ("on", "On", "über Limit + process_partial", "über Limit + reject", "Die Body-Policy bestimmt die begrenzte Engine-Eingabe; die genaue Host-Response-Behandlung bleibt connectorspezifisch."),
         ]
-    for row in combination_rows:
-        lines.append("| " + " | ".join(row) + " |")
+    return [
+        ("off", "On", "any", "any", "No connector transaction; engine setting is not reached."),
+        ("on", "Off", "any", "any", "Connector reaches the engine, but engine rule processing is disabled."),
+        ("on", "DetectionOnly", "enabled", "enabled", "Rules can match/log without disruptive enforcement."),
+        ("on", "On", "Off", "On", "P2 body is unavailable to the engine; P4 remains host/capability dependent."),
+        ("on", "On", "On", "Off", "P4 body is unavailable to the engine."),
+        ("on", "On", "On", "On + safe", "Late post-commit P4 results are recorded without a promised later status change."),
+        ("on", "On", "On", "On + strict", "Only use a host-specific strict outcome where source/evidence supports it; no synthetic late 403."),
+        ("on", "On", "over limit + process_partial", "over limit + reject", "The body policy determines bounded engine input; exact host response handling remains connector-specific."),
+    ]
+
+
+def configuration_combinations_section(german: bool) -> list[str]:
+    return [
+        "", localized(german, "## Configuration combinations", "## Konfigurationskombinationen"), "",
+        localized(german, "| Connector | Engine | Request body | Response body | Result |", "| Connector | Engine | Request-Body | Response-Body | Ergebnis |"),
+        "| --- | --- | --- | --- | --- |",
+        *("| " + " | ".join(row) + " |" for row in combination_rows(german)),
+    ]
+
+
+def render_connector_reference(options: list[dict[str, Any]], connector: str, german: bool) -> str:
+    local = _local_options(options, connector)
+    title = connector_reference_title(connector, german)
+    lines = [f"# {title}", "", _language_switch("configuration-reference", german), ""]
+    lines.extend(connector_reference_intro(integration_mode(connector), german))
+    lines.extend(["", localized(german, "## Configuration inventory", "## Konfigurationsinventar"), "", MARKDOWN_OPTION_HEADER, MARKDOWN_OPTION_SEPARATOR])
+    lines.extend(_table_row(option, german) for option in local)
+    lines.extend(layer_separation_section(german))
+    lines.extend(common_runtime_section(connector, german))
+    lines.extend(["", "## Engine directives used by profiles" if not german else "## Von Profilen verwendete Engine-Direktiven", ""])
+    engine_reference = "../common/modsecurity-directives.de.md" if german else "../common/modsecurity-directives.md"
+    lines.extend([
+        "The local rule profiles use `SecRuleEngine` for On, DetectionOnly, and Off. Where body inspection is selected, `SecRequestBodyAccess`, `SecResponseBodyAccess`, MIME scope, limits, and `SecRule` remain ModSecurity Engine directives." if not german else "Die lokalen Regelprofile verwenden `SecRuleEngine` für On, DetectionOnly und Off. Wo Body-Inspektion gewählt wird, bleiben `SecRequestBodyAccess`, `SecResponseBodyAccess`, MIME-Scope, Limits und `SecRule` ModSecurity-Engine-Direktiven.",
+        "",
+        f"{'Siehe' if german else 'See'} [{ 'Engine reference' if not german else 'Engine-Referenz'}]({engine_reference}).",
+    ])
+    lines.extend(profiles_section(connector, german))
+    lines.extend(configuration_combinations_section(german))
     lines.extend(["", "## Validation" if not german else "## Validierung", ""])
     validation = {
         "apache": VALIDATE_APACHE, "nginx": VALIDATE_NGINX, "haproxy": VALIDATE_HAPROXY,
