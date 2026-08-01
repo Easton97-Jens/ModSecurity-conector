@@ -137,11 +137,11 @@ type Transaction interface {
 	Close(context.Context, Summary)
 }
 
-// ResponseCommitMarker is an optional transaction capability implemented by the
+// ResponseCommitter is an optional transaction capability implemented by the
 // Common/libmodsecurity bridge. It records the real adapter boundary only
 // after ext_proc successfully sends a response-header CONTINUE to Envoy.
 // Passthrough and test engines intentionally do not need to implement it.
-type ResponseCommitMarker interface {
+type ResponseCommitter interface {
 	MarkResponseCommitted(context.Context) error
 }
 
@@ -719,32 +719,63 @@ func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.
 			}
 		}
 	}
-	if value, found, err := envoyAttributeText(attributes, "request.protocol"); err != nil {
-		return RequestMetadata{}, err
-	} else if found {
-		metadata.Protocol = value
+	textAssignments := []struct {
+		attribute string
+		assign    func(string)
+	}{
+		{"request.protocol", func(value string) { metadata.Protocol = value }},
+		{"source.address", func(value string) { metadata.ClientAddress = envoyEndpointAddress(value) }},
+		{"destination.address", func(value string) { metadata.ServerAddress = envoyEndpointAddress(value) }},
 	}
-	if value, found, err := envoyAttributeText(attributes, "source.address"); err != nil {
-		return RequestMetadata{}, err
-	} else if found {
-		metadata.ClientAddress = envoyEndpointAddress(value)
+	for _, assignment := range textAssignments {
+		if err := assignEnvoyTextAttribute(attributes, assignment.attribute, assignment.assign); err != nil {
+			return RequestMetadata{}, err
+		}
 	}
-	if value, found, err := envoyAttributePort(attributes, "source.port"); err != nil {
-		return RequestMetadata{}, err
-	} else if found {
-		metadata.ClientPort = value
+
+	portAssignments := []struct {
+		attribute string
+		assign    func(int)
+	}{
+		{"source.port", func(value int) { metadata.ClientPort = value }},
+		{"destination.port", func(value int) { metadata.ServerPort = value }},
 	}
-	if value, found, err := envoyAttributeText(attributes, "destination.address"); err != nil {
-		return RequestMetadata{}, err
-	} else if found {
-		metadata.ServerAddress = envoyEndpointAddress(value)
-	}
-	if value, found, err := envoyAttributePort(attributes, "destination.port"); err != nil {
-		return RequestMetadata{}, err
-	} else if found {
-		metadata.ServerPort = value
+	for _, assignment := range portAssignments {
+		if err := assignEnvoyPortAttribute(attributes, assignment.attribute, assignment.assign); err != nil {
+			return RequestMetadata{}, err
+		}
 	}
 	return metadata, nil
+}
+
+func assignEnvoyTextAttribute(
+	attributes map[string]*structpb.Struct,
+	attribute string,
+	assign func(string),
+) error {
+	value, found, err := envoyAttributeText(attributes, attribute)
+	if err != nil {
+		return err
+	}
+	if found {
+		assign(value)
+	}
+	return nil
+}
+
+func assignEnvoyPortAttribute(
+	attributes map[string]*structpb.Struct,
+	attribute string,
+	assign func(int),
+) error {
+	value, found, err := envoyAttributePort(attributes, attribute)
+	if err != nil {
+		return err
+	}
+	if found {
+		assign(value)
+	}
+	return nil
 }
 
 // Envoy's standard address attributes may be rendered as host:port. The port
@@ -906,7 +937,7 @@ func (state *streamState) markResponseCommittedAfterSuccessfulContinue(ctx conte
 	if headers == nil || headers.GetResponse() == nil || headers.GetResponse().GetStatus() != extprocv3.CommonResponse_CONTINUE {
 		return nil
 	}
-	if committer, ok := state.transaction.(ResponseCommitMarker); ok {
+	if committer, ok := state.transaction.(ResponseCommitter); ok {
 		engineContext, cancel := context.WithTimeout(ctx, state.config.engineTimeout())
 		defer cancel()
 		if err := committer.MarkResponseCommitted(engineContext); err != nil {

@@ -256,10 +256,10 @@ func TestTrailersFinalizeIncrementalBodiesAtEOS(t *testing.T) {
 	if !sameInts(transaction.responseBodyLengths, []int{0}) {
 		t.Fatalf("response trailer EOS body lengths = %v, want %v", transaction.responseBodyLengths, []int{0})
 	}
-	if got := stream.sent[1].GetRequestTrailers(); got == nil {
+	if stream.sent[1].GetRequestTrailers() == nil {
 		t.Fatalf("request trailer did not receive trailer response: %#v", stream.sent[1])
 	}
-	if got := stream.sent[3].GetResponseTrailers(); got == nil {
+	if stream.sent[3].GetResponseTrailers() == nil {
 		t.Fatalf("response trailer did not receive trailer response: %#v", stream.sent[3])
 	}
 	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseResponseEOS {

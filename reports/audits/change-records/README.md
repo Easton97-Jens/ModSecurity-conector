@@ -11,6 +11,11 @@ must not claim unobserved CI, runtime, review, or delivery results.
   and a sealed security-diff review; exact-head hosted/SonarQube Cloud
   verification remains required before it can be considered mergeable.
 
+- [Parent Envoy TLS and maintainability remediation](CR-20260801-sonar-envoy-tls-maintainability.md)
+  — removes the current five Envoy SonarQube Cloud source rows by preserving
+  processor semantics and encrypting the fixture upstream hop; exact-head
+  hosted verification remains required before any merge decision.
+
 - [Parent Traefik runtime and lifecycle remediation](CR-20260730-sonar-traefik-runtime-lifecycle.md)
 
 - [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)

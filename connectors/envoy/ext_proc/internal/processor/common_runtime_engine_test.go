@@ -73,7 +73,7 @@ func testCommonRuntimePhase4(t *testing.T, contextValue context.Context, transac
 	assertCommonDecision(t, "request headers", decision, err, ActionAllow, 0)
 	decision, err = transaction.ProcessHeaders(contextValue, DirectionResponse, []Header{{Name: ":status", Value: []byte("200")}, {Name: "content-type", Value: []byte("text/plain")}}, false)
 	assertCommonDecision(t, "response headers", decision, err, ActionAllow, 0)
-	committer, ok := transaction.(ResponseCommitMarker)
+	committer, ok := transaction.(ResponseCommitter)
 	if !ok {
 		t.Fatal("Common transaction does not expose response commit bookkeeping")
 	}

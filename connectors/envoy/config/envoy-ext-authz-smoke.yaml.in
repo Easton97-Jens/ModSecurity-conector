@@ -58,6 +58,14 @@ static_resources:
   - name: upstream_service
     connect_timeout: 0.5s
     type: STRICT_DNS
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        common_tls_context:
+          validation_context:
+            trusted_ca:
+              filename: "@TLS_CERTIFICATE@"
     load_assignment:
       cluster_name: upstream_service
       endpoints:
