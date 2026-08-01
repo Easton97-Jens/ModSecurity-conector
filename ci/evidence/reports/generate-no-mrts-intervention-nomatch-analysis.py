@@ -28,6 +28,7 @@ except Exception:  # pragma: no cover - report generation keeps working without 
 
 REPORT_DIR = GENERATED_ROOT
 REPORT_STEM = "no-mrts-intervention-nomatch-analysis.generated"
+FRAMEWORK_PATH_PREFIX = "framework:"
 ABSOLUTE_RUNTIME_PATH_RE = re.compile(r"(?<![\w.-])/(?:tmp|root|src)[^\s\"']*")
 
 
@@ -84,8 +85,8 @@ def split_path_query(path: str) -> tuple[str, str]:
 
 def case_path_from_record(record: dict[str, Any], framework_root: Path) -> Path | None:
     value = str(record.get("case_path") or "")
-    if value.startswith("framework:"):
-        return framework_root / value.split("framework:", 1)[1]
+    if value.startswith(FRAMEWORK_PATH_PREFIX):
+        return framework_root / value.split(FRAMEWORK_PATH_PREFIX, 1)[1]
     path = safe_existing_file(value)
     if path is not None and path.is_file():
         return path
@@ -96,7 +97,7 @@ def display_case_path(path: Path | None, framework_root: Path) -> str:
     if path is None:
         return "-"
     try:
-        return "framework:" + str(path.resolve(strict=False).relative_to(framework_root.resolve(strict=False)))
+        return FRAMEWORK_PATH_PREFIX + str(path.resolve(strict=False).relative_to(framework_root.resolve(strict=False)))
     except ValueError:
         return sanitize_report_text(path.name)
 

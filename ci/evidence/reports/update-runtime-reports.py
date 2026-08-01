@@ -39,6 +39,19 @@ BUILD_CACHE_MARKER_END = "<!-- runtime-build-cache:end -->"
 NATIVE_EVIDENCE_MARKER_START = "<!-- mrts-native-infrastructure-evidence:start -->"
 NATIVE_EVIDENCE_MARKER_END = "<!-- mrts-native-infrastructure-evidence:end -->"
 FOUR_COLUMN_TABLE_SEPARATOR = "|---|---|---|---|"
+RULE_100003_PATTERN = r'(SecRule ARGS "@contains attack" \\\n\s+"id:100003,\\\n\s+phase:4,[\s\S]*?ver:\'MRTS/0\.1\'")'
+FTW_METHOD_PATTERN = r"^\s+method:\s+(\S+)"
+FTW_URI_PATTERN = r"^\s+uri:\s+(.+)$"
+FTW_EXPECTED_ID_PATTERN = r"expect_ids:\n\s+-\s+([0-9]+)"
+ATTACK_QUERY_URI = "/?foo=attack"
+FTW_UNSPECIFIED_STATUS = "not specified in FTW YAML"
+MRTS_ARGS_GET_RULE_FILE = "MRTS_002_ARGS_A-GET.conf"
+MRTS_100003_INCLUDED_RULES = (
+    MRTS_ARGS_GET_RULE_FILE,
+    "MRTS_001_INIT.conf",
+    "MRTS_003_ARGS_COMBINED_SIZE.conf",
+    "MRTS_004_ARGS_GET.conf",
+)
 NATIVE_REPORT_FILES = [
     report_relpath("mrts_native_apache", "json"),
     report_relpath("mrts_native_apache", "md"),
@@ -74,7 +87,8 @@ def local_cache_root(explicit: str | None = None) -> Path:
         return Path(os.environ["CONNECTOR_COMPONENT_CACHE"]).resolve()
     if os.environ.get("VERIFIED_COMPONENT_CACHE"):
         return Path(os.environ["VERIFIED_COMPONENT_CACHE"]).resolve()
-    verified_root = Path(os.environ.get("VERIFIED_RUN_ROOT", "/var/tmp/ModSecurity-conector-verified"))
+    default_verified_root = Path.home() / ".cache" / "ModSecurity-conector" / "verified"
+    verified_root = Path(os.environ.get("VERIFIED_RUN_ROOT", default_verified_root))
     cache_root = Path(os.environ.get("CACHE_ROOT", verified_root / "cache-v2"))
     return (cache_root / "shared").resolve()
 
@@ -432,7 +446,7 @@ def collect_non_match_warnings(log_text: str) -> list[str]:
 
 def rule_100003_metadata(rule_text: str) -> dict[str, Any]:
     rule_excerpt = first_match(
-        r'(SecRule ARGS "@contains attack" \\\n\s+"id:100003,\\\n\s+phase:4,[\s\S]*?ver:\'MRTS/0\.1\'")',
+        RULE_100003_PATTERN,
         rule_text,
     )
     return {
@@ -459,12 +473,12 @@ def case_100003_test_metadata(yaml_text: str, ftw_yaml: Path, log_file: Path, lo
     return {
         "path": str(ftw_yaml),
         "test_title": "100003-1",
-        "method": first_match(r"^\s+method:\s+(\S+)", yaml_text) or "POST",
-        "uri": first_match(r"^\s+uri:\s+(.+)$", yaml_text) or "/?foo=attack",
+        "method": first_match(FTW_METHOD_PATTERN, yaml_text) or "POST",
+        "uri": first_match(FTW_URI_PATTERN, yaml_text) or ATTACK_QUERY_URI,
         "headers": collect_yaml_headers(yaml_text),
         "body": "none",
-        "expected_log_id": first_match(r"expect_ids:\n\s+-\s+([0-9]+)", yaml_text) or "100003",
-        "expected_status": "not specified in FTW YAML",
+        "expected_log_id": first_match(FTW_EXPECTED_ID_PATTERN, yaml_text) or "100003",
+        "expected_status": FTW_UNSPECIFIED_STATUS,
         "log_marker_header": log_marker_header,
         "log_file_target": str(log_file),
         "current_generated_port": first_match(r"^\s+port:\s+([0-9]+)", yaml_text) or fallback_port,
@@ -555,7 +569,7 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
     access_log = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "stage", "infra", "log", "access.log")
     audit_log = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "stage", "infra", "log", "modsec_audit.log")
     ftw_yaml = safe_runtime_child(build_root, "mrts", "upstream-config-tests", "ftw", "100003_MRTS_002_ARGS_A-GET.yaml")
-    rule_file = safe_runtime_child(build_root, "mrts", "upstream-config-tests", "rules", "MRTS_002_ARGS_A-GET.conf")
+    rule_file = safe_runtime_child(build_root, "mrts", "upstream-config-tests", "rules", MRTS_ARGS_GET_RULE_FILE)
     load_file = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "stage", "infra", "mrts.load")
     module_load_file = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "stage", "infra", "mods-enabled", "security2.load")
     security_conf = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "stage", "infra", "mods-enabled", "security2.conf")
@@ -576,11 +590,11 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
     case_lines = collect_case_lines(error_text, "100003-1")
     actual_ids = collect_actual_ids(case_lines)
     module_path = first_match(r"^LoadModule\s+security3_module\s+(\S*mod_security3\.so)", module_load_text)
-    expected_id = first_match(r"expect_ids:\n\s+-\s+([0-9]+)", yaml_text) or "100003"
-    method = first_match(r"^\s+method:\s+(\S+)", yaml_text)
-    uri = first_match(r"^\s+uri:\s+(.+)$", yaml_text)
-    rule_block = first_match(r'(SecRule ARGS "@contains attack" \\\n\s+"id:100003,\\\n\s+phase:4,[\s\S]*?ver:\'MRTS/0\.1\'")', rule_text)
-    request_seen = 'POST /?foo=attack HTTP/1.1" 200' in access_text
+    expected_id = first_match(FTW_EXPECTED_ID_PATTERN, yaml_text) or "100003"
+    method = first_match(FTW_METHOD_PATTERN, yaml_text)
+    uri = first_match(FTW_URI_PATTERN, yaml_text)
+    rule_block = first_match(RULE_100003_PATTERN, rule_text)
+    request_seen = f'POST {ATTACK_QUERY_URI} HTTP/1.1" 200' in access_text
     conclusion = common_100003_conclusion(case_lines, error_text)
 
     return {
@@ -604,12 +618,12 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
         "module_path": module_path,
         "module_loaded": bool(module_path and safe_existing_file(module_path)),
         "mrts_load_included": str(rule_file) in load_text and str(load_file) in security_text,
-        "loaded_includes": [line.strip() for line in load_text.splitlines() if "MRTS_002_ARGS_A-GET.conf" in line or "MRTS_001_INIT.conf" in line or "MRTS_003_ARGS_COMBINED_SIZE.conf" in line or "MRTS_004_ARGS_GET.conf" in line],
+            "loaded_includes": [line.strip() for line in load_text.splitlines() if any(rule_file in line for rule_file in MRTS_100003_INCLUDED_RULES)],
         "method": method or "POST",
-        "uri": uri or "/?foo=attack",
+            "uri": uri or ATTACK_QUERY_URI,
         "body": "none",
         "port": "19080",
-        "expected_status": "not specified in FTW YAML",
+            "expected_status": FTW_UNSPECIFIED_STATUS,
         "actual_status": "HTTP 200 observed in Apache access log" if request_seen else "not printed by go-ftw",
         "expected_result": f"log id {expected_id}",
         "actual_result": "missing expected log id 100003",
@@ -617,7 +631,7 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
         "phase_hits": collect_phase_hits(case_lines),
         "request_reached_server": request_seen,
         "request_reached_modsecurity": bool(actual_ids),
-        "request_reached_albedo": "Received default request to /?foo=attack" in run_text,
+            "request_reached_albedo": f"Received default request to {ATTACK_QUERY_URI}" in run_text,
         "audit_evidence": audit_evidence_status(audit_log, audit_text),
         "parse_or_phase_warnings": collect_non_match_warnings(error_text),
         "rule_excerpt": rule_block,
@@ -639,7 +653,7 @@ def collect_nginx_100003_diagnostics(components: dict[str, Any]) -> dict[str, An
     error_log = safe_runtime_child(build_root, "mrts-native", "nginx-pr24", "stage", "infra", "log", "error.log")
     audit_log = safe_runtime_child(build_root, "mrts-native", "nginx-pr24", "stage", "infra", "log", "modsec_audit.log")
     ftw_yaml = safe_runtime_child(build_root, "mrts", "upstream-config-tests", "ftw", "100003_MRTS_002_ARGS_A-GET.yaml")
-    rule_file = safe_runtime_child(build_root, "mrts", "upstream-config-tests", "rules", "MRTS_002_ARGS_A-GET.conf")
+    rule_file = safe_runtime_child(build_root, "mrts", "upstream-config-tests", "rules", MRTS_ARGS_GET_RULE_FILE)
     load_file = safe_runtime_child(build_root, "mrts-native", "nginx-pr24", "stage", "infra", "mrts.load")
     main_conf = safe_runtime_child(build_root, "mrts-native", "nginx-pr24", "stage", "infra", "modsecurity", "main.conf")
     module_conf = safe_runtime_child(build_root, "mrts-native", "nginx-pr24", "stage", "infra", "modules-available", "mod-http-modsecurity.conf")
@@ -660,11 +674,11 @@ def collect_nginx_100003_diagnostics(components: dict[str, Any]) -> dict[str, An
     actual_ids = collect_actual_ids(case_lines)
     phase_hits = collect_phase_hits(case_lines)
     module_path = first_match(r"^load_module\s+([^;]+ngx_http_modsecurity_module\.so);", module_text)
-    expected_id = first_match(r"expect_ids:\n\s+-\s+([0-9]+)", yaml_text) or "100003"
-    method = first_match(r"^\s+method:\s+(\S+)", yaml_text)
-    uri = first_match(r"^\s+uri:\s+(.+)$", yaml_text)
+    expected_id = first_match(FTW_EXPECTED_ID_PATTERN, yaml_text) or "100003"
+    method = first_match(FTW_METHOD_PATTERN, yaml_text)
+    uri = first_match(FTW_URI_PATTERN, yaml_text)
     port = first_match(r"^\s+port:\s+([0-9]+)", yaml_text)
-    rule_block = first_match(r'(SecRule ARGS "@contains attack" \\\n\s+"id:100003,\\\n\s+phase:4,[\s\S]*?ver:\'MRTS/0\.1\'")', rule_text)
+    rule_block = first_match(RULE_100003_PATTERN, rule_text)
     conclusion = common_100003_conclusion(case_lines, error_text)
 
     return {
@@ -687,20 +701,20 @@ def collect_nginx_100003_diagnostics(components: dict[str, Any]) -> dict[str, An
         "module_path": module_path,
         "module_loaded": bool(module_path and safe_existing_file(module_path)),
         "mrts_load_included": str(rule_file) in load_text and "Include mrts.load" in main_text,
-        "loaded_includes": [line.strip() for line in load_text.splitlines() if "MRTS_002_ARGS_A-GET.conf" in line or "MRTS_001_INIT.conf" in line or "MRTS_003_ARGS_COMBINED_SIZE.conf" in line or "MRTS_004_ARGS_GET.conf" in line],
+            "loaded_includes": [line.strip() for line in load_text.splitlines() if any(rule_file in line for rule_file in MRTS_100003_INCLUDED_RULES)],
         "method": method or "POST",
-        "uri": uri or "/?foo=attack",
+            "uri": uri or ATTACK_QUERY_URI,
         "body": "none",
         "port": port or "19081",
-        "expected_status": "not specified in FTW YAML",
+            "expected_status": FTW_UNSPECIFIED_STATUS,
         "actual_status": "not printed by go-ftw; backend request was observed",
         "expected_result": f"log id {expected_id}",
         "actual_result": "missing expected log id 100003",
         "actual_logged_ids": actual_ids,
         "phase_hits": phase_hits,
-        "request_reached_server": any('request: "POST /?foo=attack HTTP/1.1"' in line for line in case_lines),
+            "request_reached_server": any(f'request: "POST {ATTACK_QUERY_URI} HTTP/1.1"' in line for line in case_lines),
         "request_reached_modsecurity": bool(actual_ids),
-        "request_reached_albedo": "Received default request to /?foo=attack" in run_text,
+            "request_reached_albedo": f"Received default request to {ATTACK_QUERY_URI}" in run_text,
         "audit_evidence": audit_evidence_status(audit_log, audit_text),
         "parse_or_phase_warnings": collect_non_match_warnings(error_text),
         "rule_excerpt": rule_block,
@@ -773,79 +787,107 @@ def normalize_native_remediation(text: str, components: dict[str, Any]) -> str:
 def runtime_components_markdown(components: dict[str, Any]) -> str:
     apache = components.get("apache_httpd", {})
     nginx = components.get("nginx", {})
-    go_ftw = components.get("go_ftw", {})
-    albedo = components.get("albedo", {})
     expat = components.get("expat", {})
-    lines = [
-        MARKER_START,
-        "## Runtime Components",
-        "",
+    lines = [MARKER_START, "## Runtime Components", ""]
+    lines.extend(apache_component_lines(apache))
+    lines.extend(nginx_component_lines(nginx))
+    lines.extend(expat_component_lines(expat))
+    lines.extend(dependency_component_lines(components))
+    lines.append(MARKER_END)
+    return "\n".join(lines)
+
+
+def first_truthy(item: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = item.get(key)
+        if value:
+            return value
+    return "-"
+
+
+def apache_component_lines(apache: dict[str, Any]) -> list[str]:
+    return [
         "### Apache httpd",
         f"- Status: `{apache.get('status', '-')}`",
-        f"- Blocker: `{apache.get('blocker_reason') or '-'}`",
+        f"- Blocker: `{first_truthy(apache, 'blocker_reason')}`",
         f"- Cache path: `{apache.get('cache_path', '-')}`",
         f"- Build path: `{apache.get('build_path', '-')}`",
         f"- apachectl/APACHECTL_BIN: `{apache.get('apachectl_bin', '-')}`",
         f"- Module file: `{apache.get('module_file', '-')}`",
-        f"- Missing file: `{apache.get('missing_file') or '-'}`",
-        f"- Build component: `{apache.get('build_component') or '-'}`",
-        f"- Env variable to set: `{apache.get('env_variable_can_set') or apache.get('env_override') or '-'}`",
-        f"- Expat source: `{apache.get('expat_source') or '-'}`",
-        f"- Expat release tag: `{apache.get('expat_release_tag') or '-'}`",
-        f"- CPPFLAGS: `{apache.get('cppflags') or '-'}`",
-        f"- LDFLAGS: `{apache.get('ldflags') or '-'}`",
-        f"- LIBS: `{apache.get('libs') or '-'}`",
-        f"- PKG_CONFIG_PATH: `{apache.get('pkg_config_path') or '-'}`",
-        f"- crypt.h status: `{apache.get('crypt_h_status') or '-'}`",
-        f"- crypt.h path: `{apache.get('crypt_h_path') or '-'}`",
-        f"- libcrypt status: `{apache.get('libcrypt_status') or '-'}`",
+        f"- Missing file: `{first_truthy(apache, 'missing_file')}`",
+        f"- Build component: `{first_truthy(apache, 'build_component')}`",
+        f"- Env variable to set: `{first_truthy(apache, 'env_variable_can_set', 'env_override')}`",
+        f"- Expat source: `{first_truthy(apache, 'expat_source')}`",
+        f"- Expat release tag: `{first_truthy(apache, 'expat_release_tag')}`",
+        f"- CPPFLAGS: `{first_truthy(apache, 'cppflags')}`",
+        f"- LDFLAGS: `{first_truthy(apache, 'ldflags')}`",
+        f"- LIBS: `{first_truthy(apache, 'libs')}`",
+        f"- PKG_CONFIG_PATH: `{first_truthy(apache, 'pkg_config_path')}`",
+        f"- crypt.h status: `{first_truthy(apache, 'crypt_h_status')}`",
+        f"- crypt.h path: `{first_truthy(apache, 'crypt_h_path')}`",
+        f"- libcrypt status: `{first_truthy(apache, 'libcrypt_status')}`",
         f"- libcrypt paths: `{', '.join(apache.get('libcrypt_paths', [])) or '-'}`",
-        f"- crypt link mode: `{apache.get('crypt_link_mode') or '-'}`",
+        f"- crypt link mode: `{first_truthy(apache, 'crypt_link_mode')}`",
         "",
+    ]
+
+
+def nginx_component_lines(nginx: dict[str, Any]) -> list[str]:
+    return [
         "### NGINX",
         f"- Status: `{nginx.get('status', '-')}`",
-        f"- Blocker: `{nginx.get('blocker_reason') or '-'}`",
+        f"- Blocker: `{first_truthy(nginx, 'blocker_reason')}`",
         f"- Cache path: `{nginx.get('cache_path', '-')}`",
         f"- Build path: `{nginx.get('build_path', '-')}`",
         f"- MRTS_NATIVE_NGINX_BIN: `{nginx.get('nginx_bin', '-')}`",
         f"- MRTS_NATIVE_NGINX_MODULE_DIR: `{nginx.get('module_dir', '-')}`",
         f"- Module file: `{nginx.get('module_file', '-')}`",
-        f"- Missing file: `{nginx.get('missing_file') or '-'}`",
-        f"- Build component: `{nginx.get('build_component') or '-'}`",
-        f"- Env variable to set: `{nginx.get('env_variable_can_set') or nginx.get('env_override') or '-'}`",
+        f"- Missing file: `{first_truthy(nginx, 'missing_file')}`",
+        f"- Build component: `{first_truthy(nginx, 'build_component')}`",
+        f"- Env variable to set: `{first_truthy(nginx, 'env_variable_can_set', 'env_override')}`",
         "",
+    ]
+
+
+def expat_component_lines(expat: dict[str, Any]) -> list[str]:
+    return [
         "### Expat",
         f"- Status: `{expat.get('status', '-')}`",
-        f"- Blocker: `{expat.get('blocker_reason') or '-'}`",
+        f"- Blocker: `{first_truthy(expat, 'blocker_reason')}`",
         f"- Source: `{expat.get('source', '-')}`",
-        f"- Release tag: `{expat.get('release_tag') or expat.get('expected_ref') or '-'}`",
-        f"- Actual head: `{expat.get('actual_head') or '-'}`",
-        f"- Prefix: `{expat.get('prefix') or '-'}`",
-        f"- expat.h: `{expat.get('expat_h') or '-'}`",
-        f"- lib dir: `{expat.get('lib_dir') or '-'}`",
-        f"- Recursive submodules: `{expat.get('recursive_submodule_status') or '-'}`",
+        f"- Release tag: `{first_truthy(expat, 'release_tag', 'expected_ref')}`",
+        f"- Actual head: `{first_truthy(expat, 'actual_head')}`",
+        f"- Prefix: `{first_truthy(expat, 'prefix')}`",
+        f"- expat.h: `{first_truthy(expat, 'expat_h')}`",
+        f"- lib dir: `{first_truthy(expat, 'lib_dir')}`",
+        f"- Recursive submodules: `{first_truthy(expat, 'recursive_submodule_status')}`",
         "",
+    ]
+
+
+def dependency_component_lines(components: dict[str, Any]) -> list[str]:
+    lines = [
         "### go-ftw / albedo",
         "| Dependency | Status | Binary | Env override | Source | Release tag | Head | Submodules | Release note | Blocker |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
-    for item in (go_ftw, albedo):
+    for name in ("go_ftw", "albedo"):
+        item = components.get(name, {})
         lines.append(
             "| {dep} | {status} | `{binary}` | `{env}` | `{source}` | `{ref}` | `{head}` | `{subs}` | {note} | {blocker} |".format(
                 dep=item.get("dependency", "-"),
                 status=item.get("status", "-"),
-                binary=item.get("binary") or item.get("path") or "-",
+                binary=first_truthy(item, "binary", "path"),
                 env=item.get("env_override", "-"),
-                source=item.get("known_source") or "-",
-                ref=item.get("release_tag") or item.get("known_ref") or "-",
-                head=item.get("actual_head") or "-",
-                subs=item.get("recursive_submodule_status") or "-",
-                note=item.get("release_tag_deviation_note") or "-",
-                blocker=item.get("blocker_reason") or "-",
+                source=first_truthy(item, "known_source"),
+                ref=first_truthy(item, "release_tag", "known_ref"),
+                head=first_truthy(item, "actual_head"),
+                subs=first_truthy(item, "recursive_submodule_status"),
+                note=first_truthy(item, "release_tag_deviation_note"),
+                blocker=first_truthy(item, "blocker_reason"),
             )
         )
-    lines.append(MARKER_END)
-    return "\n".join(lines)
+    return lines
 
 
 def native_evidence_links_markdown() -> str:
@@ -969,68 +1011,70 @@ def diagnostics_markdown(diagnostics: dict[str, Any]) -> str:
     lines = [DIAG_MARKER_START, "## Native Runtime Diagnostics"]
     if not diagnostics:
         lines.extend(["", "- No generated native runtime diagnostics were detected."])
-    else:
-        for key in ("apache_100003_1", "nginx_100003_1"):
-            diag = diagnostics.get(key, {})
-            if not diag:
-                continue
-            label = diag.get("server_label") or diag.get("target", "-")
-            counts = diag.get("counts", {})
-            rule = diag.get("rule_metadata", {})
-            generated_test = diag.get("generated_test", {})
-            headers = generated_test.get("headers", {})
-            hypotheses = diag.get("hypothesis_checks", {})
-            single_rerun = diag.get("single_case_rerun", {})
-            warnings = diag.get("parse_or_phase_warnings", [])
-            loaded_includes = diag.get("loaded_includes", [])
-            header_text = ", ".join(f"{name}: {value}" for name, value in headers.items()) or "-"
-            single_rerun_text = (
-                "not recorded"
-                if not single_rerun
-                else (
-                    f"attempted `{single_rerun.get('attempted', '-')}`, "
-                    f"failed cases `{single_rerun.get('failed_cases', '-')}`, "
-                    f"exit `{single_rerun.get('exit_code', '-')}`, "
-                    f"log `{single_rerun.get('log', '-')}`"
-                )
-            )
-            lines.extend(
-                [
-                    "",
-                    f"### {label} 100003-1",
-                    f"- Status: `{diag.get('status', '-')}`",
-                    f"- Target: `{diag.get('target', '-')}`",
-                    f"- Run counts: attempted `{counts.get('attempted', '-')}`, passed `{counts.get('passed', '-')}`, failed cases `{counts.get('failed_cases', '-')}`",
-                    f"- Diagnosis: {diag.get('diagnosis', '-')}",
-                    f"- Classification: `{diag.get('classification', '-')}`; secondary `{diag.get('secondary_classification', '-')}`; unresolved `{diag.get('classification_checks', {}).get('unresolved', '-')}`",
-                    f"- Classification reason: {diag.get('classification_reason', '-')}",
-                    f"- Generated YAML: `{diag.get('ftw_yaml', '-')}`",
-                    f"- Generated rule file: `{diag.get('rule_file', '-')}`",
-                    f"- Source definition: `{rule.get('source_definition_relative_to_mrts_root', '-')}`",
-                    f"- Generated rule line: `{rule.get('generated_rule_line', '-')}`",
-                    f"- Rule 100003: variable `{rule.get('variable', '-')}`, phase `{rule.get('phase', '-')}`, operator `{rule.get('operator', '-')} {rule.get('operator_argument', '-')}`, transform `{rule.get('transform', '-')}`",
-                    f"- Request: `{diag.get('method', '-')} {diag.get('uri', '-')} HTTP/1.1` on port `{diag.get('port', '-')}`; body `{diag.get('body', '-')}`",
-                    f"- Generated test headers: `{header_text}`",
-                    f"- Log matching: marker header `{generated_test.get('log_marker_header', '-')}`, target log `{generated_test.get('log_file_target', '-')}`",
-                    f"- Expected status/result: `{diag.get('expected_status', '-')}` / `{diag.get('expected_result', '-')}`",
-                    f"- Actual status/result: `{diag.get('actual_status', '-')}` / `{diag.get('actual_result', '-')}`",
-                    f"- Actual logged IDs: `{', '.join(diag.get('actual_logged_ids', [])) or '-'}`",
-                    f"- Phase 4 evidence: match seen `{hypotheses.get('phase4_match_seen', '-')}`, peer IDs in case window `{', '.join(hypotheses.get('phase4_rule_ids_logged_in_window', [])) or '-'}`, peer IDs anywhere `{', '.join(hypotheses.get('phase4_peer_ids_logged_anywhere', [])) or '-'}`",
-                    f"- Request collection evidence: POST query as ARGS `{hypotheses.get('post_query_processed_as_args', '-')}`, as ARGS_GET `{hypotheses.get('post_query_processed_as_args_get', '-')}`",
-                    f"- Excluded causes: response-body target `{hypotheses.get('is_response_body_target', '-')}`, operator case/transform issue `{hypotheses.get('operator_case_sensitive_issue', '-')}` / `{hypotheses.get('transform_issue', '-')}`, skip/ctl/chain interference `{hypotheses.get('skip_ctl_chain_or_disruptive_interference_seen', '-')}`, go-ftw log matching issue `{hypotheses.get('go_ftw_log_matching_issue', '-')}`",
-                    f"- Parse/phase warnings: `{len(warnings)}`",
-                    f"- Loaded MRTS includes checked: `{', '.join(loaded_includes) or '-'}`",
-                    f"- Module loaded: `{diag.get('module_loaded')}` from `{diag.get('module_path') or '-'}`",
-                    f"- mrts.load included: `{diag.get('mrts_load_included')}`",
-                    f"- Request reached {label}/ModSecurity/Albedo: `{diag.get('request_reached_server')}` / `{diag.get('request_reached_modsecurity')}` / `{diag.get('request_reached_albedo')}`",
-                    f"- Audit/debug evidence: audit log `{diag.get('audit_evidence', '-')}`, error log `{diag.get('error_log', '-')}`, go-ftw log `{diag.get('run_log', '-')}`",
-                    f"- Single-case rerun: {single_rerun_text}",
-                    f"- Why not logged: {diag.get('why_not_logged', '-')}",
-                    f"- Action: {diag.get('recommended_action', '-')}",
-                ]
-            )
+        lines.append(DIAG_MARKER_END)
+        return "\n".join(lines)
+    for key in ("apache_100003_1", "nginx_100003_1"):
+        diag = diagnostics.get(key, {})
+        if diag:
+            lines.extend(diagnostic_markdown_lines(diag))
     lines.append(DIAG_MARKER_END)
     return "\n".join(lines)
+
+
+def diagnostic_markdown_lines(diag: dict[str, Any]) -> list[str]:
+    label = diag.get("server_label") or diag.get("target", "-")
+    counts = diag.get("counts", {})
+    rule = diag.get("rule_metadata", {})
+    generated_test = diag.get("generated_test", {})
+    headers = generated_test.get("headers", {})
+    hypotheses = diag.get("hypothesis_checks", {})
+    warnings = diag.get("parse_or_phase_warnings", [])
+    loaded_includes = diag.get("loaded_includes", [])
+    header_text = ", ".join(f"{name}: {value}" for name, value in headers.items()) or "-"
+    return [
+        "",
+        f"### {label} 100003-1",
+        f"- Status: `{diag.get('status', '-')}`",
+        f"- Target: `{diag.get('target', '-')}`",
+        f"- Run counts: attempted `{counts.get('attempted', '-')}`, passed `{counts.get('passed', '-')}`, failed cases `{counts.get('failed_cases', '-')}`",
+        f"- Diagnosis: {diag.get('diagnosis', '-')}",
+        f"- Classification: `{diag.get('classification', '-')}`; secondary `{diag.get('secondary_classification', '-')}`; unresolved `{diag.get('classification_checks', {}).get('unresolved', '-')}`",
+        f"- Classification reason: {diag.get('classification_reason', '-')}",
+        f"- Generated YAML: `{diag.get('ftw_yaml', '-')}`",
+        f"- Generated rule file: `{diag.get('rule_file', '-')}`",
+        f"- Source definition: `{rule.get('source_definition_relative_to_mrts_root', '-')}`",
+        f"- Generated rule line: `{rule.get('generated_rule_line', '-')}`",
+        f"- Rule 100003: variable `{rule.get('variable', '-')}`, phase `{rule.get('phase', '-')}`, operator `{rule.get('operator', '-')} {rule.get('operator_argument', '-')}`, transform `{rule.get('transform', '-')}`",
+        f"- Request: `{diag.get('method', '-')} {diag.get('uri', '-')} HTTP/1.1` on port `{diag.get('port', '-')}`; body `{diag.get('body', '-')}`",
+        f"- Generated test headers: `{header_text}`",
+        f"- Log matching: marker header `{generated_test.get('log_marker_header', '-')}`, target log `{generated_test.get('log_file_target', '-')}`",
+        f"- Expected status/result: `{diag.get('expected_status', '-')}` / `{diag.get('expected_result', '-')}`",
+        f"- Actual status/result: `{diag.get('actual_status', '-')}` / `{diag.get('actual_result', '-')}`",
+        f"- Actual logged IDs: `{', '.join(diag.get('actual_logged_ids', [])) or '-'}`",
+        f"- Phase 4 evidence: match seen `{hypotheses.get('phase4_match_seen', '-')}`, peer IDs in case window `{', '.join(hypotheses.get('phase4_rule_ids_logged_in_window', [])) or '-'}`, peer IDs anywhere `{', '.join(hypotheses.get('phase4_peer_ids_logged_anywhere', [])) or '-'}`",
+        f"- Request collection evidence: POST query as ARGS `{hypotheses.get('post_query_processed_as_args', '-')}`, as ARGS_GET `{hypotheses.get('post_query_processed_as_args_get', '-')}`",
+        f"- Excluded causes: response-body target `{hypotheses.get('is_response_body_target', '-')}`, operator case/transform issue `{hypotheses.get('operator_case_sensitive_issue', '-')}` / `{hypotheses.get('transform_issue', '-')}`, skip/ctl/chain interference `{hypotheses.get('skip_ctl_chain_or_disruptive_interference_seen', '-')}`, go-ftw log matching issue `{hypotheses.get('go_ftw_log_matching_issue', '-')}`",
+        f"- Parse/phase warnings: `{len(warnings)}`",
+        f"- Loaded MRTS includes checked: `{', '.join(loaded_includes) or '-'}`",
+        f"- Module loaded: `{diag.get('module_loaded')}` from `{diag.get('module_path') or '-'}`",
+        f"- mrts.load included: `{diag.get('mrts_load_included')}`",
+        f"- Request reached {label}/ModSecurity/Albedo: `{diag.get('request_reached_server')}` / `{diag.get('request_reached_modsecurity')}` / `{diag.get('request_reached_albedo')}`",
+        f"- Audit/debug evidence: audit log `{diag.get('audit_evidence', '-')}`, error log `{diag.get('error_log', '-')}`, go-ftw log `{diag.get('run_log', '-')}`",
+        f"- Single-case rerun: {single_rerun_markdown(diag.get('single_case_rerun', {}))}",
+        f"- Why not logged: {diag.get('why_not_logged', '-')}",
+        f"- Action: {diag.get('recommended_action', '-')}",
+    ]
+
+
+def single_rerun_markdown(single_rerun: object) -> str:
+    if not isinstance(single_rerun, dict) or not single_rerun:
+        return "not recorded"
+    return (
+        f"attempted `{single_rerun.get('attempted', '-')}`, "
+        f"failed cases `{single_rerun.get('failed_cases', '-')}`, "
+        f"exit `{single_rerun.get('exit_code', '-')}`, "
+        f"log `{single_rerun.get('log', '-')}`"
+    )
 
 
 def update_report_json(path: Path, components: dict[str, Any], diagnostics: dict[str, Any], build_cache: dict[str, Any]) -> None:
@@ -1046,37 +1090,61 @@ def update_report_json(path: Path, components: dict[str, Any], diagnostics: dict
         "combined": report_relpath("mrts_native_full", "md"),
     }
     if path.name == "full-run-evidence.generated.json":
-        reports = data.get("reports")
-        if not isinstance(reports, list):
-            reports = []
-        for report_file in NATIVE_REPORT_FILES:
-            if report_file not in reports:
-                reports.append(report_file)
-        data["reports"] = reports
-        report_dir = report_root_for(path)
-        native_full = read_json(report_path_from_root(report_dir, "mrts_native_full", "json"))
-        if native_full:
-            mrts_native = data.get("mrts_native") if isinstance(data.get("mrts_native"), dict) else {}
-            mrts_native.update(
-                {
-                    "generated_at": native_full.get("generated_at"),
-                    "report_json": report_relpath("mrts_native_full", "json"),
-                    "report_md": report_relpath("mrts_native_full", "md"),
-                    "reports": native_full.get("reports", data["mrts_native_reports"]),
-                    "summary": native_full.get("summary", {}),
-                    "target_script_exit_code": native_target_script_exit_code(native_full.get("summary", {})),
-                    "targets": native_full.get("targets", {}),
-                }
-            )
-            data["mrts_native"] = mrts_native
+        update_full_run_evidence_json(data, path)
         write_json(path, data)
         return
+    update_runtime_component_json(data, components, diagnostics, build_cache)
+    write_json(path, data)
+
+
+def update_full_run_evidence_json(data: dict[str, Any], path: Path) -> None:
+    reports = data.get("reports")
+    report_list = reports if isinstance(reports, list) else []
+    data["reports"] = append_missing_reports(report_list, NATIVE_REPORT_FILES)
+    native_full = read_json(
+        report_path_from_root(report_root_for(path), "mrts_native_full", "json")
+    )
+    if native_full:
+        data["mrts_native"] = native_full_evidence_summary(
+            data, native_full
+        )
+
+
+def append_missing_reports(reports: list[Any], required: list[str]) -> list[Any]:
+    for report_file in required:
+        if report_file not in reports:
+            reports.append(report_file)
+    return reports
+
+
+def native_full_evidence_summary(
+    data: dict[str, Any], native_full: dict[str, Any]
+) -> dict[str, Any]:
+    existing = data.get("mrts_native")
+    mrts_native = existing if isinstance(existing, dict) else {}
+    summary = native_full.get("summary", {})
+    mrts_native.update(
+        {
+            "generated_at": native_full.get("generated_at"),
+            "report_json": report_relpath("mrts_native_full", "json"),
+            "report_md": report_relpath("mrts_native_full", "md"),
+            "reports": native_full.get("reports", data["mrts_native_reports"]),
+            "summary": summary,
+            "target_script_exit_code": native_target_script_exit_code(summary),
+            "targets": native_full.get("targets", {}),
+        }
+    )
+    return mrts_native
+
+
+def update_runtime_component_json(
+    data: dict[str, Any], components: dict[str, Any], diagnostics: dict[str, Any],
+    build_cache: dict[str, Any],
+) -> None:
     data["runtime_components"] = components
     data["runtime_diagnostics"] = diagnostics
     data["runtime_build_cache"] = build_cache
-    for key, value in components.items():
-        data[key] = value
-    write_json(path, data)
+    data.update(components)
 
 
 def update_report_md(path: Path, components: dict[str, Any], diagnostics: dict[str, Any], build_cache: dict[str, Any]) -> None:
