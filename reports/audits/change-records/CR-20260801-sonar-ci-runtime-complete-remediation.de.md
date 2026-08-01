@@ -9,8 +9,8 @@
 | Change-ID | `CR-20260801-sonar-ci-runtime-complete-remediation` |
 | Datum (UTC) | `2026-08-01` |
 | Basis-Revision | `a7e2e70f307c91bc3da702b7240a1c4218cb2b79` |
-| Ziel | Das aktuelle Parent-`ci/runtime`-SonarQube-Cloud-Inventar mit source-nativen Controls und fokussiertem Security-Review beheben und anschließend einen verifizierbaren Draft-PR veröffentlichen. |
-| Grenze | Parent `ci/runtime/**`, das unmittelbar erforderliche Parent-`ci/lib/runtime_path_utils.py`, direkte Parent-Tests sowie dieses englische/deutsche Change-Record-Paar und seine Indizes. Framework, MRTS, Gitlinks, Scanner-Konfiguration, Quality Gate, Exclusions, Suppressions, Workflows und `master` werden nicht geändert. |
+| Ziel | Das aktuelle Parent-`ci/runtime`-SonarQube-Cloud-Inventar mit source-nativen Controls und fokussiertem Security-Review beheben, einen verifizierbaren PR veröffentlichen und seine getrennt autorisierte geschützte Integration erst nach einer frischen Exact-Head-Verifikation durchführen. |
+| Grenze | Parent `ci/runtime/**`, das unmittelbar erforderliche Parent-`ci/lib/runtime_path_utils.py`, direkte Parent-Tests sowie dieses englische/deutsche Change-Record-Paar und seine Indizes. Framework, MRTS, Gitlinks, Scanner-Konfiguration, Quality Gate, Exclusions, Suppressions und Workflows werden nicht geändert. `master` wird niemals direkt geändert; die getrennt autorisierte Integration von PR #219 erfolgt über den geschützten GitHub-Pull-Request-Flow. |
 
 ## Motivation und Problemstellung
 
@@ -176,9 +176,10 @@ SonarQube-Cloud-Evidence. Der bekannte nur-Loopback-`S5332`-Hinweis bleibt ein
 getrennter getrackter nicht anwendbarer Eintrag, bis eine autorisierte externe
 Disposition ihn ändert.
 
-Exact-Head-Hosted-Checks, SonarQube-Cloud-Ergebnis, Review und PR-Delivery-
-Fakten stehen aus, bis der Task-Branch committed und veröffentlicht ist. Dieses
-Record autorisiert keinen Merge und keine direkte `master`-Änderung.
+Das frühere Delivery-Record autorisierte weder einen Merge noch eine direkte
+`master`-Änderung. Die aktuelle Nutzerautorisierung und ihr begrenzter
+geschützter-Squash-Scope stehen im Delivery-Status-Addendum; der Folge-Head
+benötigt weiterhin eine neue Exact-Head-Hosted-Verifikation vor dem Merge.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -197,16 +198,37 @@ Record autorisiert keinen Merge und keine direkte `master`-Änderung.
 
 ## Delivery-Status
 
-Bei Erstellung des Records ist der Task-Worktree auf
-`a7e2e70f307c91bc3da702b7240a1c4218cb2b79` rebaset. Es werden kein
-Remote-Branch, kein PR, kein Hosted-Check, keine SonarQube-Cloud-Analyse, kein
-Review und kein Merge behauptet. Vor der Delivery müssen lokaler, Remote- und
-PR-Head als gleich verifiziert und Hosted-Ergebnisse für genau diesen Head
-gelesen werden.
+PR #219 wurde vom task-eigenen Branch
+`agent/parent-ci-runtime-sonar-complete-remediation-20260801` veröffentlicht.
+Sein zuvor verifizierter Head `dc9b5db1f342325462b10525575f0b5107e4afae`
+hatte übereinstimmende lokale, Remote- und PR-Heads, abgeschlossene GitHub-
+Checks, keine Review-Threads oder erforderlichen Approvals sowie SonarQube
+Cloud Quality Gate `OK` mit null neuen Issues und `0.0%` New-Code-Duplikation.
+Das strenge `master`-Ruleset verlangt aktuelle Checks `actions`,
+`bounded-c-cpp`, `envoy-go`, `traefik-go`, `actionlint` und `zizmor` sowie
+aufgelöste Threads. Es erlaubt Merge, Squash und Rebase.
+
+`master` ist danach auf
+`4a9992109ab3ac26526d14f6356b5be7215ab658` fortgeschritten; deshalb ist der
+zuvor verifizierte Head keine Merge-Evidence mehr. Der task-eigene PR muss über
+GitHubs normale Update-Branch-Operation aktualisiert werden. Danach müssen
+alle Exact-Head-Checks, SonarQube Cloud, Review-, Final-Diff- und
+Protection-Evidence erneut erhoben werden.
+
+### Autorisierte geschützte Integration
+
+Die aktuelle Nutzerautorisierung lautet: „bringe das pr 219 in den master“.
+Bei der erforderlichen Entscheidung zur Merge-Methode wählte der Nutzer
+`Squash`. Sie autorisiert ausschließlich die geschützte Squash-Integration
+dieses task-eigenen Parent-PR #219 nach der frischen Verifikationsrunde. Sie
+autorisiert keinen direkten `master`-Push, keinen Force-Push, kein `--admin`,
+keinen Ruleset-Bypass, kein Auto-Merge, keine GitHub-Setting-Änderung, keine
+Framework-/MRTS-Operation und kein Gitlink-Update.
 
 ## Finaler Diff- und Review-Status
 
-Der Source- und Direct-Test-Diff befindet sich im aktiven fokussierten
-Security- und Final-Diff-Review. Ein verifizierter PR kann erst behauptet
-werden, nachdem Review, Documentation-Validation, Commit, Veröffentlichung und
-Exact-Head-Hosted-Readback abgeschlossen sind.
+Der Source- und Direct-Test-Diff bestand das zuvor dokumentierte fokussierte
+Security- und Final-Diff-Review. Dieser Delivery-Dokumentations-Folgecommit
+ändert absichtlich den PR-Head. Daher darf weder ein verifizierter PR noch ein
+Merge behauptet werden, bis Update-Branch und der neue Exact-Head-Hosted-
+Readback abgeschlossen sind.

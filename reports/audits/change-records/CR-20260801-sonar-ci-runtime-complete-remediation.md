@@ -9,8 +9,8 @@
 | Change ID | `CR-20260801-sonar-ci-runtime-complete-remediation` |
 | Date (UTC) | `2026-08-01` |
 | Base revision | `a7e2e70f307c91bc3da702b7240a1c4218cb2b79` |
-| Goal | Remediate the current Parent `ci/runtime` SonarQube Cloud inventory with source-native controls and a focused security review, then publish one verifiable Draft PR. |
-| Boundary | Parent `ci/runtime/**`, the directly required Parent `ci/lib/runtime_path_utils.py`, direct Parent tests, and this English/German Change Record pair plus their indexes. Framework, MRTS, Gitlinks, scanner configuration, Quality Gate, exclusions, suppressions, workflows, and `master` are not changed. |
+| Goal | Remediate the current Parent `ci/runtime` SonarQube Cloud inventory with source-native controls and a focused security review, publish one verifiable PR, and perform its separately authorized protected integration only after a fresh exact-head verification. |
+| Boundary | Parent `ci/runtime/**`, the directly required Parent `ci/lib/runtime_path_utils.py`, direct Parent tests, and this English/German Change Record pair plus their indexes. Framework, MRTS, Gitlinks, scanner configuration, Quality Gate, exclusions, suppressions, and workflows are not changed. `master` is never changed directly; the separately authorized PR #219 integration uses GitHub's protected pull-request flow. |
 
 ## Motivation and problem statement
 
@@ -165,9 +165,10 @@ The exact final PR head still requires hosted security, review, and SonarQube
 Cloud evidence. The known loopback-only `S5332` lead remains a separate,
 tracked non-applicable item until an authorized external disposition changes.
 
-Exact-head hosted checks, SonarQube Cloud result, review, and PR delivery facts
-are pending until the task branch is committed and published. No merge or
-direct `master` change is authorized by this record.
+The prior delivery record did not authorize a merge or direct `master` change.
+The current user authorization and its limited protected-squash scope are
+recorded in the delivery-status addendum; the follow-up head still requires a
+new exact-head hosted verification before it can be merged.
 
 ## Checks not run and rationale
 
@@ -183,14 +184,33 @@ direct `master` change is authorized by this record.
 
 ## Delivery status
 
-At record authoring the task worktree is rebased onto
-`a7e2e70f307c91bc3da702b7240a1c4218cb2b79`. No remote branch,
-PR, hosted check, SonarQube Cloud analysis, review, or merge is claimed. Before
-delivery, local, remote, and PR heads must be verified equal and hosted results
-must be read for that exact head.
+PR #219 was published from task-owned branch
+`agent/parent-ci-runtime-sonar-complete-remediation-20260801`. Its previously
+verified head `dc9b5db1f342325462b10525575f0b5107e4afae` had matching local,
+remote, and PR heads; completed GitHub checks; no review threads or required
+approvals; and SonarQube Cloud Quality Gate `OK` with zero new issues and
+`0.0%` New-Code duplication. The strict `master` Ruleset requires current
+`actions`, `bounded-c-cpp`, `envoy-go`, `traefik-go`, `actionlint`, and
+`zizmor` checks and resolved threads. It allows merge, squash, and rebase.
+
+`master` then advanced to
+`4a9992109ab3ac26526d14f6356b5be7215ab658`, so the prior verified head is
+no longer merge evidence. The task-owned PR must be updated through GitHub's
+normal update-branch operation and all exact-head checks, SonarQube Cloud,
+review, final-diff, and protection evidence must be collected again.
+
+### Authorized protected integration
+
+The current user authorization is: “bringe das pr 219 in den master”. In the
+required merge-method decision, the user selected `Squash`. It authorizes only
+the protected squash integration of this task-owned Parent PR #219 after the
+fresh verification round. It does not authorize a direct `master` push,
+force-push, `--admin`, rule bypass, auto-merge, GitHub-setting change,
+Framework/MRTS operation, or Gitlink update.
 
 ## Final diff and review status
 
-The source and direct-test diff is under active focused security and final-diff
-review. It is not ready to claim a verified PR until that review, documentation
-validation, commit, publication, and exact-head hosted readback are complete.
+The source and direct-test diff passed the previously recorded focused security
+and final-diff review. This delivery-documentation follow-up deliberately
+changes the PR head, so it is not ready to claim a verified PR or a merge until
+the required update-branch and new exact-head hosted readback are complete.
