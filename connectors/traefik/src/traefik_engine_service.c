@@ -2097,14 +2097,13 @@ typedef struct traefik_engine_cli_options {
     int self_test;
 } traefik_engine_cli_options;
 
-static int traefik_engine_consume_option_value(int argc, char **argv,
-    int *index, const char **value)
+static int traefik_engine_read_option_value(int argc, char **argv,
+    int index, const char **value)
 {
-    if (index == NULL || value == NULL || *index + 1 >= argc) {
+    if (value == NULL || index < 0 || index + 1 >= argc) {
         return 0;
     }
-    ++*index;
-    *value = argv[*index];
+    *value = argv[index + 1];
     return 1;
 }
 
@@ -2114,7 +2113,9 @@ static int traefik_engine_parse_cli(int argc, char **argv,
     if (argv == NULL || options == NULL) {
         return 0;
     }
-    for (int index = 1; index < argc; ++index) {
+    int index = 1;
+    while (index < argc) {
+        int consumed = 1;
         if (strcmp(argv[index], "--self-test") == 0) {
             options->self_test = 1;
         } else if (strcmp(argv[index], "--serve") == 0) {
@@ -2122,30 +2123,35 @@ static int traefik_engine_parse_cli(int argc, char **argv,
         } else if (strcmp(argv[index], "--check-config") == 0) {
             options->check_config = 1;
         } else if (strcmp(argv[index], "--config") == 0) {
-            if (!traefik_engine_consume_option_value(argc, argv, &index,
+            if (!traefik_engine_read_option_value(argc, argv, index,
                     &options->config_path)) {
                 return 0;
             }
+            consumed = 2;
         } else if (strcmp(argv[index], "--socket") == 0) {
-            if (!traefik_engine_consume_option_value(argc, argv, &index,
+            if (!traefik_engine_read_option_value(argc, argv, index,
                     &options->socket_path)) {
                 return 0;
             }
+            consumed = 2;
         } else if (strcmp(argv[index], "--socket-parent") == 0) {
-            if (!traefik_engine_consume_option_value(argc, argv, &index,
+            if (!traefik_engine_read_option_value(argc, argv, index,
                     &options->self_test_socket_parent)) {
                 return 0;
             }
+            consumed = 2;
         } else if (strcmp(argv[index], "--max-connections") == 0) {
             const char *value;
-            if (!traefik_engine_consume_option_value(argc, argv, &index,
+            if (!traefik_engine_read_option_value(argc, argv, index,
                     &value) || !traefik_engine_parse_positive_size(value,
                     &options->max_connections)) {
                 return 0;
             }
+            consumed = 2;
         } else {
             return 0;
         }
+        index += consumed;
     }
     return 1;
 }

@@ -9,7 +9,7 @@
 | Change-ID | `CR-20260730-sonar-traefik-runtime-lifecycle` |
 | Datum (UTC) | 2026-07-30 |
 | Basis-Revision | `caddd86d1eede95de53aa1bc971dd26d875df21c` |
-| Tracking | `FND-SONAR-0027`; das aktuelle Master-Traefik-Inventar enthält 36 offene Items. |
+| Tracking | `FND-SONAR-0016`; der SonarQube-Cloud-Follow-up des exakten PR-#203-Heads wird als Parent-Draft-PR-New-Code-Remediation getrackt. |
 | Grenze | Nur Parent `connectors/traefik/` und direkte Parent-Tests. |
 
 ## Motivation und Problemstellung
@@ -18,21 +18,29 @@ Der ForwardAuth-Runner löscht und erzeugt Ergebnis-Pfade jetzt nur noch als
 Nicht-Root-Nachfolger des verifizierten `BUILD_ROOT`. Der Native-Runner
 validiert einen besitzergesteuerten, nicht ersetzbaren Output-Vorfahren.
 Native Literal-/Parser-, Go-Stream-/UDS- und C17-Engine-Kontrollfluss wurden
-ohne Änderung des Wire- oder Lifecycle-Vertrags zerlegt. Framework, MRTS,
-Gitlinks, Workflows, Sonar-Regeln, Exclusions, Suppressions und Quality Gates
-bleiben unverändert.
+ohne Änderung des Wire- oder Lifecycle-Vertrags zerlegt. Der PR-Follow-up
+ersetzt direkte `context.Context`-Felder in den Request-Wrappern durch einen
+unveränderlichen Request-Lifetime-Provider, trennt CLI-Option-Consumption von
+der Schleifensteuerung und teilt die Testmodul-Import-Assertions auf.
+Framework, MRTS, Gitlinks, Workflows, Sonar-Regeln, Exclusions, Suppressions
+und Quality Gates bleiben unverändert.
 
 ## Implementierungsentscheidung und Begründung
 
 Die Reparatur erzwingt bestehende Private-Root-Trust-Boundaries vor
 zustandsändernden Operationen und extrahiert unabhängige Lifecycle-Aufgaben in
-kleine Helper. Dies bewahrt Output und Protokoll ohne Suppressions.
+kleine Helper. Das `http.ResponseWriter`-Interface besitzt keinen
+Context-Parameter; deshalb bewahrt ein pro Request unveränderlicher Provider
+die Cancel-/Deadline-Propagation für Engine-Callbacks ohne Speicherung eines
+direkten `context.Context`-Feldes. Dies bewahrt Output und Protokoll ohne
+Suppressions.
 
 ## Akzeptanzkriterien
 
 Unsichere Output-Roots scheitern vor Zustandsänderungen, legitime private Roots
-bleiben gültig und der exakte PR-Head muss null New Issues und Duplikatzeilen
-haben.
+bleiben gültig, Engine-Callbacks behalten den Request-Context, eine
+Header-Rejection emittiert nur das feste Response-Literal und der exakte
+PR-Head muss null New Issues und Duplikatzeilen haben.
 
 ## Geänderte Dateien
 
@@ -44,20 +52,26 @@ Record/Index änderten sich; keine andere Repository-Grenze änderte sich.
 
 | Befehl | Ergebnis |
 | --- | --- |
-| Fokussierte Python-Runtime-Root-Controls | bestanden: 7 Tests. |
-| Fokussierte Go-Middleware- und UDS-Wire-Format-Controls im task-eigenen Go-1.26.5-Cache | bestanden. |
+| `python3 -m unittest tests.test_traefik_runtime_smoke_security` | bestanden: 6 Tests. |
+| `python3 -m unittest tests.test_sonar_reliability_contract` | bestanden: 12 Tests einschließlich des Traefik-C-Source-Contracts. |
+| Vollständiger Native-Middleware-Pakettest mit task-eigenem Go-1.26.5-Cache | bestanden. |
+| `make check-remaining-connectors-c17-lint` | bestanden. |
+| Traefik-Common-Adoption- und C-Standard-Wiring-Checks | bestanden. |
 | `git diff --check` | bestanden; erneute Ausführung vor Delivery erforderlich. |
-| Vollständige native Python-/Go-UDS-Suites | blockiert: Sandbox-AF_UNIX-Setup liefert `Operation not permitted`. |
-| C17-Engine-Build | blockiert (`77`): libmodsecurity-Header/-Library fehlen lokal. |
+| Vollständiger Host-Lifecycle und gelinkter C17-Engine-Build | nicht ausgeführt / blockiert: Die Sandbox stellt die nötigen libmodsecurity-Entwicklungsheader/-Library nicht bereit. |
 
 ## Security-Auswirkung
 
 Die Output-Root-Änderungen begrenzen Pfade vor rekursivem Löschen, Plugin-Kopie,
-Evidence-Erzeugung und Builds; private legitime Roots bleiben zulässig. Es
-werden keine Host-Runtime, CI, Review, Sonar-Reanalyse, PR-Delivery oder Merge
-behauptet. Exact-PR-Head-Actions und SonarQube Cloud müssen vor jeder
-Integrationsentscheidung null New Issues und null New-Code-Duplikatzeilen
-zeigen.
+Evidence-Erzeugung und Builds; private legitime Roots bleiben zulässig. Die
+neue Rejection-Regression beweist, dass ein feindlicher Request-Header-Wert
+nicht in den von der Middleware erzeugten Denial-Body reflektiert wird, während
+die Context-Regression den Request-Scope in Engine-Callbacks beweist. Ein
+CodeQL-Reflected-XSS-Kandidat bleibt bis zu einer frischen Hosted-Analyse offen;
+er wird weder verworfen noch suppressed. Es werden keine Host-Runtime, CI,
+Review, Sonar-Reanalyse, PR-Delivery oder Merge behauptet. Exact-PR-Head-
+Actions und SonarQube Cloud müssen vor jeder Integrationsentscheidung null New
+Issues und null New-Code-Duplikatzeilen zeigen.
 
 ## Runtime-Evidence
 
@@ -66,23 +80,26 @@ Ergebnis wird behauptet, weil die nötigen lokalen Voraussetzungen fehlen.
 
 ## Bekannte Einschränkungen
 
-AF_UNIX und libmodsecurity sind in dieser Sandbox nicht verfügbar.
+Der vollständige Host-Lifecycle und der gelinkte C17-Engine-Build benötigen
+libmodsecurity-Entwicklungsheader/-Library, die in dieser Sandbox fehlen.
 
 ## Verbleibende Risiken
 
-Das ursprüngliche Sonarqube-Inventar bleibt bis zur frischen Exact-Head-Analyse
-offen.
+Die drei task-owned SonarQube-Cloud-Issues und der CodeQL-Kandidat bleiben bis
+zur frischen Exact-Head-Analyse offen. Keine Risikoakzeptanz ist dokumentiert.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Der vollständige Host-Lifecycle benötigt AF_UNIX und libmodsecurity; beides
-ist in dieser Sandbox nicht verfügbar. Hosted-Verifikation steht bis zum
+Der vollständige Host-Lifecycle und der gelinkte C17-Engine-Build benötigen die
+fehlenden libmodsecurity-Entwicklungsheader/-Library. Hosted-Exact-Head-
+Verifikation einschließlich der unabhängigen CodeQL-Analyse steht bis zum
 Draft-PR aus.
 
 ## Finaler Diff- und Review-Status
 
 Draft-PR [#203](https://github.com/Easton97-Jens/ModSecurity-conector/pull/203)
-wurde aus `agent/traefik-sonar-remediation-20260730` bei Commit
-`e5fa1aa8f69fe9d088b661eba80b296bc845870a` eröffnet. Hosted-Review,
-Exact-Head-Checks und SonarQube-Cloud-Reanalyse stehen aus; kein Merge und
+wurde aus `agent/traefik-sonar-remediation-20260730` eröffnet; sein initialer
+Implementierungscommit war `e5fa1aa8f69fe9d088b661eba80b296bc845870a`. Der
+Follow-up gehört zu diesem Record. Hosted-Review, frische Exact-Head-Checks,
+SonarQube-Cloud-Reanalyse und CodeQL-Reanalyse stehen aus; kein Merge und
 keine `master`-Änderung werden behauptet.

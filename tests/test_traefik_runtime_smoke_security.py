@@ -15,7 +15,8 @@ SPEC = importlib.util.spec_from_file_location(
     "traefik_runtime_smoke_security",
     ROOT / "connectors/traefik/scripts/runtime_smoke.py",
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNNER)
 

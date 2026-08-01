@@ -25,18 +25,25 @@ type bodyCall struct {
 }
 
 type recordingTransaction struct {
-	headerCalls  []headerCall
-	bodyCalls    []bodyCall
-	closed       []Summary
-	bodyDecision func(Direction, []byte, bool) Decision
+	headerCalls    []headerCall
+	bodyCalls      []bodyCall
+	contexts       []context.Context
+	closed         []Summary
+	headerDecision func(Direction, []Header, bool) Decision
+	bodyDecision   func(Direction, []byte, bool) Decision
 }
 
-func (transaction *recordingTransaction) ProcessHeaders(_ context.Context, direction Direction, headers []Header, end bool) (Decision, error) {
+func (transaction *recordingTransaction) ProcessHeaders(value context.Context, direction Direction, headers []Header, end bool) (Decision, error) {
+	transaction.contexts = append(transaction.contexts, value)
 	transaction.headerCalls = append(transaction.headerCalls, headerCall{direction: direction, end: end, count: len(headers)})
+	if transaction.headerDecision != nil {
+		return transaction.headerDecision(direction, headers, end), nil
+	}
 	return allowDecision(), nil
 }
 
-func (transaction *recordingTransaction) ProcessBody(_ context.Context, direction Direction, body []byte, end bool) (Decision, error) {
+func (transaction *recordingTransaction) ProcessBody(value context.Context, direction Direction, body []byte, end bool) (Decision, error) {
+	transaction.contexts = append(transaction.contexts, value)
 	transaction.bodyCalls = append(transaction.bodyCalls, bodyCall{direction: direction, end: end, length: len(body)})
 	if transaction.bodyDecision != nil {
 		return transaction.bodyDecision(direction, body, end), nil
@@ -44,7 +51,8 @@ func (transaction *recordingTransaction) ProcessBody(_ context.Context, directio
 	return allowDecision(), nil
 }
 
-func (transaction *recordingTransaction) Close(_ context.Context, summary Summary) {
+func (transaction *recordingTransaction) Close(value context.Context, summary Summary) {
+	transaction.contexts = append(transaction.contexts, value)
 	transaction.closed = append(transaction.closed, summary)
 }
 
@@ -116,6 +124,62 @@ func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 	}
 }
 
+func TestMiddlewarePreservesRequestContextForEveryEngineCallback(t *testing.T) {
+	type requestContextKey struct{}
+	key := requestContextKey{}
+	requestContext := context.WithValue(context.Background(), key, "request-scope")
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte("response"))
+	}), transaction)
+	request := httptest.NewRequest(http.MethodGet, "http://example.test/context", nil).WithContext(requestContext)
+
+	middleware.ServeHTTP(httptest.NewRecorder(), request)
+
+	if len(transaction.contexts) == 0 {
+		t.Fatal("engine did not receive a request context")
+	}
+	for _, value := range transaction.contexts {
+		if got, want := value.Value(key), "request-scope"; got != want {
+			t.Fatalf("engine callback context value = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestRequestHeaderRejectionNeverReflectsHeaderValue(t *testing.T) {
+	maliciousHeader := "<script>alert('request-header')</script>"
+	nextCalled := false
+	transaction := &recordingTransaction{
+		headerDecision: func(direction Direction, _ []Header, _ bool) Decision {
+			if direction == DirectionRequest {
+				return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+			}
+			return allowDecision()
+		},
+	}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		nextCalled = true
+	}), transaction)
+	request := httptest.NewRequest(http.MethodGet, "http://example.test/reject", nil)
+	request.Header.Set("X-Attacker-Input", maliciousHeader)
+	response := httptest.NewRecorder()
+
+	middleware.ServeHTTP(response, request)
+
+	if nextCalled {
+		t.Fatal("next handler ran after request-header rejection")
+	}
+	if got, want := response.Code, http.StatusForbidden; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	if got, want := response.Body.String(), "request rejected\n"; got != want {
+		t.Fatalf("rejection body = %q, want %q", got, want)
+	}
+	if strings.Contains(response.Body.String(), maliciousHeader) {
+		t.Fatalf("rejection reflected a request header: %q", response.Body.String())
+	}
+}
+
 func TestReadFromUsesUnderlyingReaderFromAndKeepsChunksBounded(t *testing.T) {
 	transaction := &recordingTransaction{}
 	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -153,7 +217,7 @@ func TestOptionalResponseWriterInterfacesArePreserved(t *testing.T) {
 		engine: transaction,
 	}
 	underlying := newAdvancedResponseWriter(t)
-	writer := newResponseWriter(context.Background(), underlying, state)
+	writer := newResponseWriter(newContextProvider(context.Background()), underlying, state)
 
 	if _, ok := interface{}(writer).(http.Flusher); !ok {
 		t.Fatal("wrapped ResponseWriter does not implement http.Flusher")
