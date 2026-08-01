@@ -8,7 +8,7 @@
 | --- | --- |
 | Change ID | `CR-20260801-ci-provisioning-two-cognitive-remediation` |
 | Date (UTC) | `2026-08-01` |
-| Base revision | `7016a66f3702523098811b45139133c77dee88fb` |
+| Base revision | `6dc912643133e5c7d3c305979d4052da9cb45153` |
 | Tracking | `FND-SONAR-0030`; `AZ9cRyj3HhV2CayPTPzB`; `AZ9cRyj3HhV2CayPTPzC` |
 | Boundary | Parent `ci/provisioning` and one direct Parent cache-contract test; Framework, MRTS, Gitlinks, `.github`, SonarQube Cloud settings, dependencies, and `master` remain unchanged. |
 
