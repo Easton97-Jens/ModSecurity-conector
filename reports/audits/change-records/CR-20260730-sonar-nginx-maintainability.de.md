@@ -108,11 +108,10 @@ erforderlichen Abschnitten meldet er keinen weiteren geänderten Record-Fehler.
 ## Verbleibende Risiken
 
 Lokale NGINX-Runtime und native C17-Übersetzung bleiben wie oben beschrieben
-nicht verfügbar. Der zuvor verifizierte PR-Head basiert auf
-`caddd86d1eede95de53aa1bc971dd26d875df21c`, während aktueller `master`
-`4e5d45072bf32ff822f4b1039517026416259493` ist; strikte Regeln verlangen
-daher ein Task-Branch-Update sowie einen neuen Exact-Head-Review-, GitHub-
-Check-, SonarQube-Cloud- und Review-Thread-Zyklus vor der Integration. Dieser
+nicht verfügbar. Der Task-Branch übernimmt vor jeder Merge-Entscheidung den
+zu diesem Zeitpunkt aktuellen Parent-`master`. Jeder finale exakte PR-Head
+muss den vom aktiven Ruleset verlangten frischen Review-, GitHub-Check-,
+SonarQube-Cloud- und Review-Thread-Zyklus unabhängig durchlaufen. Dieser
 Record beansprucht keinen Merge oder Resulting-Master-Status.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
@@ -126,16 +125,17 @@ Record beansprucht keinen Merge oder Resulting-Master-Status.
 
 ## Delivery-Status
 
-Draft-PR [#206](https://github.com/Easton97-Jens/ModSecurity-conector/pull/206)
-existiert gegen `master`. Sein finaler Pre-Integration-Head
-`9746d81cd73c54300d709357db453a93f4f358df` hatte übereinstimmende lokale,
-Remote- und GitHub-Heads; 33 Hosted-Checks bestanden ohne Fehler, es gab kein
-Review und keinen Review-Thread, das Quality Gate war `OK`, und SonarQube Cloud
-meldete null OPEN/CONFIRMED-PR-Issues, null neue Violations und `0.0%` / null
-New-Code-Duplikation. Diese Fakten gelten nur für diesen exakten Head und
-seine damalige Basis. Da `master` danach weitergelaufen ist, autorisieren sie
-keinen Merge, bevor der Task-Branch aktualisiert und der gesamte
-Verifikationszyklus wiederholt wurde.
+PR [#206](https://github.com/Easton97-Jens/ModSecurity-conector/pull/206)
+existiert gegen `master`. Seine Task-Historie enthält den initialen Source-
+Commit `33d05fd3d2acf3db792b350cefe22c937cdc2377`, das frühere Delivery-
+Record-Update `9746d81cd73c54300d709357db453a93f4f358df` und eine normale
+Übernahme des zu diesem Zeitpunkt aktuellen Parent-`master`. Exakter finaler
+PR-Head, lokale/Remote-/GitHub-Head-Beziehung, Ergebnisse der erforderlichen
+Checks, SonarQube-Cloud-Ergebnis, Review-Status, Merge-Fakten und
+Resulting-Master-Evidence werden in GitHub und im Task-Abschlussrecord
+aufbewahrt. Sie werden hier nicht vorab behauptet, weil ein selbstreferenzieller
+Change-Record-Commit seinen eigenen finalen Head nicht wahrheitsgemäß nennen
+kann, bevor dieser Commit existiert.
 
 ## Master-Integrationsautorisierung
 
@@ -155,7 +155,6 @@ Merge-Ergebnis ist autorisiert oder wird beansprucht.
 Der lokale Source-Diff bestand Whitespace-, NGINX-Common-Adoption-, C-Standard-
 Wiring- und C17-Lint-Controls. Ein fokussierter Security-Review fand keinen
 plausiblen diff-eingeführten Kandidaten. Native C17-Compilation bleibt wie oben
-beschrieben blockiert. Der finale Pre-Integration-PR-Head bestand Hosted-Checks
-und exakten Sonar-Readback. Das notwendige Branch-Base- und Change-Record-
-Update muss nun dieselben Controls auf seinem neuen exakten Head erhalten; vor
-dem beobachteten Post-Merge-Ergebnis wird kein Master-Claim erhoben.
+beschrieben blockiert. Jeder Follow-up-Head muss vor der Integration eigene
+exakte Hosted- und Sonar-Verifikation erhalten; vor dem beobachteten
+Post-Merge-Ergebnis wird kein Master-Claim erhoben.

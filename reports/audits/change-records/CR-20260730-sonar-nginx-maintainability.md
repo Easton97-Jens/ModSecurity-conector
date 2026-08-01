@@ -106,12 +106,11 @@ error after the required sections are present.
 ## Remaining risks
 
 Local NGINX runtime and native C17 translation remain unavailable as stated
-above. The previously verified PR head is based on
-`caddd86d1eede95de53aa1bc971dd26d875df21c`, while current `master` is
-`4e5d45072bf32ff822f4b1039517026416259493`; strict rules therefore require a
-task-branch update and a new exact-head review, GitHub-check, SonarQube Cloud,
-and review-thread cycle before integration. This record does not claim a merge
-or resulting-master state.
+above. The task branch incorporates the then-current Parent `master` before
+every merge decision. Every final exact PR head must independently receive the
+fresh review, GitHub-check, SonarQube Cloud, and review-thread cycle required
+by the active ruleset. This record does not claim a merge or resulting-master
+state.
 
 ## Checks not run and rationale
 
@@ -123,15 +122,16 @@ or resulting-master state.
 
 ## Delivery status
 
-Draft PR [#206](https://github.com/Easton97-Jens/ModSecurity-conector/pull/206)
-exists against `master`. Its final pre-integration head
-`9746d81cd73c54300d709357db453a93f4f358df` had matching local, remote, and
-GitHub heads; 33 hosted checks passed with zero failures, no review or review
-thread existed, the Quality Gate was `OK`, and SonarQube Cloud reported zero
-OPEN/CONFIRMED PR issues, zero new violations, and `0.0%` / zero New-Code
-duplication. Those facts apply only to that exact head and its then-current
-base. Because `master` subsequently advanced, they do not authorize a merge
-until the task branch is updated and the full verification cycle is repeated.
+PR [#206](https://github.com/Easton97-Jens/ModSecurity-conector/pull/206)
+exists against `master`. Its task history includes the initial source commit
+`33d05fd3d2acf3db792b350cefe22c937cdc2377`, the prior delivery-record update
+`9746d81cd73c54300d709357db453a93f4f358df`, and a normal incorporation of
+the then-current Parent `master`. The exact final PR head, local/remote/GitHub
+head relationship, required-check outcomes, SonarQube Cloud result, review
+state, merge facts, and resulting-master evidence are retained in GitHub and
+the task-completion record. They are not predeclared here, because a
+self-referential Change-Record commit cannot truthfully name its own final
+head before that commit exists.
 
 ## Master-integration authorization
 
@@ -150,7 +150,6 @@ auto-merge, or unobserved merge result is authorized or claimed.
 The local source diff passed whitespace, NGINX Common-adoption,
 C-standard-wiring, and C17-lint controls. A focused security review found no
 plausible diff-induced candidate. Native C17 compilation remains blocked as
-stated above. The final pre-integration PR head passed hosted checks and exact
-Sonar readback. The necessary branch-base and Change-Record update must now
-receive the same controls on its new exact head; no master claim is made until
-the post-merge result is observed.
+stated above. Each follow-up head must receive its own exact hosted and Sonar
+verification before integration; no master claim is made until the post-merge
+result is observed.
