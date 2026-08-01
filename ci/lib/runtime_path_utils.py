@@ -10,6 +10,9 @@ from typing import Any, Mapping
 
 DEFAULT_RUN_BASENAME = "ModSecurity-conector-verified"
 WORKER_BLOCKED_REASON = "BLOCKED: nginx worker cannot access harness docroot"
+_PATH_SEPARATOR = os.sep
+_FIXED_RUNTIME_TEMP_PARENT_TEXT = os.path.join(_PATH_SEPARATOR, "var", "tmp")
+_FIXED_RUNTIME_TEMP_PARENT = Path(_FIXED_RUNTIME_TEMP_PARENT_TEXT)
 SYSTEM_WRITE_PREFIXES = (
     "/usr",
     "/usr/local",
@@ -23,14 +26,14 @@ SYSTEM_WRITE_PREFIXES = (
     "/root",
 )
 SYSTEM_WRITE_VAR_ALLOWLIST = (
-    "/var/tmp",
+    _FIXED_RUNTIME_TEMP_PARENT_TEXT,
 )
 READ_ONLY_SOURCE_MOUNT_ROOTS = (Path("/src"),)
 BROAD_RUNTIME_ROOTS = (
-    Path("/"),
-    Path("/tmp"),
-    Path("/var/tmp"),
-    Path("/home"),
+    Path(_PATH_SEPARATOR),
+    Path(os.path.join(_PATH_SEPARATOR, "tmp")),
+    _FIXED_RUNTIME_TEMP_PARENT,
+    Path(os.path.join(_PATH_SEPARATOR, "home")),
 )
 WRITABLE_RUNTIME_PATH_KEYS = (
     "VERIFIED_RUN_ROOT",
@@ -78,6 +81,15 @@ def _env_value(env: Mapping[str, str], name: str) -> str:
     return str(env.get(name) or "").strip()
 
 
+def _environment_runtime_path(
+    values: Mapping[str, str],
+    label: str,
+    default: Path | str,
+) -> Path:
+    configured = _env_value(values, label)
+    return _runtime_path(configured if configured else default, label)
+
+
 def _matches_path_prefix(path: Path, prefix: str) -> bool:
     text = str(path)
     return text == prefix or text.startswith(prefix + "/")
@@ -119,7 +131,7 @@ def fixed_runtime_temp_parent() -> Path:
     The environment cannot select this fallback. Callers must derive and
     validate a narrow child before using it for runtime artifacts.
     """
-    return Path(SYSTEM_WRITE_VAR_ALLOWLIST[0])
+    return _FIXED_RUNTIME_TEMP_PARENT
 
 
 def default_verified_run_root(env: Mapping[str, str] | None = None) -> Path:
@@ -238,78 +250,40 @@ def verified_runtime_paths(
     build_root_override: Path | str | None = None,
 ) -> dict[str, str]:
     values = env or os.environ
-    run_root = _runtime_path(
-        _env_value(values, "VERIFIED_RUN_ROOT") or default_verified_run_root(values),
-        "VERIFIED_RUN_ROOT",
+    run_root = _environment_runtime_path(
+        values, "VERIFIED_RUN_ROOT", default_verified_run_root(values)
     )
     if not is_safe_runtime_root(run_root):
         raise ValueError(f"VERIFIED_RUN_ROOT is unsafe for runtime writes: {run_root}")
-    state_root = _runtime_path(
-        _env_value(values, "VERIFIED_STATE_ROOT") or run_root / "state",
-        "VERIFIED_STATE_ROOT",
+    state_root = _environment_runtime_path(values, "VERIFIED_STATE_ROOT", run_root / "state")
+    verified_build_root = _environment_runtime_path(
+        values, "VERIFIED_BUILD_ROOT", run_root / "build"
     )
-    verified_build_root = _runtime_path(
-        _env_value(values, "VERIFIED_BUILD_ROOT") or run_root / "build",
-        "VERIFIED_BUILD_ROOT",
+    verified_source_root = _environment_runtime_path(
+        values, "VERIFIED_SOURCE_ROOT", run_root / "src"
     )
-    verified_source_root = _runtime_path(
-        _env_value(values, "VERIFIED_SOURCE_ROOT") or run_root / "src",
-        "VERIFIED_SOURCE_ROOT",
-    )
-    verified_tmp_root = _runtime_path(
-        _env_value(values, "VERIFIED_TMP_ROOT") or run_root / "tmp",
-        "VERIFIED_TMP_ROOT",
-    )
-    verified_log_root = _runtime_path(
-        _env_value(values, "VERIFIED_LOG_ROOT") or run_root / "logs",
-        "VERIFIED_LOG_ROOT",
-    )
-    cache_root = _runtime_path(
-        _env_value(values, "CACHE_ROOT") or run_root / "cache-v2",
-        "CACHE_ROOT",
-    )
-    verified_component_cache = _runtime_path(
-        _env_value(values, "VERIFIED_COMPONENT_CACHE") or cache_root / "shared",
-        "VERIFIED_COMPONENT_CACHE",
+    verified_tmp_root = _environment_runtime_path(values, "VERIFIED_TMP_ROOT", run_root / "tmp")
+    verified_log_root = _environment_runtime_path(values, "VERIFIED_LOG_ROOT", run_root / "logs")
+    cache_root = _environment_runtime_path(values, "CACHE_ROOT", run_root / "cache-v2")
+    verified_component_cache = _environment_runtime_path(
+        values, "VERIFIED_COMPONENT_CACHE", cache_root / "shared"
     )
 
-    build_root = _runtime_path(
-        build_root_override
-        or _env_value(values, "BUILD_ROOT")
-        or verified_build_root,
-        "BUILD_ROOT",
+    selected_build_root = build_root_override if build_root_override is not None else verified_build_root
+    build_root = _environment_runtime_path(values, "BUILD_ROOT", selected_build_root)
+    source_root = _environment_runtime_path(values, "SOURCE_ROOT", verified_source_root)
+    tmp_root = _environment_runtime_path(values, "TMP_ROOT", verified_tmp_root)
+    log_root = _environment_runtime_path(values, "LOG_ROOT", verified_log_root)
+    component_cache = _environment_runtime_path(
+        values, "CONNECTOR_COMPONENT_CACHE", verified_component_cache
     )
-    source_root = _runtime_path(
-        _env_value(values, "SOURCE_ROOT") or verified_source_root,
-        "SOURCE_ROOT",
+    nginx_harness_parent = _environment_runtime_path(
+        values, "NGINX_HARNESS_PARENT", run_root / "nginx-harness"
     )
-    tmp_root = _runtime_path(
-        _env_value(values, "TMP_ROOT") or verified_tmp_root,
-        "TMP_ROOT",
-    )
-    log_root = _runtime_path(
-        _env_value(values, "LOG_ROOT") or verified_log_root,
-        "LOG_ROOT",
-    )
-    component_cache = _runtime_path(
-        _env_value(values, "CONNECTOR_COMPONENT_CACHE") or verified_component_cache,
-        "CONNECTOR_COMPONENT_CACHE",
-    )
-    nginx_harness_parent = _runtime_path(
-        _env_value(values, "NGINX_HARNESS_PARENT") or run_root / "nginx-harness",
-        "NGINX_HARNESS_PARENT",
-    )
-    matrix_root = _runtime_path(
-        _env_value(values, "MATRIX_ROOT") or build_root / "full-matrix",
-        "MATRIX_ROOT",
-    )
-    mrts_build_root = _runtime_path(
-        _env_value(values, "MRTS_BUILD_ROOT") or build_root / "mrts",
-        "MRTS_BUILD_ROOT",
-    )
-    mrts_native_root = _runtime_path(
-        _env_value(values, "MRTS_NATIVE_ROOT") or build_root / "mrts-native",
-        "MRTS_NATIVE_ROOT",
+    matrix_root = _environment_runtime_path(values, "MATRIX_ROOT", build_root / "full-matrix")
+    mrts_build_root = _environment_runtime_path(values, "MRTS_BUILD_ROOT", build_root / "mrts")
+    mrts_native_root = _environment_runtime_path(
+        values, "MRTS_NATIVE_ROOT", build_root / "mrts-native"
     )
 
     for label, path in (
