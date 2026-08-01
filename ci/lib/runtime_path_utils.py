@@ -469,6 +469,29 @@ def verified_runtime_artifact_root(value: Path | str) -> Path:
     return ensure_safe_runtime_directory(normalized)
 
 
+def prepare_verified_runtime_artifact_root(
+    override: Path | str | None = None,
+    *,
+    env: Mapping[str, str] | None = None,
+    fallback: Path | str | None = None,
+) -> Path:
+    """Select and materialize a private verified-run artifact root.
+
+    The explicit caller value has precedence over ``VERIFIED_RUN_ROOT`` and
+    the supplied fallback. Normalize relative values lexically, never by
+    resolving links, so the artifact-root validator can reject every existing
+    symlink component before any lifecycle writer or child process uses it.
+    """
+    values = os.environ if env is None else env
+    selected = (
+        override
+        or _env_value(values, "VERIFIED_RUN_ROOT")
+        or fallback
+        or default_verified_run_root(values)
+    )
+    return verified_runtime_artifact_root(_absolute_path_without_resolution(selected))
+
+
 def runtime_artifact_path(
     root: Path,
     value: Path | str,

@@ -24,6 +24,11 @@ must not claim unobserved CI, runtime, review, or delivery results.
 
 - [Parent Traefik runtime and lifecycle remediation](CR-20260730-sonar-traefik-runtime-lifecycle.md)
 
+- [Parent CI runtime SonarQube Cloud remediation and verified-root hardening](CR-20260730-sonar-ci-runtime-security-root-remediation.md)
+  — records the replacement diff’s verified focused local controls and bounded
+  security impact; fresh exact-head hosted GitHub Actions and SonarQube Cloud
+  verification remains required before integration.
+
 - [Parent Envoy maintainability remediation](CR-20260730-sonar-envoy-maintainability-remediation.md)
   — preserves C17 bridge and ext_proc lifecycle behavior; local source,
   native-build, and loopback-TLS controls passed, while exact-head hosted
