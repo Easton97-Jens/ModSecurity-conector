@@ -12,6 +12,11 @@ Review- oder Delivery-Ergebnisse behaupten.
   Lifecycle-Cleanup und zerlegt den aktuellen Traefik-Runner ohne
   Scanner-Suppressions; SHA-gebundene Hosted-Verifikation bleibt erforderlich.
 
+- [Vollständige Parent-HAProxy-SonarQube-Cloud-Remediation](CR-20260801-sonar-haproxy-complete-remediation.de.md)
+  — deckt das aktuelle 33er-HAProxy-Inventar mit C17, fokussierten Contracts
+  und einem versiegelten Security-Diff-Review ab; SHA-gebundene Hosted- und
+  SonarQube-Cloud-Verifikation bleiben vor einer Merge-Betrachtung erforderlich.
+
 - [Parent-Envoy-TLS- und Maintainability-Bereinigung](CR-20260801-sonar-envoy-tls-maintainability.de.md)
   — entfernt die aktuellen fünf Envoy-SonarQube-Cloud-Source-Zeilen durch
   bewahrte Processor-Semantik und einen verschlüsselten Fixture-Upstream-Hop;

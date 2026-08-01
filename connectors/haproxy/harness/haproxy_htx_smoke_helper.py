@@ -19,8 +19,6 @@ import sys
 import threading
 import time
 from typing import Callable
-import urllib.error
-import urllib.request
 import urllib.parse
 
 _HELPER_DIR = Path(__file__).resolve().parent
@@ -255,23 +253,27 @@ def probe(
             raise ValueError(f"invalid header: {item!r}")
         headers[name.strip()] = value.strip()
     request_body = None if data is None else data.encode("utf-8")
-    checked_loopback_https_url(url)
-    context = trusted_loopback_tls_context(root, certificate_path)
-    request = urllib.request.Request(
-        url,
-        data=request_body,
-        headers=headers,
-        method=method,
+    host, port, request_path = checked_loopback_https_url(url)
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.query:
+        request_path += f"?{parsed.query}"
+    connection = http.client.HTTPSConnection(
+        host,
+        port,
+        context=trusted_loopback_tls_context(root, certificate_path),
+        timeout=2,
     )
+    response: http.client.HTTPResponse | None = None
     try:
-        with urllib.request.urlopen(request, context=context, timeout=2) as response:
-            response_body = response.read()
-            status = int(response.status)
-            content_type = str(response.headers.get("content-type") or "")[:256]
-    except urllib.error.HTTPError as exc:
-        response_body = exc.read()
-        status = int(exc.code)
-        content_type = str(exc.headers.get("content-type") or "")[:256]
+        connection.request(method, request_path, body=request_body, headers=headers)
+        response = connection.getresponse()
+        response_body = response.read()
+        status = int(response.status)
+        content_type = str(response.headers.get("content-type") or "")[:256]
+    finally:
+        if response is not None:
+            response.close()
+        connection.close()
     if evidence_path:
         write_json(root, checked_path(root, evidence_path, "probe evidence", must_exist=False), {
             "status": status,
