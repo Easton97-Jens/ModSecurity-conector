@@ -52,8 +52,6 @@ for the status vocabulary.
 
 ## Parent CI Python-version contract
 
-**Change record:** [CR-20260721-python314-go1265-toolchain-baseline](../../reports/audits/change-records/CR-20260721-python314-go1265-toolchain-baseline.md)
-
 This checked-in Parent GitHub Actions contract records the implemented
 interpreter strategy, workflow boundaries, and local static-validation
 evidence. It does not represent a GitHub Actions execution, remote CI run,
@@ -191,8 +189,6 @@ merge has occurred. Those results require separately observed CI and delivery
 evidence.
 
 ## Parent CI Go-toolchain contract
-
-**Change record:** [CR-20260722-central-go-toolchain-submodule-validation](../../reports/audits/change-records/CR-20260722-central-go-toolchain-submodule-validation.md)
 
 The committed root <code>.go-version</code> is the sole machine-readable Go
 CI toolchain selector. Its required content is the exact stable patch
