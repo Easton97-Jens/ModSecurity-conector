@@ -69,6 +69,11 @@ Review- oder Delivery-Ergebnisse behaupten.
   Exact-Head-Hosted-Verifikation bleibt vor jeder Merge-Entscheidung notwendig.
 
 - [Parent-Traefik-Runtime- und Lifecycle-Remediation](CR-20260730-sonar-traefik-runtime-lifecycle.de.md)
+- [Bereinigung der verbleibenden SonarQube-Cloud-Befunde in Parent-CI-Checks](CR-20260801-sonar-ci-checks-followup-remediation.de.md)
+  — behandelt die neun aktuellen `ci/checks/`-Source-Zeilen durch
+  Registry-besessene Report-Schreibvorgänge, Verified-Root-Test-Fixtures und
+  verhaltensbewahrende Checker-Zerlegungen; SHA-gebundene Hosted-/SonarQube-
+  Cloud-Verifikation bleibt vor jeder Merge-Entscheidung erforderlich.
 - [Parent-CI-Checks-SonarQube-Cloud-Bereinigung](CR-20260801-sonar-ci-checks-remediation.de.md)
   — Source-Level-Behebungen decken das aktuelle `ci/checks`-Security-,
   Hotspot- und Maintainability-Inventar ab; fokussierte lokale Prüfungen
