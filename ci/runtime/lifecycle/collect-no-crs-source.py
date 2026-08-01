@@ -13,7 +13,19 @@ import json
 import os
 import re
 from pathlib import Path
+import sys
 from typing import Any
+
+
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import (
+    canonical_project_roots,
+    prepare_verified_runtime_artifact_root,
+    runtime_artifact_path,
+)
 
 
 CORE_CASES = {"allow_without_marker": 200, "deny_header_marker_403": 403}
@@ -254,6 +266,64 @@ TRANSPORT_TOKEN_FIELDS = {
     "reset_code", "stream_reset_code", "timeout_stage", "write_result", "cleanup_reason",
     "client_result", "followup_request_result", "run_id",
 }
+INTEGER_METADATA_FIELDS = {
+    "rule_id", "http_status", "original_http_status", "visible_http_status",
+}
+NONNEGATIVE_INTEGER_METADATA_FIELDS = {
+    "first_chunk_size", "body_bytes_seen", "body_bytes_inspected", "stream_id",
+    "short_writes", "write_would_block",
+}
+BOOLEAN_METADATA_FIELDS = {
+    "truncated", "late_intervention", "headers_sent", "body_started",
+    "connection_aborted", "connection_reused", "quic_connection_id_present",
+    "fallback_used", "stream_reset", "client_disconnected", "upstream_disconnected",
+    "cancelled", "eos_seen", "end_of_stream_evaluation", "host_survived",
+    "transaction_started", "transaction_finished", "transaction_destroyed",
+    "request_body_finished", "response_body_finished", "intentional_abort",
+    "client_disconnect", "upstream_disconnect", "timeout", "response_committed",
+    "client_first_byte_received", "first_byte_before_response_end", "upstream_paused",
+    "upstream_eos_sent_at_first_byte", "upstream_response_finished_at_first_byte",
+    "no_full_response_buffering",
+}
+PHASE_ALIASES = {
+    "connection": 0,
+    "request_headers": 1,
+    "request_body": 2,
+    "response_headers": 3,
+    "response_body": 4,
+    "phase1": 1,
+    "phase2": 2,
+    "phase3": 3,
+    "phase4": 4,
+}
+FIRST_BYTE_REQUIRED_FIELDS = (
+    "client_first_byte_received",
+    "first_byte_before_response_end",
+    "first_chunk_size",
+    "upstream_paused",
+    "upstream_eos_sent_at_first_byte",
+    "upstream_response_finished_at_first_byte",
+    "response_committed",
+    "body_bytes_seen",
+    "body_bytes_inspected",
+    "no_full_response_buffering",
+    "connector_owned_full_response_buffer",
+)
+FIRST_BYTE_REQUIRED_BOOLS = {
+    "client_first_byte_received": True,
+    "first_byte_before_response_end": True,
+    "upstream_paused": True,
+    "upstream_eos_sent_at_first_byte": False,
+    "upstream_response_finished_at_first_byte": False,
+    "response_committed": True,
+    "no_full_response_buffering": True,
+    "connector_owned_full_response_buffer": False,
+}
+FIRST_BYTE_COUNTER_FIELDS = (
+    "first_chunk_size",
+    "body_bytes_seen",
+    "body_bytes_inspected",
+)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -261,6 +331,36 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"JSON source is not an object: {path}")
     return value
+
+
+def canonical_catalog_path(value: Path) -> Path:
+    """Accept only the checked-out Framework catalog, never an arbitrary CLI file."""
+
+    _, framework_root = canonical_project_roots()
+    framework = framework_root.resolve(strict=True)
+    candidate = value.resolve(strict=True)
+    try:
+        candidate.relative_to(framework)
+    except ValueError as exc:
+        raise ValueError(f"catalog must remain under the Framework source root: {candidate}") from exc
+    if not candidate.is_file() or candidate.is_symlink():
+        raise ValueError(f"catalog must be a regular source file: {candidate}")
+    return candidate
+
+
+def runtime_artifact_paths(
+    root: Path,
+    values: list[Path],
+    label: str,
+    *,
+    must_exist: bool,
+) -> list[Path]:
+    """Validate every CLI-supplied artifact under one private run root."""
+
+    return [
+        runtime_artifact_path(root, value, label, must_exist=must_exist)
+        for value in values
+    ]
 
 
 def catalog_runner_case_path(catalog_root: Path, runner_case: object) -> Path:
@@ -417,7 +517,7 @@ def parse_key_value_text(path: Path) -> dict[str, Any]:
     for line in text.splitlines():
         if "=" in line:
             key, value = line.split("=", 1)
-            if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", key.strip()):
+            if re.fullmatch(r"[A-Za-z]\w*", key.strip(), flags=re.ASCII):
                 values[key.strip()] = value.strip()
     match = re.search(r"\bPASS\b.*\bbaseline=(\d+)\b.*\bblocked=(\d+)\b", text)
     if match:
@@ -467,121 +567,89 @@ def nested_unapproved_event_key(value: Any) -> str | None:
     return None
 
 
-def nested_forbidden_value(value: Any) -> str | None:
+def nested_values(value: Any) -> list[Any]:
+    """Flatten structured metadata while preserving every scalar value."""
+
     if isinstance(value, dict):
-        for child in value.values():
-            found = nested_forbidden_value(child)
-            if found:
-                return found
-    elif isinstance(value, list):
-        for child in value:
-            found = nested_forbidden_value(child)
-            if found:
-                return found
-    elif isinstance(value, str):
-        lowered = value.casefold()
-        for sentinel in BODY_SENTINELS:
-            if sentinel in lowered:
-                return sentinel
+        return [item for child in value.values() for item in nested_values(child)]
+    if isinstance(value, list):
+        return [item for child in value for item in nested_values(child)]
+    return [value]
+
+
+def nested_forbidden_value(value: Any) -> str | None:
+    for candidate in nested_values(value):
+        if isinstance(candidate, str):
+            lowered = candidate.casefold()
+            for sentinel in BODY_SENTINELS:
+                if sentinel in lowered:
+                    return sentinel
     return None
 
 
-def safe_metadata_value(target: str, value: Any) -> Any | None:
-    if target in {
-        "rule_id",
-        "http_status",
-        "original_http_status",
-        "visible_http_status",
-    }:
-        return scalar_int(value)
-    if target in {"first_chunk_size", "body_bytes_seen", "body_bytes_inspected", "stream_id", "short_writes", "write_would_block"}:
-        numeric = scalar_int(value)
-        return numeric if numeric is not None and numeric >= 0 else None
-    if target == "phase":
-        numeric = scalar_int(value)
-        if numeric is not None:
-            return numeric
-        if isinstance(value, str):
-            phase_aliases = {
-                "connection": 0,
-                "request_headers": 1,
-                "request_body": 2,
-                "response_headers": 3,
-                "response_body": 4,
-                "phase1": 1,
-                "phase2": 2,
-                "phase3": 3,
-                "phase4": 4,
-            }
-            normalized = value.strip().casefold().replace("-", "_")
-            if normalized in phase_aliases:
-                return phase_aliases[normalized]
-        if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,32}", value):
-            return value
+def nonnegative_metadata_integer(value: Any) -> int | None:
+    numeric = scalar_int(value)
+    return numeric if numeric is not None and numeric >= 0 else None
+
+
+def phase_metadata_value(value: Any) -> int | str | None:
+    numeric = scalar_int(value)
+    if numeric is not None:
+        return numeric
+    if not isinstance(value, str):
         return None
-    if target in {
-        "truncated",
-        "late_intervention",
-        "headers_sent",
-        "body_started",
-        "connection_aborted",
-        "connection_reused",
-        "quic_connection_id_present",
-        "fallback_used",
-        "stream_reset",
-        "client_disconnected",
-        "upstream_disconnected",
-        "cancelled",
-        "eos_seen",
-        "end_of_stream_evaluation",
-        "host_survived",
-        "transaction_started",
-        "transaction_finished",
-        "transaction_destroyed",
-        "request_body_finished",
-        "response_body_finished",
-        "intentional_abort",
-        "client_disconnect",
-        "upstream_disconnect",
-        "timeout",
-        "response_committed",
-        "client_first_byte_received",
-        "first_byte_before_response_end",
-        "upstream_paused",
-        "upstream_eos_sent_at_first_byte",
-        "upstream_response_finished_at_first_byte",
-        "no_full_response_buffering",
-    }:
+    normalized = value.strip().casefold().replace("-", "_")
+    if normalized in PHASE_ALIASES:
+        return PHASE_ALIASES[normalized]
+    return value if re.fullmatch(r"[A-Za-z0-9_-]{1,32}", value) else None
+
+
+def normalized_metadata_enum(value: Any, allowed: set[str], *, aliases: Mapping[str, str] | None = None) -> str | None:
+    normalized = str(value).strip().casefold().replace("-", "_")
+    if aliases is not None:
+        normalized = aliases.get(normalized, normalized)
+    return normalized if normalized in allowed else None
+
+
+def metadata_token(value: Any, target: str) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text or len(text) > MAX_METADATA_LENGTH.get(target, 128):
+        return None
+    return text if re.fullmatch(r"[A-Za-z0-9:._-]+", text) else None
+
+
+def safe_metadata_value(target: str, value: Any) -> Any | None:
+    if target in INTEGER_METADATA_FIELDS:
+        return scalar_int(value)
+    if target in NONNEGATIVE_INTEGER_METADATA_FIELDS:
+        return nonnegative_metadata_integer(value)
+    if target == "phase":
+        return phase_metadata_value(value)
+    if target in BOOLEAN_METADATA_FIELDS:
         return scalar_bool(value)
     if target in {"requested_action", "actual_action"}:
-        normalized = str(value).strip().casefold().replace("-", "_")
-        if normalized == "connection_abort":
-            normalized = "abort_connection"
         allowed = REQUESTED_ACTIONS if target == "requested_action" else ACTUAL_ACTIONS
-        return normalized if normalized in allowed else None
+        return normalized_metadata_enum(
+            value, allowed, aliases={"connection_abort": "abort_connection"}
+        )
     if target == "transport_result":
-        normalized = str(value).strip().casefold().replace("-", "_")
-        if normalized == "connection_abort":
-            normalized = "connection_aborted"
-        return normalized if normalized in TRANSPORT_RESULTS else None
+        return normalized_metadata_enum(
+            value,
+            TRANSPORT_RESULTS,
+            aliases={"connection_abort": "connection_aborted"},
+        )
     if target in {"protocol", "requested_protocol", "downstream_protocol", "upstream_protocol", "negotiated_protocol"}:
-        normalized = str(value).strip().casefold().replace("http2", "h2")
-        return normalized if normalized in CANONICAL_PROTOCOLS else None
+        return normalized_metadata_enum(
+            value, CANONICAL_PROTOCOLS, aliases={"http2": "h2"}
+        )
     if target == "transport":
-        normalized = str(value).strip().casefold().replace("-", "_")
-        return normalized if normalized in CANONICAL_TRANSPORTS else None
+        return normalized_metadata_enum(value, CANONICAL_TRANSPORTS)
     if target == "late_intervention_mode":
-        normalized = str(value).strip().casefold()
-        return normalized if normalized in {"minimal", "safe", "strict"} else None
+        return normalized_metadata_enum(value, {"minimal", "safe", "strict"})
     if target in TRANSPORT_TOKEN_FIELDS:
-        if not isinstance(value, str):
-            return None
-        text = value.strip()
-        if not text or len(text) > MAX_METADATA_LENGTH.get(target, 128):
-            return None
-        if not re.fullmatch(r"[A-Za-z0-9:._-]+", text):
-            return None
-        return text
+        return metadata_token(value, target)
     if not isinstance(value, (str, int)) or isinstance(value, bool):
         return None
     text = "".join(character for character in str(value) if character >= " " and character != "\x7f")
@@ -801,48 +869,50 @@ def first_byte_evidence_record(
         value = load_json(path)
     except (OSError, ValueError):
         return None
-    if (
-        value.get("evidence_type") != "synchronized_first_byte"
-        or value.get("evidence_origin") != "real_host"
-        or value.get("promotion_eligible") is not True
-        or value.get("outcome") != "PASS"
-        or value.get("body_payload_persisted") is not False
-    ):
+    if not first_byte_evidence_identity_is_valid(value):
         return None
-    required = (
-        "client_first_byte_received",
-        "first_byte_before_response_end",
-        "first_chunk_size",
-        "upstream_paused",
-        "upstream_eos_sent_at_first_byte",
-        "upstream_response_finished_at_first_byte",
-        "response_committed",
-        "body_bytes_seen",
-        "body_bytes_inspected",
-        "no_full_response_buffering",
-        "connector_owned_full_response_buffer",
-    )
-    if any(name not in value for name in required):
+    if not first_byte_evidence_contract_is_valid(value):
         return None
-    if (
-        value.get("client_first_byte_received") is not True
-        or value.get("first_byte_before_response_end") is not True
-        or value.get("upstream_paused") is not True
-        or value.get("upstream_eos_sent_at_first_byte") is not False
-        or value.get("upstream_response_finished_at_first_byte") is not False
-        or value.get("response_committed") is not True
-        or value.get("no_full_response_buffering") is not True
-        or value.get("connector_owned_full_response_buffer") is not False
-    ):
-        return None
-    for name in ("first_chunk_size", "body_bytes_seen", "body_bytes_inspected"):
-        number = scalar_int(value.get(name))
-        if number is None or number < 0:
-            return None
-        value[name] = number
-    if value["first_chunk_size"] < 1 or value["body_bytes_inspected"] > value["body_bytes_seen"]:
+    if not normalize_first_byte_counters(value):
         return None
     return value
+
+
+def first_byte_evidence_identity_is_valid(value: dict[str, Any]) -> bool:
+    """Require a promotable real-host barrier record before reading its fields."""
+
+    return (
+        value.get("evidence_type") == "synchronized_first_byte"
+        and value.get("evidence_origin") == "real_host"
+        and value.get("promotion_eligible") is True
+        and value.get("outcome") == "PASS"
+        and value.get("body_payload_persisted") is False
+    )
+
+
+def first_byte_evidence_contract_is_valid(value: dict[str, Any]) -> bool:
+    """Check required barrier fields and their exact causal Boolean states."""
+
+    return all(name in value for name in FIRST_BYTE_REQUIRED_FIELDS) and all(
+        value.get(name) is expected
+        for name, expected in FIRST_BYTE_REQUIRED_BOOLS.items()
+    )
+
+
+def normalize_first_byte_counters(value: dict[str, Any]) -> bool:
+    """Normalize nonnegative counters and retain their order invariant."""
+
+    counters = {
+        name: scalar_int(value.get(name))
+        for name in FIRST_BYTE_COUNTER_FIELDS
+    }
+    if any(number is None or number < 0 for number in counters.values()):
+        return False
+    value.update(counters)
+    return (
+        value["first_chunk_size"] >= 1
+        and value["body_bytes_inspected"] <= value["body_bytes_seen"]
+    )
 
 
 def merge_first_byte_evidence(
@@ -868,17 +938,32 @@ def merge_first_byte_evidence(
         candidate = dict(record)
         phase = safe_metadata_value("phase", candidate.get("phase"))
         if phase == 4:
-            for field in fields:
-                # The barrier observation is authoritative for its causal
-                # fields.  Host counters must agree rather than be replaced.
-                if field in {"body_bytes_seen", "body_bytes_inspected"} and field in candidate:
-                    existing = scalar_int(candidate.get(field))
-                    if existing is not None and existing != evidence[field]:
-                        candidate["first_byte_evidence_counter_mismatch"] = True
-                        continue
-                candidate[field] = evidence[field]
+            merge_first_byte_fields(candidate, evidence, fields)
         merged.append(candidate)
     return merged
+
+
+def merge_first_byte_fields(
+    candidate: dict[str, Any], evidence: dict[str, Any], fields: tuple[str, ...]
+) -> None:
+    """Merge authoritative barrier fields without hiding host-counter conflicts."""
+
+    for field in fields:
+        if first_byte_counter_conflicts(candidate, evidence, field):
+            candidate["first_byte_evidence_counter_mismatch"] = True
+            continue
+        candidate[field] = evidence[field]
+
+
+def first_byte_counter_conflicts(
+    candidate: dict[str, Any], evidence: dict[str, Any], field: str
+) -> bool:
+    """Return whether a producer counter disagrees with barrier evidence."""
+
+    if field not in {"body_bytes_seen", "body_bytes_inspected"} or field not in candidate:
+        return False
+    existing = scalar_int(candidate.get(field))
+    return existing is not None and existing != evidence[field]
 
 
 def canonical_semantics(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -984,73 +1069,92 @@ def event_evidence(
     invalid: list[str] = []
     forbidden: list[str] = []
     seen_records: set[str] = set()
-
-    def add_record(record: dict[str, Any]) -> None:
-        normalized = sanitized_event(record)
-        serialized = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
-        if serialized in seen_records:
-            return
-        seen_records.add(serialized)
-        records.append(normalized)
-
     for index, record in enumerate(derived_records):
-        forbidden_key = nested_forbidden_key(record)
-        unapproved_key = nested_unapproved_event_key(record)
-        forbidden_value = nested_forbidden_value(record)
-        if forbidden_key:
-            forbidden.append(f"derived-event:{index + 1}:{forbidden_key}")
-            continue
-        if unapproved_key:
-            forbidden.append(f"derived-event:{index + 1}:unapproved-field:{unapproved_key}")
-            continue
-        if forbidden_value:
-            forbidden.append(f"derived-event:{index + 1}:payload-sentinel")
-            continue
-        add_record(record)
+        add_validated_event_record(
+            records, seen_records, forbidden, record, f"derived-event:{index + 1}"
+        )
     for path in paths:
         try:
             for index, record in enumerate(load_jsonl(path)):
-                forbidden_key = nested_forbidden_key(record)
-                unapproved_key = nested_unapproved_event_key(record)
-                forbidden_value = nested_forbidden_value(record)
-                if forbidden_key:
-                    forbidden.append(f"{path}:{index + 1}:{forbidden_key}")
-                    continue
-                if unapproved_key:
-                    forbidden.append(f"{path}:{index + 1}:unapproved-field:{unapproved_key}")
-                    continue
-                if forbidden_value:
-                    forbidden.append(f"{path}:{index + 1}:payload-sentinel")
-                    continue
-                add_record(record)
+                add_validated_event_record(
+                    records, seen_records, forbidden, record, f"{path}:{index + 1}"
+                )
         except (OSError, ValueError) as exc:
             invalid.append(f"{path}: {exc}")
+    return event_evidence_payload(records, expected_rule_id, invalid, forbidden)
 
-    observed_rule_ids: set[str] = set()
-    transaction_ids: set[str] = set()
-    connector_seen = False
-    phase_seen = False
-    status_seen = False
-    for record in records:
-        connector_seen = connector_seen or bool(record.get("connector"))
-        phase_seen = phase_seen or record.get("phase") not in (None, "")
-        status_seen = status_seen or record.get("status") not in (None, "")
-        rule_id = record.get("rule_id")
-        if rule_id not in (None, ""):
-            observed_rule_ids.add(str(rule_id))
-        transaction_id = record.get("transaction_id")
-        if transaction_id not in (None, ""):
-            transaction_ids.add(str(transaction_id))
-        found = nested_forbidden_key(record)
-        if found:
-            forbidden.append(found)
 
-    records = [record for record in records if record]
+def event_record_violation(record: dict[str, Any], label: str) -> str | None:
+    """Return a stable label for forbidden or unreviewed raw event content."""
+
+    forbidden_key = nested_forbidden_key(record)
+    if forbidden_key:
+        return f"{label}:{forbidden_key}"
+    unapproved_key = nested_unapproved_event_key(record)
+    if unapproved_key:
+        return f"{label}:unapproved-field:{unapproved_key}"
+    if nested_forbidden_value(record):
+        return f"{label}:payload-sentinel"
+    return None
+
+
+def add_validated_event_record(
+    records: list[dict[str, Any]],
+    seen_records: set[str],
+    forbidden: list[str],
+    record: dict[str, Any],
+    label: str,
+) -> None:
+    """Append one unique reviewed event or retain its rejection evidence."""
+
+    violation = event_record_violation(record, label)
+    if violation:
+        forbidden.append(violation)
+        return
+    normalized = sanitized_event(record)
+    serialized = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+    if serialized not in seen_records:
+        seen_records.add(serialized)
+        records.append(normalized)
+
+
+def event_evidence_summary(records: list[dict[str, Any]]) -> tuple[set[str], set[str], bool, bool, bool]:
+    """Summarize required identity fields from canonical event projections."""
+
+    observed_rule_ids = {
+        str(record["rule_id"])
+        for record in records
+        if record.get("rule_id") not in (None, "")
+    }
+    transaction_ids = {
+        str(record["transaction_id"])
+        for record in records
+        if record.get("transaction_id") not in (None, "")
+    }
+    return (
+        observed_rule_ids,
+        transaction_ids,
+        any(bool(record.get("connector")) for record in records),
+        any(record.get("phase") not in (None, "") for record in records),
+        any(record.get("status") not in (None, "") for record in records),
+    )
+
+
+def event_evidence_payload(
+    raw_records: list[dict[str, Any]],
+    expected_rule_id: str,
+    invalid: list[str],
+    forbidden: list[str],
+) -> dict[str, Any]:
+    """Build the canonical event-evidence contract after source validation."""
+
+    records = [record for record in raw_records if record]
+    rule_ids, transaction_ids, connector_seen, phase_seen, status_seen = event_evidence_summary(records)
     metadata_verified = bool(
         records
         and connector_seen
         and transaction_ids
-        and expected_rule_id in observed_rule_ids
+        and expected_rule_id in rule_ids
         and phase_seen
         and status_seen
         and not invalid
@@ -1062,10 +1166,115 @@ def event_evidence(
         "event_records": len(records),
         "event_validation_errors": invalid,
         "forbidden_event_keys": sorted(set(forbidden)),
-        "observed_rule_ids": sorted(observed_rule_ids),
+        "observed_rule_ids": sorted(rule_ids),
         "transaction_ids": sorted(transaction_ids),
         "records": records,
     }
+
+
+def row_log_path(
+    row: dict[str, Any],
+    names: tuple[str, ...],
+    allowed_source_root: Path | None,
+    consumed_event_paths: list[Path] | None,
+) -> Path | None:
+    """Read one declared run-local log location and account for its consumption."""
+
+    text = next((str(row.get(name) or "") for name in names if row.get(name)), "")
+    if not text:
+        return None
+    path = Path(text)
+    if allowed_source_root is not None:
+        path = contained_source_event_path(path, allowed_source_root)
+    if path.is_file() and consumed_event_paths is not None:
+        consumed_event_paths.append(path)
+    return path
+
+
+def row_runtime_records(
+    row: dict[str, Any],
+    decision_path: Path | None,
+    allowed_source_root: Path | None,
+    consumed_event_paths: list[Path] | None,
+) -> list[dict[str, Any]]:
+    """Collect raw producer events, preserving transaction and barrier binding."""
+
+    records = load_jsonl(decision_path) if decision_path and decision_path.is_file() else []
+    for name in ("connector_phase4_log_path", "phase4_log_path"):
+        records.extend(runtime_event_records(row.get(name), allowed_source_root, consumed_event_paths))
+    transaction_ids = record_transaction_ids(row)
+    if transaction_ids:
+        records = [
+            record
+            for record in records
+            if transaction_ids.intersection(record_transaction_ids(record))
+        ]
+    return merge_first_byte_evidence(
+        records,
+        first_byte_evidence_record(row.get("first_byte_evidence_path"), allowed_source_root),
+    )
+
+
+def row_rule_ids(row: dict[str, Any], runtime_records: list[dict[str, Any]]) -> set[str]:
+    """Gather rule IDs from declared row metadata and validated raw records."""
+
+    raw_rule_ids = row.get("observed_rule_ids")
+    identifiers = set(map(str, raw_rule_ids)) if isinstance(raw_rule_ids, list) else set()
+    identifiers.update(
+        str(row[name])
+        for name in ("rule_id", "modsecurity_rule_id")
+        if row.get(name) not in (None, "")
+    )
+    identifiers.update(
+        str(event["rule_id"])
+        for event in (sanitized_event(record) for record in runtime_records)
+        if event.get("rule_id") not in (None, "")
+    )
+    return identifiers
+
+
+def expected_case_values(expectation: tuple[Any, ...]) -> tuple[int | None, str | None, int | None]:
+    """Normalize a catalog expectation without filling missing evidence."""
+
+    expected_status = scalar_int(expectation[0]) if expectation else None
+    expected_rule_id = (
+        str(expectation[1])
+        if len(expectation) > 1 and expectation[1] not in (None, "")
+        else None
+    )
+    expected_phase = scalar_int(expectation[2]) if len(expectation) > 2 else None
+    return expected_status, expected_rule_id, expected_phase
+
+
+def case_status_value(status: str) -> str | None:
+    """Preserve non-execution states instead of recasting them as failures."""
+
+    if status in {"NOT_EXECUTABLE", "SKIPPED"}:
+        return "NOT_EXECUTED"
+    return status if status in {"BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"} else None
+
+
+def case_passes(
+    status: str,
+    live: bool,
+    actual: int | None,
+    expected_status: int | None,
+    expected_rule_id: str | None,
+    expected_phase: int | None,
+    case_id: str,
+    observed_rule_ids: set[str],
+    records: list[dict[str, Any]],
+) -> bool:
+    """Evaluate one case only against its observed status, rule, and phase evidence."""
+
+    phase4_case = expected_phase == 4 or case_id.startswith("phase4_")
+    structured_runtime_case = expected_phase in {3, 4}
+    status_matches = phase4_case or expected_status is None or actual == expected_status
+    rule_matches = expected_rule_id is None or expected_rule_id in observed_rule_ids
+    phase_matches = not structured_runtime_case or any(
+        record.get("phase") == expected_phase for record in records
+    )
+    return status == "PASS" and live and status_matches and rule_matches and phase_matches
 
 
 def case_observations(
@@ -1087,62 +1296,26 @@ def case_observations(
     observations: list[dict[str, Any]] = []
     derived_events: list[dict[str, Any]] = []
     for row in rows:
-        supplied_transaction_ids = record_transaction_ids(row)
-        decision_text = str(row.get("decision_log_path") or row.get("decision_log") or "")
-        decision_path = Path(decision_text)
-        if decision_text and allowed_source_root is not None:
-            decision_path = contained_source_event_path(decision_path, allowed_source_root)
-        if decision_path.is_file() and consumed_event_paths is not None:
-            consumed_event_paths.append(decision_path)
-        audit_text = str(row.get("audit_log_path") or "")
-        audit_path = Path(audit_text)
-        if audit_text and allowed_source_root is not None:
-            audit_path = contained_source_event_path(audit_path, allowed_source_root)
-        if audit_path.is_file() and consumed_event_paths is not None:
-            consumed_event_paths.append(audit_path)
-
         case_id = observed_case_id(row, expectations, runner_case_index)
         if case_id not in expectations:
             continue
-        expectation = expectations[case_id]
-        expected_status = scalar_int(expectation[0]) if expectation else None
-        case_expected_rule_id = (
-            str(expectation[1]) if len(expectation) > 1 and expectation[1] not in (None, "") else None
+        decision_path = row_log_path(
+            row, ("decision_log_path", "decision_log"), allowed_source_root, consumed_event_paths
         )
-        expected_phase = scalar_int(expectation[2]) if len(expectation) > 2 else None
+        audit_path = row_log_path(
+            row, ("audit_log_path",), allowed_source_root, consumed_event_paths
+        )
+        expected_status, case_expected_rule_id, expected_phase = expected_case_values(
+            expectations[case_id]
+        )
         actual = scalar_int(row.get("actual_status", row.get("observed_status")))
         status = str(row.get("status") or row.get("result") or "").upper()
         live = row.get("live_executed", True) is not False
-        observed_rule_ids: set[str] = set()
-        raw_rule_ids = row.get("observed_rule_ids")
-        if isinstance(raw_rule_ids, list):
-            observed_rule_ids.update(str(value) for value in raw_rule_ids)
-        for key in ("rule_id", "modsecurity_rule_id"):
-            if row.get(key) not in (None, ""):
-                observed_rule_ids.add(str(row[key]))
-        runtime_records: list[dict[str, Any]] = []
-        if decision_path.is_file():
-            runtime_records.extend(load_jsonl(decision_path))
-        for key in ("connector_phase4_log_path", "phase4_log_path"):
-            runtime_records.extend(runtime_event_records(
-                row.get(key), allowed_source_root, consumed_event_paths))
-        if supplied_transaction_ids:
-            runtime_records = [
-                record
-                for record in runtime_records
-                if supplied_transaction_ids.intersection(record_transaction_ids(record))
-            ]
-        runtime_records = merge_first_byte_evidence(
-            runtime_records,
-            first_byte_evidence_record(
-                row.get("first_byte_evidence_path"), allowed_source_root
-            ),
+        runtime_records = row_runtime_records(
+            row, decision_path, allowed_source_root, consumed_event_paths
         )
-        for record in runtime_records:
-            event = sanitized_event(record)
-            derived_events.append(record)
-            if event.get("rule_id") not in (None, ""):
-                observed_rule_ids.add(str(event["rule_id"]))
+        observed_rule_ids = row_rule_ids(row, runtime_records)
+        derived_events.extend(runtime_records)
         canonical_records = [sanitized_event(record) for record in runtime_records]
         phase4_case = expected_phase == 4 or case_id.startswith("phase4_")
         structured_runtime_case = expected_phase in {3, 4}
@@ -1152,20 +1325,22 @@ def case_observations(
         # lose its selected integration mode and let a weaker record compete
         # with the causal host evidence.  Phase-4 cases always require their
         # structured producer event for the same reason.
-        if not phase4_case and not canonical_records:
+        if not phase4_case and not canonical_records and audit_path is not None:
             event = audit_event(audit_path, connector, actual)
             if event:
                 derived_events.append(event)
                 observed_rule_ids.add(str(event["rule_id"]))
-        passed = status == "PASS" and live
-        if not phase4_case and expected_status is not None:
-            passed = passed and actual == expected_status
-        if case_expected_rule_id is not None:
-            passed = passed and case_expected_rule_id in observed_rule_ids
-        if structured_runtime_case:
-            passed = passed and any(
-                record.get("phase") == expected_phase for record in canonical_records
-            )
+        passed = case_passes(
+            status,
+            live,
+            actual,
+            expected_status,
+            case_expected_rule_id,
+            expected_phase,
+            case_id,
+            observed_rule_ids,
+            canonical_records,
+        )
         semantic = canonical_semantics([row, *runtime_records])
         transaction_ids = {
             str(record["transaction_id"])
@@ -1185,11 +1360,6 @@ def case_observations(
                 or any(record.get("phase") == expected_phase for record in canonical_records)
             )
         )
-        preserved_status = None
-        if status in {"NOT_EXECUTABLE", "SKIPPED"}:
-            preserved_status = "NOT_EXECUTED"
-        elif status in {"BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"}:
-            preserved_status = status
         observation = {
             "case_id": case_id,
             "actual_status": actual,
@@ -1200,7 +1370,7 @@ def case_observations(
             "observed_event_fields": observed_event_fields,
             "event_metadata_verified": event_metadata_verified,
             "source_status": status,
-            "status": preserved_status or ("PASS" if passed else "FAIL"),
+            "status": case_status_value(status) or ("PASS" if passed else "FAIL"),
             **semantic,
         }
         observations.append(observation)
@@ -1356,24 +1526,56 @@ def main() -> int:
     parser.add_argument("--stderr", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
+    if args.allowed_source_root is None:
+        parser.error("--allowed-source-root is required to confine runtime artifacts")
+    try:
+        source_root = prepare_verified_runtime_artifact_root(args.allowed_source_root)
+        args.catalog = canonical_catalog_path(args.catalog)
+        args.source_result = runtime_artifact_paths(
+            source_root, args.source_result, "source result", must_exist=True
+        )
+        args.source_results_jsonl = runtime_artifact_paths(
+            source_root, args.source_results_jsonl, "source results", must_exist=True
+        )
+        args.source_events = runtime_artifact_paths(
+            source_root, args.source_events, "source events", must_exist=True
+        )
+        if args.stdout is not None:
+            args.stdout = runtime_artifact_path(
+                source_root, args.stdout, "stdout"
+            )
+        if args.stderr is not None:
+            args.stderr = runtime_artifact_path(
+                source_root, args.stderr, "stderr"
+            )
+        args.output = runtime_artifact_path(source_root, args.output, "output")
+        if args.events_output is not None:
+            args.events_output = runtime_artifact_path(
+                source_root, args.events_output, "events output"
+            )
+        if args.source_event_scrub_log is not None:
+            args.source_event_scrub_log = runtime_artifact_path(
+                source_root, args.source_event_scrub_log, "source event scrub log"
+            )
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
 
     objects = source_objects(args.source_result)
     if args.stdout:
         objects.append(parse_key_value_text(args.stdout))
     consumed_event_paths: list[Path] = []
     source_events = list(args.source_events)
-    if args.allowed_source_root is not None:
-        source_events = [
-            contained_source_event_path(path, args.allowed_source_root)
-            for path in source_events
-        ]
+    source_events = [
+        contained_source_event_path(path, source_root)
+        for path in source_events
+    ]
     expectations, runner_case_index = catalog_contract(args.catalog)
     cases, derived_events = case_observations(
         args.source_results_jsonl,
         args.connector,
         args.expected_rule_id,
         expectations,
-        args.allowed_source_root,
+        source_root,
         consumed_event_paths,
         runner_case_index,
     )
@@ -1475,11 +1677,9 @@ def main() -> int:
             for record in events["records"]:
                 handle.write(json.dumps(record, sort_keys=True) + "\n")
     if args.scrub_source_events:
-        if args.allowed_source_root is None:
-            raise ValueError("--scrub-source-events requires --allowed-source-root")
         scrub_source_event_paths(
             [*source_events, *consumed_event_paths],
-            args.allowed_source_root,
+            source_root,
             args.source_event_scrub_log,
         )
     return 0

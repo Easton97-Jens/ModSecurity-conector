@@ -24,6 +24,11 @@ must not claim unobserved CI, runtime, review, or delivery results.
   through fixed loopback protocol, verified local execution/output boundaries,
   C++17 RAII cleanup, and decomposed control flow; exact-head hosted
   verification remains required before integration.
+- [Parent CI runtime complete SonarQube Cloud remediation](CR-20260801-sonar-ci-runtime-complete-remediation.md)
+  — narrows lifecycle artifact authority to private verified roots or canonical
+  checked-in sources, decomposes current runtime complexity/literal patterns,
+  and records the known loopback-only S5332 triage; exact-head hosted and
+  SonarQube Cloud verification remains required before any merge decision.
 
 - [Parent CI evidence SonarQube Cloud remediation](CR-20260801-sonar-ci-evidence-remediation.md)
   — source-level fixes cover the current `ci/evidence` security, hotspot,

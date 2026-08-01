@@ -19,10 +19,13 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 
 from runtime_path_utils import (
+    canonical_project_roots,
     DEFAULT_RUN_BASENAME,
     ensure_safe_runtime_directory,
     fixed_runtime_temp_parent,
+    is_read_only_source_path,
     prepare_verified_runtime_artifact_root,
+    runtime_artifact_path,
 )
 
 
@@ -76,8 +79,34 @@ def read_json(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def write_json(path: Path, data: dict[str, Any]) -> None:
+def write_json(root: Path, path: Path, data: dict[str, Any]) -> None:
+    path = runtime_artifact_path(root, path, "case-run JSON output")
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def canonical_roots(connector_root: str, framework_root: str) -> tuple[Path, Path]:
+    """Reject CLI attempts to select a different Parent or Framework tree."""
+
+    canonical_connector, canonical_framework = canonical_project_roots()
+    requested_connector = Path(connector_root).resolve(strict=True)
+    requested_framework = Path(framework_root).resolve(strict=True)
+    if requested_connector != canonical_connector:
+        raise ValueError(f"connector root must be this checkout: {requested_connector}")
+    if requested_framework != canonical_framework:
+        raise ValueError(f"framework root must be the pinned checkout: {requested_framework}")
+    return canonical_connector, canonical_framework
+
+
+def verified_case_tokens(case: str, crs: str, mrts: str) -> tuple[str, str, str]:
+    """Return path- and shell-safe case matrix identifiers."""
+
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", case):
+        raise ValueError("case must be a bounded identifier")
+    if crs not in {"no-crs", "with-crs"}:
+        raise ValueError("CRS variant must be no-crs or with-crs")
+    if mrts not in {"no-mrts", "with-mrts"}:
+        raise ValueError("MRTS variant must be no-mrts or with-mrts")
+    return case, crs, mrts
 
 
 def try_load_yaml(path: Path) -> dict[str, Any]:
@@ -139,7 +168,7 @@ def summarize_case_definition(case_path: Path | None) -> dict[str, Any]:
         "headers": headers if isinstance(headers, dict) else {},
         "body": request.get("body", "") if isinstance(request, dict) else "",
     }
-    transforms = sorted(set(re.findall(r"\bt:([A-Za-z0-9_]+)", rules_text)))
+    transforms = sorted(set(re.findall(r"\bt:(\w+)", rules_text, flags=re.ASCII)))
     rule_ids = sorted(set(re.findall(r"\bid:(\d+)", rules_text)), key=lambda item: int(item))
     return {
         "path": str(case_path),
@@ -398,7 +427,7 @@ def load_mismatch_rows(connector_root: Path, case: str, connector: str, crs: str
         evidence = row.get("evidence")
         if isinstance(evidence, dict):
             for value in evidence.values():
-                if isinstance(value, str) and (value.endswith(".json") or value.endswith(".log") or value.endswith(".jsonl")):
+                if isinstance(value, str) and value.endswith((".json", ".log", ".jsonl")):
                     evidence_files.append(value)
     return {
         "report": str(path),
@@ -604,17 +633,30 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    connector_root = Path(args.connector_root).resolve()
-    framework_root = Path(args.framework_root).resolve()
-    build_root = Path(args.build_root).resolve()
-    source_root = Path(args.source_root).resolve() if args.source_root else connector_root
-    tmp_root = Path(args.tmp_root).resolve() if args.tmp_root else build_root / "tmp"
+    try:
+        connector_root, framework_root = canonical_roots(
+            args.connector_root, args.framework_root
+        )
+        args.case, args.crs, args.mrts = verified_case_tokens(
+            args.case, args.crs, args.mrts
+        )
+    except (OSError, ValueError) as exc:
+        print(f"run-verified-case: {exc}", file=sys.stderr)
+        return 77
     case_path = find_case_path(framework_root, args.case)
     case_def = summarize_case_definition(case_path)
     mismatch = load_mismatch_rows(connector_root, args.case, args.connector, args.crs, args.mrts)
     if args.explain:
         return explain(args, case_def, mismatch)
     try:
+        build_root = ensure_safe_runtime_directory(Path(os.path.abspath(args.build_root)))
+        source_root = Path(args.source_root).resolve(strict=True) if args.source_root else connector_root
+        if not is_read_only_source_path(source_root):
+            raise ValueError(f"source root must be a canonical read-only source path: {source_root}")
+        tmp_value = Path(os.path.abspath(args.tmp_root)) if args.tmp_root else build_root / "tmp"
+        tmp_root = ensure_safe_runtime_directory(
+            runtime_artifact_path(build_root, tmp_value, "temporary root")
+        )
         verified_run_root = prepare_verified_runtime_artifact_root(
             args.verified_run_root,
             fallback=DEFAULT_VERIFIED_RUN_ROOT,
@@ -668,7 +710,7 @@ def main() -> int:
             "actual_status": None,
             "reason": f"Harness completed without a discoverable {RESULT_FILENAME}.",
         }
-        write_json(case_result_path, result)
+        write_json(verified_run_root, case_result_path, result)
     result.setdefault("status", "unknown")
 
     logs = relevant_log_files(paths, args.case, result)
@@ -705,7 +747,7 @@ def main() -> int:
             "full_matrix_job": f"make verified-full-matrix-job CONNECTOR={args.connector} CRS={args.crs} MRTS={args.mrts}",
         },
     }
-    write_json(run_dir / "case-run.json", report)
+    write_json(verified_run_root, run_dir / "case-run.json", report)
     (run_dir / "case-run.md").write_text(render_markdown(report) + "\n", encoding="utf-8")
 
     print(f"case-run: {run_dir}")

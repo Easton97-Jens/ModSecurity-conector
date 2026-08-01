@@ -121,9 +121,12 @@ class FullLifecycleProfilesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid full-lifecycle profile"):
             profiles.effective_manifest(payload, "native-htx-filter")
         with tempfile.TemporaryDirectory() as temporary:
-            output = Path(temporary) / "nested" / "effective.json"
+            root = Path(temporary)
+            output = root / "nested" / "effective.json"
             profiles.write_json_atomically(
-                output, profiles.effective_manifest(payload, "ext_proc")
+                root,
+                output,
+                profiles.effective_manifest(payload, "ext_proc"),
             )
             loaded = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(loaded["full_lifecycle_profile"], "ext_proc")

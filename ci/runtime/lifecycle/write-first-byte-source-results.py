@@ -6,7 +6,15 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 from typing import Any
+
+
+_CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
+if str(_CI_ROOT / "lib") not in sys.path:
+    sys.path.insert(0, str(_CI_ROOT / "lib"))
+
+from runtime_path_utils import prepare_verified_runtime_artifact_root, runtime_artifact_path
 
 
 def load_object(path: Path) -> dict[str, Any]:
@@ -39,7 +47,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args(argv)
 
-    evidence = load_object(args.first_byte_evidence)
+    runtime_root = prepare_verified_runtime_artifact_root()
+    phase4_log = runtime_artifact_path(
+        runtime_root, args.phase4_log, "Phase-4 log", must_exist=True
+    )
+    first_byte_evidence = runtime_artifact_path(
+        runtime_root, args.first_byte_evidence, "first-byte evidence", must_exist=True
+    )
+    output = runtime_artifact_path(runtime_root, args.output, "output")
+    evidence = load_object(first_byte_evidence)
     required = {
         "evidence_type": "synchronized_first_byte",
         "evidence_origin": "real_host",
@@ -55,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     }
     if any(evidence.get(key) != expected for key, expected in required.items()):
         raise ValueError("first-byte evidence is not a successful real-host no-buffer observation")
-    if not has_phase4_rule(args.phase4_log):
+    if not has_phase4_rule(phase4_log):
         raise ValueError("Phase-4 rule 1100301 was not observed in the host log")
     rows = [
         {
@@ -64,8 +80,8 @@ def main(argv: list[str] | None = None) -> int:
             "live_executed": True,
             "actual_status": 200,
             "observed_rule_ids": [1100301],
-            "connector_phase4_log_path": str(args.phase4_log),
-            "first_byte_evidence_path": str(args.first_byte_evidence),
+            "connector_phase4_log_path": str(phase4_log),
+            "first_byte_evidence_path": str(first_byte_evidence),
             "reason": "real host synchronized upstream barrier; payload-free metadata only",
         }
         for case_id in (
@@ -74,8 +90,7 @@ def main(argv: list[str] | None = None) -> int:
             "phase4_no_full_response_buffering",
         )
     ]
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
+    output.write_text(
         "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
         encoding="utf-8",
     )
