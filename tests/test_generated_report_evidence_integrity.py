@@ -280,6 +280,21 @@ class GeneratedReportEvidenceIntegrityTests(unittest.TestCase):
                     f"Path: `{expected_path}`",
                 )
 
+    def test_generated_markdown_temporary_paths_remain_portable(self) -> None:
+        expected_by_raw_path = {
+            "/var/tmp/ModSecurity-conector-verified/run-1": "<verified-run-root>/run-1",
+            "/tmp/ModSecurity-conector-verified/run-1": "<verified-run-root>/run-1",
+            "/var/tmp/scratch/run-1": "<temporary-work-root>/scratch/run-1",
+            "/tmp/scratch/run-1": "<temporary-work-root>/scratch/run-1",
+        }
+
+        for raw_path, expected_path in expected_by_raw_path.items():
+            with self.subTest(raw_path=raw_path):
+                self.assertEqual(
+                    CHECKER.portable_markdown_text(f"Path: `{raw_path}`"),
+                    f"Path: `{expected_path}`",
+                )
+
     def test_registry_generator_provenance_groups_remain_stable(self) -> None:
         expected_keys_by_generator = {
             "ci/evidence/reports/refresh-connector-reports.py": {

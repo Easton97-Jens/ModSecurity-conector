@@ -1,11 +1,19 @@
 # Change Records
 
+- [SonarQube-Cloud-Behebung der Parent-CI-Bibliothek](CR-20260801-sonar-ci-lib-remediation.de.md)
+
 **Sprache:** [English](README.md) | Deutsch
 
 Change Records halten Entscheidung, Umfang, Tests, Sicherheitsauswirkung und
 bekannte Einschränkungen nichttrivialer versionierter Änderungen fest. Sie sind
 englisch/deutsche Paare und dürfen keine nicht beobachteten CI-, Runtime-,
 Review- oder Delivery-Ergebnisse behaupten.
+
+- [Parent-Common-Runtime-SonarQube-Cloud-Maintainability-Remediation](CR-20260801-sonar-common-runtime-maintainability.de.md)
+  — deckt das aktuelle 18er-`common/runtime/`-Inventar mit begrenzter
+  Transaction-State-Gruppierung, const-korrekten Parser-/Runtime-Views,
+  C17-Checks und finalisiertem lokalem Security-Diff-Review ab;
+  Exact-Head-Hosted-Verifikation bleibt vor jeder Integration erforderlich.
 
 - [Parent-`common/scripts`-SonarQube-Cloud-Remediation](CR-20260801-sonar-common-scripts-remediation.de.md)
   — remediiert das aktuelle Local-Smoke-Security- und Maintainability-Inventar
