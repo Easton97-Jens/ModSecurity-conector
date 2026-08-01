@@ -682,7 +682,6 @@ def main() -> int:
     output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
     add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     audit = build_audit(connector_root, framework_root)
     metadata = build_metadata(

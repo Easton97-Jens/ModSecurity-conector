@@ -14,6 +14,7 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
+from case_metadata_utils import parse_case_document
 from focused_analysis_utils import action_parts, as_list, find_framework_case_path, import_script, read_json, read_text, refresh_connector_queue_totals, regenerate_phase_work_queue, render_connector_work_queue_markdown, run_report_generator, sanitize_path, upsert_marked_section, utc_now, write_generated_report_pair, write_json
 from generated_report_utils import GENERATED_ROOT, report_path, report_path_from_root, report_relpath
 from report_path_safety import safe_existing_file, write_text_file
@@ -47,17 +48,9 @@ def case_path_for_entry(entry: dict[str, Any], evidence: dict[str, Any], framewo
 def parse_case_metadata(case_path: Path | None, fallback: dict[str, Any] | None = None) -> dict[str, Any]:
     fallback = fallback or {}
     raw = read_text(case_path)
-    parsed: dict[str, Any] = {}
-    if yaml is not None and raw:
-        try:
-            loaded = yaml.safe_load(raw)
-            parsed = loaded if isinstance(loaded, dict) else {}
-        except Exception:
-            parsed = {}
+    parsed, request, expect, _source_metadata, path, query = parse_case_document(raw, yaml)
     rules = str(parsed.get("rules") or raw)
-    request = parsed.get("request") if isinstance(parsed.get("request"), dict) else {}
     response = parsed.get("response") if isinstance(parsed.get("response"), dict) else {}
-    expect = parsed.get("expect") if isinstance(parsed.get("expect"), dict) else {}
     rule_match = re.search(r"SecRule\s+([^\s]+)\s+\"([^\"]*)\"\s+(?:\\\s*)?\"([^\"]+)\"", rules, re.DOTALL)
     variable = rule_match.group(1) if rule_match else "-"
     operator = rule_match.group(2) if rule_match else "-"
@@ -65,12 +58,6 @@ def parse_case_metadata(case_path: Path | None, fallback: dict[str, Any] | None 
     action_text = ",".join(actions)
     rule_id_match = re.search(r"\bid:(\d+)", action_text)
     phase_match = re.search(r"\bphase:(\d+)", action_text)
-    request_path = str(request.get("path") or "-")
-    query = "-"
-    path = request_path
-    if "?" in request_path:
-        path, query = request_path.split("?", 1)
-        path = path or "/"
     header_name = variable.split(":", 1)[1] if ":" in variable else variable
     response_headers = response.get("headers") if isinstance(response.get("headers"), dict) else {}
     return {
