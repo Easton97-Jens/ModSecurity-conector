@@ -558,9 +558,7 @@ def main(argv: list[str] | None = None) -> int:
             manifest = load_json(args.connector_root / "connectors" / connector / "capabilities.json")
             result = load_json(run_dir / "result.json")
             connector_errors = profile_errors(result, connector)
-            if args.check == "profile":
-                pass
-            elif args.check == "first-byte":
+            if args.check == "first-byte":
                 connector_errors += first_byte_errors(
                     run_dir, manifest, result, connector=connector, run_id=args.run_id,
                 )
